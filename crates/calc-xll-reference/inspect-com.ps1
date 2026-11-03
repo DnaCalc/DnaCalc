@@ -1,4 +1,6 @@
-param([string]$ExcelPath='C:\Program Files\Microsoft Office\root\Office16\EXCEL.EXE')
+param([string]$ExcelPath='C:\Program Files\Microsoft Office\root\Office16\EXCEL.EXE',
+    [string[]]$InterfaceNames=@('_Application','Window','_Workbook','Workbooks','_Worksheet','Range'),
+    [string[]]$MemberNames=@('Application','Parent','Version','Hwnd','Run','Path','EnableEvents','Workbooks','Count','Item','Name','FullName','ActiveWorkbook','ActiveSheet','Address','Row','Column','Rows','Columns','Value2','Range','Worksheet'))
 $ErrorActionPreference='Stop'
 # REGKIND_NONE reads metadata. It never registers a type library or creates Excel.
 Add-Type @'
@@ -8,12 +10,13 @@ using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
 public static class ExcelInterfaceFacts {
  [DllImport("oleaut32.dll",CharSet=CharSet.Unicode)] static extern int LoadTypeLibEx(string path,int kind,out ITypeLib lib);
- public static object[] Read(string path) {
+ public static object[] Read(string path, string[] interfaceNames, string[] memberNames) {
+  var selectedInterfaces=new HashSet<string>(interfaceNames);var selectedMembers=new HashSet<string>(memberNames);
   ITypeLib lib; Marshal.ThrowExceptionForHR(LoadTypeLibEx(path,2,out lib));
   var layouts=new List<object>();
   try { for(int i=0;i<lib.GetTypeInfoCount();++i) {
    string name,doc,help;int context;lib.GetDocumentation(i,out name,out doc,out context,out help);
-   if(name!="_Application" && name!="Window" && name!="_Workbook" && name!="Workbooks" && name!="_Worksheet" && name!="Range") continue;
+   if(!selectedInterfaces.Contains(name)) continue;
    ITypeInfo type;lib.GetTypeInfo(i,out type);
    bool dual=false;
    try { int reference;type.GetRefTypeOfImplType(-1,out reference);ITypeInfo actual;type.GetRefTypeInfo(reference,out actual);Marshal.ReleaseComObject(type);type=actual;dual=true; }
@@ -25,7 +28,7 @@ public static class ExcelInterfaceFacts {
      IntPtr fp;type.GetFuncDesc(f,out fp);
      try {
       var d=Marshal.PtrToStructure<FUNCDESC>(fp);string[] names=new string[64];int got;type.GetNames(d.memid,names,64,out got);
-      if(names[0]!="Application" && names[0]!="Parent" && names[0]!="Version" && names[0]!="Hwnd" && names[0]!="Run" && names[0]!="Path" && names[0]!="EnableEvents" && names[0]!="Workbooks" && names[0]!="Count" && names[0]!="Item" && names[0]!="Name" && names[0]!="FullName" && names[0]!="ActiveWorkbook" && names[0]!="ActiveSheet" && names[0]!="Address" && names[0]!="Row" && names[0]!="Column" && names[0]!="Rows" && names[0]!="Columns" && names[0]!="Value2" && names[0]!="Range" && names[0]!="Worksheet") continue;
+      if(selectedMembers.Count>0 && !selectedMembers.Contains(names[0])) continue;
       var parameters=new List<object>();
       for(int p=0;p<d.cParams;++p) {
        var element=Marshal.PtrToStructure<ELEMDESC>(IntPtr.Add(d.lprgelemdescParam,p*Marshal.SizeOf<ELEMDESC>()));
@@ -46,5 +49,6 @@ public static class ExcelInterfaceFacts {
     excel_file_version=(Get-Item -LiteralPath $ExcelPath).VersionInfo.FileVersion
     excel_sha256=(Get-FileHash -LiteralPath $ExcelPath).Hash
     pointer_bytes=[IntPtr]::Size
-    interfaces=[ExcelInterfaceFacts]::Read($ExcelPath)
+    type_library_path=$ExcelPath
+    interfaces=[ExcelInterfaceFacts]::Read($ExcelPath,$InterfaceNames,$MemberNames)
 } | ConvertTo-Json -Depth 10

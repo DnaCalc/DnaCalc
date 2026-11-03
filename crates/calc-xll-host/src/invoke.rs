@@ -210,7 +210,10 @@ impl XllFunction {
             };
             if let Some(kind) = scalar_kind {
                 if value.as_error().is_some() {
-                    return Ok(NativeReturn::Value(value, XL_ERR));
+                    return Ok(NativeReturn::Value(
+                        CalcValue::error(WorksheetErrorCode::Value),
+                        XL_ERR,
+                    ));
                 }
                 value = match callbacks::coerce(value, kind) {
                     Ok(value) => value,

@@ -780,3 +780,35 @@ HKLM key, Trust Center or macro setting is written. Python and settings-override
 reload controls retain explicit failures. A renamed-loader control crashed and
 remains unqualified. Arbitrary plugins, Python teardown and general safe reload
 remain open under dc-snz.21.
+
+## 20. Excel-DNA scalar and private COM support (dc-snz.2)
+
+Native typed arguments now use the existing coercion and text-rendering path.
+An incoming worksheet error in a numeric native argument becomes #VALUE!, as
+measured independently with the same unchanged native fixture in Excel. REFTEXT
+uses the shared ADDRESS implementation for a single rectangular reference;
+unsupported reference shapes retain a typed refusal.
+
+The existing Application projection now exposes a bounded COMAddIns and
+CommandBars model. COM discovery reads only private HKCU classes whose in-process
+server is an XLL already owned by this host. Activation uses the real
+IDTExtensibility2 interface, and ribbon inspection calls IRibbonExtensibility
+GetCustomUI on the owner STA. The returned XML is retained by the application.
+This does not render a ribbon or implement arbitrary button actions. Unsupported
+Office members return an error. No Excel registration or security setting is
+written by the host. The reference runner requires a nonadministrator token and
+an unchanged AutomationSecurity value of 1 before the original Excel-DNA helper
+can register its temporary private classes.
+
+COM providers may reenter while connecting, querying a ribbon or disconnecting.
+Stable object references, generation checks and a shutdown flag protect those
+transitions. Failed or incomplete teardown retains the provider and module leases
+rather than unloading callable native code. Native tests exercise vector growth,
+self-disconnection in QueryInterface and GetCustomUI, retained disconnected
+controls and calls from the wrong thread.
+
+Reference comparisons retain teardown separately: Excel's UNREGISTER(path) and
+the host's Remove+Close are different operations. xlFree has no defined output
+operand. Identity normalization of its input now follows the callback's operand
+address and recorded value, rather than treating any matching number as a
+registration ID. Raw pointer values and every callback remain in the capture.

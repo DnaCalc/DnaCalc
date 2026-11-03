@@ -4,7 +4,7 @@
   {"formula":"=dnaDirectDouble(\"12.25\")","value":12.25},
   {"formula":"=dnaDirectDouble(TRUE)","value":1},
   {"formula":"=dnaDirectDouble(\"invalid\")","value":{"error":"#VALUE!"}},
-  {"formula":"=dnaDirectDouble(NA())","value":{"error":"#N/A"}},
+  {"formula":"=dnaDirectDouble(NA())","value":{"error":"#VALUE!"}},
   {"formula":"=dnaDirectInt32(3.5)","value":4},
   {"formula":"=dnaDirectInt32(-3.5)","value":-4},
   {"formula":"=dnaDirectInt64(9007199254740991)","value":9007199254740990},

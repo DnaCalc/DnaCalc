@@ -920,6 +920,20 @@ impl XllHost {
     pub fn diagnostics(&self) -> Vec<String> {
         self.state.borrow().diagnostics.clone()
     }
+    /// Read-only qualification for COM classes registered by an already loaded XLL.
+    pub fn contains_loaded_module(&self, path: &Path) -> bool {
+        if !path.is_absolute() {
+            return false;
+        }
+        let handle = unsafe { GetModuleHandleW(wide(path.as_os_str()).as_ptr()) };
+        !handle.is_null()
+            && self
+                .state
+                .borrow()
+                .modules
+                .iter()
+                .any(|m| m.handle == handle)
+    }
     pub fn status_message(&self) -> Option<String> {
         self.state.borrow().status_message.clone()
     }

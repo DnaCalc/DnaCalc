@@ -28,6 +28,7 @@ fn run() -> Result<(), String> {
     let mut reload = false;
     let mut reload_new_host = false;
     let mut engine = false;
+    let mut ribbon_ui = false;
     let mut sheet_name = "X1".to_owned();
     let mut wait = None;
     let mut ready = None;
@@ -50,6 +51,7 @@ fn run() -> Result<(), String> {
             }
             "--reload" => reload = true,
             "--engine" => engine = true,
+            "--ribbon-ui" => ribbon_ui = true,
             "--reload-new-host" => {
                 reload = true;
                 reload_new_host = true;
@@ -117,9 +119,15 @@ fn run() -> Result<(), String> {
         }
     }
     let registrations = host.registrations();
+    let ribbons = if ribbon_ui {
+        shell.projection()?.ribbons()?
+    } else {
+        Vec::new()
+    };
     if engine {
-        let output = engine::run(&shell, &host, &sheet_name, cases_file, formula)?;
-        host.close()?;
+        let mut output = engine::run(&shell, &host, &sheet_name, cases_file, formula)?;
+        output["ribbons"] = serde_json::json!(ribbons);
+        shell.projection()?.close_addins()?;
         println!("{output}");
         if let Some(path) = finished {
             std::fs::write(path, "finished").map_err(|e| e.to_string())?;
@@ -278,7 +286,7 @@ fn run() -> Result<(), String> {
             host.live_callback_allocations()
         ));
     }
-    host.close()?;
+    shell.projection()?.close_addins()?;
     if host.live_callback_allocations() != 0 {
         return Err(format!(
             "{} callback allocations remain",
@@ -294,7 +302,7 @@ fn run() -> Result<(), String> {
     }
     println!(
         "{}",
-        serde_json::json!({"host":"DNA Calc / OneCalc controller","registrations":registrations.len(),"duplicate_use_count":registrations.iter().find(|r|r.name=="MyAdd").map(|r|r.use_count),"numbered_exports":registrations.iter().filter_map(|r|r.procedure.strip_prefix('f').and_then(|n|n.parse::<u32>().ok())).fold(None,|a:Option<(u32,u32)>,n|Some(a.map(|(lo,hi)|(lo.min(n),hi.max(n))).unwrap_or((n,n)))),"results":results,"reload_results":reload_results,"runtime_delay_releases":host.runtime_delay_releases(),"commands":command_results,"live_callback_allocations":host.live_callback_allocations(),"closed_registration":"#NAME?","closed_name":stale_name})
+        serde_json::json!({"host":"DNA Calc / OneCalc controller","registrations":registrations.len(),"duplicate_use_count":registrations.iter().find(|r|r.name=="MyAdd").map(|r|r.use_count),"numbered_exports":registrations.iter().filter_map(|r|r.procedure.strip_prefix('f').and_then(|n|n.parse::<u32>().ok())).fold(None,|a:Option<(u32,u32)>,n|Some(a.map(|(lo,hi)|(lo.min(n),hi.max(n))).unwrap_or((n,n)))),"ribbons":ribbons,"results":results,"reload_results":reload_results,"runtime_delay_releases":host.runtime_delay_releases(),"commands":command_results,"live_callback_allocations":host.live_callback_allocations(),"closed_registration":"#NAME?","closed_name":stale_name})
     );
     if let Some(path) = finished {
         std::fs::write(path, "finished").map_err(|e| e.to_string())?;

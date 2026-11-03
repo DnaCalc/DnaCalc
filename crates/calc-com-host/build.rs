@@ -1,5 +1,6 @@
 fn main() {
     println!("cargo:rerun-if-changed=src/projection.cpp");
+    println!("cargo:rerun-if-changed=src/projection-office.h");
     println!("cargo:rerun-if-changed=src/rtd.cpp");
     println!("cargo:rerun-if-changed=src/value.h");
     println!("cargo:rerun-if-changed=src/rtd-interfaces.h");

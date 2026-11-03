@@ -2,11 +2,12 @@ param([string]$RunDirectory = (Join-Path $PSScriptRoot ('runs/' + [DateTime]::Ut
     [string]$ExcelDnaDirectory, [string]$AddInName='X0', [string]$Cases, [switch]$Reload, [switch]$ReloadNewHost,
     [switch]$AotAliasLoad, [switch]$ExpectAotReloadRefusal,
     [string]$AddInDirectory, [string]$XllFileName, [switch]$ExpectXloilReloadRefusal, [switch]$Engine,
-    [switch]$PrivateComAddIn)
+    [switch]$PrivateComAddIn,[switch]$RibbonUI)
 $ErrorActionPreference = 'Stop'
 if ([Threading.Thread]::CurrentThread.ApartmentState -ne 'STA') { throw 'Run with pwsh -Sta -File run.ps1.' }
 if ($ReloadNewHost) { $Reload=$true }
 if ($Engine -and -not $HostExecutable) { throw '-Engine needs -HostExecutable.' }
+if ($RibbonUI -and -not $PrivateComAddIn) { throw '-RibbonUI requires the private COM fixture preflight.' }
 if ($PrivateComAddIn) {
     if (-not $AddInDirectory) { throw '-PrivateComAddIn needs an explicitly selected external fixture.' }
     $principal=[Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
@@ -79,6 +80,7 @@ if ($HostExecutable) {
         $launch.RedirectStandardOutput=$true; $launch.RedirectStandardError=$true
         $arguments = @('--xll',$nativeXll,'--ready',$readyFile,'--wait',$go,'--finished',$done,'--release',$release)
         if ($Engine) { $arguments += '--engine' }
+        if ($RibbonUI) { $arguments += '--ribbon-ui' }
         if ($ExcelDnaDirectory -or $AddInDirectory) {
             $arguments += @('--cases',$Cases,'--sheet','X0')
             if ($XllFileName -ieq 'xlOil.xll' -and (Get-Content -LiteralPath $Cases -Raw) -match 'X[45]\.(Py|Rtd)') {
@@ -221,6 +223,7 @@ try {
     Set-Content -LiteralPath (Join-Path $run 'owned-excel.pid') -Value $ownedExcelPid
     $excel.DisplayAlerts = $false
     $book = $excel.Workbooks.Add()
+    if ($RibbonUI) { $excel.Visible=$true }
     $sheet = $book.Worksheets.Item(1)
     $sheet.Name = 'X0'
     if ($X1Xll) { $sheet.Name = 'X1' }

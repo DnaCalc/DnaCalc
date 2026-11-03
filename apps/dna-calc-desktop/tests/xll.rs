@@ -89,7 +89,7 @@ fn typed_native_arguments_coerce_values_and_return_worksheet_errors() {
             "=MyAdd(\"invalid\",23)",
             serde_json::json!({"error":"#VALUE!"}),
         ),
-        ("=MyAdd(NA(),23)", serde_json::json!({"error":"#N/A"})),
+        ("=MyAdd(NA(),23)", serde_json::json!({"error":"#VALUE!"})),
         ("=MyWide(12.25)", serde_json::json!("12.25")),
         ("=MyWide(TRUE)", serde_json::json!("TRUE")),
         ("=MyWide()", serde_json::json!("")),
@@ -127,12 +127,17 @@ fn native_reference_text_uses_the_existing_address_formatter() {
 #[test]
 fn unmodelled_native_argument_conversion_cannot_be_hidden() {
     let fixture = Fixture::new();
-    let output = fixture.command()
+    let output = fixture
+        .command()
         .args(["--formula", "=IFERROR(MyAdd(\"12/15\",1),123)"])
-        .output().unwrap();
+        .output()
+        .unwrap();
     assert!(!output.status.success());
     let error = String::from_utf8_lossy(&output.stderr);
-    assert!(error.contains("NotModelled") && error.contains("dc-snz.20"), "{error}");
+    assert!(
+        error.contains("NotModelled") && error.contains("dc-snz.20"),
+        "{error}"
+    );
     assert!(output.stdout.is_empty());
 }
 /// Native-only: registers ten thousand callable names in a native process, then invokes the last.
