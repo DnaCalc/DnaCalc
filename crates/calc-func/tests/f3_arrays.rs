@@ -32,6 +32,12 @@ fn references_are_read_as_arrays() {
     error(call_on(&mut sheet, "FILTER", vec![range.clone(), arr(vec![vec![0.0], vec![0.0], vec![0.0]])]), Calc);
     assert_eq!(array(call("SEQUENCE", vec![n(2.0), n(2.0), n(0.0), n(0.5)])), (2, 2, vec![0.0, 0.5, 1.0, 1.5]));
     error(call("SEQUENCE", vec![n(-1.0)]), Value);
+    // Direct invocation leaves optional-array lifting to calc-fml even when the range
+    // argument is a scalar error. It must keep that typed refusal.
+    refused(call("TRIMRANGE", vec![
+        calc_func::value::CalcValue::error(calc_func::value::WorksheetErrorCode::NA),
+        arr(vec![vec![0.0, 1.0]]),
+    ]));
 }
 
 /// A callable value of one parameter whose identity no evaluator knows.

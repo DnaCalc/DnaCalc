@@ -189,6 +189,7 @@
   "allowed": {}
  },
  "files": [
+  {"path": "crates/calc-func/tests/fixtures/catalogue/sheet-dcj9k_r21.txt", "class": "own-work", "reason": "dc-j9k R21: original LINEST/LOGEST scaling, translation, row/column permutation and operand-echo questions. Extends the one catalogue oracle; no expected values or external implementation copied."},
   {
    "path": "crates/calc-func/tests/captures/catalogue/sections/fn1_collation.capture.json",
    "class": "own-work",

@@ -166,6 +166,9 @@ fn trimrange(
     let site = Site::new(TRIMRANGE, services);
     let step = (|| {
         site.scalar_operands(&arguments[1..])?;
+        if let CoreRef::Error(code) = arguments[0].core_ref() {
+            return Err(Exit::Error(code));
+        }
         let mode = |index: usize| -> Step<u8> {
             match arguments.get(index) {
                 None => Ok(3),
@@ -178,6 +181,10 @@ fn trimrange(
             }
         };
         let (rows, cols) = (mode(1)?, mode(2)?);
+        // The retained unswept scalar controls keep their number, text or logical value.
+        if matches!(arguments[0].core_ref(), CoreRef::Number(_) | CoreRef::Text(_) | CoreRef::Logical(_)) {
+            return Ok(Err(Ok(arguments[0].clone())));
+        }
         if let CoreRef::Array(array) = arguments[0].core_ref() {
             return Ok(Err(trim_array(array, rows, cols)));
         }

@@ -259,12 +259,15 @@ ported_family! {
         out(s, dep::syd_kernel(num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?, num(s, a, 3)?))
     }
     23 db_fn "DB" (4, 5) [V "cost", V "salvage", V "life", V "period", V "month"] |s, a, sv| {
+        // W111 independent error-order controls: earlier required arguments precede month.
+        let (cost, salvage, life, period) = (num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?, num(s, a, 3)?);
         let month = if given(a, 4) { num(s, a, 4)? } else { 12.0 };
-        out(s, dep::db_kernel(num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?, num(s, a, 3)?, month))
+        out(s, dep::db_kernel(cost, salvage, life, period, month))
     }
     24 ddb_fn "DDB" (4, 5) [V "cost", V "salvage", V "life", V "period", V "factor"] |s, a, sv| {
+        let (cost, salvage, life, period) = (num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?, num(s, a, 3)?);
         let factor = if given(a, 4) { num(s, a, 4)? } else { 2.0 };
-        out(s, dep::ddb_kernel(num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?, num(s, a, 3)?, factor))
+        out(s, dep::ddb_kernel(cost, salvage, life, period, factor))
     }
     25 vdb_fn "VDB" (5, 7) [V "cost", V "salvage", V "life", V "start_period", V "end_period", V "factor", V "no_switch"] |s, a, sv| {
         let factor = if given(a, 5) { num(s, a, 5)? } else { 2.0 };

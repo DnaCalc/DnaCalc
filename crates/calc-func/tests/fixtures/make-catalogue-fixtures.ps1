@@ -318,6 +318,7 @@ $FormulaSheets += , @('dc96l3_discrete', 'sheet-dc96l3_discrete.txt')
 $FormulaSheets += , @('dc96l3_x87', 'sheet-dc96l3_x87.txt')
 $FormulaSheets += , @('dcj9k_r16', 'sheet-dcj9k_r16.txt')
 $FormulaSheets += , @('fn1_collation', 'sheet-fn1_collation.txt')
+$FormulaSheets += , @('dcj9k_r21', 'sheet-dcj9k_r21.txt')
 
 $prefixInputs = @(
     (New-Number 'A1' '1'), (New-Number 'A2' '5'), (New-Number 'A3' '3'),
