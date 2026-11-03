@@ -28,7 +28,7 @@ fn empty_text_delimiter_errors_match_the_recorded_excel_values() {
 /// workbook through calc-host, calc-engine and calc-fml.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn an_unknown_iteration_weight_can_follow_a_completed_primary_prefix() {
+fn iteration_prefix_and_measured_han_repeat_order() {
     use calc_func::value::NumericMode;
     use calc_func::{EvalServices, FunctionCallScratch, Notation, catalogue, invoke};
     use calc_verdict::{CaptureRecord, Observation};
@@ -59,12 +59,12 @@ fn an_unknown_iteration_weight_can_follow_a_completed_primary_prefix() {
     )
     .expect("the strict primary prefix decides this comparison");
     assert_eq!(result.as_logical(), Some(expected));
-    // Neither the unknown mark's relative weight nor its behavior after a special is inferred
-    // from that prefix observation. These retain typed refusal until measured.
+    // Fn1 D2 now measures the Han repeat order separately from the earlier prefix reading.
+    // Iteration after a special still retains its typed refusal.
     let order = |a: &str, b: &str| calc_func::text_order(
         &a.encode_utf16().collect::<Vec<_>>(), &b.encode_utf16().collect::<Vec<_>>()
     );
-    assert_eq!(order("時々", "時時"), None);
+    assert_eq!(order("時々", "時時"), Some(std::cmp::Ordering::Less));
     assert_eq!(order("カ-ゝ", "カ-"), None);
 }
 
@@ -244,4 +244,97 @@ fn a_direct_blank_in_the_sum_and_count_family() {
     exact(call("SUM", vec![n(3.0), blank.clone()]), 3.0);
     exact(call("SUMSQ", vec![n(3.0), blank.clone()]), 9.0);
     error(call("SUMPRODUCT", vec![blank]), Value);
+}
+
+/// Excel 16.0.20527, en-ZA, fn1 LOWER/UPPER/PROPER Value2 readings and input audits,
+/// preserved in OxFunc-Evidence/probes/2026-11-03-fn1.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn fn1_excel_case_mapping_controls() {
+    for (input, expected) in [("ΑΣ", "ας"), ("ΑΣ́", "ασ́"), ("ΑΣ́Α", "ασ́α"), ("ΆΣ", "άς")] {
+        text(call("LOWER", vec![t(input)]), expected);
+    }
+    text(call("UPPER", vec![t("𐐨")]), "𐐨");
+    text(call("UPPER", vec![t("éßǆİςσΣﬀ")]), "ÉßǄİΣΣΣﬀ");
+    text(call("PROPER", vec![t("άβ Σ́Σ")]), "ΆΒ Σ́Σ");
+    text(call("PROPER", vec![t("ßstraße ǆemal")]), "ßstraße Ǆemal");
+}
+
+/// The fn1 wildcard readings count UTF-16 code units and compare simple Unicode case,
+/// without accent removal or multi-character case expansions.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn fn1_excel_unicode_lookup_wildcards() {
+    for (pattern, value, found) in [
+        ("é*", "Élan", true), ("ασ*", "ΑΣ", true), ("ǆ*", "ǅemal", true),
+        ("*SSE", "Straße", false), ("nai*", "naïve", false), ("e*", "é", false),
+        ("?", "😀", false), ("??", "😀", true), ("*", "😀", true),
+        ("*", "", true), ("Σ*", "ς", true), ("i*", "İ", false), ("a~*", "a*", true),
+    ] {
+        for (function, mode) in [("MATCH", 0.0), ("XMATCH", 2.0)] {
+            let mut sheet = Sheet::new();
+            sheet.column(1, 1, vec![t(value)]);
+            let source = sheet.area(1, 1, 1, 1);
+            let result = call_on(&mut sheet, function, vec![t(pattern), source, n(mode)]);
+            if found { exact(result, 1.0); } else { error(result, NA); }
+        }
+    }
+    for (function, mode) in [("MATCH", 0.0), ("XMATCH", 2.0)] {
+        exact(call(function, vec![t("?"), arr_values(vec![vec![t("😀")], vec![t("a")], vec![t("ab")]]), n(mode)]), 2.0);
+    }
+}
+
+/// fn1 REGEXTEST raw readings. The sharp-s control forbids full case expansions.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn fn1_excel_regex_unicode_and_newline_controls() {
+    for (input, pattern, mode, expected) in [
+        ("Élan", "é", 1.0, true), ("Straße", "STRASSE", 1.0, false),
+        ("ΑΣ", "ας", 1.0, true), ("😀", ".", 0.0, true),
+        ("a\nb", "a.b", 0.0, false), ("中", "\\w", 0.0, true),
+    ] {
+        let result = call("REGEXTEST", vec![t(input), t(pattern), n(mode)]).unwrap();
+        assert_eq!(result.as_logical(), Some(expected), "{input:?} / {pattern:?}");
+    }
+}
+
+/// These range/case combinations have no fn1 reading. They retain a typed refusal rather
+/// than applying a literal-only case rule to ranges. These are scope controls, not Excel passes.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn unmeasured_unicode_regex_case_ranges_keep_the_typed_refusal() {
+    for (input, pattern) in [("É", "[é-é]"), ("ſ", "[s-s]"), ("K", "[K-K]")] {
+        refused(call("REGEXTEST", vec![t(input), t(pattern), n(1.0)]));
+    }
+}
+
+/// Explicit instance_num changes the empty-text validation route in Excel's fn1 readings.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn fn1_excel_empty_text_with_explicit_instance() {
+    for function in ["TEXTBEFORE", "TEXTAFTER"] {
+        error(call(function, vec![t(""), t("-")]), NA);
+        for instance in [1.0, -1.0, 2.0, -2.0, 0.0] {
+            error(call(function, vec![t(""), t("-"), n(instance)]), Value);
+        }
+        text(call(function, vec![t(""), t(""), n(1.0)]), "");
+        error(call(function, vec![t(""), t("-"), n(1.0), n(0.0), n(0.0), t("fallback")]), Value);
+    }
+}
+
+/// Excel 16.0.20527 fn1 TEXT readings: locale tags choose names while the workbook's
+/// separators remain in effect. The expected language strings are the raw Value2 answers.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn fn1_excel_text_locale_names() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let env = CalcEnvironment { profile: Some(format_profile(LocaleId::EnZa)), ..CalcEnvironment::dates(DateSystem::System1900) };
+    for (code, expected) in [
+        ("[$-407]mmmm dddd", "März Mittwoch"), ("[$-40C]mmmm dddd", "mars mercredi"),
+        ("[$-411]mmmm dddd", "3月 水曜日"), ("[$-419]mmmm dddd", "Март среда"),
+        ("[$-407]mmm", "Mrz"), ("[$-de-DE]mmmm", "März"),
+        ("[$-411]ggge", "令和5"),
+    ] {
+        text(call_in(&env, None, None, "TEXT", vec![n(45000.0), t(code)]), expected);
+    }
 }

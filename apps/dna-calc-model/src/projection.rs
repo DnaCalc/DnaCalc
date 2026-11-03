@@ -272,6 +272,12 @@ pub enum Interest {
 /// What the page asks the session to do: calc-host's skin intents as the page sends them.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Intent {
+    EditReview {
+        at: Key,
+        revision: u64,
+        index: u32,
+        text: String,
+    },
     EditName {
         id: Option<(u32, u32)>,
         version: Option<u64>,
@@ -437,10 +443,20 @@ pub struct Review {
     pub at: Option<Key>,
     pub revision: u64,
     pub rules: Vec<Rule>,
-    pub notes: Vec<(String, String)>,
+    pub notes: Vec<ReviewItem>,
     pub links: Vec<ReviewLink>,
     pub unsupported: Vec<String>,
     pub validation: Option<String>,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReviewItem {
+    pub index: u32,
+    pub author: String,
+    pub text: String,
+    pub threaded: bool,
+    pub reply: bool,
+    pub resolved: bool,
+    pub editable: bool,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rule {
@@ -610,6 +626,7 @@ pub enum Request {
     Charts(Sheet),
     /// The cell's data validation: its rule and, for a list, its items.
     Validation(Key),
+    ValidationInvalid(Sheet),
     /// The atlas: the census and the session's state.
     Atlas,
     /// A bounded page of cells with this exact projected refusal reason.
@@ -876,6 +893,19 @@ pub struct Validation {
     pub items: Vec<String>,
 }
 
+/// Current validation audit, including unavailable criteria and an explicit scan limit.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ValidationScan {
+    pub sheet: Sheet,
+    pub revision: u64,
+    pub invalid: Vec<Key>,
+    pub checked: u32,
+    pub valid: u32,
+    pub unavailable: u32,
+    pub truncated: bool,
+    pub reasons: Vec<(String, u32)>,
+}
+
 /// A rejected entry awaiting an explicit user decision; the worker holds the draft command.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ValidationDecision {
@@ -963,6 +993,7 @@ pub enum Reply {
     ResolvedReference(Result<Area, String>),
     Charts(Vec<Chart>),
     Validation(Option<Validation>),
+    ValidationInvalid(ValidationScan),
     Atlas(Atlas),
     AtlasRefusals(RefusalCells),
     Outline(Outline),

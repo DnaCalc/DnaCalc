@@ -28,9 +28,12 @@
 //!
 //! Text this grammar does not read is #VALUE!, text holding a letter or symbol beyond ASCII
 //! included (2016–17 Winter, with an en dash, is #VALUE! in dc_e00t's capture). Text holding a
-//! digit of another script or a space beyond ASCII, text read under a profile whose separators or
+//! digit of another script or an unmeasured space beyond ASCII, text read under a profile whose separators or
 //! currency lie beyond ASCII, a date without a year when the call has no clock, and number text
 //! in another locale's date order (which no read measured) are refused as not modelled.
+//! The retained w111 numeric-text readings reject NBSP, em space, narrow NBSP and ideographic
+//! space outside a profile's numeric grammar. A valid number using such a profile separator
+//! remains refused: those positive forms have not been measured here.
 
 use crate::locale::{DateComponentOrder, DateSystem, FormatProfile};
 use crate::ported::date_kernels::{OFFSET_1904, days_in_month, ymd_1900};
@@ -80,9 +83,14 @@ pub(crate) fn read(units: &[u16], context: &ReadContext<'_>) -> Result<Reading, 
     .iter()
     .all(|s| s.is_ascii());
     let mut beyond = false;
+    let mut measured_space = false;
     for decoded in char::decode_utf16(units.iter().copied()) {
         match decoded {
             Ok(c) if c.is_ascii() => text.push(c),
+            Ok(c @ ('\u{00a0}' | '\u{2003}' | '\u{202f}' | '\u{3000}')) => {
+                text.push(c);
+                measured_space = true;
+            }
             // A digit of another script, a space other than ASCII's, or a profile whose
             // separators or currency lie beyond ASCII: what Excel reads is not modelled.
             Ok(c) if c.is_numeric() || c.is_whitespace() || !ascii_profile => {
@@ -101,7 +109,15 @@ pub(crate) fn read(units: &[u16], context: &ReadContext<'_>) -> Result<Reading, 
         return Err(Unread::Rejected);
     }
     if let Some(n) = number(text, context.profile)? {
+        if measured_space {
+            return Err(Unread::NotModelled);
+        }
         return Ok(Reading::Number(n));
+    }
+    // Only ASCII spaces belong to the measured fraction/date/time grammar. The numeric
+    // parser above can consume a configured separator; none of these spaces is trimming.
+    if measured_space {
+        return Err(Unread::Rejected);
     }
     if let Some(n) = fraction(text) {
         return n.map(Reading::Number);
@@ -830,6 +846,19 @@ mod tests {
         assert_eq!(read_text("2020/12"), Ok(44166.0));
         // Excel: "2016\u{2013}17 Winter"+0 is #VALUE! (dc_e00t's capture).
         assert_eq!(read_text("2016\u{2013}17 Winter"), Err(Unread::Rejected));
-        assert_eq!(read_text("1\u{00A0}234"), Err(Unread::NotModelled));
+        assert_eq!(read_text("1\u{00A0}234"), Err(Unread::Rejected));
+    }
+
+    /// Scope control: neither an unmeasured space nor a potentially valid non-ASCII
+    /// grouping separator becomes a calculated value from the rejection readings.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn unmeasured_unicode_number_forms_keep_their_refusal() {
+        let profile = format_profile(LocaleId::EnZa);
+        let context = ReadContext { profile: &profile, date_system: DateSystem::System1900, now: None };
+        for text in ["1\u{00a0}234,5", "1\u{2009}234", "\u{0661}"] {
+            assert_eq!(read(&text.encode_utf16().collect::<Vec<_>>(), &context),
+                Err(Unread::NotModelled), "{text:?}");
+        }
     }
 }

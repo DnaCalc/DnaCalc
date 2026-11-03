@@ -1,4 +1,4 @@
-# Unanswered comparison questions; add as one section to the existing catalogue generator.
+# Fn1 comparison questions, captured in Excel 16.0.20527 on 2026-11-03.
 "時々"<"時"
 "時々"<"時時"
 "時々"<"時a"

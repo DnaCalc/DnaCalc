@@ -295,6 +295,7 @@ pub enum RowHidden {
 pub struct Definitions {
     styles: std::sync::Arc<crate::StyleTable>,
     conditional: BTreeMap<SheetId, Vec<crate::ConditionalRuleSource>>,
+    review: BTreeMap<SheetId, Vec<crate::ReviewNote>>,
     axis_layouts: crate::AxisLayouts,
     panes: BTreeMap<SheetId, crate::PaneLayout>,
     filters: BTreeMap<SheetId, crate::AutoFilter>,
@@ -323,6 +324,21 @@ impl Definitions {
     }
     pub fn with_styles(mut self, styles: std::sync::Arc<crate::StyleTable>) -> Self {
         self.styles = styles;
+        self
+    }
+
+    pub fn review_notes(&self, sheet: SheetId) -> &[crate::ReviewNote] {
+        self.review.get(&sheet).map(Vec::as_slice).unwrap_or(&[])
+    }
+    pub fn all_review_notes(&self) -> impl Iterator<Item = (SheetId, &[crate::ReviewNote])> {
+        self.review.iter().map(|(s, n)| (*s, n.as_slice()))
+    }
+    pub fn with_review_notes(mut self, sheet: SheetId, notes: Vec<crate::ReviewNote>) -> Self {
+        if notes.is_empty() {
+            self.review.remove(&sheet);
+        } else {
+            self.review.insert(sheet, notes);
+        }
         self
     }
 
@@ -448,6 +464,7 @@ impl Definitions {
         Definitions {
             styles: Default::default(),
             conditional: BTreeMap::new(),
+            review: BTreeMap::new(),
             axis_layouts: crate::AxisLayouts::default(),
             panes: BTreeMap::new(),
             filters: BTreeMap::new(),
@@ -651,6 +668,7 @@ impl Definitions {
     /// cells, hidden rows and the names scoped to it (a removed sheet).
     pub fn without_sheet(mut self, sheet: SheetId) -> Self {
         self.conditional.remove(&sheet);
+        self.review.remove(&sheet);
         if self.styles.runs.iter().any(|r| r.area.sheet() == sheet) {
             let mut styles = (*self.styles).clone();
             styles.runs = styles.runs.without_sheet(sheet);
@@ -684,7 +702,8 @@ impl Definitions {
 
     /// Whether nothing is defined.
     pub fn is_empty(&self) -> bool {
-        self.conditional.is_empty()
+        self.review.is_empty()
+            && self.conditional.is_empty()
             && self.axis_layouts.sheets().next().is_none()
             && self.panes.is_empty()
             && self.filters.is_empty()

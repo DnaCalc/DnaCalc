@@ -22,6 +22,17 @@
 //! every public value type is `Send + Sync`.
 
 mod case_folding;
+mod combining_marks;
+
+/// The simple Unicode case fold of one character, shared by names and text matching.
+pub fn unicode_simple_case_fold(ch: char) -> char {
+    case_folding::simple_fold(ch)
+}
+
+/// Whether a character is a Unicode nonspacing or spacing combining mark (Mn or Mc).
+pub fn is_combining_mark(ch: char) -> bool {
+    combining_marks::is_combining_mark(ch)
+}
 mod grid;
 mod id;
 mod name_case;

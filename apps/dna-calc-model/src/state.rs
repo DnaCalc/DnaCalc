@@ -187,6 +187,10 @@ impl Model {
         self.find = None;
         self.formatting = Default::default();
         self.runtime.tools.reset_workbook();
+        self.runtime.validation_circles.clear();
+        self.runtime.validation_scan = None;
+        self.runtime.validation_epoch = 0;
+        self.runtime.review_edit = None;
         self.focus.observe(None);
         self.views.reset();
     }

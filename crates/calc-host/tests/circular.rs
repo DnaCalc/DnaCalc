@@ -355,3 +355,351 @@ fn dc_hsa5_11__a_spill_repair_reopens_the_iteration_decision() {
         }
     }
 }
+
+/// P14's pure COM recordings (Excel 16.0.20527, 2026-11-03): two distinct
+/// commands from verified stored seeds, strict threshold equality, independent
+/// cycles and downstream amplifiers. Ten trials share one owned Excel process
+/// per condition; this is not ten fresh-process evidence. There are no UDF
+/// observers of mid-cycle caches in this delivery.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_11__p14_recorded_stopping_and_dependents() {
+    use calc_host::value::{ExcelText, GridArea, WorksheetErrorCode};
+    use calc_host::{HostProgress, WorkBudget};
+    use serde_json::Value;
+    use std::collections::BTreeMap;
+
+    let records = std::str::from_utf8(include_bytes!(
+        "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/observations.jsonl"
+    ))
+    .unwrap()
+    .lines()
+    .map(|line| serde_json::from_str::<Value>(line).unwrap())
+    .collect::<Vec<_>>();
+    let mut groups = BTreeMap::<&str, Vec<&Value>>::new();
+    for record in &records {
+        groups
+            .entry(record["condition"].as_str().unwrap())
+            .or_default()
+            .push(record);
+    }
+    assert_eq!(groups.len(), 41);
+    assert_eq!(records.len(), 410);
+    let mut failures = Vec::new();
+    let mut refused_range = Vec::new();
+    let mut commands = 0;
+    let mut comparisons = 0;
+    let mut refused_values = 0;
+    let decode = |raw: &Value| -> CalcValue {
+        if let Some(bits) = raw["number"].as_str() {
+            CalcValue::number(f64::from_bits(u64::from_str_radix(bits, 16).unwrap()))
+        } else if let Some(value) = raw["logical"].as_bool() {
+            CalcValue::logical(value)
+        } else if let Some(units) = raw["text"].as_str() {
+            assert_eq!(units.len() % 4, 0);
+            CalcValue::text(ExcelText::from_utf16_code_units(
+                (0..units.len())
+                    .step_by(4)
+                    .map(|i| u16::from_str_radix(&units[i..i + 4], 16).unwrap())
+                    .collect(),
+            ))
+        } else {
+            CalcValue::error(match raw["error_code"].as_u64().unwrap() {
+                2007 => WorksheetErrorCode::Div0,
+                2042 => WorksheetErrorCode::NA,
+                code => panic!("unhandled recorded error {code}"),
+            })
+        }
+    };
+    for (name, trials) in groups {
+        assert_eq!(trials.len(), 10, "{name}");
+        let result = &trials[0]["result"];
+        let condition = &result["condition"];
+        let observations = result["observations"].as_array().unwrap();
+        // Do not hide trial disagreement by choosing the first trial's values.
+        for trial in &trials {
+            assert!(trial["result"]["fatal"].is_null(), "{name}");
+            assert_eq!(
+                trial["result"]["input_sha256"], result["input_sha256"],
+                "{name}"
+            );
+            let observed = trial["result"]["observations"].as_array().unwrap();
+            assert_eq!(observed.len(), observations.len(), "{name}");
+            for (a, b) in observed.iter().zip(observations) {
+                assert_eq!(a["stage"], b["stage"], "{name}");
+                assert_eq!(a["cells"], b["cells"], "{name} {}", a["stage"]);
+            }
+        }
+        if condition["operation"] == "Range" {
+            refused_range.push(name);
+        }
+        let bytes: &[u8] = match name {
+            "A1-sweeps-1-zero-Range" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-zero-Range/trial-01/input.xlsx"
+            ),
+            "A1-sweeps-1-asymmetric" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-asymmetric/trial-01/input.xlsx"
+            ),
+            "A1-sweeps-1-zero" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-zero/trial-01/input.xlsx"
+            ),
+            "A1-sweeps-1-zero-Calculate" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-zero-Calculate/trial-01/input.xlsx"
+            ),
+            "A1-sweeps-1-zero-Full" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-zero-Full/trial-01/input.xlsx"
+            ),
+            "A1-sweeps-1-zero-Sheet" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-zero-Sheet/trial-01/input.xlsx"
+            ),
+            "A1-sweeps-1-zero-reverse" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-zero-reverse/trial-01/input.xlsx"
+            ),
+            "A1-sweeps-100-asymmetric" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-100-asymmetric/trial-01/input.xlsx"
+            ),
+            "A1-sweeps-100-zero" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-100-zero/trial-01/input.xlsx"
+            ),
+            "A1-sweeps-2-asymmetric" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-2-asymmetric/trial-01/input.xlsx"
+            ),
+            "A1-sweeps-2-zero" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-2-zero/trial-01/input.xlsx"
+            ),
+            "A1-sweeps-3-asymmetric" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-3-asymmetric/trial-01/input.xlsx"
+            ),
+            "A1-sweeps-3-zero" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-3-zero/trial-01/input.xlsx"
+            ),
+            "A1-sweeps-5-asymmetric" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-5-asymmetric/trial-01/input.xlsx"
+            ),
+            "A1-sweeps-5-zero" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-5-zero/trial-01/input.xlsx"
+            ),
+            "A2-eighth-0000000000000000" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A2-eighth-0000000000000000/trial-01/input.xlsx"
+            ),
+            "A2-eighth-3fbfffffffffffff" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A2-eighth-3fbfffffffffffff/trial-01/input.xlsx"
+            ),
+            "A2-eighth-3fc0000000000000" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A2-eighth-3fc0000000000000/trial-01/input.xlsx"
+            ),
+            "A2-eighth-3fc0000000000001" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A2-eighth-3fc0000000000001/trial-01/input.xlsx"
+            ),
+            "A2-half-0000000000000000" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A2-half-0000000000000000/trial-01/input.xlsx"
+            ),
+            "A2-half-3fbfffffffffffff" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A2-half-3fbfffffffffffff/trial-01/input.xlsx"
+            ),
+            "A2-half-3fc0000000000000" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A2-half-3fc0000000000000/trial-01/input.xlsx"
+            ),
+            "A2-half-3fc0000000000001" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A2-half-3fc0000000000001/trial-01/input.xlsx"
+            ),
+            "A3-both-alone" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A3-both-alone/trial-01/input.xlsx"
+            ),
+            "A3-both-amplifiers" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A3-both-amplifiers/trial-01/input.xlsx"
+            ),
+            "A3-eighth-alone" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A3-eighth-alone/trial-01/input.xlsx"
+            ),
+            "A3-eighth-amplifier" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A3-eighth-amplifier/trial-01/input.xlsx"
+            ),
+            "A3-half-alone" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A3-half-alone/trial-01/input.xlsx"
+            ),
+            "A3-half-amplifier" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A3-half-amplifier/trial-01/input.xlsx"
+            ),
+            "A4-pure" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A4-pure/trial-01/input.xlsx"
+            ),
+            "B6-NA" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B6-NA/trial-01/input.xlsx"
+            ),
+            "B6-boolean" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B6-boolean/trial-01/input.xlsx"
+            ),
+            "B6-changing-error" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B6-changing-error/trial-01/input.xlsx"
+            ),
+            "B6-number-to-text" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B6-number-to-text/trial-01/input.xlsx"
+            ),
+            "B6-stable-text" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B6-stable-text/trial-01/input.xlsx"
+            ),
+            "B6-toggle-text" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B6-toggle-text/trial-01/input.xlsx"
+            ),
+            "B6-untaken-self" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B6-untaken-self/trial-01/input.xlsx"
+            ),
+            "B7-indirect" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B7-indirect/trial-01/input.xlsx"
+            ),
+            "B7-static" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B7-static/trial-01/input.xlsx"
+            ),
+            "control-dc_10y_iteration" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/control-dc_10y_iteration/trial-01/input.xlsx"
+            ),
+            "control-dc_86f" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/control-dc_86f/trial-01/input.xlsx"
+            ),
+            _ => panic!("missing input workbook for {name}"),
+        };
+        assert_eq!(
+            calc_verdict::sha256_hex(bytes),
+            result["input_sha256"].as_str().unwrap(),
+            "{name}"
+        );
+        let stages = |name: &str| observations.iter().find(|o| o["stage"] == name).unwrap();
+        let seeds = stages("seeds-verified")["cells"].as_array().unwrap();
+        for budget in [usize::MAX, 1] {
+            let mut book = session_without_recalc(bytes);
+            assert!(
+                book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+                    .accepted()
+            );
+            book.set_calculation_budget(WorkBudget::evaluations(budget));
+            let cells = seeds
+                .iter()
+                .map(|cell| {
+                    let sheet = book
+                        .host()
+                        .sheets()
+                        .iter()
+                        .find(|sheet| {
+                            sheet.name().text().to_string_lossy() == cell["sheet"].as_str().unwrap()
+                        })
+                        .unwrap()
+                        .id();
+                    CellKey::new(
+                        sheet,
+                        cell["row"].as_u64().unwrap() as u32,
+                        cell["column"].as_u64().unwrap() as u32,
+                    )
+                    .unwrap()
+                })
+                .collect::<Vec<_>>();
+            let request = ProjectionRequest { cells };
+            let initial = project(book.host(), &request).unwrap();
+            for (cell, expected) in initial.cells().iter().zip(seeds) {
+                let ProjectedValue::FileCached(cache) = cell.value() else {
+                    panic!(
+                        "{name}: initial value must remain a file cache: {:?}",
+                        cell.value()
+                    );
+                };
+                assert_eq!(
+                    cache.value().to_value(),
+                    decode(&expected["value"]),
+                    "{name}"
+                );
+            }
+            for command in 1..=condition["commands"].as_u64().unwrap() {
+                let intent = match condition["operation"].as_str().unwrap() {
+                    "Rebuild" => SkinIntent::Rebuild,
+                    "Calculate" => SkinIntent::Recalculate,
+                    "Full" => SkinIntent::Calculate {
+                        scope: calc_engine::CalcScope::Workbook,
+                        selection: calc_engine::EvalSelection::ForceAll,
+                    },
+                    "Sheet" => SkinIntent::Calculate {
+                        scope: calc_engine::CalcScope::Sheet(request.cells[0].sheet()),
+                        selection: calc_engine::EvalSelection::ForceAll,
+                    },
+                    "Range" => SkinIntent::CalculateRange {
+                        areas: vec![GridArea::new(request.cells[0], request.cells[3]).unwrap()],
+                    },
+                    other => panic!("unhandled operation {other}"),
+                };
+                let receipt = book.dispatch(intent);
+                assert!(receipt.accepted(), "{name}: {receipt:?}");
+                // Admission can mark a previous result stale; subsequent owner
+                // yields retain that admitted view until terminal publication.
+                let before = project(book.host(), &request).unwrap();
+                if condition["operation"] == "Range" {
+                    // These cells remain uncalculated; a held seed never scores
+                    // as a match to the recorded no-op observation.
+                    assert!(
+                        matches!(
+                            before.recalc_failure(),
+                            Some(calc_host::RecalcFailed::Refused(
+                                calc_host::StartError::NotModeledScope {
+                                    owner: "dc-hsa5.11",
+                                    ..
+                                }
+                            ))
+                        ),
+                        "{name}: {:?}",
+                        before.recalc_failure()
+                    );
+                    assert!(!book.has_pending_calculation());
+                    for (cell, seed) in before.cells().iter().zip(seeds) {
+                        let cached = match cell.value() {
+                            ProjectedValue::FileCached(cache) => cache,
+                            ProjectedValue::Stale(stale) => stale.file_cache().unwrap(),
+                            other => panic!("{name}: a refusal must not calculate {other:?}"),
+                        };
+                        assert_eq!(cached.value().to_value(), decode(&seed["value"]));
+                        refused_values += 1;
+                    }
+                    continue;
+                }
+                let mut steps = 0;
+                while book.has_pending_calculation() {
+                    // DNA publication policy, not a claim about unrecorded Excel observers.
+                    assert_eq!(
+                        project(book.host(), &request).unwrap().cells(),
+                        before.cells(),
+                        "{name}"
+                    );
+                    let progress = book.advance_calculation();
+                    assert!(
+                        !matches!(progress, HostProgress::Failed(_)),
+                        "{name}: {progress:?}"
+                    );
+                    steps += 1;
+                    assert!(steps < 10000, "{name}: finite work must finish");
+                }
+                let actual = project(book.host(), &request).unwrap();
+                let expected = stages(&format!("after-command-{command}"))["cells"]
+                    .as_array()
+                    .unwrap();
+                assert_eq!(actual.cells().len(), expected.len());
+                for (cell, expected) in actual.cells().iter().zip(expected) {
+                    comparisons += 1;
+                    let wanted = decode(&expected["value"]);
+                    match cell.value() {
+                        ProjectedValue::Calculated { value, calculation }
+                            if value == &wanted && !calculation.held_by_circular_rule() => {}
+                        other => failures.push(format!("{name}, budget {budget}, command {command}, {:?}: expected {wanted:?}, got {other:?}", cell.at())),
+                    }
+                }
+                commands += 1;
+            }
+        }
+    }
+    assert_eq!(refused_range, ["A1-sweeps-1-zero-Range"]);
+    assert_eq!(refused_values, 16);
+    assert_eq!(commands, 156);
+    assert_eq!(comparisons, 438);
+    assert!(
+        failures.is_empty(),
+        "{} recorded comparisons failed:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}

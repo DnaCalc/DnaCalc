@@ -148,7 +148,39 @@ impl ToolState {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReviewDraft {
+    pub session: u64,
+    pub at: wire::Key,
+    pub revision: u64,
+    pub index: u32,
+    pub text: String,
+    pub threaded: bool,
+}
+
+impl ReviewDraft {
+    /// An accepted save retires only the submitted text. Later typing remains a draft against
+    /// the accepted revision; a cancelled or different edit is never replaced by the reply.
+    pub fn accepted_save(current: &mut Option<Self>, submitted: &Self, revision: u64) {
+        if revision < submitted.revision {
+            return;
+        }
+        if current.as_ref() == Some(submitted) {
+            *current = None;
+        } else if let Some(current) = current.as_mut()
+            && current.session == submitted.session
+            && current.at == submitted.at
+            && current.index == submitted.index
+            && current.threaded == submitted.threaded
+            && current.revision == submitted.revision
+        {
+            current.revision = revision;
+        }
+    }
+}
+
 pub struct RuntimeState {
+    review_sequence: u64,
     pub font_revision: u64,
     pub tools: ToolState,
     pub active_calculation: Option<(u64, u64)>,
@@ -157,7 +189,11 @@ pub struct RuntimeState {
     pub callback_focus: Option<crate::FocusTicket>,
     pub context_menu: Option<(f64, f64)>,
     pub review_open: bool,
+    pub review_edit: Option<ReviewDraft>,
     pub validation_decision: Option<wire::ValidationDecision>,
+    pub validation_circles: std::collections::BTreeSet<SheetId>,
+    pub validation_scan: Option<Result<wire::ValidationScan, String>>,
+    pub validation_epoch: u64,
     pub validation_outcome: Option<Outcome>,
     pub structural_choice: Option<bool>,
     pub grid_geometry: Snapshot<BTreeMap<SheetId, wire::Geometry>>,
@@ -191,9 +227,16 @@ pub struct RuntimeState {
     pub next_projection: u64,
     pub projected_views: BTreeMap<u64, Snapshot<ViewMirror>>,
 }
+impl RuntimeState {
+    pub fn begin_review_edit(&mut self, at: wire::Key, revision: u64, index: u32, text: String, threaded: bool) {
+        self.review_sequence = self.review_sequence.checked_add(1).expect("review edit identities exhausted");
+        self.review_edit = Some(ReviewDraft { session: self.review_sequence, at, revision, index, text, threaded });
+    }
+}
 impl Default for RuntimeState {
     fn default() -> Self {
         Self {
+            review_sequence: 0,
             font_revision: 0,
             tools: ToolState::default(),
             active_calculation: None,
@@ -202,7 +245,11 @@ impl Default for RuntimeState {
             callback_focus: None,
             context_menu: None,
             review_open: false,
+            review_edit: None,
             validation_decision: None,
+            validation_circles: Default::default(),
+            validation_scan: None,
+            validation_epoch: 0,
             validation_outcome: None,
             structural_choice: None,
             grid_geometry: Snapshot::new(BTreeMap::new()),
@@ -242,6 +289,53 @@ impl Default for RuntimeState {
 #[cfg(test)]
 mod tool_tests {
     use super::*;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn accepted_review_save_preserves_later_typing_cancellation_and_other_edits() {
+        let submitted = ReviewDraft {
+            session: 1,
+            at: wire::Key::of(calc_value::CellKey::new(calc_value::SheetId::from_parts(0, 0), 1, 1).unwrap()),
+            revision: 7,
+            index: 0,
+            text: "First text".into(),
+            threaded: false,
+        };
+        let mut current = Some(submitted.clone());
+        ReviewDraft::accepted_save(&mut current, &submitted, 8);
+        assert!(current.is_none());
+
+        let mut newer = submitted.clone();
+        newer.text.push_str(" later");
+        current = Some(newer.clone());
+        ReviewDraft::accepted_save(&mut current, &submitted, 8);
+        newer.revision = 8;
+        assert_eq!(current, Some(newer.clone()));
+        ReviewDraft::accepted_save(&mut current, &submitted, 8);
+        assert_eq!(current, Some(newer.clone()));
+        ReviewDraft::accepted_save(&mut current, &newer, 9);
+        assert!(current.is_none());
+        ReviewDraft::accepted_save(&mut current, &submitted, 8);
+        assert!(current.is_none());
+
+        let mut other = submitted.clone();
+        other.index = 1;
+        current = Some(other.clone());
+        ReviewDraft::accepted_save(&mut current, &submitted, 8);
+        assert_eq!(current, Some(other));
+        current = Some(submitted.clone());
+        ReviewDraft::accepted_save(&mut current, &submitted, 6);
+        assert_eq!(current, Some(submitted.clone()));
+        let mut runtime = RuntimeState::default();
+        runtime.begin_review_edit(submitted.at, 7, 0, submitted.text.clone(), false);
+        let prior = runtime.review_edit.clone().unwrap();
+        runtime.review_edit = None;
+        runtime.begin_review_edit(submitted.at, 7, 0, submitted.text, false);
+        let reopened = runtime.review_edit.clone();
+        assert_ne!(prior.session, reopened.as_ref().unwrap().session);
+        ReviewDraft::accepted_save(&mut runtime.review_edit, &prior, 8);
+        assert_eq!(runtime.review_edit, reopened);
+    }
 
     fn populated() -> ToolState {
         ToolState {

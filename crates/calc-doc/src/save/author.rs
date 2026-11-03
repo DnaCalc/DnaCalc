@@ -406,6 +406,10 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
     let mut out = Changes::default();
     // A defined name's formula an edit changed (rows or columns inserted or deleted, cells moved).
     let names_changed = base.definitions().names() != model.definitions().names();
+    let review_changed = base
+        .definitions()
+        .all_review_notes()
+        .ne(model.definitions().all_review_notes());
     let conditional_changed = base
         .definitions()
         .all_conditional_rules()
@@ -423,6 +427,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
         && layout.is_none()
         && !names_changed
         && !conditional_changed
+        && !review_changed
         && views.is_none()
         && !panes_changed
         && !dimensions_changed
@@ -1117,6 +1122,69 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
                 model.definitions().conditional_rules(sheet.id()),
             )?;
             out.rewritten.insert(sheet.part().name().to_owned(), bytes);
+        }
+    }
+    if review_changed {
+        let mut parts: BTreeMap<String, Vec<&calc_doc_model::ReviewNote>> = BTreeMap::new();
+        for (sheet, notes) in model.definitions().all_review_notes() {
+            for note in notes.iter().filter(|note| {
+                !base
+                    .definitions()
+                    .review_notes(sheet)
+                    .iter()
+                    .any(|original| {
+                        original.source == note.source
+                            && original.author == note.author
+                            && original.text == note.text
+                    })
+            }) {
+                let source = note
+                    .source
+                    .as_ref()
+                    .ok_or_else(|| SaveRefusal::InvalidPart {
+                        part: "review".into(),
+                        detail: "New note parts are not modelled (dc-971p.40)".into(),
+                    })?;
+                parts
+                    .entry(source.part().to_owned())
+                    .or_default()
+                    .push(note);
+            }
+        }
+        let retained: std::collections::BTreeSet<_> = model
+            .definitions()
+            .all_review_notes()
+            .flat_map(|(_, notes)| notes)
+            .filter_map(|n| match &n.source {
+                Some(calc_doc_model::ReviewSource::Thread { part, id, .. }) => {
+                    Some((part.clone(), id.clone()))
+                }
+                _ => None,
+            })
+            .collect();
+        let mut removed: BTreeMap<String, std::collections::BTreeSet<String>> = BTreeMap::new();
+        for (_, notes) in base.definitions().all_review_notes() {
+            for note in notes {
+                if let Some(calc_doc_model::ReviewSource::Thread { part, id, .. }) = &note.source
+                    && !retained.contains(&(part.clone(), id.clone()))
+                {
+                    removed.entry(part.clone()).or_default().insert(id.clone());
+                    parts.entry(part.clone()).or_default();
+                }
+            }
+        }
+        for (name, notes) in parts {
+            let original = super::strings::read_part(package, &name)?;
+            let current = out
+                .rewritten
+                .remove(&name)
+                .map(|bytes| original.with_bytes(bytes));
+            let bytes = super::review::rewrite(
+                current.as_ref().unwrap_or(&original),
+                &notes,
+                &removed.remove(&name).unwrap_or_default(),
+            )?;
+            out.rewritten.insert(name, bytes);
         }
     }
     if sheets_changed {

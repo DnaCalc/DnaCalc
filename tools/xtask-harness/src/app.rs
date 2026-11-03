@@ -25,7 +25,7 @@
 //! page may still answer, fails the case there. A browser whose driver is missing fails the run;
 //! it is never skipped.
 //!
-//! With no filters, `smoke` runs the routine core (177 cases across the two apps and all six
+//! With no filters, `smoke` runs the routine core (190 cases across the two apps and all six
 //! Calc skins). `--suite full` runs every case; sweep uses full bundle suites, and site smoke
 //! retains every ordinary case (worker-fault/latency cases require a local bundle). `--group name`
 //! selects an independent scenario; `--case substring` matches case names without regard to
@@ -1057,6 +1057,7 @@ pub enum Action {
     ViewDownloadFixtureFor(&'static str, &'static str),
     StyledFixture,
     AlignmentFixture,
+    ValidationListFixture,
     /// Observe delayed external events in fault cases.
     PauseMillis(u64),
     /// Read-only snapshot of the actual plan before a presentation event.
@@ -1728,14 +1729,17 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
         | Action::ViewDownloadFixture(_)
         | Action::ViewDownloadFixtureFor(_, _)
         | Action::StyledFixture
-        | Action::AlignmentFixture => {
+        | Action::AlignmentFixture | Action::ValidationListFixture => {
             #[cfg(target_arch = "wasm32")]
             {
                 Err("Package fixture preparation is native-only".to_owned())
             }
             #[cfg(not(target_arch = "wasm32"))]
             {
-                let path = if matches!(action, Action::StyledFixture | Action::AlignmentFixture) {
+                let path = if matches!(action, Action::ValidationListFixture) {
+                    ws.root
+                        .join("crates/calc-host/tests/fixtures/dc_6yw/data-validation.xlsx")
+                } else if matches!(action, Action::StyledFixture | Action::AlignmentFixture) {
                     ws.root
                         .join("crates/calc-doc/tests/fixtures/dc_5sr/features.xlsx")
                 } else {
@@ -1754,6 +1758,31 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                     .map_err(|e| e.to_string());
                 }
                 let parts = crate::oracle_cases::package_parts(&bytes)?;
+                if matches!(action, Action::ValidationListFixture) {
+                    let name = "xl/worksheets/sheet1.xml";
+                    let xml =
+                        std::str::from_utf8(parts.get(name).ok_or("no validation worksheet")?)
+                            .map_err(|e| e.to_string())?;
+                    if !xml.contains("\"Red,Green,Blue\"") {
+                        return Err("The retained validation list fixture changed".into());
+                    }
+                    let items = (1..=40)
+                        .map(|n| format!("V{n:02}"))
+                        .collect::<Vec<_>>()
+                        .join(",");
+                    let xml = xml
+                        .replace("\"Red,Green,Blue\"", &format!("\"{items}\""))
+                        .replace("sqref=\"A1:A5\"", "sqref=\"A1:A40\"")
+                        .replace("promptTitle=\"Colour\"", "promptTitle=\"Choice\"")
+                        .replace("Pick a colour", "Pick an item")
+                        .replace("Choose Red, Green or Blue", "Choose an item from the list");
+                    let bytes = crate::oracle_cases::replace_package_parts(
+                        &bytes,
+                        &std::collections::BTreeMap::from([(name.to_owned(), xml.into_bytes())]),
+                    )?;
+                    return fs::write(session.downloads.join("validation-list.xlsx"), bytes)
+                        .map_err(|e| e.to_string());
+                }
                 if let Some(view)=match action {Action::ViewDownloadFixture(view)|Action::ViewDownloadFixtureFor(_,view)=>Some(view),_=>None} {
                     let name = "xl/worksheets/sheet1.xml";
                     let xml = std::str::from_utf8(parts.get(name).ok_or("no worksheet part")?)
@@ -1911,10 +1940,10 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             let selector = serde_json::to_string(&select(app, name)).unwrap();
             session.script(&format!(r#"window.__dcResizeTrace=[];
                 var selector={selector},node=document.querySelector(selector),grid=node.closest('[data-dnacalc=grid]');
-                function capture(e){{var r=document.querySelector(selector)?.getBoundingClientRect(),g=grid.getBoundingClientRect(),hit=document.elementFromPoint(e.clientX,e.clientY);window.__dcResizeTrace.push({{type:e.type,x:e.clientX,y:e.clientY,header:r?.toJSON(),grid:g.toJSON(),target:e.target?.getAttribute('data-dnacalc'),hit:hit?.getAttribute('data-dnacalc'),hitColumn:hit?.getAttribute('data-column'),resizing:grid.dataset.resizing,zoom:document.querySelector('[data-dnacalc=zoom]')?.textContent}});if(e.type==='mouseup'){{document.removeEventListener('mousedown',capture,true);document.removeEventListener('mouseup',capture,true);}}}}
+                function capture(e){{var r=document.querySelector(selector)?.getBoundingClientRect(),g=grid.getBoundingClientRect(),hit=document.elementFromPoint(e.clientX,e.clientY);window.__dcResizeTrace.push({{type:e.type,x:e.clientX,y:e.clientY,header:r?.toJSON(),grid:g.toJSON(),target:e.target?.getAttribute('data-dnacalc'),hit:hit?.getAttribute('data-dnacalc'),hitColumn:hit?.getAttribute('data-column'),resizing:grid.dataset.resizing,time:performance.now(),active:document.querySelector('[data-dnacalc=name-box]')?.value,focus:document.activeElement?.getAttribute('data-dnacalc'),status:document.querySelector('[data-dnacalc=status]')?.textContent,areas:Array.from(document.querySelectorAll('[data-dnacalc=selection]')).map(e=>e.dataset.area),zoom:document.querySelector('[data-dnacalc=zoom]')?.textContent}});if(e.type==='mouseup'){{document.removeEventListener('mousedown',capture,true);document.removeEventListener('mouseup',capture,true);}}}}
                 document.addEventListener('mousedown',capture,true);document.addEventListener('mouseup',capture,true);return null;"#))?;
             let xy = session.script(&format!(
-                "var r=document.querySelector({selector}).getBoundingClientRect();return [{},{}];",
+                "var r=document.querySelector({selector}).getBoundingClientRect();window.__dcResizeTrace.push({{type:'sample',time:performance.now(),header:r.toJSON()}});return [{},{}];",
                 if *rows {
                     "Math.round(r.left+r.width/2)"
                 } else {
@@ -1968,10 +1997,10 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             let selector = serde_json::to_string(&select(app, name)).unwrap();
             session.script(&format!(r#"window.__dcResizeTrace=[];
                 var selector={selector},node=document.querySelector(selector),grid=node.closest('[data-dnacalc=grid]');
-                function capture(e){{var r=document.querySelector(selector)?.getBoundingClientRect(),g=grid.getBoundingClientRect(),hit=document.elementFromPoint(e.clientX,e.clientY);window.__dcResizeTrace.push({{type:e.type,x:e.clientX,y:e.clientY,header:r?.toJSON(),grid:g.toJSON(),target:e.target?.getAttribute('data-dnacalc'),hit:hit?.getAttribute('data-dnacalc'),hitColumn:hit?.getAttribute('data-column'),resizing:grid.dataset.resizing,zoom:document.querySelector('[data-dnacalc=zoom]')?.textContent}});if(e.type==='mouseup'){{document.removeEventListener('mousedown',capture,true);document.removeEventListener('mouseup',capture,true);}}}}
+                function capture(e){{var r=document.querySelector(selector)?.getBoundingClientRect(),g=grid.getBoundingClientRect(),hit=document.elementFromPoint(e.clientX,e.clientY);window.__dcResizeTrace.push({{type:e.type,x:e.clientX,y:e.clientY,header:r?.toJSON(),grid:g.toJSON(),target:e.target?.getAttribute('data-dnacalc'),hit:hit?.getAttribute('data-dnacalc'),hitColumn:hit?.getAttribute('data-column'),resizing:grid.dataset.resizing,time:performance.now(),active:document.querySelector('[data-dnacalc=name-box]')?.value,focus:document.activeElement?.getAttribute('data-dnacalc'),status:document.querySelector('[data-dnacalc=status]')?.textContent,areas:Array.from(document.querySelectorAll('[data-dnacalc=selection]')).map(e=>e.dataset.area),zoom:document.querySelector('[data-dnacalc=zoom]')?.textContent}});if(e.type==='mouseup'){{document.removeEventListener('mousedown',capture,true);document.removeEventListener('mouseup',capture,true);}}}}
                 document.addEventListener('mousedown',capture,true);document.addEventListener('mouseup',capture,true);return null;"#))?;
             let xy = session.script(&format!(
-                "var r=document.querySelector({selector}).getBoundingClientRect();return [{},{}];",
+                "var r=document.querySelector({selector}).getBoundingClientRect();window.__dcResizeTrace.push({{type:'sample',time:performance.now(),header:r.toJSON()}});return [{},{}];",
                 if *rows {
                     "Math.round(r.left+r.width/2)"
                 } else {
@@ -2166,6 +2195,11 @@ fn run_case(ws: &Workspace, app: &App, session: &Session, case: &Case) -> Vec<St
     for (index, action) in case.actions.iter().enumerate() {
         if let Err(e) = act(ws, app, session, action) {
             failures.push(format!("action {} failed: {e}", index + 1));
+            if matches!(action, Action::Keys(..) | Action::Wait(Check::Focused(_))) {
+                if let Ok(state) = session.script(r#"return {focus:document.activeElement?.getAttribute('data-dnacalc'),tag:document.activeElement?.tagName,dialogs:Array.from(document.querySelectorAll('dialog[open]')).map(e=>e.getAttribute('data-dnacalc')),grids:Array.from(document.querySelectorAll('[data-dnacalc=grid]')).map(e=>({active:e.dataset.gridActive,inert:e.inert,tabindex:e.tabIndex,rect:e.getBoundingClientRect().toJSON()})),status:document.querySelector('[data-dnacalc=status]')?.textContent};"#) {
+                    failures.push(format!("keyboard page state: {state}"));
+                }
+            }
             return failures;
         }
     }
@@ -2625,6 +2659,11 @@ fn run_browser(
                     for failure in failures {
                         println!("    {failure}");
                     }
+                    if case.actions.iter().any(|action|matches!(action,Action::ResizeHeader(..))) {
+                        if let Ok(context)=session.script(r#"return {resize:window.__dcResizeTrace,active:document.querySelector('[data-dnacalc=name-box]')?.value,status:document.querySelector('[data-dnacalc=status]')?.textContent,focus:document.activeElement?.getAttribute('data-dnacalc'),zoom:document.querySelector('[data-dnacalc=zoom]')?.textContent};"#) {
+                            println!("{} RESIZE FAILURE CONTEXT: {context}",app.label);
+                        }
+                    }
                 }
             }
             println!(
@@ -2703,7 +2742,7 @@ fn smoke_selected(
         core: 0,
         setup: &[],
     }];
-    const LATENCY_GROUPS: [CaseGroup; 2] = [CaseGroup {
+    const LATENCY_GROUPS: [CaseGroup; 3] = [CaseGroup {
         name: "worker-latency",
         start: 0,
         end: 22,
@@ -2712,6 +2751,12 @@ fn smoke_selected(
     }, CaseGroup {
         name: "array-detail-latency",
         start: 22,
+        end: 24,
+        core: 0,
+        setup: &[],
+    }, CaseGroup {
+        name: "review-latency",
+        start: 24,
         end: CALC_LATENCY_CASES.len(),
         core: 0,
         setup: &[],
@@ -2926,8 +2971,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 177,
-            "the two applications have 177 core cases including conditional-rule authoring, outlines and the existing editing routes"
+            total, 190,
+            "the two applications have 190 core cases including conditional formats, editable review content, validation audits and the existing editing routes"
         );
     }
 

@@ -34,7 +34,11 @@ pub enum WorkbookOp {
     /// The immutable style table, committed atomically with cell style assignments.
     SetStyles(std::sync::Arc<crate::StyleTable>),
     /// Criteria and filtered visibility committed together; manual hiding remains independent.
-    SetAutoFilter { sheet: SheetId, filter: Option<crate::AutoFilter> },
+    SetAutoFilter { sheet: SheetId, filter: Option<crate::AutoFilter>,
+    },
+    SetReviewNotes {
+        sheet: SheetId,
+        notes: Vec<crate::ReviewNote> },
     /// Replaces a worksheet's complete conditional-rule state, retaining source fields.
     SetConditionalRules {
         sheet: SheetId,

@@ -69,8 +69,17 @@ type SaveDownload = Box<dyn FnOnce(String, Vec<u8>)>;
 type ValidationCallback = Box<dyn FnOnce(Result<Outcome, String>)>;
 
 #[derive(Clone, Copy)]
+struct ReviewFields {
+    edit:ModelField<Option<dna_calc_model::ReviewDraft>>,
+    circles:ModelField<std::collections::BTreeSet<SheetId>>,
+    scan:ModelField<Option<Result<wire::ValidationScan,String>>>,
+    epoch:ModelField<u64>,
+}
+
+#[derive(Clone, Copy)]
 pub struct Controller {
     model: RwSignal<Model>,
+    review:StoredValue<ReviewFields>,
     service: StoredValue<std::rc::Rc<dyn dna_calc_model::WorkbookTransport>, LocalStorage>,
     skin_registry: StoredValue<crate::skin::SkinRegistry>,
     #[cfg(target_arch = "wasm32")]
@@ -146,6 +155,14 @@ pub struct Controller {
 }
 
 impl Controller {
+    pub fn review_edit(&self)->ModelField<Option<dna_calc_model::ReviewDraft>> {self.review.get_value().edit}
+    pub fn begin_review_edit(&self, at:wire::Key, revision:u64, index:u32, text:String, threaded:bool) {
+        self.model.update(|m|m.runtime.begin_review_edit(at,revision,index,text,threaded));
+    }
+    pub fn validation_circles(&self)->ModelField<std::collections::BTreeSet<SheetId>> {self.review.get_value().circles}
+    pub fn validation_scan(&self)->ModelField<Option<Result<wire::ValidationScan,String>>> {self.review.get_value().scan}
+    pub fn validation_epoch(&self)->ModelField<u64> {self.review.get_value().epoch}
+
     /// A controller over a new workbook.
     pub fn new() -> Controller {
         Self::with_transport(std::rc::Rc::new(port::BrowserTransport))
@@ -185,8 +202,15 @@ impl Controller {
                 .state_binding(),
             },
         );
+        let review=StoredValue::new(ReviewFields {
+            edit:Field::new(model,|m|&m.runtime.review_edit,|m|&mut m.runtime.review_edit),
+            circles:Field::new(model,|m|&m.runtime.validation_circles,|m|&mut m.runtime.validation_circles),
+            scan:Field::new(model,|m|&m.runtime.validation_scan,|m|&mut m.runtime.validation_scan),
+            epoch:Field::new(model,|m|&m.runtime.validation_epoch,|m|&mut m.runtime.validation_epoch),
+        });
         let controller = Controller {
             model,
+            review,
             service: StoredValue::new_local(service.clone()),
             skin_registry: StoredValue::new(crate::skin::SkinRegistry::new()),
             #[cfg(target_arch = "wasm32")]
@@ -707,6 +731,16 @@ impl Controller {
                     return;
                 }
                 self.summary.set(summary.into());
+            }
+            if matches!(
+                receipt,
+                wire::CalculationEvent::Admitted { .. } | wire::CalculationEvent::Completed { .. }
+            ) {
+                self.validation_epoch().update(|epoch| {
+                    *epoch = epoch
+                        .checked_add(1)
+                        .expect("validation publication identities exhausted")
+                });
             }
             match receipt {
                 wire::CalculationEvent::AwaitingAsync { .. } => {
@@ -2023,6 +2057,26 @@ impl Controller {
                 }
             },
         );
+    }
+    pub fn show_validation_circles(&self, show: bool) {
+        if let Some(sheet) = self.sheet.get_untracked() {
+            self.validation_circles().update(|all| {
+                if show {
+                    all.insert(sheet);
+                } else {
+                    all.remove(&sheet);
+                }
+            });
+            if !show {
+                self.validation_scan().set(None);
+            } else {
+                self.validation_epoch().update(|v| {
+                    *v = v
+                        .checked_add(1)
+                        .expect("validation audit identities exhausted")
+                });
+            }
+        }
     }
     pub fn resize_axis(&self, drag: crate::grid::axis::ResizeDrag) {
         let controller = *self;

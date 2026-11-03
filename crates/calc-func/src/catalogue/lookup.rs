@@ -367,7 +367,7 @@ fn order(site: &Site<'_>, a: Item<'_>, b: Item<'_>) -> Step<Ordering> {
 /// A text lookup value read as a pattern.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Token {
-    /// This code unit, ignoring ASCII case.
+    /// This code unit, under the simple Unicode case fold.
     Unit(u16),
     /// `?`: one code unit.
     One,
@@ -408,18 +408,13 @@ fn pattern(units: &[u16]) -> Option<Vec<Token>> {
     Some(tokens)
 }
 
-/// Whether `text` matches `pattern`, ignoring ASCII case. Matching text or a pattern holding a
-/// non-ASCII unit needs Excel's case rules beyond ASCII, which are not modelled.
-fn matches(site: &Site<'_>, pattern: &[Token], text: &[u16]) -> Step<bool> {
-    let ascii = |unit: u16| unit < 0x80;
-    if !text.iter().all(|&u| ascii(u))
-        || pattern
-            .iter()
-            .any(|token| matches!(token, Token::Unit(u) if !ascii(*u)))
-    {
-        return Err(site.not_modelled(None));
-    }
-    let same = |p: u16, t: u16| (p as u8).eq_ignore_ascii_case(&(t as u8));
+/// Whether `text` matches `pattern`. Excel's fn1 Value2 controls use simple Unicode case
+/// equality for literals, retain accents and count one UTF-16 unit for each `?`.
+fn matches(_site: &Site<'_>, pattern: &[Token], text: &[u16]) -> Step<bool> {
+    let fold = |unit: u16| char::from_u32(u32::from(unit))
+        .map(calc_value::unicode_simple_case_fold)
+        .map_or(u32::from(unit), |ch| ch as u32);
+    let same = |p: u16, t: u16| p == t || fold(p) == fold(t);
     let (mut p, mut t) = (0, 0);
     let mut resume: Option<(usize, usize)> = None;
     while t < text.len() {

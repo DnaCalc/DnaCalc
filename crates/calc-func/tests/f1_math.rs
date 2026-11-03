@@ -215,3 +215,13 @@ fn arguments_are_read_by_worksheet_coercion() {
     // An array given to a function of single values lifts over it, which is not modelled.
     refused(call("SIN", vec![arr(vec![vec![1.0, 2.0]])]));
 }
+
+/// Excel 16.0.20527 fn1 ECMA.CEILING Value2 readings, including all sign/zero controls.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn fn1_ecma_ceiling_matches_the_recorded_controls() {
+    for (value, significance, expected) in [(1.0, 1.0, 1.0), (-4.3, 2.0, -4.0), (-4.3, -2.0, -6.0), (4.3, 0.0, 0.0), (0.0, 2.0, 0.0)] {
+        exact(call("ECMA.CEILING", vec![n(value), n(significance)]), expected);
+    }
+    error(call("ECMA.CEILING", vec![n(4.3), n(-2.0)]), Num);
+}
