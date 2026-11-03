@@ -23,8 +23,8 @@
 //!
 //! Excel's own first rounding departs from the exact one near a tie at the 16th significant
 //! digit, and every departure measured lies within a relative 2^-60 of the tie. Within a relative
-//! 2^-59 of a tie (an exact tie included) the text here takes the 15 digits below the tie
-//! (dc-uar): of 131 exact ties Excel 16.0.20527 wrote (the catalogue oracle's dch9u_functions
+//! 2^-60 of a tie (an exact tie included) the text here takes the 15 digits below the tie
+//! (dc-uar): of 131 measured tie cases Excel 16.0.20527 wrote (the catalogue oracle's dch9u_functions
 //! rows, built by arithmetic, and dc_q9rb's), 126 went down (`7200547821627.375` gives
 //! `7200547821627.37`, `999999999999999.5` gives `999999999999999`, `1234567890123455` gives
 //! `1234567890123450`), as did `4037429.935952025`, whose exact value lies 6E-21 above its tie.
@@ -32,6 +32,8 @@
 //! x87 extended and 96-bit precision, truncated or rounded, each break more readings than they
 //! fix): `5758361573115.375` (`.38`), `521310271410497.5`, `-6278515587045.875`,
 //! `543212677140.0625` and `5.248519552626765E-06`. Those five mismatch Excel here.
+//! The W111 held-out EXACT readings 03436/03453/03454 round upward outside that band:
+//! their magnitude is a relative 1.61E-18 above its decimal midpoint.
 //!
 //! Every step is exact decimal arithmetic on the number's exact value, so the text does not
 //! depend on the numeric mode or the platform.
@@ -45,7 +47,7 @@ const SIGNIFICANT_DIGITS: usize = 15;
 const WIDTH: usize = 20;
 
 /// A number within a relative 2^-NEAR_TIE_BITS of a 16th-digit tie is near it.
-const NEAR_TIE_BITS: u32 = 59;
+const NEAR_TIE_BITS: u32 = 60;
 
 /// The text of a finite number, as ASCII (see the module documentation). It is always `Some`;
 /// the option is kept for the callers that refuse a number without a text.
@@ -83,7 +85,7 @@ fn near_tie(coefficient: &Natural, digits: &str) -> bool {
     if dropped == 0 {
         return false;
     }
-    // The band is narrower than 2^-59 * 10^15 < 0.002 of the last kept digit, so a number near a
+    // The band is narrower than 2^-60 * 10^15 < 0.001 of the last kept digit, so a number near a
     // tie has dropped digits that begin 49 or 50 (a single dropped 5 is the tie itself).
     let tail = &digits.as_bytes()[SIGNIFICANT_DIGITS..];
     let lead = (tail[0], tail.get(1).copied().unwrap_or(b'0'));

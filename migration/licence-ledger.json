@@ -4849,6 +4849,16 @@
      "path": "crates/calc-func/tests/fixtures/fn2_questions/fn2-layout.json",
      "class": "own-work",
      "reason": "fn2 unanswered question layout and file forms from the existing calc-doc serializer; no expected values"
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/dcj9k_r22/sheet-dcj9k_r22.txt",
+   "class": "own-work",
+   "reason": "Unanswered R22 full-rank regression transformations and operand echoes; no Excel answers"
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/dcj9k_r22/oracle.xlsx",
+   "class": "own-work",
+   "reason": "Separate unanswered R22 workbook from the existing make-catalogue-fixtures generator; no captured values"
   }
  ]
 }

@@ -420,6 +420,36 @@ fn recorded_paired_statistics_skip_nonnumeric_scalar_items() {
     }
 }
 
+/// W111 numeric-to-text-heldout-typed-20260929, EXACT cases 03436, 03453 and 03454.
+/// The number is above its decimal midpoint by more than the measured tie-discrepancy band.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_number_text_above_the_tie_band_rounds_up() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J20").unwrap();
+    session.set_input("A100", InputValue::number(f64::from_bits(0x4449_4efd_9aa8_09c8)).unwrap()).unwrap();
+    session.set_formula("=EXACT(A100,\"9.33720954786629E+20\")");
+    let positive = session.calculate();
+    for at in ["A100", "A101", "A103", "B200"] {
+        session.set_input(at, InputValue::number(f64::from_bits(0xc449_4efd_9aa8_09c8)).unwrap()).unwrap();
+    }
+    session.set_input("A102", InputValue::number(0.0).unwrap()).unwrap();
+    session.set_formula("=EXACT(B200,\"-9.33720954786629E+20\")");
+    let negative = session.calculate();
+    session.set_formula("=EXACT(CHOOSE({1,2;3,4},A100,A101,A102,A103),\"-9.33720954786629E+20\")");
+    let array = session.calculate();
+    for result in [positive, negative] {
+        assert_eq!(result.result, Some(CalcValue::logical(true)), "{:?}", result.diagnostics);
+        assert!(result.diagnostics.is_empty());
+    }
+    let expected = calc_func::value::CalcArray::from_rows(vec![
+        vec![CalcValue::logical(true), CalcValue::logical(true)],
+        vec![CalcValue::logical(false), CalcValue::logical(true)],
+    ]).unwrap();
+    assert_eq!(array.result, Some(CalcValue::array(expected)), "{:?}", array.diagnostics);
+    assert!(array.diagnostics.is_empty());
+}
+
 /// Recorded hypgeom.dist-domain-00026..00029 and the fresh fractional
 /// support controls in OxFunc-Evidence's HYPGEOM.DIST banks.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
