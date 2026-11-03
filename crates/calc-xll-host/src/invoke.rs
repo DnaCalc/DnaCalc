@@ -218,6 +218,7 @@ impl XllFunction {
             context,
             signature: (!as_run && r.info.macro_type != 2).then(|| signature.clone()),
             provider,
+            rtd_subscriptions: Default::default(),
         };
         let guard = unsafe { callbacks::enter(&mut frame) };
         let mut returned = Returned::default();
@@ -248,6 +249,19 @@ impl XllFunction {
                 .map(|value| NativeReturn::Value(value, kind))
         };
         drop(guard);
+        if matches!(&result, Ok(NativeReturn::Value(..)))
+            && let Some(provider) = frame.provider
+            && let Some(caller) = frame.context.as_ref().and_then(|context| context.caller())
+        {
+            let service = frame.state.borrow().rtd.clone();
+            if let Some(service) = service {
+                service.finish_call(
+                    provider,
+                    caller,
+                    &frame.rtd_subscriptions.iter().copied().collect::<Vec<_>>(),
+                )?;
+            }
+        }
         result
     }
     unsafe fn convert_return(

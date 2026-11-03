@@ -4,7 +4,7 @@ use calc_value::{CalcValue, CoreRef, ExcelText, ReferenceLike, WorksheetErrorCod
 use calc_xll_abi::*;
 use std::{
     cell::Cell,
-    collections::HashMap,
+    collections::{BTreeSet, HashMap},
     rc::Rc,
     sync::{
         Arc, Condvar, Mutex, OnceLock,
@@ -20,6 +20,7 @@ pub(crate) struct Frame<'a> {
     pub context: Option<&'a mut dyn UserFunctionContext>,
     pub signature: Option<XllSignature>,
     pub provider: Option<crate::RtdProvider>,
+    pub rtd_subscriptions: BTreeSet<u64>,
 }
 impl Frame<'_> {
     pub fn lifecycle(state: Shared, module: Rc<Module>) -> Self {
@@ -30,6 +31,7 @@ impl Frame<'_> {
             context: None,
             signature: None,
             provider: None,
+            rtd_subscriptions: BTreeSet::new(),
         }
     }
 }
@@ -776,6 +778,7 @@ fn run(
             let subscription = service
                 .subscribe(provider, caller, &progid, &topics)
                 .map_err(err)?;
+            frame.rtd_subscriptions.insert(subscription);
             context
                 .rtd_value(subscription)
                 .map_err(err)?

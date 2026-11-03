@@ -855,6 +855,16 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
                     require(outer["result"]["value"] == returned["data"] and outer["arguments_after"][0]["value"]["value"] == returned["count"], "Internal RTD refresh payload differs")
                 inner.append({"entry": entry, "returned": returned})
                 continue
+            if early and not signaling and entry["entry"].endswith(".ServerTerminate") and entry.get("from", {}).get("module") in environments[0]["fixture_files"]:
+                # This fixture's destructor calls its idempotent ServerTerminate
+                # body while the client performs final Release. Keep the body,
+                # but do not invent a second external ServerTerminate request.
+                releases = [e for e in trace[1].values() if e["entry"] == "COM!Release" and e.get("object") == entry["object"] and e["thread"] == entry["thread"] and e["seq"] < entry["seq"] < returned["seq"] < trace[2][e["call"]]["seq"]]
+                require(len(releases) == 1 and trace[2][releases[0]["call"]].get("references") == 0, "Internal RTD termination lacks the final owning Release")
+                require(releases[0].get("from", {}).get("module") == ("EXCEL.EXE" if index == 0 else "dna-calc-desktop.exe"), "Final RTD Release came from another owner")
+                require(protocol and protocol[-1] == {"method":"ServerTerminate", "hresult":0} and returned["hresult"] == 0, "Destructor termination lacks prior successful client termination")
+                inner.append({"entry":entry, "returned":returned, "reason":"final Release destructor", "release":releases[0], "release_returned":trace[2][releases[0]["call"]]})
+                continue
             require(dispatch and entry["from"].get("module") == "EXCEL.EXE" if index == 0 else early and entry["from"].get("module") == "dna-calc-desktop.exe", "Unexpected external RTD call transport/caller")
             method = method_names[entry["dispid"]] if dispatch else entry["entry"].rsplit(".", 1)[-1]
             row = {"method": method, "hresult": returned["hresult"]}
@@ -871,7 +881,13 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
             methods = [r["method"] for r in protocol]
             require(methods[:2] == ["ServerStart", "ConnectData"] and methods[-2:] == ["DisconnectData", "ServerTerminate"] and "UpdateNotify" in methods and "RefreshData" in methods, "Incomplete signaling RTD protocol")
         else:
-            require([r["method"] for r in protocol] == ["ServerStart", "ConnectData", "UpdateNotify", "RefreshData", "DisconnectData", "ServerTerminate"], "Missing or additional RTD client calls")
+            expected_methods = ["ServerStart", "ConnectData", "UpdateNotify", "RefreshData"]
+            idle_intervals = [case.get("rtd_idle_ms", 0) for case in cases]
+            if any(idle_intervals):
+                require(idle_intervals == [22000, 0], "Numeric RTD idle interval has no qualified heartbeat expectation")
+                expected_methods.append("Heartbeat")
+            expected_methods += ["DisconnectData", "ServerTerminate"]
+            require([r["method"] for r in protocol] == expected_methods, "Missing or additional RTD client calls")
         require(all(r["hresult"] == 0 for r in protocol), "RTD protocol call failed")
         if not signaling:
             require(protocol[3]["count"] == 1 and protocol[3]["data"]["values"] == [{"vt": 3, "value": 1}, {"vt": 5, "value": 42}] and not protocol[3]["data"]["truncated"], "RTD array data differs")
@@ -925,6 +941,8 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
         if index: expected.insert(0, {"type": 16, "value": 42})
         require([r["result"] for r in records] == expected, "RTD native result sequence differs")
         native.append(records)
+    if not signaling:
+        require([sum(row.get("reason") == "final Release destructor" for row in rows) for rows in internals] == [1, 1], "Numeric RTD destructor observation missing or repeated")
     protocol_pairs = [{"position": i, "excel": a, "host": b, "matched": a == b} for i, (a, b) in enumerate(zip_longest(*protocols))]
     # Diagnose scheduling differences without relaxing the ordered verdict. Pair
     # each occurrence of each method, keeping every extra call as a failure.
