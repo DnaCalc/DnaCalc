@@ -1033,6 +1033,29 @@ mod tests {
             }
         }
         assert!(host.functions_with_early_execution(&[99]).is_err());
+        let visible = host.state.borrow().registrations.get(&1).unwrap().clone();
+        let mut info = visible.info.clone();
+        info.id = 2;
+        let shadowed = Rc::new(Registration {
+            info,
+            module: visible.module.clone(),
+            origin: visible.origin.clone(),
+            uses: std::cell::Cell::new(1),
+            cif: None,
+        });
+        host.state
+            .borrow_mut()
+            .registrations
+            .insert(2, shadowed.clone());
+        // An identical older registration can become visible again after re-registration.
+        assert_eq!(host.active_registration_id("xpure"), Some(1));
+        host.state
+            .borrow_mut()
+            .names
+            .insert(calc_value::fold_workbook_name("XPure"), 2);
+        assert_eq!(host.active_registration_id("XPure"), Some(2));
+        shadowed.uses.set(0);
+        assert_eq!(host.active_registration_id("XPure"), None);
     }
     /// Native-only: the same dispatcher the executable exports accepts xlw's packed
     /// argument pointers, operands and result buffer, and reports the real module handle.

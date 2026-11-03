@@ -110,6 +110,7 @@ pub fn run(
     sheet_name: &str,
     cases: Option<PathBuf>,
     formula: String,
+    early_execution: &[u64],
 ) -> Result<serde_json::Value, String> {
     let mut book = HostSession::open(
         Arc::new(MemorySource::new(calc_host::blank_package())),
@@ -133,7 +134,7 @@ pub fn run(
     native.set_async_continuations(true)?;
     let rtd = Rc::new(calc_com_host::RtdClient::new()?);
     native.set_rtd_service(rtd.clone())?;
-    book.set_user_functions(native.functions()?);
+    book.set_user_functions(native.functions_with_early_execution(early_execution)?);
     let bindings = book.host().user_function_bindings();
     let providers = native
         .registrations()
@@ -184,7 +185,7 @@ pub fn run(
             )
             .map_err(|e| format!("{e:?}"))?;
             peer.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
-            peer.set_user_functions(native.functions()?);
+            peer.set_user_functions(native.functions_with_early_execution(early_execution)?);
             peer.set_calculation_budget(WorkBudget::evaluations(1));
             let cell = CellKey::new(peer.host().sheets()[0].id(), 3, 2).unwrap();
             enter(&mut peer, cell, formula)?;
@@ -202,7 +203,22 @@ pub fn run(
             }
             commands.push(serde_json::json!({"command":command,"value":actual}));
         }
-        book.dispatch(SkinIntent::Recalculate);
+        let calculation = case["calculation"].as_str().unwrap_or("dirty");
+        let admission = book.dispatch(match calculation {
+            "dirty" => SkinIntent::Recalculate,
+            "full" => SkinIntent::Calculate {
+                scope: calc_host::CalcScope::Workbook,
+                selection: calc_host::EvalSelection::ForceAll,
+            },
+            "rebuild" => SkinIntent::Rebuild,
+            _ => return Err("unknown engine calculation command".into()),
+        });
+        if !admission.accepted() {
+            return Err(format!(
+                "{calculation} calculation refused: {:?}",
+                admission.error
+            ));
+        }
         let deadline = Instant::now() + Duration::from_secs(20);
         let idle = Duration::from_millis(case["rtd_idle_ms"].as_u64().unwrap_or(0));
         let mut idle_until = None;
@@ -349,13 +365,13 @@ pub fn run(
                 Ok(serde_json::json!({"value":actual,"provenance":proof}))
             })
             .transpose()?;
-        results.push(serde_json::json!({"formula":formula,"value":actual,"dependent":dependent,"dependent_provenance":dependent_provenance,"concurrent":concurrent,"provenance":proof,"idle_observed_ms":idle_observed_ms}));
+        results.push(serde_json::json!({"formula":formula,"calculation":calculation,"value":actual,"dependent":dependent,"dependent_provenance":dependent_provenance,"concurrent":concurrent,"provenance":proof,"idle_observed_ms":idle_observed_ms}));
         shell.projection()?.after_calculate()?;
     }
     if !native.diagnostics().is_empty() {
         return Err(format!("native refusals: {:?}", native.diagnostics()));
     }
-    let retained = native.functions()?;
+    let retained = native.functions_with_early_execution(early_execution)?;
     let stale_name = native
         .registrations()
         .iter()
@@ -375,7 +391,7 @@ pub fn run(
         return Err("removed native entry still executes".into());
     }
     Ok(
-        serde_json::json!({"host":"DNA Calc / CalcHost P07","registrations":native.registrations().len(),"results":results,"formula_entries":formula_entries,"async_returns":returns,"revoked_tokens":revoked,"rtd_updates":rtd_updates,"rtd_retired":rtd_retired,"rtd_subscriptions_after_close":rtd.subscriptions(),"status_message":native.status_message(),
+        serde_json::json!({"host":"DNA Calc / CalcHost P07","registrations":native.registrations().len(),"early_execution_registrations":early_execution,"results":results,"formula_entries":formula_entries,"async_returns":returns,"revoked_tokens":revoked,"rtd_updates":rtd_updates,"rtd_retired":rtd_retired,"rtd_subscriptions_after_close":rtd.subscriptions(),"status_message":native.status_message(),
         "reload_results":[],"commands":commands,"live_callback_allocations":native.live_callback_allocations(),"closed_registration":"#NAME?","closed_name":stale_name}),
     )
 }

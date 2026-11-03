@@ -6835,6 +6835,47 @@ fn contract_imported_arrays_require_a_complete_image_and_keep_file_lineage() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn names_old_plan_is_released_after_its_last_caller_and_definition_change() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let s = ids.issue().unwrap();
+    let at = key(s, 1, 1);
+    let mut root = l3_root(
+        &[(s, "Names")],
+        vec![(at, formula("Rate+1"))],
+        Definitions::new(
+            vec![],
+            vec![l1_name("Rate", NameScope::Workbook, "1")],
+            vec![],
+            [],
+        ),
+    );
+    let mut state = EngineState::new(&root);
+    recalc(&mut state, &root, &mut Unobserved);
+    let old = Arc::downgrade(&plan_at(&state, at));
+    root = edit(
+        &mut state,
+        &root,
+        vec![
+            WorkbookOp::SetCell {
+                at,
+                input: number(7.0),
+            },
+            WorkbookOp::SetNameFormula {
+                name: "Rate".into(),
+                scope: NameScope::Workbook,
+                formula: Some("2".into()),
+            },
+        ],
+    );
+    recalc(&mut state, &root, &mut Unobserved);
+    assert!(
+        old.upgrade().is_none(),
+        "an unused old name template must release its bytecode"
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn names_edit_rebinds_users_and_keeps_unrelated_binding_and_requirement() {
     let mut ids: IdAllocator<SheetId> = IdAllocator::new();
     let s = ids.issue().unwrap();
@@ -7285,6 +7326,26 @@ fn names_nested_workbook_aliases_preserve_their_use_context() {
     );
     let mut state = EngineState::new(&root);
     recalc(&mut state, &root, &mut Unobserved);
+    let global = root
+        .definitions()
+        .name_table()
+        .lookup(NameScope::Workbook, "Global")
+        .unwrap()
+        .id();
+    let candidates = state
+        .name_memo_candidates(&root, state.node_at(at(b, 1, 2)).unwrap())
+        .unwrap();
+    let bodies: Vec<_> = candidates.iter().filter(|c| c.name == global).collect();
+    assert_eq!(
+        bodies.len(),
+        2,
+        "one name has two definition-sheet contexts in this caller"
+    );
+    assert_ne!(bodies[0].body, bodies[1].body);
+    assert!(Arc::ptr_eq(&bodies[0].plan, &bodies[1].plan));
+    assert!(bodies.iter().all(|c| c.eligibility
+        == calc_fml::NameMemoEligibility::RequiresReadCertificate { cell_reads: true }));
+    drop(candidates);
     for (col, value) in [
         (2, 93.0),
         (3, 93.0),

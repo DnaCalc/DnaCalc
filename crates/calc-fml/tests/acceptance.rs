@@ -2444,13 +2444,15 @@ fn cfml_m1_3__reuse_plan() {
     // and the services (a numeric mode and a reader), with no formula text, syntax tree,
     // catalogue or PlanCache to compile from. What the case observes agrees with it: the
     // catalogue, which compiling a qualified reference asks, was not asked again, and each
-    // instance still runs the plan compile returned, one allocation held by the cache, the case's
-    // handle and the instance.
+    // instance still runs the plan compile returned, one allocation owned by the case's
+    // handle and the instance. The interner holds only weak allocation metadata (dc-hsa5.6).
     assert_eq!(*catalog.requests.borrow(), asked_by_compile);
     for (plan, instance) in plans.iter().zip(&instances) {
         assert!(Arc::ptr_eq(plan, instance.plan()));
-        assert_eq!(Arc::strong_count(plan), 3);
+        assert_eq!(Arc::strong_count(plan), 2);
     }
+    assert_eq!(cache.stats().live, plans.len());
+    assert_eq!(cache.stats().expired, 0);
 
     // The reader reports consecutive stored cells as one run of values, and the kernels receive
     // them value by value through the CellReader bridge. SUM(A1:A3) reads one run of three values

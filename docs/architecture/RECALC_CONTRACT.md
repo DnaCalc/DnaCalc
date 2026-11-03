@@ -627,6 +627,31 @@ that cannot be rewritten also refuse. A rename/move and a definition edit are se
 These controls cover the public worker route and saved/reopened names, duplicate fallbacks and
 raw imported attributes. Shared name-value memoization and plan eviction remain open.
 
+Name retention and memo preconditions (dc-hsa5.6, 2026-11-03): the existing plan interner now
+holds weak entries and checks semantic equality after hashing. Insertions visit four metadata
+buckets; explicit collection removes all expired entries. Live instances, continuations and
+LAMBDA values own their plans. Result storage groups retain weak allocation leases so an old
+address cannot identify a different plan. Name operations, including history restoration and edits
+to unused names, discard invalid name templates before the next bind. Unchanged plans and their
+result certificates retain their identities. Cache statistics count entries and live owners;
+they make no byte or resident-memory claim.
+
+Passive Host/engine inspection derives memo candidates only from existing valid bindings. Each
+record retains its owning plan and names one body block and NameId; one NameId can have different
+bodies in different definition contexts. Analysis follows nested aliases with recursion checks.
+Literals, operators and static references can require a read certificate; volatile calls, user
+functions (including early-execution grants), external inputs, callable values, local environments
+and catalogue calls without a complete facility classification are ineligible. Unclassified lazy
+calls are conservatively ineligible even when a branch is not selected. A candidate still requires
+caller/definition-sheet/workbook/scenario and numeric/semantic context, valid binding and absence
+proofs and an executed read certificate. No shared name-value cache is introduced. Unused names
+remain passive; P12 Excel measurement and invocation views remain open.
+
+The native desktop engine runner accepts `--early-execution XPure` as an explicit grant, resolved
+to active registration IDs and checked by the native adapter. It records those IDs and accepts
+`"calculation":"full"` or `"rebuild"` in its existing cases; dirty calculation remains the default.
+This supplies the native P08 route. Its Windows execution remains unmeasured in this Linux run.
+
 Formula source regrouping (dc-hsa5.10, 2026-11-03): `regroup_formula_sources` and
 `HostSession::compact_formula_sources` compare exact rendered spelling through the existing
 shared-reference mover, within explicit occupied-cell and UTF-16 work budgets. They merge whole

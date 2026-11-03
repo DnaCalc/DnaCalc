@@ -19,9 +19,8 @@ use std::sync::Arc;
 /// A LAMBDA value's identity and environment.
 #[derive(Debug)]
 pub(super) struct Closure {
-    /// The address of the plan whose block is the body, to tell its closures apart from any
-    /// other plan's.
-    pub(super) plan: usize,
+    /// Own the body even after its originating instance and interner disappear.
+    pub(super) plan: Arc<super::CompiledPlan>,
     pub(super) block: usize,
     pub(super) params: usize,
     pub(super) required: usize,

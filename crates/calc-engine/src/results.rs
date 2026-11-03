@@ -3,13 +3,30 @@ use crate::{FormulaResult, graph::BlockHasher};
 use calc_value::{CellKey, NodeId, SheetId};
 use std::collections::{BTreeMap, HashMap};
 use std::hash::BuildHasherDefault;
+use std::hash::{Hash, Hasher};
+use std::sync::Weak;
 
 /// A storage group only. Plan addresses never act as formula or result certificates.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug)]
 pub(crate) struct ResultGroup {
     pub sheet: SheetId,
-    pub plan: usize,
+    // Keep the allocation address reserved while this storage group exists, without
+    // retaining obsolete bytecode. An address is still never a value certificate.
+    pub plan: Weak<calc_fml::CompiledPlan>,
     pub role: u8,
+}
+impl PartialEq for ResultGroup {
+    fn eq(&self, other: &Self) -> bool {
+        self.sheet == other.sheet && self.role == other.role && self.plan.ptr_eq(&other.plan)
+    }
+}
+impl Eq for ResultGroup {}
+impl Hash for ResultGroup {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.sheet.hash(state);
+        self.role.hash(state);
+        self.plan.as_ptr().hash(state);
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -109,7 +126,7 @@ impl Results {
             }
             let column = match group {
                 None => 0,
-                Some(key) => *self.groups.entry(key).or_insert_with(|| {
+                Some(key) => *self.groups.entry(key.clone()).or_insert_with(|| {
                     let index = self.columns.len();
                     self.columns.push(Column {
                         group: Some(key),
@@ -195,7 +212,7 @@ impl Results {
                     let (at, group) = assignments
                         .get(&node)
                         .expect("a published result belongs to a live node");
-                    self.publish(node, *at, value, *group);
+                    self.publish(node, *at, value, group.clone());
                 }
             }
         }

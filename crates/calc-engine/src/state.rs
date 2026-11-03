@@ -350,12 +350,14 @@ pub struct EngineState {
     /// The seed RAND, RANDBETWEEN and RANDARRAY draw from, mixed with each recalculation's tick.
     pub(crate) random_seed: u64,
     /// The plan of each formula template compiled ([`calc_fml::reference::template_key`]), per
-    /// sheet and form, so a formula whose template was compiled is placed without parsing. Like
-    /// the plan cache's plans, they were compiled against the state's sheets and defined names:
-    /// sheet edits are refused (dc-m3u), and an edit that sets a defined name's formula (dc-gf0)
-    /// empties them when it commits.
+    /// sheet and form, so a formula whose template was compiled is placed without parsing.
+    /// Reuse validates name and callable proofs. Committed name operations collect invalid
+    /// old templates before the next bind; unchanged templates keep their plan identities.
     pub(crate) templates:
         HashMap<(SheetId, calc_doc_model::SemanticTemplateKey), Arc<CompiledPlan>>,
+    /// A committed name operation asks the next bind to discard invalid old templates.
+    /// This flag follows actual edits, including unused names and history restoration.
+    pub(crate) name_templates_dirty: bool,
     /// Stable date and locale semantics, apart from the pass clock. `None` refuses the date, time and
     /// number-format functions.
     pub(crate) environment: Option<calc_fml::SemanticEnvironment>,
@@ -438,7 +440,7 @@ impl EngineState {
         };
         Some(ResultGroup {
             sheet: at.sheet(),
-            plan: Arc::as_ptr(instance.plan()) as usize,
+            plan: Arc::downgrade(instance.plan()),
             role,
         })
     }
@@ -530,6 +532,7 @@ impl EngineState {
             blocked_spills: self.blocked_spills.clone(),
             random_seed: self.random_seed,
             templates: self.templates.clone(),
+            name_templates_dirty: self.name_templates_dirty,
             environment: self.environment,
             clock: self.clock,
             volatile_input_version: self.volatile_input_version,
@@ -667,6 +670,7 @@ impl EngineState {
             blocked_spills: BTreeMap::new(),
             random_seed: 0,
             templates: HashMap::new(),
+            name_templates_dirty: false,
             environment: None,
             clock: None,
             volatile_input_version: 0,
@@ -1270,6 +1274,32 @@ impl EngineState {
     /// Names bound from this name's body in live caller contexts.
     pub fn name_prerequisites(&self, id: NameId) -> Vec<NameId> {
         self.index.name_children(id)
+    }
+
+    /// Passive static analysis of already-bound names. Stale bindings and unbound callers
+    /// return None; no name is compiled or evaluated for inspection.
+    pub fn name_memo_candidates(
+        &self,
+        inputs: &ModelRoot,
+        caller: NodeId,
+    ) -> Option<Vec<calc_fml::NameMemoCandidate>> {
+        if inputs.revision() != self.revision {
+            return None;
+        }
+        let plan = self.instance(caller)?.plan();
+        if !crate::contract::name_bindings_valid(inputs, plan.name_bindings())
+            || !plan
+                .callable_bindings()
+                .iter()
+                .all(|proof| self.callables.validates(proof))
+        {
+            return None;
+        }
+        Some(plan.name_memo_candidates())
+    }
+
+    pub fn plan_cache_stats(&self) -> calc_fml::PlanCacheStats {
+        self.plans.stats()
     }
 
     /// The anchors of the nodes inside `area`.

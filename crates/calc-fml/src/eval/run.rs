@@ -1047,7 +1047,7 @@ impl Run<'_, '_> {
                     } => {
                         let from = self.base;
                         let closure = Closure {
-                            plan: plan_address(instance),
+                            plan: std::sync::Arc::clone(instance.plan()),
                             block: *block,
                             params: *params as usize,
                             required: *required as usize,
@@ -1875,7 +1875,7 @@ impl Run<'_, '_> {
                 _ => CalcValue::error(WorksheetErrorCode::Value),
             }));
         };
-        if closure.plan != plan_address(self.instance) {
+        if !std::sync::Arc::ptr_eq(&closure.plan, self.instance.plan()) {
             return Err(not_modelled("a LAMBDA value made by another formula"));
         }
         if argc > closure.params || argc < closure.required {
@@ -1983,11 +1983,6 @@ impl Run<'_, '_> {
         self.stack.push(value);
         Ok(())
     }
-}
-
-/// The address of an instance's plan, which identifies the closures it makes.
-fn plan_address(instance: &FormulaInstance) -> usize {
-    std::sync::Arc::as_ptr(&instance.plan) as usize
 }
 
 /// Whether argument `index` of `target`, as admitted, is lifted over: an array at a parameter
@@ -2398,6 +2393,49 @@ mod tests {
                 crate::ReadRequest::DEPENDENCY,
             ),
         )
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn lambda_value_owns_its_plan_after_the_evaluation_ends() {
+        let (value, weak) = {
+            let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+            let anchor = FormulaAnchor::new(CellKey::new(ids.issue().unwrap(), 1, 1).unwrap());
+            let plan = compile(
+                &parse_formula("=LAMBDA(x,x+1)"),
+                ReferenceNotation::A1,
+                anchor,
+                &NoSheets,
+                &mut PlanCache::new(),
+            )
+            .unwrap();
+            let weak = std::sync::Arc::downgrade(&plan);
+            let instance = instantiate(&plan, anchor);
+            let mut reader = Everywhere(CalcValue::empty(), 0);
+            let mut scratch = EvalScratch::new();
+            let value = evaluate(
+                EvalFrame::new(&instance, &mut scratch),
+                &mut FormulaEvaluationContext::new(
+                    &NumericMode::Fast,
+                    &mut reader,
+                    None,
+                    None,
+                    crate::ReadRequest::DEPENDENCY,
+                ),
+            )
+            .unwrap();
+            (value, weak)
+        };
+        assert!(Closure::of(&value).is_some());
+        assert!(
+            weak.upgrade().is_some(),
+            "the escaped closure retains its bytecode"
+        );
+        drop(value);
+        assert!(
+            weak.upgrade().is_none(),
+            "the last closure releases its bytecode"
+        );
     }
 
     fn text(s: &str) -> CalcValue {

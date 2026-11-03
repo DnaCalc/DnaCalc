@@ -59,9 +59,9 @@ use calc_func::value::{
     WorksheetErrorCode,
 };
 use calc_func::{FunctionCallScratch, FunctionCallTarget};
-use std::collections::HashSet;
-use std::hash::{Hash, Hasher};
-use std::sync::Arc;
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::hash::{BuildHasher, Hash, Hasher};
+use std::sync::{Arc, Weak};
 
 /// A compiled formula: immutable instructions over anchor-free reference operands. Two formulas
 /// with the same normal form (the same structure, literals, functions and operands) compile to
@@ -92,6 +92,104 @@ pub struct CompiledPlan {
 pub use calc_syntax::FormulaForm;
 
 impl CompiledPlan {
+    /// Static preconditions only: this neither evaluates a name nor authorizes value reuse.
+    /// A body is identified by this owning plan and its block, never by NameId alone.
+    pub fn name_memo_candidates(self: &Arc<Self>) -> Vec<NameMemoCandidate> {
+        let mut seen = HashSet::new();
+        self.blocks
+            .iter()
+            .flatten()
+            .filter_map(|instruction| {
+                let Instruction::Name(target) = instruction else {
+                    return None;
+                };
+                let name = target.id?;
+                seen.insert((name, target.block))
+                    .then(|| NameMemoCandidate {
+                        plan: Arc::clone(self),
+                        name,
+                        body: target.block,
+                        eligibility: self.name_memo_eligibility(target.block),
+                    })
+            })
+            .collect()
+    }
+
+    fn name_memo_eligibility(&self, root: usize) -> NameMemoEligibility {
+        use NameMemoBlocker as B;
+        let mut pending = vec![(root, false)];
+        let mut active = HashSet::new();
+        let mut complete = HashSet::new();
+        let mut cell_reads = false;
+        while let Some((block, leaving)) = pending.pop() {
+            if leaving {
+                active.remove(&block);
+                complete.insert(block);
+                continue;
+            }
+            if complete.contains(&block) {
+                continue;
+            }
+            if !active.insert(block) {
+                return NameMemoEligibility::Ineligible(B::RecursiveDefinition);
+            }
+            pending.push((block, true));
+            for instruction in &self.blocks[block] {
+                let blocker = match instruction {
+                    Instruction::Name(target) => {
+                        pending.push((target.block, false));
+                        None
+                    }
+                    Instruction::Reference(_)
+                    | Instruction::Reference3D { .. }
+                    | Instruction::Spill => {
+                        cell_reads = true;
+                        None
+                    }
+                    Instruction::Call { target, .. } | Instruction::LazyCall { target, .. } => {
+                        if VOLATILE_FUNCTIONS.iter().any(|name| {
+                            strip_future_prefix(target.0.spelling()).eq_ignore_ascii_case(name)
+                        }) {
+                            Some(B::Volatile)
+                        } else if target.0.notation() == calc_func::Notation::Call {
+                            // Catalogue calls have no complete facility classification yet.
+                            Some(B::UnclassifiedFunction)
+                        } else {
+                            if let Instruction::LazyCall {
+                                first_block, argc, ..
+                            } = instruction
+                            {
+                                pending
+                                    .extend((*first_block..first_block + argc).map(|b| (b, false)));
+                            }
+                            None
+                        }
+                    }
+                    Instruction::UserCall { .. } => Some(B::UserFunction),
+                    Instruction::External(_) => Some(B::ExternalInput),
+                    Instruction::Lambda { .. }
+                    | Instruction::Invoke { .. }
+                    | Instruction::Function(_) => Some(B::CallableValue),
+                    Instruction::Local(_) | Instruction::Store(_) => Some(B::LocalEnvironment),
+                    Instruction::Literal(_)
+                    | Instruction::Omitted
+                    | Instruction::Range
+                    | Instruction::Intersect
+                    | Instruction::Union(_)
+                    | Instruction::Implicit
+                    | Instruction::ImplicitReference
+                    | Instruction::Copy(_)
+                    | Instruction::NearZeroGuard { .. }
+                    | Instruction::NearZeroCheck => None,
+                };
+                if let Some(reason) = blocker {
+                    return NameMemoEligibility::Ineligible(reason);
+                }
+            }
+        }
+        NameMemoEligibility::RequiresReadCertificate { cell_reads }
+    }
+
     pub fn callable_bindings(&self) -> &[crate::CallableBindingProof] {
         &self.callable_bindings
     }
@@ -554,12 +652,53 @@ impl Hash for Target {
     }
 }
 
-/// The plans a caller has compiled, one shared allocation per normal form. [`compile`] returns
-/// the plan already held when a formula's normal form equals it. The cache never evicts; plan
-/// eviction belongs to bead cfml-m2.2.
+/// One name body in one owning plan. `body` is local to that plan; another caller context
+/// can lower the same name to a different body. Retaining this record owns that plan.
+#[derive(Clone, Debug)]
+pub struct NameMemoCandidate {
+    pub plan: Arc<CompiledPlan>,
+    pub name: calc_func::value::NameId,
+    pub body: usize,
+    pub eligibility: NameMemoEligibility,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NameMemoEligibility {
+    /// Still requires the owning plan/binding proofs, caller and definition-sheet context,
+    /// workbook, numeric/semantic environment, scenario and a valid executed read certificate.
+    /// This is not a reusable value or a certificate, even when `cell_reads` is false.
+    RequiresReadCertificate {
+        cell_reads: bool,
+    },
+    Ineligible(NameMemoBlocker),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NameMemoBlocker {
+    Volatile,
+    UserFunction,
+    ExternalInput,
+    CallableValue,
+    LocalEnvironment,
+    UnclassifiedFunction,
+    RecursiveDefinition,
+}
+
+/// Interner metadata counts, not byte or resident-memory measurements.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PlanCacheStats {
+    pub entries: usize,
+    pub live: usize,
+    pub expired: usize,
+}
+
+/// The plans a caller has compiled, with weak ownership and semantic collision checks.
+/// Instances, continuations and closures own their plans; the interner never retains bytecode
+/// by itself. Each insertion visits four metadata buckets to collect expired allocations.
 #[derive(Clone, Debug, Default)]
 pub struct PlanCache {
-    plans: HashSet<Arc<CompiledPlan>>,
+    plans: HashMap<u64, Vec<Weak<CompiledPlan>>>,
+    sweep: VecDeque<u64>,
 }
 
 impl PlanCache {
@@ -567,13 +706,71 @@ impl PlanCache {
         Self::default()
     }
 
-    /// The held plan equal to `plan`, or `plan` itself, now held.
+    pub fn stats(&self) -> PlanCacheStats {
+        let entries = self.plans.values().map(Vec::len).sum();
+        let live = self
+            .plans
+            .values()
+            .flatten()
+            .filter(|plan| plan.strong_count() != 0)
+            .count();
+        PlanCacheStats {
+            entries,
+            live,
+            expired: entries - live,
+        }
+    }
+
+    /// Collect all expired metadata; live owners and their identities are unchanged.
+    pub fn evict_expired(&mut self) -> usize {
+        let before = self.stats().entries;
+        self.plans.retain(|_, bucket| {
+            bucket.retain(|plan| plan.strong_count() != 0);
+            !bucket.is_empty()
+        });
+        self.sweep.retain(|key| self.plans.contains_key(key));
+        before - self.stats().entries
+    }
+
+    fn sweep_expired(&mut self) {
+        for _ in 0..4 {
+            let Some(key) = self.sweep.pop_front() else {
+                break;
+            };
+            let expired = self.plans.get_mut(&key).is_none_or(|bucket| {
+                bucket.retain(|plan| plan.strong_count() != 0);
+                bucket.is_empty()
+            });
+            if expired {
+                self.plans.remove(&key);
+            } else {
+                self.sweep.push_back(key);
+            }
+        }
+    }
+
+    /// A live plan equal to `plan`, or a new caller-owned allocation.
     fn share(&mut self, plan: CompiledPlan) -> Arc<CompiledPlan> {
-        if let Some(held) = self.plans.get(&plan) {
-            return Arc::clone(held);
+        let key = self.plans.hasher().hash_one(&plan);
+        if let Some(bucket) = self.plans.get_mut(&key) {
+            bucket.retain(|plan| plan.strong_count() != 0);
+            if let Some(held) = bucket
+                .iter()
+                .filter_map(Weak::upgrade)
+                .find(|held| held.as_ref() == &plan)
+            {
+                return held;
+            }
         }
         let plan = Arc::new(plan);
-        self.plans.insert(Arc::clone(&plan));
+        if !self.plans.contains_key(&key) {
+            self.sweep.push_back(key);
+        }
+        self.plans
+            .entry(key)
+            .or_default()
+            .push(Arc::downgrade(&plan));
+        self.sweep_expired();
         plan
     }
 }

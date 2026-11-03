@@ -917,6 +917,17 @@ impl XllHost {
             })
             .collect()
     }
+    /// The currently visible active binding, including re-registration of an older ID.
+    /// Inventory order does not determine which registration a worksheet name calls.
+    pub fn active_registration_id(&self, name: &str) -> Option<u64> {
+        let state = self.state.borrow();
+        let id = *state.names.get(&calc_value::fold_workbook_name(name))?;
+        state
+            .registrations
+            .get(&id)
+            .filter(|r| r.uses.get() > 0)
+            .map(|_| id)
+    }
     pub fn diagnostics(&self) -> Vec<String> {
         self.state.borrow().diagnostics.clone()
     }

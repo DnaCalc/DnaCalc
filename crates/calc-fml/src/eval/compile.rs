@@ -2816,6 +2816,86 @@ mod tests {
         )
     }
 
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn plan_cache_does_not_own_unused_plans_even_when_cloned() {
+        let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+        let sheet = ids.issue().unwrap();
+        let anchor = FormulaAnchor::new(CellKey::new(sheet, 1, 1).unwrap());
+        let mut cache = PlanCache::new();
+        let plan = compile(
+            &parse_formula("=1+2"),
+            ReferenceNotation::A1,
+            anchor,
+            &Sheets(sheet),
+            &mut cache,
+        )
+        .unwrap();
+        let same = compile(
+            &parse_formula("=1+2"),
+            ReferenceNotation::A1,
+            anchor,
+            &Sheets(sheet),
+            &mut cache,
+        )
+        .unwrap();
+        assert!(Arc::ptr_eq(&plan, &same));
+        let weak = Arc::downgrade(&plan);
+        let copied_cache = cache.clone();
+        drop(plan);
+        assert!(weak.upgrade().is_some(), "a live caller retains its plan");
+        drop(same);
+        assert!(
+            weak.upgrade().is_none(),
+            "neither interner owns the bytecode"
+        );
+        drop(copied_cache);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn plan_cache_collects_expired_metadata_while_preserving_live_identity() {
+        let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+        let sheet = ids.issue().unwrap();
+        let anchor = FormulaAnchor::new(CellKey::new(sheet, 1, 1).unwrap());
+        let mut cache = PlanCache::new();
+        let held = compile(
+            &parse_formula("=1+2"),
+            ReferenceNotation::A1,
+            anchor,
+            &Sheets(sheet),
+            &mut cache,
+        )
+        .unwrap();
+        for n in 0..1024 {
+            let _ = compile(
+                &parse_formula(&format!("={n}+3")),
+                ReferenceNotation::A1,
+                anchor,
+                &Sheets(sheet),
+                &mut cache,
+            )
+            .unwrap();
+        }
+        assert_eq!(cache.stats().live, 1);
+        assert!(cache.stats().entries <= 5, "{:?}", cache.stats());
+        cache.evict_expired();
+        assert_eq!(cache.stats().entries, 1);
+        let same = compile(
+            &parse_formula("=1+2"),
+            ReferenceNotation::A1,
+            anchor,
+            &Sheets(sheet),
+            &mut cache,
+        )
+        .unwrap();
+        assert!(Arc::ptr_eq(&held, &same));
+        drop(same);
+        drop(held);
+        assert_eq!(cache.evict_expired(), 1);
+        assert_eq!(cache.stats().entries, 0);
+    }
+
     fn refusal(formula: &str) -> CompileError {
         match compiled(formula) {
             Ok(plan) => panic!("{formula} compiled: {plan:?}"),

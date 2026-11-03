@@ -160,6 +160,20 @@ pub(crate) fn next_command_scope() -> u64 {
 }
 
 impl HostState {
+    /// Inspect only existing bindings; candidates still need context and an executed read
+    /// certificate before any future value memo could reuse them.
+    pub fn name_memo_candidates(
+        &self,
+        caller: CellKey,
+    ) -> Option<Vec<calc_fml::NameMemoCandidate>> {
+        self.engine
+            .name_memo_candidates(&self.model, self.engine.node_at(caller)?)
+    }
+
+    pub fn plan_cache_stats(&self) -> calc_fml::PlanCacheStats {
+        self.engine.plan_cache_stats()
+    }
+
     /// A read-only source cut for another workbook's engine context. Imported and
     /// uncertified formula values remain unavailable inside the snapshot.
     pub fn linked_snapshot(&self) -> Arc<calc_engine::LinkedWorkbookSnapshot> {

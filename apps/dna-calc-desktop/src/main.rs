@@ -25,6 +25,7 @@ fn run() -> Result<(), String> {
     let mut cases_file = None;
     let mut commands = Vec::new();
     let mut early_commands = Vec::new();
+    let mut early_execution = Vec::new();
     let mut reload = false;
     let mut reload_new_host = false;
     let mut engine = false;
@@ -48,6 +49,9 @@ fn run() -> Result<(), String> {
             "--early-command" => {
                 early_commands.push(args.next().ok_or("--early-command needs a name")?)
             }
+            "--early-execution" => {
+                early_execution.push(args.next().ok_or("--early-execution needs a name")?)
+            }
             "--reload" => reload = true,
             "--engine" => engine = true,
             "--reload-new-host" => {
@@ -69,7 +73,7 @@ fn run() -> Result<(), String> {
             }
             "--help" => {
                 println!(
-                    "dna-calc-desktop --xll PATH [--xll PATH ...] [--formula TEXT | --cases PATH | --self-test] [--sheet NAME] [--command NAME] [--early-command NAME] [--reload]"
+                    "dna-calc-desktop --xll PATH [--xll PATH ...] [--formula TEXT | --cases PATH | --self-test] [--sheet NAME] [--command NAME] [--early-command NAME] [--engine --early-execution NAME] [--reload]"
                 );
                 return Ok(());
             }
@@ -117,8 +121,25 @@ fn run() -> Result<(), String> {
         }
     }
     let registrations = host.registrations();
+    if !engine && !early_execution.is_empty() {
+        return Err("--early-execution requires --engine".into());
+    }
+    let early_execution = early_execution
+        .iter()
+        .map(|name| {
+            host.active_registration_id(name)
+                .ok_or_else(|| format!("no active early-execution registration: {name}"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     if engine {
-        let output = engine::run(&shell, &host, &sheet_name, cases_file, formula)?;
+        let output = engine::run(
+            &shell,
+            &host,
+            &sheet_name,
+            cases_file,
+            formula,
+            &early_execution,
+        )?;
         host.close()?;
         println!("{output}");
         if let Some(path) = finished {

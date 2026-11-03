@@ -1011,6 +1011,13 @@ fn begin_with_scope(
             inputs: inputs.revision(),
         });
     }
+    if state.name_templates_dirty {
+        state
+            .templates
+            .retain(|_, plan| crate::contract::name_bindings_valid(inputs, plan.name_bindings()));
+        state.plans.evict_expired();
+        state.name_templates_dirty = false;
+    }
     // Manual CalcRange keeps a separate obligation for the next authorized command. Admit
     // it now, only inside this scope; unrelated clean targets remain untouched (P02).
     let redemand: BTreeSet<_> = state

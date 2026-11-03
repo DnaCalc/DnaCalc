@@ -130,6 +130,7 @@ pub struct PreparedEngineChange<'s, 'r> {
     moves: Option<Vec<(NodeId, Option<CellKey>)>>,
     /// Formula bindings which embedded an edited definition or watched its scoped spelling.
     names_rebind: Vec<NodeId>,
+    names_changed: bool,
     /// The batch changes the iteration settings (dc-y2o.2): the formulas on a circular reference
     /// become pending when it commits.
     iteration_changed: bool,
@@ -234,6 +235,7 @@ pub fn prepare_edit<'s, 'r>(
             moves: Some(moves),
             // A structural commit empties the templates anyway.
             names_rebind: Vec::new(),
+            names_changed: false,
             iteration_changed: false,
             dimensions_pending: None,
         });
@@ -570,6 +572,12 @@ pub fn prepare_edit<'s, 'r>(
         seeds,
         moves: None,
         names_rebind: names_rebind.into_iter().collect(),
+        names_changed: change.operations.iter().any(|op| {
+            matches!(
+                op,
+                WorkbookOp::SetNameFormula { .. } | WorkbookOp::RestoreNames(_)
+            )
+        }),
         dimensions_pending,
         iteration_changed: change.operations.iter().any(|op| {
             matches!(op, WorkbookOp::SetIteration(settings)
@@ -726,6 +734,7 @@ pub fn commit_edit(mut change: PreparedEngineChange<'_, '_>) -> CommitReceipt {
     if change.schema_changed {
         state.contract.bindings = epoch;
     }
+    state.name_templates_dirty |= change.names_changed;
 
     // Physical widths and hidden rows affect CELL, SUBTOTAL and AGGREGATE.
     if let Some(pending) = change.dimensions_pending.take() {

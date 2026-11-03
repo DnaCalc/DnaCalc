@@ -449,3 +449,197 @@ fn names_qualified_function_spellings_keep_their_defining_sheet_when_authored() 
             .is_none()
     );
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn names_memo_candidates_follow_transitive_edits_history_and_keep_inspection_passive() {
+    use calc_fml::{NameMemoBlocker as B, NameMemoEligibility as E};
+    use calc_host::{HostSession, SkinIntent};
+    #[derive(Debug)]
+    struct CountedMirror(std::rc::Rc<std::cell::Cell<usize>>);
+    impl calc_fml::UserFunction for CountedMirror {
+        fn permits_early_execution(&self) -> bool {
+            true
+        }
+        fn call(
+            &self,
+            args: &[calc_host::value::CalcValue],
+        ) -> Result<calc_host::value::CalcValue, String> {
+            self.0.set(self.0.get() + 1);
+            args.first()
+                .cloned()
+                .ok_or_else(|| "missing mirror argument".into())
+        }
+    }
+    let calls = std::rc::Rc::new(std::cell::Cell::new(0));
+    let mut book = HostSession::new(open());
+    let mut functions = calc_fml::CallableTable::new();
+    functions
+        .register(
+            "CountedMirror",
+            std::rc::Rc::new(CountedMirror(calls.clone())),
+        )
+        .unwrap();
+    book.set_user_functions(functions);
+    let sheet = book.host().sheets()[0].id();
+    let at = |col| CellKey::new(sheet, 1, col).unwrap();
+    let mut edits = vec![
+        define("Inner", "=2"),
+        define("Outer", "=Inner+1"),
+        define("Reference", "=$D$1+1"),
+        define("Random", "=RAND()"),
+        define("Branch", "=IF(TRUE,1,Random)"),
+        define("Closure", "=LAMBDA(x,x+1)"),
+        define("Facility", "=SUM(1,2)"),
+        define("Locals", "=LET(x,1,x+1)"),
+        define("Pure", "=3"),
+        define("Unused", "=RAND()"),
+        define("Loop", "=Loop"),
+        define("UserBody", "=CountedMirror(2)"),
+    ];
+    for (col, text) in [
+        (1, "=Outer+Outer"),
+        (2, "=2+2"),
+        (3, "=Reference"),
+        (4, "10"),
+        (5, "=Branch"),
+        (6, "=Closure"),
+        (7, "=Facility"),
+        (8, "=Locals"),
+        (9, "=Random+Pure"),
+        (10, "=IF(FALSE,Loop,1)"),
+        (11, "=UserBody"),
+    ] {
+        edits.push(CellEdit::Set {
+            at: at(col),
+            input: interpret_entry(text).unwrap().unwrap(),
+        });
+    }
+    assert!(book.host().name_memo_candidates(at(1)).is_none());
+    assert!(book.dispatch(SkinIntent::Edit { edits }).accepted());
+    while book.has_pending_calculation() {
+        book.advance_calculation();
+    }
+    let id = |name| {
+        book.host()
+            .model()
+            .definitions()
+            .name_table()
+            .lookup(calc_doc_model::NameScope::Workbook, name)
+            .unwrap()
+            .id()
+    };
+    let outer = id("Outer");
+    let pure = id("Pure");
+    let random = id("Random");
+    let unused = id("Unused");
+    let initial = book.host().name_memo_candidates(at(1)).unwrap();
+    assert_eq!(initial.iter().filter(|c| c.name == outer).count(), 1);
+    assert!(
+        initial
+            .iter()
+            .all(|c| c.eligibility == E::RequiresReadCertificate { cell_reads: false })
+    );
+    let old = Arc::downgrade(&initial[0].plan);
+    assert_eq!(
+        book.host().name_memo_candidates(at(3)).unwrap()[0].eligibility,
+        E::RequiresReadCertificate { cell_reads: true }
+    );
+    for (col, reason) in [
+        (5, B::UnclassifiedFunction),
+        (6, B::CallableValue),
+        (7, B::UnclassifiedFunction),
+        (8, B::LocalEnvironment),
+        (10, B::RecursiveDefinition),
+        (11, B::UserFunction),
+    ] {
+        assert!(
+            book.host()
+                .name_memo_candidates(at(col))
+                .unwrap()
+                .iter()
+                .any(|c| c.eligibility == E::Ineligible(reason)),
+            "column {col}"
+        );
+    }
+    let mixed = book.host().name_memo_candidates(at(9)).unwrap();
+    assert_eq!(
+        mixed.iter().find(|c| c.name == pure).unwrap().eligibility,
+        E::RequiresReadCertificate { cell_reads: false }
+    );
+    assert_eq!(
+        mixed.iter().find(|c| c.name == random).unwrap().eligibility,
+        E::Ineligible(B::Volatile)
+    );
+    assert!(!mixed.iter().any(|c| c.name == unused));
+    drop(mixed);
+    let unrelated = project(book.host(), &ProjectionRequest { cells: vec![at(2)] }).unwrap();
+    let baseline_live = book.host().plan_cache_stats().live;
+    assert!(
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+            .accepted()
+    );
+    for (intent, volatile) in [
+        (
+            SkinIntent::Edit {
+                edits: vec![define("Inner", "=RAND()")],
+            },
+            true,
+        ),
+        (SkinIntent::Undo, false),
+        (SkinIntent::Redo, true),
+    ] {
+        assert!(book.dispatch(intent).accepted());
+        assert!(book.host().name_memo_candidates(at(1)).is_none());
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        while book.has_pending_calculation() {
+            book.advance_calculation();
+        }
+        let candidates = book.host().name_memo_candidates(at(1)).unwrap();
+        let candidate = candidates.iter().find(|c| c.name == outer).unwrap();
+        assert_eq!(
+            candidate.eligibility,
+            if volatile {
+                E::Ineligible(B::Volatile)
+            } else {
+                E::RequiresReadCertificate { cell_reads: false }
+            }
+        );
+        assert!(
+            old.upgrade().is_some(),
+            "an explicitly retained analysis owns its old plan"
+        );
+    }
+    drop(initial);
+    assert!(old.upgrade().is_none());
+    for version in 0..256 {
+        assert!(
+            book.dispatch(SkinIntent::Edit {
+                edits: vec![define("Inner", &format!("={version}"))]
+            })
+            .accepted()
+        );
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        while book.has_pending_calculation() {
+            book.advance_calculation();
+        }
+        assert_eq!(book.host().plan_cache_stats().live, baseline_live);
+    }
+    let stats = book.host().plan_cache_stats();
+    assert!(stats.entries <= baseline_live + 4, "{stats:?}");
+    assert_eq!(
+        project(book.host(), &ProjectionRequest { cells: vec![at(2)] })
+            .unwrap()
+            .cells()[0]
+            .value(),
+        unrelated.cells()[0].value()
+    );
+    assert_eq!(calls.get(), 1);
+    let before = book.host().plan_cache_stats();
+    for col in 1..=11 {
+        let _ = book.host().name_memo_candidates(at(col));
+    }
+    assert_eq!(book.host().plan_cache_stats(), before);
+    assert!(!book.has_pending_calculation());
+    assert_eq!(calls.get(), 1);
+}
