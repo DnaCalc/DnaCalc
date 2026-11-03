@@ -317,6 +317,7 @@ $FormulaSheets += , @('dc96l3_bessel', 'sheet-dc96l3_bessel.txt')
 $FormulaSheets += , @('dc96l3_discrete', 'sheet-dc96l3_discrete.txt')
 $FormulaSheets += , @('dc96l3_x87', 'sheet-dc96l3_x87.txt')
 $FormulaSheets += , @('dcj9k_r16', 'sheet-dcj9k_r16.txt')
+$FormulaSheets += , @('fn1_collation', 'sheet-fn1_collation.txt')
 
 $prefixInputs = @(
     (New-Number 'A1' '1'), (New-Number 'A2' '5'), (New-Number 'A3' '3'),
@@ -328,7 +329,7 @@ $prefixInputs = @(
 # The lines of a section file beside this script, without empty lines and lines starting with #
 # (comments).
 function Get-SectionLines([string]$Name) {
-    return @(Get-Content -LiteralPath (Join-Path (Join-Path $PSScriptRoot 'catalogue') $Name) |
+    return @(Get-Content -LiteralPath (Join-Path (Join-Path $PSScriptRoot 'catalogue') $Name) -Encoding UTF8 |
         Where-Object { $_ -ne '' -and -not $_.StartsWith('#') })
 }
 

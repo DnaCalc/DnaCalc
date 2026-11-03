@@ -2,7 +2,7 @@
   "format": "dnacalc-capture-record",
   "version": 2,
   "case": "catalogue__prefix_metadata",
-  "source": "section:sha256:0e74fd76e700d93d320ef821776aa57fbd795acf3e2a188f6c9a566bc333e729",
+  "source": "section:sha256:0bcfac3a08508e11061cfb8f2f0d519e7e38fc3fda89bb1e2a9414c72561c963",
   "acquisition": {
     "kind": "live_capture"
   },
@@ -48,7 +48,7 @@
       "display_alerts": "false",
       "ask_to_update_links": "false",
       "ignore_remote_requests": "false",
-      "add_ins": "COM add-in Carousel.ExcelAddin connect=false;COM add-in Dna_78b015d8b23f56a68ecce694f11f8794_3 connect=false;COM add-in ExcelPlugInShell.PowerMapConnect connect=false;COM add-in ExcelVstoAddIn1 connect=false;COM add-in MicrosoftDataStreamerforExcel connect=false;COM add-in MsoTDAddin.Connect.1 connect=false;COM add-in NativeShim.InquireConnector.1 connect=false;COM add-in OxVbaExcelAddin.ExcelAddin connect=false;COM add-in PDFMaker.OfficeAddin connect=false;COM add-in PowerPivotExcelClientAddIn.NativeEntry.1 connect=false;COM add-in TestComAddIn.ComAddIn connect=false;COM add-in TestRibbonRegistration.MyCustomRibbon connect=false;COM add-in VS15ExcelAdaptor connect=true;COM add-in xlPerf connect=false;add-in ANALYS32.XLL open=false installed=false;add-in ATPVBAEN.XLAM open=false installed=false;add-in CsTest160PR-AddIn64-packed.xll open=false installed=false;add-in EUROTOOL.XLAM open=false installed=false;add-in ExcelDna.IntelliSense.Tools-AddIn64.xll open=false installed=false;add-in ExcelDna.IntelliSense64.xll open=false installed=false;add-in ExcelDna64.xll open=false installed=false;add-in GENERIC.xll open=false installed=false;add-in McpExcel-AddIn64.xll open=false installed=true;add-in RibbonTest-AddIn64.xll open=false installed=false;add-in SOLVER.XLAM open=false installed=false;add-in Test160rc1Local-AddIn64.xll open=false installed=false;add-in TestCrashGuard-AddIn64.xll open=false installed=true;add-in TestCs170rc2-AddIn64.xll open=false installed=false;add-in TestDoc170-AddIn64.xll open=false installed=false;add-in TestIntelliEmbed-AddIn64.xll open=false installed=false;add-in TestOpen16-AddIn64-packed.xll open=false installed=false",
+      "add_ins": "COM add-in Carousel.ExcelAddin connect=false;COM add-in Dna_78b015d8b23f56a68ecce694f11f8794_3 connect=false;COM add-in ExcelPlugInShell.PowerMapConnect connect=false;COM add-in ExcelVstoAddIn1 connect=false;COM add-in MicrosoftDataStreamerforExcel connect=false;COM add-in MsoTDAddin.Connect.1 connect=false;COM add-in NativeShim.InquireConnector.1 connect=false;COM add-in OxVbaExcelAddin.ExcelAddin connect=false;COM add-in PDFMaker.OfficeAddin connect=false;COM add-in PowerPivotExcelClientAddIn.NativeEntry.1 connect=false;COM add-in TestComAddIn.ComAddIn connect=false;COM add-in TestRibbonRegistration.MyCustomRibbon connect=false;COM add-in VS15ExcelAdaptor connect=true;COM add-in xlPerf connect=false;add-in ANALYS32.XLL open=false installed=false;add-in ATPVBAEN.XLAM open=false installed=false;add-in CsTest160PR-AddIn64-packed.xll open=false installed=false;add-in CsTest160PR-AddIn64-packed.xll open=false installed=false;add-in EUROTOOL.XLAM open=false installed=false;add-in ExcelDna.IntelliSense.Tools-AddIn64.xll open=false installed=false;add-in ExcelDna.IntelliSense64.xll open=false installed=false;add-in GENERIC.xll open=false installed=false;add-in McpExcel-AddIn64.xll open=false installed=true;add-in TestIntelliEmbed-AddIn64.xll open=false installed=false;add-in ExcelDna64.xll open=false installed=false;add-in RibbonTest-AddIn64.xll open=false installed=false;add-in SOLVER.XLAM open=false installed=false;add-in Test160rc1Local-AddIn64.xll open=false installed=false;add-in TestCrashGuard-AddIn64.xll open=false installed=true;add-in TestCs170rc2-AddIn64.xll open=false installed=false;add-in TestDoc170-AddIn64.xll open=false installed=false;add-in TestOpen16-AddIn64-packed.xll open=false installed=false",
       "com_add_ins_connected": "VS15ExcelAdaptor|Visual Studio Tools for Office Design-Time Adaptor for Excel",
       "add_ins_installed": "McpExcel-AddIn64.xll;TestCrashGuard-AddIn64.xll",
       "has_vb_project": "false",
@@ -56,18 +56,18 @@
       "external_links": "",
       "ole_dde_links": "",
       "connections": "",
-      "calculation_clock": "40e69f26b7e842eb",
-      "workbook_path": "C:\\Work\\DnaCalc\\DnaCalc-win\\target\\c\\20261103030219-2\\in\\oracle.xlsx"
+      "calculation_clock": "40e69f3576e7e4f0",
+      "workbook_path": "C:\\Work\\DnaCalc\\DnaCalc-win\\target\\c\\20261103140553-2\\in\\oracle.xlsx"
     }
   },
   "session": {
     "revision": 0,
     "operations": [],
     "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false",
-    "tool": "calc-oracle-excel 0.1.0; worker results 1; worker sha256:599032d018da3b9889269e0ca46c2c1c7f2f21572fb378bc1781a73b9cd93d25; repository 2132f5f10c8412365918eb1cafcac3523365dd43",
+    "tool": "calc-oracle-excel 0.1.0; worker results 1; worker sha256:b8c1c482f73b050effc0a22e2a70b34e13ae71ea8a073e5e209d7e6dc0666439; repository 5050897870296b3b3a8dc45d8c8ded97c4c764d6+dirty",
     "packages": {
-      "input": "sha256:8f061fe1f1d71209b0f829ee0bc20e7577c9235ba8c2e12747dbeca0fa79f453",
-      "output": "sha256:1e9fad2c3b302aa83d3ee1131f2b05b9e84deae8c9b7351b74e67ccefa887ba9"
+      "input": "sha256:2839ad05d9e4d79e442cd2f90b8482aeef01da61cd2c3df5d82cd0143cec94b1",
+      "output": "sha256:25d6375bb2d782db496d854e3db6744b6e201edb8c514adebc3af822a53f6e72"
     },
     "failures": []
   },
@@ -1564,7 +1564,7 @@
     {"sheet":"prefix_metadata","row":317,"column":2,"excel_raw":{"number":"0000000000000000"}},
     {"sheet":"prefix_metadata","row":318,"column":1,"excel_raw":{"number":"4000000000000000"}},
     {"sheet":"prefix_metadata","row":318,"column":2,"excel_raw":{"error":"name"}},
-    {"sheet":"prefix_metadata","row":319,"column":1,"excel_raw":{"number":"4039000000000000"}},
+    {"sheet":"prefix_metadata","row":319,"column":1,"excel_raw":{"number":"403a000000000000"}},
     {"sheet":"prefix_metadata","row":319,"column":2,"excel_raw":{"error":"name"}},
     {"sheet":"prefix_metadata","row":320,"column":1,"excel_raw":{"text":"006100780063"}},
     {"sheet":"prefix_metadata","row":320,"column":2,"excel_raw":{"text":"006100780063"}},
@@ -2416,7 +2416,7 @@
     {"sheet":"prefix_metadata","row":317,"column":2,"excel_saved_cache":{"t":"n","v":"0"}},
     {"sheet":"prefix_metadata","row":318,"column":1,"excel_saved_cache":{"t":"n","v":"2"}},
     {"sheet":"prefix_metadata","row":318,"column":2,"excel_saved_cache":{"t":"e","v":"#NAME?"}},
-    {"sheet":"prefix_metadata","row":319,"column":1,"excel_saved_cache":{"t":"n","v":"25"}},
+    {"sheet":"prefix_metadata","row":319,"column":1,"excel_saved_cache":{"t":"n","v":"26"}},
     {"sheet":"prefix_metadata","row":319,"column":2,"excel_saved_cache":{"t":"e","v":"#NAME?"}},
     {"sheet":"prefix_metadata","row":320,"column":1,"excel_saved_cache":{"t":"str","v":"axc"}},
     {"sheet":"prefix_metadata","row":320,"column":2,"excel_saved_cache":{"t":"str","v":"axc"}},
@@ -3268,7 +3268,7 @@
     {"sheet":"prefix_metadata","row":317,"column":2,"excel_raw":{"number":"0000000000000000"}},
     {"sheet":"prefix_metadata","row":318,"column":1,"excel_raw":{"number":"4000000000000000"}},
     {"sheet":"prefix_metadata","row":318,"column":2,"excel_raw":{"error":"name"}},
-    {"sheet":"prefix_metadata","row":319,"column":1,"excel_raw":{"number":"4039000000000000"}},
+    {"sheet":"prefix_metadata","row":319,"column":1,"excel_raw":{"number":"403a000000000000"}},
     {"sheet":"prefix_metadata","row":319,"column":2,"excel_raw":{"error":"name"}},
     {"sheet":"prefix_metadata","row":320,"column":1,"excel_raw":{"text":"006100780063"}},
     {"sheet":"prefix_metadata","row":320,"column":2,"excel_raw":{"text":"006100780063"}},

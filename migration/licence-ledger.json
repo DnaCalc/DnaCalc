@@ -189,6 +189,16 @@
   "allowed": {}
  },
  "files": [
+  {
+   "path": "crates/calc-func/tests/captures/catalogue/sections/fn1_collation.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/sheet-fn1_collation.txt",
+   "class": "own-work",
+   "reason": "Original unanswered fn1 collation questions from DnaCalc-Functions packet source f8836d8d89f7cf51f0d6a1bc0ff55d1d4368a3e4, plus array and sorting follow-ups to the scalar readings. No answers or implementation source copied."
+  },
   {"path": "crates/calc-func/src/ported/bessel_rational.rs","class": "permissive-third-party","reason": "dc-j9k: J0/J1/Y0/Y1 low rational seeds, Y1 high polynomial seed and adaptive J backward program from SheetJS/bessel bessel.js at 2e2331329891dc5c16bda3461db0b9fe590ff2e9, Apache-2.0; copyright, full licence and changes in deploy/notices/ported.txt. Clean implementer used the independently checked R20 facts and this permitted source only."},
   {"path": "crates/calc-func/src/udf.rs", "class": "own-work", "reason": "dc-snz.3: caller-owned user-function contract, written in DNA Calc"},
   {
