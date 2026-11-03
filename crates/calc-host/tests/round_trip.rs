@@ -13132,16 +13132,14 @@ fn dc_971p_40__raw_review_edits_cannot_change_the_source_author() {
 fn dc_971p_40__invalid_data_audit_checks_values_custom_formulas_and_disabled_alerts() {
     use calc_host::ValidationStatus;
     let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
-        xml.replace("</worksheet>",r#"<dataValidations count="4"><dataValidation type="whole" operator="between" allowBlank="1" showErrorMessage="0" sqref="A1:A3 A2"><formula1>1</formula1><formula2>3</formula2></dataValidation><dataValidation type="whole" operator="between" allowBlank="0" showErrorMessage="1" sqref="B1:B3"><formula1>1</formula1><formula2>3</formula2></dataValidation><dataValidation type="custom" allowBlank="1" showErrorMessage="1" sqref="C1:C3"><formula1>C1&gt;0</formula1></dataValidation><dataValidation type="list" allowBlank="1" showErrorMessage="0" sqref="D1:D3"><formula1>"Red,Green"</formula1></dataValidation></dataValidations></worksheet>"#)
+        xml.replace("<sheetData/>",r#"<sheetData><row r="1"><c r="B1"><f>9</f></c><c r="C1"><v>-1</v></c></row></sheetData>"#).replace("</worksheet>",r#"<dataValidations count="4"><dataValidation type="whole" operator="between" allowBlank="1" showErrorMessage="0" sqref="A1:A3 A2"><formula1>1</formula1><formula2>3</formula2></dataValidation><dataValidation type="whole" operator="between" allowBlank="0" showErrorMessage="1" sqref="B1:B3"><formula1>1</formula1><formula2>3</formula2></dataValidation><dataValidation type="custom" allowBlank="1" showErrorMessage="1" sqref="C1:C3"><formula1>C1&gt;0</formula1></dataValidation><dataValidation type="list" allowBlank="1" showErrorMessage="0" sqref="D1:D3"><formula1>"Red,Green"</formula1></dataValidation></dataValidations></worksheet>"#)
     });
     let mut book = session(&bytes);
     let s = sheet(book.host(), "Sheet1");
     for (address, text) in [
         ("A1", "9"),
         ("A2", "2"),
-        ("B1", "=9"),
         ("B2", "=2"),
-        ("C1", "-1"),
         ("C2", "2"),
         ("D1", "Blue"),
         ("D2", "Green"),
@@ -13275,7 +13273,7 @@ fn dc_971p_40__raw_review_text_survives_save_after_the_cell_moves() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_971p_40__validation_audit_refuses_old_cross_sheet_references_until_reopen() {
+fn dc_971p_40__validation_audit_updates_cross_sheet_references_before_reopen() {
     use calc_host::ValidationStatus;
     let original=include_bytes!("fixtures/d2/structural-base.xlsx");
     let bytes=package_with_part_from(original,"xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",r#"<dataValidations count="1"><dataValidation type="list" allowBlank="0" showErrorMessage="0" sqref="Z1"><formula1>U!$Z$2:$Z$3</formula1></dataValidation></dataValidations></worksheet>"#));
@@ -13284,8 +13282,141 @@ fn dc_971p_40__validation_audit_refuses_old_cross_sheet_references_until_reopen(
     assert!(enter(&mut book,at(s,"Z1"),"Green").accepted());
     assert_eq!(book.host().validation_status(at(s,"Z1")),Some(ValidationStatus::Valid));
     let receipt=book.dispatch(SkinIntent::EditAxis(AxisEdit::new(source,Axis::Rows,AxisChange::Insert,2,1).unwrap()));assert!(receipt.accepted(),"{receipt:?}");
-    assert!(matches!(book.host().validation_status(at(s,"Z1")),Some(ValidationStatus::Unavailable {..})));
+    assert_eq!(book.host().validation_status(at(s,"Z1")),Some(ValidationStatus::Valid));
     let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
     let reopened=session(&saved);let s=sheet(reopened.host(),"S");
     assert_eq!(reopened.host().validation_status(at(s,"Z1")),Some(ValidationStatus::Valid));
+}
+
+/// Proposed values use the existing evaluator without committing a model revision or history.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__custom_and_formula_candidates_use_current_dependents_and_leave_no_edits() {
+    let bytes=package_with_part("xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",r#"<dataValidations count="3"><dataValidation type="custom" showErrorMessage="1" sqref="A1:A4"><formula1>AND(A1&gt;0,B1=A1*2)</formula1></dataValidation><dataValidation type="whole" operator="between" showErrorMessage="1" sqref="C1"><formula1>1</formula1><formula2>5</formula2></dataValidation><dataValidation type="list" showErrorMessage="1" sqref="D1"><formula1>"Red,Green"</formula1></dataValidation></dataValidations></worksheet>"#));
+    let mut book=session(&bytes);let s=book.host().sheets()[0].id();
+    enter(&mut book,at(s,"B1"),"=A1*2");
+    let revision=book.host().revision();let depth=book.history_depth();
+    for (address,text,valid) in [("A1","3",true),("A1","-3",false),("A1","=2+2",true),("A1","=-2",false),("C1","=2+2",true),("C1","=3+3",false),("C1","=1/0",false),("D1","=\"Red\"",true),("D1","=\"Blue\"",false)] {
+        let input=calc_host::interpret_entry_in(text,Some(&book.host().entry_environment())).unwrap();
+        let result=book.host().check_entry(at(s,address),input.as_ref());
+        assert_eq!(result.is_ok(),valid,"{address} {text}: {result:?}");
+        assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);
+    }
+    assert!(!book.dispatch(SkinIntent::EnterCell {at:at(s,"A1"),text:"-3".into()}).accepted());
+    assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);
+    enter(&mut book,at(s,"A1"),"=2+2");
+    assert!(matches!(value(book.host(),at(s,"B1")),ProjectedValue::Calculated{value,..} if value==calc_value::CalcValue::number(8.)));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert!(book.host().model().cell(at(s,"A1")).is_none());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__validation_references_agree_before_and_after_axis_edits_and_sheet_rename() {
+    use calc_host::{ValidationStatus,WorkbookCommand,SheetChange};
+    let bytes=package_with_part("xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",r#"<dataValidations count="2"><dataValidation type="custom" showErrorMessage="0" sqref="A1:A4"><formula1>A1&gt;=$C$1</formula1></dataValidation><dataValidation type="list" showErrorMessage="1" sqref="D1:D4"><formula1>$C$1:$C$2</formula1></dataValidation></dataValidations></worksheet>"#));
+    let mut book=session(&bytes);let s=book.host().sheets()[0].id();
+    for (a,t) in [("A1","2"),("A2","7"),("C1","5"),("C2","9")] {enter(&mut book,at(s,a),t);}
+    assert!(matches!(book.host().validation_status(at(s,"A1")),Some(ValidationStatus::Invalid(_))));
+    let receipt=book.dispatch(SkinIntent::Edit {edits:vec![CellEdit::Axis(calc_doc_model::AxisEdit::new(s,calc_doc_model::Axis::Rows,calc_doc_model::AxisChange::Insert,1,2).unwrap())]});assert!(receipt.accepted(),"{receipt:?}");
+    assert!(matches!(book.host().validation_status(at(s,"A3")),Some(ValidationStatus::Invalid(_))));
+    assert_eq!(book.host().validation_status(at(s,"A4")),Some(ValidationStatus::Valid));
+    assert_eq!(book.host().validation_list(at(s,"D3")).unwrap().len(),2);
+    let revision=book.host().revision().get();
+    let receipt=book.dispatch(SkinIntent::Command(WorkbookCommand::Sheet{sheet:Some(s),change:SheetChange::Rename{name:"Input data".into()}}));assert!(receipt.accepted(),"{receipt:?}, {revision}");
+    let before=book.host().scan_validation(s);let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
+    let reopened=session(&saved);let rs=reopened.host().sheets()[0].id();let after=reopened.host().scan_validation(rs);
+    assert_eq!((before.valid,before.invalid.len(),before.unavailable),(after.valid,after.invalid.len(),after.unavailable));
+    assert_eq!(before.unavailable,0);
+    assert!(part_text(&saved,"xl/worksheets/sheet1.xml").contains("$C$3"));
+}
+
+/// Canonical range/formula changes keep x14 containers, revision IDs and unknown source metadata.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__validation_x14_and_container_metadata_survive_current_reference_writes() {
+    let bytes=package_with_part("xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",r#"<dataValidations count="1" disablePrompts="1" xWindow="117"><dataValidation type="whole" allowBlank="1" showErrorMessage="0" sqref="A1:A3" xmlns:meta="urn:retained" meta:flag="keep"><formula1>1</formula1><formula2>9</formula2><meta:formula1>opaque</meta:formula1><meta:dataValidation><formula1>retained nested</formula1></meta:dataValidation></dataValidation></dataValidations><extLst><ext uri="{CCE6A557-97BC-4B89-ADB6-D9C93CAAB3DF}" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><x14:dataValidations count="1" xmlns:xm="http://schemas.microsoft.com/office/excel/2006/main"><x14:dataValidation type="list" allowBlank="1" showErrorMessage="0" xmlns:meta="urn:retained" meta:flag="extended" sqref="ignored"><x14:formula1><xm:f>$C$1:$C$2</xm:f></x14:formula1><xm:sqref>D1:D3</xm:sqref></x14:dataValidation></x14:dataValidations></ext></extLst></worksheet>"#));
+    let mut book=session(&bytes);let s=book.host().sheets()[0].id();
+    enter(&mut book,at(s,"C1"),"Red");enter(&mut book,at(s,"C2"),"Green");enter(&mut book,at(s,"D1"),"Green");
+    let receipt=book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Insert,1,2).unwrap()));assert!(receipt.accepted(),"{receipt:?}");
+    assert_eq!(book.host().validation_list(at(s,"D3")).unwrap().len(),2);
+    let before=book.host().scan_validation(s);let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
+    let xml=part_text(&saved,"xl/worksheets/sheet1.xml");
+    for text in ["disablePrompts=\"1\"","xWindow=\"117\"","meta:flag=\"keep\"","meta:flag=\"extended\"","$C$3:$C$4","D3:D5","<meta:formula1>opaque</meta:formula1>","<formula1>retained nested</formula1>"] {assert!(xml.contains(text),"{text}: {xml}");}
+    let reopened=session(&saved);let rs=reopened.host().sheets()[0].id();let after=reopened.host().scan_validation(rs);
+    assert_eq!((before.valid,before.invalid.len(),before.unavailable),(after.valid,after.invalid.len(),after.unavailable));assert_eq!(after.unavailable,0);
+}
+
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__literal_candidates_recalculate_formula_bounds_and_lists() {
+    let bytes=package_with_part("xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",r#"<dataValidations count="2"><dataValidation type="whole" operator="lessThan" showErrorMessage="1" sqref="A1"><formula1>B1</formula1></dataValidation><dataValidation type="list" showErrorMessage="1" sqref="C1"><formula1>D1</formula1></dataValidation></dataValidations></worksheet>"#));
+    let mut book=session(&bytes);let s=book.host().sheets()[0].id();
+    enter(&mut book,at(s,"B1"),"=A1*2");enter(&mut book,at(s,"D1"),"=C1");
+    assert!(enter(&mut book,at(s,"A1"),"3").accepted());
+    for (address,text,valid) in [("A1","7",true),("A1","0",false),("C1","Red",true)] {
+        let input=calc_host::interpret_entry_in(text,Some(&book.host().entry_environment())).unwrap();
+        assert_eq!(book.host().check_entry(at(s,address),input.as_ref()).is_ok(),valid,"{address} {text}");
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__rejected_candidate_does_not_call_live_user_function_providers() {
+    use std::{rc::Rc,cell::Cell};
+    #[derive(Debug)] struct Counter(Rc<Cell<u32>>);
+    impl calc_fml::UserFunction for Counter {
+        fn call(&self,_:&[calc_value::CalcValue])->Result<calc_value::CalcValue,String>{self.0.set(self.0.get()+1);Ok(calc_value::CalcValue::number(1.))}
+    }
+    let bytes=package_with_part("xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",r#"<dataValidations count="1"><dataValidation type="custom" showErrorMessage="1" sqref="A1"><formula1>A1&gt;0</formula1></dataValidation></dataValidations></worksheet>"#));
+    let mut book=session(&bytes);let s=book.host().sheets()[0].id();let calls=Rc::new(Cell::new(0));
+    let mut functions=calc_fml::CallableTable::new();functions.register("ValidationCounter",Rc::new(Counter(calls.clone()))).unwrap();book.set_user_functions(functions);
+    assert!(enter(&mut book,at(s,"Z1"),"=ValidationCounter()").accepted());
+    calls.set(0);let revision=book.host().revision();let depth=book.history_depth();
+    let input=calc_host::interpret_entry_in("-3",Some(&book.host().entry_environment())).unwrap();
+    let failure=book.host().check_entry(at(s,"A1"),input.as_ref()).unwrap_err();
+    assert!(failure.title.contains("dc-971p.40"));
+    assert!(!book.dispatch(SkinIntent::EnterCell{at:at(s,"A1"),text:"-3".into()}).accepted());
+    assert_eq!(calls.get(),0);assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__deleting_rule_origin_rebases_surviving_cells_and_keeps_rules_when_notes_empty() {
+    use calc_host::ValidationStatus;
+    for areas in ["A1:A4","A1 A3:A5"] {
+        let bytes=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",&format!(r#"<dataValidations count="1"><dataValidation type="custom" showErrorMessage="0" sqref="{areas}"><formula1>A1&gt;0</formula1></dataValidation></dataValidations></worksheet>"#)));
+        let mut book=session(&bytes);let s=book.host().sheets()[0].id();
+        for (a,v) in [("A1","1"),("A2","2"),("A3","3"),("A4","4"),("A5","5")] {enter(&mut book,at(s,a),v);}
+        assert!(book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Delete,1,1).unwrap())).accepted());
+        let address=if areas.contains(' '){"A2"}else{"A1"};
+        assert_eq!(book.host().validation_status(at(s,address)),Some(ValidationStatus::Valid));
+        assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().validation_status(at(s,"A1")),Some(ValidationStatus::Valid));
+        assert!(book.dispatch(SkinIntent::Redo).accepted());
+        let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let rs=reopened.host().sheets()[0].id();
+        assert_eq!(reopened.host().validation_status(at(rs,address)),Some(ValidationStatus::Valid));
+    }
+    let original=include_bytes!("fixtures/d2/structural-base.xlsx");
+    let bytes=package_with_part_from(original,"xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",r#"<dataValidations count="1"><dataValidation type="whole" operator="between" showErrorMessage="1" sqref="Z10:Z12"><formula1>1</formula1><formula2>9</formula2></dataValidation></dataValidations></worksheet>"#));
+    let mut book=session(&bytes);let s=sheet(book.host(),"S");assert!(!book.host().model().definitions().review_notes(s).is_empty());enter(&mut book,at(s,"Z10"),"5");
+    assert!(book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::ConditionalRules{sheet:s,rules:vec![]}]}).accepted());
+    let revision=book.host().revision().get();
+    assert!(book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::AutoFilter{sheet:s,revision,change:calc_host::FilterChange::Remove})).accepted());
+    let receipt=book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Delete,1,8).unwrap()));assert!(receipt.accepted(),"{receipt:?}");
+    assert!(book.host().model().definitions().review_notes(s).is_empty());assert_eq!(book.host().validation_status(at(s,"Z2")),Some(ValidationStatus::Valid));
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let rs=sheet(reopened.host(),"S");assert_eq!(reopened.host().validation_status(at(rs,"Z2")),Some(ValidationStatus::Valid));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_40__raw_validation_edits_refuse_bad_coordinates_and_source_attribute_changes() {
+    let bytes=package_with_part("xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",r#"<dataValidations count="1"><dataValidation type="whole" showErrorMessage="1" sqref="Z1"><formula1>1</formula1><formula2>9</formula2></dataValidation></dataValidations></worksheet>"#));
+    let mut book=session(&bytes);let s=book.host().sheets()[0].id();let old=book.host().model().definitions().validations(s).to_vec();let revision=book.host().revision();let depth=book.history_depth();
+    for malformed in 0..3 {
+        let mut rules=old.clone();if malformed==0{rules[0].areas=vec![(0,1,1,1)];}else if malformed==1{rules[0].allow_blank=!rules[0].allow_blank;rules[0].show_error=false;}else{rules[0].formula2=None;}
+        assert!(!book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::Validations{sheet:s,rules}]}).accepted());
+        assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);assert_eq!(book.host().model().definitions().validations(s),old);
+    }
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let rs=reopened.host().sheets()[0].id();let rule=&reopened.host().model().definitions().validations(rs)[0];assert!(!rule.allow_blank);assert!(rule.show_error);
 }

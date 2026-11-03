@@ -30,6 +30,9 @@ pub enum StructuralChange {
 /// Rewrites the references of formulas for a structural change: what a formula language knows
 /// and the model does not. Each method is given the root before the change.
 pub trait FormulaRewriter {
+    /// Copy a relative rule from one formula origin to another before a structural edit.
+    fn relocate(&self, root: &ModelRoot, formula: &FormulaText, from: CellKey, to: CellKey) -> Option<FormulaText>;
+
     /// The text `change` leaves of `formula`, in the cell `at` of `root`; `None` when the change
     /// leaves it as it is.
     fn formula(
@@ -393,6 +396,35 @@ impl ModelRoot {
             let edits:Vec<_>=next.axis_layouts().bands(edit.sheet(),Axis::Rows).map(|(i,f)|crate::AxisFormatEdit::new(edit.sheet(),Axis::Rows,i,f).unwrap()).collect();
             next=next.with_axis_formats(edits);
         }
+        for (sheet, rules) in definitions.all_validations() {
+            let rules = rules.iter().filter_map(|rule| {
+                let &(t,l,_,_) = rule.areas.first()?;
+                let old = CellKey::new(sheet,t,l).ok()?;
+                let mut rule = rule.clone();
+                rule.areas = rule.areas.iter().filter_map(|&(t,l,b,r)| {
+                    let area = GridArea::new(CellKey::new(sheet,t,l).ok()?,CellKey::new(sheet,b,r).ok()?).ok()?;
+                    let area = moved_area(edit,area)?;
+                    Some((area.first().row(),area.first().column(),area.last().row(),area.last().column()))
+                }).collect();
+                if rule.areas.is_empty() { return None; }
+                let &(t,l,_,_) = rule.areas.first()?;
+                let new = CellKey::new(sheet,t,l).ok()?;
+                let survivor = if sheet == edit.sheet() {
+                    let row = if edit.axis()==Axis::Rows {source_position(edit,new.row())?}else{new.row()};
+                    let column = if edit.axis()==Axis::Columns {source_position(edit,new.column())?}else{new.column()};
+                    CellKey::new(sheet,row,column).ok()?
+                } else {new};
+                for formula in [&mut rule.formula1,&mut rule.formula2].into_iter().flatten() {
+                    if let Ok(mut text) = FormulaText::new(ExcelText::from_utf16_code_units(formula.encode_utf16().collect())) {
+                        if survivor != old {text = rewriter.relocate(self,&text,old,survivor).unwrap_or(text);}
+                        text = rewriter.formula(self,&text,survivor,&change).unwrap_or(text);
+                        *formula = text.text().to_string_lossy().trim_start_matches('=').to_owned();
+                    }
+                }
+                Some(rule)
+            }).collect();
+            next = next.with_validations(sheet,rules);
+        }
         for (sheet, notes) in definitions.all_review_notes() {
             let notes = notes
                 .iter()
@@ -448,6 +480,29 @@ impl ModelRoot {
         )
     }
 
+    fn rewritten_rules(&self, rewriter:&dyn FormulaRewriter, change:&StructuralChange, mut definitions:Definitions)->Definitions {
+        let formula=|text:&mut String,at:CellKey| {
+            if let Ok(f)=FormulaText::new(ExcelText::from_utf16_code_units(text.encode_utf16().collect()))
+                && let Some(next)=rewriter.formula(self,&f,at,change) {
+                *text=next.text().to_string_lossy().trim_start_matches('=').to_owned();
+            }
+        };
+        for (sheet,rules) in self.definitions().all_validations() {
+            let mut rules=rules.to_vec();for rule in &mut rules {
+                if let Some(&(r,c,_,_))=rule.areas.first() {
+                    let at=CellKey::new(sheet,r,c).expect("validation origin");
+                    for text in [&mut rule.formula1,&mut rule.formula2].into_iter().flatten(){formula(text,at);}
+                }
+            }
+            definitions=definitions.with_validations(sheet,rules);
+        }
+        for (sheet,rules) in self.definitions().all_conditional_rules() {
+            let mut rules=rules.to_vec();for rule in &mut rules {if let Some(at)=rule.origin(){for text in &mut rule.formulas{formula(text,at);}}}
+            definitions=definitions.with_conditional_rules(sheet,rules);
+        }
+        definitions
+    }
+
     fn sheet_edit(
         &self,
         operation: usize,
@@ -485,7 +540,7 @@ impl ModelRoot {
                 };
                 parts.cells = self.rewritten_cells(rewriter, &change, parts.cells);
                 let names = self.rewritten_names(rewriter, &change, parts.definitions.names());
-                parts.definitions = parts.definitions.with_names(names);
+                parts.definitions = self.rewritten_rules(rewriter,&change,parts.definitions.with_names(names));
                 let entry = &parts.sheets[at];
                 parts.sheets[at] =
                     SheetEntry::new(entry.id(), entry.key(), name.clone(), entry.visibility());
@@ -502,7 +557,7 @@ impl ModelRoot {
                 parts.cells = self.rewritten_cells(rewriter, &change, parts.cells);
                 parts.cells.remove(sheet);
                 let names = self.rewritten_names(rewriter, &change, parts.definitions.names());
-                parts.definitions = parts.definitions.with_names(names).without_sheet(*sheet);
+                parts.definitions = self.rewritten_rules(rewriter,&change,parts.definitions.with_names(names)).without_sheet(*sheet);
                 parts.sheets.remove(at);
                 parts.layout = parts
                     .layout
@@ -533,6 +588,8 @@ mod tests {
     struct Unchanged;
 
     impl FormulaRewriter for Unchanged {
+        fn relocate(&self, _: &ModelRoot, formula: &FormulaText, _: CellKey, _: CellKey) -> Option<FormulaText> {Some(formula.clone())}
+
         fn formula(
             &self,
             _: &ModelRoot,

@@ -25,6 +25,7 @@ mod panes;
 mod parts;
 mod reader;
 mod review;
+pub(crate) mod validation;
 mod sheet;
 mod sheets;
 mod strings;

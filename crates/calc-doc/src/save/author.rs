@@ -406,6 +406,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
     let mut out = Changes::default();
     // A defined name's formula an edit changed (rows or columns inserted or deleted, cells moved).
     let names_changed = base.definitions().names() != model.definitions().names();
+    let validation_changed = base.definitions().all_validations().ne(model.definitions().all_validations());
     let review_changed = base
         .definitions()
         .all_review_notes()
@@ -428,6 +429,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
         && !names_changed
         && !conditional_changed
         && !review_changed
+        && !validation_changed
         && views.is_none()
         && !panes_changed
         && !dimensions_changed
@@ -1122,6 +1124,14 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
                 model.definitions().conditional_rules(sheet.id()),
             )?;
             out.rewritten.insert(sheet.part().name().to_owned(), bytes);
+        }
+    }
+    if validation_changed {
+        for sheet in sheets.iter().filter(|s|base.definitions().validations(s.id())!=model.definitions().validations(s.id())) {
+            let original=super::sheets::read_sheet(package,sheet.part().name())?;
+            let current=out.rewritten.remove(sheet.part().name()).map(|b|original.with_bytes(b));
+            let bytes=super::validation::rewrite(current.as_ref().unwrap_or(&original),model.definitions().validations(sheet.id()))?;
+            out.rewritten.insert(sheet.part().name().to_owned(),bytes);
         }
     }
     if review_changed {

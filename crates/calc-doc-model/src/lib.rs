@@ -54,6 +54,8 @@
 mod axis_layout;
 mod cache;
 mod cells;
+mod validation;
+pub use validation::Validation;
 mod review;
 pub use review::{ReviewNote, ReviewSource, review_thread_text};
 mod conditional;

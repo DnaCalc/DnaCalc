@@ -7803,14 +7803,11 @@ Case {
     Case {
         name: "validation audit: published formula results can be circled without an entry alert",
         actions: &[
-            Action::Upload(
-                "open-file",
-                "crates/calc-host/tests/fixtures/dc_6yw/data-validation.xlsx",
-            ),
+            Action::ValidationFixture("audit"),
+            Action::UploadDownload("validation-audit.xlsx"),
             Action::DiscardReplacement,
             Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),
             Action::Into("name-box", "A1\u{E007}"),
-            Action::Into(BAR, "=1\u{E007}"),
             Action::Wait(Check::Text(cell!("A1"), "1")),
             Action::Into("name-box", "A1\u{E007}"),
             Action::Click("review-tools"),
@@ -7857,7 +7854,7 @@ Case {
         actions: &[
             Action::ClearDownloads,
             Action::Click("save"),
-            Action::UploadDownload("data-validation.xlsx"),
+            Action::UploadDownload("validation-audit.xlsx"),
             Action::DiscardReplacement,
             Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),
             Action::Into("name-box", "A1\u{E007}"),
@@ -7876,7 +7873,7 @@ Case {
     Case {
         name: "validation list: End reveals the last option inside a long keyboard list",
         actions: &[
-            Action::ValidationListFixture,
+            Action::ValidationFixture("list"),
             Action::UploadDownload("validation-list.xlsx"),
             Action::DiscardReplacement,
             Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),
@@ -7950,6 +7947,37 @@ Case {
             Check::Value(BAR, "V40"),
         ],
     },
+    Case {
+        name: "candidate validation: custom Stop inspects the proposed formula and retains the rejected draft",
+        actions: &[
+            Action::ValidationFixture("candidate"),Action::UploadDownload("validation-candidate.xlsx"),Action::DiscardReplacement,
+            Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),Action::Into("name-box","M1\u{E007}"),
+            Action::Into(BAR,"=-2\u{E007}"),Action::Wait(Check::Text("validation-message","Enter a positive result")),
+            Action::Click("validation-retry"),
+        ],
+        checks:&[Check::Value(BAR,"=-2"),Check::Absent("[data-dnacalc=validation-dialog][open]")],
+    },
+    Case {
+        name: "candidate validation: accepted formulas calculate and Undo restores the prior cell",
+        actions:&[Action::Into(BAR,"=2+2\u{E007}"),Action::Wait(Check::Text(cell!("M1"),"4")),Action::Click("undo"),Action::Wait(Check::Absent(cell!("M1"))),Action::Click("redo")],
+        checks:&[Check::Text(cell!("M1"),"4"),Check::PlanCell("M1","provenance","calculated")],
+    },
+    Case {
+        name: "candidate validation: formula results use a whole number rule and cancel preserves the cell",
+        actions:&[Action::Into("name-box","C1\u{E007}"),Action::Into(BAR,"=3/2\u{E007}"),Action::Wait(Check::Text("validation-message","A whole number from 1 to 10")),Action::Click("validation-cancel"),Action::Into("name-box","M1\u{E007}")],
+        checks:&[Check::Text(cell!("M1"),"4"),Check::Absent("[data-dnacalc=validation-dialog][open]")],
+    },
+    Case {
+        name: "candidate validation: Warning keeps a rejected formula only after an explicit decision",
+        actions:&[Action::Into("name-box","D1\u{E007}"),Action::Into(BAR,"=-1\u{E007}"),Action::Wait(Check::TextContains("validation-dialog","Warning")),Action::Click("validation-keep")],
+        checks:&[Check::Text(cell!("D1"),"-1"),Check::PlanCell("D1","provenance","calculated")],
+    },
+    Case {
+        name: "candidate validation: custom rules survive save reopen and a phone rejection fits",
+        actions:&[Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("validation-candidate.xlsx"),Action::DiscardReplacement,Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),Action::Window(390,844),Action::Into("name-box","M1\u{E007}"),Action::Into(BAR,"-3\u{E007}"),Action::Wait(Check::Text("validation-message","Enter a positive result"))],
+        checks:&[Check::Fits,Check::Reachable("validation-retry"),Check::Reachable("validation-cancel"),Check::Text(cell!("M1"),"4")],
+    },
+
 ];
 
 /// The script that reads what one check looks at.
@@ -8776,4 +8804,5 @@ CaseGroup {
         core: 7,
         setup: &[],
     },
+    CaseGroup {name:"candidate-validation",start:601,end:606,core:5,setup:&[]},
 ];

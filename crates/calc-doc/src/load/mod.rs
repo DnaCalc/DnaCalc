@@ -1536,7 +1536,8 @@ pub fn load(
     let outline_edits:Vec<_>=sheets.iter().flat_map(|sheet|definitions.axis_layouts().bands(sheet.id,calc_doc_model::Axis::Rows).map(move |(i,f)|calc_doc_model::AxisFormatEdit::new(sheet.id,calc_doc_model::Axis::Rows,i,f).unwrap())).collect();
     definitions=definitions.with_axis_formats(outline_edits);
     for sheet in &sheets {
-        definitions = definitions.with_review_notes(sheet.id, sheet.review.notes.clone());
+        definitions = definitions.with_review_notes(sheet.id, sheet.review.notes.clone())
+            .with_validations(sheet.id, sheet.validations.to_vec());
     }
     for (sheet, rules) in conditional_sources {
         definitions = definitions.with_conditional_rules(sheet, rules);

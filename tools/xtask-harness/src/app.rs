@@ -1057,7 +1057,7 @@ pub enum Action {
     ViewDownloadFixtureFor(&'static str, &'static str),
     StyledFixture,
     AlignmentFixture,
-    ValidationListFixture,
+    ValidationFixture(&'static str),
     /// Observe delayed external events in fault cases.
     PauseMillis(u64),
     /// Read-only snapshot of the actual plan before a presentation event.
@@ -1729,14 +1729,14 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
         | Action::ViewDownloadFixture(_)
         | Action::ViewDownloadFixtureFor(_, _)
         | Action::StyledFixture
-        | Action::AlignmentFixture | Action::ValidationListFixture => {
+        | Action::AlignmentFixture | Action::ValidationFixture(_) => {
             #[cfg(target_arch = "wasm32")]
             {
                 Err("Package fixture preparation is native-only".to_owned())
             }
             #[cfg(not(target_arch = "wasm32"))]
             {
-                let path = if matches!(action, Action::ValidationListFixture) {
+                let path = if matches!(action, Action::ValidationFixture(_)) {
                     ws.root
                         .join("crates/calc-host/tests/fixtures/dc_6yw/data-validation.xlsx")
                 } else if matches!(action, Action::StyledFixture | Action::AlignmentFixture) {
@@ -1758,11 +1758,32 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                     .map_err(|e| e.to_string());
                 }
                 let parts = crate::oracle_cases::package_parts(&bytes)?;
-                if matches!(action, Action::ValidationListFixture) {
+                if let Action::ValidationFixture(kind) = action {
                     let name = "xl/worksheets/sheet1.xml";
                     let xml =
                         std::str::from_utf8(parts.get(name).ok_or("no validation worksheet")?)
                             .map_err(|e| e.to_string())?;
+                    if *kind != "list" {
+                        let mut xml=xml.to_owned();
+                        if *kind=="audit" {
+                            let cell="<c r=\"A1\"><f>1</f><v>1</v></c>";
+                            if let Some(start)=xml.find("<c r=\"A1\"") {
+                                let end=start+xml[start..].find("</c>").ok_or("unclosed A1")?+4;
+                                xml.replace_range(start..end,cell);
+                            } else if let Some(row)=xml.find("<row r=\"1\"") {
+                                let start=row+xml[row..].find('>').ok_or("unclosed row")?+1;
+                                xml.insert_str(start,cell);
+                            } else {
+                                let start=xml.find("<sheetData>").ok_or("no sheet data")?+"<sheetData>".len();
+                                xml.insert_str(start,&format!("<row r=\"1\">{cell}</row>"));
+                            }
+                        } else if *kind=="candidate" {
+                            let rule=r#"<dataValidation type="custom" allowBlank="1" showErrorMessage="1" errorTitle="Positive only" error="Enter a positive result" sqref="M1:M5"><formula1>M1&gt;0</formula1></dataValidation>"#;
+                            xml=xml.replace("<dataValidations count=\"8\">","<dataValidations count=\"9\">").replace("</dataValidations>",&format!("{rule}</dataValidations>"));
+                        } else {return Err("Unknown validation fixture variation".into());}
+                        let bytes=crate::oracle_cases::replace_package_parts(&bytes,&std::collections::BTreeMap::from([(name.to_owned(),xml.into_bytes())]))?;
+                        return fs::write(session.downloads.join(format!("validation-{kind}.xlsx")),bytes).map_err(|e|e.to_string());
+                    }
                     if !xml.contains("\"Red,Green,Blue\"") {
                         return Err("The retained validation list fixture changed".into());
                     }
@@ -2971,8 +2992,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 190,
-            "the two applications have 190 core cases including conditional formats, editable review content, validation audits and the existing editing routes"
+            total, 195,
+            "the two applications have 195 core cases including candidate validation, conditional formats, editable review content, validation audits and the existing editing routes"
         );
     }
 
