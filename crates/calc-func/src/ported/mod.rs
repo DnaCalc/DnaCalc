@@ -19,6 +19,7 @@ pub(crate) mod atan2;
 pub(crate) mod atanh;
 pub(crate) mod base_fn;
 pub(crate) mod bessel;
+mod bessel_rational;
 pub(crate) mod beta_gamma_stats_family;
 pub(crate) mod bit_common;
 pub(crate) mod bitand_fn;

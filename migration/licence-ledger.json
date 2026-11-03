@@ -189,6 +189,7 @@
   "allowed": {}
  },
  "files": [
+  {"path": "crates/calc-func/src/ported/bessel_rational.rs","class": "permissive-third-party","reason": "dc-j9k: Low-argument J0/J1/Y0/Y1 rational seed tables and adaptation from SheetJS/bessel bessel.js at 2e2331329891dc5c16bda3461db0b9fe590ff2e9, Apache-2.0; copyright, full licence and changes in deploy/notices/ported.txt. Clean implementer used the independently checked R20 facts and this permitted source only."},
   {"path": "crates/calc-func/src/udf.rs", "class": "own-work", "reason": "dc-snz.3: caller-owned user-function contract, written in DNA Calc"},
   {
    "path": "crates/calc-func/tests/f1_support/x87_cpu.rs",
@@ -1082,7 +1083,7 @@
   {
    "path": "crates/calc-func/src/ported/bessel.rs",
    "class": "own-work",
-   "reason": "Own A&S I0/I1/K0/K1 polynomials and recurrences, DLMF 10.25.2 I_n series; J/Y base functions and J backward path delegate to existing libm dependency. Excel-derived coefficients and recurrence constants removed (dc-j9k).",
+   "reason": "Own A&S I0/I1/K0/K1 polynomials and recurrences, DLMF 10.25.2 I_n series; low J/Y seeds call the licensed bessel_rational helper; other J/Y seeds and the J backward path retain the existing libm dependency. No numerical fallback body changed in the low-seed integration (dc-j9k).",
    "parts": [
     {
      "class": "own-work",
