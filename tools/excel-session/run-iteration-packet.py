@@ -230,7 +230,120 @@ def run(args):
         write(output/'results-sha256.json',{p.relative_to(output).as_posix():sha(p) for p in output.rglob('*') if p.is_file()})
 
 
+def resume(args):
+    """Resume frozen requests, observing every condition three times before filling to ten."""
+    checkout=Path(args.checkout).resolve()
+    output=Path(args.output).resolve()
+    session=Path(args.session).resolve()
+    load=lambda p: json.loads(p.read_text(encoding='utf-8-sig'))
+    campaign=output/'resume'/uuid.uuid4().hex
+    campaign.mkdir(parents=True)
+    shutil.copyfile(__file__,campaign/'driver.py')
+    # Validate the delivered tree before adding anything; never overwrite a raw trial.
+    for name,digest in load(output/'delivery-sha256.json').items():
+        if sha(output/name)!=digest: raise ValueError('Delivered file changed: '+name)
+    requests={}
+    for p in sorted((output/'trials').glob('*/*/request.json')):
+        r=load(p)
+        ident=r.get('condition',{}).get('id') or 'P22-P06-'+r['case']
+        key=(ident,r['trial'])
+        if key in requests: raise ValueError('Duplicate trial request')
+        if sha(Path(r['input']))!=r['input_sha256']: raise ValueError('Frozen input changed: '+str(p))
+        requests[key]=p
+    if len(requests)!=1040: raise ValueError('Expected all 1040 frozen trial requests')
+    completed={};attempted=set();existing=[]
+    for p in sorted((output/'all-session-receipts').glob('*/receipt.json')):
+        rec=load(p)
+        result=rec.get('job',{}).get('parameters',{}).get('Result')
+        if not result or Path(rec.get('job',{}).get('script','')).name!='condition-job.ps1': continue
+        raw=Path(result)
+        if sha(raw)!=rec['result_sha256']: raise ValueError('Condition result changed')
+        value=load(raw)
+        for t in value.get('trials',[]):
+            key=(value['condition'],t['trial'])
+            if key in completed: raise ValueError('Trial already measured twice')
+            if not t['success'] or load(Path(t['result'])).get('fatal'): raise ValueError('Existing failed trial needs explicit review')
+            if sha(Path(t['result']))!=t['result_sha256']: raise ValueError('Trial result changed')
+            if not rec['success'] or not (rec['baseline']==rec['baseline_before']==rec['baseline_after']==t['baseline_before']==t['baseline_after']):
+                raise ValueError('Existing trial baseline differs')
+            completed[key]=dict(job=rec['id'],result=t['result'],sha256=t['result_sha256'])
+        existing.append(rec)
+    for key,p in requests.items():
+        if p.with_name('result.json').exists() and key not in completed: raise ValueError('Unqualified existing raw result: '+str(p))
+    initial=set(completed)
+    write(campaign/'initial.json',dict(completed_trials=len(initial),conditions=len({k[0] for k in initial}),
+        frozen_requests={str(p.relative_to(output)):sha(p) for p in requests.values()},
+        process_scope='Fresh process per remaining pure-condition group (trials 1-3, then 4-10); fresh process per P06 trial. Baselines reset and checked between workbook trials. Existing trials are never repeated.'))
+    deadline=dt.datetime.fromisoformat(args.until.replace('Z','+00:00'))
+    receipts=[];failures=[];jobs=[]
+    conditions=sorted({k[0] for k in requests})
+    for phase,numbers in (('coverage',range(1,4)),('fill',range(4,11))):
+        for condition_id in conditions:
+            keys=[(condition_id,n) for n in numbers if (condition_id,n) not in completed]
+            groups=[[k] for k in keys] if condition_id.startswith('P22-P06-') else ([keys] if keys else [])
+            for group in groups:jobs.append((phase,condition_id,group))
+    write(campaign/'plan.json',[dict(phase=p,condition=c,trials=[k[1] for k in g]) for p,c,g in jobs])
+    if args.dry_run:
+        print(json.dumps(dict(campaign=str(campaign),existing_trials=len(completed),remaining_jobs=len(jobs),remaining_trials=1040-len(completed))))
+        return
+    try:
+        for index,(phase,condition_id,group) in enumerate(jobs):
+            if dt.datetime.now(dt.timezone.utc)>=deadline: break
+            directory=campaign/f'{index:03d}-{condition_id}'
+            trials=[]
+            for key in group:
+                p=requests[key]
+                if p.with_name('result.json').exists():raise ValueError('Refusing to overwrite '+str(p))
+                trials.append(dict(trial=key[1],request=str(p),result=str(p.with_name('result.json'))))
+            worker=checkout/'tools/excel-session'/('events-job.ps1' if condition_id.startswith('P22-P06-') else 'iteration-job.ps1')
+            write(directory/'request.json',dict(condition=condition_id,worker=str(worker),trials=trials,
+                process_scope='One fresh process for this remaining trial group; workbook state and recorded baseline reset between trials. The earlier and resumed groups use different processes. P06 groups contain exactly one trial.'))
+            params=json.dumps(dict(Request=str(directory/'request.json'),Result=str(directory/'result.json')))
+            with (directory/'console.log').open('w',encoding='utf-8') as log:
+                command=['pwsh','-NoProfile','-STA','-File',str(checkout/'tools/excel-session/submit.ps1'),
+                    '-SessionDirectory',str(session),'-Script',str(checkout/'tools/excel-session/condition-job.ps1'),
+                    '-Parameters',params,'-Environment','iteration-manual-mtc-off','-FreshRequired',
+                    '-PacketId',str(output),'-TimeoutSeconds','600']
+                result=subprocess.run(command,cwd=checkout,stdout=log,stderr=subprocess.STDOUT)
+            line=next((s for s in (directory/'console.log').read_text(encoding='utf-8-sig').splitlines() if s.startswith('dnacalc-excel-session/1 receipt ')),None)
+            if not line: raise ValueError('Session returned no receipt; inspect '+str(directory/'console.log'))
+            receipt=Path(line.split(' receipt ',1)[1]);rec=load(receipt)
+            if rec['job'].get('packet_id')!=str(output) or Path(rec['job']['parameters']['Request'])!=directory/'request.json': raise ValueError('Resume receipt binding differs')
+            shutil.copytree(receipt.parent,directory/'session')
+            shutil.copytree(receipt.parent,output/'all-session-receipts'/rec['id'])
+            receipts.append(rec)
+            raw=directory/'result.json'
+            if raw.exists():
+                if sha(raw)!=rec['result_sha256']: raise ValueError('Resume result hash differs')
+                value=load(raw)
+                for t in value.get('trials',[]):
+                    key=(condition_id,t['trial']);attempted.add(key)
+                    if not t['success']:
+                        failures.append(dict(condition=condition_id,trial=t['trial'],error=t.get('error')));continue
+                    if sha(Path(t['result']))!=t['result_sha256']:raise ValueError('Resume trial hash differs')
+                    if not rec['success'] or not (rec['baseline']==rec['baseline_before']==rec['baseline_after']==t['baseline_before']==t['baseline_after']):raise ValueError('Resume baseline differs')
+                    if load(Path(t['result'])).get('fatal'):raise ValueError('Successful wrapper contains a fatal result')
+                    completed[key]=dict(job=rec['id'],result=t['result'],sha256=t['result_sha256'])
+            if result.returncode or not rec['success']:
+                failures.append(dict(condition=condition_id,error=rec.get('error')))
+            progress=dict(utc=dt.datetime.now(dt.timezone.utc).isoformat(),phase=phase,condition=condition_id,
+                total_completed_trials=len(completed),conditions_at_least_three=sum(sum((c,n) in completed for n in range(1,11))>=3 for c in conditions),
+                new_launches=sum(r['launches_after']-r['launches_before'] for r in receipts),failed_trials=len(failures))
+            with (campaign/'progress.jsonl').open('a',encoding='utf-8') as log:log.write(json.dumps(progress)+'\n')
+            write(campaign/'status.json',progress)
+            print(json.dumps(progress),flush=True)
+            if failures: break  # Retain unexpected failures for review, never retry silently.
+    finally:
+        write(campaign/'inventory.json',dict(requested_trials=1040,completed_trials=len(completed),new_trials=len(set(completed)-initial),
+            new_launches=sum(r['launches_after']-r['launches_before'] for r in receipts),failures=failures,
+            unrun=[dict(condition=k[0],trial=k[1]) for k in requests if k not in completed],
+            trials=[dict(condition=k[0],trial=k[1],**v) for k,v in sorted(completed.items())]))
+
+
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     for flag in ('checkout','packet','output','session','until'):parser.add_argument('--'+flag,required=True)
-    run(parser.parse_args())
+    parser.add_argument('--resume',action='store_true')
+    parser.add_argument('--dry-run',action='store_true')
+    args=parser.parse_args()
+    (resume if args.resume else run)(args)
