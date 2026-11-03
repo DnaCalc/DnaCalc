@@ -14,7 +14,12 @@ function Identity($Identity, $Name) {
 }
 function Read-Status {
     if (-not (Test-Path -LiteralPath (Join-Path $root 'host.json'))) { return $null }
-    Get-Content -LiteralPath (Join-Path $root 'host.json') -Raw -Encoding utf8|ConvertFrom-Json
+    $stream=[IO.File]::Open((Join-Path $root 'host.json'),[IO.FileMode]::Open,[IO.FileAccess]::Read,([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+    try {
+        $reader=[IO.StreamReader]::new($stream,[Text.Encoding]::UTF8,$true)
+        try { $json=$reader.ReadToEnd() } finally { $reader.Dispose() }
+    } finally { $stream.Dispose() }
+    ConvertFrom-Json -InputObject $json
 }
 function Live($State) { $State -and (Identity @{pid=$State.host_pid;start_ticks=$State.host_start_ticks} 'pwsh') }
 if ($Status) { Read-Status|ConvertTo-Json -Depth 15; return }
@@ -54,6 +59,9 @@ try {
         if (-not (Live $state)) { throw 'Session host did not start.' }
     }
 } finally { $mutex.ReleaseMutex(); $mutex.Dispose() }
+if ($env:DNACALC_EXCEL_PRESERVE_AUTOMATION_SECURITY -eq '1' -and -not $state.preserve_automation_security) {
+    throw 'The running Excel host does not preserve AutomationSecurity; stop it before selecting this policy.'
+}
 if($Start){Read-Status|ConvertTo-Json -Depth 15;return}
 $id=[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffff')+'-'+[Guid]::NewGuid().ToString('N')
 $job=[ordered]@{id=$id;script=$scriptPath;parameters=$parametersObject;environment=$Environment;working_directory=[IO.Path]::GetFullPath($WorkingDirectory);fresh_required=[bool]$FreshRequired;timeout_seconds=$TimeoutSeconds;packet_id=$PacketId}

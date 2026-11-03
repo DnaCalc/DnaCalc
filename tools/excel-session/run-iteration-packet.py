@@ -31,6 +31,29 @@ def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def reviewed_unstarted(receipt_path, record, reviews):
+    """Recognize an explicitly reviewed startup failure without counting observations."""
+    review = reviews.get(record['id'])
+    if review is None:
+        return False
+    job = record['job']
+    request = Path(job['parameters']['Request'])
+    result = Path(job['parameters']['Result'])
+    if (record['success'] or record.get('baseline_before') is not None
+            or record.get('excel') is not None or record.get('result_sha256')
+            or result.exists() or (receipt_path.parent/'worker.log').exists()
+            or Path(job['script']).name != 'condition-job.ps1'):
+        raise ValueError('Reviewed startup failure contains worker-entry evidence: '+record['id'])
+    if (sha(receipt_path) != review['receipt_sha256'] or sha(request) != review['request_sha256']
+            or sha(Path(review['host_source'])) != record['host_script_sha256']
+            or not review['no_trial_results_at_review']):
+        raise ValueError('Startup failure review binding differs: '+record['id'])
+    rows = json.loads(request.read_text(encoding='utf-8-sig'))['trials']
+    if {str(Path(t['request'])):sha(Path(t['request'])) for t in rows} != review['trial_request_sha256']:
+        raise ValueError('Startup failure trial requests differ: '+record['id'])
+    return True
+
+
 def run(args):
     checkout=Path(args.checkout).resolve()
     packet=Path(args.packet).resolve()
@@ -236,6 +259,7 @@ def resume(args):
     output=Path(args.output).resolve()
     session=Path(args.session).resolve()
     load=lambda p: json.loads(p.read_text(encoding='utf-8-sig'))
+    reviews=load(Path(args.reviewed_unstarted)) if args.reviewed_unstarted else {}
     campaign=output/'resume'/uuid.uuid4().hex
     campaign.mkdir(parents=True)
     shutil.copyfile(__file__,campaign/'driver.py')
@@ -251,11 +275,15 @@ def resume(args):
         if sha(Path(r['input']))!=r['input_sha256']: raise ValueError('Frozen input changed: '+str(p))
         requests[key]=p
     if len(requests)!=1040: raise ValueError('Expected all 1040 frozen trial requests')
-    completed={};attempted=set();existing=[]
+    completed={};attempted=set();existing=[];retained_unstarted=[]
     for p in sorted((output/'all-session-receipts').glob('*/receipt.json')):
         rec=load(p)
         result=rec.get('job',{}).get('parameters',{}).get('Result')
         if not result or Path(rec.get('job',{}).get('script','')).name!='condition-job.ps1': continue
+        if reviewed_unstarted(p,rec,reviews):
+            retained_unstarted.append(dict(id=rec['id'],receipt_sha256=sha(p),error=rec.get('error')))
+            existing.append(rec)
+            continue
         raw=Path(result)
         if sha(raw)!=rec['result_sha256']: raise ValueError('Condition result changed')
         value=load(raw)
@@ -272,6 +300,7 @@ def resume(args):
         if p.with_name('result.json').exists() and key not in completed: raise ValueError('Unqualified existing raw result: '+str(p))
     initial=set(completed)
     write(campaign/'initial.json',dict(completed_trials=len(initial),conditions=len({k[0] for k in initial}),
+        retained_unstarted_failures=retained_unstarted,
         frozen_requests={str(p.relative_to(output)):sha(p) for p in requests.values()},
         process_scope='Fresh process per remaining pure-condition group (trials 1-3, then 4-10); fresh process per P06 trial. Baselines reset and checked between workbook trials. Existing trials are never repeated.'))
     deadline=dt.datetime.fromisoformat(args.until.replace('Z','+00:00'))
@@ -335,6 +364,7 @@ def resume(args):
             if failures: break  # Retain unexpected failures for review, never retry silently.
     finally:
         write(campaign/'inventory.json',dict(requested_trials=1040,completed_trials=len(completed),new_trials=len(set(completed)-initial),
+            retained_unstarted_failures=retained_unstarted,
             new_launches=sum(r['launches_after']-r['launches_before'] for r in receipts),failures=failures,
             unrun=[dict(condition=k[0],trial=k[1]) for k in requests if k not in completed],
             trials=[dict(condition=k[0],trial=k[1],**v) for k,v in sorted(completed.items())]))
@@ -345,5 +375,6 @@ if __name__=='__main__':
     for flag in ('checkout','packet','output','session','until'):parser.add_argument('--'+flag,required=True)
     parser.add_argument('--resume',action='store_true')
     parser.add_argument('--dry-run',action='store_true')
+    parser.add_argument('--reviewed-unstarted',help='Hash-bound reviews of failed startup jobs with no worker entry or results; failures remain retained.')
     args=parser.parse_args()
     (resume if args.resume else run)(args)
