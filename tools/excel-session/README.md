@@ -36,8 +36,11 @@ Ownership requires a new Excel PID absent from the prelaunch list, its start tim
 PID 3144 and `/restore` processes are refused. Cleanup checks that exact tuple. Only the host's
 serialized deadline may stop an active job and its owned Excel. A client can cancel its own
 still-queued request; it never terminates a process based on a stale status read. No process-wide
-Excel kill or security/registry option change is used. Launch attempts are persisted before COM
-activation; a failed activation can therefore be counted without claiming a confirmed new PID.
+Excel kill or security policy or registry change is used. The existing workbook capture worker
+temporarily sets the owned application's `AutomationSecurity` to 3 to disable macros; reset
+restores the recorded value. Witness, iteration and event jobs preserve and check that value.
+Launch attempts are persisted before COM activation; a failed activation can therefore be counted
+without claiming a confirmed new PID.
 
 `run-packet.ps1 -PacketDirectory <packet> -OutputDirectory <new-directory>` generalizes the
 supplied RUN-R16 runner. It validates packet hashes, freezes product predictions through the

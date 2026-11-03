@@ -80,6 +80,16 @@ impl<T> Slots<T> {
             .flatten()
             .chain(dense.into_iter().flatten())
     }
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
+        let (sparse, dense) = match self {
+            Self::Sparse { entries, .. } => (Some(entries.values_mut()), None),
+            Self::Dense(entries) => (None, Some(entries.iter_mut().flatten())),
+        };
+        sparse
+            .into_iter()
+            .flatten()
+            .chain(dense.into_iter().flatten())
+    }
     pub fn into_values(self) -> impl Iterator<Item = T> {
         let (sparse, dense) = match self {
             Self::Sparse { entries, .. } => (Some(entries.into_values()), None),
@@ -95,8 +105,9 @@ impl<T> Slots<T> {
 // Four bytes of a u32 slot select three bounded pointer pages and one value page. A cut
 // shares its root in O(1); changing a slot copies at most four pages of 256 entries.
 type Page<T> = Arc<BTreeMap<u8, T>>;
+type Leaf<T> = Arc<[Option<T>; 256]>;
 #[derive(Clone, Debug)]
-pub(crate) struct SlotCut<T>(Page<Page<Page<Page<T>>>>);
+pub(crate) struct SlotCut<T>(Page<Page<Page<Leaf<T>>>>);
 impl<T> Default for SlotCut<T> {
     fn default() -> Self {
         Self(Arc::new(BTreeMap::new()))
@@ -105,14 +116,17 @@ impl<T> Default for SlotCut<T> {
 impl<T: Clone> SlotCut<T> {
     pub fn get(&self, slot: u32) -> Option<&T> {
         let [a, b, c, d] = slot.to_be_bytes();
-        self.0.get(&a)?.get(&b)?.get(&c)?.get(&d)
+        self.0.get(&a)?.get(&b)?.get(&c)?[usize::from(d)].as_ref()
     }
     pub fn insert(&mut self, slot: u32, value: T) {
         let [a, b, c, d] = slot.to_be_bytes();
         let root = Arc::make_mut(&mut self.0);
         let a = Arc::make_mut(root.entry(a).or_default());
         let b = Arc::make_mut(a.entry(b).or_default());
-        Arc::make_mut(b.entry(c).or_default()).insert(d, value);
+        let leaf = b
+            .entry(c)
+            .or_insert_with(|| Arc::new(std::array::from_fn(|_| None)));
+        Arc::make_mut(leaf)[usize::from(d)] = Some(value);
     }
     pub fn remove(&mut self, slot: u32) {
         if self.get(slot).is_none() {
@@ -123,8 +137,8 @@ impl<T: Clone> SlotCut<T> {
         let first = Arc::make_mut(root.get_mut(&a).unwrap());
         let second = Arc::make_mut(first.get_mut(&b).unwrap());
         let leaf = Arc::make_mut(second.get_mut(&c).unwrap());
-        leaf.remove(&d);
-        if leaf.is_empty() {
+        leaf[usize::from(d)] = None;
+        if leaf.iter().all(Option::is_none) {
             second.remove(&c);
         }
         if second.is_empty() {
