@@ -8,6 +8,7 @@ pub struct FormatPatch {
     pub horizontal: Option<String>,
     pub vertical: Option<String>,
     pub wrap: Option<bool>,
+    pub shrink: Option<bool>,
     pub rotation: Option<i16>,
     pub indent: Option<u16>,
     pub font_name: Option<String>,

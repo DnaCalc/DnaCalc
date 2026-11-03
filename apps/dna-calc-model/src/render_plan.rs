@@ -61,6 +61,8 @@ pub struct PlannedCell {
     /// Advance of the source shown text before fitting, in CSS pixels.
     pub text_advance: f64,
     pub text_measured: bool,
+    /// Display font size in CSS pixels before zoom. Authored style size stays in `shown`.
+    pub paint_pixels: f64,
     /// Viewport-local clipping of this fragment (a merge may cross frozen panes).
     pub clip: Option<CellRect>,
     pub address: String,
@@ -218,6 +220,7 @@ pub fn build_render_plan_with<'a>(
                 text_advance: measured
                     .unwrap_or_else(|| text_width(&shown.text, m) - 5.0 * m.header_h / 22.0),
                 text_measured: measured.is_some(),
+                paint_pixels: shown.style.pixels,
                 clip: None,
                 address: format!("{}{}", column_letters(col), row),
                 row,
@@ -302,6 +305,18 @@ fn fit(
             })
     };
     let merged = cell.row_span > 1 || cell.col_span > 1;
+    // Other shrink combinations retain their authored records and worker diagnostic.
+    if cell.shown.style.shrink
+        && (merged
+            || cell.shown.style.wrap
+            || cell.shown.style.rotation != 0
+            || matches!(
+                cell.shown.style.horizontal.as_deref(),
+                Some("fill" | "justify" | "distributed" | "centerContinuous")
+            ))
+    {
+        return;
+    }
     if !merged
         && matches!(
             cell.shown.style.horizontal.as_deref(),
@@ -334,7 +349,11 @@ fn fit(
     }
     let scale = m.header_h / 22.0;
     let insets = if cell.text_measured {
-        let indent = if cell.shown.style.indent == 0 {
+        let indent = if cell.shown.style.indent == 0
+            || !matches!(
+                cell.shown.style.horizontal.as_deref(),
+                None | Some("general" | "left" | "right")
+            ) {
             0.0
         } else {
             let mut normal = cell.shown.clone();
@@ -368,6 +387,43 @@ fn fit(
         text_width(&cell.shown.text, m)
     };
     if needed <= cell.rect.w || cell.rect.w <= 0.0 {
+        return;
+    }
+    if cell.shown.style.shrink {
+        // Measure the smaller display font through the same provider as ordinary text.
+        // The worker input and stored font size never change; both painters read this metric.
+        let available = cell.rect.w - insets;
+        let line_advance = |shown: &CellShown| {
+            shown.text.split('\n').try_fold(0.0_f64, |widest, line| {
+                options
+                    .measure
+                    .and_then(|measure| measure(shown, line))
+                    .filter(|w| w.is_finite() && *w >= 0.)
+                    .map(|w| widest.max(w))
+            })
+        };
+        if cell.text_measured
+            && available > 0.
+            && let Some(advance) = line_advance(&cell.shown).filter(|w| *w > 0.)
+        {
+            let mut candidate = cell.shown.clone();
+            let mut pixels = cell.shown.style.pixels * (available / advance).min(1.);
+            for _ in 0..4 {
+                if !pixels.is_finite() || pixels <= 0. {
+                    break;
+                }
+                candidate.style.pixels = pixels;
+                let Some(width) = line_advance(&candidate) else {
+                    break;
+                };
+                if width <= available {
+                    cell.paint_pixels = pixels;
+                    break;
+                }
+                pixels *= available / width * 0.995;
+            }
+        }
+        // Shrinking never overflows into a neighbouring cell or substitutes a hash mask.
         return;
     }
     match cell.shown.kind {
@@ -1246,6 +1302,104 @@ mod layout_tests {
         assert!(cell.editability.checked);
         assert!(!cell.editability.can_begin);
         assert_eq!(cell.editability.refusal.as_deref(), Some("read only"));
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn shrink_uses_display_metrics_without_changing_stored_font_text_or_provenance() {
+        let mut source = text(1, 1, "abcdefghijkl");
+        source.style.shrink = true;
+        source.style.pixels = 24.;
+        let view = Viewport {
+            width: 400.,
+            height: 100.,
+            ..Default::default()
+        };
+        let metrics = GridMetrics {
+            col_width: 64.,
+            row_height: 20.,
+            ..Default::default()
+        };
+        let measure = |cell: &CellShown, text: &str| {
+            Some(text.chars().count() as f64 * cell.style.pixels / 2.)
+        };
+        let options = PlanOptions {
+            measure: Some(&measure),
+            ..Default::default()
+        };
+        let narrow = build_render_plan_with([&source], &metrics, &view, 100, 20, &options);
+        let cell = &narrow.cells[0];
+        assert_eq!(cell.rect, cell.anchor);
+        assert_eq!(cell.rect.w, 64.);
+        assert!(cell.paint_pixels > 0. && cell.paint_pixels < source.style.pixels);
+        assert!(12. * cell.paint_pixels / 2. + 8. <= cell.rect.w + 0.001);
+        assert_eq!(cell.shown, source);
+        assert_eq!(cell.text_advance, 144.);
+        let wide = build_render_plan_with(
+            [&source],
+            &GridMetrics {
+                col_width: 200.,
+                ..metrics.clone()
+            },
+            &view,
+            100,
+            20,
+            &options,
+        );
+        assert_eq!(wide.cells[0].paint_pixels, 24.);
+        assert_eq!(wide.cells[0].shown, source);
+        source.style.horizontal = Some("center".into());
+        source.style.indent = 2;
+        let centered = build_render_plan_with(
+            [&source],
+            &GridMetrics {
+                col_width: 160.,
+                ..metrics.clone()
+            },
+            &view,
+            100,
+            20,
+            &options,
+        );
+        assert_eq!(centered.cells[0].paint_pixels, 24.);
+        let center_narrow = build_render_plan_with([&source], &metrics, &view, 100, 20, &options);
+        assert_eq!(
+            center_narrow.cells[0].paint_pixels,
+            narrow.cells[0].paint_pixels
+        );
+        for horizontal in ["left", "right"] {
+            source.style.horizontal = Some(horizontal.into());
+            let indented = build_render_plan_with([&source], &metrics, &view, 100, 20, &options);
+            assert!(indented.cells[0].paint_pixels < narrow.cells[0].paint_pixels);
+        }
+        source.style.horizontal = None;
+        source.style.indent = 0;
+        source.text = "abcdef\nabcdef".into();
+        let multiline = build_render_plan_with(
+            [&source],
+            &GridMetrics {
+                col_width: 100.,
+                ..metrics.clone()
+            },
+            &view,
+            100,
+            20,
+            &options,
+        );
+        assert_eq!(multiline.cells[0].paint_pixels, 24.);
+        assert_eq!(multiline.cells[0].shown, source);
+        source.kind = "number";
+        source.format = crate::projection::FormatShown::Applied;
+        source.text = "123456.00".into();
+        let number = build_render_plan_with([&source], &metrics, &view, 100, 20, &options);
+        assert_eq!(number.cells[0].shown, source);
+        assert!(number.cells[0].paint_pixels < 24.);
+        for (wrap, rotation) in [(true, 0), (false, 45)] {
+            source.style.wrap = wrap;
+            source.style.rotation = rotation;
+            let unsupported = build_render_plan_with([&source], &metrics, &view, 100, 20, &options);
+            assert_eq!(unsupported.cells[0].paint_pixels, 24.);
+            assert_eq!(unsupported.cells[0].rect, unsupported.cells[0].anchor);
+        }
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

@@ -375,8 +375,8 @@ impl Server {
                         html,
                     }))
                 }
-                Request::PreparePaste { source, to, mode } => {
-                    self.prepare_paste(source, area(to)?, mode)
+                Request::PreparePaste { source, to, mode, transpose } => {
+                    self.prepare_paste(source, area(to)?, mode, transpose)
                 }
                 Request::Ping => Ok(Reply::Pong {
                     version: env!("CARGO_PKG_VERSION").to_owned(),
@@ -783,6 +783,7 @@ impl Server {
         source: wire::PasteSource,
         to: GridArea,
         mode: wire::PasteMode,
+        transpose: bool,
     ) -> Result<Reply, String> {
         use wire::PasteSource;
         self.paste_plan = None;
@@ -802,7 +803,7 @@ impl Server {
             PasteSource::External(rows) => calc_host::PasteSource::External(rows),
         };
         let plan =
-            calc_host::prepare_paste(self.book.host(), source, to, wire::host_paste_mode(mode))?;
+            calc_host::prepare_paste_oriented(self.book.host(), source, to, wire::host_paste_mode(mode), transpose)?;
         let target = plan.target();
         let replaces = plan.replaces();
         let id = self.next_clip;
@@ -1083,6 +1084,7 @@ impl Server {
                 direction,
             } => return self.notebook_order(placement, direction),
 
+            Intent::SortRows {area:a,column,header,descending,revision} => SkinIntent::Command(calc_host::WorkbookCommand::SortRows {area:area(a)?,column,header,descending,revision}),
             Intent::Replace {
                 options,
                 replacement,
@@ -4429,6 +4431,7 @@ mod friendly_formula_tests {
                     },
                     to: Area::of(GridArea::cell(pasted)),
                     mode: wire::PasteMode::Formulas,
+                    transpose: false,
                 },
                 None,
             )

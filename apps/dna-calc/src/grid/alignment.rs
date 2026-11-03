@@ -44,7 +44,9 @@ pub fn layout(
     italic: bool,
     zoom: f64,
 ) -> TextLayout {
-    let style = &cell.shown.style;
+    let mut display_style=cell.shown.style.clone();
+    display_style.pixels=cell.paint_pixels;
+    let style = &display_style;
     let horizontal = horizontal(cell);
     let vertical = style.vertical.as_deref().unwrap_or("bottom");
     let indent = autofit::indent_pixels(style, Some(conditional), italic, zoom);

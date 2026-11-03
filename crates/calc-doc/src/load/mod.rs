@@ -442,6 +442,109 @@ impl LoadedWorkbook {
         }
     }
 
+    /// Conservative admission for cell-input sorting: unlike structural shifts, input edits
+    /// cannot move original cell tags or rich/phonetic string records. A sheet with other
+    /// positional objects, decorated strings anywhere in its workbook, or source-only cell
+    /// attributes remains unchanged until those records can follow the cells.
+    pub fn cell_sort_metadata_supported(&self, sheet: SheetId) -> bool {
+        if !self.cell_shift_metadata_supported(sheet) {
+            return false;
+        }
+        let Some(sheet) = self.sheet(sheet) else {
+            return true;
+        };
+        let mut parts = vec![(sheet.part().name().to_owned(), false)];
+        if let Some(rels) = self.package.relationships_of(Some(&self.workbook_part)) {
+            for rel in rels
+                .items()
+                .iter()
+                .filter(|r| r.kind.ends_with("/sharedStrings"))
+            {
+                let Some(part) = rel.resolved.as_ref() else {
+                    return false;
+                };
+                parts.push((part.clone(), true));
+            }
+        }
+        for (part, strings) in parts {
+            let Ok(xml) = self.package.read_xml(&part) else {
+                return false;
+            };
+            // The event reader intentionally skips comments and processing instructions.
+            // Replacing cell inputs would discard these original source records.
+            let Ok(source) = std::str::from_utf8(xml.bytes()) else {
+                return false;
+            };
+            let mut source = source.trim_start_matches('\u{feff}').trim_start();
+            if source.starts_with("<?xml")
+                && source
+                    .as_bytes()
+                    .get(5)
+                    .is_some_and(u8::is_ascii_whitespace)
+            {
+                let Some((_, rest)) = source.split_once("?>") else {
+                    return false;
+                };
+                source = rest;
+            }
+            if source.contains("<!--") || source.contains("<?") {
+                return false;
+            }
+            let mut reader = xml.reader();
+            let mut parents: Vec<String> = Vec::new();
+            let mut active = None;
+            loop {
+                match reader.next_event() {
+                    Ok(Some(crate::xml::XmlEvent::Start(e))) => {
+                        if e.name.is(MAIN_NAMESPACE, if strings { "si" } else { "c" }) {
+                            active = Some(parents.len());
+                        }
+                        if active.is_some() {
+                            let local = e.name.local.as_str();
+                            let parent = parents.last().map(String::as_str);
+                            let allowed = e.name.namespace.as_deref() == Some(MAIN_NAMESPACE)
+                                && match local {
+                                    "c" if !strings => e.attributes.iter().all(|a| {
+                                        a.name.namespace.is_none()
+                                            && matches!(a.name.local.as_str(), "r" | "s" | "t")
+                                    }),
+                                    "si" if strings => e.attributes.is_empty(),
+                                    "v" | "is" => parent == Some("c") && e.attributes.is_empty(),
+                                    "t" => {
+                                        matches!(parent, Some("si" | "is"))
+                                            && e.attributes.iter().all(|a| {
+                                                a.name.is(
+                                                    "http://www.w3.org/XML/1998/namespace",
+                                                    "space",
+                                                )
+                                            })
+                                    }
+                                    // Formula payloads are refused by the host. A formula elsewhere
+                                    // on this sheet keeps its original source and is not moved.
+                                    "f" => parent == Some("c"),
+                                    _ => false,
+                                };
+                            if !allowed {
+                                return false;
+                            }
+                        }
+                        parents.push(e.name.local.as_str().to_owned());
+                    }
+                    Ok(Some(crate::xml::XmlEvent::End(_))) => {
+                        parents.pop();
+                        if active == Some(parents.len()) {
+                            active = None;
+                        }
+                    }
+                    Ok(None) => break,
+                    Err(_) => return false,
+                    _ => {}
+                }
+            }
+        }
+        true
+    }
+
     /// Package reference families that worksheet rename/removal cannot yet rewrite.
     pub fn sheet_reference_metadata_supported(&self) -> bool {
         let Ok(xml) = self.package.read_xml(&self.workbook_part) else {

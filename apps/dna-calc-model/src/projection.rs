@@ -116,6 +116,8 @@ pub struct TextStyle {
     pub bold: bool,
     pub italic: bool,
     pub wrap: bool,
+    #[serde(default)]
+    pub shrink: bool,
     pub rotation: i16,
     pub indent: u16,
     pub horizontal: Option<String>,
@@ -145,6 +147,7 @@ impl Default for TextStyle {
             bold: false,
             italic: false,
             wrap: false,
+            shrink: false,
             rotation: 0,
             indent: 0,
             horizontal: None,
@@ -334,6 +337,13 @@ pub enum Intent {
         rows: u32,
         columns: u32,
     },
+    SortRows {
+        area: Area,
+        column: u32,
+        header: bool,
+        descending: bool,
+        revision: u64,
+    },
     ApplyPaste {
         id: u64,
     },
@@ -505,6 +515,8 @@ pub enum Request {
         source: PasteSource,
         to: Area,
         mode: PasteMode,
+        #[serde(default)]
+        transpose: bool,
     },
     /// An answer, to show the server is there and to time a round trip.
     Ping,
