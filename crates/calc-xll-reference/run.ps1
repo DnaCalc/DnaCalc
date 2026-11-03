@@ -1,11 +1,19 @@
 param([string]$RunDirectory = (Join-Path $PSScriptRoot ('runs/' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ'))), [switch]$NoTrace, [string]$X1Xll, [string]$HostExecutable,
     [string]$ExcelDnaDirectory, [string]$AddInName='X0', [string]$Cases, [switch]$Reload, [switch]$ReloadNewHost,
     [switch]$AotAliasLoad, [switch]$ExpectAotReloadRefusal,
-    [string]$AddInDirectory, [string]$XllFileName, [switch]$ExpectXloilReloadRefusal, [switch]$Engine)
+    [string]$AddInDirectory, [string]$XllFileName, [switch]$ExpectXloilReloadRefusal, [switch]$Engine,
+    [switch]$PrivateComAddIn)
 $ErrorActionPreference = 'Stop'
 if ([Threading.Thread]::CurrentThread.ApartmentState -ne 'STA') { throw 'Run with pwsh -Sta -File run.ps1.' }
 if ($ReloadNewHost) { $Reload=$true }
 if ($Engine -and -not $HostExecutable) { throw '-Engine needs -HostExecutable.' }
+if ($PrivateComAddIn) {
+    if (-not $AddInDirectory) { throw '-PrivateComAddIn needs an explicitly selected external fixture.' }
+    $principal=[Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
+    if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        throw 'The unchanged Excel-DNA COM helper must run without administrator membership so it uses private HKCU classes.'
+    }
+}
 if ($ExpectAotReloadRefusal -and ((-not $Reload -and -not $AotAliasLoad) -or -not $HostExecutable)) { throw '-ExpectAotReloadRefusal requires a reload/alias attempt and -HostExecutable.' }
 if ($ExpectXloilReloadRefusal -and ($ExpectAotReloadRefusal -or (-not $Reload -and -not $AotAliasLoad) -or -not $HostExecutable)) { throw '-ExpectXloilReloadRefusal requires a host reload/alias attempt without the AOT expectation.' }
 $expectedRefusal=if($ExpectAotReloadRefusal){'dc-snz.18: reinitializing a packed Native AOT runtime already attempted'}elseif($ExpectXloilReloadRefusal){'dc-snz.21: reopening the measured xlOil 0.22.1 runtime after teardown is not modelled'}else{$null}
@@ -267,6 +275,9 @@ try {
         if (-not $ready) { throw 'Tracer attach did not finish.' }
     }
     if ($ExcelDnaDirectory -or $AddInDirectory) {
+        if ($PrivateComAddIn -and [int]$excel.AutomationSecurity -ne 1) {
+            throw 'The unchanged ribbon helper would change AutomationSecurity; this capture is refused before loading.'
+        }
         if (-not $excel.RegisterXLL($xll)) { throw 'Excel refused the selected add-in.' }
         Note 'RegisterXLL managed' $true
         if (-not $AddInDirectory -and $AddInName -eq 'X0') { Note 'RegisterXLL native' ([bool]$excel.RegisterXLL($nativeXll)) }
@@ -333,7 +344,12 @@ try {
                 }
                 Note ('RTD idle complete ' + [string]$case.formula) $idle.ElapsedMilliseconds
             }
-            Note ([string]$case.formula) $sheet.Range('B3').Value2
+            $value=$sheet.Range('B3').Value2
+            if ($case.value -is [PSCustomObject] -and $case.value.PSObject.Properties['error']) {
+                Note ('raw ' + [string]$case.formula) $value
+                $value=@{error=[string]$sheet.Range('B3').Text}
+            }
+            Note ([string]$case.formula) $value
             if ($case.PSObject.Properties['dependent']) {
                 $dependent=$sheet.Range('C3').Value2
                 Note ('dependent ' + [string]$case.formula) $dependent

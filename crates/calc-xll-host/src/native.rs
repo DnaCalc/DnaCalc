@@ -1110,6 +1110,7 @@ pub(crate) fn refuse_native_error(context: &mut dyn UserFunctionContext, why: &s
     for (prefix, owner) in [
         ("dc-snz.2:", "dc-snz.2"),
         ("dc-snz.18:", "dc-snz.18"),
+        ("dc-snz.20:", "dc-snz.20"),
         ("dc-snz.23:", "dc-snz.23"),
     ] {
         if why.starts_with(prefix) {
