@@ -4,6 +4,12 @@ use crate::{Package, PartReadError};
 use std::fmt;
 
 mod directory;
+const VBA_PROJECT: &str = "http://schemas.microsoft.com/office/2006/relationships/vbaProject";
+
+pub(crate) fn has_project(package: &Package, workbook: &str) -> bool {
+    package.relationships_of(Some(workbook)).into_iter().flat_map(|r| r.items())
+        .any(|r| r.kind == VBA_PROJECT)
+}
 
 /// Limits accepted project/source sizes. The compressed directory is validated before parsing.
 #[derive(Clone, Copy, Debug)]
@@ -40,6 +46,8 @@ pub enum VbaModuleKind {
 pub struct VbaModuleSource {
     pub name: String,
     pub stream_name: String,
+    /// Byte offset of the compressed source in its compound-file module stream.
+    pub source_offset: usize,
     pub kind: VbaModuleKind,
     pub private: bool,
     pub read_only: bool,
@@ -205,7 +213,6 @@ pub(crate) fn read(
     workbook: &str,
     policy: &VbaReadPolicy,
 ) -> Result<Option<VbaProjectSource>, VbaReadError> {
-    const VBA_PROJECT: &str = "http://schemas.microsoft.com/office/2006/relationships/vbaProject";
     let mut links = package
         .relationships_of(Some(workbook))
         .into_iter()
@@ -275,6 +282,7 @@ pub(crate) fn read(
         modules.push(VbaModuleSource {
             name: module.name.clone(),
             stream_name: module.stream_name.clone(),
+            source_offset: module.text_offset,
             kind: match module.module_type {
                 directory::ModuleType::Procedural => VbaModuleKind::Procedural,
                 directory::ModuleType::DocClsDesigner => VbaModuleKind::DocumentClassOrDesigner,

@@ -1,5 +1,5 @@
-//! Application composition of the host's event positions and CalcVBA's automatic sources.
-use crate::wire::{VbaModule, VbaModuleTarget};
+//! Shared application composition of CalcHost and CalcVBA. One project session owns
+//! worksheet functions and automatic document events, including projects read from files.
 use calc_host::{
     BeforeSaveOutcome, HostState, ProjectedValue, ProjectionRequest, SaveOperation,
     WorkbookEventHandler, project,
@@ -11,16 +11,130 @@ use std::{
     rc::Rc,
 };
 
-pub(crate) struct WorkbookEvents {
-    pub(crate) project: LoadedProject,
+pub struct WorkbookEvents {
+    project: LoadedProject,
     sheets: BTreeMap<SheetId, EventSource>,
     book: Option<EventSource>,
     max_steps: u64,
 }
-pub(crate) fn prepare(
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ModuleTarget {
+    Standard,
+    Workbook,
+    Worksheet(SheetId),
+}
+
+#[derive(Clone, Debug)]
+pub struct ModuleSource {
+    pub name: String,
+    pub source: String,
+    pub target: ModuleTarget,
+}
+
+#[derive(Debug)]
+pub enum FileProjectError {
+    Read(calc_host::VbaReadError),
+    DocumentIdentity(String),
+    UnsupportedModule(String),
+    Preparation(String),
+}
+impl std::fmt::Display for FileProjectError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "workbook VBA project (dc-snz.15): ")?;
+        match self {
+            Self::Read(error) => error.fmt(f),
+            Self::DocumentIdentity(name) => write!(f, "ambiguous document code name {name:?}"),
+            Self::UnsupportedModule(name) => write!(
+                f,
+                "class, designer or unbound document module {name:?} is not modelled"
+            ),
+            Self::Preparation(error) => f.write_str(error),
+        }
+    }
+}
+impl std::error::Error for FileProjectError {}
+
+/// Preparation executes no handlers or worksheet functions. Failure never publishes
+/// a partially loaded registry or substitutes the file's cached values.
+pub fn prepare_file_project(
     host: &HostState,
     name: &str,
-    modules: &[VbaModule],
+    max_steps: u64,
+    backend: Option<calc_vba::Backend>,
+) -> Result<Option<Rc<WorkbookEvents>>, FileProjectError> {
+    let Some(project) = host
+        .loaded()
+        .read_vba_project(&Default::default())
+        .map_err(FileProjectError::Read)?
+    else {
+        return Ok(None);
+    };
+    let mut documents = BTreeMap::new();
+    for (name, sheet) in host
+        .loaded()
+        .vba_document_names()
+        .map_err(FileProjectError::Read)?
+    {
+        let key = calc_value::fold_workbook_name(&name);
+        if name.is_empty() || documents.insert(key, sheet).is_some() {
+            return Err(FileProjectError::DocumentIdentity(name));
+        }
+    }
+    let modules = project
+        .modules
+        .into_iter()
+        .map(|module| {
+            let target = match module.kind {
+                calc_host::VbaModuleKind::Procedural => ModuleTarget::Standard,
+                calc_host::VbaModuleKind::DocumentClassOrDesigner => {
+                    match documents.get(&calc_value::fold_workbook_name(&module.name)) {
+                        Some(Some(sheet)) => ModuleTarget::Worksheet(*sheet),
+                        Some(None) => ModuleTarget::Workbook,
+                        None => return Err(FileProjectError::UnsupportedModule(module.name)),
+                    }
+                }
+            };
+            Ok(ModuleSource {
+                name: module.name,
+                source: module.source,
+                target,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    prepare(host, name, &modules, max_steps, backend)
+        .map(Some)
+        .map_err(FileProjectError::Preparation)
+}
+
+impl WorkbookEvents {
+    /// Publish the UDF registry and event owner only after the entire project is ready.
+    pub fn install(self: Rc<Self>, session: &mut calc_host::HostSession) {
+        session.set_user_functions(self.project.functions());
+        session.set_workbook_event_handler(Some(self));
+    }
+}
+
+/// Open-time activation is shared by the worker and native corpus runner. Source
+/// replacements use `prepare`/`install` and do not replay Workbook_Open.
+pub fn activate_file_project(
+    session: &mut calc_host::HostSession,
+    name: &str,
+    max_steps: u64,
+    backend: Option<calc_vba::Backend>,
+) -> Result<bool, FileProjectError> {
+    if let Some(project) = prepare_file_project(session.host(), name, max_steps, backend)? {
+        project.install(session);
+        session.notify_workbook_open();
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+pub fn prepare(
+    host: &HostState,
+    name: &str,
+    modules: &[ModuleSource],
     max_steps: u64,
     backend: Option<calc_vba::Backend>,
 ) -> Result<Rc<WorkbookEvents>, String> {
@@ -31,16 +145,15 @@ pub(crate) fn prepare(
         .iter()
         .map(|module| {
             let kind = match module.target {
-                VbaModuleTarget::Standard => ModuleKind::Standard,
-                VbaModuleTarget::Workbook if !workbook => {
+                ModuleTarget::Standard => ModuleKind::Standard,
+                ModuleTarget::Workbook if !workbook => {
                     workbook = true;
                     ModuleKind::Workbook
                 }
-                VbaModuleTarget::Workbook => {
+                ModuleTarget::Workbook => {
                     return Err("Duplicate VBA workbook document (dc-hsa5.12)".into());
                 }
-                VbaModuleTarget::Worksheet(sheet) => {
-                    let sheet = sheet.id();
+                ModuleTarget::Worksheet(sheet) => {
                     if host.model().sheet_by_id(sheet).is_none() || !sheets.insert(sheet) {
                         return Err(
                             "Unknown or duplicate VBA worksheet document (dc-hsa5.12)".into()
@@ -140,6 +253,12 @@ impl EventReadContext for Read<'_> {
     }
 }
 impl WorkbookEventHandler for WorkbookEvents {
+    fn workbook_open(&self, host: &HostState) -> Result<(), String> {
+        if let Some(source) = &self.book {
+            source.open(&Read(host), self.max_steps)?;
+        }
+        Ok(())
+    }
     fn worksheet_change(
         &self,
         host: &HostState,

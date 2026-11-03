@@ -142,7 +142,7 @@ impl TypeLibResolver for EventTypes {
             ),
             "workbook" => (
                 vec![member("Name", 0, T::String, BOOK, 1)],
-                vec![event(
+                vec![event("Open", 2, "Workbook", BOOK_EVENTS, vec![], vec![]), event(
                     "BeforeSave",
                     1,
                     "Workbook",

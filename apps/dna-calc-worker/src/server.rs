@@ -452,7 +452,7 @@ impl Server {
                         }
                         Err(refused) => Ok(Reply::Done {
                             outcome: Outcome {
-                                error: Some(refused.0),
+                                error: Some(refused.to_string()),
                                 ..self.outcome(false, None, 0.0)
                             },
                             opened: None,
@@ -2163,6 +2163,7 @@ impl Server {
         let failures = self.book.take_workbook_event_failures();
         for (index, failure) in failures.failures.into_iter().enumerate() {
             let event = match failure.event {
+                calc_host::WorkbookEvent::Open => "Workbook_Open",
                 calc_host::WorkbookEvent::WorksheetChange { .. } => "Worksheet_Change",
                 calc_host::WorkbookEvent::WorksheetCalculate { .. } => "Worksheet_Calculate",
                 calc_host::WorkbookEvent::BeforeSave { .. } => "Workbook_BeforeSave",
@@ -4612,10 +4613,13 @@ mod async_contract_tests {
         ));
         let unrelated = CellKey::new(server.book.host().sheets()[0].id(), 6, 4).unwrap();
         let before_unrelated = server.book.cell(unrelated).unwrap().value().clone();
+        // Open now supplies the file's own name. This measured malformed local
+        // INDIRECT reference calculates #REF! rather than refusing a missing file identity.
         assert!(matches!(
-            before_unrelated,
-            ProjectedValue::NotModeled { .. }
-        ));
+            &before_unrelated,
+            ProjectedValue::Calculated { value, .. }
+                if value.as_error() == Some(calc_value::WorksheetErrorCode::Ref)
+        ), "{before_unrelated:?}");
         server.set_calculation_budget(calc_host::WorkBudget::evaluations(1));
         let request = server.envelope(Request::Save);
         let answer = server.handle(request.clone(), None);

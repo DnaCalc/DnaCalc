@@ -67,8 +67,21 @@ pub fn reserve_for_open(bytes: usize) {
 }
 
 /// Why a workbook did not open.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct OpenRefused(pub String);
+#[derive(Debug)]
+pub enum OpenRefused {
+    Package(calc_host::OpenFailure),
+    Vba(calc_host_vba::FileProjectError),
+}
+impl std::fmt::Display for OpenRefused {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self { Self::Package(error) => error.fmt(f), Self::Vba(error) => error.fmt(f) }
+    }
+}
+impl std::error::Error for OpenRefused {}
+
+/// A caller can preserve a file's project without compiling or executing it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VbaOpenPolicy { Run, Preserve }
 
 pub use dna_calc_model::projection::SheetTab;
 
@@ -120,10 +133,23 @@ impl Workbook {
         bytes: Vec<u8>,
         budget: calc_host::WorkBudget,
     ) -> Result<Workbook, OpenRefused> {
-        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes));
+        Self::open_with_project_policy(name, bytes, budget, VbaOpenPolicy::Run)
+    }
+
+    pub fn open_with_project_policy(
+        name: &str,
+        bytes: Vec<u8>,
+        budget: calc_host::WorkBudget,
+        vba: VbaOpenPolicy,
+    ) -> Result<Workbook, OpenRefused> {
+        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes).named(name));
         let mut session = HostSession::open(source, &OpenPolicy::default(), host_options())
-            .map_err(|failure| OpenRefused(failure.to_string()))?;
+            .map_err(OpenRefused::Package)?;
         session.set_calculation_budget(budget);
+        if vba == VbaOpenPolicy::Run {
+            calc_host_vba::activate_file_project(&mut session, name, calc_vba::DEFAULT_STEP_BUDGET, None)
+                .map_err(OpenRefused::Vba)?;
+        }
         let mut workbook = Workbook {
             session,
             name: name.to_owned(),
@@ -227,9 +253,17 @@ impl Workbook {
         self.load_vba_project_with_backend(modules, max_steps, None)
     }
     pub fn load_vba_project_with_backend(&mut self, modules: &[crate::wire::VbaModule], max_steps: u64, backend: Option<calc_vba::Backend>) -> Result<(), String> {
-        let owner = crate::vba_events::prepare(self.session.host(), &self.name, modules, max_steps, backend)?;
-        self.session.set_user_functions(owner.project.functions());
-        self.session.set_workbook_event_handler(Some(owner));
+        let modules = modules.iter().map(|module| calc_host_vba::ModuleSource {
+            name: module.name.clone(),
+            source: module.source.clone(),
+            target: match module.target {
+                crate::wire::VbaModuleTarget::Standard => calc_host_vba::ModuleTarget::Standard,
+                crate::wire::VbaModuleTarget::Workbook => calc_host_vba::ModuleTarget::Workbook,
+                crate::wire::VbaModuleTarget::Worksheet(sheet) => calc_host_vba::ModuleTarget::Worksheet(sheet.id()),
+            },
+        }).collect::<Vec<_>>();
+        let owner = calc_host_vba::prepare(self.session.host(), &self.name, &modules, max_steps, backend)?;
+        owner.install(&mut self.session);
         Ok(())
     }
     pub fn set_vba_events_enabled(&mut self, enabled: bool) {

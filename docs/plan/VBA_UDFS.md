@@ -2,7 +2,7 @@
 
 `dc-snz.3` value calls are closed; `dc-snz.5` remains in progress (2026-10-31).
 Only `calc-vba` depends on the OxVba embedding API, pinned to
-`325257ea9aa8ff76c8eb1bb14475622c8aa6fcd1`. Native builds prefer JIT;
+`7eb4fdd93dbbce1a7a1e8114aec7d21ffbcddd6a`. Native builds prefer JIT;
 browser builds omit JIT and use the interpreter. A native admission decline can select
 the interpreter before any code runs. Runtime errors and exhausted budgets never retry.
 The OxVba/CalcVba rename is deferred; OneCalc stays free of calc-engine/calc-doc/calc-host.
@@ -29,6 +29,17 @@ reloads and controller sessions have independent state. Optional arguments use f
 defaults, typed zero values or Variant Missing; explicit omitted positions differ from
 blank cells. ParamArray packs a fresh zero-based array, including empty bounds 0..-1.
 ByRef inputs remain private copies. Shared immutable code never shares mutable VBA state.
+
+DNA Calc's file route is composed separately in `calc-host-vba`, shared by the worker
+and corpus comparison. It admits the source of `.xlsm`/`.xlsb` projects before the
+first calculation and binds document modules by the persisted VBA code names. UDFs
+and admitted Open/Change/Calculate/BeforeSave handlers share one owning session;
+reopen starts fresh state. Unsupported source, signatures, document events and
+class/designer modules remain named refusals. The Preserve open policy executes no
+VBA. Comparisons respect captured macro/event policy. See
+[the recalculation contract](../architecture/RECALC_CONTRACT.md) for the event boundary
+and remaining private-procedure, forced-UDF and object-model gaps. OneCalc's explicit
+standard-module route keeps its existing dependency ceiling.
 
 The Range, Application and WorksheetFunction implementation now belongs to DNA Calc in
 calc-vba's runtime composition, extracted from OxVba 325257ea's frozen spreadsheet adapter.

@@ -23,6 +23,22 @@ fn module(name: &str, kind: ModuleKind, source: &str) -> ProjectModule {
         source: source.into(),
     }
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn unsupported_document_events_refuse_admission_and_inactive_source_stays_inactive() {
+    for (kind, name) in [(ModuleKind::Workbook, "Workbook_Activate"), (ModuleKind::Worksheet, "Worksheet_SelectionChange")] {
+        let source = format!("Private Sub {name}()\nEnd Sub\n");
+        let refusal = load_project(&[module("Doc", kind, &source)], 10000, Some(Backend::Interpreter)).err().unwrap();
+        assert!(refusal.contains(name) && refusal.contains("dc-hsa5.12"), "{refusal}");
+        let inactive = format!("#Const IncludeEvent = 0\n#If IncludeEvent Then\n{source}#End If\n");
+        assert!(load_project(&[module("Doc", kind, &inactive)], 10000, Some(Backend::Interpreter)).is_ok());
+    }
+    let renamed = module("Doc", ModuleKind::Workbook,
+        "Attribute VB_Name = \"Other\"\nPrivate Sub Workbook_Open()\nEnd Sub\n");
+    let refusal = load_project(&[renamed], 10000, Some(Backend::Interpreter)).err().unwrap();
+    assert!(refusal.contains("directory identity") && refusal.contains("dc-snz.15"), "{refusal}");
+}
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn automatic_private_handlers_share_udf_state_reset_sources_and_unsubscribe_on_drop() {

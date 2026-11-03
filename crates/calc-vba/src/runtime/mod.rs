@@ -130,7 +130,7 @@ impl Module {
                         sym::ModuleKind::Procedural
                     },
                     attributes,
-                    source: module.source.clone(),
+                    source: exported_source(&module.source),
                 }
             })
             .collect();
@@ -189,6 +189,9 @@ impl Module {
         } else {
             &oxvba_symbol::CatalogTypeLibResolver
         };
+        if events {
+            validate_document_events(&manifest, resolver)?;
+        }
         let engine =
             oxvba_embed::Module::load_project(&manifest, resolver).map_err(engine_error)?;
         if events
@@ -288,6 +291,121 @@ impl Module {
     }
     pub fn functions(&self) -> impl ExactSizeIterator<Item = &Function> {
         self.functions.iter().map(|(function, _)| function)
+    }
+}
+
+fn validate_document_events(
+    manifest: &sym::SymbolProjectManifest,
+    resolver: &dyn oxvba_symbol::TypeLibResolver,
+) -> Result<(), Error> {
+    use oxvba_symbol::model::SymbolKind;
+    let env = oxvba_symbol::build_resolution_environment(manifest, resolver)
+        .map_err(|error| Error::Compile(error.to_string()))?;
+    for module in env.modules().filter(|module| module.module_kind == sym::ModuleKind::Document) {
+        let unit = manifest.modules.iter().find(|unit|
+            unit.module_kind == sym::ModuleKind::Document
+                && oxvba_symbol::model::fold_identifier(&unit.module_name)
+                    == oxvba_symbol::model::fold_identifier(module.module_name)
+        ).ok_or_else(|| Error::UnsupportedSignature(format!(
+            "document module {} changed its directory identity (dc-snz.15)", module.module_name
+        )))?;
+        let source = unit.attributes.host_document_type.as_deref().ok_or_else(||
+            Error::UnsupportedSignature("document host type is unavailable (dc-hsa5.12)".into())
+        )?;
+        let prefix = format!("{}_", source.rsplit('.').next().expect("host type name"));
+        let events = env.com_source_event_metadata(source).unwrap_or_default();
+        for id in env.symbols.symbols_in_scope(module.module_scope)
+            .map_err(|error| Error::Compile(error.to_string()))?
+        {
+            let symbol = env.symbols.symbol(id).expect("declared symbol");
+            if !matches!(symbol.kind, SymbolKind::Procedure | SymbolKind::Function) { continue; }
+            let name = &env.symbols.name(symbol.name).expect("declared name").first_spelling;
+            if name.len() >= prefix.len() && name.as_bytes()[..prefix.len()].eq_ignore_ascii_case(prefix.as_bytes())
+                && !events.iter().any(|event| name[prefix.len()..].eq_ignore_ascii_case(&event.name))
+            {
+                return Err(Error::UnsupportedSignature(format!(
+                    "document procedure {name} has an unsupported automatic-event prefix (dc-hsa5.12)"
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Excel exports these descriptive member attributes inside the procedure. The
+/// pinned frontend accepts them at module level. Relocate only complete, parsed
+/// metadata statements; preserve all executable text and every other attribute.
+fn exported_source(source: &str) -> String {
+    use oxvba_syntax::{SyntaxKind as K, lexer::tokenize};
+    let tokens = tokenize(source);
+    let mut body = String::with_capacity(source.len());
+    let mut attributes = String::new();
+    let mut start = 0;
+    for end in (0..tokens.len()).filter(|&i| tokens[i].0 == K::Newline)
+        .map(|i| i + 1).chain(std::iter::once(tokens.len()))
+    {
+        let statement = &tokens[start..end];
+        start = end;
+        let significant = statement.iter().filter(|(kind, _)| !matches!(
+            kind, K::Whitespace | K::Comment | K::Newline | K::LineContinuation,
+        )).collect::<Vec<_>>();
+        let description = significant.len() == 6
+            && significant[3].1.eq_ignore_ascii_case("VB_Description");
+        let invoke = significant.len() == 8
+            && significant[3].1.eq_ignore_ascii_case("VB_ProcData")
+            && significant[4].0 == K::Dot
+            && significant[5].1.eq_ignore_ascii_case("VB_Invoke_Func");
+        let metadata = (description || invoke)
+            && significant[0].0 == K::KwAttribute
+            && significant[1].0 == K::Ident
+            && significant[2].0 == K::Dot
+            && significant[significant.len() - 2].0 == K::Eq
+            && significant[significant.len() - 1].0 == K::StringLiteral
+            // The frontend's lossless lexer also labels an unterminated string
+            // StringLiteral. After the opening quote, escaped quotes occur in
+            // pairs and only an odd final run includes a closing delimiter.
+            && significant[significant.len() - 1].1.strip_prefix('"').is_some_and(|body| {
+                body.bytes().rev().take_while(|byte| *byte == b'"').count() % 2 == 1
+            });
+        let text: String = statement.iter().map(|(_, text)| *text).collect();
+        if metadata && oxvba_syntax::parse(&text).errors().is_empty() {
+            attributes.push_str(&text);
+            attributes.push('\n');
+            for ch in text.chars() {
+                body.push(if matches!(ch, '\r' | '\n') { ch } else { ' ' });
+            }
+        } else {
+            body.push_str(&text);
+        }
+    }
+    if !attributes.is_empty() {
+        body.push('\n');
+        body.push_str(&attributes);
+    }
+    body
+}
+
+#[cfg(test)]
+mod exported_tests {
+    use super::exported_source;
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn exported_metadata_never_removes_executable_or_unknown_source() {
+        for source in [
+            "' Attribute F.VB_Description = \"comment\"\n",
+            "F = \"Attribute F.VB_Description = x\"\n",
+            "Attribute F.VB_Unknown = \"unknown\"\n",
+            "Attribute F.VB_Description = \"bad\" : F = 99\n",
+            "F = 1 + _\nAttribute F.VB_Description = \"continued\"\n",
+            "Attribute F.VB_Description = \"unterminated\n",
+            "Attribute F.VB_Description = \"unterminated\"\"\n",
+        ] {
+            assert_eq!(exported_source(source), source);
+        }
+        let source = "Public Function F() As Long\r\nAttribute F.VB_Description = \"text\"\r\n F = 7\r\nEnd Function\r\n";
+        let adjusted = exported_source(source);
+        assert!(adjusted.contains(" F = 7\r\nEnd Function\r\n"));
+        assert!(adjusted.ends_with("Attribute F.VB_Description = \"text\"\r\n\n"));
     }
 }
 

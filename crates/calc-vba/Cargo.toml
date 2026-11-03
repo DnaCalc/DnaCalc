@@ -16,6 +16,7 @@ oxvba-oxir = { git = "https://github.com/DnaCalc/OxVba.git", rev = "7eb4fdd93dbb
 oxvba-eval = { git = "https://github.com/DnaCalc/OxVba.git", rev = "7eb4fdd93dbbce1a7a1e8114aec7d21ffbcddd6a" }
 oxvba-bundle = { git = "https://github.com/DnaCalc/OxVba.git", rev = "7eb4fdd93dbbce1a7a1e8114aec7d21ffbcddd6a" }
 oxvba-symbol = { git = "https://github.com/DnaCalc/OxVba.git", rev = "7eb4fdd93dbbce1a7a1e8114aec7d21ffbcddd6a" }
+oxvba-syntax = { git = "https://github.com/DnaCalc/OxVba.git", rev = "7eb4fdd93dbbce1a7a1e8114aec7d21ffbcddd6a" }
 oxvba-hal = { git = "https://github.com/DnaCalc/OxVba.git", rev = "7eb4fdd93dbbce1a7a1e8114aec7d21ffbcddd6a" }
 oxvba-com = { git = "https://github.com/DnaCalc/OxVba.git", rev = "7eb4fdd93dbbce1a7a1e8114aec7d21ffbcddd6a" }
 oxvba-runtime = { git = "https://github.com/DnaCalc/OxVba.git", rev = "7eb4fdd93dbbce1a7a1e8114aec7d21ffbcddd6a" }
