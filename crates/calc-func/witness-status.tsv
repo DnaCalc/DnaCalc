@@ -207,8 +207,8 @@ FISHER	full	20430	34166	34166	-	exact	ec9d4a91ff+changes
 FISHER	pinned	20430	120	120	-	exact	dd2d82c25f+changes
 FIXED	full	20430	989	0	-	structural	ec9d4a91ff+changes
 FIXED	pinned	20430	120	0	-	structural	dd2d82c25f+changes
-FLOOR	full	20430	1335	1322	4611686018427387904	structural	ec9d4a91ff+changes
-FLOOR	pinned	20430	120	119	-	structural	dd2d82c25f+changes
+FLOOR	full	20430	1335	1324	4611686018427387904	structural	e97476a110+changes
+FLOOR	pinned	20430	120	120	-	exact	e97476a110+changes
 FLOOR.MATH	full	20430	1362	1350	-	structural	ec9d4a91ff+changes
 FLOOR.MATH	pinned	20430	120	120	-	exact	dd2d82c25f+changes
 FLOOR.PRECISE	full	20430	1335	1323	4611686018427387904	structural	ec9d4a91ff+changes

@@ -450,6 +450,30 @@ fn recorded_number_text_above_the_tie_band_rounds_up() {
     assert!(array.diagnostics.is_empty());
 }
 
+/// OxFunc-Evidence w111-broad-20260929 FLOOR cases 00000..00009, 00062 and 00067:
+/// zero has a zero multiple, while a nonzero number with zero significance is #DIV/0!.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_floor_zero_identity_precedes_its_multiple_error() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J20").unwrap();
+    for zero in [0x0000_0000_0000_0000, 0x8000_0000_0000_0000] {
+        session.set_input("A1", InputValue::number(f64::from_bits(zero)).unwrap()).unwrap();
+        for multiple in [0.0, 0.1, 2.0, -0.1, -2.0] {
+            session.set_input("B1", InputValue::number(multiple).unwrap()).unwrap();
+            session.set_formula("=FLOOR(A1,B1)");
+            let result = session.calculate();
+            assert_eq!(result.result, Some(CalcValue::number(0.0)), "{zero:#018x}, {multiple}: {:?}", result.diagnostics);
+            assert_eq!(result.result.unwrap().as_number().map(f64::to_bits), Some(0));
+            assert!(result.diagnostics.is_empty());
+        }
+    }
+    for number in [1, -1] {
+        session.set_formula(&format!("=FLOOR({number},0)"));
+        assert_eq!(session.calculate().result, Some(CalcValue::error(WorksheetErrorCode::Div0)));
+    }
+}
+
 /// Recorded hypgeom.dist-domain-00026..00029 and the fresh fractional
 /// support controls in OxFunc-Evidence's HYPGEOM.DIST banks.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
