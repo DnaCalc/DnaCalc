@@ -28,7 +28,9 @@
 //!    number times 1.01 (1 when it holds 0) by [`dispatch`], then the recalculation of the dirty
 //!    closure, then the cell set back and recalculated, each timed (commit and recalculation) with
 //!    the number of formulas the recalculation published; the pair is done `--repeat` times;
-//! 6. memory: the process's peak working set and peak private bytes (`GetProcessMemoryInfo`).
+//! 6. memory: on Windows, peak working set/private bytes (`GetProcessMemoryInfo`);
+//!    on Linux, resident bytes by phase and peak RSS (`/proc/self/status` VmRSS/VmHWM).
+//!    RSS is not private/committed memory; unavailable counters remain null.
 //!
 //! Each phase is timed in wall seconds and, beside them, in the cycles the measuring thread ran
 //! (`QueryThreadCycleTime`), which other processes' load changes far less: on a shared machine,
@@ -274,6 +276,27 @@ fn private_now() -> Option<u64> {
     None
 }
 
+/// Linux reports these fields in KiB. Missing, malformed or overflowing counters stay unknown.
+#[cfg(any(target_os = "linux", test))]
+fn status_bytes(status: &str, field: &str) -> Option<u64> {
+    let mut fields = status
+        .lines()
+        .find_map(|line| line.strip_prefix(field))?
+        .split_whitespace();
+    let kib = fields.next()?.parse::<u64>().ok()?;
+    (fields.next()? == "kB" && fields.next().is_none()).then_some(())?;
+    kib.checked_mul(1024)
+}
+
+#[cfg(target_os = "linux")]
+fn resident(field: &str) -> Option<u64> {
+    status_bytes(&fs::read_to_string("/proc/self/status").ok()?, field)
+}
+#[cfg(not(target_os = "linux"))]
+fn resident(_: &str) -> Option<u64> {
+    None
+}
+
 /// The processor cycles this thread has run (`QueryThreadCycleTime`), which other processes'
 /// load changes far less than wall time: the measure two builds are compared by on a shared
 /// machine.
@@ -290,6 +313,11 @@ fn thread_cycles() -> u64 {
 #[cfg(not(windows))]
 fn thread_cycles() -> u64 {
     0
+}
+
+/// Unsupported platform counters are unknown, rather than measured zero cycles.
+fn available_cycles(value: f64) -> Option<f64> {
+    cfg!(windows).then_some(value)
 }
 
 /// A phase's wall time and thread cycles.
@@ -325,10 +353,7 @@ struct Phases {
 
 /// The formulas a published recalculation calculated, or why it did not publish. `ask` (a full
 /// recalculation's [`calculate_full`], say) runs inside the first phase's clock.
-fn recalculate(
-    host: &mut HostState,
-    ask: impl FnOnce(&mut HostState),
-) -> Result<Phases, String> {
+fn recalculate(host: &mut HostState, ask: impl FnOnce(&mut HostState)) -> Result<Phases, String> {
     let clock = Clock::start();
     ask(host);
     let mut progress = step(host, WorkBudget::evaluations(0), &mut Unobserved);
@@ -356,7 +381,10 @@ fn calculated(host: &HostState, request: &ProjectionRequest) -> Result<(f64, usi
     let count = page
         .cells()
         .iter()
-        .filter(|cell| matches!(cell.value(), ProjectedValue::Calculated { .. }))
+        .filter(|cell| {
+            matches!(cell.value(), ProjectedValue::Calculated { calculation, .. }
+            if !calculation.held_by_circular_rule() && !calculation.reads_external_links())
+        })
         .count();
     Ok((seconds, count))
 }
@@ -382,9 +410,17 @@ fn write_inventory(capture: &Path, out: &Path) -> Result<(), String> {
     for formula in &record.formulas {
         let cell = &formula.cell;
         if cell.sheet().contains(['\t', '\n']) {
-            return Err(format!("the sheet name {:?} holds a tab or a line break", cell.sheet()));
+            return Err(format!(
+                "the sheet name {:?} holds a tab or a line break",
+                cell.sheet()
+            ));
         }
-        text.push_str(&format!("{}\t{}\t{}\n", cell.sheet(), cell.row(), cell.column()));
+        text.push_str(&format!(
+            "{}\t{}\t{}\n",
+            cell.sheet(),
+            cell.row(),
+            cell.column()
+        ));
     }
     if let Some(dir) = out.parent() {
         fs::create_dir_all(dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
@@ -471,11 +507,13 @@ fn run_one(
         None
     };
     let private_before_open = private_now();
+    let rss_before_open = resident("VmRSS:");
     let clock = Clock::start();
     let mut host = opened(bytes, locale)?;
     let open = clock.stop();
     host.set_threads(threads);
     let private_after_open = private_now();
+    let rss_after_open = resident("VmRSS:");
 
     let ids: HashMap<String, SheetId> = host
         .sheets()
@@ -499,7 +537,7 @@ fn run_one(
             Ok(())
         } else {
             Err(format!(
-                "after the {what}, {count} of the {total} formula cells project as calculated"
+                "after the {what}, {count} of the {total} formula cells were evaluated from live inputs (circular held values and external caches excluded)"
             ))
         }
     };
@@ -516,6 +554,7 @@ fn run_one(
     };
     let rebuild = recalculate(&mut host, |_| {})?;
     let private_after_rebuild = private_now();
+    let rss_after_rebuild = resident("VmRSS:");
     verify(&host, &mut twin, |_| {})?;
     let (project_s, count) = calculated(&host, &inventory)?;
     all_calculated(count, "rebuild")?;
@@ -532,13 +571,14 @@ fn run_one(
             "order_s": full.order.0,
             "evaluate_s": full.evaluate.0,
             "full_s": full.order.0 + full.evaluate.0,
-            "order_gcycles": full.order.1,
-            "evaluate_gcycles": full.evaluate.1,
-            "full_gcycles": full.order.1 + full.evaluate.1,
+            "order_gcycles": available_cycles(full.order.1),
+            "evaluate_gcycles": available_cycles(full.evaluate.1),
+            "full_gcycles": available_cycles(full.order.1 + full.evaluate.1),
             "published": full.published,
         }));
     }
 
+    let rss_after_full = resident("VmRSS:");
     let mut edits = Vec::new();
     if let Some(text) = edit {
         let (sheet, row, column) = split_cell(text)?;
@@ -550,6 +590,7 @@ fn run_one(
             other => return Err(format!("{text} holds {other:?}, not a number")),
         };
         let targets = [edited(held), held];
+        let mut from = held;
         for to in (0..repeat).flat_map(|_| targets) {
             let number = FiniteNumber::new(to).ok_or("the edited number is not finite")?;
             if let Some(twin) = twin.as_mut() {
@@ -585,17 +626,18 @@ fn run_one(
             let (_, count) = calculated(&host, &inventory)?;
             all_calculated(count, "edit")?;
             edits.push(json!({
-                "from_bits": format!("{:016x}", held.to_bits()),
+                "from_bits": format!("{:016x}", from.to_bits()),
                 "to_bits": format!("{:016x}", to.to_bits()),
                 "commit_s": commit.0,
                 "order_s": phases.order.0,
                 "evaluate_s": phases.evaluate.0,
                 "edit_s": commit.0 + phases.order.0 + phases.evaluate.0,
-                "order_gcycles": phases.order.1,
-                "evaluate_gcycles": phases.evaluate.1,
-                "edit_gcycles": commit.1 + phases.order.1 + phases.evaluate.1,
+                "order_gcycles": available_cycles(phases.order.1),
+                "evaluate_gcycles": available_cycles(phases.evaluate.1),
+                "edit_gcycles": available_cycles(commit.1 + phases.order.1 + phases.evaluate.1),
                 "published": phases.published,
             }));
+            from = to;
         }
     }
     let memory = peak_memory();
@@ -605,13 +647,13 @@ fn run_one(
         "thread_differences": differing,
         "formula_cells": total,
         "open_s": open.0,
-        "open_gcycles": open.1,
+        "open_gcycles": available_cycles(open.1),
         "rebuild_order_s": rebuild.order.0,
         "rebuild_evaluate_s": rebuild.evaluate.0,
         "rebuild_s": rebuild.order.0 + rebuild.evaluate.0,
-        "rebuild_order_gcycles": rebuild.order.1,
-        "rebuild_evaluate_gcycles": rebuild.evaluate.1,
-        "rebuild_gcycles": rebuild.order.1 + rebuild.evaluate.1,
+        "rebuild_order_gcycles": available_cycles(rebuild.order.1),
+        "rebuild_evaluate_gcycles": available_cycles(rebuild.evaluate.1),
+        "rebuild_gcycles": available_cycles(rebuild.order.1 + rebuild.evaluate.1),
         "rebuild_published": rebuild.published,
         "project_s": project_s,
         "fulls": fulls,
@@ -623,6 +665,14 @@ fn run_one(
         "private_after_open": private_after_open,
         "private_after_rebuild": private_after_rebuild,
         "private_at_end": private_now(),
+        "rss_source": if cfg!(target_os = "linux") { Some("/proc/self/status; bytes; includes shared resident pages") } else { None },
+        "rss_before_open": rss_before_open,
+        "rss_after_open": rss_after_open,
+        "rss_after_rebuild": rss_after_rebuild,
+        "rss_after_full": rss_after_full,
+        "rss_at_end": resident("VmRSS:"),
+        "peak_rss": resident("VmHWM:"),
+        "thread_cycles_available": cfg!(windows),
     }))
 }
 
@@ -806,6 +856,7 @@ fn workbook_stats(dna: &[Value], excel: &Value) -> Value {
             "edit_gcycles": stats(&samples(&ok, "edit_gcycles", Some("edits"))),
             "peak_working_set": stats(&samples(&ok, "peak_working_set", None)),
             "peak_private": stats(&samples(&ok, "peak_private", None)),
+            "peak_rss": stats(&samples(&ok, "peak_rss", None)),
         },
         "excel": {
             "open_s": stats(&samples(&excel_runs, "open_s", None)),
@@ -822,13 +873,13 @@ fn workbook_stats(dna: &[Value], excel: &Value) -> Value {
 
 fn markdown(run: &Value, workbooks: &[Value]) -> String {
     let mut out = String::from("# DNA Calc and Excel: open, calculation and memory\n\n");
-    out.push_str("Each cell: median (lowest–highest, n = samples). Seconds, or MB of 2^20 bytes. The method is in `tools/xtask-harness/src/bench.rs` and `platform/calc-oracle-excel/worker/timing-worker.ps1`.\n\n");
+    out.push_str("Each cell: median (lowest–highest, n = samples). Seconds, or MB of 2^20 bytes. The method is in `tools/xtask-harness/src/bench.rs` and `platform/calc-oracle-excel/worker/timing-worker.ps1`. Linux RSS includes shared resident pages and is separate from Windows private bytes; unavailable counters stay blank. Thread cycles are available only on Windows.\n\n");
     for (key, value) in run.as_object().into_iter().flatten() {
         out.push_str(&format!("- {key}: {value}\n"));
     }
     out.push('\n');
     out.push_str("The one-cell edit is the assignment of the cell's new value and the recalculation that follows, for both systems: Excel's Range.Value2 assignment plus Application.Calculate, DNA Calc's dispatch plus the recalculation of the dirty cells. Excel's Calculate takes time even when nothing is dirty (the no-op Calculate column, timed right after CalculateFull), so on the small workbooks Excel's edit figure is an upper bound of the work the edit itself causes.\n\n");
-    out.push_str("| Workbook | System | Open s | Full rebuild s | Full recalculation s | One-cell edit s | No-op Calculate s | Formulas the edit recalculated | Peak working set MB | Peak private MB |\n|---|---|---|---|---|---|---|---|---|---|\n");
+    out.push_str("| Workbook | System | Open s | Full rebuild s | Full recalculation s | One-cell edit s | No-op Calculate s | Formulas the edit recalculated | Peak working set MB | Peak private MB | Linux peak RSS MB |\n|---|---|---|---|---|---|---|---|---|---|---|\n");
     for workbook in workbooks {
         let name = workbook["name"].as_str().unwrap_or("?");
         let s = &workbook["stats"];
@@ -836,7 +887,7 @@ fn markdown(run: &Value, workbooks: &[Value]) -> String {
             let m = &s[system];
             let get = |k: &str| -> Option<Value> { m.get(k).cloned().filter(|v| !v.is_null()) };
             out.push_str(&format!(
-                "| {name} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
+                "| {name} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
                 if system == "dna" { "DNA Calc" } else { "Excel" },
                 cell(&get("open_s"), 1.0, 3),
                 cell(&get("rebuild_s"), 1.0, 3),
@@ -846,6 +897,7 @@ fn markdown(run: &Value, workbooks: &[Value]) -> String {
                 cell(&get("edit_published"), 1.0, 0),
                 cell(&get("peak_working_set"), MB, 0),
                 cell(&get("peak_private"), MB, 0),
+                cell(&get("peak_rss"), MB, 0),
             ));
         }
     }
@@ -979,8 +1031,7 @@ fn run_bench(args: &Args) -> u8 {
                         .join("inventory")
                         .join(format!("{}.tsv", crate::corpus::file_safe(&entry.name)));
                     match write_inventory(&capture, &inventory) {
-                        Ok(()) => {
-                            dna_runs(
+                        Ok(()) => dna_runs(
                             &program,
                             entry,
                             &inventory,
@@ -989,8 +1040,7 @@ fn run_bench(args: &Args) -> u8 {
                             args.repeat,
                             args.threads,
                             args.verify_threads,
-                        )
-                        }
+                        ),
                         Err(e) => vec![json!({ "failed": e })],
                     }
                 }
@@ -1134,8 +1184,15 @@ fn one(args: &[String]) -> u8 {
         eprintln!("xtask bench: --one needs --fixture and --inventory");
         return EXIT_USAGE;
     };
-    let result = run_one(&fixture, &inventory, edit.as_deref(), repeat, threads, verify_threads)
-        .unwrap_or_else(|failed| json!({ "failed": failed }));
+    let result = run_one(
+        &fixture,
+        &inventory,
+        edit.as_deref(),
+        repeat,
+        threads,
+        verify_threads,
+    )
+    .unwrap_or_else(|failed| json!({ "failed": failed }));
     println!("{LINE}{result}");
     0
 }
@@ -1183,6 +1240,54 @@ mod tests {
         assert!(split_cell("Inputs!B0").is_err());
         assert!(parse_args(&args("corpus --runs 0")).is_err());
         assert!(parse_args(&args("corpus --no-dna")).is_err());
+    }
+
+    #[test]
+    fn linux_resident_counters_preserve_units_and_unknown_values() {
+        let status = "VmPeak:\t999 kB\nVmHWM:\t12345 kB\nVmRSS:\t4096 kB\n";
+        assert_eq!(status_bytes(status, "VmHWM:"), Some(12345 * 1024));
+        assert_eq!(status_bytes(status, "VmRSS:"), Some(4096 * 1024));
+        assert_eq!(status_bytes(status, "VmSize:"), None);
+        for invalid in [
+            "VmRSS: 12 B",
+            "VmRSS: nope kB",
+            "VmRSS: 18446744073709551615 kB",
+        ] {
+            assert_eq!(status_bytes(invalid, "VmRSS:"), None);
+        }
+    }
+
+    /// Native-only: the command reads committed workbook/capture files and writes its inventory.
+    #[test]
+    fn held_circular_values_and_external_file_caches_cannot_qualify_for_timing() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        for (package, case, expected) in [
+            ("calc-engine", "dc_y2o", "3 of the 17"),
+            ("calc-host", "dc_ylr", "1 of the 74"),
+        ] {
+            let inventory = std::env::temp_dir()
+                .join(format!("dnacalc-bench-{}-{case}.tsv", std::process::id()));
+            let package = root.join("crates").join(package).join("tests");
+            write_inventory(
+                &package
+                    .join("captures")
+                    .join(case)
+                    .join("oracle.capture.json"),
+                &inventory,
+            )
+            .unwrap();
+            let outcome = run_one(
+                &package.join("fixtures").join(case).join("oracle.xlsx"),
+                &inventory,
+                None,
+                1,
+                1,
+                false,
+            );
+            fs::remove_file(inventory).unwrap();
+            let refusal = outcome.unwrap_err();
+            assert!(refusal.contains(expected), "{case}: {refusal}");
+        }
     }
 
     #[test]
