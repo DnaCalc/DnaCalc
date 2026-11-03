@@ -313,8 +313,17 @@ try {
             if ($case.PSObject.Properties['edit']) { $sheet.Range([string]$case.edit.cell).Value2=[double]$case.edit.value }
             # Assign the formula anchor directly, as the OneCalc controller does.
             # Excel removes the previous anchor's spill when replacing its formula.
-            if ($case.PSObject.Properties['legacy'] -and $case.legacy) { $sheet.Range('B3').Formula = [string]$case.formula }
+            if ($case.PSObject.Properties['keep_formula'] -and $case.keep_formula) {
+                if ([string]$sheet.Range('B3').Formula2 -ne [string]$case.formula) { throw 'Retained formula differs from the selected case.' }
+            } elseif ($case.PSObject.Properties['legacy'] -and $case.legacy) { $sheet.Range('B3').Formula = [string]$case.formula }
             else { $sheet.Range('B3').Formula2 = [string]$case.formula }
+            if ($case.PSObject.Properties['entry_wait_value']) {
+                $deadline=[DateTime]::UtcNow.AddSeconds($(if($NoTrace){60}else{180}))
+                do { Start-Sleep -Milliseconds 50; [void]$excel.Ready; $value=$sheet.Range('B3').Value2 }
+                until ($value -eq $case.entry_wait_value -or [DateTime]::UtcNow -gt $deadline)
+                if ($value -ne $case.entry_wait_value) { throw 'Native formula-entry deadline expired.' }
+                Note ('formula-entry ' + [string]$case.formula) $value
+            }
             if ($case.PSObject.Properties['before_calculate']) {
                 $commandValue=$excel.Run([string]$case.before_calculate)
                 Note ('before Calculate ' + [string]$case.before_calculate) $commandValue
@@ -381,6 +390,11 @@ try {
                 if (-not $terminated) { Start-Sleep -Milliseconds 50 }
             } until ($terminated -or [DateTime]::UtcNow -gt $deadline)
             Note 'RTD termination before detach' $terminated
+        }
+        if (-not $bookClosed -and $AddInDirectory -and (Get-Content -LiteralPath $Cases -Raw) -match '"rtd_wait_value"') {
+            $book.Close($false); $bookClosed=$true
+            Note 'Close RTD workbook before detach' $true
+            for($i=0;$i -lt 10;$i++){[void]$excel.Ready; Start-Sleep -Milliseconds 50}
         }
         Note 'AutomationSecurity unchanged before teardown' ([int]$excel.AutomationSecurity -eq $metadata.automation_security_before)
         Note 'ExecuteExcel4Macro UNREGISTER(managed)' $excel.ExecuteExcel4Macro('UNREGISTER("' + $xll.Replace('"','""') + '")')

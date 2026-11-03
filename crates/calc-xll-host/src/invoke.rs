@@ -64,7 +64,9 @@ impl XllFunction {
                 .is_some_and(|frame| frame.formula_entry)
         });
         if formula_entry && self.registration.info.signature.asynchronous {
-            return Err("dc-snz.23: native async formula-entry evaluation is not modelled".into());
+            return Err(
+                "dc-snz.23: native async formula-entry needs an admitted continuation".into(),
+            );
         }
         if self.registration.info.signature.thread_safe
             && self.registration.info.signature.asynchronous
@@ -293,6 +295,12 @@ impl XllFunction {
                 service.finish_call(
                     provider,
                     caller,
+                    frame
+                        .context
+                        .as_ref()
+                        .and_then(|context| context.invocation())
+                        .ok_or("dc-snz.23: RTD declaration needs an invocation identity")?
+                        .id,
                     &frame.rtd_subscriptions.iter().copied().collect::<Vec<_>>(),
                 )?;
             }

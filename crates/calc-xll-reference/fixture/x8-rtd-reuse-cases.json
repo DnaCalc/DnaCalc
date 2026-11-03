@@ -1,0 +1,6 @@
+[
+ {"formula":"=IF(A1=7,X5.RtdValue(),5)","edit":{"cell":"A1","value":7},"value":42,"rtd_wait_value":42,"dependent":"=B3*2","dependent_value":84},
+ {"formula":"=IF(A1=7,X5.RtdValue(),5)","keep_formula":true,"edit":{"cell":"A1","value":8},"value":5,"dependent":"=B3*2","dependent_value":10},
+ {"formula":"=IF(A1=7,X5.RtdValue(),5)","keep_formula":true,"edit":{"cell":"A1","value":7},"value":42,"rtd_wait_value":42,"dependent":"=B3*2","dependent_value":84},
+ {"formula":"=99","value":99,"dependent":"=B3*2","dependent_value":198}
+]
