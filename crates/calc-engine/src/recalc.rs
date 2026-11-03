@@ -53,9 +53,10 @@
 //!   evaluated in this pass, their new value (the members of a cycle in cell order: Excel
 //!   evaluates A1 before B1, A5 before A6 and B5 before C5, and the sheets by name, letter case
 //!   ignored, whatever the order the formulas were entered in, the saved calc chain, the tab order
-//!   or the sheet IDs; dc-86f, Excel 16.0.20527 2026-10-30, tests/fixtures/dc_86f). After each pass the change of every
-//!   formula on a cycle is measured: the recalculation stops after the first pass in which no
-//!   value changed by the maximum change or more, or after the maximum number of passes. Excel
+//!   or the sheet IDs; dc-86f, Excel 16.0.20527 2026-10-30, tests/fixtures/dc_86f). The current
+//!   DNA stopping policy compares each cyclic value after a complete sweep and stops when the
+//!   largest change is strictly below MaxChange, or MaxIterations sweeps have run. Threshold
+//!   equality, independent SCC stopping and nonnumeric convergence await P14 recordings. Excel
 //!   16.0 (2026-10-23, 100 iterations, maximum change 0.001) added 200 to A1 `=B1+1` and B1
 //!   `=A1+1` and 100 to C1 `=C1+1` on each recalculation, and converged D3 `=E3/2+1` with E3
 //!   `=D3` to 2 and F3 `=F3*0.5+5` to 10. Every recalculation calculates the formulas on a cycle
@@ -415,6 +416,9 @@ pub struct RecalcWork {
     pass_start: BTreeMap<NodeId, Option<CalcValue>>,
     /// How many passes over the order have ended.
     passes: u32,
+    /// The final sweep's stopping decision has run. A yield after its last cell must still
+    /// retain that decision as pending work; staged cells alone cannot complete the session.
+    iteration_complete: bool,
     /// With iteration off, the formulas a circular reference left uncalculated (dc-10y): those on
     /// a cycle that their evaluations met, and those whose evaluation read one of them.
     kept: BTreeSet<NodeId>,
@@ -870,6 +874,7 @@ impl RecalcWork {
             + self.waits_on.len()
             + self.rewave.len()
             + self.async_waits.len()
+            + usize::from(self.iterating() && !self.iteration_complete)
     }
 
     fn progress(&self) -> RecalcProgress {
@@ -898,6 +903,7 @@ impl RecalcWork {
     fn add_cyclic(&mut self, state: &EngineState, nodes: impl IntoIterator<Item = NodeId>) {
         for node in nodes {
             if self.cyclic.insert(node) && self.iteration.enabled() {
+                self.iteration_complete = false;
                 let start = starting_value(state, node);
                 self.iterates.insert(node, Some(start.clone()));
                 self.pass_start.insert(node, Some(start));
@@ -1381,6 +1387,7 @@ fn begin_with_scope(
         iterates: BTreeMap::new(),
         pass_start: BTreeMap::new(),
         passes: 0,
+        iteration_complete: false,
         kept: BTreeSet::new(),
     })
     .map(|mut work| {
@@ -3862,6 +3869,9 @@ fn active_segment(work: &RecalcWork) -> Option<usize> {
 /// pass, every node of the order no longer evaluated (its staged result stands until it is
 /// evaluated again), and returns true.
 fn next_pass(work: &mut RecalcWork) -> bool {
+    if work.iteration_complete {
+        return false;
+    }
     work.passes += 1;
     let change = work
         .cyclic
@@ -3873,6 +3883,7 @@ fn next_pass(work: &mut RecalcWork) -> bool {
         })
         .fold(0.0f64, f64::max);
     if work.passes >= work.iteration.max_iterations() || change < work.iteration.max_change() {
+        work.iteration_complete = true;
         return false;
     }
     work.open_pass(PassReason::IterationSweep(work.passes));
@@ -3901,6 +3912,9 @@ fn change_between(before: Option<&CalcValue>, after: Option<&CalcValue>) -> f64 
 /// Begins the next wave: the formulas to calculate again and their dirty closure, ordered, each
 /// no longer evaluated (its staged result and spill stand until it is evaluated again).
 fn next_wave(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) {
+    // A repaired footprint/topology can change a previously converged value. Keep the
+    // existing repair-wave policy, including another stopping decision, across owner yields.
+    work.iteration_complete = false;
     let roots = std::mem::take(&mut work.rewave);
     work.waves += 1;
     let reason = if std::mem::take(&mut work.repairing_certificates) {

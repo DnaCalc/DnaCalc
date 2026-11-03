@@ -172,6 +172,21 @@ requested. Volatility/reevaluation
 policy is therefore part of the measured sizing behavior; the bound is not an instruction to call every size
 expression eight times.
 
+Iterative owner steps (dc-hsa5.11, 2026-11-03): the existing iteration session now
+retains its final stopping decision across a yield at the last cell of a sweep.
+Previously a finite budget could publish after one sweep while an unlimited
+budget performed all required sweeps. Staged cyclic values stay private until
+the session finishes; that publication boundary is a DNA policy pending P14,
+not an observation of Excel's intermediate caches. Current stopping compares
+the largest cyclic value change strictly below MaxChange, limiting ordinary
+iteration sweeps by MaxIterations. Existing spill/dependency repair waves keep
+their separate bound and reopen the stopping decision; their evaluations are
+not evidence of Excel's iteration count. Threshold equality, stopping across independent SCCs,
+nonnumeric convergence and changing topology still need recordings. The recorded
+dc_86f and dc_10y_iteration first-calculation values cover order, held seeds and
+the recorded limits; their reopen observations describe later calculations.
+Cross-workbook cyclic requests retain their named refusal before admission.
+
 ### 3.3 Invocation
 
 ```rust
