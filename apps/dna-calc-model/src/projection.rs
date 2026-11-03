@@ -489,6 +489,10 @@ pub struct ToServer {
 pub enum FilterChange {
     Enable(Area), Values { column:u32, values:Vec<String>, blank:bool },
     Custom { column:u32, and:bool, predicates:Vec<(String,String)> },
+    Dates { column:u32, groups:Vec<Vec<u16>>, values:Vec<String>, blank:bool },
+    Top { column:u32, top:bool, percent:bool, value:String },
+    Color { column:u32, cell_color:bool, color:String },
+    ColorReference { column:u32, dxf_id:u32, cell_color:bool },
     ClearColumn(u32), Clear, Remove, Reapply,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

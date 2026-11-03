@@ -15,6 +15,8 @@ portability = "portable"
 # step is shown (HOST to FML).
 [dependencies]
 calc-value = { path = "../calc-value" }
+# Share the existing Excel colour palette with painters and colour filters.
+calc-func = { path = "../calc-func" }
 calc-doc = { path = "../calc-doc" }
 calc-doc-model = { path = "../calc-doc-model" }
 calc-engine = { path = "../calc-engine" }

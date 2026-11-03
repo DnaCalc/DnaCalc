@@ -1404,6 +1404,7 @@ pub fn load(
                         .map(|row| (id, *row, loaded.auto_filter)),
                 );
                 if let Some(mut filter)=loaded.filter {
+                    filter.unsupported |= filter.columns.values().any(|c|matches!(c,calc_doc_model::FilterCriteria::Color{dxf_id,..} if styles.differential_formats.get(*dxf_id as usize).is_none()));
                     let physically_hidden=loaded.hidden_rows.iter().copied().filter(|r|*r>filter.area.first().row() && *r<=filter.area.last().row()).collect::<std::collections::BTreeSet<_>>();
                     let mut outline_layout=calc_doc_model::AxisLayouts::default();loaded.geometry.add_to_model(id,&mut outline_layout);
                     let outlined=outline_layout.outline_groups(id,calc_doc_model::Axis::Rows).into_iter().filter(|g|g.collapsed).flat_map(|g|g.first..=g.last).filter(|r|*r>filter.area.first().row() && *r<=filter.area.last().row()).collect::<std::collections::BTreeSet<_>>();

@@ -304,6 +304,19 @@ impl HostState {
         crate::conditional::resolve(self, color)
     }
 
+    /// Resolve indexed colours once for display and colour filtering.
+    pub fn indexed_color(&self, index:u32)->Option<String> {
+        const BASIC:[&str;8]=["#000000","#ffffff","#ff0000","#00ff00","#0000ff","#ffff00","#ff00ff","#00ffff"];
+        match index {
+            0..=7=>Some(BASIC[index as usize].into()),
+            8..=63=>self.palette_color((index-7) as u8).or_else(||Some(calc_func::DEFAULT_PALETTE[(index-8) as usize].into())),
+            64=>Some("#000000".into()),65=>Some("#ffffff".into()),_=>None,
+        }
+    }
+    pub fn resolved_style_color(&self,color:&calc_doc_model::StyleColor)->Option<String> {
+        match self.style_color(color)? {crate::LookColor::Rgb(rgb)=>Some(rgb),crate::LookColor::Indexed(index)=>self.indexed_color(index)}
+    }
+
     pub fn loaded(&self) -> &LoadedWorkbook {
         &self.loaded
     }

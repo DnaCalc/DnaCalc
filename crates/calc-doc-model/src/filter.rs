@@ -5,7 +5,26 @@ use std::collections::{BTreeMap, BTreeSet};
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum FilterCriteria {
     /// SpreadsheetML filter values, before display clipping; an empty value is distinct from blank.
-    Values { values: Vec<String>, blank: bool },
+    Values {
+        values: Vec<String>,
+        blank: bool,
+    },
+    /// Year through second, with contiguous calendar components in each group.
+    Dates {
+        groups: Vec<Vec<u16>>,
+        values: Vec<String>,
+        blank: bool,
+    },
+    /// The cutoff is calculated from current numeric values by CalcFml when reapplied.
+    Top {
+        top: bool,
+        percent: bool,
+        value: String,
+    },
+    Color {
+        dxf_id: u32,
+        cell_color: bool,
+    },
     Custom {
         and: bool,
         predicates: Vec<FilterPredicate>,
@@ -84,6 +103,24 @@ impl AutoFilter {
                         values.len() <= 10000
                             && values.iter().all(|v| v.encode_utf16().count() <= 32767)
                     }
+                    FilterCriteria::Dates { groups, values, .. } => {
+                        !groups.is_empty()
+                            && groups.len() + values.len() <= 10000
+                            && groups.iter().all(|g| valid_date_group(g))
+                            && values.iter().all(|v| v.encode_utf16().count() <= 32767)
+                    }
+                    FilterCriteria::Top { percent, value, .. } => {
+                        if *percent {
+                            value
+                                .parse::<f64>()
+                                .is_ok_and(|n| n.is_finite() && n > 0. && n <= 100.)
+                        } else {
+                            value.parse::<f64>().is_ok_and(|n| {
+                                n.is_finite() && n.fract() == 0. && (1.0..=255.0).contains(&n)
+                            })
+                        }
+                    }
+                    FilterCriteria::Color { .. } => true,
                     FilterCriteria::Custom { predicates, .. } => {
                         !predicates.is_empty()
                             && predicates.len() <= 2
@@ -97,4 +134,17 @@ impl AutoFilter {
             .iter()
             .all(|r| *r > self.area.first().row() && *r <= self.area.last().row())
     }
+}
+
+/// Validate calendar components without interpreting a workbook's date serials.
+pub fn valid_date_group(group: &[u16]) -> bool {
+    if group.is_empty() || group.len() > 6 || !(1..=9999).contains(&group[0]) {
+        return false;
+    }
+    let limits = [(1, 12), (1, 31), (0, 23), (0, 59), (0, 59)];
+    group
+        .iter()
+        .skip(1)
+        .zip(limits)
+        .all(|(n, (a, b))| (a..=b).contains(n))
 }

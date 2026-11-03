@@ -79,6 +79,7 @@ pub(super) fn read(
                             filter.unsupported |= !known(&e, &["blank"]);
                             let blank = matches!(e.attribute("blank"), Some("1" | "true"));
                             let mut values = Vec::new();
+                            let mut groups = Vec::new();
                             loop {
                                 match events.next()? {
                                     Some(XmlEvent::Start(e))
@@ -87,6 +88,50 @@ pub(super) fn read(
                                         filter.unsupported |= !known(&e, &["val"]);
                                         if let Some(v) = e.attribute("val") {
                                             values.push(value(v, &mut filter.unsupported));
+                                        } else {
+                                            filter.unsupported = true;
+                                        }
+                                        leaf(events, &mut filter.unsupported)?;
+                                    }
+                                    Some(XmlEvent::Start(e))
+                                        if e.name.is(MAIN_NAMESPACE, "dateGroupItem") =>
+                                    {
+                                        let fields =
+                                            ["year", "month", "day", "hour", "minute", "second"];
+                                        let grouping =
+                                            ["year", "month", "day", "hour", "minute", "second"]
+                                                .iter()
+                                                .position(|n| {
+                                                    Some(*n) == e.attribute("dateTimeGrouping")
+                                                });
+                                        filter.unsupported |= !known(
+                                            &e,
+                                            &[
+                                                "dateTimeGrouping",
+                                                "year",
+                                                "month",
+                                                "day",
+                                                "hour",
+                                                "minute",
+                                                "second",
+                                            ],
+                                        );
+                                        if let Some(last) = grouping {
+                                            let group = fields[..=last]
+                                                .iter()
+                                                .map(|f| {
+                                                    e.attribute(f)
+                                                        .and_then(|s| s.parse::<u16>().ok())
+                                                })
+                                                .collect::<Option<Vec<_>>>();
+                                            if let Some(group) = group {
+                                                groups.push(group);
+                                            } else {
+                                                filter.unsupported = true;
+                                            }
+                                            filter.unsupported |= fields[last + 1..]
+                                                .iter()
+                                                .any(|f| e.attribute(f).is_some());
                                         } else {
                                             filter.unsupported = true;
                                         }
@@ -106,11 +151,67 @@ pub(super) fn read(
                                 }
                             }
                             if criteria
-                                .replace(FilterCriteria::Values { values, blank })
+                                .replace(if groups.is_empty() {
+                                    FilterCriteria::Values { values, blank }
+                                } else {
+                                    FilterCriteria::Dates {
+                                        groups,
+                                        values,
+                                        blank,
+                                    }
+                                })
                                 .is_some()
                             {
                                 filter.unsupported = true;
                             }
+                        }
+                        Some(XmlEvent::Start(e)) if e.name.is(MAIN_NAMESPACE, "colorFilter") => {
+                            filter.unsupported |= !known(&e, &["dxfId", "cellColor"]);
+                            let cell_color = match e.attribute("cellColor") {
+                                None | Some("1" | "true") => Some(true),
+                                Some("0" | "false") => Some(false),
+                                _ => None,
+                            };
+                            if let (Some(dxf_id), Some(cell_color)) = (
+                                e.attribute("dxfId").and_then(|v| v.parse::<u32>().ok()),
+                                cell_color,
+                            ) {
+                                filter.unsupported |= criteria
+                                    .replace(FilterCriteria::Color { dxf_id, cell_color })
+                                    .is_some();
+                            } else {
+                                filter.unsupported = true;
+                            }
+                            leaf(events, &mut filter.unsupported)?;
+                        }
+                        Some(XmlEvent::Start(e)) if e.name.is(MAIN_NAMESPACE, "top10") => {
+                            filter.unsupported |=
+                                !known(&e, &["top", "percent", "val", "filterVal"]);
+                            let boolean = |name, default| match e.attribute(name) {
+                                None => Some(default),
+                                Some("1" | "true") => Some(true),
+                                Some("0" | "false") => Some(false),
+                                _ => None,
+                            };
+                            if let (Some(top), Some(percent), Some(value)) = (
+                                boolean("top", true),
+                                boolean("percent", false),
+                                e.attribute("val"),
+                            ) {
+                                filter.unsupported |= criteria
+                                    .replace(FilterCriteria::Top {
+                                        top,
+                                        percent,
+                                        value: value.to_owned(),
+                                    })
+                                    .is_some();
+                            } else {
+                                filter.unsupported = true;
+                            }
+                            filter.unsupported |= e
+                                .attribute("filterVal")
+                                .is_some_and(|v| !v.parse::<f64>().is_ok_and(f64::is_finite));
+                            leaf(events, &mut filter.unsupported)?;
                         }
                         Some(XmlEvent::Start(e)) if e.name.is(MAIN_NAMESPACE, "customFilters") => {
                             filter.unsupported |= !known(&e, &["and"]);
