@@ -1626,7 +1626,7 @@ impl ReferenceReader for WorkbookReader<'_> {
                 self.view
                     .state
                     .bindings
-                    .iter()
+                    .spill_iter()
                     .filter_map(|(&node, binding)| {
                         if Some(node) == self.view.caller
                             || !matches!(
