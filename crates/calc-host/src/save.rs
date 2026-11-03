@@ -84,6 +84,48 @@ pub enum SaveCachePolicy {
     PreservePermittedCaches,
 }
 
+#[derive(Clone)]
+pub(crate) struct SaveDemand {
+    pub scope: Option<calc_engine::CalcScope>,
+    pub caches: SaveCachePolicy,
+    pub calculate_before_save: bool,
+}
+
+pub(crate) fn save_completion_valid(receipt: &calc_engine::CompletionReceipt) -> bool {
+    // TABLE sessions have real results but retain their Incomplete certificate.
+    matches!(
+        receipt.outcome,
+        crate::CompletionOutcome::Complete | crate::CompletionOutcome::Incomplete
+    ) && receipt.coverage.calculated == receipt.coverage.required
+        && receipt.coverage.refused == 0
+        && receipt.coverage.held == 0
+}
+
+pub(crate) fn save_can_wait_for(host: &HostState, scope: &crate::CalcScope) -> bool {
+    host.work.as_ref().is_none_or(|work| {
+        work.revision() == host.revision()
+            && work.live_inputs_current(&host.engine)
+            && work.callables_current(&host.engine)
+            && work.admission().range_post_state == crate::RangePostState::Satisfied
+            && host
+                .engine
+                .nodes()
+                .filter(|n| scope.contains(n.anchor()))
+                .all(|n| work.admission().scope.contains(n.anchor()))
+    })
+}
+
+pub(crate) fn save_scope_satisfied(host: &HostState, scope: &crate::CalcScope) -> bool {
+    !host
+        .engine
+        .nodes()
+        .any(|n| scope.contains(n.anchor()) && host.engine.calculation_required_at(n.anchor()))
+        && host
+            .engine
+            .stale(&host.model)
+            .is_some_and(|stale| !stale.iter().any(|at| scope.contains(*at)))
+}
+
 /// The immutable model and published result view selected before package preparation.
 /// This is provenance for the save; it makes no workbook-wide freshness claim.
 #[derive(Clone, Debug, PartialEq, Eq)]

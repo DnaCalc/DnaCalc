@@ -392,6 +392,15 @@ pub struct EngineState {
     pub(crate) parallel_minimum: ParallelMinimum,
 }
 
+/// Opaque input/semantic identity for owner operations spanning several tasks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CalculationInputVersion {
+    environment: u64,
+    volatile: u64,
+    external: u64,
+    linked: u64,
+}
+
 /// The fewest formulas a recalculation's first wave, and one of its levels, must hold to be
 /// evaluated on several threads (dc-2m0): below them, starting threads costs more than it saves.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -410,6 +419,14 @@ impl Default for ParallelMinimum {
 }
 
 impl EngineState {
+    pub fn input_version(&self) -> CalculationInputVersion {
+        CalculationInputVersion {
+            environment: self.contract.environment,
+            volatile: self.volatile_input_version,
+            external: self.contract.external_inputs,
+            linked: self.linked_input_version,
+        }
+    }
     fn result_group(&self, node: NodeId, at: CellKey) -> Option<ResultGroup> {
         let Binding::Placed(instance, role) = self.bindings.get(&node)? else {
             return None;
@@ -1078,6 +1095,20 @@ impl EngineState {
         let nodes = state.by_anchor.values().copied().collect();
         state.contract.inherit_identity(&self.contract, nodes);
         state
+    }
+
+    /// Rebuild derived bindings/edges before a public ForceAll command. Authored
+    /// identities, held caches and spills survive; existing result proofs do not.
+    /// The owner must have no active calculation using this mutable graph.
+    pub fn rebuild_bindings(&mut self) {
+        let nodes: Vec<_> = self.nodes().map(|node| node.id()).collect();
+        for node in nodes {
+            self.rebind_names(node);
+        }
+        self.templates.clear();
+        self.plans = PlanCache::new();
+        self.contract.bindings = self.contract.advance();
+        self.mark_all_pending();
     }
 
     /// Sets the host's facts about the workbook's file, formats and views and the application

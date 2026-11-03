@@ -735,6 +735,7 @@ fn run(
                     "dc-snz.18: nested registered calls that change cached-read mode are not modelled".into()));
             }
             let adapter = crate::native::XllFunction {
+                early: false,
                 parallel: 1,
                 state: frame.state.clone(),
                 registration,
@@ -977,6 +978,62 @@ fn register(frame: &mut Frame<'_>, values: &[CalcValue]) -> Result<CalcValue, (i
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// Native-only: constructs native module leases and the same callable projection
+    /// used by the P08 XPure DLL; no permission is inferred from a `$` registration.
+    #[test]
+    fn p08_early_execution_requires_an_explicit_compatible_registration_grant() {
+        let host = crate::native::XllHost::new(0);
+        let module = Module::loaded("kernel32.dll").unwrap();
+        for (signature, allowed) in [
+            ("BB$", true),
+            ("BB", false),
+            ("BB$!", false),
+            ("QQ#", false),
+        ] {
+            let registration = Rc::new(Registration {
+                info: RegistrationInfo {
+                    id: 1,
+                    name: "XPure".into(),
+                    procedure: "XPure".into(),
+                    type_text: signature.into(),
+                    signature: XllSignature::parse(signature).unwrap(),
+                    address: 0,
+                    module: module.path.clone(),
+                    origin: module.path.clone(),
+                    use_count: 1,
+                    macro_type: 1,
+                },
+                module: module.clone(),
+                origin: module.clone(),
+                uses: std::cell::Cell::new(1),
+                cif: None,
+            });
+            host.state
+                .borrow_mut()
+                .registrations
+                .insert(1, registration);
+            host.state
+                .borrow_mut()
+                .names
+                .insert(calc_value::fold_workbook_name("XPure"), 1);
+            let ordinary = host.functions().unwrap();
+            assert!(
+                !ordinary
+                    .bindings()
+                    .permits_early_execution(ordinary.bind(None, "XPure").unwrap())
+            );
+            let granted = host.functions_with_early_execution(&[1]);
+            assert_eq!(granted.is_ok(), allowed);
+            if let Ok(functions) = granted {
+                assert!(
+                    functions
+                        .bindings()
+                        .permits_early_execution(functions.bind(None, "XPure").unwrap())
+                );
+            }
+        }
+        assert!(host.functions_with_early_execution(&[99]).is_err());
+    }
     /// Native-only: the same dispatcher the executable exports accepts xlw's packed
     /// argument pointers, operands and result buffer, and reports the real module handle.
     #[test]

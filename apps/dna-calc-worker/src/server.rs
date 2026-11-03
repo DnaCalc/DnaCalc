@@ -28,6 +28,31 @@ pub struct Answer {
     pub bytes: Option<Vec<u8>>,
 }
 
+enum PendingSave {
+    Calculated(calc_host::CalculatingSave),
+    Ordinary(calc_host::OrdinarySave),
+}
+impl PendingSave {
+    fn needs_advance(&self, host: &calc_host::HostState) -> bool {
+        match self {
+            Self::Calculated(s) => s.needs_advance(host),
+            Self::Ordinary(s) => s.needs_advance(host),
+        }
+    }
+    fn progress(&self) -> calc_host::CalculatedSaveProgress {
+        match self {
+            Self::Calculated(s) => s.progress(),
+            Self::Ordinary(s) => s.progress(),
+        }
+    }
+    fn model_revision(&self) -> calc_host::AuthoredRevision {
+        match self {
+            Self::Calculated(s) => s.model_revision(),
+            Self::Ordinary(s) => s.model_revision(),
+        }
+    }
+}
+
 pub struct Server {
     calculation_budget: calc_host::WorkBudget,
     workbook: u64,
@@ -46,7 +71,7 @@ pub struct Server {
     next_clip: u64,
     clipboard_session: String,
     paste_plan: Option<(u64, calc_host::PastePlan)>,
-    pending_save: Option<(u64, calc_host::CalculatingSave)>,
+    pending_save: Option<(u64, PendingSave)>,
     next_save: u64,
 }
 
@@ -94,12 +119,36 @@ impl Server {
                 && self.book.has_pending_calculation()
     }
     pub fn advance_calculation(&mut self) -> calc_host::HostProgress {
-        if let Some((_, save)) = self.pending_save.as_mut()
+        if let Some((token, save)) = self.pending_save.as_mut()
             && save.needs_advance(self.book.host())
         {
-            let progress = save.advance(self.book.host(), self.calculation_budget);
-            let remaining = save.remaining();
+            let token = *token;
+            let ordinary = matches!(save, PendingSave::Ordinary(_));
+            let progress = match save {
+                PendingSave::Calculated(save) => {
+                    save.advance(self.book.host(), self.calculation_budget)
+                }
+                PendingSave::Ordinary(save) => self
+                    .book
+                    .advance_ordinary_save(save, self.calculation_budget),
+            };
+            let remaining = match save {
+                PendingSave::Calculated(save) => save.remaining(),
+                _ => 0,
+            };
             self.collect();
+            if ordinary
+                && matches!(
+                    progress,
+                    calc_host::CalculatedSaveProgress::Ready
+                        | calc_host::CalculatedSaveProgress::Failed
+                )
+            {
+                self.events.push(Event::SaveReady {
+                    workbook: self.workbook,
+                    token,
+                });
+            }
             return match progress {
                 calc_host::CalculatedSaveProgress::Calculating => {
                     calc_host::HostProgress::Calculating { remaining }
@@ -143,11 +192,9 @@ impl Server {
     ) -> calc_host::AsyncDisposition {
         let disposition = if let calc_host::ResultDestination::PinnedSave { save: id } =
             token.destination
-            && let Some((_, save)) = self
-                .pending_save
-                .as_mut()
-                .filter(|(_, save)| save.id() == id)
-        {
+            && let Some((_, PendingSave::Calculated(save))) = self.pending_save.as_mut().filter(
+                |(_, save)| matches!(save, PendingSave::Calculated(save) if save.id() == id),
+            ) {
             save.complete_async(self.book.host(), token, value)
         } else {
             self.book.complete_async(token, value)
@@ -157,7 +204,7 @@ impl Server {
     }
     pub fn pending_async(&self) -> Vec<calc_host::AsyncToken> {
         let mut tokens = self.book.host().pending_async();
-        if let Some((_, save)) = &self.pending_save {
+        if let Some((_, PendingSave::Calculated(save))) = &self.pending_save {
             tokens.extend(save.pending_async());
         }
         tokens
@@ -375,9 +422,12 @@ impl Server {
                         html,
                     }))
                 }
-                Request::PreparePaste { source, to, mode, transpose } => {
-                    self.prepare_paste(source, area(to)?, mode, transpose)
-                }
+                Request::PreparePaste {
+                    source,
+                    to,
+                    mode,
+                    transpose,
+                } => self.prepare_paste(source, area(to)?, mode, transpose),
                 Request::Ping => Ok(Reply::Pong {
                     version: env!("CARGO_PKG_VERSION").to_owned(),
                 }),
@@ -419,25 +469,46 @@ impl Server {
                     self.collect();
                     Ok(self.done(true, None, 0.0))
                 }
-                Request::Save => {
-                    let name = self.book.save_name();
-                    match self.book.save() {
-                        Ok((bytes, _)) => {
-                            out = Some(bytes);
-                            Ok(Reply::Done {
-                                outcome: self.outcome(true, None, 0.0),
-                                opened: None,
-                                saved: Some(name),
-                            })
+                request @ (Request::Save | Request::SaveWithContext { .. }) => {
+                    if self.pending_save.is_some() {
+                        return Err("Finish or cancel the pending save first".into());
+                    }
+                    let calculate_before_save = matches!(
+                        request,
+                        Request::SaveWithContext {
+                            calculate_before_save: true
                         }
-                        Err(failure) => Ok(Reply::Done {
-                            outcome: Outcome {
-                                error: Some(failure),
-                                ..self.outcome(false, None, 0.0)
-                            },
-                            opened: None,
-                            saved: None,
-                        }),
+                    );
+                    let save = self.book.begin_ordinary_save(calculate_before_save)?;
+                    if save.progress() == calc_host::CalculatedSaveProgress::Ready {
+                        let name = self.book.save_name();
+                        match self.book.finish_ordinary_save(save) {
+                            Ok((bytes, _)) => {
+                                out = Some(bytes);
+                                Ok(Reply::Done {
+                                    outcome: self.outcome(true, None, 0.0),
+                                    opened: None,
+                                    saved: Some(name),
+                                })
+                            }
+                            Err(failure) => Ok(Reply::Done {
+                                outcome: Outcome {
+                                    error: Some(failure),
+                                    ..self.outcome(false, None, 0.0)
+                                },
+                                opened: None,
+                                saved: None,
+                            }),
+                        }
+                    } else {
+                        let token = self.next_save;
+                        self.next_save = self
+                            .next_save
+                            .checked_add(1)
+                            .expect("save request identity exhausted");
+                        let waiting = save.progress() == calc_host::CalculatedSaveProgress::Waiting;
+                        self.pending_save = Some((token, PendingSave::Ordinary(save)));
+                        Ok(Reply::SavePending { token, waiting })
                     }
                 }
                 Request::SaveCalculated => {
@@ -450,7 +521,7 @@ impl Server {
                         .next_save
                         .checked_add(1)
                         .expect("save request identity exhausted");
-                    self.pending_save = Some((token, save));
+                    self.pending_save = Some((token, PendingSave::Calculated(save)));
                     Ok(Reply::SavePending {
                         token,
                         waiting: false,
@@ -470,7 +541,14 @@ impl Server {
                             let (_, save) = self.pending_save.take().expect("checked save");
                             let model_revision = save.model_revision().get();
                             let name = self.book.save_name();
-                            let (bytes, _) = self.book.finish_calculated_save(save)?;
+                            let (bytes, _) = match save {
+                                PendingSave::Calculated(save) => {
+                                    self.book.finish_calculated_save(save)?
+                                }
+                                PendingSave::Ordinary(save) => {
+                                    self.book.finish_ordinary_save(save)?
+                                }
+                            };
                             out = Some(bytes);
                             Ok(Reply::SaveImage {
                                 outcome: self.outcome(true, None, 0.0),
@@ -493,7 +571,10 @@ impl Server {
                         return Err("This calculated save is no longer pending".into());
                     }
                     let (_, save) = self.pending_save.take().expect("checked save");
-                    self.book.cancel_calculated_save(save)?;
+                    match save {
+                        PendingSave::Calculated(save) => self.book.cancel_calculated_save(save)?,
+                        PendingSave::Ordinary(save) => self.book.cancel_ordinary_save(save),
+                    }
                     Ok(self.done(true, None, 0.0))
                 }
                 Request::Intent(intent) => self.intent(intent),
@@ -803,8 +884,13 @@ impl Server {
             },
             PasteSource::External(rows) => calc_host::PasteSource::External(rows),
         };
-        let plan =
-            calc_host::prepare_paste_oriented(self.book.host(), source, to, wire::host_paste_mode(mode), transpose)?;
+        let plan = calc_host::prepare_paste_oriented(
+            self.book.host(),
+            source,
+            to,
+            wire::host_paste_mode(mode),
+            transpose,
+        )?;
         let target = plan.target();
         let replaces = plan.replaces();
         let id = self.next_clip;
@@ -1447,6 +1533,7 @@ impl Server {
             Intent::Undo => SkinIntent::Undo,
             Intent::Redo => SkinIntent::Redo,
             Intent::Recalculate => SkinIntent::Recalculate,
+            Intent::Rebuild => SkinIntent::Rebuild,
             Intent::Calculate { scope, selection } => SkinIntent::Calculate {
                 scope: match scope {
                     wire::CalculationScope::Workbook => calc_host::CalcScope::Workbook,
@@ -1463,7 +1550,9 @@ impl Server {
                         calc_host::EvalSelection::DirtyAndVolatile
                     }
                     wire::CalculationSelection::ForceAll => calc_host::EvalSelection::ForceAll,
-                    wire::CalculationSelection::FormulaEntry => calc_host::EvalSelection::FormulaEntry,
+                    wire::CalculationSelection::FormulaEntry => {
+                        calc_host::EvalSelection::FormulaEntry
+                    }
                 },
             },
             Intent::CalculateRange { areas } => SkinIntent::CalculateRange {
@@ -1751,7 +1840,9 @@ impl Server {
                         wire::CalculationSelection::DirtyAndVolatile
                     }
                     calc_host::EvalSelection::ForceAll => wire::CalculationSelection::ForceAll,
-                    calc_host::EvalSelection::FormulaEntry => wire::CalculationSelection::FormulaEntry,
+                    calc_host::EvalSelection::FormulaEntry => {
+                        wire::CalculationSelection::FormulaEntry
+                    }
                 },
                 range_post_state: match r.range_post_state {
                     calc_host::RangePostState::Satisfied => {
@@ -1839,7 +1930,7 @@ impl Server {
             Event::Tiles(batch) => batch.stamp.id != id,
             Event::TileCompletion(barrier) => barrier.id != id,
             Event::ProjectionFailed { id: failed, .. } => *failed != id,
-            Event::Calculation { .. } => true,
+            Event::Calculation { .. } | Event::SaveReady { .. } => true,
         });
     }
 
@@ -3234,8 +3325,8 @@ mod tile_tests {
                     barrier = Some(b);
                 }
                 Event::ProjectionFailed { reason, .. } => panic!("{reason}"),
-                Event::Calculation { .. } => {
-                    unreachable!("projection helper removes calculation controls")
+                Event::Calculation { .. } | Event::SaveReady { .. } => {
+                    unreachable!("projection helper removes owner controls")
                 }
             }
         }
@@ -4016,6 +4107,164 @@ mod async_contract_tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p06_worker_ordinary_save_waits_once_and_notifies_without_polling() {
+        for existing in [false, true] {
+            let (mut server, b, counts) = configured("=AsyncEcho(1)+2");
+            let c = CellKey::new(b.sheet(), 1, 3).unwrap();
+            server.book_mut().dispatch(SkinIntent::EnterCell {
+                at: c,
+                text: "=B1*2".into(),
+            });
+            if existing {
+                server
+                    .execute_current(Request::Intent(Intent::Recalculate), None)
+                    .reply
+                    .unwrap();
+                drain(&mut server);
+            }
+            let request = server.envelope(Request::SaveWithContext {
+                calculate_before_save: true,
+            });
+            let first = server.handle(request.clone(), None);
+            let retry = server.handle(request, None);
+            assert_eq!(wire::encode(&first.reply), wire::encode(&retry.reply));
+            let token = match first.reply.unwrap() {
+                Reply::SavePending { token, .. } => token,
+                other => panic!("{other:?}"),
+            };
+            assert!(first.bytes.is_none());
+            assert_eq!(counts.borrow().prefix, usize::from(existing));
+            drain(&mut server);
+            assert!(!server.has_pending_calculation());
+            assert_eq!(counts.borrow().prefix, 1);
+            assert!(
+                !server
+                    .take_events()
+                    .iter()
+                    .any(|e| matches!(e, Event::SaveReady { .. }))
+            );
+            let provider = server.pending_async()[0].clone();
+            assert_eq!(provider.destination, calc_host::ResultDestination::Live);
+            let waiting = server.execute_current(Request::PollSave { token }, None);
+            assert!(matches!(
+                waiting.reply,
+                Ok(Reply::SavePending { waiting: true, .. })
+            ));
+            assert!(waiting.bytes.is_none());
+            assert_eq!(
+                server.complete_async(&provider, calc_host::value::CalcValue::number(40.0)),
+                calc_host::AsyncDisposition::Accepted
+            );
+            assert_eq!(counts.borrow().suffix, 0);
+            drain(&mut server);
+            assert_eq!(
+                server
+                    .take_events()
+                    .iter()
+                    .filter(|e| matches!(e,Event::SaveReady { token: id,.. } if *id==token))
+                    .count(),
+                1
+            );
+            let request = server.envelope(Request::PollSave { token });
+            let image = server.handle(request.clone(), None);
+            let retry = server.handle(request, None);
+            assert_eq!(wire::encode(&image.reply), wire::encode(&retry.reply));
+            assert_eq!(image.bytes, retry.bytes);
+            assert!(matches!(image.reply,Ok(Reply::SaveImage { outcome,.. }) if outcome.accepted));
+            assert_eq!((counts.borrow().prefix, counts.borrow().suffix), (1, 1));
+            let reopened = calc_host::HostState::open(
+                std::sync::Arc::new(calc_host::MemorySource::new(image.bytes.unwrap())),
+                &calc_host::OpenPolicy::default(),
+                calc_host::HostOptions {
+                    calc_mode: Some(CalcMode::Manual),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            let s = reopened.sheets()[0].id();
+            for (column, expected) in [(2, 42.0), (3, 84.0)] {
+                let at = CellKey::new(s, 1, column).unwrap();
+                let page = calc_host::project(
+                    &reopened,
+                    &calc_host::ProjectionRequest { cells: vec![at] },
+                )
+                .unwrap();
+                assert!(
+                    matches!(page.cells()[0].value(),ProjectedValue::FileCached(cache) if cache.value().to_value().as_number()==Some(expected))
+                );
+            }
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_rebuild_is_public_forced_and_deduplicated_without_authored_edits() {
+        let mut server = Server::new();
+        let s = server.book.host().sheets()[0].id();
+        let at = CellKey::new(s, 1, 1).unwrap();
+        server
+            .execute_current(
+                Request::Intent(Intent::EnterCell {
+                    at: Key::of(at),
+                    text: "=2+3".into(),
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        drain(&mut server);
+        let revision = server.book.host().revision();
+        let history = server.book.session().history_depth();
+        server.take_events();
+        let command = server.envelope(Request::Intent(Intent::Rebuild));
+        let first = server.handle(command.clone(), None);
+        let retry = server.handle(command, None);
+        assert_eq!(wire::encode(&first.reply), wire::encode(&retry.reply));
+        drain(&mut server);
+        assert_eq!(server.book.host().revision(), revision);
+        assert_eq!(server.book.session().history_depth(), history);
+        let events = server.take_events();
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| matches!(
+                    event,
+                    Event::Calculation {
+                        receipt: wire::CalculationEvent::Admitted {
+                            selection: wire::CalculationSelection::ForceAll,
+                            ..
+                        },
+                        ..
+                    }
+                ))
+                .count(),
+            1
+        );
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| matches!(
+                    event,
+                    Event::Calculation {
+                        receipt: wire::CalculationEvent::Completed {
+                            calculated: 1,
+                            required: 1,
+                            outcome: wire::CalculationOutcome::Complete,
+                            ..
+                        },
+                        ..
+                    }
+                ))
+                .count(),
+            1
+        );
+        assert!(
+            matches!(server.book.cell(at).unwrap().value(),ProjectedValue::Calculated { value,.. } if value.as_number()==Some(5.0))
+        );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_hsa5_10__worker_save_regroups_authored_sources_in_the_actual_bytes() {
         let mut server = Server::new();
         server
@@ -4175,13 +4424,43 @@ mod async_contract_tests {
             before_unrelated,
             ProjectedValue::NotModeled { .. }
         ));
+        server.set_calculation_budget(calc_host::WorkBudget::evaluations(1));
         let request = server.envelope(Request::Save);
         let answer = server.handle(request.clone(), None);
         let retry = server.handle(request, None);
         assert_eq!(wire::encode(&answer.reply), wire::encode(&retry.reply));
         assert_eq!(answer.bytes, retry.bytes);
+        let token = match answer.reply.unwrap() {
+            Reply::SavePending {
+                token,
+                waiting: false,
+            } => token,
+            other => panic!("{other:?}"),
+        };
+        assert!(answer.bytes.is_none());
         assert!(
-            matches!(&answer.reply, Ok(Reply::Done { outcome, saved:Some(_), .. }) if outcome.accepted),
+            matches!(
+                server.book.cell(cell(4, 2)).unwrap().value(),
+                ProjectedValue::Stale(_)
+            ),
+            "Save admission does not run TABLE synchronously"
+        );
+        drain(&mut server);
+        assert_eq!(
+            server
+                .take_events()
+                .iter()
+                .filter(|event| matches!(event, Event::SaveReady { token: id, .. } if *id == token))
+                .count(),
+            1
+        );
+        let poll = server.envelope(Request::PollSave { token });
+        let answer = server.handle(poll.clone(), None);
+        let retry = server.handle(poll, None);
+        assert_eq!(wire::encode(&answer.reply), wire::encode(&retry.reply));
+        assert_eq!(answer.bytes, retry.bytes);
+        assert!(
+            matches!(&answer.reply, Ok(Reply::SaveImage { outcome, .. }) if outcome.accepted),
             "{:?}",
             answer.reply
         );

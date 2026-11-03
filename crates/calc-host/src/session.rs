@@ -158,6 +158,8 @@ pub enum SkinIntent {
     /// Recalculates the workbook now, whatever the calculation mode ([`crate::calculate`]: what
     /// Excel's Calculate Now does).
     Recalculate,
+    /// Rebuild formula bindings/dependencies, then force every workbook formula.
+    Rebuild,
     /// Explicit exact-area calculation. Formula caches outside the areas are a bounded P02
     /// refusal until boundary-cache qualifications are implemented.
     CalculateRange { areas: Vec<GridArea> },
@@ -316,7 +318,7 @@ struct Subscription {
 /// subscriptions and the intent log.
 pub struct HostSession {
     recalc_budget: WorkBudget,
-    host: HostState,
+    pub(crate) host: HostState,
     sheet_keys: BTreeSet<crate::SheetKey>,
     history: History,
     selection: Selection,
@@ -545,6 +547,11 @@ impl HostSession {
         policy: &SavePolicy,
         out: &mut dyn PackageWrite,
     ) -> Result<SaveReceipt, SaveFailed> {
+        let save = self.begin_save(policy)?;
+        self.finish_save_synchronously(save)?.write(out)
+    }
+
+    pub fn begin_save(&mut self, policy: &SavePolicy) -> Result<crate::OrdinarySave, SaveFailed> {
         let active_sheet = self
             .selection
             .active
@@ -558,7 +565,7 @@ impl HostSession {
             })
             .or_else(|| self.host.model.sheets().first().map(|sheet| sheet.id()))
             .ok_or_else(|| crate::save::operation_failed("The save has no active worksheet"))?;
-        self.prepare_save_with_context(
+        self.begin_save_with_context(
             policy,
             crate::ExcelSaveContext {
                 operation: crate::SaveOperation::Save,
@@ -567,17 +574,55 @@ impl HostSession {
                 disabled_sheets: &[],
                 before_save: None,
             },
-        )?
-        .write(out)
+        )
     }
 
-    /// P06 command normalization followed by the existing evaluator and owned save writer.
-    /// Event edits commit before the pin. A waiting or failed calculation writes no package.
+    /// Begins an ordinary live save. Handlers run once before its model pin;
+    /// calculations advance only in later budgeted owner calls.
+    pub fn begin_save_with_context(
+        &mut self,
+        policy: &SavePolicy,
+        context: crate::ExcelSaveContext<'_>,
+    ) -> Result<crate::OrdinarySave, SaveFailed> {
+        let demand = self.normalize_save_context(context)?;
+        crate::OrdinarySave::begin(self, policy, demand)
+    }
+
+    /// Synchronous convenience over the same cooperative save. A provider wait
+    /// returns an explicit error; cooperative callers retain the save instead.
     pub fn prepare_save_with_context(
         &mut self,
         policy: &SavePolicy,
-        mut context: crate::ExcelSaveContext<'_>,
+        context: crate::ExcelSaveContext<'_>,
     ) -> Result<crate::PreparedSave, SaveFailed> {
+        let save = self.begin_save_with_context(policy, context)?;
+        self.finish_save_synchronously(save)
+    }
+
+    fn finish_save_synchronously(
+        &mut self,
+        mut save: crate::OrdinarySave,
+    ) -> Result<crate::PreparedSave, SaveFailed> {
+        loop {
+            match save.advance(self, self.recalc_budget) {
+                crate::CalculatedSaveProgress::Ready | crate::CalculatedSaveProgress::Failed => {
+                    return save.finish();
+                }
+                crate::CalculatedSaveProgress::Waiting
+                | crate::CalculatedSaveProgress::WaitingForLive => {
+                    return Err(crate::save::operation_failed(
+                        "The save calculation awaits a provider return",
+                    ));
+                }
+                crate::CalculatedSaveProgress::Calculating => {}
+            }
+        }
+    }
+
+    pub(crate) fn normalize_save_context(
+        &mut self,
+        mut context: crate::ExcelSaveContext<'_>,
+    ) -> Result<crate::save::SaveDemand, SaveFailed> {
         use crate::save::operation_failed;
         if self.host.model.sheet_by_id(context.active_sheet).is_none()
             || context
@@ -662,82 +707,17 @@ impl HostSession {
         } else {
             None
         };
-        let mut completion = None;
-        if let Some(scope) = scope {
-            // Never copy, restart or silently save around an already parked live effect.
-            if self.host.work.is_some() {
-                return Err(operation_failed(
-                    "Finish or cancel the active calculation before this save",
-                ));
-            }
-            let receipt = self.dispatch(SkinIntent::Calculate {
-                scope,
-                selection: calc_engine::EvalSelection::DirtyAndVolatile,
-            });
-            if let Some(error) = receipt.error {
-                return Err(operation_failed(error.to_string()));
-            }
-            loop {
-                if self.host.work.is_none() {
-                    break;
-                }
-                match self.advance_calculation() {
-                    HostProgress::Waiting { .. } => {
-                        return Err(operation_failed(
-                            "The save calculation awaits a provider return",
-                        ));
-                    }
-                    HostProgress::Failed(error) => return Err(operation_failed(error.to_string())),
-                    HostProgress::Cancelled => {
-                        return Err(operation_failed("The save calculation was cancelled"));
-                    }
-                    _ => {}
-                }
-            }
-            let receipt = self
-                .host
-                .last_calculation_completion
-                .as_ref()
-                .filter(|receipt| {
-                    receipt.admitted.model == self.host.revision()
-                        && receipt.results == self.host.engine.result_view()
-                })
-                .ok_or_else(|| {
-                    operation_failed("The save calculation has no matching completion")
-                })?;
-            // TABLE sessions calculate real values without a SliceV1 certificate.
-            // Their Incomplete receipt stays attached to the image; a save may retain
-            // those values, but never converts them into a Complete freshness claim.
-            let covered = matches!(
-                receipt.outcome,
-                crate::CompletionOutcome::Complete | crate::CompletionOutcome::Incomplete
-            ) && receipt.coverage.calculated == receipt.coverage.required
-                && receipt.coverage.refused == 0
-                && receipt.coverage.held == 0;
-            if !covered {
-                return Err(operation_failed(format!(
-                    "The save calculation is incomplete: {} of {} calculated, {} refused, {} held",
-                    receipt.coverage.calculated,
-                    receipt.coverage.required,
-                    receipt.coverage.refused,
-                    receipt.coverage.held
-                )));
-            }
-            completion = Some(receipt.clone());
-        }
         let caches = if self.calc_mode() == CalcMode::Manual || !context.disabled_sheets.is_empty()
         {
             crate::SaveCachePolicy::PreservePermittedCaches
         } else {
             crate::SaveCachePolicy::CurrentCalculatedOnly
         };
-        crate::save::prepare_save_operation(
-            &self.host,
-            policy,
+        Ok(crate::save::SaveDemand {
+            scope,
             caches,
-            context.calculate_before_save,
-            completion,
-        )
+            calculate_before_save: context.calculate_before_save,
+        })
     }
 
     /// Registers `sink` for the cells of `interest` and delivers them as they stand.
@@ -852,6 +832,22 @@ impl HostSession {
                 calculate(&mut self.host);
                 self.recalculate(&mut receipt);
                 Ok(())
+            }
+            SkinIntent::Rebuild => {
+                if self.host.work.is_some() {
+                    Err(IntentError::Workbook(
+                        "Finish or cancel the active calculation before rebuilding dependencies"
+                            .into(),
+                    ))
+                } else {
+                    self.host.engine.rebuild_bindings();
+                    self.host.published = None;
+                    self.request_calculation(
+                        calc_engine::CalcScope::Workbook,
+                        calc_engine::EvalSelection::ForceAll,
+                        &mut receipt,
+                    )
+                }
             }
             SkinIntent::CalculateRange { areas } => self.request_calculation(
                 calc_engine::CalcScope::Range(areas),
@@ -1302,12 +1298,22 @@ impl HostSession {
 
     /// Runs one authorized step and delivers any publication it completed.
     fn recalculate(&mut self, receipt: &mut IntentReceipt) {
+        let (progress, deltas) = self.advance_observed(self.recalc_budget, &mut Unobserved);
+        receipt.deltas += deltas;
+        receipt.recalc = Some(progress);
+    }
+
+    pub(crate) fn advance_observed(
+        &mut self,
+        budget: WorkBudget,
+        observer: &mut dyn calc_engine::ReadObserver,
+    ) -> (HostProgress, usize) {
         self.host.calculation_interest = self
             .subscriptions
             .values()
             .flat_map(|subscription| self.interest_areas(&subscription.interest))
             .collect();
-        let progress = step(&mut self.host, self.recalc_budget, &mut Unobserved);
+        let progress = step(&mut self.host, budget, observer);
         let cause = match &progress {
             HostProgress::Current | HostProgress::Manual | HostProgress::Cancelled => None,
             HostProgress::Calculating { .. } | HostProgress::Waiting { .. } => None,
@@ -1322,10 +1328,8 @@ impl HostSession {
                 revision: self.host.revision(),
             }),
         };
-        if let Some(cause) = cause {
-            receipt.deltas += self.deliver_changes(cause, false);
-        }
-        receipt.recalc = Some(progress);
+        let deltas = cause.map_or(0, |cause| self.deliver_changes(cause, false));
+        (progress, deltas)
     }
 
     fn select(

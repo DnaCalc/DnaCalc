@@ -153,6 +153,22 @@ impl CompiledPlan {
         found
     }
 
+    /// Explicit registration permission, never inferred from thread safety. It
+    /// only changes the Full/Rebuild order; ordinary invocation retention remains.
+    pub fn permits_early_execution(&self, bindings: &crate::CallableBindings) -> bool {
+        !self.volatile()
+            && self
+                .blocks
+                .iter()
+                .flatten()
+                .all(|instruction| match instruction {
+                    Instruction::UserCall { binding, .. } => {
+                        binding.is_some_and(|id| bindings.permits_early_execution(id))
+                    }
+                    _ => true,
+                })
+    }
+
     /// References used only as direct arguments of callbacks which explicitly admit
     /// provisional entries. They remain invalidation edges, but a measured range order
     /// may enter that callback before its producer. Expression arguments keep their order.

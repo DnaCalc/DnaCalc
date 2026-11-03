@@ -3340,7 +3340,12 @@ fn full_observation_order(
             let (observer, barrier) = match state.bindings.get(node) {
                 Some(Binding::Placed(instance, _)) => {
                     let observer = instance.plan().only_cached_user_calls(&state.callables);
-                    (observer, instance.plan().has_user_calls() && !observer)
+                    (
+                        observer,
+                        instance.plan().has_user_calls()
+                            && !observer
+                            && !instance.plan().permits_early_execution(&state.callables),
+                    )
                 }
                 Some(Binding::Refused(NotModeled::Compile(
                     calc_fml::CompileError::UnknownFunction { .. },

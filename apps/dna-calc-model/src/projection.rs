@@ -379,6 +379,7 @@ pub enum Intent {
     Undo,
     Redo,
     Recalculate,
+    Rebuild,
     CalculateRange {
         areas: Vec<Area>,
     },
@@ -548,6 +549,10 @@ pub enum Request {
     },
     /// Saves the workbook: its bytes travel back beside the reply.
     Save,
+    /// Ordinary live save with Excel's CalculateBeforeSave setting.
+    SaveWithContext {
+        calculate_before_save: bool,
+    },
     Intent(Intent),
     /// Registers subscription `id` (the page's number for it); its cells come as events.
     Subscribe {
@@ -642,6 +647,7 @@ impl Request {
                 | Self::New
                 | Self::Open { .. }
                 | Self::Save
+                | Self::SaveWithContext { .. }
                 | Self::SaveCalculated
                 | Self::PollSave { .. }
                 | Self::CancelSave { .. }
@@ -1063,6 +1069,10 @@ impl Cell {
 /// use the binary codec on worker transports.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Event {
+    SaveReady {
+        workbook: u64,
+        token: u64,
+    },
     TileAdmission(crate::tiles::TileStamp),
     Tiles(crate::tiles::TileBatch),
     TileCompletion(crate::tiles::TileBarrier),

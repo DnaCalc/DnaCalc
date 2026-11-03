@@ -225,6 +225,7 @@ impl Module {
             ("xlOil_Log", core),
         ] {
             let name = wide(std::ffi::OsStr::new(name));
+            // ubs:ignore -- WindowClass contains only integers/raw pointers; GetClassInfoW must succeed before fields are read.
             let mut class: WindowClass = unsafe { std::mem::zeroed() };
             if unsafe { GetClassInfoW(instance, name.as_ptr(), &mut class) } == 0 {
                 return false;
@@ -567,6 +568,7 @@ mod reload_tests {
         let instance = unsafe { GetModuleHandleW(std::ptr::null()) };
         let create = |name: &str, message_only: bool| {
             let name = wide(std::ffi::OsStr::new(name));
+            // ubs:ignore -- WindowClass contains only integers/raw pointers; GetClassInfoW must succeed before fields are read.
             let mut class: WindowClass = unsafe { std::mem::zeroed() };
             class.instance = instance;
             class.name = name.as_ptr();
@@ -624,6 +626,7 @@ mod reload_tests {
         assert!(Module::release_native_window_classes(instance));
         assert_eq!(unsafe { IsWindow(log) }, 0);
         for name in ["xlOilHidden", "xlOil_Log"] {
+            // ubs:ignore -- WindowClass contains only integers/raw pointers; GetClassInfoW must succeed before fields are read.
             let mut class: WindowClass = unsafe { std::mem::zeroed() };
             assert_eq!(
                 unsafe {
@@ -758,6 +761,7 @@ impl XllHost {
         self.state.borrow_mut().modules.push(module.clone());
         let mut frame = crate::callbacks::Frame::lifecycle(self.state.clone(), module.clone());
         let guard = unsafe { crate::callbacks::enter(&mut frame) };
+        // ubs:ignore -- xlAutoOpen has this fixed Excel lifecycle ABI; the export is resolved from the leased module.
         let function: unsafe extern "system" fn() -> i32 = unsafe { std::mem::transmute(open) };
         let result = unsafe { function() };
         drop(guard);
@@ -812,7 +816,32 @@ impl XllHost {
             .retain(|_, allocation| allocation.owner != module.handle as usize);
     }
     pub fn functions(&self) -> Result<UserFunctions, String> {
+        self.functions_with_early_execution(&[])
+    }
+    /// Explicit trusted-owner grants, for example the recorded P08 XPure probe.
+    /// `$` alone never grants ordering permission. Republish the resulting callable
+    /// table so changed grants receive new callable generations.
+    pub fn functions_with_early_execution(
+        &self,
+        registrations: &[u64],
+    ) -> Result<UserFunctions, String> {
         let state = self.state.borrow();
+        for id in registrations {
+            let r = state
+                .registrations
+                .get(id)
+                .ok_or("unknown early-execution registration")?;
+            let signature = &r.info.signature;
+            if r.uses.get() == 0
+                || r.info.macro_type == 2
+                || !signature.thread_safe
+                || signature.asynchronous
+                || signature.macro_equivalent
+                || signature.volatile
+            {
+                return Err("early execution needs an active nonvolatile synchronous worksheet registration without cached-read privileges (dc-hsa5.4)".into());
+            }
+        }
         let mut functions = UserFunctions::new();
         for (name, id) in &state.names {
             let Some(registration) = state.registrations.get(id) else {
@@ -822,6 +851,7 @@ impl XllHost {
                 continue;
             }
             let adapter = Rc::new(XllFunction {
+                early: registrations.contains(id),
                 parallel: if registration.info.signature.thread_safe
                     && !registration.info.signature.asynchronous
                     && !registration.info.signature.volatile
@@ -867,6 +897,7 @@ impl XllHost {
             );
         }
         XllFunction {
+            early: false,
             parallel: 1,
             state: self.state.clone(),
             registration,
@@ -1020,6 +1051,7 @@ impl XllHost {
                 let mut frame =
                     crate::callbacks::Frame::lifecycle(self.state.clone(), module.clone());
                 let guard = unsafe { crate::callbacks::enter(&mut frame) };
+                // ubs:ignore -- xlAutoRemove/xlAutoClose use this fixed lifecycle ABI and a resolved, leased-module export.
                 let remove: unsafe extern "system" fn() -> i32 =
                     unsafe { std::mem::transmute(address) };
                 if unsafe { remove() } as i16 == 0 {
@@ -1061,6 +1093,7 @@ impl Drop for XllHost {
 
 #[derive(Clone)]
 pub(crate) struct XllFunction {
+    pub early: bool,
     pub parallel: usize,
     pub state: Shared,
     pub registration: Rc<Registration>,
@@ -1086,6 +1119,9 @@ pub(crate) fn refuse_native_error(context: &mut dyn UserFunctionContext, why: &s
     }
 }
 impl UserFunction for XllFunction {
+    fn permits_early_execution(&self) -> bool {
+        self.early
+    }
     fn max_parallel_calls(&self) -> usize {
         self.parallel
     }

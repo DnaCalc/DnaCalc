@@ -372,3 +372,242 @@ impl Drop for CalculatingSave {
         }
     }
 }
+
+/// Ordinary Excel-profile save: calculation publishes to the live owner, while the
+/// resulting image owns its final model/result pin. A provider wait retains this object.
+pub struct OrdinarySave {
+    workbook: WorkbookInstanceId,
+    model: AuthoredRevision,
+    inputs: calc_engine::CalculationInputVersion,
+    functions: calc_fml::CallableBindings,
+    mode: calc_doc::CalcMode,
+    policy: SavePolicy,
+    demand: crate::save::SaveDemand,
+    command: Option<CalcCommandId>,
+    source: Option<CommandId>,
+    waiting: bool,
+    terminal: Option<Result<PreparedSave, SaveFailed>>,
+}
+
+impl OrdinarySave {
+    pub(crate) fn begin(
+        session: &mut crate::HostSession,
+        policy: &SavePolicy,
+        demand: crate::save::SaveDemand,
+    ) -> Result<Self, SaveFailed> {
+        let host = &session.host;
+        if host.pinned_calculations.get() != 0 {
+            return Err(crate::save::operation_failed(
+                "An isolated save owns the calculation lane",
+            ));
+        }
+        let mut save = Self {
+            workbook: host.engine.workbook_instance(),
+            model: host.revision(),
+            inputs: host.engine.input_version(),
+            functions: host.functions.bindings(),
+            mode: host.calc_mode(),
+            policy: *policy,
+            demand,
+            command: None,
+            source: None,
+            waiting: false,
+            terminal: None,
+        };
+        if let Some(scope) = &save.demand.scope {
+            if !crate::save::save_can_wait_for(host, scope) {
+                return Err(crate::save::operation_failed(
+                    "The active calculation does not cover this save's requirements; finish it before starting the save",
+                ));
+            }
+            if let Some(work) = &host.work {
+                save.command = Some(work.admission().command);
+                save.waiting = work.is_waiting_external();
+            } else {
+                save.queue(session, scope.clone());
+            }
+        } else {
+            save.prepare(&session.host, None);
+        }
+        Ok(save)
+    }
+
+    fn queue(&mut self, session: &mut crate::HostSession, scope: CalcScope) {
+        let source = CommandId {
+            client_session: crate::state::next_command_scope(),
+            sequence: 1,
+        };
+        session.host.calculation_source = Some(source);
+        session.host.requested_calculation =
+            Some((scope, calc_engine::EvalSelection::DirtyAndVolatile));
+        crate::calculate(&mut session.host);
+        self.source = Some(source);
+        self.command = None;
+        self.waiting = false;
+    }
+    fn authority(&self, host: &HostState) -> bool {
+        self.workbook == host.engine.workbook_instance()
+            && self.model == host.revision()
+            && self.inputs == host.engine.input_version()
+            && self.functions == host.functions.bindings()
+            && self.mode == host.calc_mode()
+    }
+    pub fn model_revision(&self) -> AuthoredRevision {
+        self.model
+    }
+    pub fn progress(&self) -> CalculatedSaveProgress {
+        match &self.terminal {
+            Some(Ok(_)) => CalculatedSaveProgress::Ready,
+            Some(Err(_)) => CalculatedSaveProgress::Failed,
+            None if self.waiting => CalculatedSaveProgress::Waiting,
+            None => CalculatedSaveProgress::Calculating,
+        }
+    }
+    pub fn needs_advance(&self, host: &HostState) -> bool {
+        self.terminal.is_none()
+            && (!self.authority(host)
+                || host.work.as_ref().is_none_or(|work| {
+                    !work.is_waiting_external()
+                        || self
+                            .command
+                            .is_some_and(|command| command != work.admission().command)
+                }))
+    }
+    pub fn advance(
+        &mut self,
+        session: &mut crate::HostSession,
+        budget: WorkBudget,
+    ) -> CalculatedSaveProgress {
+        if self.terminal.is_some() {
+            return self.progress();
+        }
+        if !self.authority(&session.host) {
+            return self.fail("The save's model, inputs or callable owner changed");
+        }
+        if session.host.calculation_cancelled {
+            return self.fail("The save calculation was cancelled");
+        }
+        if let Some(command) = self.command {
+            if let Some(work) = &session.host.work {
+                if work.admission().command != command {
+                    return self.fail("The save calculation was replaced");
+                }
+                if work.is_waiting_external() {
+                    self.waiting = true;
+                    return CalculatedSaveProgress::Waiting;
+                }
+            } else {
+                return self.completed(session, command);
+            }
+        }
+        self.waiting = false;
+        let progress = session
+            .advance_observed(budget, &mut calc_engine::Unobserved)
+            .0;
+        let command = session
+            .host
+            .work
+            .as_ref()
+            .map(|w| w.admission().command)
+            .or_else(|| {
+                session
+                    .host
+                    .last_calculation_completion
+                    .as_ref()
+                    .map(|r| r.command)
+            });
+        let Some(command) = command else {
+            return self.fail("The save calculation has no admission");
+        };
+        let source = session
+            .host
+            .calc_events
+            .iter()
+            .rev()
+            .find_map(|event| match event {
+                calc_engine::CalcEvent::Admitted(r) if r.command == command => Some(r.source),
+                _ => None,
+            });
+        if self.command.is_some_and(|expected| expected != command)
+            || self.source.is_some_and(|expected| Some(expected) != source)
+        {
+            return self.fail("The save calculation was replaced");
+        }
+        self.command = Some(command);
+        // The admitted command now owns identity. Transport consumers may drain
+        // admission events before the next physical continuation.
+        self.source = None;
+        match progress {
+            crate::HostProgress::Waiting { .. } => {
+                self.waiting = true;
+                CalculatedSaveProgress::Waiting
+            }
+            crate::HostProgress::Failed(error) => self.fail(error.to_string()),
+            crate::HostProgress::Cancelled => self.fail("The save calculation was cancelled"),
+            _ if session.host.work.is_none() => self.completed(session, command),
+            _ => CalculatedSaveProgress::Calculating,
+        }
+    }
+    fn completed(
+        &mut self,
+        session: &mut crate::HostSession,
+        command: CalcCommandId,
+    ) -> CalculatedSaveProgress {
+        let host = &session.host;
+        let Some(receipt) = host.last_calculation_completion.as_ref().filter(|r| {
+            r.command == command
+                && r.admitted.model == self.model
+                && r.results == host.engine.result_view()
+        }) else {
+            return self.fail("The save calculation has no matching completion");
+        };
+        if !crate::save::save_completion_valid(receipt) {
+            return self.fail("The save calculation did not calculate all its required cells");
+        }
+        if self
+            .demand
+            .scope
+            .as_ref()
+            .is_some_and(|scope| !crate::save::save_scope_satisfied(host, scope))
+        {
+            return self.fail("The save scope still has unmet calculation requirements");
+        }
+        self.prepare(host, Some(receipt.clone()));
+        self.progress()
+    }
+    fn prepare(&mut self, host: &HostState, completion: Option<CompletionReceipt>) {
+        self.terminal = Some(crate::save::prepare_save_operation(
+            host,
+            &self.policy,
+            self.demand.caches,
+            self.demand.calculate_before_save,
+            completion,
+        ));
+    }
+    fn fail(&mut self, reason: impl Into<String>) -> CalculatedSaveProgress {
+        self.terminal = Some(Err(crate::save::operation_failed(reason)));
+        CalculatedSaveProgress::Failed
+    }
+    pub fn cancel(&mut self, session: &mut crate::HostSession) {
+        if self.terminal.is_none() {
+            if session.host.engine.workbook_instance() == self.workbook
+                && (session
+                    .host
+                    .work
+                    .as_ref()
+                    .is_some_and(|w| Some(w.admission().command) == self.command)
+                    || self
+                        .source
+                        .is_some_and(|source| session.host.calculation_source == Some(source)))
+            {
+                session.cancel_calculation();
+            }
+            self.terminal = Some(Err(SaveFailed::Cancelled));
+        }
+    }
+    pub fn finish(mut self) -> Result<PreparedSave, SaveFailed> {
+        self.terminal
+            .take()
+            .unwrap_or_else(|| Err(crate::save::operation_failed("The save is still pending")))
+    }
+}
