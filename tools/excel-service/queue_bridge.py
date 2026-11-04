@@ -22,7 +22,12 @@ def operation(root, message):
     if action == "take":
         # At most one request per peer in flight. Keep the source until delivery;
         # if either peer dies it is rediscovered and answered from durable state.
-        for path in sorted((root / "in").glob("*.json")):
+        # UUID order can indefinitely starve an older request while clients
+        # keep submitting lower UUIDs. The queue's local file timestamps order
+        # arrivals; the UUID only breaks simultaneous-arrival ties.
+        pending = [p for p in (root / "in").glob("*.json")
+                   if re.fullmatch(r"[0-9a-f]{32}\.json", p.name) and not p.is_symlink()]
+        for path in sorted(pending, key=lambda p: (p.stat().st_mtime_ns, p.name)):
             if not re.fullmatch(r"[0-9a-f]{32}\.json", path.name) or path.is_symlink():
                 continue
             with path.open("rb") as stream:
