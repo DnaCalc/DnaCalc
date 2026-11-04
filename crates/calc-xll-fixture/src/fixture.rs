@@ -26,6 +26,10 @@ static BAD_FREES: AtomicUsize = AtomicUsize::new(0);
 static ASYNC_ENTRIES: AtomicUsize = AtomicUsize::new(0);
 static ASYNC_RETURNS: AtomicUsize = AtomicUsize::new(0);
 static ASYNC_LAST_CODE: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(-1);
+static ASYNC_LAST_TYPE: AtomicUsize = AtomicUsize::new(usize::MAX);
+static ASYNC_MARKER_DELAY: AtomicUsize = AtomicUsize::new(0);
+static ASYNC_RESULT_SENTINEL: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 static REGISTRATIONS: Mutex<Vec<(f64, String)>> = Mutex::new(Vec::new());
 static WORKERS: Mutex<Vec<std::thread::JoinHandle<()>>> = Mutex::new(Vec::new());
 static OVERLAP: Mutex<(usize, usize, usize)> = Mutex::new((0, 0, 0));
@@ -248,6 +252,23 @@ pub unsafe extern "system" fn xlAutoOpen() -> i32 {
         }
     }
     let directory = std::path::Path::new(&module_name).parent();
+    ASYNC_RESULT_SENTINEL.store(
+        directory.is_some_and(|path| path.join("async-result-sentinel.enable").is_file()),
+        Ordering::Release,
+    );
+    let marker_delay = if let Some(path) = directory.map(|path| path.join("async-delay-ms.txt")) {
+        match std::fs::read_to_string(path) {
+            Ok(text) => match text.trim().parse::<usize>() {
+                Ok(delay) if delay <= 5000 => delay,
+                _ => return 0,
+            },
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => 0,
+            Err(_) => return 0,
+        }
+    } else {
+        0
+    };
+    ASYNC_MARKER_DELAY.store(marker_delay, Ordering::Release);
     if std::env::var_os("DNA_XLL_WORKER_TESTS").is_some()
         || directory.is_some_and(|path| path.join("worker-tests.enable").is_file())
     {
@@ -267,8 +288,15 @@ pub unsafe extern "system" fn xlAutoOpen() -> i32 {
             }
         }
     }
-    if std::env::var_os("DNA_XLL_ASYNC_TESTS").is_some() {
-        for name in ["MyAsyncEntries", "MyAsyncReturns", "MyAsyncLastCode"] {
+    if std::env::var_os("DNA_XLL_ASYNC_TESTS").is_some()
+        || directory.is_some_and(|path| path.join("async-tests.enable").is_file())
+    {
+        for name in [
+            "MyAsyncEntries",
+            "MyAsyncReturns",
+            "MyAsyncLastCode",
+            "MyAsyncResultType",
+        ] {
             if !unsafe { register(&module, name, "J", name) } {
                 return 0;
             }
@@ -595,11 +623,12 @@ pub unsafe extern "system" fn MyAsync(value: *const f64, handle: *const XlOper12
     let delay = std::env::var("DNA_XLL_ASYNC_DELAY_MS")
         .ok()
         .and_then(|s| s.parse::<u64>().ok())
-        .unwrap_or(0)
+        .unwrap_or(ASYNC_MARKER_DELAY.load(Ordering::Acquire) as u64)
         .min(5000);
     let handle_data = unsafe { (*handle).value.big_data };
     let pointer = handle_data.data as usize;
     let byte_count = handle_data.byte_count;
+    let sentinel = ASYNC_RESULT_SENTINEL.load(Ordering::Acquire);
     let worker = std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_millis(delay));
         let mut handle = XlOper12 {
@@ -612,8 +641,13 @@ pub unsafe extern "system" fn MyAsync(value: *const f64, handle: *const XlOper12
             xltype: XL_BIG_DATA,
         };
         let mut answer = XlOper12::number(value + 1.);
-        let mut result = XlOper12::default();
+        let mut result = if sentinel {
+            XlOper12::number(13.25)
+        } else {
+            XlOper12::default()
+        };
         let code = unsafe { call(XL_ASYNC_RETURN, &[&mut handle, &mut answer], &mut result) };
+        ASYNC_LAST_TYPE.store(result.xltype as usize, Ordering::Release);
         ASYNC_LAST_CODE.store(code, Ordering::Release);
         ASYNC_RETURNS.fetch_add(1, Ordering::AcqRel);
     });
@@ -630,6 +664,10 @@ pub extern "system" fn MyAsyncReturns() -> i32 {
 #[unsafe(no_mangle)]
 pub extern "system" fn MyAsyncLastCode() -> i32 {
     ASYNC_LAST_CODE.load(Ordering::Acquire)
+}
+#[unsafe(no_mangle)]
+pub extern "system" fn MyAsyncResultType() -> i32 {
+    ASYNC_LAST_TYPE.load(Ordering::Acquire) as i32
 }
 
 #[unsafe(no_mangle)]

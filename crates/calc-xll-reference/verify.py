@@ -5,6 +5,7 @@ Usage: python verify.py TRACED_DIRECTORY CONTROL_DIRECTORY [--out summary.json]
 """
 import argparse
 from collections import Counter
+from datetime import datetime
 from functools import lru_cache
 from itertools import zip_longest
 import hashlib
@@ -17,6 +18,8 @@ import zipfile
 import xml.etree.ElementTree as ET
 
 rewritten_source_bindings = {}
+excel_session_directory = None
+session_ownership_bindings = {}
 
 
 def content_matches(expected, content):
@@ -80,6 +83,59 @@ def source_matches(expected, source, revision):
 def require(condition, description):
     if not condition:
         raise AssertionError(description)
+
+
+@lru_cache(maxsize=None)
+def session_receipts(session):
+    receipts = {}
+    for path in (session / "completed").glob("*/receipt.json"):
+        receipt = json.loads(path.read_text(encoding="utf-8-sig"))
+        directory = receipt.get("job", {}).get("parameters", {}).get("RunDirectory")
+        if directory:
+            receipts.setdefault(Path(directory).resolve(), []).append(receipt)
+    return receipts
+
+
+def verify_excel_ownership(directory, env, session=None):
+    """Use the runner's launch evidence or an explicitly supplied session ledger."""
+    require(env["pid"] != 3144, "Protected Excel PID")
+    session = session if session is not None else excel_session_directory
+    if session is None:
+        require(env["pid"] not in env["preexisting_excel_pids"], "Unowned Excel PID")
+        return
+    receipts = session_receipts(session).get(directory.resolve(), [])
+    require(len(receipts) == 1, "Missing or ambiguous owned-session receipt")
+    receipt = receipts[0]
+    require(receipt["success"] and receipt["job"]["fresh_required"], "Session capture did not complete in a fresh process")
+    owned = receipt["excel"]
+    require(owned["pid"] == env["pid"] and owned["start_ticks"] > 0
+            and "/restore" not in owned["command_line"].lower(), "Session Excel identity differs")
+    launch = json.loads((session / "launches" / f'{owned["launch"]}.json').read_text(encoding="utf-8-sig"))
+    require(launch["excel"] == owned, "Session PID/start-time tuple differs from its launch")
+    attempts = [e["data"] for e in jsonl(session / "events.jsonl")
+                if e["kind"] == "launch-attempt" and e["data"]["launch"] == owned["launch"]]
+    require(len(attempts) == 1 and owned["pid"] not in attempts[0]["preexisting_pids"], "Session Excel was present before activation")
+    host_sha = receipt["host_script_sha256"].upper()
+    require(host_sha == launch["host_script_sha256"].upper()
+            and digest(session / "launches" / launch["host_script"]) == host_sha,
+            "Session host source differs from launch evidence")
+    root = Path(__file__).resolve().parents[2]
+    require(source_matches(host_sha, root / "tools/excel-session/host.ps1", env["repository_commit"]),
+            "Session host source is not retained at the capture revision")
+    require(receipt["execution_script_sha256"].upper() == env["runner_sha256"]
+            and receipt["script_sha256"].upper() == env["runner_sha256"], "Session runner hash differs")
+    require(receipt["preserve_automation_security"]
+            and receipt["baseline_before"]["AutomationSecurity"] == env["automation_security_before"]
+            and receipt["baseline"]["AutomationSecurity"] == env["automation_security_before"],
+            "Session AutomationSecurity baseline differs")
+    when = datetime.fromisoformat(env["captured_utc"])
+    require(datetime.fromisoformat(receipt["started_utc"]) <= when
+            <= datetime.fromisoformat(receipt["finished_utc"]), "Capture time lies outside its session job")
+    session_ownership_bindings[str(directory.resolve())] = {
+        "pid": owned["pid"], "start_ticks": owned["start_ticks"], "launch": owned["launch"],
+        "job": receipt["id"], "host_script_sha256": host_sha,
+        "scope": "Exact successful fresh-job receipt, launch tuple, pre-activation inventory, retained host/runner sources, security baseline and capture interval checked; raw environment remains unchanged.",
+    }
 
 
 def verify_sources(environments, publication_path=None):
@@ -621,7 +677,7 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
     outcomes = []
     host_outputs = []
     for directory, env in zip(directories[:2], environments[:2]):
-        require(env["pid"] != 3144 and env["pid"] not in env["preexisting_excel_pids"], "Unowned Excel PID")
+        verify_excel_ownership(directory, env)
         observations = controller(directory)
         require(observations["AutomationSecurity unchanged"] is True, "Security setting changed")
         rows = [json.loads(line) for line in (directory / "controller.jsonl").read_text(encoding="utf-8-sig").splitlines() if line.strip()]
@@ -816,7 +872,7 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
                 require(len(output["async_returns"]) == case["expected_async_returns"] and all(r["disposition"] == "Accepted" for r in output["async_returns"]), "Native entry/calculation P07 completions differ")
                 require(not output["rtd_updates"], "Native async formula entry used RTD")
         x3_details["native_async_formula_entry"] = {"cases": len(entry_cases), "p07_returns_each_host_control": len(host_outputs[0]["async_returns"]), "raw_callback_result_differences": async_callback_differences,
-            "scope": "Actual owner formula-entry completion and later Manual Calculate. Excel leaves the xlAsyncReturn result operand type zero; the host supplies the documented Boolean. This raw difference stays a failed strict comparison."}
+            "scope": "Actual owner formula-entry completion and later Manual Calculate. Raw xlAsyncReturn result operands are compared; every difference remains a failed strict comparison."}
     x4_details = {}
     if x4:
         def com_calls(trace, start, end, thread, env):
@@ -927,7 +983,8 @@ def verify_rtd_extended(excel, excel_control, host, host_control, cases_path, pu
     names = {c["formula"] for c in cases}
     for directory, env in zip(directories[:2], envs[:2]):
         control = controller(directory)
-        require(env["pid"] != 3144 and env["pid"] not in env["preexisting_excel_pids"] and control["AutomationSecurity unchanged"], "RTD ownership/security failed")
+        verify_excel_ownership(directory, env)
+        require(control["AutomationSecurity unchanged"], "RTD security changed")
         require(control["Close RTD workbook before detach"], "RTD workbook stayed open at detach")
         events = jsonl(directory / "controller.jsonl")
         actual = [(r["operation"], r["value"]) for r in events if r["operation"] in names]
@@ -1661,9 +1718,11 @@ if __name__ == "__main__":
     parser.add_argument("--permission-cases", type=Path)
     parser.add_argument("--permission-host", type=Path)
     parser.add_argument("--source-publication", type=Path)
+    parser.add_argument("--excel-session", type=Path, help="Retained session ledger for native X2/X3 and extended RTD ownership checks")
     parser.add_argument("--identity", action="store_true")
     parser.add_argument("--pool", action="store_true")
     args = parser.parse_args()
+    excel_session_directory = args.excel_session
     failed = False
     try:
         if args.permission_host:
@@ -1692,6 +1751,18 @@ if __name__ == "__main__":
                 changes = data["changes"]
                 differences = [i for i, pair in enumerate(zip_longest(*(changes + [[]] * (2 - len(changes))))) if pair[0] != pair[1]]
                 result.update({"formula_cases_checked": len(data.get("cases", [])), "native_invocations_checked": data.get("call_comparisons", []), "sheet_changes_excel_and_host": changes, "udf_early_com_excel_and_host": data.get("nested", []), "sheet_change_differences": differences, "scope": "Strict X4 comparison remains failed; matching earlier checks do not convert the differing event calls into passes."})
+            elif trace.tb_frame.f_code.co_name == "verify_x2":
+                result.update({"formula_cases_checked": len(data.get("cases", [])),
+                               "native_function_under_comparison": data.get("name"),
+                               "native_records_excel_and_host": data.get("records", []),
+                               "native_invocations_checked": data.get("call_comparisons", {}),
+                               "scope": "Strict native comparison remains failed. Retained callback operands are diagnostics, not additional passes."})
+                try:
+                    result["native_async_callback_operands_excel_and_host"] = [
+                        [row for row in framework_callbacks(capture) if row["function"] == 16400]
+                        for capture in data.get("traces", [])]
+                except Exception as diagnostic_error:
+                    result["callback_diagnostic_error"] = str(diagnostic_error)
             elif trace.tb_frame.f_code.co_name == "verify_workbook_pool":
                 result.update({"formula_outcomes":data.get("outcomes",[]),"overlap_excel_and_host":data.get("overlaps",[]),"calculation_phase_calls_excel_and_host":data.get("worker_calls",[]),"native_invocations_excel_and_host":data.get("records",[]),"native_entry_counts_excel_and_host":data.get("entry_counts",[]),"ownership_excel_and_host":data.get("ownership",[]),"source_bindings_checked":data.get("source_bindings_checked",0),"compatibility_failures":data.get("failures",[]),"scope":"Strict full-profile failure; overlap and owning-activation evidence do not convert extra entry-time native calls or differing outcomes into passes."})
             elif trace.tb_frame.f_code.co_name == "verify_rtd":
@@ -1699,6 +1770,8 @@ if __name__ == "__main__":
                 result.update({"host_results_checked": data.get("outputs", []), "source_bindings_checked": data.get("source_bindings_checked", 0), "client_protocols_excel_and_host": data.get("protocols", []), "raw_client_protocols_excel_and_host": data.get("raw_protocols", []), "client_protocol_comparison": pairs, "client_calls_matched": sum(r["matched"] for r in pairs), "client_calls_failed": sum(not r["matched"] for r in pairs), "client_calls_by_method": data.get("method_pairs", []), "server_bindings": data.get("server_bindings", []), "native_invocations_excel_and_host": data.get("native", []), "native_ownership_excel_and_host": data.get("ownership", []), "internal_server_bodies": data.get("internals", []), "scope": "Failed RTD comparison; successful value/provenance checks do not turn differing or incomplete traffic into passes."})
     if rewritten_source_bindings:
         result["rewritten_source_bindings"] = sorted(rewritten_source_bindings.values(), key=lambda x: (x["path"], x["recorded_revision"]))
+    if session_ownership_bindings:
+        result["excel_session_ownership"] = session_ownership_bindings
     failed = failed or result["status"].startswith("failed")
     rendered = json.dumps(result, indent=2) + "\n"
     if args.out:
