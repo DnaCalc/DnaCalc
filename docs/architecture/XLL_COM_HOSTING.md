@@ -1017,6 +1017,27 @@ without retaining skipped or aborted calls indiscriminately. Initial temporary
 #N/A, refresh timing and caller-book spelling also remain visible. Evidence and
 all failed comparisons: `C:/Work/DnaCalc/codex-runs/excel-results-rtd14`.
 
+A later certificate-only renewal attempt kept the native connection long enough
+for the next topic to connect first. The unchanged full verifier then caught a
+regression in both conditions: replacing the completed shared-topic formula
+returned the expected text but recorded zero RTD inputs for the main cell and
+its shared dependent, each of which requires one. Keeping the native connection
+also kept the framework's completed-result cache; after logical retirement the
+cached call made no xlfRtd callback to declare its new dependency. That
+certificate-only renewal was reverted. The bounded begin/finish handoff and its
+existing tests remain; the application replacement-order problem stays open.
+A future correction must renew the specific call's dependency through P07
+admission after the edit. It cannot publish an unadmitted cached result.
+
+The failed attempt is preserved in
+`C:/Work/DnaCalc/codex-runs/excel-results-rtd14-cert`, including the full verifier
+rejection and raw captures. A failed traced Excel job and its separate fresh
+retry are both retained. The failed job has no after-baseline security reading;
+successful jobs preserve the recorded value and no route assigns it. The
+27-workbook numerical corpus has identical input identities, inclusive counts
+and all 62 cell-report payloads before and after that attempt; it does not
+exercise this managed shared-cache failure.
+
 The same round records a bounded template comparison for dc-bctq in
 `C:/Work/DnaCalc/codex-runs/excel-results-templates14`. Excel created .xltx/.xltm
 inputs and ran six Add/default-Open/editable-Open save/reopen conditions. The

@@ -155,12 +155,6 @@ fn reconcile_rtd(
                     .iter()
                     .map(|call| call.runtime)
                     .collect(),
-                &stamp
-                    .reads
-                    .external_inputs
-                    .iter()
-                    .map(|read| read.key)
-                    .collect(),
             )?;
         }
     }
