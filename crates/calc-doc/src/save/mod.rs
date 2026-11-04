@@ -34,6 +34,9 @@ mod sheets;
 mod strings;
 mod structural;
 mod styles;
+mod template_merge;
+mod template_styles;
+pub use template_merge::{merge as merge_template_sheets,rename_sheet as rename_template_sheet};
 #[cfg(test)]
 mod tests;
 pub(crate) mod text;
@@ -184,12 +187,36 @@ impl DocumentSnapshot {
     }
 }
 
+/// SpreadsheetML's workbook kind. The main-part content type is its template flag.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpreadsheetFormat { Xlsx, Xlsm, Xltx, Xltm }
+impl SpreadsheetFormat {
+    pub fn is_template(self) -> bool { matches!(self, Self::Xltx | Self::Xltm) }
+    pub fn macro_enabled(self) -> bool { matches!(self, Self::Xlsm | Self::Xltm) }
+    pub fn extension(self) -> &'static str {
+        match self { Self::Xlsx=>"xlsx", Self::Xlsm=>"xlsm", Self::Xltx=>"xltx", Self::Xltm=>"xltm" }
+    }
+    pub fn content_type(self) -> &'static str {
+        match self {
+            Self::Xlsx=>"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml",
+            Self::Xlsm=>"application/vnd.ms-excel.sheet.macroEnabled.main+xml",
+            Self::Xltx=>"application/vnd.openxmlformats-officedocument.spreadsheetml.template.main+xml",
+            Self::Xltm=>"application/vnd.ms-excel.template.macroEnabled.main+xml",
+        }
+    }
+    pub fn from_content_type(content_type: &str) -> Option<Self> {
+        [Self::Xlsx, Self::Xlsm, Self::Xltx, Self::Xltm].into_iter().find(|f|f.content_type()==content_type)
+    }
+}
+
 /// The package format a save writes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SaveFormat {
     /// SpreadsheetML (.xlsx/.xlsm), including conversion of XLSB inputs.
     #[default]
     Xml,
+    /// Explicit workbook/template conversion; package content is retained.
+    Spreadsheet(SpreadsheetFormat),
     /// Preserve an existing XLSB source when the snapshot needs no part rewrites.
     /// Binary authoring remains owned by dc-snz.14.
     Xlsb,
@@ -229,6 +256,9 @@ pub struct SaveViews {
 /// revision the caller holds.
 #[derive(Debug, PartialEq, Eq)]
 pub enum SaveRefusal {
+    TemplateNotModelled { detail: String, owner: &'static str },
+    /// Macro-free output would discard active content. Choose a macro-enabled format.
+    MacroLoss { owner: &'static str },
     OutlineNotModelled { part:String, owner: &'static str },
     WindowView { detail: String, owner: &'static str },
     /// This rectangular style plane still needs too many individual blank-cell XML records.
@@ -329,12 +359,14 @@ pub enum SaveRefusal {
 impl fmt::Display for SaveRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::TemplateNotModelled { detail, owner } => write!(f, "{detail} ({owner}); nothing changed"),
             Self::WindowView {detail,owner}=>write!(f,"{detail} ({owner})"),
             Self::OutlineNotModelled {part,owner} => write!(f,"Outline metadata in {part} cannot be rewritten ({owner}); no bytes written"),
             Self::StyleExpansionNotModelled { cells, owner } => write!(
                 f,
                 "Saving this formatting needs {cells} individual blank-cell records; larger style expansion is not modelled ({owner})"
             ),
+            Self::MacroLoss { owner } => write!(f, "VBA or Excel macro sheets would be lost; choose .xlsm or .xltm ({owner})"),
             Self::BinarySourceRequired => {
                 f.write_str("XLSB output requires an original XLSB package (dc-snz.14)")
             }
@@ -765,13 +797,25 @@ pub fn prepare_save(
     policy: &SavePolicy,
 ) -> Result<SavePlan, SaveRefusal> {
     let converted = &snapshot.package;
-    let changes = match &snapshot.edit {
+    let mut changes = match &snapshot.edit {
         Some(edit) => author::plan(converted, edit, policy.views.as_deref())?,
         None if policy.views.is_some()=>return Err(SaveRefusal::WindowView{detail:"Window saving needs a loaded model".into(),owner:"dc-971p.16"}),
         None => author::Changes::default(),
     };
+    if let SaveFormat::Spreadsheet(format) = policy.format {
+        let relationship = converted.relationships_of(None).and_then(|r|r.items().iter().find(|r|r.kind.ends_with("/officeDocument")))
+            .and_then(|r|r.resolved.as_deref()).ok_or_else(||SaveRefusal::InvalidPart {part:"_rels/.rels".into(),detail:"missing workbook relationship".into()})?;
+        if !format.macro_enabled() && (crate::vba::has_project(converted,relationship) || converted.parts().iter().any(|p|p.content_type().is_some_and(|t|t.to_ascii_lowercase().contains("macrosheet") || t.to_ascii_lowercase().contains("vbaproject")))) {
+            return Err(SaveRefusal::MacroLoss {owner:"dc-bctq"});
+        }
+        let xml = match changes.content_types.take() {
+            Some(bytes)=>crate::xml::XmlPart::new(crate::opc::CONTENT_TYPES_ENTRY.into(),bytes,crate::xml::XmlLimits::default()),
+            None=>converted.content_types_xml().map_err(|error|SaveRefusal::Part {part:crate::opc::CONTENT_TYPES_ENTRY.into(),error})?,
+        };
+        changes.content_types=Some(parts::content_types(&xml,Some(relationship),&[(relationship,format.content_type())])?);
+    }
     let package = match policy.format {
-        SaveFormat::Xml => converted,
+        SaveFormat::Xml | SaveFormat::Spreadsheet(_) => converted,
         SaveFormat::Xlsb => {
             let original = converted
                 .original_binary()

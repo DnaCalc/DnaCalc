@@ -28,6 +28,7 @@ pub enum WorkbookEvent {
 /// Change and Calculate run synchronously with a read-only host view. BeforeSave can
 /// return the existing authored batch, which the host commits before the save pin.
 pub trait WorkbookEventHandler {
+    fn file_identity_changed(&self, _name: &str) {}
     fn workbook_open(&self, _host: &HostState) -> Result<(), String> { Ok(()) }
     fn worksheet_change(
         &self,
@@ -81,6 +82,12 @@ impl Default for WorkbookEventState {
     }
 }
 impl HostSession {
+    pub(crate) fn notify_file_identity(&self, name: &str) {
+        // Identity is state, so it must also update while event delivery is disabled.
+        if let Some(owner) = &self.workbook_events.owner {
+            owner.file_identity_changed(name);
+        }
+    }
     /// The application calls this once after admitting a file's owning project,
     /// before its first automatic calculation. Source replacement is not an open.
     pub fn notify_workbook_open(&mut self) {

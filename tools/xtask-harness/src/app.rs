@@ -1040,6 +1040,8 @@ pub enum Action {
     OpenFieldLink(&'static str),
     RememberFieldLink(&'static str),
     OpenRememberedLink,
+    /// Reload the actual application, preserving browser personal templates.
+    Reload,
     /// Two real clicks on a trailing row or column header boundary.
     DoubleClickEdge(&'static str, bool),
     CtrlClick(&'static str),
@@ -1050,6 +1052,7 @@ pub enum Action {
     /// Only files in this browser session's own temporary download folder.
     ClearDownloads,
     UploadDownload(&'static str),
+    UploadDownloadTo(&'static str, &'static str),
     /// Prepare an explicitly manual cache fixture with the existing package-part editor.
     ManualDownloadFixture,
     ProtectedDownloadFixture,
@@ -1591,6 +1594,10 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             ))?;
             Ok(())
         }
+        Action::Reload => {
+            let url=session.script("return window.location.href;")?.as_str().ok_or("No page URL")?.to_owned();
+            session.post("/url",json!({"url":url}))?;Ok(())
+        }
         Action::OpenRememberedLink => {
             let url = session.script("return window.__ocSavedLink;")?;
             let url = url.as_str().ok_or("No remembered session link")?;
@@ -1909,7 +1916,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                     .map_err(|e| e.to_string())
             }
         }
-        Action::UploadDownload(name) => {
+        Action::UploadDownload(name) | Action::UploadDownloadTo(name, _) => {
             let path = session.downloads.join(name);
             let started = Instant::now();
             while !path.is_file() && started.elapsed() < SETTLE {
@@ -1918,11 +1925,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             upload(
                 app,
                 session,
-                if app.key == "onecalc" {
-                    "fixture-file"
-                } else {
-                    "open-file"
-                },
+                match action { Action::UploadDownloadTo(_,role)=>role,_=>if app.key=="onecalc" {"fixture-file"}else{"open-file"} },
                 &path,
             )
         }
@@ -3018,8 +3021,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 246,
-            "the two applications have 246 core cases including complete table sorting, sorted notes/validation, conditional colour filters, candidate validation, conditional formats, editable review content, validation audits and the existing editing routes"
+            total, 259,
+            "the two applications have 259 core cases including templates, complete table sorting, sorted notes/validation, conditional colour filters, candidate validation, conditional formats, editable review content, validation audits and the existing editing routes"
         );
     }
 

@@ -292,6 +292,11 @@ impl EventReadContext for Read<'_> {
     }
 }
 impl WorkbookEventHandler for WorkbookEvents {
+    fn file_identity_changed(&self, name: &str) {
+        if let Some(source) = &self.book {
+            source.set_name(name);
+        }
+    }
     fn workbook_open(&self, host: &HostState) -> Result<(), String> {
         if let Some(source) = &self.book {
             source.open(&Read(host, self.file_project), self.max_steps)?;
@@ -319,10 +324,9 @@ impl WorkbookEventHandler for WorkbookEvents {
         }
         Ok(())
     }
-    fn before_save(&self, host: &HostState, _: SaveOperation) -> Result<BeforeSaveOutcome, String> {
-        // These are programmatic save commands. The UI SaveAs dialog flag is a separate input.
+    fn before_save(&self, host: &HostState, operation: SaveOperation) -> Result<BeforeSaveOutcome, String> {
         let cancel = if let Some(source) = &self.book {
-            source.before_save(false, &Read(host, self.file_project), self.max_steps)?
+            source.before_save(operation == SaveOperation::SaveAsDialog, &Read(host, self.file_project), self.max_steps)?
         } else {
             false
         };

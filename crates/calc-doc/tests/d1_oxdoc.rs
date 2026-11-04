@@ -311,3 +311,58 @@ fn d1_oxdoc__every_fixture_part_is_embedded() {
     embedded.sort();
     assert_eq!(embedded, on_disk);
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_bctq__template_conversion_preserves_every_package_part_and_declares_kind() {
+    use calc_doc::{SaveFormat, SavePolicy, SpreadsheetFormat as F};
+    // Existing fixtures cover themes, CF/DV, tables, print/protection, names and VBA.
+    for original in [
+        include_bytes!("fixtures/dc_5sr/features.xlsx").as_slice(),
+        include_bytes!("../../calc-host/tests/fixtures/dc_6yw/conditional-formats.xlsx").as_slice(),
+        include_bytes!("../../calc-host/tests/fixtures/dc_6yw/data-validation.xlsx").as_slice(),
+        oxdoc_package("c1-preservation").as_slice(),
+    ] {
+        let source = open(original);
+        let mut current = original.to_vec();
+        for kind in [F::Xltm, F::Xlsm, F::Xltm] {
+            let document = open(&current);
+            let policy = SavePolicy { format: SaveFormat::Spreadsheet(kind), ..Default::default() };
+            let plan = calc_doc::prepare_save(&document.snapshot(), &policy).unwrap();
+            let mut output = Vec::new();
+            calc_doc::write(plan, &mut output).unwrap();
+            let saved = open(&output);
+            assert_eq!(load(&output).spreadsheet_format(), kind);
+            assert_eq!(saved.package().parts().len(), source.package().parts().len());
+            for p in source.package().parts() {
+                if p.name() != "[Content_Types].xml" {
+                    assert_eq!(saved.package().read_part(p.name()).unwrap(),source.package().read_part(p.name()).unwrap(),"{:?}: {}",kind,p.name());
+                }
+            }
+            current = output;
+        }
+    }
+    let mut current = calc_doc::blank_package();
+    for kind in [F::Xltx, F::Xlsx, F::Xltx, F::Xltm, F::Xltx] {
+        let document = open(&current);
+        let mut output = Vec::new();
+        calc_doc::write(calc_doc::prepare_save(&document.snapshot(), &SavePolicy {format:SaveFormat::Spreadsheet(kind),..Default::default()}).unwrap(), &mut output).unwrap();
+        let loaded=load(&output);
+        assert_eq!(loaded.spreadsheet_format(),kind);
+        assert_eq!(loaded.spreadsheet_format().is_template(),matches!(kind,F::Xltx|F::Xltm));
+        assert_eq!(loaded.model().definitions().macro_enabled(),kind.macro_enabled());
+        current=output;
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_bctq__macro_free_save_refuses_before_writing() {
+    use calc_doc::{SaveFormat, SavePolicy, SpreadsheetFormat as F};
+    let bytes=oxdoc_package("c1-preservation");
+    let document=open(&bytes);
+    for kind in [F::Xlsx,F::Xltx] {
+        assert!(matches!(calc_doc::prepare_save(&document.snapshot(), &SavePolicy {format:SaveFormat::Spreadsheet(kind),..Default::default()}),Err(calc_doc::SaveRefusal::MacroLoss {owner:"dc-bctq"})));
+    }
+    assert_eq!(save_untouched(&bytes),bytes);
+}

@@ -144,7 +144,7 @@ impl Node {
 }
 
 /// The element tree of a whole part, each element with its byte ranges.
-fn tree(xml: &XmlPart) -> Result<Node, XmlError> {
+pub(crate) fn tree(xml: &XmlPart) -> Result<Node, XmlError> {
     let mut reader = xml.reader();
     let mut open: Vec<Node> = Vec::new();
     let mut root = None;

@@ -33,7 +33,8 @@
 param(
     [string]$Request,
     [string]$Result,
-    $OwnedExcel = $null
+    $OwnedExcel = $null,
+    [switch]$BuiltInBlank
 )
 
 Set-StrictMode -Version 2.0
@@ -44,10 +45,12 @@ $ErrorActionPreference = 'Stop'
 $WitnessRequest = $Request
 $WitnessResult = $Result
 $WitnessOwnedExcel = $OwnedExcel
+$WitnessBuiltInBlank = $BuiltInBlank
 . (Join-Path $PSScriptRoot 'capture-worker.ps1')
 $Request = $WitnessRequest
 $Result = $WitnessResult
 $OwnedExcel = $WitnessOwnedExcel
+$BuiltInBlank = $WitnessBuiltInBlank
 
 if ([string]::IsNullOrEmpty($Request) -or [string]::IsNullOrEmpty($Result)) {
     [Console]::Error.WriteLine('witness-worker.ps1 needs -Request <request.json> and -Result <result.json>')
@@ -81,7 +84,18 @@ function Get-ArgumentValue($Argument) {
     }
     if ($null -ne $Argument.PSObject.Properties['logical']) { return [bool]$Argument.logical }
     if ($null -ne $Argument.PSObject.Properties['text']) { return [string]$Argument.text }
-    throw ('an argument is neither a number, a logical nor text: ' + ($Argument | ConvertTo-Json -Compress))
+    if ($null -ne $Argument.PSObject.Properties['empty'] -and $Argument.empty -eq $true) { return $null }
+    if ($null -ne $Argument.PSObject.Properties['error_code']) {
+        $code=[int]$Argument.error_code
+        if ($code -notin @(2000,2007,2015,2023,2029,2036,2042)) { throw 'unsupported argument error code' }
+        return [System.Runtime.InteropServices.ErrorWrapper]::new($code)
+    }
+    throw ('an argument is not a typed scalar: ' + ($Argument | ConvertTo-Json -Compress))
+}
+
+function Convert-SubmittedValue($Value) {
+    if ($Value -is [System.Runtime.InteropServices.ErrorWrapper]) { return [ordered]@{error_code=$Value.ErrorCode} }
+    return (Convert-Value $Value)
 }
 
 # Calls $Action, then waits for Application.CalculationState to read xlDone (0).
@@ -107,6 +121,10 @@ function Read-Column($Range, [int]$Count) {
 # Whether a value read back is the value written: the same bits for a number, the same boolean,
 # the same string.
 function Test-Kept($Written, $Read) {
+    if ($null -eq $Written) { return $null -eq $Read }
+    if ($Written -is [System.Runtime.InteropServices.ErrorWrapper]) {
+        return ($Read -is [int]) -and (($Read -band 0xffff) -eq $Written.ErrorCode)
+    }
     if ($Written -is [double]) {
         return ($Read -is [double]) -and ([BitConverter]::DoubleToInt64Bits($Read) -eq [BitConverter]::DoubleToInt64Bits($Written))
     }
@@ -152,7 +170,8 @@ try {
         throw ('refused before any formula was written: this Excel instance is not isolated: ' + ($notIsolated -join '; '))
     }
 
-    $workbook = Invoke-ComMethod $excel.Workbooks 'Add' @()
+    $workbook = if ($BuiltInBlank) { Invoke-ComMethod $excel.Workbooks 'Add' @(-4167) }
+                else { Invoke-ComMethod $excel.Workbooks 'Add' @() }
     $excel.Calculation = -4135
     $calculation = Get-ComProperty $excel 'Calculation'
     if ([long]$calculation -ne -4135) { throw ('Calculation reads as ' + (Get-Shown $calculation) + ' after it was set to manual (-4135)') }
@@ -180,7 +199,9 @@ try {
                 $rowArgs = @($rows[$start + $i].args)
                 if ($c -lt $rowArgs.Count) {
                     $value = Get-ArgumentValue $rowArgs[$c]
-                    $block[$i, 0] = $value
+                    # PowerShell's COM array marshaler cannot carry ErrorWrapper entries.
+                    # The seven fixed worksheet error literals are entered below instead.
+                    if ($value -isnot [System.Runtime.InteropServices.ErrorWrapper]) { $block[$i, 0] = $value }
                     $written["$i|$c"] = $value
                     if ($value -is [string]) { [void]$textRows.Add($i) }
                 }
@@ -188,6 +209,13 @@ try {
             foreach ($i in $textRows) { $sheet.Cells.Item($i + 1, $c + 2).NumberFormat = '@' }
             $range = $sheet.Range($sheet.Cells.Item(1, $c + 2), $sheet.Cells.Item($count, $c + 2))
             $range.Value2 = $block
+            $errorLiterals=@{2000='#NULL!';2007='#DIV/0!';2015='#VALUE!';2023='#REF!';2029='#NAME?';2036='#NUM!';2042='#N/A'}
+            for ($i=0; $i -lt $count; $i++) {
+                $value=$written["$i|$c"]
+                if ($value -is [System.Runtime.InteropServices.ErrorWrapper]) {
+                    $sheet.Cells.Item($i + 1, $c + 2).Formula2R1C1='='+$errorLiterals[$value.ErrorCode]
+                }
+            }
             # Optional transport audit: parse the same literal in a cell as in the
             # direct call, so the raw result retains its parsed binary64 value.
             for ($i = 0; $i -lt $count; $i++) {
@@ -216,19 +244,24 @@ try {
             $submitted = New-Object System.Collections.ArrayList
             $actualInputs = New-Object System.Collections.ArrayList
             for ($c = 0; $c -lt @($rows[$start + $i].args).Count; $c++) {
-                [void]$submitted.Add((Convert-Value $written["$i|$c"]))
+                [void]$submitted.Add((Convert-SubmittedValue $written["$i|$c"]))
                 [void]$actualInputs.Add((Convert-Value $readBack[$c][$i]))
                 if (-not (Test-Kept $written["$i|$c"] $readBack[$c][$i])) { $kept = $false }
             }
             $row = $rows[$start + $i]
             $literalInputs = $null
             if ($null -ne $row.PSObject.Properties['argument_literals']) { $literalInputs = $row.argument_literals }
+            $argumentModes = $null
+            if ($null -ne $row.PSObject.Properties['argument_modes']) { $argumentModes = @($row.argument_modes) }
             $audit = [ordered]@{
                 requested = @($row.args); submitted_value2 = @($submitted); read_back = @($actualInputs)
                 argument_literals = $literalInputs; formula = [string]$row.formula
-                transport = $(if ($null -eq $literalInputs) { 'cell_value2_bulk' } else { 'formula_literals_with_cell_echo' })
+                transport = $(if ($null -ne $literalInputs) { 'formula_literals_with_cell_echo' }
+                              elseif ($null -ne $argumentModes -and $argumentModes -contains 'literal') { 'generated_literals_with_cell_value2_echo' }
+                              else { 'cell_value2_bulk' })
                 effective_callee_inputs = 'not directly observable'
             }
+            if ($null -ne $argumentModes) { $audit['argument_modes']=$argumentModes }
             [void]$Output.rows.Add([ordered]@{ id = [string]$row.id; value = (Convert-Value $results[$i]); input_kept = $kept; input_audit = $audit })
         }
         [void]$sheet.Cells.Clear()

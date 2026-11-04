@@ -148,6 +148,7 @@ impl HostObjectServices for Services {
 pub struct EventSource {
     hub: Rc<Hub>,
     object: api::HostObject,
+    name: Rc<RefCell<String>>,
 }
 impl EventSource {
     pub fn worksheet(name: &str) -> Self {
@@ -165,9 +166,10 @@ impl EventSource {
             next: Cell::new(1),
             callbacks: RefCell::default(),
         });
-        let name = name.to_owned();
-        let name = api::HostSlot::typed(vec![], api::ValueType::String, move |_, _| {
-            Ok(api::Value::String(name.clone().into()))
+        let name = Rc::new(RefCell::new(name.to_owned()));
+        let current_name = name.clone();
+        let slot = api::HostSlot::typed(vec![], api::ValueType::String, move |_, _| {
+            Ok(api::Value::String(current_name.borrow().clone().into()))
         })
         .expect("declared name slot");
         // SAFETY: payload and service retain this canonical Rc allocation; every table
@@ -175,13 +177,17 @@ impl EventSource {
         let object = unsafe {
             api::HostObject::new_with_services(
                 iid,
-                vec![name],
+                vec![slot],
                 hub.clone(),
                 Rc::as_ptr(&hub).cast(),
                 Rc::new(Services(hub.clone())),
             )
         };
-        Self { hub, object }
+        Self { hub, object, name }
+    }
+    /// Refresh the document identity without replacing its object or subscriptions.
+    pub fn set_name(&self, name: &str) {
+        *self.name.borrow_mut() = name.to_owned();
     }
     pub(super) fn object(&self) -> &api::HostObject {
         &self.object

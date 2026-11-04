@@ -389,6 +389,11 @@ pub struct LoadedWorkbook {
 }
 
 impl LoadedWorkbook {
+    /// Adopt a validated package extension into the existing authored lineage.
+    pub fn adopt_template_lineage(&mut self, previous:&ModelRoot) -> Result<(),calc_doc_model::ApplyError> {
+        self.model = previous.with_imported_worksheets(&self.model)?;
+        Ok(())
+    }
     pub fn review_drawing_shared(&self,sheet:SheetId)->bool {
         let Some(sheet)=self.sheet(sheet)else{return false;};
         let target=self.package.relationships_of(Some(sheet.part().name())).and_then(|r|r.items().iter().find(|r|r.kind.ends_with("/vmlDrawing")&&r.mode==crate::opc::TargetMode::Internal)).and_then(|r|r.resolved.as_ref());
@@ -658,6 +663,13 @@ impl LoadedWorkbook {
 
     pub fn model(&self) -> &Arc<ModelRoot> {
         &self.model
+    }
+
+    /// The file kind declared by the workbook part, independent of its file name.
+    pub fn spreadsheet_format(&self) -> crate::SpreadsheetFormat {
+        crate::SpreadsheetFormat::from_content_type(
+            self.package.part(&self.workbook_part).and_then(|p| p.content_type()).unwrap_or("")
+        ).expect("load checked the workbook content type")
     }
 
     /// The workbook part the package's relationships name.
@@ -1390,6 +1402,16 @@ pub fn load(
     document: &OpenedDocument,
     sheet_ids: &mut IdAllocator<SheetId>,
 ) -> Result<LoadedWorkbook, LoadError> {
+    load_preserving_sheet_ids(document, sheet_ids, &Default::default())
+}
+
+/// Reload an extended package using the live identities of its existing worksheet keys.
+/// Only newly issued worksheet IDs are released if loading fails.
+pub fn load_preserving_sheet_ids(
+    document: &OpenedDocument,
+    sheet_ids: &mut IdAllocator<SheetId>,
+    existing: &std::collections::BTreeMap<SheetKey,SheetId>,
+) -> Result<LoadedWorkbook, LoadError> {
     let package = document.package();
     let workbook = {
         let detail = |detail| LoadError::Workbook { detail };
@@ -1464,11 +1486,20 @@ pub fn load(
             ids.release(*id).expect("an ID this load issued is live");
         }
     };
-    for _ in &declared {
+    let mut newly_issued = Vec::new();
+    for declared in &declared {
+        if let Some(&id) = existing.get(&declared.key) {
+            if !sheet_ids.is_live(id) || issued.contains(&id) {
+                release(sheet_ids, &newly_issued);
+                return Err(LoadError::Workbook { detail: "a retained worksheet identity is unavailable or repeated" });
+            }
+            issued.push(id);
+            continue;
+        }
         match sheet_ids.issue() {
-            Ok(id) => issued.push(id),
+            Ok(id) => {issued.push(id);newly_issued.push(id);},
             Err(error) => {
-                release(sheet_ids, &issued);
+                release(sheet_ids, &newly_issued);
                 return Err(LoadError::SheetIds(error));
             }
         }
@@ -1531,7 +1562,7 @@ pub fn load(
                 });
             }
             Err(error) => {
-                release(sheet_ids, &issued);
+                release(sheet_ids, &newly_issued);
                 return Err(error);
             }
         }

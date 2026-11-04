@@ -43,22 +43,27 @@ pub fn registry() -> SkinRegistry {
 
 /// Offers `bytes` as a file the browser downloads under `name`.
 #[cfg(target_arch = "wasm32")]
-fn download(name: &str, bytes: &[u8]) -> Result<(), String> {
+pub(crate) fn download(name: &str, bytes: &[u8]) -> Result<(), String> {
     dna_formula_ui::web::download_bytes(
         name,
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        match name.rsplit_once('.').map(|(_,e)|e.to_ascii_lowercase()).as_deref() {
+            Some("xltx")=>"application/vnd.openxmlformats-officedocument.spreadsheetml.template",
+            Some("xltm")=>"application/vnd.ms-excel.template.macroEnabled.12",
+            Some("xlsm")=>"application/vnd.ms-excel.sheet.macroEnabled.12",
+            _=>"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        },
         bytes,
     )
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn download(_name: &str, _bytes: &[u8]) -> Result<(), String> {
+pub(crate) fn download(_name: &str, _bytes: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
 /// Reads the file an input chose and opens it.
 #[cfg(target_arch = "wasm32")]
-fn open_chosen(
+pub(crate) fn open_chosen(
     controller: Controller,
     input: web_sys::HtmlInputElement,
     chosen: impl FnOnce(String, Vec<u8>) + 'static,
@@ -79,7 +84,7 @@ fn open_chosen(
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn open_chosen(
+pub(crate) fn open_chosen(
     _controller: Controller,
     _input: web_sys::HtmlInputElement,
     _chosen: impl FnOnce(String, Vec<u8>) + 'static,
@@ -87,9 +92,12 @@ fn open_chosen(
 }
 
 #[derive(Clone)]
-enum Replacement {
+pub(crate) enum Replacement {
     New,
     Open(String, Vec<u8>),
+    OpenEditing(String, Vec<u8>),
+    Template(String,Vec<u8>),
+    PersonalEditing(String,Vec<u8>),
 }
 
 pub(crate) fn focus(selector: &str) {
@@ -128,8 +136,13 @@ pub fn app_with_transport(
     let replace_dialog = NodeRef::<leptos::html::Dialog>::new();
     let replacement = RwSignal::new(None::<Replacement>);
     let replace = move |next: Replacement| match next {
-        Replacement::New => controller.new_workbook(),
+        Replacement::New => {
+            if let Some((name,bytes))=crate::files::default_template("Book") {controller.open_template(&name,bytes,|_|{});}else{controller.new_workbook();}
+        },
+        Replacement::Template(name,bytes)=>controller.open_template(&name,bytes,|_|{}),
+        Replacement::PersonalEditing(name,bytes)=>controller.edit_personal_template(name,bytes),
         Replacement::Open(name, bytes) => controller.open(&name, bytes, |_| {}),
+        Replacement::OpenEditing(name, bytes) => controller.open_mode(&name, bytes, true, |_| {}),
     };
     let request_replace = Callback::new(move |next: Replacement| {
         if controller.has_dirty_work() {
@@ -271,7 +284,9 @@ pub fn app_with_transport(
 
     let bar_key = Callback::new(move |ev| controller.editor_key(ev, assist));
 
+    let save_as_open=RwSignal::new(false);
     let save = move |_| {
+        if controller.summary.get_untracked().unsaved {controller.prepare_save_as(move ||save_as_open.set(true));return;}
         controller.save(move |name, bytes| {
             if let Err(error) = download(&name, &bytes) {
                 controller.status.set(crate::controller::Status {
@@ -552,14 +567,14 @@ pub fn app_with_transport(
         <div class="dc-app" data-dnacalc="app" inert=move || controller.replacing.get().then_some("") on:keydown=on_app_key>
             <header class="dc-mast">
                 <strong>"DNA Calc"</strong>
-                <span class="dc-doc" data-dnacalc="document" data-changed=move ||controller.summary.with(|s|s.changed.to_string()) title=document_line aria-label=document_line tabindex="0">{document_line}</span>
+                <span class="dc-doc" data-dnacalc="document" data-unsaved=move ||controller.summary.with(|s|s.unsaved.to_string()) data-template=move ||controller.summary.with(|s|s.template.to_string()) data-changed=move ||controller.summary.with(|s|s.changed.to_string()) title=document_line aria-label=document_line tabindex="0">{document_line}</span>
                 <button type="button" data-dnacalc="new" disabled=move || assist.readonly.get() on:click=move |_| request_replace.run(Replacement::New)>"New"</button>
                 <button type="button" data-dnacalc="open" disabled=move || assist.readonly.get() on:click=move |_| { if let Some(input) = file_input.get() { input.click(); } }>"Open"</button>
                     <input
                         node_ref=file_input
                         type="file"
                         data-dnacalc="open-file"
-                        accept=".xlsx,.xlsm,.xlsb"
+                        accept=".xlsx,.xlsm,.xlsb,.xltx,.xltm"
                         hidden=true
                         on:change=move |ev| {
                             use wasm_bindgen::JsCast;
@@ -572,6 +587,7 @@ pub fn app_with_transport(
                         }
                     />
                 <button type="button" data-dnacalc="save" disabled=move || assist.readonly.get() on:click=save>"Save"</button>
+                {crate::files::controls(controller,request_replace,save_as_open)}
                 <button type="button" data-dnacalc="undo" disabled=move || controller.command_availability(dna_calc_model::CommandId::Undo).is_err() title="Undo (Ctrl+Z)" on:click=move |_| controller.undo()>"Undo"</button>
                 <button type="button" data-dnacalc="redo" disabled=move || controller.command_availability(dna_calc_model::CommandId::Redo).is_err() title="Redo (Ctrl+Y)" on:click=move |_| controller.redo()>"Redo"</button>
                 <button type="button" data-dnacalc="calculate" title="Calculate now (F9)" on:click=move |_| controller.recalculate()>"Calculate"</button>

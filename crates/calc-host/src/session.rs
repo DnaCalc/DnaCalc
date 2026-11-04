@@ -363,6 +363,18 @@ impl HostSession {
         );
     }
 
+    /// Publish the file identity of a successful Save As without adding an undo step.
+    pub fn set_file_identity(&mut self,name:&str,macro_enabled:bool) {
+        if self.host.model.definitions().workbook_name()==Some(name) && self.host.model.definitions().macro_enabled()==macro_enabled {return;}
+        self.cancel_calculation();
+        self.host.model=self.host.model.with_file_identity(name,macro_enabled);
+        self.notify_file_identity(name);
+        self.host.engine.rebuild_bindings();
+        self.host.published=None;
+        self.host.last_failure=None;
+        self.deliver_changes(DeltaCause::CallablesChanged {revision:self.host.revision()},true);
+    }
+
     /// A session over an open host, in the host's calculation mode, with nothing selected.
     pub fn new(host: HostState) -> HostSession {
         HostSession {
@@ -793,6 +805,9 @@ impl HostSession {
             });
         }
         let outcome = match intent.clone() {
+            SkinIntent::Command(crate::WorkbookCommand::InsertTemplate{bytes,name,revision}) => {
+                self.insert_template(bytes,name,revision,&mut receipt)
+            }
             SkinIntent::Command(command) => {
                 let coordinates = match &command {
                     crate::WorkbookCommand::ShiftCells { area, down, insert } => {
@@ -1212,6 +1227,7 @@ impl HostSession {
         self.commit_coordinates(edits.clone(), coordinates.as_ref(), receipt)?;
         self.history.record(Step {
             forward: edits,
+            imported: None,
             coordinates,
             inverse,
             before: self.selection.clone(),
@@ -1287,6 +1303,23 @@ impl HostSession {
         }
     }
 
+    fn restore_template_source(&mut self, source:calc_doc::LoadedWorkbook, receipt:&mut IntentReceipt)->Result<(),IntentError> {
+        let committed=crate::command::restore_package_source(&mut self.host,source.model(),&source).map_err(IntentError::Command)?;
+        self.host.loaded=source;
+        self.host.axis_edits.clear();
+        let revision=committed.revision();receipt.committed=Some(committed);
+        receipt.deltas+=self.deliver_changes(DeltaCause::Committed{revision},true);
+        Ok(())
+    }
+    fn insert_template(&mut self, bytes:Arc<[u8]>,name:Option<String>,revision:u64,receipt:&mut IntentReceipt)->Result<(),IntentError> {
+        let source=crate::templates::prepare(&mut self.host,&self.sheet_keys,bytes,name,revision).map_err(IntentError::Workbook)?;
+        let inverse=Ok(Inverse::Restore{model:self.host.model.clone(),axis_edits:self.host.axis_edits.clone(),source:Some(self.host.loaded.clone())});
+        self.restore_template_source(source.clone(),receipt)?;
+        for sheet in self.host.model.sheets(){self.sheet_keys.insert(sheet.key());self.host.sheet_identities.insert(sheet.key(),sheet.id());}
+        self.history.record(Step{forward:Vec::new(),coordinates:None,imported:Some(source),inverse,before:self.selection.clone(),after:self.selection.clone()});
+        self.after_commit(receipt);Ok(())
+    }
+
     fn undo(&mut self, receipt: &mut IntentReceipt) -> Result<(), IntentError> {
         let step = self.history.pop_undo().ok_or(IntentError::NothingToUndo)?;
         let inverse = match &step.inverse {
@@ -1306,13 +1339,16 @@ impl HostSession {
                     .as_ref(),
                 receipt,
             ),
-            Inverse::Restore { model, axis_edits } => {
-                match crate::command::restore(&mut self.host, &model, axis_edits) {
+            Inverse::Restore { model, axis_edits, source } => {
+                let refreshed=source.is_some();
+                let result=if let Some(source)=&source {crate::command::restore_package_source(&mut self.host,&model,source)}else{crate::command::restore(&mut self.host,&model,axis_edits.clone())};
+                match result {
                     Ok(committed) => {
+                        if let Some(source)=source {self.host.loaded=source;self.host.axis_edits=axis_edits;}
                         let revision = committed.revision();
                         receipt.committed = Some(committed);
                         receipt.deltas +=
-                            self.deliver_changes(DeltaCause::Committed { revision }, false);
+                            self.deliver_changes(DeltaCause::Committed { revision }, refreshed);
                         Ok(())
                     }
                     Err(error) => Err(IntentError::Command(error)),
@@ -1332,9 +1368,10 @@ impl HostSession {
 
     fn redo(&mut self, receipt: &mut IntentReceipt) -> Result<(), IntentError> {
         let step = self.history.pop_redo().ok_or(IntentError::NothingToRedo)?;
-        if let Err(error) =
-            self.commit_coordinates(step.forward.clone(), step.coordinates.as_ref(), receipt)
-        {
+        let result=if let Some(source)=&step.imported {
+            self.restore_template_source(source.clone(),receipt)
+        } else {self.commit_coordinates(step.forward.clone(), step.coordinates.as_ref(), receipt)};
+        if let Err(error) = result {
             self.history.restore_redo(step);
             return Err(error);
         }

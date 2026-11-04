@@ -2,7 +2,7 @@ param([string]$SessionDirectory=$env:DNACALC_EXCEL_SESSION, [string]$Script, [st
     [string]$Environment='default', [string]$WorkingDirectory=(Get-Location).Path,
     [int]$TimeoutSeconds=900, [switch]$FreshRequired, [switch]$Stop, [switch]$Status,
     [ValidateRange(1,1000000)][int]$LeakEvery=50, [switch]$Start,
-    [string]$PacketId=$env:DNACALC_EXCEL_PACKET)
+    [string]$PacketId=$env:DNACALC_EXCEL_PACKET, [switch]$NoSaveBaseline)
 $ErrorActionPreference='Stop'
 if (-not $SessionDirectory) { $SessionDirectory=Join-Path $PSScriptRoot '../../target/excel-session' }
 $root=[IO.Path]::GetFullPath($SessionDirectory)
@@ -22,12 +22,33 @@ function Read-Status {
     ConvertFrom-Json -InputObject $json
 }
 function Live($State) { $State -and (Identity @{pid=$State.host_pid;start_ticks=$State.host_start_ticks} 'pwsh') }
+function Stop-Orphan($State) {
+    # A dead host cannot run its finally block. Its persisted ownership tuple is
+    # the only process this command may recover; never terminate by name alone.
+    if ($State -and $State.excel -and (Identity $State.excel 'EXCEL')) {
+        if ($State.excel.pid -eq 3144) { throw 'Protected Excel PID; orphan cleanup refused.' }
+        $process=Get-Process -Id $State.excel.pid
+        try {
+            # Pin the Windows process handle, then recheck identity before Kill;
+            # PID reuse between the status read and cleanup cannot select a new process.
+            $null=$process.Handle
+            if ($process.ProcessName -ine 'EXCEL' -or $process.StartTime.ToUniversalTime().Ticks -ne $State.excel.start_ticks) {
+                throw 'Owned orphan Excel identity changed; cleanup refused.'
+            }
+            $command=(Get-CimInstance Win32_Process -Filter "ProcessId=$($State.excel.pid)").CommandLine
+            if ($command -match '(?i)/restore') { throw 'Restore Excel process; orphan cleanup refused.' }
+            if (-not $process.HasExited) { $process.Kill() }
+            if (-not $process.WaitForExit(5000)) { throw 'Owned orphan Excel has not exited.' }
+        } finally { $process.Dispose() }
+    }
+}
 if ($Status) { Read-Status|ConvertTo-Json -Depth 15; return }
 if ($Stop) {
     [IO.File]::WriteAllText((Join-Path $root 'shutdown.request'),'stop')
     $deadline=[DateTime]::UtcNow.AddSeconds(30)
     while ((Live (Read-Status)) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 100 }
     if (Live (Read-Status)) { throw 'Session host has not completed shutdown.' }
+    Stop-Orphan (Read-Status)
     return
 }
 if (-not $Script -and -not $Start) { throw '-Script is required.' }
@@ -41,15 +62,14 @@ try {
     $state=Read-Status
     if (-not (Live $state)) {
         # Recover only a process with the exact ownership tuple from this host.
-        if ($state -and $state.excel -and $state.excel.pid -ne 3144 -and (Identity $state.excel 'EXCEL')) {
-            $command=(Get-CimInstance Win32_Process -Filter "ProcessId=$($state.excel.pid)").CommandLine
-            if ($command -notmatch '(?i)/restore') { Stop-Process -Id $state.excel.pid }
-        }
+        Stop-Orphan $state
         Remove-Item -LiteralPath (Join-Path $root 'shutdown.request') -ErrorAction SilentlyContinue
         $hostScript=Join-Path $PSScriptRoot 'host.ps1'
         # ShellExecute creates a detached hidden console without inheriting the client's pipes.
         # RedirectStandardOutput on Start-Process made Rust's wait-for-EOF outlive the client.
-        $hostProcess=Start-Process -FilePath (Join-Path $PSHOME 'pwsh.exe') -WindowStyle Hidden -PassThru -ArgumentList @('-NoLogo','-NoProfile','-NonInteractive','-STA','-File',('"'+$hostScript+'"'),'-SessionDirectory',('"'+$root+'"'),'-LeakEvery',"$LeakEvery")
+        $hostArguments=@('-NoLogo','-NoProfile','-NonInteractive','-STA','-File',('"'+$hostScript+'"'),'-SessionDirectory',('"'+$root+'"'),'-LeakEvery',"$LeakEvery")
+        if ($NoSaveBaseline) { $hostArguments+='-NoSaveBaseline' }
+        $hostProcess=Start-Process -FilePath (Join-Path $PSHOME 'pwsh.exe') -WindowStyle Hidden -PassThru -ArgumentList $hostArguments
         $deadline=[DateTime]::UtcNow.AddSeconds(45)
         do {
             if ($hostProcess.HasExited) { throw ('Session host exited: '+(Get-Content (Join-Path $root 'host.stderr') -Raw)) }
@@ -61,6 +81,9 @@ try {
 } finally { $mutex.ReleaseMutex(); $mutex.Dispose() }
 if (-not $state.preserve_automation_security) {
     throw 'The running Excel host does not preserve AutomationSecurity; stop it before selecting this policy.'
+}
+if ([bool]$state.no_save_baseline -ne [bool]$NoSaveBaseline) {
+    throw 'The running host has a different baseline saving policy; select a dedicated session directory.'
 }
 if($Start){Read-Status|ConvertTo-Json -Depth 15;return}
 $id=[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffff')+'-'+[Guid]::NewGuid().ToString('N')

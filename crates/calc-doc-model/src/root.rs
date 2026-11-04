@@ -276,6 +276,13 @@ impl ModelRoot {
         })
     }
 
+    /// The same authored revision after a successful Save As. File identity is session
+    /// context: it invalidates bindings in the host and is never undone with cell edits.
+    pub fn with_file_identity(&self,name:&str,macro_enabled:bool)->Arc<Self> {
+        Arc::new(Self {revision:self.revision,sheets:self.sheets.clone(),cells:self.cells.clone(),layout:self.layout.clone(),
+            definitions:Arc::new(Definitions::clone(&self.definitions).with_workbook_name(Some(name.to_owned())).with_macro_enabled(macro_enabled)),lineage:self.lineage})
+    }
+
     /// Physical source records at this root. Extent totals use wide arithmetic and never
     /// visit an empty coordinate. Requesting these statistics renders no member text.
     pub fn formula_source_stats(&self) -> crate::FormulaSourceStats {
@@ -544,10 +551,26 @@ impl ModelRoot {
                     self.definitions
                         .name_table()
                         .restored_from(earlier.definitions.name_table()),
-                ),
+                ).with_workbook_name(self.definitions.workbook_name().map(str::to_owned)).with_macro_enabled(self.definitions.macro_enabled()),
             ),
             lineage: earlier.lineage,
         }))
+    }
+
+    /// An imported package's worksheets appended to this root, retaining its lineage and
+    /// existing cell pages. The caller has reloaded the package using these live sheet IDs.
+    pub fn with_imported_worksheets(&self, imported:&ModelRoot)->Result<Arc<Self>,ApplyError> {
+        if imported.sheets.len() <= self.sheets.len() || imported.sheets[..self.sheets.len()] != self.sheets[..] {
+            return Err(ApplyError::ForeignRoot);
+        }
+        let mut cells=self.cells.clone();
+        cells.extend_from_slice(&imported.cells[self.cells.len()..]);
+        let definitions=Definitions::clone(&imported.definitions)
+            .with_name_table(self.definitions.name_table().restored_from(imported.definitions.name_table()))
+            .with_workbook_name(self.definitions.workbook_name().map(str::to_owned))
+            .with_macro_enabled(self.definitions.macro_enabled());
+        Ok(Arc::new(Self{revision:self.revision,sheets:imported.sheets.clone(),cells,
+            layout:self.layout.clone(),definitions:Arc::new(definitions),lineage:self.lineage}))
     }
 
     /// The sheets in workbook order.

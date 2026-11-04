@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][string]$SessionDirectory, [int]$LeakEvery = 50)
+param([Parameter(Mandatory)][string]$SessionDirectory, [int]$LeakEvery = 50, [switch]$NoSaveBaseline)
 $ErrorActionPreference = 'Stop'
 if ([Threading.Thread]::CurrentThread.ApartmentState -ne 'STA') { throw 'Excel session host requires -STA.' }
 $root = [IO.Path]::GetFullPath($SessionDirectory)
@@ -90,7 +90,7 @@ function Event($Kind, $Data) {
     [IO.File]::AppendAllText((Join-Path $root 'events.jsonl'), (([ordered]@{utc=[DateTime]::UtcNow.ToString('O');kind=$Kind;data=$Data}|ConvertTo-Json -Depth 30 -Compress)+"`n"))
 }
 function Status($Job = $script:activeJob) {
-    Write-Json (Join-Path $root 'host.json') ([ordered]@{host_pid=$PID;host_start_ticks=$hostTicks;excel=$script:owned;launches=$script:launches;sequence=$script:sequence;ordinary_sequence=$script:ordinarySequence;active_job=$Job;environment=$script:environment;preserve_automation_security=$global:DnaExcelSessionState.PreserveAutomationSecurity})
+    Write-Json (Join-Path $root 'host.json') ([ordered]@{host_pid=$PID;host_start_ticks=$hostTicks;excel=$script:owned;launches=$script:launches;sequence=$script:sequence;ordinary_sequence=$script:ordinarySequence;active_job=$Job;environment=$script:environment;preserve_automation_security=$global:DnaExcelSessionState.PreserveAutomationSecurity;no_save_baseline=[bool]$NoSaveBaseline})
 }
 function Read-Property($Object, [string]$Name) {
     # Resolving a COM object's runtime type repeatedly asks for its type information.
@@ -108,7 +108,10 @@ function Snapshot {
     $s['mtc_enabled'] = [bool](Read-Property $a.MultiThreadedCalculation 'Enabled')
     $s['mtc_mode'] = [int](Read-Property $a.MultiThreadedCalculation 'ThreadMode')
     $s['mtc_count'] = [int](Read-Property $a.MultiThreadedCalculation 'ThreadCount')
-    $s['workbooks'] = @($a.Workbooks | ForEach-Object { [string](Read-Property $_ 'FullName') })
+    $s['workbooks'] = @($a.Workbooks | ForEach-Object {
+        if ($NoSaveBaseline -and -not [string](Read-Property $_ 'Path')) { '<unsaved>' }
+        else { [string](Read-Property $_ 'FullName') }
+    })
     $s['com_addins'] = @($a.COMAddIns | ForEach-Object { ([string](Read-Property $_ 'ProgId')) + '|' + ([bool](Read-Property $_ 'Connect')) } | Sort-Object)
     $s['addins'] = @($a.AddIns2 | ForEach-Object { ([string](Read-Property $_ 'FullName')) + '|' + ([bool](Read-Property $_ 'Installed')) + '|' + ([bool](Read-Property $_ 'IsOpen')) } | Sort-Object)
     $registered = Read-Property $a 'RegisteredFunctions'
@@ -133,7 +136,7 @@ function Reset-Baseline {
     $a.CutCopyMode = 0
     while ($a.Workbooks.Count -gt 0) { $a.Workbooks.Item(1).Close($false) }
     # Excel returns CVErr for calculation properties with no books. Record a real blank book.
-    $sentinel = $a.Workbooks.Add()
+    $sentinel = if ($NoSaveBaseline) { $a.Workbooks.Add(-4167) } else { $a.Workbooks.Add() }
     $a.Calculation = -4135
     $a.Iteration = $false
     $a.MaxIterations = 100
@@ -147,7 +150,7 @@ function Reset-Baseline {
     } else {
         $a.Visible=$false; $a.ScreenUpdating=$false; $a.Interactive=$false; $a.StatusBar=$false
     }
-    $sentinel.SaveAs((Join-Path $global:DnaExcelSessionState.Root 'baseline.xlsx'),51)
+    if (-not $NoSaveBaseline) { $sentinel.SaveAs((Join-Path $global:DnaExcelSessionState.Root 'baseline.xlsx'),51) }
     [GC]::Collect(); [GC]::WaitForPendingFinalizers()
     Snapshot
 }
@@ -300,6 +303,7 @@ try {
         $receipt['script']=$job.script
         $receipt['host_script_sha256']=$script:hostSha
         $receipt['preserve_automation_security']=$global:DnaExcelSessionState.PreserveAutomationSecurity
+        $receipt['no_save_baseline']=[bool]$NoSaveBaseline
         $receipt['script_sha256']=(Get-FileHash -LiteralPath $job.script).Hash.ToLowerInvariant()
         $receipt['job']=$job
         Copy-Item -LiteralPath $destination -Destination (Join-Path $directory 'job.json')
