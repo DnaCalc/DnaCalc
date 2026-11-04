@@ -449,7 +449,7 @@ pub fn sort_controls(controller: Controller) -> AnyView {
     view! {
         <details class="dc-clipboard-tools" data-dnacalc="sort-tools" name="worksheet-tools">
             <summary>"Sort rows"</summary>
-            <p class="dc-note">"Select the complete data rectangle. Only selected cells move. Text uses case-insensitive en-ZA order. Blank keys stay last and equal keys keep their order."</p>
+            <p class="dc-note">"Select the complete rectangle. Exclude table totals and check Header only when included. Text uses case-insensitive en-ZA order; blanks stay last and equal keys keep their order."</p>
             <div class="dc-command-row">
                 <label>"Column within selection "<input data-dnacalc="sort-column" type="number" min="1" step="1" inputmode="numeric" prop:value=move ||column.get() on:input=move |ev|column.set(event_target_value(&ev))/></label>
                 <label><input data-dnacalc="sort-header" type="checkbox" prop:checked=move ||header.get() on:change=move |ev|header.set(event_target_checked(&ev))/><span>"First row is a header"</span></label>
@@ -472,7 +472,7 @@ pub fn sort_controls(controller: Controller) -> AnyView {
             }}/>
             <button data-dnacalc="sort-add-key" disabled={move ||levels.get().len()>=31}
                 on:click=move |_|levels.update(|all|{if all.len()<31 {all.push(((all.len()+2).to_string(),false));}})>"Add sort key"</button>
-            <p class="dc-muted">"Keys are applied from top to bottom. One Undo restores the sorted range. Hidden rows, tables, merges, rich text, attached rules, notes, links and sheet-qualified formulas need additional sort support."</p>
+            <p class="dc-muted">"Keys apply top to bottom; one Undo restores the range. Unsupported records refuse sorting before cells change."</p>
         </details>
     }.into_any()
 }

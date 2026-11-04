@@ -1489,6 +1489,28 @@ mod tests {
     }
 
     #[test]
+    fn one_cell_array_proof_follows_the_retained_host_publication() {
+        let bytes = include_bytes!("../../../crates/calc-func/tests/fixtures/fn2_questions/oracle.xlsx");
+        let capture = CaptureRecord::decode(include_bytes!("../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json")).unwrap();
+        let run = run_workbook(bytes,Some("oracle.xlsx"),None,&capture,NumericMode::Fast,false).unwrap();
+        let report = judge(&capture,&run.results,&run.record,&VerdictPolicy::default()).unwrap();
+        assert_eq!(report.evaluation_record_version,2);
+        let mut checked = 0;
+        for cell in &report.cells {
+            if !["fn2_q013","fn2_q014"].contains(&cell.formula.cell.sheet()) { continue; }
+            let evaluated = run.record.evaluations.iter().find(|e|e.evaluation.cell==cell.formula.cell).unwrap();
+            let array = evaluated.returned.as_ref().unwrap().as_array().unwrap();
+            assert_eq!(array.cell_count(),1);
+            let published = run.results.results.iter().find(|r|r.cell==cell.formula.cell).unwrap().value.as_ref().unwrap();
+            assert!(published.as_array().is_none());
+            assert_eq!(array.get(0,0),Some(published));
+            assert!(matches!(cell.verdict,calc_verdict::Verdict::Matched {..}));
+            checked+=1;
+        }
+        assert_eq!(checked,2);
+    }
+
+    #[test]
     fn refused_excel_entry_owns_value_and_shape_only_observer_mismatches() {
         let bytes = include_bytes!("../../../crates/calc-func/tests/fixtures/fn2_questions/oracle.xlsx");
         let capture = CaptureRecord::decode(include_bytes!("../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json")).unwrap();

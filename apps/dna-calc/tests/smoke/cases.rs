@@ -8175,6 +8175,24 @@ Case {
         checks:&[Check::TextContains("review-note","One note"),Check::Absent("review-validation"),Check::Fits,Check::Narrow(390),Check::Reachable("review-close"),Check::PlanCell("C4","text","2")],
     },
 
+    Case {name:"table sorting: complete data rows move formulas while headers and totals stay",actions:&[
+        Action::Window(1440,1000),Action::ExternalClipboard("Item\tAmount\tDouble\nThree\t3\t=B2*2\nOne\t1\t=B3*2\nTwo\t2\t=B4*2",false),Action::Into("name-box","A1\u{E007}"),Action::Wait(Check::ActiveSemantic("A1")),Action::Keys("grid","\u{E009}v\u{E000}"),Action::Wait(Check::PlanCell("C4","text","4")),
+        Action::Into("name-box","A1:C4\u{E007}"),Action::Wait(Check::ActiveSemantic("A1")),Action::OpenDetails("table-tools"),Action::Into("table-name","SortSales"),Action::Click("table-create"),Action::Wait(Check::Count("filter-header",3)),Action::Click("table-totals"),Action::Wait(Check::PlanCell("C5","text","12")),Action::Into("table-total-column","2"),Action::Choose("table-total-function","sum"),Action::Click("table-total-apply"),Action::Wait(Check::PlanCell("B5","text","6")),
+        Action::Into("name-box","D1\u{E007}"),Action::Wait(Check::ActiveSemantic("D1")),Action::Into(BAR,"=SUM(SortSales[Amount])\u{E007}"),Action::Wait(Check::PlanCell("D1","text","6")),Action::Into("name-box","A1:C4\u{E007}"),Action::Wait(Check::ActiveSemantic("A1")),Action::OpenDetails("sort-tools"),Action::Into("sort-column","2"),Action::Click("sort-ascending"),Action::Wait(Check::TextContains("status","Sorted"))
+    ],checks:&[Check::PlanCell("A1","text","Item"),Check::PlanCell("A2","text","One"),Check::PlanCell("A4","text","Three"),Check::PlanCell("C2","text","2"),Check::PlanCell("C4","text","6"),Check::PlanCell("C4","formula","true"),Check::PlanCell("B5","text","6"),Check::PlanCell("C5","text","12"),Check::PlanCell("D1","text","6"),Check::Count("filter-header",3)]},
+    Case {name:"table sorting: one Undo and Redo restore every row and keep table definitions",actions:&[
+        Action::Click("undo"),Action::Wait(Check::PlanCell("A2","text","Three")),Action::Wait(Check::PlanCell("C2","text","6")),Action::Click("redo"),Action::Wait(Check::PlanCell("A2","text","One")),Action::Into("name-box","A1\u{E007}"),Action::Wait(Check::ActiveSemantic("A1")),Action::OpenDetails("table-tools")
+    ],checks:&[Check::TextContains("table-summary","SortSales"),Check::TextContains("table-summary","A1:C5"),Check::PlanCell("C2","text","2"),Check::PlanCell("C5","text","12"),Check::Count("filter-header",3)]},
+    Case {name:"table sorting: imported table data sort after real XLSX reopening",actions:&[
+        Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::Wait(Check::PlanCell("C5","text","12")),Action::Into("name-box","A1:C4\u{E007}"),Action::Wait(Check::ActiveSemantic("A1")),Action::OpenDetails("sort-tools"),Action::Into("sort-column","2"),Action::Click("sort-descending"),Action::Wait(Check::PlanCell("A2","text","Three"))
+    ],checks:&[Check::PlanCell("A4","text","One"),Check::PlanCell("C2","text","6"),Check::PlanCell("C4","text","2"),Check::PlanCell("C4","formula","true"),Check::PlanCell("B5","text","6"),Check::PlanCell("C5","text","12"),Check::PlanCell("D1","text","6")]},
+    Case {name:"table sorting: partial columns and total rows refuse before changing cells",actions:&[
+        Action::Into("name-box","A2:B4\u{E007}"),Action::Wait(Check::ActiveSemantic("A2")),Action::OpenDetails("sort-tools"),Action::Click("sort-header"),Action::Click("sort-ascending"),Action::Wait(Check::TextContains("status","partial table")),Action::Wait(Check::PlanCell("A2","text","Three")),Action::Into("name-box","A1:C5\u{E007}"),Action::Wait(Check::ActiveSemantic("A1")),Action::Click("sort-header"),Action::Click("sort-ascending"),Action::Wait(Check::TextContains("status","partial table"))
+    ],checks:&[Check::PlanCell("A2","text","Three"),Check::PlanCell("A4","text","One"),Check::PlanCell("C2","text","6"),Check::PlanCell("C5","text","12"),Check::Count("filter-header",3)]},
+    Case {name:"table sorting: complete body selection sorts from phone controls and saves",actions:&[
+        Action::Into("name-box","A2:C4\u{E007}"),Action::Wait(Check::ActiveSemantic("A2")),Action::Window(390,844),Action::OpenDetails("sort-tools"),Action::Click("sort-header"),Action::Click("sort-ascending"),Action::Wait(Check::PlanCell("A2","text","One")),Action::Wait(Check::Fits),Action::Wait(Check::Reachable("sort-ascending")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::Wait(Check::PlanCell("C5","text","12")),Action::Into("name-box","A1\u{E007}"),Action::Wait(Check::ActiveSemantic("A1")),Action::OpenDetails("table-tools")
+    ],checks:&[Check::PlanCell("A2","text","One"),Check::PlanCell("C2","text","2"),Check::PlanCell("B5","text","6"),Check::PlanCell("C5","text","12"),Check::Count("filter-header",3),Check::TextContains("table-summary","A1:C5"),Check::Fits,Check::Narrow(390),Check::Reachable("table-totals")]},
+
 ];
 
 /// The script that reads what one check looks at.
@@ -9009,4 +9027,5 @@ CaseGroup {
     CaseGroup {name:"stacked-fitting",start:634,end:640,core:6,setup:&[]},
     CaseGroup { name: "conditional-colour-filters", start: 640, end: 646, core: 6, setup: &[] },
     CaseGroup {name:"sort-metadata",start:646,end:651,core:5,setup:&[]},
+    CaseGroup {name:"table-sorting",start:651,end:656,core:5,setup:&[]},
 ];

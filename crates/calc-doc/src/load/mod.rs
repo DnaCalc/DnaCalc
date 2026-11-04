@@ -411,12 +411,14 @@ impl LoadedWorkbook {
         let Some(sheet) = self.sheet(sheet) else {
             return true;
         };
+        let tables_supported = sorting && tables::sorting_supported(&self.package,sheet.part().name(),sheet.id(),self.model().definitions().tables());
         if self
             .package
             .relationships_of(Some(sheet.part().name()))
             .is_some_and(|rels| {
                 rels.items().iter().any(|r| {
                     !(review_supported && ["comments","threadedComment","vmlDrawing"].iter().any(|kind|r.kind.ends_with(&format!("/{kind}"))))
+                    && !(tables_supported && r.kind == tables::TABLE)
                     && !["printerSettings", "image", "customProperty", "hyperlink"]
                         .iter()
                         .any(|kind| r.kind.ends_with(&format!("/{kind}")))

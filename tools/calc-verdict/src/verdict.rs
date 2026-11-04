@@ -1145,7 +1145,9 @@ type Returned = Result<CalcValue, String>;
 /// the anchor of a formula whose array cannot spill (its range blocked, or off the grid) shows
 /// #SPILL!, as Excel's does, and that error is the evaluation's array placed, not another value.
 /// The #SPILL! is still compared with Excel's observation like any value; a spill the array
-/// should have made shows there as a mismatch, never as a pass.
+/// should have made shows there as a mismatch, never as a pass. A one-cell array
+/// also proves its exact primitive scalar: array_outcome publishes that sole
+/// element without a spill. This does not change the typed comparison with Excel.
 fn unproven(
     evaluation: Option<Option<&Returned>>,
     published: Option<&CalcValue>,
@@ -1158,7 +1160,9 @@ fn unproven(
         Some(Some(returned)) => {
             let gave_published = match (returned, published) {
                 (Ok(value), Some(published)) => {
-                    compare(value, published).is_none() || spill_of(value, published)
+                    compare(value, published).is_none()
+                        || spill_of(value, published)
+                        || single_array_scalar_of(value, published)
                 }
                 _ => false,
             };
@@ -1206,6 +1210,32 @@ fn legacy_fill(value: &CalcValue, row: u32, column: u32) -> CalcValue {
         .get(r, c)
         .cloned()
         .unwrap_or_else(|| CalcValue::error(WorksheetErrorCode::NA))
+}
+
+/// The exact primitive scalar that the application publishes for a one-cell array.
+/// Blank conversion, nested arrays, references and callable values need their own
+/// publication proof; this rule never truncates a larger array or changes a type.
+fn single_array_scalar_of(returned: &CalcValue, published: &CalcValue) -> bool {
+    if returned.callable_value().is_some() || published.callable_value().is_some() {
+        return false;
+    }
+    let CoreValue::Array(array) = returned.core() else {
+        return false;
+    };
+    if array.cell_count() != 1 {
+        return false;
+    }
+    array.get(0, 0).is_some_and(|value| {
+        value.callable_value().is_none()
+            && matches!(
+                value.core(),
+                CoreValue::Number(_)
+                    | CoreValue::Text(_)
+                    | CoreValue::Logical(_)
+                    | CoreValue::Error(_)
+            )
+            && compare(value, published).is_none()
+    })
 }
 
 /// Whether `published` is the #SPILL! an anchor shows for the array `returned` it cannot spill.
@@ -1847,7 +1877,10 @@ mod tests {
         assert_eq!(encoded["cells"][0]["circular_rule"], true);
 
         let unproven = judge(&live, &results(CALCULATED), &none, &exact("20430")).unwrap();
-        assert!(matches!(unproven.cells[0].verdict, Verdict::Unproven { .. }));
+        assert!(matches!(
+            unproven.cells[0].verdict,
+            Verdict::Unproven { .. }
+        ));
         assert!(!unproven.cells[0].circular_rule);
         let encoded: serde_json::Value = serde_json::from_str(&unproven.encode()).unwrap();
         assert!(encoded["counts"].get("circular_rule").is_none());
@@ -2110,6 +2143,87 @@ mod tests {
             ),
             uncertified(UncertifiedReason::EvidenceRecordAbsent)
         );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn one_cell_array_proves_only_its_exact_primitive_scalar_publication() {
+        let array = |rows, cols, value: CalcValue| {
+            CalcValue::array(
+                crate::value::CalcArray::new(
+                    crate::value::ArrayShape { rows, cols },
+                    vec![value; rows * cols],
+                )
+                .unwrap(),
+            )
+        };
+        let policy = exact("20430");
+        for value in [
+            CalcValue::number(2.0),
+            text("x"),
+            CalcValue::logical(true),
+            CalcValue::error(WorksheetErrorCode::NA),
+        ] {
+            let raw = value_out(&value).document();
+            let live = capture(LIVE, ENVIRONMENT, &format!(r#""excel_raw": {raw}"#));
+            let calculated = column_results(&[(CALCULATED, &raw)]);
+            let report = judge(
+                &live,
+                &calculated,
+                &instrumented(&Ok(array(1, 1, value))),
+                &policy,
+            )
+            .unwrap();
+            assert_eq!(report.cells[0].verdict, matched(Certainty::StrictBits));
+            assert_eq!(report.evaluation_record_version, 2);
+            assert_eq!(report.counts.calculated_without_value_check, 0);
+        }
+        let live = capture(LIVE, ENVIRONMENT, RAW_TWO);
+        let calculated = results(CALCULATED);
+        for returned in [
+            array(1, 1, CalcValue::number(3.0)),
+            array(1, 1, text("2")),
+            array(1, 2, CalcValue::number(2.0)),
+            array(2, 1, CalcValue::number(2.0)),
+            array(1, 1, array(1, 1, CalcValue::number(2.0))),
+        ] {
+            let report = judge(&live, &calculated, &instrumented(&Ok(returned)), &policy).unwrap();
+            assert!(matches!(report.cells[0].verdict, Verdict::Unproven { .. }));
+        }
+        // Projection proof does not change scalar-versus-array Excel comparison.
+        let returned = array(1, 1, CalcValue::number(2.0));
+        let raw = value_out(&returned).document();
+        let live_array = capture(LIVE, ENVIRONMENT, &format!(r#""excel_raw": {raw}"#));
+        let report = judge(
+            &live_array,
+            &calculated,
+            &instrumented(&Ok(returned)),
+            &policy,
+        )
+        .unwrap();
+        assert!(matches!(
+            report.cells[0].verdict,
+            Verdict::Mismatched { .. }
+        ));
+        // Blank conversion and reverse scalar-to-array publication stay outside this rule.
+        let zero = column_results(&[(CALCULATED, r#"{"number":"0000000000000000"}"#)]);
+        let report = judge(
+            &live,
+            &zero,
+            &instrumented(&Ok(array(1, 1, CalcValue::empty()))),
+            &policy,
+        )
+        .unwrap();
+        assert!(matches!(report.cells[0].verdict, Verdict::Unproven { .. }));
+        let array_result = column_results(&[(CALCULATED, &raw)]);
+        let report = judge(
+            &live_array,
+            &array_result,
+            &instrumented(&Ok(CalcValue::number(2.0))),
+            &policy,
+        )
+        .unwrap();
+        assert!(matches!(report.cells[0].verdict, Verdict::Unproven { .. }));
     }
 
     /// An evaluation that returned an array of more than one cell proves a published #SPILL!

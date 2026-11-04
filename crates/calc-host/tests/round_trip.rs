@@ -5584,9 +5584,13 @@ fn package_with_part(name: &str, rewrite: impl Fn(&str) -> String) -> Vec<u8> {
     package_with_part_from(&calc_host::blank_package(), name, rewrite)
 }
 fn package_with_part_from(blank: &[u8], name: &str, rewrite: impl Fn(&str) -> String) -> Vec<u8> {
+    package_with_parts_from(blank,name,rewrite,&[])
+}
+// The same retained-source fixture adapter also appends parts for relationship admission cases.
+fn package_with_parts_from(blank: &[u8], name: &str, rewrite: impl Fn(&str) -> String, added:&[(&str,&[u8])]) -> Vec<u8> {
     use existing_wire_support::{RawEntry, build_zip, parse_zip};
     let archive = parse_zip(blank);
-    let entries: Vec<_> = archive
+    let mut entries: Vec<_> = archive
         .entries
         .iter()
         .map(|entry| {
@@ -5606,6 +5610,7 @@ fn package_with_part_from(blank: &[u8], name: &str, rewrite: impl Fn(&str) -> St
             }
         })
         .collect();
+    entries.extend(added.iter().map(|(name,bytes)|RawEntry::stored(name,bytes)));
     build_zip(&entries)
 }
 
@@ -14709,4 +14714,124 @@ fn dc_971p_38__unknown_legacy_drawing_namespace_keeps_shift_and_sort_refusals() 
     assert_eq!(held,(book.host().revision(),book.history_depth()));
     assert_eq!(book.host().model().cell(at(s,"A1")),Some(&number(2.)));
     assert_eq!(book.host().model().cell(at(s,"A2")),Some(&number(1.)));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__complete_table_data_sort_keeps_headers_totals_and_saved_definitions() {
+    use calc_host::{TableChange as T, WorkbookCommand as W, SortKey};
+    let mut book=session(&calc_host::blank_package());
+    let (s,part)=create_test_table(&mut book);
+    assert!(book.dispatch(SkinIntent::Edit {edits:vec![CellEdit::Clear {area:GridArea::new(at(s,"A4"),at(s,"B4")).unwrap()}]}).accepted());
+    assert!(table_action(&mut book,T::Options {part:part.clone(),headers:true,totals:true,style:"TableStyleMedium2".into(),row_stripes:true,column_stripes:false,first_column:false,last_column:false}).accepted());
+    assert!(enter(&mut book,at(s,"D1"),"=SUM(Sales[Amount])").accepted());
+    let tables=book.host().model().definitions().tables().to_vec();
+    let sort=|b:&mut HostSession,area,descending,header| {
+        let revision=b.host().revision().get();
+        b.dispatch(SkinIntent::Command(W::SortRows {area,keys:vec![SortKey {column:2,descending}],header,revision}))
+    };
+    let data=GridArea::new(at(s,"A1"),at(s,"B3")).unwrap();
+    let mut before=Vec::new();book.save(&SavePolicy::default(),&mut before).unwrap();
+    let done=sort(&mut book,data,true,true);assert!(done.accepted(),"{done:?}");
+    assert_eq!(book.host().model().cell(at(s,"A1")),Some(&calc_host::interpret_entry("Item").unwrap().unwrap()));
+    assert_eq!(book.host().model().cell(at(s,"A2")),Some(&calc_host::interpret_entry("Second").unwrap().unwrap()));
+    assert_eq!(book.host().model().cell(at(s,"B2")),Some(&number(9.)));
+    assert_eq!(book.host().model().definitions().tables(),tables);
+    assert_eq!(calculated(book.host(),at(s,"B4")),Some(CalcValue::number(14.)));
+    assert_eq!(calculated(book.host(),at(s,"D1")),Some(CalcValue::number(14.)));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(book.host().model().cell(at(s,"B2")),Some(&number(5.)));
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
+    assert_eq!(part_text(&saved,&part),part_text(&before,&part));
+    let mut reopened=session(&saved);let r=reopened.host().sheets()[0].id();
+    let done=sort(&mut reopened,GridArea::new(at(r,"A2"),at(r,"B3")).unwrap(),false,false);
+    assert!(done.accepted(),"{done:?}");
+    assert_eq!(reopened.host().model().cell(at(r,"B2")),Some(&number(5.)));
+    for (last,header) in [("B2",false),("C3",false),("B4",false)] {
+        let area=GridArea::new(at(r,"A2"),at(r,last)).unwrap();
+        let held=(reopened.host().revision(),reopened.history_depth());
+        let bad=sort(&mut reopened,area,true,header);assert!(!bad.accepted(),"{bad:?}");
+        assert_eq!(held,(reopened.host().revision(),reopened.history_depth()));
+        assert_eq!(reopened.host().model().cell(at(r,"B2")),Some(&number(5.)));
+        assert_eq!(reopened.host().model().definitions().tables(),tables);
+    }
+    let mut twice=Vec::new();reopened.save(&SavePolicy::default(),&mut twice).unwrap();
+    assert_eq!(part_text(&twice,&part),part_text(&saved,&part));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__table_source_identities_relationships_and_unread_fields_refuse_atomically() {
+    use calc_host::{SortKey,WorkbookCommand as W};
+    let mut base=session(&calc_host::blank_package());let (_,part)=create_test_table(&mut base);
+    let mut saved=Vec::new();base.save(&SavePolicy::default(),&mut saved).unwrap();
+    let mut inputs=Vec::new();
+    for (from,to) in [
+        ("ref=\"A1:B3\"","ref=\"A1:C3\""),
+        ("name=\"Amount\"","name=\"Item\""),
+        ("name=\"Amount\"","name=\"\""),
+        ("<table ","<table xmlns:v=\"urn:retained\" v:rowOrigin=\"2\" "),
+        ("</table>","<sortState ref=\"A2:B3\"/></table>"),
+        (" id=\"2\""," id=\"1\""),
+    ] {
+        inputs.push(package_with_part_from(&saved,&part,|xml|{assert!(xml.contains(from),"missing {from}: {xml}");xml.replacen(from,to,1)}));
+    }
+    let (dir,file)=part.rsplit_once('/').unwrap();let rels=format!("{dir}/_rels/{file}.rels");
+    for internal in [false,true] {
+        let xml=if internal {
+            r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="q" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/queryTable" Target="../queryTables/retained.xml"/></Relationships>"#
+        } else {
+            r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="v" Type="urn:retained:row-map" Target="https://example.invalid/retained" TargetMode="External"/></Relationships>"#
+        };
+        let query=b"<queryTable xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" name=\"Retained\" connectionId=\"1\"/>";
+        let added=if internal {vec![(rels.as_str(),xml.as_bytes()),("xl/queryTables/retained.xml",query.as_slice())]} else {vec![(rels.as_str(),xml.as_bytes())]};
+        inputs.push(package_with_parts_from(&saved,"",str::to_owned,&added));
+    }
+    let s=base.host().sheets()[0].id();
+    assert!(table_action(&mut base,calc_host::TableChange::Create {area:GridArea::new(at(s,"D1"),at(s,"E3")).unwrap(),name:"Other".into()}).accepted());
+    let second=base.host().model().definitions().tables()[1].part.clone();
+    let mut two=Vec::new();base.save(&SavePolicy::default(),&mut two).unwrap();
+    inputs.push(package_with_part_from(&two,&second,|xml|{assert!(xml.contains(" id=\"2\""));xml.replacen(" id=\"2\""," id=\"1\"",1)}));
+    for bytes in inputs {
+        let mut book=session(&bytes);let s=book.host().sheets()[0].id();let tables=book.host().model().definitions().tables().to_vec();let table=tables[0].clone();
+        let held=(book.host().revision(),book.history_depth());
+        let last=CellKey::new(s,table.area.last().row(),table.area.last().column()).unwrap();
+        let result=book.dispatch(SkinIntent::Command(W::SortRows {area:GridArea::new(at(s,"A1"),last).unwrap(),keys:vec![SortKey {column:2,descending:true}],header:true,revision:held.0.get()}));
+        assert!(!result.accepted(),"{result:?}");assert_eq!(held,(book.host().revision(),book.history_depth()));
+        assert_eq!(book.host().model().cell(at(s,"B2")),Some(&number(5.)));
+        assert_eq!(book.host().model().definitions().tables(),tables);
+        let mut kept=Vec::new();book.save(&SavePolicy::default(),&mut kept).unwrap();
+        for t in &tables {assert_eq!(part_text(&kept,&t.part),part_text(&bytes,&t.part));}
+        if existing_wire_support::parse_zip(&bytes).entries.iter().any(|entry|entry.name==rels) {assert_eq!(part_text(&kept,&rels),part_text(&bytes,&rels));}
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__existing_excel_table_revision_identities_survive_sorting() {
+    use calc_host::{TableChange as T,SortKey,WorkbookCommand as W};
+    let mut authored=session(&calc_host::blank_package());let (s,part)=create_test_table(&mut authored);
+    assert!(table_action(&mut authored,T::Resize {part:part.clone(),area:GridArea::new(at(s,"A1"),at(s,"B4")).unwrap()}).accepted());
+    assert!(table_action(&mut authored,T::RenameColumn {part:part.clone(),column:2,name:"Units".into()}).accepted());
+    let mut saved=Vec::new();authored.save(&SavePolicy::default(),&mut saved).unwrap();
+    // Use the actual retained Excel table part, with xr/xr3 identities and mc:Ignorable,
+    // in the existing authored package. Cell values remain authored test inputs.
+    let source=part_text(include_bytes!("fixtures/d2/structural-base.xlsx"),"xl/tables/table1.xml");
+    assert!(source.contains("xr3:uid=")&&source.contains("mc:Ignorable="));
+    let bytes=package_with_part_from(&saved,&part,|_|source.clone());
+    let mut book=session(&bytes);let s=book.host().sheets()[0].id();let tables=book.host().model().definitions().tables().to_vec();
+    let revision=book.host().revision().get();
+    let sorted=book.dispatch(SkinIntent::Command(W::SortRows {area:GridArea::new(at(s,"A1"),at(s,"B4")).unwrap(),keys:vec![SortKey {column:2,descending:false}],header:true,revision}));
+    assert!(sorted.accepted(),"{sorted:?}");
+    for (row,key,label) in [(2,2.,"Third"),(3,5.,"First"),(4,9.,"Second")] {
+        assert_eq!(book.host().model().cell(at(s,&format!("B{row}"))),Some(&number(key)));
+        assert_eq!(book.host().model().cell(at(s,&format!("A{row}"))),Some(&calc_host::interpret_entry(label).unwrap().unwrap()));
+    }
+    assert_eq!(book.host().model().definitions().tables(),tables);
+    let mut kept=Vec::new();book.save(&SavePolicy::default(),&mut kept).unwrap();
+    assert_eq!(part_text(&kept,&part),source);
+    let reopened=session(&kept);let s=reopened.host().sheets()[0].id();
+    assert_eq!(reopened.host().model().cell(at(s,"B2")),Some(&number(2.)));
+    assert_eq!(reopened.host().model().definitions().tables(),tables);
 }

@@ -576,14 +576,17 @@ fn sort_rows(
     {
         return Err(unavailable("merged cells"));
     }
-    if host
-        .model()
-        .definitions()
-        .tables()
-        .iter()
-        .any(|t| t.area.intersection(data).is_some())
-    {
-        return Err(unavailable("table rows"));
+    for table in host.model().definitions().tables().iter().filter(|t|t.area.intersection(data).is_some()) {
+        let top=table.area.first().row().checked_add(table.header_rows).ok_or_else(||unavailable("invalid table boundaries"))?;
+        let bottom=table.area.last().row().checked_sub(table.totals_rows).ok_or_else(||unavailable("invalid table boundaries"))?;
+        let complete = table.header_rows<=1 && table.totals_rows<=1 && top<=bottom
+            && data.first().row()==top && data.last().row()==bottom
+            && data.first().column()==table.area.first().column() && data.last().column()==table.area.last().column();
+        if !complete {return Err(unavailable("a partial table or its header/total cells; select the complete data body"));}
+        if table.opaque || table.axis_opaque || table.column_formulas.iter().any(Option::is_some)
+            || table.filter.as_ref().is_some_and(|f|f.unsupported||!f.columns.is_empty()||!f.filtered_rows.is_empty()) {
+            return Err(unavailable("filtered tables or unread/calculated table metadata"));
+        }
     }
     if host
         .model()
