@@ -1,0 +1,104 @@
+"""Fail-closed admission: catalogue declarations, scalar values, no request formulas."""
+import json
+import math
+from pathlib import Path
+import re
+import time
+
+from client import from_bits
+
+MAX_BYTES = 16 * 1024 * 1024
+MAX_CALLS = 20000
+ERRORS = {"#NULL!": 2000, "#DIV/0!": 2007, "#VALUE!": 2015, "#REF!": 2023,
+          "#NAME?": 2029, "#NUM!": 2036, "#N/A": 2042}
+# Positive selection of scalar computation families. Dynamic references, callable
+# helpers, pivots, host facts, external data and random functions are not exposed.
+FAMILIES = "math statistics distributions engineering rounding_more financial bonds dates text_functions logical_more".split()
+DENY = {"CALL", "REGISTER", "REGISTER.ID", "RTD", "DDE", "WEBSERVICE", "INFO", "CELL",
+        "INDIRECT", "OFFSET", "NOW", "TODAY", "RAND", "RANDBETWEEN", "RANDARRAY",
+        "LINEST", "LOGEST", "TREND", "GROWTH", "FREQUENCY", "MINVERSE", "MMULT", "MUNIT", "MODE.MULT"}
+
+
+def catalogue_names(root):
+    directory = Path(root) / "crates/calc-func/src/catalogue"
+    names = set()
+    for family in FAMILIES:
+        source = (directory / (family + ".rs")).read_text(encoding="utf-8")
+        # Only ported_family! declaration rows, never comments, test strings or kernels.
+        source = source.split("ported_family! {", 1)[-1] if "ported_family! {" in source else ""
+        names.update(re.findall(r'^\s*\d+\s+\w+\s+"([A-Z][A-Z0-9.]*)"\s+\(', source, re.M))
+    source = (directory / "aggregate.rs").read_text(encoding="utf-8")
+    names.update(re.findall(r'aggregate\(\w+, "([A-Z]+)"', source))
+    if "ERF.PRECISE" not in names or "SUM" not in names:
+        raise ValueError("Catalogue declaration format changed; review admission")
+    return names - DENY
+
+
+def decode(raw):
+    if len(raw) > MAX_BYTES:
+        raise ValueError("request exceeds 16 MiB")
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate JSON key")
+            result[key] = value
+        return result
+    return json.loads(raw, object_pairs_hook=unique,
+                      parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite JSON")))
+
+
+def validate(request, names, request_id):
+    if not isinstance(request, dict) or set(request) != {"version", "id", "function", "rows", "created", "expires"}:
+        raise ValueError("expected only version, id, function, rows, created, expires")
+    if type(request["version"]) is not int or request["version"] != 1 or request["id"] != request_id:
+        raise ValueError("request identity/version mismatch")
+    for key in ("created", "expires"):
+        if type(request[key]) not in (float, int) or not math.isfinite(request[key]):
+            raise ValueError("invalid request timestamp")
+    now = time.time()
+    if not request["created"] - 60 <= now < request["expires"] or not 0 < request["expires"] - request["created"] <= 901:
+        raise ValueError("request expired or invalid lifetime (maximum 900 seconds)")
+    name = request["function"]
+    if not isinstance(name, str) or name not in names:
+        raise ValueError("function is outside the service's safe catalogue subset")
+    rows = request["rows"]
+    if not isinstance(rows, list) or not 1 <= len(rows) <= MAX_CALLS:
+        raise ValueError("expected 1..20000 calls")
+    total = 0
+    for row in rows:
+        if not isinstance(row, list) or len(row) > 32:
+            raise ValueError("expected rows of at most 32 scalar arguments")
+        total += len(row)
+        for arg in row:
+            if not isinstance(arg, dict) or arg.get("mode", "cell") not in ("cell", "literal"):
+                raise ValueError("expected typed cell or literal argument")
+            kind = arg.get("type")
+            fields = {"type", "mode"}
+            if kind == "number":
+                fields.add("bits")
+                if arg.get("mode", "cell") != "cell" or not isinstance(arg.get("bits"), str) or not re.fullmatch("[0-9a-f]{16}", arg["bits"]) or not math.isfinite(from_bits(arg["bits"])):
+                    raise ValueError("number must be finite binary64 hex, passed through a cell")
+            elif kind == "text":
+                fields.add("value")
+                value = arg.get("value")
+                if not isinstance(value, str) or len(value) > 1024 or re.search(r'[\\/:\[\]!|\x00-\x1f]', value):
+                    raise ValueError("text contains a path, reference, URL or control character")
+            elif kind == "boolean":
+                fields.add("value")
+                if type(arg.get("value")) is not bool:
+                    raise ValueError("boolean must be true or false")
+            elif kind == "error":
+                fields.add("code")
+                if arg.get("code") not in ERRORS:
+                    raise ValueError("unsupported worksheet error")
+            elif kind == "blank":
+                if arg.get("mode", "cell") != "cell":
+                    raise ValueError("blank must be a cell")
+            else:
+                raise ValueError("unsupported argument type")
+            if set(arg) - fields:
+                raise ValueError("unexpected argument field")
+    if total > 200000:
+        raise ValueError("batch exceeds 200000 scalar arguments")
+    return request

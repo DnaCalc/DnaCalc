@@ -85,6 +85,10 @@ records this policy in its status and receipts. A different value refuses reset 
 owned process; it is never restored by assigning the baseline. Clients
 refuse an already running older host without this policy.
 
+`submit.ps1 -NoSaveBaseline` selects an unsaved blank baseline for queues that must never save
+workbooks. Use a dedicated session directory; mixing saving policies in a running host is refused.
+Unsaved workbook names are normalized in baseline comparisons because Excel increments them.
+
 Status readers permit atomic replacement while their handle is open. Metadata publication retries
 temporary Windows sharing/access errors for a bounded interval, retaining the old file and the
 complete temporary JSON until replacement succeeds. Other failures still stop the job.
