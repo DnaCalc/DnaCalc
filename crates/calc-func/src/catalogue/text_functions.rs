@@ -4,9 +4,10 @@
 //! concat_family.rs and textjoin.rs). The kernels are in [`crate::ported::text_kernels`];
 //! arguments are read by worksheet coercion ([`super::kit`]).
 //!
-//! The B functions (LENB, LEFTB, RIGHTB, MIDB, FINDB, SEARCHB, REPLACEB) count as their plain
-//! forms do under a language that is not double-byte, as OxFunc's do, except that LENB and MIDB
-//! count UTF-16 code units.
+//! LEN/MID/FIND/SEARCH/REPLACE read the workbook's CompatibilityVersion: Version 1 counts
+//! UTF-16 units and Version 2 counts valid surrogate pairs once. The B functions keep their
+//! separate policies: LENB/MIDB/FINDB/SEARCHB/REPLACEB count units, while LEFTB/RIGHTB count
+//! characters under a single-byte language.
 //!
 //! A text result longer than a cell holds is #VALUE! for REPT, and #CALC! for CONCAT,
 //! CONCATENATE and TEXTJOIN (OxFunc's rule). The casing functions (UPPER, LOWER, PROPER) read
@@ -17,6 +18,7 @@ use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
 use crate::locale::LocaleId;
 use crate::ported::text_kernels as k;
+
 use crate::value::{
     CalcValue, CoreRef, EXCEL_TEXT_MAX_UTF16_CODE_UNITS, ExcelText, WorksheetErrorCode,
 };
@@ -24,6 +26,16 @@ use crate::value::{
 /// F2's families take codes from 200 up, clear of the other lanes' families.
 const CODE: u16 = 200;
 
+/// Microsoft Compatibility Versions: LEN/MID/FIND/SEARCH/REPLACE change their counting.
+/// https://support.microsoft.com/en-gb/excel/compatibility-versions
+/// Missing legacy services retain Version 1. An explicit unsupported version is a typed refusal.
+fn count_surrogate_pairs(site: &Site<'_>) -> Step<bool> {
+    match site.environment().map_or(1, |environment| environment.compatibility_version) {
+        1 => Ok(false),
+        2 => Ok(true),
+        _ => Err(site.not_modelled(None)),
+    }
+}
 /// A text result of a casing kernel, refused when the text is not well-formed UTF-16.
 fn cased(site: &Site<'_>, a: &[CalcValue], kernel: fn(&ExcelText) -> ExcelText) -> Step<CalcValue> {
     let text = text_arg(site, a, 0)?;
@@ -67,16 +79,15 @@ fn right(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     Ok(CalcValue::text(k::take_right(&text, count)))
 }
 
-/// MID and MIDB: both count UTF-16 code units, so either can return half of a surrogate pair
-/// (dc-fl2, Excel 16.0.20527, the catalogue's sheet dcfl2_text: MID(UNICHAR(128512),1,1) is U+D83D
-/// alone and MID(UNICHAR(128512),2,1) U+DE00).
-fn mid(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
+/// Version 1 MID and every MIDB count UTF-16 units (dc-fl2 records individual surrogate halves).
+/// Version 2 MID counts each valid surrogate pair once.
+fn mid(site: &Site<'_>, a: &[CalcValue], bytes: bool) -> Step<CalcValue> {
     let text = text_arg(site, a, 0)?;
     let start = num(site, a, 1)?;
     let count = num(site, a, 2)?;
     let start = k::mid_start(start).map_err(Exit::Error)?;
     let count = k::nonnegative_count(count, false).map_err(Exit::Error)?;
-    Ok(CalcValue::text(k::take_mid(&text, start, count)))
+    Ok(CalcValue::text(k::take_mid(&text, start, count, !bytes && count_surrogate_pairs(site)?)))
 }
 
 /// The optional start of FIND and SEARCH: 1 when the call does not reach it or leaves it empty.
@@ -91,28 +102,28 @@ fn start(site: &Site<'_>, a: &[CalcValue]) -> Step<usize> {
     }
 }
 
-fn find(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
+fn find(site: &Site<'_>, a: &[CalcValue], bytes: bool) -> Step<CalcValue> {
     let needle = text_arg(site, a, 0)?;
     let hay = text_arg(site, a, 1)?;
     let start = start(site, a)?;
-    out(site, k::find(&needle, &hay, start))
+    out(site, k::find(&needle, &hay, start, !bytes && count_surrogate_pairs(site)?))
 }
 
-fn search(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
+fn search(site: &Site<'_>, a: &[CalcValue], bytes: bool) -> Step<CalcValue> {
     let needle = text_arg(site, a, 0)?;
     let hay = text_arg(site, a, 1)?;
     let start = start(site, a)?;
-    out(site, k::search(&needle, &hay, start))
+    out(site, k::search(&needle, &hay, start, !bytes && count_surrogate_pairs(site)?))
 }
 
-fn replace(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
+fn replace(site: &Site<'_>, a: &[CalcValue], bytes: bool) -> Step<CalcValue> {
     let old = text_arg(site, a, 0)?;
     let start = num(site, a, 1)?;
     let start = k::positive(start).map_err(Exit::Error)?;
     let count = num(site, a, 2)?;
     let count = k::nonnegative(count).map_err(Exit::Error)?;
     let new = text_arg(site, a, 3)?;
-    capped(k::replace(&old, start, count, &new), WorksheetErrorCode::Value)
+    capped(k::replace(&old, start, count, &new, !bytes && count_surrogate_pairs(site)?), WorksheetErrorCode::Value)
 }
 
 /// A text result, or `code` when it is longer than a cell holds.
@@ -245,15 +256,17 @@ ported_family! {
         out(s, k::unicode(&text))
     }
     5 len_fn "LEN" (1, 1) [V "text"] |s, a, sv| {
-        // UTF-16 code units, a surrogate pair counting twice (dc-fl2, Excel 16.0.20527, the
-        // catalogue's sheet dcfl2_text: LEN(UNICHAR(128512)) is 2, LEN of 16,383 of them and a
-        // lone high surrogate 32,767).
         let text = text_arg(s, a, 0)?;
-        s.number(text.len_utf16_code_units() as f64)
+        let count = if count_surrogate_pairs(s)? {
+            k::slice_character_count(&text)
+        } else {
+            text.len_utf16_code_units()
+        };
+        s.number(count as f64)
     }
     6 left_fn "LEFT" (1, 2) [V "text", V "num_chars"] |s, a, sv| { left(s, a) }
     7 right_fn "RIGHT" (1, 2) [V "text", V "num_chars"] |s, a, sv| { right(s, a) }
-    8 mid_fn "MID" (3, 3) [V "text", V "start_num", V "num_chars"] |s, a, sv| { mid(s, a) }
+    8 mid_fn "MID" (3, 3) [V "text", V "start_num", V "num_chars"] |s, a, sv| { mid(s, a, false) }
     9 lenb_fn "LENB" (1, 1) [V "text"] |s, a, sv| {
         single_byte(s)?;
         let text = text_arg(s, a, 0)?;
@@ -261,7 +274,7 @@ ported_family! {
     }
     10 leftb_fn "LEFTB" (1, 2) [V "text", V "num_bytes"] |s, a, sv| { single_byte(s)?; left(s, a) }
     11 rightb_fn "RIGHTB" (1, 2) [V "text", V "num_bytes"] |s, a, sv| { single_byte(s)?; right(s, a) }
-    12 midb_fn "MIDB" (3, 3) [V "text", V "start_num", V "num_bytes"] |s, a, sv| { single_byte(s)?; mid(s, a) }
+    12 midb_fn "MIDB" (3, 3) [V "text", V "start_num", V "num_bytes"] |s, a, sv| { single_byte(s)?; mid(s, a, true) }
     13 upper_fn "UPPER" (1, 1) [V "text"] |s, a, sv| { cased(s, a, k::upper) }
     14 lower_fn "LOWER" (1, 1) [V "text"] |s, a, sv| { cased(s, a, k::lower) }
     15 proper_fn "PROPER" (1, 1) [V "text"] |s, a, sv| { cased(s, a, k::proper) }
@@ -283,16 +296,16 @@ ported_family! {
         let right = text_arg(s, a, 1)?;
         Ok(CalcValue::logical(left.utf16_code_units() == right.utf16_code_units()))
     }
-    20 find_fn "FIND" (2, 3) [V "find_text", V "within_text", V "start_num"] |s, a, sv| { find(s, a) }
-    21 findb_fn "FINDB" (2, 3) [V "find_text", V "within_text", V "start_num"] |s, a, sv| { single_byte(s)?; find(s, a) }
-    22 search_fn "SEARCH" (2, 3) [V "find_text", V "within_text", V "start_num"] |s, a, sv| { search(s, a) }
-    23 searchb_fn "SEARCHB" (2, 3) [V "find_text", V "within_text", V "start_num"] |s, a, sv| { single_byte(s)?; search(s, a) }
+    20 find_fn "FIND" (2, 3) [V "find_text", V "within_text", V "start_num"] |s, a, sv| { find(s, a, false) }
+    21 findb_fn "FINDB" (2, 3) [V "find_text", V "within_text", V "start_num"] |s, a, sv| { single_byte(s)?; find(s, a, true) }
+    22 search_fn "SEARCH" (2, 3) [V "find_text", V "within_text", V "start_num"] |s, a, sv| { search(s, a, false) }
+    23 searchb_fn "SEARCHB" (2, 3) [V "find_text", V "within_text", V "start_num"] |s, a, sv| { single_byte(s)?; search(s, a, true) }
     24 replace_fn "REPLACE" (4, 4) [V "old_text", V "start_num", V "num_chars", V "new_text"] |s, a, sv| {
-        replace(s, a)
+        replace(s, a, false)
     }
     25 replaceb_fn "REPLACEB" (4, 4) [V "old_text", V "start_num", V "num_bytes", V "new_text"] |s, a, sv| {
         single_byte(s)?;
-        replace(s, a)
+        replace(s, a, true)
     }
     26 substitute_fn "SUBSTITUTE" (3, 4) [V "text", V "old_text", V "new_text", V "instance_num"] |s, a, sv| {
         let text = text_arg(s, a, 0)?;

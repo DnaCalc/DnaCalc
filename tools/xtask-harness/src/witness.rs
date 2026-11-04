@@ -22,8 +22,8 @@
 //! Every row runs through `calc_func::invoke` under the application's numeric mode (Fast), in a
 //! workbook environment with the captured date system and explicit complete locale when present
 //! (historical date default: 1900). Scalar cell transport restores reference origin; unknown
-//! positions are refused, and matrix-delegate layouts are not reconstructed. CompatibilityVersion
-//! is retained but model application remains dc-ejvk.2. Each result is classed with calc-verdict's [`Severity`] (OxFunc's ODR-FN-005). A refusal or a function the
+//! positions are refused, and matrix-delegate layouts are not reconstructed. The caller applies
+//! recorded CompatibilityVersion alongside those facts. Each result is classed with calc-verdict's [`Severity`] (OxFunc's ODR-FN-005). A refusal or a function the
 //! catalogue does not hold is a structural miss: refused counts as failed. The command rewrites
 //! the rows of the bank it judged in `crates/calc-func/witness-status.tsv` (function, bank, Excel
 //! builds, rows, matched, worst ULP, class, calc-func commit). `--bank full` also compares each
@@ -1764,8 +1764,8 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
         println!("xtask witness: {unread_files} bank files could not be decoded; their row counts are unknown and are additional to the counted failures");
     }
     if request.values_only { println!("xtask witness: diagnostic values-only invocation; source context remains in identities and trace"); }
-    if banks.sources.iter().any(|s| s.env.invocation.as_ref().is_some_and(|c| c.compatibility_version.is_some())) {
-        println!("xtask witness: CompatibilityVersion is retained in source identity; model application remains dc-ejvk.2");
+    if !request.values_only && banks.sources.iter().any(|s| s.env.invocation.as_ref().is_some_and(|c| c.compatibility_version.is_some())) {
+        println!("xtask witness: CompatibilityVersion is retained in source identity and applied by the context-aware caller");
     }
     let (mut grouped, differences) = group(&banks);
     for function in banks.unread_rows.keys() {

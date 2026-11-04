@@ -152,6 +152,7 @@ fn entry_value(session: &Session, kind: &str, entry: &str) -> Result<InputValue,
 /// refuses them).
 fn environment(locale: &str) -> CalcEnvironment {
     CalcEnvironment {
+        compatibility_version: 1,
         date_system: DateSystem::System1900,
         profile: FormatProfile::for_culture(locale),
         now: clock(),

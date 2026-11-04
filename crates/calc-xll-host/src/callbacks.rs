@@ -879,6 +879,7 @@ pub(crate) fn coerce(value: CalcValue, kind: u32) -> Result<CalcValue, (i32, Str
     match (value.core_ref(), kind) {
         (CoreRef::Text(t), XL_NUM | XL_INT) => {
             let environment = calc_func::locale::CalcEnvironment {
+                compatibility_version: 1,
                 date_system: calc_func::locale::DateSystem::System1900,
                 profile: calc_func::locale::FormatProfile::for_culture("en-US"),
                 now: None,
