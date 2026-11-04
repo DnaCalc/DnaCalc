@@ -1428,6 +1428,7 @@ impl Server {
                 };
                 SkinIntent::Command(if let Some(part)=table{calc_host::WorkbookCommand::TableFilter{sheet:sheet.id(),revision,part,change}}else{calc_host::WorkbookCommand::AutoFilter{sheet:sheet.id(),revision,change}})
             },
+            Intent::SortRowsWithOptions{area:a,keys,header,revision,case_sensitive,custom_order}=>SkinIntent::Command(calc_host::WorkbookCommand::SortRowsWithOptions{area:area(a)?,keys:keys.into_iter().map(|(column,descending)|calc_host::SortKey{column,descending}).collect(),header,revision,options:calc_host::SortOptions{case_sensitive,custom_order}}),
             Intent::SortRows {area:a,keys,header,revision} => SkinIntent::Command(calc_host::WorkbookCommand::SortRows {area:area(a)?,keys:keys.into_iter().map(|(column,descending)|calc_host::SortKey{column,descending}).collect(),header,revision}),
             Intent::Replace {
                 options,

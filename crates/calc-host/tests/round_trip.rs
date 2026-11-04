@@ -14975,3 +14975,108 @@ fn dc_bctq__template_parts_rules_rich_text_links_tables_and_notes_survive_insert
     let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let rs=reopened.host().sheets()[1].id();let loaded=reopened.host().loaded().sheet(rs).unwrap();let part=part_text(&saved,loaded.part().name());
     assert!(part.contains("<b/>")&&part.contains("Rich "));assert!(part.contains("location=\"Sheet2!A1\""),"{part}");assert!(part.contains("Sheet2!A1&gt;0"),"{part}");assert_eq!(reopened.host().model().definitions().review_notes(rs)[0].text,"Retained note");assert!(reopened.host().validation(at(rs,"A1")).is_some());
 }
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__case_sensitive_ascii_uses_lowercase_first_and_restores_rows() {
+    use calc_host::{WorkbookCommand as W,SortOptions,SortKey};
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    for (row,text) in [(1,"Key"),(2,"AB"),(3,"ab"),(4,"Ab"),(5,"aB")] {enter(&mut book,at_(s,&format!("A{row}")),text);}
+    for row in 2..=6 {enter(&mut book,at_(s,&format!("B{row}")),&(row-1).to_string());enter(&mut book,at_(s,&format!("C{row}")),&format!("=B{row}*10"));}
+    let sort=|book:&mut HostSession,descending|book.dispatch(SkinIntent::Command(W::SortRowsWithOptions{area:GridArea::new(at(s,"A1"),at(s,"C6")).unwrap(),keys:vec![SortKey{column:1,descending}],header:true,revision:book.host().revision().get(),options:SortOptions{case_sensitive:true,custom_order:Vec::new()}}));
+    let depth=book.history_depth();let receipt=sort(&mut book,false);assert!(receipt.accepted(),"{receipt:?}");assert_eq!(book.history_depth().0,depth.0+1);
+    for (row,text,score) in [(2,"ab",2.),(3,"aB",4.),(4,"Ab",3.),(5,"AB",1.)] {assert_eq!(book.host().model().cell(at_(s,&format!("A{row}"))),Some(&calc_host::interpret_entry(text).unwrap().unwrap()));assert_eq!(calculated(book.host(),at_(s,&format!("C{row}"))),Some(CalcValue::number(score*10.)));}
+    assert!(book.host().model().cell(at(s,"A6")).is_none());assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().model().cell(at(s,"A2")),Some(&calc_host::interpret_entry("AB").unwrap().unwrap()));assert!(book.dispatch(SkinIntent::Redo).accepted());assert!(sort(&mut book,true).accepted());assert_eq!(book.host().model().cell(at(s,"A2")),Some(&calc_host::interpret_entry("AB").unwrap().unwrap()));assert_eq!(book.host().model().cell(at(s,"A5")),Some(&calc_host::interpret_entry("ab").unwrap().unwrap()));
+    enter(&mut book,at(s,"A2"),"café");let revision=book.host().revision();let depth=book.history_depth();assert!(!sort(&mut book,false).accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);
+    for (row,text)in [(2,"aZ"),(3,"Aa"),(4,"ab"),(5,"aB")] {enter(&mut book,at_(s,&format!("A{row}")),text);}
+    assert!(sort(&mut book,false).accepted());
+    for (row,text)in [(2,"ab"),(3,"aB"),(4,"aZ"),(5,"Aa")] {assert_eq!(book.host().model().cell(at_(s,&format!("A{row}"))),Some(&calc_host::interpret_entry(text).unwrap().unwrap()));}
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__custom_lists_use_exact_matches_secondary_keys_and_atomic_refusals() {
+    use calc_host::{WorkbookCommand as W,SortOptions,SortKey};
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    for (row,text) in [(1,"Priority"),(2,"Low"),(3,"High"),(4,"Medium"),(5,"HIGH")] {enter(&mut book,at_(s,&format!("A{row}")),text);}
+    for row in 2..=5 {enter(&mut book,at_(s,&format!("B{row}")),&(row-1).to_string());enter(&mut book,at_(s,&format!("C{row}")),&format!("=B{row}*10"));}
+    let sort=|book:&mut HostSession,custom_order:Vec<String>,descending|book.dispatch(SkinIntent::Command(W::SortRowsWithOptions{area:GridArea::new(at(s,"A1"),at(s,"C5")).unwrap(),keys:vec![SortKey{column:1,descending},SortKey{column:2,descending:true}],header:true,revision:book.host().revision().get(),options:SortOptions{case_sensitive:false,custom_order}}));
+    let list=||["High","Medium","Low"].map(str::to_owned).to_vec();let receipt=sort(&mut book,list(),false);assert!(receipt.accepted(),"{receipt:?}");
+    for (row,expected)in [(2,40.),(3,20.),(4,30.),(5,10.)]{assert_eq!(calculated(book.host(),at_(s,&format!("C{row}"))),Some(CalcValue::number(expected)));}
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(book.dispatch(SkinIntent::Redo).accepted());let revision=book.host().revision();let depth=book.history_depth();
+    for (list,reverse) in [(vec!["High".into(),"Low".into()],false),(vec!["High".into(),"HIGH".into(),"Low".into(),"Medium".into()],false),(list(),true)] {let refusal=sort(&mut book,list,reverse);assert!(!refusal.accepted(),"{refusal:?}");assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);}
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);reopened.dispatch(SkinIntent::Recalculate);let r=reopened.host().sheets()[0].id();assert_eq!(calculated(reopened.host(),at(r,"C2")),Some(CalcValue::number(40.)));
+    // XMATCH mode zero treats wildcard characters literally.
+    enter(&mut book,at(s,"A2"),"a*");enter(&mut book,at(s,"A3"),"a?");enter(&mut book,at(s,"A4"),"a?");enter(&mut book,at(s,"A5"),"a*");assert!(sort(&mut book,vec!["a?".into(),"a*".into()],false).accepted());assert_eq!(book.host().model().cell(at(s,"A2")),Some(&calc_host::interpret_entry("a?").unwrap().unwrap()));
+    for row in 2..=5{enter(&mut book,at_(s,&format!("A{row}")),"High");}
+    let receipt=sort(&mut book,vec!["High".into()],false);assert!(receipt.accepted(),"{receipt:?}");
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__case_sort_keeps_digits_prefixes_z_and_value_kinds_in_order() {
+    use calc_host::{WorkbookCommand as W,SortOptions,SortKey};
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    for(row,text)in[(1,"Key"),(2,"Z"),(3,"z"),(4,"Z0"),(5,"z0"),(6,"'0"),(7,"'00"),(8,"-1"),(9,"=TRUE()"),(10,"=NA()")] {enter(&mut book,at_(s,&format!("A{row}")),text);}
+    for row in 2..=11{enter(&mut book,at_(s,&format!("B{row}")),&row.to_string());}
+    let receipt=book.dispatch(SkinIntent::Command(W::SortRowsWithOptions{area:GridArea::new(at(s,"A1"),at(s,"B11")).unwrap(),keys:vec![SortKey{column:1,descending:false}],header:true,revision:book.host().revision().get(),options:SortOptions{case_sensitive:true,custom_order:Vec::new()}}));assert!(receipt.accepted(),"{receipt:?}");
+    for(index,source)in[8,6,7,3,5,2,4,9,10,11].into_iter().enumerate(){assert_eq!(book.host().model().cell(at_(s,&format!("B{}",index+2))),Some(&calc_host::interpret_entry(&source.to_string()).unwrap().unwrap()));}
+    assert!(book.host().model().cell(at(s,"A11")).is_none());
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__pointwise_conditional_formats_follow_rows_priorities_and_history(){
+    use calc_host::{WorkbookCommand as W,ConditionalChange as C,LookColor};
+    let blank=calc_host::blank_package();let mut book=session(&blank);let s=book.host().sheets()[0].id();
+    for(address,text)in[("A1","Key"),("B1","Amount"),("A2","3"),("B2","30"),("C2","=B2"),("A3","1"),("B3","10"),("C3","=B3"),("A4","2"),("B4","20"),("C4","=B4"),("B5","40")]{enter(&mut book,at(s,address),text);}
+    for(kind,applies,formula,color,stop)in[("expression","B2","$B2>0","#ff0000",true),("cellIs","B2:B5","15","#0000ff",false)]{
+        let revision=book.host().revision().get();let receipt=book.dispatch(SkinIntent::Command(W::Conditional{sheet:s,revision,index:None,change:C::Condition{kind:kind.into(),applies:applies.into(),color:color.into(),formulas:vec![formula.into()],operator:"greaterThan".into(),rank:1,percent:false,stop}}));assert!(receipt.accepted(),"{receipt:?}");
+    }
+    let before=book.host().model().definitions().conditional_rules(s).to_vec();let depth=book.history_depth();
+    let receipt=book.dispatch(SkinIntent::Command(W::SortRows{area:GridArea::new(at(s,"A1"),at(s,"C4")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:true,revision:book.host().revision().get()}));assert!(receipt.accepted(),"{receipt:?}");assert_eq!(book.history_depth().0,depth.0+1);
+    let check=|host:&calc_host::HostState|{let s=host.sheets()[0].id();let cf=host.conditional_formats(s);let fill=|address|cf.look(host,at(s,address)).and_then(|l|l.fill);assert_eq!(fill("B2"),None);assert_eq!(fill("B3"),Some(LookColor::Rgb("#0000ff".into())));assert_eq!(fill("B4"),Some(LookColor::Rgb("#ff0000".into())));assert_eq!(fill("B5"),Some(LookColor::Rgb("#0000ff".into())));assert_eq!(calculated(host,at(s,"C2")),Some(CalcValue::number(10.)));assert_eq!(cf.refused(),0);};
+    check(book.host());let rules=book.host().model().definitions().conditional_rules(s);assert_eq!(rules.len(),5);assert_eq!(rules[0].formulas,["$B4>0"]);assert!(rules[0].stop);assert_eq!(rules.iter().map(|r|r.priority).collect::<Vec<_>>(),vec![1,2,3,4,5]);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().model().definitions().conditional_rules(s),before);assert!(book.dispatch(SkinIntent::Redo).accepted());check(book.host());
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);reopened.dispatch(SkinIntent::Recalculate);check(reopened.host());assert!(reopened.host().model().definitions().conditional_rules(reopened.host().sheets()[0].id()).iter().find(|r|r.priority==1).unwrap().stop);let mut replayed=session(&blank);assert!(replay(book.intent_log(),&mut replayed).mismatches.is_empty());check(replayed.host());
+    assert!(book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Insert,1,1).unwrap())).accepted());let revision=book.host().revision();let depth=book.history_depth();
+    let refused=book.dispatch(SkinIntent::Command(W::SortRows{area:GridArea::new(at(s,"A2"),at(s,"C5")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:true,revision:revision.get()}));assert!(!refused.accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__conditional_sort_refuses_lossy_rebasing_unbound_references_and_invalid_rules(){
+    for source in [
+        r#"<conditionalFormatting sqref="C3 A1 C5"><cfRule type="expression" priority="1"><formula>A1</formula></cfRule></conditionalFormatting>"#,
+        r#"<conditionalFormatting sqref="C3:C4"><cfRule type="cellIs" operator="sideways" priority="1"><formula>1</formula></cfRule></conditionalFormatting>"#,
+        r#"<conditionalFormatting sqref="C3:C4"><cfRule type="cellIs" operator="between" priority="1"><formula>1</formula></cfRule></conditionalFormatting>"#,
+        r#"<conditionalFormatting sqref="C3:C4"><cfRule type="expression" priority="1"><formula>$XFE$1&gt;0</formula></cfRule></conditionalFormatting>"#,
+        r#"<conditionalFormatting sqref="C3:C4"><cfRule type="top10" rank="1" priority="1"/></conditionalFormatting>"#,
+    ]{
+        let bytes=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",&format!("{source}</worksheet>")));let mut book=session(&bytes);let s=book.host().sheets()[0].id();
+        for(address,text)in[("B3","2"),("C3","30"),("B4","1"),("C4","10"),("A1","1"),("A3","1")]{enter(&mut book,at(s,address),text);}
+        let revision=book.host().revision();let depth=book.history_depth();let rules=book.host().model().definitions().conditional_rules(s).to_vec();let receipt=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::SortRows{area:GridArea::new(at(s,"B3"),at(s,"C4")).unwrap(),keys:vec![calc_host::SortKey{column:2,descending:false}],header:false,revision:revision.get()}));assert!(!receipt.accepted(),"{source}: {receipt:?}");assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);assert_eq!(book.host().model().definitions().conditional_rules(s),rules);assert_eq!(book.host().model().cell(at(s,"C3")),Some(&calc_host::interpret_entry("30").unwrap().unwrap()));
+    }
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__partial_column_sort_retains_outside_conditional_origins(){
+    use calc_host::{WorkbookCommand as W,ConditionalChange as C,LookColor};
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    for(address,text)in[("A1","Key"),("A2","2"),("B2","20"),("C2","100"),("A3","1"),("B3","-10"),("C3","-100")]{enter(&mut book,at(s,address),text);}
+    let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::Conditional{sheet:s,revision,index:None,change:C::Condition{kind:"expression".into(),applies:"B2:C3".into(),color:"#123456".into(),formulas:vec!["B2>0".into()],operator:"".into(),rank:1,percent:false,stop:false}})).accepted());
+    let revision=book.host().revision().get();let receipt=book.dispatch(SkinIntent::Command(W::SortRows{area:GridArea::new(at(s,"A1"),at(s,"B3")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:true,revision}));assert!(receipt.accepted(),"{receipt:?}");
+    let cf=book.host().conditional_formats(s);for(address,colored)in[("B2",false),("B3",true),("C2",true),("C3",false)]{assert_eq!(cf.look(book.host(),at(s,address)).and_then(|l|l.fill),colored.then(||LookColor::Rgb("#123456".into())),"{address}");}
+    let rules=book.host().model().definitions().conditional_rules(s);assert_eq!(rules.len(),3);assert_eq!(rules[0].formulas,["C2>0"]);
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__conditional_rule_fragment_limit_refuses_before_row_changes(){
+    let rules=(1..=513).map(|p|format!("<cfRule type=\"expression\" priority=\"{p}\"><formula>1=1</formula></cfRule>")).collect::<String>();
+    let bytes=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",&format!("<conditionalFormatting sqref=\"B2:B3\">{rules}</conditionalFormatting></worksheet>")));let mut book=session(&bytes);let s=book.host().sheets()[0].id();
+    for(address,text)in[("A1","Key"),("A2","2"),("B2","20"),("A3","1"),("B3","10")]{enter(&mut book,at(s,address),text);}
+    let revision=book.host().revision();let depth=book.history_depth();let before=book.host().model().definitions().conditional_rules(s).to_vec();assert_eq!(before.len(),513);
+    let receipt=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::SortRows{area:GridArea::new(at(s,"A1"),at(s,"B3")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:true,revision:revision.get()}));assert!(!receipt.accepted(),"{receipt:?}");assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);assert_eq!(book.host().model().definitions().conditional_rules(s),before);assert_eq!(book.host().model().cell(at(s,"B2")),Some(&calc_host::interpret_entry("20").unwrap().unwrap()));
+}
