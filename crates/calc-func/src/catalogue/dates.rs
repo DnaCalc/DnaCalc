@@ -170,7 +170,8 @@ fn holidays(
 
 fn workday(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, intl: bool) -> Step<CalcValue> {
     reject_logical(&a[0])?;
-    let start = to_1900(system(site)?, present_num(site, a, 0)?);
+    let start = super::kit::checked_date_serial(to_1900(system(site)?, present_num(site, a, 0)?))?;
+    reject_logical(&a[1])?;
     let days = present_num(site, a, 1)?;
     let (mask, list) = if intl {
         (weekend(site, a, 2, true)?, 3)
@@ -187,15 +188,17 @@ fn networkdays(
     sv: &mut EvalServices<'_>,
     intl: bool,
 ) -> Step<CalcValue> {
-    reject_logical(&a[0])?;
-    let system = system(site)?;
-    let start = to_1900(system, present_num(site, a, 0)?);
-    let end = to_1900(system, present_num(site, a, 1)?);
+    // NETWORKDAYS.INTL decodes its weekend before reading either date.
     let (mask, list) = if intl {
         (weekend(site, a, 2, false)?, 3)
     } else {
         (WeekendMask::saturday_sunday(), 2)
     };
+    reject_logical(&a[0])?;
+    let system = system(site)?;
+    let start = super::kit::checked_date_serial(to_1900(system, present_num(site, a, 0)?))?;
+    reject_logical(&a[1])?;
+    let end = super::kit::checked_date_serial(to_1900(system, present_num(site, a, 1)?))?;
     let holidays = holidays(site, a, list, sv)?;
     out(site, k::networkdays(start, end, mask, &holidays))
 }
@@ -327,9 +330,10 @@ ported_family! {
     }
     23 yearfrac_fn "YEARFRAC" (2, 3) [V "start_date", V "end_date", V "basis"] |s, a, sv| {
         reject_logical(&a[0])?;
-        let start = date_arg(s, a, 0)?;
-        let end = date_arg(s, a, 1)?;
-        let basis = if a.len() > 2 && !a[2].is_missing() { num(s, a, 2)? } else { 0.0 };
+        let start = super::kit::checked_date_serial(date_arg(s, a, 0)?)?;
+        reject_logical(&a[1])?;
+        let end = super::kit::checked_date_serial(date_arg(s, a, 1)?)?;
+        let basis = if a.len() > 2 && !a[2].is_missing() { super::kit::num_without_logical(s, a, 2)? } else { 0.0 };
         out(s, k::yearfrac(start, end, basis))
     }
     24 now_fn "NOW" (0, 0) [] |s, a, sv| {

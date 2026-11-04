@@ -307,7 +307,7 @@ ported_family! {
     90 erf "ERF" (1, 2) [V "lower_limit", V "upper_limit"] |s, a, sv| {
         reject_logical(&a[0])?;
         let lower = num(s, a, 0)?;
-        let upper = if a.len() > 1 { Some(num(s, a, 1)?) } else { None };
+        let upper = if a.len() > 1 { Some(super::kit::num_without_logical(s, a, 1)?) } else { None };
         out(s, sd::erf_kernel(lower, upper))
     }
     91 erf_precise "ERF.PRECISE" (1, 1) [V "x"] |s, a, sv| {

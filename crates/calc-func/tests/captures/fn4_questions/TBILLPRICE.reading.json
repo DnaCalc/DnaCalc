@@ -1,0 +1,268 @@
+{
+  "function": "TBILLPRICE",
+  "witnesses": [
+    {
+      "id": "fn7-TBILLPRICE-later-logical-order-1",
+      "args": [
+        "0x4000000000000000",
+        "TRUE",
+        "0x3fb999999999999a"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-TBILLPRICE-later-logical-order-2",
+      "args": [
+        "0x4000000000000000",
+        "0x4014000000000000",
+        "TRUE"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-TBILLPRICE-later-logical-order-3",
+      "args": [
+        "0x4000000000000000",
+        "0x4014000000000000",
+        "FALSE"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-TBILLPRICE-later-logical-order-4",
+      "args": [
+        "0xbff0000000000000",
+        "TRUE",
+        "0x3fb999999999999a"
+      ],
+      "expected_bits": "error:Num"
+    }
+  ],
+  "service_questions": [
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "3fb999999999999a"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": false,
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "bff0000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "3fb999999999999a"
+      }
+    ]
+  ],
+  "service_response": [
+    {
+      "cohort": "later-logical-order",
+      "response": {
+        "version": 1,
+        "id": "69a490bbca88415a856f349d8893536b",
+        "ok": true,
+        "rows": [
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          }
+        ],
+        "inputs": [
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": false
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "bff0000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            }
+          ]
+        ],
+        "excel_version": "16.0",
+        "excel_build": "20527",
+        "excel_file_version": "16.0.20527.20088",
+        "excel_pid": 48560,
+        "automation_security_before": 1,
+        "automation_security_after": 1,
+        "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261104T1705470940522-23b3307c8a2b4245a2e3d091097541c6\\receipt.json",
+        "session_receipt_sha256": "17091f9098346fe0ac414c5a0250cae185df807818202b081ac627d6316f2f82",
+        "machine": "GOVERT-OMEN",
+        "timestamp": "2026-11-04T17:05:50.646095+00:00",
+        "service_seconds": 4.344000000040978,
+        "request_sha256": "1c5fb8b73d3ea44dc703a1e20f386fee79e1611ea9425cde59f62c7b9d21f9d1",
+        "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\69a490bbca88415a856f349d8893536b"
+      },
+      "questions": [
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": false,
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "bff0000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          }
+        ]
+      ]
+    }
+  ],
+  "retained_wrapper_sha256": {
+    "live-tbillprice-later-logical-order.json": "616e39a328ab018f88ac53eb4061094ec215580ae137949bcf9dc3c55f401a83"
+  },
+  "unselected_questions": []
+}

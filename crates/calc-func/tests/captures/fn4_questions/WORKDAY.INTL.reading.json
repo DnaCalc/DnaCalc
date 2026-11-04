@@ -1,0 +1,1259 @@
+{
+  "function": "WORKDAY.INTL",
+  "witnesses": [
+    {
+      "id": "fn7-WORKDAY.INTL-admission-order-1",
+      "args": [
+        "0xbff0000000000000",
+        "error:Ref",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-WORKDAY.INTL-admission-order-2",
+      "args": [
+        "0xbfe0000000000000",
+        "TRUE",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-WORKDAY.INTL-admission-order-3",
+      "args": [
+        "0xbff0000000000000",
+        "0x4014000000000000",
+        "1111111"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-WORKDAY.INTL-admission-order-4",
+      "args": [
+        "0xbff0000000000000",
+        "0x4014000000000000",
+        "error:Ref"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-WORKDAY.INTL-admission-order-5",
+      "args": [
+        "0x4000000000000000",
+        "TRUE",
+        "error:Ref"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-WORKDAY.INTL-admission-order-6",
+      "args": [
+        "0x4000000000000000",
+        "0x4014000000000000",
+        "error:Ref"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-WORKDAY.INTL-admission-order-7",
+      "args": [
+        "0x4000000000000000",
+        "0x4014000000000000",
+        "1111111"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-WORKDAY.INTL-admission-order-8",
+      "args": [
+        "0x4000000000000000",
+        "FALSE",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-WORKDAY.INTL-weekend-first-order-1",
+      "args": [
+        "error:Ref",
+        "0x4014000000000000",
+        "error:Num"
+      ],
+      "expected_bits": "error:Ref"
+    },
+    {
+      "id": "fn7-WORKDAY.INTL-weekend-first-order-2",
+      "args": [
+        "error:Ref",
+        "0x4014000000000000",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Ref"
+    },
+    {
+      "id": "fn7-WORKDAY.INTL-weekend-first-order-3",
+      "args": [
+        "error:Ref",
+        "0x4014000000000000",
+        "x"
+      ],
+      "expected_bits": "error:Ref"
+    },
+    {
+      "id": "fn7-WORKDAY.INTL-weekend-first-order-4",
+      "args": [
+        "0xbff0000000000000",
+        "0x4014000000000000",
+        "x"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-WORKDAY.INTL-weekend-first-order-5",
+      "args": [
+        "TRUE",
+        "0x4014000000000000",
+        "error:Num"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-WORKDAY.INTL-weekend-first-order-6",
+      "args": [
+        "0x4000000000000000",
+        "error:Ref",
+        "error:Num"
+      ],
+      "expected_bits": "error:Ref"
+    },
+    {
+      "id": "fn7-WORKDAY.INTL-weekend-first-order-7",
+      "args": [
+        "0x4000000000000000",
+        "error:Ref",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Ref"
+    },
+    {
+      "id": "fn7-WORKDAY.INTL-weekend-first-order-8",
+      "args": [
+        "error:Ref",
+        "0x4014000000000000",
+        "1111111"
+      ],
+      "expected_bits": "error:Ref"
+    },
+    {
+      "id": "fn7-WORKDAY.INTL-weekend-admission-holdout-1",
+      "args": [
+        "TRUE",
+        "0x4014000000000000",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-WORKDAY.INTL-weekend-admission-holdout-2",
+      "args": [
+        "x",
+        "0x4014000000000000",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-WORKDAY.INTL-weekend-admission-holdout-3",
+      "args": [
+        "0x4000000000000000",
+        "TRUE",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-WORKDAY.INTL-weekend-admission-holdout-4",
+      "args": [
+        "error:NA",
+        "0x4014000000000000",
+        "1111111"
+      ],
+      "expected_bits": "error:NA"
+    }
+  ],
+  "service_questions": [
+    [
+      {
+        "type": "number",
+        "bits": "bff0000000000000"
+      },
+      {
+        "type": "error",
+        "code": "#REF!"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "bfe0000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "bff0000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "text",
+        "value": "1111111",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "bff0000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "error",
+        "code": "#REF!"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "error",
+        "code": "#REF!"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "error",
+        "code": "#REF!"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "text",
+        "value": "1111111",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": false,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "error",
+        "code": "#REF!"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "error",
+        "code": "#NUM!"
+      }
+    ],
+    [
+      {
+        "type": "error",
+        "code": "#REF!"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "error",
+        "code": "#REF!"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "bff0000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "error",
+        "code": "#NUM!"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "error",
+        "code": "#REF!"
+      },
+      {
+        "type": "error",
+        "code": "#NUM!"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "error",
+        "code": "#REF!"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "error",
+        "code": "#REF!"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "text",
+        "value": "1111111",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "text",
+        "value": "1111111",
+        "mode": "literal"
+      }
+    ]
+  ],
+  "service_response": [
+    {
+      "cohort": "admission-order",
+      "response": {
+        "version": 1,
+        "id": "b952e7deca3b4aeb832e7d0d3cca691c",
+        "ok": true,
+        "rows": [
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          }
+        ],
+        "inputs": [
+          [
+            {
+              "type": "number",
+              "bits": "bff0000000000000"
+            },
+            {
+              "type": "error",
+              "code": "#REF!"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "bfe0000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "bff0000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "text",
+              "value": "1111111"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "bff0000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "error",
+              "code": "#REF!"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "error",
+              "code": "#REF!"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "error",
+              "code": "#REF!"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "text",
+              "value": "1111111"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": false
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ]
+        ],
+        "excel_version": "16.0",
+        "excel_build": "20527",
+        "excel_file_version": "16.0.20527.20088",
+        "excel_pid": 31600,
+        "automation_security_before": 1,
+        "automation_security_after": 1,
+        "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261104T1718515032224-3f3828a629054f8abffcbd5a47103d50\\receipt.json",
+        "session_receipt_sha256": "afd4b029d93f9eaf9ae5c4768570852902c215ed94c70f614e4fa00d63a75f4e",
+        "machine": "GOVERT-OMEN",
+        "timestamp": "2026-11-04T17:18:54.687664+00:00",
+        "service_seconds": 4.016000000061467,
+        "request_sha256": "16b4c128580e75678ef98d8fed3aaee6a91ead4f3f4122980d71ab9a62f8a12b",
+        "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\b952e7deca3b4aeb832e7d0d3cca691c"
+      },
+      "questions": [
+        [
+          {
+            "type": "number",
+            "bits": "bff0000000000000"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "bfe0000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "bff0000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "text",
+            "value": "1111111",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "bff0000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "text",
+            "value": "1111111",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": false,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ]
+      ]
+    },
+    {
+      "cohort": "weekend-first-order",
+      "response": {
+        "version": 1,
+        "id": "ee5e84d7772f4e44abf25d693d956c61",
+        "ok": true,
+        "rows": [
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          }
+        ],
+        "inputs": [
+          [
+            {
+              "type": "error",
+              "code": "#REF!"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "error",
+              "code": "#NUM!"
+            }
+          ],
+          [
+            {
+              "type": "error",
+              "code": "#REF!"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "error",
+              "code": "#REF!"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "text",
+              "value": "x"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "bff0000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "text",
+              "value": "x"
+            }
+          ],
+          [
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "error",
+              "code": "#NUM!"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "error",
+              "code": "#REF!"
+            },
+            {
+              "type": "error",
+              "code": "#NUM!"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "error",
+              "code": "#REF!"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "error",
+              "code": "#REF!"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "text",
+              "value": "1111111"
+            }
+          ]
+        ],
+        "excel_version": "16.0",
+        "excel_build": "20527",
+        "excel_file_version": "16.0.20527.20088",
+        "excel_pid": 20200,
+        "automation_security_before": 1,
+        "automation_security_after": 1,
+        "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261104T1721255479780-9ff19f56b3b949bf8e59b7b4fa5efcb8\\receipt.json",
+        "session_receipt_sha256": "c6294d11a2793c9097a2eda94e5390df67f3e00b8961b83165651fcb45ed481b",
+        "machine": "GOVERT-OMEN",
+        "timestamp": "2026-11-04T17:21:28.471781+00:00",
+        "service_seconds": 3.6879999998491257,
+        "request_sha256": "ffb9c4aaad988e9af0cafbc81c195926ae2048cbb14d16ed3e5e855d66b6bdba",
+        "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\ee5e84d7772f4e44abf25d693d956c61"
+      },
+      "questions": [
+        [
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          }
+        ],
+        [
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "text",
+            "value": "x",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "bff0000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "text",
+            "value": "x",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "text",
+            "value": "1111111",
+            "mode": "literal"
+          }
+        ]
+      ]
+    },
+    {
+      "cohort": "weekend-admission-holdout",
+      "response": {
+        "version": 1,
+        "id": "9cac85dabd4f45e9b8764001c87c43ef",
+        "ok": true,
+        "rows": [
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#N/A"
+          },
+          {
+            "type": "number",
+            "bits": "4022000000000000"
+          }
+        ],
+        "inputs": [
+          [
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "text",
+              "value": "x"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "error",
+              "code": "#N/A"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "text",
+              "value": "1111111"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ]
+        ],
+        "excel_version": "16.0",
+        "excel_build": "20527",
+        "excel_file_version": "16.0.20527.20088",
+        "excel_pid": 20200,
+        "automation_security_before": 1,
+        "automation_security_after": 1,
+        "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261104T1722195855164-38293ace44df455995eed3150abfaf94\\receipt.json",
+        "session_receipt_sha256": "d5874f8dbbbe73be7b24b56d7999e6fff4d6c999e9edac5f9da170c1060451fc",
+        "machine": "GOVERT-OMEN",
+        "timestamp": "2026-11-04T17:22:22.363805+00:00",
+        "service_seconds": 3.8910000000614673,
+        "request_sha256": "82842212e064066b9b1e03fe9dbd88b0e1a6687e1bda757abb9eb027bfad0905",
+        "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\9cac85dabd4f45e9b8764001c87c43ef"
+      },
+      "questions": [
+        [
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "text",
+            "value": "x",
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "error",
+            "code": "#N/A"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "text",
+            "value": "1111111",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ]
+      ]
+    }
+  ],
+  "retained_wrapper_sha256": {
+    "live-workday.intl-admission-order.json": "d5d57be859fb1cd17a64bd478606210fbb4587c89a0f15619a407b17e435df0c",
+    "live-workday.intl-weekend-first-order.json": "4c82a6247ba3739d470039c0d669b74882674938d048362289dff2114e0854b5",
+    "live-workday.intl-weekend-admission-holdout.json": "a8e78b8915f9020b5e0e83024c804393b8ec5aafccedfe8ff98b3b8fdafc3586"
+  },
+  "unselected_questions": [
+    {
+      "id": "fn7-WORKDAY.INTL-weekend-admission-holdout-5",
+      "reason": "Numeric algorithm or separate calendar-zero control retained in full response, not credited by this argument-admission change."
+    }
+  ]
+}
