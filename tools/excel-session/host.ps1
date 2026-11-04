@@ -136,7 +136,7 @@ function Reset-Baseline {
     $a.CutCopyMode = 0
     while ($a.Workbooks.Count -gt 0) { $a.Workbooks.Item(1).Close($false) }
     # Excel returns CVErr for calculation properties with no books. Record a real blank book.
-    $sentinel = $a.Workbooks.Add()
+    $sentinel = if ($NoSaveBaseline) { $a.Workbooks.Add(-4167) } else { $a.Workbooks.Add() }
     $a.Calculation = -4135
     $a.Iteration = $false
     $a.MaxIterations = 100

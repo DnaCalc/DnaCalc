@@ -22,12 +22,33 @@ function Read-Status {
     ConvertFrom-Json -InputObject $json
 }
 function Live($State) { $State -and (Identity @{pid=$State.host_pid;start_ticks=$State.host_start_ticks} 'pwsh') }
+function Stop-Orphan($State) {
+    # A dead host cannot run its finally block. Its persisted ownership tuple is
+    # the only process this command may recover; never terminate by name alone.
+    if ($State -and $State.excel -and (Identity $State.excel 'EXCEL')) {
+        if ($State.excel.pid -eq 3144) { throw 'Protected Excel PID; orphan cleanup refused.' }
+        $process=Get-Process -Id $State.excel.pid
+        try {
+            # Pin the Windows process handle, then recheck identity before Kill;
+            # PID reuse between the status read and cleanup cannot select a new process.
+            $null=$process.Handle
+            if ($process.ProcessName -ine 'EXCEL' -or $process.StartTime.ToUniversalTime().Ticks -ne $State.excel.start_ticks) {
+                throw 'Owned orphan Excel identity changed; cleanup refused.'
+            }
+            $command=(Get-CimInstance Win32_Process -Filter "ProcessId=$($State.excel.pid)").CommandLine
+            if ($command -match '(?i)/restore') { throw 'Restore Excel process; orphan cleanup refused.' }
+            if (-not $process.HasExited) { $process.Kill() }
+            if (-not $process.WaitForExit(5000)) { throw 'Owned orphan Excel has not exited.' }
+        } finally { $process.Dispose() }
+    }
+}
 if ($Status) { Read-Status|ConvertTo-Json -Depth 15; return }
 if ($Stop) {
     [IO.File]::WriteAllText((Join-Path $root 'shutdown.request'),'stop')
     $deadline=[DateTime]::UtcNow.AddSeconds(30)
     while ((Live (Read-Status)) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 100 }
     if (Live (Read-Status)) { throw 'Session host has not completed shutdown.' }
+    Stop-Orphan (Read-Status)
     return
 }
 if (-not $Script -and -not $Start) { throw '-Script is required.' }
@@ -41,10 +62,7 @@ try {
     $state=Read-Status
     if (-not (Live $state)) {
         # Recover only a process with the exact ownership tuple from this host.
-        if ($state -and $state.excel -and $state.excel.pid -ne 3144 -and (Identity $state.excel 'EXCEL')) {
-            $command=(Get-CimInstance Win32_Process -Filter "ProcessId=$($state.excel.pid)").CommandLine
-            if ($command -notmatch '(?i)/restore') { Stop-Process -Id $state.excel.pid }
-        }
+        Stop-Orphan $state
         Remove-Item -LiteralPath (Join-Path $root 'shutdown.request') -ErrorAction SilentlyContinue
         $hostScript=Join-Path $PSScriptRoot 'host.ps1'
         # ShellExecute creates a detached hidden console without inheriting the client's pipes.

@@ -104,7 +104,8 @@ class Client:
 
         predicate(input_bits, typed_answer) executes only on the client. Endpoints
         must differ; the caller is responsible for monotonicity of the predicate.
-        Every adaptive question uses ask(), so its answer and provenance are logged.
+        Return None when a reading cannot distinguish the sides; nearby inputs are
+        then queried without guessing a side. Every question is retained by ask().
         """
         lo, hi = (int(number(x)["bits"], 16) for x in (low, high))
         if not 0 <= lo < hi < 0x7ff0000000000000:
@@ -119,18 +120,36 @@ class Client:
             return self.ask(function, rows)["rows"]
 
         left, right = query([lo, hi])
-        side = bool(predicate(f"{lo:016x}", left))
-        if side == bool(predicate(f"{hi:016x}", right)):
+        side = predicate(f"{lo:016x}", left)
+        other = predicate(f"{hi:016x}", right)
+        if side is None or other is None or bool(side) == bool(other):
             raise ValueError("edge endpoints have the same predicate")
+        side = bool(side)
         questions = 1
         while hi - lo > 1:
             middle = (lo + hi) // 2
             answer = query([middle])[0]
             questions += 1
-            if bool(predicate(f"{middle:016x}", answer)) == side:
-                lo, left = middle, answer
-            else:
-                hi, right = middle, answer
+            outcome = predicate(f"{middle:016x}", answer)
+            candidates = [(middle, answer, outcome)]
+            if outcome is None:
+                for radius in (4, 16, 64):
+                    nearby = [x for x in range(max(lo + 1, middle - radius), min(hi, middle + radius + 1)) if x != middle]
+                    if not nearby:
+                        raise ValueError("readings cannot locate the edge to adjacent inputs")
+                    answers = query(nearby)
+                    questions += 1
+                    candidates = [(x, y, predicate(f"{x:016x}", y)) for x, y in zip(nearby, answers)]
+                    if any(p is not None for _, _, p in candidates):
+                        break
+                else:
+                    raise ValueError("no distinguishing reading near midpoint; narrow the bracket")
+            for value, answer, outcome in candidates:
+                if outcome is not None and lo < value < hi:
+                    if bool(outcome) == side:
+                        lo, left = value, answer
+                    else:
+                        hi, right = value, answer
         return {"low": f"{lo:016x}", "high": f"{hi:016x}",
                 "low_answer": left, "high_answer": right, "questions": questions}
 
