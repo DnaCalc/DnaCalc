@@ -170,6 +170,7 @@ class Service:
                 "inputs": [[typed(v) for v in row["input_audit"]["read_back"]] for row in raw["rows"]],
                 "excel_version": raw["excel_version"], "excel_build": raw["excel_build"],
                 "excel_file_version": raw["excel_file_version"], "excel_pid": raw["excel_pid"],
+                "calculation_settings": raw.get("calculation_settings"),
                 "automation_security_before": raw["automation_security_before"],
                 "automation_security_after": raw["automation_security_after"],
                 "session_receipt": str(receipt_path),

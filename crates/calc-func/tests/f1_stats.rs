@@ -22,9 +22,9 @@ fn gamma_small_inputs_record_known_gaps() {
     // Original recorded answers: one gain from each grouped-input half and a
     // matched control three ULP from the unconditional Taylor-series result.
     for (input, expected, calculated) in [
-        (0x3f1a_529c_35ef_4724, 0x40c3_7323_fd56_1ac3, 0x40c37323fd561abd),
-        (0x3f1b_2638_e4e6_7c49, 0x40c2_db88_6b75_1adc, 0x40c2db886b751ad7),
-        (0x3f8f_e551_0015_81b1, 0x404f_d2d4_c62f_1d4e, 0x404fd2d4c62f1d4e),
+        (0x3f1a_529c_35ef_4724, 0x40c3_7323_fd56_1ac3, 0x40c37323fd561ac3),
+        (0x3f1b_2638_e4e6_7c49, 0x40c2_db88_6b75_1adc, 0x40c2db886b751adc),
+        (0x3f8f_e551_0015_81b1, 0x404f_d2d4_c62f_1d4e, 0x404fd2d4c62f1d4b),
     ] {
         recorded_calculation(call("GAMMA", vec![n(f64::from_bits(input))]), f64::from_bits(expected), f64::from_bits(calculated));
     }
@@ -471,19 +471,19 @@ fn error_function_tails_record_known_gaps() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn gamma_generic_body_records_known_gaps() {
     for (input, expected, calculated) in [
-        (0x400d_1554_af11_39b0, 0x400e_f676_6ccb_fa92, 0x400ef6766ccbfaa8),
-        (0x400d_4f88_34b9_3ec3, 0x400f_fe1e_2ca0_074c, 0x400ffe1e2ca00761),
-        (0x4044_be47_5963_23ad, 0x4a0b_1f25_9b34_f3ae, 0x4a0b1f259b34f3eb),
-        (0x405c_03e8_db5e_238e, 0x6562_21fb_163a_ffa9, 0x656221fb163afdea),
+        (0x400d_1554_af11_39b0, 0x400e_f676_6ccb_fa92, 0x400ef6766ccbfa92),
+        (0x400d_4f88_34b9_3ec3, 0x400f_fe1e_2ca0_074c, 0x400ffe1e2ca0074c),
+        (0x4044_be47_5963_23ad, 0x4a0b_1f25_9b34_f3ae, 0x4a0b1f259b34f3af),
+        (0x405c_03e8_db5e_238e, 0x6562_21fb_163a_ffa9, 0x656221fb163affa9),
         // Positive tgamma refinement, from both grouped-argument halves.
-        (0x3f21_ee1e_5eb2_9a49, 0x40bc_8d91_582d_997d, 0x40bc8d91582d9972),
-        (0x3f1f_f366_0a69_738e, 0x40c0_0605_98b3_6e3b, 0x40c0060598b36e30),
+        (0x3f21_ee1e_5eb2_9a49, 0x40bc_8d91_582d_997d, 0x40bc8d91582d997d),
+        (0x3f1f_f366_0a69_738e, 0x40c0_0605_98b3_6e3b, 0x40c0060598b36e3a),
         // The same bound admits reduced reflection and the negative fallback.
-        (0xc060_bad0_74be_eaa3, 0x10c5_b33f_ccd8_3432, 0x10c5b33fccd837a2),
-        (0xbfff_b384_bc86_8d32, 0x403b_41c1_68e1_0426, 0x403b41c168e103dc),
+        (0xc060_bad0_74be_eaa3, 0x10c5_b33f_ccd8_3432, 0x10c5b33fccd83432),
+        (0xbfff_b384_bc86_8d32, 0x403b_41c1_68e1_0426, 0x403b41c168e10425),
         // Old matches differ from the rational by one ULP; keep their route.
-        (0x400c_14f6_1d18_79ae, 0x400a_e3a0_184f_4257, 0x400ae3a0184f4257),
-        (0x400d_7b7b_3b82_609e, 0x4010_6635_56ba_cf83, 0x4010663556bacf83),
+        (0x400c_14f6_1d18_79ae, 0x400a_e3a0_184f_4257, 0x400ae3a0184f4255),
+        (0x400d_7b7b_3b82_609e, 0x4010_6635_56ba_cf83, 0x4010663556bacf82),
         (0xc02d_5a3f_39dd_c52f, 0xbd9e_116c_a682_f364, 0xbd9e116ca682f364),
         // Negative inputs retain the larger bound.
         (0xbff1_1541_05b4_a44e, 0x402c_e385_d327_12a8, 0x402ce385d32712a8),

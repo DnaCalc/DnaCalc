@@ -1,20 +1,18 @@
-//! Excel `GAMMALN` / `GAMMALN.PRECISE` positive-argument kernel (W109 G3-02).
+//! Excel `GAMMALN` / `GAMMALN.PRECISE` positive-argument kernel and worksheet `GAMMA` (dc-j9k.20).
 //!
-//! A Cody/SPECFUN-family piecewise rational with explicit arithmetic precision.
-//! B1 and B4 use their published coefficients; B2 uses SPECFUN DLGAMA's P2/Q2.
-//! This is the worksheet surface, distinct from the internal `lgamma`.
-//! Excel's complete algorithm is still unidentified.
+//! Bands of `GAMMALN`, dispatching on the positive argument `x`:
+//!   * `x < 0.7`         `core(x+1) - ln(x)`, one double subtract.
+//!   * `0.7 <= x < 1.5`  B1: stands in the Cody-Hillstrom 1967 n=7 table in plain double.
+//!   * `1.5 <= x <= 3`   B2: stands in SPECFUN's table in x87 continuous arithmetic.
+//!   * `3 < x < 8`       the recurrence from the `[2,3)` band, identified: see [`recurrence`].
+//!   * `x >= 8`          Stirling: fdlibm w-tail, worksheet LN and stored stages.
 //!
-//! Bands (dispatch on the positive argument `x`, all comparisons at the
-//! boundary double):
-//!   * `x < 0.7`         COMPOSED : `core(x+1) - ln(x)`, one double subtract.
-//!   * `0.7 <= x < 1.5`  B1       : Cody-Hillstrom 1967 n=7 `(x-1)*N/D`, plain double.
-//!   * `1.5 <= x < 4.0`  B2       : anchored rational, x87 **continuous** (one final round).
-//!   * `4.0 <= x < 8.0`  B4       : SPECFUN P4/Q4, x87 **continuous** (one final round).
-//!   * `x >= 8.0`        STIRLING : fdlibm w-tail, worksheet LN + x87 DR q.
+//! Excel's bands below 3 are rationals in `x` itself: noise reaches a full unit of the result at
+//! `x = 1 + 2^-52` and `2 + 2^-51`, where a polynomial in `x - 1` or `x - 2` could carry none, and the
+//! steps of the mean error mark Horner products stored before each coefficient is added. Their
+//! tables are not identified, and `[1.5,2)` and `[2,3]` are separate bands.
 //!
-//! The B2/B4 bands run in the x87 80-bit registers: the hardware ops (`super::x87::raw`) on
-//! `x86_64`, the software x87 (`super::soft87`, the same operations exactly) elsewhere.
+//! The x87 operations run on `super::x87::raw` on `x86_64`, and on `super::soft87` elsewhere.
 use crate::ported::excel_numeric::crt_log;
 
 // ---- band anchors (correctly-rounded transcendentals) --------------------
@@ -190,14 +188,36 @@ fn b4_with<F: super::Fpu>(x: f64) -> f64 {
     F::store(&t2, CW)
 }
 
+/// The band `3 < x < 8`. With `y` the fraction of `x` and `n` its integer part, Excel forms
+/// `z = (y+2)(y+3)...(y+n-1)` from the left, stores every product to binary64, stores `ln z`,
+/// and adds the stored value of the `[2,3)` band at `2+y`.
+///
+/// Read from 30,000 Excel 16.0.20527 answers at 6,000 random fractions: for `n = 3..=7` this
+/// identity holds 6,000 of 6,000 on the answers `GAMMALN(2+y)`. It takes no fitted constant.
+fn recurrence(x: f64) -> f64 {
+    recurrence_from(x, b2(2.0 + (x - x.floor())))
+}
+
+fn recurrence_from(x: f64, band: f64) -> f64 {
+    let n = x.floor();
+    let y = x - n;
+    let mut z = y + 2.0;
+    let mut k = 3.0;
+    while k < n {
+        z = super::excel_x87_mul(z, y + k);
+        k += 1.0;
+    }
+    super::excel_x87_add(super::excel_log(z), band)
+}
+
 /// Direct core for `x` in `[0.7, 8.0)`: dispatch by band.
 fn core(x: f64) -> f64 {
     if x < 1.5 {
         b1(x)
-    } else if x < 4.0 {
+    } else if x <= 3.0 {
         b2(x)
     } else {
-        b4(x)
+        recurrence(x)
     }
 }
 
@@ -217,9 +237,186 @@ pub(crate) fn gammaln_excel(x: f64) -> f64 {
     }
 }
 
+// -------------------------------------------------------------------------
+// Worksheet GAMMA.
+// -------------------------------------------------------------------------
+
+/// `2.5066...`: binary64 `sqrt(2 pi)`. Its rounding error, +0.66 of 2^-53, is the bias Excel's
+/// answers show on every band of GAMMA.
+const SQRT_2PI: f64 = f64::from_bits(0x4004_0D93_1FF6_2706);
+
+// SPECFUN GAMMA (Cody): `1 + N(y)/D(y)` for `Gamma(1+y)`, `0 <= y < 1`. Excel's own seed on
+// this interval is not identified: it is a chain of stored multiplications that starts from
+// `SQRT_2PI`, and this rational stands in for its value only.
+const SEED_P: [f64; 8] = [
+    -1.71618513886549492533811e0,
+    2.47656508055759199108314e1,
+    -3.79804256470945635097577e2,
+    6.29331155312818442661052e2,
+    8.66966202790413211295064e2,
+    -3.14512729688483675254357e4,
+    -3.61444134186911729807069e4,
+    6.64561438202405440627855e4,
+];
+const SEED_Q: [f64; 8] = [
+    -3.08402300119738975254353e1,
+    3.15350626979604161529144e2,
+    -1.01515636749021914166146e3,
+    -3.10777167157231109440444e3,
+    2.25381184209801510330112e4,
+    4.75584627752788110767815e3,
+    -1.34659959864969306392456e5,
+    -1.15132259675553483497211e5,
+];
+
+/// `Gamma(1+y)` for `0 <= y < 1`: the value every band below 10 multiplies or divides.
+fn gamma_seed(y: f64) -> f64 {
+    let (mut num, mut den) = (0.0_f64, 1.0_f64);
+    for i in 0..8 {
+        num = (num + SEED_P[i]) * y;
+        den = den * y + SEED_Q[i];
+    }
+    num / den + 1.0
+}
+
+/// The multiplicative Stirling series `1 + 1/(12x) + ...` for `x >= 10`. Excel's stored value is
+/// binary64; the true series stands in for its coefficients, which are not identified.
+fn stirling_series(x: f64) -> f64 {
+    let z = 1.0 / x;
+    let u = z * z;
+    let mut c = 3617.0 / 122400.0;
+    for term in [1.0 / 156.0, 691.0 / 360360.0, 1.0 / 1188.0, 1.0 / 1680.0, 1.0 / 1260.0, 1.0 / 360.0, 1.0 / 12.0] {
+        c = term - u * c;
+    }
+    c *= z;
+    1.0 + c * (1.0 + c / 2.0 * (1.0 + c / 3.0 * (1.0 + c / 4.0 * (1.0 + c / 5.0))))
+}
+
+/// `x^n` from the low bit up. Each square and each partial product is stored to binary64.
+fn integer_power(x: f64, mut n: u32) -> f64 {
+    let (mut product, mut square) = (None, x);
+    while n != 0 {
+        if n & 1 != 0 {
+            product = Some(match product {
+                Some(p) => super::excel_x87_mul(p, square),
+                None => square,
+            });
+        }
+        n >>= 1;
+        if n != 0 {
+            square = super::excel_x87_mul(square, square);
+        }
+    }
+    product.unwrap_or(1.0)
+}
+
+/// `GAMMA(x)` for `x >= 10`: `sqrt(2 pi) * x^x * exp(-x) / sqrt(x) * w`, with `w` the Stirling
+/// series.
+///
+/// With `n = floor(x/2)` and `f = x/2 - n`, `v = x^(x/2)` is `x^n`, by binary powering with stored
+/// squares, times `exp(f * ln x)`, where `ln x`, their product and the exponential are stored, and
+/// `v` is stored. Then `u = v * exp(-x) / sqrt(x)` runs in the 64-bit registers from the stored
+/// `exp(-x)` and an unstored square root, and each of `u`, `u * v`, the product with the constant
+/// and the product with `w` is stored.
+///
+/// Read from Excel 16.0.20527 answers on windows of 2,048 and 4,096 consecutive doubles from 10
+/// to 170. Lines at `2m`, `8(m-1)`, `32(m-1)` (`m` the significand of `x`) with weights `x/2`, `x/4`
+/// and `x/8` are the stored `x^2`, `x^4`, `x^8`; a line at `1/x` in units of `ulp(ln x)`, weight
+/// `2f`, is the stored logarithm; the residual bias of +0.66 of 2^-53 is the constant. Of 59,200
+/// answers from 36 to 170, 69% agree in every bit with `w` the true series; the misses are 1 or 2
+/// ULP and stand as the next target.
+fn gamma_stirling(x: f64) -> f64 {
+    use super::soft87::ext_from_f64 as ext;
+    use super::{CW, Fpu, Native};
+
+    let half = 0.5 * x;
+    let n = half.floor();
+    let root = super::excel_exp(super::excel_x87_mul(half - n, super::excel_log(x)));
+    let v = super::excel_x87_mul(integer_power(x, n as u32), root);
+    let scaled = Native::store(
+        &Native::div(&Native::mul(&ext(v), &ext(super::excel_exp(-x)), CW), &Native::sqrt(&ext(x), CW), CW),
+        CW,
+    );
+    let body = super::excel_x87_mul(super::excel_x87_mul(scaled, v), SQRT_2PI);
+    super::excel_x87_mul(body, stirling_series(x))
+}
+
+/// `(x-1)(x-2)...(1+y) * seed`, the product from the top, every step stored.
+fn product_times_seed(x: f64, seed: f64) -> f64 {
+    let floor = x.floor();
+    let mut product = 1.0;
+    let mut k = 1.0;
+    while k < floor {
+        product = super::excel_x87_mul(product, x - k);
+        k += 1.0;
+    }
+    super::excel_x87_mul(product, seed)
+}
+
+/// Worksheet `GAMMA` of a finite, non-integer or large argument. Callers guard the poles.
+///
+/// Below 10, with `y` the fraction of `x`, `GAMMA(x)` is the product `(x-1)(x-2)...(1+y)`, formed
+/// from the top with every step stored, times the seed `Gamma(1+y)`, stored: 2,000 of 2,000 on
+/// the Excel 16.0.20527 answers at each of `x = 3+y ... 9+y`, given `GAMMA(1+y)`. Below 1 the seed
+/// is divided by `y`, then by each lower factor, in the registers.
+pub(crate) fn gamma_excel(x: f64) -> f64 {
+    use super::soft87::ext_from_f64 as ext;
+    use super::{CW, Fpu, Native};
+
+    if x >= 10.0 {
+        return gamma_stirling(x);
+    }
+    // Recorded on the decade grid from 1e-307 and on the 27 doubles below 1e-16; 2e-16 misses.
+    if x > 0.0 && x <= 1e-16 {
+        return super::excel_x87_recip(x);
+    }
+    let floor = x.floor();
+    let seed = gamma_seed(x - floor);
+    if x >= 1.0 {
+        return product_times_seed(x, seed);
+    }
+    let mut value = ext(seed);
+    let mut k = -floor;
+    while k >= 0.0 {
+        value = Native::div(&value, &ext(x + k), CW);
+        k -= 1.0;
+    }
+    Native::store(&value, CW)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The bands above 3 and below 10 from Excel's own answer at the bottom of the recurrence.
+    /// Excel 16.0.20527, at `y = 0x3fe437dbd9dd94d0`.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn recurrences_reproduce_excel_from_its_own_lower_answer() {
+        let band = f64::from_bits(0x3fd86b3b37f8004f);
+        for (x, answer) in [
+            (0x400d0df6f6776534_u64, 0x3ff59667b84cf002_u64),
+            (0x401286fb7b3bb29a, 0x40051c93ade853cc),
+            (0x401686fb7b3bb29a, 0x4010b00761197e21),
+            (0x401a86fb7b3bb29a, 0x401799f191ccab24),
+            (0x401e86fb7b3bb29a, 0x401f2b3a51b521e9),
+        ] {
+            assert_eq!(recurrence_from(f64::from_bits(x), band).to_bits(), answer, "GAMMALN({x:#x})");
+        }
+        let seed = f64::from_bits(0x3fecb842a2a183d9);
+        for (x, answer) in [
+            (0x40050df6f6776534_u64, 0x3ff76ec725af336b_u64),
+            (0x400d0df6f6776534, 0x400ed5d913708740),
+            (0x401286fb7b3bb29a, 0x402bff419341a743),
+            (0x401686fb7b3bb29a, 0x405035adcb694aff),
+            (0x401a86fb7b3bb29a, 0x4076d28f4e27e2e5),
+            (0x401e86fb7b3bb29a, 0x40a2eb59830fa6d7),
+            (0x4021437dbd9dd94d, 0x40d20c722095858b),
+            (0x4023437dbd9dd94d, 0x4103795b37a801f2),
+        ] {
+            assert_eq!(product_times_seed(f64::from_bits(x), seed).to_bits(), answer, "GAMMA({x:#x})");
+        }
+    }
 
     // Analytic sanity (loose): the published surface must land near the true
     // values across every band. Bit-exactness is checked by the W109 racer
