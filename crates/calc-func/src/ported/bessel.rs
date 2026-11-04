@@ -23,6 +23,9 @@
 //! - Excel computes with subnormal operands and results flushed to zero (BESSELK(700,2) equals
 //!   BESSELK(700,0); BESSELK(706,0) is 0); [`D`] does the same.
 //! - A result that is not finite is #NUM!.
+//! - K's existing A&S seed and forward program, with each basic operation
+//!   stored from PC64, reproduces all 1,236 recorded K bank outcomes at R23.
+//!   Its SQRT, EXP, LOG, coefficients and flushing rules are unchanged.
 //! - R16 Value2 readings (Excel build 20527) bracket I's admission boundary at
 //!   adjacent binary64 magnitudes: 709.7 is numeric and its successor is #NUM!,
 //!   at orders 0, 1, 2, 3, 10 and 100. Negative arguments agree at orders 0..2.
@@ -36,56 +39,59 @@
 //! in the witness and corpus reports.
 //!
 
-use crate::ported::excel_numeric::{excel_exp, excel_log};
+use crate::ported::excel_numeric::{excel_exp, excel_log, excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_sub};
 use crate::value::WorksheetErrorCode;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
 /// A binary64 that computes as Excel does here: subnormal operands and results are zero.
+/// `D<true>` stores each basic operation from PC64; the K entry point selects it.
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
-struct D(f64);
+struct D<const STORED_PC64: bool = false>(f64);
 
-impl D {
-    fn new(v: f64) -> D {
+impl<const STORED_PC64: bool> D<STORED_PC64> {
+    fn new(v: f64) -> Self {
         if v.is_subnormal() { D(0.0f64.copysign(v)) } else { D(v) }
     }
-    fn abs(self) -> D {
+    fn abs(self) -> Self {
         D(self.0.abs())
     }
-    fn sqrt(self) -> D {
+    fn sqrt(self) -> Self {
         D::new(self.0.sqrt())
     }
 }
 
 macro_rules! flushing_op {
-    ($tr:ident, $f:ident, $op:tt) => {
-        impl $tr for D {
-            type Output = D;
-            fn $f(self, rhs: D) -> D {
-                D::new(D::new(self.0).0 $op D::new(rhs.0).0)
+    ($tr:ident, $f:ident, $op:tt, $staged:ident) => {
+        impl<const STORED_PC64: bool> $tr for D<STORED_PC64> {
+            type Output = Self;
+            fn $f(self, rhs: Self) -> Self {
+                let left = Self::new(self.0).0;
+                let right = Self::new(rhs.0).0;
+                Self::new(if STORED_PC64 { $staged(left, right) } else { left $op right })
             }
         }
     };
 }
-flushing_op!(Add, add, +);
-flushing_op!(Sub, sub, -);
-flushing_op!(Mul, mul, *);
-flushing_op!(Div, div, /);
+flushing_op!(Add, add, +, excel_x87_add);
+flushing_op!(Sub, sub, -, excel_x87_sub);
+flushing_op!(Mul, mul, *, excel_x87_mul);
+flushing_op!(Div, div, /, excel_x87_div);
 
-impl Neg for D {
-    type Output = D;
-    fn neg(self) -> D {
+impl<const STORED_PC64: bool> Neg for D<STORED_PC64> {
+    type Output = Self;
+    fn neg(self) -> Self {
         D(-self.0)
     }
 }
 
-fn exp(x: D) -> D {
+fn exp<const S: bool>(x: D<S>) -> D<S> {
     D::new(excel_exp(x.0))
 }
-fn ln(x: D) -> D {
+fn ln<const S: bool>(x: D<S>) -> D<S> {
     D::new(excel_log(x.0))
 }
 /// `c[0] + y (c[1] + y (c[2] + ...))`.
-fn horner(c: &[f64], y: D) -> D {
+fn horner<const S: bool>(c: &[f64], y: D<S>) -> D<S> {
     let mut r = D(c[c.len() - 1]);
     for &k in c[..c.len() - 1].iter().rev() {
         r = D(k) + y * r;
@@ -114,7 +120,7 @@ const K0_LARGE: [f64; 7] = [1.25331414, -0.07832358, 0.02189568, -0.01062446, 0.
 const K1_SMALL: [f64; 7] = [1.0, 0.15443144, -0.67278579, -0.18156897, -0.01919402, -0.00110404, -0.00004686];
 const K1_LARGE: [f64; 7] = [1.25331414, 0.23498619, -0.03655620, 0.01504268, -0.00780353, 0.00325614, -0.00068245];
 
-fn i0(x: D) -> D {
+fn i0<const S: bool>(x: D<S>) -> D<S> {
     let ax = x.abs();
     if ax.0 < 3.75 {
         let t = x / D(3.75);
@@ -124,7 +130,7 @@ fn i0(x: D) -> D {
     }
 }
 
-fn i1(x: D) -> D {
+fn i1<const S: bool>(x: D<S>) -> D<S> {
     let ax = x.abs();
     if ax.0 < 3.75 {
         let t = x / D(3.75);
@@ -135,7 +141,7 @@ fn i1(x: D) -> D {
     }
 }
 
-fn k0(x: D) -> D {
+fn k0<const S: bool>(x: D<S>) -> D<S> {
     if x.0 <= 2.0 {
         let h = x / D(2.0);
         -(ln(h) * i0(x)) + horner(&K0_SMALL, x * x / D(4.0))
@@ -144,7 +150,7 @@ fn k0(x: D) -> D {
     }
 }
 
-fn k1(x: D) -> D {
+fn k1<const S: bool>(x: D<S>) -> D<S> {
     if x.0 <= 2.0 {
         let h = x / D(2.0);
         ln(h) * i1(x) + D(1.0) / x * horner(&K1_SMALL, x * x / D(4.0))
@@ -223,7 +229,7 @@ fn order(n: f64) -> Result<u32, WorksheetErrorCode> {
 
 /// The forward recurrence from orders 0 and 1 up to `n`: `next = j (2/x) c - previous` for J and
 /// Y, `next = previous + j (2/x) c` for K.
-fn forward(x: D, n: u32, c0: D, c1: D, plus: bool) -> D {
+fn forward<const S: bool>(x: D<S>, n: u32, c0: D<S>, c1: D<S>, plus: bool) -> D<S> {
     let tox = D(2.0) / x;
     let (mut before, mut c) = (c0, c1);
     for j in 1..n {
@@ -346,15 +352,16 @@ pub fn besseli_kernel(x: f64, n: f64) -> Result<f64, WorksheetErrorCode> {
 pub fn besselk_kernel(x: f64, n: f64) -> Result<f64, WorksheetErrorCode> {
     if !x.is_finite() { return Err(WorksheetErrorCode::Num); }
     let n = order(n)?;
-    let x = D::new(x);
+    let x: D<true> = D::new(x);
     if !(x.0 > 0.0) {
         return Err(WorksheetErrorCode::Num);
     }
-    finish(Ok(match n {
+    let value = match n {
         0 => k0(x),
         1 => k1(x),
         _ => forward(x, n, k0(x), k1(x), true),
-    }))
+    };
+    finish(Ok(D(value.0)))
 }
 
 #[cfg(test)]
