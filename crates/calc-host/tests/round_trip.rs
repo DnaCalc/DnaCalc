@@ -15108,3 +15108,93 @@ fn workbook_compatibility_metadata_is_qualified_and_unknown_versions_stay_unknow
         assert_eq!(session_calculated(&book, at(sheet, "B1")), Some(CalcValue::number(42.0)));
     }
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_bctq__template_insertion_keeps_history_references_styles_and_reopen() {
+    use calc_host::{WorkbookCommand as C,FormatPatch,SaveFormat,SpreadsheetFormat};
+    let mut source=session(&calc_host::blank_package());let ss=source.host().sheets()[0].id();
+    enter(&mut source,at(ss,"A1"),"6");enter(&mut source,at(ss,"B1"),"=Sheet1!A1*3");
+    enter(&mut source,at(ss,"C1"),"template text");
+    enter(&mut source,at(ss,"B2"),"=Sheet1!A1&\"_x0041_\"");
+    assert!(source.dispatch(SkinIntent::Command(C::FormatCells{areas:vec![GridArea::cell(at(ss,"A1"))],patch:FormatPatch{number_format:Some("0.000 \"units\"".into()),bold:Some(true),..Default::default()}})).accepted());
+    let mut bytes=Vec::new();source.save(&SavePolicy{format:SaveFormat::Spreadsheet(SpreadsheetFormat::Xltx),..Default::default()},&mut bytes).unwrap();
+    let mut book=session(&calc_host::blank_package());let original=book.host().sheets()[0].id();
+    enter(&mut book,at(original,"A1"),"99");enter(&mut book,at(original,"B1"),"=A1+1");
+    let old_revision=book.host().revision();let old_depth=book.history_depth().0;
+    let receipt=book.dispatch(SkinIntent::Command(C::InsertTemplate{bytes:bytes.clone().into(),name:None,revision:old_revision.get()}));
+    assert!(receipt.accepted(),"{:?}",receipt.error);
+    assert_eq!(book.history_depth().0,old_depth+1);assert_eq!(book.host().sheets()[0].id(),original);
+    let inserted=book.host().sheets()[1].id();assert_eq!(book.host().sheets()[1].name().text().to_string_lossy(),"Sheet2");
+    assert_eq!(calculated(book.host(),at(original,"B1")),Some(CalcValue::number(100.)));
+    assert_eq!(calculated(book.host(),at(inserted,"B1")),Some(CalcValue::number(18.)));
+    assert_eq!(calculated(book.host(),at(inserted,"B2")),Some(CalcValue::text(calc_host::value::ExcelText::from_utf16_code_units("6_x0041_".encode_utf16().collect()))));
+    assert_eq!(book.host().number_format(at(inserted,"A1")),Some("0.000 \"units\""));
+    assert_eq!(book.host().model().cell(at(inserted,"C1")),source.host().model().cell(at(ss,"C1")));
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
+    let mut reopened=session(&saved);reopened.dispatch(SkinIntent::Recalculate);
+    let rs=reopened.host().sheets()[1].id();assert_eq!(calculated(reopened.host(),at(rs,"B1")),Some(CalcValue::number(18.)));
+    assert_eq!(reopened.host().number_format(at(rs,"A1")),Some("0.000 \"units\""));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().sheets().len(),1);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(book.host().model().cell(at(original,"B1")).is_none());
+    assert!(book.dispatch(SkinIntent::Redo).accepted());assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert_eq!(book.host().sheets()[1].id(),inserted);
+    enter(&mut book,at(inserted,"A1"),"8");assert_eq!(calculated(book.host(),at(inserted,"B1")),Some(CalcValue::number(24.)));
+    let revision=book.host().revision();let depth=book.history_depth().0;
+    for (bytes,revision) in [(calc_host::blank_package(),revision.get()),(bytes,old_revision.get())] {
+        let refused=book.dispatch(SkinIntent::Command(C::InsertTemplate{bytes:bytes.into(),name:None,revision}));assert!(!refused.accepted());assert_eq!(book.history_depth().0,depth);
+    }
+    assert_eq!(book.host().revision(),revision);assert_eq!(book.host().sheets().len(),2);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_bctq__explicit_template_save_retains_manual_caches_without_calculating() {
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    enter(&mut book,at(s,"A1"),"2");enter(&mut book,at(s,"B1"),"=A1*3");
+    book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));enter(&mut book,at(s,"A1"),"9");
+    for format in [calc_host::SpreadsheetFormat::Xlsx,calc_host::SpreadsheetFormat::Xlsm,calc_host::SpreadsheetFormat::Xltx,calc_host::SpreadsheetFormat::Xltm] {
+        let prepared=book.prepare_save(&SavePolicy{format:calc_host::SaveFormat::Spreadsheet(format),..Default::default()}).unwrap();
+        assert_eq!(prepared.pin().cache_policy,calc_host::SaveCachePolicy::PreservePermittedCaches);
+        let mut bytes=Vec::new();prepared.write(&mut bytes).unwrap();let host=open(&bytes);let s=host.sheets()[0].id();
+        let ProjectedValue::FileCached(cache)=value(&host,at(s,"B1"))else{panic!("manual save keeps unverified held caches")};
+        assert_eq!(cache.value(),&cached_of(&CalcValue::number(6.)));
+        assert_eq!(host.model().cell(at(s,"A1")),Some(&number(9.)));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_bctq__manual_insertion_retains_historical_values_without_freshness_proofs() {
+    use calc_host::{WorkbookCommand as C,SaveFormat,SpreadsheetFormat};
+    let mut source=session(&calc_host::blank_package());let ss=source.host().sheets()[0].id();enter(&mut source,at(ss,"A1"),"6");enter(&mut source,at(ss,"B1"),"=A1*3");
+    let mut bytes=Vec::new();source.save(&SavePolicy{format:SaveFormat::Spreadsheet(SpreadsheetFormat::Xltx),..Default::default()},&mut bytes).unwrap();
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();enter(&mut book,at(s,"A1"),"2");enter(&mut book,at(s,"B1"),"=A1*3");
+    book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));enter(&mut book,at(s,"A1"),"9");
+    let receipt=book.dispatch(SkinIntent::Command(C::InsertTemplate{bytes:bytes.clone().into(),name:None,revision:book.host().revision().get()}));assert!(receipt.accepted(),"{receipt:?}");
+    let held=|book:&HostSession|{let ProjectedValue::Stale(value)=value(book.host(),at(s,"B1"))else{panic!("existing value must stay stale")};assert_eq!(value.last_value(),Some(&CalcValue::number(6.)));assert!(value.last_calculation().unwrap().stamp().is_none());};held(&book);
+    let added=book.host().sheets()[1].id();let ProjectedValue::Stale(cache)=value(book.host(),at(added,"B1"))else{panic!("imported value stays unverified")};assert_eq!(cache.file_cache().unwrap().value(),&cached_of(&CalcValue::number(18.)));
+    assert_eq!(book.calc_mode(),CalcMode::Manual);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());held(&book);assert!(book.dispatch(SkinIntent::Redo).accepted());held(&book);
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=open(&saved);let rs=reopened.sheets()[0].id();let ProjectedValue::FileCached(cache)=value(&reopened,at(rs,"B1"))else{panic!("manual save keeps stale value as a file cache")};assert_eq!(cache.value(),&cached_of(&CalcValue::number(6.)));
+    let mut bounded=HostSession::open(Arc::new(MemorySource::new(calc_host::blank_package())),&OpenPolicy::default(),HostOptions{formula_cell_budget:Some(0),..Default::default()}).unwrap();let revision=bounded.host().revision();
+    let refusal=bounded.dispatch(SkinIntent::Command(C::InsertTemplate{bytes:bytes.into(),name:None,revision:revision.get()}));assert!(!refusal.accepted());assert!(refusal.error.unwrap().to_string().contains("formula-cell budget"));assert_eq!(bounded.host().revision(),revision);assert_eq!(bounded.host().sheets().len(),1);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_bctq__template_parts_rules_rich_text_links_tables_and_notes_survive_insertion() {
+    use calc_host::{WorkbookCommand as C,SaveFormat,SpreadsheetFormat,ReviewAction as R,TableChange};
+    let raw=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("<sheetData/>",r#"<sheetData><row r="1"><c r="A1"><v>6</v></c><c r="B1"><f>Sheet1!A1*3</f><v>18</v></c><c r="C1" t="inlineStr"><is><r><rPr><b/></rPr><t>Rich </t></r><r><t>text</t></r></is></c></row></sheetData><conditionalFormatting sqref="A1"><cfRule type="expression" priority="1"><formula>Sheet1!A1&gt;0</formula></cfRule></conditionalFormatting><dataValidations count="1"><dataValidation type="whole" sqref="A1"><formula1>1</formula1><formula2>9</formula2></dataValidation></dataValidations><hyperlinks><hyperlink ref="C1" location="Sheet1!A1" display="Jump"/></hyperlinks>"#));
+    let mut source=session(&raw);let ss=source.host().sheets()[0].id();assert!(review_action(&mut source,at(ss,"A1"),R::Create{parent:None,threaded:false,author:"Local".into(),text:"Retained note".into(),timestamp:String::new()}).accepted());
+    for (address,text) in [("D1","Key"),("E1","Amount"),("D2","one"),("E2","4")] {enter(&mut source,at(ss,address),text);}
+    assert!(source.dispatch(SkinIntent::Command(C::Table{revision:source.host().revision().get(),change:TableChange::Create{area:GridArea::new(at(ss,"D1"),at(ss,"E2")).unwrap(),name:"SourceTable".into()}})).accepted());
+    let mut bytes=Vec::new();source.save(&SavePolicy{format:SaveFormat::Spreadsheet(SpreadsheetFormat::Xltx),..Default::default()},&mut bytes).unwrap();
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();for (a,t) in [("D1","Key"),("E1","Amount"),("D2","old"),("E2","99")] {enter(&mut book,at(s,a),t);}
+    assert!(book.dispatch(SkinIntent::Command(C::Table{revision:book.host().revision().get(),change:TableChange::Create{area:GridArea::new(at(s,"D1"),at(s,"E2")).unwrap(),name:"TargetTable".into()}})).accepted());
+    let receipt=book.dispatch(SkinIntent::Command(C::InsertTemplate{bytes:bytes.into(),name:None,revision:book.host().revision().get()}));assert!(receipt.accepted(),"{receipt:?}");let added=book.host().sheets()[1].id();
+    assert_eq!(calculated(book.host(),at(added,"B1")),Some(CalcValue::number(18.)));assert!(book.host().validation(at(added,"A1")).is_some());assert_eq!(book.host().model().definitions().review_notes(added)[0].text,"Retained note");
+    let tables=book.host().model().definitions().tables();assert_eq!(tables.len(),2);assert_ne!(tables[0].id,tables[1].id);assert!(tables.iter().any(|t|t.display_name=="SourceTable"));
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let rs=reopened.host().sheets()[1].id();let loaded=reopened.host().loaded().sheet(rs).unwrap();let part=part_text(&saved,loaded.part().name());
+    assert!(part.contains("<b/>")&&part.contains("Rich "));assert!(part.contains("location=\"Sheet2!A1\""),"{part}");assert!(part.contains("Sheet2!A1&gt;0"),"{part}");assert_eq!(reopened.host().model().definitions().review_notes(rs)[0].text,"Retained note");assert!(reopened.host().validation(at(rs,"A1")).is_some());
+}

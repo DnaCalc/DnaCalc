@@ -87,22 +87,32 @@ fn check_captured_questions(
     assert!(failures.is_empty(), "{} of {compared} readings differ:\n{}", failures.len(), failures.join("\n"));
 }
 
-/// Fn3 scalar readings retain the original cell Value2 transport and typed Excel result.
+/// Fn3/fn7 scalar readings retain the original typed inputs and Excel results.
+/// Fn7 service questions also retain their exact input readbacks and full service replies.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn delivered_fn3_scalar_readings_follow_the_application_route() {
-    let readings: [&[u8]; 3] = [
+fn delivered_scalar_readings_follow_the_application_route() {
+    let readings: [&[u8]; 5] = [
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/LOWER.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/PROPER.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/REGEXTEST.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/SQRT.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/DATEVALUE.reading.json"),
     ];
     let mut failures = Vec::new();
     let mut count = 0;
     for bytes in readings {
         let reading: serde_json::Value = serde_json::from_slice(bytes).unwrap();
-        for witness in reading["witnesses"].as_array().unwrap() {
+        for (witness_index, witness) in reading["witnesses"].as_array().unwrap().iter().enumerate() {
             let mut session = Session::new("Sheet1").unwrap();
             session.set_formula_cell("J20").unwrap();
+            if reading.get("service_response").is_some() {
+                use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+                session.set_environment(Some(CalcEnvironment {
+                    profile: Some(format_profile(LocaleId::EnZa).with_separators(".", " ").unwrap()),
+                    ..CalcEnvironment::dates(DateSystem::System1900)
+                }));
+            }
             let mut arguments = Vec::new();
             for (index, value) in witness["args"].as_array().unwrap().iter().enumerate() {
                 let text = value.as_str().unwrap();
@@ -113,7 +123,11 @@ fn delivered_fn3_scalar_readings_follow_the_application_route() {
                 };
                 let at = format!("{}1", (b'A' + index as u8) as char);
                 session.set_input(&at, input).unwrap();
-                arguments.push(at);
+                let literal = reading["service_questions"][witness_index][index]["mode"]
+                    .as_str() == Some("literal");
+                arguments.push(if literal {
+                    format!("\"{}\"", text.replace('"', "\"\""))
+                } else { at });
             }
             let formula = format!("={}({})", reading["function"].as_str().unwrap(), arguments.join(","));
             session.set_formula(&formula);
@@ -125,8 +139,8 @@ fn delivered_fn3_scalar_readings_follow_the_application_route() {
             }
         }
     }
-    assert_eq!(count, 22);
-    assert!(failures.is_empty(), "{} of22 readings differ:\n{}", failures.len(), failures.join("\n"));
+    assert_eq!(count, 38);
+    assert!(failures.is_empty(), "{} of38 readings differ:\n{}", failures.len(), failures.join("\n"));
 }
 
 /// All twelve months and seven weekdays per tag, plus the captured era boundaries.
@@ -142,6 +156,44 @@ fn locale_tagged_date_names_follow_the_retained_fn3_readings() {
     check_captured_questions(include_bytes!(
         "../../../crates/calc-func/tests/captures/fn3_questions/oracle.capture.json"
     ), &mut session, |f| f.cell.sheet() == "fn3_text", 170);
+}
+
+/// Fn4 text-controls qt031..qt096 and list-controls ql041..ql085, unchanged live
+/// captures from Excel 16.0.20527.20088, recorded en-ZA with dot/space separators.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn delivered_fn4_digit_scripts_and_numeric_date_widths() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let mut session = Session::new("Sheet1").unwrap();
+    let profile = format_profile(LocaleId::EnZa).with_separators(".", " ").unwrap();
+    session.set_environment(Some(CalcEnvironment {
+        profile: Some(profile), ..CalcEnvironment::dates(DateSystem::System1900)
+    }));
+    let primary = |entry: &calc_verdict::FormulaCell, low: usize, high: usize| {
+        entry.cell.row() == 20 && entry.cell.column() == 10
+            && entry.cell.sheet().get(2..).and_then(|s| s.parse::<usize>().ok())
+                .is_some_and(|n| (low..=high).contains(&n))
+    };
+    check_captured_questions(include_bytes!(
+        "../../../crates/calc-func/tests/captures/fn4_questions/functions-fn4-text-controls.capture.json"
+    ), &mut session, |entry| primary(entry, 31, 96), 66);
+    check_captured_questions(include_bytes!(
+        "../../../crates/calc-func/tests/captures/fn4_questions/functions-fn4-list-controls.capture.json"
+    ), &mut session, |entry| primary(entry, 41, 85), 45);
+}
+
+/// Fn4 q093..q096 read a genuine typed #BUSY! input and retain Excel's four results.
+/// These are new observations of this question workbook, not a recapture of dc_nzpw D157.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn delivered_fn4_busy_error_is_typed_through_the_application() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_input("B1", InputValue::error(WorksheetErrorCode::Busy)).unwrap();
+    check_captured_questions(include_bytes!(
+        "../../../crates/calc-func/tests/captures/fn4_questions/functions-fn4.capture.json"
+    ), &mut session, |entry| entry.cell.row() == 20 && entry.cell.column() == 10
+        && entry.cell.sheet().get(1..).and_then(|s| s.parse::<usize>().ok())
+            .is_some_and(|n| (93..=96).contains(&n)), 4);
 }
 
 /// Fn2 roots 001..010 and 232..239 retain direct errors, actual one-cell arrays,

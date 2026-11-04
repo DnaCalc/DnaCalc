@@ -149,6 +149,7 @@ pub struct Controller {
     selection_epoch: ModelField<u64>,
     deferred: StoredValue<VecDeque<Box<dyn FnOnce()>>, LocalStorage>,
     command_answers: StoredValue<BTreeMap<u64, CommandAnswer>, LocalStorage>,
+    personal_template: StoredValue<Option<String>>,
     save_download: StoredValue<Option<(u64, u64, SaveDownload)>, LocalStorage>,
     deferred_version: ModelField<u64>,
     replaying: ModelField<bool>,
@@ -388,6 +389,7 @@ impl Controller {
             ),
             deferred: StoredValue::new_local(VecDeque::new()),
             command_answers: StoredValue::new_local(BTreeMap::new()),
+            personal_template: StoredValue::new(None),
             save_download: StoredValue::new_local(None),
             deferred_version: Field::new(
                 model,
@@ -417,7 +419,8 @@ impl Controller {
         controller.ask_result(Request::Summary, move |reply| match reply {
             Ok(Reply::Summary(summary)) => {
                 controller.summary.set(summary.into());
-                controller.new_workbook();
+                if let Some((name,bytes))=crate::files::default_template("Book") {controller.open_template(&name,bytes,move |accepted|if !accepted{controller.new_workbook();});}
+                else {controller.new_workbook();}
             }
             Err(message) => controller.say(format!("New workbook failed: {message}"), true),
             _ => controller.say("New workbook did not answer", true),
@@ -842,6 +845,7 @@ impl Controller {
     /// A new workbook is open (an open or a new workbook): a new generation, the first sheet
     /// active at A1, and the application's selection subscription.
     fn installed(&self, summary: Summary, message: String) {
+        self.personal_template.set_value(None);
         self.saving.set(false);
         let restore_focus = self
             .captured_command_focus()
@@ -1001,7 +1005,13 @@ impl Controller {
     pub fn open(&self, name: &str, bytes: Vec<u8>, opened: impl FnOnce(bool) + 'static) {
         self.open_mode(name,bytes,false,opened);
     }
-    pub fn open_mode(&self,name:&str,bytes:Vec<u8>,edit_template:bool,opened:impl FnOnce(bool)+'static) {
+    pub fn open_mode(&self,name:&str,bytes:Vec<u8>,edit_template:bool,opened:impl FnOnce(bool)+'static) {self.open_kind(name,bytes,edit_template,false,opened);}
+    pub fn open_template(&self,name:&str,bytes:Vec<u8>,opened:impl FnOnce(bool)+'static) {self.open_kind(name,bytes,false,true,opened);}
+    pub fn edit_personal_template(&self,name:String,bytes:Vec<u8>) {
+        let controller=*self;let owned=name.clone();
+        self.open_mode(&name,bytes,true,move |accepted|if accepted{controller.personal_template.set_value(Some(owned));});
+    }
+    fn open_kind(&self,name:&str,bytes:Vec<u8>,edit_template:bool,template_only:bool,opened:impl FnOnce(bool)+'static) {
         if self.replacing.get_untracked() {
             return;
         }
@@ -1013,7 +1023,7 @@ impl Controller {
         let size = bytes.len();
         let name = name.to_owned();
         self.send_command(
-            if edit_template { Request::OpenForEditing {name:name.clone()} } else {Request::Open { name: name.clone() }},
+            if template_only {Request::OpenTemplate{name:name.clone()}} else if edit_template { Request::OpenForEditing {name:name.clone()} } else {Request::Open { name: name.clone() }},
             Some(bytes),
             move |reply, _| {
                 controller
@@ -1799,6 +1809,34 @@ impl Controller {
                 true,
             ),
         }
+    }
+
+    /// Validate personal-template package content without changing the current workbook.
+    pub fn inspect_template(&self,bytes:Vec<u8>,done:impl FnOnce(Result<wire::FileFormat,String>)+'static) {
+        self.call(Request::InspectTemplate,Some(bytes),move |reply,_|done(match reply{Ok(Reply::TemplateFormat(f))=>Ok(f),Err(e)=>Err(e),_=>Err("Template inspection did not answer".into())}));
+    }
+    pub fn insert_template(&self,bytes:Vec<u8>,name:Option<String>,done:impl FnOnce(bool)+'static) {
+        if self.waiting_input(){let controller=*self;self.enqueue_admitted(move |accepted|if accepted{controller.insert_template(bytes,name,done)}else{done(false)});return;}
+        if self.editing.get_untracked().is_some(){self.say("Enter or cancel the current edit before inserting worksheets",true);done(false);return;}
+        let controller=*self;
+        let before:Vec<_>=self.sheets().into_iter().map(|s|s.id).collect();
+        let revision=self.summary.get_untracked().revision;
+        let epoch=self.selection_epoch.get_value();
+        self.pending_changes.update(|n|*n+=1);self.pending_actions.update(|n|*n+=1);
+        self.send_command(Request::InsertTemplate{name,revision},Some(bytes),move |reply,_|{
+            controller.pending_changes.update(|n|*n=n.saturating_sub(1));controller.pending_actions.update(|n|*n=n.saturating_sub(1));
+            match reply {
+                Ok(Reply::Done{outcome,..})=>{
+                    controller.applied(&outcome,epoch==controller.selection_epoch.get_value());
+                    let accepted=outcome.accepted;
+                    controller.perform(move ||{
+                        if accepted{if let Some(sheet)=controller.sheets().into_iter().find(|s|!before.contains(&s.id)){controller.show_sheet(sheet.id);}controller.say("Inserted template worksheets",false);}
+                        done(accepted);
+                    });
+                }
+                Err(e)=>{controller.say(e,true);controller.perform(move ||done(false));},_=>{controller.say("Template insertion did not answer",true);controller.perform(move ||done(false));}
+            }
+        });
     }
 
     /// A worksheet command through the same worker/history path as cell commands.
@@ -3294,7 +3332,10 @@ impl Controller {
                     if unconfirmed {
                         controller.download_unconfirmed.set(true);
                     }
+                    let personal=controller.personal_template.get_value().filter(|old|old.eq_ignore_ascii_case(&name));
+                    let updated=personal.map(|_|crate::files::update_personal_template(&name,&bytes));
                     saved(name, bytes);
+                    if let Some(Err(error))=updated{controller.say(format!("The download was prepared, but the personal template was not updated: {error}. Add the downloaded template again."),true);}
                 }));
             }
         });
@@ -3921,6 +3962,34 @@ mod projection_lifetime_tests {
 #[cfg(test)]
 mod template_lifecycle_tests {
     use super::*;
+    use dna_calc_model::WorkbookTransport;
+    #[derive(Default)]
+    struct HeldTransport {
+        inner:dna_calc_worker::transport::InProcessTransport,
+        hold:std::cell::Cell<bool>,
+        pending:std::cell::RefCell<Vec<(Request,Option<Vec<u8>>,dna_calc_model::TransportAnswer)>>,
+    }
+    impl dna_calc_model::WorkbookTransport for HeldTransport {
+        fn start(&self){self.inner.start();}
+        fn set_events(&self,h:std::rc::Rc<dyn Fn(Event)>){self.inner.set_events(h);}
+        fn set_health(&self,h:std::rc::Rc<dyn Fn(port::Health)>){self.inner.set_health(h);}
+        fn call(&self,r:Request,b:Option<Vec<u8>>,a:dna_calc_model::TransportAnswer){if self.hold.get(){self.pending.borrow_mut().push((r,b,a));}else{self.inner.call(r,b,a);}}
+    }
+    #[cfg_attr(not(target_arch="wasm32"),test)]
+    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_bctq__pending_insertion_protects_replacement_and_applies_its_summary() {
+        use std::{cell::Cell,rc::Rc};use dna_calc_model::WorkbookTransport;
+        let root=Owner::new();root.with(||{
+            let transport=Rc::new(HeldTransport::default());let controller=Controller::with_transport(transport.clone());
+            let mut source=dna_calc_worker::server::Server::new();let bytes=source.execute_current(Request::SaveAs{name:"Sheet.xltx".into(),format:wire::FileFormat::Xltx,views:None},None).bytes.unwrap();
+            transport.hold.set(true);let accepted=Rc::new(Cell::new(false));let answer=accepted.clone();controller.insert_template(bytes,None,move |ok|answer.set(ok));
+            assert!(controller.has_dirty_work());assert!(controller.input_pending());assert_eq!(controller.pending_changes.get_untracked(),1);
+            let later=Rc::new(Cell::new(false));let out=later.clone();controller.after_input(move ||out.set(true));assert!(!later.get());
+            transport.hold.set(false);let pending=std::mem::take(&mut *transport.pending.borrow_mut());for(r,b,a)in pending{transport.inner.call(r,b,a);}
+            assert!(accepted.get());assert_eq!(controller.summary.get_untracked().sheets.len(),2);assert!(controller.summary.get_untracked().changed);assert_eq!(controller.pending_changes.get_untracked(),0);assert_eq!(controller.pending_actions.get_untracked(),0);
+            while let Some(action)=controller.deferred.try_update_value(|q|q.pop_front()).flatten(){controller.perform(action);}assert!(later.get());
+        });
+    }
     #[cfg_attr(not(target_arch="wasm32"),test)]
     #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_bctq__idle_save_as_opens_and_an_unsaved_template_keeps_download_protection() {

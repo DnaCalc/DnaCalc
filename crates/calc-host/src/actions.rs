@@ -52,6 +52,8 @@ pub enum ConditionalChange {
 /// Authored workbook commands. The session is the sole dispatch route for all clients.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WorkbookCommand {
+    /// Append the worksheets of an OOXML template as one undoable transaction.
+    InsertTemplate { bytes: std::sync::Arc<[u8]>, name:Option<String>, revision:u64 },
     ReviewAction{at:CellKey,revision:u64,action:crate::ReviewAction},
     Review {
         at: CellKey,
@@ -124,6 +126,7 @@ pub(crate) fn prepare(
     command: WorkbookCommand,
 ) -> Result<Vec<CellEdit>, String> {
     match command {
+        WorkbookCommand::InsertTemplate{..}=>Err("Template insertion must use the session transaction (dc-bctq)".into()),
         WorkbookCommand::ReviewAction{at,revision,action}=>crate::review::prepare(host,at,revision,action),
         WorkbookCommand::Review{at,revision,index,text}=>crate::review::prepare(host,at,revision,crate::ReviewAction::Edit{index,text}),
 
