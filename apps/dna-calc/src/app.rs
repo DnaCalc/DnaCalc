@@ -96,6 +96,8 @@ pub(crate) enum Replacement {
     New,
     Open(String, Vec<u8>),
     OpenEditing(String, Vec<u8>),
+    Template(String,Vec<u8>),
+    PersonalEditing(String,Vec<u8>),
 }
 
 pub(crate) fn focus(selector: &str) {
@@ -135,8 +137,10 @@ pub fn app_with_transport(
     let replacement = RwSignal::new(None::<Replacement>);
     let replace = move |next: Replacement| match next {
         Replacement::New => {
-            if let Some((name,bytes))=crate::files::default_template("Book") {controller.open(&name,bytes,|_|{});}else{controller.new_workbook();}
+            if let Some((name,bytes))=crate::files::default_template("Book") {controller.open_template(&name,bytes,|_|{});}else{controller.new_workbook();}
         },
+        Replacement::Template(name,bytes)=>controller.open_template(&name,bytes,|_|{}),
+        Replacement::PersonalEditing(name,bytes)=>controller.edit_personal_template(name,bytes),
         Replacement::Open(name, bytes) => controller.open(&name, bytes, |_| {}),
         Replacement::OpenEditing(name, bytes) => controller.open_mode(&name, bytes, true, |_| {}),
     };

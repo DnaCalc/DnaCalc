@@ -54,6 +54,7 @@
 //! no way around these calls to change the authored revision or the engine state.
 
 mod actions;
+mod templates;
 mod outline;
 pub use outline::OutlineChange;
 mod format;

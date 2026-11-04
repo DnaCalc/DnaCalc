@@ -574,15 +574,26 @@ impl Server {
                 Request::Ping => Ok(Reply::Pong {
                     version: env!("CARGO_PKG_VERSION").to_owned(),
                 }),
+                Request::InspectTemplate => {
+                    let host=calc_host::HostState::open(std::sync::Arc::new(calc_host::MemorySource::new(bytes.unwrap_or_default())),&calc_host::OpenPolicy::default(),calc_host::HostOptions::default()).map_err(|e|e.to_string())?;
+                    let format=match host.loaded().spreadsheet_format(){calc_host::SpreadsheetFormat::Xltx=>wire::FileFormat::Xltx,calc_host::SpreadsheetFormat::Xltm=>wire::FileFormat::Xltm,_=>return Err("Choose an actual .xltx or .xltm template package (dc-bctq)".into())};
+                    Ok(Reply::TemplateFormat(format))
+                }
+                Request::InsertTemplate{name,revision} => self.dispatch_entry(SkinIntent::Command(calc_host::WorkbookCommand::InsertTemplate{bytes:bytes.unwrap_or_default().into(),name,revision}),false),
                 Request::New => {
                     self.install(Workbook::new_blank());
                     Ok(self.done(true, None, 0.0))
                 }
-                request @ (Request::Open { .. } | Request::OpenForEditing { .. }) => {
+                request @ (Request::Open { .. } | Request::OpenForEditing { .. } | Request::OpenTemplate{..}) => {
+                    let template_only=matches!(request,Request::OpenTemplate{..});
                     let edit_template=matches!(request,Request::OpenForEditing{..});
-                    let name=match request {Request::Open{name}|Request::OpenForEditing{name}=>name,_=>unreachable!()};
+                    let name=match request {Request::Open{name}|Request::OpenForEditing{name}|Request::OpenTemplate{name}=>name,_=>unreachable!()};
                     let started = crate::services::now_ms();
                     let bytes = bytes.unwrap_or_default();
+                    if template_only {
+                        let host=calc_host::HostState::open(std::sync::Arc::new(calc_host::MemorySource::new(bytes.clone())),&calc_host::OpenPolicy::default(),calc_host::HostOptions::default()).map_err(|e|e.to_string())?;
+                        if !host.loaded().spreadsheet_format().is_template(){return Err("The stored default is not an actual template package; remove it and add an .xltx or .xltm template (dc-bctq)".into());}
+                    }
                     crate::workbook::reserve_for_open(bytes.len());
                     match Workbook::open_with_template_mode(&name, bytes, self.calculation_budget, crate::workbook::VbaOpenPolicy::Run, edit_template) {
                         Ok(book) => {
@@ -5388,6 +5399,25 @@ mod window_tests {
 #[cfg(test)]
 mod template_save_tests {
     use super::*;
+    #[cfg_attr(not(target_arch="wasm32"),test)]
+    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_bctq__inspection_is_read_only_and_insertion_keeps_the_worker_session() {
+        let mut source=Server::new();let sheet=source.book().sheets()[0].id;
+        source.execute_current(Request::Intent(wire::Intent::EnterCell{at:Key::of(CellKey::new(sheet,1,1).unwrap()),text:"6".into()}),None).reply.unwrap();
+        source.execute_current(Request::Intent(wire::Intent::EnterCell{at:Key::of(CellKey::new(sheet,1,2).unwrap()),text:"=A1*3".into()}),None).reply.unwrap();
+        let template=source.execute_current(Request::SaveAs{name:"Test.xltx".into(),format:wire::FileFormat::Xltx,views:None},None).bytes.unwrap();
+        let mut server=Server::new();let before=server.summary();
+        assert!(matches!(server.execute_current(Request::InspectTemplate,Some(template.clone())).reply,Ok(Reply::TemplateFormat(wire::FileFormat::Xltx))));
+        assert!(server.execute_current(Request::InspectTemplate,Some(calc_host::blank_package())).reply.is_err());
+        assert_eq!(server.summary(),before);
+        let result=server.execute_current(Request::InsertTemplate{name:None,revision:before.revision},Some(template));
+        assert!(matches!(result.reply,Ok(Reply::Done{outcome:Outcome{accepted:true,..},..})),"{:?}",result.reply);
+        let after=server.summary();assert_eq!(after.session,before.session);assert_eq!(after.workbook,before.workbook);assert_eq!(after.undo,before.undo+1);
+        assert_eq!(after.sheets.len(),2);let sheet=after.sheets[1].0.id();
+        assert_eq!(server.book().shown(&server.book().cell(CellKey::new(sheet,1,2).unwrap()).unwrap()).text,"18");
+        server.execute_current(Request::Intent(wire::Intent::Undo),None).reply.unwrap();assert_eq!(server.summary().sheets.len(),1);
+        server.execute_current(Request::Intent(wire::Intent::Redo),None).reply.unwrap();assert_eq!(server.summary().sheets[1].0.id(),sheet);
+    }
     #[cfg_attr(not(target_arch="wasm32"),test)]
     #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_bctq__save_as_updates_actual_reference_identity_and_undo_retains_it() {

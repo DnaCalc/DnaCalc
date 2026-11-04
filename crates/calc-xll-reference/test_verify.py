@@ -41,6 +41,25 @@ class BigDataBoundaryTests(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, "cbData differs"):
             verify.defined_boundary(changed)
 
+    def test_raw_handle_identity_is_normalized_without_changing_input(self):
+        left, right = big_data(pointer=0x1234), big_data(pointer=0x87654321)
+        normalized = verify.normalize_x2(left)
+        self.assertEqual(normalized, verify.normalize_x2(right))
+        self.assertEqual(normalized, verify.normalize_x2(normalized))
+        self.assertEqual(left["value"]["opaque_handle"], "0x1234")
+        self.assertEqual(left["abi_storage"]["raw32"][:16], "3412000000000000")
+        self.assertEqual(normalized["abi_storage"]["raw32"][16:], left["abi_storage"]["raw32"][16:])
+
+    def test_raw_normalization_rejects_a_conflicting_handle(self):
+        value = big_data()
+        value["value"]["opaque_handle"] = "0x9999"
+        with self.assertRaisesRegex(AssertionError, "pointer differs"):
+            verify.normalize_x2(value)
+        normalized = verify.normalize_x2(big_data())
+        normalized["value"]["byte_count"] = 1
+        with self.assertRaisesRegex(AssertionError, "cbData differs"):
+            verify.normalize_x2(normalized)
+
     def test_raw_pointer_type_layout_and_padding_are_checked(self):
         changes = [
             (lambda v: v["value"].update(opaque_handle="0x9999"), "pointer differs"),
