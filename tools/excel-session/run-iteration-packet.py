@@ -263,6 +263,7 @@ def run(args):
     write(output/'preparation-failures.json',failed_preparations)
     for row in conditions:
         if row['id'] in prepared:row['input_sha256']=prepared[row['id']]['sha256']
+        if row['id'] in prepared and 'stored_formulas' in prepared[row['id']]:row['stored_formulas']=prepared[row['id']]['stored_formulas']
     jobs=[]
     sweeps=[r for r in conditions if r['id'].startswith('A1-sweeps') and r['operation']=='Rebuild' and not r['reverse_entry']]
     scopes=[r for r in conditions if r['id'].startswith('A1-sweeps-1-zero-')]

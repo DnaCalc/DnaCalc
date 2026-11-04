@@ -70,12 +70,26 @@ try {
             if($condition.reverse_entry){[array]::Reverse($formulas)}
             foreach($entry in $formulas){$sheet.Range($entry.Name).Formula2=$entry.Value}
             if($condition.PSObject.Properties['values']){foreach($entry in $condition.values.PSObject.Properties){$sheet.Range($entry.Name).Value2=[double]$entry.Value}}
+            foreach($entry in $formulas){
+                if((Get-ComProperty $sheet.Range($entry.Name) 'Formula2') -cne [string]$entry.Value){throw ('Authored Formula2 readback differs for '+$entry.Name)}
+            }
             $path=Join-Path $req.inputs_directory ($condition.id+'.xlsx')
             $book.SaveAs($path,51);$book.Close($false);$book=$null
             $stored=@{};foreach($entry in $condition.seeds.PSObject.Properties){$stored['S!'+$entry.Name]=$entry.Value}
             $zip=[IO.Compression.ZipFile]::OpenRead($path);$hasChain=$null -ne $zip.GetEntry('xl/calcChain.xml');$zip.Dispose()
             Set-StoredValues $path $stored ([bool]$condition.reverse_chain -and $hasChain)
-            $prepared+=@{id=$condition.id;path=$path;sha256=(Get-FileHash -LiteralPath $path).Hash.ToLowerInvariant();reverse_chain_requested=[bool]$condition.reverse_chain;chain_present=$hasChain;success=$true}
+            $storedForms=@{}
+            $zip=[IO.Compression.ZipFile]::OpenRead($path)
+            try{
+                $parts=Get-SheetParts $zip;$document=Read-Part $zip $parts['S']
+                $names=[Xml.XmlNamespaceManager]::new($document.NameTable);$names.AddNamespace('x',$MainNs)
+                foreach($entry in $formulas){
+                    $node=$document.SelectSingleNode(("/x:worksheet/x:sheetData/x:row/x:c[@r='"+$entry.Name+"']/x:f"),$names)
+                    if($null -eq $node){throw ('Stored formula absent for '+$entry.Name)}
+                    $storedForms[$entry.Name]=$node.InnerText
+                }
+            }finally{$zip.Dispose()}
+            $prepared+=@{id=$condition.id;path=$path;stored_formulas=$storedForms;sha256=(Get-FileHash -LiteralPath $path).Hash.ToLowerInvariant();reverse_chain_requested=[bool]$condition.reverse_chain;chain_present=$hasChain;success=$true}
             }catch{
                 $prepared+=@{id=$condition.id;success=$false;phase=$phase;error=$_.Exception.ToString();requested_change_bits=$condition.change_bits;settings_readback=(Settings)}
                 if($book){$book.Close($false);$book=$null}
@@ -103,7 +117,9 @@ try {
             $names=[Xml.XmlNamespaceManager]::new($document.NameTable);$names.AddNamespace('x',$MainNs)
             foreach($declared in $condition.formulas.PSObject.Properties){
                 $formula=$document.SelectSingleNode(("/x:worksheet/x:sheetData/x:row/x:c[@r='"+$declared.Name+"']/x:f"),$names)
-                if($null -eq $formula -or $formula.InnerText.TrimStart('=') -cne ([string]$declared.Value).TrimStart('=')){throw "Stored formula differs from requested $($declared.Name)"}
+                $wantedStored=if($condition.PSObject.Properties['stored_formulas']){[string]$condition.stored_formulas.($declared.Name)}else{([string]$declared.Value).TrimStart('=')}
+                if($null -eq $formula -or $formula.InnerText -cne $wantedStored){throw "Stored formula differs from its prepared spelling for $($declared.Name)"}
+
             }
         }finally{$zip.Dispose()}
         foreach($declared in $condition.seeds.PSObject.Properties){
@@ -140,6 +156,11 @@ try {
         $expected=Cache-Value $cache
         $left=ConvertTo-Json -InputObject $live -Compress;$right=ConvertTo-Json -InputObject $expected -Compress
         if($left -cne $right){throw "Seed changed for ${key}: live=$left stored=$right; condition aborted."}
+    }
+    if($condition.PSObject.Properties['formulas']){
+        foreach($declared in $condition.formulas.PSObject.Properties){
+            if((Get-ComProperty $book.Worksheets.Item('S').Range($declared.Name) 'Formula2') -cne [string]$declared.Value){throw ('Live authored Formula2 differs for '+$declared.Name)}
+        }
     }
     Stage 'seeds-verified' $book
     if($condition.PSObject.Properties['active_sheet']){$book.Worksheets.Item($condition.active_sheet).Activate();Stage 'after-activate' $book}

@@ -424,6 +424,11 @@ impl ModelRoot {
             }).collect();
             next = next.with_validations(sheet,rules);
         }
+        for (sheet, links) in definitions.all_review_links() {
+            next=next.with_review_links(sheet,links.iter().filter_map(|l|{
+                let mut l=l.clone();l.area=moved_area(edit,l.area)?;Some(l)
+            }).collect());
+        }
         for (sheet, notes) in definitions.all_review_notes() {
             let notes = notes
                 .iter()

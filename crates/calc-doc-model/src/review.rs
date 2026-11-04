@@ -1,5 +1,5 @@
 //! Authored note and threaded-comment text with the source identity retained for lossless saves.
-use crate::value::CellKey;
+use crate::value::{CellKey, GridArea};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ReviewSource {
@@ -255,4 +255,16 @@ fn boundary(text: &str, offset: u32) -> bool {
         at += c.len_utf16() as u32;
     }
     at == offset
+}
+
+/// A hyperlink placement; its target and other fields retain their source identity.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ReviewLink {
+    pub area: GridArea,
+    /// Index of the retained hyperlink element in its source worksheet.
+    pub source: u32,
+    pub target: Option<String>,
+    pub location: Option<String>,
+    pub display: Option<String>,
+    pub tooltip: Option<String>,
 }

@@ -317,6 +317,7 @@ pub fn prepare_edit<'s, 'r>(
             WorkbookOp::SetAxisFormat(edit) => require_sheet(inputs, operation, edit.sheet())?,
             WorkbookOp::SetAutoFilter { sheet, .. }
             | WorkbookOp::SetValidations { sheet, .. }
+            | WorkbookOp::SetReviewLinks { sheet, .. }
             | WorkbookOp::SetReviewNotes { sheet, .. }
             | WorkbookOp::SetConditionalRules { sheet, .. }
             | WorkbookOp::SetPaneLayout { sheet, .. }
@@ -645,7 +646,7 @@ fn structural_moves(
                 | WorkbookOp::SetIteration(_)
                 | WorkbookOp::SetAxisFormat(_)
                 | WorkbookOp::SetValidations { .. }
-                | WorkbookOp::SetReviewNotes { .. }
+                | WorkbookOp::SetReviewLinks { .. } | WorkbookOp::SetReviewNotes { .. }
                 | WorkbookOp::SetConditionalRules { .. }
                 | WorkbookOp::SetAutoFilter { .. }
                 | WorkbookOp::SetPaneLayout { .. }
@@ -674,7 +675,7 @@ fn structural_moves(
             | WorkbookOp::SetIteration(_)
             | WorkbookOp::SetAxisFormat(_)
             | WorkbookOp::SetValidations { .. }
-                | WorkbookOp::SetReviewNotes { .. }
+                | WorkbookOp::SetReviewLinks { .. } | WorkbookOp::SetReviewNotes { .. }
             | WorkbookOp::SetConditionalRules { .. }
             | WorkbookOp::SetAutoFilter { .. }
             | WorkbookOp::SetPaneLayout { .. }

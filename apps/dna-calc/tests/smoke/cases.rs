@@ -8322,6 +8322,36 @@ Case {
         Action::Window(390,844),Action::Into("name-box","A1:C5\u{E007}"),Action::OpenDetails("sort-tools"),Action::Click("sort-descending"),Action::Wait(Check::PlanCell("A2","text","3")),Action::Wait(Check::PlanCell("C4","text","#DIV/0!")),Action::Click("[data-dnacalc=sort-tools]>summary"),Action::Wait(Check::Style("[data-dnacalc=cell-decoration][data-cell=C6]","background-color:#123456"))
     ],checks:&[Check::Fits,Check::Style("[data-dnacalc=cell-decoration][data-cell=B2]","background-color:#123456"),Check::Style("[data-dnacalc=cell-decoration][data-cell=C4]","background-color:#123456"),Check::Style("[data-dnacalc=cell-decoration][data-cell=C6]","background-color:#123456"),Check::PlanCell("C4","provenance","calculated")]},
 
+    Case {name:"hyperlink sorting: source links and validation move with their row",actions:&[
+        Action::Window(1440,1000),Action::ValidationFixture("sort-links"),Action::UploadDownload("validation-sort-links.xlsx"),Action::DiscardReplacement,Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),Action::Wait(Check::PlanCell("C2","text","6")),Action::Into("name-box","A1:C5\u{E007}"),Action::OpenDetails("sort-tools"),Action::Click("sort-ascending"),Action::Wait(Check::PlanCell("B5","text","three")),Action::Into("name-box","B5\u{E007}"),Action::Wait(Check::ActiveSemantic("B5")),Action::Click("review-tools")
+    ],checks:&[Check::Count("review-link",1),Check::Attr("[data-dnacalc=review-link] button","title","Three row"),Check::TextContains("review-link","Three link"),Check::TextContains("review-validation","custom"),Check::PlanCell("C5","provenance","calculated")]},
+    Case {name:"hyperlink sorting: ordinary Undo and Redo restore link placements",actions:&[
+        Action::Click("review-close"),Action::Click("undo"),Action::Wait(Check::PlanCell("B2","text","three")),Action::Into("name-box","B2\u{E007}"),Action::Wait(Check::ActiveSemantic("B2")),Action::Click("review-tools"),Action::Wait(Check::TextContains("review-link","Three link")),Action::Click("review-close"),Action::Click("redo"),Action::Wait(Check::PlanCell("B5","text","three")),Action::Into("name-box","B5\u{E007}"),Action::Wait(Check::ActiveSemantic("B5")),Action::Click("review-tools")
+    ],checks:&[Check::Count("review-link",1),Check::Attr("[data-dnacalc=review-link] button","title","Three row"),Check::PlanCell("C5","text","6")]},
+    Case {name:"hyperlink sorting: the real saved file retains link text and destination",actions:&[
+        Action::Click("review-close"),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("validation-sort-links.xlsx"),Action::DiscardReplacement,Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),Action::Wait(Check::PlanCell("B5","text","three")),Action::Into("name-box","B5\u{E007}"),Action::Wait(Check::ActiveSemantic("B5")),Action::Click("review-tools")
+    ],checks:&[Check::Count("review-link",1),Check::Attr("[data-dnacalc=review-link] button","title","Three row"),Check::TextContains("review-link","Three link"),Check::PlanCell("C5","provenance","calculated")]},
+    Case {name:"hyperlink sorting: imported links sort descending from phone controls",actions:&[
+        Action::Click("review-close"),Action::Window(390,844),Action::Into("name-box","A1:C5\u{E007}"),Action::OpenDetails("sort-tools"),Action::Click("sort-descending"),Action::Wait(Check::PlanCell("B2","text","three")),Action::Click("[data-dnacalc=sort-tools]>summary"),Action::Into("name-box","B2\u{E007}"),Action::Wait(Check::ActiveSemantic("B2")),Action::Click("review-tools")
+    ],checks:&[Check::Fits,Check::Narrow(390),Check::Reachable("review-close"),Check::Attr("[data-dnacalc=review-link] button","title","Three row"),Check::PlanCell("C2","text","6")]},
+    Case {name:"hyperlink sorting: following the moved link uses the retained destination",actions:&[
+        Action::Click("[data-dnacalc=review-link] button"),Action::Wait(Check::ActiveSemantic("A1"))
+    ],checks:&[Check::Value("name-box","A1"),Check::Rendered("review-dialog",false),Check::PlanCell("A1","text","Key")]},
+
+    Case {name:"qualified aggregates: local ranges and fixed scalars move with each row",actions:&[
+        Action::Click("[data-dnacalc=sheet-tools] summary"),Action::Into("sheet-new-name","Tax rates"),Action::Click("sheet-add"),Action::Wait(Check::Text("[data-dnacalc=sheet-tab][aria-selected=true]","Tax rates")),Action::Click("[data-dnacalc=sheet-tools] summary"),Action::Into(BAR,"10\u{E007}"),Action::Into("name-box","D1\u{E007}"),Action::Into(BAR,"=Sheet1!C2\u{E007}"),Action::Click("[data-dnacalc=sheet-tab][data-sheet=Sheet1]"),Action::Wait(Check::Text("[data-dnacalc=sheet-tab][aria-selected=true]","Sheet1")),Action::Into("name-box","A1\u{E007}"),
+        Action::ExternalClipboard("Key\tAmount\tTotal\n3\t30\t=SUM(B2:B2)+'Tax rates'!$A$1\n1\t10\t=SUM(B3:B3)+'Tax rates'!$A$1\n2\t20\t=SUM(B4:B4)+'Tax rates'!$A$1",false),Action::Keys("grid","\u{E009}v\u{E000}"),Action::Wait(Check::PlanCell("C4","text","30")),Action::Into("name-box","E1\u{E007}"),Action::Into(BAR,"=C2\u{E007}"),Action::Into("name-box","A1:C4\u{E007}"),Action::OpenDetails("sort-tools"),Action::Click("sort-ascending"),Action::Wait(Check::PlanCell("C2","text","20")),Action::Into("name-box","C2\u{E007}")
+    ],checks:&[Check::Text(cell!("A2"),"1"),Check::PlanCell("C4","text","40"),Check::PlanCell("E1","text","20"),Check::PlanCell("C2","provenance","calculated"),Check::Value(BAR,"=SUM(B2:B2)+'Tax rates'!$A$1")]},
+    Case {name:"qualified aggregates: history restores formulas and physical dependents",actions:&[
+        Action::Click("undo"),Action::Wait(Check::PlanCell("C2","text","40")),Action::Wait(Check::PlanCell("E1","text","40")),Action::Click("redo"),Action::Wait(Check::PlanCell("C2","text","20")),Action::Click("[data-dnacalc=sheet-tab][data-sheet='Tax rates']"),Action::Wait(Check::PlanCell("D1","text","20"))
+    ],checks:&[Check::PlanCell("D1","provenance","calculated")]},
+    Case {name:"qualified aggregates: the saved workbook sorts in reverse with the same formula route",actions:&[
+        Action::Click("[data-dnacalc=sheet-tab][data-sheet=Sheet1]"),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::Into("name-box","A1:C4\u{E007}"),Action::OpenDetails("sort-tools"),Action::Click("sort-descending"),Action::Wait(Check::PlanCell("C2","text","40")),Action::Into("name-box","C2\u{E007}")
+    ],checks:&[Check::PlanCell("A2","text","3"),Check::PlanCell("E1","text","40"),Check::Value(BAR,"=SUM(B2:B2)+'Tax rates'!$A$1")]},
+    Case {name:"qualified aggregates: an enclosing qualified range still refuses atomically on a phone",actions:&[
+        Action::Into(BAR,"=SUM('Tax rates'!$A$1:B2)\u{E007}"),Action::Into("name-box","A1:C4\u{E007}"),Action::OpenDetails("sort-tools"),Action::Click("sort-ascending"),Action::Wait(Check::TextContains("status","qualified or unsupported formula references")),Action::Into("name-box","C2\u{E007}"),Action::Window(390,844)
+    ],checks:&[Check::PlanCell("A2","text","3"),Check::Value(BAR,"=SUM('Tax rates'!$A$1:B2)"),Check::Fits,Check::Narrow(390)]},
+
 ];
 
 /// The script that reads what one check looks at.
@@ -9163,4 +9193,6 @@ CaseGroup {
     CaseGroup {name:"sort-options",start:670,end:675,core:5,setup:&[]},
     CaseGroup {name:"conditional-sorting",start:675,end:679,core:4,setup:&[]},
     CaseGroup {name:"typed-conditional-sorting",start:679,end:683,core:4,setup:&[]},
+    CaseGroup {name:"hyperlink-sorting",start:683,end:688,core:5,setup:&[]},
+    CaseGroup {name:"qualified-aggregates",start:688,end:692,core:4,setup:&[]},
 ];

@@ -759,6 +759,25 @@ pub(crate) fn permute_rows(
             .map_err(|_| refusal("The original note boxes cannot follow this sort (dc-971p.38)"))?;
         edits.push(CellEdit::ReviewNotes { sheet, notes });
     }
+    let mut links=Vec::new();
+    let mut fragments=0usize;
+    for link in host.model().definitions().review_links(sheet) {
+        let mut target=subtract(link.area,data);
+        if let Some(intersection)=link.area.intersection(data){
+            fragments=fragments.saturating_add(intersection.row_count() as usize);
+            if fragments>crate::COPY_LIMIT as usize{return Err(refusal("Too many sorted hyperlink fragments (dc-971p.38)"));}
+            for source in intersection.first().row()..=intersection.last().row(){
+                let row=*rows.get(&source).ok_or_else(||refusal("The sort omits a hyperlink row"))?;
+                target.push(GridArea::new(CellKey::new(sheet,row,intersection.first().column()).unwrap(),CellKey::new(sheet,row,intersection.last().column()).unwrap()).unwrap());
+            }
+        }
+        for area in merge(target){let mut next=link.clone();next.area=area;links.push(next);}
+        if links.len()>10000{return Err(refusal("Too many sorted hyperlink records (dc-971p.38)"));}
+    }
+    if links!=host.model().definitions().review_links(sheet){
+        host.loaded().check_sorted_links(sheet,&links).map_err(|_|refusal("The original hyperlinks cannot follow this sort (dc-971p.38)"))?;
+        edits.push(CellEdit::ReviewLinks{sheet,links});
+    }
     permute_conditional_rows(host,data,rows,edits)?;
     let mut rules = Vec::new();
     let mut fragments = 0usize;

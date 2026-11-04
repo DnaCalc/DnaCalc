@@ -112,7 +112,7 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
             | CellEdit::Tables(_)
             | CellEdit::Styles(_)
             | CellEdit::Layout(_)
-            | CellEdit::ReviewNotes { .. }
+            | CellEdit::ReviewLinks { .. } | CellEdit::ReviewNotes { .. }
             | CellEdit::Validations { .. }
             | CellEdit::ConditionalRules { .. }
             | CellEdit::Axis(_)
@@ -235,6 +235,12 @@ pub(crate) fn inverse(
     for edit in edits {
         if let CellEdit::Validations { sheet, .. } = edit && validations.insert(*sheet) {
             inverse.push(CellEdit::Validations { sheet: *sheet, rules: definitions.validations(*sheet).to_vec() });
+        }
+    }
+    let mut link_sheets = BTreeSet::new();
+    for edit in edits {
+        if let CellEdit::ReviewLinks{sheet,..}=edit && link_sheets.insert(*sheet){
+            inverse.push(CellEdit::ReviewLinks{sheet:*sheet,links:definitions.review_links(*sheet).to_vec()});
         }
     }
     let mut reviews = BTreeSet::new();
