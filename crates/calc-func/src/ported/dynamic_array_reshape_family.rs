@@ -547,10 +547,32 @@ pub fn eval_vstack_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArra
     build_array(rows, cols, cells.collect())
 }
 
+/// Wrapping has its own below-one error; other shaping counts keep their existing policy.
+fn wrap_count(value: &CalcValue) -> Result<usize, DynamicArrayReshapeEvalError> {
+    let number = coerce_prepared_to_number(value)
+        .map_err(DynamicArrayReshapeEvalError::Preparation)?;
+    if number < 1.0 {
+        return Err(DynamicArrayReshapeEvalError::Preparation(
+            CoercionError::WorksheetError(WorksheetErrorCode::Num),
+        ));
+    }
+    parse_positive_integer(value)
+}
+
+fn wrap_vector(value: &CalcValue) -> Result<CalcArray, DynamicArrayReshapeEvalError> {
+    let source = materialize_array_arg(value);
+    if source.shape().rows > 1 && source.shape().cols > 1 {
+        return Err(DynamicArrayReshapeEvalError::Preparation(
+            CoercionError::UnsupportedValueKind("wrap vector"),
+        ));
+    }
+    Ok(source)
+}
+
 pub fn eval_wraprows_prepared(
     args: &[CalcValue],
 ) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
-    let wrap_count = parse_positive_integer(&args[1])?;
+    let wrap_count = wrap_count(&args[1])?;
     match args[0].core_ref() {
         CoreRef::Number(_) | CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Error(_) => {
             return Ok(args[0].clone());
@@ -558,14 +580,15 @@ pub fn eval_wraprows_prepared(
         CoreRef::Array(_) | CoreRef::Reference(_) | CoreRef::Missing | CoreRef::Empty => {}
     }
 
-    let source = materialize_array_arg(&args[0]);
+    let source = wrap_vector(&args[0])?;
     let pad_cell = args
         .get(2)
         .map(scalar_cell)
         .unwrap_or(CalcValue::error(WorksheetErrorCode::NA));
     let flat = flatten_cells(&source, false);
-    let rows = flat.len().div_ceil(wrap_count);
-    let cols = wrap_count;
+    // A maximum width does not pad a vector that already fits in a single row.
+    let cols = wrap_count.min(flat.len());
+    let rows = flat.len().div_ceil(cols);
     let mut cells = Vec::with_capacity(rows * cols);
     let mut iter = flat.into_iter();
     for _row in 0..rows {
@@ -579,21 +602,21 @@ pub fn eval_wraprows_prepared(
 pub fn eval_wrapcols_prepared(
     args: &[CalcValue],
 ) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
-    let wrap_count = parse_positive_integer(&args[1])?;
+    let wrap_count = wrap_count(&args[1])?;
     match args[0].core_ref() {
         CoreRef::Number(_) | CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Error(_) => {
             return Ok(args[0].clone());
         }
         CoreRef::Array(_) | CoreRef::Reference(_) | CoreRef::Missing | CoreRef::Empty => {}
     }
-    let source = materialize_array_arg(&args[0]);
+    let source = wrap_vector(&args[0])?;
     let pad_cell = args
         .get(2)
         .map(scalar_cell)
         .unwrap_or(CalcValue::error(WorksheetErrorCode::NA));
     let flat = flatten_cells(&source, false);
-    let rows = wrap_count;
-    let cols = flat.len().div_ceil(wrap_count);
+    let rows = wrap_count.min(flat.len());
+    let cols = flat.len().div_ceil(rows);
     let mut grid = vec![pad_cell.clone(); rows * cols];
     for (index, cell) in flat.into_iter().enumerate() {
         let row = index % rows;
