@@ -90,6 +90,8 @@ pub struct Workbook {
     session: HostSession,
     name: String,
     changed: bool,
+    unsaved: bool,
+    output_format: calc_host::SpreadsheetFormat,
     inbox: Rc<RefCell<Vec<HostDelta>>>,
     /// The workbook's redefined palette entries 1 to 56, read once at open; `None` when it
     /// redefines none.
@@ -142,18 +144,32 @@ impl Workbook {
         budget: calc_host::WorkBudget,
         vba: VbaOpenPolicy,
     ) -> Result<Workbook, OpenRefused> {
-        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes).named(name));
+        Self::open_with_template_mode(name, bytes, budget, vba, false)
+    }
+
+    pub fn open_with_template_mode(name:&str, bytes:Vec<u8>, budget:calc_host::WorkBudget, vba:VbaOpenPolicy, edit_template:bool) -> Result<Workbook,OpenRefused> {
+        let memory=MemorySource::new(bytes);
+        let source: Arc<dyn PackageRead> = Arc::new(memory.clone().named(name));
         let mut session = HostSession::open(source, &OpenPolicy::default(), host_options())
             .map_err(OpenRefused::Package)?;
+        let input_format=session.host().loaded().spreadsheet_format();
+        let unsaved=input_format.is_template() && !edit_template;
+        let output_format=if unsaved {if input_format.macro_enabled(){calc_host::SpreadsheetFormat::Xlsm}else{calc_host::SpreadsheetFormat::Xlsx}}else{input_format};
+        let name=if unsaved {format!("Book1.{}",output_format.extension())}else{name.to_owned()};
+        if unsaved {
+            session=HostSession::open(Arc::new(memory.named(name.as_str())), &OpenPolicy::default(), host_options()).map_err(OpenRefused::Package)?;
+        }
         session.set_calculation_budget(budget);
         if vba == VbaOpenPolicy::Run {
-            calc_host_vba::activate_file_project(&mut session, name, calc_vba::DEFAULT_STEP_BUDGET, None)
+            calc_host_vba::activate_file_project(&mut session, &name, calc_vba::DEFAULT_STEP_BUDGET, None)
                 .map_err(OpenRefused::Vba)?;
         }
         let mut workbook = Workbook {
             session,
-            name: name.to_owned(),
+            name,
             changed: false,
+            unsaved,
+            output_format,
             inbox: Rc::default(),
             calculated_on_open: None,
             palette: None,
@@ -191,14 +207,18 @@ impl Workbook {
     /// which is saved as SpreadsheetML (dc-5sr), with `.xlsm` when it is macro-enabled and
     /// `.xlsx` otherwise.
     pub fn save_name(&self) -> String {
-        match self.name.rsplit_once('.') {
-            Some((stem, extension)) if extension.eq_ignore_ascii_case("xlsb") => {
-                let macros = self.host().model().definitions().macro_enabled();
-                format!("{stem}.{}", if macros { "xlsm" } else { "xlsx" })
-            }
-            _ => self.name.clone(),
-        }
+        let stem=self.name.rsplit_once('.').map_or(self.name.as_str(), |(stem,_)|stem);
+        format!("{stem}.{}",self.output_format.extension())
     }
+    pub fn unsaved(&self)->bool {self.unsaved}
+    pub fn output_format(&self)->calc_host::SpreadsheetFormat {self.output_format}
+    pub fn saved_as(&mut self,name:String,format:calc_host::SpreadsheetFormat) {
+        self.session.set_file_identity(&name,format.macro_enabled());
+        self.name=name;self.output_format=format;self.unsaved=false;
+        self.conditional.borrow_mut().clear();self.display_metrics.borrow_mut().clear();
+        if self.session.calc_mode()!=CalcMode::Manual {self.session.dispatch(SkinIntent::Recalculate);}
+    }
+    pub fn save_policy(&self)->SavePolicy {SavePolicy{format:calc_host::SaveFormat::Spreadsheet(self.output_format),..Default::default()}}
 
     /// Whether an edit committed since the workbook was opened or last saved.
     pub fn changed(&self) -> bool {
@@ -511,7 +531,7 @@ impl Workbook {
     /// Saves the current revision as a package's bytes; the workbook is unchanged since.
     pub fn begin_calculated_save(&mut self) -> Result<calc_host::CalculatingSave, String> {
         self.session
-            .prepare_calculated_save(&SavePolicy::default())
+            .prepare_calculated_save(&self.save_policy())
             .map_err(|error| error.to_string())
     }
     pub fn begin_ordinary_save(
@@ -519,12 +539,9 @@ impl Workbook {
         calculate_before_save: bool,
         policy: &SavePolicy,
     ) -> Result<calc_host::OrdinarySave, String> {
-        if !calculate_before_save {
-            return self
-                .session
-                .begin_save(policy)
-                .map_err(|error| error.to_string());
-        }
+        self.begin_ordinary_save_operation(calculate_before_save,policy,false)
+    }
+    pub fn begin_ordinary_save_operation(&mut self,calculate_before_save:bool,policy:&SavePolicy,save_as:bool)->Result<calc_host::OrdinarySave,String> {
         let active_sheet = self
             .session
             .selection()
@@ -536,7 +553,7 @@ impl Workbook {
             .begin_save_with_context(
                 policy,
                 calc_host::ExcelSaveContext {
-                    operation: calc_host::SaveOperation::Save,
+                    operation: if save_as {calc_host::SaveOperation::SaveAsDialog}else{calc_host::SaveOperation::Save},
                     calculate_before_save,
                     active_sheet,
                     disabled_sheets: &[],
@@ -583,6 +600,7 @@ impl Workbook {
             .map_err(|error| error.to_string())?;
         if self.host().revision() == revision {
             self.changed = false;
+            self.unsaved = false;
         }
         Ok((bytes, receipt))
     }
@@ -600,11 +618,13 @@ impl Workbook {
     /// Saves the current revision as a package's bytes; the workbook is unchanged since.
     pub fn save(&mut self) -> Result<(Vec<u8>, SaveReceipt), String> {
         let mut bytes = Vec::new();
+        let policy=self.save_policy();
         let receipt = self
             .session
-            .save(&SavePolicy::default(), &mut bytes)
+            .save(&policy, &mut bytes)
             .map_err(|failure| failure.to_string())?;
         self.changed = false;
+        self.unsaved = false;
         Ok((bytes, receipt))
     }
 
@@ -713,3 +733,49 @@ impl Workbook {
 }
 
 pub use dna_calc_model::projection::{Census, SheetCensus};
+
+#[cfg(test)]
+mod template_tests {
+    use super::*;
+    fn convert(bytes:&[u8],kind:calc_host::SpreadsheetFormat)->Vec<u8> {
+        let doc=calc_doc::open(Arc::new(MemorySource::new(bytes.to_vec())),&Default::default()).unwrap();
+        let mut output=Vec::new();
+        calc_doc::write(calc_doc::prepare_save(&doc.snapshot(),&SavePolicy{format:calc_host::SaveFormat::Spreadsheet(kind),..Default::default()}).unwrap(),&mut output).unwrap();output
+    }
+    #[cfg_attr(not(target_arch="wasm32"),test)]
+    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_bctq__opening_template_creates_unsaved_workbook_while_editing_preserves_file_kind() {
+        use calc_host::SpreadsheetFormat as F;
+        let template=convert(include_bytes!("../../../crates/calc-doc/tests/fixtures/dc_5sr/features.xlsx"),F::Xltx);
+        let mut created=Workbook::open("personal.xltx",template.clone()).unwrap();
+        assert_eq!(created.name(),"Book1.xlsx");assert!(created.unsaved());assert_eq!(created.save_name(),"Book1.xlsx");
+        assert_eq!(created.host().model().definitions().workbook_name(),Some("Book1.xlsx"));
+        assert!(created.calculated_on_open().is_some());
+        let (output,_)=created.save().unwrap();assert!(!created.unsaved());
+        let reopened=Workbook::open("Book1.xlsx",output).unwrap();assert_eq!(reopened.host().loaded().spreadsheet_format(),F::Xlsx);
+        assert_eq!(reopened.sheets().len(),created.sheets().len());
+        let mut editing=Workbook::open_with_template_mode("personal.xltx",template,calc_host::WorkBudget::UNLIMITED,VbaOpenPolicy::Preserve,true).unwrap();
+        assert_eq!(editing.name(),"personal.xltx");assert!(!editing.unsaved());assert_eq!(editing.output_format(),F::Xltx);
+        let (saved,_)=editing.save().unwrap();assert_eq!(Workbook::open("personal.xltx",saved).unwrap().output_format(),F::Xlsx);
+    }
+    #[cfg_attr(not(target_arch="wasm32"),test)]
+    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_bctq__macro_template_retains_actual_vba_and_rejects_macro_free_output() {
+        use calc_host::SpreadsheetFormat as F;
+        let original=include_bytes!("../../../crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm");
+        let template=convert(original,F::Xltm);
+        let mut book=Workbook::open("macro.xltm",template).unwrap();
+        assert_eq!(book.name(),"Book1.xlsm");assert!(book.unsaved());
+        let source=calc_doc::open(Arc::new(MemorySource::new(original.to_vec())),&Default::default()).unwrap();
+        let (saved,_)=book.save().unwrap();
+        let output=calc_doc::open(Arc::new(MemorySource::new(saved)),&Default::default()).unwrap();
+        for part in source.package().parts().iter().filter(|p|p.name().ends_with(".bin")) {
+            assert_eq!(source.package().read_part(part.name()).unwrap(),output.package().read_part(part.name()).unwrap());
+        }
+        for kind in [F::Xlsx,F::Xltx] {
+            let save=book.begin_ordinary_save(false,&SavePolicy {format:calc_host::SaveFormat::Spreadsheet(kind),..Default::default()}).unwrap();
+            assert_eq!(save.progress(),calc_host::CalculatedSaveProgress::Failed);
+            assert!(book.finish_ordinary_save(save).unwrap_err().contains("would be lost"));
+        }
+    }
+}

@@ -72,6 +72,7 @@ pub struct Server {
     clipboard_session: String,
     paste_plan: Option<(u64, calc_host::PastePlan)>,
     pending_save: Option<(u64, PendingSave)>,
+    save_as_target: Option<(String, calc_host::SpreadsheetFormat)>,
     next_save: u64,
 }
 
@@ -244,6 +245,7 @@ impl Server {
             clipboard_session: crate::services::session_nonce(),
             paste_plan: None,
             pending_save: None,
+            save_as_target: None,
             next_save: 1,
         }
     }
@@ -576,11 +578,13 @@ impl Server {
                     self.install(Workbook::new_blank());
                     Ok(self.done(true, None, 0.0))
                 }
-                Request::Open { name } => {
+                request @ (Request::Open { .. } | Request::OpenForEditing { .. }) => {
+                    let edit_template=matches!(request,Request::OpenForEditing{..});
+                    let name=match request {Request::Open{name}|Request::OpenForEditing{name}=>name,_=>unreachable!()};
                     let started = crate::services::now_ms();
                     let bytes = bytes.unwrap_or_default();
                     crate::workbook::reserve_for_open(bytes.len());
-                    match Workbook::open_with_budget(&name, bytes, self.calculation_budget) {
+                    match Workbook::open_with_template_mode(&name, bytes, self.calculation_budget, crate::workbook::VbaOpenPolicy::Run, edit_template) {
                         Ok(book) => {
                             let elapsed = crate::services::now_ms() - started;
                             let calculated = book.calculated_on_open();
@@ -619,7 +623,7 @@ impl Server {
                     self.book.set_vba_events_enabled(enabled);
                     Ok(self.done(true, None, 0.0))
                 }
-                request @ (Request::Save | Request::SaveWithContext { .. }) => {
+                request @ (Request::Save | Request::SaveWithContext { .. } | Request::SaveAs { .. }) => {
                     if self.pending_save.is_some() {
                         return Err("Finish or cancel the pending save first".into());
                     }
@@ -629,13 +633,22 @@ impl Server {
                             calculate_before_save: true, ..
                         }
                     );
-                    let views=match &request { Request::SaveWithContext{views:Some(v),..}=>Some(std::sync::Arc::new(self.save_window(v)?)),_=>None };
-                    let policy=calc_host::SavePolicy {views,..Default::default()};
-                    let save = self.book.begin_ordinary_save(calculate_before_save,&policy)?;
-                    if save.progress() == calc_host::CalculatedSaveProgress::Ready {
-                        let name = self.book.save_name();
+                    let views=match &request { Request::SaveWithContext{views:Some(v),..}|Request::SaveAs{views:Some(v),..}=>Some(std::sync::Arc::new(self.save_window(v)?)),_=>None };
+                    let target=if let Request::SaveAs {name,format,..}=&request {
+                        if name.trim().is_empty() || name.contains(['/', '\\', '\0']) {return Err("Type a file name without folders".into());}
+                        use wire::FileFormat as F;
+                        let format=match format {F::Xlsx=>calc_host::SpreadsheetFormat::Xlsx,F::Xlsm=>calc_host::SpreadsheetFormat::Xlsm,F::Xltx=>calc_host::SpreadsheetFormat::Xltx,F::Xltm=>calc_host::SpreadsheetFormat::Xltm};
+                        if !name.to_ascii_lowercase().ends_with(&format!(".{}",format.extension())) {return Err("The file name must match the selected format".into());}
+                        Some((name.clone(),format))
+                    }else{None};
+                    let format=target.as_ref().map_or(self.book.output_format(),|(_,f)|*f);
+                    let policy=calc_host::SavePolicy {views,format:calc_host::SaveFormat::Spreadsheet(format),..Default::default()};
+                    let save = self.book.begin_ordinary_save_operation(calculate_before_save,&policy,target.is_some())?;
+                    if matches!(save.progress(),calc_host::CalculatedSaveProgress::Ready | calc_host::CalculatedSaveProgress::Failed) {
+                        let name = target.as_ref().map_or_else(||self.book.save_name(),|(n,_)|n.clone());
                         match self.book.finish_ordinary_save(save) {
                             Ok((bytes, _)) => {
+                                if let Some((name,format))=target {self.book.saved_as(name,format);}
                                 out = Some(bytes);
                                 Ok(Reply::Done {
                                     outcome: self.outcome(true, None, 0.0),
@@ -659,6 +672,7 @@ impl Server {
                             .checked_add(1)
                             .expect("save request identity exhausted");
                         let waiting = save.progress() == calc_host::CalculatedSaveProgress::Waiting;
+                        self.save_as_target=target;
                         self.pending_save = Some((token, PendingSave::Ordinary(save)));
                         Ok(Reply::SavePending { token, waiting })
                     }
@@ -692,7 +706,8 @@ impl Server {
                         P::Ready | P::Failed => {
                             let (_, save) = self.pending_save.take().expect("checked save");
                             let model_revision = save.model_revision().get();
-                            let name = self.book.save_name();
+                            let target=self.save_as_target.take();
+                            let name = target.as_ref().map_or_else(||self.book.save_name(),|(n,_)|n.clone());
                             let (bytes, _) = match save {
                                 PendingSave::Calculated(save) => {
                                     self.book.finish_calculated_save(save)?
@@ -701,6 +716,7 @@ impl Server {
                                     self.book.finish_ordinary_save(save)?
                                 }
                             };
+                            if let Some((name,format))=target {self.book.saved_as(name,format);}
                             out = Some(bytes);
                             Ok(Reply::SaveImage {
                                 outcome: self.outcome(true, None, 0.0),
@@ -722,6 +738,7 @@ impl Server {
                     {
                         return Err("This calculated save is no longer pending".into());
                     }
+                    self.save_as_target=None;
                     let (_, save) = self.pending_save.take().expect("checked save");
                     match save {
                         PendingSave::Calculated(save) => self.book.cancel_calculated_save(save)?,
@@ -1016,6 +1033,7 @@ impl Server {
     /// A new workbook in place of the open one: the page's subscriptions end with it.
     fn install(&mut self, mut book: Workbook) {
         self.pending_save = None;
+        self.save_as_target = None;
         let interrupted = self.book.has_pending_calculation();
         if interrupted {
             self.book.cancel_calculation();
@@ -1094,6 +1112,9 @@ impl Server {
                 .and_then(|s| {let (r,c)=self.book.host().sheet_view(s.id()).and_then(|v|v.active_cell).unwrap_or((1,1));CellKey::new(s.id(),r,c).ok().map(Key::of)}),
             name: self.book.name().to_owned(),
             changed: self.book.changed(),
+            unsaved: self.book.unsaved(),
+            macro_enabled: self.book.output_format().macro_enabled(),
+            template: self.book.output_format().is_template(),
             undo: self.book.session().history_depth().0,
             redo: self.book.session().history_depth().1,
             sheets: self
@@ -5361,5 +5382,65 @@ mod window_tests {
         assert_eq!(view.pane_top_left, Some((100, 10)));
         assert_eq!(view.active_pane, 3);
         assert_eq!(view.zoom, Some(200));
+    }
+}
+
+#[cfg(test)]
+mod template_save_tests {
+    use super::*;
+    #[cfg_attr(not(target_arch="wasm32"),test)]
+    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_bctq__save_as_updates_actual_reference_identity_and_undo_retains_it() {
+        let mut server=Server::new();let sheet=server.book().sheets()[0].id;
+        let at=|r,c|Key::of(CellKey::new(sheet,r,c).unwrap());
+        server.execute_current(Request::Intent(wire::Intent::EnterCell{at:at(1,1),text:"42".into()}),None).reply.unwrap();
+        server.execute_current(Request::Intent(wire::Intent::EditSheet {sheet:None,change:wire::SheetChange::Add{name:"Extra".into()}}),None).reply.unwrap();
+        let reply=server.execute_current(Request::SaveAs{name:"Budget.xltm".into(),format:wire::FileFormat::Xltm,views:None},None);
+        assert!(reply.bytes.is_some());assert!(matches!(reply.reply,Ok(Reply::Done {saved:Some(_),..})));
+        assert_eq!(server.book().host().model().definitions().workbook_name(),Some("Budget.xltm"));
+        assert!(server.book().host().model().definitions().macro_enabled());
+        server.execute_current(Request::Intent(wire::Intent::EnterCell{at:at(1,2),text:"=INDIRECT(\"[Budget.xltm]Sheet1!A1\")".into()}),None).reply.unwrap();
+        assert_eq!(server.book().shown(&server.book().cell(CellKey::new(sheet,1,2).unwrap()).unwrap()).text,"42");
+        // A structural snapshot undo must not restore an obsolete file identity.
+        server.execute_current(Request::Intent(wire::Intent::Undo),None).reply.unwrap();
+        server.execute_current(Request::Intent(wire::Intent::Undo),None).reply.unwrap();
+        assert_eq!(server.book().sheets().len(),1);
+        assert_eq!(server.book().host().model().definitions().workbook_name(),Some("Budget.xltm"));
+        assert!(server.book().host().model().definitions().macro_enabled());
+    }
+    #[cfg_attr(not(target_arch="wasm32"),test)]
+    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_bctq__macro_loss_answers_with_a_terminal_refusal_and_no_save_token() {
+        let mut server=Server::new();
+        server.execute_current(Request::Open{name:"local.xlsm".into()},Some(include_bytes!("../../../crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm").to_vec())).reply.unwrap();
+        let revision=server.book().host().revision();let history=server.book().session().history_depth();
+        let answer=server.execute_current(Request::SaveAs{name:"bad.xltx".into(),format:wire::FileFormat::Xltx,views:None},None);
+        assert!(answer.bytes.is_none());assert!(matches!(answer.reply,Ok(Reply::Done{outcome:Outcome{accepted:false,error:Some(ref e),..},saved:None,..}) if e.contains("would be lost")));
+        assert!(server.pending_save.is_none());assert!(server.save_as_target.is_none());assert_eq!(server.book().name(),"local.xlsm");
+        assert_eq!(server.book().host().revision(),revision);assert_eq!(server.book().session().history_depth(),history);
+    }
+}
+
+#[cfg(test)]
+mod template_pending_tests {
+    use super::*;
+    #[cfg_attr(not(target_arch="wasm32"),test)]
+    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_bctq__save_as_retires_old_calculation_before_rebinding_file_identity() {
+        let mut server=Server::new();let sheet=server.book().sheets()[0].id;
+        for (c,text) in [(1,"42"),(2,"=INDIRECT(\"[NewName.xlsx]Sheet1!A1\")"),(3,"=B1+1"),(4,"=C1+1")] {
+            server.execute_current(Request::Intent(wire::Intent::EnterCell{at:Key::of(CellKey::new(sheet,1,c).unwrap()),text:text.into()}),None).reply.unwrap();
+        }
+        server.set_calculation_budget(calc_host::WorkBudget::evaluations(1));
+        server.execute_current(Request::Intent(wire::Intent::Recalculate),None).reply.unwrap();
+        assert!(server.book().has_pending_calculation());server.take_events();
+        let answer=server.execute_current(Request::SaveAs{name:"NewName.xlsx".into(),format:wire::FileFormat::Xlsx,views:None},None);
+        assert!(matches!(answer.reply,Ok(Reply::Done{outcome:Outcome{accepted:true,..},saved:Some(_),..})),"{:?}",answer.reply);
+        assert!(answer.bytes.is_some());
+        let mut events=server.take_events();
+        for _ in 0..100 {if !server.has_pending_calculation(){break;}server.advance_calculation();events.extend(server.take_events());}
+        assert!(!server.has_pending_calculation());
+        assert_eq!(server.book().shown(&server.book().cell(CellKey::new(sheet,1,4).unwrap()).unwrap()).text,"44");
+        assert!(events.iter().any(|e|matches!(e,Event::Calculation{receipt:wire::CalculationEvent::Completed{outcome:wire::CalculationOutcome::Cancelled,..},..})),"{events:?}");
     }
 }

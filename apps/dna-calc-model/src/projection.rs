@@ -588,6 +588,8 @@ pub enum Request {
     Open {
         name: String,
     },
+    /// Opens the template file itself instead of creating an unsaved workbook.
+    OpenForEditing { name: String },
     /// Prepare and replace the workbook's live VBA procedures. Source is not persisted here.
     LoadVbaModule {
         name: String,
@@ -605,6 +607,8 @@ pub enum Request {
         #[serde(default)]
         views: Option<SaveWindow>,
     },
+    /// Uses the ordinary pinned save, with an explicit format and file name.
+    SaveAs { name: String, format: FileFormat, views: Option<SaveWindow> },
     Intent(Intent),
     /// Registers subscription `id` (the page's number for it); its cells come as events.
     Subscribe {
@@ -712,6 +716,8 @@ impl Request {
             Self::EvaluateName { .. }
                 | Self::New
                 | Self::Open { .. }
+                | Self::OpenForEditing { .. }
+                | Self::SaveAs { .. }
                 | Self::Save
                 | Self::SaveWithContext { .. }
                 | Self::SaveCalculated
@@ -734,6 +740,12 @@ pub struct Summary {
     pub workbook: u64,
     pub name: String,
     pub changed: bool,
+    #[serde(default)]
+    pub unsaved: bool,
+    #[serde(default)]
+    pub macro_enabled: bool,
+    #[serde(default)]
+    pub template: bool,
     pub undo: usize,
     pub redo: usize,
     /// The sheets in workbook order, with their names.
@@ -752,6 +764,13 @@ pub struct Summary {
     /// first of them and how many, which the status line warns of.
     pub circular: Option<Key>,
     pub circular_count: usize,
+}
+
+/// Supported authored SpreadsheetML file kinds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FileFormat { Xlsx, Xlsm, Xltx, Xltm }
+impl FileFormat {
+    pub fn extension(self) -> &'static str {match self {Self::Xlsx=>"xlsx",Self::Xlsm=>"xlsm",Self::Xltx=>"xltx",Self::Xltm=>"xltm"}}
 }
 
 /// What an intent (or an open, a new workbook, a save) did.

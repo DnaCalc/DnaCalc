@@ -8201,6 +8201,54 @@ Case {
         Action::OpenDetails("pane-tools"),Action::SetPainter("canvas"),Action::Wait(Check::CanvasInk("A2")),Action::Wait(Check::PlanCell("B2","style.font_color","#000000")),Action::SetPainter("dom")
     ],checks:&[Check::Computed(cell!("A2"),"color:#123456"),Check::Computed(cell!("B2"),"color:#000000"),Check::PlanCell("C5","text","12"),Check::PlanCell("A1","style.font_color","#ffffff")]},
 
+    Case {
+        name:"templates: Save As template writes the actual authored workbook (dc-bctq)",
+        actions:&[Action::Window(1440,1000),Action::ClearDownloads,
+            Action::Into("name-box","A1\u{E007}"),Action::Into(BAR,"6\u{E007}"),
+            Action::Into("name-box","B1\u{E007}"),Action::Into(BAR,"=A1*3\u{E007}"),Action::Wait(Check::Text(cell!("B1"),"18")),
+            Action::OpenDetails("file-menu"),Action::Click("save-as"),Action::Wait(Check::Rendered("save-as-dialog",true)),
+            Action::Into("save-as-name","Budget"),Action::Choose("save-as-format","xltx"),Action::Click("save-as-confirm")],
+        checks:&[Check::Text("document","Budget.xltx"),Check::Attr("document","data-template","true"),Check::Attr("document","data-unsaved","false"),Check::Absent("[data-dnacalc=save-as-dialog][open]")],
+    },
+    Case {
+        name:"templates: ordinary Open creates an unsaved workbook with calculated formulas",
+        actions:&[Action::UploadDownload("Budget.xltx"),Action::DiscardReplacement],
+        checks:&[Check::Text("document","Book1.xlsx"),Check::Attr("document","data-unsaved","true"),Check::Attr("document","data-template","false"),Check::Text(cell!("A1"),"6"),Check::Text(cell!("B1"),"18"),Check::PlanCell("B1","provenance","calculated")],
+    },
+    Case {
+        name:"templates: Save of the unsaved workbook prompts Save As and cancellation keeps it",
+        actions:&[Action::Click("save"),Action::Wait(Check::Rendered("save-as-dialog",true)),Action::Wait(Check::Value("save-as-format","xlsx")),Action::Click("save-as-cancel")],
+        checks:&[Check::Attr("document","data-unsaved","true"),Check::Text(cell!("B1"),"18"),Check::Absent("[data-dnacalc=save-as-dialog][open]")],
+    },
+    Case {
+        name:"templates: Open for editing retains the template identity and its formula",
+        actions:&[Action::OpenDetails("file-menu"),Action::UploadDownloadTo("Budget.xltx","open-editing-file"),Action::DiscardReplacement,
+            Action::Into("name-box","A1\u{E007}"),Action::Into(BAR,"7\u{E007}"),Action::Wait(Check::Text(cell!("B1"),"21"))],
+        checks:&[Check::Text("document","Budget.xltx (changed)"),Check::Attr("document","data-unsaved","false"),Check::Attr("document","data-template","true")],
+    },
+    Case {
+        name:"templates: personal templates create independent workbooks and can be removed",
+        actions:&[Action::OpenDetails("file-menu"),Action::UploadDownloadTo("Budget.xltx","template-file"),Action::Wait(Check::Value("template-list","Budget.xltx")),Action::Click("template-new"),Action::DiscardReplacement,
+            Action::Wait(Check::Text("document","Book1.xlsx")),Action::OpenDetails("file-menu"),Action::Choose("template-list","Budget.xltx"),Action::Click("template-remove")],
+        checks:&[Check::Value("template-list",""),Check::Text(cell!("B1"),"18"),Check::Attr("document","data-unsaved","true")],
+    },
+    Case {
+        name:"templates: a macro-enabled choice writes a template and opens it as an xlsm workbook",
+        actions:&[Action::OpenDetails("file-menu"),Action::Click("save-as"),Action::Into("save-as-name","MacroBudget"),Action::Choose("save-as-format","xltm"),Action::Click("save-as-confirm"),Action::Wait(Check::Text("document","MacroBudget.xltm")),Action::UploadDownload("MacroBudget.xltm"),Action::DiscardReplacement],
+        checks:&[Check::Text("document","Book1.xlsm"),Check::Attr("document","data-unsaved","true"),Check::Text(cell!("B1"),"18")],
+    },
+    Case {
+        name:"templates: VBA loss is warned and the macro-free download is refused atomically",
+        actions:&[Action::Upload("open-file","crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm"),Action::DiscardReplacement,Action::Wait(Check::Text("document","local.xlsm")),
+            Action::OpenDetails("file-menu"),Action::Click("save-as"),Action::Choose("save-as-format","xltx"),Action::Wait(Check::TextContains("save-as-warning","VBA would be lost")),Action::Click("save-as-confirm")],
+        checks:&[Check::Text("document","local.xlsm"),Check::Rendered("save-as-dialog",true),Check::TextContains("status","would be lost")],
+    },
+    Case {
+        name:"templates: phone Save As and template controls remain reachable",
+        actions:&[Action::Click("save-as-cancel"),Action::Window(390,844),Action::OpenDetails("file-menu"),Action::Wait(Check::Reachable("template-add")),Action::Wait(Check::Reachable("template-list")),Action::Click("save-as")],
+        checks:&[Check::Reachable("save-as-name"),Check::Reachable("save-as-format"),Check::Reachable("save-as-confirm"),Check::Reachable("save-as-cancel")],
+    },
+
 ];
 
 /// The script that reads what one check looks at.
@@ -8739,6 +8787,8 @@ pub(crate) const CALC_LATENCY_CASES: &[Case] = &[
         ],
     },
 
+
+
 ];
 
 pub(crate) const CALC_WORKER_FAULT_CASES: &[Case] = &[
@@ -9036,4 +9086,5 @@ CaseGroup {
     CaseGroup { name: "conditional-colour-filters", start: 640, end: 646, core: 6, setup: &[] },
     CaseGroup {name:"sort-metadata",start:646,end:651,core:5,setup:&[]},
     CaseGroup {name:"table-sorting",start:651,end:657,core:6,setup:&[]},
+    CaseGroup {name:"templates",start:657,end:665,core:8,setup:&[]},
 ];

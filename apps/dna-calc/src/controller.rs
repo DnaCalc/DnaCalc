@@ -143,6 +143,7 @@ pub struct Controller {
     pub transport: ModelField<port::Health>,
     pub download_unconfirmed: ModelField<bool>,
     pub pending_actions: ModelField<usize>,
+    pub saving: ModelField<bool>,
     pub replacing: ModelField<bool>,
     pending_changes: ModelField<usize>,
     selection_epoch: ModelField<u64>,
@@ -369,6 +370,7 @@ impl Controller {
                 |m| &m.runtime.pending_actions,
                 |m| &mut m.runtime.pending_actions,
             ),
+            saving: Field::new(model,|m|&m.runtime.saving,|m|&mut m.runtime.saving),
             replacing: Field::new(
                 model,
                 |m| &m.runtime.replacing,
@@ -840,6 +842,7 @@ impl Controller {
     /// A new workbook is open (an open or a new workbook): a new generation, the first sheet
     /// active at A1, and the application's selection subscription.
     fn installed(&self, summary: Summary, message: String) {
+        self.saving.set(false);
         let restore_focus = self
             .captured_command_focus()
             .is_none_or(|ticket| self.model.with_untracked(|m| m.focus.accepts(ticket)));
@@ -917,6 +920,7 @@ impl Controller {
         self.has_deferred()
             || self.pending_changes.get() > 0
             || self.summary.get().changed
+            || self.summary.get().unsaved
             || self.download_unconfirmed.get()
             || self.model.with(|m| m.views.pending_reason().is_some())
             || (self.editing.get().is_some()
@@ -995,6 +999,9 @@ impl Controller {
     /// Opens a package's bytes under `name`; the current workbook stays when it is refused.
     /// `opened` hears whether it opened.
     pub fn open(&self, name: &str, bytes: Vec<u8>, opened: impl FnOnce(bool) + 'static) {
+        self.open_mode(name,bytes,false,opened);
+    }
+    pub fn open_mode(&self,name:&str,bytes:Vec<u8>,edit_template:bool,opened:impl FnOnce(bool)+'static) {
         if self.replacing.get_untracked() {
             return;
         }
@@ -1006,7 +1013,7 @@ impl Controller {
         let size = bytes.len();
         let name = name.to_owned();
         self.send_command(
-            Request::Open { name: name.clone() },
+            if edit_template { Request::OpenForEditing {name:name.clone()} } else {Request::Open { name: name.clone() }},
             Some(bytes),
             move |reply, _| {
                 controller
@@ -3184,9 +3191,28 @@ impl Controller {
     /// Saves the workbook as a package's bytes; `saved` gets its name and bytes, and the status
     /// line says how it went.
     pub fn save(&self, saved: impl FnOnce(String, Vec<u8>) + 'static) {
+        self.save_choice(None,saved);
+    }
+    pub fn prepare_save_as(&self, ready: impl FnOnce()+'static) {
+        let controller=*self;
+        self.after_input(move || {
+            if controller.editing.get_untracked().is_none() {ready();}
+            else {controller.commit_edit(move |accepted|if accepted {ready();});}
+        });
+    }
+    pub fn save_as(&self,name:String,format:wire::FileFormat,saved:impl FnOnce(String,Vec<u8>)+'static) {
+        // The modal opens only after its preceding cell entry has committed. A later
+        // pending input needs a fresh user action, never an abandoned modal continuation.
+        if self.waiting_input() || self.editing.get_untracked().is_some() {
+            self.say("Finish the current cell entry before Save As",true);return;
+        }
+        if let Some(reason)=self.model.with_untracked(|m|m.views.pending_reason()) {self.say(reason,true);return;}
+        self.save_package(Some((name,format)),saved);
+    }
+    fn save_choice(&self,target:Option<(String,wire::FileFormat)>,saved:impl FnOnce(String,Vec<u8>)+'static) {
         if self.waiting_input() {
             let controller = *self;
-            self.enqueue(move || controller.save(saved));
+            self.enqueue(move || controller.save_choice(target,saved));
             return;
         }
         if let Some(reason) = self.model.with_untracked(|m| m.views.pending_reason()) {
@@ -3197,17 +3223,17 @@ impl Controller {
         if self.editing.get_untracked().is_some() {
             self.commit_edit(move |accepted| {
                 if accepted {
-                    controller.save_package(saved);
+                    controller.save_package(target,saved);
                 } else {
                     controller.focus_editor();
                 }
             });
         } else {
-            self.save_package(saved);
+            self.save_package(target,saved);
         }
     }
 
-    fn save_package(&self, saved: impl FnOnce(String, Vec<u8>) + 'static) {
+    fn save_package(&self, target:Option<(String,wire::FileFormat)>, saved: impl FnOnce(String, Vec<u8>) + 'static) {
         if self.save_download.with_value(|pending| pending.is_some()) {
             self.say("A workbook save is still being prepared", false);
             return;
@@ -3251,17 +3277,25 @@ impl Controller {
                 })
                 .collect()
         });
-        let request = Request::SaveWithContext {
-            calculate_before_save: false,
-            views: Some(wire::SaveWindow {
+        let views=Some(wire::SaveWindow {
                 revision: self.summary.get_untracked().revision,
                 active_sheet: wire::Sheet::of(active_sheet),
                 sheets: views,
-            }),
-        };
+            });
+        // Applying the worker reply updates Summary before this callback runs. Keep the
+        // download's original protection here, including saves which finish asynchronously.
+        let unconfirmed = target.is_some()
+            || self.summary.with_untracked(|s| s.changed || s.unsaved);
+        let request=match target {Some((name,format))=>Request::SaveAs{name,format,views},None=>Request::SaveWithContext {calculate_before_save:false,views}};
+        self.saving.set(true);
         self.send_command(request, None, move |reply, bytes| {
             if controller.generation.get_untracked() == generation {
-                controller.save_reply(reply, bytes, Box::new(saved));
+                controller.save_reply(reply, bytes, Box::new(move |name, bytes| {
+                    if unconfirmed {
+                        controller.download_unconfirmed.set(true);
+                    }
+                    saved(name, bytes);
+                }));
             }
         });
     }
@@ -3271,6 +3305,7 @@ impl Controller {
         bytes: Option<Vec<u8>>,
         saved: SaveDownload,
     ) {
+        self.saving.set(matches!(&reply,Ok(Reply::SavePending {..})));
         let controller = *self;
         controller.revision.update(|n| *n += 1);
         match (reply, bytes) {
@@ -3290,7 +3325,7 @@ impl Controller {
                 }),
                 Some(bytes),
             ) => {
-                if controller.summary.get_untracked().changed {
+                if controller.summary.with_untracked(|s|s.changed || s.unsaved) {
                     controller.download_unconfirmed.set(true);
                 }
                 controller.summary.set(outcome.summary.into());
@@ -3880,5 +3915,28 @@ mod projection_lifetime_tests {
                 );
             });
         }
+    }
+}
+
+#[cfg(test)]
+mod template_lifecycle_tests {
+    use super::*;
+    #[cfg_attr(not(target_arch="wasm32"),test)]
+    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_bctq__idle_save_as_opens_and_an_unsaved_template_keeps_download_protection() {
+        use std::{cell::Cell,rc::Rc};
+        let root=Owner::new();root.with(|| {
+            let controller=Controller::with_transport(Rc::new(dna_calc_worker::transport::InProcessTransport::default()));
+            let opened=Rc::new(Cell::new(false));let out=opened.clone();
+            controller.prepare_save_as(move ||out.set(true));assert!(opened.get(),"idle Save As must open without an editor target");
+            let mut source=dna_calc_worker::server::Server::new();
+            let bytes=source.execute_current(Request::SaveAs{name:"Template.xltx".into(),format:wire::FileFormat::Xltx,views:None},None).bytes.unwrap();
+            controller.open("Template.xltx",bytes,|ok|assert!(ok));
+            assert!(controller.summary.get_untracked().unsaved);assert!(!controller.summary.get_untracked().changed);
+            let downloaded=Rc::new(Cell::new(false));let out=downloaded.clone();
+            controller.save_as("New.xlsx".into(),wire::FileFormat::Xlsx,move |name,bytes|{assert_eq!(name,"New.xlsx");assert!(!bytes.is_empty());out.set(true);});
+            assert!(downloaded.get());assert!(!controller.saving.get_untracked());assert!(!controller.summary.get_untracked().unsaved);
+            assert!(controller.download_unconfirmed.get_untracked());assert!(controller.has_dirty_work());
+        });
     }
 }
