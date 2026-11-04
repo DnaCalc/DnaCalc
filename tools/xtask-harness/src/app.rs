@@ -1144,6 +1144,8 @@ pub enum Check {
     Name(&'static str, &'static str),
     /// The whole element fits within the viewport, with rendered, reachable content.
     Reachable(&'static str),
+    /// The browser hit test reaches the element's centre, including ancestor clipping.
+    HitTarget(&'static str),
     /// The child fits wholly inside a clipping region.
     Contained(&'static str, &'static str),
     /// The selected element's solid text/background colours meet WCAG's normal-text ratio.
@@ -1330,6 +1332,7 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
             "var e={}; if(!e) return false; var r=e.getBoundingClientRect(); return r.width>0 && r.height>0 && r.left>=0 && r.top>=0 && r.right<=innerWidth+1 && r.bottom<=innerHeight+1 && getComputedStyle(e).visibility==='visible';",
             q(name)
         ),
+        Check::HitTarget(name) => format!("var e={};if(!e)return false;var r=e.getBoundingClientRect(),hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return !!hit&&e.contains(hit);",q(name)),
         Check::Bounded(name, _) | Check::Count(name,_) => format!(
             "return document.querySelectorAll('{}').length;",
             select(app, name).replace('\'', "\\'")
@@ -1448,6 +1451,7 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
         | Check::Focused(_)
         | Check::Contained(_, _)
         | Check::Reachable(_)
+        | Check::HitTarget(_)
         | Check::ActiveDescendant(_)
         | Check::DragExtended
         | Check::PageAligned
@@ -1528,6 +1532,7 @@ fn describe(check: &Check) -> String {
         Check::Role(name, value) => format!("{name} has computed accessibility role {value}"),
         Check::Name(name, value) => format!("{name} has computed accessible name {value}"),
         Check::Reachable(name) => format!("{name} fits within the viewport"),
+        Check::HitTarget(name) => format!("the browser hit test reaches {name}"),
         Check::Contained(child, parent) => format!("{child} fits inside {parent}"),
         Check::PinnedCell => {
             "the frozen cell keeps its rectangle while both scroll axes move".to_owned()
@@ -2220,7 +2225,10 @@ fn wait_for(app: &App, session: &Session, check: &Check, settle: Duration) -> Op
             Err(e) => last = Value::String(format!("(script failed: {e})")),
         }
         if started.elapsed() > settle {
-            return Some(format!("expected {}; saw {last}", describe(check)));
+            let geometry = if let Check::Reachable(name) = check {
+                session.script(&format!("var e=document.querySelector('{}');return {{viewport:[innerWidth,innerHeight],scroll:[scrollX,scrollY],rect:e?.getBoundingClientRect().toJSON(),ancestors:e?Array.from((function*(n){{for(;n;n=n.parentElement)yield n;}})(e)).slice(0,8).map(n=>({{tag:n.tagName,role:n.getAttribute('data-dnacalc'),rect:n.getBoundingClientRect().toJSON(),overflow:getComputedStyle(n).overflow}})):[]}};",select(app,name))).map(|v|format!("; geometry {v}")).unwrap_or_default()
+            } else { String::new() };
+            return Some(format!("expected {}; saw {last}{geometry}", describe(check)));
         }
         thread::sleep(Duration::from_millis(100));
     }
@@ -3021,8 +3029,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 264,
-            "the two applications have 264 core cases including case/custom sorting, templates, complete table sorting, sorted notes/validation, conditional colour filters, candidate validation, conditional formats, editable review content, validation audits and the existing editing routes"
+            total, 268,
+            "the two applications have 268 core cases including conditional row formats, case/custom sorting, templates, complete table sorting, sorted notes/validation, conditional colour filters, candidate validation, conditional formats, editable review content, validation audits and the existing editing routes"
         );
     }
 

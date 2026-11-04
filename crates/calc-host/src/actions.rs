@@ -646,6 +646,7 @@ fn sort_rows(
             data.contains(n.at) && matches!(n.source.as_ref(),Some(calc_doc_model::ReviewSource::Note{..}))) {
         return Err(unavailable("notes after row or column edits; save and reopen first"));
     }
+    if host.axis_edits.iter().any(|e|e.sheet()==area.sheet()) && !host.model().definitions().conditional_rules(area.sheet()).is_empty(){return Err(unavailable("conditional formatting after row or column edits; save and reopen first"));}
     let review = host.sheet_review(area.sheet());
     if !review.unsupported.is_empty()
         || review
@@ -655,17 +656,13 @@ fn sort_rows(
     {
         return Err(unavailable("cells with unread review fields or hyperlinks"));
     }
-    // Rule ranges and formulas are separate authored objects. Do not strand them by moving
-    // only cell inputs, and never infer a formula value from a saved cache.
+    // Pointwise rules follow the same row permutation below; unread and population-based
+    // rules retain their refusal. No formula value is inferred from a saved cache.
     if review.conditional_extensions
         || host.loaded.sheet(area.sheet()).is_some_and(|sheet| {
             sheet.conditional_formats().iter().any(|block| block.unread_container)
         })
-        || !host
-        .model()
-        .definitions()
-        .conditional_rules(area.sheet())
-        .is_empty()
+        || !crate::copy_metadata::conditional_sort_supported(host,area.sheet())
     {
         return Err(unavailable("a sheet with conditional formatting"));
     }
@@ -773,7 +770,7 @@ fn sort_rows(
 // Qualified relative references have distinct Excel sort behaviour. The only newly
 // admitted qualifier is one valid, fully fixed cell on a different worksheet. Check
 // its identity with the canonical binder and its invariance with the copy relocator.
-fn sort_formula_references_supported(
+pub(crate) fn sort_formula_references_supported(
     host: &HostState,
     formula: &crate::FormulaText,
     at: CellKey,

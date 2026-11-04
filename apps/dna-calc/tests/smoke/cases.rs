@@ -8125,10 +8125,10 @@ Case {
         actions: &[Action::Click("filter-clear"), Action::Into("filter-column", "1"),
             Action::OpenDetails("filter-color-tools"), Action::Choose("filter-color-kind", "fill"),
             Action::Into("filter-color", ""), Action::Click("filter-color-apply"), Action::Window(390,844),
-            Action::Into("name-box", "A12\u{E007}")],
+            Action::Into("name-box", "A12\u{E007}"), Action::Wait(Check::Reachable("filter-color")), Action::Wait(Check::Reachable("filter-color-apply")), Action::Keys("filter-color", "\u{E004}")],
         checks: &[Check::PlanCell("A12", "text", "22"), Check::PlanCell("D12", "text", "22"),
             Check::PlanAbsent("A2"), Check::PlanAbsent("A4"), Check::TextContains("filter-summary", "5 rows filtered out"),
-            Check::Fits, Check::Narrow(390), Check::Reachable("filter-color"), Check::Reachable("filter-color-apply")],
+            Check::Fits, Check::Narrow(390), Check::Reachable("filter-color"), Check::Reachable("filter-color-apply"), Check::Focused("filter-color-apply"), Check::HitTarget("filter-color-apply")],
     },
     Case {
         name: "conditional colour filters: an unsupported scale refuses without changing row visibility",
@@ -8295,6 +8295,19 @@ Case {
     Case {name:"custom sorting: results reopen and controls fit a phone",actions:&[
         Action::Into("sort-custom-order","Low\nMedium\nHigh"),Action::Click("sort-ascending"),Action::Wait(Check::PlanCell("A2","text","Low")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::Wait(Check::PlanCell("C2","text","10")),Action::Wait(Check::PlanCell("A5","text","High")),Action::Wait(Check::PlanCell("C5","text","20")),Action::Window(390,844),Action::OpenDetails("sort-tools"),Action::OpenDetails("sort-options"),Action::Click("sort-custom-order")
     ],checks:&[Check::Fits,Check::Narrow(390),Check::Name("sort-custom-order","Custom order for first key"),Check::Reachable("sort-case-sensitive"),Check::Reachable("sort-custom-order")]},
+
+    Case{name:"conditional sorting: pointwise formats move with rows and keep outside cells",actions:&[
+        Action::Window(1440,1000),Action::ExternalClipboard("Key\tAmount\tTotal\n3\t30\t=B2\n1\t10\t=B3\n2\t20\t=B4\n\t40\t",false),Action::Keys("grid","\u{E009}v\u{E000}"),Action::Wait(Check::PlanCell("C4","text","20")),Action::Into("name-box","B2\u{E007}"),Action::Click("review-tools"),Action::Choose("rule-kind","expression"),Action::Into("rule-new-formulas","$B2>0"),Action::Into("rule-color","ff0000"),Action::Click("rule-add"),Action::Wait(Check::Count("rule-row",1)),Action::Into("rule-applies","B2:B5"),Action::Choose("rule-kind","cellIs"),Action::Into("rule-new-formulas","15"),Action::Into("rule-color","0000ff"),Action::Click("rule-add"),Action::Wait(Check::Count("rule-row",2)),Action::Click("review-close"),Action::Into("name-box","A1:C4\u{E007}"),Action::OpenDetails("sort-tools"),Action::Click("sort-ascending"),Action::Wait(Check::PlanCell("C2","text","10"))
+    ],checks:&[Check::Style("[data-dnacalc=cell-decoration][data-cell=B4]","background-color:#ff0000"),Check::Style("[data-dnacalc=cell-decoration][data-cell=B3]","background-color:#0000ff"),Check::Style("[data-dnacalc=cell-decoration][data-cell=B5]","background-color:#0000ff"),Check::Absent("[data-dnacalc=cell-decoration][data-cell=B2]")]},
+    Case{name:"conditional sorting: Undo Redo and descending preserve rule priorities",actions:&[
+        Action::Click("undo"),Action::Wait(Check::Style("[data-dnacalc=cell-decoration][data-cell=B2]","background-color:#ff0000")),Action::Click("redo"),Action::Wait(Check::Style("[data-dnacalc=cell-decoration][data-cell=B4]","background-color:#ff0000")),Action::Into("name-box","A1:C4\u{E007}"),Action::Click("sort-descending"),Action::Wait(Check::PlanCell("C2","text","30"))
+    ],checks:&[Check::Style("[data-dnacalc=cell-decoration][data-cell=B2]","background-color:#ff0000"),Check::Style("[data-dnacalc=cell-decoration][data-cell=B3]","background-color:#0000ff"),Check::Absent("[data-dnacalc=cell-decoration][data-cell=B4]")]},
+    Case{name:"conditional sorting: moved ranges reopen and sort through the saved XLSX",actions:&[
+        Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::Wait(Check::PlanCell("C2","text","30")),Action::Into("name-box","A1:C4\u{E007}"),Action::OpenDetails("sort-tools"),Action::Click("sort-ascending"),Action::Wait(Check::PlanCell("C2","text","10")),Action::Into("name-box","B2\u{E007}"),Action::Click("review-tools")
+    ],checks:&[Check::Count("rule-row",5),Check::Style("[data-dnacalc=cell-decoration][data-cell=B4]","background-color:#ff0000"),Check::Style("[data-dnacalc=cell-decoration][data-cell=B5]","background-color:#0000ff")]},
+    Case{name:"conditional sorting: population rules keep their atomic refusal",actions:&[
+        Action::Choose("rule-kind","top10"),Action::Into("rule-applies","B2:B4"),Action::Into("rule-rank","1"),Action::Click("rule-add"),Action::Wait(Check::Count("rule-row",6)),Action::Click("review-close"),Action::Into("name-box","A1:C4\u{E007}"),Action::OpenDetails("sort-tools"),Action::Click("sort-descending"),Action::Wait(Check::TextContains("status","conditional formatting"))
+    ],checks:&[Check::PlanCell("A2","text","1"),Check::PlanCell("C2","text","10"),Check::PlanCell("A4","text","3")]},
 
 ];
 
@@ -9135,4 +9148,5 @@ CaseGroup {
     CaseGroup {name:"table-sorting",start:651,end:657,core:6,setup:&[]},
     CaseGroup {name:"templates",start:657,end:670,core:13,setup:&[]},
     CaseGroup {name:"sort-options",start:670,end:675,core:5,setup:&[]},
+    CaseGroup {name:"conditional-sorting",start:675,end:679,core:4,setup:&[]},
 ];
