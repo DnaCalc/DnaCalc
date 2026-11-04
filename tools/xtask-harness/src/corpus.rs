@@ -48,9 +48,8 @@
 //!    failure, and the run carries on.
 //! 5. **The summary.** `<out>/summary.md` and `<out>/summary.json` (`corpus_summary.rs`): per
 //!    workbook and in total, pass (matched Excel), external links (matched from another
-//!    workbook's link caches, apart from pass and fail), circular rule (matched with the value a
-//!    formula on a circular reference keeps with iteration off, apart from pass and fail) and fail (mismatched + refused + failed or
-//!    missing) over all formula cells, the pass rate over all formula cells, the wall times of open,
+//!    workbook's link caches), circular held values and awaiting captures, all inside fail beside
+//!    mismatches, refusals and failed/missing results over all formula cells, the pass rate over all formula cells, the wall times of open,
 //!    recalculation, projection and judging, and the failures grouped by root cause across the
 //!    corpus. A workbook that could not be read, captured or compared is listed as not compared,
 //!    with the stage and the reason, and the run carries on.
@@ -63,20 +62,20 @@
 //! cache or the output folder cannot be made, or the release build of the compare process fails;
 //! 2 on a usage error.
 
-use crate::capture::{accepted, repository_revision, with_workbook_iteration};
+use crate::capture::{accepted, repository_revision};
 use crate::corpus_summary::{Compared, NotCompared, Summary, Times, Workbook, read_triage};
 use crate::oracle_cases::{OracleCase, oracle_cases, package_parts, section_states, whole_state};
-use calc_verdict::{merged_record, workbook_sections};
-use std::collections::BTreeMap;
 use calc_oracle_excel::{CalculationPolicy, CaptureRequest, capture, windows_powershell};
 use calc_verdict::{CaptureRecord, sha256_hex};
+use calc_verdict::{merged_record, workbook_sections};
 use serde_json::{Value, json};
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::time::{Duration, Instant};
 
-pub const USAGE: &str = "usage: cargo xtask corpus [<dir>] [--oracle] [--out <dir>] [--cache <dir>] [--import <capture.json>]... [--no-capture] [--timeout <s>]";
+pub const USAGE: &str = "usage: cargo xtask corpus [<dir>] [--recursive] [--oracle] [--out <dir>] [--cache <dir>] [--import <capture.json>]... [--no-capture] [--dna-only] [--timeout <s>] [--shard <index/count>] [--resume] [--minimize] | cargo xtask corpus --merge <summary.json>... --out <dir>";
 
 const EXIT_FAILED: u8 = 1;
 const EXIT_USAGE: u8 = 2;
@@ -84,12 +83,12 @@ const EXIT_USAGE: u8 = 2;
 /// The cache of capture records, outside the repository.
 pub(crate) const DEFAULT_CACHE: &str = r"C:\Work\DnaCalc\corpus\captures-cache";
 const DEFAULT_OUT: &str = "target/corpus";
-/// The timeout of one Excel capture; the largest Ofgem workbook took most of an hour.
+/// One workbook's census/capture/comparison budget; the largest Ofgem capture took most of an hour.
 const DEFAULT_TIMEOUT_S: u64 = 3 * 3600;
 /// The target directory of the release build of the compare process.
 const RELEASE_TARGET_DIR: &str = "target/xtask-corpus";
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Args {
     pub(crate) dir: Option<PathBuf>,
     pub(crate) oracle: bool,
@@ -98,6 +97,12 @@ pub(crate) struct Args {
     pub(crate) imports: Vec<PathBuf>,
     pub(crate) no_capture: bool,
     pub(crate) timeout: Duration,
+    pub(crate) recursive: bool,
+    pub(crate) shard: Option<(u64, u64)>,
+    pub(crate) resume: bool,
+    pub(crate) minimize: bool,
+    pub(crate) dna_only: bool,
+    pub(crate) merges: Vec<PathBuf>,
 }
 
 pub(crate) fn parse_args(args: &[String]) -> Result<Args, String> {
@@ -109,6 +114,12 @@ pub(crate) fn parse_args(args: &[String]) -> Result<Args, String> {
         imports: Vec::new(),
         no_capture: false,
         timeout: Duration::from_secs(DEFAULT_TIMEOUT_S),
+        recursive: false,
+        shard: None,
+        resume: false,
+        minimize: false,
+        dna_only: false,
+        merges: Vec::new(),
     };
     let (mut out, mut cache, mut timeout) = (None, None, None);
     let mut rest = args.iter();
@@ -128,10 +139,33 @@ pub(crate) fn parse_args(args: &[String]) -> Result<Args, String> {
         match arg.as_str() {
             "--oracle" => parsed.oracle = true,
             "--no-capture" => parsed.no_capture = true,
+            "--recursive" => parsed.recursive = true,
+            "--resume" => parsed.resume = true,
+            "--minimize" => parsed.minimize = true,
+            "--dna-only" => {
+                parsed.dna_only = true;
+                parsed.no_capture = true;
+            }
+            "--shard" => {
+                if parsed.shard.is_some() {
+                    return Err("--shard is given twice".into());
+                }
+                let text = value("--shard")?;
+                let (index, count) = text
+                    .split_once('/')
+                    .ok_or("--shard needs index/count (zero based)")?;
+                let index: u64 = index.parse().map_err(|_| "invalid shard index")?;
+                let count: u64 = count.parse().map_err(|_| "invalid shard count")?;
+                if count == 0 || index >= count {
+                    return Err("--shard needs 0 <= index < count".into());
+                }
+                parsed.shard = Some((index, count));
+            }
             "--out" => once(&mut out, "--out", value("--out")?)?,
             "--cache" => once(&mut cache, "--cache", value("--cache")?)?,
             "--timeout" => once(&mut timeout, "--timeout", value("--timeout")?)?,
             "--import" => parsed.imports.push(PathBuf::from(value("--import")?)),
+            "--merge" => parsed.merges.push(PathBuf::from(value("--merge")?)),
             flag if flag.starts_with("--") => return Err(format!("unknown argument {flag:?}")),
             dir => {
                 if parsed.dir.replace(PathBuf::from(dir)).is_some() {
@@ -140,8 +174,20 @@ pub(crate) fn parse_args(args: &[String]) -> Result<Args, String> {
             }
         }
     }
-    if parsed.dir.is_none() && !parsed.oracle && parsed.imports.is_empty() {
+    if parsed.dir.is_none()
+        && !parsed.oracle
+        && parsed.imports.is_empty()
+        && parsed.merges.is_empty()
+    {
         return Err("give a workbook folder, --oracle or --import".to_owned());
+    }
+    if !parsed.merges.is_empty()
+        && (parsed.dir.is_some()
+            || parsed.oracle
+            || !parsed.imports.is_empty()
+            || parsed.shard.is_some())
+    {
+        return Err("--merge takes shard summaries without a workbook folder, --oracle, --import or --shard".into());
     }
     if let Some(out) = out {
         parsed.out = PathBuf::from(out);
@@ -201,7 +247,7 @@ pub(crate) fn folder_workbooks(dir: &Path) -> Result<Vec<Entry>, String> {
             .map(|e| e.to_string_lossy().to_ascii_lowercase());
         if path.is_file()
             && !name.starts_with("~$")
-            && matches!(extension.as_deref(), Some("xlsx" | "xlsm" | "xlsb"))
+            && matches!(extension.as_deref(), Some("xlsx" | "xlsm" | "xlsb" | "xls"))
         {
             let inventory = (extension.as_deref() == Some("xlsb"))
                 .then(|| {
@@ -213,8 +259,11 @@ pub(crate) fn folder_workbooks(dir: &Path) -> Result<Vec<Entry>, String> {
                 .flatten();
             entries.push(Entry {
                 name,
-                path,
-                committed: None,
+                path: path.clone(),
+                committed: path
+                    .with_extension("capture.json")
+                    .is_file()
+                    .then(|| path.with_extension("capture.json")),
                 inventory,
                 oracle: None,
             });
@@ -222,6 +271,35 @@ pub(crate) fn folder_workbooks(dir: &Path) -> Result<Vec<Entry>, String> {
     }
     entries.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(entries)
+}
+
+/// Extend the ordinary folder inventory; do not follow directory links into
+/// another corpus or revisit a directory through a link.
+pub(crate) fn folder_tree(root: &Path, recursive: bool) -> Result<Vec<Entry>, String> {
+    let mut pending = vec![root.to_owned()];
+    let mut found = Vec::new();
+    while let Some(dir) = pending.pop() {
+        let mut entries = folder_workbooks(&dir)?;
+        for entry in &mut entries {
+            entry.name = entry
+                .path
+                .strip_prefix(root)
+                .map_err(|e| e.to_string())?
+                .to_string_lossy()
+                .replace('\\', "/");
+        }
+        found.extend(entries);
+        if recursive {
+            for item in fs::read_dir(&dir).map_err(|e| e.to_string())? {
+                let item = item.map_err(|e| e.to_string())?;
+                if item.file_type().map_err(|e| e.to_string())?.is_dir() {
+                    pending.push(item.path());
+                }
+            }
+        }
+    }
+    found.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(found)
 }
 
 /// Every `crates/*/tests/fixtures/*/oracle.xlsx` under `root`, in path order, with its committed
@@ -248,6 +326,46 @@ pub(crate) struct Cache {
 }
 
 impl Cache {
+    /// Linux has no local Excel build. Retain the recorded calculation policy
+    /// when choosing among existing captures instead of discarding iteration.
+    pub(crate) fn find_policy(
+        &self,
+        sha256: &str,
+        policy: &CalculationPolicy,
+    ) -> Option<(PathBuf, String)> {
+        let mut candidates = Vec::new();
+        for item in fs::read_dir(self.root.join(file_safe(sha256))).ok()? {
+            let path = item.ok()?.path();
+            if !path
+                .file_name()?
+                .to_string_lossy()
+                .ends_with(".capture.json")
+            {
+                continue;
+            }
+            let Some(record) = fs::read(&path)
+                .ok()
+                .and_then(|bytes| CaptureRecord::decode(&bytes).ok())
+            else {
+                continue;
+            };
+            if record.source != format!("sha256:{sha256}")
+                || policy_key("policy", &record_policy(&record)) != policy_key("policy", policy)
+            {
+                continue;
+            }
+            let Some(build) = record
+                .environment
+                .as_ref()
+                .map(|env| env.target.excel_build())
+            else {
+                continue;
+            };
+            candidates.push((path, policy_key(build, policy)));
+        }
+        candidates.sort();
+        candidates.pop()
+    }
     pub(crate) fn path(&self, sha256: &str, build: &str) -> PathBuf {
         self.root
             .join(file_safe(sha256))
@@ -358,8 +476,7 @@ fn record_policy(record: &CaptureRecord) -> CalculationPolicy {
             .find(|(held, _)| held == name)
             .map(|(_, value)| value.as_str())
     };
-    if let Some(mode) = setting("calculation").and_then(calc_oracle_excel::CalculationMode::parse)
-    {
+    if let Some(mode) = setting("calculation").and_then(calc_oracle_excel::CalculationMode::parse) {
         policy.mode = mode;
     }
     if let Some(iteration) = setting("iteration") {
@@ -497,6 +614,7 @@ struct Run<'a> {
     args: &'a Args,
     cache: Cache,
     build: Option<Result<String, String>>,
+    program_digest: String,
 }
 
 impl Run<'_> {
@@ -506,7 +624,13 @@ impl Run<'_> {
 
     /// The capture `entry` is compared with: its committed capture, the cached one, or one taken
     /// now with Excel and cached.
-    fn capture_of(&mut self, entry: &Entry, sha256: &str) -> Result<Captured, NotCompared> {
+    fn capture_of(
+        &mut self,
+        entry: &Entry,
+        sha256: &str,
+        policy: &CalculationPolicy,
+        timeout: Duration,
+    ) -> Result<Captured, NotCompared> {
         if let Some(committed) = &entry.committed {
             return Ok(Captured {
                 path: committed.clone(),
@@ -514,16 +638,12 @@ impl Run<'_> {
                 seconds: None,
             });
         }
-        let policy = match fs::read(&entry.path) {
-            Ok(bytes) => with_workbook_iteration(CalculationPolicy::default(), &bytes),
-            Err(_) => CalculationPolicy::default(),
-        };
         let build = self.build();
-        let keyed = build.as_ref().ok().map(|build| policy_key(build, &policy));
-        let lookup = if policy == CalculationPolicy::default() || keyed.is_some() {
+        let keyed = build.as_ref().ok().map(|build| policy_key(build, policy));
+        let lookup = if keyed.is_some() {
             self.cache.find(sha256, keyed.as_deref())
         } else {
-            None
+            self.cache.find_policy(sha256, policy)
         };
         if let Some((path, cached_build)) = lookup {
             let note = match &build {
@@ -568,8 +688,8 @@ impl Run<'_> {
                 &sha256[..12.min(sha256.len())],
                 crate::accept::utc_now().replace(':', "")
             )),
-            timeout: self.args.timeout,
-            policy,
+            timeout,
+            policy: policy.clone(),
             revision: 0,
             operations: Vec::new(),
             repository: repository_revision(),
@@ -577,7 +697,7 @@ impl Run<'_> {
         println!(
             "xtask corpus: capturing {} with Excel (timeout {}s)",
             entry.name,
-            self.args.timeout.as_secs()
+            timeout.as_secs()
         );
         let started = Instant::now();
         let outcome = capture(&request).map_err(|e| not(e.to_string()))?;
@@ -621,64 +741,123 @@ impl Run<'_> {
 fn compare_one(
     program: &Path,
     entry: &Entry,
-    capture: &Path,
+    capture: Option<&Path>,
     out: &Path,
+    args: &Args,
+    program_digest: &str,
+    snapshot: &str,
 ) -> (Result<Value, NotCompared>, f64) {
     let not = |reason: String| NotCompared {
         stage: "compare".to_owned(),
         reason,
     };
-    if let Err(e) = fs::create_dir_all(out) {
-        return (
-            Err(not(format!("cannot create {}: {e}", out.display()))),
-            0.0,
-        );
-    }
     let started = Instant::now();
-    let output = Command::new(program)
-        .arg("compare")
-        .arg("--fixture")
-        .arg(&entry.path)
-        .arg("--capture")
-        .arg(capture)
-        .arg("--out")
-        .arg(out)
-        .output();
-    let seconds = started.elapsed().as_secs_f64();
-    let output = match output {
-        Ok(output) => output,
-        Err(e) => {
-            return (
-                Err(not(format!("cannot start {}: {e}", program.display()))),
-                seconds,
-            );
+    let attempt = || -> Result<Value, String> {
+        fs::create_dir_all(out).map_err(|e| format!("cannot create {}: {e}", out.display()))?;
+        let mut key = crate::corpus_batch::key(&entry.path, capture, program_digest, args.minimize)?;
+        if key["fixture"].as_str() != Some(snapshot) {
+            return Err("workbook bytes changed after inventory admission".into());
         }
+        let comparison_source = if capture.is_some() {
+            calc_oracle_excel::capture_source_sha256(&entry.path, snapshot)?
+        } else {
+            snapshot.to_owned()
+        };
+        key["comparison_source"] = json!(comparison_source);
+        if args.resume
+            && let Some(triage) = crate::corpus_batch::completed(out, &key)
+        {
+            println!(
+                "xtask corpus: resumed {} (verified result bytes)",
+                entry.name
+            );
+            return Ok(triage);
+        }
+        if args.timeout.is_zero() {
+            return Err("workbook timeout before calculation".into());
+        }
+        let marker = out.join("complete.json");
+        if marker.exists() {
+            fs::remove_file(&marker).map_err(|e| e.to_string())?;
+        }
+        let log = crate::corpus_batch::attempt_log(out)?;
+        let payload = log.with_extension("");
+        fs::create_dir(&payload).map_err(|e| e.to_string())?;
+        let mut command = Command::new(program); // ubs:ignore -- compare_program supplies the current or Cargo-built executable; corpus data supplies only arguments.
+        command
+            .arg("compare")
+            .arg("--fixture")
+            .arg(&entry.path)
+            .arg("--out")
+            .arg(&payload);
+        match capture {
+            Some(path) => {
+                command.arg("--capture").arg(path);
+            }
+            None => {
+                command.arg("--dna-only");
+            }
+        }
+        if args.minimize {
+            command.arg("--minimize");
+        }
+        let result = crate::corpus_batch::bounded(&mut command, &log, args.timeout);
+        let outcome = match &result {
+            Ok(status) if status.success() => "completed".to_owned(),
+            Ok(status) => format!("comparison ended with {status}"),
+            Err(reason) => reason.clone(),
+        };
+        let attempt_record = json!({"key":key, "outcome":outcome,
+            "finished_utc":crate::accept::utc_now(), "wall_time_s":started.elapsed().as_secs_f64(),
+            "log":log.file_name().map(|name|name.to_string_lossy())});
+        fs::write(
+            log.with_extension("json"),
+            serde_json::to_vec_pretty(&attempt_record).map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?;
+        // Retain every numbered attempt; compare.log is the latest convenience copy.
+        if log.is_file() {
+            fs::copy(&log, out.join("compare.log")).map_err(|e| e.to_string())?;
+        }
+        let inventory = payload.join("inventory.record.json");
+        if let Ok(bytes) = fs::read(&inventory)
+            && let Ok(record) = CaptureRecord::decode(&bytes)
+            && record.source == format!("sha256:{}", key["fixture"].as_str().unwrap_or(""))
+        {
+            fs::write(out.join("inventory.record.json"), bytes).map_err(|e| e.to_string())?;
+        }
+        let status = result?;
+        if !status.success() {
+            return Err(format!("{outcome}; log {}", log.display()));
+        }
+        let bytes = fs::read(payload.join("triage.json"))
+            .map_err(|e| format!("cannot read new triage.json: {e}"))?;
+        let triage: Value = serde_json::from_slice(&bytes)
+            .map_err(|e| format!("triage.json does not parse: {e}"))?;
+        if triage["source"] != format!("sha256:{comparison_source}") {
+            return Err("comparison source differs from the admitted inputs".into());
+        }
+        read_triage(&triage)?;
+        crate::corpus_batch::publish(&payload, out)?;
+        crate::corpus_batch::finish(out, &key)?;
+        Ok(triage)
     };
-    let mut log = output.stdout.clone();
-    log.extend_from_slice(&output.stderr);
-    let _ = fs::write(out.join("compare.log"), &log);
-    if !output.status.success() {
-        return (
-            Err(not(format!(
-                "cargo xtask compare ended with {}: {}",
-                output.status,
-                crate::cargo::tail(&output.stderr, 3).trim()
-            ))),
-            seconds,
-        );
-    }
-    let triage = fs::read(out.join("triage.json"))
-        .map_err(|e| format!("cannot read triage.json: {e}"))
-        .and_then(|bytes| {
-            serde_json::from_slice::<Value>(&bytes)
-                .map_err(|e| format!("triage.json does not parse: {e}"))
-        });
-    (triage.map_err(not), seconds)
+    (attempt().map_err(not), started.elapsed().as_secs_f64())
 }
 
 /// Runs the corpus and writes its summary; the exit code.
 fn run_corpus(args: &Args) -> u8 {
+    if !args.merges.is_empty() {
+        return match crate::corpus_batch::merge_summaries(&args.merges, &args.out) {
+            Ok(()) => 0,
+            Err(e) => {
+                eprintln!("xtask corpus: {e}");
+                EXIT_FAILED
+            }
+        };
+    }
     let started = Instant::now();
+    let repository = repository_revision();
     let cache = Cache {
         root: args.cache.clone(),
     };
@@ -698,7 +877,7 @@ fn run_corpus(args: &Args) -> u8 {
     let mut entries = Vec::new();
     let mut listing_failures = Vec::new();
     if let Some(dir) = &args.dir {
-        match folder_workbooks(dir) {
+        match folder_tree(dir, args.recursive) {
             Ok(found) => entries.extend(found),
             Err(e) => listing_failures.push(e),
         }
@@ -734,10 +913,30 @@ fn run_corpus(args: &Args) -> u8 {
         }
     };
 
+    let (entries, inventory) = crate::corpus_batch::select(entries, args.shard);
+    if let Err(e) = fs::write(
+        args.out.join("inventory.json"),
+        serde_json::to_vec_pretty(&inventory).expect("inventory serializes"),
+    ) {
+        eprintln!("xtask corpus: cannot write inventory: {e}");
+        return EXIT_FAILED;
+    }
+    let program_digest = if program.as_os_str().is_empty() {
+        String::new()
+    } else {
+        match fs::read(&program) {
+            Ok(bytes) => sha256_hex(&bytes),
+            Err(e) => {
+                eprintln!("xtask corpus: cannot hash executable: {e}");
+                return EXIT_FAILED;
+            }
+        }
+    };
     let mut run = Run {
         args,
         cache,
         build: None,
+        program_digest,
     };
     let mut workbooks = Vec::new();
     let total = entries.len();
@@ -785,12 +984,21 @@ fn run_corpus(args: &Args) -> u8 {
         run: json!({
             "command": command.join(" "),
             "finished_utc": crate::accept::utc_now(),
-            "repository": repository_revision(),
+            "repository": repository,
             "compare_process": program_note,
             "excel_build": build,
             "cache": run.cache.root.display().to_string(),
             "listing_failures": listing_failures,
             "wall_time_s": started.elapsed().as_secs_f64(),
+            "shard": args.shard,
+            "inventory": "inventory.json",
+            "corpus_inventory_sha256": inventory["content_key"],
+            "resume": args.resume,
+            "dna_only_fallback": args.dna_only,
+            "comparison_timeout_s": args.timeout.as_secs(),
+            "resumed_stage_times": "from the verified original comparison",
+            "executable_sha256": run.program_digest,
+
         }),
         workbooks,
     };
@@ -810,6 +1018,10 @@ fn run_corpus(args: &Args) -> u8 {
             eprintln!("xtask corpus: cannot write {}: {e}", path.display());
             return EXIT_FAILED;
         }
+    }
+    if let Err(e) = crate::corpus_batch::write_problem_functions(&args.out, &summary.json()) {
+        eprintln!("xtask corpus: {e}");
+        return EXIT_FAILED;
     }
     let totals = summary.totals();
     let c = &totals.counts;
@@ -836,12 +1048,52 @@ fn run_corpus(args: &Args) -> u8 {
     0
 }
 
+fn inventory_policy(record: &CaptureRecord) -> Result<CalculationPolicy, String> {
+    let context = &record
+        .session
+        .as_ref()
+        .ok_or("source inventory has no context")?
+        .context;
+    let mut fields = context.split(';');
+    if fields.next() != Some("excel-calc-context/1") {
+        return Err("unknown source context format".into());
+    }
+    let fields: BTreeMap<_, _> = fields.filter_map(|field| field.split_once('=')).collect();
+    let read = |name| {
+        fields
+            .get(name)
+            .copied()
+            .ok_or_else(|| format!("source context lacks {name}"))
+    };
+    let iteration = match read("iteration")? {
+        "true" => true,
+        "false" => false,
+        _ => return Err("invalid source iteration setting".into()),
+    };
+    let mut policy = CalculationPolicy::default();
+    policy.iteration = iteration;
+    if iteration {
+        policy.mode = calc_oracle_excel::CalculationMode::Manual;
+        policy.max_iterations = read("max_iterations")?
+            .parse()
+            .map_err(|_| "invalid source iteration count")?;
+        policy.max_change = f64::from_bits(
+            u64::from_str_radix(read("max_change")?, 16)
+                .map_err(|_| "invalid source maximum change")?,
+        );
+    }
+    Ok(policy)
+}
+
 /// Reads, captures (or finds the capture of) and compares one workbook.
 fn one_workbook(run: &mut Run<'_>, program: &Path, entry: &Entry, out: &Path) -> Workbook {
+    let file_started = Instant::now();
     let mut workbook = Workbook {
         name: entry.name.clone(),
         sha256: None,
         capture: None,
+        inventory_formula_cells: None,
+        failure_key: None,
         outcome: Err(NotCompared {
             stage: "read".to_owned(),
             reason: String::new(),
@@ -858,6 +1110,12 @@ fn one_workbook(run: &mut Run<'_>, program: &Path, entry: &Entry, out: &Path) ->
             return workbook;
         }
     };
+    if entry.oracle.is_some() {
+        workbook.inventory_formula_cells = package_parts(&bytes)
+            .and_then(|parts| workbook_sections(&parts))
+            .ok()
+            .map(|sections| sections.iter().map(|s| s.formula_cells).sum());
+    }
     let sha256 = sha256_hex(&bytes);
     workbook.sha256 = Some(sha256.clone());
     let capture_sha256 = match calc_oracle_excel::capture_source_sha256(&entry.path, &sha256) {
@@ -875,7 +1133,17 @@ fn one_workbook(run: &mut Run<'_>, program: &Path, entry: &Entry, out: &Path) ->
                 workbook.outcome = awaiting(&bytes, "authored-entry fixtures require whole-workbook captures");
                 return workbook;
             }
-            sectioned_workbook(&mut workbook, program, entry, case, &bytes, &sha256, out);
+            sectioned_workbook(
+                &mut workbook,
+                program,
+                entry,
+                case,
+                &bytes,
+                &sha256,
+                out,
+                run.args,
+                &run.program_digest,
+            );
             return workbook;
         }
         if let Err(reason) = whole_state(case, &sha256) {
@@ -885,17 +1153,86 @@ fn one_workbook(run: &mut Run<'_>, program: &Path, entry: &Entry, out: &Path) ->
         }
     }
     drop(bytes);
-    let captured = match run.capture_of(entry, &capture_sha256) {
-        Ok(captured) => captured,
+    let dir = crate::corpus_batch::output_dir(out, &entry.name, &sha256);
+    let inventory = match crate::corpus_batch::census(
+        program,
+        &entry.path,
+        &sha256,
+        &dir,
+        &run.program_digest,
+        run.args.resume,
+        run.args.timeout.saturating_sub(file_started.elapsed()),
+    ) {
+        Ok(record) => record,
+        Err(reason) => {
+            workbook.failure_key = fs::read(dir.join("inventory/inventory-failure.json"))
+                .ok()
+                .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+                .filter(|failure| failure["source"] == format!("sha256:{sha256}"))
+                .and_then(|failure| failure["key"].as_str().map(str::to_owned));
+            workbook.outcome = Err(NotCompared {
+                stage: "inventory".into(),
+                reason,
+            });
+            return workbook;
+        }
+    };
+    workbook.inventory_formula_cells = Some(inventory.formulas.len() as u64);
+    let policy = match inventory_policy(&inventory) {
+        Ok(policy) => policy,
+        Err(reason) => {
+            workbook.outcome = Err(NotCompared {
+                stage: "inventory".into(),
+                reason,
+            });
+            return workbook;
+        }
+    };
+    let captured = match run.capture_of(
+        entry,
+        &capture_sha256,
+        &policy,
+        run.args.timeout.saturating_sub(file_started.elapsed()),
+    ) {
+        Ok(captured) => Some(captured),
+        Err(not) if run.args.dna_only => {
+            workbook.capture = Some(format!("DNA only; no Excel observations: {}", not.reason));
+            None
+        }
         Err(not) => {
             workbook.outcome = Err(not);
             return workbook;
         }
     };
-    workbook.capture = Some(captured.source);
-    workbook.times.capture = captured.seconds;
-    let dir = out.join("workbooks").join(file_safe(&entry.name));
-    let (triage, seconds) = compare_one(program, entry, &captured.path, &dir);
+    if captured.is_none() && inventory.formulas.is_empty() {
+        workbook.outcome = Err(NotCompared {
+            stage: "inventory".into(),
+            reason: "source contains no formula cells; no comparison required".into(),
+        });
+        return workbook;
+    }
+    if let Some(captured) = &captured {
+        workbook.capture = Some(captured.source.clone());
+        workbook.times.capture = captured.seconds;
+    }
+    let mut bounded_args = run.args.clone();
+    bounded_args.timeout = run.args.timeout.saturating_sub(file_started.elapsed());
+    let (triage, seconds) = compare_one(
+        program,
+        entry,
+        captured.as_ref().map(|c| c.path.as_path()),
+        &dir,
+        &bounded_args,
+        &run.program_digest,
+        &sha256,
+    );
+    if workbook.inventory_formula_cells.is_none() {
+        workbook.inventory_formula_cells = fs::read(dir.join("inventory.record.json"))
+            .ok()
+            .and_then(|bytes| CaptureRecord::decode(&bytes).ok())
+            .filter(|record| record.source == format!("sha256:{sha256}"))
+            .map(|record| record.formulas.len() as u64);
+    }
     workbook.times.compare_process = Some(seconds);
     workbook.outcome = triage.and_then(|triage| {
         read_triage(&triage).map_err(|reason| NotCompared {
@@ -913,7 +1250,9 @@ fn awaiting(bytes: &[u8], reason: &str) -> Result<Compared, NotCompared> {
         .and_then(|parts| workbook_sections(&parts))
         .map_err(|e| NotCompared {
             stage: "read".to_owned(),
-            reason: format!("awaiting capture ({reason}), and its formula cells cannot be counted: {e}"),
+            reason: format!(
+                "awaiting capture ({reason}), and its formula cells cannot be counted: {e}"
+            ),
         })?
         .iter()
         .map(|section| section.formula_cells)
@@ -921,6 +1260,16 @@ fn awaiting(bytes: &[u8], reason: &str) -> Result<Compared, NotCompared> {
     let mut compared = Compared::default();
     compared.counts.formula_cells = cells;
     compared.counts.awaiting_capture = cells;
+    compared.causes.insert(
+        crate::corpus_summary::Cause::Other {
+            class: "capture".into(),
+            key: "awaiting capture".into(),
+        },
+        crate::corpus_summary::CauseCount {
+            whole_workbook: cells,
+            ..Default::default()
+        },
+    );
     Ok(compared)
 }
 
@@ -935,7 +1284,10 @@ fn sectioned_workbook(
     bytes: &[u8],
     sha256: &str,
     out: &Path,
+    args: &Args,
+    program_digest: &str,
 ) {
+    let file_started = Instant::now();
     let states = match section_states(case, bytes) {
         Ok((states, _)) => states,
         Err(reason) => {
@@ -985,7 +1337,7 @@ fn sectioned_workbook(
             }
         }
     }
-    let dir = out.join("workbooks").join(file_safe(&entry.name));
+    let dir = crate::corpus_batch::output_dir(out, &entry.name, sha256);
     if let Err(e) = fs::create_dir_all(&dir) {
         workbook.outcome = Err(NotCompared {
             stage: "compare".to_owned(),
@@ -1006,12 +1358,24 @@ fn sectioned_workbook(
         if let Err(e) = written {
             workbook.outcome = Err(NotCompared {
                 stage: "capture".to_owned(),
-                reason: format!("the record of capture session {} cannot be written: {e}", n + 1),
+                reason: format!(
+                    "the record of capture session {} cannot be written: {e}",
+                    n + 1
+                ),
             });
             return;
         }
-        let (triage, seconds) =
-            compare_one(program, entry, &path, &dir.join(format!("session-{}", n + 1)));
+        let mut bounded_args = args.clone();
+        bounded_args.timeout = args.timeout.saturating_sub(file_started.elapsed());
+        let (triage, seconds) = compare_one(
+            program,
+            entry,
+            Some(&path),
+            &dir.join(format!("session-{}", n + 1)),
+            &bounded_args,
+            program_digest,
+            sha256,
+        );
         compare_seconds += seconds;
         match triage.and_then(|triage| {
             read_triage(&triage).map_err(|reason| NotCompared {
@@ -1027,6 +1391,18 @@ fn sectioned_workbook(
         }
     }
     workbook.times.compare_process = Some(compare_seconds);
+    if compared.counts.awaiting_capture > 0 {
+        compared.causes.insert(
+            crate::corpus_summary::Cause::Other {
+                class: "capture".into(),
+                key: "awaiting capture".into(),
+            },
+            crate::corpus_summary::CauseCount {
+                whole_workbook: compared.counts.awaiting_capture,
+                ..Default::default()
+            },
+        );
+    }
     let captured = states.iter().filter(|s| s.capture.is_some()).count();
     workbook.capture = Some(format!(
         "{captured} committed section captures from {} capture session(s); {} section(s) awaiting capture{}",

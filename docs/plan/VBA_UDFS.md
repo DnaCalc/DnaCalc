@@ -38,9 +38,13 @@ reopen starts fresh state. Unsupported source, signatures, document events and
 class/designer modules remain named refusals. The Preserve open policy executes no
 VBA. File events refuse cached or uncertified Target values before copying them into
 module state, including when VBA catches the read error; retaining that provenance in
-state remains open. Comparisons respect captured macro/event policy. See
+state remains open. File-project worksheet lookup also admits the recorded private
+standard-module functions through internal entries in their own modules, using the
+same runtime and state. The original VBA visibility and saved source are retained.
+Private scalar signatures are supported; private array, ParamArray and object
+signatures remain typed refusals. Comparisons respect captured macro/event policy. See
 [the recalculation contract](../architecture/RECALC_CONTRACT.md) for the event boundary
-and remaining private-procedure, forced-UDF and object-model gaps. OneCalc's explicit
+and remaining forced-UDF and object-model gaps. OneCalc's explicit
 standard-module route keeps its existing dependency ceiling.
 
 The Range, Application and WorksheetFunction implementation now belongs to DNA Calc in

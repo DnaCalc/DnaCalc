@@ -356,6 +356,120 @@ def run(args):
         write(output/'results-sha256.json',{p.relative_to(output).as_posix():sha(p) for p in output.rglob('*') if p.is_file()})
 
 
+
+def resume_eng10(args):
+    """Continue only frozen, never-started single-trial jobs; retain all earlier outputs."""
+    checkout=Path(args.checkout).resolve();output=Path(args.output).resolve();session=Path(args.session).resolve()
+    load=lambda p:json.loads(p.read_text(encoding='utf-8-sig'))
+    spec=load(output/'conditions.json')
+    if not spec.get('fresh_process_per_trial') or spec.get('event_controls'):
+        raise ValueError('Recovery requires the eng10 single-trial pure profile')
+    manifest=output/'delivery-sha256.json'
+    if not manifest.exists():manifest=output/'results-sha256.json'
+    for name,digest in load(manifest).items():
+        if sha(output/name)!=digest:raise ValueError('Retained file changed: '+name)
+    sources=load(output/'sources-sha256.json')
+    for name,digest in sources.items():
+        path=output/'source'/name
+        if name=='tools/excel-session/events-job.ps1':path=output/'events-job.ps1'
+        if sha(path)!=digest:raise ValueError('Frozen source changed: '+name)
+    wrapper=output/'source/tools/excel-session/condition-job.ps1'
+    worker=output/'source/tools/excel-session/iteration-job.ps1'
+    client=output/'source/tools/excel-session/submit.ps1'
+    declared={c['id'] for c in spec['controls']+spec['prepared']}
+    requests={}
+    for path in sorted((output/'condition-jobs').glob('*/request.json')):
+        group=load(path)
+        if group['condition'] not in declared or Path(group['worker']).resolve()!=worker or len(group['trials'])!=1:
+            raise ValueError('Unexpected condition group: '+str(path))
+        trial=group['trials'][0];request=Path(trial['request']).resolve();raw=load(request)
+        key=(group['condition'],trial['trial'])
+        if key in requests or request!=output/'trials'/key[0]/f'{key[1]:02d}'/'request.json':
+            raise ValueError('Duplicate or unexpected trial request')
+        if sha(Path(raw['input']))!=raw['input_sha256']:raise ValueError('Frozen input changed')
+        requests[key]=(path,group,trial)
+    if len(requests)!=1200:raise ValueError('Expected all 1200 original eng10 trial requests')
+    completed={};jobs={}
+    for path in sorted((session/'completed').glob('*/receipt.json')):
+        rec=load(path)
+        if rec.get('job',{}).get('packet_id')!=str(output) or Path(rec['job']['script']).resolve()!=wrapper:continue
+        group=load(Path(rec['job']['parameters']['Request']));trial=group['trials'][0]
+        key=(group['condition'],trial['trial']);result=Path(rec['job']['parameters']['Result'])
+        if key in completed or key not in requests or not rec['success'] or not rec['fresh_required']:
+            raise ValueError('Duplicate, failed or nonfresh retained trial; explicit review required')
+        value=load(result)
+        if sha(result)!=rec['result_sha256'] or rec['script_sha256']!=sha(wrapper) or rec['host_script_sha256']!=sources['tools/excel-session/host.ps1']:
+            raise ValueError('Retained receipt/source hash differs')
+        if not (rec['baseline']==rec['baseline_before']==rec['baseline_after']) or not rec['preserve_automation_security']:
+            raise ValueError('Retained host baseline differs')
+        if len(value['trials'])!=1 or not value['trials'][0]['success']:
+            raise ValueError('Retained worker trial failed')
+        nested=value['trials'][0]
+        if sha(Path(nested['result']))!=nested['result_sha256'] or load(Path(nested['result'])).get('fatal'):
+            raise ValueError('Retained worker result changed or failed')
+        completed[key]=rec
+    for path in sorted((session/'queue').glob('*.unrun')):
+        job=load(path)
+        if job.get('packet_id')!=str(output):continue
+        group_path=Path(job['parameters']['Request']).resolve();group=load(group_path)
+        trial=group['trials'][0];key=(group['condition'],trial['trial'])
+        if key not in requests or key in jobs or key in completed or group_path!=requests[key][0]:
+            raise ValueError('Unrun job does not identify an unmeasured original trial')
+        if Path(job['script']).resolve()!=wrapper or not job['fresh_required'] or len(group['trials'])!=1:
+            raise ValueError('Unrun job changed its source or process scope')
+        if (session/'running'/(job['id']+'.json')).exists() or (session/'completed'/job['id']).exists() or Path(trial['result']).exists() or group_path.with_name('result.json').exists():
+            raise ValueError('Unrun job already entered or produced output')
+        jobs[key]=(path,job,sha(path))
+    if set(jobs)!=set(requests)-set(completed):raise ValueError('Not every unmeasured trial has an untouched deferred job')
+    # Cover the remaining conditions before adding further replicates. Each still uses a new process.
+    plan=sorted(jobs,key=lambda k:(k[1],k[0]))
+    if args.dry_run:
+        print(json.dumps(dict(profile='eng10',qualified_retained=len(completed),unstarted_jobs=len(plan),excel_launches=0)))
+        return
+    campaign=output/'recovery'/uuid.uuid4().hex;campaign.mkdir(parents=True)
+    shutil.copyfile(__file__,campaign/'driver.py')
+    for name in ('run-status.json','results-sha256.json'):
+        if (output/name).exists():shutil.copyfile(output/name,campaign/('initial-'+name))
+    write(campaign/'initial.json',dict(retained_trials=len(completed),
+        plan=[dict(condition=k[0],trial=k[1],id=jobs[k][1]['id'],queue_sha256=jobs[k][2],
+                   group_sha256=sha(requests[k][0]),trial_request_sha256=sha(Path(requests[k][2]['request']))) for k in plan],
+        limits='Only deferred jobs with no worker entry, receipt or result are eligible. Earlier failed orchestration remains retained. No completed trial is repeated.'))
+    deadline=dt.datetime.fromisoformat(args.until.replace('Z','+00:00'));new=[];failures=[]
+    try:
+        for key in plan:
+            if dt.datetime.now(dt.timezone.utc)>=deadline:break
+            deferred,job,digest=jobs[key];group_path,group,trial=requests[key]
+            if sha(deferred)!=digest or Path(trial['result']).exists() or group_path.with_name('result.json').exists():
+                raise ValueError('Deferred job changed or entered before recovery')
+            with (campaign/'host.log').open('a',encoding='utf-8') as log:
+                subprocess.run(['pwsh','-NoProfile','-STA','-File',str(client),'-SessionDirectory',str(session),'-Start'],
+                    cwd=checkout,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=60)
+            queued=deferred.with_suffix('.json');deferred.rename(queued)
+            receipt=session/'completed'/job['id']/'receipt.json';limit=time.monotonic()+660
+            while True:
+                try:
+                    if receipt.is_file():break
+                except OSError as error:
+                    if getattr(error,'winerror',None)!=1450:raise
+                    with (campaign/'resource-errors.jsonl').open('a',encoding='utf-8') as log:
+                        log.write(json.dumps(dict(job=job['id'],utc=dt.datetime.now(dt.timezone.utc).isoformat(),error=str(error)))+'\n')
+                if time.monotonic()>limit:raise TimeoutError('Original single-trial job did not finish: '+job['id'])
+                time.sleep(1)
+            rec=load(receipt)
+            if rec['job']!=job or rec['id']!=job['id']:raise ValueError('Recovery receipt binding differs')
+            shutil.copytree(receipt.parent,group_path.parent/'session',dirs_exist_ok=True)
+            shutil.copytree(receipt.parent,campaign/'session'/job['id'])
+            new.append(dict(condition=key[0],trial=key[1],job=job['id'],success=rec['success'],
+                launches=rec['launches_after']-rec['launches_before']))
+            with (campaign/'progress.jsonl').open('a',encoding='utf-8') as log:log.write(json.dumps(new[-1])+'\n')
+            if not rec['success']:
+                failures.append(dict(job=job['id'],error=rec.get('error')));break
+    finally:
+        write(campaign/'status.json',dict(retained_trials=len(completed),new_receipts=len(new),
+            new_excel_launches=sum(r['launches'] for r in new),failures=failures,receipts=new,
+            limits='Receipt counts are orchestration only; independent final qualification must check raw trial results and baselines. Original producer status is unchanged.'))
+
+
 def resume(args):
     """Resume frozen requests, observing every condition three times before filling to ten."""
     checkout=Path(args.checkout).resolve()
@@ -481,5 +595,4 @@ if __name__=='__main__':
     parser.add_argument('--dry-run',action='store_true')
     parser.add_argument('--reviewed-unstarted',help='Hash-bound reviews of failed startup jobs with no worker entry or results; failures remain retained.')
     args=parser.parse_args()
-    if args.resume and args.profile!='eng9':parser.error('The eng10 profile does not resume eng9 data.')
-    (resume if args.resume else run)(args)
+    (resume_eng10 if args.resume and args.profile=='eng10' else resume if args.resume else run)(args)

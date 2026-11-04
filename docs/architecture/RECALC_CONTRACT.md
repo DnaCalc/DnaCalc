@@ -624,9 +624,17 @@ File projects (dc-snz.15): the worker now reads the opened package's VBA source,
 matches document modules to persisted workbook/worksheet code names, and installs
 the same owner before the first calculation. Its explicit Preserve policy compiles
 and executes no project. Failed source, signature, document identity or class/designer
-admission returns a typed refusal before replacement. Public standard-module UDFs,
-including Option Private Module, share one state with the attached document events.
-Private Function worksheet lookup and the XML/binary forced-UDF distinction remain open.
+admission returns a typed refusal before replacement. Standard-module UDFs,
+including Option Private Module and recorded Private Function worksheet calls,
+share one state with the attached document events. The pinned embedding API binds
+public handles, so file admission compiles the original project first, then adds
+internal forwarding entries in the private procedures' own modules. The worksheet
+registry publishes the original names. The original declarations retain their VBA
+visibility, and saved source never contains the generated entries. Optional defaults
+and ByRef copies use the ordinary adapter; Long, Double, Boolean, String and Variant
+are admitted. Private array, ParamArray and object signatures remain typed refusals.
+Explicit source-module loading keeps its existing public-only worksheet inventory.
+The XML/binary forced-UDF distinction remains open.
 
 File-project event values cannot yet retain their read provenance after entering VBA
 module state. A Target.Value2 read therefore refuses file caches, stale values and

@@ -1096,7 +1096,7 @@
   {
    "path": "crates/calc-func/src/ported/bessel.rs",
    "class": "own-work",
-   "reason": "Own A&S I0/I1/K0/K1 polynomials and recurrences, DLMF 10.25.2 I_n series; low J/Y seeds, high Y0/Y1 and the admitted J backward route call the separately licensed bessel_rational helper; other J/Y seed and forward fallback bodies remain existing. Caller admission and flushing remain unchanged (dc-j9k).",
+   "reason": "Own A&S I0/I1/K0/K1 polynomials and recurrences, DLMF 10.25.2 I_n series; low J/Y seeds, high Y0/Y1 and the admitted J backward route call the separately licensed bessel_rational helper; other J/Y seed and forward fallback bodies remain existing. Caller phase admission follows the R16/R19 Value2 boundaries; flushing remains unchanged (dc-j9k.7).",
    "parts": [
     {
      "class": "own-work",

@@ -3,6 +3,85 @@
 
 use super::*;
 
+#[test]
+fn a_linux_cache_lookup_keeps_the_recorded_iteration_limits() {
+    let cache = Cache {
+        root: scratch("linux-policy"),
+    };
+    let plain = CaptureRecord::decode(record("16.0.1", "plain").as_bytes()).unwrap();
+    let mut encoded: serde_json::Value =
+        serde_json::from_str(&record("16.0.2", "iteration")).unwrap();
+    encoded["environment"]["settings"]["calculation"] = json!("manual");
+    encoded["environment"]["settings"]["iteration"] = json!("true");
+    encoded["environment"]["settings"]["max_iterations"] = json!("5");
+    encoded["environment"]["settings"]["max_change"] = json!("3fc0000000000000");
+    let iterating =
+        CaptureRecord::decode(serde_json::to_string(&encoded).unwrap().as_bytes()).unwrap();
+    for r in [&plain, &iterating] {
+        let (hash, key) = record_key(r).unwrap();
+        cache
+            .store(&hash, &key, r.encode().unwrap().as_bytes())
+            .unwrap();
+    }
+    let policy = record_policy(&iterating);
+    assert!(
+        cache
+            .find_policy(SHA, &policy)
+            .unwrap()
+            .1
+            .contains("iteration-5-3fc0000000000000")
+    );
+    assert_eq!(
+        cache
+            .find_policy(SHA, &CalculationPolicy::default())
+            .unwrap()
+            .1,
+        "16.0.1"
+    );
+    let mut other = policy;
+    other.max_iterations = 6;
+    assert!(cache.find_policy(SHA, &other).is_none());
+}
+
+#[test]
+fn recursive_inventory_deduplicates_content_before_stable_sharding() {
+    let root = scratch("recursive-shards");
+    fs::create_dir_all(root.join("nested")).unwrap();
+    for (name, bytes) in [
+        ("a.xlsx", b"same".as_slice()),
+        ("nested/b.xlsx", b"same".as_slice()),
+        ("nested/c.xlsm", b"other".as_slice()),
+    ] {
+        fs::write(root.join(name), bytes).unwrap();
+    }
+    let entries = folder_tree(&root, true).unwrap();
+    assert_eq!(entries.len(), 3);
+    let (all, manifest) = crate::corpus_batch::select(entries.clone(), None);
+    assert_eq!(all.len(), 2);
+    assert_eq!(manifest["unique_content"], 2);
+    assert_eq!(
+        manifest["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|f| f["duplicate_of"].is_string())
+            .count(),
+        1
+    );
+    let mut selected = BTreeMap::new();
+    for index in 0..5 {
+        let (part, _) = crate::corpus_batch::select(entries.clone(), Some((index, 5)));
+        for entry in part {
+            assert!(selected.insert(entry.path, index).is_none());
+        }
+    }
+    assert_eq!(selected.len(), all.len());
+    assert_eq!(folder_tree(&root, false).unwrap().len(), 1);
+    for bad in ["0/0", "1/1", "-1/2", "0", "2/x"] {
+        assert!(parse_args(&args(&format!("dir --shard {bad}"))).is_err());
+    }
+}
+
 fn args(text: &str) -> Vec<String> {
     text.split_whitespace().map(str::to_owned).collect()
 }
@@ -47,6 +126,12 @@ fn arguments_have_their_defaults_and_refusals() {
             imports: Vec::new(),
             no_capture: false,
             timeout: Duration::from_secs(DEFAULT_TIMEOUT_S),
+            recursive: false,
+            shard: None,
+            resume: false,
+            minimize: false,
+            dna_only: false,
+            merges: Vec::new(),
         }
     );
     let parsed = parse_args(&args(
@@ -101,7 +186,7 @@ fn a_folder_lists_its_workbooks_in_name_order() {
         .into_iter()
         .map(|entry| entry.name)
         .collect();
-    assert_eq!(names, ["a.XLSM", "b.xlsx"]);
+    assert_eq!(names, ["a.XLSM", "b.xlsx", "c.xls"]);
     assert!(folder_workbooks(&dir.join("absent")).is_err());
     let _ = fs::remove_dir_all(&dir);
 }

@@ -10,6 +10,7 @@ use oxvba_symbol::manifest as sym;
 use std::sync::Arc;
 mod cache;
 pub(crate) mod spreadsheet;
+mod worksheet;
 pub use cache::{CodeCache, OwnedSession};
 pub use oxvba_embed::{Backend, CacheStats};
 pub(crate) use spreadsheet::{ContextError, Range, RangeInfo, SpreadsheetContext};
@@ -106,10 +107,12 @@ impl Module {
             }],
             spreadsheet_objects,
             false,
+            false,
         )
     }
     pub(crate) fn load_event_project(
         modules: &[crate::events::ProjectModule],
+        private_worksheet_lookup: bool,
     ) -> Result<Self, Error> {
         let modules = modules
             .iter()
@@ -134,19 +137,20 @@ impl Module {
                 }
             })
             .collect();
-        Self::load_modules(modules, true, true)
+        Self::load_modules(modules, true, true, private_worksheet_lookup)
     }
     fn load_modules(
         modules: Vec<sym::ModuleUnit>,
         spreadsheet_objects: bool,
         events: bool,
+        private_worksheet_lookup: bool,
     ) -> Result<Self, Error> {
         let procedural: std::collections::HashSet<_> = modules
             .iter()
             .filter(|m| m.module_kind == sym::ModuleKind::Procedural)
             .map(|m| m.module_name.to_ascii_lowercase())
             .collect();
-        let manifest = sym::SymbolProjectManifest {
+        let mut manifest = sym::SymbolProjectManifest {
             project_name: "UdfProject".into(),
             project_kind: sym::ProjectKind::Library,
             modules,
@@ -192,8 +196,17 @@ impl Module {
         if events {
             validate_document_events(&manifest, resolver)?;
         }
-        let engine =
+        let mut engine =
             oxvba_embed::Module::load_project(&manifest, resolver).map_err(engine_error)?;
+        let bridges = if private_worksheet_lookup {
+            let bridges = worksheet::private_entries(&mut manifest, &engine)?;
+            if !bridges.is_empty() {
+                engine = oxvba_embed::Module::load_project(&manifest, resolver).map_err(engine_error)?;
+            }
+            bridges
+        } else {
+            Default::default()
+        };
         if events
             && let Some(route) = engine
                 .event_routes()
@@ -223,11 +236,18 @@ impl Module {
                     && procedural.contains(&p.module.to_ascii_lowercase())
             })
             .map(|p| {
+                let original = bridges.get(&(p.module.clone(), p.name.clone())).unwrap_or(p);
+                let mut entry = p.clone();
+                // Calls supply every owning argument. Keep the original defaults
+                // and optional markers in the adapter's metadata, while binding
+                // the generated procedure's real session-owned handle.
+                entry.parameters = original.parameters.clone();
+                entry.return_type = original.return_type.clone();
                 (
                     Function {
-                        name: p.name.clone(),
-                        qualified_name: format!("{}.{}", p.module, p.name),
-                        parameters: p
+                        name: original.name.clone(),
+                        qualified_name: format!("{}.{}", original.module, original.name),
+                        parameters: original
                             .parameters
                             .iter()
                             .map(|p| Parameter {
@@ -238,9 +258,9 @@ impl Module {
                                 param_array: p.param_array,
                             })
                             .collect(),
-                        return_type: p.return_type.as_ref().map(type_name).unwrap_or_default(),
+                        return_type: original.return_type.as_ref().map(type_name).unwrap_or_default(),
                     },
-                    p.clone(),
+                    entry,
                 )
             })
             .collect();

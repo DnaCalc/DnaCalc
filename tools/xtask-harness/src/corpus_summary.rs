@@ -4,33 +4,15 @@
 //! The headline follows the owner's ruling of 2026-10-23: a refused formula is a failure in
 //! every statistic. Over all formula cells of a workbook's capture inventory,
 //!
-//! - pass is a cell whose verdict is `matched` (calculated, and equal to Excel's value) and whose
-//!   calculation read only the workbook's own inputs;
-//! - external links is a matched cell whose calculation read values another workbook's link caches
-//!   in the file hold, directly or through the formulas it read (`external_links` in
-//!   `triage.json`, dc-ylr): calculated, but from the file's cache of the other book, so it is
-//!   neither a pass nor a fail and is reported apart beside them;
-//! - circular rule is a matched cell whose value is the one the circular-reference rule holds
-//!   with iteration off (`circular_rule` in `triage.json`, dc-y2o.1): the formula is on a circular
-//!   reference, or reads one, and keeps what its cell held, as Excel keeps it, without being
-//!   evaluated, so it is neither a pass nor a fail and is reported apart beside them (a cell that
-//!   is both is counted here);
-//! - fail is every other cell: `mismatched` (a mismatch that read link caches, or of a value the
-//!   circular rule held, included), refused
-//!   (`not_modeled`, a typed not-modelled result), and failed or missing (`failed`, `missing`,
-//!   `stale`, `file_cached`, `unproven`, `not_run`, each counted by name);
-//! - awaiting capture is a formula cell of an oracle workbook (or of a section of one) that has no
-//!   committed capture of its current content (`oracle_cases.rs`): it is not compared, so it is
-//!   neither a pass nor a fail, and `cargo xtask capture --pending` takes its capture. Such cells
-//!   are counted from the workbook's package;
+//! Pass requires a calculated value equal to a live Excel observation, using
+//! the workbook's inputs. Every other inventoried formula is a failure: mismatch,
+//! refusal, missing/failed/unobserved result, external link cache, circular held
+//! value or awaiting capture. Qualifications remain separate breakdowns, inside
+//! the failure count. Formula cells = pass + fail; the rate uses that denominator.
 //!
-//! so formula cells = pass + external links + circular rule + awaiting capture + fail, and the
-//! pass rate is pass over all formula cells, awaiting ones included. No rate over calculated
-//! cells is given.
-//!
-//! A workbook that could not be compared at all (it could not be read or captured, or `cargo
-//! xtask compare` refused it or ended abnormally) is listed with its stage and reason, counted
-//! among the failed workbooks, and holds no cell counts, because its formula cells are not known.
+//! A file that cannot be compared retains its source formula count when known;
+//! every such formula is a counted failure. Unknown inventories are reported
+//! explicitly, without inventing a cell count. Stage and reason remain visible.
 //!
 //! Root causes are read from each workbook's `triage.json` (`compare_triage.rs`), where every
 //! failing cell is either a root or reads a root (`reads_root`), or fails with the whole run
@@ -109,13 +91,14 @@ impl CauseCount {
 pub(crate) struct Counts {
     pub(crate) formula_cells: u64,
     pub(crate) pass: u64,
+    pub(crate) source_cache_classes: BTreeMap<String, u64>,
     /// Matched cells whose calculation read another workbook's link caches: neither pass nor
-    /// fail (dc-ylr).
+    /// still a counted failure (dc-ylr).
     pub(crate) external_links: u64,
     /// Matched cells whose value the circular-reference rule held with iteration off: neither
-    /// pass nor fail (dc-y2o.1).
+    /// a counted failure (dc-y2o.1).
     pub(crate) circular_rule: u64,
-    /// Formula cells with no committed capture of their current content: neither pass nor fail.
+    /// Formula cells without a committed capture: counted failures, classified separately.
     pub(crate) awaiting_capture: u64,
     pub(crate) mismatched: u64,
     pub(crate) refused: u64,
@@ -125,13 +108,30 @@ pub(crate) struct Counts {
 }
 
 impl Counts {
+    pub(crate) fn json(&self) -> Value {
+        json!({
+            "formula_cells":self.formula_cells,"pass":self.pass,"fail":self.fail(),
+            "external_links":self.external_links,"circular_rule":self.circular_rule,"awaiting_capture":self.awaiting_capture,
+            "mismatched":self.mismatched,"refused":self.refused,"failed_or_missing":self.failed_or_missing,
+            "failed_or_missing_by_verdict":self.failed_or_missing_by_verdict,"source_cache_classes":self.source_cache_classes,
+            "pass_rate":rate_json(self.pass,self.formula_cells),
+        })
+    }
     pub(crate) fn fail(&self) -> u64 {
-        self.mismatched + self.refused + self.failed_or_missing
+        self.mismatched
+            + self.refused
+            + self.failed_or_missing
+            + self.external_links
+            + self.circular_rule
+            + self.awaiting_capture
     }
 
     pub(crate) fn add(&mut self, other: &Counts) {
         self.formula_cells += other.formula_cells;
         self.pass += other.pass;
+        for (class, count) in &other.source_cache_classes {
+            *self.source_cache_classes.entry(class.clone()).or_default() += count;
+        }
         self.external_links += other.external_links;
         self.circular_rule += other.circular_rule;
         self.awaiting_capture += other.awaiting_capture;
@@ -206,6 +206,8 @@ pub(crate) struct Workbook {
     pub(crate) sha256: Option<String>,
     /// Where the capture it was compared with came from.
     pub(crate) capture: Option<String>,
+    pub(crate) inventory_formula_cells: Option<u64>,
+    pub(crate) failure_key: Option<String>,
     pub(crate) outcome: Result<Compared, NotCompared>,
     /// The capture and compare-process times, which the outcome's own times do not hold when the
     /// workbook was not compared.
@@ -255,16 +257,28 @@ pub(crate) fn mismatch_shape(difference: Option<&Value>) -> String {
     };
     let expected = value_kind(&difference["expected"]);
     let actual = value_kind(&difference["actual"]);
-    if expected == "number" && actual == "number" {
+    let shape = if expected == "number" && actual == "number" {
         let agrees = difference["agrees_to_15_significant_digits"].as_bool();
-        return match (agrees, difference["ulp"].as_u64()) {
+        match (agrees, difference["ulp"].as_u64()) {
             (Some(true), Some(1)) => "number, 1 ulp apart".to_owned(),
             (Some(true), Some(ulp)) if ulp <= 16 => "number, 2 to 16 ulp apart".to_owned(),
             (Some(true), _) => "number, equal to 15 significant digits".to_owned(),
             _ => "number, differs within 15 significant digits".to_owned(),
-        };
+        }
+    } else {
+        format!("{expected} expected, {actual} returned")
+    };
+    let types: Vec<_> = difference["observed_read_types"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .collect();
+    if types.is_empty() {
+        shape
+    } else {
+        format!("{shape}; observed reads: {}", types.join(","))
     }
-    format!("{expected} expected, {actual} returned")
 }
 
 /// The classes whose mismatched root is counted by function and shape.
@@ -303,13 +317,48 @@ pub(crate) fn read_triage(triage: &Value) -> Result<Compared, String> {
     for cell in cells {
         let verdict = text(cell, "verdict")?;
         counts.formula_cells += 1;
+        if let Some(class) = cell["source_cache"].as_str() {
+            *counts.source_cache_classes.entry(class.into()).or_default() += 1;
+        }
         match bucket(&verdict) {
+            Bucket::Pass if cell["live_excel_observation"].as_bool() == Some(false) => {
+                counts.failed_or_missing += 1;
+                *counts
+                    .failed_or_missing_by_verdict
+                    .entry("no-live-excel-reference".into())
+                    .or_default() += 1;
+                compared
+                    .causes
+                    .entry(Cause::Other {
+                        class: "capture".into(),
+                        key: "no live Excel observation".into(),
+                    })
+                    .or_default()
+                    .roots += 1;
+                continue;
+            }
             Bucket::Pass if cell["circular_rule"].as_bool() == Some(true) => {
                 counts.circular_rule += 1;
+                compared
+                    .causes
+                    .entry(Cause::Other {
+                        class: "provenance".into(),
+                        key: "circular held cache (dc-y2o.1)".into(),
+                    })
+                    .or_default()
+                    .roots += 1;
                 continue;
             }
             Bucket::Pass if cell["external_links"].as_bool() == Some(true) => {
                 counts.external_links += 1;
+                compared
+                    .causes
+                    .entry(Cause::Other {
+                        class: "provenance".into(),
+                        key: "external link cache (dc-ylr)".into(),
+                    })
+                    .or_default()
+                    .roots += 1;
                 continue;
             }
             Bucket::Pass => {
@@ -461,7 +510,18 @@ impl Summary {
                     add_time(&mut times.project, compared.times.project);
                     add_time(&mut times.judge, compared.times.judge);
                 }
-                Err(_) => totals.not_compared += 1,
+                Err(_) => {
+                    totals.not_compared += 1;
+                    if let Some(cells) = workbook.inventory_formula_cells {
+                        totals.counts.formula_cells += cells;
+                        totals.counts.failed_or_missing += cells;
+                        *totals
+                            .counts
+                            .failed_or_missing_by_verdict
+                            .entry("workbook-not-compared".into())
+                            .or_default() += cells;
+                    }
+                }
             }
         }
         totals
@@ -472,6 +532,25 @@ impl Summary {
         let mut causes: BTreeMap<Cause, CorpusCause> = BTreeMap::new();
         for workbook in &self.workbooks {
             let Ok(compared) = &workbook.outcome else {
+                if let Some(cells) = workbook.inventory_formula_cells {
+                    let stage = workbook
+                        .outcome
+                        .as_ref()
+                        .err()
+                        .map(|not| not.stage.as_str())
+                        .unwrap_or("unknown");
+                    let entry = causes
+                        .entry(Cause::Other {
+                            class: stage.into(),
+                            key: workbook
+                                .failure_key
+                                .clone()
+                                .unwrap_or_else(|| "workbook not compared".into()),
+                        })
+                        .or_default();
+                    entry.count.whole_workbook += cells;
+                    entry.workbooks.insert(workbook.name.clone());
+                }
                 continue;
             };
             for (cause, count) in &compared.causes {
@@ -493,21 +572,7 @@ impl Summary {
     /// `summary.json`.
     pub(crate) fn json(&self) -> Value {
         let totals = self.totals();
-        let counts_json = |counts: &Counts| {
-            json!({
-                "formula_cells": counts.formula_cells,
-                "pass": counts.pass,
-                "external_links": counts.external_links,
-                "circular_rule": counts.circular_rule,
-                "awaiting_capture": counts.awaiting_capture,
-                "fail": counts.fail(),
-                "mismatched": counts.mismatched,
-                "refused": counts.refused,
-                "failed_or_missing": counts.failed_or_missing,
-                "failed_or_missing_by_verdict": counts.failed_or_missing_by_verdict,
-                "pass_rate": rate_json(counts.pass, counts.formula_cells),
-            })
-        };
+        let counts_json = Counts::json;
         let times_json = |times: &Times| {
             json!({
                 "open": times.open,
@@ -526,6 +591,7 @@ impl Summary {
                     "name": workbook.name,
                     "sha256": workbook.sha256,
                     "capture": workbook.capture,
+                    "inventory_formula_cells":workbook.inventory_formula_cells,
                 });
                 match &workbook.outcome {
                     Ok(compared) => {
@@ -539,8 +605,15 @@ impl Summary {
                     }
                     Err(not) => {
                         entry["status"] = json!("not compared");
-                        entry["not_compared"] = json!({ "stage": not.stage, "reason": not.reason });
+                        entry["not_compared"] = json!({ "stage": not.stage, "reason": not.reason, "key":workbook.failure_key });
                         entry["wall_time_s"] = times_json(&workbook.times);
+                        if let Some(cells) = workbook.inventory_formula_cells {
+                            entry["counts"] = counts_json(&Counts {
+                                formula_cells: cells,
+                                failed_or_missing: cells,
+                                ..Default::default()
+                            });
+                        }
                     }
                 }
                 entry
@@ -576,20 +649,41 @@ impl Summary {
                 }
             }
         }
+        let mut file_groups = BTreeMap::<(String, String), (u64, u64, u64)>::new();
+        for workbook in &self.workbooks {
+            if let Err(not) = &workbook.outcome {
+                if workbook.inventory_formula_cells == Some(0) {
+                    continue;
+                }
+                let key = workbook
+                    .failure_key
+                    .clone()
+                    .unwrap_or_else(|| "workbook not compared".into());
+                let row = file_groups.entry((not.stage.clone(), key)).or_default();
+                row.0 += 1;
+                row.1 += u64::from(workbook.inventory_formula_cells.is_none());
+                row.2 += workbook.inventory_formula_cells.unwrap_or(0);
+            }
+        }
+        let file_failures:Vec<_>=file_groups.into_iter().map(|((class,key),(workbooks,unknown_inventories,cells))|
+            json!({"class":class,"key":key,"workbooks":workbooks,"unknown_inventories":unknown_inventories,
+                "cells":cells,"roots":0,"downstream":0,"whole_workbook":0})).collect();
         json!({
             "format": "dnacalc-corpus-summary",
-            "version": 1,
-            "rule": "pass = matched Excel from the workbook's own inputs; external_links = matched Excel from values another workbook's link caches hold (neither pass nor fail, dc-ylr); circular_rule = matched Excel with the value the circular-reference rule holds with iteration off (neither pass nor fail, dc-y2o.1); awaiting_capture = formula cells of an oracle workbook or section with no committed capture of its current content (neither pass nor fail; cargo xtask capture --pending takes them); fail = mismatched + refused (not modelled) + failed or missing; the pass rate is pass over all formula cells, awaiting ones included (owner ruling 2026-10-23)",
+            "version": 2,
+            "rule": "pass = matched live Excel from calculated workbook inputs; fail = mismatched + refused + failed/missing + external link caches + circular held caches + awaiting capture; all inventoried formula cells are in the denominator; unknown inventories are reported separately",
             "run": self.run,
             "totals": {
                 "workbooks": totals.workbooks,
                 "compared": totals.compared,
                 "not_compared": totals.not_compared,
+                "unknown_inventory_workbooks":self.workbooks.iter().filter(|w|w.outcome.is_err() && w.inventory_formula_cells.is_none()).count(),
                 "whole_run_failed": totals.whole_run_failed,
                 "counts": counts_json(&totals.counts),
                 "wall_time_s": times_json(&totals.times),
             },
             "workbooks": workbooks,
+            "file_failures":file_failures,
             "root_causes": {
                 "refusals": refusals,
                 "mismatches": mismatches,
@@ -611,7 +705,7 @@ impl Summary {
         line(&mut out, "");
         line(
             &mut out,
-            "Pass = matched Excel from the workbook's own inputs. External links = matched Excel from values another workbook's link caches hold, counted apart (neither pass nor fail, dc-ylr). Circular rule = matched Excel with the value a formula on a circular reference, or one reading it, keeps with iteration off, counted apart (neither pass nor fail, dc-y2o.1). Awaiting capture = formula cells of an oracle workbook or section with no committed capture of its current content, counted apart (neither pass nor fail; `cargo xtask capture --pending` takes them). Fail = mismatched + refused (not modelled) + failed or missing. The pass rate is pass over all formula cells, awaiting ones included (owner ruling 2026-10-23).",
+            "Pass = matched live Excel from calculated workbook inputs. Fail includes mismatches, refusals, failed or missing results, external link caches, circular held caches and awaiting captures. The pass rate includes every inventoried formula cell. Files with unknown inventories are reported separately.",
         );
         line(&mut out, "");
         if let Some(run) = self.run.as_object() {
@@ -637,7 +731,7 @@ impl Summary {
         line(
             &mut out,
             &format!(
-                "- formula cells (compared workbooks): {}; pass {}; external links {}; circular rule {}; awaiting capture {}; fail {} (mismatched {}, refused {}, failed or missing {})",
+                "- formula cells (known inventories): {}; pass {}; external links {}; circular rule {}; awaiting capture {}; fail {} (mismatched {}, refused {}, failed or missing {})",
                 c.formula_cells,
                 c.pass,
                 c.external_links,
@@ -656,12 +750,17 @@ impl Summary {
                 rate(c.pass, c.formula_cells)
             ),
         );
-        if totals.not_compared > 0 {
+        let unknown = self
+            .workbooks
+            .iter()
+            .filter(|w| w.outcome.is_err() && w.inventory_formula_cells.is_none())
+            .count();
+        if unknown > 0 {
             line(
                 &mut out,
                 &format!(
                     "- {} workbook(s) not compared hold formula cells not counted above, since their inventories are not known",
-                    totals.not_compared
+                    unknown
                 ),
             );
         }
@@ -732,11 +831,18 @@ impl Summary {
                     );
                 }
                 Err(not) => {
+                    let count = workbook
+                        .inventory_formula_cells
+                        .map_or_else(|| "unknown".into(), |n| n.to_string());
+                    let fail = workbook
+                        .inventory_formula_cells
+                        .map_or_else(|| "unknown".into(), |n| n.to_string());
                     line(
                         &mut out,
                         &format!(
-                            "| {} (not compared) | - | - | - | - | - | - | - | - | - | - | - | - | - |",
-                            workbook.name
+                            "| {} (not compared) | {count} | 0 | 0 | 0 | 0 | {fail} | 0 | 0 | {fail} | {} | - | - | - |",
+                            workbook.name,
+                            rate(0, workbook.inventory_formula_cells.unwrap_or(0))
                         ),
                     );
                     not_compared.push((workbook.name.as_str(), not));
