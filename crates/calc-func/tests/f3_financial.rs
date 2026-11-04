@@ -372,6 +372,27 @@ fn pmt_uses_recorded_exponential_and_timing_stores() {
     exact(call("PMT", vec![n(f64::from_bits(0x3e70000000000000)), n(f64::from_bits(0x4018000000000000)), n(f64::from_bits(0x3ff0000000000001)), n(f64::from_bits(0x0000000000000000)), n(f64::from_bits(0x0000000000000000))]), f64::from_bits(0xbfc55555a000003f));
 }
 
+/// dc-j9k.12: Excel build 20131 PMT bank rows (fv 0, type 0) that need both the atanh-series
+/// logarithm and the PC64-stored quotient of the discount arm. Each was one or two ulp off with
+/// the correctly rounded log1p and the binary64 quotient.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn pmt_uses_the_series_logarithm_and_the_stored_quotient() {
+    let rows: [(u64, f64, f64, u64, &str); 7] = [
+        (0x3ef1_f6d5_43a8_f0b6, 12.0, 7.0, 0xbfe2_ab32_e63e_ff56, "oc44774"),
+        (0x3f70_2c2b_d194_957f, 360.0, 1.25, 0xbf7a_abe5_e5af_6809, "oc54767"),
+        (0x3f9f_91a6_aa34_2d41, 48.0, 1.125, 0xbfa7_2596_f5bd_c140, "oc59376"),
+        (0x3fc0_0000_0000_00ca, 1.0, f64::from_bits(0x3ff0_0000_0000_0075), 0xbff2_0000_0000_009d, "oc228468"),
+        (0xbed5_7366_5223_e778, 2.0, 1.0, 0xbfdf_ffef_e974_2878, "oc8774"),
+        (0xbf50_1bd2_b1bd_4e4a, 48.0, 1.0, 0xbf94_d2ca_f0b8_30ad, "oc11960"),
+        (0xbf51_1cc7_2ccd_c37f, 1.0, 13.0, 0xc029_f90c_4f15_cc68, "oc72819"),
+    ];
+    for (rate, periods, pv, expected, id) in rows {
+        let got = number(call("PMT", vec![n(f64::from_bits(rate)), n(periods), n(pv)]));
+        assert_eq!(got.to_bits(), expected, "{id}: got {got:e}");
+    }
+}
+
 /// Recorded d00-m46 distinguishes q-space publication; irr-B-g0.0 needs
 /// the equal-residual Newton step when the initial secant points coincide.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

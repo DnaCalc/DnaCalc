@@ -1,4 +1,5 @@
 use crate::value::WorksheetErrorCode;
+use crate::ported::excel_numeric::{excel_sqrt_staged, excel_x87_add, excel_x87_mul};
 
 pub fn asinh_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
     // Excel computes `ln(x + sqrt(x² + 1))` and overflows when the `x²` intermediate
@@ -17,11 +18,14 @@ pub fn asinh_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
     // is not the graph. When x*x+1 overflows (x*x == f64::MAX), SQRT
     // cannot be formed; the published finite value is LN(2*|x|).
     let a = n.abs();
-    let sq = a * a;
-    let inner = if !(sq + 1.0).is_finite() {
-        a + a
+    // The recorded identity stores each operation from PC64, including SQRT.
+    // Retaining the entire expression in the registers loses recorded matches.
+    let sq = excel_x87_mul(a, a);
+    let radicand = excel_x87_add(sq, 1.0);
+    let inner = if !radicand.is_finite() {
+        excel_x87_add(a, a)
     } else {
-        a + (sq + 1.0).sqrt()
+        excel_x87_add(a, excel_sqrt_staged(radicand))
     };
     Ok(n.signum() * crate::ported::excel_numeric::excel_log(inner))
 }

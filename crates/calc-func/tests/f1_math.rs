@@ -11,6 +11,30 @@ use f1_support::*;
 
 const PI: f64 = std::f64::consts::PI;
 
+/// Original Excel20430 observations oc1418, oc1065 and oc1762.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn asinh_stores_each_identity_operation_from_pc64() {
+    for (input, expected) in [
+        (0x3e73_4f4b_587c_834b, 0x3e73_4f4b_5859_1206),
+        (0x3ed0_51e2_e324_9a58, 0x3ed0_51e2_e326_b736),
+        (0xbeb0_32f7_6bce_6f24, 0xbeb0_32f7_6bdb_73b3),
+    ] {
+        exact(call("ASINH", vec![n(f64::from_bits(input))]), f64::from_bits(expected));
+    }
+}
+
+/// Every subnormal has x*x rounding to zero and 1+abs(x) rounding to one.
+/// Both signs therefore reach LN(1), whose published result is positive zero.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn asinh_admits_subnormal_inputs_whose_identity_is_exact_zero() {
+    for input in [0x0000_0000_0000_0001, 0x8000_0000_0000_0001,
+                  0x000f_ffff_ffff_ffff, 0x800f_ffff_ffff_ffff] {
+        exact(call("ASINH", vec![n(f64::from_bits(input))]), 0.0);
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn circular_functions() {
