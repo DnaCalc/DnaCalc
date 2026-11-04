@@ -598,16 +598,16 @@ fn tiny_erf_matches_recorded_answers() {
     exact(call("GAUSS", vec![n(f64::from_bits(0x005f_e189_b32b_8147))]), f64::from_bits(0x0049_6ff7_0f27_3fff));
 }
 
-/// Recorded b17-s20-03582 and b16-g25-01840 retain their original answers.
+/// Recorded b17-s20-03582 and b16-g25-01840: the linear route below 2^-16 (dc-j9k.6).
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn small_erf_records_known_polynomial_gaps() {
-    for (input, expected, calculated) in [
-        (0x3eb4_5231_7b1d_dc40, 0x3eb6_ee0b_e91e_09f3, 0x3eb6ee0be91e09f2),
-        (0x3e61_cc00_0000_0000, 0x3e64_14e5_3e86_1661, 0x3e6414e53e86165f),
+fn small_erf_matches_recorded_answers() {
+    for (input, expected) in [
+        (0x3eb4_5231_7b1d_dc40, 0x3eb6_ee0b_e91e_09f3),
+        (0x3e61_cc00_0000_0000, 0x3e64_14e5_3e86_1661),
     ] {
         for function in ["ERF.PRECISE", "ERF"] {
-            recorded_calculation(call(function, vec![n(f64::from_bits(input))]), f64::from_bits(expected), f64::from_bits(calculated));
+            exact(call(function, vec![n(f64::from_bits(input))]), f64::from_bits(expected));
         }
     }
 }
