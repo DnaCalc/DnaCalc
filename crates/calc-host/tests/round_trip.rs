@@ -765,6 +765,61 @@ fn session(bytes: &[u8]) -> HostSession {
     HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).expect("it opens")
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_p05_published_spill_discharges_blank_reader_before_a_refused_callback() {
+    use calc_host::{CalculationDomain, DomainProgress};
+    let bytes = include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P05/child-scope-growth-reader-first-01.xlsm");
+    for budget in [WorkBudget::UNLIMITED, WorkBudget::evaluations(1)] {
+        let book = HostSession::open(Arc::new(MemorySource::new(bytes.to_vec())),&OpenPolicy::default(),HostOptions {
+            calc_mode:Some(CalcMode::Automatic),..HostOptions::default()
+        }).unwrap();
+        let mut domain = CalculationDomain::new();
+        let id = domain.insert_session(book).unwrap();
+        for (index,(height,expected)) in [("1",1.0),("12",11.0),("1",1.0)].into_iter().enumerate() {
+            if index>0 {
+                let book = domain.session_mut(id).unwrap();
+                let sheet = book.host().sheets()[0].id();
+                assert!(book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual)).accepted());
+                assert!(enter(book,at(sheet,"Z1"),height).accepted());
+            }
+            domain.request_calculation(&[id],true).unwrap();
+            let mut finished = false;
+            for _ in 0..100 {
+                match domain.advance(budget) {
+                    DomainProgress::Complete => { finished=true;break; }
+                    DomainProgress::Advanced { progress:HostProgress::Failed(error),.. } => panic!("published producer must satisfy the admitted blank proof: {error:?}"),
+                    DomainProgress::Failed {error,..} => panic!("domain failed: {error:?}"),
+                    _ => {}
+                }
+            }
+            assert!(finished);
+            let host = domain.host(id).unwrap();
+            let sheet = host.sheets()[0].id();
+            assert_eq!(calculated(host,at(sheet,"C10")),Some(CalcValue::number(expected)));
+            if height=="12" { assert_eq!(calculated(host,at(sheet,"A10")),Some(CalcValue::number(10.0))); }
+            else { assert!(matches!(value(host,at(sheet,"A10")),ProjectedValue::Empty)); }
+            assert!(matches!(value(host,at(sheet,"E10")),ProjectedValue::NotModeled {..}),"disabled macro remains a refusal");
+            let events = domain.session_mut(id).unwrap().take_calculation_events();
+            let completed = events.iter().position(|event|matches!(event,calc_engine::CalcEvent::Completed(receipt) if receipt.coverage.refused==1)).unwrap();
+            let published = events.iter().rposition(|event|matches!(event,calc_engine::CalcEvent::Published(_))).unwrap();
+            assert!(published<completed);
+        }
+        // A newly admitted requirement cannot be discharged by the preceding
+        // command's installed stamp, nor by a refused producer's old footprint.
+        let book = domain.session_mut(id).unwrap();
+        let sheet = book.host().sheets()[0].id();
+        assert!(enter(book,at(sheet,"Z1"),"=DisabledSource()").accepted());
+        domain.request_calculation(&[id],true).unwrap();
+        for _ in 0..100 {
+            if matches!(domain.advance(budget),DomainProgress::Complete|DomainProgress::Failed {..}) { break; }
+        }
+        let host = domain.host(id).unwrap();
+        assert!(calculated(host,at(sheet,"A1")).is_none());
+        assert!(calculated(host,at(sheet,"C10")).is_none());
+    }
+}
+
 /// The deltas a subscription received, in order.
 type Received = Rc<RefCell<Vec<HostDelta>>>;
 

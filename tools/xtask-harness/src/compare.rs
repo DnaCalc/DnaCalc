@@ -1004,11 +1004,27 @@ fn run_workbook_with_saved(
             .collect(),
         ..empty_record()
     };
+    // Failed Excel entry leaves a different authored input at that location.
+    // Follow the existing application graph, including shape-only consumers,
+    // so descendants are not blamed on ROWS/COLUMNS or on a valid calculation.
+    let mut entry_failures = HashMap::new();
+    for failure in capture.session.iter().flat_map(|session|&session.failures)
+        .filter(|failure|failure.stage=="entry") {
+        let Some(root) = &failure.cell else { continue; };
+        let Some(at) = key_of(root) else { continue; };
+        let mut pending = std::collections::VecDeque::from([at]);
+        while let Some(at) = pending.pop_front() {
+            if entry_failures.contains_key(&at) { continue; }
+            entry_failures.insert(at,root.clone());
+            pending.extend(host.dependents(at));
+        }
+    }
     let retained = instrument
         .retained
         .into_iter()
         .filter_map(|(at, (calls, reads))| {
             let kept = Retained {
+                entry_failure: entry_failures.get(&at).cloned(),
                 precedents: host.precedents(at).unwrap_or_default(),
                 calls: calls
                     .into_iter()
@@ -1470,6 +1486,27 @@ mod tests {
         let (reference,info) = optional.saved_reference.unwrap();
         assert!(reference.observations.is_empty());
         assert!(info["unavailable"].is_string());
+    }
+
+    #[test]
+    fn refused_excel_entry_owns_value_and_shape_only_observer_mismatches() {
+        let bytes = include_bytes!("../../../crates/calc-func/tests/fixtures/fn2_questions/oracle.xlsx");
+        let capture = CaptureRecord::decode(include_bytes!("../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json")).unwrap();
+        let run = run_workbook(bytes,Some("oracle.xlsx"),None,&capture,NumericMode::Fast,false).unwrap();
+        let report = judge(&capture,&run.results,&run.record,&VerdictPolicy::default()).unwrap();
+        let triage = compare_triage::triage(&capture,&report,&run.dna,&run.retained,run.workbook.as_ref(),run.declared.as_deref());
+        let mut checked = 0;
+        for (i,cell) in report.cells.iter().enumerate() {
+            if !["fn2_o123","fn2_o124","fn2_o184","fn2_o185"].contains(&cell.formula.cell.sheet()) { continue; }
+            assert!(matches!(cell.verdict,calc_verdict::Verdict::Mismatched {..}));
+            assert_eq!(triage.cells[i].class,Class::Capture,"{}",cell.formula.cell.sheet());
+            assert_eq!(triage.cells[i].role,Some(compare_triage::Role::ReadsRoot));
+            assert_eq!(triage.cells[i].key,"capture failure at stage entry");
+            let root = triage.cells[i].root.unwrap();
+            assert_eq!(report.cells[root].formula.cell.sheet(),cell.formula.cell.sheet().replace("_o","_q"));
+            checked+=1;
+        }
+        assert_eq!(checked,12);
     }
 
     #[test]
