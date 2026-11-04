@@ -11,6 +11,10 @@ pub struct SortKey {
     pub descending: bool,
 }
 
+/// Optional first-key custom order or bounded case-sensitive text keys.
+#[derive(Clone,Debug,Default,PartialEq,Eq)]
+pub struct SortOptions {pub case_sensitive:bool,pub custom_order:Vec<String>}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SheetChange {
     Add { name: String },
@@ -106,6 +110,7 @@ pub enum WorkbookCommand {
         revision: u64,
         only: Option<CellKey>,
     },
+    SortRowsWithOptions {area:GridArea,keys:Vec<SortKey>,header:bool,revision:u64,options:SortOptions},
     SortRows {
         area: GridArea,
         keys: Vec<SortKey>,
@@ -142,12 +147,13 @@ pub(crate) fn prepare(
         WorkbookCommand::TableFilter{sheet,revision,part,change}=>crate::filter::prepare_for(host,sheet,revision,Some(&part),change),
         WorkbookCommand::Table {revision,change}=>crate::tables::prepare(host,revision,change),
         WorkbookCommand::AutoFilter { sheet,revision,change }=>crate::filter::prepare(host,sheet,revision,change),
+        WorkbookCommand::SortRowsWithOptions{area,keys,header,revision,options}=>sort_rows(host,area,&keys,header,revision,&options),
         WorkbookCommand::SortRows {
             area,
             keys,
             header,
             revision,
-        } => sort_rows(host, area, &keys, header, revision),
+        } => sort_rows(host, area, &keys, header, revision,&SortOptions::default()),
         WorkbookCommand::Name(edit) => crate::names::prepare(host, edit),
         WorkbookCommand::FormatCells { areas, patch } => {
             crate::format::prepare(host, &areas, &patch)
@@ -543,6 +549,7 @@ fn sort_rows(
     keys: &[SortKey],
     header: bool,
     revision: u64,
+    options:&SortOptions,
 ) -> Result<Vec<CellEdit>, String> {
     let unavailable = |detail: &str| {
         format!("Sorting {detail} is not modelled (dc-971p.38); nothing was changed")
@@ -679,28 +686,35 @@ fn sort_rows(
         crate::ProjectedValue::Empty | crate::ProjectedValue::Literal(_) | crate::ProjectedValue::Calculated { .. })) {
         return Err(unavailable("keys without current calculated values; calculate the range first"));
     }
+    if data.row_count()<2{return Ok(Vec::new());}
+    let (case_widths,custom)=sort_option_keys(host,data,keys,&page,options)?;
     let count = data.row_count();
     if count < 2 {
         return Ok(Vec::new());
     }
-    let label = |column, row| {
-        let mut col = column;
-        let mut chars = Vec::new();
-        while col > 0 {
-            chars.push(char::from(b'A' + ((col - 1) % 26) as u8));
-            col = (col - 1) / 26;
-        }
-        format!("{}{}", chars.into_iter().rev().collect::<String>(), row)
-    };
+    let label=sort_label;
     // Empty keys stay last in both directions. Original row index is an explicit tie key.
     // Grid sorting treats all errors as equal. Normalise their codes through the evaluator,
     // whose SORTBY otherwise orders different error codes. No host comparator is introduced.
     let mut formula = format!("_xlfn.SORTBY(_xlfn.SEQUENCE({count})");
-    for key in keys {
-        let range = format!("{}:{}", label(key.column, first), label(key.column, data.last().row()));
-        formula.push_str(&format!(",ISBLANK({range}),1,IFERROR({range},NA()),{}", if key.descending {-1} else {1}));
+    let mut sort_arguments=3usize; // row indexes plus the final tie key/direction
+    for (index,key) in keys.iter().enumerate() {
+        let range=format!("{}:{}",label(key.column,first),label(key.column,data.last().row()));
+        let direction=if key.descending{-1}else{1};
+        formula.push_str(&format!(",ISBLANK({range}),1"));sort_arguments+=2;
+        if case_widths[index]>0 {
+            formula.push_str(&format!(",IF(ISTEXT({range}),1,IF(ISNUMBER({range}),0,IF(ISLOGICAL({range}),2,3))),{direction},IF(ISTEXT({range}),0,IFERROR({range},NA())),{direction}"));sort_arguments+=4;
+            for position in 1..=case_widths[index] {
+                formula.push_str(&format!(",IF(ISTEXT({range}),IFERROR(CODE(LOWER(MID({range},{position},1))),0),0),{direction},IF(ISTEXT({range}),IFERROR(CODE(MID({range},{position},1))<91,FALSE),FALSE),{direction}"));sort_arguments+=4;
+            }
+        }else{
+            let value=if index==0 {custom.as_ref().map(|list|format!("IF(ISBLANK({range}),0,_xlfn.XMATCH({range},{list},0))"))}else{None}.unwrap_or_else(||format!("IFERROR({range},NA())"));
+            formula.push_str(&format!(",{value},{direction}"));sort_arguments+=2;
+        }
     }
+    if sort_arguments>255{return Err(unavailable("case-sensitive keys beyond 255 sort arguments"));}
     formula.push_str(&format!(",_xlfn.SEQUENCE({count}),1)"));
+    if formula.encode_utf16().count()>8192{return Err(unavailable("case-sensitive keys beyond the formula-length limit"));}
     let value = calc_engine::DetachedFormula::compile_dynamic(host.model(), &formula, data.first())
         .and_then(|f| f.evaluate(&host.engine, host.model(), data.first()))
         .map_err(|e| format!("Sort could not calculate the row order (dc-971p.38): {e}"))?;
@@ -835,4 +849,57 @@ fn sort_formula_references_supported(
     // A qualifier can govern both endpoints of a range. Do not admit just its first
     // absolute endpoint while the second endpoint still changes under relocation.
     !qualified || !reference_operator
+}
+
+fn sort_label(column:u32,row:u32)->String {
+        let mut col = column;
+        let mut chars = Vec::new();
+        while col > 0 {
+            chars.push(char::from(b'A' + ((col - 1) % 26) as u8));
+            col = (col - 1) / 26;
+        }
+        format!("{}{}", chars.into_iter().rev().collect::<String>(), row)
+    }
+
+/// Additional keys use ordinary worksheet functions in the same detached evaluation as Sort.
+/// Case-sensitive ASCII order follows Microsoft's character-by-character a,A,b,B sequence:
+/// https://support.microsoft.com/en-us/excel/sort-data-in-a-range-or-table-in-excel
+fn sort_option_keys(host:&HostState,data:GridArea,keys:&[SortKey],page:&crate::ProjectionPage,options:&SortOptions)->Result<(Vec<usize>,Option<String>),String>{
+    let unavailable=|detail:&str|format!("Sorting {detail} is not modelled (dc-971p.38); nothing changed");
+    if options.case_sensitive && !options.custom_order.is_empty(){return Err(unavailable("case-sensitive custom lists"));}
+    let mut widths=vec![0;keys.len()];
+    if options.case_sensitive {
+        for cell in page.cells(){
+            let value=match cell.value(){crate::ProjectedValue::Literal(v)|crate::ProjectedValue::Calculated{value:v,..}=>Some(v),_=>None};
+            if let Some(text)=value.and_then(|v|v.as_text()){
+                let units=text.utf16_code_units();
+                if units.len()>52 || units.iter().any(|u|!u8::try_from(*u).is_ok_and(|c|c.is_ascii_alphanumeric())) {return Err(unavailable("case-sensitive labels outside 52 ASCII letters or digits"));}
+                let index=keys.iter().position(|k|k.column==cell.at().column()).expect("projected sort key");widths[index]=widths[index].max(units.len());
+            }
+        }
+    }
+    let order=&options.custom_order;
+    if order.is_empty(){return Ok((widths,None));}
+    if keys[0].descending {return Err("Reverse the custom list entries to reverse their order (dc-971p.38); nothing changed".into());}
+    if order.len()>32 || order.iter().any(String::is_empty) || order.join("\n").encode_utf16().count()>255 {return Err("Enter 1 to 32 nonempty custom entries, at most 255 characters in total (dc-971p.38)".into());}
+    let list=format!("{{{}}}",order.iter().map(|s|format!("\"{}\"",s.replace('"',"\"\""))).collect::<Vec<_>>().join(";"));
+    let evaluate=|text:&str|calc_engine::DetachedFormula::compile_dynamic(host.model(),text,data.first()).and_then(|f|f.evaluate(&host.engine,host.model(),data.first())).map_err(|e|format!("Custom order could not be calculated (dc-971p.38): {e}"));
+    let unique=evaluate(&format!("_xlfn.XMATCH({list},{list},0)"))?;
+    let distinct=match unique.core_ref(){
+        calc_value::CoreRef::Array(positions)=>positions.shape().rows==order.len() && positions.shape().cols==1 && positions.iter_row_major().enumerate().all(|(i,v)|matches!(v.core_ref(),calc_value::CoreRef::Number(n)if n==(i+1)as f64)),
+        calc_value::CoreRef::Number(n)=>order.len()==1 && n==1.,
+        _=>false,
+    };
+    if !distinct{return Err("Every custom entry must be distinct, ignoring case (dc-971p.38); nothing changed".into());}
+    let range=format!("{}:{}",sort_label(keys[0].column,data.first().row()),sort_label(keys[0].column,data.last().row()));
+    let ranks=evaluate(&format!("_xlfn.XMATCH({range},{list},0)"))?;
+    let calc_value::CoreRef::Array(ranks)=ranks.core_ref()else{return Err("The custom key did not return row positions (dc-971p.38)".into());};
+    if ranks.shape().rows!=data.row_count()as usize || ranks.shape().cols!=1{return Err("The custom key returned an unexpected row count (dc-971p.38)".into());}
+    for cell in page.cells().iter().filter(|c|c.at().column()==keys[0].column){
+        if matches!(cell.value(),crate::ProjectedValue::Empty){continue;}
+        let value=match cell.value(){crate::ProjectedValue::Literal(v)|crate::ProjectedValue::Calculated{value:v,..}=>v,_=>return Err(unavailable("custom keys without current values"))};
+        let rank=ranks.get((cell.at().row()-data.first().row())as usize,0);
+        if value.as_text().is_none() || !rank.is_some_and(|v|matches!(v.core_ref(),calc_value::CoreRef::Number(n)if n>=1.&&n<=order.len()as f64)) {return Err("Every nonblank first-key value must be text included in the custom list (dc-971p.38); nothing changed".into());}
+    }
+    Ok((widths,Some(list)))
 }

@@ -2371,8 +2371,13 @@ impl Controller {
                 let Some(column)=text.parse::<u32>().ok().filter(|c|*c>0 && *c<=area.column_count()) else {controller.say("Every sort key must be a column within the selection",true);return;};
                 keys.push((area.first().column()+column-1,reverse));
             }
-            controller.dispatch(Intent::SortRows{area:Area::of(area),keys,header,revision:controller.summary.get_untracked().revision},move |outcome| {
-                if outcome.accepted {controller.say(format!("Sorted {} {}",controller.area_label(area),if descending {"largest to smallest"}else{"smallest to largest"}),false);}
+            let (case_sensitive,custom_order)=controller.model.with_untracked(|m|(m.runtime.tools.sort_case_sensitive,m.runtime.tools.sort_custom_order.clone()));
+            let custom_order:Vec<String>=if custom_order.is_empty(){Vec::new()}else{custom_order.lines().map(str::to_owned).collect()};
+            let revision=controller.summary.get_untracked().revision;
+            let custom_sort=!custom_order.is_empty();
+            let intent=if case_sensitive||!custom_order.is_empty(){Intent::SortRowsWithOptions{area:Area::of(area),keys,header,revision,case_sensitive,custom_order}}else{Intent::SortRows{area:Area::of(area),keys,header,revision}};
+            controller.dispatch(intent,move |outcome| {
+                if outcome.accepted {controller.say(format!("Sorted {} {}",controller.area_label(area),if custom_sort {"in custom list order"}else if descending {"largest to smallest"}else{"smallest to largest"}),false);}
             });
         });
     }

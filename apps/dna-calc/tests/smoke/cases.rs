@@ -8280,6 +8280,22 @@ Case {
         checks:&[Check::PlanAbsent("B1"),Check::Value("template-list","Budget.xltx"),Check::Count("[data-dnacalc=template-list] option",2)],
     },
 
+    Case {name:"case sorting: character positions distinguish aZ from Aa and move formulas",actions:&[
+        Action::Window(1440,1000),Action::ExternalClipboard("Key\tAmount\tTotal\naZ\t1\t=B2*10\nAa\t2\t=B3*10\nab\t3\t=B4*10\naB\t4\t=B5*10",false),Action::Keys("grid","\u{E009}v\u{E000}"),Action::Wait(Check::PlanCell("C5","text","40")),Action::Into("name-box","A1:C5\u{E007}"),Action::OpenDetails("sort-tools"),Action::OpenDetails("sort-options"),Action::Click("sort-case-sensitive"),Action::Click("sort-ascending"),Action::Wait(Check::TextContains("status","Sorted"))
+    ],checks:&[Check::PlanCell("A2","text","ab"),Check::PlanCell("A3","text","aB"),Check::PlanCell("A4","text","aZ"),Check::PlanCell("A5","text","Aa"),Check::PlanCell("C2","text","30"),Check::PlanCell("C5","text","20")]},
+    Case {name:"case sorting: undo redo and descending preserve row contents",actions:&[
+        Action::Click("undo"),Action::Wait(Check::PlanCell("A2","text","aZ")),Action::Click("redo"),Action::Wait(Check::PlanCell("A2","text","ab")),Action::Into("name-box","A1:C5\u{E007}"),Action::Click("sort-descending"),Action::Wait(Check::PlanCell("A2","text","Aa"))
+    ],checks:&[Check::PlanCell("A5","text","ab"),Check::PlanCell("C2","text","20"),Check::PlanCell("C5","text","30")]},
+    Case {name:"custom sorting: list order and secondary descending use the normal command",actions:&[
+        Action::Click("sort-case-sensitive"),Action::Into("name-box","A1\u{E007}"),Action::ExternalClipboard("Key\tAmount\tTotal\nLow\t1\t=B2*10\nHigh\t2\t=B3*10\nMedium\t3\t=B4*10\nHIGH\t4\t=B5*10",false),Action::Keys("grid","\u{E009}v\u{E000}"),Action::Wait(Check::Reachable("paste-confirm")),Action::Click("paste-confirm"),Action::Wait(Check::PlanCell("A5","text","HIGH")),Action::Into("name-box","A1:C5\u{E007}"),Action::Into("sort-custom-order","High\nMedium\nLow"),Action::Click("sort-add-key"),Action::Wait(Check::Count("sort-level-order-2",1)),Action::Choose("sort-level-order-2","desc"),Action::Click("sort-ascending"),Action::Wait(Check::PlanCell("C2","text","40"))
+    ],checks:&[Check::PlanCell("A2","text","HIGH"),Check::PlanCell("C3","text","20"),Check::PlanCell("A4","text","Medium"),Check::PlanCell("A5","text","Low"),Check::PlanCell("C5","text","10")]},
+    Case {name:"custom sorting: unlisted and duplicate entries refuse atomically",actions:&[
+        Action::Into("sort-custom-order","High\nLow"),Action::Click("sort-ascending"),Action::Wait(Check::TextContains("status","Every nonblank")),Action::Into("sort-custom-order","High\nHIGH\nMedium\nLow"),Action::Click("sort-ascending"),Action::Wait(Check::TextContains("status","distinct"))
+    ],checks:&[Check::PlanCell("A2","text","HIGH"),Check::PlanCell("C2","text","40"),Check::PlanCell("A5","text","Low")]},
+    Case {name:"custom sorting: results reopen and controls fit a phone",actions:&[
+        Action::Into("sort-custom-order","Low\nMedium\nHigh"),Action::Click("sort-ascending"),Action::Wait(Check::PlanCell("A2","text","Low")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::Wait(Check::PlanCell("C2","text","10")),Action::Wait(Check::PlanCell("A5","text","High")),Action::Wait(Check::PlanCell("C5","text","20")),Action::Window(390,844),Action::OpenDetails("sort-tools"),Action::OpenDetails("sort-options"),Action::Click("sort-custom-order")
+    ],checks:&[Check::Fits,Check::Narrow(390),Check::Name("sort-custom-order","Custom order for first key"),Check::Reachable("sort-case-sensitive"),Check::Reachable("sort-custom-order")]},
+
 ];
 
 /// The script that reads what one check looks at.
@@ -9118,4 +9134,5 @@ CaseGroup {
     CaseGroup {name:"sort-metadata",start:646,end:651,core:5,setup:&[]},
     CaseGroup {name:"table-sorting",start:651,end:657,core:6,setup:&[]},
     CaseGroup {name:"templates",start:657,end:670,core:13,setup:&[]},
+    CaseGroup {name:"sort-options",start:670,end:675,core:5,setup:&[]},
 ];
