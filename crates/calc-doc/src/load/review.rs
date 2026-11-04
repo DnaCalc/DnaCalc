@@ -24,14 +24,7 @@ use calc_doc_model::ReviewSource;
 pub (crate) const THREAD_NAMESPACE: &str =
     "http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments";
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ReviewLink {
-    pub area: GridArea,
-    pub target: Option<String>,
-    pub location: Option<String>,
-    pub display: Option<String>,
-    pub tooltip: Option<String>,
-}
+pub use calc_doc_model::ReviewLink;
 
 pub(crate) fn read(package: &Package, part: &str, sheet: SheetId) -> SheetReview {
     let mut review = SheetReview::default();
@@ -308,6 +301,7 @@ pub(super) fn links(
     sheet: SheetId,
 ) -> Result<Vec<ReviewLink>, LoadError> {
     let mut links = Vec::new();
+    let mut source = 0u32;
     while let Some(event) = events.next()? {
         match event {
             XmlEvent::Start(e) if e.name.is(MAIN_NAMESPACE, "hyperlink") => {
@@ -335,7 +329,7 @@ pub(super) fn links(
                     .map(|r| r.target.clone());
                 if let Some(area) = area {
                     links.push(ReviewLink {
-                        area,
+                        area, source,
                         target,
                         location: e
                             .attribute("location")
@@ -348,6 +342,7 @@ pub(super) fn links(
                             .map(|s| String::from_utf16_lossy(&strings::decode(s))),
                     });
                 }
+                source = source.checked_add(1).ok_or_else(|| events.invalid("Too many hyperlinks"))?;
                 events.skip()?;
             }
             XmlEvent::Start(_) => events.skip()?,

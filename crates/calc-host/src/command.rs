@@ -23,6 +23,7 @@ pub enum CellEdit {
     /// Document layout metadata, independent of cell contents.
     Layout(calc_doc_model::SkinLayoutEdit),
     Validations { sheet: calc_value::SheetId, rules: Vec<calc_doc_model::Validation> },
+    ReviewLinks { sheet:calc_value::SheetId, links:Vec<calc_doc_model::ReviewLink> },
     ReviewNotes {
         sheet: calc_doc_model::value::SheetId,
         notes: Vec<calc_doc_model::ReviewNote>,
@@ -88,6 +89,7 @@ impl CellEdit {
             CellEdit::AutoFilter { sheet, filter } => WorkbookOp::SetAutoFilter { sheet, filter },
             CellEdit::Layout(edit) => WorkbookOp::EditSkinLayout(edit),
             CellEdit::Validations { sheet, rules } => WorkbookOp::SetValidations { sheet, rules },
+            CellEdit::ReviewLinks { sheet, links } => WorkbookOp::SetReviewLinks { sheet, links },
             CellEdit::ReviewNotes { sheet, notes } => WorkbookOp::SetReviewNotes { sheet, notes },
             CellEdit::ConditionalRules { sheet, rules } => {
                 WorkbookOp::SetConditionalRules { sheet, rules }
@@ -411,6 +413,14 @@ pub fn dispatch(
                     })
                 });
             if invalid {return Err(CommandError::Document(EditError::SheetOperation("Validation edits need valid ranges on an editable sheet and must retain imported alert attributes (dc-971p.40)".into())));}
+        }
+    }
+    for op in &batch.operations {
+        if let WorkbookOp::SetReviewLinks{sheet,links}=op {
+            if host.loaded.sheet(*sheet).is_some_and(|s|s.protected()||s.is_macro_sheet()){
+                return Err(CommandError::Document(EditError::SheetOperation("Hyperlinks require an editable worksheet (dc-971p.38)".into())));
+            }
+            host.loaded.check_sorted_links(*sheet,links).map_err(|e|CommandError::Document(EditError::SheetOperation(e.to_string())))?;
         }
     }
     if batch.operations.iter().any(|op|matches!(op,WorkbookOp::SetReviewNotes{..})) {

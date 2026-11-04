@@ -1333,3 +1333,56 @@ pub(crate) fn check_note_shapes(
     move_note_shapes(xml, &moves)?;
     Ok(())
 }
+
+/// Retain the original hyperlink XML and relationship identity while replacing only placements.
+/// Unsupported fields refuse before a sort; ordinary axis-only saves keep the structural writer.
+pub(crate) fn sorted_links(
+    original: &XmlPart,
+    current: &XmlPart,
+    before: &[calc_doc_model::ReviewLink],
+    links: &[calc_doc_model::ReviewLink],
+) -> Result<Vec<u8>, SaveRefusal> {
+    use crate::load::manifest::tree;
+    let invalid=||SaveRefusal::InvalidPart{part:original.name().into(),detail:"The original hyperlink fields cannot follow sorting (dc-971p.38)".into()};
+    let root=tree(original).map_err(|_|invalid())?;
+    let containers=root.children.iter().filter(|n|n.element.name.is(MAIN_NAMESPACE,"hyperlinks")).collect::<Vec<_>>();
+    if containers.len()>1 || links.len()>10000{return Err(invalid());}
+    let nodes=containers.first().map(|n|n.children.as_slice()).unwrap_or(&[]);
+    if containers.first().is_some_and(|n|!n.element.attributes.is_empty()||n.text)
+        || nodes.len()!=before.len(){return Err(invalid());}
+    for (index,node) in nodes.iter().enumerate(){
+        if !node.element.name.is(MAIN_NAMESPACE,"hyperlink") || !node.children.is_empty() || node.text
+            || node.element.attributes.iter().any(|a|!(a.name.is(REL_ATTR,"id") || a.name.namespace.is_none() && matches!(a.name.local.as_str(),"ref"|"location"|"display"|"tooltip")))
+            || before[index].source as usize!=index
+            || node.element.attributes.iter().any(|a|a.name.is(REL_ATTR,"id")) && before[index].target.is_none()
+            || before[index].target.is_none() && before[index].location.is_none(){return Err(invalid());}
+    }
+    let fragments=super::reader::element_sources(original,|e|e.name.is(MAIN_NAMESPACE,"hyperlink"))?;
+    if fragments.len()!=nodes.len(){return Err(invalid());}
+    let mut body=Vec::new();
+    for link in links {
+        let index=link.source as usize;
+        let source=before.get(index).ok_or_else(invalid)?;
+        let mut expected=source.clone();expected.area=link.area;
+        if &expected!=link || source.area.sheet()!=link.area.sheet(){return Err(invalid());}
+        let bytes=&fragments[index];
+        let x=XmlPart::new("hyperlink-source".into(),bytes.clone(),Default::default());
+        let node=tree(&x).map_err(|_|invalid())?;
+        let label=|at:CellKey|format!("{}{}",crate::load::address::column_letters(at.column()),at.row());
+        let area=if link.area.first()==link.area.last(){label(link.area.first())}else{format!("{}:{}",label(link.area.first()),label(link.area.last()))};
+        let tag=RawTag::parse(&x.bytes()[node.start_tag.0..node.start_tag.1]);
+        body.extend(tag.rebuilt(&[("ref",Some(&area))],tag.is_empty()));
+        body.extend_from_slice(&x.bytes()[node.start_tag.1..node.end_tag.1]);
+    }
+    let mut replacement=Vec::new();
+    if !body.is_empty(){replacement.extend_from_slice(format!("<hyperlinks xmlns=\"{MAIN_NAMESPACE}\">").as_bytes());replacement.extend(body);replacement.extend_from_slice(b"</hyperlinks>");}
+    let root=tree(current).map_err(|_|invalid())?;
+    let existing=root.children.iter().filter(|n|n.element.name.is(MAIN_NAMESPACE,"hyperlinks")).collect::<Vec<_>>();
+    if existing.len()>1{return Err(invalid());}
+    let mut out=Splice::new(current.bytes());
+    if let Some(node)=existing.first(){out.replace(node.whole(),&replacement);}else if !replacement.is_empty(){
+        let position=root.children.iter().find(|n|n.element.name.namespace.as_deref()==Some(MAIN_NAMESPACE) && matches!(n.element.name.local.as_str(),"printOptions"|"pageMargins"|"pageSetup"|"headerFooter"|"rowBreaks"|"colBreaks"|"customProperties"|"cellWatches"|"ignoredErrors"|"smartTags"|"drawing"|"legacyDrawing"|"legacyDrawingHF"|"picture"|"oleObjects"|"controls"|"webPublishItems"|"tableParts"|"extLst")).map(|n|n.start_tag.0).unwrap_or(root.end_tag.0);
+        out.replace((position,position),&replacement);
+    }
+    Ok(out.finish())
+}

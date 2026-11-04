@@ -389,6 +389,14 @@ pub struct LoadedWorkbook {
 }
 
 impl LoadedWorkbook {
+    /// Preflight the same retained-element rewrite used by a sorted hyperlink save.
+    pub fn check_sorted_links(&self,sheet:SheetId,links:&[calc_doc_model::ReviewLink])->Result<(),crate::SaveRefusal>{
+        let Some(source)=self.sheet(sheet)else{
+            return if links.is_empty(){Ok(())}else{Err(crate::SaveRefusal::InvalidPart{part:"worksheet".into(),detail:"Hyperlinks have no original worksheet (dc-971p.38)".into()})};
+        };
+        let xml=self.package.read_xml(source.part().name()).map_err(|e|crate::SaveRefusal::InvalidPart{part:source.part().name().into(),detail:e.to_string()})?;
+        crate::save::review::sorted_links(&xml,&xml,&source.review().links,links).map(|_|())
+    }
     /// Adopt a validated package extension into the existing authored lineage.
     pub fn adopt_template_lineage(&mut self, previous:&ModelRoot) -> Result<(),calc_doc_model::ApplyError> {
         self.model = previous.with_imported_worksheets(&self.model)?;
@@ -442,8 +450,7 @@ impl LoadedWorkbook {
                 Ok(Some(crate::xml::XmlEvent::Start(e)))
                     if matches!(
                         e.name.local.as_str(),
-                        "hyperlinks"
-                            | "drawing"
+                        "drawing"
                             | "oleObjects"
                             | "autoFilter"
                             | "sortState"
@@ -463,6 +470,7 @@ impl LoadedWorkbook {
                 {
                     return false;
                 }
+                Ok(Some(crate::xml::XmlEvent::Start(e))) if e.name.local == "hyperlinks" && (!sorting || !e.name.is(MAIN_NAMESPACE,"hyperlinks")) => return false,
                 Ok(Some(crate::xml::XmlEvent::Start(e))) if e.name.local == "legacyDrawing" && (!review_supported || !e.name.is(MAIN_NAMESPACE,"legacyDrawing")) => return false,
                 Ok(None) => return true,
                 Err(_) => return false,
@@ -1664,7 +1672,7 @@ pub fn load_preserving_sheet_ids(
     let outline_edits:Vec<_>=sheets.iter().flat_map(|sheet|definitions.axis_layouts().bands(sheet.id,calc_doc_model::Axis::Rows).map(move |(i,f)|calc_doc_model::AxisFormatEdit::new(sheet.id,calc_doc_model::Axis::Rows,i,f).unwrap())).collect();
     definitions=definitions.with_axis_formats(outline_edits);
     for sheet in &sheets {
-        definitions = definitions.with_review_notes(sheet.id, sheet.review.notes.clone())
+        definitions = definitions.with_review_links(sheet.id,sheet.review.links.clone()).with_review_notes(sheet.id, sheet.review.notes.clone())
             .with_validations(sheet.id, sheet.validations.to_vec());
     }
     for (sheet, rules) in conditional_sources {

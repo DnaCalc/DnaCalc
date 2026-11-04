@@ -346,7 +346,7 @@ pub fn encode_batch(batch: &OpBatch, root: &ModelRoot) -> Result<Vec<u8>, Encode
         if matches!(operation, WorkbookOp::SetAxisFormat(_)) {
             return Err(EncodeError::AxisFormat { operation: index });
         }
-        if matches!(operation, WorkbookOp::SetReviewNotes { .. } | WorkbookOp::SetValidations { .. }) {
+        if matches!(operation, WorkbookOp::SetReviewLinks { .. } | WorkbookOp::SetReviewNotes { .. } | WorkbookOp::SetValidations { .. }) {
             return Err(EncodeError::ReviewNotes { operation: index });
         }
         if matches!(operation, WorkbookOp::SetConditionalRules { .. }) {

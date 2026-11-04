@@ -319,6 +319,7 @@ pub struct Definitions {
     conditional: BTreeMap<SheetId, Vec<crate::ConditionalRuleSource>>,
     validations: BTreeMap<SheetId, Vec<crate::Validation>>,
     review: BTreeMap<SheetId, Vec<crate::ReviewNote>>,
+    links: BTreeMap<SheetId, Vec<crate::ReviewLink>>,
     axis_layouts: crate::AxisLayouts,
     panes: BTreeMap<SheetId, crate::PaneLayout>,
     filters: BTreeMap<SheetId, crate::AutoFilter>,
@@ -362,6 +363,16 @@ impl Definitions {
         self
     }
 
+    pub fn review_links(&self, sheet: SheetId) -> &[crate::ReviewLink] {
+        self.links.get(&sheet).map(Vec::as_slice).unwrap_or(&[])
+    }
+    pub fn all_review_links(&self) -> impl Iterator<Item=(SheetId,&[crate::ReviewLink])> {
+        self.links.iter().map(|(s,links)|(*s,links.as_slice()))
+    }
+    pub fn with_review_links(mut self, sheet:SheetId, links:Vec<crate::ReviewLink>)->Self {
+        if links.is_empty(){self.links.remove(&sheet);}else{self.links.insert(sheet,links);}
+        self
+    }
     pub fn review_notes(&self, sheet: SheetId) -> &[crate::ReviewNote] {
         self.review.get(&sheet).map(Vec::as_slice).unwrap_or(&[])
     }
@@ -500,6 +511,7 @@ impl Definitions {
             styles: Default::default(),
             conditional: BTreeMap::new(),
             review: BTreeMap::new(),
+            links: BTreeMap::new(),
             validations: BTreeMap::new(),
             axis_layouts: crate::AxisLayouts::default(),
             panes: BTreeMap::new(),
@@ -706,6 +718,7 @@ impl Definitions {
         self.validations.remove(&sheet);
         self.conditional.remove(&sheet);
         self.review.remove(&sheet);
+        self.links.remove(&sheet);
         if self.styles.runs.iter().any(|r| r.area.sheet() == sheet) {
             let mut styles = (*self.styles).clone();
             styles.runs = styles.runs.without_sheet(sheet);
@@ -740,6 +753,7 @@ impl Definitions {
     /// Whether nothing is defined.
     pub fn is_empty(&self) -> bool {
         self.review.is_empty()
+            && self.links.is_empty()
             && self.validations.is_empty()
             && self.conditional.is_empty()
             && self.axis_layouts.sheets().next().is_none()
@@ -843,6 +857,7 @@ impl Definitions {
             .chain(self.hidden_rows.keys().map(|(sheet, _)| *sheet))
             .chain(self.panes.keys().copied())
             .chain(self.filters.keys().copied())
+            .chain(self.links.keys().copied())
             .chain(self.axis_layouts.sheets())
             .chain(self.data_tables.iter().map(|table| table.area.sheet()))
             .chain(

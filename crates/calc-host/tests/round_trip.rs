@@ -15392,3 +15392,134 @@ fn dc_971p_38__invalid_pointwise_condition_fields_refuse_atomically() {
         assert_eq!(book.host().model().cell(at(s,"A2")),Some(&number(2.)));
     }
 }
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__hyperlinks_follow_rows_history_axis_edits_and_actual_reopening() {
+    use calc_host::{WorkbookCommand as W,SortKey};
+    let sheet=r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>Key</t></is></c></row><row r="2"><c r="A2"><v>3</v></c><c r="B2" t="inlineStr"><is><t>three</t></is></c><c r="C2"><f>A2*10</f></c></row><row r="3"><c r="A3"><v>1</v></c><c r="B3" t="inlineStr"><is><t>one</t></is></c><c r="C3"><f>A3*10</f></c></row><row r="4"><c r="A4"><v>2</v></c><c r="B4" t="inlineStr"><is><t>two</t></is></c><c r="C4"><f>A4*10</f></c></row></sheetData><hyperlinks><hyperlink ref="B2" r:id="external" display="External &amp; link" tooltip="A_x005F_x0041_ tip"/><hyperlink ref="B3:C4" location="Sheet1!$A$1" display="Jump" tooltip="Internal"/><hyperlink ref="B6" r:id="external" tooltip="Outside"/></hyperlinks></worksheet>"#;
+    let rels=r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="external" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/path?a=1&amp;b=2#anchor" TargetMode="External"/></Relationships>"#;
+    let bytes=package_with_parts_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|_|sheet.into(),&[("xl/worksheets/_rels/sheet1.xml.rels",rels.as_bytes())]);
+    let mut book=session(&bytes);assert!(book.dispatch(SkinIntent::Recalculate).accepted());let s=book.host().sheets()[0].id();
+    let before=book.host().sheet_review(s).links;assert_eq!(before.len(),3);
+    let sort=|book:&mut HostSession,descending|{
+        let s=book.host().sheets()[0].id();let revision=book.host().revision().get();
+        let receipt=book.dispatch(SkinIntent::Command(W::SortRows{area:GridArea::new(at(s,"A1"),at(s,"C4")).unwrap(),keys:vec![SortKey{column:1,descending}],header:true,revision}));assert!(receipt.accepted(),"{receipt:?}");
+    };
+    let check=|book:&HostSession,external:&str,internal:&str,outside:&str| {
+        let s=book.host().sheets()[0].id();let links=book.host().sheet_review(s).links;
+        assert_eq!(links.len(),3);
+        let area=|text:&str|book.host().resolve_reference_text(at(s,"A1"),text);
+        assert_eq!(links[0].area,match area(external){calc_host::ReferenceTarget::Area(a)=>a,other=>panic!("{other:?}")});
+        assert_eq!(links[1].area,match area(internal){calc_host::ReferenceTarget::Area(a)=>a,other=>panic!("{other:?}")});
+        assert_eq!(links[2].area,GridArea::cell(at(s,outside)));
+        assert_eq!(links[0].target.as_deref(),Some("https://example.test/path?a=1&b=2#anchor"));
+        assert_eq!(links[0].tooltip.as_deref(),Some("A_x0041_ tip"));
+        assert_eq!(links[0].display.as_deref(),Some("External & link"));
+        assert_eq!(links[1].location.as_deref(),Some("Sheet1!$A$1"));
+        assert_eq!(links[2].tooltip.as_deref(),Some("Outside"));
+    };
+    sort(&mut book,false);check(&book,"B4","B2:C3","B6");
+    assert_eq!(session_calculated(&book,at(s,"C2")).unwrap().as_number(),Some(10.));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().sheet_review(s).links,before);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());check(&book,"B4","B2:C3","B6");
+    sort(&mut book,true);check(&book,"B2","B3:C4","B6");sort(&mut book,false);check(&book,"B4","B2:C3","B6");
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
+    assert_eq!(part_text(&saved,"xl/worksheets/_rels/sheet1.xml.rels"),rels);
+    let xml=part_text(&saved,"xl/worksheets/sheet1.xml");assert!(xml.contains("r:id=\"external\""));assert!(xml.contains("A_x005F_x0041_ tip"));
+    let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());check(&reopened,"B4","B2:C3","B6");
+    sort(&mut reopened,true);check(&reopened,"B2","B3:C4","B6");
+    assert!(book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Insert,2,1).unwrap())).accepted());check(&book,"B5","B3:C4","B7");
+    assert!(book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Delete,3,1).unwrap())).accepted());check(&book,"B4","B3:C3","B6");
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);check(&reopened,"B4","B3:C3","B6");
+    let mut twin=session(&bytes);assert!(replay(book.intent_log(),&mut twin).mismatches.is_empty());check(&twin,"B4","B3:C3","B6");
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__partly_selected_hyperlink_ranges_split_without_losing_the_outside() {
+    let xml=r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="2"><c r="A2"><v>2</v></c></row><row r="3"><c r="A3"><v>1</v></c></row></sheetData><hyperlinks><hyperlink ref="B2:C2" location="Sheet1!$D$1" tooltip="Keep both"/></hyperlinks></worksheet>"#;
+    let bytes=package_with_part("xl/worksheets/sheet1.xml",|_|xml.into());let mut book=session(&bytes);let s=book.host().sheets()[0].id();
+    let revision=book.host().revision().get();let receipt=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::SortRows{area:GridArea::new(at(s,"A2"),at(s,"B3")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:false,revision}));assert!(receipt.accepted(),"{receipt:?}");
+    let check=|book:&HostSession|{
+        let s=book.host().sheets()[0].id();let links=book.host().sheet_review(s).links;assert_eq!(links.len(),2);
+        assert_eq!(links.iter().map(|l|l.area).collect::<Vec<_>>(),vec![GridArea::cell(at(s,"C2")),GridArea::cell(at(s,"B3"))]);
+        assert!(links.iter().all(|l|l.location.as_deref()==Some("Sheet1!$D$1") && l.tooltip.as_deref()==Some("Keep both")));
+    };
+    check(&book);assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().sheet_review(s).links.len(),1);assert!(book.dispatch(SkinIntent::Redo).accepted());check(&book);
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();check(&session(&saved));
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__unread_or_excessive_hyperlinks_refuse_without_mutation() {
+    for links in [
+        r#"<hyperlinks><hyperlink ref="B2" r:id="missing"/></hyperlinks>"#.to_owned(),
+        r#"<hyperlinks v:keep="unknown"><hyperlink ref="B2" location="A1"/></hyperlinks>"#.to_owned(),
+        r#"<hyperlinks><hyperlink ref="B2" location="A1" v:keep="unknown"/></hyperlinks>"#.to_owned(),
+        r#"<hyperlinks><hyperlink ref="B2" location="A1"><v:keep/></hyperlink></hyperlinks>"#.to_owned(),
+        r#"<hyperlinks><hyperlink ref="B2 B3" location="A1"/></hyperlinks>"#.to_owned(),
+        r#"<v:hyperlinks><v:hyperlink ref="B2" location="A1"/></v:hyperlinks>"#.to_owned(),
+        format!("<hyperlinks>{}</hyperlinks>",r#"<hyperlink ref="B2" location="A1"/>"#.repeat(10001)),
+    ] {
+        let xml=format!(r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:v="urn:retained-link"><sheetData><row r="2"><c r="A2"><v>2</v></c></row><row r="3"><c r="A3"><v>1</v></c></row></sheetData>{links}</worksheet>"#);
+        let bytes=package_with_part("xl/worksheets/sheet1.xml",|_|xml.clone());let mut book=session(&bytes);let s=book.host().sheets()[0].id();let revision=book.host().revision();let depth=book.history_depth();let before=book.host().sheet_review(s).links;
+        let receipt=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::SortRows{area:GridArea::new(at(s,"A2"),at(s,"B3")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:false,revision:revision.get()}));assert!(!receipt.accepted(),"{receipt:?}");assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);assert_eq!(book.host().sheet_review(s).links,before);assert_eq!(book.host().model().cell(at(s,"A2")),Some(&number(2.)));
+        let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert_eq!(part_text(&saved,"xl/worksheets/sheet1.xml"),xml);
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__independent_local_ranges_and_fixed_qualified_scalars_sort_together() {
+    use calc_host::{SheetChange, SortKey, WorkbookCommand as W};
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    assert!(book.dispatch(SkinIntent::Command(W::Sheet{sheet:None,change:SheetChange::Add{name:"Tax rates".into()}})).accepted());
+    let rates=book.host().sheets()[1].id();assert!(enter(&mut book,at(rates,"A1"),"10").accepted());
+    assert!(enter(&mut book,at(rates,"D1"),"=Sheet1!C2").accepted());
+    for (a,v) in [("A1","Key"),("B1","Amount"),("C1","Sum"),("D1","Arguments"),("E1","Product"),("A2","3"),("B2","30"),("A3","1"),("B3","10"),("A4","2"),("B4","20"),("G1","=C2")] {assert!(enter(&mut book,at(s,a),v).accepted());}
+    let formulas=|row|[("C",format!("=SUM(B{row}:B{row})+'Tax rates'!$A$1")),("D",format!("=SUM(B{row}:B{row},'Tax rates'!$A$1)")),("E",format!("=SUM(B{row}:B{row})*'Tax rates'!$A$1"))];
+    for row in 2..=4 {for (col,formula) in formulas(row){assert!(enter(&mut book,at(s,&format!("{col}{row}")),&formula).accepted());}}
+    let sort=|book:&mut HostSession,descending|{let s=book.host().sheets()[0].id();let revision=book.host().revision().get();let done=book.dispatch(SkinIntent::Command(W::SortRows{area:GridArea::new(at(s,"A1"),at(s,"E4")).unwrap(),keys:vec![SortKey{column:1,descending}],header:true,revision}));assert!(done.accepted(),"{done:?}");};
+    let check=|book:&HostSession,values:[f64;3]|{
+        let s=book.host().sheets()[0].id();let rates=book.host().sheets()[1].id();
+        for (row,value) in (2..=4).zip(values){
+            for (col,formula) in formulas(row){assert_eq!(book.host().model().cell(at(s,&format!("{col}{row}"))),calc_host::interpret_entry(&formula).unwrap().as_ref());}
+            assert_eq!(session_calculated(book,at(s,&format!("C{row}"))).unwrap().as_number(),Some(value+10.));
+            assert_eq!(session_calculated(book,at(s,&format!("D{row}"))).unwrap().as_number(),Some(value+10.));
+            assert_eq!(session_calculated(book,at(s,&format!("E{row}"))).unwrap().as_number(),Some(value*10.));
+        }
+        assert_eq!(session_calculated(book,at(s,"G1")).unwrap().as_number(),Some(values[0]+10.));
+        assert_eq!(session_calculated(book,at(rates,"D1")).unwrap().as_number(),Some(values[0]+10.));
+    };
+    sort(&mut book,false);check(&book,[10.,20.,30.]);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());check(&book,[30.,10.,20.]);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());check(&book,[10.,20.,30.]);
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());check(&reopened,[10.,20.,30.]);
+    sort(&mut reopened,true);check(&reopened,[30.,20.,10.]);
+    let mut twin=session(&calc_host::blank_package());let result=replay(book.intent_log(),&mut twin);assert!(result.mismatches.is_empty(),"{result:?}");check(&twin,[10.,20.,30.]);
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__qualified_trim_ranges_refuse_before_rows_or_history_change(){
+    use calc_host::{SheetChange,SortKey,WorkbookCommand as W};
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    assert!(book.dispatch(SkinIntent::Command(W::Sheet{sheet:None,change:SheetChange::Add{name:"Tax rates".into()}})).accepted());
+    for(a,v)in [("A1","2"),("A2","1")] {assert!(enter(&mut book,at(s,a),v).accepted());}
+    for formula in ["=SUM('Tax rates'!$A$1.:B2)","=SUM('Tax rates'!$A$1:.B2)","=SUM('Tax rates'!$A$1.:.B2)"] {
+        assert!(enter(&mut book,at(s,"B1"),formula).accepted());let revision=book.host().revision();let depth=book.history_depth();let before=book.host().model().cell(at(s,"B1")).cloned();
+        let done=book.dispatch(SkinIntent::Command(W::SortRows{area:GridArea::new(at(s,"A1"),at(s,"B2")).unwrap(),keys:vec![SortKey{column:1,descending:false}],header:false,revision:revision.get()}));
+        assert!(!done.accepted(),"{formula}: {done:?}");assert!(done.error.unwrap().to_string().contains("qualified or unsupported formula references"));assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);assert_eq!(book.host().model().cell(at(s,"B1")),before.as_ref());assert_eq!(book.host().model().cell(at(s,"A1")),Some(&number(2.)));
+    }
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__sort_and_axis_displacements_that_cancel_still_save_the_link(){
+    let xml=r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="2"><c r="A2"><v>2</v></c></row><row r="3"><c r="A3"><v>1</v></c></row></sheetData><hyperlinks><hyperlink ref="B2" location="Sheet1!$D$1" tooltip="Keep the moved link"/></hyperlinks></worksheet>"#;
+    let bytes=package_with_part("xl/worksheets/sheet1.xml",|_|xml.into());let mut book=session(&bytes);let s=book.host().sheets()[0].id();let before=book.host().sheet_review(s).links;
+    let revision=book.host().revision().get();let done=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::SortRows{area:GridArea::new(at(s,"A2"),at(s,"B3")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:false,revision}));assert!(done.accepted(),"{done:?}");assert_eq!(book.host().sheet_review(s).links[0].area,GridArea::cell(at(s,"B3")));
+    assert!(book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Delete,2,1).unwrap())).accepted());assert_eq!(book.host().sheet_review(s).links,before);
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let r=reopened.host().sheets()[0].id();let links=reopened.host().sheet_review(r).links;assert_eq!(links.len(),1);assert_eq!(links[0].area,GridArea::cell(at(r,"B2")));assert_eq!(links[0].location.as_deref(),Some("Sheet1!$D$1"));assert_eq!(links[0].tooltip.as_deref(),Some("Keep the moved link"));
+}

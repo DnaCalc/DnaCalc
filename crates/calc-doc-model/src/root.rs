@@ -758,6 +758,7 @@ impl ModelRoot {
         let mut filters = Vec::new();
         let mut conditional = Vec::new();
         let mut review = Vec::new();
+        let mut links = Vec::new();
         let mut validations = Vec::new();
         let mut panes = Vec::new();
         let mut axis_formats = Vec::new();
@@ -771,6 +772,11 @@ impl ModelRoot {
                 WorkbookOp::SetValidations { sheet, rules } => {
                     self.position_of(operation, *sheet)?;
                     validations.push((*sheet, rules.clone()));
+                }
+                WorkbookOp::SetReviewLinks { sheet, links:values } => {
+                    self.position_of(operation,*sheet)?;
+                    if values.iter().any(|l|l.area.sheet()!=*sheet){return Err(ApplyError::AxisEdit{operation});}
+                    links.push((*sheet,values.clone()));
                 }
                 WorkbookOp::SetReviewNotes { sheet, notes } => {
                     self.position_of(operation, *sheet)?;
@@ -929,6 +935,7 @@ impl ModelRoot {
         if tables.is_some() || styles.is_some()
             || !conditional.is_empty()
             || !review.is_empty()
+            || !links.is_empty()
             || !validations.is_empty()
             || !filters.is_empty()
             || !formats.is_empty()
@@ -945,6 +952,7 @@ impl ModelRoot {
             for (sheet, filter) in filters { next = next.with_auto_filter(sheet, filter);
             }
             for (sheet, rules) in validations { next = next.with_validations(sheet, rules); }
+            for (sheet, values) in links {next=next.with_review_links(sheet,values);}
             for (sheet, notes) in review {
                 next = next.with_review_notes(sheet, notes); }
             for (sheet, rules) in conditional {
