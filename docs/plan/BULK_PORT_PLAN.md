@@ -197,6 +197,34 @@ is always pass = matched Excel and fail = mismatched + refused (+ failed or miss
 formula cells, with the fail count broken down into those parts. A rate over calculated cells
 only is never the headline.
 
+The dc-ztvv corpus command also counts external link caches, circular held values and cells
+awaiting capture inside fail, with each qualification shown separately. A saved-cache reference
+alone cannot score a live Excel match. Files that time out retain their known source formula
+counts as failures; a file whose inventory cannot be read is listed with an unknown count.
+
+For local files, use `cargo xtask corpus <dir> --recursive --oracle --no-capture --dna-only
+--shard 0/4 --timeout 60 --resume --out <outside-repository>/shard-0` (one invocation per shard).
+The shard index is zero based and follows the workbook's SHA-256; duplicate content is listed
+in inventory.json and evaluated once. `--dna-only` calculates files without observations through
+the existing comparison route, retaining an explicit source inventory with no Excel answers;
+none can score a match. Existing committed/cached live captures still supply the comparisons.
+Every attempt keeps its own log and payload. Resume verifies workbook, capture, executable and
+result hashes; a partial, timed-out or changed result is recalculated. `--timeout` covers the source census, optional capture and comparison of one file.
+Package admission and census run in an owned child process too. Use `cargo xtask corpus --merge
+<shard-0>/summary.json --merge <shard-1>/summary.json ... --out <corpus-report>` to combine
+disjoint reports of the same corpus and executable. Missing shards remain explicit.
+
+Per-file summary.json and the corpus summary use the same counts. source-caches.json compares
+the input package's saved values against live Excel observations, independently of DNA's values;
+drift does not remove cells from the comparison. Array cache shapes not reconstructed by this
+classifier stay explicitly unclassified. Root groups include inferred functions, difference shape
+and observed read types; problem-functions.json gives the inferred function list. `--minimize`
+authors a bounded dependency slice for every mismatching cell, retaining differing producers and
+freezing other observed inputs. Its manifest records the DNA reproduction check, omissions and
+pending Excel confirmation. These cases are authored inputs, not new Excel captures or scored
+passes. Corpus workbooks and generated reports remain outside repositories. The owner's download
+hold and separate-VM requirement for untrusted corpus captures still apply.
+
 ## 6. Order
 
 1. **Now:**

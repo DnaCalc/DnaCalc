@@ -3,6 +3,92 @@
 //! The triage documents here are authored to exercise each rule; they are not Excel's values.
 
 use super::*;
+
+#[test]
+fn a_saved_reference_alone_cannot_score_a_calculated_match() {
+    let triage = json!({"run":{},"cells":[
+        with(cell("A1","matched","matched","matched",None),"live_excel_observation",json!(false)),
+        with(cell("A2","matched","matched","matched",None),"live_excel_observation",json!(true)),
+    ]});
+    let compared = read_triage(&triage).unwrap();
+    assert_eq!(
+        (
+            compared.counts.formula_cells,
+            compared.counts.pass,
+            compared.counts.fail()
+        ),
+        (2, 1, 1)
+    );
+    assert_eq!(
+        compared.counts.failed_or_missing_by_verdict["no-live-excel-reference"],
+        1
+    );
+    assert_eq!(
+        compared.causes.values().map(CauseCount::cells).sum::<u64>(),
+        1
+    );
+}
+
+#[test]
+fn a_timed_out_workbook_keeps_its_known_formula_denominator() {
+    let summary = Summary {
+        run: json!({}),
+        workbooks: vec![
+            Workbook {
+                name: "timeout.xlsx".into(),
+                sha256: None,
+                capture: None,
+                inventory_formula_cells: Some(17),
+                failure_key: None,
+                outcome: Err(NotCompared {
+                    stage: "compare".into(),
+                    reason: "timed out".into(),
+                }),
+                times: Times::default(),
+            },
+            Workbook {
+                name: "unreadable.xls".into(),
+                sha256: None,
+                capture: None,
+                inventory_formula_cells: None,
+                failure_key: Some("Workbook:Cell:overlapping array footprint".into()),
+                outcome: Err(NotCompared {
+                    stage: "read".into(),
+                    reason: "unknown inventory".into(),
+                }),
+                times: Times::default(),
+            },
+        ],
+    };
+    let report = summary.json();
+    assert_eq!(report["totals"]["counts"]["formula_cells"], 17);
+    assert_eq!(report["totals"]["counts"]["fail"], 17);
+    assert_eq!(report["totals"]["unknown_inventory_workbooks"], 1);
+    assert_eq!(report["file_failures"].as_array().unwrap().len(), 2);
+    let unknown = report["file_failures"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["unknown_inventories"] == 1)
+        .unwrap();
+    assert_eq!(unknown["key"], "Workbook:Cell:overlapping array footprint");
+    assert_eq!(unknown["cells"], 0);
+    assert_eq!(report["workbooks"][1]["not_compared"]["key"], unknown["key"]);
+    assert_eq!(report["workbooks"][0]["counts"]["fail"], 17);
+    assert_eq!(
+        summary
+            .causes()
+            .iter()
+            .map(|(_, c)| c.count.cells())
+            .sum::<u64>(),
+        17
+    );
+    assert!(
+        summary
+            .markdown()
+            .contains("timeout.xlsx (not compared) | 17 | 0")
+    );
+}
 use serde_json::json;
 
 fn number(decimal: f64) -> Value {
@@ -159,7 +245,10 @@ fn one_workbook_is_counted_and_grouped_by_root_cause() {
         BTreeMap::from([("missing".to_owned(), 1), ("stale".to_owned(), 1)])
     );
     let expected = BTreeMap::from([
-        (refusal("exactness dc-uar", "not-modelled NOT"), count(1, 1, 0)),
+        (
+            refusal("exactness dc-uar", "not-modelled NOT"),
+            count(1, 1, 0),
+        ),
         // B2's own difference is its + call's, but it is counted under its root, B1.
         (mismatch("SUM", "number, 1 ulp apart"), count(1, 1, 0)),
         (
@@ -227,8 +316,7 @@ fn a_whole_run_failure_is_one_cause_of_every_cell() {
     assert_eq!(compared.times.recalculation, None);
 }
 
-/// dc-ylr: a match that read another workbook's link caches is neither pass nor fail; a mismatch
-/// that read them is a fail like any other.
+/// dc-ylr: a link-cache match remains a failure, separately classified from a mismatch.
 #[test]
 fn a_match_from_external_link_caches_is_counted_apart_from_pass() {
     let triage = json!({
@@ -246,12 +334,20 @@ fn a_match_from_external_link_caches_is_counted_apart_from_pass() {
     let compared = read_triage(&triage).unwrap();
     let c = &compared.counts;
     assert_eq!(
-        (c.formula_cells, c.pass, c.external_links, c.mismatched, c.fail()),
-        (3, 1, 1, 1, 1)
+        (
+            c.formula_cells,
+            c.pass,
+            c.external_links,
+            c.mismatched,
+            c.fail()
+        ),
+        (3, 1, 1, 1, 2)
     );
     let summary = Summary {
         run: json!({}),
         workbooks: vec![Workbook {
+            inventory_formula_cells: None,
+            failure_key: None,
             name: "w.xlsx".to_owned(),
             sha256: None,
             capture: None,
@@ -261,14 +357,16 @@ fn a_match_from_external_link_caches_is_counted_apart_from_pass() {
     };
     let markdown = summary.markdown();
     assert!(
-        markdown.contains("pass 1; external links 1; circular rule 0; awaiting capture 0; fail 1 (mismatched 1"),
+        markdown.contains(
+            "pass 1; external links 1; circular rule 0; awaiting capture 0; fail 2 (mismatched 1"
+        ),
         "{markdown}"
     );
     assert_eq!(summary.json()["totals"]["counts"]["external_links"], 1);
 }
 
 /// dc-y2o.1: a match whose value the circular-reference rule held with iteration off is counted
-/// apart from pass and fail, ahead of the external-links mark; a mismatch of one is a fail.
+/// as a failure, ahead of the external-links mark; a mismatch of one is also a failure.
 #[test]
 fn a_match_held_by_the_circular_rule_is_counted_apart_from_pass() {
     let triage = json!({
@@ -291,12 +389,21 @@ fn a_match_held_by_the_circular_rule_is_counted_apart_from_pass() {
     let compared = read_triage(&triage).unwrap();
     let c = &compared.counts;
     assert_eq!(
-        (c.formula_cells, c.pass, c.external_links, c.circular_rule, c.mismatched, c.fail()),
-        (4, 1, 0, 2, 1, 1)
+        (
+            c.formula_cells,
+            c.pass,
+            c.external_links,
+            c.circular_rule,
+            c.mismatched,
+            c.fail()
+        ),
+        (4, 1, 0, 2, 1, 3)
     );
     let summary = Summary {
         run: json!({}),
         workbooks: vec![Workbook {
+            inventory_formula_cells: None,
+            failure_key: None,
             name: "w.xlsx".to_owned(),
             sha256: None,
             capture: None,
@@ -306,7 +413,9 @@ fn a_match_held_by_the_circular_rule_is_counted_apart_from_pass() {
     };
     let markdown = summary.markdown();
     assert!(
-        markdown.contains("pass 1; external links 0; circular rule 2; awaiting capture 0; fail 1 (mismatched 1"),
+        markdown.contains(
+            "pass 1; external links 0; circular rule 2; awaiting capture 0; fail 3 (mismatched 1"
+        ),
         "{markdown}"
     );
     assert_eq!(summary.json()["totals"]["counts"]["circular_rule"], 2);
@@ -391,6 +500,8 @@ fn the_corpus_totals_and_causes_merge_the_workbooks() {
         run: json!({ "command": "cargo xtask corpus test" }),
         workbooks: vec![
             Workbook {
+                inventory_formula_cells: None,
+                failure_key: None,
                 name: "one.xlsx".to_owned(),
                 sha256: Some("aa".to_owned()),
                 capture: Some("cache build 16.0.1".to_owned()),
@@ -401,6 +512,8 @@ fn the_corpus_totals_and_causes_merge_the_workbooks() {
                 },
             },
             Workbook {
+                inventory_formula_cells: None,
+                failure_key: None,
                 name: "two.xlsx".to_owned(),
                 sha256: Some("bb".to_owned()),
                 capture: None,
@@ -412,6 +525,8 @@ fn the_corpus_totals_and_causes_merge_the_workbooks() {
                 },
             },
             Workbook {
+                inventory_formula_cells: None,
+                failure_key: None,
                 name: "three.xlsx".to_owned(),
                 sha256: None,
                 capture: None,
@@ -504,7 +619,7 @@ fn the_corpus_totals_and_causes_merge_the_workbooks() {
 
     let markdown = summary.markdown();
     for expected in [
-        "- formula cells (compared workbooks): 13; pass 4; external links 0; circular rule 0; awaiting capture 0; fail 9 (mismatched 4, refused 3, failed or missing 2)",
+        "- formula cells (known inventories): 13; pass 4; external links 0; circular rule 0; awaiting capture 0; fail 9 (mismatched 4, refused 3, failed or missing 2)",
         "- pass rate over all formula cells: 30.76%",
         "| one.xlsx | 9 | 1 | 0 | 0 | 0 | 8 | 4 | 2 | 2 | 11.11% | 0.500 | 2.000 | 0.250 |",
         "| three.xlsx (not compared) |",
@@ -521,9 +636,9 @@ fn the_corpus_totals_and_causes_merge_the_workbooks() {
 }
 
 /// Formula cells awaiting capture are counted apart: in the formula cells and the pass rate's
-/// denominator, never in pass or fail; parts of one workbook add up.
+/// denominator and failure count; parts of one workbook add up.
 #[test]
-fn cells_awaiting_capture_are_neither_pass_nor_fail() {
+fn cells_awaiting_capture_remain_in_the_failure_denominator() {
     let mut compared = Compared::default();
     compared.counts.formula_cells = 4;
     compared.counts.pass = 3;
@@ -533,12 +648,19 @@ fn cells_awaiting_capture_are_neither_pass_nor_fail() {
     awaiting.counts.awaiting_capture = 6;
     compared.add(&awaiting);
     assert_eq!(
-        (compared.counts.formula_cells, compared.counts.pass, compared.counts.awaiting_capture, compared.counts.fail()),
-        (10, 3, 6, 1)
+        (
+            compared.counts.formula_cells,
+            compared.counts.pass,
+            compared.counts.awaiting_capture,
+            compared.counts.fail()
+        ),
+        (10, 3, 6, 7)
     );
     let summary = Summary {
         run: json!({}),
         workbooks: vec![Workbook {
+            inventory_formula_cells: None,
+            failure_key: None,
             name: "w.xlsx".to_owned(),
             sha256: None,
             capture: None,
@@ -548,10 +670,13 @@ fn cells_awaiting_capture_are_neither_pass_nor_fail() {
     };
     let markdown = summary.markdown();
     assert!(
-        markdown.contains("formula cells (compared workbooks): 10; pass 3; external links 0; circular rule 0; awaiting capture 6; fail 1"),
+        markdown.contains("formula cells (known inventories): 10; pass 3; external links 0; circular rule 0; awaiting capture 6; fail 7"),
         "{markdown}"
     );
-    assert!(markdown.contains("| w.xlsx | 10 | 3 | 0 | 0 | 6 | 1 |"), "{markdown}");
+    assert!(
+        markdown.contains("| w.xlsx | 10 | 3 | 0 | 0 | 6 | 7 |"),
+        "{markdown}"
+    );
     assert_eq!(summary.json()["totals"]["counts"]["awaiting_capture"], 6);
     assert_eq!(summary.json()["totals"]["counts"]["pass_rate"], 0.3);
 }
