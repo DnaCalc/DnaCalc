@@ -4908,6 +4908,11 @@
   },
   {"path": "crates/calc-func/tests/captures/fn3_questions/LOWER.reading.json", "class": "own-work", "reason": "Raw scalar values and argument read-back audits measured by the existing Excel witness worker; delivered fn3 evidence, unchanged."},
   {"path": "crates/calc-func/tests/captures/fn3_questions/PROPER.reading.json", "class": "own-work", "reason": "Raw scalar values and argument read-back audits measured by the existing Excel witness worker; delivered fn3 evidence, unchanged."},
-  {"path": "crates/calc-func/tests/captures/fn3_questions/REGEXTEST.reading.json", "class": "own-work", "reason": "Raw scalar values and argument read-back audits measured by the existing Excel witness worker; delivered fn3 evidence, unchanged."}
+  {"path": "crates/calc-func/tests/captures/fn3_questions/REGEXTEST.reading.json", "class": "own-work", "reason": "Raw scalar values and argument read-back audits measured by the existing Excel witness worker; delivered fn3 evidence, unchanged."},
+  {"path": "crates/calc-func/tests/captures/fn4_questions/functions-fn4-text-controls.capture.json", "class": "own-work", "reason": "Unchanged live Excel capture delivered with fn4; original typed observations, input package hash and session provenance retained."},
+  {"path": "crates/calc-func/tests/captures/fn4_questions/functions-fn4-list-controls.capture.json", "class": "own-work", "reason": "Unchanged live Excel capture delivered with fn4; original typed observations, input package hash and session provenance retained."},
+  {"path": "crates/calc-func/tests/captures/fn4_questions/functions-fn4.capture.json", "class": "own-work", "reason": "Unchanged live Excel fn4 capture including genuine Busy error readbacks and contextual collation questions; original package and session provenance retained."},
+  {"path": "crates/calc-func/tests/captures/fn4_questions/SQRT.reading.json", "class": "own-work", "reason": "Live fn7 Excel scalar measurement, exact typed input readbacks and full service response retained; projected through existing witness result codec for application regressions."},
+  {"path": "crates/calc-func/tests/captures/fn4_questions/DATEVALUE.reading.json", "class": "own-work", "reason": "Live fn7 Excel scalar measurement, exact typed input readbacks and full service response retained; projected through existing witness result codec for application regressions."}
  ]
 }
