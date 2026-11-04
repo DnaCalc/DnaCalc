@@ -1159,7 +1159,18 @@ impl EngineState {
         }
         for old in self.nodes() {
             let at=old.anchor();
-            if before.cell(at)!=inputs.cell(at) || before.array_containing(at)!=inputs.array_containing(at){continue;}
+            // A save/reload can materialise or resize a dynamic array's stored extent.
+            // Identical formula input still owns its actual old spill as a stale holding;
+            // saved dynamic extents do not turn that holding into a current calculation.
+            // Fixed arrays and membership under another anchor retain the strict check.
+            let dynamic_image_only = matches!(before.cell(at), Some(CellInput::Formula(_)))
+                && [before.array_containing(at), inputs.array_containing(at)]
+                    .into_iter().all(|array| array.is_none_or(|array|
+                        array.anchor() == at && matches!(array.kind(), calc_doc_model::ArrayKind::Dynamic { .. })));
+            if before.cell(at) != inputs.cell(at)
+                || before.array_containing(at) != inputs.array_containing(at) && !dynamic_image_only {
+                continue;
+            }
             let Some(node)=state.node_at(at)else{continue};
             if self.entered.contains(&old.id()){state.entered.insert(node);}
             if let Some(result)=self.results.of(old.id()){state.results.publish(node,at,result.clone().without_stamp(),None);}
