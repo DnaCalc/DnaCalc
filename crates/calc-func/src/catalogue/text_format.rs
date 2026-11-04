@@ -19,6 +19,10 @@ use crate::value_text::{self, ReadContext, Reading, Unread};
 
 const CODE: u16 = 202;
 
+/// VALUE and NUMBERVALUE reject longer text before trimming or parsing.
+/// Fn8 measures this with ASCII, BMP digits, cell/literal origins and separator errors.
+const MAX_READER_TEXT: usize = 255;
+
 /// Text argument `index` read as VALUE reads it under the call's locale profile
 /// ([`crate::value_text`]): #VALUE! for text the grammar does not read and for a value that is
 /// not text; an error is the result; refused without a profile.
@@ -54,7 +58,10 @@ fn value(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
             site.number(site.number_argument(0, &a[0])?)
         }
         CoreRef::Logical(_) => fail(WorksheetErrorCode::Value),
-        CoreRef::Text(_) => {
+        CoreRef::Text(text) => {
+            if text.len_utf16_code_units() > MAX_READER_TEXT {
+                return fail(WorksheetErrorCode::Value);
+            }
             if let Ok(Numeric::Decimal(decimal)) = coerce::number(&a[0]) {
                 return site.number(site.argument(0, decimal.nearest())?);
             }
@@ -334,6 +341,9 @@ fn arraytotext(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> S
 /// NUMBERVALUE: the separators default to the locale's.
 fn numbervalue(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     let text = text_arg(site, a, 0)?;
+    if text.len_utf16_code_units() > MAX_READER_TEXT {
+        return fail(WorksheetErrorCode::Value);
+    }
     let separator = |index: usize, default: &str| -> Step<Option<char>> {
         let given_text;
         let text = if given(a, index) {
