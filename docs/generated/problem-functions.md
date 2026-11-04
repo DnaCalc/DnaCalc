@@ -8,8 +8,8 @@ python3 racer/corpus_cases.py problem-functions ../DnaCalc ../DnaCalc/docs/gener
 
 Last-bit: finite numeric mismatches <=16 ULP; larger numeric: >16 ULP. This split is triage, not a relaxed verdict. Every mismatch, refusal, unread, missing, pending, external and circular-policy cell remains an inclusive failure. Corpus labels follow exact single-cell aliases, infer calls from formula spelling and unwrap INDEX selections; unresolved references and infix operators remain explicit. Bank functions use canonical judge identities. Counts are observations per source; corpus and bank may overlap and must not be added as unique calls. Bank reference/locale context gaps remain failures, not proven numerical defects.
 
-Corpus: 21,481/22,830 matched (94.09111%); 1,349 inclusive failures, including 0 pending.
-Bank: 3,267,249/3,910,050 matched (83.56029%); 642,801 failures, including 116 unread.
+Corpus: 21,487/22,830 matched (94.11739%); 1,343 inclusive failures, including 0 pending.
+Bank: 3,267,258/3,910,050 matched (83.56052%); 642,792 failures, including 116 unread.
 
 Larger numeric and last-bit columns count numeric mismatches; other columns count remaining mismatches. Bank refusals and unread rows are separate. Corpus refusals/missing are recorded in the JSON, outside the mismatch table.
 
@@ -65,7 +65,6 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | GAMMA.INV | 0 | 1 | 0 | 7 | 148 | 0 | 0 | 0 |
 | STDEVP | 0 | 0 | 0 | 5 | 271 | 0 | 0 | 0 |
 | HYPGEOM.DIST | 2 | 4 | 0 | 3 | 190 | 0 | 0 | 0 |
-| ASINH | 0 | 0 | 0 | 5 | 0 | 0 | 4 | 0 |
 | CUMPRINC | 4 | 153 | 0 | 0 | 354 | 0 | 0 | 0 |
 | TINV | 0 | 2 | 0 | 4 | 13 | 0 | 0 | 0 |
 | CHIINV | 0 | 0 | 0 | 3 | 66 | 0 | 0 | 0 |
@@ -158,7 +157,6 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | IMSECH | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 0 |
 | IMSINH | 0 | 0 | 0 | 0 | 0 | 9 | 0 | 0 |
 | IMTAN | 0 | 0 | 0 | 0 | 0 | 144 | 0 | 0 |
-| ISBLANK | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | ISEVEN | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | ISODD | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | Infix & | 0 | 0 | 5 | 0 | 0 | 0 | 0 | 0 |
