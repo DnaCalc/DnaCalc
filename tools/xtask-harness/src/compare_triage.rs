@@ -539,10 +539,31 @@ impl Difference {
     }
 
     fn json(&self) -> Value {
+        let mut read_types = BTreeSet::new();
+        for read in &self.reads {
+            for run in &read.runs {
+                let kind = match run {
+                    RunEntry::Blank(_) => "blank",
+                    RunEntry::Missing(_) => "unsupplied",
+                    RunEntry::Value(value) => match value.core() {
+                        CoreValue::Number(_) => "number",
+                        CoreValue::Text(_) => "text",
+                        CoreValue::Logical(_) => "logical",
+                        CoreValue::Error(_) => "error",
+                        CoreValue::Empty => "empty",
+                        CoreValue::Missing => "omitted",
+                        CoreValue::Array(_) => "array",
+                        CoreValue::Reference(_) => "reference",
+                    },
+                };
+                read_types.insert(kind);
+            }
+        }
         json!({
             "function": self.function.as_ref().map(Call::json),
             "calls": self.calls.iter().map(Call::json).collect::<Vec<_>>(),
             "reads": self.reads.iter().map(Read::json).collect::<Vec<_>>(),
+            "observed_read_types": read_types,
             "expected": value_json(&self.expected),
             "actual": value_json(&self.actual),
             "ulp": self.ulp,
@@ -1243,6 +1264,7 @@ impl Triage {
         map.insert("column".to_owned(), json!(address.column()));
         map.insert("cell".to_owned(), json!(address.a1()));
         map.insert("verdict".to_owned(), json!(verdict.verdict.name()));
+        map.insert("live_excel_observation".into(), json!(matches!(verdict.observation, Some(calc_verdict::Observation::ExcelRaw(_)))));
         if verdict.external_links {
             // Calculated from values another workbook's link caches hold (dc-ylr): the corpus
             // summary counts a match among them apart from plain passes.

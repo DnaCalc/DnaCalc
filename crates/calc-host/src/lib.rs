@@ -137,7 +137,7 @@ pub use calc_doc_model::{
     DefinedName, Definitions, FileCached, FiniteNumber, FormulaForm, FormulaText, FrozenPanes, PaneLayout, SplitPanes,
     IterationSettings, ModelRoot, NameScope, PlacementId, ReviewNote, ReviewSource, RowHidden, SheetEdit, SheetEntry,
     SheetKey, SheetName, SheetVisibility, SkinLayoutEdit, SourcePart, Spot, StyleColor, StyleTable,
-    ViewKind,
+    UnloadedCell, ViewKind,
 };
 pub use calc_engine::{
     CacheWithoutFormula, CalcTick, Calculation, LinkedWorkbookSnapshot, NotModeled, PrepareError,

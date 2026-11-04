@@ -82,7 +82,7 @@ use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-pub const USAGE: &str = "usage: cargo xtask compare --fixture <xlsx> --capture <capture.json> --out <dir> [--exact-target <excel build>,<channel>,<compatibility>,<numeric environment>]";
+pub const USAGE: &str = "usage: cargo xtask compare --fixture <xlsx> (--capture <capture.json> | --dna-only) --out <dir> [--minimize] [--exact-target <excel build>,<channel>,<compatibility>,<numeric environment>]";
 
 const EXIT_REFUSED: u8 = 1;
 const EXIT_USAGE: u8 = 2;
@@ -92,7 +92,9 @@ const EXIT_MISSING_CAPTURE: u8 = 4;
 #[derive(Debug, PartialEq, Eq)]
 struct Request {
     fixture: PathBuf,
-    capture: PathBuf,
+    capture: Option<PathBuf>,
+    minimize: bool,
+    inventory_only: bool,
     out: PathBuf,
     target: Option<NumericTargetId>,
 }
@@ -113,8 +115,12 @@ fn refused(message: String) -> Failure {
 
 fn parse_args(args: &[String]) -> Result<Request, String> {
     let (mut fixture, mut capture, mut out, mut target) = (None, None, None, None);
+    let (mut minimize, mut dna_only, mut inventory_only) = (false, false, false);
     let mut rest = args.iter();
     while let Some(flag) = rest.next() {
+        if flag == "--minimize" { minimize = true; continue; }
+        if flag == "--dna-only" { dna_only = true; continue; }
+        if flag == "--inventory-only" { dna_only = true; inventory_only = true; continue; }
         let value = rest.next().ok_or_else(|| format!("{flag} needs a value"))?;
         let slot = match flag.as_str() {
             "--fixture" => &mut fixture,
@@ -127,9 +133,13 @@ fn parse_args(args: &[String]) -> Result<Request, String> {
             return Err(format!("{flag} is given twice"));
         }
     }
+    if dna_only && capture.is_some() { return Err("--dna-only and --capture cannot be combined".into()); }
+    if !dna_only && capture.is_none() { return Err("--capture is required (or --dna-only without Excel observations)".into()); }
     Ok(Request {
         fixture: PathBuf::from(fixture.ok_or("--fixture is required")?),
-        capture: PathBuf::from(capture.ok_or("--capture is required")?),
+        capture: capture.map(PathBuf::from),
+        minimize,
+        inventory_only,
         out: PathBuf::from(out.ok_or("--out is required")?),
         target: target.as_deref().map(parse_target).transpose()?,
     })
@@ -384,7 +394,7 @@ fn recalculate(host: &mut HostState, recorder: &mut impl Recorder) -> Option<Wor
 
 /// The fingerprint of the context `applied` names: its date system, precision and, when it
 /// iterates, its iteration count and maximum change.
-fn run_context(applied: &RecalcContext) -> String {
+pub(crate) fn run_context(applied: &RecalcContext) -> String {
     if applied.iteration {
         return CalculationContext {
             date1904: applied.date1904,
@@ -433,6 +443,8 @@ fn seconds(duration: Option<Duration>) -> String {
 
 /// What the run produced for the verdict and the triage.
 struct Run {
+    source_caches: serde_json::Value,
+    model: Option<Arc<calc_host::ModelRoot>>,
     linked_inputs: Vec<serde_json::Value>,
     results: ResultSet,
     record: InstrumentRecord,
@@ -448,7 +460,7 @@ struct Run {
 
 /// The key of a refused package: the failure's variant, and for a refused workbook the load
 /// error's (and a refused cell's) variant.
-fn open_key(failure: &OpenFailure) -> String {
+pub(crate) fn open_key(failure: &OpenFailure) -> String {
     match failure {
         OpenFailure::Package(error) => format!("Package:{}", variant(error)),
         OpenFailure::Workbook(LoadError::Cell { error, .. }) => {
@@ -711,6 +723,8 @@ fn run_workbook(
             // Workbook admission failed, so no result claims an applied calculation context.
             let context = "no-host: workbook admission refused".to_owned();
             return Ok(Run {
+                source_caches: json!({"cells":[],"counts":{},"unavailable":reason}),
+                model: None,
                 linked_inputs: Vec::new(),
                 results: ResultSet {
                     case: capture.case.clone(),
@@ -736,6 +750,8 @@ fn run_workbook(
         }
     };
 
+    let source_caches = crate::compare_inventory::saved_caches(&host, capture);
+    let model = Some(Arc::clone(host.loaded().model()));
     // The clock NOW, TODAY and a date read without a year use: the one Excel's calculation read
     // (the capture's setting calculation_clock); a capture without one leaves those refused.
     host.set_clock(capture_clock(capture));
@@ -779,7 +795,7 @@ fn run_workbook(
     let linked_inputs = fixture_path
         .map(|path| crate::linked_workbooks::load(&mut domain, root, path, &options, capture))
         .unwrap_or_default();
-    let mut workbook = match domain.request_calculation(&[root], false) {
+    let mut workbook = match domain.request_calculation(&[root], true) {
         Err(error) => Some(WorkbookFailure {
             class: Class::Engine,
             key: "linked_domain".into(),
@@ -1009,6 +1025,8 @@ fn run_workbook(
         .collect();
     let revision = host.revision().get();
     Ok(Run {
+        source_caches,
+        model,
         linked_inputs,
         results: ResultSet {
             case: capture.case.clone(),
@@ -1056,15 +1074,31 @@ fn numeric_name(numeric: &NumericMode) -> String {
 /// prints the summary.
 fn compare(request: &Request) -> Result<(), Failure> {
     let fixture = read(&request.fixture, "fixture")?;
-    let capture_bytes = read(&request.capture, "capture record")?;
-    if let Some(missing) = MissingCapture::recognize(&capture_bytes) {
-        return Err(Failure {
-            code: EXIT_MISSING_CAPTURE,
-            message: format!("{}: {missing}", request.capture.display()),
-        });
+    let capture = if let Some(path) = &request.capture {
+        let capture_bytes = read(path, "capture record")?;
+        if let Some(missing) = MissingCapture::recognize(&capture_bytes) {
+            return Err(Failure { code: EXIT_MISSING_CAPTURE, message: format!("{}: {missing}", path.display()) });
+        }
+        CaptureRecord::decode(&capture_bytes).map_err(|e|refused(format!("the capture record is refused: {e}")))?
+    } else {
+        let name = request.fixture.file_name().and_then(|name|name.to_str()).unwrap_or("workbook");
+        fs::create_dir_all(&request.out).map_err(|e|refused(e.to_string()))?;
+        let inventory = match crate::compare_inventory::source_record(&fixture, name) {
+            Ok(record)=>record,
+            Err(error)=>{
+                let failure=json!({"format":"dnacalc-source-inventory-failure","version":1,
+                    "source":format!("sha256:{}",sha256_hex(&fixture)),"key":error.key,"message":error.message});
+                write(&request.out.join("inventory-failure.json"),&serde_json::to_string_pretty(&failure).expect("failure serializes"))?;
+                return Err(refused(format!("source formula inventory (dc-ztvv): {error}")));
+            }
+        };
+        write(&request.out.join("inventory.record.json"), &inventory.encode().map_err(|e|refused(e.to_string()))?)?;
+        inventory
+    };
+    if request.inventory_only {
+        println!("xtask compare: source inventory only; {} formula cells; no evaluation or Excel observation",capture.formulas.len());
+        return Ok(());
     }
-    let capture = CaptureRecord::decode(&capture_bytes)
-        .map_err(|e| refused(format!("the capture record is refused: {e}")))?;
     let digest = format!("sha256:{}", sha256_hex(&fixture));
     if capture.source != digest {
         return Err(refused(format!(
@@ -1154,27 +1188,36 @@ fn compare(request: &Request) -> Result<(), Failure> {
         &request.out.join("linked-inputs.json"),
         &serde_json::to_string_pretty(&run.linked_inputs).expect("input records serialize"),
     )?;
-    write(
-        &request.out.join("triage.json"),
-        &triage.encode(&report, run_member),
-    )?;
+    write(&request.out.join("source-caches.json"),
+        &serde_json::to_string_pretty(&run.source_caches).expect("source caches serialize"))?;
+    let mut triage_json: serde_json::Value = serde_json::from_str(&triage.encode(&report, run_member))
+        .map_err(|e|refused(format!("cannot encode triage: {e}")))?;
+    let source_classes: HashMap<_, _> = run.source_caches["cells"].as_array().into_iter().flatten()
+        .map(|cell| ((cell["sheet"].as_str().unwrap_or(""),cell["row"].as_u64(),cell["column"].as_u64()), &cell["class"]))
+        .collect();
+    if let Some(cells) = triage_json["cells"].as_array_mut() {
+        for cell in cells {
+            let key = (cell["sheet"].as_str().unwrap_or(""),cell["row"].as_u64(),cell["column"].as_u64());
+            if let Some(class) = source_classes.get(&key) { cell["source_cache"] = (*class).clone(); }
+        }
+    }
+    triage_json["source_cache_counts"] = run.source_caches["counts"].clone();
+    write(&request.out.join("triage.json"), &serde_json::to_string_pretty(&triage_json).expect("triage serializes"))?;
+    if request.minimize {
+        crate::compare_minimize::write_cases(&request.out, &capture, &report, &run.retained, run.model.as_deref(), &numeric)
+            .map_err(refused)?;
+    }
 
+    let compared=crate::corpus_summary::read_triage(&triage_json).map_err(refused)?;
+    let summary=json!({"format":"dnacalc-comparison-summary","version":1,"source":capture.source,
+        "rule":"pass requires a calculated value equal to live Excel; every other inventoried formula fails",
+        "counts":compared.counts.json(),"evaluation_records":run.record.evaluations.len()});
+    write(&request.out.join("summary.json"),&serde_json::to_string_pretty(&summary).expect("summary serializes"))?;
+    let counts=&compared.counts;
+    println!("xtask compare: {}: formula cells {}; matched {}; fail {} (mismatched {}, refused {}, failed or missing {}, external caches {}, held caches {}, awaiting capture {}); pass rate {}",
+        report.case,counts.formula_cells,counts.pass,counts.fail(),counts.mismatched,counts.refused,counts.failed_or_missing,
+        counts.external_links,counts.circular_rule,counts.awaiting_capture,crate::corpus_summary::rate(counts.pass,counts.formula_cells));
     let c = &report.counts;
-    println!(
-        "xtask compare: {}: inventory {} formula cells; calculated {}; matched {}; mismatched {}; not run {}; not modelled {}; unproven {}, stale {}, file-cached {}, failed {}, missing {}",
-        report.case,
-        c.denominator,
-        c.calculated,
-        c.matched,
-        c.mismatched,
-        c.not_run,
-        c.not_modeled,
-        c.unproven,
-        c.stale,
-        c.file_cached,
-        c.failed,
-        c.missing
-    );
     if c.external_links > 0 {
         println!(
             "xtask compare: {} calculated cells read another workbook's link caches ({} of them matched); the corpus summary counts those matches apart from passes",
@@ -1606,13 +1649,35 @@ mod tests {
     }
 
     #[test]
+    fn dna_only_calculates_the_real_fixture_without_scoring_an_excel_match() {
+        let dir=std::env::temp_dir().join(format!("xtask-dna-only-{}",std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let fixture=dir.join("input.xlsx");
+        fs::write(&fixture,include_bytes!("../../../crates/calc-engine/tests/fixtures/l3/oracle.xlsx")).unwrap();
+        let out=dir.join("out");
+        compare(&Request {fixture,capture:None,minimize:false,inventory_only:false,out:out.clone(),target:None}).unwrap();
+        let report:serde_json::Value=serde_json::from_slice(&fs::read(out.join("report.json")).unwrap()).unwrap();
+        assert_eq!(report["counts"]["denominator"],112);
+        assert_eq!(report["counts"]["matched"],0);
+        assert!(report["counts"]["calculated"].as_u64().unwrap()>0);
+        let inventory=CaptureRecord::decode(&fs::read(out.join("inventory.record.json")).unwrap()).unwrap();
+        assert_eq!(inventory.acquisition,calc_verdict::Acquisition::FileCacheReplay);
+        assert!(inventory.observations.is_empty());
+        assert!(inventory.environment.is_none());
+        let triage:serde_json::Value=serde_json::from_slice(&fs::read(out.join("triage.json")).unwrap()).unwrap();
+        let counts=crate::corpus_summary::read_triage(&triage).unwrap().counts;
+        assert_eq!(counts.pass,0);
+        assert_eq!(counts.fail(),112);
+    }
+
+    #[test]
     fn arguments_name_each_input_once() {
         let request = parse_args(&args(
             "--fixture f.xlsx --capture c.json --out dir --exact-target 20430,ch,co,x86-64",
         ))
         .unwrap();
         assert_eq!(request.fixture, PathBuf::from("f.xlsx"));
-        assert_eq!(request.capture, PathBuf::from("c.json"));
+        assert_eq!(request.capture, Some(PathBuf::from("c.json")));
         assert_eq!(request.out, PathBuf::from("dir"));
         assert_eq!(
             request.target,
@@ -1660,7 +1725,9 @@ mod tests {
         let out = dir.join("out");
         let failure = compare(&Request {
             fixture: fixture.clone(),
-            capture: marker,
+            capture: Some(marker),
+            minimize: false,
+            inventory_only: false,
             out: out.clone(),
             target: None,
         })
@@ -1668,7 +1735,9 @@ mod tests {
         assert_eq!(failure.code, EXIT_MISSING_CAPTURE, "{}", failure.message);
         let failure = compare(&Request {
             fixture: dir.join("absent.xlsx"),
-            capture: dir.join("absent.json"),
+            capture: Some(dir.join("absent.json")),
+            minimize: false,
+            inventory_only: false,
             out: out.clone(),
             target: None,
         })
