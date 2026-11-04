@@ -167,6 +167,53 @@ fn unmeasured_iteration_contexts_remain_refused() {
     }
 }
 
+/// Fn2 roots011/013/014 and their ROWS/COLUMNS observers establish zero-count and one-cell
+/// behavior. Larger short vectors and matrices follow the documented WRAPROWS/WRAPCOLS contract.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn wrapping_keeps_short_vectors_and_validates_counts_and_shapes() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_form(calc_fml::FormulaForm::Dynamic);
+    session.add_sheet("Data").unwrap();
+    session.set_input("Data!B1", InputValue::text("x").unwrap()).unwrap();
+    let mut cases = Vec::new();
+    for (formula, expected) in [
+        ("=ROWS(WRAPCOLS({1,2,3},5,\"pad\"))", 3.0),
+        ("=COLUMNS(WRAPCOLS({1,2,3},5,\"pad\"))", 1.0),
+        ("=ROWS(WRAPROWS({1;2;3},5,\"pad\"))", 1.0),
+        ("=COLUMNS(WRAPROWS({1;2;3},5,\"pad\"))", 3.0),
+        ("=ROWS(WRAPCOLS({\"2\"},2,\"pad\"))", 1.0),
+        ("=COLUMNS(WRAPCOLS({\"2\"},2,\"pad\"))", 1.0),
+        ("=ROWS(WRAPCOLS(Data!B1,2,\"pad\"))", 1.0),
+        ("=COLUMNS(WRAPCOLS(Data!B1,2,\"pad\"))", 1.0),
+        ("=ROWS(WRAPCOLS({1,2,3},2))", 2.0),
+        ("=COLUMNS(WRAPCOLS({1,2,3},2))", 2.0),
+    ] { cases.push((formula, CalcValue::number(expected))); }
+    for formula in [
+        "=WRAPCOLS(\"2\",0,\"pad\")", "=WRAPROWS(\"2\",0,\"pad\")",
+        "=WRAPCOLS({1,2},-1)", "=WRAPROWS({1;2},-1)",
+        "=WRAPCOLS({1,2},0.5)", "=WRAPROWS({1;2},0.5)",
+    ] { cases.push((formula, CalcValue::error(WorksheetErrorCode::Num))); }
+    for formula in ["=WRAPCOLS({1,2;3,4},2)", "=WRAPROWS({1,2;3,4},2)"] {
+        cases.push((formula, CalcValue::error(WorksheetErrorCode::Value)));
+    }
+    for formula in ["=INDEX(WRAPCOLS({1,2,3},2),2,2)", "=INDEX(WRAPROWS({1,2,3},2),2,2)"] {
+        cases.push((formula, CalcValue::error(WorksheetErrorCode::NA)));
+    }
+    cases.push(("=INDEX(WRAPCOLS(Data!B1,2,\"pad\"),1,1)",
+        CalcValue::text(calc_func::value::ExcelText::from_interop_assignment("x"))));
+    let mut failures = Vec::new();
+    for (formula, expected) in cases {
+        session.set_formula(formula);
+        let calculated = session.calculate();
+        if calculated.result != Some(expected.clone()) || !calculated.diagnostics.is_empty() {
+            failures.push(format!("{formula}: expected {expected:?}, got {:?}; {:?}",
+                calculated.result, calculated.diagnostics));
+        }
+    }
+    assert!(failures.is_empty(), "{} wrapping differences:\n{}", failures.len(), failures.join("\n"));
+}
+
 /// Recorded POISSON branch/control answers from OxFunc-Evidence's
 /// poisson.dist-branch-00128..00129, 00084..00085 and 00224..00225.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
