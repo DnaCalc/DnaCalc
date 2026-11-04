@@ -229,6 +229,22 @@ fn recorded_choose_array_selector_materializes_blank_references() {
     }
 }
 
+/// Retained fn2 q187: an omitted optional LAMBDA argument reaches COUNTBLANK as Missing,
+/// which is #VALUE!, rather than a blank reference to count or a typed refusal.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_countblank_optional_lambda_omission_is_a_value_error() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_form(calc_fml::FormulaForm::Dynamic);
+    check_captured_questions(include_bytes!(
+        "../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json"
+    ), &mut session, |f| f.cell.sheet() == "fn2_q187", 1);
+    session.set_input("A1", InputValue::blank()).unwrap();
+    session.set_formula("=COUNTBLANK(A1)");
+    let reference = session.calculate();
+    assert_eq!(reference.result, Some(CalcValue::number(1.0)), "{:?}", reference.diagnostics);
+}
+
 /// Fn2 roots011/013/014 and their ROWS/COLUMNS observers establish zero-count and one-cell
 /// behavior. Larger short vectors and matrices follow the documented WRAPROWS/WRAPCOLS contract.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
