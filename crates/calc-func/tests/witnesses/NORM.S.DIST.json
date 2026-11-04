@@ -85,7 +85,7 @@
     {"args":["0x3fd4f727cff91c80","0x0000000000000000"],"expected_bits":"0x3fd832cd882ebe31","id":"w111boundary-NORM.S.DIST-00140","reading":"r1"},
     {"args":["0x3fd75ce643aee000","0x0000000000000000"],"expected_bits":"0x3fd7e2f4ff667a7f","id":"w111boundary-NORM.S.DIST-00027","reading":"r1"},
     {"args":["0x3fd7f1417e5e7480","0x0000000000000000"],"expected_bits":"0x3fd7ce871a6d9141","id":"w111boundary-NORM.S.DIST-00041","reading":"r1"},
-    {"args":["0x3fe07d0c006a39a0","0x3ff0000000000000"],"calc_func":"0x3fe64c50dd4e73d1","expected_bits":"0x3fe64c50dd4e73d2","id":"cdf-z-NORM.S.DIST-00203-z-staging-discriminator","reading":"r2"},
+    {"args":["0x3fe07d0c006a39a0","0x3ff0000000000000"],"expected_bits":"0x3fe64c50dd4e73d2","id":"cdf-z-NORM.S.DIST-00203-z-staging-discriminator","reading":"r2"},
     {"args":["0x3fe0aa6c139581f5","0x3ff0000000000000"],"expected_bits":"0x3fe65c251bcaf0ba","id":"cdf-z-NORM.S.DIST-00013-z-staging-discriminator","reading":"r2"},
     {"args":["0x3fe0cd19a3384eb4","0x3ff0000000000000"],"expected_bits":"0x3fe6683629c61806","id":"cdf-z-NORM.S.DIST-00263-fresh-control","reading":"r2"},
     {"args":["0x001603406868ed8f","0x0000000000000000"],"expected_bits":"0x3fd9884533d43651","id":"w111pub-heldout-NORM.S.DIST-002054","reading":"r3"},
