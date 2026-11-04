@@ -964,5 +964,20 @@ declared fields, the verifier checks the decoded pointer, signed count and type
 against the retained bytes. Padding stays in the raw comparison and diagnostics;
 it is not treated as part of the count. Tests change each declared field and
 check rejection of inconsistent raw storage. Earlier captures keep their original
-decoding and are not rewritten. Fresh native qualification and the remaining
-managed RTD lifecycle comparison remain open.
+decoding and are not rewritten. Raw identity normalization also masks the duplicate
+pointer bytes after validating their binding; it leaves all other bytes exact.
+
+Round 13 repeats both default and numeric-sentinel conditions with four captures
+each (Excel and DNA Calc, traced and control). The three formula cases, dependents,
+declared native operands, callback return codes and P07 certificates pass in both
+conditions. Every observed BigData count is zero. The xlAsyncReturn output is
+32 zero bytes in both hosts; raw input padding and unused union bytes still differ
+and remain visible in the comparison. These are not part of the declared count.
+Evidence is in `C:/Work/DnaCalc/codex-runs/excel-results-native13`.
+
+A fresh original eight-case managed RTD run has matching values, dependents and
+P07 certificates in all four captures, but still fails ordered client and native
+traffic comparison. The first client difference is a RefreshData signal of 1 in
+Excel versus -2 in DNA Calc; topic replacement and server termination order also
+differ. This does not qualify the managed RTD lifecycle. Raw captures and the
+failed strict summary are in `C:/Work/DnaCalc/codex-runs/excel-results-rtd13`.

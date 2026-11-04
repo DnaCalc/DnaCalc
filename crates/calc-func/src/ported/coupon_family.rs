@@ -71,19 +71,51 @@ fn excel_serial_from_ymd_unbounded_1900(year: i64, month: i64, day: i64) -> i64 
     if days >= 60 { days + 1 } else { days }
 }
 
-fn days360_us(start: i64, end: i64) -> Result<f64, WorksheetErrorCode> {
-    crate::ported::day_count_common::us_30_360(start, end)
+#[derive(Clone, Copy)]
+enum CalendarDayAdjustment {
+    European,
+    FirstCoupon,
+    CouponAccrued,
 }
 
-fn days360_eu(start: i64, end: i64) -> Result<f64, WorksheetErrorCode> {
+fn calendar_days360(
+    start: i64,
+    end: i64,
+    adjustment: CalendarDayAdjustment,
+) -> Result<f64, WorksheetErrorCode> {
     let (sy, sm, mut sd) = ymd_from_excel_serial(WorkbookDateSystem::System1900, start as f64)
         .ok_or(WorksheetErrorCode::Value)?;
-    let (ey, em, mut ed) = ymd_from_excel_serial(WorkbookDateSystem::System1900, end as f64)
+    let (mut ey, mut em, mut ed) = ymd_from_excel_serial(WorkbookDateSystem::System1900, end as f64)
         .ok_or(WorksheetErrorCode::Value)?;
-    if sd == 31 {
+    if matches!(adjustment, CalendarDayAdjustment::CouponAccrued) {
+        let start_last_feb = sm == 2 && sd == days_in_month(sy, sm);
+        let end_last_feb = em == 2 && ed == days_in_month(ey, em);
+        // Coupon accrual adjusts a day-31 end using the original start day, before
+        // normalizing a February-end start. The shared DAYS360 convention differs.
+        // Fn7 paired COUPDAYBS/COUPDAYSNC controls cover real and fictitious February ends.
+        if ed == 31 {
+            if sd < 30 {
+                (ey, em) = if em == 12 { (ey + 1, 1) } else { (ey, em + 1) };
+                ed = 1;
+            } else {
+                ed = 30;
+            }
+        }
+        if sd == 31 || start_last_feb {
+            sd = 30;
+        }
+        if start_last_feb && end_last_feb {
+            ed = 30;
+        }
+        return Ok(((ey - sy) * 360 + (em - sm) * 30 + (ed - sd)) as f64);
+    }
+    if matches!(adjustment, CalendarDayAdjustment::European) && sd == 31 {
         sd = 30;
     }
-    if ed == 31 {
+    if ed == 31
+        || (matches!(adjustment, CalendarDayAdjustment::FirstCoupon)
+            && em == 2 && ed == days_in_month(ey, em))
+    {
         ed = 30;
     }
     Ok(((ey - sy) * 360 + (em - sm) * 30 + (ed - sd)) as f64)
@@ -114,11 +146,15 @@ fn accrued_or_remaining_days(
     basis: CouponBasis,
 ) -> Result<f64, WorksheetErrorCode> {
     match basis {
-        CouponBasis::Us30_360 => days360_us(start, end),
+        CouponBasis::Us30_360 => {
+            calendar_days360(start, end, CalendarDayAdjustment::CouponAccrued)
+        }
         CouponBasis::ActualActual | CouponBasis::Actual360 | CouponBasis::Actual365 => {
             Ok(actual_days(start, end))
         }
-        CouponBasis::European30_360 => days360_eu(start, end),
+        CouponBasis::European30_360 => {
+            calendar_days360(start, end, CalendarDayAdjustment::European)
+        }
     }
 }
 
@@ -290,6 +326,13 @@ pub fn coupdaysnc_kernel(
     let ctx = parse_coupon_context(settlement, maturity, frequency, basis)?;
     let period = locate_coupon_period(ctx)?;
     if ctx.basis == CouponBasis::Us30_360 {
+        // With no representable previous coupon, Excel counts directly to the next one,
+        // leaving the settlement day unchanged and treating a Gregorian February end as
+        // day 30. Its fictitious 1900-02-29 is not a Gregorian month end. Fn7 live scalar
+        // controls distinguish this from both DAYS360 and the later-period E - A rule.
+        if period.previous == 0 {
+            return calendar_days360(ctx.settlement, period.next, CalendarDayAdjustment::FirstCoupon);
+        }
         // Excel publishes COUPDAYSNC on basis 0 as COUPDAYS - COUPDAYBS (E - A), not as a
         // direct 30/360 count from settlement to the next coupon. The US 30/360 day-31 rule
         // depends on the start date, so the direct count is one day high when settlement
@@ -322,6 +365,11 @@ pub fn coupnum_kernel(
 ) -> Result<f64, WorksheetErrorCode> {
     let ctx = parse_coupon_context(settlement, maturity, frequency, basis)?;
     let period = locate_coupon_period(ctx)?;
+    // Argument errors are resolved before this calendar limit. Fn4 qd225..qd236 and
+    // fn7 COUPPCD/COUPNUM paired controls retain the zero-previous-coupon boundary.
+    if period.previous == 0 {
+        return Err(WorksheetErrorCode::Num);
+    }
     Ok(period.remaining_coupons as f64)
 }
 

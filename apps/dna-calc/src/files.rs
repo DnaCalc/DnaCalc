@@ -18,8 +18,14 @@ fn store(items:&Templates)->Result<(),String> {
     #[cfg(not(target_arch="wasm32"))]
     {let _=items;Ok(())}
 }
+pub(crate) fn update_personal_template(name:&str,bytes:&[u8])->Result<(),String> {
+    let mut items=templates();
+    let item=items.iter_mut().find(|(n,_)|n.eq_ignore_ascii_case(name)).ok_or("The personal template was removed; add the downloaded copy again")?;
+    item.1=bytes.to_vec();store(&items)
+}
 pub(crate) fn default_template(stem:&str)->Option<(String,Vec<u8>)> {
-    templates().into_iter().find(|(n,_)| n.eq_ignore_ascii_case(&format!("{stem}.xltx")) || n.eq_ignore_ascii_case(&format!("{stem}.xltm")))
+    let items=templates();
+    ["xltx","xltm"].into_iter().find_map(|ext|items.iter().find(|(n,_)|n.eq_ignore_ascii_case(&format!("{stem}.{ext}"))).cloned())
 }
 fn format(value:&str)->FileFormat {match value {"xlsm"=>FileFormat::Xlsm,"xltx"=>FileFormat::Xltx,"xltm"=>FileFormat::Xltm,_=>FileFormat::Xlsx}}
 
@@ -49,7 +55,7 @@ pub(crate) fn controls(controller:Controller,replace:Callback<Replacement>,save_
         Ok(())=>{items.set(next);controller.say("Personal templates stored in this browser",false);},
         Err(e)=>controller.say(e,true),
     };
-    let chosen=move ||items.get_untracked().into_iter().find(|(n,_)|n==&selected.get_untracked());
+    let chosen=move ||templates().into_iter().find(|(n,_)|n==&selected.get_untracked());
     view! {
         <details class="dc-file-menu" node_ref=menu data-dnacalc="file-menu" on:keydown=move |ev:leptos::ev::KeyboardEvent|{if ev.key()=="Escape"{ev.prevent_default();if let Some(menu)=menu.get_untracked(){menu.set_open(false);}crate::app::focus("[data-dnacalc=file-toggle]");}}>
             <summary data-dnacalc="file-toggle">"File"</summary>
@@ -63,14 +69,24 @@ pub(crate) fn controls(controller:Controller,replace:Callback<Replacement>,save_
                 <button data-dnacalc="template-add" on:click=move |_|{if let Some(i)=input.get(){i.click();}}>"Add personal template…"</button>
                 <input node_ref=input type="file" hidden=true accept=".xltx,.xltm" data-dnacalc="template-file" on:change=move |ev|{use wasm_bindgen::JsCast;if let Some(i)=ev.target().and_then(|t|t.dyn_into::<web_sys::HtmlInputElement>().ok()){crate::app::open_chosen(controller,i,move |name,bytes|{
                     if !["xltx","xltm"].iter().any(|e|name.to_ascii_lowercase().ends_with(&format!(".{e}"))){controller.say("Choose an .xltx or .xltm template",true);return;}
-                    let mut next=items.get_untracked();next.retain(|(n,_)|!n.eq_ignore_ascii_case(&name));next.push((name.clone(),bytes));change_store(next);selected.set(name);
+                    controller.inspect_template(bytes.clone(),move |result|match result {
+                        Ok(format) if name.to_ascii_lowercase().ends_with(&format!(".{}",format.extension()))=>{let mut next=templates();next.retain(|(n,_)|!n.eq_ignore_ascii_case(&name));next.push((name.clone(),bytes));change_store(next);selected.set(name);},
+                        Ok(_)=>controller.say("The template file name must match its package type",true),Err(e)=>controller.say(e,true),
+                    });
                 });}}/>
                 <label>"Personal template"<select data-dnacalc="template-list" prop:value=move ||selected.get() on:change=move |ev|selected.set(event_target_value(&ev))>
                     <option value="">"Choose a template"</option>
                     {move ||items.get().into_iter().map(|(n,_)|view!{<option value=n.clone()>{n.clone()}</option>}).collect_view()}
                 </select></label>
-                <button data-dnacalc="template-new" disabled=move ||selected.get().is_empty() || controller.assist.readonly.get() on:click=move |_|{if let Some((name,bytes))=chosen(){if let Some(m)=menu.get_untracked(){m.set_open(false);}replace.run(Replacement::Open(name,bytes));}}>"Create workbook"</button>
-                <button data-dnacalc="template-remove" disabled=move ||selected.get().is_empty() on:click=move |_|{let mut next=items.get_untracked();next.retain(|(n,_)|n!=&selected.get_untracked());change_store(next);selected.set(String::new());}>"Remove from personal templates"</button>
+                <button data-dnacalc="template-new" disabled=move ||selected.get().is_empty() || controller.assist.readonly.get() on:click=move |_|{if let Some((name,bytes))=chosen(){if let Some(m)=menu.get_untracked(){m.set_open(false);}replace.run(Replacement::Template(name,bytes));}}>"Create workbook"</button>
+                <button data-dnacalc="template-insert" disabled=move ||selected.get().is_empty() || controller.assist.readonly.get() on:click=move |_|{if let Some((_,bytes))=chosen(){if let Some(m)=menu.get_untracked(){m.set_open(false);}controller.insert_template(bytes,None,|_|{});}}>"Insert worksheets"</button>
+                <button data-dnacalc="template-edit" disabled=move ||selected.get().is_empty() || controller.assist.readonly.get() on:click=move |_|{if let Some((name,bytes))=chosen(){if let Some(m)=menu.get_untracked(){m.set_open(false);}replace.run(Replacement::PersonalEditing(name,bytes));}}>"Edit template"</button>
+                <h3>"Defaults"</h3>
+                <p>"Book supplies new workbooks, including startup. Sheet supplies Add worksheet. Defaults are stored in this browser. Editing a personal template and saving under its own name updates that stored copy as well as downloading it."</p>
+                <button data-dnacalc="template-default-book" disabled=move ||selected.get().is_empty() on:click=move |_|{if let Some((name,bytes))=chosen(){let ext=if name.to_ascii_lowercase().ends_with(".xltm"){"xltm"}else{"xltx"};let mut next=templates();next.retain(|(n,_)|!n.eq_ignore_ascii_case("Book.xltx")&&!n.eq_ignore_ascii_case("Book.xltm"));next.push((format!("Book.{ext}"),bytes));change_store(next);}}>"Use for new workbooks"</button>
+                <button data-dnacalc="template-default-sheet" disabled=move ||selected.get().is_empty() on:click=move |_|{if let Some((name,bytes))=chosen(){let ext=if name.to_ascii_lowercase().ends_with(".xltm"){"xltm"}else{"xltx"};let mut next=templates();next.retain(|(n,_)|!n.eq_ignore_ascii_case("Sheet.xltx")&&!n.eq_ignore_ascii_case("Sheet.xltm"));next.push((format!("Sheet.{ext}"),bytes));change_store(next);}}>"Use for new worksheets"</button>
+                <button data-dnacalc="template-clear-defaults" on:click=move |_|{let mut next=templates();next.retain(|(n,_)|!["Book.xltx","Book.xltm","Sheet.xltx","Sheet.xltm"].iter().any(|default|n.eq_ignore_ascii_case(default)));change_store(next);if !items.get_untracked().iter().any(|(n,_)|n==&selected.get_untracked()){selected.set(String::new());}}>"Clear defaults"</button>
+                <button data-dnacalc="template-remove" disabled=move ||selected.get().is_empty() on:click=move |_|{let mut next=templates();next.retain(|(n,_)|n!=&selected.get_untracked());change_store(next);selected.set(String::new());}>"Remove from personal templates"</button>
             </div>
         </details>
         <dialog node_ref=dialog class="dc-replace dc-save-as" data-dnacalc="save-as-dialog" aria-labelledby="dc-save-as-title" on:cancel=move |ev:leptos::ev::Event|{ev.prevent_default();close();}>

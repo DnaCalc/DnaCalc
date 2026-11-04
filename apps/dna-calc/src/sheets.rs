@@ -89,11 +89,9 @@ pub fn controls(controller: Controller) -> impl IntoView {
         } else {
             text
         };
-        controller.sheet_command(None, SheetChange::Add { name }, move |accepted| {
-            if accepted {
-                add.set(String::new());
-            }
-        });
+        let done=move |accepted|if accepted{add.set(String::new());};
+        if let Some((_,bytes))=crate::files::default_template("Sheet") {controller.insert_template(bytes,Some(name),done);}
+        else {controller.sheet_command(None, SheetChange::Add{name},done);}
     };
     view! {
         <details class="dc-sheet-tools" data-dnacalc="sheet-tools" node_ref=tools on:keydown=move |ev:leptos::ev::KeyboardEvent| {

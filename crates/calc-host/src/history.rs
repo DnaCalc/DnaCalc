@@ -50,7 +50,7 @@ impl fmt::Display for Irreversible {
 }
 
 /// What undoes a step.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub(crate) enum Inverse {
     /// The edits that restore every cell the step touched.
     Edits(Vec<CellEdit>),
@@ -59,14 +59,16 @@ pub(crate) enum Inverse {
     Restore {
         model: Arc<ModelRoot>,
         axis_edits: Vec<AxisEdit>,
+        source: Option<calc_doc::LoadedWorkbook>,
     },
 }
 
 /// One undo step: a committed edit, the edits that undo it, and the selection before and after.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub(crate) struct Step {
     pub(crate) forward: Vec<CellEdit>,
     pub(crate) coordinates: Option<calc_fml::reference::StructuralEdit>,
+    pub(crate) imported: Option<calc_doc::LoadedWorkbook>,
     pub(crate) inverse: Result<Inverse, Irreversible>,
     pub(crate) before: Selection,
     pub(crate) after: Selection,
@@ -162,6 +164,7 @@ pub(crate) fn inverse(
         return Ok(Inverse::Restore {
             model: Arc::clone(model),
             axis_edits: axis_edits.to_vec(),
+            source: None,
         });
     }
     let areas = touched(edits);
@@ -331,7 +334,7 @@ pub(crate) fn inverse(
 }
 
 /// The undo and redo stacks.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub(crate) struct History {
     undo: Vec<Step>,
     redo: Vec<Step>,
