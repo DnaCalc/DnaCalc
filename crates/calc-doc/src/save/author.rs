@@ -421,6 +421,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
         .definitions()
         .all_conditional_rules()
         .ne(model.definitions().all_conditional_rules());
+    let tables_changed=base.definitions().tables()!=model.definitions().tables();
     let filters_changed = base.definitions().auto_filters().ne(model.definitions().auto_filters());
     let visibility_changed = base.definitions().hidden_rows_all().ne(model.definitions().hidden_rows_all());
     let panes_changed = base.definitions().pane_layouts().ne(model.definitions().pane_layouts());
@@ -439,6 +440,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
         && views.is_none()
         && !panes_changed
         && !dimensions_changed
+        && !tables_changed
         && !filters_changed
         && !visibility_changed
         && iteration.is_none()
@@ -457,7 +459,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
         for ((sheet, changes), moves) in sheets.iter().zip(&changes).zip(&moves) {
             if !changes.is_empty() {
                 check_formulas(sheet.part().name(), changes)?;
-                check_tables(package, sheet.part().name(), changes, moves.as_ref())?;
+                if !tables_changed {check_tables(package, sheet.part().name(), changes, moves.as_ref())?;}
             }
             forms.push(file_forms(
                 sheet.part().name(),
@@ -1140,6 +1142,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
             out.rewritten.insert(sheet.part().name().to_owned(),bytes);
         }
     }
+    if tables_changed || dimensions_changed {super::tables::finish(package,workbook_part,&sheets,base,model,&mut out)?;}
     if review_changed {super::review::finish(package,workbook_part,&sheets,base,model,&moves,&mut out)?;}
     if sheets_changed {
         super::sheets::finish(package, workbook_part, base, model, sheets, &mut out)?;

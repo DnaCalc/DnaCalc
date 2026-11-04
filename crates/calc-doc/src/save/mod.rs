@@ -25,6 +25,7 @@ mod manifest;
 mod panes;
 mod parts;
 mod reader;
+mod tables;
 pub(crate) mod review;
 pub(crate) use author::available_part_name;
 pub(crate) mod validation;

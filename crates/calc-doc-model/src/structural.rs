@@ -7,7 +7,7 @@
 //! references of every formula and defined name, so this package keeps depending on no formula
 //! language.
 
-use crate::definitions::{ArrayFormula, DefinedName, Definitions, NameScope, Table};
+use crate::definitions::{ArrayFormula, DefinedName, Definitions, NameScope};
 use crate::input::{CellInput, FormulaText};
 use crate::op::{Axis, AxisChange, AxisEdit, OpBatch, SheetEdit, WorkbookOp};
 use crate::root::{ApplyError, ModelRoot, SheetEntry};
@@ -325,10 +325,9 @@ impl ModelRoot {
             .iter()
             .filter_map(|table| {
                 let area = moved_area(edit, table.area)?;
-                Some(Table {
-                    area,
-                    ..table.clone()
-                })
+                let mut table=table.clone();table.area=area;
+                if table.sheet==edit.sheet(){if let Some(f)=&mut table.filter{f.area=moved_area(edit,f.area)?;if edit.axis()==Axis::Rows{f.filtered_rows=f.filtered_rows.iter().filter_map(|r|moved_position(edit,*r)).collect();}else{f.columns=std::mem::take(&mut f.columns).into_iter().filter_map(|(c,v)|Some((moved_position(edit,c)?,v))).collect();}}}
+                Some(table)
             })
             .collect();
         let unloaded: Vec<_> = definitions
@@ -624,7 +623,7 @@ mod tests {
         let formula = CellInput::Formula(
             FormulaText::new(ExcelText::from_interop_assignment("{1;2}")).unwrap(),
         );
-        let table = Table {
+        let table = Table {id:1,style:Default::default(),filter:None,totals_functions:vec![],totals_labels:vec![],opaque:false,axis_opaque:false,column_formulas:vec![],
             name: "T".into(),
             display_name: "T".into(),
             part: "t".into(),

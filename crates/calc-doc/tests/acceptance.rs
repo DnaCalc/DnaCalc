@@ -464,6 +464,7 @@ fn describe_input(input: &CellInput) -> String {
 /// own equality.
 fn describe(op: &WorkbookOp) -> String {
     match op {
+        WorkbookOp::SetTables(tables) => format!("tables {tables:?}"),
         WorkbookOp::SetValidations {sheet,rules} => format!("validation {sheet:?} {rules:?}"),
         WorkbookOp::SetReviewNotes {sheet,notes} => format!("review {sheet:?} {:?}",notes.iter().map(|n|(n.at,&n.author,&n.text,&n.source,n.editable,n.compatibility)).collect::<Vec<_>>()),
         WorkbookOp::SetPaneLayout {sheet,layout} => format!("panes {sheet:?} {layout:?}"),
@@ -623,6 +624,7 @@ fn describe_all(ops: &[WorkbookOp]) -> Vec<String> {
 /// stops this file compiling until the cases cover it.
 fn features(op: &WorkbookOp, out: &mut BTreeSet<String>) {
     let feature = match op {
+        WorkbookOp::SetTables(..) => "op:tables".to_owned(),
         // Wire version 1 refuses review state as EncodeError::ReviewNotes.
         WorkbookOp::SetReviewNotes { .. } => "op:review_notes".to_owned(),
         WorkbookOp::SetValidations { .. } => "op:validations".to_owned(),

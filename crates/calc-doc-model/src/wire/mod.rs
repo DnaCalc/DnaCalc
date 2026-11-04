@@ -223,6 +223,7 @@ pub enum EncodeError {
         operation: usize,
     },
     AutoFilter { operation: usize },
+    Tables {operation:usize},
     ConditionalRules {
         operation: usize,
     },
@@ -270,6 +271,7 @@ impl fmt::Display for EncodeError {
                 f,
                 "operation {operation} changes review notes, which wire version 1 does not encode"
             ),
+            EncodeError::Tables {operation}=>write!(f,"operation {operation} changes tables, which wire version 1 does not encode"),
             EncodeError::AutoFilter { operation } => write!(f, "operation {operation} changes AutoFilter, which wire version 1 does not encode"),
             EncodeError::ConditionalRules { operation } => write!(
                 f,
@@ -339,6 +341,7 @@ pub fn encode_batch(batch: &OpBatch, root: &ModelRoot) -> Result<Vec<u8>, Encode
         if matches!(operation, WorkbookOp::SetIteration(_)) {
             return Err(EncodeError::Iteration { operation: index });
         }
+        if matches!(operation, WorkbookOp::SetTables(_)) {return Err(EncodeError::Tables{operation:index});}
         if matches!(operation, WorkbookOp::SetAutoFilter { .. }) { return Err(EncodeError::AutoFilter { operation:index }); }
         if matches!(operation, WorkbookOp::SetAxisFormat(_)) {
             return Err(EncodeError::AxisFormat { operation: index });

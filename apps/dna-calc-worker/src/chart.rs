@@ -96,6 +96,10 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
         );
         top = 34.0;
     }
+    if chart.plots.len()>1 {let _=write!(svg,"<text data-dnacalc=\"chart-notice\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">Combination chart preserved; its plots are not drawn here</text></svg>",width/2.,height/2.);return svg;}
+    if chart.plots.iter().any(|p|p.percent){let _=write!(svg,"<text data-dnacalc=\"chart-notice\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">Percent-stacked chart preserved; its plots are not drawn here</text></svg>",width/2.,height/2.);return svg;}
+    let cached=chart.plots.iter().flat_map(|p|&p.series).any(|s|s.cached);
+    if cached {let _=write!(svg,"<text data-dnacalc=\"chart-cache\" x=\"10\" y=\"{:.1}\" fill=\"{AXIS}\">Includes saved chart values</text>",height-5.);}
     let Some(plot) = chart.plots.first() else {
         svg.push_str("</svg>");
         return svg;
@@ -142,7 +146,7 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
         left: 10.0,
         top,
         right,
-        bottom: height - 10.0,
+        bottom: height - if cached{26.0}else{10.0},
     };
     match &plot.kind {
         ChartKind::Pie | ChartKind::Doughnut => {
@@ -591,6 +595,7 @@ fn scatter_marks(svg: &mut String, plot: &PlotView, area: Area) {
                     s.color
                 );
                 mark(svg, i, j, *y);
+                let _=write!(svg," data-x=\"{x}\"");
                 svg.push_str("/>");
             }
         }
@@ -600,6 +605,15 @@ fn scatter_marks(svg: &mut String, plot: &PlotView, area: Area) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn imported_plot_marks_and_saved_value_notices_use_the_host_projection(){
+        use std::sync::Arc;use calc_host::{HostSession,MemorySource,PackageRead,OpenPolicy,HostOptions,SkinIntent};
+        let bytes=include_bytes!("../../../crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx");let source:Arc<dyn PackageRead>=Arc::new(MemorySource::new(bytes.to_vec()));let mut book=HostSession::open(source,&OpenPolicy::default(),HostOptions::default()).unwrap();assert!(book.dispatch(SkinIntent::Recalculate).accepted());let (charts,unread)=book.host().charts(book.host().sheets()[0].id());assert_eq!(unread,0);assert_eq!(charts.len(),6);
+        for chart in &charts{let svg=chart_svg(chart,600.,350.);assert!(svg.contains("data-point=\"0\""),"{}: {svg}",chart.name);assert!(!svg.contains("chart-cache"));}
+        let mut cached=charts[0].clone();cached.plots[0].series[0].cached=true;assert!(chart_svg(&cached,600.,350.).contains("Includes saved chart values"));cached.plots.push(cached.plots[0].clone());let svg=chart_svg(&cached,600.,350.);assert!(svg.contains("Combination chart preserved"));assert!(!svg.contains("data-point="));
+    }
 
     /// Native-only: the axis arithmetic and escaping, without a page.
     #[test]

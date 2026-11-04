@@ -308,6 +308,7 @@ pub fn prepare_edit<'s, 'r>(
             WorkbookOp::EditSkinLayout(_)
             | WorkbookOp::SetFormat { .. }
             | WorkbookOp::SetStyles(_)
+            | WorkbookOp::SetTables(_)
             | WorkbookOp::SetNameFormula { .. }
             | WorkbookOp::RestoreNames(_) => {}
             // The iteration settings (dc-y2o.2) change no cell; the formulas on a circular
@@ -638,6 +639,7 @@ fn structural_moves(
                 | WorkbookOp::SetArray { .. }
                 | WorkbookOp::SetFormat { .. }
                 | WorkbookOp::SetStyles(_)
+            | WorkbookOp::SetTables(_)
                 | WorkbookOp::SetNameFormula { .. }
                 | WorkbookOp::RestoreNames(_)
                 | WorkbookOp::SetIteration(_)
@@ -666,6 +668,7 @@ fn structural_moves(
             | WorkbookOp::SetArray { .. }
             | WorkbookOp::SetFormat { .. }
             | WorkbookOp::SetStyles(_)
+            | WorkbookOp::SetTables(_)
             | WorkbookOp::SetNameFormula { .. }
             | WorkbookOp::RestoreNames(_)
             | WorkbookOp::SetIteration(_)

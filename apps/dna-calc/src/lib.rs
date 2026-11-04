@@ -19,6 +19,7 @@ mod model_adapter;
 pub mod notebook;
 pub mod port;
 mod presentation;
+mod tables;
 mod review;
 pub mod sheets;
 pub mod skin;

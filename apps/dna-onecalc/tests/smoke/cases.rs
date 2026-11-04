@@ -339,6 +339,7 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
         checks: &[
             Check::Starts("fixture-status", "Download started: onecalc-session.json."),
             Check::Text("fixture-state", "Unchanged snapshot"),
+            Check::DownloadedJson("onecalc-session.json", "/formula", "=SUM(A1:A3)"),
         ],
     },
     Case {

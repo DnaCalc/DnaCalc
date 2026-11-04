@@ -76,7 +76,7 @@ pub struct SeriesView {
     pub values: Vec<Option<f64>>,
     /// The series' colour, `RRGGBB`.
     pub color: String,
-    /// Whether the values are the file's cached points: the series' formula did not evaluate.
+    /// Whether any values, categories/X coordinates or series name use the file's saved data.
     pub cached: bool,
 }
 
@@ -153,15 +153,15 @@ impl HostState {
                 .iter()
                 .map(|plot| {
                     let kind = match plot.kind.as_str() {
-                        "barChart" | "bar3DChart"
+                        "barChart"
                             if plot.bar_direction.as_deref() == Some("bar") =>
                         {
                             ChartKind::Bar
                         }
-                        "barChart" | "bar3DChart" => ChartKind::Column,
-                        "lineChart" | "line3DChart" => ChartKind::Line,
-                        "areaChart" | "area3DChart" => ChartKind::Area,
-                        "pieChart" | "pie3DChart" | "ofPieChart" => ChartKind::Pie,
+                        "barChart" => ChartKind::Column,
+                        "lineChart" => ChartKind::Line,
+                        "areaChart" => ChartKind::Area,
+                        "pieChart" => ChartKind::Pie,
                         "doughnutChart" => ChartKind::Doughnut,
                         "scatterChart" => ChartKind::Scatter,
                         other => ChartKind::Other(other.to_owned()),
@@ -178,23 +178,10 @@ impl HostState {
                             .map(|series| {
                                 let (values, cached) =
                                     self.series_values(series.values.as_ref(), origin);
-                                let categories = series
-                                    .categories
-                                    .as_ref()
-                                    .map(|data| self.data_values(data, origin).0)
-                                    .unwrap_or_default();
-                                let name = series
-                                    .name
-                                    .as_ref()
-                                    .and_then(|data| {
-                                        self.data_values(data, origin)
-                                            .0
-                                            .into_iter()
-                                            .flatten()
-                                            .next()
-                                    })
-                                    .map(|value| text_of(&value))
-                                    .unwrap_or_else(|| format!("Series{}", series.index + 1));
+                                let (categories,category_cached)=series.categories.as_ref().map(|data|self.data_values(data,origin)).unwrap_or_default();
+                                let (names,name_cached)=series.name.as_ref().map(|data|self.data_values(data,origin)).unwrap_or_default();
+                                let name=names.into_iter().flatten().next().map(|value|text_of(&value)).unwrap_or_else(||format!("Series{}",series.index+1));
+                                let cached=cached||category_cached||name_cached;
                                 let color = series
                                     .fill
                                     .as_deref()

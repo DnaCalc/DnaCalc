@@ -60,6 +60,8 @@ pub enum WorkbookCommand {
         text: String,
     },
     Name(crate::NameEdit),
+    TableFilter {sheet:SheetId,revision:u64,part:String,change:crate::FilterChange},
+    Table {revision:u64,change:crate::TableChange},
     AutoFilter { sheet:SheetId, revision:u64, change:crate::FilterChange },
     FormatCells {
         areas: Vec<GridArea>,
@@ -134,6 +136,8 @@ pub(crate) fn prepare(
             let layout=if x==0. && y==0. {None}else{Some(calc_doc_model::PaneLayout::Split(calc_doc_model::SplitPanes::new(x,y,row,column).ok_or("Invalid split position (dc-971p.16)")?))};
             Ok(vec![CellEdit::PaneLayout{sheet,layout}])
         }
+        WorkbookCommand::TableFilter{sheet,revision,part,change}=>crate::filter::prepare_for(host,sheet,revision,Some(&part),change),
+        WorkbookCommand::Table {revision,change}=>crate::tables::prepare(host,revision,change),
         WorkbookCommand::AutoFilter { sheet,revision,change }=>crate::filter::prepare(host,sheet,revision,change),
         WorkbookCommand::SortRows {
             area,

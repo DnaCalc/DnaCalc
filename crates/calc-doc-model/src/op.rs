@@ -36,6 +36,7 @@ pub enum WorkbookOp {
     /// Criteria and filtered visibility committed together; manual hiding remains independent.
     SetAutoFilter { sheet: SheetId, filter: Option<crate::AutoFilter>,
     },
+    SetTables(Vec<crate::Table>),
     SetValidations { sheet: SheetId, rules: Vec<crate::Validation> },
     SetReviewNotes {
         sheet: SheetId,

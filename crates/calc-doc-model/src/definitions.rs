@@ -111,6 +111,17 @@ pub struct ExternalSheet {
 /// A table (ListObject) of a sheet, as its table part declares it.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Table {
+    pub id:u32,
+    pub style:TableStyle,
+    pub filter:Option<crate::AutoFilter>,
+    pub totals_functions:Vec<Option<String>>,
+    pub totals_labels:Vec<Option<String>>,
+    /// Calculated columns and other unmodelled table children retain their source.
+    pub opaque:bool,
+    /// Imported metadata whose axis references cannot be kept consistent.
+    pub axis_opaque:bool,
+    /// Imported calculated-column sources; authoring remains refused.
+    pub column_formulas:Vec<Option<String>>,
     /// The table's `name`.
     pub name: String,
     /// The table's `displayName`, the name structured references use.
@@ -127,6 +138,9 @@ pub struct Table {
     /// The columns' names, left to right.
     pub columns: Vec<String>,
 }
+
+#[derive(Clone,Debug,Default,PartialEq,Eq,Hash)]
+pub struct TableStyle {pub name:Option<String>,pub first_column:bool,pub last_column:bool,pub row_stripes:bool,pub column_stripes:bool}
 
 /// Why the model holds no input for a cell that the file gave content. A calculation reads such a
 /// cell as not available, never as blank; the codec keeps the cell's bytes for a save.
@@ -420,7 +434,7 @@ impl Definitions {
         if let Some(old) = self.filters.remove(&sheet) {
             for row in old.filtered_rows {
                 let key=(sheet,row);
-                if outlined.get(sheet, crate::Axis::Rows, row).hidden() { self.hidden_rows.insert(key, RowHidden::Manual); }
+                if self.tables.iter().filter(|t|t.sheet==sheet).any(|t|t.filter.as_ref().is_some_and(|f|f.filtered_rows.contains(&row))){self.hidden_rows.insert(key,RowHidden::Filtered);}else if outlined.get(sheet, crate::Axis::Rows, row).hidden() { self.hidden_rows.insert(key, RowHidden::Manual); }
                 else { self.hidden_rows.remove(&key); }
             }
         }
@@ -770,6 +784,14 @@ impl Definitions {
         self.names.as_slice()
     }
 
+    pub fn with_tables(mut self,tables:Vec<Table>)->Self {
+        let mut rows=std::collections::BTreeSet::new();
+        for t in self.tables.iter().chain(tables.iter()){if let Some(f)=&t.filter{rows.extend(f.filtered_rows.iter().map(|r|(t.sheet,*r)));}}
+        self.tables=tables;
+        let outlined=self.axis_layouts.outlined();
+        for (sheet,row) in rows {let filtered=self.filters.get(&sheet).is_some_and(|f|f.filtered_rows.contains(&row))||self.tables.iter().filter(|t|t.sheet==sheet).any(|t|t.filter.as_ref().is_some_and(|f|f.filtered_rows.contains(&row)));if filtered{self.hidden_rows.insert((sheet,row),RowHidden::Filtered);}else if outlined.get(sheet,crate::Axis::Rows,row).hidden(){self.hidden_rows.insert((sheet,row),RowHidden::Manual);}else{self.hidden_rows.remove(&(sheet,row));}}
+        self
+    }
     pub fn tables(&self) -> &[Table] {
         &self.tables
     }

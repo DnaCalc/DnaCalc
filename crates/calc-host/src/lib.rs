@@ -58,7 +58,7 @@ mod outline;
 pub use outline::OutlineChange;
 mod format;
 mod filter;
-pub use filter::{AutoFilter,FilterCriteria,FilterOperator,FilterPredicate,FilterChange,filter_values};
+pub use filter::{AutoFilter,FilterCriteria,FilterOperator,FilterPredicate,FilterChange,filter_values,filter_values_for};
 mod names;
 pub use facts::alignment as style_alignment;
 pub use format::{BorderPatch, FormatPatch, format_regions, format_samples, patched_style};
@@ -163,6 +163,8 @@ pub use calc_engine::contract::{CompletionOutcome, RangePostState};
 
 pub use calc_engine::contract::{AsyncDisposition, AsyncRejection, AsyncToken, ResultDestination};
 
+mod tables;
+pub use tables::TableChange;
 mod review;
 pub use review::ReviewAction;
 pub use calc_doc_model::NoteStylePatch;

@@ -70,15 +70,20 @@ pub struct Health {
 pub struct FilterTools {
     pub column:String, pub search:String, pub values:Vec<(String,bool)>, pub blank:bool,
     pub operator:String, pub value:String, pub operator2:String, pub value2:String, pub and:bool,
-    pub sheet:Option<wire::Sheet>, pub revision:u64, pub epoch:u64, pub message:String, pub loaded:bool, pub open:bool,
+    pub table:Option<String>,pub sheet:Option<wire::Sheet>, pub revision:u64, pub epoch:u64, pub message:String, pub loaded:bool, pub open:bool,
 }
 impl Default for FilterTools {
-    fn default()->Self {Self{column:"1".into(),search:String::new(),values:Vec::new(),blank:true,operator:"equal".into(),value:String::new(),operator2:String::new(),value2:String::new(),and:true,sheet:None,revision:0,epoch:0,message:String::new(),loaded:false,open:false}}
+    fn default()->Self {Self{column:"1".into(),search:String::new(),values:Vec::new(),blank:true,operator:"equal".into(),value:String::new(),operator2:String::new(),value2:String::new(),and:true,table:None,sheet:None,revision:0,epoch:0,message:String::new(),loaded:false,open:false}}
 }
+
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub struct TableTools {pub name:String,pub rows:String,pub columns:String,pub total_column:String,pub total_function:String}
+impl Default for TableTools{fn default()->Self{Self{name:"Table1".into(),rows:String::new(),columns:String::new(),total_column:"1".into(),total_function:"sum".into()}}}
 
 /// Shared Find/Replace/Go To inputs and workbook-relative query results.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ToolState {
+    pub table:TableTools,
     pub filter: FilterTools,
     pub sort_header: bool,
     pub sort_column: String,
@@ -104,6 +109,7 @@ pub struct ToolState {
 impl Default for ToolState {
     fn default() -> Self {
         Self {
+            table:TableTools::default(),
             filter: FilterTools::default(),
             sort_header: true,
             sort_column: "1".into(),
@@ -138,6 +144,7 @@ impl ToolState {
     /// Keep user inputs; retire results, permissions and locations from the old workbook.
     pub fn reset_workbook(&mut self) {
         self.invalidate_search();
+        self.table=TableTools::default();
         self.filter=FilterTools {epoch:self.filter.epoch+1,..Default::default()};
         self.selected = 0;
         self.found_revision = 0;
@@ -363,6 +370,7 @@ mod tool_tests {
 
     fn populated() -> ToolState {
         ToolState {
+            table:TableTools::default(),
             filter: FilterTools {loaded:true, sheet:Some(wire::Sheet(0,0)), revision:7, epoch:3, values:vec![("old choice".into(),true)],..Default::default()},
             sort_header: false,
             sort_column: "3".into(),
