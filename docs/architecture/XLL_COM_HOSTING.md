@@ -992,3 +992,40 @@ comparison matches 4 positions and fails 28; native calls match 0 and fail 24.
 The original eight-case comparison matches 4 client positions and fails 41;
 native calls match 0 and fail 30. Longer delay therefore narrows the observed
 timing difference without settling lifecycle compatibility.
+
+## 26. Replacement handoff and round 14 measurements (dc-snz.23)
+
+Formula replacement now separates logical retirement from native disconnection.
+After a successful edit, old logical inputs and queued updates retire immediately.
+The native transport stays only until that caller's replacement attempt finishes,
+so a new topic can connect before the old transport disconnects. A constant
+replacement also completes the disconnect; another caller retains its own lease.
+Native-client tests observe connect-old, connect-next, disconnect-old, and reject
+old queued inputs. The application composition finishes the handoff after explicit
+formula-entry evaluation as well as ordinary calculation.
+
+This is a partial implementation. Fresh round 14 managed-provider captures still
+show an earlier disconnection before the next connection. All eight original
+values and six separate delayed-condition values, dependents and P07 certificates
+agree in Excel and DNA Calc, traced and control. The unchanged strict verifier
+reports client positions matched4/failed38 and native matched0/failed30 for the
+original condition; delayed client matched4/failed29 and native matched0/failed23.
+Source inspection points to completed cached calls consuming an admitted RTD read
+without making xlfRtd again, followed by declaration reconciliation disconnecting
+the transport. The follow-up must preserve the specific producing dependency
+without retaining skipped or aborted calls indiscriminately. Initial temporary
+#N/A, refresh timing and caller-book spelling also remain visible. Evidence and
+all failed comparisons: `C:/Work/DnaCalc/codex-runs/excel-results-rtd14`.
+
+The same round records a bounded template comparison for dc-bctq in
+`C:/Work/DnaCalc/codex-runs/excel-results-templates14`. Excel created .xltx/.xltm
+inputs and ran six Add/default-Open/editable-Open save/reopen conditions. The
+actual application Workbook and ordinary-save route produced four files:
+.xlsx/.xlsm from ordinary Open and .xltx/.xltm from template editing. Excel accepted
+all four in eight further open/save/reopen conditions. The evidence checks the
+selected numeric/formula cells, number format and defined name, correct workbook
+content types, copied styles/theme parts and exact VBA binary preservation.
+DNA Calc uses Book1 names for ordinary Open; Excel uses the template base name
+plus a counter. Other macro-fixture cells, startup mode inheritance, volatile
+startup, default templates, insertion, dialogs, legacy .xlt and wider preservation
+remain unqualified by these observations. Every session preserved AutomationSecurity.
