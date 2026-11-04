@@ -413,6 +413,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
     // A defined name's formula an edit changed (rows or columns inserted or deleted, cells moved).
     let names_changed = base.definitions().names() != model.definitions().names();
     let validation_changed = base.definitions().all_validations().ne(model.definitions().all_validations());
+    let links_changed=base.definitions().all_review_links().ne(model.definitions().all_review_links());
     let review_changed = base
         .definitions()
         .all_review_notes()
@@ -436,6 +437,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
         && !names_changed
         && !conditional_changed
         && !review_changed
+        && !links_changed
         && !validation_changed
         && views.is_none()
         && !panes_changed
@@ -1143,6 +1145,19 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
         }
     }
     if tables_changed || dimensions_changed {super::tables::finish(package,workbook_part,&sheets,base,model,&mut out)?;}
+    if links_changed || structural.is_some() {
+        for sheet in sheets.iter() {
+            // Pure physical axis movement already preserves every original tag through the
+            // structural writer. Only a different authored placement needs the sort rewrite.
+            let mut natural=base.definitions().review_links(sheet.id()).to_vec();
+            for edit in structural.iter().flat_map(|s|s.edits()){natural=natural.into_iter().filter_map(|mut l|{l.area=calc_doc_model::moved_area(*edit,l.area)?;Some(l)}).collect();}
+            if natural==model.definitions().review_links(sheet.id()){continue;}
+            let original=super::sheets::read_sheet(package,sheet.part().name())?;
+            let current=out.rewritten.remove(sheet.part().name()).map(|b|original.with_bytes(b));
+            let bytes=super::review::sorted_links(&original,current.as_ref().unwrap_or(&original),base.definitions().review_links(sheet.id()),model.definitions().review_links(sheet.id()))?;
+            out.rewritten.insert(sheet.part().name().to_owned(),bytes);
+        }
+    }
     if review_changed {super::review::finish(package,workbook_part,&sheets,base,model,&moves,&mut out)?;}
     if sheets_changed {
         super::sheets::finish(package, workbook_part, base, model, sheets, &mut out)?;

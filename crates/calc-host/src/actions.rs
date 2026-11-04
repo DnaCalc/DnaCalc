@@ -648,12 +648,7 @@ fn sort_rows(
     }
     if host.axis_edits.iter().any(|e|e.sheet()==area.sheet()) && !host.model().definitions().conditional_rules(area.sheet()).is_empty(){return Err(unavailable("conditional formatting after row or column edits; save and reopen first"));}
     let review = host.sheet_review(area.sheet());
-    if !review.unsupported.is_empty()
-        || review
-            .links
-            .iter()
-            .any(|l| data.intersection(l.area).is_some())
-    {
+    if !review.unsupported.is_empty() || host.loaded.check_sorted_links(area.sheet(),&review.links).is_err() {
         return Err(unavailable("cells with unread review fields or hyperlinks"));
     }
     // Pointwise rules follow the same row permutation below; unread and population-based
@@ -793,18 +788,17 @@ pub(crate) fn sort_formula_references_supported(
         step(at.column(), crate::value::MAX_COLUMNS),
     )
     .unwrap();
-    let mut qualified = false;
-    let mut reference_operator = false;
-    let mut nodes = vec![tree.root()];
-    while let Some(node) = nodes.pop() {
+    let mut nodes = vec![(tree.root(), false)];
+    while let Some((node, mut reference_operator)) = nodes.pop() {
         match node.kind() {
             SyntaxKind::SheetSpan3DReferenceExpr => return false,
             SyntaxKind::RangeExpr
+            | SyntaxKind::TrimRangeExpr
             | SyntaxKind::IntersectionExpr
             | SyntaxKind::UnionExpr
             | SyntaxKind::PostfixExpr => reference_operator = true,
             SyntaxKind::QualifiedReferenceExpr => {
-                qualified = true;
+                if reference_operator { return false; }
                 let Some((_, target)) = calc_fml::reference::qualified_name(node) else {
                     return false;
                 };
@@ -839,13 +833,13 @@ pub(crate) fn sort_formula_references_supported(
             _ => {}
         }
         nodes.extend(node.children().iter().filter_map(|child| match child {
-            SyntaxChild::Node(node) => Some(node),
+            SyntaxChild::Node(node) => Some((node, reference_operator)),
             _ => None,
         }));
     }
-    // A qualifier can govern both endpoints of a range. Do not admit just its first
-    // absolute endpoint while the second endpoint still changes under relocation.
-    !qualified || !reference_operator
+    // A reference operator enclosing a qualifier is refused above. An independent local
+    // range elsewhere in the formula does not alter a fixed qualified scalar's binding.
+    true
 }
 
 fn sort_label(column:u32,row:u32)->String {

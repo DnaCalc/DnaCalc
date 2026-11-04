@@ -883,16 +883,7 @@ impl HostState {
             .map(|s| s.review().clone())
             .unwrap_or_default();
         review.notes = self.model.definitions().review_notes(sheet).to_vec();
-        review.links = review
-            .links
-            .into_iter()
-            .filter_map(|mut l| {
-                for edit in &self.axis_edits {
-                    l.area = calc_doc_model::moved_area(*edit, l.area)?;
-                }
-                Some(l)
-            })
-            .collect();
+        review.links = self.model.definitions().review_links(sheet).to_vec();
         review
     }
 }

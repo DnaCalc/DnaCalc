@@ -38,6 +38,7 @@ pub enum WorkbookOp {
     },
     SetTables(Vec<crate::Table>),
     SetValidations { sheet: SheetId, rules: Vec<crate::Validation> },
+    SetReviewLinks { sheet:SheetId, links:Vec<crate::ReviewLink> },
     SetReviewNotes {
         sheet: SheetId,
         notes: Vec<crate::ReviewNote> },

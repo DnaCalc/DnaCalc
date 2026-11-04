@@ -760,13 +760,29 @@ function Get-Flag($Object, [string]$Name) {
 }
 
 # The raw Value2 of a cell (Convert-Value), or why it cannot be read.
-function Read-Value($Cell) {
+function Read-Value($Cell, $RuntimeType = $null) {
     try {
         $value = Get-ComProperty $Cell 'Value2'
+        if ($null -ne $RuntimeType) { $RuntimeType.Value = if ($null -eq $value) { $null } else { $value.GetType().FullName } }
     } catch {
         return [ordered]@{ unread = $_.Exception.Message }
     }
     return (Convert-Value $value)
+}
+
+# Supplementary getter evidence; a failed property remains unread and changes no value.
+function Read-FormulaMetadata($Cell) {
+    $metadata = [ordered]@{}
+    foreach ($name in 'Formula', 'Formula2', 'HasArray', 'SavedAsArray') {
+        try {
+            $read = Get-ComProperty $Cell $name
+            if ($name -eq 'Formula' -or $name -eq 'Formula2') { $read = Get-Units $read }
+            $metadata[$name] = [ordered]@{ value = $read }
+        } catch {
+            $metadata[$name] = [ordered]@{ unread = $_.Exception.Message }
+        }
+    }
+    return $metadata
 }
 
 # Whether a formula cell spills, read through Get-ComProperty: $null when Range.HasSpill reads as
@@ -1343,7 +1359,9 @@ try {
         }
         $legacyFormula = Get-ComProperty $cell 'Formula'
         if ($legacyFormula -isnot [string]) { throw 'Range.Formula did not return text' }
-        [void]$Output.cells.Add([ordered]@{ sheet = $entry.sheet; row = $entry.row; column = $entry.column; formula = (Get-Units $formula); formula_legacy = (Get-Units $legacyFormula); value = (Read-Value $cell); spill = (Read-Spill $cell) })
+        $runtimeType = $null
+        $rawValue = Read-Value $cell ([ref]$runtimeType)
+        [void]$Output.cells.Add([ordered]@{ sheet = $entry.sheet; row = $entry.row; column = $entry.column; formula = (Get-Units $formula); formula_legacy = (Get-Units $legacyFormula); value = $rawValue; value_runtime_type = $runtimeType; formula_metadata = (Read-FormulaMetadata $cell); spill = (Read-Spill $cell) })
     }
     # The inventory cells that spill, by sheet, each covering the rows and columns of its
     # SpillingToRange from itself.
@@ -1457,7 +1475,9 @@ try {
     foreach ($entry in $package.formulas) {
         if ($entryRejected.ContainsKey((Get-Key $entry.sheet $entry.row $entry.column))) { continue }
         $cell = Read-Cell $workbook $entry
-        [void]$Output.reopened.Add([ordered]@{ sheet = $entry.sheet; row = $entry.row; column = $entry.column; value = (Read-Value $cell); spill = (Read-Spill $cell) })
+        $runtimeType = $null
+        $rawValue = Read-Value $cell ([ref]$runtimeType)
+        [void]$Output.reopened.Add([ordered]@{ sheet = $entry.sheet; row = $entry.row; column = $entry.column; value = $rawValue; value_runtime_type = $runtimeType; formula_metadata = (Read-FormulaMetadata $cell); spill = (Read-Spill $cell) })
     }
     $workbook.Close($false)
     $workbook = $null

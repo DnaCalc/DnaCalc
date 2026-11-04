@@ -466,6 +466,7 @@ fn describe(op: &WorkbookOp) -> String {
     match op {
         WorkbookOp::SetTables(tables) => format!("tables {tables:?}"),
         WorkbookOp::SetValidations {sheet,rules} => format!("validation {sheet:?} {rules:?}"),
+        WorkbookOp::SetReviewLinks {sheet,links} => format!("links {sheet:?} {links:?}"),
         WorkbookOp::SetReviewNotes {sheet,notes} => format!("review {sheet:?} {:?}",notes.iter().map(|n|(n.at,&n.author,&n.text,&n.source,n.editable,n.compatibility)).collect::<Vec<_>>()),
         WorkbookOp::SetPaneLayout {sheet,layout} => format!("panes {sheet:?} {layout:?}"),
         WorkbookOp::SetAutoFilter {sheet,filter} => format!("filter {sheet:?} {:?}",filter.as_ref().map(|f|(f.area,&f.columns,&f.filtered_rows,f.unsupported))),
@@ -626,6 +627,7 @@ fn features(op: &WorkbookOp, out: &mut BTreeSet<String>) {
     let feature = match op {
         WorkbookOp::SetTables(..) => "op:tables".to_owned(),
         // Wire version 1 refuses review state as EncodeError::ReviewNotes.
+        WorkbookOp::SetReviewLinks { .. } => "op:review_links".to_owned(),
         WorkbookOp::SetReviewNotes { .. } => "op:review_notes".to_owned(),
         WorkbookOp::SetValidations { .. } => "op:validations".to_owned(),
         // Wire version 1 refuses AutoFilter state as EncodeError::AutoFilter.

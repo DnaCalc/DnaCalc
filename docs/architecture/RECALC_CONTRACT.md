@@ -233,6 +233,47 @@ give 180 HostSession final-value comparisons at two budgets. These observations
 do not settle general SCC execution counts or intermediate cache visibility;
 iterative results retain their existing uncertified publication boundary.
 
+Eng13 instrumented Range observations (2026-11-04): the delivered packet at
+`~/codex-runs/excel-results-eng13` contains 80 valid trials, ten for each of eight
+conditions, each in a fresh owned process, with two explicit Range commands.
+The 1,348 delivery hashes, pinned sources, input bytes/formulas, settings, zero
+startup entries, cumulative traces and typed snapshots were checked. Three failed
+preparations remain recorded; successful v4 alone supplies the observed inputs.
+These are ordinary automation trials with VS15ExcelAdaptor connected, Manual,
+iteration enabled, MTC off and events off, Excel 16.0.20527. Range returns
+System.DBNull/null; that is not a Boolean success assertion.
+
+The SCC-count and convergent-only conditions log no producer entries under either
+A1:B1 or A1:D1. Explicit and hidden pair observers log no entries under A1:B1;
+under A1:D1, D1 enters once per command in all ten trials of each condition,
+40 observer entries in total. The explicit observer logs Double +0/+0 arguments; its formal parameters are
+Double, so these logs do not reveal the pre-coercion argument type. Both hidden
+Value2 reads log Empty/Empty, while external A1:C1 snapshots retain numeric-zero
+seeds. The typed distinction is observed; its cause is not identified. Thus a selected observer can run with no observed producer entries or changed
+producer snapshots in these instrumented Range trials. The pair conditions use
+unprobed arithmetic producers, so attempted or discarded internal producer work
+is not measured. This is
+not evidence of fresh producer calculation or an observed mid-cycle sweep.
+The conservative reader refusal in the current partial Range route remains an
+implementation gap (dc-hsa5.11): qualifying the selected cyclic read boundary and its effects
+must be implemented before those observer commands can claim parity. Retained
+producer caches remain nonpasses. Full/Rebuild scheduling, uninstrumented SCC
+execution counts, general mid-cycle visibility, MTC-on and other histories remain
+open; the pending eng12 observer questions are not answered by this delivery.
+
+The same delivery answers the ten Legacy denominator/blank-origin questions.
+In the recorded J2 controls, a multi-cell second argument to MROUND/QUOTIENT
+gives #VALUE!; unary plus gives
+0 and 2 in the recorded controls. Legacy paired IFS/SWITCH preserve blank-reference
+origin, computed Empty materializes as zero, and empty text remains empty text.
+Replay through the existing compare route calculates all 50 cells and matches
+40: six roots and 34 observers. Four roots and six dependent observers differ.
+Legacy second-argument multi-cell references are incorrectly intersected instead
+of producing #VALUE!, while Legacy computed Empty in paired IFS/SWITCH results
+is still rendered as empty text instead of zero. These are separate measured
+implementation gaps, not new gains. The ten ISFORMULA controls return #NAME?
+on both sides; they do not establish Boolean formula identity.
+
 ### 3.3 Invocation
 
 ```rust
