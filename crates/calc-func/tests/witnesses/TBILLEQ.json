@@ -90,7 +90,7 @@
     {"args":["0x40e346c800000000","0x40e3476800000000","0x3fd923c7889a7a61"],"expected_bits":"0x3fd9a0f5b142ff7f","id":"w1115-TBILLEQ-00647","reading":"r1"},
     {"args":["0x40e37be000000000","0x40e3aa0000000000","0x3fd715abdd3f70bf"],"expected_bits":"error:Num","id":"w1115-TBILLEQ-00479","reading":"r1"},
     {"args":["0x40e3a38000000000","0x40e3a3c000000000","0x3fdd2ec46f55c0cc"],"expected_bits":"0x3fdda9c3c0303e03","id":"w1115-TBILLEQ-00526","reading":"r1"},
-    {"args":["0x40e3d72800000000","0x40e3f08800000000","0x3fcb208e2511f676"],"calc_func":"0x3fcedc78c550cf08","expected_bits":"0x3fcedc78c550cec1","id":"w1115-TBILLEQ-01109","reading":"r1"},
+    {"args":["0x40e3d72800000000","0x40e3f08800000000","0x3fcb208e2511f676"],"expected_bits":"0x3fcedc78c550cec1","id":"w1115-TBILLEQ-01109","reading":"r1"},
     {"args":["0x40e4196000000000","0x40e41d4000000000","0x3fdaf90a65745ef2"],"expected_bits":"0x3fdc609649a12c4b","id":"w1115-TBILLEQ-00692","reading":"r1"},
     {"args":["0x40e44e4800000000","0x40e44ea800000000","0x3fa9ceabb4738d93"],"expected_bits":"0x3faa2d3ead73136b","id":"w1115-TBILLEQ-00834","reading":"r1"},
     {"args":["0x40e4770000000000","0x40e4a50000000000","0x3fd19436a890b5ff"],"expected_bits":"error:Num","id":"w1115-TBILLEQ-00835","reading":"r1"},

@@ -469,3 +469,13 @@ fn bessel_itk_i_matches_recorded_excel_bits() {
         error(call("BESSELI", vec![n(f64::from_bits(x)), n(f64::from_bits(order))]), Num);
     }
 }
+
+/// Original Excel build20430, w111extended-2026092903-BESSELK-00698,
+/// runs/w111-extended-numeric-20260929/answers/answers-besselk.json.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn bessel_k_original_answer_uses_stored_pc64() {
+    exact(call("BESSELK", vec![n(f64::from_bits(0x3ffd840e4ca60c0e)),
+                              n(f64::from_bits(0x3fc35a781fcf7430))]),
+          f64::from_bits(0x3fc1aa1445c5bb34));
+}
