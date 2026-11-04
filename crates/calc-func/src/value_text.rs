@@ -27,11 +27,15 @@
 //!   `am`, `pm`, any case) follows a space and needs an hour from 0 to 12. A time may come
 //!   before or after a date.
 //!
-//! Text this grammar does not read is #VALUE!, text holding a letter or symbol beyond ASCII
-//! included (2016–17 Winter, with an en dash, is #VALUE! in dc_e00t's capture). Text holding a
+//! Text this grammar does not read is #VALUE!, including unrecognized letters and symbols
+//! (2016–17 Winter, with an en dash, is #VALUE! in dc_e00t's capture). Text holding a
 //! digit of an unmeasured script or an unmeasured space beyond ASCII, text read under a profile whose separators or
 //! currency lie beyond ASCII, a date without a year when the call has no clock, and number text
 //! in another locale's date order (which no read measured) are refused as not modelled.
+//! Fn8 measures a single euro currency token at either end of the amount in the
+//! dot/space/Rand en-ZA/host profile. Rand stays prefix-only. Currency combined with a
+//! percent is rejected by VALUE; NUMBERVALUE removes trailing percents before its host read.
+//! Thin space joins the retained negative whitespace controls in that measured profile.
 //! Fn4 accepts Arabic-Indic, extended Arabic-Indic, Devanagari and Thai decimal digits in
 //! the measured ASCII en-ZA/host profiles, also mixed with ASCII digits. Fullwidth digits are
 //! rejected there; unmeasured profiles retain a refusal for these scripts. Script-digit time
@@ -78,6 +82,20 @@ impl Reading {
     }
 }
 
+/// The numeric-text host grammar measured by the fn8 scalar questions.
+pub(crate) fn measured_host_reader(profile: &FormatProfile) -> bool {
+    matches!(profile.id, LocaleId::EnZa | LocaleId::CurrentExcelHost)
+        && profile.decimal_separator == "." && profile.thousands_separator == " "
+        && profile.currency_symbol == "R"
+}
+
+/// Spaces with retained negative numeric-text controls. A configured positive
+/// separator remains subject to the existing not-modelled treatment below.
+pub(crate) fn measured_space(ch: char, profile: &FormatProfile) -> bool {
+    matches!(ch, '\u{00a0}' | '\u{2003}' | '\u{202f}' | '\u{3000}')
+        || (ch == '\u{2009}' && measured_host_reader(profile))
+}
+
 /// Reads `text` (UTF-16 code units).
 pub(crate) fn read(units: &[u16], context: &ReadContext<'_>) -> Result<Reading, Unread> {
     let mut text = String::with_capacity(units.len());
@@ -92,13 +110,14 @@ pub(crate) fn read(units: &[u16], context: &ReadContext<'_>) -> Result<Reading, 
         && matches!(context.profile.id, LocaleId::EnZa | LocaleId::CurrentExcelHost);
     let mut translated_digits = false;
     let mut beyond = false;
-    let mut measured_space = false;
+    let mut has_measured_space = false;
     for decoded in char::decode_utf16(units.iter().copied()) {
         match decoded {
             Ok(c) if c.is_ascii() => text.push(c),
-            Ok(c @ ('\u{00a0}' | '\u{2003}' | '\u{202f}' | '\u{3000}')) => {
+            Ok('€') if measured_host_reader(context.profile) => text.push('€'),
+            Ok(c) if measured_space(c, context.profile) => {
                 text.push(c);
-                measured_space = true;
+                has_measured_space = true;
             }
             // Fn4 qt031..qt096 accepts these four digit scripts in the measured profiles.
             // Fn7 live SQRT/DATEVALUE controls also confirm mixed-script numbers, exponent
@@ -133,14 +152,14 @@ pub(crate) fn read(units: &[u16], context: &ReadContext<'_>) -> Result<Reading, 
         return Err(Unread::Rejected);
     }
     if let Some(n) = number(text, context.profile)? {
-        if measured_space {
+        if has_measured_space {
             return Err(Unread::NotModelled);
         }
         return Ok(Reading::Number(n));
     }
     // Only ASCII spaces belong to the measured fraction/date/time grammar. The numeric
     // parser above can consume a configured separator; none of these spaces is trimming.
-    if measured_space {
+    if has_measured_space {
         return Err(Unread::Rejected);
     }
     if let Some(n) = fraction(text) {
@@ -158,6 +177,12 @@ pub(crate) fn read(units: &[u16], context: &ReadContext<'_>) -> Result<Reading, 
 fn number(text: &str, profile: &FormatProfile) -> Result<Option<f64>, Unread> {
     let bytes = text.as_bytes();
     let currency = profile.currency_symbol.as_bytes();
+    let euro = "€".as_bytes();
+    let currency_length = |at: usize| {
+        if !currency.is_empty() && bytes[at..].starts_with(currency) { currency.len() }
+        else if measured_host_reader(profile) && bytes[at..].starts_with(euro) { euro.len() }
+        else { 0 }
+    };
     let group = profile.thousands_separator.as_bytes();
     let point = profile.decimal_separator.as_bytes();
     let mut at = 0;
@@ -184,9 +209,9 @@ fn number(text: &str, profile: &FormatProfile) -> Result<Option<f64>, Unread> {
                 percent = true;
                 at += 1;
             }
-            _ if !has_currency && !currency.is_empty() && bytes[at..].starts_with(currency) => {
+            _ if !has_currency && currency_length(at) > 0 => {
                 has_currency = true;
-                at += currency.len();
+                at += currency_length(at);
             }
             _ => break,
         }
@@ -262,7 +287,17 @@ fn number(text: &str, profile: &FormatProfile) -> Result<Option<f64>, Unread> {
         }
         at = cursor;
     }
+    // Euro may also follow the amount, inside or outside parentheses;
+    // the configured Rand remains prefix-only (fn8 paired currency controls).
+    let take_euro = |at: &mut usize, has_currency: &mut bool| {
+        if !*has_currency && measured_host_reader(profile) && bytes[*at..].starts_with(euro) {
+            *has_currency = true;
+            *at += euro.len();
+            skip(at);
+        }
+    };
     skip(&mut at);
+    take_euro(&mut at, &mut has_currency);
     if bytes.get(at) == Some(&b'%') && !percent {
         percent = true;
         at += 1;
@@ -276,6 +311,7 @@ fn number(text: &str, profile: &FormatProfile) -> Result<Option<f64>, Unread> {
         negative = true;
         skip(&mut at);
     }
+    take_euro(&mut at, &mut has_currency);
     // W111 numeric-text-core-heldout: the percent may follow the complete parenthesized
     // amount, with ASCII spaces between. The same flag rejects a second percent.
     if bytes.get(at) == Some(&b'%') && !percent {
@@ -285,6 +321,9 @@ fn number(text: &str, profile: &FormatProfile) -> Result<Option<f64>, Unread> {
     }
     if at != bytes.len() {
         return Ok(None);
+    }
+    if has_currency && percent && measured_host_reader(profile) {
+        return Err(Unread::Rejected);
     }
     let scale = exponent - fraction_digits - if percent { 2 } else { 0 };
     // W111 percent-bounds: a zero coefficient still validates the percent-adjusted

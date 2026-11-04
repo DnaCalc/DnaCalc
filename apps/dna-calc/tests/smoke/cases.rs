@@ -8411,6 +8411,47 @@ Case {
         Action::Click("filter-clear"),Action::Into("filter-column","3"),Action::OpenDetails("filter-color-tools"),Action::Into("filter-color",""),Action::Click("filter-color-apply"),Action::Wait(Check::PlanCell("D1","text","4")),Action::Window(390,844),Action::Into("name-box","D1\u{E007}"),Action::Wait(Check::Reachable("filter-color")),Action::Keys("filter-color","\u{E004}")
     ],checks:&[Check::TextContains("filter-summary","1 rows filtered out"),Check::PlanAbsent("A2"),Check::PlanCell("D1","provenance","calculated"),Check::Fits,Check::Narrow(390),Check::Reachable("filter-color-apply"),Check::Focused("filter-color-apply"),Check::HitTarget("filter-color-apply")]},
 
+    Case {
+        name: "completion repair: Tab replaces a cell editor name suffix and retains its arguments",
+        actions: &[
+            Action::Keys("grid", "="), Action::Keys("cell-editor", "SUMX(1,2)"),
+            Action::Keys("cell-editor", F2),
+            Action::Keys("cell-editor", "\u{E011}\u{E014}\u{E014}\u{E014}\u{E014}\u{E004}"),
+        ],
+        checks: &[Check::Value("cell-editor", "=SUM(1,2)"), Check::Text("[data-onecalc=active-parameter]", "number1"), Check::Value("name-box", "A1")],
+    },
+    Case {
+        name: "completion repair: the repaired formula commits and workbook Undo removes only the entry",
+        actions: &[Action::Keys("cell-editor", ENTER), Action::Wait(Check::PlanCell("A1", "text", "3")), Action::Click("undo")],
+        checks: &[Check::PlanAbsent("A1"), Check::Absent("cell-editor")],
+    },
+    Case {
+        name: "completion repair: bar Tab reuses an opening parenthesis without duplicating it",
+        actions: &[
+            Action::Into("name-box", "B1\u{E007}"), Action::Into(BAR, "=SUM(4,5)"),
+            Action::Keys(BAR, "\u{E011}\u{E014}\u{E014}\u{E014}\u{E014}\u{E004}"),
+        ],
+        checks: &[Check::Value(BAR, "=SUM(4,5)"), Check::Text("[data-onecalc=active-parameter]", "number1"), Check::Focused(BAR)],
+    },
+    Case {
+        name: "completion repair: local Undo restores the suffix while Escape keeps the workbook unchanged",
+        actions: &[
+            Action::Keys(BAR, ESCAPE), Action::Into(BAR, "=SUMX(4,5)"),
+            Action::Keys(BAR, "\u{E011}\u{E014}\u{E014}\u{E014}\u{E014}\u{E004}"),
+            Action::Wait(Check::Value(BAR, "=SUM(4,5)")), Action::Keys(BAR, "\u{E009}z\u{E000}"),
+        ],
+        checks: &[Check::Value(BAR, "=SUMX(4,5)"), Check::PlanAbsent("B1"), Check::Focused(BAR)],
+    },
+    Case {
+        name: "completion repair: repaired bar entry calculates after a phone viewport change",
+        actions: &[
+            Action::Keys(BAR, ESCAPE), Action::Window(390,844), Action::Into(BAR, "=SUMX(4,5)"),
+            Action::Keys(BAR, "\u{E011}\u{E014}\u{E014}\u{E014}\u{E014}\u{E004}"),
+            Action::Wait(Check::Value(BAR, "=SUM(4,5)")), Action::Keys(BAR, ENTER),
+        ],
+        checks: &[Check::PlanCell("B1", "text", "9"), Check::PlanCell("B1", "provenance", "calculated"), Check::Fits],
+    },
+
 ];
 
 /// The script that reads what one check looks at.
@@ -9258,4 +9299,5 @@ CaseGroup {
     CaseGroup {name:"template-arrays",start:697,end:701,core:4,setup:&[]},
     CaseGroup {name:"calendar-sorting",start:701,end:705,core:4,setup:&[]},
     CaseGroup {name:"typed-colour-filters",start:705,end:709,core:4,setup:&[]},
+    CaseGroup { name: "completion-repair", start: 709, end: 714, core: 5, setup: &[] },
 ];
