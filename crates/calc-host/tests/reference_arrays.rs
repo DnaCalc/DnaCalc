@@ -100,7 +100,7 @@ fn dc_ejvk__computed_blank_selection_retains_reference_controls() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_b1l35_dc_b1l36_dc_b1l30_dc_zmk10__fn5_captured_boundaries() {
-    let books: [(&[u8], &[u8], usize); 4] = [
+    let books: [(&[u8], &[u8], usize); 5] = [
         (
             include_bytes!("../../calc-func/tests/fixtures/fn5_helper_boundaries/oracle.xlsx"),
             include_bytes!(
@@ -124,6 +124,11 @@ fn dc_b1l35_dc_b1l36_dc_b1l30_dc_zmk10__fn5_captured_boundaries() {
             include_bytes!("../../calc-func/tests/fixtures/fn5_dates_1900/oracle.xlsx"),
             include_bytes!("../../calc-func/tests/captures/fn5_dates_1900/oracle.capture.json"),
             320,
+        ),
+        (
+            include_bytes!("../../calc-func/tests/fixtures/fn5_digits_zero/oracle.xlsx"),
+            include_bytes!("../../calc-func/tests/captures/fn5_digits_zero/oracle.capture.json"),
+            432,
         ),
     ];
     for (bytes, captured, count) in books {

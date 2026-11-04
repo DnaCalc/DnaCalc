@@ -46,6 +46,21 @@ pub(crate) enum Failure {
 
 type Rendered = Result<String, Failure>;
 
+/// The host profiles measured by the scalar formatting questions.
+fn measured_host(profile: &FormatProfile) -> bool {
+    matches!(profile.id, LocaleId::EnZa | LocaleId::CurrentExcelHost)
+}
+
+/// A literal atom exactly naming the measured currency ignores ASCII case.
+/// Quoted longer words stay literal; unquoted characters arrive one at a time.
+fn currency_literal<'a>(profile: &FormatProfile, text: &'a str) -> &'a str {
+    if measured_host(profile) && profile.currency_symbol == "R" && text.eq_ignore_ascii_case("R") {
+        profile.currency_symbol
+    } else {
+        text
+    }
+}
+
 /// The AM or PM designator of a locale.
 pub(crate) fn designator(profile: &FormatProfile, am: bool) -> &'static str {
     let lower = matches!(
@@ -346,9 +361,10 @@ fn condition_of(section: &str) -> Option<String> {
 
 /// A section with its bracketed tokens resolved: colors dropped, locale recorded for names, a currency tag
 /// `[$sym-xxxx]` written as its symbol (quoted), conditions dropped, elapsed-time tokens kept.
-fn strip_tokens(section: &str) -> Result<(String, Option<crate::locale::LocaleId>), Failure> {
+fn strip_tokens(section: &str) -> Result<(String, Option<crate::locale::LocaleId>, bool), Failure> {
     let mut out = String::new();
     let mut name_locale = None;
+    let mut locale_declared = false;
     let mut chars = section.chars().peekable();
     let (mut quoted, mut escaped) = (false, false);
     while let Some(ch) = chars.next() {
@@ -381,6 +397,7 @@ fn strip_tokens(section: &str) -> Result<(String, Option<crate::locale::LocaleId
                 } else if let Some(body) = token.strip_prefix('$') {
                     let (symbol, locale) = body.split_once('-').unwrap_or((body, ""));
                     if !locale.is_empty() {
+                        locale_declared = true;
                         use crate::locale::LocaleId;
                         name_locale = u16::from_str_radix(locale, 16).ok()
                             .and_then(LocaleId::from_excel_lcid)
@@ -402,7 +419,7 @@ fn strip_tokens(section: &str) -> Result<(String, Option<crate::locale::LocaleId
             _ => out.push(ch),
         }
     }
-    Ok((out, name_locale))
+    Ok((out, name_locale, locale_declared))
 }
 
 /// The section a number is rendered with, and whether that section shows the number's sign
@@ -473,9 +490,12 @@ fn items(section: &str, profile: &FormatProfile) -> Result<Vec<Item>, Failure> {
     let chars: Vec<char> = section.chars().collect();
     let mut out = Vec::new();
     let mut at = 0;
-    let literal = |out: &mut Vec<Item>, text: &str| match out.last_mut() {
-        Some(Item::Literal(existing)) => existing.push_str(text),
-        _ => out.push(Item::Literal(text.to_owned())),
+    let literal = |out: &mut Vec<Item>, text: &str| {
+        let text = currency_literal(profile, text);
+        match out.last_mut() {
+            Some(Item::Literal(existing)) => existing.push_str(text),
+            _ => out.push(Item::Literal(text.to_owned())),
+        }
     };
     while at < chars.len() {
         let ch = chars[at];
@@ -492,7 +512,11 @@ fn items(section: &str, profile: &FormatProfile) -> Result<Vec<Item>, Failure> {
             }
             '\\' => {
                 let next = chars.get(at + 1).ok_or(Failure::NotModelled)?;
-                literal(&mut out, &next.to_string());
+                let text = next.to_string();
+                match out.last_mut() {
+                    Some(Item::Literal(existing)) => existing.push_str(&text),
+                    _ => out.push(Item::Literal(text)),
+                }
                 at += 2;
             }
             '_' => {
@@ -525,9 +549,11 @@ fn items(section: &str, profile: &FormatProfile) -> Result<Vec<Item>, Failure> {
                 at += group.chars().count();
             }
             '/' => return Err(Failure::NotModelled),
+            'E' if measured_host(profile) => return Err(Failure::Value),
             c if c.is_ascii_alphabetic() => {
                 // A letter that is a token in some other format (dates, eras, A/P) is not modelled.
-                if "ymdhsbegaYMDHSBEGA".contains(c) {
+                if "ymdhsbegYMDHSBEG".contains(c)
+                    || (matches!(c, 'a' | 'A') && !measured_host(profile)) {
                     return Err(Failure::NotModelled);
                 }
                 literal(&mut out, &c.to_string());
@@ -1204,12 +1230,15 @@ pub(crate) fn text(profile: &FormatProfile, system: DateSystem, value: f64, code
     }
     let sections = sections(code);
     let (section, signed_section) = choose(&sections, value)?;
-    let (stripped, name_locale) = strip_tokens(&section)?;
+    let (stripped, name_locale, locale_declared) = strip_tokens(&section)?;
     if stripped.trim().eq_ignore_ascii_case("general") {
         let shown = general(profile, if signed_section { value.abs() } else { value });
         return Ok(shown);
     }
     let magnitude_only = signed_section;
+    if !locale_declared && measured_host(profile) && datetime::has_invalid_exponent(&stripped) {
+        return Err(Failure::Value);
+    }
     if datetime::looks_like_datetime_format(&stripped) {
         if value < 0.0 {
             return Err(Failure::Value);
@@ -1220,11 +1249,12 @@ pub(crate) fn text(profile: &FormatProfile, system: DateSystem, value: f64, code
         if datetime::without_subseconds(&stripped)
             .chars()
             .any(|c| matches!(c, 'b' | 'B' | '0') ||
-                (matches!(c, 'e' | 'g' | 'G') && name_locale != Some(crate::locale::LocaleId::JaJp)))
+                (matches!(c, 'e' | 'g' | 'G') && name_locale != Some(crate::locale::LocaleId::JaJp)
+                    && !(!locale_declared && measured_host(profile))))
         {
             return Err(Failure::NotModelled);
         }
-        return datetime::render_with_datetime_tokens(profile, system, value, &stripped, name_locale)
+        return datetime::render_with_datetime_tokens(profile, system, value, &stripped, name_locale, !locale_declared)
             .ok_or(Failure::NotModelled);
     }
     if let Some(fraction) = fraction_code(&stripped) {
@@ -1233,8 +1263,16 @@ pub(crate) fn text(profile: &FormatProfile, system: DateSystem, value: f64, code
     if mixed_fraction_under_space_grouping(&stripped, profile) {
         return Err(Failure::Value);
     }
-    let items = items(&stripped, profile)?;
+    let mut items = items(&stripped, profile)?;
     if !items.iter().any(|i| matches!(i, Item::Digit(_))) {
+        // Fn8 literal-only controls: a run of ordinary-space grouping tokens
+        // writes one space. Numeric grouping and trailing scaling stay below.
+        if measured_host(profile) && profile.thousands_separator == " " {
+            items.dedup_by(|a, b| *a == Item::Group && *b == Item::Group);
+            for item in &mut items {
+                if *item == Item::Group { *item = Item::Literal(" ".to_owned()); }
+            }
+        }
         // A section of literals alone writes them (an empty one writes nothing).
         if items.iter().any(|i| matches!(i, Item::Point | Item::Group | Item::Exponent(_))) {
             return Err(Failure::NotModelled);
@@ -1271,7 +1309,7 @@ pub(crate) fn text_of_text(text: &str, code: &str, profile: &FormatProfile) -> R
         None if sections.len() == 1 && sections[0].contains('@') => sections[0].clone(),
         None => return Ok(text.to_owned()),
     };
-    let (stripped, _) = strip_tokens(&section)?;
+    let (stripped, _, _) = strip_tokens(&section)?;
     let mut out = String::new();
     for part in stripped.split('@').enumerate() {
         if part.0 > 0 {
