@@ -245,6 +245,38 @@ fn recorded_countblank_optional_lambda_omission_is_a_value_error() {
     assert_eq!(reference.result, Some(CalcValue::number(1.0)), "{:?}", reference.diagnostics);
 }
 
+/// Implementation contract: selectors transport the chosen closure and its lexical bindings.
+/// OneCalc inspects raw values; only workbook publication projects their worksheet face.
+/// Fn5's composed-selector questions remain unanswered, so these are not Excel parity claims.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn selected_callables_keep_identity_before_cell_publication() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_form(calc_fml::FormulaForm::Dynamic);
+    for selector in ["IFS(TRUE,ff)", "SWITCH(1,1,ff)"] {
+        session.set_formula(&format!("=LET(ss,11,ff,LAMBDA(xx,ss+xx),{selector})"));
+        let raw = session.calculate();
+        assert!(raw.diagnostics.is_empty(), "{selector}: {:?}", raw.diagnostics);
+        assert!(raw.result.as_ref().unwrap().callable_value().is_some());
+        session.set_formula(&format!("=LET(ss,11,ff,LAMBDA(xx,ss+xx),gg,{selector},gg(7))"));
+        let called = session.calculate();
+        assert_eq!(called.result, Some(CalcValue::number(18.0)), "{selector}: {:?}", called.diagnostics);
+        assert!(called.diagnostics.is_empty());
+    }
+    for selector in ["IFS(TRUE,HSTACK(ff,ff))", "SWITCH(1,1,HSTACK(ff,ff))"] {
+        session.set_formula(&format!("=LET(ss,11,ff,LAMBDA(xx,ss+xx),{selector})"));
+        let raw = session.calculate();
+        assert!(raw.diagnostics.is_empty(), "{selector}: {:?}", raw.diagnostics);
+        let array = raw.result.as_ref().unwrap().as_array().unwrap();
+        assert_eq!((array.shape().rows, array.shape().cols), (1, 2));
+        assert!(array.iter_row_major().all(|value| value.callable_value().is_some()));
+        session.set_formula(&format!("=LET(ss,11,ff,LAMBDA(xx,ss+xx),gg,INDEX({selector},1,2),gg(7))"));
+        let called = session.calculate();
+        assert_eq!(called.result, Some(CalcValue::number(18.0)), "{selector}: {:?}", called.diagnostics);
+        assert!(called.diagnostics.is_empty());
+    }
+}
+
 /// Fn2 roots011/013/014 and their ROWS/COLUMNS observers establish zero-count and one-cell
 /// behavior. Larger short vectors and matrices follow the documented WRAPROWS/WRAPCOLS contract.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
