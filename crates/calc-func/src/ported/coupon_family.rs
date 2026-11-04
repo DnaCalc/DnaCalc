@@ -74,7 +74,7 @@ fn excel_serial_from_ymd_unbounded_1900(year: i64, month: i64, day: i64) -> i64 
 #[derive(Clone, Copy)]
 enum CalendarDayAdjustment {
     European,
-    FirstCoupon,
+    CouponPeriod,
     CouponAccrued,
 }
 
@@ -109,11 +109,14 @@ fn calendar_days360(
         }
         return Ok(((ey - sy) * 360 + (em - sm) * 30 + (ed - sd)) as f64);
     }
-    if matches!(adjustment, CalendarDayAdjustment::European) && sd == 31 {
+    if sd == 31
+        || (matches!(adjustment, CalendarDayAdjustment::CouponPeriod)
+            && sm == 2 && sd == days_in_month(sy, sm))
+    {
         sd = 30;
     }
     if ed == 31
-        || (matches!(adjustment, CalendarDayAdjustment::FirstCoupon)
+        || (matches!(adjustment, CalendarDayAdjustment::CouponPeriod)
             && em == 2 && ed == days_in_month(ey, em))
     {
         ed = 30;
@@ -326,20 +329,15 @@ pub fn coupdaysnc_kernel(
     let ctx = parse_coupon_context(settlement, maturity, frequency, basis)?;
     let period = locate_coupon_period(ctx)?;
     if ctx.basis == CouponBasis::Us30_360 {
-        // With no representable previous coupon, Excel counts directly to the next one,
-        // leaving the settlement day unchanged and treating a Gregorian February end as
-        // day 30. Its fictitious 1900-02-29 is not a Gregorian month end. Fn7 live scalar
-        // controls distinguish this from both DAYS360 and the later-period E - A rule.
-        if period.previous == 0 {
-            return calendar_days360(ctx.settlement, period.next, CalendarDayAdjustment::FirstCoupon);
-        }
-        // Excel publishes COUPDAYSNC on basis 0 as COUPDAYS - COUPDAYBS (E - A), not as a
-        // direct 30/360 count from settlement to the next coupon. The US 30/360 day-31 rule
-        // depends on the start date, so the direct count is one day high when settlement
-        // falls on the 31st (2020-07-31 -> 2020-10-01: Excel 60 = 90 - 30, direct count 61).
-        // The other bases are additive, so their direct counts already equal E - A.
-        // Oracle: W109 b37 battery, 1,060 COUPDAYSNC rows (W111-5, 2026-09-24).
-        let coupon_days = coupon_day_count(period.previous, period.next, ctx.basis, ctx.frequency)?;
+        // The whole period normalizes both actual coupon endpoints: day 31 and Gregorian
+        // February ends become day 30. It need not equal COUPDAYS' 360/frequency when a
+        // non-month-end maturity's day was clamped in February. Subtract the distinct US
+        // accrual count, whose end adjustment depends on its original start day.
+        // Fn7 paired date/accrual/remaining-day controls cover calendar zero, fictitious
+        // February 29 and independent month-end schedules; all readings are retained.
+        let coupon_days = calendar_days360(
+            period.previous, period.next, CalendarDayAdjustment::CouponPeriod,
+        )?;
         let accrued = accrued_or_remaining_days(period.previous, ctx.settlement, ctx.basis)?;
         return Ok(coupon_days - accrued);
     }

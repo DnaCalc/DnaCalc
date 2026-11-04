@@ -127,6 +127,17 @@ pub fn gamma_dist_kernel(
         return Ok(regularized_gamma_p(alpha, x / beta));
     }
     // Gamma(1) = 1 exactly; Lanczos leaves a small nonzero log at this point.
+    if alpha != 1.0 && x > 0.0 {
+        // The series prefactor times a/x: the density shares the CDF's stored exponential.
+        use crate::ported::excel_numeric::{
+            excel_exp_difference, excel_log, excel_x87_div, excel_x87_mul, gammaln_excel,
+        };
+        let y = excel_x87_div(x, beta);
+        let t = excel_x87_mul(alpha, excel_log(y));
+        let r = excel_exp_difference(t, y, gammaln_excel(alpha + 1.0));
+        let pdf = excel_x87_div(excel_x87_mul(r, alpha), x);
+        return if pdf.is_finite() { Ok(pdf) } else { Err(WorksheetErrorCode::Num) };
+    }
     let log_normalizer = if alpha == 1.0 { 0.0 } else { ln_gamma(alpha) };
     let log_pdf = (alpha - 1.0) * crt_log(x) - x / beta - log_normalizer - alpha * crt_log(beta);
     let pdf = crt_exp(log_pdf);
