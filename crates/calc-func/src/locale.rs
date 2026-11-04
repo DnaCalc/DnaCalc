@@ -1110,15 +1110,19 @@ impl FormatProfile {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CalcEnvironment {
     pub date_system: DateSystem,
+    /// Workbook CompatibilityVersion, independent of locale and numeric mode. Workbooks
+    /// without the setting use 1. Unsupported explicit versions remain observable to functions.
+    pub compatibility_version: u32,
     pub profile: Option<FormatProfile>,
     pub now: Option<f64>,
 }
 
 impl CalcEnvironment {
-    /// The environment of a workbook in `date_system` with no locale profile and no clock.
+    /// A Version 1 workbook in `date_system`, with no locale profile and no clock.
     pub const fn dates(date_system: DateSystem) -> Self {
         CalcEnvironment {
             date_system,
+            compatibility_version: 1,
             profile: None,
             now: None,
         }

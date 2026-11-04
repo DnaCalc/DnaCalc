@@ -54,19 +54,39 @@ fn dc_ejvk__computed_blank_selection_retains_reference_controls() {
     assert!(!book.has_pending_calculation());
     let mut checked = 0;
     for observed in &capture.observations {
-        if !["fn2_q194","fn2_q195","fn2_q210","fn2_q211","fn2_q212","fn2_q213",
+        if !["fn2_q017","fn2_q018","fn2_q019","fn2_q020",
+            "fn2_o017","fn2_o018","fn2_o019","fn2_o020",
+            "fn2_q194","fn2_q195","fn2_q210","fn2_q211","fn2_q212","fn2_q213",
             "fn2_o194","fn2_o195","fn2_o210","fn2_o211","fn2_o212","fn2_o213","fn2_o214","fn2_o215"]
             .contains(&observed.cell.sheet()) { continue; }
         let sheet = book.host().sheets().iter().find(|s| s.name().text().to_string_lossy()==observed.cell.sheet()).unwrap().id();
         let at = CellKey::new(sheet, observed.cell.row(), observed.cell.column()).unwrap();
-        let page = project(book.host(), &ProjectionRequest { cells: vec![at] }).unwrap();
-        let ProjectedValue::Calculated { value, .. } = page.cells()[0].value() else {
-            panic!("the recorded blank-origin control must calculate: {:?}", page.cells()[0]);
-        };
-        assert_eq!(value, observed.observation.expected(), "{}!{}", observed.cell.sheet(), observed.cell.a1());
+        let expected = observed.observation.expected();
+        let mut expected_cells = vec![(at, expected)];
+        if let Some(array) = expected.as_array() {
+            let extent = book.host().spill_area(at).expect("the recorded array must spill");
+            assert_eq!(extent.first(), at);
+            assert_eq!((extent.last().row() - at.row() + 1) as usize, array.shape().rows);
+            assert_eq!((extent.last().column() - at.column() + 1) as usize, array.shape().cols);
+            expected_cells.clear();
+            for row in 0..array.shape().rows {
+                for column in 0..array.shape().cols {
+                    expected_cells.push((CellKey::new(sheet, at.row() + row as u32,
+                        at.column() + column as u32).unwrap(), array.get(row, column).unwrap()));
+                }
+            }
+        }
+        for (cell, expected) in expected_cells {
+            let page = project(book.host(), &ProjectionRequest { cells: vec![cell] }).unwrap();
+            let ProjectedValue::Calculated { value, .. } = page.cells()[0].value() else {
+                panic!("the recorded selection must calculate: {:?}", page.cells()[0]);
+            };
+            assert_eq!(value, expected, "{}!{cell:?}", observed.cell.sheet());
+            assert!(value.callable_value().is_none(), "cell publication keeps no callable");
+        }
         checked += 1;
     }
-    assert_eq!(checked, 30);
+    assert_eq!(checked, 46);
 }
 
 fn shown(session: &HostSession, at: CellKey) -> String {

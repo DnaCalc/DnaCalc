@@ -5949,13 +5949,15 @@ fn cfunc_m3_4__argument_classes() {
     );
 
     // The W111 count-family and reference-vs-array readings establish #VALUE! for computed
-    // scalars. The kernel still leaves array lifting to calc-fml and refuses explicit omission.
+    // scalars. Retained fn2 q187 also establishes #VALUE! for an omitted optional LAMBDA
+    // parameter. The kernel still leaves array lifting to calc-fml.
     let countblank = surface(Notation::Call, "COUNTBLANK");
     for value in [
         CalcValue::number(1.0),
         CalcValue::logical(true),
         CalcValue::text(ExcelText::from_interop_assignment("")),
         CalcValue::empty(),
+        CalcValue::missing(),
     ] {
         assert_eq!(
             run(countblank, &mut Recorded::new(vec![value.clone()]), &fast),
@@ -5965,7 +5967,6 @@ fn cfunc_m3_4__argument_classes() {
     }
     for refused in [
         CalcValue::array(CalcArray::from_scalar(CalcValue::empty())),
-        CalcValue::missing(),
     ] {
         let mut given = Recorded::new(vec![refused.clone()]);
         assert_eq!(

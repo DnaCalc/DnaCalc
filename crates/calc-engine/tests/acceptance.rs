@@ -4962,6 +4962,31 @@ fn clock_advances_only_volatile_requirements() {
     assert_eq!(state.stale(&root).unwrap().len(), 4);
 }
 
+/// CompatibilityVersion is stable semantics: changing it invalidates a nonvolatile text
+/// formula and its readers, even when locale, date system and clock remain identical.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn compatibility_version_invalidates_nonvolatile_text_results() {
+    use calc_fml::{CalcEnvironment, DateSystem};
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let sheet = ids.issue().unwrap();
+    let first = CellKey::new(sheet, 1, 1).unwrap();
+    let reader = CellKey::new(sheet, 1, 2).unwrap();
+    let root = l3_root(&[(sheet, "Text")], vec![
+        (first, formula("LEN(\"A😀B\")")), (reader, formula("A1+1")),
+    ], Definitions::new(vec![], vec![], vec![], []));
+    let mut state = EngineState::new(&root);
+    let mut environment = CalcEnvironment::dates(DateSystem::System1900);
+    state.set_environment(Some(environment));
+    recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(l1_value(&state, reader), CalcValue::number(5.0));
+    environment.compatibility_version = 2;
+    state.set_environment(Some(environment));
+    assert_eq!(state.stale(&root).unwrap(), vec![first, reader]);
+    recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(l1_value(&state, reader), CalcValue::number(4.0));
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn a_pass_pins_its_clock_across_steps() {
