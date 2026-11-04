@@ -12,7 +12,7 @@
 //! LAMBDA that does not take the number of arguments the helper passes is #VALUE!. An error among
 //! the other arguments is the result (`=BYCOL(#REF!,LAMBDA(x,x))` is #REF!). MAP pads a
 //! shorter array with #N/A and takes the shape of its first array when that holds every item (a
-//! row otherwise). MAP and SCAN give #CALC! when a call returns an array; BYROW and BYCOL admit
+//! row otherwise). MAP gives #CALC! when a call returns an array; SCAN, BYROW and BYCOL admit
 //! a one-cell result array but reject larger ones with #CALC!. MAKEARRAY gives #VALUE! for an
 //! array result. REDUCE's accumulator may be an array. MAKEARRAY's dimensions are
 //! positive integers, anything else #VALUE!.
@@ -77,11 +77,16 @@ fn item(cell: &CalcValue) -> CalcValue {
 }
 
 /// A call's value as one cell of the helper's result, or `None` when it is an array.
-fn cell(value: CalcValue) -> Option<CalcValue> {
+fn cell(value: CalcValue, singleton: bool) -> Option<CalcValue> {
     if value.callable_value().is_some() {
         return Some(value);
     }
     match value.core_ref() {
+        CoreRef::Array(array)
+            if singleton && array.shape() == (ArrayShape { rows: 1, cols: 1 }) =>
+        {
+            cell(array.get(0, 0).expect("one cell").clone(), false)
+        }
         CoreRef::Array(_) | CoreRef::Reference(_) => None,
         CoreRef::Missing => Some(CalcValue::empty()),
         _ => Some(value),
@@ -116,6 +121,13 @@ fn map_task(
         sources.push(prepared(site, a, index, sv)?);
     }
     let f = lambda(a, inputs, inputs)?;
+    // Fn5 helper015: later whole-argument errors are invalid MAP sources.
+    // Held errors and errors inside arrays still reach the LAMBDA (016/017).
+    for value in &a[1..inputs] {
+        if value.callable_value().is_none() && matches!(value.core_ref(), CoreRef::Error(_)) {
+            return fail(W::Value);
+        }
+    }
     let lists: Vec<Vec<CalcValue>> = sources.iter().map(items).collect();
     let count = lists.iter().map(Vec::len).max().unwrap_or(1);
     let shape = sources
@@ -189,11 +201,8 @@ fn by_task(
     scalar_error(&a[0])?;
     let source = prepared(site, a, 0, sv)?;
     let f = lambda(a, 1, 1)?;
-    // An array argument that is one error value is the result (Excel 16.0.20430, 2026-10-25,
-    // dc-6au: `=BYCOL(#REF!,LAMBDA(x,x))` is #REF!, not the #CALC! of a LAMBDA returning a row).
-    if let CoreRef::Error(code) = source.core_ref() {
-        return fail(code);
-    }
+    // Direct errors were handled above. Fn5 helper018/019 keep held errors
+    // inside the row/column argument so the LAMBDA can handle them.
     let source = match source.as_array() {
         Some(array) if source.callable_value().is_none() => array.clone(),
         _ => CalcArray::from_scalar(item(&source)),
@@ -381,30 +390,24 @@ impl KernelTask for HelperTask {
                 Ok(None) => return Ok(None),
                 Err(CallAbandoned) => return Err(refused()),
             };
-            // A one-cell row/column's lifted TEXTSPLIT returns a one-cell array. Fn2
-            // roots089/090 admit that single value; larger results still fail below.
-            let value = if matches!(&self.input, HelperInput::By { .. })
-                && value.callable_value().is_none()
-                && let Some(result) = value.as_array()
-                && result.shape() == (ArrayShape { rows: 1, cols: 1 })
-            {
-                result.get(0, 0).expect("one cell").clone()
-            } else {
-                value
-            };
             let (keep, error) = match &mut self.input {
                 HelperInput::Reduce {
                     accumulator, scan, ..
                 } => {
                     *accumulator = value.clone();
-                    // Fn2 root092: SCAN cannot publish an array accumulator as a cell.
+                    // Preserve the accumulator itself; publication below admits only
+                    // a one-cell result array (fn5 helper011), not larger arrays.
                     (*scan, W::Calc)
                 }
                 HelperInput::MakeArray => (true, W::Value),
                 _ => (true, W::Calc),
             };
             if keep {
-                let Some(value) = cell(value) else {
+                let singleton = matches!(
+                    &self.input,
+                    HelperInput::By { .. } | HelperInput::Reduce { scan: true, .. }
+                );
+                let Some(value) = cell(value, singleton) else {
                     return Ok(Some(CalcValue::error(error)));
                 };
                 self.cells.push(value);

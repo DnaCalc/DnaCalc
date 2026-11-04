@@ -1,0 +1,1097 @@
+{
+  "function": "TEXT",
+  "witnesses": [
+    {
+      "id": "fn8-TEXT-weekday-001",
+      "args": [
+        "0x0000000000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Sat Saturday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-002",
+      "args": [
+        "0x0000000000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-01-00 Sat"
+    },
+    {
+      "id": "fn8-TEXT-weekday-003",
+      "args": [
+        "0x3ff0000000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Sun Sunday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-004",
+      "args": [
+        "0x3ff0000000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-01-01 Sun"
+    },
+    {
+      "id": "fn8-TEXT-weekday-005",
+      "args": [
+        "0x4000000000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Mon Monday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-006",
+      "args": [
+        "0x4000000000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-01-02 Mon"
+    },
+    {
+      "id": "fn8-TEXT-weekday-007",
+      "args": [
+        "0x4018000000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Fri Friday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-008",
+      "args": [
+        "0x4018000000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-01-06 Fri"
+    },
+    {
+      "id": "fn8-TEXT-weekday-009",
+      "args": [
+        "0x401c000000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Sat Saturday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-010",
+      "args": [
+        "0x401c000000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-01-07 Sat"
+    },
+    {
+      "id": "fn8-TEXT-weekday-011",
+      "args": [
+        "0x403c000000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Sat Saturday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-012",
+      "args": [
+        "0x403c000000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-01-28 Sat"
+    },
+    {
+      "id": "fn8-TEXT-weekday-013",
+      "args": [
+        "0x403f000000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Tue Tuesday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-014",
+      "args": [
+        "0x403f000000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-01-31 Tue"
+    },
+    {
+      "id": "fn8-TEXT-weekday-015",
+      "args": [
+        "0x404d000000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Mon Monday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-016",
+      "args": [
+        "0x404d000000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-02-27 Mon"
+    },
+    {
+      "id": "fn8-TEXT-weekday-017",
+      "args": [
+        "0x404d800000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Tue Tuesday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-018",
+      "args": [
+        "0x404d800000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-02-28 Tue"
+    },
+    {
+      "id": "fn8-TEXT-weekday-019",
+      "args": [
+        "0x404e800000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Thu Thursday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-020",
+      "args": [
+        "0x404e800000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-03-01 Thu"
+    },
+    {
+      "id": "fn8-TEXT-weekday-021",
+      "args": [
+        "0x404f000000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Fri Friday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-022",
+      "args": [
+        "0x404f000000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-03-02 Fri"
+    },
+    {
+      "id": "fn8-TEXT-weekday-023",
+      "args": [
+        "0x4076d00000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Sun Sunday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-024",
+      "args": [
+        "0x4076d00000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-12-30 Sun"
+    },
+    {
+      "id": "fn8-TEXT-weekday-025",
+      "args": [
+        "0x4096d40000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Thu Thursday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-026",
+      "args": [
+        "0x4096d40000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1903-12-31 Thu"
+    },
+    {
+      "id": "fn8-TEXT-weekday-027",
+      "args": [
+        "0x4096d80000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Fri Friday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-028",
+      "args": [
+        "0x4096d80000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1904-01-01 Fri"
+    },
+    {
+      "id": "fn8-TEXT-weekday-029",
+      "args": [
+        "0x404dffffffea8671",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Wed Wednesday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-030",
+      "args": [
+        "0x404dffffffea8671",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-02-29 Wed"
+    },
+    {
+      "id": "fn8-TEXT-weekday-031",
+      "args": [
+        "0x404e7fffffea8671",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Thu Thursday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-032",
+      "args": [
+        "0x404e7fffffea8671",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-03-01 Thu"
+    }
+  ],
+  "service_questions": [
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4018000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4018000000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "401c000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "401c000000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "403c000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "403c000000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "403f000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "403f000000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404d000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404d000000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404d800000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404d800000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e800000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e800000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404f000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404f000000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4076d00000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4076d00000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4096d40000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4096d40000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4096d80000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4096d80000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404dffffffea8671"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404dffffffea8671"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e7fffffea8671"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e7fffffea8671"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ]
+  ],
+  "service_response": {
+    "version": 1,
+    "id": "b28c2af53aaa4c5ca1e6b6be32a95aa6",
+    "ok": true,
+    "rows": [
+      {
+        "type": "text",
+        "value": "Sat Saturday"
+      },
+      {
+        "type": "text",
+        "value": "1900-01-00 Sat"
+      },
+      {
+        "type": "text",
+        "value": "Sun Sunday"
+      },
+      {
+        "type": "text",
+        "value": "1900-01-01 Sun"
+      },
+      {
+        "type": "text",
+        "value": "Mon Monday"
+      },
+      {
+        "type": "text",
+        "value": "1900-01-02 Mon"
+      },
+      {
+        "type": "text",
+        "value": "Fri Friday"
+      },
+      {
+        "type": "text",
+        "value": "1900-01-06 Fri"
+      },
+      {
+        "type": "text",
+        "value": "Sat Saturday"
+      },
+      {
+        "type": "text",
+        "value": "1900-01-07 Sat"
+      },
+      {
+        "type": "text",
+        "value": "Sat Saturday"
+      },
+      {
+        "type": "text",
+        "value": "1900-01-28 Sat"
+      },
+      {
+        "type": "text",
+        "value": "Tue Tuesday"
+      },
+      {
+        "type": "text",
+        "value": "1900-01-31 Tue"
+      },
+      {
+        "type": "text",
+        "value": "Mon Monday"
+      },
+      {
+        "type": "text",
+        "value": "1900-02-27 Mon"
+      },
+      {
+        "type": "text",
+        "value": "Tue Tuesday"
+      },
+      {
+        "type": "text",
+        "value": "1900-02-28 Tue"
+      },
+      {
+        "type": "text",
+        "value": "Thu Thursday"
+      },
+      {
+        "type": "text",
+        "value": "1900-03-01 Thu"
+      },
+      {
+        "type": "text",
+        "value": "Fri Friday"
+      },
+      {
+        "type": "text",
+        "value": "1900-03-02 Fri"
+      },
+      {
+        "type": "text",
+        "value": "Sun Sunday"
+      },
+      {
+        "type": "text",
+        "value": "1900-12-30 Sun"
+      },
+      {
+        "type": "text",
+        "value": "Thu Thursday"
+      },
+      {
+        "type": "text",
+        "value": "1903-12-31 Thu"
+      },
+      {
+        "type": "text",
+        "value": "Fri Friday"
+      },
+      {
+        "type": "text",
+        "value": "1904-01-01 Fri"
+      },
+      {
+        "type": "text",
+        "value": "Wed Wednesday"
+      },
+      {
+        "type": "text",
+        "value": "1900-02-29 Wed"
+      },
+      {
+        "type": "text",
+        "value": "Thu Thursday"
+      },
+      {
+        "type": "text",
+        "value": "1900-03-01 Thu"
+      }
+    ],
+    "inputs": [
+      [
+        {
+          "type": "number",
+          "bits": "0000000000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "0000000000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "3ff0000000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "3ff0000000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "4000000000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "4000000000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "4018000000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "4018000000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "401c000000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "401c000000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "403c000000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "403c000000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "403f000000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "403f000000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "404d000000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "404d000000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "404d800000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "404d800000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "404e800000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "404e800000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "404f000000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "404f000000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "4076d00000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "4076d00000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "4096d40000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "4096d40000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "4096d80000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "4096d80000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "404dffffffea8671"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "404dffffffea8671"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "404e7fffffea8671"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "404e7fffffea8671"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ]
+    ],
+    "excel_version": "16.0",
+    "excel_build": "20527",
+    "excel_file_version": "16.0.20527.20088",
+    "excel_pid": 57860,
+    "calculation_settings": {
+      "calculation": -4135,
+      "compatibility_version": null,
+      "unavailable": [],
+      "PrecisionAsDisplayed": false,
+      "Date1904": false,
+      "CompatibilityVersion": 2,
+      "UseSystemSeparators": true,
+      "DecimalSeparator": ".",
+      "ThousandsSeparator": " "
+    },
+    "automation_security_before": 1,
+    "automation_security_after": 1,
+    "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261104T2129354613234-7d7ee85f2d0048f480c329fe4ca3b162\\receipt.json",
+    "session_receipt_sha256": "65211831cff886dc90f9ea6d5290641032d58dfb5df9d0722d9033b29b2d5a52",
+    "machine": "GOVERT-OMEN",
+    "timestamp": "2026-11-04T21:29:46.779727+00:00",
+    "service_seconds": 16.937999999849126,
+    "request_sha256": "f5327a06c780ce1f243b0c99463af3f2a23cdd7d1ab8c52850f3e401a9f70265",
+    "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\b28c2af53aaa4c5ca1e6b6be32a95aa6"
+  },
+  "source": "Original fn8 TEXT serial-weekday discriminators. Exact questions, input readbacks and full reply retained unchanged; numeric and text results projected through the existing witness codec."
+}

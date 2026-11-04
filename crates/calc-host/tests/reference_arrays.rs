@@ -81,49 +81,143 @@ fn dc_b1l__retained_legacy_mround_and_quotient_reference_controls() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_ejvk__computed_blank_selection_retains_reference_controls() {
-    let bytes = include_bytes!("../../calc-func/tests/fixtures/fn2_questions/oracle.xlsx");
-    let capture = calc_verdict::CaptureRecord::decode(include_bytes!("../../calc-func/tests/captures/fn2_questions/oracle.capture.json")).unwrap();
-    let mut book = HostSession::open(Arc::new(MemorySource::new(bytes.to_vec())), &OpenPolicy::default(), HostOptions {
-        calc_mode: Some(CalcMode::Automatic), ..HostOptions::default()
-    }).unwrap();
+    check_captured_book(
+        include_bytes!("../../calc-func/tests/fixtures/fn2_questions/oracle.xlsx"),
+        include_bytes!("../../calc-func/tests/captures/fn2_questions/oracle.capture.json"),
+        &[
+            "fn2_q017", "fn2_q018", "fn2_q019", "fn2_q020", "fn2_o017", "fn2_o018", "fn2_o019",
+            "fn2_o020", "fn2_q194", "fn2_q195", "fn2_q210", "fn2_q211", "fn2_q212", "fn2_q213",
+            "fn2_o194", "fn2_o195", "fn2_o210", "fn2_o211", "fn2_o212", "fn2_o213", "fn2_o214",
+            "fn2_o215",
+        ],
+        46,
+        None,
+    );
+}
+
+/// Original fn5 packet workbooks and full Excel captures; all roots, observers,
+/// spill shapes and calculated provenance run through the application host.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_b1l35_dc_b1l36_dc_b1l30_dc_zmk10__fn5_captured_boundaries() {
+    let books: [(&[u8], &[u8], usize); 4] = [
+        (
+            include_bytes!("../../calc-func/tests/fixtures/fn5_helper_boundaries/oracle.xlsx"),
+            include_bytes!(
+                "../../calc-func/tests/captures/fn5_helper_boundaries/oracle.capture.json"
+            ),
+            526,
+        ),
+        (
+            include_bytes!("../../calc-func/tests/fixtures/fn5_selection_boundaries/oracle.xlsx"),
+            include_bytes!(
+                "../../calc-func/tests/captures/fn5_selection_boundaries/oracle.capture.json"
+            ),
+            408,
+        ),
+        (
+            include_bytes!("../../calc-func/tests/fixtures/fn5_regex_results/oracle.xlsx"),
+            include_bytes!("../../calc-func/tests/captures/fn5_regex_results/oracle.capture.json"),
+            160,
+        ),
+        (
+            include_bytes!("../../calc-func/tests/fixtures/fn5_dates_1900/oracle.xlsx"),
+            include_bytes!("../../calc-func/tests/captures/fn5_dates_1900/oracle.capture.json"),
+            320,
+        ),
+    ];
+    for (bytes, captured, count) in books {
+        // These captures record en-ZA with dot decimal and ordinary-space groups.
+        let profile = calc_func::locale::format_profile(calc_func::locale::LocaleId::EnZa)
+            .with_separators(".", " ")
+            .unwrap();
+        check_captured_book(bytes, captured, &[], count, Some(profile));
+    }
+}
+
+fn check_captured_book(
+    bytes: &[u8],
+    captured: &[u8],
+    sheets: &[&str],
+    expected_count: usize,
+    locale: Option<calc_host::FormatProfile>,
+) {
+    let capture = calc_verdict::CaptureRecord::decode(captured).unwrap();
+    let mut book = HostSession::open(
+        Arc::new(MemorySource::new(bytes.to_vec())),
+        &OpenPolicy::default(),
+        HostOptions {
+            calc_mode: Some(CalcMode::Automatic),
+            locale,
+            ..HostOptions::default()
+        },
+    )
+    .unwrap();
     assert!(book.dispatch(SkinIntent::Rebuild).accepted());
-    for _ in 0..128 { if !book.has_pending_calculation() { break; } book.advance_calculation(); }
+    for _ in 0..128 {
+        if !book.has_pending_calculation() {
+            break;
+        }
+        book.advance_calculation();
+    }
     assert!(!book.has_pending_calculation());
     let mut checked = 0;
     for observed in &capture.observations {
-        if !["fn2_q017","fn2_q018","fn2_q019","fn2_q020",
-            "fn2_o017","fn2_o018","fn2_o019","fn2_o020",
-            "fn2_q194","fn2_q195","fn2_q210","fn2_q211","fn2_q212","fn2_q213",
-            "fn2_o194","fn2_o195","fn2_o210","fn2_o211","fn2_o212","fn2_o213","fn2_o214","fn2_o215"]
-            .contains(&observed.cell.sheet()) { continue; }
-        let sheet = book.host().sheets().iter().find(|s| s.name().text().to_string_lossy()==observed.cell.sheet()).unwrap().id();
+        if !sheets.is_empty() && !sheets.contains(&observed.cell.sheet()) {
+            continue;
+        }
+        let sheet = book
+            .host()
+            .sheets()
+            .iter()
+            .find(|s| s.name().text().to_string_lossy() == observed.cell.sheet())
+            .unwrap()
+            .id();
         let at = CellKey::new(sheet, observed.cell.row(), observed.cell.column()).unwrap();
         let expected = observed.observation.expected();
         let mut expected_cells = vec![(at, expected)];
         if let Some(array) = expected.as_array() {
-            let extent = book.host().spill_area(at).expect("the recorded array must spill");
+            let extent = book
+                .host()
+                .spill_area(at)
+                .expect("the recorded array must spill");
             assert_eq!(extent.first(), at);
-            assert_eq!((extent.last().row() - at.row() + 1) as usize, array.shape().rows);
-            assert_eq!((extent.last().column() - at.column() + 1) as usize, array.shape().cols);
+            assert_eq!(
+                (extent.last().row() - at.row() + 1) as usize,
+                array.shape().rows
+            );
+            assert_eq!(
+                (extent.last().column() - at.column() + 1) as usize,
+                array.shape().cols
+            );
             expected_cells.clear();
             for row in 0..array.shape().rows {
                 for column in 0..array.shape().cols {
-                    expected_cells.push((CellKey::new(sheet, at.row() + row as u32,
-                        at.column() + column as u32).unwrap(), array.get(row, column).unwrap()));
+                    expected_cells.push((
+                        CellKey::new(sheet, at.row() + row as u32, at.column() + column as u32)
+                            .unwrap(),
+                        array.get(row, column).unwrap(),
+                    ));
                 }
             }
         }
         for (cell, expected) in expected_cells {
             let page = project(book.host(), &ProjectionRequest { cells: vec![cell] }).unwrap();
             let ProjectedValue::Calculated { value, .. } = page.cells()[0].value() else {
-                panic!("the recorded selection must calculate: {:?}", page.cells()[0]);
+                panic!(
+                    "the recorded selection must calculate: {:?}",
+                    page.cells()[0]
+                );
             };
             assert_eq!(value, expected, "{}!{cell:?}", observed.cell.sheet());
-            assert!(value.callable_value().is_none(), "cell publication keeps no callable");
+            assert!(
+                value.callable_value().is_none(),
+                "cell publication keeps no callable"
+            );
         }
         checked += 1;
     }
-    assert_eq!(checked, 46);
+    assert_eq!(checked, expected_count);
 }
 
 fn shown(session: &HostSession, at: CellKey) -> String {

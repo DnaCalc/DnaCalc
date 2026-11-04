@@ -13,10 +13,9 @@
 //! for each of bead dc-ibp2's oracle rows on these points.
 //!
 //! An array `value` is refused as not modelled: Excel lifts both entries over its elements, which
-//! array evaluation owns (dc-m3u, in calc-fml). So is a callable `value`, whose worksheet-visible core is
-//! #CALC! but which is not a worksheet error until it reaches a cell (LAMBDA, bead dc-m3u). A
-//! fallback that is an array or a callable is refused the same way, naming argument 1, when it is
-//! asked for: an array result would be lifted or spilled, which the same beads own.
+//! array evaluation owns (dc-m3u, in calc-fml). An array fallback is refused the same way, naming
+//! argument 1, when it is asked for. A callable remains one value through selection; its visible
+//! #CALC! core becomes a worksheet error only when it reaches a cell (fn5 selection005/006).
 
 use super::{ArgumentDemand, CatalogueEntry, Family, FunctionId, Kernel, Notation, Parameter};
 use crate::call::{EvalServices, FunctionFault, LazyArguments};
@@ -90,7 +89,7 @@ fn fallback_selected(
         return Site::finish(Err(site.not_modelled(Some(0))));
     }
     let chosen = match value.core_ref() {
-        CoreRef::Error(code) if catches(code) => {
+        CoreRef::Error(code) if value.callable_value().is_none() && catches(code) => {
             let fallback = arguments.argument(1)?;
             if not_scalar(&fallback) {
                 return Site::finish(Err(site.not_modelled(Some(1))));
@@ -106,9 +105,10 @@ fn fallback_selected(
     })
 }
 
-/// Whether `value` is an array or a callable, which these kernels refuse as not modelled.
+/// Arrays need the evaluator's lifting route. A callable is one value and keeps
+/// its identity through fallback selection (fn5 selection005/006).
 fn not_scalar(value: &CalcValue) -> bool {
-    value.callable_value().is_some() || matches!(value.core_ref(), CoreRef::Array(_))
+    value.callable_value().is_none() && matches!(value.core_ref(), CoreRef::Array(_))
 }
 
 /// IFERROR and IFNA through `invoke` on arguments that record what the call interface asks for.
@@ -245,13 +245,39 @@ mod tests {
         }
     }
 
-    /// An array or callable value is refused before the fallback is asked for, and an array or
-    /// callable fallback once it is asked for; a fallback that is not asked for is not refused. A
+    /// Fn5 selection005/006: callable identity survives either selected argument,
+    /// and its visible #CALC! core never asks for a fallback.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn callables_keep_their_identity_and_lazy_argument_access() {
+        let callable = a_callable();
+        for spelling in ["IFERROR", "IFNA"] {
+            assert_eq!(
+                call(spelling, callable.clone(), CalcValue::number(0.0)),
+                (Ok(callable.clone()), vec![0])
+            );
+            assert_eq!(
+                call(
+                    spelling,
+                    CalcValue::error(WorksheetErrorCode::NA),
+                    callable.clone()
+                ),
+                (Ok(callable.clone()), vec![0, 1])
+            );
+            assert_eq!(
+                call(spelling, CalcValue::number(3.0), callable.clone()),
+                (Ok(CalcValue::number(3.0)), vec![0])
+            );
+        }
+    }
+
+    /// An array value is refused before the fallback is asked for, and an array
+    /// fallback once it is asked for; an unused fallback is not refused. A
     /// reference is refused at admission, since both parameters take values (the caller reads a
     /// reference's cell first).
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn arrays_callables_and_references_are_refused() {
+    fn arrays_and_references_are_refused() {
         let array = CalcValue::array(
             CalcArray::from_rows(vec![vec![
                 CalcValue::number(1.0),
@@ -261,7 +287,7 @@ mod tests {
         );
         for spelling in ["IFERROR", "IFNA"] {
             let id = named(spelling).id();
-            for refused in [array.clone(), a_callable()] {
+            for refused in [array.clone()] {
                 assert_eq!(
                     call(spelling, refused.clone(), CalcValue::number(0.0)),
                     (
@@ -285,12 +311,12 @@ mod tests {
                         }),
                         vec![0, 1]
                     ),
-                    "{spelling}: an array or callable fallback, asked for"
+                    "{spelling}: an array fallback, asked for"
                 );
                 assert_eq!(
                     call(spelling, CalcValue::number(3.0), refused),
                     (Ok(CalcValue::number(3.0)), vec![0]),
-                    "{spelling}: an array or callable fallback, not asked for"
+                    "{spelling}: an array fallback, not asked for"
                 );
             }
             assert_eq!(
