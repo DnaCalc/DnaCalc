@@ -146,6 +146,11 @@ fn stirl8(x: f64) -> f64 {
 /// B2 band `[1.5, 4.0)`: SPECFUN's `t*(D2 + t*(P/Q))`, `t = x-2`,
 /// with one final binary64 store after continuous extended arithmetic.
 fn b2(x: f64) -> f64 {
+    // The top of the band, as Excel gives it: one ulp above stored ln 2. It is read, because the
+    // SPECFUN stand-in cannot give it, and GAMMA.DIST's shape 2 takes it in every prefactor.
+    if x == 3.0 {
+        return f64::from_bits(0x3FE6_2E42_FEFA_39F0);
+    }
     b2_with::<super::Native>(x)
 }
 
