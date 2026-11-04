@@ -660,6 +660,13 @@ impl LoadedWorkbook {
         &self.model
     }
 
+    /// The file kind declared by the workbook part, independent of its file name.
+    pub fn spreadsheet_format(&self) -> crate::SpreadsheetFormat {
+        crate::SpreadsheetFormat::from_content_type(
+            self.package.part(&self.workbook_part).and_then(|p| p.content_type()).unwrap_or("")
+        ).expect("load checked the workbook content type")
+    }
+
     /// The workbook part the package's relationships name.
     pub fn workbook_part(&self) -> &str {
         &self.workbook_part

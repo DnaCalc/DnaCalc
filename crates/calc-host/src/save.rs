@@ -41,6 +41,8 @@ impl std::error::Error for SaveFailed {}
 pub enum SaveOperation {
     Save,
     SaveAs,
+    /// A Save As selected in the application's file dialog.
+    SaveAsDialog,
     SaveCopyAs,
 }
 

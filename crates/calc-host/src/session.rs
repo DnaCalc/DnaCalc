@@ -363,6 +363,18 @@ impl HostSession {
         );
     }
 
+    /// Publish the file identity of a successful Save As without adding an undo step.
+    pub fn set_file_identity(&mut self,name:&str,macro_enabled:bool) {
+        if self.host.model.definitions().workbook_name()==Some(name) && self.host.model.definitions().macro_enabled()==macro_enabled {return;}
+        self.cancel_calculation();
+        self.host.model=self.host.model.with_file_identity(name,macro_enabled);
+        self.notify_file_identity(name);
+        self.host.engine.rebuild_bindings();
+        self.host.published=None;
+        self.host.last_failure=None;
+        self.deliver_changes(DeltaCause::CallablesChanged {revision:self.host.revision()},true);
+    }
+
     /// A session over an open host, in the host's calculation mode, with nothing selected.
     pub fn new(host: HostState) -> HostSession {
         HostSession {
