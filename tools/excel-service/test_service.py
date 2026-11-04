@@ -1,5 +1,6 @@
 """Run with: python -m unittest discover -s tools/excel-service -v"""
 import json
+import os
 import base64
 import hashlib
 from pathlib import Path
@@ -122,6 +123,20 @@ class ProtocolTests(unittest.TestCase):
             self.assertTrue(operation(root, {"op": "put", "id": item["id"], "answer": answer}))
             self.assertFalse(source.exists())
             self.assertEqual(json.loads((root / "out" / source.name).read_text()), answer)
+
+    def test_queue_takes_oldest_arrival_before_newer_lower_uuids(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            older = root / "in" / ("f" * 32 + ".json")
+            newer = root / "in" / ("0" * 32 + ".json")
+            atomic_json(older, self.request(id="f" * 32))
+            atomic_json(newer, self.request(id="0" * 32))
+            os.utime(older, ns=(1_000_000_000, 1_000_000_000))
+            os.utime(newer, ns=(2_000_000_000, 2_000_000_000))
+            taken = operation(root, {"op": "take"})
+            self.assertEqual(taken["id"], "f" * 32)
+            self.assertTrue(older.exists())
+            self.assertTrue(newer.exists())
 
     def test_interruption_replay_and_unsafe_request_never_evaluate(self):
         with tempfile.TemporaryDirectory() as directory:
