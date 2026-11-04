@@ -852,6 +852,24 @@ pub(crate) fn excel_log1p(x: f64) -> f64 {
     hi + lo_rest
 }
 
+/// `ln(1 + x)` as Excel's PMT computes it (dc-j9k.12): the atanh series
+/// `ln(1 + x) = 2 atanh(s) = 2s (1 + s^2/3 + s^4/5 + ...)`, `s = x / (2 + x)` (Abramowitz and
+/// Stegun 4.1.27 with `z = 1 + x`), all in binary64: `s` from a binary64 sum and quotient, the
+/// tail `T = 1/3 + s^2/5 + ... + s^20/23` by Horner, and the leading `2s` added last:
+/// `2s + 2s * (s^2 * T)`. Not correctly rounded: it differs from the correctly rounded log1p
+/// by up to 2 ulp, and those differences are what Excel's PMT shows. Twelve terms converge for
+/// `|s| <= 1/5` (`-1/3 <= x <= 1/2`), the range the caller uses it on.
+pub(crate) fn excel_log1p_atanh(x: f64) -> f64 {
+    let s = x / (2.0 + x);
+    let s2 = s * s;
+    let mut tail = 1.0 / 23.0;
+    for k in (1..=10).rev() {
+        tail = tail * s2 + 1.0 / f64::from(2 * k + 1);
+    }
+    let two_s = 2.0 * s;
+    two_s + two_s * (s2 * tail)
+}
+
 /// sqrt(x) — IEEE-754 correctly-rounded, deterministic (hardware SQRTSD).
 #[inline]
 pub(crate) fn excel_sqrt(x: f64) -> f64 {

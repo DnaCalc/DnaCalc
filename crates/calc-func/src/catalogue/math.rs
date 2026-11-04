@@ -46,7 +46,8 @@ ported_family! {
     3 acot "ACOT" (1, 1) [V "number"] |s, a, sv| { unary(s, a, k::acot::acot_kernel) }
     4 acoth "ACOTH" (1, 1) [V "number"] |s, a, sv| { unary(s, a, k::acoth::acoth_kernel) }
     5 asin "ASIN" (1, 1) [V "number"] |s, a, sv| { unary(s, a, k::asin::asin_kernel) }
-    6 asinh "ASINH" (1, 1) [V "number"] |s, a, sv| { unary(s, a, k::asinh::asinh_kernel) }
+    // Every subnormal rounds the ASINH identity to LN(1), hence positive zero.
+    6 asinh "ASINH" (1, 1) [V "number"] |s, a, sv| { out(s, k::asinh::asinh_kernel(num_with_subnormal(s, a, 0)?)) }
     7 atan "ATAN" (1, 1) [V "number"] |s, a, sv| {
         raw(s, a, ExcelRealPolicy::PASS, k::atan::atan_kernel)
     }

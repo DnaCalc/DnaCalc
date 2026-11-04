@@ -41,7 +41,8 @@
 //! context recovery can be measured separately from product-function changes.
 //! `witness refresh [--func F]` recalculates the original pins and updates only
 //! calculated predictions, preserving the sample and Excel's answers. It refuses
-//! any newly lost pinned match. `refresh --context` first restores facts from each pin's original
+//! any newly lost pinned match, unless `--classified-losses <tsv>` lists it with its class
+//! (function, id, class per line; a listed row that is not a new loss is refused too). `refresh --context` first restores facts from each pin's original
 //! source, verifying the exact arguments, result selection, environment and retained answer;
 //! conflicting contexts are refused. It preserves the original sample and can split a source
 //! when its rows used different transports. Run the full-bank comparison before retaining a change.
@@ -83,7 +84,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
-pub const USAGE: &str = "cargo xtask witness judge [--func <F>] [--bank pinned|full] [--trace <path>] [--values-only] | cargo xtask witness compare --before <trace> --after <trace> | cargo xtask witness refresh [--func <F>] [--context] | cargo xtask witness pin [--func <F>] [--rows <N>] | cargo xtask witness read --func <F>[,<F>...] [--timeout <s>] [--inputs <json> [--new-only] [--repeat-calls]]";
+pub const USAGE: &str = "cargo xtask witness judge [--func <F>] [--bank pinned|full] [--trace <path>] [--values-only] | cargo xtask witness compare --before <trace> --after <trace> | cargo xtask witness refresh [--func <F>] [--context] [--classified-losses <tsv>] | cargo xtask witness pin [--func <F>] [--rows <N>] | cargo xtask witness read --func <F>[,<F>...] [--timeout <s>] [--inputs <json> [--new-only] [--repeat-calls]]";
 
 const CHECKOUT: &str = "OxFunc-Evidence";
 const MANIFESTS: [&str; 2] = ["manifest.tsv", "w109-manifest.tsv"];
@@ -124,6 +125,7 @@ struct Request {
     repeat_calls: bool,
     values_only: bool,
     refresh_context: bool,
+    classified_losses: Option<PathBuf>,
 }
 
 fn parse_args(raw: &[String]) -> Result<Request, String> {
@@ -150,6 +152,7 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
         repeat_calls: false,
         values_only: false,
         refresh_context: false,
+        classified_losses: None,
     };
     let mut it = rest.iter();
     while let Some(arg) = it.next() {
@@ -162,6 +165,7 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
             "--new-only" if verb == Verb::Read => request.new_only = true,
             "--repeat-calls" if verb == Verb::Read => request.repeat_calls = true,
             "--context" if verb == Verb::Refresh => request.refresh_context = true,
+            "--classified-losses" if verb == Verb::Refresh => request.classified_losses = Some(PathBuf::from(value()?)),
             "--values-only" if verb == Verb::Judge => request.values_only = true,
             "--trace" if verb == Verb::Judge => request.trace = Some(PathBuf::from(value()?)),
             "--bank" if verb == Verb::Judge => {
@@ -1392,14 +1396,22 @@ fn without_context_and_prediction(mut value: Value) -> Result<Value, String> {
     Ok(value)
 }
 
-fn refresh_prediction(row: &mut WitnessRow, actual: &str) -> Result<bool, String> {
+/// A pin that matched Excel and no longer does is refused unless `loss_class` names why: a
+/// classified loss (owner ruling 2026-11-04: a structurally shown step lands with its losses
+/// classified, each class a named next target). A listed row that is not such a loss is refused,
+/// so the list cannot grow stale silently.
+fn refresh_prediction(row: &mut WitnessRow, actual: &str, loss_class: Option<&str>) -> Result<bool, String> {
     if matches!(actual, "fault:Panic" | "fault:Timeout") {
         return Err(format!("cannot refresh {}: {actual}", row.id));
     }
     let new_match = judge(&row.expected, actual).0 == Severity::Exact;
     let old = row.calc_func.as_deref().unwrap_or(&row.expected);
-    if judge(&row.expected, old).0 == Severity::Exact && !new_match {
-        return Err(format!("cannot refresh {}: a previously matched pin now fails", row.id));
+    let lost = judge(&row.expected, old).0 == Severity::Exact && !new_match;
+    match (lost, loss_class) {
+        (true, None) => return Err(format!("cannot refresh {}: a previously matched pin now fails", row.id)),
+        (false, Some(class)) => return Err(format!("{} is listed as a classified loss ({class}) but is not one", row.id)),
+        (true, Some(class)) => println!("xtask witness: classified loss {}: {class}", row.id),
+        (false, None) => {}
     }
     let prediction = (!new_match).then(|| actual.to_owned());
     let changed = row.calc_func != prediction;
@@ -1407,7 +1419,7 @@ fn refresh_prediction(row: &mut WitnessRow, actual: &str) -> Result<bool, String
     Ok(changed)
 }
 
-fn refresh_pinned(sets: Vec<(PathBuf, WitnessSet)>, banks: &Banks, judged: &BTreeMap<String, Vec<Row>>, context_refresh: bool) -> Result<(), String> {
+fn refresh_pinned(sets: Vec<(PathBuf, WitnessSet)>, banks: &Banks, judged: &BTreeMap<String, Vec<Row>>, context_refresh: bool, losses: &BTreeMap<(String, String), String>) -> Result<(), String> {
     let mut updates = Vec::new();
     let mut changed = 0;
     for (path, mut set) in sets {
@@ -1418,7 +1430,8 @@ fn refresh_pinned(sets: Vec<(PathBuf, WitnessSet)>, banks: &Banks, judged: &BTre
             let context = set.readings.iter().find(|r| r.id == row.reading).and_then(|r| r.invocation.as_ref());
             let key = contextual_key(&set.function, &row.args, row.result_index, context);
             let actual = actuals.get(&key).ok_or(format!("no calculation for {} {}", set.function, row.id))?;
-            count += usize::from(refresh_prediction(row, actual)?);
+            let class = losses.get(&(set.function.clone(), row.id.clone())).map(String::as_str);
+            count += usize::from(refresh_prediction(row, actual, class)?);
         }
         let text = set.encode();
         let original = fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
@@ -1446,6 +1459,27 @@ fn refresh_pinned(sets: Vec<(PathBuf, WitnessSet)>, banks: &Banks, judged: &BTre
     }
     println!("xtask witness: refreshed {changed} calculated predictions in {} original pinned sets; recorded inputs, Excel answers and sample unchanged; context restoration {context_refresh}", updates.len());
     Ok(())
+}
+
+/// `--classified-losses`: tab-separated `function`, `id`, `class` lines (`#` starts a comment).
+fn read_classified_losses(path: Option<&Path>) -> Result<BTreeMap<(String, String), String>, String> {
+    let mut out = BTreeMap::new();
+    let Some(path) = path else { return Ok(out) };
+    let text = fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    for (i, line) in text.lines().enumerate() {
+        if line.trim().is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let mut fields = line.splitn(3, '\t');
+        let (Some(function), Some(id), Some(class)) = (fields.next(), fields.next(), fields.next()) else {
+            return Err(format!("{} line {}: needs function, id and class", path.display(), i + 1));
+        };
+        if class.trim().is_empty() {
+            return Err(format!("{} line {}: a loss needs its class", path.display(), i + 1));
+        }
+        out.insert((function.to_ascii_uppercase(), id.to_owned()), class.trim().to_owned());
+    }
+    Ok(out)
 }
 
 // OxFunc's ledger
@@ -1819,7 +1853,8 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
         }
     }
     if request.verb == Verb::Refresh {
-        refresh_pinned(original_pins.ok_or("refresh requires the original pins")?, &banks, &judged, request.refresh_context)?;
+        let losses = read_classified_losses(request.classified_losses.as_deref())?;
+        refresh_pinned(original_pins.ok_or("refresh requires the original pins")?, &banks, &judged, request.refresh_context, &losses)?;
     }
     let bank = match request.bank {
         Bank::Pinned => "pinned",
@@ -2391,18 +2426,23 @@ mod tests {
             reading: "r0".into(), calc_func: Some("0x3ff0000000000003".into()),
         };
         let original = row.clone();
-        assert!(refresh_prediction(&mut row, "0x3ff0000000000002").unwrap());
+        assert!(refresh_prediction(&mut row, "0x3ff0000000000002", None).unwrap());
         let prediction = row.calc_func.clone();
         row.calc_func = original.calc_func.clone();
         assert_eq!(row, original);
         row.calc_func = prediction;
-        assert!(refresh_prediction(&mut row, "0x3ff0000000000000").unwrap());
+        assert!(refresh_prediction(&mut row, "0x3ff0000000000000", None).unwrap());
         assert!(row.calc_func.is_none());
         let matched = row.clone();
-        assert!(refresh_prediction(&mut row, "0x3ff0000000000001").is_err());
-        assert!(refresh_prediction(&mut row, "fault:Timeout").is_err());
-        assert!(refresh_prediction(&mut row, "fault:Panic").is_err());
+        assert!(refresh_prediction(&mut row, "0x3ff0000000000001", None).is_err());
+        assert!(refresh_prediction(&mut row, "fault:Timeout", None).is_err());
+        assert!(refresh_prediction(&mut row, "fault:Panic", None).is_err());
         assert_eq!(row, matched);
+        // A classified loss is accepted and keeps the calculation as the prediction; a listed
+        // row that did not lose its match is refused.
+        assert!(refresh_prediction(&mut row, "0x3ff0000000000001", Some("compensating error")).unwrap());
+        assert_eq!(row.calc_func.as_deref(), Some("0x3ff0000000000001"));
+        assert!(refresh_prediction(&mut row, "0x3ff0000000000002", Some("compensating error")).is_err());
     }
 
     fn comparison_row(id: usize, expected: &str, actual: &str) -> Value {
