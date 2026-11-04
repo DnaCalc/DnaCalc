@@ -1,0 +1,23 @@
+[package]
+name = "calc-host-vba"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "Shared workbook VBA project and automatic event composition"
+
+[package.metadata.dnacalc]
+portability = "portable"
+
+[dependencies]
+calc-host = { path = "../calc-host" }
+calc-vba = { path = "../calc-vba" }
+calc-value = { path = "../calc-value" }
+
+[dev-dependencies]
+calc-doc = { path = "../calc-doc" }
+cfb = "=0.10.0"
+miniz_oxide = "=0.8.9"
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "=0.3.67"

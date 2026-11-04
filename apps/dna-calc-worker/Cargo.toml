@@ -8,6 +8,7 @@ license.workspace = true
 portability = "portable"
 [dependencies]
 calc-vba = {path="../../crates/calc-vba"}
+calc-host-vba = {path="../../crates/calc-host-vba"}
 dna-calc-model = {path="../dna-calc-model"}
 dna-calc-protocol = {path="../dna-calc-protocol"}
 dna-formula-ui = {path="../dna-formula-ui"}
@@ -19,6 +20,9 @@ js-sys = "=0.3.94"
 web-sys = {version="=0.3.94",features=["DedicatedWorkerGlobalScope","MessageEvent","Crypto"]}
 [dev-dependencies]
 calc-fml = {path="../../crates/calc-fml"}
+calc-doc = {path="../../crates/calc-doc"}
+cfb = "=0.10.0"
+miniz_oxide = "=0.8.9"
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "=0.3.67"

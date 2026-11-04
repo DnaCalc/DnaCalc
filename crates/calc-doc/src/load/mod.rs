@@ -665,6 +665,38 @@ impl LoadedWorkbook {
         crate::vba::read(&self.package, &self.workbook_part, policy)
     }
 
+    /// Presence only; disabled-macro callers do not decode or compile the project.
+    pub fn has_vba_project(&self) -> bool {
+        crate::vba::has_project(&self.package, &self.workbook_part)
+    }
+
+    /// Explicit project activation uses the persisted document code names, never
+    /// the sheet tab names or a guessed `ThisWorkbook`/`Sheet1` convention.
+    pub fn vba_document_names(
+        &self,
+    ) -> Result<Vec<(String, Option<SheetId>)>, crate::VbaReadError> {
+        let mut names = Vec::new();
+        for (part, element, sheet) in std::iter::once((
+            self.workbook_part.as_str(), "workbookPr", None,
+        )).chain(self.sheets.iter().map(|sheet| (
+            sheet.part().name(), "sheetPr", Some(sheet.id()),
+        ))) {
+            let xml = self.package.read_xml(part).map_err(crate::VbaReadError::Part)?;
+            let mut reader = xml.reader();
+            while let Some(event) = reader.next_event().map_err(|e| {
+                crate::VbaReadError::InvalidProject(format!("document code name: {e}"))
+            })? {
+                if let crate::xml::XmlEvent::Start(e) = event
+                    && e.name.is(MAIN_NAMESPACE, element)
+                    && let Some(name) = e.attribute("codeName")
+                {
+                    names.push((name.to_owned(), sheet));
+                }
+            }
+        }
+        Ok(names)
+    }
+
     /// Each sheet's records, in workbook order, as the model's sheets are.
     pub fn sheets(&self) -> &[LoadedSheet] {
         &self.sheets

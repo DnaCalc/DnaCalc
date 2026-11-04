@@ -108,6 +108,7 @@
         "calc-engine",
         "calc-host",
         "calc-verdict",
+        "calc-host-vba",
         "dna-formula-ui",
         "dna-onecalc",
         "dna-calc",

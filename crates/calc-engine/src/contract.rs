@@ -703,7 +703,21 @@ pub(crate) fn span_versions_at(
     versions
 }
 
-fn span_nodes_at(state: &EngineState, progress: &Progress, region: GridArea) -> BTreeSet<NodeId> {
+fn span_nodes_at(
+    state: &EngineState,
+    progress: &Progress,
+    region: GridArea,
+) -> impl Iterator<Item = NodeId> {
+    // A scalar span with no published, imported or staged array footprint has
+    // exactly its authored anchor as a possible producer. Keep the ordinary
+    // validator, without two range bounds or a temporary ordered allocation.
+    if region.first() == region.last()
+        && state.spills.is_empty()
+        && state.cached_arrays.is_empty()
+        && progress.footprints.is_empty()
+    {
+        return state.node_at(region.first()).into_iter().chain(BTreeSet::new());
+    }
     let mut nodes: BTreeSet<_> = state
         .by_anchor
         .range(region.first()..=region.last())
@@ -739,7 +753,7 @@ fn span_nodes_at(state: &EngineState, progress: &Progress, region: GridArea) -> 
             .filter(|(_, area)| meets(**area, region))
             .map(|(node, _)| *node),
     );
-    nodes
+    None.into_iter().chain(nodes)
 }
 
 pub(crate) fn boundary_ancestry_at(

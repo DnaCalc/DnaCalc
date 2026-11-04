@@ -120,9 +120,12 @@ impl HostObjectServices for Services {
                 }
         } else if self.0.iid == types::BOOK {
             descriptor.interface == types::BOOK_EVENTS
-                && descriptor.dispatch_id == 1
-                && descriptor.name.eq_ignore_ascii_case("BeforeSave")
-                && descriptor.parameters == [EventParameter::Boolean, EventParameter::BooleanByRef]
+                && match descriptor.dispatch_id {
+                    1 => descriptor.name.eq_ignore_ascii_case("BeforeSave")
+                        && descriptor.parameters == [EventParameter::Boolean, EventParameter::BooleanByRef],
+                    2 => descriptor.name.eq_ignore_ascii_case("Open") && descriptor.parameters.is_empty(),
+                    _ => false,
+                }
         } else {
             false
         };
@@ -152,6 +155,9 @@ impl EventSource {
     }
     pub fn workbook(name: &str) -> Self {
         Self::new(types::BOOK, name)
+    }
+    pub fn open(&self, read: &dyn EventReadContext, max_steps: u64) -> Result<(), String> {
+        self.raise("Open", &mut [], read, max_steps, next_lease())
     }
     fn new(iid: [u8; 16], name: &str) -> Self {
         let hub = Rc::new(Hub {

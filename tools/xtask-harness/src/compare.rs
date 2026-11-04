@@ -546,6 +546,42 @@ fn capture_setting<'c>(capture: &'c CaptureRecord, name: &str) -> Option<&'c str
         .map(|(_, value)| value.as_str())
 }
 
+/// Captured macro policy is application-wide, including linked source workbooks.
+/// A disabled capture never admits source execution. Missing/interactive policy
+/// cannot certify a run that silently chooses to execute a file's project.
+pub(crate) fn prepare_captured_vba(
+    host: &HostState,
+    name: &str,
+    capture: &CaptureRecord,
+) -> Result<Option<(std::rc::Rc<calc_host_vba::WorkbookEvents>, bool)>, WorkbookFailure> {
+    if !host.loaded().has_vba_project() { return Ok(None); }
+    match capture_setting(capture, "automation_security") {
+        Some("3") => return Ok(None),
+        Some("1") => {}
+        _ => return Err(WorkbookFailure {
+            class: Class::Context,
+            key: "VbaPolicy:dc-snz.15".into(),
+            message: "the capture does not establish an enabled or disabled VBA project policy".into(),
+        }),
+    }
+    let events = match capture_setting(capture, "enable_events") {
+        Some("true") => true,
+        Some("false") => false,
+        _ => return Err(WorkbookFailure {
+            class: Class::Context,
+            key: "VbaEventsPolicy:dc-hsa5.12".into(),
+            message: "the enabled-VBA capture does not establish its event policy".into(),
+        }),
+    };
+    calc_host_vba::prepare_file_project(host, name, 100_000, None)
+        .map(|project| project.map(|project| (project, events)))
+        .map_err(|failure| WorkbookFailure {
+            class: Class::Doc,
+            key: "VbaProject:dc-snz.15".into(),
+            message: failure.to_string(),
+        })
+}
+
 /// The file Excel opened for `capture` (the setting workbook_path, its full name, dc-uar): its
 /// folder with the trailing separator and its file name. `None` when the capture records none.
 pub(crate) fn capture_file(capture: &CaptureRecord) -> Option<calc_fml::WorkbookFile> {
@@ -649,11 +685,18 @@ fn run_workbook(
             locale: capture_locale(capture),
         },
     );
+    let opened = opened.map_err(|failure| WorkbookFailure {
+        message: format!("HostState::open refused the package: {failure}"),
+        key: open_key(&failure), class: Class::Doc,
+    }).and_then(|host| {
+        prepare_captured_vba(&host, name.unwrap_or("Book1"), capture)
+            .map(|project| (host, project))
+    });
     let open_time = started.elapsed();
-    let mut host = match opened {
+    let (mut host, vba_project) = match opened {
         Ok(host) => host,
         Err(failure) => {
-            let reason = format!("HostState::open refused the package: {failure}");
+            let reason = failure.message.clone();
             let results = capture
                 .formulas
                 .iter()
@@ -665,9 +708,8 @@ fn run_workbook(
                     value: None,
                 })
                 .collect();
-            // No host was made, so no context was applied: the run names none, and no result
-            // claims one.
-            let context = "no-host: HostState::open refused the package".to_owned();
+            // Workbook admission failed, so no result claims an applied calculation context.
+            let context = "no-host: workbook admission refused".to_owned();
             return Ok(Run {
                 linked_inputs: Vec::new(),
                 results: ResultSet {
@@ -682,11 +724,7 @@ fn run_workbook(
                 record: empty_record(),
                 dna: vec![Dna::OpenRefused; capture.formulas.len()],
                 retained: HashMap::new(),
-                workbook: Some(WorkbookFailure {
-                    class: Class::Doc,
-                    key: open_key(&failure),
-                    message: reason,
-                }),
+                workbook: Some(failure),
                 declared: None,
                 context,
                 revision: 0,
@@ -731,11 +769,17 @@ fn run_workbook(
     let started = Instant::now();
     let options = host.options().clone();
     let mut domain = calc_host::CalculationDomain::new();
-    let root = domain.insert(host).expect("new calculation domain");
+    let mut session = calc_host::HostSession::new(host);
+    if let Some((project, events)) = vba_project {
+        session.set_workbook_events_enabled(events);
+        project.install(&mut session);
+        session.notify_workbook_open();
+    }
+    let root = domain.insert_session(session).expect("new calculation domain");
     let linked_inputs = fixture_path
-        .map(|path| crate::linked_workbooks::load(&mut domain, root, path, &options))
+        .map(|path| crate::linked_workbooks::load(&mut domain, root, path, &options, capture))
         .unwrap_or_default();
-    let workbook = match domain.request_calculation(&[root], false) {
+    let mut workbook = match domain.request_calculation(&[root], false) {
         Err(error) => Some(WorkbookFailure {
             class: Class::Engine,
             key: "linked_domain".into(),
@@ -772,6 +816,17 @@ fn run_workbook(
             }
         },
     };
+    let ids = domain.workbook_ids().collect::<Vec<_>>();
+    for id in ids {
+        let failures = domain.session(id).expect("loaded workbook").workbook_event_failures();
+        if !failures.failures.is_empty() || failures.omitted > 0 {
+            workbook.get_or_insert_with(|| WorkbookFailure {
+                class: Class::Engine,
+                key: "VbaEvent:dc-hsa5.12".into(),
+                message: format!("workbook VBA events failed: {:?}; omitted {}", failures.failures, failures.omitted),
+            });
+        }
+    }
     if workbook.is_some() {
         instrument.drop_all();
     }
@@ -1200,6 +1255,36 @@ mod test_package;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn captured_macro_policy_controls_file_execution_and_event_admission() {
+        let bytes = include_bytes!("../../../crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm");
+        let mut capture = CaptureRecord::decode(br#"{"format":"dnacalc-capture-record","version":1,"case":"vba-policy-control","source":"sha256:00","acquisition":{"kind":"file_cache_replay"},"environment":null,"sheets":[{"name":"Cases","visibility":"visible"}],"formulas":[{"sheet":"Cases","row":1,"column":2,"kind":"ordinary"}],"observations":[]}"#).unwrap();
+        let unknown = run_workbook(bytes, Some("local.xlsm"), None, &capture, NumericMode::Fast).unwrap();
+        assert_eq!(unknown.workbook.as_ref().unwrap().class, Class::Context);
+        assert!(unknown.record.evaluations.is_empty());
+        capture.environment = Some(calc_verdict::ExcelEnvironment {
+            target: NumericTargetId::new("test", "test", "test", "test").unwrap(),
+            settings: vec![("automation_security".into(), "3".into())],
+        });
+        let disabled = run_workbook(bytes, Some("local.xlsm"), None, &capture, NumericMode::Fast).unwrap();
+        assert!(matches!(disabled.results.results[0].provenance, Provenance::NotModeled { .. }));
+        let host = HostState::open(Arc::new(MemorySource::new(bytes.to_vec())), &OpenPolicy::default(), HostOptions::default()).unwrap();
+        for enabled in [false, true] {
+            capture.environment.as_mut().unwrap().settings = vec![
+                ("automation_security".into(), "1".into()),
+                ("enable_events".into(), enabled.to_string()),
+            ];
+            let (_, events) = prepare_captured_vba(&host, "local.xlsm", &capture).unwrap().unwrap();
+            assert_eq!(events, enabled);
+            let admitted = run_workbook(bytes, Some("local.xlsm"), None, &capture, NumericMode::Fast).unwrap();
+            assert!(admitted.workbook.is_none());
+            assert!(matches!(admitted.results.results[0].provenance, Provenance::Calculated { .. }));
+            assert_eq!(admitted.results.results[0].value.as_ref().unwrap().as_number(), Some(102.));
+        }
+        capture.environment.as_mut().unwrap().settings.pop();
+        assert_eq!(prepare_captured_vba(&host, "local.xlsm", &capture).err().unwrap().class, Class::Context);
+    }
 
     /// Native-only: resolves actual linked package files through the comparison route.
     #[test]

@@ -24,6 +24,7 @@ calc-doc = { path = "../../crates/calc-doc" }
 calc-fml = { path = "../../crates/calc-fml" }
 calc-func = { path = "../../crates/calc-func" }
 calc-host = { path = "../../crates/calc-host" }
+calc-host-vba = { path = "../../crates/calc-host-vba" }
 calc-verdict = { path = "../calc-verdict" }
 # The token stylesheet the app bundles start with (`cargo xtask app bundle`, dc-xib).
 dna-strand = { path = "../../apps/dna-strand" }

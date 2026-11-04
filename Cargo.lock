@@ -285,6 +285,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "calc-host-vba"
+version = "0.1.0"
+dependencies = [
+ "calc-doc",
+ "calc-host",
+ "calc-value",
+ "calc-vba",
+ "cfb",
+ "miniz_oxide",
+ "wasm-bindgen-test",
+]
+
+[[package]]
 name = "calc-oracle-excel"
 version = "0.1.0"
 dependencies = [
@@ -327,6 +340,7 @@ dependencies = [
  "oxvba-oxir",
  "oxvba-runtime",
  "oxvba-symbol",
+ "oxvba-syntax",
  "scoped-tls-hkt",
  "thiserror 2.0.21",
  "wasm-bindgen-test",
@@ -864,15 +878,19 @@ dependencies = [
 name = "dna-calc-worker"
 version = "0.1.0"
 dependencies = [
+ "calc-doc",
  "calc-fml",
  "calc-func",
  "calc-host",
+ "calc-host-vba",
  "calc-value",
  "calc-vba",
+ "cfb",
  "dna-calc-model",
  "dna-calc-protocol",
  "dna-formula-ui",
  "js-sys",
+ "miniz_oxide",
  "wasm-bindgen",
  "wasm-bindgen-test",
  "web-sys",
@@ -3162,6 +3180,7 @@ dependencies = [
  "calc-fml",
  "calc-func",
  "calc-host",
+ "calc-host-vba",
  "calc-oracle-excel",
  "calc-platform-desktop",
  "calc-verdict",

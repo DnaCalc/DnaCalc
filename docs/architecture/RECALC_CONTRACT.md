@@ -616,8 +616,37 @@ Workbook event hookup (dc-hsa5.12, 2026-11-03): an explicitly loaded source
 project supplies its standard/document module kinds and worksheet identities.
 The compiler/runtime select private handlers and subscribe the host's canonical
 document sources. Standard-module UDFs and handlers retain the same project
-state. This does not execute a file's VBA automatically or register handler
-procedure names in a second catalogue. OneCalc retains its engine-free route.
+state. Handler selection stays in the compiler/runtime. OneCalc retains its engine-free route.
+
+File projects (dc-snz.15): the worker now reads the opened package's VBA source,
+matches document modules to persisted workbook/worksheet code names, and installs
+the same owner before the first calculation. Its explicit Preserve policy compiles
+and executes no project. Failed source, signature, document identity or class/designer
+admission returns a typed refusal before replacement. Public standard-module UDFs,
+including Option Private Module, share one state with the attached document events.
+Private Function worksheet lookup and the XML/binary forced-UDF distinction remain open.
+
+File-project event values cannot yet retain their read provenance after entering VBA
+module state. A Target.Value2 read therefore refuses file caches, stale values and
+calculated values with held, imported, external or other cache qualifications
+(dc-snz.15). The event refusal remains visible even when VBA catches the error.
+Literal values and ordinary certified calculations remain readable. The explicit-source
+event API retains its existing observation policy; full event-state provenance remains open.
+
+Workbook_Open runs once after file-project installation and before automatic
+calculation; replacement does not replay it. Open, Change, Calculate and BeforeSave
+are the admitted event surface. The compiler's resolved document symbols and current
+event descriptors reject other reserved event-prefixed procedures, including active
+conditional declarations; inactive declarations do not create handlers. Event faults
+remain recorded once through the host/worker route. This establishes the DNA lifecycle
+and shared state, without new Excel Open/P22 ordering evidence. Events still have the
+read-only object surface described below; general macro writes remain open.
+
+The corpus runner uses this owner only under a capture's recorded enabled macro
+policy and recorded event switch. Disabled captures preserve source without compiling
+it. Missing or interactive macro policy on a VBA-bearing package prevents a certified
+comparison. Linked source workbooks follow the same application policy. An admitted
+event failure prevents a calculated pass in that comparison.
 
 The host delivers Change after an authored cell-write commit, before automatic
 calculation. Same-value writes and clears retain explicit targets; formats and
