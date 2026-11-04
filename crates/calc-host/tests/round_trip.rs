@@ -14835,3 +14835,53 @@ fn dc_971p_38__existing_excel_table_revision_identities_survive_sorting() {
     assert_eq!(reopened.host().model().cell(at(s,"B2")),Some(&number(2.)));
     assert_eq!(reopened.host().model().definitions().tables(),tables);
 }
+
+/// The workbook setting is independent of locale, build and formula form. Retained W111
+/// Version2 LEN("A😀B") is3; the Version1 catalogue counts4 UTF-16 units.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_workbook_compatibility_version_survives_host_save_and_reopen() {
+    for (version, expected) in [(1, 4.0), (2, 3.0)] {
+        let bytes = package_with_part("xl/workbook.xml", |xml| xml.replace("</workbook>",
+            &format!("<extLst><ext uri=\"{{D14903EA-33C4-47F7-8F05-3474C54BE107}}\"><v:version xmlns:v=\"http://schemas.microsoft.com/office/spreadsheetml/2024/workbookCompatibilityVersion\" setVersion=\"{version}\"/></ext></extLst></workbook>")));
+        let mut book = session(&bytes);
+        let cell = at(book.host().sheets()[0].id(), "A1");
+        enter(&mut book, cell, "=LEN(\"A😀B\")");
+        assert_eq!(session_calculated(&book, cell), Some(CalcValue::number(expected)), "version{version}");
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        let mut reopened = session(&saved);
+        enter(&mut reopened, cell, "=LEN(\"A😀B\")+0");
+        assert_eq!(session_calculated(&reopened, cell), Some(CalcValue::number(expected)), "reopened version{version}");
+    }
+}
+
+/// Only the qualified workbook extension chooses a version. Absent legacy metadata is1;
+/// an explicit future/unknown value remains visible and cannot select a counting rule.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn workbook_compatibility_metadata_is_qualified_and_unknown_versions_stay_unknown() {
+    let extension = |uri: &str, namespace: &str, attributes: &str| format!(
+        "<extLst><ext uri=\"{uri}\"><v:version xmlns:v=\"{namespace}\" {attributes}/></ext></extLst>"
+    );
+    let uri = "{D14903EA-33C4-47F7-8F05-3474C54BE107}";
+    let namespace = "http://schemas.microsoft.com/office/spreadsheetml/2024/workbookCompatibilityVersion";
+    for (extra, version, expected) in [
+        (String::new(), 1, Some(4.0)),
+        (extension("other", namespace, "setVersion=\"2\""), 1, Some(4.0)),
+        (extension(uri, "urn:other", "setVersion=\"2\""), 1, Some(4.0)),
+        (extension(uri, namespace, ""), 0, None),
+        (extension(uri, namespace, "setVersion=\"0\""), 0, None),
+        (extension(uri, namespace, "setVersion=\"3\""), 3, None),
+    ] {
+        let bytes = package_with_part("xl/workbook.xml", |xml|
+            xml.replace("</workbook>", &format!("{extra}</workbook>")));
+        let mut book = session(&bytes);
+        assert_eq!(book.host().entry_environment().compatibility_version, version);
+        let sheet = book.host().sheets()[0].id();
+        enter(&mut book, at(sheet, "B1"), "=40+2");
+        enter(&mut book, at(sheet, "A1"), "=LEN(\"A😀B\")");
+        assert_eq!(session_calculated(&book, at(sheet, "A1")), expected.map(CalcValue::number), "{extra}");
+        assert_eq!(session_calculated(&book, at(sheet, "B1")), Some(CalcValue::number(42.0)));
+    }
+}

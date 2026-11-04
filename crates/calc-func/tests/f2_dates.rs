@@ -16,6 +16,7 @@ use f1_support::*;
 /// 2026 (VALUE("1/2") read 2 January 2026).
 fn host() -> CalcEnvironment {
     CalcEnvironment {
+        compatibility_version: 1,
         date_system: DateSystem::System1900,
         profile: Some(
             FormatProfile::for_culture("en-ZA")

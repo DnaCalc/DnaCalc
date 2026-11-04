@@ -13,6 +13,7 @@ use std::fmt;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SemanticEnvironment {
     pub date_system: DateSystem,
+    pub compatibility_version: u32,
     pub profile: Option<FormatProfile>,
 }
 
@@ -20,6 +21,7 @@ impl SemanticEnvironment {
     pub fn at(self, clock: Option<f64>) -> CalcEnvironment {
         CalcEnvironment {
             date_system: self.date_system,
+            compatibility_version: self.compatibility_version,
             profile: self.profile,
             now: clock,
         }
@@ -30,6 +32,7 @@ impl From<CalcEnvironment> for SemanticEnvironment {
     fn from(value: CalcEnvironment) -> Self {
         Self {
             date_system: value.date_system,
+            compatibility_version: value.compatibility_version,
             profile: value.profile,
         }
     }
