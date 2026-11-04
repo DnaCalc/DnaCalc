@@ -91,7 +91,9 @@ function Status($Job = $script:activeJob) {
     Write-Json (Join-Path $root 'host.json') ([ordered]@{host_pid=$PID;host_start_ticks=$hostTicks;excel=$script:owned;launches=$script:launches;sequence=$script:sequence;ordinary_sequence=$script:ordinarySequence;active_job=$Job;environment=$script:environment;preserve_automation_security=$global:DnaExcelSessionState.PreserveAutomationSecurity})
 }
 function Read-Property($Object, [string]$Name) {
-    $Object.GetType().InvokeMember($Name, [Reflection.BindingFlags]::GetProperty, $null, $Object, $null)
+    # Resolving a COM object's runtime type repeatedly asks for its type information.
+    # Use the same throwing dispatch reader as the capture worker.
+    [System.__ComObject].InvokeMember($Name, [Reflection.BindingFlags]::GetProperty, $null, $Object, $null)
 }
 function Snapshot {
     $a = $global:DnaExcelSessionState.App
