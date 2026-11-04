@@ -216,16 +216,15 @@ ported_family! {
         if values.is_empty() || values.iter().any(|v| *v <= 0.0) {
             return fail(WorksheetErrorCode::Num);
         }
-        // The n-th root of the binary64 product computed in the x87 registers
-        // (excel_root_x87, dc-j9k): 168 of the 200 GEOMEAN readings of the catalogue oracle's
-        // sheet dcj9k_statistics match, where the correctly rounded pow with exponent 1/n
-        // matched 4 of the sweep's 20; it misses GEOMEAN(1,5,3) by one ulp, which that pow
-        // matched. A product beyond binary64's range falls back to the mean logarithm (not
-        // measured).
+        // R26: each product assignment stores from x87 PC64. Independent
+        // GEOMEAN(product,1,1) readings distinguish this loop from plain
+        // binary64 without assuming the private root implementation.
+        // The current root reconstruction still has recorded mismatches.
+        // The overflow/underflow fallback remains a separate open question.
         let n = values.len() as f64;
-        let product = values.iter().product::<f64>();
+        let product = values.iter().fold(1.0, |p, &x| k::excel_numeric::excel_x87_mul(p, x));
         if product.is_normal() {
-            s.number(k::excel_numeric::excel_root_x87(&values))
+            s.number(k::excel_numeric::excel_root_x87(product, values.len()))
         } else {
             let ln = values.iter().map(|v| crt_log(*v)).sum::<f64>();
             s.number(crt_exp(ln / n))

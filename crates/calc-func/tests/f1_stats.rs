@@ -45,6 +45,29 @@ fn deviations_and_means() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn geomean_stores_each_product_from_pc64() {
+    // R26 canonical scalar-cell readings: an independently known square
+    // rounding tie. Separate GEOMEAN(product,1,1) readings identify the
+    // stored-PC64 product without assuming the private root implementation.
+    let x = f64::from_bits(0x401f9ff8b1ae9622);
+    // The non-power third factor also distinguishes a store after the square
+    // from a resident-PC64 accumulator stored only after the last multiply.
+    for (third, expected) in [
+        (0x3e20000000000000, 0x3f74003a5b535262),
+        (0x3ff4cccccccccc61, 0x40115357789642a4),
+    ] {
+        let third = f64::from_bits(third);
+        let expected = f64::from_bits(expected);
+        exact(call("GEOMEAN",vec![n(x),n(x),n(third)]),expected);
+        let mut sheet = Sheet::new();
+        sheet.column(1,1,vec![n(x),n(x),n(third)]);
+        let args = (1..=3).map(|row|sheet.area(row,1,row,1)).collect();
+        exact(call_on(&mut sheet,"GEOMEAN",args),expected);
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn variances() {
     exact(call("STDEV.P", vec![data()]), 2.0);
     exact(call("STDEVP", vec![data()]), 2.0);
