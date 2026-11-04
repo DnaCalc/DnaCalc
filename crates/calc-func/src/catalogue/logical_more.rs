@@ -103,15 +103,9 @@ fn selected(value: &CalcValue) -> CalcValue {
     }
 }
 
-fn contains_callable(value: &CalcValue) -> bool {
-    value.callable_value().is_some()
-        || value
-            .as_array()
-            .is_some_and(|array| array.iter_row_major().any(contains_callable))
-}
-
 /// A selected result may be an array. The caller owns lifting array conditions/cases;
 /// scalar selectors return their chosen result whole, without inspecting unused results.
+/// A callable keeps its identity here; worksheet publication owns its visible core.
 fn selection(
     id: FunctionId,
     arguments: &[CalcValue],
@@ -119,14 +113,7 @@ fn selection(
     select: fn(&Site<'_>, &[CalcValue]) -> Step<CalcValue>,
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(id, services);
-    Site::finish(site.binary64().and_then(|()| {
-        let value = select(&site, arguments)?;
-        if contains_callable(&value) {
-            Err(site.not_modelled(None))
-        } else {
-            Ok(value)
-        }
-    }))
+    Site::finish(site.binary64().and_then(|()| select(&site, arguments)))
 }
 
 fn ifs(
