@@ -1,0 +1,264 @@
+{
+  "capture_provenance": {
+    "automation_security_after": 1,
+    "automation_security_before": 1,
+    "calculation_settings": {
+      "CompatibilityVersion": 2,
+      "Date1904": false,
+      "DecimalSeparator": ".",
+      "PrecisionAsDisplayed": false,
+      "ThousandsSeparator": " ",
+      "UseSystemSeparators": true,
+      "calculation": -4135,
+      "compatibility_version": null,
+      "unavailable": []
+    },
+    "captured_utc": "2026-11-04T02:17:38Z",
+    "environment": {
+      "cpu_id": "AMD Ryzen 7 4800H with Radeon Graphics         ",
+      "excel_bitness": "64-bit",
+      "excel_build": "20527",
+      "excel_file_version": "16.0.20527.20088",
+      "excel_input_plumbing": "cell_value2_bulk",
+      "excel_operating_system": "Microsoft Windows NT 10.0.26200.0",
+      "excel_version": "16.0",
+      "platform": "Windows"
+    },
+    "frozen_model_predictions": {
+      "calc_func_commit": "818c20e4c544bd614bc5fb82eb285fa5e4fae66e",
+      "formula_literal_ids": [],
+      "frozen_path": "C:\\Work\\DnaCalc\\DnaCalc-win\\target/witness/frozen\\LOWER-20261104T021724Z.json",
+      "frozen_sha256": "b11845da3a438c756c608f5c58ef002554bb5118cb54b29d99aee205879c2e3d",
+      "inputs_path": "C:\\Work\\DnaCalc\\codex-runs\\excel-questions-fn3\\LOWER.inputs.json",
+      "inputs_sha256": "127808b7c535daf4e18fc576dc206e4e2d62b405e514d0489f82bb42ddb7a0b1",
+      "novelty": null,
+      "selection": null
+    },
+    "inputs": "C:\\Work\\DnaCalc\\codex-runs\\excel-questions-fn3\\LOWER.inputs.json",
+    "reader": "calc-oracle-excel 0.1.0; worker results 1; worker sha256:8a0ea57f14cd6e8198137d917f3df91a3f61a99197460aacdfabe398807551dd; witness worker sha256:3f716c7cda564233ec9ffc8efb53816ea4d0ad92c567c739c6b61f702e7ac0da",
+    "schema_version": "dnacalc-witness-reading/1"
+  },
+  "function": "LOWER",
+  "input_audits": [
+    {
+      "audit": {
+        "argument_literals": null,
+        "effective_callee_inputs": "not directly observable",
+        "formula": "=LOWER(RC[1])",
+        "read_back": [
+          {
+            "text": "d801dc00"
+          }
+        ],
+        "requested": [
+          {
+            "text": "𐐀"
+          }
+        ],
+        "submitted_value2": [
+          {
+            "text": "d801dc00"
+          }
+        ],
+        "transport": "cell_value2_bulk"
+      },
+      "id": "fn3-lower-001",
+      "observed_raw": {
+        "text": "d801dc00"
+      },
+      "reading_failure": null
+    },
+    {
+      "audit": {
+        "argument_literals": null,
+        "effective_callee_inputs": "not directly observable",
+        "formula": "=LOWER(RC[1])",
+        "read_back": [
+          {
+            "text": "d801dc28"
+          }
+        ],
+        "requested": [
+          {
+            "text": "𐐨"
+          }
+        ],
+        "submitted_value2": [
+          {
+            "text": "d801dc28"
+          }
+        ],
+        "transport": "cell_value2_bulk"
+      },
+      "id": "fn3-lower-002",
+      "observed_raw": {
+        "text": "d801dc28"
+      },
+      "reading_failure": null
+    },
+    {
+      "audit": {
+        "argument_literals": null,
+        "effective_callee_inputs": "not directly observable",
+        "formula": "=LOWER(RC[1])",
+        "read_back": [
+          {
+            "text": "0041d801dc0003a3"
+          }
+        ],
+        "requested": [
+          {
+            "text": "A𐐀Σ"
+          }
+        ],
+        "submitted_value2": [
+          {
+            "text": "0041d801dc0003a3"
+          }
+        ],
+        "transport": "cell_value2_bulk"
+      },
+      "id": "fn3-lower-003",
+      "observed_raw": {
+        "text": "0061d801dc0003c2"
+      },
+      "reading_failure": null
+    },
+    {
+      "audit": {
+        "argument_literals": null,
+        "effective_callee_inputs": "not directly observable",
+        "formula": "=LOWER(RC[1])",
+        "read_back": [
+          {
+            "text": "039103a30300"
+          }
+        ],
+        "requested": [
+          {
+            "text": "ΑΣ̀"
+          }
+        ],
+        "submitted_value2": [
+          {
+            "text": "039103a30300"
+          }
+        ],
+        "transport": "cell_value2_bulk"
+      },
+      "id": "fn3-lower-004",
+      "observed_raw": {
+        "text": "03b103c30300"
+      },
+      "reading_failure": null
+    },
+    {
+      "audit": {
+        "argument_literals": null,
+        "effective_callee_inputs": "not directly observable",
+        "formula": "=LOWER(RC[1])",
+        "read_back": [
+          {
+            "text": "039103a3002e"
+          }
+        ],
+        "requested": [
+          {
+            "text": "ΑΣ."
+          }
+        ],
+        "submitted_value2": [
+          {
+            "text": "039103a3002e"
+          }
+        ],
+        "transport": "cell_value2_bulk"
+      },
+      "id": "fn3-lower-005",
+      "observed_raw": {
+        "text": "03b103c2002e"
+      },
+      "reading_failure": null
+    },
+    {
+      "audit": {
+        "argument_literals": null,
+        "effective_callee_inputs": "not directly observable",
+        "formula": "=LOWER(RC[1])",
+        "read_back": [
+          {
+            "text": "0391030103a30301"
+          }
+        ],
+        "requested": [
+          {
+            "text": "ΆΣ́"
+          }
+        ],
+        "submitted_value2": [
+          {
+            "text": "0391030103a30301"
+          }
+        ],
+        "transport": "cell_value2_bulk"
+      },
+      "id": "fn3-lower-006",
+      "observed_raw": {
+        "text": "03b1030103c30301"
+      },
+      "reading_failure": null
+    }
+  ],
+  "transport_audit_readings": [],
+  "unread": [],
+  "witnesses": [
+    {
+      "args": [
+        "𐐀"
+      ],
+      "calc_func_prediction": "text:𐐨",
+      "expected_bits": "text:𐐀",
+      "id": "fn3-lower-001"
+    },
+    {
+      "args": [
+        "𐐨"
+      ],
+      "calc_func_prediction": "text:𐐨",
+      "expected_bits": "text:𐐨",
+      "id": "fn3-lower-002"
+    },
+    {
+      "args": [
+        "A𐐀Σ"
+      ],
+      "calc_func_prediction": "text:a𐐨ς",
+      "expected_bits": "text:a𐐀ς",
+      "id": "fn3-lower-003"
+    },
+    {
+      "args": [
+        "ΑΣ̀"
+      ],
+      "calc_func_prediction": "text:ασ̀",
+      "expected_bits": "text:ασ̀",
+      "id": "fn3-lower-004"
+    },
+    {
+      "args": [
+        "ΑΣ."
+      ],
+      "calc_func_prediction": "text:ας.",
+      "expected_bits": "text:ας.",
+      "id": "fn3-lower-005"
+    },
+    {
+      "args": [
+        "ΆΣ́"
+      ],
+      "calc_func_prediction": "text:άσ́",
+      "expected_bits": "text:άσ́",
+      "id": "fn3-lower-006"
+    }
+  ]
+}

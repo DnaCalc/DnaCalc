@@ -309,13 +309,19 @@ fn fn1_excel_regex_unicode_and_newline_controls() {
     }
 }
 
-/// These range/case combinations have no fn1 reading. They retain a typed refusal rather
-/// than applying a literal-only case rule to ranges. These are scope controls, not Excel passes.
+/// Fn3 retains É in [é-é]. The other singleton ranges use the same simple-fold
+/// equivalence as the retained fn3 long-s and Kelvin literal controls; they are consequences
+/// of singleton range membership, not additional captured Excel questions.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn unmeasured_unicode_regex_case_ranges_keep_the_typed_refusal() {
+fn unicode_regex_singleton_ranges_use_the_measured_literal_equivalence() {
     for (input, pattern) in [("É", "[é-é]"), ("ſ", "[s-s]"), ("K", "[K-K]")] {
-        refused(call("REGEXTEST", vec![t(input), t(pattern), n(1.0)]));
+        let result = call("REGEXTEST", vec![t(input), t(pattern), n(1.0)]).unwrap();
+        assert_eq!(result.as_logical(), Some(true), "{input:?} / {pattern:?}");
+    }
+    // These are admission limits, not predictions of an Excel value.
+    for pattern in ["[\u{0001}-\u{FFFF}]", "[ω-α]", "[^ω-α]", "(a)"] {
+        refused(call("REGEXTEST", vec![t("a"), t(pattern), n(1.0)]));
     }
 }
 

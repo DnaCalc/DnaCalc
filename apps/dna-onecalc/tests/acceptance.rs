@@ -87,6 +87,48 @@ fn check_captured_questions(
     assert!(failures.is_empty(), "{} of {compared} readings differ:\n{}", failures.len(), failures.join("\n"));
 }
 
+/// Fn3 scalar readings retain the original cell Value2 transport and typed Excel result.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn delivered_fn3_scalar_readings_follow_the_application_route() {
+    let readings: [&[u8]; 3] = [
+        include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/LOWER.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/PROPER.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/REGEXTEST.reading.json"),
+    ];
+    let mut failures = Vec::new();
+    let mut count = 0;
+    for bytes in readings {
+        let reading: serde_json::Value = serde_json::from_slice(bytes).unwrap();
+        for witness in reading["witnesses"].as_array().unwrap() {
+            let mut session = Session::new("Sheet1").unwrap();
+            session.set_formula_cell("J20").unwrap();
+            let mut arguments = Vec::new();
+            for (index, value) in witness["args"].as_array().unwrap().iter().enumerate() {
+                let text = value.as_str().unwrap();
+                let input = if let Some(bits) = text.strip_prefix("0x") {
+                    InputValue::number(f64::from_bits(u64::from_str_radix(bits, 16).unwrap())).unwrap()
+                } else {
+                    InputValue::text(text).unwrap()
+                };
+                let at = format!("{}1", (b'A' + index as u8) as char);
+                session.set_input(&at, input).unwrap();
+                arguments.push(at);
+            }
+            let formula = format!("={}({})", reading["function"].as_str().unwrap(), arguments.join(","));
+            session.set_formula(&formula);
+            let result = session.calculate();
+            let expected = calc_verdict::decode_result(witness["expected_bits"].as_str().unwrap()).unwrap();
+            count += 1;
+            if result.result.as_ref() != Some(&expected) || !result.diagnostics.is_empty() {
+                failures.push(format!("{} {formula}: expected {expected:?}, actual {:?}; {:?}", witness["id"], result.result, result.diagnostics));
+            }
+        }
+    }
+    assert_eq!(count, 22);
+    assert!(failures.is_empty(), "{} of22 readings differ:\n{}", failures.len(), failures.join("\n"));
+}
+
 /// All twelve months and seven weekdays per tag, plus the captured era boundaries.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
