@@ -216,6 +216,10 @@ outside its scope. Automatic mixed requests, callbacks, tables, multi-cell
 arrays/spills and newly discovered cyclic Range dependencies remain refused.
 These final-value observations do not settle SCC execution counts or mid-cycle
 caches. The original pure cyclic Range conditions remain nonpasses.
+A typed refusal during an admitted mixed command fails it before replacing a
+warm result: a missing outside cache can stop a reader before its own cycle is
+discovered. A later authorized workbook calculation retains that seed. This is a
+DNA integrity control, without a new Excel observation.
 
 Nonnumeric stopping (dc-hsa5.11.1, 2026-11-04): the eng10 fresh-process
 delivery distinguishes logical outputs from numeric stopping samples. A NOT

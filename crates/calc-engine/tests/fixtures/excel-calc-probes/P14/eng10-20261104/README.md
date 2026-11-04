@@ -51,3 +51,8 @@ lifecycle; they are not additional Excel observations. Automatic mixed requests,
 tables, callbacks, multi-cell arrays/spills and newly discovered cycles retain
 typed refusals. No cyclic target is claimed as calculated, and SCC execution
 counts and mid-cycle cache observations remain open.
+
+A typed refusal during the admitted mixed command stops it before replacing a
+warm result. A missing outside cache can stop a reader before it reveals its own
+self-reference; a later Rebuild must still use that retained seed. The two-budget
+control exercises this DNA integrity rule without a new Excel observation.

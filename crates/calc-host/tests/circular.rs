@@ -862,6 +862,79 @@ fn dc_hsa5_11__mixed_range_unknown_array_collision_keeps_seed() {
     }
 }
 
+/// A missing outside cache can stop a reader before its own self-reference is
+/// discovered. This DNA integrity control preserves the next workbook seed.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_11__mixed_range_boundary_refusal_keeps_hidden_cycle_seed() {
+    let mut book = session_without_recalc(&calc_host::blank_package());
+    assert!(
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+            .accepted()
+    );
+    set_iteration(&mut book, IterationSettings::new(true, 1, 0.001));
+    p14_enter(&mut book, 1, 26, "TRUE");
+    p14_enter(&mut book, 1, 1, "=A1+1");
+    p14_enter(
+        &mut book,
+        1,
+        4,
+        "=IF(Z1,1,INDIRECT(\"E1\"))+INDIRECT(\"D1\")",
+    );
+    assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+    p14_advance(&mut book);
+    let mut bytes = Vec::new();
+    save(book.host(), &SavePolicy::default(), &mut bytes).unwrap();
+    for budget in [usize::MAX, 1] {
+        let mut book = session_without_recalc(&bytes);
+        book.set_calculation_budget(calc_host::WorkBudget::evaluations(budget));
+        let previous = p14_visible(&book, 1, 4).0;
+        let sheet = book.host().sheets()[0].id();
+        let at = |c| CellKey::new(sheet, 1, c).unwrap();
+        // Author E1 without entry calculation, outside the admitted A1:D1 scope.
+        assert!(
+            book.dispatch(SkinIntent::Edit {
+                edits: vec![CellEdit::Set {
+                    at: at(5),
+                    input: calc_host::CellInput::Formula(
+                        calc_host::FormulaText::new(
+                            calc_host::value::ExcelText::from_interop_assignment("1+1")
+                        )
+                        .unwrap()
+                    ),
+                }]
+            })
+            .accepted()
+        );
+        p14_enter(&mut book, 1, 26, "FALSE");
+        assert!(
+            book.dispatch(SkinIntent::CalculateRange {
+                areas: vec![calc_host::value::GridArea::new(at(1), at(4)).unwrap()]
+            })
+            .accepted()
+        );
+        p14_advance(&mut book);
+        let page = project(book.host(), &ProjectionRequest { cells: vec![at(4)] }).unwrap();
+        assert!(matches!(
+            page.recalc_failure(),
+            Some(calc_host::RecalcFailed::Failed(
+                calc_engine::RecalcFailure::NotModeledScope {
+                    owner: "dc-hsa5.11",
+                    ..
+                }
+            ))
+        ));
+        assert_eq!(p14_visible(&book, 1, 4).0, previous);
+        p14_enter(&mut book, 1, 26, "TRUE");
+        assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+        p14_advance(&mut book);
+        assert_eq!(
+            p14_visible(&book, 1, 4).0,
+            CalcValue::number(previous.as_number().unwrap() + 1.0)
+        );
+    }
+}
+
 fn p14_advance(book: &mut HostSession) {
     let mut steps = 0;
     while book.has_pending_calculation() {

@@ -4533,6 +4533,15 @@ fn stage(
         });
         return;
     }
+    if !work.range_refused.is_empty() && matches!(&done.result, FormulaResult::NotModeled { .. }) {
+        // A refusal can stop a reader before it reveals its own cycle. Installing
+        // that refusal would discard the warm seed needed by a later command.
+        work.failure = Some(RecalcFailure::NotModeledScope {
+            construct: "a typed refusal before dependency discovery completes in an iterative mixed range",
+            owner: "dc-hsa5.11",
+        });
+        return;
+    }
     if !work.range_refused.is_empty()
         && (done
             .spill
