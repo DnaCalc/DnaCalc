@@ -91,6 +91,67 @@ pub fn erf_approx(x: f64) -> f64 {
     libm::erf(x)
 }
 
+/// Cody's erfc rationals (Math. Comp. 23 (1969); the SPECFUN CALERF tables) for `x*exp(x*x)*erfc(x)`
+/// and `exp(x*x)*erfc(x)`. They stand in for Excel's own `F` in [`erfc_upper`], which is not
+/// identified: Excel's noise and steps show a different rational.
+const ERFC_C: [f64; 9] = [
+    5.64188496988670089e-1, 8.88314979438837594e0, 6.61191906371416295e1, 2.98635138197400131e2,
+    8.81952221241769090e2, 1.71204761263407058e3, 2.05107837782607147e3, 1.23033935479799725e3,
+    2.15311535474403846e-8,
+];
+const ERFC_D: [f64; 8] = [
+    1.57449261107098347e1, 1.17693950891312499e2, 5.37181101862009858e2, 1.62138957456669019e3,
+    3.29079923573345963e3, 4.36261909014324716e3, 3.43936767414372164e3, 1.23033935480374942e3,
+];
+const ERFC_P: [f64; 6] = [
+    3.05326634961232344e-1, 3.60344899949804439e-1, 1.25781726111229246e-1, 1.60837851487422766e-2,
+    6.58749161529837803e-4, 1.63153871373020978e-2,
+];
+const ERFC_Q: [f64; 5] = [
+    2.56852019228982242e0, 1.87295284992346725e0, 5.27905102951428412e-1, 6.05183413124413191e-2,
+    2.33520497626869185e-3,
+];
+/// `1/sqrt(pi)`.
+const ERFC_SQRPI: f64 = 5.6418958354775628695e-1;
+
+/// The upper branch of Excel's erfc for `x >= 0.5`: `Q = E * F`.
+///
+/// `E` is measured. `z = RN53(RN64(x*x))` and `E = exp(-z)` are stored to binary64 before use: over
+/// 220,000 Excel answers up to `x = 26.5` the residual of `Q` against this `E` times the true
+/// `exp(x*x)*erfc(x)` stays within about 10 units of 2^-53, where the exact `exp(-x*x)` spreads by
+/// hundreds of units. `z`'s double rounding shows directly: plain binary64 `x*x` leaves outliers of
+/// up to 1,024 units.
+///
+/// `F` is a stand-in with the same store discipline. Excel's own `F` is not identified: its
+/// noise lines are those of two degree-8 polynomials in `x`, close in shape to Cephes'. Last bits
+/// differ until it is.
+pub fn erfc_upper(x: f64) -> f64 {
+    use crate::ported::excel_numeric::{excel_exp, excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_sub};
+    let step = |value: f64, c: f64, by: f64| excel_x87_mul(excel_x87_add(value, c), by);
+    let z = excel_x87_mul(x, x);
+    let e = excel_exp(-z);
+    let f = if x <= 4.0 {
+        let mut num = excel_x87_mul(ERFC_C[8], x);
+        let mut den = x;
+        for i in 0..7 {
+            num = step(num, ERFC_C[i], x);
+            den = step(den, ERFC_D[i], x);
+        }
+        excel_x87_div(excel_x87_add(num, ERFC_C[7]), excel_x87_add(den, ERFC_D[7]))
+    } else {
+        let u = excel_x87_div(1.0, z);
+        let mut num = excel_x87_mul(ERFC_P[5], u);
+        let mut den = u;
+        for i in 0..4 {
+            num = step(num, ERFC_P[i], u);
+            den = step(den, ERFC_Q[i], u);
+        }
+        let r = excel_x87_div(excel_x87_mul(u, excel_x87_add(num, ERFC_P[4])), excel_x87_add(den, ERFC_Q[4]));
+        excel_x87_div(excel_x87_sub(ERFC_SQRPI, r), x)
+    };
+    excel_x87_mul(e, f)
+}
+
 /// Binary64 reciprocal-square-root constant used by the normal wrappers.
 pub const FRAC_1_SQRT_2_BITS: u64 = 0x3fe6a09e667f3bcd;
 
