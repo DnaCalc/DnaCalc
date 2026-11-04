@@ -359,9 +359,9 @@ impl HostState {
         }
     }
 
-    /// Sets the clock NOW and TODAY read, as a serial date and time in the workbook's date
-    /// system, which the application reads from its platform (calc-host reads no clock of its
-    /// own); `None` refuses them again. Every recalculation calculates the formulas that call a
+    /// Sets the clock NOW and TODAY read, as a 1900-system serial date and time. The evaluator
+    /// converts it to the workbook's declared date system. The application supplies the clock;
+    /// calc-host reads no clock of its own. `None` refuses them again. Every recalculation calculates the formulas that call a
     /// volatile function, so the next one reads the clock set here.
     pub fn set_clock(&mut self, now: Option<f64>) {
         self.clock = now;

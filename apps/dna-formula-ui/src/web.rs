@@ -148,3 +148,35 @@ pub fn now_ms() -> f64 {
             * 1000.0
     }
 }
+
+/// The browser's local wall clock as a 1900-system Excel serial. The evaluator converts it
+/// to the workbook's declared date system. Native embeddings supply their own clock.
+pub fn serial_clock() -> Option<f64> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let now = js_sys::Date::new_0();
+        serial_from_local_ms(now.get_time() - now.get_timezone_offset() * 60_000.0)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    { None }
+}
+
+#[cfg(any(test, target_arch = "wasm32"))]
+fn serial_from_local_ms(local_ms: f64) -> Option<f64> {
+    let serial = local_ms / 86_400_000.0 + 25_569.0;
+    serial.is_finite().then_some(serial)
+}
+
+#[cfg(test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn local_clock_serial_retains_the_shared_epoch_and_refuses_missing_values() {
+    for (ms, fraction) in [(0.0, 0.0), (43_200_000.0, 0.5)] {
+        assert_eq!(serial_from_local_ms(ms), Some(25_569.0 + fraction));
+    }
+    for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        assert_eq!(serial_from_local_ms(invalid), None);
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    assert_eq!(serial_clock(), None);
+}

@@ -39,6 +39,16 @@ pub fn host_options() -> HostOptions {
     }
 }
 
+// A stable clock snapshot belongs to opening or Calculate Now. Sampling during
+// filtering, selection, saves or continuations would invalidate values they are reading or
+// preserving. Scoped, rebuild, automatic edit and VBA passes keep the last sampled clock.
+fn sample_browser_clock(session: &mut HostSession) {
+    #[cfg(target_arch = "wasm32")]
+    session.set_clock(dna_formula_ui::web::serial_clock());
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = session; // Keep a native embedding's explicitly supplied clock.
+}
+
 /// The linear memory reserved before a workbook is opened in the browser, per byte of its
 /// package, and at most (dc-26q). The allocator a wasm module brings (dlmalloc) grows linear memory
 /// in small steps as the open allocates, and Chrome's memory growth is slow enough that, before
@@ -159,6 +169,7 @@ impl Workbook {
         if unsaved {
             session=HostSession::open(Arc::new(memory.named(name.as_str())), &OpenPolicy::default(), host_options()).map_err(OpenRefused::Package)?;
         }
+        sample_browser_clock(&mut session);
         session.set_calculation_budget(budget);
         if vba == VbaOpenPolicy::Run {
             calc_host_vba::activate_file_project(&mut session, &name, calc_vba::DEFAULT_STEP_BUDGET, None)
@@ -331,6 +342,10 @@ impl Workbook {
 
     /// Carries out an intent; an intent that committed an edit marks the workbook changed.
     pub fn dispatch(&mut self, intent: SkinIntent) -> IntentReceipt {
+        if matches!(&intent, SkinIntent::Recalculate) {
+            sample_browser_clock(&mut self.session);
+            self.conditional.borrow_mut().clear();
+        }
         let receipt = self.session.dispatch(intent);
         if receipt.committed.is_some() {
             self.changed = true;
@@ -776,6 +791,73 @@ mod template_tests {
             let save=book.begin_ordinary_save(false,&SavePolicy {format:calc_host::SaveFormat::Spreadsheet(kind),..Default::default()}).unwrap();
             assert_eq!(save.progress(),calc_host::CalculatedSaveProgress::Failed);
             assert!(book.finish_ordinary_save(save).unwrap_err().contains("would be lost"));
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(dead_code)] // The shared fixture kit also serves other test targets.
+#[path = "../../../crates/calc-doc/tests/cdoc_m1_1_support/mod.rs"]
+mod existing_clock_fixture_kit;
+
+#[cfg(test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn browser_clock_open_and_explicit_calculate_preserve_manual_file_caches() {
+    use existing_clock_fixture_kit::{RawEntry, build_zip, parse_zip};
+    use calc_host::ProjectedValue;
+    let original = calc_host::blank_package();
+    let archive = parse_zip(&original);
+    let value = |book: &Workbook, row| {
+        let at = CellKey::new(book.host().sheets()[0].id(), row, 1).unwrap();
+        calc_host::project(book.host(), &ProjectionRequest { cells: vec![at] }).unwrap().cells()[0].value().clone()
+    };
+    let check_calculated = |book: &Workbook, first: Option<f64>, last: Option<f64>| {
+        let offset = if book.host().declared_date1904() { 1462.0 } else { 0.0 };
+        let ProjectedValue::Calculated { value: now, .. } = value(book, 1) else { panic!("NOW must be calculated: {:?}", value(book, 1)); };
+        let ProjectedValue::Calculated { value: today, .. } = value(book, 2) else { panic!("TODAY must be calculated: {:?}", value(book, 2)); };
+        let now = now.as_number().expect("NOW produces a numeric clock value");
+        assert_eq!(today.as_number(), Some(now.floor()));
+        if let (Some(first), Some(last)) = (first, last) { assert!((first.min(last)..=first.max(last)).contains(&(now + offset)), "{first} <= {now} + {offset} <= {last}"); }
+        else { assert_eq!(now, 45000.25 - offset); }
+    };
+    for date1904 in [false, true] {
+        for manual in [false, true] {
+            let entries = archive.entries.iter().map(|part| {
+                let payload = part.payload(&original);
+                let bytes = if part.method == 0 { payload.to_vec() } else { miniz_oxide::inflate::decompress_to_vec(payload).unwrap() };
+                let bytes = match part.name.as_str() {
+                    "xl/workbook.xml" => String::from_utf8(bytes).unwrap().replace("<sheets>", &format!("<workbookPr date1904=\"{}\"/><sheets>", u8::from(date1904))).replace("<calcPr", &format!("<calcPr calcMode=\"{}\"", if manual { "manual" } else { "auto" })).into_bytes(),
+                    "xl/worksheets/sheet1.xml" => String::from_utf8(bytes).unwrap().replace("<sheetData/>", "<sheetData><row r=\"1\"><c r=\"A1\"><f>NOW()</f><v>1.25</v></c></row><row r=\"2\"><c r=\"A2\"><f>TODAY()</f><v>1</v></c></row></sheetData>").into_bytes(),
+                    _ => bytes,
+                };
+                RawEntry::stored(&part.name, &bytes)
+            }).collect::<Vec<_>>();
+            let bytes = build_zip(&entries);
+            let first = dna_formula_ui::web::serial_clock();
+            let mut book = Workbook::open("clock.xlsx", bytes).unwrap();
+            let last = dna_formula_ui::web::serial_clock();
+            assert_eq!(book.host().declared_date1904(), date1904);
+            if manual {
+                assert!(matches!(value(&book, 1), ProjectedValue::FileCached(cache) if cache.value().to_value().as_number() == Some(1.25)));
+                let clock = book.host().entry_environment().now;
+                let (saved, _) = book.save().unwrap();
+                assert_eq!(book.host().entry_environment().now, clock);
+                let reopened = Workbook::open("clock.xlsx", saved).unwrap();
+                assert!(matches!(value(&reopened, 1), ProjectedValue::FileCached(cache) if cache.value().to_value().as_number() == Some(1.25)));
+            } else if first.is_some() { check_calculated(&book, first, last); }
+            else { assert!(matches!(value(&book, 1), ProjectedValue::NotModeled { .. })); }
+            book.session.set_clock(Some(45000.25));
+            let first = dna_formula_ui::web::serial_clock();
+            assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+            let last = dna_formula_ui::web::serial_clock();
+            check_calculated(&book, first, last);
+            let clock = book.host().entry_environment().now;
+            let before = value(&book, 1);
+            let refused = book.dispatch(SkinIntent::Calculate { scope: calc_host::CalcScope::Workbook, selection: calc_host::EvalSelection::FormulaEntry });
+            assert!(!refused.accepted());
+            assert_eq!(book.host().entry_environment().now, clock);
+            assert_eq!(value(&book, 1), before);
         }
     }
 }

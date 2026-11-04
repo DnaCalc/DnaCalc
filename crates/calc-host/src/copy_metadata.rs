@@ -872,7 +872,7 @@ pub(crate) fn conditional_sort_supported(host: &HostState, sheet: calc_value::Sh
             || !parsed.above_average
             || parsed.equal_average
             || parsed.std_dev.is_some()
-            || parsed.time_period.is_some()
+            || parsed.time_period.is_some() && parsed.kind != "timePeriod"
             || parsed.dxf.is_some_and(|id| {
                 id as usize
                     >= host
@@ -904,6 +904,12 @@ pub(crate) fn conditional_sort_supported(host: &HostState, sheet: calc_value::Sh
                     && parsed.operator.as_deref() == Some(if parsed.kind == "notContainsText" { "notContains" } else { parsed.kind.as_str() }) => 1,
             "containsBlanks" | "notContainsBlanks" | "containsErrors" | "notContainsErrors"
                 if parsed.text.is_none() && parsed.operator.is_none() => 1,
+            // Standard calendar labels retain their stored executable predicate.
+            // https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.spreadsheet.timeperiodvalues
+            "timePeriod" if parsed.text.is_none() && parsed.operator.is_none()
+                && matches!(parsed.time_period.as_deref(), Some("today" | "yesterday"
+                    | "tomorrow" | "last7Days" | "thisMonth" | "lastMonth" | "nextMonth"
+                    | "thisWeek" | "lastWeek" | "nextWeek")) => 1,
             _ => return false,
         };
         if rule.formulas.len() != count {

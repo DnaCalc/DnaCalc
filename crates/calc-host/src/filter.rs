@@ -260,6 +260,7 @@ pub(crate) fn apply(
     let mut plans = Vec::new();
     let mut colors = Vec::new();
     let mut conditional_current = false;
+    let mut additional_pointwise = None;
     for (col, criteria) in &filter.columns {
         if let FilterCriteria::Color { dxf_id, cell_color } = criteria {
             let area = GridArea::new(
@@ -307,7 +308,12 @@ pub(crate) fn apply(
                 }
                 let rule = calc_doc::conditional_rule(source)
                     .map_err(|_| refusal("a conditional colour rule cannot be interpreted"))?;
-                if rule.unread || !matches!(rule.kind.as_str(), "cellIs" | "expression") {
+                // Additional stored predicates share the bounded source validation used by
+                // row movement. Existing cellIs/expression admission stays unchanged.
+                let supported = matches!(rule.kind.as_str(), "cellIs" | "expression")
+                    || *additional_pointwise.get_or_insert_with(||
+                        crate::copy_metadata::conditional_sort_supported(host, area.sheet()));
+                if rule.unread || !supported {
                     return Err(refusal("colour filtering with this conditional rule is not modelled"));
                 }
                 if let Some(id) = rule.dxf {

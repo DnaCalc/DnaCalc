@@ -81,6 +81,10 @@ pub(crate) fn sources(
         } else if e.name.is(MAIN_NAMESPACE, "extLst") {
             let end = reader.element_end()?;
             extensions.extend_from_slice(&xml.bytes()[span.0..end]);
+        } else {
+            // Only worksheet children carry worksheet rules and rule extensions.
+            // In particular, AutoFilter has its own unrelated extension list.
+            reader.element_end()?;
         }
     }
     held.into_iter()
@@ -417,10 +421,16 @@ pub(super) fn rewrite(
             {
                 splice.replace((span.0, span.0), &replacement);
                 inserted = true;
+                reader.element_end()?;
             }
             XmlEvent::End(e) if !inserted && e.is(MAIN_NAMESPACE, "worksheet") => {
                 splice.replace((span.0, span.0), &replacement);
                 inserted = true;
+            }
+            XmlEvent::Start(_) => {
+                // An insertion anchor belongs to the worksheet, never to a nested
+                // element such as AutoFilter's visibility extension list.
+                reader.element_end()?;
             }
             _ => {}
         }

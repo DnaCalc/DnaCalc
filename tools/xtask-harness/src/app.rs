@@ -1777,7 +1777,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 }
                 let parts = crate::oracle_cases::package_parts(&bytes)?;
                 if let Action::ValidationFixture(kind) = action {
-                    if matches!(*kind,"sort"|"sort-pointwise"|"sort-links") {return fs::write(session.downloads.join(format!("validation-{kind}.xlsx")),calc_cases::fixtures::sort_metadata(&bytes,kind)?).map_err(|e|e.to_string());}
+                    if matches!(*kind,"sort"|"sort-pointwise"|"sort-links"|"sort-periods") {return fs::write(session.downloads.join(format!("validation-{kind}.xlsx")),calc_cases::fixtures::sort_metadata(&bytes,kind)?).map_err(|e|e.to_string());}
                     let name = "xl/worksheets/sheet1.xml";
                     let xml =
                         std::str::from_utf8(parts.get(name).ok_or("no validation worksheet")?)
@@ -3031,8 +3031,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 290,
-            "the two applications have 290 core cases including template array insertion, ten percent zoom, qualified aggregates, row hyperlinks, typed conditional row formats, case/custom sorting, templates, complete table sorting, sorted notes/validation, conditional colour filters, candidate validation, conditional formats, editable review content, validation audits and the existing editing routes"
+            total, 298,
+            "the two applications have 298 core cases including typed colour filters, calendar conditional sorting, template array insertion, ten percent zoom, qualified aggregates, row hyperlinks, typed conditional row formats, case/custom sorting, templates, complete table sorting, sorted notes/validation, conditional colour filters, candidate validation, conditional formats, editable review content, validation audits and the existing editing routes"
         );
     }
 
