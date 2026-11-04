@@ -981,3 +981,14 @@ traffic comparison. The first client difference is a RefreshData signal of 1 in
 Excel versus -2 in DNA Calc; topic replacement and server termination order also
 differ. This does not qualify the managed RTD lifecycle. Raw captures and the
 failed strict summary are in `C:/Work/DnaCalc/codex-runs/excel-results-rtd13`.
+
+A separate control changes the explicit provider delay from 50 to 2000 ms in
+the five delay-bearing cases, retains their expected values and proofs, and ends
+with the same replacement constant (six cases). Its first RefreshData signal
+matches, but replacement order still differs: Excel connects the next topic
+before disconnecting the old topic; the host disconnects and terminates first.
+All six values and dependents agree in the four captures. The strict client
+comparison matches 4 positions and fails 28; native calls match 0 and fail 24.
+The original eight-case comparison matches 4 client positions and fails 41;
+native calls match 0 and fail 30. Longer delay therefore narrows the observed
+timing difference without settling lifecycle compatibility.
