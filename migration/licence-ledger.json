@@ -1096,7 +1096,7 @@
   {
    "path": "crates/calc-func/src/ported/bessel.rs",
    "class": "own-work",
-   "reason": "Own A&S I0/I1/K0/K1 polynomials and recurrences, DLMF 10.25.2 I_n series; low J/Y seeds, high Y0/Y1 and the admitted J backward route call the separately licensed bessel_rational helper; other J/Y seed and forward fallback bodies remain existing. Caller phase admission follows the R16/R19 Value2 boundaries; flushing remains unchanged (dc-j9k.7).",
+   "reason": "Own A&S I0/I1/K0/K1 polynomials and recurrences, DLMF 10.25.2 I_n series; low J/Y seeds, high Y0/Y1 and the admitted J backward route call the separately licensed bessel_rational helper; other J/Y seed and forward fallback bodies remain existing. Caller phase admission follows the R16/R19 Value2 boundaries (dc-j9k.7). K uses shared stored-PC64 arithmetic after all1236 recorded bank outcomes agree; coefficients, elementary leaves and flushing are unchanged (dc-j9k.9).",
    "parts": [
     {
      "class": "own-work",
@@ -1172,6 +1172,7 @@
      "source": "excel-financial-functions",
      "symbols": [
       "yield_disc (yieldDisc, bonds.fs)",
+      "pricemat (getMatFactors/priceMat, bonds.fs; stored-PC64 arithmetic changed)",
       "accrint (accrInt)",
       "change_month",
       "date_diff_360_us",
@@ -1458,7 +1459,7 @@
   {
    "path": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs",
    "class": "own-work",
-   "reason": "written here",
+   "reason": "written here; existing published security equations use shared stored-PC64 operations after R23 original-answer comparison (12000 readings); the long-bill quadratic uses shared staged SQRT after all2400 TBILLEQ outcomes agree",
    "surveyed_blob": "ad6fce272c9c967f6f6c4020ed44567c2611b6bb",
    "surveyed_bytes": 25452
   },

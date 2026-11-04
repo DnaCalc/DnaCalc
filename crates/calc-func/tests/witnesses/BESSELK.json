@@ -15,7 +15,7 @@
     {"args":["0x3feb2c086ac28c3c","0x40325e5d73e87057"],"expected_bits":"0x4447be33648b0afd","id":"w111extended-2026092903-BESSELK-00882","reading":"r0"},
     {"args":["0x3ff0000000000000","0x4024000000000000"],"expected_bits":"0x41a58aee90f84f1a","id":"w111extended-2026092903-BESSELK-00023","reading":"r0"},
     {"args":["0x3ff6b8e362a0f346","0x401a0fcbcda0fc75"],"expected_bits":"0x407a7b8ff9a6cb4e","id":"w111extended-2026092903-BESSELK-00786","reading":"r0"},
-    {"args":["0x3ffd840e4ca60c0e","0x3fc35a781fcf7430"],"calc_func":"0x3fc1aa1445c5bb36","expected_bits":"0x3fc1aa1445c5bb34","id":"w111extended-2026092903-BESSELK-00698","reading":"r0"},
+    {"args":["0x3ffd840e4ca60c0e","0x3fc35a781fcf7430"],"expected_bits":"0x3fc1aa1445c5bb34","id":"w111extended-2026092903-BESSELK-00698","reading":"r0"},
     {"args":["0x4002fdcd5b4ce335","0x4003ceef51606b02"],"expected_bits":"0x3fc299f4f4c4fdfa","id":"w111extended-2026092903-BESSELK-00507","reading":"r0"},
     {"args":["0x40070d8ebc14aa4a","0x4020bc02168c7f0d"],"expected_bits":"0x405963ac176ce802","id":"w111extended-2026092903-BESSELK-00887","reading":"r0"},
     {"args":["0x400ba60080c90aa2","0x4022cb5cf33ae50f"],"expected_bits":"0x40597d8015d3d1db","id":"w111extended-2026092903-BESSELK-01223","reading":"r0"},

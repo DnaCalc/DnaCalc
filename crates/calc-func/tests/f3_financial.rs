@@ -387,3 +387,52 @@ fn single_period_actual_day_counts_keep_their_own_yield_formula() {
         assert!(yield_ > 0.0 && yield_ < 0.05, "basis {basis}: {yield_}");
     }
 }
+
+/// Original Excel 16.0 build20430 bank observations, cache/oracle-20430:
+/// DISC oc705/oc1458, INTRATE oc2326, RECEIVED oc86, PRICEDISC oc1791,
+/// TBILLYIELD oc413. Every case runs through the registered application call.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn discount_security_original_answers_require_stored_pc64() {
+    let cases: &[(&str, &[u64], u64)] = &[
+        ("DISC", &[0x40accc0000000000, 0x40b6d40000000000, 0x4056b95878fc6925, 0x405019c697cb3658, 0x4008000000000000], 0xbfb1cfdf4d841c52),
+        ("DISC", &[0x40e262e000000000, 0x40e2aea000000000, 0x4057b81582ea72c4, 0x4059af174414e760, 0x4008000000000000], 0x3fa79784b622b014),
+        ("INTRATE", &[0x40ec968000000000, 0x40ec9ce000000000, 0x411a27d089707de5, 0x401b39132211b6ad, 0x0000000000000000], 0xc01cccaed31c9766),
+        ("RECEIVED", &[0x40ec908000000000, 0x40ecb3e000000000, 0x40ad7988b0181b24, 0x3fbd2c3772f48611, 0x3ff0000000000000], 0x40b02952172609ca),
+        ("PRICEDISC", &[0x40cca68000000000, 0x40cda00000000000, 0x3fbd16f0e5dc2acd, 0x4049d0482e969156, 0x4010000000000000], 0x4045cbf4a29698fc),
+        ("TBILLYIELD", &[0x40e74aa000000000, 0x40e74ac000000000, 0x40023cff95ff2def], 0x40ce237bcaff517a),
+    ];
+    let mut differences = Vec::new();
+    for &(name, args, expected) in cases {
+        let args = args.iter().map(|&bits| n(f64::from_bits(bits))).collect();
+        let actual = dated(name, args).unwrap().as_number().unwrap().to_bits();
+        if actual != expected {
+            differences.push(format!("{name}: {actual:016x} != {expected:016x}"));
+        }
+    }
+    assert!(differences.is_empty(), "{}", differences.join("\n"));
+}
+
+/// Original build20430 records: PRICEMAT oc2282/oc1339/oc1742/oc1455/oc1499
+/// from cache/oracle-20430, and w1115-TBILLEQ-01109 from runs/w111-5-20260924.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn maturity_price_and_bill_original_answers() {
+    let cases: &[(&str, &[u64], u64)] = &[
+        ("PRICEMAT", &[0x40e2db8000000000, 0x40e4f12000000000, 0x40e2a30000000000, 0x3fbf2eef494503b5, 0x3f93d9838d1165c1, 0x4000000000000000], 0x40687ccaf6a4a5ee),
+        ("PRICEMAT", &[0x40e3f89fff2e48e9, 0x40e58fdfff2e48e9, 0x40e310bfff2e48e9, 0x3fc1349b529650f9, 0x3f3baa9a2ba23465, 0x4010000000000000], 0x406b58d018843042),
+        ("PRICEMAT", &[0x40e6a24000000000, 0x40e8f32000000000, 0x40e697e000000000, 0x3fc1c403a967f647, 0x3fccacdfff7b28dc, 0x4010000000000000], 0x405155629dcfd3b4),
+        ("PRICEMAT", &[0x40e6a50000000000, 0x40e98c2000000000, 0x40e6528000000000, 0x3fa67db79160c3a0, 0x3fa0b91ffdb34689, 0x0000000000000000], 0x405b4e18ab31a7da),
+        ("PRICEMAT", &[0x40e7cbf000000000, 0x40e8e65000000000, 0x40e789b000000000, 0x3fa347205b0ec91d, 0x3fbb5226bfe03e68, 0x4010000000000000], 0x405205eabf3c4f1b),
+        ("TBILLEQ", &[0x40e3d72800000000, 0x40e3f08800000000, 0x3fcb208e2511f676], 0x3fcedc78c550cec1),
+    ];
+    let mut differences = Vec::new();
+    for &(name, args, expected) in cases {
+        let args = args.iter().map(|&bits| n(f64::from_bits(bits))).collect();
+        let actual = dated(name, args).unwrap().as_number().unwrap().to_bits();
+        if actual != expected {
+            differences.push(format!("{name}: {actual:016x} != {expected:016x}"));
+        }
+    }
+    assert!(differences.is_empty(), "{}", differences.join("\n"));
+}

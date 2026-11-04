@@ -9,7 +9,7 @@ python3 racer/corpus_cases.py problem-functions ../DnaCalc ../DnaCalc/docs/gener
 Last-bit: finite numeric mismatches <=16 ULP; larger numeric: >16 ULP. This split is triage, not a relaxed verdict. Every mismatch, refusal, unread, missing, pending, external and circular-policy cell remains an inclusive failure. Corpus functions are inferred from formula spelling, unwrapping INDEX selections; bank functions use canonical judge identities. Counts are observations per source; corpus and bank may overlap and must not be added as unique calls. Bank reference/locale context gaps remain failures, not proven numerical defects.
 
 Corpus: 19,974/22,339 matched; 2,365 inclusive failures, including 1,265 pending.
-Bank: 3,233,036/3,875,673 matched; 642,637 failures, including 116 unread.
+Bank: 3,233,049/3,875,673 matched; 642,624 failures, including 116 unread.
 
 Larger numeric and last-bit columns count numeric mismatches; other columns count remaining mismatches. Bank refusals and unread rows are separate. Corpus refusals/missing are recorded in the JSON, outside the mismatch table.
 
@@ -84,11 +84,9 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | IPMT | 1 | 79 | 0 | 0 | 27 | 0 | 0 | 0 |
 | CHISQ.INV | 0 | 1 | 0 | 1 | 27 | 0 | 0 | 0 |
 | T.DIST.RT | 0 | 1 | 0 | 1 | 4 | 0 | 0 | 0 |
-| PRICEMAT | 0 | 0 | 0 | 1 | 4 | 0 | 0 | 0 |
 | SKEW | 0 | 0 | 0 | 1 | 3 | 0 | 0 | 0 |
 | CRITBINOM | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | FLOOR | 0 | 0 | 0 | 1 | 0 | 0 | 10 | 0 |
-| TBILLEQ | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | ERF.PRECISE | 0 | 0 | 0 | 0 | 365,857 | 0 | 0 | 0 |
 | GAMMALN.PRECISE | 0 | 0 | 0 | 0 | 4,085 | 0 | 0 | 0 |
 | GAMMALN | 0 | 0 | 0 | 0 | 2,526 | 0 | 0 | 0 |
@@ -112,7 +110,6 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | CHISQ.DIST.RT | 0 | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | CHISQ.TEST | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 0 |
 | CONFIDENCE | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
-| DISC | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 0 |
 | F.DIST.RT | 0 | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | GAMMAINV | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | INT | 0 | 0 | 0 | 0 | 2 | 0 | 2 | 0 |
@@ -124,7 +121,6 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | WEIBULL.DIST | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 0 |
 | Z.TEST | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | ZTEST | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
-| BESSELK | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |
 | BESSELY | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | BETA.INV | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | CONFIDENCE.NORM | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -132,16 +128,12 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | EXPON.DIST | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |
 | F.INV | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | F.INV.RT | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
-| INTRATE | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |
 | LOGNORM.INV | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
-| PRICEDISC | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |
-| RECEIVED | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |
 | SECH | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |
 | T.DIST | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | T.DIST.2T | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | T.INV.2T | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | T.TEST | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
-| TBILLYIELD | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |
 | ABS | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | CEILING.MATH | 0 | 0 | 0 | 0 | 0 | 0 | 12 | 0 |
 | COMPLEX | 0 | 0 | 0 | 0 | 0 | 40 | 10 | 0 |
