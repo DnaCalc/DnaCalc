@@ -162,12 +162,21 @@ pub fn step(
             host.engine.set_workbook_facts(Some(facts));
             let started = if let Some((scope, selection)) = host.requested_calculation.take() {
                 let scope = host.transformed_calculation_scope.take().unwrap_or(scope);
-                calc_engine::begin_recalc_scoped(
+                let poststate = if host.calc_mode() == CalcMode::Manual
+                    && matches!(scope, calc_engine::CalcScope::Range(_))
+                    && selection == calc_engine::EvalSelection::ForceAll
+                {
+                    calc_engine::contract::RangePostState::StillRequired
+                } else {
+                    calc_engine::contract::RangePostState::Satisfied
+                };
+                calc_engine::begin_recalc_scoped_with_poststate(
                     &mut host.engine,
                     &host.model,
                     host.options.numeric.clone(),
                     scope,
                     selection,
+                    poststate,
                 )
             } else {
                 calc_engine::begin_recalc(

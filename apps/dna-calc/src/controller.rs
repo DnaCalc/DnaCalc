@@ -716,6 +716,9 @@ impl Controller {
                 }
                 | wire::CalculationEvent::Reevaluated {
                     domain, command, ..
+                }
+                | wire::CalculationEvent::TargetsRefused {
+                    domain, command, ..
                 } => {
                     if self.model.with_untracked(|m| m.runtime.active_calculation)
                         != Some((*domain, *command))

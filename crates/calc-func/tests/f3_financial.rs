@@ -393,6 +393,24 @@ fn pmt_uses_the_series_logarithm_and_the_stored_quotient() {
     }
 }
 
+/// dc-j9k.12: catalogue oracle readings of IPMT and PPMT at the end of a period (sheet
+/// dcj9k_annuity). Interest is -RN(RN(RN(q * em_m) - RN(fv * u)) * rate) and principal
+/// RN(RN(RN(q - fv) * u) * rate), on PMT's stored quotient q, with no subtraction from the payment.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ipmt_and_ppmt_use_the_quotient_of_pmt() {
+    let rate = 0.05 / 12.0;
+    for (period, ppmt, ipmt) in [
+        (2.0, 0xc06e_29f5_6213_fb6e_u64, 0xc08a_02a8_05a6_ed99_u64),
+        (3.0, 0xc06e_4a22_238d_aa59, 0xc089_fa9c_d548_81de),
+        (7.0, 0xc06e_cc2d_cb06_2ed4, 0xc089_da19_eb6a_60c0),
+        (12.0, 0xc06f_71ce_9e3c_a456, 0xc089_b0b1_b69c_c35f),
+    ] {
+        exact(call("PPMT", vec![n(rate), n(period), n(360.0), n(200000.0)]), f64::from_bits(ppmt));
+        exact(call("IPMT", vec![n(rate), n(period), n(360.0), n(200000.0)]), f64::from_bits(ipmt));
+    }
+}
+
 /// Recorded d00-m46 distinguishes q-space publication; irr-B-g0.0 needs
 /// the equal-residual Newton step when the initial secant points coincide.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

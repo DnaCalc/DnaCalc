@@ -14,5 +14,18 @@
   "inputs/E10-A2-Rebuild-eighth-0000000000000000.xlsx": "ef288116ecaeb7e503648d132c680e3496dfc30d89ff18cee22103d69b403adc",
   "inputs/E10-A2-Rebuild-eighth-3fc0000000000000.xlsx": "024695b1d3cf60531c7d64d07ccd3b19da57fa4b0a0fa92990b038d68a003c11",
   "inputs/E10-B6-error-n5-3f50624dd2f1a9fc-peer-0.xlsx": "b7a3bf5ea023020ba6ea56a25119d4d7da39e356d34e66b4bce5a448be40c18f",
-  "stopping-observations.jsonl": "ed22322a4b06059edf48fed981e954182c334f0572dda4c24de257751ea42d22"
+  "stopping-observations.jsonl": "ed22322a4b06059edf48fed981e954182c334f0572dda4c24de257751ea42d22",
+  "inputs/E10-Range-mixed-n1-zero.xlsx": "d3aab368eb2751ce3240c015dee13c6bc3130e6a194f47fd06c31750731a2b2d",
+  "inputs/E10-Range-all-readers-n1-zero.xlsx": "f424ed520d33461873607739ae2d5dcb63465690e6646654f628e46056c34da2",
+  "inputs/E10-Range-mixed-n1-asymmetric.xlsx": "8680d2358a8027522675f27006ebbd5ad04514cd7d8abe965f63a1a842d571f5",
+  "inputs/E10-Range-all-readers-n1-asymmetric.xlsx": "ffa27f950133095349d886a122bbaa02981ab29a1f27df43c3f404f2304ae77d",
+  "inputs/E10-Range-mixed-n2-zero.xlsx": "1536b0826deb5351ddd50633119efb22de40a84c06e19a54f2600c7a47a1c3d1",
+  "inputs/E10-Range-all-readers-n2-zero.xlsx": "c55cacd752528b32c0188278b0f6004fae6e3279ff502d598dd6d39122f116b6",
+  "inputs/E10-Range-mixed-n2-asymmetric.xlsx": "3f083907f6f92666258bea8240cfc4d18cbe974cee71a945485683e82ab4ad89",
+  "inputs/E10-Range-all-readers-n2-asymmetric.xlsx": "2c46162673e2653b30e34146f59025d14ec842ee05c76fb3463eb5a7922d839f",
+  "inputs/E10-Range-mixed-n5-zero.xlsx": "1c71a6b740343cf2a3498a505aab62bcb56c4900036752c44b5b2bc8364f19bd",
+  "inputs/E10-Range-all-readers-n5-zero.xlsx": "b54c3477a738e8f3f92bc0a81d8c9d2a6d187ce9769a20ee533bc5b8148a3561",
+  "inputs/E10-Range-mixed-n5-asymmetric.xlsx": "286db11e18996249ffd4f9a7714b71a6cf3eab80057e1777deb84a733ea70fb3",
+  "inputs/E10-Range-all-readers-n5-asymmetric.xlsx": "5f9c83d5326efed8763751d722d018c53d6a7b7fda53ba4fa9b776b80d2e5a35",
+  "range-observations.jsonl": "8fbba1c7748b863ccef5f57ca96ed7a8326a670e52b9cb92ecf3835a3b9a1556"
 }

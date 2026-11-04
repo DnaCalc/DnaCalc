@@ -132,30 +132,36 @@ fn grouped(whole: &str, separator: &str) -> String {
 // --- FIXED and DOLLAR -----------------------------------------------------------------------------
 
 /// FIXED: the number rounded to `places`, grouped unless `no_commas`.
-pub(crate) fn fixed(profile: &FormatProfile, value: f64, places: i32, no_commas: bool) -> String {
+/// A missing profile refuses only when the output would contain a locale separator.
+pub(crate) fn fixed(profile: Option<&FormatProfile>, value: f64, places: i32, no_commas: bool) -> Rendered {
+    let decimal_separator = if places > 0 {
+        Some(profile.ok_or(Failure::NotModelled)?.decimal_separator)
+    } else {
+        None
+    };
     let (whole, fraction) = digits(value, places);
     let negative = value < 0.0 && (whole.chars().chain(fraction.chars()).any(|c| c != '0'));
     let whole = if whole.is_empty() { "0".to_owned() } else { whole };
-    let whole = if no_commas {
+    let whole = if no_commas || whole.len() <= 3 {
         whole
     } else {
-        grouped(&whole, profile.thousands_separator)
+        grouped(&whole, profile.ok_or(Failure::NotModelled)?.thousands_separator)
     };
     let mut out = String::new();
     if negative {
         out.push('-');
     }
     out.push_str(&whole);
-    if places > 0 {
-        out.push_str(profile.decimal_separator);
+    if let Some(separator) = decimal_separator {
+        out.push_str(separator);
         out.push_str(&fraction);
     }
-    out
+    Ok(out)
 }
 
 /// DOLLAR: the number in the locale's currency format, rounded to `places`.
-pub(crate) fn dollar(profile: &FormatProfile, value: f64, places: i32) -> String {
-    let magnitude = fixed(profile, value.abs(), places, false);
+pub(crate) fn dollar(profile: &FormatProfile, value: f64, places: i32) -> Rendered {
+    let magnitude = fixed(Some(profile), value.abs(), places, false)?;
     let spacing = match profile.currency_spacing {
         CurrencySpacing::None => "",
         CurrencySpacing::Space => " ",
@@ -168,15 +174,15 @@ pub(crate) fn dollar(profile: &FormatProfile, value: f64, places: i32) -> String
     };
     let negative = value < 0.0 && (places >= 0 || magnitude.chars().any(|c| c.is_ascii_digit() && c != '0'));
     if !negative {
-        return body;
+        return Ok(body);
     }
-    match profile.currency_negative_pattern {
+    Ok(match profile.currency_negative_pattern {
         CurrencyNegativePattern::LeadingMinus | CurrencyNegativePattern::MinusBeforeSymbol => {
             format!("-{body}")
         }
         CurrencyNegativePattern::TrailingMinus => format!("{body}-"),
         CurrencyNegativePattern::Parentheses => format!("({body})"),
-    }
+    })
 }
 
 // --- General --------------------------------------------------------------------------------------
@@ -1341,17 +1347,17 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn fixed_and_dollar_render_as_excel_did() {
         let p = host();
-        assert_eq!(fixed(&p, 1234.567, 2, false), "1 234.57");
-        assert_eq!(fixed(&p, -1234.567, 2, false), "-1 234.57");
-        assert_eq!(fixed(&p, 1234.567, -2, false), "1 200");
-        assert_eq!(fixed(&p, 1234.567, 1, true), "1234.6");
-        assert_eq!(fixed(&p, 0.5, 0, false), "1");
-        assert_eq!(fixed(&p, 1.005, 2, false), "1.01");
-        assert_eq!(fixed(&p, 1E+20, 2, false), "100 000 000 000 000 000 000.00");
-        assert_eq!(dollar(&p, 1234.567, 2), "R1 234.57");
-        assert_eq!(dollar(&p, -1234.567, 2), "-R1 234.57");
-        assert_eq!(dollar(&p, 1234.567, -2), "R1 200");
-        assert_eq!(dollar(&p, 0.5, 0), "R1");
+        assert_eq!(fixed(Some(&p), 1234.567, 2, false).unwrap(), "1 234.57");
+        assert_eq!(fixed(Some(&p), -1234.567, 2, false).unwrap(), "-1 234.57");
+        assert_eq!(fixed(Some(&p), 1234.567, -2, false).unwrap(), "1 200");
+        assert_eq!(fixed(Some(&p), 1234.567, 1, true).unwrap(), "1234.6");
+        assert_eq!(fixed(Some(&p), 0.5, 0, false).unwrap(), "1");
+        assert_eq!(fixed(Some(&p), 1.005, 2, false).unwrap(), "1.01");
+        assert_eq!(fixed(Some(&p), 1E+20, 2, false).unwrap(), "100 000 000 000 000 000 000.00");
+        assert_eq!(dollar(&p, 1234.567, 2).unwrap(), "R1 234.57");
+        assert_eq!(dollar(&p, -1234.567, 2).unwrap(), "-R1 234.57");
+        assert_eq!(dollar(&p, 1234.567, -2).unwrap(), "R1 200");
+        assert_eq!(dollar(&p, 0.5, 0).unwrap(), "R1");
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

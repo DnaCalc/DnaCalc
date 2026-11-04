@@ -321,22 +321,16 @@ mod tests {
         // Excel (2026-10-25): CUMPRINC(0.05/12,360,200000,1,12,0) is 0xc0a70d761d260042, the
         // left-to-right sum of its own twelve PPMT readings, and CUMIPMT(...) 0xc0c3667e7f577146
         // is 12 * PMT less that sum (the sum of its twelve IPMT readings is 0xc0c3667e7f577147).
-        // The local PPMT kernel is 1 to 5 ulp below Excel on these twelve periods, which puts
-        // the local CUMPRINC 1 ulp low and CUMIPMT 1 ulp off: the open PPMT residual (dc-j9k),
-        // pinned here with the Excel targets recorded.
+        // dc-j9k.12: with PPMT on Excel's own pieces the local sum reaches both targets. That
+        // holds for this loan; CUMPRINC in general is not the sum of published PPMT (79 of 135
+        // recorded type-0 singletons differ from PPMT's bits), which stays open.
         let cumipmt_actual =
             cumipmt_kernel(0.05 / 12.0, 360.0, 200000.0, 1.0, 12.0, 0.0).expect("cumipmt witness");
-        let cumipmt_current_local = f64::from_bits(0xc0c3667e7f577147);
-        let cumipmt_excel_target = f64::from_bits(0xc0c3667e7f577146);
-        assert_bits(cumipmt_actual, cumipmt_current_local);
-        assert_ne!(cumipmt_actual.to_bits(), cumipmt_excel_target.to_bits());
+        assert_bits(cumipmt_actual, f64::from_bits(0xc0c3667e7f577146));
 
         let cumprinc_actual = cumprinc_kernel(0.05 / 12.0, 360.0, 200000.0, 1.0, 12.0, 0.0)
             .expect("cumprinc witness");
-        let cumprinc_current_local = f64::from_bits(0xc0a70d761d260041);
-        let cumprinc_excel_target = f64::from_bits(0xc0a70d761d260042);
-        assert_bits(cumprinc_actual, cumprinc_current_local);
-        assert_ne!(cumprinc_actual.to_bits(), cumprinc_excel_target.to_bits());
+        assert_bits(cumprinc_actual, f64::from_bits(0xc0a70d761d260042));
 
         // The shared PMT witness stays Excel-exact.
         let payment = time_value::pmt(
