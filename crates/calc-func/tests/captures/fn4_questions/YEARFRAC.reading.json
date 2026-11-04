@@ -1,0 +1,5070 @@
+{
+  "function": "YEARFRAC",
+  "witnesses": [
+    {
+      "id": "fn7-YEARFRAC-later-logical-order-1",
+      "args": [
+        "0x4000000000000000",
+        "TRUE",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-YEARFRAC-later-logical-order-2",
+      "args": [
+        "0x4000000000000000",
+        "0x4014000000000000",
+        "TRUE"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-YEARFRAC-later-logical-order-3",
+      "args": [
+        "0x4000000000000000",
+        "0x4014000000000000",
+        "FALSE"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-YEARFRAC-later-logical-order-4",
+      "args": [
+        "0xbff0000000000000",
+        "TRUE",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-YEARFRAC-later-logical-order-5",
+      "args": [
+        "error:Ref",
+        "TRUE",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Ref"
+    },
+    {
+      "id": "fn7-YEARFRAC-later-logical-order-6",
+      "args": [
+        "TRUE",
+        "error:Ref",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-1",
+      "args": [
+        "0xbff0000000000000",
+        "TRUE",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-2",
+      "args": [
+        "0xbff0000000000000",
+        "error:Ref",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-3",
+      "args": [
+        "0xbff0000000000000",
+        "0x4014000000000000",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-4",
+      "args": [
+        "0xbfe0000000000000",
+        "TRUE",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-5",
+      "args": [
+        "0xbfe0000000000000",
+        "error:Ref",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-6",
+      "args": [
+        "0xbfe0000000000000",
+        "0x4014000000000000",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-7",
+      "args": [
+        "0x0000000000000000",
+        "TRUE",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-8",
+      "args": [
+        "0x0000000000000000",
+        "error:Ref",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Ref"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-10",
+      "args": [
+        "0x3fe0000000000000",
+        "TRUE",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-11",
+      "args": [
+        "0x3fe0000000000000",
+        "error:Ref",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Ref"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-13",
+      "args": [
+        "0x41469240c0000000",
+        "TRUE",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-14",
+      "args": [
+        "0x41469240c0000000",
+        "error:Ref",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Ref"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-16",
+      "args": [
+        "0x4146924100000000",
+        "TRUE",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-17",
+      "args": [
+        "0x4146924100000000",
+        "error:Ref",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-18",
+      "args": [
+        "0x4146924100000000",
+        "0x4014000000000000",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-1",
+      "args": [
+        "0x0000000000000000",
+        "0x0000000000000000",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "0x0000000000000000"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-2",
+      "args": [
+        "0x0000000000000000",
+        "0x0000000000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x0000000000000000"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-3",
+      "args": [
+        "0x0000000000000000",
+        "0x0000000000000000",
+        "0x4000000000000000"
+      ],
+      "expected_bits": "0x0000000000000000"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-4",
+      "args": [
+        "0x0000000000000000",
+        "0x0000000000000000",
+        "0x4008000000000000"
+      ],
+      "expected_bits": "0x0000000000000000"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-5",
+      "args": [
+        "0x0000000000000000",
+        "0x0000000000000000",
+        "0x4010000000000000"
+      ],
+      "expected_bits": "0x0000000000000000"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-6",
+      "args": [
+        "0x0000000000000000",
+        "0x3ff0000000000000",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "0x3f66c16c16c16c17"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-7",
+      "args": [
+        "0x0000000000000000",
+        "0x3ff0000000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3f66719f3601671a"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-8",
+      "args": [
+        "0x0000000000000000",
+        "0x3ff0000000000000",
+        "0x4000000000000000"
+      ],
+      "expected_bits": "0x3f66c16c16c16c17"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-9",
+      "args": [
+        "0x0000000000000000",
+        "0x3ff0000000000000",
+        "0x4008000000000000"
+      ],
+      "expected_bits": "0x3f66719f3601671a"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-10",
+      "args": [
+        "0x0000000000000000",
+        "0x3ff0000000000000",
+        "0x4010000000000000"
+      ],
+      "expected_bits": "0x3f66c16c16c16c17"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-11",
+      "args": [
+        "0x0000000000000000",
+        "0x4014000000000000",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "0x3f8c71c71c71c71c"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-12",
+      "args": [
+        "0x0000000000000000",
+        "0x4014000000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3f8c0e070381c0e0"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-13",
+      "args": [
+        "0x0000000000000000",
+        "0x4014000000000000",
+        "0x4000000000000000"
+      ],
+      "expected_bits": "0x3f8c71c71c71c71c"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-14",
+      "args": [
+        "0x0000000000000000",
+        "0x4014000000000000",
+        "0x4008000000000000"
+      ],
+      "expected_bits": "0x3f8c0e070381c0e0"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-15",
+      "args": [
+        "0x0000000000000000",
+        "0x4014000000000000",
+        "0x4010000000000000"
+      ],
+      "expected_bits": "0x3f8c71c71c71c71c"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-16",
+      "args": [
+        "0x4014000000000000",
+        "0x0000000000000000",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "0x3f8c71c71c71c71c"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-17",
+      "args": [
+        "0x4014000000000000",
+        "0x0000000000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3f8c0e070381c0e0"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-18",
+      "args": [
+        "0x4014000000000000",
+        "0x0000000000000000",
+        "0x4000000000000000"
+      ],
+      "expected_bits": "0x3f8c71c71c71c71c"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-19",
+      "args": [
+        "0x4014000000000000",
+        "0x0000000000000000",
+        "0x4008000000000000"
+      ],
+      "expected_bits": "0x3f8c0e070381c0e0"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-20",
+      "args": [
+        "0x4014000000000000",
+        "0x0000000000000000",
+        "0x4010000000000000"
+      ],
+      "expected_bits": "0x3f8c71c71c71c71c"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-21",
+      "args": [
+        "0x0000000000000000",
+        "0x404d800000000000",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "0x3fc49f49f49f49f5"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-22",
+      "args": [
+        "0x0000000000000000",
+        "0x404d800000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3fc4b0bec5c94b0c"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-23",
+      "args": [
+        "0x0000000000000000",
+        "0x404d800000000000",
+        "0x4000000000000000"
+      ],
+      "expected_bits": "0x3fc4fa4fa4fa4fa5"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-24",
+      "args": [
+        "0x0000000000000000",
+        "0x404d800000000000",
+        "0x4008000000000000"
+      ],
+      "expected_bits": "0x3fc4b0bec5c94b0c"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-25",
+      "args": [
+        "0x0000000000000000",
+        "0x404d800000000000",
+        "0x4010000000000000"
+      ],
+      "expected_bits": "0x3fc49f49f49f49f5"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-26",
+      "args": [
+        "0x0000000000000000",
+        "0x404e000000000000",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "0x3fc4fa4fa4fa4fa5"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-27",
+      "args": [
+        "0x0000000000000000",
+        "0x404e000000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3fc50a8542a150a8"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-28",
+      "args": [
+        "0x0000000000000000",
+        "0x404e000000000000",
+        "0x4000000000000000"
+      ],
+      "expected_bits": "0x3fc5555555555555"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-29",
+      "args": [
+        "0x0000000000000000",
+        "0x404e000000000000",
+        "0x4008000000000000"
+      ],
+      "expected_bits": "0x3fc50a8542a150a8"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-30",
+      "args": [
+        "0x0000000000000000",
+        "0x404e000000000000",
+        "0x4010000000000000"
+      ],
+      "expected_bits": "0x3fc4fa4fa4fa4fa5"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-31",
+      "args": [
+        "0x0000000000000000",
+        "0x404e800000000000",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "0x3fc5b05b05b05b06"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-32",
+      "args": [
+        "0x0000000000000000",
+        "0x404e800000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3fc5644bbf795645"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-33",
+      "args": [
+        "0x0000000000000000",
+        "0x404e800000000000",
+        "0x4000000000000000"
+      ],
+      "expected_bits": "0x3fc5b05b05b05b06"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-34",
+      "args": [
+        "0x0000000000000000",
+        "0x404e800000000000",
+        "0x4008000000000000"
+      ],
+      "expected_bits": "0x3fc5644bbf795645"
+    },
+    {
+      "id": "fn7-YEARFRAC-calendar-zero-35",
+      "args": [
+        "0x0000000000000000",
+        "0x404e800000000000",
+        "0x4010000000000000"
+      ],
+      "expected_bits": "0x3fc5b05b05b05b06"
+    },
+    {
+      "id": "fn7-YEARFRAC-1900-basis1-discriminators-1",
+      "args": [
+        "0x3ff0000000000000",
+        "0x4000000000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3f66719f3601671a"
+    },
+    {
+      "id": "fn7-YEARFRAC-1900-basis1-discriminators-2",
+      "args": [
+        "0x404d800000000000",
+        "0x404e800000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3f76719f3601671a"
+    },
+    {
+      "id": "fn7-YEARFRAC-1900-basis1-discriminators-3",
+      "args": [
+        "0x404e800000000000",
+        "0x4076d00000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3feaa6ed1021aa6f"
+    },
+    {
+      "id": "fn7-YEARFRAC-1900-basis1-discriminators-4",
+      "args": [
+        "0x404e800000000000",
+        "0x4076e00000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3feabd5eaf57abd6"
+    },
+    {
+      "id": "fn7-YEARFRAC-1900-basis1-discriminators-5",
+      "args": [
+        "0x3ff0000000000000",
+        "0x4076f00000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3ff00b38cf9b00b4"
+    },
+    {
+      "id": "fn7-YEARFRAC-1900-basis1-discriminators-6",
+      "args": [
+        "0x404e800000000000",
+        "0x407ab00000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3ff00b38cf9b00b4"
+    },
+    {
+      "id": "fn7-YEARFRAC-1900-basis1-discriminators-7",
+      "args": [
+        "0x0000000000000000",
+        "0x4076f00000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3ff016719f360167"
+    },
+    {
+      "id": "fn7-YEARFRAC-1900-basis1-discriminators-8",
+      "args": [
+        "0x0000000000000000",
+        "0x4086e00000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x40000b38cf9b00b4"
+    },
+    {
+      "id": "fn7-YEARFRAC-1900-basis1-discriminators-9",
+      "args": [
+        "0x4076e00000000000",
+        "0x4086e00000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3ff00b38cf9b00b4"
+    },
+    {
+      "id": "fn7-YEARFRAC-1900-basis1-discriminators-10",
+      "args": [
+        "0x0000000000000000",
+        "0x4091240000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x40080b38cf9b00b4"
+    },
+    {
+      "id": "fn7-YEARFRAC-1900-basis1-discriminators-11",
+      "args": [
+        "0x4076f00000000000",
+        "0x4077000000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3f66719f3601671a"
+    },
+    {
+      "id": "fn7-YEARFRAC-1900-basis1-discriminators-12",
+      "args": [
+        "0x4096d80000000000",
+        "0x4096dc0000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3f6661ec6a5122f9"
+    },
+    {
+      "id": "fn7-YEARFRAC-fictitious-leap-day-1",
+      "args": [
+        "0x0000000000000000",
+        "0x404e000000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3fc50a8542a150a8"
+    },
+    {
+      "id": "fn7-YEARFRAC-fictitious-leap-day-2",
+      "args": [
+        "0x3ff0000000000000",
+        "0x404e000000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3fc4b0bec5c94b0c"
+    },
+    {
+      "id": "fn7-YEARFRAC-fictitious-leap-day-3",
+      "args": [
+        "0x404d800000000000",
+        "0x404e000000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3f66719f3601671a"
+    },
+    {
+      "id": "fn7-YEARFRAC-fictitious-leap-day-4",
+      "args": [
+        "0x404e000000000000",
+        "0x404e800000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3f66719f3601671a"
+    },
+    {
+      "id": "fn7-YEARFRAC-fictitious-leap-day-5",
+      "args": [
+        "0x404e800000000000",
+        "0x404e000000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3f66719f3601671a"
+    },
+    {
+      "id": "fn7-YEARFRAC-fictitious-leap-day-6",
+      "args": [
+        "0x404e000000000000",
+        "0x404e000000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x0000000000000000"
+    },
+    {
+      "id": "fn7-YEARFRAC-fictitious-leap-day-7",
+      "args": [
+        "0x0000000000000000",
+        "0x404d800000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3fc4b0bec5c94b0c"
+    },
+    {
+      "id": "fn7-YEARFRAC-fictitious-leap-day-8",
+      "args": [
+        "0x0000000000000000",
+        "0x404e800000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3fc5644bbf795645"
+    },
+    {
+      "id": "fn7-YEARFRAC-fictitious-leap-day-9",
+      "args": [
+        "0x4097c00000000000",
+        "0x4097c40000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3f6661ec6a5122f9"
+    },
+    {
+      "id": "fn7-YEARFRAC-fictitious-leap-day-10",
+      "args": [
+        "0x4097c40000000000",
+        "0x4097c80000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3f6661ec6a5122f9"
+    },
+    {
+      "id": "fn7-YEARFRAC-fictitious-leap-day-11",
+      "args": [
+        "0x4097c40000000000",
+        "0x4097c00000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3f6661ec6a5122f9"
+    },
+    {
+      "id": "fn7-YEARFRAC-fictitious-leap-day-12",
+      "args": [
+        "0x40e1dd0000000000",
+        "0x40e1dd2000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3f6661ec6a5122f9"
+    },
+    {
+      "id": "fn7-YEARFRAC-fictitious-leap-day-13",
+      "args": [
+        "0x40e1dd2000000000",
+        "0x40e1dd4000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3f6661ec6a5122f9"
+    },
+    {
+      "id": "fn7-YEARFRAC-fictitious-leap-day-14",
+      "args": [
+        "0x40e1dd2000000000",
+        "0x40e1dd0000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3f6661ec6a5122f9"
+    },
+    {
+      "id": "fn7-YEARFRAC-fictitious-leap-day-15",
+      "args": [
+        "0x40e293a000000000",
+        "0x40e293c000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3f6661ec6a5122f9"
+    },
+    {
+      "id": "fn7-YEARFRAC-fictitious-leap-day-16",
+      "args": [
+        "0x40e293c000000000",
+        "0x40e293e000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3f6661ec6a5122f9"
+    },
+    {
+      "id": "fn7-YEARFRAC-fictitious-leap-day-17",
+      "args": [
+        "0x40e293c000000000",
+        "0x40e293a000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3f6661ec6a5122f9"
+    },
+    {
+      "id": "fn7-YEARFRAC-fictitious-leap-day-18",
+      "args": [
+        "0x407a900000000000",
+        "0x407aa00000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3f66719f3601671a"
+    },
+    {
+      "id": "fn7-YEARFRAC-fictitious-leap-day-19",
+      "args": [
+        "0x407aa00000000000",
+        "0x407a900000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x3f66719f3601671a"
+    }
+  ],
+  "service_questions": [
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": false,
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "bff0000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "error",
+        "code": "#REF!"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "error",
+        "code": "#REF!"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "bff0000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "bff0000000000000"
+      },
+      {
+        "type": "error",
+        "code": "#REF!"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "bff0000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "bfe0000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "bfe0000000000000"
+      },
+      {
+        "type": "error",
+        "code": "#REF!"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "bfe0000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "error",
+        "code": "#REF!"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3fe0000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3fe0000000000000"
+      },
+      {
+        "type": "error",
+        "code": "#REF!"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "41469240c0000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "41469240c0000000"
+      },
+      {
+        "type": "error",
+        "code": "#REF!"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4146924100000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4146924100000000"
+      },
+      {
+        "type": "error",
+        "code": "#REF!"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4146924100000000"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4008000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4010000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4008000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4010000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4008000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4010000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4008000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4010000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "404d800000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "404d800000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "404d800000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "404d800000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4008000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "404d800000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4010000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4008000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4010000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "404e800000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "404e800000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "404e800000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "404e800000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4008000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "404e800000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4010000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404d800000000000"
+      },
+      {
+        "type": "number",
+        "bits": "404e800000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e800000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4076d00000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e800000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4076e00000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4076f00000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e800000000000"
+      },
+      {
+        "type": "number",
+        "bits": "407ab00000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4076f00000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4086e00000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4076e00000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4086e00000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4091240000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4076f00000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4077000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4096d80000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4096dc0000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404d800000000000"
+      },
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "404e800000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e800000000000"
+      },
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "404d800000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "404e800000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4097c00000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4097c40000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4097c40000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4097c80000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4097c40000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4097c00000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e1dd0000000000"
+      },
+      {
+        "type": "number",
+        "bits": "40e1dd2000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e1dd2000000000"
+      },
+      {
+        "type": "number",
+        "bits": "40e1dd4000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e1dd2000000000"
+      },
+      {
+        "type": "number",
+        "bits": "40e1dd0000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e293a000000000"
+      },
+      {
+        "type": "number",
+        "bits": "40e293c000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e293c000000000"
+      },
+      {
+        "type": "number",
+        "bits": "40e293e000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e293c000000000"
+      },
+      {
+        "type": "number",
+        "bits": "40e293a000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "407a900000000000"
+      },
+      {
+        "type": "number",
+        "bits": "407aa00000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "407aa00000000000"
+      },
+      {
+        "type": "number",
+        "bits": "407a900000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ]
+  ],
+  "service_response": [
+    {
+      "cohort": "later-logical-order",
+      "response": {
+        "version": 1,
+        "id": "44912bb6ce194cd0a0b8523b0b0f9932",
+        "ok": true,
+        "rows": [
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          }
+        ],
+        "inputs": [
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": false
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "bff0000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "error",
+              "code": "#REF!"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "error",
+              "code": "#REF!"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ]
+        ],
+        "excel_version": "16.0",
+        "excel_build": "20527",
+        "excel_file_version": "16.0.20527.20088",
+        "excel_pid": 48560,
+        "automation_security_before": 1,
+        "automation_security_after": 1,
+        "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261104T1705183509347-b5b7ec6d5c9d496dabe80120bc30fb15\\receipt.json",
+        "session_receipt_sha256": "67c6f0a477c317159288c93927b51a467696d04f15f422211a4317a4542feb0e",
+        "machine": "GOVERT-OMEN",
+        "timestamp": "2026-11-04T17:05:22.168419+00:00",
+        "service_seconds": 4.640000000130385,
+        "request_sha256": "1aaf4bbc1b57b542522c75ba0ce2ecc4bbe3c555a2e3fa897330ed8a48e80578",
+        "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\44912bb6ce194cd0a0b8523b0b0f9932"
+      },
+      "questions": [
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": false,
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "bff0000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ]
+      ]
+    },
+    {
+      "cohort": "date-admission-boundaries",
+      "response": {
+        "version": 1,
+        "id": "55474e0a7c854f6fb2a024ab6134fd5b",
+        "ok": true,
+        "rows": [
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "3f8c71c71c71c71c"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "3f8c71c71c71c71c"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "40bfa3fd27d27d28"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          }
+        ],
+        "inputs": [
+          [
+            {
+              "type": "number",
+              "bits": "bff0000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "bff0000000000000"
+            },
+            {
+              "type": "error",
+              "code": "#REF!"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "bff0000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "bfe0000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "bfe0000000000000"
+            },
+            {
+              "type": "error",
+              "code": "#REF!"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "bfe0000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "error",
+              "code": "#REF!"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3fe0000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3fe0000000000000"
+            },
+            {
+              "type": "error",
+              "code": "#REF!"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3fe0000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "41469240c0000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "41469240c0000000"
+            },
+            {
+              "type": "error",
+              "code": "#REF!"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "41469240c0000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4146924100000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4146924100000000"
+            },
+            {
+              "type": "error",
+              "code": "#REF!"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4146924100000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ]
+        ],
+        "excel_version": "16.0",
+        "excel_build": "20527",
+        "excel_file_version": "16.0.20527.20088",
+        "excel_pid": 31600,
+        "automation_security_before": 1,
+        "automation_security_after": 1,
+        "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261104T1710052058196-40a83355f4fd4ada9ba6d64229e4bbfb\\receipt.json",
+        "session_receipt_sha256": "49ac731b0cf3102ecdea7b603aab8444f8e6fefc562698314e1cb899ecebf56a",
+        "machine": "GOVERT-OMEN",
+        "timestamp": "2026-11-04T17:10:08.166153+00:00",
+        "service_seconds": 3.671000000089407,
+        "request_sha256": "73edce8540d2e309f21c3b2346e790df50d3de3493c728eeaba36e359c05b22e",
+        "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\55474e0a7c854f6fb2a024ab6134fd5b"
+      },
+      "questions": [
+        [
+          {
+            "type": "number",
+            "bits": "bff0000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "bff0000000000000"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "bff0000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "bfe0000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "bfe0000000000000"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "bfe0000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3fe0000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3fe0000000000000"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3fe0000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "41469240c0000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "41469240c0000000"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "41469240c0000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4146924100000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4146924100000000"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4146924100000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ]
+      ]
+    },
+    {
+      "cohort": "calendar-zero",
+      "response": {
+        "version": 1,
+        "id": "c0b9c7411a714165b7c5c489b9bb45ce",
+        "ok": true,
+        "rows": [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3f66c16c16c16c17"
+          },
+          {
+            "type": "number",
+            "bits": "3f66719f3601671a"
+          },
+          {
+            "type": "number",
+            "bits": "3f66c16c16c16c17"
+          },
+          {
+            "type": "number",
+            "bits": "3f66719f3601671a"
+          },
+          {
+            "type": "number",
+            "bits": "3f66c16c16c16c17"
+          },
+          {
+            "type": "number",
+            "bits": "3f8c71c71c71c71c"
+          },
+          {
+            "type": "number",
+            "bits": "3f8c0e070381c0e0"
+          },
+          {
+            "type": "number",
+            "bits": "3f8c71c71c71c71c"
+          },
+          {
+            "type": "number",
+            "bits": "3f8c0e070381c0e0"
+          },
+          {
+            "type": "number",
+            "bits": "3f8c71c71c71c71c"
+          },
+          {
+            "type": "number",
+            "bits": "3f8c71c71c71c71c"
+          },
+          {
+            "type": "number",
+            "bits": "3f8c0e070381c0e0"
+          },
+          {
+            "type": "number",
+            "bits": "3f8c71c71c71c71c"
+          },
+          {
+            "type": "number",
+            "bits": "3f8c0e070381c0e0"
+          },
+          {
+            "type": "number",
+            "bits": "3f8c71c71c71c71c"
+          },
+          {
+            "type": "number",
+            "bits": "3fc49f49f49f49f5"
+          },
+          {
+            "type": "number",
+            "bits": "3fc4b0bec5c94b0c"
+          },
+          {
+            "type": "number",
+            "bits": "3fc4fa4fa4fa4fa5"
+          },
+          {
+            "type": "number",
+            "bits": "3fc4b0bec5c94b0c"
+          },
+          {
+            "type": "number",
+            "bits": "3fc49f49f49f49f5"
+          },
+          {
+            "type": "number",
+            "bits": "3fc4fa4fa4fa4fa5"
+          },
+          {
+            "type": "number",
+            "bits": "3fc50a8542a150a8"
+          },
+          {
+            "type": "number",
+            "bits": "3fc5555555555555"
+          },
+          {
+            "type": "number",
+            "bits": "3fc50a8542a150a8"
+          },
+          {
+            "type": "number",
+            "bits": "3fc4fa4fa4fa4fa5"
+          },
+          {
+            "type": "number",
+            "bits": "3fc5b05b05b05b06"
+          },
+          {
+            "type": "number",
+            "bits": "3fc5644bbf795645"
+          },
+          {
+            "type": "number",
+            "bits": "3fc5b05b05b05b06"
+          },
+          {
+            "type": "number",
+            "bits": "3fc5644bbf795645"
+          },
+          {
+            "type": "number",
+            "bits": "3fc5b05b05b05b06"
+          }
+        ],
+        "inputs": [
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4008000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4010000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4008000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4010000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4008000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4010000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4008000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4010000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "404d800000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "404d800000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "404d800000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "404d800000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4008000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "404d800000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4010000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4008000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4010000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "404e800000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "404e800000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "404e800000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "404e800000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4008000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "404e800000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4010000000000000"
+            }
+          ]
+        ],
+        "excel_version": "16.0",
+        "excel_build": "20527",
+        "excel_file_version": "16.0.20527.20088",
+        "excel_pid": 31600,
+        "automation_security_before": 1,
+        "automation_security_after": 1,
+        "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261104T1715522369329-42b48ea7b14d44ebb954773c8a4b98ad\\receipt.json",
+        "session_receipt_sha256": "ef97bb874109f514e8883d802c71be970253deb99bcaedec3d90d5e4e0c7f78f",
+        "machine": "GOVERT-OMEN",
+        "timestamp": "2026-11-04T17:16:01.816894+00:00",
+        "service_seconds": 13.859999999869615,
+        "request_sha256": "080f90207b1fa5d644e0b414aa1651bed032fcb4d98c8464d5a9b71b5cec53d0",
+        "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\c0b9c7411a714165b7c5c489b9bb45ce"
+      },
+      "questions": [
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4008000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4010000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4008000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4010000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4008000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4010000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4008000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4010000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "404d800000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "404d800000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "404d800000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "404d800000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4008000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "404d800000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4010000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4008000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4010000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "404e800000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "404e800000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "404e800000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "404e800000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4008000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "404e800000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4010000000000000"
+          }
+        ]
+      ]
+    },
+    {
+      "cohort": "1900-basis1-discriminators",
+      "response": {
+        "version": 1,
+        "id": "7919724949764531ab7e590bab7419cd",
+        "ok": true,
+        "rows": [
+          {
+            "type": "number",
+            "bits": "3f66719f3601671a"
+          },
+          {
+            "type": "number",
+            "bits": "3f76719f3601671a"
+          },
+          {
+            "type": "number",
+            "bits": "3feaa6ed1021aa6f"
+          },
+          {
+            "type": "number",
+            "bits": "3feabd5eaf57abd6"
+          },
+          {
+            "type": "number",
+            "bits": "3ff00b38cf9b00b4"
+          },
+          {
+            "type": "number",
+            "bits": "3ff00b38cf9b00b4"
+          },
+          {
+            "type": "number",
+            "bits": "3ff016719f360167"
+          },
+          {
+            "type": "number",
+            "bits": "40000b38cf9b00b4"
+          },
+          {
+            "type": "number",
+            "bits": "3ff00b38cf9b00b4"
+          },
+          {
+            "type": "number",
+            "bits": "40080b38cf9b00b4"
+          },
+          {
+            "type": "number",
+            "bits": "3f66719f3601671a"
+          },
+          {
+            "type": "number",
+            "bits": "3f6661ec6a5122f9"
+          }
+        ],
+        "inputs": [
+          [
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "404d800000000000"
+            },
+            {
+              "type": "number",
+              "bits": "404e800000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "404e800000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4076d00000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "404e800000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4076e00000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4076f00000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "404e800000000000"
+            },
+            {
+              "type": "number",
+              "bits": "407ab00000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4076f00000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4086e00000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4076e00000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4086e00000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4091240000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4076f00000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4077000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4096d80000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4096dc0000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ]
+        ],
+        "excel_version": "16.0",
+        "excel_build": "20527",
+        "excel_file_version": "16.0.20527.20088",
+        "excel_pid": 20200,
+        "automation_security_before": 1,
+        "automation_security_after": 1,
+        "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261104T1735436161627-25babde24f404f19a1e8555f7c3ea4ad\\receipt.json",
+        "session_receipt_sha256": "c3fcd346216806666e237460e67dda581ac2a307067bd94734a45a6d1f4ca89e",
+        "machine": "GOVERT-OMEN",
+        "timestamp": "2026-11-04T17:35:53.841864+00:00",
+        "service_seconds": 13.734000000171363,
+        "request_sha256": "6045a5d829111fa08fedd557357a1e18d08d32edc6eab1770f9490f209530014",
+        "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\7919724949764531ab7e590bab7419cd"
+      },
+      "questions": [
+        [
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "404d800000000000"
+          },
+          {
+            "type": "number",
+            "bits": "404e800000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "404e800000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4076d00000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "404e800000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4076e00000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4076f00000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "404e800000000000"
+          },
+          {
+            "type": "number",
+            "bits": "407ab00000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4076f00000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4086e00000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4076e00000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4086e00000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4091240000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4076f00000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4077000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4096d80000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4096dc0000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ]
+      ]
+    },
+    {
+      "cohort": "fictitious-leap-day",
+      "response": {
+        "version": 1,
+        "id": "cc07c24e0db64a47a520ee77fa6e1ebe",
+        "ok": true,
+        "rows": [
+          {
+            "type": "number",
+            "bits": "3fc50a8542a150a8"
+          },
+          {
+            "type": "number",
+            "bits": "3fc4b0bec5c94b0c"
+          },
+          {
+            "type": "number",
+            "bits": "3f66719f3601671a"
+          },
+          {
+            "type": "number",
+            "bits": "3f66719f3601671a"
+          },
+          {
+            "type": "number",
+            "bits": "3f66719f3601671a"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3fc4b0bec5c94b0c"
+          },
+          {
+            "type": "number",
+            "bits": "3fc5644bbf795645"
+          },
+          {
+            "type": "number",
+            "bits": "3f6661ec6a5122f9"
+          },
+          {
+            "type": "number",
+            "bits": "3f6661ec6a5122f9"
+          },
+          {
+            "type": "number",
+            "bits": "3f6661ec6a5122f9"
+          },
+          {
+            "type": "number",
+            "bits": "3f6661ec6a5122f9"
+          },
+          {
+            "type": "number",
+            "bits": "3f6661ec6a5122f9"
+          },
+          {
+            "type": "number",
+            "bits": "3f6661ec6a5122f9"
+          },
+          {
+            "type": "number",
+            "bits": "3f6661ec6a5122f9"
+          },
+          {
+            "type": "number",
+            "bits": "3f6661ec6a5122f9"
+          },
+          {
+            "type": "number",
+            "bits": "3f6661ec6a5122f9"
+          },
+          {
+            "type": "number",
+            "bits": "3f66719f3601671a"
+          },
+          {
+            "type": "number",
+            "bits": "3f66719f3601671a"
+          }
+        ],
+        "inputs": [
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "404d800000000000"
+            },
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "404e800000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "404e800000000000"
+            },
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "404d800000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "404e800000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4097c00000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4097c40000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4097c40000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4097c80000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4097c40000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4097c00000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e1dd0000000000"
+            },
+            {
+              "type": "number",
+              "bits": "40e1dd2000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e1dd2000000000"
+            },
+            {
+              "type": "number",
+              "bits": "40e1dd4000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e1dd2000000000"
+            },
+            {
+              "type": "number",
+              "bits": "40e1dd0000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e293a000000000"
+            },
+            {
+              "type": "number",
+              "bits": "40e293c000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e293c000000000"
+            },
+            {
+              "type": "number",
+              "bits": "40e293e000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e293c000000000"
+            },
+            {
+              "type": "number",
+              "bits": "40e293a000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "407a900000000000"
+            },
+            {
+              "type": "number",
+              "bits": "407aa00000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "407aa00000000000"
+            },
+            {
+              "type": "number",
+              "bits": "407a900000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ]
+        ],
+        "excel_version": "16.0",
+        "excel_build": "20527",
+        "excel_file_version": "16.0.20527.20088",
+        "excel_pid": 52324,
+        "automation_security_before": 1,
+        "automation_security_after": 1,
+        "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261104T1747200947216-fa825d21272e46af9836df0232937c45\\receipt.json",
+        "session_receipt_sha256": "ddce6f8b860304d09d08b5eef558030ccb65af2f9e27578df00186fad58d1a36",
+        "machine": "GOVERT-OMEN",
+        "timestamp": "2026-11-04T17:47:27.513398+00:00",
+        "service_seconds": 9.108999999938533,
+        "request_sha256": "46e4a4febc0cb3527c373e68b7742d1abcb69a58b29a741791774fa46f3eea59",
+        "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\cc07c24e0db64a47a520ee77fa6e1ebe"
+      },
+      "questions": [
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "404d800000000000"
+          },
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "404e800000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "404e800000000000"
+          },
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "404d800000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "404e800000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4097c00000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4097c40000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4097c40000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4097c80000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4097c40000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4097c00000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e1dd0000000000"
+          },
+          {
+            "type": "number",
+            "bits": "40e1dd2000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e1dd2000000000"
+          },
+          {
+            "type": "number",
+            "bits": "40e1dd4000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e1dd2000000000"
+          },
+          {
+            "type": "number",
+            "bits": "40e1dd0000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e293a000000000"
+          },
+          {
+            "type": "number",
+            "bits": "40e293c000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e293c000000000"
+          },
+          {
+            "type": "number",
+            "bits": "40e293e000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e293c000000000"
+          },
+          {
+            "type": "number",
+            "bits": "40e293a000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "407a900000000000"
+          },
+          {
+            "type": "number",
+            "bits": "407aa00000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "407aa00000000000"
+          },
+          {
+            "type": "number",
+            "bits": "407a900000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ]
+      ]
+    }
+  ],
+  "retained_wrapper_sha256": {
+    "live-yearfrac-later-logical-order.json": "98fe133fa8b14a422bc3a404ec4ec0ddd7e88fe8dc2a5ea92d06b18d9632c076",
+    "live-yearfrac-date-admission-boundaries.json": "c5bb63822cbdf97f43cf07c038c2e740daa6aa71a99e8eb98b0de4a1393ec7b2",
+    "live-yearfrac-calendar-zero.json": "9e21a56b024285ab620de56cc99544da0afdf5fb5f883bd8fe51fd5e03be9940",
+    "live-yearfrac-1900-basis1-discriminators.json": "a10f0938a7d93eeb8fd54e036ec058f64e484d10692349ae251f9012932bfbbb",
+    "live-yearfrac-fictitious-leap-day.json": "88cb3f72de458bf32e7b9c8817f5272af9ca064755cf23c7408d2b330b71ee18"
+  },
+  "unselected_questions": [
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-9",
+      "reason": "Numeric algorithm or separate calendar-zero control retained in full response, not credited by this argument-admission change."
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-12",
+      "reason": "Numeric algorithm or separate calendar-zero control retained in full response, not credited by this argument-admission change."
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-15",
+      "reason": "Numeric algorithm or separate calendar-zero control retained in full response, not credited by this argument-admission change."
+    }
+  ]
+}

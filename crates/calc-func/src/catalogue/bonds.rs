@@ -38,6 +38,16 @@ fn or(site: &Site<'_>, a: &[CalcValue], index: usize, default: f64) -> Step<f64>
     if given(a, index) { num(site, a, index) } else { Ok(default) }
 }
 
+/// The bill functions admit and validate each date before reading the next scalar.
+fn bill_arguments(site: &Site<'_>, a: &[CalcValue], sv: &EvalServices<'_>) -> Step<[f64; 3]> {
+    reject_logical(&a[0])?;
+    let settlement = super::kit::checked_date_serial(date_1900(site, a, 0, sv)?)?;
+    reject_logical(&a[1])?;
+    let maturity = super::kit::checked_date_serial(date_1900(site, a, 1, sv)?)?;
+    let rate = super::kit::num_without_logical(site, a, 2)?;
+    Ok([settlement, maturity, rate])
+}
+
 fn bond_out(site: &Site<'_>, result: Result<f64, bond::BondCoreEvalError>) -> Step<CalcValue> {
     match result {
         Ok(n) => site.number(n),
@@ -182,19 +192,16 @@ ported_family! {
         bill_out(s, bill::pricedisc_kernel(settlement, maturity, num(s, a, 2)?, num(s, a, 3)?, basis(s, a, 4)?))
     }
     20 tbilleq_fn "TBILLEQ" (3, 3) [V "settlement", V "maturity", V "discount"] |s, a, sv| {
-        reject_logical(&a[0])?;
-        let (settlement, maturity) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
-        bill_out(s, bill::tbilleq_kernel(settlement, maturity, num(s, a, 2)?))
+        let [settlement, maturity, rate] = bill_arguments(s, a, sv)?;
+        bill_out(s, bill::tbilleq_kernel(settlement, maturity, rate))
     }
     21 tbillprice_fn "TBILLPRICE" (3, 3) [V "settlement", V "maturity", V "discount"] |s, a, sv| {
-        reject_logical(&a[0])?;
-        let (settlement, maturity) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
-        bill_out(s, bill::tbillprice_kernel(settlement, maturity, num(s, a, 2)?))
+        let [settlement, maturity, rate] = bill_arguments(s, a, sv)?;
+        bill_out(s, bill::tbillprice_kernel(settlement, maturity, rate))
     }
     22 tbillyield_fn "TBILLYIELD" (3, 3) [V "settlement", V "maturity", V "pr"] |s, a, sv| {
-        reject_logical(&a[0])?;
-        let (settlement, maturity) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
-        bill_out(s, bill::tbillyield_kernel(settlement, maturity, num(s, a, 2)?))
+        let [settlement, maturity, rate] = bill_arguments(s, a, sv)?;
+        bill_out(s, bill::tbillyield_kernel(settlement, maturity, rate))
     }
     23 oddfprice_fn "ODDFPRICE" (8, 9) [V "settlement", V "maturity", V "issue", V "first_coupon", V "rate", V "yld", V "redemption", V "frequency", V "basis"] |s, a, sv| {
         let dates = [date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?, date_1900(s, a, 2, sv)?, date_1900(s, a, 3, sv)?];

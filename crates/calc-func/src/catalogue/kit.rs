@@ -151,6 +151,22 @@ pub(super) fn reject_logical(value: &CalcValue) -> Step<()> {
     }
 }
 
+/// Number coercion at a position whose measured admission excludes logicals.
+pub(super) fn num_without_logical(site: &Site<'_>, arguments: &[CalcValue], index: usize) -> Step<f64> {
+    reject_logical(&arguments[index])?;
+    num(site, arguments, index)
+}
+
+/// Validate a date argument before reading the next argument. Negative fractions are
+/// rejected before truncation; the existing calendar validator supplies the upper bound.
+pub(super) fn checked_date_serial(serial: f64) -> Step<f64> {
+    if serial < 0.0 {
+        return fail(WorksheetErrorCode::Num);
+    }
+    crate::ported::date_kernels::serial_from_number(serial).map_err(Exit::Error)?;
+    Ok(serial)
+}
+
 /// Number coercion for a kernel that implements its own measured subnormal input policy.
 /// Keep the ordinary coercions and refusals for every other kind of value.
 pub(super) fn num_with_subnormal(
