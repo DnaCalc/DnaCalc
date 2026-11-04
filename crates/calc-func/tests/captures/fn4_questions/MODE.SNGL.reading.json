@@ -1,0 +1,761 @@
+{
+  "function": "MODE.SNGL",
+  "witnesses": [
+    {
+      "id": "fn7-MODE.SNGL-emptytext-alone",
+      "args": [
+        ""
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-MODE.SNGL-emptytext-coercion-pair",
+      "args": [
+        "",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-MODE.SNGL-emptytext-numeric-mode",
+      "args": [
+        "",
+        "0x4000000000000000",
+        "0x4000000000000000"
+      ],
+      "expected_bits": "0x4000000000000000"
+    },
+    {
+      "id": "fn7-MODE.SNGL-badtext-alone",
+      "args": [
+        "x"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-MODE.SNGL-badtext-coercion-pair",
+      "args": [
+        "x",
+        "0x4000000000000000"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-MODE.SNGL-badtext-numeric-mode",
+      "args": [
+        "x",
+        "0x4000000000000000",
+        "0x4000000000000000"
+      ],
+      "expected_bits": "0x4000000000000000"
+    },
+    {
+      "id": "fn7-MODE.SNGL-numerictext-alone",
+      "args": [
+        "2"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-MODE.SNGL-numerictext-coercion-pair",
+      "args": [
+        "2",
+        "0x4000000000000000"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-MODE.SNGL-numerictext-numeric-mode",
+      "args": [
+        "2",
+        "0x4000000000000000",
+        "0x4000000000000000"
+      ],
+      "expected_bits": "0x4000000000000000"
+    },
+    {
+      "id": "fn7-MODE.SNGL-true-alone",
+      "args": [
+        "TRUE"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-MODE.SNGL-true-coercion-pair",
+      "args": [
+        "TRUE",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-MODE.SNGL-true-numeric-mode",
+      "args": [
+        "TRUE",
+        "0x4000000000000000",
+        "0x4000000000000000"
+      ],
+      "expected_bits": "0x4000000000000000"
+    },
+    {
+      "id": "fn7-MODE.SNGL-false-alone",
+      "args": [
+        "FALSE"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-MODE.SNGL-false-coercion-pair",
+      "args": [
+        "FALSE",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-MODE.SNGL-false-numeric-mode",
+      "args": [
+        "FALSE",
+        "0x4000000000000000",
+        "0x4000000000000000"
+      ],
+      "expected_bits": "0x4000000000000000"
+    },
+    {
+      "id": "fn7-MODE.SNGL-error-first",
+      "args": [
+        "error:NA",
+        "x"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-MODE.SNGL-error-after-text",
+      "args": [
+        "x",
+        "error:NA"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-MODE.SNGL-error-after-duplicates",
+      "args": [
+        "0x4000000000000000",
+        "0x4000000000000000",
+        "error:Div0"
+      ],
+      "expected_bits": "error:Div0"
+    },
+    {
+      "id": "fn7-MODE.SNGL-two-errors",
+      "args": [
+        "error:NA",
+        "error:Div0"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-MODE.SNGL-numeric-duplicate",
+      "args": [
+        "0x4000000000000000",
+        "0x4000000000000000"
+      ],
+      "expected_bits": "0x4000000000000000"
+    },
+    {
+      "id": "fn7-MODE.SNGL-numeric-single",
+      "args": [
+        "0x4000000000000000"
+      ],
+      "expected_bits": "error:NA"
+    }
+  ],
+  "service_questions": [
+    [
+      {
+        "type": "text",
+        "value": "",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "",
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "",
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "2",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "2",
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "2",
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "boolean",
+        "value": false,
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "boolean",
+        "value": false,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "boolean",
+        "value": false,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "error",
+        "code": "#DIV/0!"
+      }
+    ],
+    [
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#DIV/0!"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      }
+    ]
+  ],
+  "service_response": {
+    "version": 1,
+    "id": "96386eee1cc54168b3357c2b1ec239eb",
+    "ok": true,
+    "rows": [
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#DIV/0!"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      }
+    ],
+    "inputs": [
+      [
+        {
+          "type": "text",
+          "value": ""
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": ""
+        },
+        {
+          "type": "number",
+          "bits": "0000000000000000"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": ""
+        },
+        {
+          "type": "number",
+          "bits": "4000000000000000"
+        },
+        {
+          "type": "number",
+          "bits": "4000000000000000"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "x"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "x"
+        },
+        {
+          "type": "number",
+          "bits": "4000000000000000"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "x"
+        },
+        {
+          "type": "number",
+          "bits": "4000000000000000"
+        },
+        {
+          "type": "number",
+          "bits": "4000000000000000"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "2"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "2"
+        },
+        {
+          "type": "number",
+          "bits": "4000000000000000"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "2"
+        },
+        {
+          "type": "number",
+          "bits": "4000000000000000"
+        },
+        {
+          "type": "number",
+          "bits": "4000000000000000"
+        }
+      ],
+      [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ],
+      [
+        {
+          "type": "boolean",
+          "value": true
+        },
+        {
+          "type": "number",
+          "bits": "3ff0000000000000"
+        }
+      ],
+      [
+        {
+          "type": "boolean",
+          "value": true
+        },
+        {
+          "type": "number",
+          "bits": "4000000000000000"
+        },
+        {
+          "type": "number",
+          "bits": "4000000000000000"
+        }
+      ],
+      [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ],
+      [
+        {
+          "type": "boolean",
+          "value": false
+        },
+        {
+          "type": "number",
+          "bits": "0000000000000000"
+        }
+      ],
+      [
+        {
+          "type": "boolean",
+          "value": false
+        },
+        {
+          "type": "number",
+          "bits": "4000000000000000"
+        },
+        {
+          "type": "number",
+          "bits": "4000000000000000"
+        }
+      ],
+      [
+        {
+          "type": "blank"
+        }
+      ],
+      [
+        {
+          "type": "blank"
+        },
+        {
+          "type": "number",
+          "bits": "0000000000000000"
+        }
+      ],
+      [
+        {
+          "type": "blank"
+        },
+        {
+          "type": "number",
+          "bits": "4000000000000000"
+        },
+        {
+          "type": "number",
+          "bits": "4000000000000000"
+        }
+      ],
+      [
+        {
+          "type": "error",
+          "code": "#N/A"
+        },
+        {
+          "type": "text",
+          "value": "x"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "x"
+        },
+        {
+          "type": "error",
+          "code": "#N/A"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "4000000000000000"
+        },
+        {
+          "type": "number",
+          "bits": "4000000000000000"
+        },
+        {
+          "type": "error",
+          "code": "#DIV/0!"
+        }
+      ],
+      [
+        {
+          "type": "error",
+          "code": "#N/A"
+        },
+        {
+          "type": "error",
+          "code": "#DIV/0!"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "4000000000000000"
+        },
+        {
+          "type": "number",
+          "bits": "4000000000000000"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "4000000000000000"
+        }
+      ]
+    ],
+    "excel_version": "16.0",
+    "excel_build": "20527",
+    "excel_file_version": "16.0.20527.20088",
+    "excel_pid": 47156,
+    "automation_security_before": 1,
+    "automation_security_after": 1,
+    "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261104T1651458575586-439bcfaec1e44dbda837f3fdd7d1de55\\receipt.json",
+    "session_receipt_sha256": "3ec5dbf824844b1a5d268f66309663813a809ce4f8d228689e3e79c2b7ffdaba",
+    "machine": "GOVERT-OMEN",
+    "timestamp": "2026-11-04T16:51:49.087024+00:00",
+    "service_seconds": 3.9840000001713634,
+    "request_sha256": "3ae44f674293afb4d75bc35e9c86ce9fe28f441236615be5bd42103d7a4c50f4",
+    "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\96386eee1cc54168b3357c2b1ec239eb"
+  },
+  "retained_wrapper_sha256": {
+    "live-mode.sngl-scalar-kinds.json": "1b44524347840556d1084d7376ac88c2ea7f1a61ff8ed573f830c060d04cf5c8"
+  },
+  "unselected_questions": "Three blank-cell questions remain in the full service response. Their separate blank-reference admission question is not established by the retained direct text/logical capture."
+}

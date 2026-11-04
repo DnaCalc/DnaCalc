@@ -7,7 +7,8 @@
 //! The lists are read by the aggregate family's rule ([`super::aggregate`]): a direct argument
 //! through number coercion, a held value (a cell of a reference, an element of an array) as a
 //! number only, text, logicals and blank cells skipped; the A-suffixed functions read held text
-//! as 0 and held logicals as 1 and 0. The paired statistics skip a position where either list
+//! as 0 and held logicals as 1 and 0. MODE also skips direct text and logicals.
+//! The paired statistics skip a position where either list
 //! holds no number, and lists of different sizes are #N/A.
 
 use super::aggregate::Held;
@@ -268,19 +269,19 @@ ported_family! {
         s.number(result)
     }
     6 mode "MODE" (1, 255) [R "number1", R "number2"] |s, a, sv| {
-        match modes(&all(s, a, sv, Held::Numbers)?).first() {
+        match modes(&all(s, a, sv, Held::ModeNumbers)?).first() {
             Some(m) => s.number(*m),
             None => fail(WorksheetErrorCode::NA),
         }
     }
     7 mode_sngl "MODE.SNGL" (1, 255) [R "number1", R "number2"] |s, a, sv| {
-        match modes(&all(s, a, sv, Held::Numbers)?).first() {
+        match modes(&all(s, a, sv, Held::ModeNumbers)?).first() {
             Some(m) => s.number(*m),
             None => fail(WorksheetErrorCode::NA),
         }
     }
     8 mode_mult "MODE.MULT" (1, 255) [R "number1", R "number2"] |s, a, sv| {
-        let found = modes(&all(s, a, sv, Held::Numbers)?);
+        let found = modes(&all(s, a, sv, Held::ModeNumbers)?);
         if found.is_empty() {
             return fail(WorksheetErrorCode::NA);
         }
