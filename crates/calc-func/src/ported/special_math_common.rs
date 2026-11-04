@@ -195,7 +195,7 @@ fn gratio_norm_gamma(a: f64) -> f64 {
         let sqrt_pi = std::f64::consts::PI.sqrt();
         return df * sqrt_pi / f64::powi(2.0, n);
     }
-    crate::ported::excel_numeric::excel_exp(ln_gamma(a))
+    crate::ported::excel_numeric::gamma_excel(a)
 }
 
 /// exparg(l) of exparg.f (specialized to this x86_64 host's double range).
