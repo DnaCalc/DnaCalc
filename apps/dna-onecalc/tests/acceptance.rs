@@ -101,7 +101,7 @@ fn check_captured_questions(
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn delivered_scalar_readings_follow_the_application_route() {
-    let readings: [&[u8]; 29] = [
+    let readings: [&[u8]; 30] = [
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/LOWER.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/PROPER.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/REGEXTEST.reading.json"),
@@ -131,6 +131,7 @@ fn delivered_scalar_readings_follow_the_application_route() {
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/ERF.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/SERIESSUM.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/IRR.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/TEXT.reading.json"),
     ];
     let mut failures = Vec::new();
     let mut count = 0;
@@ -186,7 +187,7 @@ fn delivered_scalar_readings_follow_the_application_route() {
             }
         }
     }
-    assert_eq!(count, 1704);
+    assert_eq!(count, 1736);
     assert!(failures.is_empty(), "{} of{count} readings differ:\n{}", failures.len(), failures.join("\n"));
 }
 
@@ -565,8 +566,8 @@ fn regexextract_retains_the_captured_lifted_results() {
     ), &mut session, |f| matches!(f.cell.sheet(), "fn2_q078" | "fn2_q079"), 2);
 }
 
-/// The public REGEXEXTRACT example spills Dylan/Williams vertically. The retained fn2
-/// controls establish Value for matching capture-group mode without a capturing group.
+/// Fn5 establishes horizontal all-match results and one outer capture. Group-free
+/// capture mode is Value even without a match; unsupported captures remain refused.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn regexextract_publishes_all_matches_and_keeps_unmeasured_modes_refused() {
@@ -575,14 +576,16 @@ fn regexextract_publishes_all_matches_and_keeps_unmeasured_modes_refused() {
     let text = |s| CalcValue::text(calc_func::value::ExcelText::from_interop_assignment(s));
     let mut failures = Vec::new();
     for (formula, expected) in [
-        ("=ROWS(REGEXEXTRACT(\"DylanWilliams\",\"[A-Z][a-z]+\",1))", CalcValue::number(2.0)),
-        ("=COLUMNS(REGEXEXTRACT(\"DylanWilliams\",\"[A-Z][a-z]+\",1))", CalcValue::number(1.0)),
-        ("=INDEX(REGEXEXTRACT(\"DylanWilliams\",\"[A-Z][a-z]+\",1),2,1)", text("Williams")),
+        ("=ROWS(REGEXEXTRACT(\"DylanWilliams\",\"[A-Z][a-z]+\",1))", CalcValue::number(1.0)),
+        ("=COLUMNS(REGEXEXTRACT(\"DylanWilliams\",\"[A-Z][a-z]+\",1))", CalcValue::number(2.0)),
+        ("=INDEX(REGEXEXTRACT(\"DylanWilliams\",\"[A-Z][a-z]+\",1),1,2)", text("Williams")),
         ("=REGEXEXTRACT(\"DylanWilliams\",\"[A-Z][a-z]+\")", text("Dylan")),
         ("=REGEXEXTRACT(\"Dylan\",\"[A-Z][a-z]+\",1)", text("Dylan")),
         ("=REGEXEXTRACT(\"123\",\"[A-Z][a-z]+\",1)", CalcValue::error(WorksheetErrorCode::NA)),
         ("=REGEXEXTRACT(\"a12b34\",\"[0-9]+\",2)", CalcValue::error(WorksheetErrorCode::Value)),
         ("=REGEXEXTRACT(\"a12b34\",\"[0-9]+\",3)", CalcValue::error(WorksheetErrorCode::Value)),
+        ("=REGEXEXTRACT(\"abc\",\"[0-9]+\",2)", CalcValue::error(WorksheetErrorCode::Value)),
+        ("=REGEXEXTRACT(\"a12b\",\"([0-9]+)\",2)", text("12")),
     ] {
         session.set_formula(formula);
         let calculated = session.calculate();
@@ -591,7 +594,11 @@ fn regexextract_publishes_all_matches_and_keeps_unmeasured_modes_refused() {
                 calculated.result, calculated.diagnostics));
         }
     }
-    for formula in ["=REGEXEXTRACT(\"abc\",\"[0-9]+\",2)", "=REGEXEXTRACT(\"a12b\",\"([0-9]+)\",2)"] {
+    for formula in [
+        "=REGEXEXTRACT(\"abc\",\"([0-9]+)\",2)",
+        "=REGEXEXTRACT(\"a12b\",\"(([0-9]+))\",2)",
+        "=REGEXEXTRACT(\"a12b\",\"([0-9]+)(b)\",2)",
+    ] {
         session.set_formula(formula);
         let calculated = session.calculate();
         assert!(calculated.result.is_none(), "{formula}: {:?}", calculated.result);

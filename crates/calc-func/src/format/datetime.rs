@@ -134,7 +134,19 @@ pub(crate) fn render_with_datetime_tokens(
     } else {
         None
     };
-    let weekday_index = date.map(|(year, month, day)| weekday_from_ymd(year, month, day));
+    // TEXT follows the same serial calendar as WEEKDAY, including fictitious
+    // 1900-02-29. Use the day after the existing time rounding, not Gregorian y/m/d.
+    let weekday_index = date.and_then(|_| {
+        let serial = time.elapsed_seconds.div_euclid(86_400) as f64
+            + if date_system == WorkbookDateSystem::System1904 {
+                crate::ported::date_kernels::OFFSET_1904
+            } else {
+                0.0
+            };
+        crate::ported::date_kernels::weekday(serial, None)
+            .ok()
+            .map(|day| day as usize - 1)
+    });
     // A locale tag selects names, while separators and other formatting fields remain those
     // of the workbook profile. Fn1 measured German, French, Japanese and Russian names.
     let names_profile = FormatProfile { id: name_locale.unwrap_or(profile.id), ..*profile };
@@ -476,28 +488,5 @@ impl TimeParts {
             elapsed_seconds: total_seconds,
             subsecond: total_units.rem_euclid(unit),
         }
-    }
-}
-
-fn weekday_from_ymd(year: i64, month: i64, day: i64) -> usize {
-    let mut month = month;
-    let mut year = year;
-    if month < 3 {
-        month += 12;
-        year -= 1;
-    }
-    let k = year.rem_euclid(100);
-    let j = year.div_euclid(100);
-    let h =
-        (day + (13 * (month + 1)).div_euclid(5) + k + k.div_euclid(4) + j.div_euclid(4) + 5 * j)
-            .rem_euclid(7);
-    match h {
-        0 => 6,
-        1 => 0,
-        2 => 1,
-        3 => 2,
-        4 => 3,
-        5 => 4,
-        _ => 5,
     }
 }

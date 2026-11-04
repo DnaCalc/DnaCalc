@@ -399,29 +399,59 @@ fn regextest(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
 
 fn regexextract(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     let text = text_arg(site, a, 0)?;
-    let pattern = text_arg(site, a, 1)?;
-    let mode = if given(a, 2) { num(site, a, 2)?.trunc() } else { 0.0 };
+    let mut pattern = text_arg(site, a, 1)?;
+    let mode = if given(a, 2) {
+        num(site, a, 2)?.trunc()
+    } else {
+        0.0
+    };
     let sensitive = case_sensitive(site, a, 3)?;
-    let (chars, found) = regex(site, &text, &pattern, sensitive, mode == 0.0)?;
+    // Fn5 regex002: one capture around the entire supported pattern is its
+    // first whole match. The existing parser still refuses inner groups and
+    // other unsupported syntax; no second matching implementation is needed.
+    let mut captured = false;
+    if mode == 2.0 && tk::is_well_formed(&pattern) {
+        let raw = pattern.to_string_lossy();
+        if let Some(inner) = raw.strip_prefix('(').and_then(|s| s.strip_suffix(')')) {
+            pattern = ExcelText::from_utf16_code_units(inner.encode_utf16().collect());
+            captured = true;
+        }
+    }
+    let (chars, found) = regex(site, &text, &pattern, sensitive, mode == 0.0 || captured)?;
     match (mode as i64, found.as_slice()) {
         (_, []) if mode == 0.0 || mode == 1.0 => fail(WorksheetErrorCode::NA),
         (0, [(start, end), ..]) | (1, [(start, end)]) => Ok(crate::catalogue::kit::text_value(
             &chars[*start..*end].iter().collect::<String>(),
         )),
-        // All matches spill vertically (the public example); lifted fn2 roots078/079
+        // Fn5 regex003..005 settle the horizontal shape. Lifted fn2 roots078/079
         // retain each call's first cell through the existing evaluator.
         (1, matches) => {
-            let cells = matches.iter().map(|(start, end)| {
-                crate::catalogue::kit::text_value(&chars[*start..*end].iter().collect::<String>())
-            }).collect();
-            Ok(CalcValue::array(CalcArray::new(
-                ArrayShape { rows: matches.len(), cols: 1 }, cells,
-            ).expect("a nonempty list of matches")))
+            let cells = matches
+                .iter()
+                .map(|(start, end)| {
+                    crate::catalogue::kit::text_value(
+                        &chars[*start..*end].iter().collect::<String>(),
+                    )
+                })
+                .collect();
+            Ok(CalcValue::array(
+                CalcArray::new(
+                    ArrayShape {
+                        rows: 1,
+                        cols: matches.len(),
+                    },
+                    cells,
+                )
+                .expect("a nonempty list of matches"),
+            ))
         }
-        // The admitted pattern parser rejects capturing-group syntax. Fn2 root079
-        // records Value when a matched group-free pattern is asked for captures.
-        (2, [_, ..]) => fail(WorksheetErrorCode::Value),
-        // Capture groups and their no-match behavior remain unmodelled.
+        (2, [(start, end), ..]) if captured => Ok(crate::catalogue::kit::text_value(
+            &chars[*start..*end].iter().collect::<String>(),
+        )),
+        // A supported group-free pattern is Value even without a match
+        // (fn5 regex001); an escaped parenthesis is still group-free (006).
+        (2, _) if !captured => fail(WorksheetErrorCode::Value),
+        // No-match capture-group behavior remains unmeasured.
         (0..=2, _) => Err(site.not_modelled(Some(2))),
         _ => fail(WorksheetErrorCode::Value),
     }
