@@ -538,7 +538,7 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
             return gratio_after40(
                 a,
                 x,
-                exp_rd(t1) / g,
+                series_prefactor(a, x),
                 crate::ported::excel_numeric::excel_exp(t1) / g,
                 e,
                 acc,
@@ -583,7 +583,7 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
         return gratio_after40(
             a,
             x,
-            exp_rd(t1) / g,
+            series_prefactor(a, x),
             crate::ported::excel_numeric::excel_exp(t1) / g,
             e,
             acc,
@@ -618,7 +618,20 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
     t1 -= y;
     let r = GRATIO_RT2PIN * rta * crate::ported::excel_numeric::excel_exp(t1);
     // a >= big: no chopped-exp evidence for this r staging; same r both arms.
-    gratio_after40(a, x, r, r, e, acc, x0, &mut wk)
+    gratio_after40(a, x, r / a, r, e, acc, x0, &mut wk)
+}
+
+/// `x^a exp(-x) / Gamma(a+1)`, the prefactor of the series arm: `exp(t - x - GAMMALN(a+1))` with
+/// `ln x` and `t = a ln x` stored, and the worksheet's GAMMALN in the exponent.
+///
+/// Read from Excel 16.0.20527 windows and the recorded bank: a line at `1/x` in units of `ulp(ln x)`
+/// has weight `a`, a line at a quarter of it for `a = 3` is the stored product, and the answers
+/// carry a constant error for each `a` (-0.875, +0.25, -1.25, +1.625, -2 of 2^-53 for `a = 2..=6`)
+/// that is the rounding of the stored GAMMALN(a+1), which also ended the "chopped exponential" of
+/// even shapes.
+fn series_prefactor(a: f64, x: f64) -> f64 {
+    use crate::ported::excel_numeric::{excel_exp_difference, excel_log, excel_x87_mul, gammaln_excel};
+    excel_exp_difference(excel_x87_mul(a, excel_log(x)), x, gammaln_excel(a + 1.0))
 }
 
 fn gratio_after40(
@@ -656,7 +669,7 @@ fn gratio_after40(
             }
         }
         // The series product is stored from x87 PC64 before binary64 publication.
-        let p = crate::ported::excel_numeric::excel_x87_mul(r_series / a, ans);
+        let p = crate::ported::excel_numeric::excel_x87_mul(r_series, ans);
         return (p, 0.5 + (0.5 - p));
     }
     if x < x0 {
