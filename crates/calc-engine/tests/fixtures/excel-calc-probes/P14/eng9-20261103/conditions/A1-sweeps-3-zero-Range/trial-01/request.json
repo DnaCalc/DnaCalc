@@ -1,0 +1,30 @@
+{
+  "action": "trial",
+  "condition": {
+    "id": "A1-sweeps-3-zero-Range",
+    "formulas": {
+      "A1": "=B1+1",
+      "B1": "=A1+1",
+      "C1": "=C1+1",
+      "D1": "=SUM(A1:B1)"
+    },
+    "seeds": {
+      "A1": 0,
+      "B1": 0,
+      "C1": 0,
+      "D1": 0
+    },
+    "iterations": 3,
+    "change_bits": "3f50624dd2f1a9fc",
+    "iteration": true,
+    "operation": "Range",
+    "commands": 2,
+    "range": "A1:D1",
+    "reverse_entry": false,
+    "reverse_chain": false,
+    "input_sha256": "5c9ef2d7b87dd7fb715b65c4d43bdd062ab5ff66ef3076114505914810aa4cf2"
+  },
+  "trial": 1,
+  "input": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\inputs\\A1-sweeps-3-zero-Range.xlsx",
+  "input_sha256": "5c9ef2d7b87dd7fb715b65c4d43bdd062ab5ff66ef3076114505914810aa4cf2"
+}

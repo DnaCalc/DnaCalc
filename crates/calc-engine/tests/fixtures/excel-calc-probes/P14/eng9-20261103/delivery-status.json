@@ -1,0 +1,3357 @@
+{
+  "verified_utc": "2026-11-03T23:46:52.126860+00:00",
+  "packet_complete": false,
+  "planned_trials_complete": false,
+  "requested_conditions": 104,
+  "requested_trials": 1040,
+  "completed_trials": 746,
+  "conditions_at_least_three": 104,
+  "conditions_at_least_ten": 62,
+  "conditions": {
+    "A1-sweeps-1-asymmetric": 10,
+    "A1-sweeps-1-asymmetric-Calculate": 10,
+    "A1-sweeps-1-asymmetric-Full": 10,
+    "A1-sweeps-1-asymmetric-Range": 10,
+    "A1-sweeps-1-asymmetric-Sheet": 10,
+    "A1-sweeps-1-asymmetric-reverse": 10,
+    "A1-sweeps-1-zero": 10,
+    "A1-sweeps-1-zero-Calculate": 10,
+    "A1-sweeps-1-zero-Full": 10,
+    "A1-sweeps-1-zero-Range": 10,
+    "A1-sweeps-1-zero-Sheet": 10,
+    "A1-sweeps-1-zero-reverse": 10,
+    "A1-sweeps-100-asymmetric": 10,
+    "A1-sweeps-100-asymmetric-Calculate": 10,
+    "A1-sweeps-100-asymmetric-Full": 10,
+    "A1-sweeps-100-asymmetric-Range": 10,
+    "A1-sweeps-100-asymmetric-Sheet": 10,
+    "A1-sweeps-100-asymmetric-reverse": 10,
+    "A1-sweeps-100-zero": 10,
+    "A1-sweeps-100-zero-Calculate": 10,
+    "A1-sweeps-100-zero-Full": 10,
+    "A1-sweeps-100-zero-Range": 10,
+    "A1-sweeps-100-zero-Sheet": 10,
+    "A1-sweeps-100-zero-reverse": 10,
+    "A1-sweeps-2-asymmetric": 10,
+    "A1-sweeps-2-asymmetric-Calculate": 10,
+    "A1-sweeps-2-asymmetric-Full": 10,
+    "A1-sweeps-2-asymmetric-Range": 10,
+    "A1-sweeps-2-asymmetric-Sheet": 10,
+    "A1-sweeps-2-asymmetric-reverse": 10,
+    "A1-sweeps-2-zero": 10,
+    "A1-sweeps-2-zero-Calculate": 10,
+    "A1-sweeps-2-zero-Full": 3,
+    "A1-sweeps-2-zero-Range": 3,
+    "A1-sweeps-2-zero-Sheet": 3,
+    "A1-sweeps-2-zero-reverse": 3,
+    "A1-sweeps-3-asymmetric": 10,
+    "A1-sweeps-3-asymmetric-Calculate": 3,
+    "A1-sweeps-3-asymmetric-Full": 3,
+    "A1-sweeps-3-asymmetric-Range": 3,
+    "A1-sweeps-3-asymmetric-Sheet": 3,
+    "A1-sweeps-3-asymmetric-reverse": 3,
+    "A1-sweeps-3-zero": 10,
+    "A1-sweeps-3-zero-Calculate": 3,
+    "A1-sweeps-3-zero-Full": 3,
+    "A1-sweeps-3-zero-Range": 3,
+    "A1-sweeps-3-zero-Sheet": 3,
+    "A1-sweeps-3-zero-reverse": 3,
+    "A1-sweeps-5-asymmetric": 10,
+    "A1-sweeps-5-asymmetric-Calculate": 3,
+    "A1-sweeps-5-asymmetric-Full": 3,
+    "A1-sweeps-5-asymmetric-Range": 3,
+    "A1-sweeps-5-asymmetric-Sheet": 3,
+    "A1-sweeps-5-asymmetric-reverse": 3,
+    "A1-sweeps-5-zero": 10,
+    "A1-sweeps-5-zero-Calculate": 3,
+    "A1-sweeps-5-zero-Full": 3,
+    "A1-sweeps-5-zero-Range": 3,
+    "A1-sweeps-5-zero-Sheet": 3,
+    "A1-sweeps-5-zero-reverse": 3,
+    "A2-eighth-0000000000000000": 10,
+    "A2-eighth-3fbfffffffffffff": 10,
+    "A2-eighth-3fc0000000000000": 10,
+    "A2-eighth-3fc0000000000001": 10,
+    "A2-half-0000000000000000": 10,
+    "A2-half-3fbfffffffffffff": 10,
+    "A2-half-3fc0000000000000": 10,
+    "A2-half-3fc0000000000001": 10,
+    "A3-both-alone": 10,
+    "A3-both-amplifiers": 10,
+    "A3-eighth-alone": 10,
+    "A3-eighth-amplifier": 10,
+    "A3-half-alone": 10,
+    "A3-half-amplifier": 10,
+    "A4-pure": 10,
+    "B6-NA": 10,
+    "B6-boolean": 10,
+    "B6-changing-error": 10,
+    "B6-number-to-text": 10,
+    "B6-stable-text": 10,
+    "B6-toggle-text": 10,
+    "B6-untaken-self": 10,
+    "B7-indirect": 10,
+    "B7-static": 10,
+    "P22-P06-manual-false-copy-edit": 3,
+    "P22-P06-manual-false-copy-log": 3,
+    "P22-P06-manual-false-copy-off": 3,
+    "P22-P06-manual-false-save-edit": 3,
+    "P22-P06-manual-false-save-log": 3,
+    "P22-P06-manual-false-save-off": 3,
+    "P22-P06-manual-false-saveas-edit": 3,
+    "P22-P06-manual-false-saveas-log": 3,
+    "P22-P06-manual-false-saveas-off": 3,
+    "P22-P06-manual-true-copy-edit": 3,
+    "P22-P06-manual-true-copy-log": 3,
+    "P22-P06-manual-true-copy-off": 3,
+    "P22-P06-manual-true-save-edit": 3,
+    "P22-P06-manual-true-save-log": 3,
+    "P22-P06-manual-true-save-off": 3,
+    "P22-P06-manual-true-saveas-edit": 3,
+    "P22-P06-manual-true-saveas-log": 3,
+    "P22-P06-manual-true-saveas-off": 3,
+    "control-dc_10y_iteration": 10,
+    "control-dc_86f": 10
+  },
+  "supplemental_p22_requested_trials": 70,
+  "supplemental_p22_completed_trials": 70,
+  "p22_operation_error_counts": {
+    "COM Application.Undo": 20
+  },
+  "groups": [
+    {
+      "id": "20261103T1712305651680-79c84a74bf1e48698570450e7f032b52",
+      "condition": "A1-sweeps-1-asymmetric-Calculate",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T1713221724801-b324d5456cfc4aa2a9a2555883270811",
+      "condition": "A1-sweeps-1-asymmetric-Full",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T1714147719829-2cd35554c18046ad9f266a106ae438f0",
+      "condition": "A1-sweeps-1-asymmetric-Range",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T1715337761466-4140a04ae07f46ed93d9a7c9ec1a550b",
+      "condition": "A1-sweeps-1-asymmetric-Sheet",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T1717105791466-602046108c7f40179a27f78c1d439890",
+      "condition": "A1-sweeps-1-asymmetric-reverse",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T1719336782326-6a0a648aea814281b1383205e6324103",
+      "condition": "A1-sweeps-100-asymmetric-Calculate",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T1725324107347-1683695d67a541b59db5028306be536d",
+      "condition": "A1-sweeps-100-asymmetric-Full",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T1726574320606-2e5969cba8574d509c6e73577fefac9f",
+      "condition": "A1-sweeps-100-asymmetric-Range",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T1728138392021-f1985ec2769b4b94a50a9041890bc507",
+      "condition": "A1-sweeps-100-asymmetric-Sheet",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T1729268671032-82ab73f883984d8f9ec7792ccce8b363",
+      "condition": "A1-sweeps-100-asymmetric-reverse",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T1730375946820-9b58fe317a4346f88b1787a13a672fb8",
+      "condition": "A1-sweeps-100-zero-Calculate",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2106066258464-d640084c65514d20a4c433504b75bff0",
+      "condition": "A1-sweeps-100-zero-Full",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2107489769150-de3050023ff34416b31c5c3e7323e1e6",
+      "condition": "A1-sweeps-100-zero-Range",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2109288580880-9de31192542148cf9f4a979894fd158d",
+      "condition": "A1-sweeps-100-zero-Sheet",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2111035640418-de42ae5243064f76b9874316978ff873",
+      "condition": "A1-sweeps-100-zero-reverse",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2112380633371-41072dca9de9461aabe078b6cdb80c69",
+      "condition": "A1-sweeps-2-asymmetric-Calculate",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2114056843226-8be0574ef92a44bfb3430fd96df39816",
+      "condition": "A1-sweeps-2-asymmetric-Full",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2122231947583-a44fb4286d8343589b2a8cbf4076cf2e",
+      "condition": "A1-sweeps-2-asymmetric-Range",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2123283549963-68169f5a77ce4bf98b803d1f94942a4c",
+      "condition": "A1-sweeps-2-asymmetric-Sheet",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2124319154323-329620acc95a49dcada478aa20acbeef",
+      "condition": "A1-sweeps-2-asymmetric-reverse",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2125410807751-9925e2d7034a4bf985a77b17c337a6e3",
+      "condition": "A1-sweeps-2-zero-Calculate",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2126494263445-d125be82b303464f8ebbc239080d7752",
+      "condition": "A1-sweeps-2-zero-Full",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2128019407233-7334972a9847455d959d5f30040c2e97",
+      "condition": "A1-sweeps-2-zero-Range",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2129335197698-a90d0ec2326e4fa8849c081331e9485e",
+      "condition": "A1-sweeps-2-zero-Sheet",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2132428235414-337504630e114cc39b69a2d5733f7e11",
+      "condition": "A1-sweeps-2-zero-reverse",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2134261223441-d6a6395e7fe3419ca0309e998c785ddb",
+      "condition": "A1-sweeps-3-asymmetric-Calculate",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2135477537721-9b95b40fa7bb499f8316b92c666125eb",
+      "condition": "A1-sweeps-3-asymmetric-Full",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2137141902636-4bb8fdd184ae4ba1bc4f263df02626c0",
+      "condition": "A1-sweeps-3-asymmetric-Range",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2138520610774-a17e4586682e4439aab7c2e08358d383",
+      "condition": "A1-sweeps-3-asymmetric-Sheet",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2140087190547-079cfcadc39341b2aba4ceb4a149e6e6",
+      "condition": "A1-sweeps-3-asymmetric-reverse",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2141221446711-728a9c68660b4821b2dc2ef8dcd5a9f0",
+      "condition": "A1-sweeps-3-zero-Calculate",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2142516400160-119a91d20b5d4701a306ca71697bccf4",
+      "condition": "A1-sweeps-3-zero-Full",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2144089037744-94780957dcd4482abad17c501ea28fb9",
+      "condition": "A1-sweeps-3-zero-Range",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2145329550965-369ce1ac308b4824b9868a5664338868",
+      "condition": "A1-sweeps-3-zero-Sheet",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2147029961597-f9d729928b574e38aad2876f276b0694",
+      "condition": "A1-sweeps-3-zero-reverse",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2148212326073-b81e406a3d964339b2802a9e48050c69",
+      "condition": "A1-sweeps-5-asymmetric-Calculate",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2149332900589-df971c2d970c4ae494bcf8a06dba8f64",
+      "condition": "A1-sweeps-5-asymmetric-Full",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2150437662374-d6651587c1d64e9e8e02e73c97ca5a30",
+      "condition": "A1-sweeps-5-asymmetric-Range",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2152071220053-1621eef8c61f4cbc86c3c17b3fc681ac",
+      "condition": "A1-sweeps-5-asymmetric-Sheet",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2153435638626-95170415df88418483fd270c40e22a7b",
+      "condition": "A1-sweeps-5-asymmetric-reverse",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2154501849710-a6bbc814d0e14d8cae0b3c113f5b7967",
+      "condition": "A1-sweeps-5-zero-Calculate",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2156038849383-34dfe08928124dec8a6650dde30c0f7f",
+      "condition": "A1-sweeps-5-zero-Full",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2157138491202-c14a786566fe4ddeb488bb9d8257fbbb",
+      "condition": "A1-sweeps-5-zero-Range",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2158372791097-2de874b886594a70afd8d9e6f0e1347d",
+      "condition": "A1-sweeps-5-zero-Sheet",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2202193051743-009a004dd29d4087910c45b9c7faf55c",
+      "condition": "A1-sweeps-5-zero-reverse",
+      "trials": [
+        1,
+        2,
+        3
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2203298342090-6d69bd7f7fec45da83c441d1b9f7363c",
+      "condition": "P22-P06-manual-false-copy-edit",
+      "trials": [
+        1
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2204324440008-b4f1d2176dd94043b2cd1ee84e0c0adc",
+      "condition": "P22-P06-manual-false-copy-edit",
+      "trials": [
+        2
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2205243547199-f64d7d60757444a99bf7efa6cf9dbdce",
+      "condition": "P22-P06-manual-false-copy-edit",
+      "trials": [
+        3
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2206179150311-c702f338a00e4a12b4631b567a99ee73",
+      "condition": "P22-P06-manual-false-copy-log",
+      "trials": [
+        1
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2207405705499-15e50c1890a2471c9ae7864a7b41a68c",
+      "condition": "P22-P06-manual-false-copy-log",
+      "trials": [
+        2
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2208308989854-0a22d977653a46d2b4f0f8922461610f",
+      "condition": "P22-P06-manual-false-copy-log",
+      "trials": [
+        3
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2209184008314-659362868af24bf485ce510fbf4f20a8",
+      "condition": "P22-P06-manual-false-copy-off",
+      "trials": [
+        1
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2210074548088-6b9f4e06dc804a7b989895d126457932",
+      "condition": "P22-P06-manual-false-copy-off",
+      "trials": [
+        2
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2210558062778-f1ce013cee1748d9beb97a58c5dcd0d8",
+      "condition": "P22-P06-manual-false-copy-off",
+      "trials": [
+        3
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2211494771986-239f181b1e3145d6ac280cd8ef0e37c3",
+      "condition": "P22-P06-manual-false-save-edit",
+      "trials": [
+        1
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2214329578702-aef621d3c1554576a4919eb0306b2f51",
+      "condition": "P22-P06-manual-false-save-edit",
+      "trials": [
+        2
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2215262402949-a1a05f96cdf049cca71386e9b55913ff",
+      "condition": "P22-P06-manual-false-save-edit",
+      "trials": [
+        3
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2216133028541-d4c9f808945a4e92bcc64ab56b92940f",
+      "condition": "P22-P06-manual-false-save-log",
+      "trials": [
+        1
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2217001495076-9274fcbd0e7e43568f45242dca11eabc",
+      "condition": "P22-P06-manual-false-save-log",
+      "trials": [
+        2
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2217527690410-6742ec7617e04a0183415352f6eeaae4",
+      "condition": "P22-P06-manual-false-save-log",
+      "trials": [
+        3
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2218357832235-302ebd3214cd43a7b26b3ffd6697e3fb",
+      "condition": "P22-P06-manual-false-save-off",
+      "trials": [
+        1
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2219268615473-0bf788d9e18940e1b6f3174e1a149674",
+      "condition": "P22-P06-manual-false-save-off",
+      "trials": [
+        2
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2220151433537-41372cf0854d4b24bb2b62622989870d",
+      "condition": "P22-P06-manual-false-save-off",
+      "trials": [
+        3
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2221069869500-1c3bf4049ec34f3e8a5a3ccd2cb90dc1",
+      "condition": "P22-P06-manual-false-saveas-edit",
+      "trials": [
+        1
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2221541162038-d92acf403a524aa8ba2874b382a9e764",
+      "condition": "P22-P06-manual-false-saveas-edit",
+      "trials": [
+        2
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2222489423997-03f527ac4e83489aadd7c97899ee2211",
+      "condition": "P22-P06-manual-false-saveas-edit",
+      "trials": [
+        3
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2223353588846-06e25144f81b48308f24de126dac9b06",
+      "condition": "P22-P06-manual-false-saveas-log",
+      "trials": [
+        1
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2224192226750-73c2d13255f045d78d5026c7e30a865a",
+      "condition": "P22-P06-manual-false-saveas-log",
+      "trials": [
+        2
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2225046569010-070391dd37414f498d8b9835467b6917",
+      "condition": "P22-P06-manual-false-saveas-log",
+      "trials": [
+        3
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2225517055528-99cff2a6e95a4ddca192ef4c76efb9a0",
+      "condition": "P22-P06-manual-false-saveas-off",
+      "trials": [
+        1
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2226347783825-2996e76a4ea24a4e80f16767beac5bfe",
+      "condition": "P22-P06-manual-false-saveas-off",
+      "trials": [
+        2
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2227254272956-6405d259c2cc4a4aba438ea78688685c",
+      "condition": "P22-P06-manual-false-saveas-off",
+      "trials": [
+        3
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2228206788919-765a690249854b7c8da965a6acd7a1cf",
+      "condition": "P22-P06-manual-true-copy-edit",
+      "trials": [
+        1
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2229184382232-316847f9f8c749cf89b94f9b19f39467",
+      "condition": "P22-P06-manual-true-copy-edit",
+      "trials": [
+        2
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2230099701612-a63abdc540c44ef187b6f8dc745341b8",
+      "condition": "P22-P06-manual-true-copy-edit",
+      "trials": [
+        3
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2231001317274-9e1d71ea909647b7953be2892addd4e0",
+      "condition": "P22-P06-manual-true-copy-log",
+      "trials": [
+        1
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2231468194312-be9679f89daf4d759f620c5073adc771",
+      "condition": "P22-P06-manual-true-copy-log",
+      "trials": [
+        2
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2232321003345-b4cd91cbeecb4cc8aab6ce39e32c2dd0",
+      "condition": "P22-P06-manual-true-copy-log",
+      "trials": [
+        3
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2233235348808-747626a9d2824a8e903f069147c5d7e6",
+      "condition": "P22-P06-manual-true-copy-off",
+      "trials": [
+        1
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2234133883611-020b173d8ac34d75bed0f6a0d5682c29",
+      "condition": "P22-P06-manual-true-copy-off",
+      "trials": [
+        2
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2235086337289-1e6e474b04474ef8a5d6074376d756c3",
+      "condition": "P22-P06-manual-true-copy-off",
+      "trials": [
+        3
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2235548950429-bbc95a6899f447198617722f06279cf9",
+      "condition": "P22-P06-manual-true-save-edit",
+      "trials": [
+        1
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2236304870359-aca141a641784828904f047307dfaa1d",
+      "condition": "P22-P06-manual-true-save-edit",
+      "trials": [
+        2
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2237130466967-504a32acc76d44f383527cbb724a5ee0",
+      "condition": "P22-P06-manual-true-save-edit",
+      "trials": [
+        3
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2237563586803-a87f11f511fa4b999c435d2f0287752f",
+      "condition": "P22-P06-manual-true-save-log",
+      "trials": [
+        1
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2238331992651-ae03343294d44b69909721ffd538e61f",
+      "condition": "P22-P06-manual-true-save-log",
+      "trials": [
+        2
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2239124011428-9de90704252a4f30b5269bd7f917cd8d",
+      "condition": "P22-P06-manual-true-save-log",
+      "trials": [
+        3
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2239532986452-3fbb0a2675d34e589f06793c535505f6",
+      "condition": "P22-P06-manual-true-save-off",
+      "trials": [
+        1
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2240320450202-4b4341b349394c3eb8ab588b06b892ee",
+      "condition": "P22-P06-manual-true-save-off",
+      "trials": [
+        2
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2241126204779-6282c8949c1c4a4da70eb4974be2c2e3",
+      "condition": "P22-P06-manual-true-save-off",
+      "trials": [
+        3
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2241562760123-036b4b9fcaf24655a1a82468e64124f0",
+      "condition": "P22-P06-manual-true-saveas-edit",
+      "trials": [
+        1
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2242365561050-aeb5fa585ef241a9a2f36865a4343258",
+      "condition": "P22-P06-manual-true-saveas-edit",
+      "trials": [
+        2
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2243206993602-cf8bf01b551844b4b2ab1f24aa52f2d9",
+      "condition": "P22-P06-manual-true-saveas-edit",
+      "trials": [
+        3
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2244049311488-30c4ad9372784511885eabcc2015fbac",
+      "condition": "P22-P06-manual-true-saveas-log",
+      "trials": [
+        1
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2244464171757-039956b37c354edb88aa2b6cf1dc4fc6",
+      "condition": "P22-P06-manual-true-saveas-log",
+      "trials": [
+        2
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2245273909074-8bcc9e329afd4e64a1612961def1de00",
+      "condition": "P22-P06-manual-true-saveas-log",
+      "trials": [
+        3
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2246152313779-7c8ec6fb5b8c438981a65eecd3caaf09",
+      "condition": "P22-P06-manual-true-saveas-off",
+      "trials": [
+        1
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2247004706295-f33ff34cd77442a88b32899ae7f5eb44",
+      "condition": "P22-P06-manual-true-saveas-off",
+      "trials": [
+        2
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2247382669088-3ca1900b3f634fc99719134358c18111",
+      "condition": "P22-P06-manual-true-saveas-off",
+      "trials": [
+        3
+      ],
+      "worker": "events-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2248237384640-35c84546dcae42d48e5d8983eb2a55db",
+      "condition": "A1-sweeps-1-asymmetric-Calculate",
+      "trials": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2250116974309-d2da7a994bc04925b9012e4bd2dfb3af",
+      "condition": "A1-sweeps-1-asymmetric-Full",
+      "trials": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2251568399488-c785501065c940d295e7385f944c3fed",
+      "condition": "A1-sweeps-1-asymmetric-Range",
+      "trials": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2253369714385-43ef820a6c8243f992bf9595ea764e62",
+      "condition": "A1-sweeps-1-asymmetric-Sheet",
+      "trials": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2255122524179-1bc79e050d6e4e9f8ec2e1a4282fbe0d",
+      "condition": "A1-sweeps-1-asymmetric-reverse",
+      "trials": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2257000475308-40656384eeec40e8934e7aeba1345fa3",
+      "condition": "A1-sweeps-100-asymmetric-Calculate",
+      "trials": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2258559007724-1679912696ff45178fffa276aa33a6bc",
+      "condition": "A1-sweeps-100-asymmetric-Full",
+      "trials": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2304280196627-f5a1ce68c7b14db389d2f26598531e90",
+      "condition": "A1-sweeps-100-asymmetric-Range",
+      "trials": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2306253332078-85f29ed28ce34ef3a2b8c5fcc101c91e",
+      "condition": "A1-sweeps-100-asymmetric-Sheet",
+      "trials": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2308180982275-50120edf495142f58d82ed752aa3a7d0",
+      "condition": "A1-sweeps-100-asymmetric-reverse",
+      "trials": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2310510447369-b13f46bfef224842a4d0449c8338a200",
+      "condition": "A1-sweeps-100-zero-Calculate",
+      "trials": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2313203340551-32187df6b6a0424d89ba7f2961666164",
+      "condition": "A1-sweeps-100-zero-Full",
+      "trials": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2316375922152-af876d35a4da4b269e7aa5d23fec64ff",
+      "condition": "A1-sweeps-100-zero-Range",
+      "trials": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2319240809591-5b355be46cdf4999864b81ea230e6a65",
+      "condition": "A1-sweeps-100-zero-Sheet",
+      "trials": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2322414084775-ba42a9b72a91467792c94d969948dcd4",
+      "condition": "A1-sweeps-100-zero-reverse",
+      "trials": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2325325401151-4ed8537fc3d144489b94712f057104ef",
+      "condition": "A1-sweeps-2-asymmetric-Calculate",
+      "trials": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2327462335382-4083b89e3fae4e8e9a9cfd1d2fbebdb4",
+      "condition": "A1-sweeps-2-asymmetric-Full",
+      "trials": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2333284421155-04259dd42fa54c689197093147d8c43c",
+      "condition": "A1-sweeps-2-asymmetric-Range",
+      "trials": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2338070639692-17bf4c51f88e4ac99846f8edea19211d",
+      "condition": "A1-sweeps-2-asymmetric-Sheet",
+      "trials": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2340442889328-7140887d76094832a08dd9e4798ba948",
+      "condition": "A1-sweeps-2-asymmetric-reverse",
+      "trials": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "20261103T2343051737658-3be07a6de0b04ff0a6cbfc1155821756",
+      "condition": "A1-sweeps-2-zero-Calculate",
+      "trials": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-000",
+      "condition": "control-dc_86f",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-001",
+      "condition": "control-dc_10y_iteration",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-002",
+      "condition": "A1-sweeps-1-zero",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-003",
+      "condition": "A1-sweeps-2-zero",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-004",
+      "condition": "A1-sweeps-3-zero",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-005",
+      "condition": "A1-sweeps-5-zero",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-006",
+      "condition": "A1-sweeps-100-zero",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-007",
+      "condition": "A1-sweeps-1-asymmetric",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-008",
+      "condition": "A1-sweeps-2-asymmetric",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-009",
+      "condition": "A1-sweeps-3-asymmetric",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-010",
+      "condition": "A1-sweeps-5-asymmetric",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-011",
+      "condition": "A1-sweeps-100-asymmetric",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-012",
+      "condition": "A1-sweeps-1-zero-Calculate",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-013",
+      "condition": "A1-sweeps-1-zero-Full",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-014",
+      "condition": "A1-sweeps-1-zero-Sheet",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-015",
+      "condition": "A1-sweeps-1-zero-Range",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-016",
+      "condition": "A1-sweeps-1-zero-reverse",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-017",
+      "condition": "A2-eighth-3fbfffffffffffff",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-018",
+      "condition": "A2-eighth-3fc0000000000000",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-019",
+      "condition": "A2-eighth-3fc0000000000001",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-020",
+      "condition": "A2-eighth-0000000000000000",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-021",
+      "condition": "A2-half-3fbfffffffffffff",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-022",
+      "condition": "A2-half-3fc0000000000000",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-023",
+      "condition": "A2-half-3fc0000000000001",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-024",
+      "condition": "A2-half-0000000000000000",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-025",
+      "condition": "A3-both-amplifiers",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-026",
+      "condition": "A3-both-alone",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-027",
+      "condition": "A3-half-amplifier",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-028",
+      "condition": "A3-eighth-amplifier",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-029",
+      "condition": "A3-half-alone",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-030",
+      "condition": "A3-eighth-alone",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-031",
+      "condition": "A4-pure",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-032",
+      "condition": "B6-stable-text",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-033",
+      "condition": "B6-toggle-text",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-034",
+      "condition": "B6-boolean",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-035",
+      "condition": "B6-NA",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-036",
+      "condition": "B6-changing-error",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-037",
+      "condition": "B6-number-to-text",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-038",
+      "condition": "B6-untaken-self",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-039",
+      "condition": "B7-indirect",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    },
+    {
+      "id": "eng9-040",
+      "condition": "B7-static",
+      "trials": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "worker": "iteration-job.ps1",
+      "excel_launches": 1
+    }
+  ],
+  "excel_launches": 232,
+  "jobs_with_read_only_security": 110,
+  "reviewed_unstarted_failures": [
+    "20261103T2115124325650-4faac3d682c04c118255826b1033c00d"
+  ],
+  "verified_trial_artifact_files": 252,
+  "p06_source_archive_sha256": "1f1ca3e851d9116cac89b6271c2fc271f0a6ed76afbc60366dbfafc45e7b4c03",
+  "failed_session_jobs": [
+    {
+      "id": "20261103T2115124325650-4faac3d682c04c118255826b1033c00d",
+      "error": "System.Management.Automation.MethodInvocationException: Exception calling \"Move\" with \"3\" argument(s): \"Access to the path is denied.\"\r\n ---> System.UnauthorizedAccessException: Access to the path is denied.\r\n   at System.IO.FileSystem.MoveFile(String sourceFullPath, String destFullPath, Boolean overwrite)\r\n   at CallSite.Target(Closure, CallSite, Type, Object, Object, Boolean)\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at lambda_method741(Closure, Object[], StrongBox`1[], InterpretedFrame)"
+    }
+  ],
+  "unrun_trials": [
+    {
+      "condition": "A1-sweeps-2-zero-Full",
+      "trial": 4
+    },
+    {
+      "condition": "A1-sweeps-2-zero-Full",
+      "trial": 5
+    },
+    {
+      "condition": "A1-sweeps-2-zero-Full",
+      "trial": 6
+    },
+    {
+      "condition": "A1-sweeps-2-zero-Full",
+      "trial": 7
+    },
+    {
+      "condition": "A1-sweeps-2-zero-Full",
+      "trial": 8
+    },
+    {
+      "condition": "A1-sweeps-2-zero-Full",
+      "trial": 9
+    },
+    {
+      "condition": "A1-sweeps-2-zero-Full",
+      "trial": 10
+    },
+    {
+      "condition": "A1-sweeps-2-zero-Range",
+      "trial": 4
+    },
+    {
+      "condition": "A1-sweeps-2-zero-Range",
+      "trial": 5
+    },
+    {
+      "condition": "A1-sweeps-2-zero-Range",
+      "trial": 6
+    },
+    {
+      "condition": "A1-sweeps-2-zero-Range",
+      "trial": 7
+    },
+    {
+      "condition": "A1-sweeps-2-zero-Range",
+      "trial": 8
+    },
+    {
+      "condition": "A1-sweeps-2-zero-Range",
+      "trial": 9
+    },
+    {
+      "condition": "A1-sweeps-2-zero-Range",
+      "trial": 10
+    },
+    {
+      "condition": "A1-sweeps-2-zero-Sheet",
+      "trial": 4
+    },
+    {
+      "condition": "A1-sweeps-2-zero-Sheet",
+      "trial": 5
+    },
+    {
+      "condition": "A1-sweeps-2-zero-Sheet",
+      "trial": 6
+    },
+    {
+      "condition": "A1-sweeps-2-zero-Sheet",
+      "trial": 7
+    },
+    {
+      "condition": "A1-sweeps-2-zero-Sheet",
+      "trial": 8
+    },
+    {
+      "condition": "A1-sweeps-2-zero-Sheet",
+      "trial": 9
+    },
+    {
+      "condition": "A1-sweeps-2-zero-Sheet",
+      "trial": 10
+    },
+    {
+      "condition": "A1-sweeps-2-zero-reverse",
+      "trial": 4
+    },
+    {
+      "condition": "A1-sweeps-2-zero-reverse",
+      "trial": 5
+    },
+    {
+      "condition": "A1-sweeps-2-zero-reverse",
+      "trial": 6
+    },
+    {
+      "condition": "A1-sweeps-2-zero-reverse",
+      "trial": 7
+    },
+    {
+      "condition": "A1-sweeps-2-zero-reverse",
+      "trial": 8
+    },
+    {
+      "condition": "A1-sweeps-2-zero-reverse",
+      "trial": 9
+    },
+    {
+      "condition": "A1-sweeps-2-zero-reverse",
+      "trial": 10
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Calculate",
+      "trial": 4
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Calculate",
+      "trial": 5
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Calculate",
+      "trial": 6
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Calculate",
+      "trial": 7
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Calculate",
+      "trial": 8
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Calculate",
+      "trial": 9
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Calculate",
+      "trial": 10
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Full",
+      "trial": 4
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Full",
+      "trial": 5
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Full",
+      "trial": 6
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Full",
+      "trial": 7
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Full",
+      "trial": 8
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Full",
+      "trial": 9
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Full",
+      "trial": 10
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Range",
+      "trial": 4
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Range",
+      "trial": 5
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Range",
+      "trial": 6
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Range",
+      "trial": 7
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Range",
+      "trial": 8
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Range",
+      "trial": 9
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Range",
+      "trial": 10
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Sheet",
+      "trial": 4
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Sheet",
+      "trial": 5
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Sheet",
+      "trial": 6
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Sheet",
+      "trial": 7
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Sheet",
+      "trial": 8
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Sheet",
+      "trial": 9
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-Sheet",
+      "trial": 10
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-reverse",
+      "trial": 4
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-reverse",
+      "trial": 5
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-reverse",
+      "trial": 6
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-reverse",
+      "trial": 7
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-reverse",
+      "trial": 8
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-reverse",
+      "trial": 9
+    },
+    {
+      "condition": "A1-sweeps-3-asymmetric-reverse",
+      "trial": 10
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Calculate",
+      "trial": 4
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Calculate",
+      "trial": 5
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Calculate",
+      "trial": 6
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Calculate",
+      "trial": 7
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Calculate",
+      "trial": 8
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Calculate",
+      "trial": 9
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Calculate",
+      "trial": 10
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Full",
+      "trial": 4
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Full",
+      "trial": 5
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Full",
+      "trial": 6
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Full",
+      "trial": 7
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Full",
+      "trial": 8
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Full",
+      "trial": 9
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Full",
+      "trial": 10
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Range",
+      "trial": 4
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Range",
+      "trial": 5
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Range",
+      "trial": 6
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Range",
+      "trial": 7
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Range",
+      "trial": 8
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Range",
+      "trial": 9
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Range",
+      "trial": 10
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Sheet",
+      "trial": 4
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Sheet",
+      "trial": 5
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Sheet",
+      "trial": 6
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Sheet",
+      "trial": 7
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Sheet",
+      "trial": 8
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Sheet",
+      "trial": 9
+    },
+    {
+      "condition": "A1-sweeps-3-zero-Sheet",
+      "trial": 10
+    },
+    {
+      "condition": "A1-sweeps-3-zero-reverse",
+      "trial": 4
+    },
+    {
+      "condition": "A1-sweeps-3-zero-reverse",
+      "trial": 5
+    },
+    {
+      "condition": "A1-sweeps-3-zero-reverse",
+      "trial": 6
+    },
+    {
+      "condition": "A1-sweeps-3-zero-reverse",
+      "trial": 7
+    },
+    {
+      "condition": "A1-sweeps-3-zero-reverse",
+      "trial": 8
+    },
+    {
+      "condition": "A1-sweeps-3-zero-reverse",
+      "trial": 9
+    },
+    {
+      "condition": "A1-sweeps-3-zero-reverse",
+      "trial": 10
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Calculate",
+      "trial": 4
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Calculate",
+      "trial": 5
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Calculate",
+      "trial": 6
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Calculate",
+      "trial": 7
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Calculate",
+      "trial": 8
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Calculate",
+      "trial": 9
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Calculate",
+      "trial": 10
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Full",
+      "trial": 4
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Full",
+      "trial": 5
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Full",
+      "trial": 6
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Full",
+      "trial": 7
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Full",
+      "trial": 8
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Full",
+      "trial": 9
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Full",
+      "trial": 10
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Range",
+      "trial": 4
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Range",
+      "trial": 5
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Range",
+      "trial": 6
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Range",
+      "trial": 7
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Range",
+      "trial": 8
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Range",
+      "trial": 9
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Range",
+      "trial": 10
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Sheet",
+      "trial": 4
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Sheet",
+      "trial": 5
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Sheet",
+      "trial": 6
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Sheet",
+      "trial": 7
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Sheet",
+      "trial": 8
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Sheet",
+      "trial": 9
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-Sheet",
+      "trial": 10
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-reverse",
+      "trial": 4
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-reverse",
+      "trial": 5
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-reverse",
+      "trial": 6
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-reverse",
+      "trial": 7
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-reverse",
+      "trial": 8
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-reverse",
+      "trial": 9
+    },
+    {
+      "condition": "A1-sweeps-5-asymmetric-reverse",
+      "trial": 10
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Calculate",
+      "trial": 4
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Calculate",
+      "trial": 5
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Calculate",
+      "trial": 6
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Calculate",
+      "trial": 7
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Calculate",
+      "trial": 8
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Calculate",
+      "trial": 9
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Calculate",
+      "trial": 10
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Full",
+      "trial": 4
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Full",
+      "trial": 5
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Full",
+      "trial": 6
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Full",
+      "trial": 7
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Full",
+      "trial": 8
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Full",
+      "trial": 9
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Full",
+      "trial": 10
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Range",
+      "trial": 4
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Range",
+      "trial": 5
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Range",
+      "trial": 6
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Range",
+      "trial": 7
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Range",
+      "trial": 8
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Range",
+      "trial": 9
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Range",
+      "trial": 10
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Sheet",
+      "trial": 4
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Sheet",
+      "trial": 5
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Sheet",
+      "trial": 6
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Sheet",
+      "trial": 7
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Sheet",
+      "trial": 8
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Sheet",
+      "trial": 9
+    },
+    {
+      "condition": "A1-sweeps-5-zero-Sheet",
+      "trial": 10
+    },
+    {
+      "condition": "A1-sweeps-5-zero-reverse",
+      "trial": 4
+    },
+    {
+      "condition": "A1-sweeps-5-zero-reverse",
+      "trial": 5
+    },
+    {
+      "condition": "A1-sweeps-5-zero-reverse",
+      "trial": 6
+    },
+    {
+      "condition": "A1-sweeps-5-zero-reverse",
+      "trial": 7
+    },
+    {
+      "condition": "A1-sweeps-5-zero-reverse",
+      "trial": 8
+    },
+    {
+      "condition": "A1-sweeps-5-zero-reverse",
+      "trial": 9
+    },
+    {
+      "condition": "A1-sweeps-5-zero-reverse",
+      "trial": 10
+    },
+    {
+      "condition": "P22-P06-manual-false-copy-edit",
+      "trial": 4
+    },
+    {
+      "condition": "P22-P06-manual-false-copy-edit",
+      "trial": 5
+    },
+    {
+      "condition": "P22-P06-manual-false-copy-edit",
+      "trial": 6
+    },
+    {
+      "condition": "P22-P06-manual-false-copy-edit",
+      "trial": 7
+    },
+    {
+      "condition": "P22-P06-manual-false-copy-edit",
+      "trial": 8
+    },
+    {
+      "condition": "P22-P06-manual-false-copy-edit",
+      "trial": 9
+    },
+    {
+      "condition": "P22-P06-manual-false-copy-edit",
+      "trial": 10
+    },
+    {
+      "condition": "P22-P06-manual-false-copy-log",
+      "trial": 4
+    },
+    {
+      "condition": "P22-P06-manual-false-copy-log",
+      "trial": 5
+    },
+    {
+      "condition": "P22-P06-manual-false-copy-log",
+      "trial": 6
+    },
+    {
+      "condition": "P22-P06-manual-false-copy-log",
+      "trial": 7
+    },
+    {
+      "condition": "P22-P06-manual-false-copy-log",
+      "trial": 8
+    },
+    {
+      "condition": "P22-P06-manual-false-copy-log",
+      "trial": 9
+    },
+    {
+      "condition": "P22-P06-manual-false-copy-log",
+      "trial": 10
+    },
+    {
+      "condition": "P22-P06-manual-false-copy-off",
+      "trial": 4
+    },
+    {
+      "condition": "P22-P06-manual-false-copy-off",
+      "trial": 5
+    },
+    {
+      "condition": "P22-P06-manual-false-copy-off",
+      "trial": 6
+    },
+    {
+      "condition": "P22-P06-manual-false-copy-off",
+      "trial": 7
+    },
+    {
+      "condition": "P22-P06-manual-false-copy-off",
+      "trial": 8
+    },
+    {
+      "condition": "P22-P06-manual-false-copy-off",
+      "trial": 9
+    },
+    {
+      "condition": "P22-P06-manual-false-copy-off",
+      "trial": 10
+    },
+    {
+      "condition": "P22-P06-manual-false-save-edit",
+      "trial": 4
+    },
+    {
+      "condition": "P22-P06-manual-false-save-edit",
+      "trial": 5
+    },
+    {
+      "condition": "P22-P06-manual-false-save-edit",
+      "trial": 6
+    },
+    {
+      "condition": "P22-P06-manual-false-save-edit",
+      "trial": 7
+    },
+    {
+      "condition": "P22-P06-manual-false-save-edit",
+      "trial": 8
+    },
+    {
+      "condition": "P22-P06-manual-false-save-edit",
+      "trial": 9
+    },
+    {
+      "condition": "P22-P06-manual-false-save-edit",
+      "trial": 10
+    },
+    {
+      "condition": "P22-P06-manual-false-save-log",
+      "trial": 4
+    },
+    {
+      "condition": "P22-P06-manual-false-save-log",
+      "trial": 5
+    },
+    {
+      "condition": "P22-P06-manual-false-save-log",
+      "trial": 6
+    },
+    {
+      "condition": "P22-P06-manual-false-save-log",
+      "trial": 7
+    },
+    {
+      "condition": "P22-P06-manual-false-save-log",
+      "trial": 8
+    },
+    {
+      "condition": "P22-P06-manual-false-save-log",
+      "trial": 9
+    },
+    {
+      "condition": "P22-P06-manual-false-save-log",
+      "trial": 10
+    },
+    {
+      "condition": "P22-P06-manual-false-save-off",
+      "trial": 4
+    },
+    {
+      "condition": "P22-P06-manual-false-save-off",
+      "trial": 5
+    },
+    {
+      "condition": "P22-P06-manual-false-save-off",
+      "trial": 6
+    },
+    {
+      "condition": "P22-P06-manual-false-save-off",
+      "trial": 7
+    },
+    {
+      "condition": "P22-P06-manual-false-save-off",
+      "trial": 8
+    },
+    {
+      "condition": "P22-P06-manual-false-save-off",
+      "trial": 9
+    },
+    {
+      "condition": "P22-P06-manual-false-save-off",
+      "trial": 10
+    },
+    {
+      "condition": "P22-P06-manual-false-saveas-edit",
+      "trial": 4
+    },
+    {
+      "condition": "P22-P06-manual-false-saveas-edit",
+      "trial": 5
+    },
+    {
+      "condition": "P22-P06-manual-false-saveas-edit",
+      "trial": 6
+    },
+    {
+      "condition": "P22-P06-manual-false-saveas-edit",
+      "trial": 7
+    },
+    {
+      "condition": "P22-P06-manual-false-saveas-edit",
+      "trial": 8
+    },
+    {
+      "condition": "P22-P06-manual-false-saveas-edit",
+      "trial": 9
+    },
+    {
+      "condition": "P22-P06-manual-false-saveas-edit",
+      "trial": 10
+    },
+    {
+      "condition": "P22-P06-manual-false-saveas-log",
+      "trial": 4
+    },
+    {
+      "condition": "P22-P06-manual-false-saveas-log",
+      "trial": 5
+    },
+    {
+      "condition": "P22-P06-manual-false-saveas-log",
+      "trial": 6
+    },
+    {
+      "condition": "P22-P06-manual-false-saveas-log",
+      "trial": 7
+    },
+    {
+      "condition": "P22-P06-manual-false-saveas-log",
+      "trial": 8
+    },
+    {
+      "condition": "P22-P06-manual-false-saveas-log",
+      "trial": 9
+    },
+    {
+      "condition": "P22-P06-manual-false-saveas-log",
+      "trial": 10
+    },
+    {
+      "condition": "P22-P06-manual-false-saveas-off",
+      "trial": 4
+    },
+    {
+      "condition": "P22-P06-manual-false-saveas-off",
+      "trial": 5
+    },
+    {
+      "condition": "P22-P06-manual-false-saveas-off",
+      "trial": 6
+    },
+    {
+      "condition": "P22-P06-manual-false-saveas-off",
+      "trial": 7
+    },
+    {
+      "condition": "P22-P06-manual-false-saveas-off",
+      "trial": 8
+    },
+    {
+      "condition": "P22-P06-manual-false-saveas-off",
+      "trial": 9
+    },
+    {
+      "condition": "P22-P06-manual-false-saveas-off",
+      "trial": 10
+    },
+    {
+      "condition": "P22-P06-manual-true-copy-edit",
+      "trial": 4
+    },
+    {
+      "condition": "P22-P06-manual-true-copy-edit",
+      "trial": 5
+    },
+    {
+      "condition": "P22-P06-manual-true-copy-edit",
+      "trial": 6
+    },
+    {
+      "condition": "P22-P06-manual-true-copy-edit",
+      "trial": 7
+    },
+    {
+      "condition": "P22-P06-manual-true-copy-edit",
+      "trial": 8
+    },
+    {
+      "condition": "P22-P06-manual-true-copy-edit",
+      "trial": 9
+    },
+    {
+      "condition": "P22-P06-manual-true-copy-edit",
+      "trial": 10
+    },
+    {
+      "condition": "P22-P06-manual-true-copy-log",
+      "trial": 4
+    },
+    {
+      "condition": "P22-P06-manual-true-copy-log",
+      "trial": 5
+    },
+    {
+      "condition": "P22-P06-manual-true-copy-log",
+      "trial": 6
+    },
+    {
+      "condition": "P22-P06-manual-true-copy-log",
+      "trial": 7
+    },
+    {
+      "condition": "P22-P06-manual-true-copy-log",
+      "trial": 8
+    },
+    {
+      "condition": "P22-P06-manual-true-copy-log",
+      "trial": 9
+    },
+    {
+      "condition": "P22-P06-manual-true-copy-log",
+      "trial": 10
+    },
+    {
+      "condition": "P22-P06-manual-true-copy-off",
+      "trial": 4
+    },
+    {
+      "condition": "P22-P06-manual-true-copy-off",
+      "trial": 5
+    },
+    {
+      "condition": "P22-P06-manual-true-copy-off",
+      "trial": 6
+    },
+    {
+      "condition": "P22-P06-manual-true-copy-off",
+      "trial": 7
+    },
+    {
+      "condition": "P22-P06-manual-true-copy-off",
+      "trial": 8
+    },
+    {
+      "condition": "P22-P06-manual-true-copy-off",
+      "trial": 9
+    },
+    {
+      "condition": "P22-P06-manual-true-copy-off",
+      "trial": 10
+    },
+    {
+      "condition": "P22-P06-manual-true-save-edit",
+      "trial": 4
+    },
+    {
+      "condition": "P22-P06-manual-true-save-edit",
+      "trial": 5
+    },
+    {
+      "condition": "P22-P06-manual-true-save-edit",
+      "trial": 6
+    },
+    {
+      "condition": "P22-P06-manual-true-save-edit",
+      "trial": 7
+    },
+    {
+      "condition": "P22-P06-manual-true-save-edit",
+      "trial": 8
+    },
+    {
+      "condition": "P22-P06-manual-true-save-edit",
+      "trial": 9
+    },
+    {
+      "condition": "P22-P06-manual-true-save-edit",
+      "trial": 10
+    },
+    {
+      "condition": "P22-P06-manual-true-save-log",
+      "trial": 4
+    },
+    {
+      "condition": "P22-P06-manual-true-save-log",
+      "trial": 5
+    },
+    {
+      "condition": "P22-P06-manual-true-save-log",
+      "trial": 6
+    },
+    {
+      "condition": "P22-P06-manual-true-save-log",
+      "trial": 7
+    },
+    {
+      "condition": "P22-P06-manual-true-save-log",
+      "trial": 8
+    },
+    {
+      "condition": "P22-P06-manual-true-save-log",
+      "trial": 9
+    },
+    {
+      "condition": "P22-P06-manual-true-save-log",
+      "trial": 10
+    },
+    {
+      "condition": "P22-P06-manual-true-save-off",
+      "trial": 4
+    },
+    {
+      "condition": "P22-P06-manual-true-save-off",
+      "trial": 5
+    },
+    {
+      "condition": "P22-P06-manual-true-save-off",
+      "trial": 6
+    },
+    {
+      "condition": "P22-P06-manual-true-save-off",
+      "trial": 7
+    },
+    {
+      "condition": "P22-P06-manual-true-save-off",
+      "trial": 8
+    },
+    {
+      "condition": "P22-P06-manual-true-save-off",
+      "trial": 9
+    },
+    {
+      "condition": "P22-P06-manual-true-save-off",
+      "trial": 10
+    },
+    {
+      "condition": "P22-P06-manual-true-saveas-edit",
+      "trial": 4
+    },
+    {
+      "condition": "P22-P06-manual-true-saveas-edit",
+      "trial": 5
+    },
+    {
+      "condition": "P22-P06-manual-true-saveas-edit",
+      "trial": 6
+    },
+    {
+      "condition": "P22-P06-manual-true-saveas-edit",
+      "trial": 7
+    },
+    {
+      "condition": "P22-P06-manual-true-saveas-edit",
+      "trial": 8
+    },
+    {
+      "condition": "P22-P06-manual-true-saveas-edit",
+      "trial": 9
+    },
+    {
+      "condition": "P22-P06-manual-true-saveas-edit",
+      "trial": 10
+    },
+    {
+      "condition": "P22-P06-manual-true-saveas-log",
+      "trial": 4
+    },
+    {
+      "condition": "P22-P06-manual-true-saveas-log",
+      "trial": 5
+    },
+    {
+      "condition": "P22-P06-manual-true-saveas-log",
+      "trial": 6
+    },
+    {
+      "condition": "P22-P06-manual-true-saveas-log",
+      "trial": 7
+    },
+    {
+      "condition": "P22-P06-manual-true-saveas-log",
+      "trial": 8
+    },
+    {
+      "condition": "P22-P06-manual-true-saveas-log",
+      "trial": 9
+    },
+    {
+      "condition": "P22-P06-manual-true-saveas-log",
+      "trial": 10
+    },
+    {
+      "condition": "P22-P06-manual-true-saveas-off",
+      "trial": 4
+    },
+    {
+      "condition": "P22-P06-manual-true-saveas-off",
+      "trial": 5
+    },
+    {
+      "condition": "P22-P06-manual-true-saveas-off",
+      "trial": 6
+    },
+    {
+      "condition": "P22-P06-manual-true-saveas-off",
+      "trial": 7
+    },
+    {
+      "condition": "P22-P06-manual-true-saveas-off",
+      "trial": 8
+    },
+    {
+      "condition": "P22-P06-manual-true-saveas-off",
+      "trial": 9
+    },
+    {
+      "condition": "P22-P06-manual-true-saveas-off",
+      "trial": 10
+    }
+  ],
+  "limits": [
+    "P14 observer/counter UDF lanes, callback order and mixed-sweep reads",
+    "P14 MTC observer lanes and live native/UI cancellation",
+    "P14 reversed tab order and dynamic-reference post-edit dependencies",
+    "P14/P25 cross-workbook cyclic domains",
+    "New P22 Change/Calculate event placement, cancellation and reentrancy; existing P06 save controls are replayed separately",
+    "Existing OxVba-dependent supervisor is not invoked: that checkout is excluded by owner instruction."
+  ],
+  "process_scope": "Pure trial groups share one fresh process with baseline resets. Prior and resumed groups use different processes. Every P06 and supplemental P22 trial is fresh-required. Workbook trials within a group are not fresh-process replicates."
+}

@@ -1,0 +1,30 @@
+{
+  "action": "trial",
+  "condition": {
+    "id": "A1-sweeps-1-asymmetric-Sheet",
+    "formulas": {
+      "A1": "=B1+1",
+      "B1": "=A1+1",
+      "C1": "=C1+1",
+      "D1": "=SUM(A1:B1)"
+    },
+    "seeds": {
+      "A1": 77,
+      "B1": 55,
+      "C1": 100,
+      "D1": 999
+    },
+    "iterations": 1,
+    "change_bits": "3f50624dd2f1a9fc",
+    "iteration": true,
+    "operation": "Sheet",
+    "commands": 2,
+    "range": "A1:D1",
+    "reverse_entry": false,
+    "reverse_chain": false,
+    "input_sha256": "065d547eae6e3b7266456a98a821109e0563c230b45ce78406d850e015d9016c"
+  },
+  "trial": 1,
+  "input": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\inputs\\A1-sweeps-1-asymmetric-Sheet.xlsx",
+  "input_sha256": "065d547eae6e3b7266456a98a821109e0563c230b45ce78406d850e015d9016c"
+}

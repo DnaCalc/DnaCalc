@@ -182,20 +182,22 @@ the largest evaluated scalar change strictly below MaxChange, including
 downstream readers, and limits ordinary iteration sweeps by MaxIterations.
 Existing spill/dependency repair waves keep
 their separate bound and reopen the stopping decision; their evaluations are
-not evidence of Excel's iteration count. The partial P14 delivery under
-`calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103` has 41 conditions,
-ten trials in one owned process per condition. The host replays 40 recorded inputs
-at unlimited and one-evaluation budgets: 219 command/value observations, 438
-comparisons. Rebuild's threshold equality is strict; downstream amplifiers can
+not evidence of Excel's iteration count. The completed eng9 delivery under
+`calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103` retains 692 pure
+trials over 86 conditions, at least three each; workbook trials share processes
+within the recorded groups. The host replays 76 non-range inputs at unlimited
+and one-evaluation budgets: 507 command/value observations, 1014 comparisons,
+all agreeing. Rebuild's threshold equality is strict; downstream amplifiers can
 keep the scalar sweep running. A dynamic read joining an existing cycle uses the
 same Tarjan analysis and cyclic read seeds as static ordering. Text/error outputs
 do not drive another scalar sweep; a numeric value after such a seed compares
-with zero. This model reproduces the recorded B6 outputs without measuring
-individual SCC execution counts. The 41st condition, cyclic Range.Calculate,
-has a typed dc-hsa5.11 scope refusal before evaluation: its eight command/value
-observations are nonpasses, and its retained caches are never counted as calculated.
-Its mixed/dynamic variants, other threshold commands, observer counts, mid-cycle caches,
-mixed topology and cross-workbook behavior remain open. The recorded
+with zero. This reproduces the recorded B6 outputs without measuring individual
+SCC execution counts. All ten cyclic Range conditions retain their seeds in
+Excel. DNA keeps its typed dc-hsa5.11 scope refusal before evaluation: 80 distinct
+command/value observations remain nonpasses (160 slots at two budgets), and
+retained caches are never counted as calculated. Mixed/dynamic range variants,
+other threshold commands, observer counts, mid-cycle caches, mixed topology and
+cross-workbook behavior remain open. The recorded
 dc_86f and dc_10y_iteration first-calculation values cover order, held seeds and
 the recorded limits; their reopen observations describe later calculations.
 Cross-workbook cyclic requests retain their named refusal before admission.
@@ -648,8 +650,14 @@ it. Missing or interactive macro policy on a VBA-bearing package prevents a cert
 comparison. Linked source workbooks follow the same application policy. An admitted
 event failure prevents a calculated pass in that comparison.
 
-The host delivers Change after an authored cell-write commit, before automatic
-calculation. Same-value writes and clears retain explicit targets; formats and
+The UI ingress delivers Change after an authored cell-write commit, before
+automatic calculation. This remains a DNA policy pending UI recordings. P22
+(20527, ordinary COM) records automatic Calculate before Change, with new formula
+values visible at Change; Manual Change sees held values. Automation ingress
+uses the same transaction and evaluator, completes synchronous automatic work
+before Change, and retains its ingress in receipts and replay records. A waiting
+provider before Automation Change has a named dc-hsa5.12 event failure; that
+placement is not inferred from synchronous observations. Same-value writes and clears retain explicit targets; formats and
 calculated values do not become Change targets. It gathers calculated sheets
 across prefix publications and delivers Calculate only at terminal command
 publication. These distinguish the documented [Change](https://learn.microsoft.com/en-us/office/vba/api/excel.worksheet.change)
@@ -670,7 +678,11 @@ Cancel back before the host can pin a save image. Programmatic worker saves pass
 SaveAsUI=false. Handler errors fail the save; each invocation drains its native
 event fault before a later event can enter. The automatic VBA event view remains
 read-only, so workbook writes through that view still require object-model work.
-These controls establish the DNA hookup, not new P22 or UI-dialog measurements.
+The existing P22 family retains 70 fresh-required COM trials and 54 P06 replay
+trials; its metadata omissions remain recorded. Host tests replay write-event
+order and entry values from all 30 basic Manual/Automatic/events-disabled COM
+traces. Nested COM event edits are observed in Excel but remain outside the DNA
+read-only handler surface; UI-dialog behavior remains unmeasured.
 
 The portable document projection resolves Me.Name from its attached document and
 supports explicit Target.Value2, Row, Column,

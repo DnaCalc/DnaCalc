@@ -242,6 +242,7 @@ impl std::error::Error for IntentError {}
 /// What one dispatched intent did.
 #[derive(Debug, PartialEq)]
 pub struct IntentReceipt {
+    pub ingress: CommandIngress,
     /// The intent's place in the session's log, from 1.
     pub seq: u64,
     pub error: Option<IntentError>,
@@ -267,10 +268,19 @@ pub struct IntentRecord {
     /// The host that recorded the command; replay may rebind only plans from this scope.
     scope: u64,
     pub seq: u64,
+    pub ingress: CommandIngress,
     pub intent: SkinIntent,
     pub accepted: bool,
     /// The authored revision after the intent.
     pub revision: AuthoredRevision,
+}
+
+/// P22 records ordinary COM writes separately from UI edits. This source is
+/// retained in the log because it determines the event observation position.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CommandIngress {
+    UserInterface,
+    Automation,
 }
 
 /// What [`replay`] did.
@@ -294,7 +304,7 @@ pub fn replay(records: &[IntentRecord], session: &mut HostSession) -> ReplayOutc
             ),
             intent => intent,
         };
-        let receipt = session.dispatch(intent);
+        let receipt = session.dispatch_from(record.ingress, intent);
         outcome.dispatched += 1;
         if receipt.accepted() {
             outcome.accepted += 1;
@@ -465,6 +475,7 @@ impl HostSession {
     /// entry and never widens its scope.
     pub fn advance_calculation(&mut self) -> HostProgress {
         let mut receipt = IntentReceipt {
+            ingress: CommandIngress::UserInterface,
             seq: self.next_seq,
             error: None,
             committed: None,
@@ -751,12 +762,19 @@ impl HostSession {
 
     /// Carries out `intent` and logs it.
     pub fn dispatch(&mut self, intent: SkinIntent) -> IntentReceipt {
+        self.dispatch_from(CommandIngress::UserInterface, intent)
+    }
+
+    /// Automation uses the same authored transaction and evaluator as the UI.
+    /// Its synchronous automatic calculation precedes Change (P22, 20527 COM).
+    pub fn dispatch_from(&mut self, ingress: CommandIngress, intent: SkinIntent) -> IntentReceipt {
         let seq = self.next_seq;
         self.next_seq = self
             .next_seq
             .checked_add(1)
             .expect("host command identity exhausted");
         let mut receipt = IntentReceipt {
+            ingress,
             seq,
             error: None,
             committed: None,
@@ -880,6 +898,7 @@ impl HostSession {
         self.log.push(IntentRecord {
             scope: self.host.command_scope,
             seq,
+            ingress,
             intent,
             accepted: receipt.error.is_none(),
             revision: receipt.revision,
@@ -1235,11 +1254,35 @@ impl HostSession {
     }
 
     fn after_commit(&mut self, receipt: &mut IntentReceipt) {
-        if let Some(committed) = &receipt.committed {
+        if receipt.ingress == CommandIngress::UserInterface
+            && let Some(committed) = &receipt.committed {
             self.notify_workbook_change(committed);
         }
         if self.host.calc_mode() != CalcMode::Manual {
+            let budget = self.recalc_budget;
+            if receipt.ingress == CommandIngress::Automation {
+                self.recalc_budget = WorkBudget::UNLIMITED;
+            }
             self.recalculate(receipt);
+            if receipt.ingress == CommandIngress::Automation {
+                // An ordinary COM setter returns after synchronous calculation.
+                // Reuse the owner steps, including every prefix publication;
+                // restore the caller budget without starting a second command.
+                while self.has_pending_calculation()
+                    && !matches!(receipt.recalc, Some(HostProgress::Waiting { .. }))
+                {
+                    self.recalculate(receipt);
+                }
+            }
+            self.recalc_budget = budget;
+        }
+        if receipt.ingress == CommandIngress::Automation
+            && let Some(committed) = &receipt.committed {
+            if self.has_pending_calculation() {
+                self.refuse_automation_change(committed);
+            } else {
+                self.notify_workbook_change(committed);
+            }
         }
     }
 

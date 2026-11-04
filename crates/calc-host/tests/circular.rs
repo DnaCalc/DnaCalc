@@ -358,8 +358,8 @@ fn dc_hsa5_11__a_spill_repair_reopens_the_iteration_decision() {
 
 /// P14's pure COM recordings (Excel 16.0.20527, 2026-11-03): two distinct
 /// commands from verified stored seeds, strict threshold equality, independent
-/// cycles and downstream amplifiers. Ten trials share one owned Excel process
-/// per condition; this is not ten fresh-process evidence. There are no UDF
+/// cycles and downstream amplifiers. At least three trials per condition share
+/// processes within the recorded groups; these are not fresh-process replicates. There are no UDF
 /// observers of mid-cycle caches in this delivery.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -383,8 +383,8 @@ fn dc_hsa5_11__p14_recorded_stopping_and_dependents() {
             .or_default()
             .push(record);
     }
-    assert_eq!(groups.len(), 41);
-    assert_eq!(records.len(), 410);
+    assert_eq!(groups.len(), 86);
+    assert_eq!(records.len(), 692);
     let mut failures = Vec::new();
     let mut refused_range = Vec::new();
     let mut commands = 0;
@@ -412,7 +412,7 @@ fn dc_hsa5_11__p14_recorded_stopping_and_dependents() {
         }
     };
     for (name, trials) in groups {
-        assert_eq!(trials.len(), 10, "{name}");
+        assert!(trials.len() >= 3, "{name}");
         let result = &trials[0]["result"];
         let condition = &result["condition"];
         let observations = result["observations"].as_array().unwrap();
@@ -434,129 +434,92 @@ fn dc_hsa5_11__p14_recorded_stopping_and_dependents() {
             refused_range.push(name);
         }
         let bytes: &[u8] = match name {
-            "A1-sweeps-1-zero-Range" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-zero-Range/trial-01/input.xlsx"
-            ),
-            "A1-sweeps-1-asymmetric" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-asymmetric/trial-01/input.xlsx"
-            ),
-            "A1-sweeps-1-zero" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-zero/trial-01/input.xlsx"
-            ),
-            "A1-sweeps-1-zero-Calculate" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-zero-Calculate/trial-01/input.xlsx"
-            ),
-            "A1-sweeps-1-zero-Full" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-zero-Full/trial-01/input.xlsx"
-            ),
-            "A1-sweeps-1-zero-Sheet" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-zero-Sheet/trial-01/input.xlsx"
-            ),
-            "A1-sweeps-1-zero-reverse" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-zero-reverse/trial-01/input.xlsx"
-            ),
-            "A1-sweeps-100-asymmetric" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-100-asymmetric/trial-01/input.xlsx"
-            ),
-            "A1-sweeps-100-zero" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-100-zero/trial-01/input.xlsx"
-            ),
-            "A1-sweeps-2-asymmetric" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-2-asymmetric/trial-01/input.xlsx"
-            ),
-            "A1-sweeps-2-zero" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-2-zero/trial-01/input.xlsx"
-            ),
-            "A1-sweeps-3-asymmetric" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-3-asymmetric/trial-01/input.xlsx"
-            ),
-            "A1-sweeps-3-zero" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-3-zero/trial-01/input.xlsx"
-            ),
-            "A1-sweeps-5-asymmetric" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-5-asymmetric/trial-01/input.xlsx"
-            ),
-            "A1-sweeps-5-zero" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-5-zero/trial-01/input.xlsx"
-            ),
-            "A2-eighth-0000000000000000" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A2-eighth-0000000000000000/trial-01/input.xlsx"
-            ),
-            "A2-eighth-3fbfffffffffffff" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A2-eighth-3fbfffffffffffff/trial-01/input.xlsx"
-            ),
-            "A2-eighth-3fc0000000000000" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A2-eighth-3fc0000000000000/trial-01/input.xlsx"
-            ),
-            "A2-eighth-3fc0000000000001" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A2-eighth-3fc0000000000001/trial-01/input.xlsx"
-            ),
-            "A2-half-0000000000000000" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A2-half-0000000000000000/trial-01/input.xlsx"
-            ),
-            "A2-half-3fbfffffffffffff" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A2-half-3fbfffffffffffff/trial-01/input.xlsx"
-            ),
-            "A2-half-3fc0000000000000" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A2-half-3fc0000000000000/trial-01/input.xlsx"
-            ),
-            "A2-half-3fc0000000000001" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A2-half-3fc0000000000001/trial-01/input.xlsx"
-            ),
-            "A3-both-alone" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A3-both-alone/trial-01/input.xlsx"
-            ),
-            "A3-both-amplifiers" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A3-both-amplifiers/trial-01/input.xlsx"
-            ),
-            "A3-eighth-alone" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A3-eighth-alone/trial-01/input.xlsx"
-            ),
-            "A3-eighth-amplifier" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A3-eighth-amplifier/trial-01/input.xlsx"
-            ),
-            "A3-half-alone" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A3-half-alone/trial-01/input.xlsx"
-            ),
-            "A3-half-amplifier" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A3-half-amplifier/trial-01/input.xlsx"
-            ),
-            "A4-pure" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A4-pure/trial-01/input.xlsx"
-            ),
-            "B6-NA" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B6-NA/trial-01/input.xlsx"
-            ),
-            "B6-boolean" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B6-boolean/trial-01/input.xlsx"
-            ),
-            "B6-changing-error" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B6-changing-error/trial-01/input.xlsx"
-            ),
-            "B6-number-to-text" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B6-number-to-text/trial-01/input.xlsx"
-            ),
-            "B6-stable-text" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B6-stable-text/trial-01/input.xlsx"
-            ),
-            "B6-toggle-text" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B6-toggle-text/trial-01/input.xlsx"
-            ),
-            "B6-untaken-self" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B6-untaken-self/trial-01/input.xlsx"
-            ),
-            "B7-indirect" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B7-indirect/trial-01/input.xlsx"
-            ),
-            "B7-static" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B7-static/trial-01/input.xlsx"
-            ),
-            "control-dc_10y_iteration" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/control-dc_10y_iteration/trial-01/input.xlsx"
-            ),
-            "control-dc_86f" => include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/control-dc_86f/trial-01/input.xlsx"
-            ),
+            "A1-sweeps-1-asymmetric" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-asymmetric/trial-01/input.xlsx"),
+            "A1-sweeps-1-asymmetric-Calculate" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-asymmetric-Calculate/trial-01/input.xlsx"),
+            "A1-sweeps-1-asymmetric-Full" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-asymmetric-Full/trial-01/input.xlsx"),
+            "A1-sweeps-1-asymmetric-Range" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-asymmetric-Range/trial-01/input.xlsx"),
+            "A1-sweeps-1-asymmetric-Sheet" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-asymmetric-Sheet/trial-01/input.xlsx"),
+            "A1-sweeps-1-asymmetric-reverse" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-asymmetric-reverse/trial-01/input.xlsx"),
+            "A1-sweeps-1-zero" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-zero/trial-01/input.xlsx"),
+            "A1-sweeps-1-zero-Calculate" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-zero-Calculate/trial-01/input.xlsx"),
+            "A1-sweeps-1-zero-Full" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-zero-Full/trial-01/input.xlsx"),
+            "A1-sweeps-1-zero-Range" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-zero-Range/trial-01/input.xlsx"),
+            "A1-sweeps-1-zero-Sheet" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-zero-Sheet/trial-01/input.xlsx"),
+            "A1-sweeps-1-zero-reverse" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-1-zero-reverse/trial-01/input.xlsx"),
+            "A1-sweeps-100-asymmetric" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-100-asymmetric/trial-01/input.xlsx"),
+            "A1-sweeps-100-asymmetric-Calculate" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-100-asymmetric-Calculate/trial-01/input.xlsx"),
+            "A1-sweeps-100-asymmetric-Full" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-100-asymmetric-Full/trial-01/input.xlsx"),
+            "A1-sweeps-100-asymmetric-Range" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-100-asymmetric-Range/trial-01/input.xlsx"),
+            "A1-sweeps-100-asymmetric-Sheet" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-100-asymmetric-Sheet/trial-01/input.xlsx"),
+            "A1-sweeps-100-asymmetric-reverse" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-100-asymmetric-reverse/trial-01/input.xlsx"),
+            "A1-sweeps-100-zero" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-100-zero/trial-01/input.xlsx"),
+            "A1-sweeps-100-zero-Calculate" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-100-zero-Calculate/trial-01/input.xlsx"),
+            "A1-sweeps-100-zero-Full" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-100-zero-Full/trial-01/input.xlsx"),
+            "A1-sweeps-100-zero-Range" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-100-zero-Range/trial-01/input.xlsx"),
+            "A1-sweeps-100-zero-Sheet" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-100-zero-Sheet/trial-01/input.xlsx"),
+            "A1-sweeps-100-zero-reverse" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-100-zero-reverse/trial-01/input.xlsx"),
+            "A1-sweeps-2-asymmetric" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-2-asymmetric/trial-01/input.xlsx"),
+            "A1-sweeps-2-asymmetric-Calculate" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-2-asymmetric-Calculate/trial-01/input.xlsx"),
+            "A1-sweeps-2-asymmetric-Full" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-2-asymmetric-Full/trial-01/input.xlsx"),
+            "A1-sweeps-2-asymmetric-Range" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-2-asymmetric-Range/trial-01/input.xlsx"),
+            "A1-sweeps-2-asymmetric-Sheet" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-2-asymmetric-Sheet/trial-01/input.xlsx"),
+            "A1-sweeps-2-asymmetric-reverse" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-2-asymmetric-reverse/trial-01/input.xlsx"),
+            "A1-sweeps-2-zero" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-2-zero/trial-01/input.xlsx"),
+            "A1-sweeps-2-zero-Calculate" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-2-zero-Calculate/trial-01/input.xlsx"),
+            "A1-sweeps-2-zero-Full" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-2-zero-Full/trial-01/input.xlsx"),
+            "A1-sweeps-2-zero-Range" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-2-zero-Range/trial-01/input.xlsx"),
+            "A1-sweeps-2-zero-Sheet" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-2-zero-Sheet/trial-01/input.xlsx"),
+            "A1-sweeps-2-zero-reverse" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-2-zero-reverse/trial-01/input.xlsx"),
+            "A1-sweeps-3-asymmetric" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-3-asymmetric/trial-01/input.xlsx"),
+            "A1-sweeps-3-asymmetric-Calculate" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-3-asymmetric-Calculate/trial-01/input.xlsx"),
+            "A1-sweeps-3-asymmetric-Full" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-3-asymmetric-Full/trial-01/input.xlsx"),
+            "A1-sweeps-3-asymmetric-Range" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-3-asymmetric-Range/trial-01/input.xlsx"),
+            "A1-sweeps-3-asymmetric-Sheet" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-3-asymmetric-Sheet/trial-01/input.xlsx"),
+            "A1-sweeps-3-asymmetric-reverse" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-3-asymmetric-reverse/trial-01/input.xlsx"),
+            "A1-sweeps-3-zero" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-3-zero/trial-01/input.xlsx"),
+            "A1-sweeps-3-zero-Calculate" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-3-zero-Calculate/trial-01/input.xlsx"),
+            "A1-sweeps-3-zero-Full" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-3-zero-Full/trial-01/input.xlsx"),
+            "A1-sweeps-3-zero-Range" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-3-zero-Range/trial-01/input.xlsx"),
+            "A1-sweeps-3-zero-Sheet" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-3-zero-Sheet/trial-01/input.xlsx"),
+            "A1-sweeps-3-zero-reverse" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-3-zero-reverse/trial-01/input.xlsx"),
+            "A1-sweeps-5-asymmetric" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-5-asymmetric/trial-01/input.xlsx"),
+            "A1-sweeps-5-asymmetric-Calculate" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-5-asymmetric-Calculate/trial-01/input.xlsx"),
+            "A1-sweeps-5-asymmetric-Full" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-5-asymmetric-Full/trial-01/input.xlsx"),
+            "A1-sweeps-5-asymmetric-Range" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-5-asymmetric-Range/trial-01/input.xlsx"),
+            "A1-sweeps-5-asymmetric-Sheet" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-5-asymmetric-Sheet/trial-01/input.xlsx"),
+            "A1-sweeps-5-asymmetric-reverse" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-5-asymmetric-reverse/trial-01/input.xlsx"),
+            "A1-sweeps-5-zero" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-5-zero/trial-01/input.xlsx"),
+            "A1-sweeps-5-zero-Calculate" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-5-zero-Calculate/trial-01/input.xlsx"),
+            "A1-sweeps-5-zero-Full" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-5-zero-Full/trial-01/input.xlsx"),
+            "A1-sweeps-5-zero-Range" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-5-zero-Range/trial-01/input.xlsx"),
+            "A1-sweeps-5-zero-Sheet" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-5-zero-Sheet/trial-01/input.xlsx"),
+            "A1-sweeps-5-zero-reverse" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A1-sweeps-5-zero-reverse/trial-01/input.xlsx"),
+            "A2-eighth-0000000000000000" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A2-eighth-0000000000000000/trial-01/input.xlsx"),
+            "A2-eighth-3fbfffffffffffff" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A2-eighth-3fbfffffffffffff/trial-01/input.xlsx"),
+            "A2-eighth-3fc0000000000000" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A2-eighth-3fc0000000000000/trial-01/input.xlsx"),
+            "A2-eighth-3fc0000000000001" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A2-eighth-3fc0000000000001/trial-01/input.xlsx"),
+            "A2-half-0000000000000000" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A2-half-0000000000000000/trial-01/input.xlsx"),
+            "A2-half-3fbfffffffffffff" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A2-half-3fbfffffffffffff/trial-01/input.xlsx"),
+            "A2-half-3fc0000000000000" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A2-half-3fc0000000000000/trial-01/input.xlsx"),
+            "A2-half-3fc0000000000001" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A2-half-3fc0000000000001/trial-01/input.xlsx"),
+            "A3-both-alone" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A3-both-alone/trial-01/input.xlsx"),
+            "A3-both-amplifiers" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A3-both-amplifiers/trial-01/input.xlsx"),
+            "A3-eighth-alone" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A3-eighth-alone/trial-01/input.xlsx"),
+            "A3-eighth-amplifier" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A3-eighth-amplifier/trial-01/input.xlsx"),
+            "A3-half-alone" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A3-half-alone/trial-01/input.xlsx"),
+            "A3-half-amplifier" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A3-half-amplifier/trial-01/input.xlsx"),
+            "A4-pure" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/A4-pure/trial-01/input.xlsx"),
+            "B6-NA" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B6-NA/trial-01/input.xlsx"),
+            "B6-boolean" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B6-boolean/trial-01/input.xlsx"),
+            "B6-changing-error" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B6-changing-error/trial-01/input.xlsx"),
+            "B6-number-to-text" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B6-number-to-text/trial-01/input.xlsx"),
+            "B6-stable-text" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B6-stable-text/trial-01/input.xlsx"),
+            "B6-toggle-text" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B6-toggle-text/trial-01/input.xlsx"),
+            "B6-untaken-self" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B6-untaken-self/trial-01/input.xlsx"),
+            "B7-indirect" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B7-indirect/trial-01/input.xlsx"),
+            "B7-static" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/B7-static/trial-01/input.xlsx"),
+            "control-dc_10y_iteration" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/control-dc_10y_iteration/trial-01/input.xlsx"),
+            "control-dc_86f" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng9-20261103/conditions/control-dc_86f/trial-01/input.xlsx"),
             _ => panic!("missing input workbook for {name}"),
         };
         assert_eq!(
@@ -692,10 +655,10 @@ fn dc_hsa5_11__p14_recorded_stopping_and_dependents() {
             }
         }
     }
-    assert_eq!(refused_range, ["A1-sweeps-1-zero-Range"]);
-    assert_eq!(refused_values, 16);
-    assert_eq!(commands, 156);
-    assert_eq!(comparisons, 438);
+    assert_eq!(refused_range.len(), 10);
+    assert_eq!(refused_values, 160);
+    assert_eq!(commands, 300);
+    assert_eq!(comparisons, 1014);
     assert!(
         failures.is_empty(),
         "{} recorded comparisons failed:\n{}",
