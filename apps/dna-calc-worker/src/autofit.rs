@@ -256,11 +256,11 @@ pub fn text_style_for(
 fn table_style(host:&calc_host::HostState,at:calc_host::value::CellKey,mut out:TextStyle,font_id:u32,fill_id:u32)->TextStyle{
     if let Some(table)=host.model().definitions().tables().iter().find(|t|t.area.contains(at)){
         let style=&table.style;
-        if style.name.as_deref()==Some("TableStyleMedium2"){
+        if let Some(theme)=style.medium_accent_theme(){
             let header=table.header_rows>0&&at.row()==table.area.first().row();let total=table.totals_rows>0&&at.row()==table.area.last().row();
             let emphasis=header||total||(style.first_column&&at.column()==table.area.first().column())||(style.last_column&&at.column()==table.area.last().column());
             let striped=(style.row_stripes&&(at.row()-table.area.first().row()).saturating_sub(u32::from(table.header_rows>0))%2==0)||(style.column_stripes&&(at.column()-table.area.first().column())%2==0);
-            if fill_id==0&&out.fill.is_none()&&out.brush.is_none(){let color=calc_host::StyleColor{theme:Some("4".into()),tint:if header{None}else{Some(if total{"0.6"}else{"0.8"}.into())},..Default::default()};if header||total||striped{out.fill=crate::cells::style_color(host,&color);}}
+            if fill_id==0&&out.fill.is_none()&&out.brush.is_none(){let color=calc_host::StyleColor{rgb:host.theme_accent((theme-4) as usize).map(|s|format!("FF{s}")),tint:if header{None}else{Some(if total{"0.6"}else{"0.8"}.into())},..Default::default()};if header||total||striped{out.fill=crate::cells::style_color(host,&color);}}
             if font_id==0{if emphasis{out.bold=true;}if header{out.font_color=Some("#ffffff".into());}}
         }else if style.name.is_some(){out.unsupported.get_or_insert("This table style is preserved; its table effects are not painted".into());}
     }

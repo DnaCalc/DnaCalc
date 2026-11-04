@@ -101,7 +101,17 @@ fn file_project_sources_compile_with_their_exported_attributes() {
                 .unwrap();
             assert!(session.dispatch(SkinIntent::Recalculate).accepted());
             drain(&mut session);
-            for (row, expected) in [(1, 102.), (2, 102.), (3, 102.), (4, 102.)] {
+            // Private worksheet lookup is recorded in excel-observations.json,
+            // distinct from VBA-to-VBA visibility and module registration.
+            for (row, expected) in [
+                (1, 102.),
+                (2, 102.),
+                (3, 102.),
+                (4, 102.),
+                (30, 1202.),
+                (31, 1202.),
+                (32, 1302.),
+            ] {
                 assert_eq!(
                     value(&session, row, 2).as_number(),
                     Some(expected),
@@ -112,6 +122,34 @@ fn file_project_sources_compile_with_their_exported_attributes() {
             session.dispatch(SkinIntent::Recalculate);
             drain(&mut session);
             assert_eq!(value(&session, 1, 4).as_number(), Some(1303.));
+            let before = session
+                .host()
+                .loaded()
+                .read_vba_project(&Default::default())
+                .unwrap()
+                .unwrap();
+            let mut saved = Vec::new();
+            session.save(&Default::default(), &mut saved).unwrap();
+            let mut reopened = opened(&saved, name);
+            let after = reopened
+                .host()
+                .loaded()
+                .read_vba_project(&Default::default())
+                .unwrap()
+                .unwrap();
+            assert_eq!(before.modules.len(), after.modules.len());
+            for (before, after) in before.modules.iter().zip(&after.modules) {
+                assert_eq!(
+                    before.source, after.source,
+                    "internal worksheet entries must not alter saved VBA"
+                );
+            }
+            calc_host_vba::activate_file_project(&mut reopened, name, 100_000, Some(backend))
+                .unwrap();
+            assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+            drain(&mut reopened);
+            assert_eq!(value(&reopened, 30, 2).as_number(), Some(1202.));
+            assert_eq!(value(&reopened, 31, 2).as_number(), Some(1202.));
         }
     }
 }

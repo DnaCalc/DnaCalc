@@ -1238,7 +1238,7 @@ impl Server {
 
             Intent::Table{revision,change}=>{
                 use wire::TableChange as W;use calc_host::TableChange as H;
-                let change=match change{W::Create{area:a,name}=>H::Create{area:area(a)?,name},W::Resize{part,area:a}=>H::Resize{part,area:area(a)?},W::Options{part,headers,totals,style,row_stripes,column_stripes,first_column,last_column}=>H::Options{part,headers,totals,style,row_stripes,column_stripes,first_column,last_column},W::Total{part,column,function}=>H::Total{part,column,function}};
+                let change=match change{W::Create{area:a,name}=>H::Create{area:area(a)?,name},W::Resize{part,area:a}=>H::Resize{part,area:area(a)?},W::Options{part,headers,totals,style,row_stripes,column_stripes,first_column,last_column}=>H::Options{part,headers,totals,style,row_stripes,column_stripes,first_column,last_column},W::Total{part,column,function}=>H::Total{part,column,function},W::RenameColumn{part,column,name}=>H::RenameColumn{part,column,name},W::CalculatedColumn{part,column,formula}=>H::CalculatedColumn{part,column,formula}};
                 SkinIntent::Command(calc_host::WorkbookCommand::Table{revision,change})
             }
             Intent::AutoFilter {sheet,revision,table,change} => {
@@ -2127,7 +2127,7 @@ impl Server {
         let layouts=self.book.host().model().definitions().axis_layouts();
         geometry.outline=[calc_host::Axis::Rows,calc_host::Axis::Columns].into_iter().flat_map(|axis|layouts.outline_groups(sheet.id(),axis).into_iter().map(move |g|wire::OutlineGroup {rows:axis==calc_host::Axis::Rows,first:g.first,last:g.last,level:g.level,summary:g.summary,collapsed:g.collapsed})).collect();
         geometry.auto_filter=self.book.host().model().definitions().auto_filter(sheet.id()).map(|f|wire::FilterView{table:None,area:Area::of(f.area),columns:f.columns.keys().copied().collect(),filtered:f.filtered_rows.len() as u32,unsupported:f.unsupported});
-        geometry.tables=self.book.host().model().definitions().tables().iter().filter(|t|t.sheet==sheet.id()).map(|t|wire::TableView{part:t.part.clone(),name:t.display_name.clone(),area:Area::of(t.area),columns:t.columns.clone(),headers:t.header_rows>0,totals:t.totals_rows>0,style:t.style.name.clone().unwrap_or_default(),row_stripes:t.style.row_stripes,column_stripes:t.style.column_stripes,first_column:t.style.first_column,last_column:t.style.last_column,opaque:t.opaque,filter:t.filter.as_ref().map(|f|wire::FilterView{table:Some(t.part.clone()),area:Area::of(f.area),columns:f.columns.keys().copied().collect(),filtered:f.filtered_rows.len() as u32,unsupported:f.unsupported})}).collect();
+        geometry.tables=self.book.host().model().definitions().tables().iter().filter(|t|t.sheet==sheet.id()).map(|t|wire::TableView{part:t.part.clone(),name:t.display_name.clone(),area:Area::of(t.area),columns:t.columns.clone(),column_formulas:t.column_formulas.clone(),headers:t.header_rows>0,totals:t.totals_rows>0,style:t.style.name.clone().unwrap_or_default(),row_stripes:t.style.row_stripes,column_stripes:t.style.column_stripes,first_column:t.style.first_column,last_column:t.style.last_column,opaque:t.axis_opaque,filter:t.filter.as_ref().map(|f|wire::FilterView{table:Some(t.part.clone()),area:Area::of(f.area),columns:f.columns.keys().copied().collect(),filtered:f.filtered_rows.len() as u32,unsupported:f.unsupported})}).collect();
         geometry.merges = self
             .book
             .host()

@@ -122,12 +122,18 @@ mod ci_audit;
 #[cfg(not(target_arch = "wasm32"))]
 mod compare;
 #[cfg(not(target_arch = "wasm32"))]
+mod compare_inventory;
+#[cfg(not(target_arch = "wasm32"))]
+mod compare_minimize;
+#[cfg(not(target_arch = "wasm32"))]
 mod compare_triage;
 #[cfg(not(target_arch = "wasm32"))]
 mod linked_workbooks;
 // The corpus command takes captures through calc-oracle-excel, like the capture command.
 #[cfg(not(target_arch = "wasm32"))]
 mod corpus;
+#[cfg(not(target_arch = "wasm32"))]
+mod corpus_batch;
 #[cfg(not(target_arch = "wasm32"))]
 mod corpus_summary;
 #[cfg(not(target_arch = "wasm32"))]

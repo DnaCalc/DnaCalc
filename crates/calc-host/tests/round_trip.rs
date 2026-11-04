@@ -13932,3 +13932,113 @@ fn dc_971p_41__axis_edits_refuse_imported_column_formula_rewrites_atomically() {
     let revision=book.host().revision();assert!(!book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Insert,1,1).unwrap())).accepted());assert_eq!(book.host().revision(),revision);
     assert!(book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Insert,20,1).unwrap())).accepted());let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert!(part_text(&saved,&part).contains("<calculatedColumnFormula>B2*2</calculatedColumnFormula>"));
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_41__calculated_columns_author_copy_resize_history_and_reopen() {
+    use calc_host::TableChange as T;
+    let mut book=session(&calc_host::blank_package());let (s,part)=create_test_table(&mut book);
+    let fill=|formula:Option<&str>|T::CalculatedColumn{part:part.clone(),column:1,formula:formula.map(str::to_owned)};
+    let done=table_action(&mut book,fill(Some("=[@Amount]*2")));assert!(done.accepted(),"{done:?}");
+    assert_eq!(calculated(book.host(),at(s,"A2")),Some(CalcValue::number(10.)));assert_eq!(calculated(book.host(),at(s,"A3")),Some(CalcValue::number(18.)));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(calc_host::search::entry_text(book.host().model().cell(at(s,"A2"))),"First");assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let done=table_action(&mut book,T::Resize{part:part.clone(),area:GridArea::new(at(s,"A1"),at(s,"B4")).unwrap()});assert!(done.accepted(),"{done:?}");assert_eq!(calculated(book.host(),at(s,"A4")),Some(CalcValue::number(4.)));
+    enter(&mut book,at(s,"D1"),"3");assert!(table_action(&mut book,fill(Some("=B2*$D$1"))).accepted());
+    for (cell,value) in [("A2",15.),("A3",27.),("A4",6.)] {assert_eq!(calculated(book.host(),at(s,cell)),Some(CalcValue::number(value)));}
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert!(part_text(&saved,&part).contains("<calculatedColumnFormula"));
+    let mut book=session(&saved);assert!(book.dispatch(SkinIntent::Recalculate).accepted());assert_eq!(book.host().model().definitions().tables()[0].column_formulas[0].as_deref(),Some("B2*$D$1"));assert_eq!(calculated(book.host(),at(s,"A4")),Some(CalcValue::number(6.)));
+    assert!(table_action(&mut book,fill(None)).accepted());assert!(book.host().model().definitions().tables()[0].column_formulas[0].is_none());assert_eq!(calculated(book.host(),at(s,"A2")),Some(CalcValue::number(15.)));assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(book.host().model().definitions().tables()[0].column_formulas[0].is_some());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_41__column_rename_rewrites_references_names_and_calculated_metadata() {
+    use calc_host::TableChange as T;
+    let mut book=session(&calc_host::blank_package());let (s,part)=create_test_table(&mut book);
+    assert!(table_action(&mut book,T::CalculatedColumn{part:part.clone(),column:1,formula:Some("=[@Amount]*2".into())}).accepted());
+    enter(&mut book,at(s,"D1"),"=SUM(Sales[Amount])");enter(&mut book,at(s,"D2"),"=\"Sales[Amount]\"&\" Ω\"");
+    assert!(book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::SetName{name:"RevenueTotal".into(),scope:calc_doc_model::NameScope::Workbook,formula:Some("SUM(Sales[Amount])".into())}]}).accepted());enter(&mut book,at(s,"D3"),"=RevenueTotal");
+    let done=table_action(&mut book,T::RenameColumn{part:part.clone(),column:2,name:"Net [#]".into()});assert!(done.accepted(),"{done:?}");
+    assert_eq!(book.host().model().definitions().tables()[0].columns[1],"Net [#]");
+    for (cell,value) in [("A2",10.),("A3",18.),("D1",14.),("D3",14.)] {assert_eq!(calculated(book.host(),at(s,cell)),Some(CalcValue::number(value)));}
+    assert_eq!(calculated(book.host(),at(s,"D2")),Some(CalcValue::text(calc_value::ExcelText::from_utf16_code_units("Sales[Amount] Ω".encode_utf16().collect()))));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().model().definitions().tables()[0].columns[1],"Amount");assert_eq!(calculated(book.host(),at(s,"D3")),Some(CalcValue::number(14.)));assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());assert_eq!(calculated(reopened.host(),at(s,"A3")),Some(CalcValue::number(18.)));assert_eq!(calculated(reopened.host(),at(s,"D3")),Some(CalcValue::number(14.)));
+    let before=reopened.host().revision();assert!(!table_action(&mut reopened,T::RenameColumn{part,column:2,name:"ITEM".into()}).accepted());assert_eq!(reopened.host().revision(),before);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_41__formatted_headers_use_the_shared_number_text_route() {
+    use calc_host::{TableChange as T,WorkbookCommand as W,FormatPatch};
+    let mut book=HostSession::open(Arc::new(MemorySource::new(calc_host::blank_package())),&OpenPolicy::default(),HostOptions{locale:calc_host::FormatProfile::for_culture("en-US"),..Default::default()}).unwrap();let s=book.host().sheets()[0].id();
+    for (cell,value) in [("A1","0.25"),("B1","=1/4"),("A2","1"),("B2","2")] {enter(&mut book,at(s,cell),value);}
+    assert!(book.dispatch(SkinIntent::Command(W::FormatCells{areas:vec![GridArea::new(at(s,"A1"),at(s,"B1")).unwrap()],patch:FormatPatch{number_format:Some("0.0%".into()),..Default::default()}})).accepted());
+    let done=table_action(&mut book,T::Create{area:GridArea::new(at(s,"A1"),at(s,"B2")).unwrap(),name:"Percentages".into()});assert!(done.accepted(),"{done:?}");assert_eq!(book.host().model().definitions().tables()[0].columns,["25.0%","25.0%2"]);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(matches!(book.host().model().cell(at(s,"B1")),Some(CellInput::Formula(_))));assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert_eq!(session(&saved).host().model().definitions().tables()[0].columns,["25.0%","25.0%2"]);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_41__column_metadata_refuses_partial_and_contextual_name_changes() {
+    use calc_host::TableChange as T;let mut book=session(&calc_host::blank_package());let (s,part)=create_test_table(&mut book);
+    let before=book.host().revision();let mut tables=book.host().model().definitions().tables().to_vec();tables[0].column_formulas[0]=Some("B2*2".into());tables[0].opaque=true;
+    assert!(!book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::Tables(tables)]}).accepted());assert_eq!(book.host().revision(),before);
+    assert!(book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::SetName{name:"RelativeColumn".into(),scope:calc_doc_model::NameScope::Workbook,formula:Some("SUM([Amount])".into())}]}).accepted());
+    let before=book.host().revision();assert!(!table_action(&mut book,T::RenameColumn{part:part.clone(),column:2,name:"Revenue".into()}).accepted());assert_eq!(book.host().revision(),before);assert_eq!(calc_host::search::entry_text(book.host().model().cell(at(s,"B1"))),"Amount");
+    for formula in ["", "=SUM("] {let before=book.host().revision();assert!(!table_action(&mut book,T::CalculatedColumn{part:part.clone(),column:1,formula:Some(formula.into())}).accepted());assert_eq!(book.host().revision(),before);}
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_41__all_six_medium_presets_round_trip_with_their_flags() {
+    use calc_host::TableChange as T;let mut book=session(&calc_host::blank_package());let (_,part)=create_test_table(&mut book);
+    for index in 2..=7 {let name=format!("TableStyleMedium{index}");let done=table_action(&mut book,T::Options{part:part.clone(),headers:true,totals:false,style:name.clone(),row_stripes:true,column_stripes:true,first_column:true,last_column:true});assert!(done.accepted(),"{done:?}");let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let style=&reopened.host().model().definitions().tables()[0].style;assert_eq!(style.name.as_deref(),Some(name.as_str()));assert_eq!(style.medium_accent_theme(),Some(index+2));assert!(style.row_stripes&&style.column_stripes&&style.first_column&&style.last_column);}
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_41__calculated_row_insert_and_filtered_fill_refuse_atomically() {
+    use calc_host::{TableChange as T,WorkbookCommand as W,FilterChange as F,FilterCriteria as C};
+    let mut book=session(&calc_host::blank_package());let (s,part)=create_test_table(&mut book);
+    assert!(table_action(&mut book,T::CalculatedColumn{part:part.clone(),column:1,formula:Some("=B2*2".into())}).accepted());
+    let before=book.host().revision();let definitions=book.host().model().definitions().tables().to_vec();
+    assert!(!book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Insert,3,1).unwrap())).accepted());assert_eq!(book.host().revision(),before);assert_eq!(book.host().model().definitions().tables(),definitions);assert_eq!(calculated(book.host(),at(s,"A3")),Some(CalcValue::number(18.)));
+    let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::TableFilter{sheet:s,revision,part:part.clone(),change:F::Column{column:1,criteria:Some(C::Values{values:vec!["18".into()],blank:false})}})).accepted());
+    let before=book.host().revision();assert!(!table_action(&mut book,T::Resize{part:part.clone(),area:GridArea::new(at(s,"A1"),at(s,"B4")).unwrap()}).accepted());assert!(!table_action(&mut book,T::CalculatedColumn{part:part.clone(),column:1,formula:Some("=B2*3".into())}).accepted());assert_eq!(book.host().revision(),before);
+    let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(W::TableFilter{sheet:s,revision,part:part.clone(),change:F::Clear})).accepted());assert!(table_action(&mut book,T::Resize{part,area:GridArea::new(at(s,"A1"),at(s,"B4")).unwrap()}).accepted());assert_eq!(calculated(book.host(),at(s,"A4")),Some(CalcValue::number(4.)));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_41__rename_preserves_spaces_unicode_rules_and_source_attributes() {
+    use calc_host::TableChange as T;
+    let mut book=session(&calc_host::blank_package());let (_,part)=create_test_table(&mut book);let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
+    let saved=package_with_part_from(&saved,"xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",r#"<conditionalFormatting sqref="D2"><cfRule type="expression" priority="1"><formula>SUM(Sales[Amount])&gt;0</formula></cfRule></conditionalFormatting><dataValidations count="1"><dataValidation type="custom" sqref="D2"><formula1>SUM(Sales[Amount])&gt;0</formula1></dataValidation></dataValidations></worksheet>"#));
+    let mut book=session(&saved);let s=book.host().sheets()[0].id();enter(&mut book,at(s,"D1"),"=IF(\"🧬\"=\"🧬\",SUM(Sales[Amount]),0)");
+    let done=table_action(&mut book,T::RenameColumn{part:part.clone(),column:2,name:" Net [#] ".into()});assert!(done.accepted(),"{done:?}");assert_eq!(book.host().model().definitions().tables()[0].columns[1]," Net [#] ");assert_eq!(calculated(book.host(),at(s,"D1")),Some(CalcValue::number(14.)));
+    let rules=book.host().model().definitions().conditional_rules(s);assert!(rules[0].formulas[0].contains(" Net "));assert!(book.host().model().definitions().validations(s)[0].formula1.as_ref().unwrap().contains(" Net "));
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());assert_eq!(reopened.host().model().definitions().tables()[0].columns[1]," Net [#] ");assert_eq!(calculated(reopened.host(),at(s,"D1")),Some(CalcValue::number(14.)));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_41__column_rename_uses_exact_names_before_whitespace_fallback() {
+    use calc_host::TableChange as T;let mut book=session(&calc_host::blank_package());let (s,part)=create_test_table(&mut book);
+    enter(&mut book,at(s,"D1"),"=SUM(Sales[ Amount ])");assert_eq!(calculated(book.host(),at(s,"D1")),Some(CalcValue::number(14.)));
+    assert!(table_action(&mut book,T::RenameColumn{part:part.clone(),column:1,name:" Amount ".into()}).accepted());assert_eq!(calculated(book.host(),at(s,"D1")),Some(CalcValue::number(14.)));
+    enter(&mut book,at(s,"A2"),"2");enter(&mut book,at(s,"A3"),"3");enter(&mut book,at(s,"D2"),"=SUM(Sales[ Amount ])");assert_eq!(calculated(book.host(),at(s,"D2")),Some(CalcValue::number(5.)));
+    assert!(table_action(&mut book,T::RenameColumn{part:part.clone(),column:2,name:"Revenue".into()}).accepted());assert_eq!(calculated(book.host(),at(s,"D1")),Some(CalcValue::number(14.)));assert_eq!(calculated(book.host(),at(s,"D2")),Some(CalcValue::number(5.)));
+    assert!(table_action(&mut book,T::RenameColumn{part,column:1,name:"Other".into()}).accepted());assert_eq!(calculated(book.host(),at(s,"D2")),Some(CalcValue::number(5.)));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_41__calculated_formula_namespaces_and_quoted_attributes_survive_rename() {
+    use calc_host::TableChange as T;let mut book=session(&calc_host::blank_package());let (_,part)=create_test_table(&mut book);
+    assert!(table_action(&mut book,T::CalculatedColumn{part:part.clone(),column:1,formula:Some("=SUM(Sales[Amount])".into())}).accepted());let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
+    let augmented=package_with_part_from(&saved,&part,|xml|xml.replace("<calculatedColumnFormula ",r#"<m:calculatedColumnFormula xmlns:m="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:v="urn:keep" v:note="a>b" array="0" "#).replace("</calculatedColumnFormula>","</m:calculatedColumnFormula>"));
+    let mut book=session(&augmented);let s=book.host().sheets()[0].id();assert!(!book.host().model().definitions().tables()[0].axis_opaque);
+    let done=table_action(&mut book,T::RenameColumn{part:part.clone(),column:2,name:"Revenue".into()});assert!(done.accepted(),"{done:?}");let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let xml=part_text(&saved,&part);assert!(xml.contains(r#"v:note="a>b""#),"{xml}");assert!(xml.contains(r#"array="0""#));assert!(xml.contains("</m:calculatedColumnFormula>"));let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());assert_eq!(calculated(reopened.host(),at(s,"A3")),Some(CalcValue::number(14.)));
+}

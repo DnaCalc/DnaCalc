@@ -898,6 +898,30 @@ pub mod d1 {
             .expect("UTF-8")
     }
 
+    /// Author one changed part for a loader control; all other part contents stay exact.
+    pub fn replace_part(package: &[u8], name: &str, replacement: &[u8]) -> Vec<u8> {
+        let zip = super::parse_zip(package);
+        let entries: Vec<_> = zip
+            .entries
+            .iter()
+            .map(|entry| {
+                let bytes = if entry.name == name {
+                    replacement.to_vec()
+                } else {
+                    match entry.method {
+                        0 => entry.payload(package).to_vec(),
+                        8 => miniz_oxide::inflate::decompress_to_vec(entry.payload(package))
+                            .expect("source DEFLATE"),
+                        _ => panic!("unsupported control compression"), // ubs:ignore -- This authored fixture helper must fail for unknown compression; product loading never calls it.
+                    }
+                };
+                RawEntry::stored(&entry.name, &bytes)
+            })
+            .collect();
+        assert!(zip.entries.iter().any(|entry| entry.name == name));
+        build_zip(&entries)
+    }
+
     /// The ID of the sheet named `name`.
     pub fn sheet(loaded: &LoadedWorkbook, name: &str) -> SheetId {
         loaded
@@ -947,30 +971,13 @@ pub mod d1 {
     /// any styles part's cell formats, which Excel repairs: the positive control of the Excel
     /// reopen check (a reopen route that does not report this copy cannot report a repair).
     pub fn repair_control(package: &[u8], sheet_part: &str) -> Vec<u8> {
-        let archive = super::parse_zip(package);
-        let entries: Vec<RawEntry> = archive
-            .entries
-            .iter()
-            .map(|entry| {
-                let payload = entry.payload(package);
-                let mut bytes = match entry.method {
-                    0 => payload.to_vec(),
-                    _ => miniz_oxide::inflate::decompress_to_vec(payload).expect("a deflated part"),
-                };
-                if entry.name == sheet_part {
-                    let text = String::from_utf8(bytes).expect("UTF-8");
-                    bytes = text
-                        .replacen(
-                            "<sheetData>",
-                            r#"<sheetData><row r="1000"><c r="A1000" s="9999"><v>1</v></c></row>"#,
-                            1,
-                        )
-                        .into_bytes();
-                }
-                RawEntry::stored(&entry.name, &bytes)
-            })
-            .collect();
-        build_zip(&entries)
+        let text = part_text(package, sheet_part);
+        let text = text.replacen(
+            "<sheetData>",
+            r#"<sheetData><row r="1000"><c r="A1000" s="9999"><v>1</v></c></row>"#,
+            1,
+        );
+        replace_part(package, sheet_part, text.as_bytes())
     }
 
     /// Writes `bytes` to `name` under the directory `DNACALC_D1_SAVE_DIR` names, when it is set, for

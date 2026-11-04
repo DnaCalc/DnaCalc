@@ -44,6 +44,25 @@ pub fn load_project(
     max_steps: u64,
     backend: Option<Backend>,
 ) -> Result<LoadedProject, String> {
+    load_project_impl(modules, max_steps, backend, false)
+}
+
+/// An opened workbook's worksheet lookup also admits its private standard-module
+/// functions, as recorded by dc-snz.7. VBA-to-VBA visibility stays unchanged.
+pub fn load_file_project(
+    modules: &[ProjectModule],
+    max_steps: u64,
+    backend: Option<Backend>,
+) -> Result<LoadedProject, String> {
+    load_project_impl(modules, max_steps, backend, true)
+}
+
+fn load_project_impl(
+    modules: &[ProjectModule],
+    max_steps: u64,
+    backend: Option<Backend>,
+    private_worksheet_lookup: bool,
+) -> Result<LoadedProject, String> {
     if modules.is_empty()
         || modules.len() > 1024
         || modules.iter().any(|m| m.source.len() > 1_048_576)
@@ -51,7 +70,7 @@ pub fn load_project(
     {
         return Err("VBA project exceeds its source/module limits (dc-hsa5.12)".into());
     }
-    let module = Module::load_event_project(modules)
+    let module = Module::load_event_project(modules, private_worksheet_lookup)
         .map_err(|e| format!("document project (dc-hsa5.12): {e}"))?;
     crate::prepare_project(module, max_steps, backend)
         .map_err(|e| format!("document project (dc-hsa5.12): {e}"))
