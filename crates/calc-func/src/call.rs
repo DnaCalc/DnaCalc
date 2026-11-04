@@ -121,6 +121,12 @@ pub trait HostFacts {
     /// The name of `sheet`.
     fn sheet_name(&mut self, sheet: SheetId) -> Option<String>;
 
+    /// The current workbook identity in the pinned model, including a successful Save As.
+    /// This is namespace metadata, independent of the file facts used by CELL and INFO.
+    fn workbook_name(&mut self) -> Option<String> {
+        None
+    }
+
     /// How many sheets the workbook holds.
     fn sheet_count(&mut self) -> Option<u32>;
 

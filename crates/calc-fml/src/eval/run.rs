@@ -3713,6 +3713,20 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
     fn caller(&self) -> Option<CellKey> {
         Some(self.run.instance.anchor.cell())
     }
+    fn reference_qualifier(&mut self, sheet: calc_func::value::SheetId) -> Result<String, String> {
+        use calc_func::HostFacts;
+        // Cache observations pin values separately. Names use the command's pinned model
+        // and OnChange metadata receipts, so a clean F9 does not repeat this UDF.
+        let mut host = ReaderHost { shared: self.run.reader };
+        if host.is_external_sheet(sheet) {
+            return Err(self.refuse("external workbook reference names"));
+        }
+        let names = host.sheet_name(sheet).zip(host.workbook_name());
+        match names {
+            Some((sheet, book)) => Ok(crate::reference::format_workbook_sheet_qualifier(&book, &sheet)),
+            None => Err(self.refuse("reference names without an admitted metadata view")),
+        }
+    }
     fn retain_reference(
         &mut self,
         reference: &ReferenceLike,

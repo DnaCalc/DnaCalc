@@ -179,6 +179,11 @@ pub trait UserFunction: fmt::Debug {
 /// adapters can retain reference identities, and must read their values through this context.
 pub trait UserFunctionContext {
     fn caller(&self) -> Option<CellKey>;
+    /// The current workbook/sheet qualifier of a local reference, without `!`.
+    /// Reads metadata only; no formula value is demanded or observed.
+    fn reference_qualifier(&mut self, _sheet: crate::value::SheetId) -> Result<String, String> {
+        Err(self.refuse("reference names without an admitted metadata view"))
+    }
     /// Exact provider generation admitted for this invocation, after table replacement.
     fn callable_identity(&self) -> Option<UserCallableIdentity> {
         None

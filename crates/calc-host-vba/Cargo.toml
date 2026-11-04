@@ -16,6 +16,7 @@ calc-value = { path = "../calc-value" }
 
 [dev-dependencies]
 calc-doc = { path = "../calc-doc" }
+calc-func = { path = "../calc-func" }
 cfb = "=0.10.0"
 miniz_oxide = "=0.8.9"
 

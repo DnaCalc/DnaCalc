@@ -61,6 +61,9 @@ pub trait SpreadsheetContext {
         reason.into()
     }
     fn metadata(&self, range: Range) -> Result<RangeInfo, ContextError>;
+    fn external_address(&self, _range: Range) -> Result<String, ContextError> {
+        Err(self.refuse("reference names without an admitted metadata view").into())
+    }
     fn cell(&self, range: Range, row: u32, column: u32) -> Result<Range, ContextError>;
     fn area(&self, range: Range, index: u32) -> Result<Range, ContextError>;
     fn read_range(&self, range: Range) -> Result<Value, ContextError>;
@@ -416,7 +419,36 @@ impl SpreadsheetHost {
             }
             "ROW" if args.is_empty() => Ok(Variant::from_i32(info.row as i32)),
             "COLUMN" if args.is_empty() => Ok(Variant::from_i32(info.column as i32)),
-            "ADDRESS" if args.is_empty() => Ok(Variant::from_string(info.address)),
+            "ADDRESS" => {
+                let supplied = |index: usize| args.get(index)
+                    .filter(|v| v.as_error_code() != Some(-2147352572));
+                let boolean = |index: usize, default: bool| -> HalResult<bool> {
+                    supplied(index).map_or(Ok(default), |value| {
+                        oxvba_eval::arith::coerce_numeric(value, oxvba_bundle::NumericCoerceTarget::Boolean)
+                            .map_err(|e| fault(e.code, e.message))
+                            .map(|v| v.as_bool().expect("Boolean coercion"))
+                    })
+                };
+                if !boolean(0, true)? || !boolean(1, true)? {
+                    return self.unsupported("relative Range.Address coordinates");
+                }
+                if let Some(style) = supplied(2) {
+                    let style = oxvba_eval::arith::coerce_numeric(style, oxvba_bundle::NumericCoerceTarget::Long)
+                        .map_err(|e| fault(e.code, e.message))?;
+                    if style.as_i32() != Some(1) {
+                        return self.unsupported("a non-A1 Range.Address reference style");
+                    }
+                }
+                if supplied(4).is_some() {
+                    return self.unsupported("Range.Address RelativeTo");
+                }
+                let address = if boolean(3, false)? {
+                    self.context(|context| context.external_address(range))?
+                } else {
+                    info.address
+                };
+                Ok(Variant::from_string(address))
+            }
             "AREAS" if args.is_empty() => self.object(Object::Range(range, Axis::Areas)),
             "ROWS" if args.is_empty() => self.object(Object::Range(range, Axis::Rows)),
             "COLUMNS" if args.is_empty() => self.object(Object::Range(range, Axis::Columns)),
@@ -475,6 +507,40 @@ impl SpreadsheetHost {
             }
             _ => self.unsupported("a read-only Range member outside the supported host surface"),
         }
+    }
+
+    fn projected_arguments(
+        &self,
+        object: Object,
+        name: &str,
+        args: &[oxvba_com::DynamicCallArg],
+    ) -> HalResult<Vec<Variant>> {
+        let missing = || Variant::from_error_code(-2147352572);
+        if name == "ADDRESS" && matches!(object, Object::Range(..)) {
+            let names = ["RowAbsolute", "ColumnAbsolute", "ReferenceStyle", "External", "RelativeTo"];
+            let mut values = vec![missing(); names.len()];
+            let mut supplied = [false; 5];
+            for (position, arg) in args.iter().enumerate() {
+                let index = match arg.name.as_deref() {
+                    Some(name) => match names.iter().position(|n| n.eq_ignore_ascii_case(name)) {
+                        Some(index) => index,
+                        None => return self.unsupported("an unknown Range.Address argument"),
+                    },
+                    None => position,
+                };
+                if index >= values.len() || supplied[index] {
+                    return Err(fault(450, "duplicate or excess Range.Address arguments"));
+                }
+                supplied[index] = true;
+                values[index] = arg.value.as_ref().map(|v| v.variant().clone()).unwrap_or_else(missing);
+            }
+            return Ok(values);
+        }
+        if args.iter().any(|arg| arg.name.is_some()) {
+            return self.unsupported("named host arguments are not supported");
+        }
+        Ok(args.iter().map(|arg| arg.value.as_ref()
+            .map(|v| v.variant().clone()).unwrap_or_else(missing)).collect())
     }
 
     /// Shared legacy projection execution; member selection happens at the caller.
@@ -624,25 +690,8 @@ impl ComHal for SpreadsheetHost {
             }
             _ => return Err(fault(438, "unsupported typed projection member/accessor")),
         };
-        if args.iter().any(|arg| arg.name.is_some()) {
-            return self.unsupported("named host arguments are not supported");
-        }
-        let args = args
-            .iter()
-            .map(|arg| {
-                arg.value
-                    .as_ref()
-                    .map(|v| v.variant().clone())
-                    .unwrap_or_else(|| Variant::from_error_code(-2147352572))
-            })
-            .collect::<Vec<_>>();
-        let args =
-            if name == "ADDRESS" && args.iter().all(|a| a.as_error_code() == Some(-2147352572)) {
-                &[][..]
-            } else {
-                &args[..]
-            };
-        self.invoke_projected_member(object, name, args)
+        let args = self.projected_arguments(object, name, args)?;
+        self.invoke_projected_member(object, name, &args)
             .map(oxvba_runtime::RuntimeCallResult::value)
     }
 
@@ -701,9 +750,6 @@ impl ComHal for SpreadsheetHost {
         ) {
             return self.unsupported("spreadsheet objects are read-only");
         }
-        if request.args.iter().any(|a| a.name.is_some()) {
-            return self.unsupported("named host arguments are not supported");
-        }
         let name = match &request.member {
             DynamicMemberSelector::Name(n) | DynamicMemberSelector::TokenNamed { name: n, .. } => {
                 n.as_str()
@@ -712,23 +758,15 @@ impl ComHal for SpreadsheetHost {
             _ => return Err(fault(438, "member name is required")),
         }
         .to_ascii_uppercase();
-        let args = request
-            .args
-            .iter()
-            .map(|arg| {
-                arg.value
-                    .as_ref()
-                    .map(|v| v.variant().clone())
-                    .unwrap_or_else(|| Variant::from_error_code(-2147352572))
-            })
-            .collect::<Vec<_>>();
         if let Some(native) = self.native_range(&request.object) {
-            if args.is_empty() && matches!(name.as_str(), "NUMERICVALUE" | "ITEM") {
+            if request.args.is_empty() && matches!(name.as_str(), "NUMERICVALUE" | "ITEM") {
                 return self.native_value(&native);
             }
             return self.unsupported("a numeric Range member outside its typed interface");
         }
-        self.invoke_projected_member(self.lookup(&request.object)?, &name, &args)
+        let object = self.lookup(&request.object)?;
+        let args = self.projected_arguments(object, &name, &request.args)?;
+        self.invoke_projected_member(object, &name, &args)
     }
     fn subscribe_event(&self, _: ObjectRef, _: ComMemberToken) -> HalResult<ComSubscriptionToken> {
         self.unsupported("spreadsheet WithEvents subscriptions are not modelled")
@@ -907,13 +945,18 @@ impl oxvba_symbol::TypeLibResolver for SpreadsheetTypes {
                 member("Count", 2, Kind::PropertyGet, 0, Ty::Long),
                 member("Row", 3, Kind::PropertyGet, 0, Ty::Long),
                 member("Column", 4, Kind::PropertyGet, 0, Ty::Long),
-                member("Address", 5, Kind::PropertyGet, 0, Ty::String),
+                member("Address", 5, Kind::PropertyGet, 5, Ty::String),
                 member("Rows", 6, Kind::PropertyGet, 0, Ty::Object),
                 member("Columns", 7, Kind::PropertyGet, 0, Ty::Object),
                 member("Cells", 8, Kind::PropertyGet, 2, Ty::Object),
                 member("Areas", 9, Kind::PropertyGet, 0, Ty::Object),
             ]
         };
+        if !application {
+            let address = members.iter_mut().find(|m| m.name == "Address").expect("Range Address metadata");
+            address.parameter_names = ["RowAbsolute", "ColumnAbsolute", "ReferenceStyle", "External", "RelativeTo"]
+                .into_iter().map(str::to_owned).collect();
+        }
         if application {
             for name in [
                 "Version",

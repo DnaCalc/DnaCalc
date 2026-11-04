@@ -748,6 +748,18 @@ unarmed return of 2 without changing saved source. P01 temporary-array UBound an
 P10 Input$ remain compiler gaps; general object writes and native subscriptions
 remain unimplemented. These controls are not new Excel captures or event parity.
 
+Caller addresses (dc-snz.15) now use the existing reference qualifier printer and
+the command's pinned workbook/sheet identities. Named and omitted Address arguments
+share one projection route; absolute A1 addresses can include the workbook and sheet.
+Namespace reads record OnChange facts, without reading formula values or the
+per-calculation file-facts snapshot. Clean F9 leaves a nonvolatile address observer
+uninvoked; sheet rename, Undo and Save As update its qualifier while retaining VBA
+state. The original P04 PlainProbe now logs its caller and returns its actual
+argument, with source unchanged on save/reopen. Missing names, external-workbook
+and multi-area qualifiers, relative coordinates, R1C1 and RelativeTo remain typed
+refusals through VBA handlers and IFERROR. The namespace-edit control is a fresh
+synthetic package retaining its exact VBA binary, not a changed Excel observation.
+
 Workbook_Open runs once after file-project installation and before automatic
 calculation; replacement does not replay it. Open, Change, Calculate and BeforeSave
 are the admitted event surface. The compiler's resolved document symbols and current

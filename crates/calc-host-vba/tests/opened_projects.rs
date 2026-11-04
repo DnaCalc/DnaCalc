@@ -133,20 +133,7 @@ fn original_recalculation_probe_project_is_admitted_without_source_removal() {
         );
         assert_eq!(value(&session, 8, 4).as_number(), Some(2.));
         assert_eq!(value(&session, 9, 4).as_number(), Some(2.));
-        let at = calc_value::CellKey::new(session.host().sheets()[0].id(), 10, 4).unwrap();
-        let page = calc_host::project(
-            session.host(),
-            &calc_host::ProjectionRequest { cells: vec![at] },
-        )
-        .unwrap();
-        assert!(
-            matches!(
-                page.cells()[0].value(),
-                calc_host::ProjectedValue::NotModeled { .. }
-            ),
-            "{:?}",
-            page.cells()[0].value()
-        );
+        assert_eq!(value(&session, 10, 4).as_number(), Some(3.));
         let mut saved = Vec::new();
         session.save(&Default::default(), &mut saved).unwrap();
         let reopened = opened(&saved, "probe.xlsm");
@@ -844,6 +831,99 @@ fn file_event_state_refuses_stale_target_values_even_when_vba_catches_the_error(
             full(&mut session);
             assert_eq!(value(&session, 1, 4).as_number(), Some(7.));
             assert!(session.take_workbook_event_failures().failures.is_empty());
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn caller_address_metadata_keeps_clean_f9_quiet_and_tracks_names() {
+    const MODULE: &str = r#"Private entries As Long
+Public Function Qualified() As String
+ entries = entries + 1
+ Qualified = Application.Caller.Address(External:=True) & ":" & CStr(entries)
+End Function
+Public Function TypedAddress() As String
+ Dim r As Excel.Range
+ Set r = Application.Caller
+ TypedAddress = r.Address(True, True, 1, True)
+End Function
+Public Function ReorderedAddress() As String
+ Dim r As Excel.Range
+ Set r = Application.Caller
+ ReorderedAddress = r.Address(External:=True, ColumnAbsolute:=True, RowAbsolute:=True)
+End Function
+Public Function LocalAddress() As String
+ LocalAddress = Application.Caller.Address(External:=False)
+End Function
+Public Function UnsupportedAddress(ByVal kind As Long) As String
+ On Error Resume Next
+ If kind = 1 Then
+  UnsupportedAddress = Application.Caller.Address(RowAbsolute:=False)
+ ElseIf kind = 2 Then
+  UnsupportedAddress = Application.Caller.Address(ReferenceStyle:=-4150)
+ Else
+  UnsupportedAddress = Application.Caller.Address(RelativeTo:="A1")
+ End If
+ UnsupportedAddress = "caught"
+End Function
+"#;
+    let bytes = vba_project::replace_sources(LOCAL, &[
+        ("Module1", MODULE), ("PrivateModule", "Option Private Module\n"),
+        ("Sheet1", ""), ("ThisWorkbook", ""),
+    ]);
+    let control = vba_project::minimal_control(&bytes);
+    assert_eq!(support::d1::part(&bytes, "xl/vbaProject.bin"), support::d1::part(&control, "xl/vbaProject.bin"));
+    for backend in backends() {
+        let mut host = calc_host::HostState::open(
+            Arc::new(MemorySource::new(control.clone()).named("Old.xlsm")),
+            &OpenPolicy::default(), HostOptions::default(),
+        ).unwrap();
+        host.set_file(Some(calc_func::WorkbookFile {folder: None, name: "Old.xlsm".into()}));
+        let mut session = HostSession::new(host);
+        session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
+        session.set_workbook_events_enabled(false);
+        calc_host_vba::activate_file_project(&mut session, "Old.xlsm", 100_000, Some(backend)).unwrap();
+        for (row, formula) in [(1,"=Qualified()"), (2,"=TypedAddress()"), (3,"=ReorderedAddress()"), (4,"=LocalAddress()") ] {
+            enter(&mut session, row, 4, formula);
+        }
+        full(&mut session);
+        let text = |session: &HostSession, row| value(session, row, 4).as_text().unwrap().to_string_lossy();
+        assert_eq!(text(&session, 1), "[Old.xlsm]Cases!$D$1:1", "{backend:?}");
+        assert_eq!(text(&session, 2), "[Old.xlsm]Cases!$D$2");
+        assert_eq!(text(&session, 3), "[Old.xlsm]Cases!$D$3");
+        assert_eq!(text(&session, 4), "$D$4");
+        session.dispatch(SkinIntent::Recalculate);
+        drain(&mut session);
+        assert_eq!(text(&session, 1), "[Old.xlsm]Cases!$D$1:1", "a clean F9 must not repeat the address observer");
+        let sheet = session.host().sheets()[0].id();
+        let renamed = session.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::Sheet {
+            sheet: Some(sheet), change: calc_host::SheetChange::Rename {name: "O'Brien data".into()},
+        }));
+        assert!(renamed.accepted(), "{renamed:?}");
+        session.dispatch(SkinIntent::Recalculate);
+        drain(&mut session);
+        assert_eq!(text(&session, 1), "'[Old.xlsm]O''Brien data'!$D$1:2");
+        assert!(session.dispatch(SkinIntent::Undo).accepted());
+        session.dispatch(SkinIntent::Recalculate);
+        drain(&mut session);
+        assert_eq!(text(&session, 1), "[Old.xlsm]Cases!$D$1:3");
+        // A stale file-facts snapshot must not override the model's Save As identity.
+        session.set_file_identity("Budget.xltm", true);
+        session.dispatch(SkinIntent::Recalculate);
+        drain(&mut session);
+        assert_eq!(text(&session, 1), "[Budget.xltm]Cases!$D$1:4");
+        session.dispatch(SkinIntent::Recalculate);
+        drain(&mut session);
+        assert_eq!(text(&session, 1), "[Budget.xltm]Cases!$D$1:4");
+        for kind in 1..=3 {
+            let row = 10 + kind;
+            enter(&mut session, row, 4, &format!("=IFERROR(UnsupportedAddress({kind}),999)"));
+            let at = calc_value::CellKey::new(sheet, row, 4).unwrap();
+            session.dispatch(SkinIntent::CalculateRange {areas:vec![calc_value::GridArea::cell(at)]});
+            drain(&mut session);
+            let page=calc_host::project(session.host(), &calc_host::ProjectionRequest {cells:vec![at]}).unwrap();
+            assert!(matches!(page.cells()[0].value(),calc_host::ProjectedValue::NotModeled {..}),"{backend:?} kind{kind}: {:?}",page.cells()[0].value());
         }
     }
 }

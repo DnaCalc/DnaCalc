@@ -598,6 +598,40 @@ mod tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn external_address_without_metadata_stays_refused_through_a_vba_handler() {
+        struct Context { caller: CellKey, reads: usize, refusals: Vec<String> }
+        impl UserFunctionContext for Context {
+            fn caller(&self) -> Option<CellKey> { Some(self.caller) }
+            fn refuse(&mut self, reason: &'static str) -> String {
+                self.refusals.push(reason.into());
+                reason.into()
+            }
+            fn values_of(&mut self, _: &ReferenceLike) -> Result<CalcValue, String> {
+                self.reads += 1;
+                Err("unexpected value read".into())
+            }
+            fn worksheet_function(&mut self, _: &str, _: &[CalcValue]) -> Result<CalcValue, String> {
+                Err("unexpected worksheet callback".into())
+            }
+        }
+        let mut ids = calc_func::value::IdAllocator::<calc_func::value::SheetId>::new();
+        let caller = CellKey::new(ids.issue().unwrap(), 2, 3).unwrap();
+        let source = "Public Function AddressProbe() As String\n On Error Resume Next\n AddressProbe = Application.Caller.Address(External:=True)\n AddressProbe = \"caught\"\nEnd Function\n";
+        let mut backends = vec![Backend::Interpreter];
+        #[cfg(not(target_arch = "wasm32"))]
+        backends.push(Backend::Jit);
+        for backend in backends {
+            let functions = load_module_with_backend("Names", source, 10_000, backend).unwrap();
+            let mut context = Context { caller, reads: 0, refusals: Vec::new() };
+            let error = functions.call_with_context("AddressProbe", &[], &mut context).unwrap_err();
+            assert!(error.contains("reference names without an admitted metadata view"), "{backend:?}: {error}");
+            assert_eq!(context.reads, 0, "an address must not read a formula value");
+            assert!(!context.refusals.is_empty());
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn volatility_requests_belong_to_the_invocation_context() {
         #[derive(Default)]
         struct Context(Vec<bool>);
@@ -837,6 +871,16 @@ impl SpreadsheetContext for ContextBridge<'_> {
     }
     fn metadata(&self, range: Range) -> Result<runtime::RangeInfo, runtime::ContextError> {
         Ok(range_metadata(&self.reference(range)?))
+    }
+    fn external_address(&self, range: Range) -> Result<String, runtime::ContextError> {
+        let reference = self.reference(range)?;
+        if reference.area_count() != 1 {
+            return Err(self.refuse("an external Address of a multi-area Range").into());
+        }
+        let qualifier = self.context.try_borrow_mut()
+            .map_err(|_| "reentrant reference metadata read")?
+            .reference_qualifier(reference.areas()[0].first().sheet())?;
+        Ok(format!("{qualifier}!{}", range_metadata(&reference).address))
     }
     fn cell(&self, range: Range, row: u32, column: u32) -> Result<Range, runtime::ContextError> {
         let reference = self.reference(range)?;
