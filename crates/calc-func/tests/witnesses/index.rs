@@ -174,6 +174,7 @@ pub const SETS: &[(&str, &str)] = &[
     ("LOGEST.json", include_str!("LOGEST.json")),
     ("LOGNORM.DIST.json", include_str!("LOGNORM.DIST.json")),
     ("LOGNORMDIST.json", include_str!("LOGNORMDIST.json")),
+    ("MATCH.json", include_str!("MATCH.json")),
     ("MAX.json", include_str!("MAX.json")),
     ("MAXA.json", include_str!("MAXA.json")),
     ("MDURATION.json", include_str!("MDURATION.json")),

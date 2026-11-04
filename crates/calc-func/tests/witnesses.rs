@@ -12,56 +12,10 @@ mod index;
 #[path = "f1_support/x87_cpu.rs"]
 mod x87_cpu;
 
-use calc_func::locale::{CalcEnvironment, DateSystem};
-use calc_func::value::{CalcValue, NumericMode};
-use calc_func::{EvalServices, FunctionCallScratch, Notation, PreparedArguments, catalogue, invoke};
-use calc_verdict::{WitnessSet, decode_argument, encode_result, select_result};
+#[path = "witnesses/call.rs"]
+mod witness_call;
 
-struct Given(Vec<CalcValue>);
-
-impl PreparedArguments for Given {
-    fn count(&self) -> usize {
-        self.0.len()
-    }
-
-    fn argument(&mut self, index: usize) -> CalcValue {
-        self.0[index].clone()
-    }
-}
-
-/// calc-func's result for one row, in the witness result encoding, as `cargo xtask witness`
-/// encodes it (`fault:<name>` for a refusal).
-fn calculate(function: &str, row: &calc_verdict::WitnessRow) -> String {
-    let Ok(target) = catalogue().resolve_surface(Notation::Call, function) else {
-        return "fault:NotCatalogued".to_owned();
-    };
-    let Ok(values) = row
-        .args
-        .iter()
-        .enumerate()
-        .map(|(i, a)| decode_argument(a, &format!("args[{i}]")))
-        .collect::<Result<Vec<_>, _>>()
-    else {
-        return "fault:Unreadable".to_owned();
-    };
-    let mode = NumericMode::Fast;
-    let environment = CalcEnvironment::dates(DateSystem::System1900);
-    match invoke(
-        target,
-        &mut Given(values),
-        &mut EvalServices::new(&mode).with_environment(&environment),
-        &mut FunctionCallScratch::new(),
-    ) {
-        Err(fault) => {
-            let text = format!("{fault:?}");
-            let end = text.find([' ', '{', '(']).unwrap_or(text.len());
-            format!("fault:{}", &text[..end])
-        }
-        Ok(value) => select_result(&value, row.result_index)
-            .and_then(|v| encode_result(&v))
-            .unwrap_or_else(|| "fault:ResultShape".to_owned()),
-    }
-}
+use calc_verdict::WitnessSet;
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -74,7 +28,9 @@ fn every_pinned_witness_row_calculates_as_pinned() {
         assert_eq!(*file, format!("{}.json", set.function), "{file} names its function");
         for row in &set.witnesses {
             rows += 1;
-            let actual = calculate(&set.function, row);
+            let context = set.readings.iter().find(|source| source.id == row.reading)
+                .and_then(|source| source.invocation.as_ref());
+            let actual = witness_call::calculate(&set.function, &row.args, row.result_index, context, true);
             let pinned = row.calc_func.as_deref().unwrap_or(&row.expected);
             let cpu_row = match row.args.as_slice() {
                 [arg] => arg.as_str().and_then(|s| s.strip_prefix("0x"))
