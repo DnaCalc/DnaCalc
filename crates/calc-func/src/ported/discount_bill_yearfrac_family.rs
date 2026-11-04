@@ -44,14 +44,14 @@ fn parse_basis(value: f64) -> Result<DayCountBasis, DiscountBillYearfracEvalErro
     }
 }
 
-fn parse_date_serial(value: f64) -> Result<i64, DiscountBillYearfracEvalError> {
+fn parse_date_serial(value: f64, minimum: i64) -> Result<i64, DiscountBillYearfracEvalError> {
     if !value.is_finite() {
         return Err(DiscountBillYearfracEvalError::Domain(
             WorksheetErrorCode::Value,
         ));
     }
     let serial = value.trunc() as i64;
-    if serial < 1 || serial > max_excel_serial() {
+    if serial < minimum || serial > max_excel_serial() {
         return Err(DiscountBillYearfracEvalError::Domain(
             WorksheetErrorCode::Value,
         ));
@@ -121,8 +121,8 @@ pub fn yearfrac_kernel(
             WorksheetErrorCode::Num,
         ));
     }
-    let start = parse_date_serial(start_date)?;
-    let end = parse_date_serial(end_date)?;
+    let start = parse_date_serial(start_date, 1)?;
+    let end = parse_date_serial(end_date, 1)?;
     let basis = parse_basis(basis.unwrap_or(0.0))?;
     // Excel YEARFRAC is always non-negative: a reversed date order yields the
     // same positive fraction (it is |end - start| based), not a negated value.
@@ -138,8 +138,8 @@ fn security_fraction(
     maturity: f64,
     basis: Option<f64>,
 ) -> Result<f64, DiscountBillYearfracEvalError> {
-    let settlement = parse_date_serial(settlement)?;
-    let maturity = parse_date_serial(maturity)?;
+    let settlement = parse_date_serial(settlement, 1)?;
+    let maturity = parse_date_serial(maturity, 1)?;
     let basis = parse_basis(basis.unwrap_or(0.0))?;
     if settlement >= maturity {
         return Err(DiscountBillYearfracEvalError::Domain(
@@ -156,8 +156,8 @@ fn security_days_and_year(
     maturity: f64,
     basis: Option<f64>,
 ) -> Result<(f64, f64), DiscountBillYearfracEvalError> {
-    let settlement = parse_date_serial(settlement)?;
-    let maturity = parse_date_serial(maturity)?;
+    let settlement = parse_date_serial(settlement, 1)?;
+    let maturity = parse_date_serial(maturity, 1)?;
     let basis = parse_basis(basis.unwrap_or(0.0))?;
     if settlement >= maturity {
         return Err(DiscountBillYearfracEvalError::Domain(
@@ -284,8 +284,8 @@ pub fn pricedisc_kernel(
 }
 
 fn tbill_days(settlement: f64, maturity: f64) -> Result<f64, DiscountBillYearfracEvalError> {
-    let settlement = parse_date_serial(settlement)?;
-    let maturity = parse_date_serial(maturity)?;
+    let settlement = parse_date_serial(settlement, 0)?;
+    let maturity = parse_date_serial(maturity, 0)?;
     if settlement >= maturity {
         return Err(DiscountBillYearfracEvalError::Domain(
             WorksheetErrorCode::Num,

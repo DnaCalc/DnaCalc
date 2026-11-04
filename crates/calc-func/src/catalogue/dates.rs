@@ -11,7 +11,8 @@
 //!
 //! OxFunc's argument rules are kept: EDATE, EOMONTH and WEEKNUM's date give #VALUE! for a
 //! logical and #N/A for an omitted argument; the WORKDAY and NETWORKDAYS dates give #VALUE! for
-//! a blank or omitted argument; a holiday list reads the numbers its cells hold.
+//! an omitted argument, while a blank reference supplies serial zero; a holiday list reads the
+//! numbers its cells hold.
 
 use super::kit::{fail, num, out, reject_logical, text_arg, values};
 use crate::call::EvalServices;
@@ -77,10 +78,10 @@ fn strict_num(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<f64> {
     }
 }
 
-/// A WORKDAY or NETWORKDAYS argument: a blank or omitted one is #VALUE!.
+/// A WORKDAY or NETWORKDAYS argument: omitted is #VALUE!; a genuine blank reads as zero.
 fn present_num(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<f64> {
     match a[index].core_ref() {
-        CoreRef::Missing | CoreRef::Empty => fail(W::Value),
+        CoreRef::Missing => fail(W::Value),
         _ => num(site, a, index),
     }
 }
