@@ -644,6 +644,7 @@ ported_family! {
         unique(s, a, sv)
     }
     6 take_fn "TAKE" (2, 3) [R "array", V "rows", V "columns"] |s, a, sv| {
+        source_error(a)?;
         match sub_area(s, a, true)? {
             Some(reference) => Ok(reference),
             None => run(s, a, sv, k::eval_take_prepared),
@@ -663,11 +664,13 @@ ported_family! {
         choose(s, a, sv, k::eval_choosecols_prepared)
     }
     10 vstack_fn "VSTACK" (1, 254) [R "array1", R "array2"] |s, a, sv| {
-        source_error(a)?;
+        // Fn2: a direct error in any source precedes stacking; reference/array cells remain cells.
+        for source in a { scalar_error(source)?; }
         run(s, a, sv, k::eval_vstack_prepared)
     }
     11 hstack_fn "HSTACK" (1, 254) [R "array1", R "array2"] |s, a, sv| {
-        source_error(a)?;
+        // Fn2: a direct error in any source precedes stacking; reference/array cells remain cells.
+        for source in a { scalar_error(source)?; }
         // dc-h9u: a row of functions, as GROUPBY and PIVOTBY take them
         // (`GROUPBY(A2:A9,B2:B9,HSTACK(SUM,MAX))`, Excel 16.0.20527).
         if a.iter().all(|v| v.callable_value().is_some()) {
@@ -678,12 +681,14 @@ ported_family! {
         run(s, a, sv, k::eval_hstack_prepared)
     }
     12 tocol_fn "TOCOL" (1, 3) [R "array", V "ignore", V "scan_by_column"] |s, a, sv| {
+        source_error(a)?;
         match by_area(s, a, sv, k::eval_tocol_prepared, true)? {
             Some(value) => Ok(value),
             None => run(s, a, sv, k::eval_tocol_prepared),
         }
     }
     13 torow_fn "TOROW" (1, 3) [R "array", V "ignore", V "scan_by_column"] |s, a, sv| {
+        source_error(a)?;
         match by_area(s, a, sv, k::eval_torow_prepared, false)? {
             Some(value) => Ok(value),
             None => run(s, a, sv, k::eval_torow_prepared),
@@ -697,7 +702,17 @@ ported_family! {
     }
     16 expand_fn "EXPAND" (2, 4) [R "array", V "rows", V "columns", R "pad_with"] |s, a, sv| {
         source_error(a)?;
-        let mut args = prepared(s, a, sv)?;
+        let mut args = Vec::with_capacity(a.len());
+        args.push(prepared_one(s, a, 0, sv)?);
+        // Fn2 EXPAND reads a one-cell reference's scalar error before padding. An actual
+        // one-cell array keeps its array origin; HSTACK/VSTACK retain reference errors as cells.
+        if a[0].as_reference().is_some()
+            && let Some(array) = args[0].as_array()
+            && array.shape() == (ArrayShape { rows: 1, cols: 1 })
+        {
+            scalar_error(array.get(0, 0).expect("one cell"))?;
+        }
+        for index in 1..a.len() { args.push(prepared_one(s, a, index, sv)?); }
         // Preserve the previous value admission of a one-cell reference pad. Computed
         // arrays reach the kernel whole (w090-successor-00071-expand-arg4).
         if a.get(3).is_some_and(|value| value.as_reference().is_some())
