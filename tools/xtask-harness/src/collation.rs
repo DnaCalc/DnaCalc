@@ -9,6 +9,12 @@
 //! text row of the catalogue's comparison oracle (cdoc_jpha, 1,107 rows across ASCII, Latin, Greek,
 //! Cyrillic, CJK and combining marks) is that rule, under en-ZA.
 //!
+//! `probe <pairs.json> --out <observations.json>` retains targeted native measurements beside
+//! unanswered Excel questions. Its JSON input is an array of objects with unique `id`,
+//! `left_utf16` and `right_utf16` fields (1..128 numeric code units per text). The output keeps
+//! whole-text and ASCII-suffix keys/comparisons separate, records NLS provenance and never
+//! overwrites an observation file. These are Windows measurements, not measured Excel answers.
+//!
 //! calc-func does not carry Windows' sort weights. It carries the Unicode Collation Algorithm's
 //! default order as the CLDR root collation gives it (the ICU Windows ships, read here through
 //! `ucol_openElements`; the Han characters by the UCA's implicit weights, in code point order), with
@@ -46,7 +52,53 @@
 
 use std::process::ExitCode;
 
-pub const USAGE: &str = "usage: cargo xtask collation generate\n       cargo xtask collation verify [--count <n>] [--seed <n>]";
+pub const USAGE: &str = "usage: cargo xtask collation generate\n       cargo xtask collation verify [--count <n>] [--seed <n>]\n       cargo xtask collation probe <pairs.json> --out <observations.json>";
+
+/// Targeted native measurements, keyed to the question workbook's identities. Numeric UTF-16
+/// arrays preserve code units without normalization or replacement of unpaired surrogates.
+#[cfg_attr(not(any(windows, test)), allow(dead_code))]
+struct ProbePair {
+    id: String,
+    left: Vec<u16>,
+    right: Vec<u16>,
+}
+
+fn probe_pairs(value: &serde_json::Value) -> Result<Vec<ProbePair>, String> {
+    let entries = value.as_array().filter(|a| !a.is_empty() && a.len() <= 10_000)
+        .ok_or("expected 1..10000 pairs")?;
+    let mut ids = std::collections::BTreeSet::new();
+    entries.iter().map(|entry| {
+        let fields = entry.as_object().ok_or("expected a pair object")?;
+        if fields.len() != 3 || !["id", "left_utf16", "right_utf16"].iter().all(|key| fields.contains_key(*key)) {
+            return Err("expected only id, left_utf16 and right_utf16".to_owned());
+        }
+        let id = entry["id"].as_str().filter(|s| !s.is_empty())
+            .ok_or("expected a nonempty question id")?;
+        if !ids.insert(id) { return Err(format!("duplicate question id: {id}")); }
+        let units = |field: &str| -> Result<Vec<u16>, String> {
+            entry[field].as_array().filter(|a| !a.is_empty() && a.len() <= 128)
+                .ok_or_else(|| format!("{id}: {field} needs 1..128 UTF-16 code units"))?
+                .iter().map(|unit| unit.as_u64().and_then(|n| u16::try_from(n).ok())
+                    .ok_or_else(|| format!("{id}: {field} needs unsigned UTF-16 code units"))).collect()
+        };
+        Ok(ProbePair { id: id.to_owned(), left: units("left_utf16")?, right: units("right_utf16")? })
+    }).collect()
+}
+
+/// Number of matching ASCII code units consumed by the first pass. A shorter text ending at
+/// this position makes the pass decide by length; otherwise Windows receives both suffixes.
+#[cfg_attr(not(any(windows, test)), allow(dead_code))]
+fn ascii_prefix_len(a: &[u16], b: &[u16]) -> usize {
+    let fold = |unit: u16| if (0x61..=0x7a).contains(&unit) { unit - 0x20 } else { unit };
+    a.iter().zip(b).take_while(|(x, y)| **x <= 0x7a && **y <= 0x7a && fold(**x) == fold(**y)).count()
+}
+
+fn probe(input: &str, output: &str) -> Result<ExitCode, String> {
+    let bytes = std::fs::read(input).map_err(|e| format!("{input}: {e}"))?;
+    let value = serde_json::from_slice(&bytes).map_err(|e| format!("{input}: {e}"))?;
+    let pairs = probe_pairs(&value)?;
+    windows::probe(&pairs, input, output)
+}
 
 /// The locale whose collation the tables are of: the Windows locale of the machine Excel was
 /// measured on (en-ZA). en-ZA's default sort is Windows' default table.
@@ -58,6 +110,13 @@ const WINDOWS_OUT: &str = "crates/calc-func/src/catalogue/comparison/windows_col
 pub fn run(raw: &[String]) -> ExitCode {
     match raw.split_first() {
         Some((command, rest)) if command == "generate" && rest.is_empty() => windows::generate(),
+        Some((command, rest)) if command == "probe" => match rest {
+            [input, flag, output] if flag == "--out" => match probe(input, output) {
+                Ok(code) => code,
+                Err(error) => { eprintln!("xtask collation probe: {error}"); ExitCode::FAILURE }
+            },
+            _ => usage(),
+        },
         Some((command, rest)) if command == "verify" => {
             let (mut count, mut seed) = (20_000u32, 0x2545_f491_4f6c_dd1du64);
             let mut args = rest.iter();
@@ -90,6 +149,10 @@ mod windows {
 
     pub fn verify(_: u32, _: u64) -> ExitCode {
         generate()
+    }
+
+    pub fn probe(_: &[super::ProbePair], _: &str, _: &str) -> Result<ExitCode, String> {
+        Err("Windows only: native NLS sort keys and comparisons are not available here".to_owned())
     }
 }
 
@@ -146,19 +209,64 @@ mod windows {
     /// `CompareStringEx` with `NORM_IGNORECASE` of the rest (measured: Excel orders `a` and U+30FC
     /// after `ab`).
     fn excel_order(a: &[u16], b: &[u16]) -> Ordering {
-        let fold = |code: u16| {
-            if (0x61..=0x7A).contains(&code) {
-                code - 0x20
-            } else {
-                code
-            }
-        };
-        for (at, (&x, &y)) in a.iter().zip(b).enumerate() {
-            if x > 0x7A || y > 0x7A || fold(x) != fold(y) {
-                return compare_string(&a[at..], &b[at..]);
-            }
+        let at = super::ascii_prefix_len(a, b);
+        if at < a.len().min(b.len()) {
+            return compare_string(&a[at..], &b[at..]);
         }
         a.len().cmp(&b.len())
+    }
+
+    /// Native observations only. Excel's workbook readings select the applicable comparison;
+    /// the current two-pass hypothesis is not recorded as an Excel answer.
+    pub fn probe(pairs: &[super::ProbePair], input: &str, output: &str) -> Result<ExitCode, String> {
+        use std::io::Write;
+        use serde_json::json;
+        let order = |value: Ordering| match value { Ordering::Less => -1, Ordering::Equal => 0, Ordering::Greater => 1 };
+        let measure = |left: &[u16], right: &[u16]| {
+            let left_key = key(left);
+            let right_key = key(right);
+            json!({
+                "left_utf16": left, "right_utf16": right,
+                "compare_string_ex": order(compare_string(left, right)),
+                "sort_key_byte_order": order(left_key.cmp(&right_key)),
+                "left_key_without_terminator": left_key,
+                "right_key_without_terminator": right_key,
+                "left_key_sections": sections(&left_key),
+                "right_key_sections": sections(&right_key),
+            })
+        };
+        let rows: Vec<_> = pairs.iter().map(|pair| {
+            let at = super::ascii_prefix_len(&pair.left, &pair.right);
+            let uses_suffix = at < pair.left.len().min(pair.right.len());
+            let suffix = uses_suffix.then(|| measure(&pair.left[at..], &pair.right[at..]));
+            json!({
+                "id": pair.id,
+                "ascii_matching_units": at,
+                "ascii_pass_decides_by_length": !uses_suffix,
+                "ascii_length_order": (!uses_suffix).then(|| order(pair.left.len().cmp(&pair.right.len()))),
+                "whole": measure(&pair.left, &pair.right),
+                "suffix": suffix,
+            })
+        }).collect();
+        let observation = json!({
+            "format": "dnacalc-native-collation-probe/1",
+            "source_pairs_path": input,
+            "locale": LOCALE,
+            "compare_flags": NORM_IGNORECASE,
+            "sort_key_flags": LCMAP_SORTKEY | NORM_IGNORECASE,
+            "nls_version": nls_version(),
+            "machine": std::env::var("COMPUTERNAME").ok(),
+            "recorded_unix_seconds": std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+                .map_err(|e| e.to_string())?.as_secs(),
+            "rows": rows,
+        });
+        let bytes = serde_json::to_vec_pretty(&observation).map_err(|e| e.to_string())?;
+        let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(output)
+            .map_err(|e| format!("{output}: {e}"))?;
+        file.write_all(&bytes).and_then(|()| file.write_all(b"\n"))
+            .map_err(|e| format!("{output}: {e}"))?;
+        println!("xtask collation probe: wrote {} native NLS pair observations to {output}; no Excel observations", pairs.len());
+        Ok(ExitCode::SUCCESS)
     }
 
     /// `CompareStringEx` under the locale with `NORM_IGNORECASE`.
@@ -1650,5 +1758,38 @@ mod windows {
         } else {
             ExitCode::SUCCESS
         }
+    }
+}
+
+#[cfg(test)]
+mod probe_tests {
+    use super::*;
+
+    /// Native-only: this command reads native NLS evidence and is part of xtask-harness.
+    #[test]
+    fn probe_input_preserves_raw_units_and_rejects_ambiguous_pairs() {
+        let pair = serde_json::json!({"id":"q1", "left_utf16":[55296, 0, 4352], "right_utf16":[44032]});
+        let parsed = probe_pairs(&serde_json::json!([pair])).unwrap();
+        assert_eq!(parsed[0].id, "q1");
+        assert_eq!(parsed[0].left, [0xd800, 0, 0x1100]);
+        assert_eq!(parsed[0].right, [0xac00]);
+        assert!(probe_pairs(&serde_json::json!([pair, pair])).is_err());
+        for invalid in [
+            serde_json::json!({"id":"q1", "left_utf16":[65536], "right_utf16":[1]}),
+            serde_json::json!({"id":"q1", "left_utf16":[], "right_utf16":[1]}),
+            serde_json::json!({"id":"q1", "left_utf16":[1], "right_utf16":[1], "expected":0}),
+        ] {
+            assert!(probe_pairs(&serde_json::json!([invalid])).is_err());
+        }
+    }
+
+    /// Native-only: checks the native observer's context removal before querying NLS.
+    #[test]
+    fn probe_distinguishes_ascii_context_from_a_non_ascii_prefix() {
+        let units = |text: &str| text.encode_utf16().collect::<Vec<_>>();
+        assert_eq!(ascii_prefix_len(&units("qaー"), &units("qab")), 2);
+        assert_eq!(ascii_prefix_len(&units("αqaー"), &units("αqab")), 0);
+        assert_eq!(ascii_prefix_len(&units("QAー"), &units("qab")), 2);
+        assert_eq!(ascii_prefix_len(&units("a-"), &units("a-ゝ")), 2);
     }
 }
