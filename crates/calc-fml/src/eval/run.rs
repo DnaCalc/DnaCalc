@@ -1273,6 +1273,7 @@ impl Run<'_, '_> {
         let start = self.stack.len() - argc;
         let mut lifted = false;
         let form = self.instance.plan.form;
+        let mut computed_blank_results = Vec::new();
         for index in 0..argc {
             let mut value = std::mem::replace(&mut self.stack[start + index], CalcValue::missing());
             // dc-b1l: a legacy formula gives a function that does not run once per reference of
@@ -1286,6 +1287,22 @@ impl Run<'_, '_> {
                     .and_then(|array| array.get(0, 0))
                     .cloned()
                     .expect("a non-empty array");
+            }
+            // Dynamic fn2 q212/q213 distinguish a computed Empty in a paired
+            // result from a raw blank reference (q194/q195). Preserve that origin
+            // before value admission reads a reference. Only the existing whole
+            // scalar-selection route below applies this normalization.
+            let paired_result = match target.0.spelling() {
+                "IFS" => index % 2 == 1,
+                "SWITCH" => index >= 2 && index % 2 == 0,
+                _ => false,
+            };
+            if form == FormulaForm::Dynamic
+                && paired_result
+                && value.callable_value().is_none()
+                && value.is_empty()
+            {
+                computed_blank_results.push(index);
             }
             let admitted = self.admit(target, index, value, admission)?;
             lifted |= is_lifted(target, self.instance.plan.form, index, &admitted);
@@ -1316,8 +1333,13 @@ impl Run<'_, '_> {
         }
         // A scalar IFS/SWITCH selection returns the chosen result whole. Unused result
         // arrays must not enlarge it (the recorded w090 successor cases).
-        if lifted && target.0.selects_whole_result(&arguments, self.numeric) {
+        let whole_result = (lifted || !computed_blank_results.is_empty())
+            && target.0.selects_whole_result(&arguments, self.numeric);
+        if whole_result {
             lifted = false;
+            for index in computed_blank_results {
+                arguments[index] = CalcValue::number(0.0);
+            }
         }
         if !lifted && target.0.is_resumable() {
             let call = Box::new(PendingCall {

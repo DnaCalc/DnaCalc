@@ -676,6 +676,21 @@ before the fix and covers short/growing/shrinking footprints at unlimited and
 one-evaluation budgets; the disabled UDF remains a counted refusal. This changes
 certificate validation, without a new claim about Excel callback or SCC counts.
 
+Comparison proof (dc-d7r1, 2026-11-04): the existing verdict recognizes the exact
+primitive scalar published from a one-cell evaluated array, as `array_outcome`
+already does. The retained fn2 WRAPCOLS controls show the array in the version-2
+evaluation record and its scalar in application projection. The typed comparison
+against Excel is unchanged. Larger arrays, changed values/types, blank conversion,
+nested arrays, references and callables gain no proof from this rule.
+
+Selected blank origins (dc-ejvk.4, 2026-11-04): the retained Dynamic fn2 q212/q213
+cases distinguish a computed scalar Empty in paired IFS/SWITCH result slots from
+a direct blank reference. Eager admission now converts that computed Empty to
+zero only on the existing whole scalar-selection route, retaining their origin
+before reading references; the direct-reference ISBLANK controls remain true.
+The same HostSession regression retains IF/IFNA and array observer controls.
+Legacy forms, SWITCH defaults and broader composed origins remain unmeasured.
+
 The UI ingress delivers Change after an authored cell-write commit, before
 automatic calculation. This remains a DNA policy pending UI recordings. P22
 (20527, ordinary COM) records automatic Calculate before Change, with new formula
