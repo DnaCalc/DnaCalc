@@ -100,6 +100,23 @@ def eng10_conditions(add):
                     provenance='After-command observations do not prove that held cyclic or outside-range cells ran.')
 
 
+def supplied_conditions(paths, add):
+    """Use authored question specifications without repeating the older populations."""
+    seen=set()
+    for path in paths:
+        document=json.loads(Path(path).read_text(encoding='utf-8-sig'))
+        for row in document['conditions']:
+            if row['id'] in seen or row.get('expected') is not None:
+                raise ValueError('Duplicate condition or non-null expected answer: '+row['id'])
+            if not row.get('formulas') or not row.get('seeds') or row.get('formula_entry')!='Formula2':
+                raise ValueError('A condition needs exact formulas, seeds and Formula2 form: '+row['id'])
+            seen.add(row['id'])
+            item=dict(row)
+            ident=item.pop('id');formulas=item.pop('formulas');seeds=item.pop('seeds')
+            iterations=item.pop('iterations')
+            add(ident,formulas,seeds,iterations,**item)
+
+
 def run(args):
     checkout=Path(args.checkout).resolve()
     packet=Path(args.packet).resolve()
@@ -147,7 +164,7 @@ def run(args):
         conditions.append(row)
     # The requested initial controls precede the new questions.
     controls=[]
-    for name in ('dc_86f','dc_10y_iteration'):
+    for name in (() if getattr(args,'conditions_file',None) else ('dc_86f','dc_10y_iteration')):
         path=checkout/f'crates/calc-engine/tests/fixtures/{name}/oracle.xlsx'
         if args.profile=='eng10':
             frozen=output/'controls'/name/'oracle.xlsx'
@@ -202,7 +219,11 @@ def run(args):
     fresh_per_trial = args.profile == 'eng10'
     if fresh_per_trial:
         conditions.clear()
-        eng10_conditions(condition)
+        if getattr(args,'conditions_file',None):
+            supplied_conditions(args.conditions_file,condition)
+            write(output/'supplied-specifications.json',[dict(path=str(Path(p).resolve()),sha256=sha(Path(p))) for p in args.conditions_file])
+        else:
+            eng10_conditions(condition)
         event_controls=[]
     write(output/'conditions.json',dict(controls=controls,prepared=conditions,event_controls=event_controls,trials=10,
         fresh_process_per_trial=fresh_per_trial,profile=args.profile,
@@ -242,6 +263,7 @@ def run(args):
     write(output/'preparation-failures.json',failed_preparations)
     for row in conditions:
         if row['id'] in prepared:row['input_sha256']=prepared[row['id']]['sha256']
+        if row['id'] in prepared and 'stored_formulas' in prepared[row['id']]:row['stored_formulas']=prepared[row['id']]['stored_formulas']
     jobs=[]
     sweeps=[r for r in conditions if r['id'].startswith('A1-sweeps') and r['operation']=='Rebuild' and not r['reverse_entry']]
     scopes=[r for r in conditions if r['id'].startswith('A1-sweeps-1-zero-')]
@@ -593,6 +615,8 @@ if __name__=='__main__':
     parser.add_argument('--resume',action='store_true')
     parser.add_argument('--profile',choices=('eng9','eng10'),default='eng9')
     parser.add_argument('--dry-run',action='store_true')
+    parser.add_argument('--conditions-file',action='append',help='Authored JSON conditions for the fresh-per-trial eng10 route; replaces prior controls/populations. Repeat for several files.')
     parser.add_argument('--reviewed-unstarted',help='Hash-bound reviews of failed startup jobs with no worker entry or results; failures remain retained.')
     args=parser.parse_args()
+    if args.conditions_file and (args.profile!='eng10' or args.resume):parser.error('--conditions-file requires a new eng10-profile run; resume uses its frozen requests')
     (resume_eng10 if args.resume and args.profile=='eng10' else resume if args.resume else run)(args)

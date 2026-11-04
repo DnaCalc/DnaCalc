@@ -82,6 +82,33 @@ fn powershell(args: &[&str]) -> std::process::Output {
         .unwrap()
 }
 
+/// Native-only: invokes Windows PowerShell to exercise the production value reader.
+#[test]
+fn raw_value_metadata_keeps_numeric_nan_and_error_distinct_with_one_getter_read() {
+    let dir = scratch("raw-value-metadata");
+    let script = dir.join("capture-worker.ps1");
+    std::fs::write(&script, WORKER_SCRIPT).unwrap();
+    let command = format!(
+        r#". {}; $script:reads=0; $script:nan=[BitConverter]::Int64BitsToDouble([Convert]::ToInt64('7ff800000000000a',16)); $cell=[pscustomobject]@{{}}; $cell|Add-Member ScriptProperty Value2 {{$script:reads++; return $script:nan}}; $kind=$null; $number=Read-Value $cell ([ref]$kind); $numericReads=$script:reads; $errorKind=$null; $errorValue=Read-Value ([pscustomobject]@{{Value2=[int]2036}}) ([ref]$errorKind); $oldCaller=Read-Value $cell; [Console]::Out.Write((ConvertTo-Json -Compress -Depth 8 -InputObject @{{number=$number;runtime_type=$kind;numeric_reads=$numericReads;error=$errorValue;error_runtime_type=$errorKind;old_caller=$oldCaller;total_reads=$script:reads}}))"#,
+        quoted(&script.to_string_lossy())
+    );
+    let out = powershell(&["-Command", &command]);
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert_eq!(
+        serde_json::from_slice::<Value>(&out.stdout).unwrap(),
+        json!({
+            "number":{"number":"7ff800000000000a"},
+            "runtime_type":"System.Double",
+            "numeric_reads":1,
+            "error":{"error_code":2036},
+            "error_runtime_type":"System.Int32",
+            "old_caller":{"number":"7ff800000000000a"},
+            "total_reads":2
+        })
+    );
+}
+
 #[test]
 fn the_witness_worker_parses_and_reads_a_one_based_matrix_in_windows_powershell() {
     let dir = scratch("witness-parser");

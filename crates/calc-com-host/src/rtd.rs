@@ -92,9 +92,15 @@ struct Declaration {
     caller: CellKey,
     subscriptions: BTreeSet<u64>,
 }
+struct PendingDisconnect {
+    provider: RtdProvider,
+    caller: CellKey,
+    transport: i32,
+}
 struct State {
     pointer: *mut c_void,
     topics: BTreeMap<u64, Topic>,
+    pending_disconnects: Vec<PendingDisconnect>,
     declarations: BTreeMap<u64, Declaration>,
     next: u64,
     next_transport: i32,
@@ -119,6 +125,7 @@ impl RtdClient {
             state: RefCell::new(State {
                 pointer,
                 topics: BTreeMap::new(),
+                pending_disconnects: Vec::new(),
                 declarations: BTreeMap::new(),
                 next: 1,
                 next_transport: 1,
@@ -146,8 +153,45 @@ impl RtdClient {
         }
         Ok(std::mem::take(&mut state.updates))
     }
-    /// Call after an actual formula replacement, with that workbook's pinned providers.
+    /// Retire and disconnect immediately when no replacement evaluation follows.
     pub fn disconnect_caller(
+        &self,
+        providers: &BTreeSet<RtdProvider>,
+        caller: CellKey,
+    ) -> Result<Vec<(RtdProvider, u64)>, String> {
+        let retired = self.begin_replacement(providers, caller)?;
+        self.finish_replacement(providers, caller)?;
+        Ok(retired)
+    }
+    /// End the bounded replacement attempt, including a constant or failed replacement.
+    pub fn finish_replacement(
+        &self,
+        providers: &BTreeSet<RtdProvider>,
+        caller: CellKey,
+    ) -> Result<(), String> {
+        let mut state = self
+            .state
+            .try_borrow_mut()
+            .map_err(|_| "dc-snz.23: reentrant RTD replacement completion")?;
+        let mut index = 0;
+        while index < state.pending_disconnects.len() {
+            let pending = &state.pending_disconnects[index];
+            if pending.caller == caller && providers.contains(&pending.provider) {
+                let transport = pending.transport;
+                checked(
+                    unsafe { dna_rtd_disconnect(state.pointer, transport) },
+                    "replacement disconnect",
+                )?;
+                state.pending_disconnects.remove(index);
+            } else {
+                index += 1;
+            }
+        }
+        Self::disconnect_inactive(&mut state)
+    }
+    /// Retire logical inputs after the edit commits. Finish the replacement after its
+    /// evaluation attempt ends, so a new native topic can connect before the old one leaves.
+    pub fn begin_replacement(
         &self,
         providers: &BTreeSet<RtdProvider>,
         caller: CellKey,
@@ -170,10 +214,17 @@ impl RtdClient {
                 topic.callers.is_empty().then_some(id)
             })
             .collect::<Vec<_>>();
-        Self::disconnect_inactive(&mut state)?;
         let mut retired = Vec::new();
         for id in ids {
             let topic = state.topics.remove(&id).unwrap();
+            state.transports.remove(&topic.transport);
+            if topic.connected {
+                state.pending_disconnects.push(PendingDisconnect {
+                    provider: topic.provider,
+                    caller,
+                    transport: topic.transport,
+                });
+            }
             state.updates.retain(|value| value.subscription != id);
             retired.push((topic.provider, id));
         }
@@ -398,6 +449,7 @@ impl RtdService for RtdClient {
         state.topics.clear();
         state.transports.clear();
         state.declarations.clear();
+        state.pending_disconnects.clear();
         state.updates.clear();
         checked(result, "terminate")
     }
@@ -446,4 +498,115 @@ fn obsolete_transport_updates_cannot_reach_a_reconnected_topic() {
     }
     let status = unsafe { dna_rtd_test_obsolete_transport() };
     assert_eq!(status, 0, "queued obsolete RTD transport: {status:#x}");
+}
+
+#[cfg(test)]
+unsafe extern "C" {
+    fn dna_rtd_test_attach_queued(client: *mut c_void) -> i32;
+    fn dna_rtd_test_event(
+        client: *mut c_void,
+        index: i32,
+        method: *mut i32,
+        topic: *mut i32,
+    ) -> i32;
+}
+#[cfg(test)]
+fn queued_events(client: &RtdClient) -> Vec<(i32, i32)> {
+    let pointer = client.state.borrow().pointer;
+    let mut events = Vec::new();
+    for index in 0..16 {
+        let (mut method, mut topic) = (0, 0);
+        let code = unsafe { dna_rtd_test_event(pointer, index, &mut method, &mut topic) };
+        if code == 1 {
+            return events;
+        }
+        assert_eq!(code, 0);
+        events.push((method, topic));
+    }
+    panic!("controlled RTD event log exceeded its bound")
+}
+/// Native-only: drives the real client against its existing injected COM fixture.
+#[test]
+fn replacement_connects_before_retired_transport_disconnects() {
+    let client = RtdClient::new().unwrap();
+    assert_eq!(
+        unsafe { dna_rtd_test_attach_queued(client.state.borrow().pointer) },
+        0
+    );
+    let provider = RtdProvider {
+        table: 1,
+        slot: 0,
+        generation: 1,
+    };
+    let providers = BTreeSet::from([provider]);
+    let caller = CellKey::new(calc_value::SheetId::from_parts(0, 0), 1, 1).unwrap();
+    let old = client
+        .subscribe(provider, caller, "fixture", &["old".into()])
+        .unwrap();
+    assert_eq!(
+        client.begin_replacement(&providers, caller).unwrap(),
+        vec![(provider, old)]
+    );
+    assert_eq!(client.subscriptions(), 0);
+    assert_eq!(queued_events(&client), vec![(1, 1)]);
+    let next = client
+        .subscribe(provider, caller, "fixture", &["new".into()])
+        .unwrap();
+    assert_ne!(old, next);
+    client.finish_replacement(&providers, caller).unwrap();
+    assert_eq!(queued_events(&client), vec![(1, 1), (1, 2), (2, 1)]);
+    let updates = client.poll().unwrap();
+    assert_eq!(updates.len(), 1);
+    assert_eq!(updates[0].subscription, next);
+    assert_eq!(updates[0].sequence, 1);
+    assert_eq!(updates[0].value, CalcValue::number(22.));
+    assert!(client.state.borrow().pending_disconnects.is_empty());
+    client.disconnect_caller(&providers, caller).unwrap();
+    assert_eq!(client.subscriptions(), 0);
+    assert!(queued_events(&client).is_empty());
+    client.close().unwrap();
+}
+/// Native-only: checks native transport ownership shared by two callers during replacement.
+#[test]
+fn replacement_preserves_another_callers_topic_lease() {
+    let client = RtdClient::new().unwrap();
+    assert_eq!(
+        unsafe { dna_rtd_test_attach_queued(client.state.borrow().pointer) },
+        0
+    );
+    let provider = RtdProvider {
+        table: 1,
+        slot: 0,
+        generation: 1,
+    };
+    let providers = BTreeSet::from([provider]);
+    let sheet = calc_value::SheetId::from_parts(0, 0);
+    let first = CellKey::new(sheet, 1, 1).unwrap();
+    let other = CellKey::new(sheet, 1, 2).unwrap();
+    let old = client
+        .subscribe(provider, first, "fixture", &["old".into()])
+        .unwrap();
+    assert_eq!(
+        client
+            .subscribe(provider, other, "fixture", &["old".into()])
+            .unwrap(),
+        old
+    );
+    assert!(
+        client
+            .begin_replacement(&providers, first)
+            .unwrap()
+            .is_empty()
+    );
+    client
+        .subscribe(provider, first, "fixture", &["new".into()])
+        .unwrap();
+    client.finish_replacement(&providers, first).unwrap();
+    assert_eq!(queued_events(&client), vec![(1, 1), (1, 2)]);
+    assert_eq!(
+        client.disconnect_caller(&providers, other).unwrap(),
+        vec![(provider, old)]
+    );
+    assert_eq!(queued_events(&client), vec![(1, 1), (1, 2), (2, 1)]);
+    client.close().unwrap();
 }

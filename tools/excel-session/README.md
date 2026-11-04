@@ -96,3 +96,13 @@ complete temporary JSON until replacement succeeds. Other failures still stop th
 its still-unrun trials. Each review binds the receipt, condition request, frozen trial requests
 and exact host source, with no worker log, pre-worker baseline, result or Excel binding in the job receipt. These
 failed attempts remain in the delivery and launch totals; they never count as completed trials.
+
+For new pure conditions, pass one or more `--conditions-file <JSON>` arguments with
+`--profile eng10`. Each file supplies a `conditions` array with exact formulas, typed stored
+seeds, Formula2 form and null expected answers. The runner uses just those conditions, with
+ten fresh owned processes each. `--dry-run` checks the planned counts without starting Excel.
+
+Raw capture cells now retain the runtime type of the same Value2 getter that supplied their
+canonical value, plus Formula, Formula2, HasArray and SavedAsArray getter results. Immediate
+and reopened readings keep their own metadata. A numeric NaN stays a numeric bit pattern;
+worksheet errors keep their observed error codes, and a failed metadata getter stays unread.

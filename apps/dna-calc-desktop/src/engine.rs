@@ -118,7 +118,7 @@ fn retire_rtd(
     at: CellKey,
     retired: &mut Vec<serde_json::Value>,
 ) -> Result<(), String> {
-    for (provider, subscription) in rtd.disconnect_caller(providers, at)? {
+    for (provider, subscription) in rtd.begin_replacement(providers, at)? {
         let disposition = book.retire_rtd(provider, subscription);
         if disposition != calc_host::RtdDisposition::Accepted {
             return Err(format!("RTD disconnect was not admitted: {disposition:?}"));
@@ -141,6 +141,7 @@ fn reconcile_rtd(
     )
     .map_err(|e| e.to_string())?;
     for cell in page.cells() {
+        rtd.finish_replacement(providers, cell.at())?;
         if let ProjectedValue::Calculated { calculation, .. } = cell.value() {
             let stamp = calculation
                 .stamp()
@@ -264,6 +265,7 @@ pub fn run(
             if entry_evaluation {
                 evaluate_entry(&mut book, c)?;
                 settle_entry(shell, native, &mut book, &mut returns)?;
+                reconcile_rtd(&book, &rtd, &providers, &[c])?;
                 let (calculated, proof) = value(&book, c)?;
                 formula_entries.push(serde_json::json!({"formula":dependent,"cell":dependent_address,"value":crate::value_json(&calculated),"provenance":proof}));
             }
@@ -301,6 +303,7 @@ pub fn run(
             if entry_evaluation {
                 evaluate_entry(&mut book, b)?;
                 settle_entry(shell, native, &mut book, &mut returns)?;
+                reconcile_rtd(&book, &rtd, &providers, &[b])?;
                 let (calculated, proof) = value(&book, b)?;
                 formula_entries.push(serde_json::json!({"formula":formula,"cell":"B3","value":crate::value_json(&calculated),"provenance":proof}));
             }
