@@ -24,6 +24,7 @@ const MAX_FORMULAS: usize = 32;
 struct Recipe {
     inputs: BTreeMap<CellKey, CellInput>,
     arrays: BTreeMap<CellKey, ArrayFormula>,
+    sheets: BTreeSet<SheetId>,
     frozen: BTreeSet<CellKey>,
     issues: BTreeSet<String>,
 }
@@ -98,6 +99,27 @@ fn recipe(
                 .insert("evaluation read trace unavailable".into());
             continue;
         };
+        for area in &kept.precedents {
+            recipe.sheets.insert(area.sheet());
+            let sheet = model
+                .sheet_by_id(area.sheet())
+                .map(|s| s.name().text().to_string_lossy());
+            let covered = kept.reads.iter().any(|read| {
+                sheet.as_deref() == Some(read.sheet.as_str())
+                    && read.top <= area.first().row()
+                    && read.left <= area.first().column()
+                    && read.bottom >= area.last().row()
+                    && read.right >= area.last().column()
+            });
+            // A spill's extent depends on its anchor even when ROWS/COLUMNS
+            // reads no values. Retain that producer instead of freezing its
+            // anchor to a scalar and losing the shape. Recorded value reads
+            // continue to use the existing bounded backward slice below.
+            let first = area.first();
+            if !covered && matches!(model.cell(first), Some(CellInput::Formula(_))) {
+                pending.push(first);
+            }
+        }
         for read in &kept.reads {
             if read.omitted != 0 {
                 recipe
@@ -182,6 +204,7 @@ fn execute(
     numeric: &NumericMode,
 ) -> Result<(Vec<u8>, Option<CalcValue>), String> {
     let mut needed: BTreeSet<_> = recipe.inputs.keys().map(|at| at.sheet()).collect();
+    needed.extend(&recipe.sheets);
     needed.insert(target.sheet());
     let mut host = HostState::open(
         Arc::new(MemorySource::new(calc_host::blank_package())),
@@ -290,7 +313,16 @@ fn execute(
         ProjectedValue::Calculated { value, calculation }
             if !calculation.held_by_circular_rule() && !calculation.reads_external_links() =>
         {
-            Some(value.clone())
+            let legacy = model
+                .definitions()
+                .array_containing(target)
+                .is_some_and(|array| array.kind() == calc_host::ArrayKind::Legacy);
+            Some(if legacy {
+                value.clone()
+            } else {
+                super::compare::spilled_array(book.host(), placed(target))
+                    .unwrap_or_else(|| value.clone())
+            })
         }
         _ => None,
     };
@@ -382,6 +414,74 @@ mod tests {
     use super::super::compare_triage::Read;
     use super::*;
     #[test]
+    fn reductions_retain_full_spills_and_shape_only_producers() {
+        let mut book = HostSession::open(
+            Arc::new(MemorySource::new(calc_host::blank_package())),
+            &OpenPolicy::default(),
+            HostOptions {
+                calc_mode: Some(calc_host::CalcMode::Manual),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let sheet = book.host().sheets()[0].id();
+        let anchor = CellKey::new(sheet, 1, 1).unwrap();
+        let observer = CellKey::new(sheet, 4, 2).unwrap();
+        for (at, text) in [(anchor, "=HSTACK(1,2)"), (observer, "=COLUMNS(A1#)")] {
+            assert!(
+                book.dispatch(SkinIntent::EnterCell {
+                    at,
+                    text: text.into()
+                })
+                .accepted()
+            );
+        }
+        assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+        while book.has_pending_calculation() {
+            book.advance_calculation();
+        }
+        assert_eq!(book.host().spill_area(anchor).unwrap().cell_count(), 2);
+        let mut bytes = Vec::new();
+        calc_host::save(book.host(), &SavePolicy::default(), &mut bytes).unwrap();
+        let capture =
+            crate::compare_inventory::source_record(&bytes, "spill-reduction-control").unwrap();
+        let model = book.host().model();
+        let mut reads = HashMap::from([
+            (address(model, anchor).unwrap(), Retained::default()),
+            (address(model, observer).unwrap(), Retained::default()),
+        ]);
+        reads
+            .get_mut(&address(model, observer).unwrap())
+            .unwrap()
+            .precedents = book.host().precedents(observer).unwrap();
+        let differing = BTreeSet::from([
+            address(model, anchor).unwrap(),
+            address(model, observer).unwrap(),
+        ]);
+        let recipe = recipe(model, anchor, &differing, &reads);
+        let (_, value) = execute(model, &recipe, anchor, &capture, &NumericMode::Fast).unwrap();
+        let expected = CalcValue::array(
+            calc_host::value::CalcArray::new(
+                calc_host::value::ArrayShape { rows: 1, cols: 2 },
+                vec![CalcValue::number(1.), CalcValue::number(2.)],
+            )
+            .unwrap(),
+        );
+        assert_eq!(
+            value,
+            Some(expected),
+            "compare the whole spill, including every element"
+        );
+        let recipe = super::recipe(model, observer, &differing, &reads);
+        assert!(
+            recipe.inputs.contains_key(&anchor),
+            "a shape-only read still needs its spill producer"
+        );
+        let (_, value) = execute(model, &recipe, observer, &capture, &NumericMode::Fast).unwrap();
+        assert_eq!(value, Some(CalcValue::number(2.)));
+    }
+
+    #[test]
     fn reductions_keep_differing_producers_and_reopen_through_the_product_route() {
         let mut book = HostSession::open(
             Arc::new(MemorySource::new(calc_host::blank_package())),
@@ -417,6 +517,7 @@ mod tests {
                 target,
                 Retained {
                     calls: Vec::new(),
+                    precedents: Vec::new(),
                     reads: vec![Read {
                         sheet: "Sheet1".into(),
                         top: 1,

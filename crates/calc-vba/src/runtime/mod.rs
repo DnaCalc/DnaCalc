@@ -86,6 +86,7 @@ pub enum Error {
 pub struct Module {
     engine: oxvba_embed::Module,
     functions: Vec<(Function, oxvba_embed::Procedure)>,
+    worksheet_refusals: Vec<worksheet::Refusal>,
     spreadsheet: Option<Arc<spreadsheet::SpreadsheetHost>>,
     event_project: bool,
 }
@@ -198,12 +199,12 @@ impl Module {
         }
         let mut engine =
             oxvba_embed::Module::load_project(&manifest, resolver).map_err(engine_error)?;
-        let bridges = if private_worksheet_lookup {
-            let bridges = worksheet::private_entries(&mut manifest, &engine)?;
-            if !bridges.is_empty() {
+        let entries = if private_worksheet_lookup {
+            let entries = worksheet::private_entries(&mut manifest, &engine)?;
+            if !entries.bridges.is_empty() {
                 engine = oxvba_embed::Module::load_project(&manifest, resolver).map_err(engine_error)?;
             }
-            bridges
+            entries
         } else {
             Default::default()
         };
@@ -236,7 +237,10 @@ impl Module {
                     && procedural.contains(&p.module.to_ascii_lowercase())
             })
             .map(|p| {
-                let original = bridges.get(&(p.module.clone(), p.name.clone())).unwrap_or(p);
+                let original = entries
+                    .bridges
+                    .get(&(p.module.clone(), p.name.clone()))
+                    .unwrap_or(p);
                 let mut entry = p.clone();
                 // Calls supply every owning argument. Keep the original defaults
                 // and optional markers in the adapter's metadata, while binding
@@ -305,12 +309,18 @@ impl Module {
         Ok(Self {
             engine,
             functions,
+            worksheet_refusals: entries.refusals,
             spreadsheet,
             event_project: events,
         })
     }
     pub fn functions(&self) -> impl ExactSizeIterator<Item = &Function> {
         self.functions.iter().map(|(function, _)| function)
+    }
+    pub(crate) fn worksheet_refusals(&self) -> impl Iterator<Item = (&str, &str, &'static str)> {
+        self.worksheet_refusals.iter().map(|entry| {
+            (entry.name.as_str(), entry.qualified_name.as_str(), entry.reason)
+        })
     }
 }
 

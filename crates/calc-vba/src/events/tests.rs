@@ -53,7 +53,9 @@ fn file_private_worksheet_entries_keep_defaults_byref_state_and_vba_visibility()
         "worksheet admission cannot make a private procedure visible to another VBA module");
     let unsupported = [module("Api", ModuleKind::Standard,
         "Private Function Secret(ParamArray x() As Variant) As Double\n Secret = 1\nEnd Function\n")];
-    let refusal = load_file_project(&unsupported, 10000, Some(Backend::Interpreter)).err().unwrap();
+    let project = load_file_project(&unsupported, 10000, Some(Backend::Interpreter)).unwrap();
+    assert!(project.functions().contains("Secret") && project.functions().contains("Api.Secret"));
+    let refusal = project.functions().call("Secret", &[]).unwrap_err();
     assert!(refusal.contains("private worksheet entry") && refusal.contains("dc-snz.15"), "{refusal}");
 }
 

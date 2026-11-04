@@ -357,6 +357,7 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
         actions: &[
             Action::UploadDownload("onecalc-session.json"),
             Action::Wait(Check::Role("fixture-dialog", "dialog")),
+            Action::Wait(Check::Rendered("fixture-dialog", true)),
             Action::Click("fixture-keep"),
         ],
         checks: &[
@@ -368,6 +369,7 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
         name: "sessions: file restore restores grid inputs, formula, locale and format and recalculates",
         actions: &[
             Action::UploadDownload("onecalc-session.json"),
+            Action::Wait(Check::Rendered("fixture-dialog", true)),
             Action::Click("fixture-replace"),
         ],
         checks: &[

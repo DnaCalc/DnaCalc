@@ -11,16 +11,19 @@
 //!   `manifest.tsv` and `w109-manifest.tsv` named `answers*.json` (the runners' answer files;
 //!   predictions, synthetic answers and research files of the same shape hold no Excel reading).
 //!
-//! Each reading keeps the environment its capture recorded: Excel build, platform, bitness and CPU
-//! (`?` where nothing was recorded). A reading holds across builds unless another reading of the
-//! same function, arguments and result cell disagrees: then both are kept and written to
+//! Each reading keeps its recorded build, platform, bitness, CPU and optional invocation facts:
+//! argument transport, input-sheet state, locale/separators, date system and CompatibilityVersion.
+//! Missing facts stay missing. Invocation facts are part of selection identity. A reading holds
+//! across builds unless another reading of the same function, arguments, invocation and result cell disagrees: then both are kept and written to
 //! `crates/calc-func/witness-differences.tsv`, as a version or platform difference when their
 //! environments differ and as a same-environment disagreement when they do not. Such a row is
 //! judged against the reading of the latest build, and the difference asks for a targeted recheck.
 //!
 //! Every row runs through `calc_func::invoke` under the application's numeric mode (Fast), in a
-//! workbook environment with the 1900 date system (the one OxFunc's captures used), and is
-//! classed with calc-verdict's [`Severity`] (OxFunc's ODR-FN-005). A refusal or a function the
+//! workbook environment with the captured date system and explicit complete locale when present
+//! (historical date default: 1900). Scalar cell transport restores reference origin; unknown
+//! positions are refused, and matrix-delegate layouts are not reconstructed. CompatibilityVersion
+//! is retained but model application remains dc-ejvk.2. Each result is classed with calc-verdict's [`Severity`] (OxFunc's ODR-FN-005). A refusal or a function the
 //! catalogue does not hold is a structural miss: refused counts as failed. The command rewrites
 //! the rows of the bank it judged in `crates/calc-func/witness-status.tsv` (function, bank, Excel
 //! builds, rows, matched, worst ULP, class, calc-func commit). `--bank full` also compares each
@@ -33,10 +36,15 @@
 //! during the Value2 write. Those responses are not answers to the requested calls.
 //! `witness compare --before <trace> --after <trace>` streams two judge traces, rejects
 //! any change to reading identity or recorded answers, and counts gains and losses.
-//! It reports decoded rows only: use the judge summaries for unread failures.
+//! It reports decoded rows only: use the judge summaries for unread failures. `judge --values-only`
+//! keeps those same identities and recorded facts but uses the old bare-value invocation, so
+//! context recovery can be measured separately from product-function changes.
 //! `witness refresh [--func F]` recalculates the original pins and updates only
 //! calculated predictions, preserving the sample and Excel's answers. It refuses
-//! any newly lost pinned match. Run the full-bank comparison before retaining a change.
+//! any newly lost pinned match. `refresh --context` first restores facts from each pin's original
+//! source, verifying the exact arguments, result selection, environment and retained answer;
+//! conflicting contexts are refused. It preserves the original sample and can split a source
+//! when its rows used different transports. Run the full-bank comparison before retaining a change.
 //!
 //! `pin` judges the full banks as `judge --bank full` does, writes what it writes, and then the
 //! pinned sets: per function, the first rows of each bank
@@ -62,15 +70,10 @@
 
 use crate::cargo::Workspace;
 use crate::legacy::legacy_root;
-use calc_func::locale::{CalcEnvironment, DateSystem};
-use calc_func::value::{CalcValue, NumericMode};
-use calc_func::{
-    EvalServices, FunctionCallScratch, FunctionFault, Notation, PreparedArguments, catalogue,
-    invoke,
-};
+use calc_func::value::CalcValue;
 use calc_verdict::{
     ReadingSource, Severity, WitnessRow, WitnessSet, decode_argument, decode_result,
-    encode_result, select_result,
+    encode_result,
 };
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -80,7 +83,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
-pub const USAGE: &str = "cargo xtask witness judge [--func <F>] [--bank pinned|full] [--trace <path>] | cargo xtask witness compare --before <trace> --after <trace> | cargo xtask witness refresh [--func <F>] | cargo xtask witness pin [--func <F>] [--rows <N>] | cargo xtask witness read --func <F>[,<F>...] [--timeout <s>] [--inputs <json> [--new-only] [--repeat-calls]]";
+pub const USAGE: &str = "cargo xtask witness judge [--func <F>] [--bank pinned|full] [--trace <path>] [--values-only] | cargo xtask witness compare --before <trace> --after <trace> | cargo xtask witness refresh [--func <F>] [--context] | cargo xtask witness pin [--func <F>] [--rows <N>] | cargo xtask witness read --func <F>[,<F>...] [--timeout <s>] [--inputs <json> [--new-only] [--repeat-calls]]";
 
 const CHECKOUT: &str = "OxFunc-Evidence";
 const MANIFESTS: [&str; 2] = ["manifest.tsv", "w109-manifest.tsv"];
@@ -119,6 +122,8 @@ struct Request {
     inputs: Option<PathBuf>,
     new_only: bool,
     repeat_calls: bool,
+    values_only: bool,
+    refresh_context: bool,
 }
 
 fn parse_args(raw: &[String]) -> Result<Request, String> {
@@ -143,6 +148,8 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
         inputs: None,
         new_only: false,
         repeat_calls: false,
+        values_only: false,
+        refresh_context: false,
     };
     let mut it = rest.iter();
     while let Some(arg) = it.next() {
@@ -154,6 +161,8 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
             "--inputs" if verb == Verb::Read => request.inputs = Some(PathBuf::from(value()?)),
             "--new-only" if verb == Verb::Read => request.new_only = true,
             "--repeat-calls" if verb == Verb::Read => request.repeat_calls = true,
+            "--context" if verb == Verb::Refresh => request.refresh_context = true,
+            "--values-only" if verb == Verb::Judge => request.values_only = true,
             "--trace" if verb == Verb::Judge => request.trace = Some(PathBuf::from(value()?)),
             "--bank" if verb == Verb::Judge => {
                 request.bank = match value()?.as_str() {
@@ -208,15 +217,14 @@ struct Reading {
     source: usize,
 }
 
-impl Reading {
-    fn key(&self) -> String {
-        reading_key(&self.function, &self.args, self.index)
-    }
-}
-
 fn reading_key(function: &str, args: &[Value], index: Option<(usize, usize)>) -> String {
     let index = index.map_or(String::new(), |(r, c)| format!("@{r},{c}"));
     format!("{function}|{}{index}", Value::Array(args.to_vec()))
+}
+
+fn contextual_key(function: &str, args: &[Value], index: Option<(usize, usize)>, context: Option<&calc_verdict::WitnessInvocation>) -> String {
+    let key = reading_key(function, args, index);
+    context.map_or_else(|| key.clone(), |context| format!("{key}|{}", context.to_json()))
 }
 
 /// A bank file and the environment its capture recorded.
@@ -368,11 +376,23 @@ fn text_of(value: &Value) -> Option<String> {
 /// The environment a WitnessSet's `capture_provenance` or an oracle record's `environment` names.
 /// Every OxFunc capture went through Excel's COM interface on Windows, so the platform is Windows
 /// whether or not the capture wrote it down.
-fn environment(id: String, source: String, env: Option<&Value>, fallback: Option<&Value>) -> ReadingSource {
+fn environment(id: String, source: String, env: Option<&Value>, fallback: Option<&Value>, settings: Option<&Value>) -> ReadingSource {
     let field = |name: &str| {
         env.and_then(|e| e.get(name))
             .and_then(text_of)
             .or_else(|| fallback.and_then(|e| e.get(name)).and_then(text_of))
+    };
+    let setting = |name: &str| settings.and_then(|v| v.get(name)).and_then(text_of);
+    let invocation = calc_verdict::WitnessInvocation {
+        input_transport: field("excel_input_plumbing"),
+        input_sheet_state: None,
+        locale: field("locale_profile"),
+        decimal_separator: setting("DecimalSeparator").or_else(|| field("decimal_separator")),
+        thousands_separator: setting("ThousandsSeparator").or_else(|| field("thousands_separator")),
+        date_system: settings.and_then(|v| v.get("Date1904")).and_then(Value::as_bool)
+            .map(|v| if v { "1904" } else { "1900" }.to_owned())
+            .or_else(|| field("workbook_date_system")).or_else(|| field("date_system")),
+        compatibility_version: setting("CompatibilityVersion").or_else(|| field("workbook_compatibility_version")).or_else(|| field("workbook_compatibility")),
     };
     ReadingSource {
         id,
@@ -381,7 +401,74 @@ fn environment(id: String, source: String, env: Option<&Value>, fallback: Option
         platform: field("platform").or_else(|| Some("Windows".to_owned())),
         bitness: field("excel_bitness"),
         cpu: field("cpu_id"),
+        invocation: (!invocation.is_empty()).then_some(invocation),
     }
+}
+
+// A row's audit is authoritative over a file's default transport. Verify its exact
+// requested, submitted and read-back scalar values, rather than trusting a repeated id.
+fn audited_transport(doc: &Value, row: &Value) -> Option<String> {
+    let mut matching = doc["input_audits"].as_array()?.iter().filter(|audit| audit["id"] == row["id"]);
+    let audit = matching.next()?;
+    if matching.next().is_some() || !audit["reading_failure"].is_null() { return None; }
+    let args = row["args"].as_array()?;
+    let mut requested = Vec::new();
+    let mut read_back = Vec::new();
+    for (i, arg) in args.iter().enumerate() {
+        let value = decode_argument(arg, &format!("args[{i}]" )).ok()?;
+        let (request, read) = match value.core_ref() {
+            calc_func::value::CoreRef::Number(number) => {
+                let encoded = serde_json::json!({"number": format!("{:016x}", number.to_bits())});
+                (encoded.clone(), encoded)
+            }
+            calc_func::value::CoreRef::Logical(value) => {
+                let encoded = serde_json::json!({"logical": value});
+                (encoded.clone(), encoded)
+            }
+            calc_func::value::CoreRef::Text(text) => (
+                serde_json::json!({"text": text.to_string_lossy()}),
+                serde_json::json!({"text": text.utf16_code_units().iter().map(|unit| format!("{unit:04x}")).collect::<String>()}),
+            ),
+            _ => return None,
+        };
+        requested.push(request);
+        read_back.push(read);
+    }
+    let audit = &audit["audit"];
+    if audit["requested"] != Value::Array(requested)
+        || audit["submitted_value2"] != Value::Array(read_back.clone())
+        || audit["read_back"] != Value::Array(read_back)
+    { return None; }
+    audit["transport"].as_str().map(str::to_owned)
+}
+
+fn row_environment(mut source: ReadingSource, doc: &Value, row: &Value) -> ReadingSource {
+    if doc.get("input_audits").is_some() {
+        source.invocation.get_or_insert_with(Default::default).input_transport = audited_transport(doc, row);
+    }
+    // The named legacy runner and this exact modern worker create their own blank,
+    // visible, unfiltered worksheet and write constants into the argument cells.
+    // A transport label alone does not establish any of those workbook facts.
+    static MODERN_WORKER: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    let modern = MODERN_WORKER.get_or_init(|| format!("witness worker sha256:{}", calc_oracle_excel::sha256_hex(calc_oracle_excel::WITNESS_SCRIPT.as_bytes())));
+    let provenance = &doc["capture_provenance"];
+    let known_worker = provenance["runner"]["name"] == "Run-W109BulkBatch.ps1"
+        && provenance["runner"]["version"] == "w109-bulk-batch-v2"
+        || provenance["reader"].as_str().is_some_and(|reader| reader.contains(modern.as_str()));
+    if known_worker && let Some(context) = source.invocation.as_mut()
+        && context.input_transport.as_deref() == Some("cell_value2_bulk") {
+        context.input_sheet_state = Some("visible-constant-inputs".to_owned());
+    }
+    if source.invocation.as_ref().is_some_and(|c| c.is_empty()) { source.invocation = None; }
+    source
+}
+
+fn retain_source(banks: &mut Banks, by_context: &mut BTreeMap<String, usize>, path: &str, env: ReadingSource) -> usize {
+    let key = format!("{}|{}", env.environment(), env.invocation.as_ref().map_or(Value::Null, |c| c.to_json()));
+    *by_context.entry(key).or_insert_with(|| {
+        banks.sources.push(Source { path: path.to_owned(), env });
+        banks.sources.len() - 1
+    })
 }
 
 /// An oracle-cache argument (`{"kind": "number", "bits_hex"}`, `{"kind": "matrix", "rows", "cols",
@@ -618,19 +705,13 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
                     continue;
                 };
                 let env = record.get("environment");
-                let label = environment(String::new(), String::new(), env, fallback.as_ref()).environment();
-                let source = *source_of.entry(label).or_insert_with(|| {
-                    banks.sources.push(Source {
-                        path: rel.clone(),
-                        env: environment(String::new(), format!("{CHECKOUT} {rel}"), env, fallback.as_ref()),
-                    });
-                    banks.sources.len() - 1
-                });
+                let source = retain_source(&mut banks, &mut source_of, rel,
+                    environment(String::new(), format!("{CHECKOUT} {rel}"), env, fallback.as_ref(), record.get("calculation_settings")));
                 let index = record["result_index"].as_array().and_then(|p| match p.as_slice() {
                     [r, c] => Some((r.as_u64()? as usize, c.as_u64()? as usize)),
                     _ => None,
                 });
-                banks.readings.push(Reading {
+            banks.readings.push(Reading {
                     function: function.to_ascii_uppercase(),
                     id: format!("oc{}", line_no + 1),
                     args,
@@ -678,11 +759,9 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
         let (mut selections, mut hex_repairs, mut column_repairs) = (0, 0, 0);
         banks.files_read += 1;
         let env = doc.get("capture_provenance").and_then(|p| p.get("environment"));
-        banks.sources.push(Source {
-            path: rel.clone(),
-            env: environment(String::new(), format!("{CHECKOUT} {rel}"), env, None),
-        });
-        let source = banks.sources.len() - 1;
+        let captured = environment(String::new(), format!("{CHECKOUT} {rel}"), env, None,
+            doc.get("capture_provenance").and_then(|p| p.get("calculation_settings")));
+        let mut source_of = BTreeMap::new();
         record_unread_rows(&doc, &rel, &function, &mut banks, &mut unread)?;
         for (i, row) in rows.iter().enumerate() {
             let (Some(args), Some(expected)) = (row["args"].as_array(), row["expected_bits"].as_str()) else {
@@ -703,6 +782,7 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
             let mut original_args = row["args"].clone();
             normalize_bank_hex(&mut original_args);
             hex_repairs += usize::from(original_args != row["args"] || normalized_expected != row["expected_bits"]);
+            let source = retain_source(&mut banks, &mut source_of, &rel, row_environment(captured.clone(), &doc, row));
             banks.readings.push(Reading {
                 function: function.clone(),
                 id: row["id"].as_str().map_or_else(|| format!("row{i}"), str::to_owned),
@@ -716,9 +796,11 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
             banks.import_notes.push(format!("{rel}: recovered {selections} result selections and {column_repairs} prediction-column layouts from batch probes; normalized duplicated hex prefixes in {hex_repairs} rows"));
         }
         if selections > 0 || column_repairs > 0 {
-            banks.sources[source].env.source.push_str(&format!(
-                "; result selection/layout: {CHECKOUT} {}", batch_path(rel).unwrap()
-            ));
+            for source in source_of.values() {
+                banks.sources[*source].env.source.push_str(&format!(
+                    "; result selection/layout: {CHECKOUT} {}", batch_path(rel).unwrap()
+                ));
+            }
         }
     }
     // New readings (`cargo xtask witness read`), kept as plain WitnessSet files.
@@ -743,11 +825,9 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
         }
         banks.files_read += 1;
         let env = doc.get("capture_provenance").and_then(|p| p.get("environment"));
-        banks.sources.push(Source {
-            path: rel.clone(),
-            env: environment(String::new(), format!("{CHECKOUT} {rel}"), env, None),
-        });
-        let source = banks.sources.len() - 1;
+        let captured = environment(String::new(), format!("{CHECKOUT} {rel}"), env, None,
+            doc.get("capture_provenance").and_then(|p| p.get("calculation_settings")));
+        let mut source_of = BTreeMap::new();
         record_unread_rows(&doc, &rel, &function, &mut banks, &mut unread)?;
         record_transport_audits(&doc, &rel, &mut banks)?;
         for (i, row) in rows.iter().enumerate() {
@@ -756,6 +836,7 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
                 *banks.unread_rows.entry(function.clone()).or_default() += 1;
                 continue;
             };
+            let source = retain_source(&mut banks, &mut source_of, &rel, row_environment(captured.clone(), &doc, row));
             banks.readings.push(Reading {
                 function: function.clone(),
                 id: row["id"].as_str().map_or_else(|| format!("row{i}"), str::to_owned),
@@ -791,56 +872,12 @@ fn plain_readings(dir: &Path) -> Vec<PathBuf> {
 // ---------------------------------------------------------------------------------------------
 // Calculating
 
-struct Given(Vec<CalcValue>);
+#[path = "../../../crates/calc-func/tests/witnesses/call.rs"]
+mod witness_call;
 
-impl PreparedArguments for Given {
-    fn count(&self) -> usize {
-        self.0.len()
-    }
-
-    fn argument(&mut self, index: usize) -> CalcValue {
-        self.0[index].clone()
-    }
-}
-
-fn fault_name(fault: &FunctionFault) -> String {
-    let text = format!("{fault:?}");
-    let end = text.find([' ', '{', '(']).unwrap_or(text.len());
-    format!("fault:{}", &text[..end])
-}
-
-/// calc-func's result of `function` on `args`, in the result encoding (`fault:<name>` for a
-/// refusal, `fault:NotCatalogued`, `fault:Panic`, or `fault:Unreadable` for arguments with no
-/// value form).
-fn calculate(function: &str, args: &[Value], index: Option<(usize, usize)>) -> String {
-    let Ok(target) = catalogue().resolve_surface(Notation::Call, function) else {
-        return "fault:NotCatalogued".to_owned();
-    };
-    let Ok(values) = args
-        .iter()
-        .enumerate()
-        .map(|(i, a)| decode_argument(a, &format!("args[{i}]")))
-        .collect::<Result<Vec<_>, _>>()
-    else {
-        return "fault:Unreadable".to_owned();
-    };
-    let outcome = catch_unwind(AssertUnwindSafe(|| {
-        let mode = NumericMode::Fast;
-        let environment = CalcEnvironment::dates(DateSystem::System1900);
-        invoke(
-            target,
-            &mut Given(values),
-            &mut EvalServices::new(&mode).with_environment(&environment),
-            &mut FunctionCallScratch::new(),
-        )
-    }));
-    match outcome {
-        Err(_) => "fault:Panic".to_owned(),
-        Ok(Err(fault)) => fault_name(&fault),
-        Ok(Ok(value)) => select_result(&value, index)
-            .and_then(|v| encode_result(&v))
-            .unwrap_or_else(|| "fault:ResultShape".to_owned()),
-    }
+fn calculate_with_context(function: &str, args: &[Value], index: Option<(usize, usize)>, context: Option<&calc_verdict::WitnessInvocation>, apply: bool) -> String {
+    catch_unwind(AssertUnwindSafe(|| witness_call::calculate(function, args, index, context, apply)))
+        .unwrap_or_else(|_| "fault:Panic".to_owned())
 }
 
 /// How long one row may calculate before it is given up as `fault:Timeout`.
@@ -853,7 +890,7 @@ const SLOW: &str = "slow:";
 /// [`calculate`] for every job, on a worker thread: a row that gives no result within
 /// [`ROW_SECONDS`] is `fault:Timeout`, its thread is left behind, and the rows after it go on in a
 /// new thread (calc-func's IRR calculates without end on some inputs).
-fn calculate_all(function: &str, jobs: &[(Vec<Value>, Option<(usize, usize)>)]) -> Vec<String> {
+fn calculate_all(function: &str, jobs: &[(Vec<Value>, Option<(usize, usize)>, Option<std::sync::Arc<calc_verdict::WitnessInvocation>>)], apply_context: bool) -> Vec<String> {
     use std::sync::mpsc::{RecvTimeoutError, channel};
     let mut out = Vec::with_capacity(jobs.len());
     while out.len() < jobs.len() {
@@ -861,9 +898,9 @@ fn calculate_all(function: &str, jobs: &[(Vec<Value>, Option<(usize, usize)>)]) 
         let name = function.to_owned();
         let todo = jobs[out.len()..].to_vec();
         std::thread::spawn(move || {
-            for (args, index) in todo {
+            for (args, index, context) in todo {
                 let started = std::time::Instant::now();
-                let result = calculate(&name, &args, index);
+                let result = calculate_with_context(&name, &args, index, context.as_deref(), apply_context);
                 let result = if started.elapsed() > std::time::Duration::from_millis(SLOW_MILLIS) {
                     format!("{SLOW}{result}")
                 } else {
@@ -923,7 +960,7 @@ struct Row<'a> {
 
 fn write_trace_row(writer: &mut impl Write, row: &Row<'_>, source: &Source) -> Result<(), String> {
     let r = row.reading;
-    let value = serde_json::json!({
+    let mut value = serde_json::json!({
         "function": r.function,
         "id": r.id,
         "args": r.args,
@@ -938,6 +975,9 @@ fn write_trace_row(writer: &mut impl Write, row: &Row<'_>, source: &Source) -> R
             "cpu": source.env.cpu,
         },
     });
+    if let Some(context) = &source.env.invocation {
+        value["reading"]["invocation"] = context.to_json();
+    }
     serde_json::to_writer(&mut *writer, &value).map_err(|e| format!("witness trace: {e}"))?;
     writer.write_all(b"\n").map_err(|e| format!("witness trace: {e}"))
 }
@@ -957,7 +997,7 @@ fn group<'a>(banks: &'a Banks) -> (BTreeMap<String, Vec<Vec<&'a Reading>>>, Vec<
     // function -> key -> readings
     let mut by_key: BTreeMap<String, BTreeMap<String, Vec<&Reading>>> = BTreeMap::new();
     for r in &banks.readings {
-        by_key.entry(r.function.clone()).or_default().entry(r.key()).or_default().push(r);
+        by_key.entry(r.function.clone()).or_default().entry(contextual_key(&r.function, &r.args, r.index, banks.sources[r.source].env.invocation.as_ref())).or_default().push(r);
     }
     let mut differences = Vec::new();
     let mut out = BTreeMap::new();
@@ -1214,7 +1254,7 @@ fn write_pinned(root: &Path, banks: &Banks, judged: &BTreeMap<String, Vec<Row>>,
         let mut witnesses = Vec::new();
         for (i, r) in chosen.iter().enumerate() {
             let source = &banks.sources[r.reading.source];
-            let id = match readings.iter().position(|s| s.source == source.env.source && s.environment() == source.env.environment()) {
+            let id = match readings.iter().position(|s| s.source == source.env.source && s.environment() == source.env.environment() && s.invocation == source.env.invocation) {
                 Some(at) => readings[at].id.clone(),
                 None => {
                     let mut env = source.env.clone();
@@ -1270,6 +1310,88 @@ fn write_pinned(root: &Path, banks: &Banks, judged: &BTreeMap<String, Vec<Row>>,
 // ---------------------------------------------------------------------------------------------
 // Refreshing calculated predictions without selecting new pins
 
+/// Restore only facts attested by the pinned row's original source. Neither the
+/// sample nor its Excel answers is selected again. A conflicting source is an error.
+fn restore_pinned_context(sets: &mut [(PathBuf, WitnessSet)], banks: &Banks) -> Result<usize, String> {
+    let source_path = |source: &str| source.split(';').next().unwrap_or(source).to_owned();
+    let key = |function: &str, source: &str, args: &[Value], index| {
+        format!("{}|{}", source_path(source), reading_key(function, args, index))
+    };
+    let mut candidates: BTreeMap<String, Vec<&Reading>> = BTreeMap::new();
+    for (_, set) in sets.iter() {
+        for row in &set.witnesses {
+            let source = set.readings.iter().find(|s| s.id == row.reading).ok_or("pin has no reading source")?;
+            candidates.entry(key(&set.function, &source.source, &row.args, row.result_index)).or_default();
+        }
+    }
+    for row in &banks.readings {
+        let source = &banks.sources[row.source].env;
+        if let Some(list) = candidates.get_mut(&key(&row.function, &source.source, &row.args, row.index)) { list.push(row); }
+    }
+    let mut restored = 0;
+    for (_, set) in sets.iter_mut() {
+        let original = set.readings.clone();
+        let mut assigned: BTreeMap<(String, String), String> = BTreeMap::new();
+        let mut used = BTreeSet::new();
+        for row in &mut set.witnesses {
+            let source = original.iter().find(|s| s.id == row.reading).ok_or("pin has no original source")?;
+            let list = candidates.get(&key(&set.function, &source.source, &row.args, row.result_index)).ok_or("pin is not in its source bank")?;
+            let same_id = list.iter().any(|r| r.id == row.id && banks.sources[r.source].env.environment() == source.environment());
+            let mut contexts = BTreeMap::new();
+            for candidate in list.iter().filter(|r| !same_id || r.id == row.id) {
+                let recorded = &banks.sources[candidate.source].env;
+                if recorded.environment() != source.environment() { continue; }
+                if candidate.expected != row.expected { return Err(format!("{} {}: original source answer differs from pin", set.function, row.id)); }
+                contexts.insert(recorded.invocation.as_ref().map_or(Value::Null, |c| c.to_json()).to_string(), recorded.invocation.clone());
+            }
+            if contexts.len() != 1 { return Err(format!("{} {}: {} possible source contexts", set.function, row.id, contexts.len())); }
+            let (encoded, context) = contexts.into_iter().next().unwrap();
+            restored += usize::from(context != source.invocation);
+            let assigned_key = (source.id.clone(), encoded);
+            if let Some(id) = assigned.get(&assigned_key) { row.reading = id.clone(); continue; }
+            let mut updated = source.clone();
+            updated.invocation = context;
+            if used.insert(source.id.clone()) {
+                *set.readings.iter_mut().find(|s| s.id == source.id).unwrap() = updated.clone();
+            } else {
+                let mut suffix = 1;
+                loop {
+                    updated.id = format!("{}-context-{suffix}", source.id);
+                    if !set.readings.iter().any(|s| s.id == updated.id) { break; }
+                    suffix += 1;
+                }
+                set.readings.push(updated.clone());
+            }
+            row.reading = updated.id.clone();
+            assigned.insert(assigned_key, updated.id);
+        }
+    }
+    Ok(restored)
+}
+
+/// Compare recorded data after expanding reading ids to their source records. Only
+/// invocation facts, their source-id grouping, and calculated predictions may change.
+fn without_context_and_prediction(mut value: Value) -> Result<Value, String> {
+    let readings = value["readings"].as_array().ok_or("missing readings")?;
+    let mut sources = BTreeMap::new();
+    let mut distinct = BTreeMap::new();
+    for reading in readings {
+        let mut source = reading.clone();
+        let object = source.as_object_mut().ok_or("reading is not an object")?;
+        let id = object.remove("id").and_then(|v| v.as_str().map(str::to_owned)).ok_or("missing reading id")?;
+        object.remove("invocation");
+        sources.insert(id, source.clone());
+        distinct.insert(source.to_string(), source);
+    }
+    value["readings"] = Value::Array(distinct.into_values().collect());
+    for row in value["witnesses"].as_array_mut().ok_or("missing witnesses")? {
+        row.as_object_mut().ok_or("witness is not an object")?.remove("calc_func");
+        let id = row["reading"].as_str().ok_or("missing row reading")?;
+        row["reading"] = sources.get(id).ok_or("unknown row reading")?.clone();
+    }
+    Ok(value)
+}
+
 fn refresh_prediction(row: &mut WitnessRow, actual: &str) -> Result<bool, String> {
     if matches!(actual, "fault:Panic" | "fault:Timeout") {
         return Err(format!("cannot refresh {}: {actual}", row.id));
@@ -1285,34 +1407,36 @@ fn refresh_prediction(row: &mut WitnessRow, actual: &str) -> Result<bool, String
     Ok(changed)
 }
 
-fn refresh_pinned(root: &Path, judged: &BTreeMap<String, Vec<Row>>, only: Option<&str>) -> Result<(), String> {
+fn refresh_pinned(sets: Vec<(PathBuf, WitnessSet)>, banks: &Banks, judged: &BTreeMap<String, Vec<Row>>, context_refresh: bool) -> Result<(), String> {
     let mut updates = Vec::new();
     let mut changed = 0;
-    for (path, mut set) in pinned_sets(root, only)? {
+    for (path, mut set) in sets {
         let rows = judged.get(&set.function).ok_or(format!("{} was not judged", set.function))?;
-        let actuals: BTreeMap<_, _> = rows.iter().map(|r| (r.reading.key(), r.actual.as_str())).collect();
+        let actuals: BTreeMap<_, _> = rows.iter().map(|r| (contextual_key(&r.reading.function, &r.reading.args, r.reading.index, banks.sources[r.reading.source].env.invocation.as_ref()), r.actual.as_str())).collect();
         let mut count = 0;
         for row in &mut set.witnesses {
-            let key = reading_key(&set.function, &row.args, row.result_index);
+            let context = set.readings.iter().find(|r| r.id == row.reading).and_then(|r| r.invocation.as_ref());
+            let key = contextual_key(&set.function, &row.args, row.result_index, context);
             let actual = actuals.get(&key).ok_or(format!("no calculation for {} {}", set.function, row.id))?;
             count += usize::from(refresh_prediction(row, actual)?);
-        }
-        if count == 0 {
-            continue;
         }
         let text = set.encode();
         let original = fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
         let mut before: Value = serde_json::from_slice(&original).map_err(|e| e.to_string())?;
         let mut after: Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
         // Preserve every other field, including metadata unknown to WitnessSet.
-        for value in [&mut before, &mut after] {
-            for row in value["witnesses"].as_array_mut().ok_or("missing witnesses")? {
-                row.as_object_mut().ok_or("a witness is not an object")?.remove("calc_func");
+        if context_refresh {
+            before = without_context_and_prediction(before)?;
+            after = without_context_and_prediction(after)?;
+        } else {
+            for value in [&mut before, &mut after] {
+                for row in value["witnesses"].as_array_mut().ok_or("missing witnesses")? {
+                    row.as_object_mut().ok_or("a witness is not an object")?.remove("calc_func");
+                }
             }
         }
-        if before != after {
-            return Err(format!("{}: refresh would change recorded data or the original sample", path.display()));
-        }
+        if before != after { return Err(format!("{}: refresh would change recorded data or the original sample", path.display())); }
+        if original == text.as_bytes() { continue; }
         changed += count;
         updates.push((path, text));
     }
@@ -1320,7 +1444,7 @@ fn refresh_pinned(root: &Path, judged: &BTreeMap<String, Vec<Row>>, only: Option
     for (path, text) in &updates {
         fs::write(path, text).map_err(|e| format!("{}: {e}", path.display()))?;
     }
-    println!("xtask witness: refreshed {changed} calculated predictions in {} original pinned sets; all recorded fields unchanged", updates.len());
+    println!("xtask witness: refreshed {changed} calculated predictions in {} original pinned sets; recorded inputs, Excel answers and sample unchanged; context restoration {context_refresh}", updates.len());
     Ok(())
 }
 
@@ -1544,6 +1668,7 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
     }
 
     // The readings of the bank asked for.
+    let mut original_pins = None;
     let (banks, unread) = match request.bank {
         Bank::Full => {
             if !checkout.join(MANIFESTS[0]).is_file() {
@@ -1556,7 +1681,14 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
         }
         Bank::Pinned => {
             let mut banks = Banks { sources: Vec::new(), readings: Vec::new(), files_read: 0, import_notes: Vec::new(), unread_rows: BTreeMap::new() };
-            for (_, set) in pinned_sets(&ws.root, only)? {
+            let mut sets = pinned_sets(&ws.root, only)?;
+            if request.refresh_context {
+                let (full, _) = load_full(&checkout, only)?;
+                let restored = restore_pinned_context(&mut sets, &full)?;
+                println!("xtask witness: restored source-attested invocation facts for {restored} original pinned rows");
+            }
+            original_pins = Some(sets.clone());
+            for (_, set) in sets {
                 banks.files_read += 1;
                 let first = banks.sources.len();
                 for r in &set.readings {
@@ -1597,6 +1729,10 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
     if unread_files > 0 {
         println!("xtask witness: {unread_files} bank files could not be decoded; their row counts are unknown and are additional to the counted failures");
     }
+    if request.values_only { println!("xtask witness: diagnostic values-only invocation; source context remains in identities and trace"); }
+    if banks.sources.iter().any(|s| s.env.invocation.as_ref().is_some_and(|c| c.compatibility_version.is_some())) {
+        println!("xtask witness: CompatibilityVersion is retained in source identity; model application remains dc-ejvk.2");
+    }
     let (mut grouped, differences) = group(&banks);
     for function in banks.unread_rows.keys() {
         grouped.entry(function.clone()).or_default();
@@ -1615,9 +1751,9 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
                     .unwrap_or(readings[0])
             })
             .collect();
-        let jobs: Vec<(Vec<Value>, Option<(usize, usize)>)> =
-            chosen.iter().map(|r| (r.args.clone(), r.index)).collect();
-        let actuals = calculate_all(function, &jobs);
+        let contexts: Vec<_> = banks.sources.iter().map(|s| s.env.invocation.clone().map(std::sync::Arc::new)).collect();
+        let jobs: Vec<_> = chosen.iter().map(|r| (r.args.clone(), r.index, contexts[r.source].clone())).collect();
+        let actuals = calculate_all(function, &jobs, !request.values_only);
         let mut rows = Vec::new();
         for ((readings, reading), actual) in keys.iter().zip(chosen).zip(actuals) {
             let (slow, actual) = match actual.strip_prefix(SLOW) {
@@ -1683,7 +1819,7 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
         }
     }
     if request.verb == Verb::Refresh {
-        refresh_pinned(&ws.root, &judged, only)?;
+        refresh_pinned(original_pins.ok_or("refresh requires the original pins")?, &banks, &judged, request.refresh_context)?;
     }
     let bank = match request.bank {
         Bank::Pinned => "pinned",
@@ -1827,9 +1963,9 @@ fn predict_inputs(
     };
     let jobs: Vec<_> = rows
         .iter()
-        .map(|r| (r.args.clone(), r.result_index))
+        .map(|r| (r.args.clone(), r.result_index, None))
         .collect();
-    let actuals = calculate_all(function, &jobs);
+    let actuals = calculate_all(function, &jobs, true);
     for (row, actual) in rows.iter_mut().zip(actuals) {
         row.expected = actual.strip_prefix(SLOW).unwrap_or(&actual).to_owned();
     }
@@ -1893,6 +2029,7 @@ fn predict_inputs(
                 platform: None,
                 bitness: None,
                 cpu: None,
+                invocation: None,
             }],
             witnesses: rows,
         },
@@ -2124,6 +2261,59 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// W111 broad ISREF writes each scalar into a cell and calls through that reference.
+    #[test]
+    fn captured_origin_row_audits_override_file_defaults_and_keys_retain_context() {
+        let env = serde_json::json!({"excel_input_plumbing": "cell_value2_bulk"});
+        let base = environment("r0".into(), "bank".into(), Some(&env), None, None);
+        let audit = |transport: &str| serde_json::json!({
+            "transport":transport, "requested":[{"number":"0000000000000000"}],
+            "submitted_value2":[{"number":"0000000000000000"}], "read_back":[{"number":"0000000000000000"}]
+        });
+        let mut doc = serde_json::json!({"input_audits": [
+            {"id": "literal", "reading_failure": null, "audit": audit("formula_literals_with_cell_echo")},
+            {"id": "cell", "reading_failure": null, "audit": audit("cell_value2_bulk")},
+            {"id": "failed", "reading_failure": "changed input", "audit": audit("cell_value2_bulk")}
+        ]});
+        let row = |id: &str| serde_json::json!({"id":id,"args":["0x0000000000000000"]});
+        let cell = row_environment(base.clone(), &doc, &row("cell"));
+        let literal = row_environment(base.clone(), &doc, &row("literal"));
+        assert_ne!(contextual_key("ISREF", &[serde_json::json!(0)], None, cell.invocation.as_ref()), contextual_key("ISREF", &[serde_json::json!(0)], None, literal.invocation.as_ref()));
+        for id in ["absent", "failed"] {
+            let source = row_environment(base.clone(), &doc, &row(id));
+            assert!(source.invocation.is_none());
+        }
+        let duplicate = doc["input_audits"][1].clone();
+        doc["input_audits"].as_array_mut().unwrap().push(duplicate);
+        assert!(row_environment(base.clone(), &doc, &row("cell")).invocation.is_none());
+        doc["input_audits"].as_array_mut().unwrap().pop();
+        doc["input_audits"][1]["audit"]["read_back"][0]["number"] = serde_json::json!("0000000000000001");
+        assert!(row_environment(base.clone(), &doc, &row("cell")).invocation.is_none());
+        let settings = serde_json::json!({"Date1904":true,"CompatibilityVersion":2,"DecimalSeparator":",","ThousandsSeparator":"."});
+        let context = environment("r0".into(), "bank".into(), Some(&env), None, Some(&settings)).invocation.unwrap();
+        assert!(context.locale.is_none());
+        assert_eq!(context.compatibility_version.as_deref(), Some("2"));
+        assert_eq!(context.date_system.as_deref(), Some("1904"));
+    }
+
+    #[test]
+    fn captured_origin_isref_retains_the_scalar_cell_reference() {
+        let context = calc_verdict::WitnessInvocation {
+            input_transport: Some("cell_value2_bulk".into()), ..Default::default()
+        };
+        assert_eq!(calculate_with_context("ISREF", &[serde_json::json!("0x0000000000000000")], None, Some(&context), true), "logical:True");
+    }
+
+    /// Fn1 MATCH input_audits retain Formula2R1C1 references and exact typed read-back.
+    #[test]
+    fn captured_origin_match_searches_the_held_scalar_cell() {
+        let context = calc_verdict::WitnessInvocation {
+            input_transport: Some("cell_value2_bulk".into()), ..Default::default()
+        };
+        assert_eq!(calculate_with_context("MATCH", &[serde_json::json!("é*"), serde_json::json!("Élan"), serde_json::json!("0x0000000000000000")], None, Some(&context), true), "0x3ff0000000000000");
+    }
+
     use serde_json::json;
 
     fn args(text: &str) -> Vec<String> {
@@ -2160,6 +2350,37 @@ mod tests {
         assert_eq!(r.function.as_deref(), Some("ERFC"));
         assert!(parse_args(&args("refresh --rows 12")).is_err());
         assert!(parse_args(&args("refresh --bank full")).is_err());
+    }
+
+    #[test]
+    fn context_refresh_preserves_the_sample_and_splits_same_argument_transports() {
+        let args = vec![json!("0x0000000000000000")];
+        let base = environment("r0".into(), "OxFunc-Evidence bank".into(), None, None, None);
+        let mut banks = Banks { sources: vec![], readings: vec![], files_read: 1, import_notes: vec![], unread_rows: BTreeMap::new() };
+        let mut witnesses = Vec::new();
+        for (id, transport, expected) in [("cell", "cell_value2_bulk", "logical:True"), ("literal", "formula_literals_with_cell_echo", "logical:False")] {
+            let mut env = base.clone();
+            env.invocation = Some(calc_verdict::WitnessInvocation { input_transport: Some(transport.into()), ..Default::default() });
+            let source = banks.sources.len();
+            banks.sources.push(Source { path: "bank".into(), env });
+            banks.readings.push(Reading { function: "ISREF".into(), id: id.into(), args: args.clone(), index: None, expected: expected.into(), source });
+            witnesses.push(WitnessRow { id: id.into(), args: args.clone(), result_index: None, expected: expected.into(), reading: "r0".into(), calc_func: None });
+        }
+        let set = WitnessSet { function: "ISREF".into(), selection: "original sample".into(), readings: vec![base], witnesses };
+        let original: Value = serde_json::from_str(&set.encode()).unwrap();
+        let mut sets = vec![(PathBuf::from("ISREF.json"), set)];
+        assert_eq!(restore_pinned_context(&mut sets, &banks).unwrap(), 2);
+        let updated = &sets[0].1;
+        assert_ne!(updated.witnesses[0].reading, updated.witnesses[1].reading);
+        let enriched: Value = serde_json::from_str(&updated.encode()).unwrap();
+        assert_eq!(without_context_and_prediction(original.clone()).unwrap(), without_context_and_prediction(enriched.clone()).unwrap());
+        let mut changed_answer = enriched.clone();
+        changed_answer["witnesses"][0]["expected_bits"] = json!("logical:False");
+        assert_ne!(without_context_and_prediction(original.clone()).unwrap(), without_context_and_prediction(changed_answer).unwrap());
+        let mut changed_source = enriched;
+        changed_source["readings"][0]["source"] = json!("another bank");
+        assert_ne!(without_context_and_prediction(original).unwrap(), without_context_and_prediction(changed_source).unwrap());
+        assert_eq!(restore_pinned_context(&mut sets, &banks).unwrap(), 0);
     }
 
     #[test]
@@ -2291,7 +2512,7 @@ mod tests {
         };
         let source = Source {
             path: "recorded/bank".into(),
-            env: environment("r0".into(), "recorded/bank".into(), None, None),
+            env: environment("r0".into(), "recorded/bank".into(), None, None, None),
         };
         let mut bytes = Vec::new();
         write_trace_row(&mut bytes, &row, &source).unwrap();

@@ -14,12 +14,21 @@ pub(crate) fn month_name(profile: &FormatProfile, month: i64, abbreviated: bool,
     let Ok(index) = usize::try_from(month - 1) else {
         return String::new();
     };
-    // Fn1's explicit locale tags use Windows' Mrz abbreviation and a capitalized Russian
-    // month. Reuse the existing locale data; untagged profile rendering keeps its own form.
+    // Fn1 and fn3 measure names under explicit format tags. These tagged forms
+    // differ from the locale data's ordinary abbreviations.
     if tagged && profile.id == LocaleId::DeDe && month == 3 && abbreviated {
         return "Mrz".to_owned();
     }
     let names = locale_names(profile.id);
+    if tagged && abbreviated {
+        match profile.id {
+            LocaleId::JaJp => return names.months_short.get(index)
+                .map(|_| month.to_string()).unwrap_or_default(),
+            LocaleId::RuRu => return names.months_long.get(index).copied().unwrap_or("")
+                .chars().take(3).collect(),
+            _ => {}
+        }
+    }
     let name = if abbreviated {
         names.months_short.get(index).copied().unwrap_or("")
     } else {
@@ -33,12 +42,18 @@ pub(crate) fn month_name(profile: &FormatProfile, month: i64, abbreviated: bool,
     }
 }
 
-pub(crate) fn weekday_name(profile: &FormatProfile, index: usize, abbreviated: bool) -> &'static str {
+pub(crate) fn weekday_name(profile: &FormatProfile, index: usize, abbreviated: bool, tagged: bool) -> String {
     let names = locale_names(profile.id);
-    if abbreviated {
+    let name = if abbreviated {
         names.weekdays_short.get(index).copied().unwrap_or("")
     } else {
         names.weekdays_long.get(index).copied().unwrap_or("")
+    };
+    if tagged && abbreviated && profile.id == LocaleId::RuRu {
+        let mut chars = name.chars();
+        chars.next().map(|first| first.to_uppercase().chain(chars).collect()).unwrap_or_default()
+    } else {
+        name.to_owned()
     }
 }
 

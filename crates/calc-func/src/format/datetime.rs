@@ -176,8 +176,8 @@ pub(crate) fn render_with_datetime_tokens(
                         match width {
                             1 => day.to_string(),
                             2 => format!("{day:02}"),
-                            3 => weekday_name(&names_profile, weekday_index?, true).to_string(),
-                            _ => weekday_name(&names_profile, weekday_index?, false).to_string(),
+                            3 => weekday_name(&names_profile, weekday_index?, true, name_locale.is_some()),
+                            _ => weekday_name(&names_profile, weekday_index?, false, name_locale.is_some()),
                         }
                     }
                     DateTimeTokenKind::Hour => {
@@ -220,15 +220,23 @@ pub(crate) fn render_with_datetime_tokens(
                     }
                     DateTimeTokenKind::Era | DateTimeTokenKind::EraYear => {
                         let (year, month, day) = date?;
-                        // Fn1 records [$-411]ggge as 令和5 for 2023-03-15. Reiwa's start is
-                        // 2019-05-01 (Unicode TR35 dates, Japanese era 236). Earlier eras and
-                        // other token widths await Excel readings rather than guessed forms.
-                        if name_locale != Some(LocaleId::JaJp) || (year, month, day) < (2019, 5, 1) {
+                        // Fn3 measures g/gg/ggg and e/ee on both sides of the
+                        // Heisei/Reiwa transition. Calendar start dates are public facts:
+                        // https://www.npb.go.jp/en/products/gazette/books/kanpo_history.html
+                        if name_locale != Some(LocaleId::JaJp) { return None; }
+                        let (base_year, latin, short, long) = if (year, month, day) >= (2019, 5, 1) {
+                            (2018, "R", "令", "令和")
+                        } else if (year, month, day) >= (1989, 1, 8) {
+                            (1988, "H", "平", "平成")
+                        } else {
                             return None;
-                        }
+                        };
                         match (kind, width) {
-                            (DateTimeTokenKind::Era, 3) => "令和".to_owned(),
-                            (DateTimeTokenKind::EraYear, 1) => (year - 2018).to_string(),
+                            (DateTimeTokenKind::Era, 1) => latin.to_owned(),
+                            (DateTimeTokenKind::Era, 2) => short.to_owned(),
+                            (DateTimeTokenKind::Era, 3) => long.to_owned(),
+                            (DateTimeTokenKind::EraYear, 1) => (year - base_year).to_string(),
+                            (DateTimeTokenKind::EraYear, 2) => format!("{:02}", year - base_year),
                             _ => return None,
                         }
                     }

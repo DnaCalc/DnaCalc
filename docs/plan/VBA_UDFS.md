@@ -41,8 +41,10 @@ module state, including when VBA catches the read error; retaining that provenan
 state remains open. File-project worksheet lookup also admits the recorded private
 standard-module functions through internal entries in their own modules, using the
 same runtime and state. The original VBA visibility and saved source are retained.
-Private scalar signatures are supported; private array, ParamArray and object
-signatures remain typed refusals. Comparisons respect captured macro/event policy. See
+Private scalar signatures are supported. Other private signatures register typed
+refusals for their worksheet calls without blocking supported entries in the project.
+Refused calls execute no procedure prefix and remain refusals through IFERROR.
+Comparisons respect captured macro/event policy. See
 [the recalculation contract](../architecture/RECALC_CONTRACT.md) for the event boundary
 and remaining forced-UDF and object-model gaps. OneCalc's explicit
 standard-module route keeps its existing dependency ceiling.

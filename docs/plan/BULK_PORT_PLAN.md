@@ -222,7 +222,9 @@ drift does not remove cells from the comparison. Array cache shapes not reconstr
 classifier stay explicitly unclassified. Root groups include inferred functions, difference shape
 and observed read types; problem-functions.json gives the inferred function list. `--minimize`
 authors a bounded dependency slice for every mismatching cell, retaining differing producers and
-freezing other observed inputs. Its manifest records the DNA reproduction check, omissions and
+freezing other observed inputs. Shape-only dependencies come from the application's existing
+graph, so ROWS/COLUMNS retain their spill producers without a value read. Reproduction compares
+the whole published spill through the existing projection helper. Its manifest records omissions and
 pending Excel confirmation. These cases are authored inputs, not new Excel captures or scored
 passes. Corpus workbooks and generated reports remain outside repositories. The owner's download
 hold and separate-VM requirement for untrusted corpus captures still apply.

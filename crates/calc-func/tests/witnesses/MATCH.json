@@ -1,0 +1,23 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "MATCH",
+  "selection": "cargo xtask witness pin: of 13 distinct readings in 1 bank files of OxFunc-Evidence, the first 4 rows of each bank and an evenly spaced sample of the rest, the budget of 120 rows shared by bank size; calc_func is the result calc-func calculated at pinning, on rows it did not match",
+  "readings": [
+    {"bitness":"64-bit","cpu":"AMD Ryzen 7 4800H with Radeon Graphics         ","excel_build":"20527","id":"r0","invocation":{"compatibility_version":"2","date_system":"1900","decimal_separator":".","input_sheet_state":"visible-constant-inputs","input_transport":"cell_value2_bulk","thousands_separator":" "},"platform":"Windows","source":"OxFunc-Evidence readings/excel-20527/MATCH.json"}
+  ],
+  "witnesses": [
+    {"args":["*","","0x0000000000000000"],"expected_bits":"0x3ff0000000000000","id":"fn1-match-010","reading":"r0"},
+    {"args":["*","😀","0x0000000000000000"],"expected_bits":"0x3ff0000000000000","id":"fn1-match-009","reading":"r0"},
+    {"args":["*SSE","Straße","0x0000000000000000"],"expected_bits":"error:NA","id":"fn1-match-004","reading":"r0"},
+    {"args":["?","😀","0x0000000000000000"],"expected_bits":"error:NA","id":"fn1-match-007","reading":"r0"},
+    {"args":["??","😀","0x0000000000000000"],"expected_bits":"0x3ff0000000000000","id":"fn1-match-008","reading":"r0"},
+    {"args":["a~*","a*","0x0000000000000000"],"expected_bits":"0x3ff0000000000000","id":"fn1-match-013","reading":"r0"},
+    {"args":["e*","é","0x0000000000000000"],"expected_bits":"error:NA","id":"fn1-match-006","reading":"r0"},
+    {"args":["i*","İ","0x0000000000000000"],"expected_bits":"error:NA","id":"fn1-match-012","reading":"r0"},
+    {"args":["nai*","naïve","0x0000000000000000"],"expected_bits":"error:NA","id":"fn1-match-005","reading":"r0"},
+    {"args":["é*","Élan","0x0000000000000000"],"expected_bits":"0x3ff0000000000000","id":"fn1-match-001","reading":"r0"},
+    {"args":["ǆ*","ǅemal","0x0000000000000000"],"expected_bits":"0x3ff0000000000000","id":"fn1-match-003","reading":"r0"},
+    {"args":["Σ*","ς","0x0000000000000000"],"expected_bits":"0x3ff0000000000000","id":"fn1-match-011","reading":"r0"},
+    {"args":["ασ*","ΑΣ","0x0000000000000000"],"expected_bits":"0x3ff0000000000000","id":"fn1-match-002","reading":"r0"}
+  ]
+}

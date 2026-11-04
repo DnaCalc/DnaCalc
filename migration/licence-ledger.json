@@ -4895,6 +4895,16 @@
    "path": "crates/calc-func/tests/captures/fn3_questions/oracle.capture.json",
    "class": "own-work",
    "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/call.rs",
+   "class": "own-work",
+   "reason": "Shared witness argument preparation from recorded capture context; invokes the existing calc-func route"
+  },
+  {
+   "path": "crates/calc-func/tests/witnesses/MATCH.json",
+   "class": "own-work",
+   "reason": "Existing Excel measurements selected through cargo xtask witness pin; captured origin retained, no recorded answers changed (dc-ymjf.2.1)"
   }
  ]
 }
