@@ -860,8 +860,21 @@ fn one_workbook(run: &mut Run<'_>, program: &Path, entry: &Entry, out: &Path) ->
     };
     let sha256 = sha256_hex(&bytes);
     workbook.sha256 = Some(sha256.clone());
+    let capture_sha256 = match calc_oracle_excel::capture_source_sha256(&entry.path, &sha256) {
+        Ok(hash) => hash,
+        Err(reason) => {
+            workbook.capture = Some(format!("awaiting capture: invalid capture inputs: {reason}"));
+            workbook.outcome = awaiting(&bytes, &reason);
+            return workbook;
+        }
+    };
     if let Some(case) = &entry.oracle {
         if case.sectioned() {
+            if capture_sha256 != sha256 {
+                workbook.capture = Some("awaiting capture: authored-entry fixtures require whole-workbook captures".to_owned());
+                workbook.outcome = awaiting(&bytes, "authored-entry fixtures require whole-workbook captures");
+                return workbook;
+            }
             sectioned_workbook(&mut workbook, program, entry, case, &bytes, &sha256, out);
             return workbook;
         }
@@ -872,7 +885,7 @@ fn one_workbook(run: &mut Run<'_>, program: &Path, entry: &Entry, out: &Path) ->
         }
     }
     drop(bytes);
-    let captured = match run.capture_of(entry, &sha256) {
+    let captured = match run.capture_of(entry, &capture_sha256) {
         Ok(captured) => captured,
         Err(not) => {
             workbook.outcome = Err(not);

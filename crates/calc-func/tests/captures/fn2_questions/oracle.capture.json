@@ -2,7 +2,7 @@
   "format": "dnacalc-capture-record",
   "version": 2,
   "case": "fn2_questions",
-  "source": "sha256:c5d039de7df3898ba23938d1fd3ce0185d4aadb0162fed571419322cb04adfbc",
+  "source": "sha256:ce2412764ce9d13709db6a3e4b1fbf14d2b252d07c921e800da8de646ed8ae75",
   "acquisition": {
     "kind": "live_capture"
   },
@@ -56,27 +56,27 @@
       "external_links": "",
       "ole_dde_links": "",
       "connections": "",
-      "calculation_clock": "40e69f44ccf85854",
-      "workbook_path": "C:\\Work\\DnaCalc\\DnaCalc-win\\target\\c\\20261104013601\\in\\entry-input.xlsx"
+      "calculation_clock": "40e69f45b2170438",
+      "workbook_path": "C:\\Work\\DnaCalc\\DnaCalc-win\\target\\c\\20261104021618\\in\\entry-input.xlsx"
     }
   },
   "session": {
     "revision": 0,
     "operations": [],
     "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false",
-    "tool": "calc-oracle-excel 0.1.0; worker results 1; worker sha256:cae4dce8d81416cee9adb3acbd75c8448893267fd4d38d6dd6344870d072d8bc; repository 7b5a71e69ed8256348b0d5d67992d452cfe6b391+dirty; authored entry layout sha256:b6764f3c7038197625a56241e01fed62410b2ac00fd2d838342c27d4b290446a",
+    "tool": "calc-oracle-excel 0.1.0; worker results 1; worker sha256:8a0ea57f14cd6e8198137d917f3df91a3f61a99197460aacdfabe398807551dd; repository 818c20e4c544bd614bc5fb82eb285fa5e4fae66e+dirty; authored entry layout sha256:b6764f3c7038197625a56241e01fed62410b2ac00fd2d838342c27d4b290446a",
     "packages": {
-      "input": "sha256:c5d039de7df3898ba23938d1fd3ce0185d4aadb0162fed571419322cb04adfbc",
-      "output": "sha256:cfc663d11906136b3a2ed6459236ded84db1de72c0d6b2b189b356842de5b9f6"
+      "input": "sha256:ce2412764ce9d13709db6a3e4b1fbf14d2b252d07c921e800da8de646ed8ae75",
+      "output": "sha256:163706fa85874e506c1282adaa4501cd5cac28769e3445a9c449982797a9f021"
     },
     "failures": [
-      {"stage":"entry","sheet":"fn2_q123","row":20,"column":10,"message":"Dynamic formula entry refused for =LET(xx,1,XX,2,xx): System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   at System.Management.Automation.ComInterop.ComRuntimeHelpers.CheckThrowException(Int32 hresult, ExcepInfo& excepInfo, ComMethodDesc method, Object[] args, UInt32 argErr)\r\n   at CallSite.Target(Closure, CallSite, ComObject, String)\r\n   at lambda_method983(Closure, Object[], StrongBox`1[], InterpretedFrame)"},
-      {"stage":"entry","sheet":"fn2_q124","row":20,"column":10,"message":"Dynamic formula entry refused for =LET(xx,1,xx,xx+1,xx): System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   at System.Management.Automation.ComInterop.ComRuntimeHelpers.CheckThrowException(Int32 hresult, ExcepInfo& excepInfo, ComMethodDesc method, Object[] args, UInt32 argErr)\r\n   at CallSite.Target(Closure, CallSite, ComObject, String)\r\n   at lambda_method983(Closure, Object[], StrongBox`1[], InterpretedFrame)"},
-      {"stage":"entry","sheet":"fn2_q125","row":20,"column":10,"message":"Dynamic formula entry refused for =LAMBDA(xx,XX,xx)(1,2): System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   at System.Management.Automation.ComInterop.ComRuntimeHelpers.CheckThrowException(Int32 hresult, ExcepInfo& excepInfo, ComMethodDesc method, Object[] args, UInt32 argErr)\r\n   at CallSite.Target(Closure, CallSite, ComObject, String)\r\n   at lambda_method983(Closure, Object[], StrongBox`1[], InterpretedFrame)"},
-      {"stage":"entry","sheet":"fn2_q184","row":20,"column":10,"message":"Dynamic formula entry refused for =COUNTBLANK(2): System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   at System.Management.Automation.ComInterop.ComRuntimeHelpers.CheckThrowException(Int32 hresult, ExcepInfo& excepInfo, ComMethodDesc method, Object[] args, UInt32 argErr)\r\n   at CallSite.Target(Closure, CallSite, ComObject, String)\r\n   at lambda_method983(Closure, Object[], StrongBox`1[], InterpretedFrame)"},
-      {"stage":"entry","sheet":"fn2_q185","row":20,"column":10,"message":"Dynamic formula entry refused for =COUNTBLANK({\"\",1,#N/A}): System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   at System.Management.Automation.ComInterop.ComRuntimeHelpers.CheckThrowException(Int32 hresult, ExcepInfo& excepInfo, ComMethodDesc method, Object[] args, UInt32 argErr)\r\n   at CallSite.Target(Closure, CallSite, ComObject, String)\r\n   at lambda_method983(Closure, Object[], StrongBox`1[], InterpretedFrame)"},
-      {"stage":"entry","sheet":"fn2_q196","row":20,"column":10,"message":"Dynamic formula entry refused for =IFERROR(#N/A,LAMBDA(xx,xx))(3): System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   at System.Management.Automation.ComInterop.ComRuntimeHelpers.CheckThrowException(Int32 hresult, ExcepInfo& excepInfo, ComMethodDesc method, Object[] args, UInt32 argErr)\r\n   at CallSite.Target(Closure, CallSite, ComObject, String)\r\n   at lambda_method983(Closure, Object[], StrongBox`1[], InterpretedFrame)"},
-      {"stage":"entry","sheet":"fn2_q197","row":20,"column":10,"message":"Dynamic formula entry refused for =IFNA(#N/A,LAMBDA(xx,xx))(3): System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   at System.Management.Automation.ComInterop.ComRuntimeHelpers.CheckThrowException(Int32 hresult, ExcepInfo& excepInfo, ComMethodDesc method, Object[] args, UInt32 argErr)\r\n   at CallSite.Target(Closure, CallSite, ComObject, String)\r\n   at lambda_method983(Closure, Object[], StrongBox`1[], InterpretedFrame)"}
+      {"stage":"entry","sheet":"fn2_q123","row":20,"column":10,"message":"Dynamic formula entry refused for =LET(xx,1,XX,2,xx): System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   at System.Management.Automation.ComInterop.ComRuntimeHelpers.CheckThrowException(Int32 hresult, ExcepInfo& excepInfo, ComMethodDesc method, Object[] args, UInt32 argErr)\r\n   at CallSite.Target(Closure, CallSite, ComObject, String)\r\n   at lambda_method1210(Closure, Object[], StrongBox`1[], InterpretedFrame)"},
+      {"stage":"entry","sheet":"fn2_q124","row":20,"column":10,"message":"Dynamic formula entry refused for =LET(xx,1,xx,xx+1,xx): System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   at System.Management.Automation.ComInterop.ComRuntimeHelpers.CheckThrowException(Int32 hresult, ExcepInfo& excepInfo, ComMethodDesc method, Object[] args, UInt32 argErr)\r\n   at CallSite.Target(Closure, CallSite, ComObject, String)\r\n   at lambda_method1210(Closure, Object[], StrongBox`1[], InterpretedFrame)"},
+      {"stage":"entry","sheet":"fn2_q125","row":20,"column":10,"message":"Dynamic formula entry refused for =LAMBDA(xx,XX,xx)(1,2): System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   at System.Management.Automation.ComInterop.ComRuntimeHelpers.CheckThrowException(Int32 hresult, ExcepInfo& excepInfo, ComMethodDesc method, Object[] args, UInt32 argErr)\r\n   at CallSite.Target(Closure, CallSite, ComObject, String)\r\n   at lambda_method1210(Closure, Object[], StrongBox`1[], InterpretedFrame)"},
+      {"stage":"entry","sheet":"fn2_q184","row":20,"column":10,"message":"Dynamic formula entry refused for =COUNTBLANK(2): System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   at System.Management.Automation.ComInterop.ComRuntimeHelpers.CheckThrowException(Int32 hresult, ExcepInfo& excepInfo, ComMethodDesc method, Object[] args, UInt32 argErr)\r\n   at CallSite.Target(Closure, CallSite, ComObject, String)\r\n   at lambda_method1210(Closure, Object[], StrongBox`1[], InterpretedFrame)"},
+      {"stage":"entry","sheet":"fn2_q185","row":20,"column":10,"message":"Dynamic formula entry refused for =COUNTBLANK({\"\",1,#N/A}): System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   at System.Management.Automation.ComInterop.ComRuntimeHelpers.CheckThrowException(Int32 hresult, ExcepInfo& excepInfo, ComMethodDesc method, Object[] args, UInt32 argErr)\r\n   at CallSite.Target(Closure, CallSite, ComObject, String)\r\n   at lambda_method1210(Closure, Object[], StrongBox`1[], InterpretedFrame)"},
+      {"stage":"entry","sheet":"fn2_q196","row":20,"column":10,"message":"Dynamic formula entry refused for =IFERROR(#N/A,LAMBDA(xx,xx))(3): System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   at System.Management.Automation.ComInterop.ComRuntimeHelpers.CheckThrowException(Int32 hresult, ExcepInfo& excepInfo, ComMethodDesc method, Object[] args, UInt32 argErr)\r\n   at CallSite.Target(Closure, CallSite, ComObject, String)\r\n   at lambda_method1210(Closure, Object[], StrongBox`1[], InterpretedFrame)"},
+      {"stage":"entry","sheet":"fn2_q197","row":20,"column":10,"message":"Dynamic formula entry refused for =IFNA(#N/A,LAMBDA(xx,xx))(3): System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   at System.Management.Automation.ComInterop.ComRuntimeHelpers.CheckThrowException(Int32 hresult, ExcepInfo& excepInfo, ComMethodDesc method, Object[] args, UInt32 argErr)\r\n   at CallSite.Target(Closure, CallSite, ComObject, String)\r\n   at lambda_method1210(Closure, Object[], StrongBox`1[], InterpretedFrame)"}
     ]
   },
   "sheets": [

@@ -145,6 +145,68 @@ pub fn capture_tool_revision(repository: Option<&str>) -> String {
     revision
 }
 
+struct AuthoredEntries {
+    bytes: Vec<u8>,
+    identity: String,
+}
+
+fn authored_entries(fixture: &Path) -> Result<Option<AuthoredEntries>, String> {
+    let path = fixture.with_extension("entries.json");
+    let bytes = match fs::read(&path) {
+        Ok(bytes) => bytes,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(format!("cannot read {}: {e}", path.display())),
+    };
+    let doc: serde_json::Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+    let questions = doc["questions"].as_array().filter(|q| !q.is_empty())
+        .ok_or("authored entries require a nonempty questions array")?;
+    let mut authority = Vec::new();
+    let mut ids = std::collections::BTreeSet::new();
+    for question in questions {
+        let fields: Vec<&str> = ["question_id", "source_sheet", "source_cell", "formula_form", "formula_text", "stored_formula_text"]
+            .iter().map(|key| question[*key].as_str().filter(|s| !s.is_empty()).ok_or_else(|| format!("authored entry lacks {key}")))
+            .collect::<Result<_, _>>()?;
+        if !ids.insert(fields[0]) { return Err(format!("duplicate authored entry id {}", fields[0])); }
+        let form = match fields[3] {
+            "Dynamic" => calc_doc::model::FormulaForm::Dynamic,
+            "Legacy" => calc_doc::model::FormulaForm::Legacy,
+            other => return Err(format!("unknown authored formula form {other}")),
+        };
+        if !fields[4].starts_with('=') { return Err("authored formula must begin with =".into()); }
+        let formula = calc_doc::model::FormulaText::with_form(
+            calc_doc::model::value::ExcelText::from_utf16_code_units(fields[4].trim_start_matches('=').encode_utf16().collect()), form,
+        ).map_err(|e| format!("{}: {e:?}", fields[0]))?;
+        let serialized = calc_doc::file_form(&formula, &[]).map_err(|e| format!("{}: {e:?}", fields[0]))?;
+        if serialized.text != fields[5].encode_utf16().collect::<Vec<_>>() {
+            return Err(format!("{}: authored text does not serialize to stored_formula_text", fields[0]));
+        }
+        authority.push(fields);
+    }
+    // Only consumed question fields decide identity. Formatting, comments and serializer/build
+    // provenance remain provenance; the declared execution order remains part of the input.
+    let identity = sha256_hex(&serde_json::to_vec(&authority).map_err(|e| e.to_string())?);
+    Ok(Some(AuthoredEntries { bytes, identity }))
+}
+
+fn source_sha256(workbook_sha256: &str, entries: Option<&AuthoredEntries>) -> String {
+    match entries {
+        None => workbook_sha256.to_owned(),
+        Some(entries) => {
+            let mut source = b"dnacalc-authored-entry-source/1\0".to_vec();
+            source.extend_from_slice(workbook_sha256.as_bytes());
+            source.push(0);
+            source.extend_from_slice(entries.identity.as_bytes());
+            sha256_hex(&source)
+        }
+    }
+}
+
+/// The input key for capture, comparison and cache lookup. Ordinary workbooks keep their file
+/// hash. Authored-entry questions also bind their validated, ordered entry declarations.
+pub fn capture_source_sha256(fixture: &Path, workbook_sha256: &str) -> Result<String, String> {
+    Ok(source_sha256(workbook_sha256, authored_entries(fixture)?.as_ref()))
+}
+
 /// Whether Excel is registered for automation on this host, or why a live capture cannot run.
 pub fn excel_available() -> Result<(), String> {
     if !cfg!(windows) {
@@ -306,7 +368,8 @@ pub fn capture(request: &CaptureRequest) -> Result<CaptureOutcome, CaptureError>
     };
     let input_bytes = fs::read(&request.fixture)
         .map_err(|e| setup(format!("cannot read {}: {e}", request.fixture.display())))?;
-    let source = format!("sha256:{}", sha256_hex(&input_bytes));
+    let entries = authored_entries(&request.fixture).map_err(setup)?;
+    let source = format!("sha256:{}", source_sha256(&sha256_hex(&input_bytes), entries.as_ref()));
 
     let work = std::path::absolute(&request.work_dir).map_err(|e| {
         setup(format!(
@@ -406,15 +469,13 @@ pub fn capture(request: &CaptureRequest) -> Result<CaptureOutcome, CaptureError>
     // Explicit authored-entry questions may include expressions Excel rejects at entry time.
     // Keep the source package unchanged; the worker enters them into a blank copy and records
     // refusals without inventing a value for the cell.
-    let entry_layout = request.fixture.with_extension("entries.json");
-    let entry_layout_hash = if entry_layout.is_file() {
-        let bytes = fs::read(&entry_layout)
-            .map_err(|e| setup(format!("cannot read {}: {e}", entry_layout.display())))?;
+    let entry_layout_hash = if let Some(entries) = &entries {
         let copy = work.join("entries.json");
-        fs::write(&copy, &bytes)
+        fs::write(&copy, &entries.bytes)
             .map_err(|e| setup(format!("cannot retain {}: {e}", copy.display())))?;
         worker_request["entry_layout"] = serde_json::json!(copy.to_string_lossy());
-        Some(sha256_hex(&bytes))
+        worker_request["entry_layout_sha256"] = serde_json::json!(sha256_hex(&entries.bytes));
+        Some(sha256_hex(&entries.bytes))
     } else {
         None
     };
@@ -583,6 +644,53 @@ pub fn capture(request: &CaptureRequest) -> Result<CaptureOutcome, CaptureError>
 
 #[cfg(test)]
 mod tests {
+    /// Native-only: reads and changes a private authored-entry sidecar, without starting Excel.
+    #[test]
+    fn authored_entry_identity_binds_validated_questions_but_not_provenance() {
+        let dir = std::env::temp_dir().join(format!("dnacalc-entry-identity-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        std::fs::create_dir(&dir).unwrap();
+        let fixture = dir.join("oracle.xlsx");
+        let sidecar = fixture.with_extension("entries.json");
+        let sha = calc_verdict::sha256_hex(b"workbook bytes");
+        let key = || super::capture_source_sha256(&fixture, &sha);
+        assert_eq!(key().unwrap(), sha);
+        let original = serde_json::json!({"questions":[
+            {"question_id":"q1","source_sheet":"S","source_cell":"J20","formula_form":"Dynamic","formula_text":"=1+2","stored_formula_text":"1+2"},
+            {"question_id":"q2","source_sheet":"T","source_cell":"J20","formula_form":"Dynamic","formula_text":"=2+3","stored_formula_text":"2+3"}]});
+        let write = |v: &serde_json::Value| std::fs::write(&sidecar, serde_json::to_vec(v).unwrap()).unwrap();
+        write(&original);
+        let bound = key().unwrap();
+        assert_ne!(bound, sha);
+        let mut metadata = original.clone();
+        metadata["file_form_provenance"] = serde_json::json!({"build":"different"});
+        metadata["questions"][0]["comment"] = serde_json::json!("different");
+        std::fs::write(&sidecar, serde_json::to_vec_pretty(&metadata).unwrap()).unwrap();
+        assert_eq!(key().unwrap(), bound);
+        for (field, replacement) in [("question_id","other"),("source_sheet","U"),("source_cell","J2"),("formula_form","Legacy"),("formula_text","=1+3"),("stored_formula_text","1+3")] {
+            let mut changed = original.clone();
+            changed["questions"][0][field] = serde_json::json!(replacement);
+            write(&changed);
+            if matches!(field, "formula_text" | "stored_formula_text") {
+                assert!(key().unwrap_err().contains("does not serialize"));
+            } else {
+                assert_ne!(key().unwrap(), bound, "{field} did not change identity");
+            }
+        }
+        let mut changed = original.clone();
+        changed["questions"][0]["formula_text"] = serde_json::json!("=1+3");
+        changed["questions"][0]["stored_formula_text"] = serde_json::json!("1+3");
+        write(&changed);
+        assert_ne!(key().unwrap(), bound);
+        let mut ordered = original.clone();
+        ordered["questions"].as_array_mut().unwrap().reverse();
+        write(&ordered);
+        assert_ne!(key().unwrap(), bound);
+        write(&serde_json::json!({"questions":[]}));
+        assert!(key().is_err());
+        std::fs::remove_file(sidecar).unwrap();
+        assert_eq!(key().unwrap(), sha);
+        std::fs::remove_dir(dir).unwrap();
+    }
     use super::*;
 
     #[test]

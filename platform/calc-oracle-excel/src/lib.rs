@@ -25,6 +25,9 @@
 //! manual calculation. A setter refusal retains the original inventory cell with an entry
 //! failure and no Excel formula, raw value, saved cache or reopened value. Missing observations
 //! remain failures. No repaired workbook supplies a result.
+//! Authored text must serialize to its declared stored text through `calc_doc::file_form`.
+//! The source key binds the workbook and the ordered consumed entry fields; formatting and
+//! build/provenance comments in the sidecar do not change it. Entry fixtures are captured whole.
 //!
 //! What the isolation enforces, and how a capture shows it (`worker/capture-worker.ps1` holds the
 //! detail):
@@ -144,7 +147,7 @@ mod worker_tests;
 pub use calc_verdict::sha256_hex;
 pub use capture::{
     CalculationMode, CalculationPolicy, CaptureOutcome, CaptureRequest, capture,
-    capture_tool_revision, excel_available, isolation_failures, windows_powershell,
+    capture_source_sha256, capture_tool_revision, excel_available, isolation_failures, windows_powershell,
 };
 pub use convert::STAGE_SPILL;
 pub use isolation::{

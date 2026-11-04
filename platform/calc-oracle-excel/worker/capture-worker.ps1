@@ -1029,7 +1029,12 @@ try {
     # Each setting is therefore assigned only when Excel does not already hold it.
     $openPath = [string]$req.input
     if ($req.PSObject.Properties.Name -contains 'entry_layout') {
-        $layout = Get-Content -LiteralPath $req.entry_layout -Raw -Encoding UTF8 | ConvertFrom-Json
+        $entryBytes = [IO.File]::ReadAllBytes([string]$req.entry_layout)
+        $entryHasher = [Security.Cryptography.SHA256]::Create()
+        try { $entryDigest = [BitConverter]::ToString($entryHasher.ComputeHash($entryBytes)).Replace('-','').ToLowerInvariant() }
+        finally { $entryHasher.Dispose() }
+        if ($entryDigest -cne $req.entry_layout_sha256) { throw 'Authored entry bytes differ from the validated input snapshot' }
+        $layout = [Text.Encoding]::UTF8.GetString($entryBytes) | ConvertFrom-Json
         $entryQuestions = @($layout.questions)
         $openPath = Join-Path (Split-Path -Parent $req.input) 'entry-input.xlsx'
         Copy-Item -LiteralPath $req.input -Destination $openPath

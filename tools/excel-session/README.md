@@ -53,6 +53,10 @@ uses the same route without modification and inherits the selected session direc
 An oracle's optional `oracle.entries.json` uses the capture worker to attempt explicitly authored
 Formula/Formula2 entries at their original callers. The source workbook stays unchanged; entry
 errors retain their inventory cells without invented Excel values. They count as missing results.
+The existing file-form serializer validates authored versus stored text before Excel runs. The
+capture identity includes the ordered entry declarations, so changed or removed entry inputs
+make an old capture stale. Comments and build provenance do not change that identity. These
+fixtures use whole-workbook captures; splitting them into ordinary sections is refused.
 
 The eng9 runner uses a fresh-required job per pure condition and resets/verifies the baseline
 between ten separately seeded workbook trials. It retains trial order and explicitly records

@@ -460,3 +460,8 @@ foreach ($question in $fn2.questions) {
 
 Write-Workbook (Join-Path $OutDir 'fn2_questions/oracle.xlsx') $fn2Sheets -DynamicArrays
 if ($Fn2IndexShapes) { Write-Workbook (Join-Path $OutDir 'fn2_questions_index/oracle.xlsx') $fn2IndexSheets -DynamicArrays }
+
+# fn3 questions stay in a new workbook; captured workbook sheet lists remain unchanged.
+$fn3Sheets = @(, @('fn3_collation', (New-OracleSheet @() (Get-SectionLines 'sheet-fn3_collation.txt' 'fn3_questions'))))
+$fn3Sheets += , @('fn3_text', (New-OracleSheet @() (Get-SectionLines 'sheet-fn3_text.txt' 'fn3_questions')))
+Write-Workbook (Join-Path $OutDir 'fn3_questions/oracle.xlsx') $fn3Sheets

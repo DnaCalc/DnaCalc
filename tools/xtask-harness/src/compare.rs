@@ -1065,7 +1065,9 @@ fn compare(request: &Request) -> Result<(), Failure> {
     }
     let capture = CaptureRecord::decode(&capture_bytes)
         .map_err(|e| refused(format!("the capture record is refused: {e}")))?;
-    let digest = format!("sha256:{}", sha256_hex(&fixture));
+    let input_hash = calc_oracle_excel::capture_source_sha256(&request.fixture, &sha256_hex(&fixture))
+        .map_err(|e| refused(format!("invalid capture inputs: {e}")))?;
+    let digest = format!("sha256:{input_hash}");
     if capture.source != digest {
         return Err(refused(format!(
             "the fixture {} has the content hash {digest} and the capture record's source is {}: the capture is not of these bytes",
