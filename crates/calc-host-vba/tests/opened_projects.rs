@@ -287,6 +287,43 @@ fn file_project_events_share_state_and_reopen_starts_a_new_session() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_bctq_save_as_keeps_project_state_and_refreshes_document_identity() {
+    const MODULE: &str = "Public Seen As String\nPublic Saves As Long\nPublic Opens As Long\nPublic WasUI As Boolean\nPublic Function Probe() As String\n Probe = Seen & \":\" & CStr(Saves) & \":\" & CStr(WasUI) & \":\" & CStr(Opens)\nEnd Function\n";
+    const EVENTS: &str = "Private Sub Workbook_Open()\n Opens = Opens + 1\nEnd Sub\nPrivate Sub Workbook_BeforeSave(ByVal SaveAsUI As Boolean, Cancel As Boolean)\n Seen = Me.Name\n Saves = Saves + 1\n WasUI = SaveAsUI\nEnd Sub\n";
+    let bytes = vba_project::replace_sources(LOCAL, &[
+        ("Module1", MODULE), ("PrivateModule", "Option Private Module\n"),
+        ("Sheet1", ""), ("ThisWorkbook", EVENTS),
+    ]);
+    for backend in backends() {
+        let mut session = opened(&bytes, "Old.xlsm");
+        session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
+        calc_host_vba::activate_file_project(&mut session, "Old.xlsm", 100_000, Some(backend)).unwrap();
+        enter(&mut session, 1, 4, "=Probe()");
+        let save = |session: &mut HostSession, operation| {
+            let active_sheet = session.host().sheets()[0].id();
+            let prepared = session.prepare_save_with_context(&Default::default(), calc_host::ExcelSaveContext {
+                operation, calculate_before_save: false, active_sheet,
+                disabled_sheets: &[], before_save: None,
+            }).unwrap();
+            let mut saved = Vec::new();
+            prepared.write(&mut saved).unwrap();
+            assert!(!saved.is_empty());
+            full(session);
+            value(session, 1, 4).as_text().unwrap().to_string_lossy()
+        };
+        assert_eq!(save(&mut session, calc_host::SaveOperation::SaveAsDialog), "Old.xlsm:1:True:1");
+        // Event delivery may be disabled during an identity update; the object still changes.
+        session.set_workbook_events_enabled(false);
+        session.set_file_identity("Budget.xltm", true);
+        session.set_workbook_events_enabled(true);
+        assert_eq!(save(&mut session, calc_host::SaveOperation::Save), "Budget.xltm:2:False:1");
+        assert_eq!(save(&mut session, calc_host::SaveOperation::SaveAs), "Budget.xltm:3:False:1");
+        assert!(session.take_workbook_event_failures().failures.is_empty());
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn file_event_state_refuses_stale_target_values_even_when_vba_catches_the_error() {
     const MODULE: &str = "Public Held As Double\nPublic Function MyFunc(ByVal x As Double) As Double\n MyFunc = x + 100\nEnd Function\nPublic Function Probe() As Double\n Probe = Held\nEnd Function\n";
     const CHANGE: &str = "Private Sub Worksheet_Change(ByVal Target As Excel.Range)\n On Error Resume Next\n Held = Target.Value2\nEnd Sub\n";

@@ -121,7 +121,7 @@ pub use validation::{ErrorStyle, ValidationFailure, ValidationRule, ValidationSc
 
 pub use calc_doc::{
     CalcMode, CellError, EditError, FormulaSourceBudget, LoadError, MemorySource, OpenError,
-    OpenPolicy, PackageRead, PackageWrite, RegroupedFormulaSources, SaveFormat, SavePolicy, SaveViews,
+    OpenPolicy, PackageRead, PackageWrite, RegroupedFormulaSources, SpreadsheetFormat, SaveFormat, SavePolicy, SaveViews,
     SaveReceipt, SaveRefusal, VbaModuleKind, VbaModuleSource, VbaProjectSource, VbaReadError,
     VbaReadPolicy, WriteError,
 };
