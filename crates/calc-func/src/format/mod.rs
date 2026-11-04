@@ -8,7 +8,8 @@
 //!   point, and the group separator groups digits between digit placeholders and divides by 1000
 //!   when it follows the last one. Any other character, a `,` under en-ZA included, is a literal
 //!   written where it stands (`TEXT(1234567.891,"#,##0")` is `1234,568`).
-//! - Digits are those of the number rounded first to 15 significant digits and then, a half away
+//! - Digits use the shared15-significant-digit conversion (whose remaining midpoint
+//!   departures are counted under dc-b1l.25), then round a half away
 //!   from zero, to the places the code shows; a negative number whose rounding is zero shows no
 //!   minus sign; DOLLAR retains the negative sign when its decimal places are non-negative.
 //! - Sections: one for every number; two for the non-negative and the negative numbers (the
@@ -70,16 +71,10 @@ pub(crate) fn digits(x: f64, places: i32) -> (String, String) {
     split(&rounded, places.max(0) as usize)
 }
 
-/// A finite magnitude rounded to 15 significant digits, a half away from zero.
+/// FIXED/TEXT and concatenation share their first15-digit conversion. Reuse
+/// its existing near-tie behavior, including the open dc-b1l.25 departures.
 fn fifteen(x: f64) -> ExactDecimal {
-    let exact = ExactDecimal::read(x);
-    let length = exact.coefficient.digits().len() as i32;
-    if exact.coefficient.is_zero() || length <= 15 {
-        return exact;
-    }
-    exact
-        .round_at(exact.exponent + length - 15, Direction::Nearest)
-        .unwrap_or(exact)
+    crate::number_text::decimal(x)
 }
 
 /// A decimal's integer digits (without leading zeros) and `places` decimal digits.
