@@ -615,6 +615,66 @@ fn recorded_address_omitted_column_differs_from_blank() {
     }
 }
 
+/// The retained FIXED witnesses include 22 typed Excel readings that emit neither separator.
+/// They supply the expected text; absent-context and rounded-grouping controls check which
+/// environment fields the ordinary application route actually needs, without inventing a locale.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn fixed_requires_a_profile_only_for_emitted_separators() {
+    use calc_func::locale::{CalcEnvironment, DateSystem};
+    let set = calc_verdict::WitnessSet::decode(include_bytes!(
+        "../../../crates/calc-func/tests/witnesses/FIXED.json"
+    )).unwrap();
+    let mut count = 0;
+    let mut failures = Vec::new();
+    for environment in [None, Some(CalcEnvironment::dates(DateSystem::System1900))] {
+        for row in &set.witnesses {
+            let args: Vec<_> = row.args.iter().map(|value|
+                calc_verdict::decode_argument(value, "FIXED").unwrap()
+            ).collect();
+            let numbers: Vec<_> = args.iter().map(|value| value.as_number().unwrap()).collect();
+            if numbers.len() != 3 || numbers[1].trunc() > 0.0 || numbers[2] == 0.0 { continue; }
+            let mut session = Session::new("Sheet1").unwrap();
+            session.set_environment(environment);
+            session.set_formula_cell("J20").unwrap();
+            for (cell, value) in ["A1", "B1", "C1"].into_iter().zip(numbers) {
+                session.set_input(cell, InputValue::number(value).unwrap()).unwrap();
+            }
+            session.set_formula("=FIXED(A1,B1,C1)");
+            let expected = calc_verdict::decode_result(&row.expected).unwrap();
+            let result = session.calculate();
+            count += 1;
+            if result.result.as_ref() != Some(&expected) || !result.diagnostics.is_empty() {
+                failures.push(format!("{}: expected {expected:?}, calculated {:?}; {:?}",
+                    row.id, result.result, result.diagnostics));
+            }
+        }
+    }
+    assert_eq!(count, 44, "all 22 retained inputs in both absent-profile contexts must run");
+    assert!(failures.is_empty(), "{} of {count} readings differ:\n{}", failures.len(), failures.join("\n"));
+    for environment in [None, Some(CalcEnvironment::dates(DateSystem::System1900))] {
+        let mut session = Session::new("Sheet1").unwrap();
+        session.set_environment(environment);
+        for formula in ["=FIXED(1.5,1,TRUE)", "=FIXED(1000,0,FALSE)",
+            "=FIXED(999.5,0,FALSE)", "=FIXED(\"1,5\",0,TRUE)", "=DOLLAR(1,0)"] {
+            session.set_formula(formula);
+            let result = session.calculate();
+            assert!(result.result.is_none(), "{formula}: {:?}", result.result);
+            let [Diagnostic::Eval(EvalFault::Function(FunctionFault::NotImplemented { id, .. }))]
+                = result.diagnostics.as_slice() else {
+                panic!("{formula} needs its typed function refusal: {:?}", result.diagnostics);
+            };
+            let name = if formula.starts_with("=DOLLAR") { "DOLLAR" } else { "FIXED" };
+            assert_eq!(*id, catalogue().resolve_surface(Notation::Call, name).unwrap().id());
+        }
+        // Contract control, not a new Excel reading: grouping needs rounded whole digits.
+        // A three-digit result has no separator.
+        session.set_formula("=FIXED(999.4,0,FALSE)");
+        assert_eq!(session.calculate().result, Some(CalcValue::text(
+            calc_func::value::ExcelText::from_interop_assignment("999"))));
+    }
+}
+
 /// W111 date-typed 00155 and refinement 00772..00868; depreciation-options
 /// 00000/00011 and independent 00092/00208; locale-profile 00193 and 00252.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
