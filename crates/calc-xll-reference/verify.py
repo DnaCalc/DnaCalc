@@ -456,6 +456,20 @@ def normalize_x2(value):
     Return-code/type/ownership bits, rectangles, array shapes and values remain exact.
     """
     if isinstance(value, dict):
+        if "abi_storage" in value:
+            # Raw storage duplicates the opaque handle in its first eight bytes.
+            # Validate that binding before masking identity; keep all other bytes,
+            # including padding. Permit a second normalization of our own output.
+            pointer = value.get("value", {}).get("opaque_handle")
+            if pointer != "<handle>":
+                defined_boundary(value)
+            else:
+                require(value["abi_storage"]["raw32"].startswith("0" * 16),
+                        "Normalized BigData still contains a raw identity")
+                defined_boundary({**value, "value": {**value["value"], "opaque_handle": "0x0"}})
+            storage = dict(value["abi_storage"])
+            storage["raw32"] = "0" * 16 + storage["raw32"][16:]
+            value = {**value, "abi_storage": storage}
         return {key: ("<sheet>" if key == "sheet" else "<handle>" if key == "opaque_handle"
                       else normalize_x2(child)) for key, child in value.items()}
     if isinstance(value, list):
