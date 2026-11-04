@@ -2197,7 +2197,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                     <button type="button" data-dnacalc="zoom-out" title="Zoom out"
                         on:click=move |_| zoom.update(|z| *z = viewport::clamp_zoom(*z / viewport::ZOOM_STEP))>"-"</button>
                     <span data-dnacalc="zoom" class="dc-sr-only">{move || format!("{:.0}%", zoom.get() * 100.0)}</span>
-                    <label><input data-dnacalc="zoom-percent" aria-label="Worksheet zoom percentage, 50 to 400" inputmode="decimal" prop:value=move ||zoom_text.get() on:input=move |ev|zoom_text.set(event_target_value(&ev)) on:change=move |ev|apply_zoom(event_target_value(&ev)) on:keydown=move |ev:leptos::ev::KeyboardEvent|{if ev.key()=="Enter" {ev.prevent_default();apply_zoom(event_target_value(&ev));}}/>"%"</label>
+                    <label><input data-dnacalc="zoom-percent" aria-label="Worksheet zoom percentage, 10 to 400" inputmode="decimal" prop:value=move ||zoom_text.get() on:input=move |ev|zoom_text.set(event_target_value(&ev)) on:change=move |ev|apply_zoom(event_target_value(&ev)) on:keydown=move |ev:leptos::ev::KeyboardEvent|{if ev.key()=="Enter" {ev.prevent_default();apply_zoom(event_target_value(&ev));}}/>"%"</label>
                     <button type="button" data-dnacalc="zoom-reset" on:click=move |_|zoom.set(1.0)>"Reset"</button>
                     <button type="button" data-dnacalc="zoom-in" title="Zoom in"
                         on:click=move |_| zoom.update(|z| *z = viewport::clamp_zoom(*z * viewport::ZOOM_STEP))>"+"</button>

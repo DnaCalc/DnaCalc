@@ -3488,7 +3488,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Into("zoom-percent", "999\u{E007}"),
             Action::Wait(Check::TextContains(
                 "status",
-                "zoom percentage from 50 to 400",
+                "zoom percentage from 10 to 400",
             )),
             Action::Wait(Check::Text("zoom", "75%")),
             Action::Click("zoom-reset"),
@@ -8352,6 +8352,23 @@ Case {
         Action::Into(BAR,"=SUM('Tax rates'!$A$1:B2)\u{E007}"),Action::Into("name-box","A1:C4\u{E007}"),Action::OpenDetails("sort-tools"),Action::Click("sort-ascending"),Action::Wait(Check::TextContains("status","qualified or unsupported formula references")),Action::Into("name-box","C2\u{E007}"),Action::Window(390,844)
     ],checks:&[Check::PlanCell("A2","text","3"),Check::Value(BAR,"=SUM('Tax rates'!$A$1:B2)"),Check::Fits,Check::Narrow(390)]},
 
+    Case{name:"ten percent zoom: entry and navigation keep calculated cells visible",actions:&[
+        Action::Window(1440,1000),Action::ExternalClipboard("1\t2\t=A1+B1",false),Action::Keys("grid","\u{E009}v\u{E000}"),Action::Wait(Check::PlanCell("C1","text","3")),Action::Into("zoom-percent","10\u{E007}"),Action::Wait(Check::Text("zoom","10%")),Action::Into("name-box","C1\u{E007}"),Action::Wait(Check::ActiveSemantic("C1"))
+    ],checks:&[Check::Value("zoom-percent","10"),Check::PlanCell("C1","text","3"),Check::PlanCell("C1","provenance","calculated")]},
+    Case{name:"ten percent zoom: the ordinary XLSX save restores the view",actions:&[
+        Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::Wait(Check::Text("zoom","10%")),Action::Wait(Check::PlanCell("C1","text","3"))
+    ],checks:&[Check::Value("zoom-percent","10"),Check::Value("name-box","C1"),Check::PlanCell("C1","provenance","calculated")]},
+    Case{name:"ten percent zoom: lower inputs refuse and zoom out clamps on a phone",actions:&[
+        Action::Into("zoom-percent","9\u{E007}"),Action::Wait(Check::TextContains("status","zoom percentage from 10 to 400")),Action::Wait(Check::Text("zoom","10%")),Action::Click("zoom-out"),Action::Wait(Check::Text("zoom","10%")),Action::Click("zoom-reset"),Action::Wait(Check::Text("zoom","100%")),Action::Window(390,844),Action::Into("zoom-percent","10\u{E007}"),Action::Wait(Check::Text("zoom","10%"))
+    ],checks:&[Check::Fits,Check::Narrow(390),Check::Name("zoom-percent","Worksheet zoom percentage, 10 to 400"),Check::Reachable("zoom-percent")]},
+
+    Case {name:"ten percent zoom: the final Excel cell remains editable through keyboard navigation",actions:&[
+        Action::Window(1440,1000),Action::Into("name-box","XFD1048576\u{E007}"),Action::Wait(Check::ActiveSemantic("XFD1048576")),Action::Into(BAR,"7\u{E007}"),Action::Wait(Check::PlanCell("XFD1048576","text","7"))
+    ],checks:&[Check::Text("zoom","10%"),Check::Value("name-box","XFD1048576"),Check::PlanCell("XFD1048576","text","7"),Check::Fits]},
+    Case {name:"ten percent zoom: the restored final-cell selection reveals the saved value",actions:&[
+        Action::RememberView("active-cell"),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::Wait(Check::Text("zoom","10%")),Action::Wait(Check::ActiveSemantic("XFD1048576")),Action::Into("name-box","XFD1048576\u{E007}"),Action::Wait(Check::PlanCell("XFD1048576","text","7"))
+    ],checks:&[Check::Value("zoom-percent","10"),Check::Value("name-box","XFD1048576"),Check::PlanCell("XFD1048576","text","7")]},
+
 ];
 
 /// The script that reads what one check looks at.
@@ -9195,4 +9212,5 @@ CaseGroup {
     CaseGroup {name:"typed-conditional-sorting",start:679,end:683,core:4,setup:&[]},
     CaseGroup {name:"hyperlink-sorting",start:683,end:688,core:5,setup:&[]},
     CaseGroup {name:"qualified-aggregates",start:688,end:692,core:4,setup:&[]},
+    CaseGroup {name:"ten-percent-zoom",start:692,end:697,core:5,setup:&[]},
 ];

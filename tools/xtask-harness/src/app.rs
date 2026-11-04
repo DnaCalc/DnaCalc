@@ -2227,6 +2227,8 @@ fn wait_for(app: &App, session: &Session, check: &Check, settle: Duration) -> Op
         if started.elapsed() > settle {
             let geometry = if let Check::Reachable(name) = check {
                 session.script(&format!("var e=document.querySelector('{}');return {{viewport:[innerWidth,innerHeight],scroll:[scrollX,scrollY],rect:e?.getBoundingClientRect().toJSON(),ancestors:e?Array.from((function*(n){{for(;n;n=n.parentElement)yield n;}})(e)).slice(0,8).map(n=>({{tag:n.tagName,role:n.getAttribute('data-dnacalc'),rect:n.getBoundingClientRect().toJSON(),overflow:getComputedStyle(n).overflow}})):[]}};",select(app,name))).map(|v|format!("; geometry {v}")).unwrap_or_default()
+            } else if matches!(check, Check::PlanCell(..) | Check::PlanAbsent(_)) {
+                session.script(&format!(r#"{READ_PLANS}return {{held:window.__dcViews,active:document.querySelector('[data-dnacalc=name-box]')?.value,status:document.querySelector('[data-dnacalc=status]')?.textContent,plans:plans.map(p=>({{pane:p.pane,pending:p.pending,viewport:p.plan.viewport,scale:p.plan.scale,range:[p.plan.cells[0]?.address,p.plan.cells.at(-1)?.address],cells:p.plan.cells.filter(c=>c.shown.text).slice(-16).map(c=>[c.address,c.shown.text,c.shown.provenance])}}))}};"#)).map(|v|format!("; rendered state {v}")).unwrap_or_default()
             } else { String::new() };
             return Some(format!("expected {}; saw {last}{geometry}", describe(check)));
         }
@@ -3029,8 +3031,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 281,
-            "the two applications have 281 core cases including qualified aggregates, row hyperlinks, typed conditional row formats, case/custom sorting, templates, complete table sorting, sorted notes/validation, conditional colour filters, candidate validation, conditional formats, editable review content, validation audits and the existing editing routes"
+            total, 286,
+            "the two applications have 286 core cases including ten percent zoom, qualified aggregates, row hyperlinks, typed conditional row formats, case/custom sorting, templates, complete table sorting, sorted notes/validation, conditional colour filters, candidate validation, conditional formats, editable review content, validation audits and the existing editing routes"
         );
     }
 

@@ -198,6 +198,7 @@ class QueuedRtd final : public Rtd {
     ULONG references=1;
 public:
     bool unknown=false;
+    std::vector<std::pair<LONG,LONG>> calls;
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid,void** out) override {if(!out)return E_POINTER;*out=nullptr;if(iid!=IID_IUnknown&&iid!=IID_IDispatch&&iid!=server_iid)return E_NOINTERFACE;*out=static_cast<Rtd*>(this);AddRef();return S_OK;}
     ULONG STDMETHODCALLTYPE AddRef() override{return ++references;}
     ULONG STDMETHODCALLTYPE Release() override{auto n=--references;if(!n)delete this;return n;}
@@ -206,16 +207,16 @@ public:
     HRESULT STDMETHODCALLTYPE GetIDsOfNames(REFIID,LPOLESTR*,UINT,LCID,DISPID*) override{return E_NOTIMPL;}
     HRESULT STDMETHODCALLTYPE Invoke(DISPID,REFIID,LCID,WORD,DISPPARAMS*,VARIANT*,EXCEPINFO*,UINT*) override{return E_NOTIMPL;}
     HRESULT STDMETHODCALLTYPE ServerStart(Update*,LONG* out) override{if(!out)return E_POINTER;*out=1;return S_OK;}
-    HRESULT STDMETHODCALLTYPE ConnectData(LONG id,SAFEARRAY**,VARIANT_BOOL* fresh,VARIANT* out) override{if(!fresh||!out)return E_POINTER;*fresh=VARIANT_TRUE;VariantInit(out);out->vt=VT_R8;out->dblVal=id*11.;return S_OK;}
+    HRESULT STDMETHODCALLTYPE ConnectData(LONG id,SAFEARRAY**,VARIANT_BOOL* fresh,VARIANT* out) override{calls.emplace_back(1,id);if(!fresh||!out)return E_POINTER;*fresh=VARIANT_TRUE;VariantInit(out);out->vt=VT_R8;out->dblVal=id*11.;return S_OK;}
     HRESULT STDMETHODCALLTYPE RefreshData(LONG* count,SAFEARRAY** out) override {
         if(!count||!out)return E_POINTER;*count=3;SAFEARRAYBOUND bounds[]={{2,0},{3,0}};*out=SafeArrayCreate(VT_VARIANT,2,bounds);if(!*out)return E_OUTOFMEMORY;
         for(LONG row=0;row<3;++row){LONG index[]={0,row};VARIANT id{};id.vt=VT_I4;id.lVal=unknown&&row==0?4:row+1;auto hr=SafeArrayPutElement(*out,index,&id);if(FAILED(hr))return hr;
             index[0]=1;VARIANT value{};value.vt=VT_R8;value.dblVal=11.*(row+1);hr=SafeArrayPutElement(*out,index,&value);if(FAILED(hr))return hr;}
         return S_OK;
     }
-    HRESULT STDMETHODCALLTYPE DisconnectData(LONG) override{return S_OK;}
+    HRESULT STDMETHODCALLTYPE DisconnectData(LONG id) override{calls.emplace_back(2,id);return S_OK;}
     HRESULT STDMETHODCALLTYPE Heartbeat(LONG* out) override{if(!out)return E_POINTER;*out=1;return S_OK;}
-    HRESULT STDMETHODCALLTYPE ServerTerminate() override{return S_OK;}
+    HRESULT STDMETHODCALLTYPE ServerTerminate() override{calls.emplace_back(3,0);return S_OK;}
 };
 }
 extern "C" HRESULT dna_rtd_test_obsolete_transport() noexcept {
@@ -234,4 +235,22 @@ extern "C" HRESULT dna_rtd_test_obsolete_transport() noexcept {
         if(client.poll(publish,&values)!=E_INVALIDARG)return E_FAIL;
         return client.close();
     }catch(...){return E_OUTOFMEMORY;}
+}
+
+extern "C" HRESULT dna_rtd_test_attach_queued(void* pointer) noexcept {
+    try {
+        if(!pointer)return E_POINTER;
+        auto& client=*(Client*)pointer;auto hr=client.check();if(FAILED(hr))return hr;
+        if(!client.servers.empty()||!client.topics.empty())return E_UNEXPECTED;
+        auto server=std::make_unique<Server>();server->object=new QueuedRtd();
+        client.servers.emplace(L"fixture",std::move(server));return S_OK;
+    }catch(...){return E_OUTOFMEMORY;}
+}
+extern "C" HRESULT dna_rtd_test_event(void* pointer,LONG index,LONG* method,LONG* topic) noexcept {
+    if(!pointer||!method||!topic||index<0)return E_INVALIDARG;
+    auto& client=*(Client*)pointer;auto hr=client.check();if(FAILED(hr))return hr;
+    auto found=client.servers.find(L"fixture");if(found==client.servers.end())return S_FALSE;
+    auto& calls=static_cast<QueuedRtd*>(found->second->object)->calls;
+    if((size_t)index>=calls.size())return S_FALSE;
+    *method=calls[index].first;*topic=calls[index].second;return S_OK;
 }
