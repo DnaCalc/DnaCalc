@@ -205,7 +205,9 @@ counts as failures; a file whose inventory cannot be read is listed with an unkn
 For local files, use `cargo xtask corpus <dir> --recursive --oracle --no-capture --dna-only
 --shard 0/4 --timeout 60 --resume --out <outside-repository>/shard-0` (one invocation per shard).
 The shard index is zero based and follows the workbook's SHA-256; duplicate content is listed
-in inventory.json and evaluated once. `--dna-only` calculates files without observations through
+in inventory.json and evaluated once. Folder inputs and result hashes use a 64 KiB read buffer
+through the shared portable SHA-256 implementation. A source changed after that inventory is
+refused before parsing or calculation; resume takes a new snapshot. `--dna-only` calculates files without observations through
 the existing comparison route, retaining an explicit source inventory with no Excel answers;
 none can score a match. Existing committed/cached live captures still supply the comparisons.
 Every attempt keeps its own log and payload. Resume verifies workbook, capture, executable and
