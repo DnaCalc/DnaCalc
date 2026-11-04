@@ -24,9 +24,9 @@
 //! A number read as text takes its text from [`number_text`]. A subnormal number reads as text as
 //! 0, since Excel holds none and reads a cell written as one back as +0; read as a number
 //! ([`operand`]) a subnormal is refused as not modelled, since Excel's arithmetic on one is not
-//! (dc-6qki owns subnormal numbers and makes the two readings agree). A number near a tie at
-//! its 16th significant digit, whose side of the tie decides its text, is refused as not modelled
-//! (dc-uar).
+//! (dc-6qki owns subnormal numbers and makes the two readings agree). Near a tie at the 16th
+//! significant digit, [`number_text`] produces text under its documented rule, with measured
+//! mismatches still open under dc-b1l.25; these are calculated mismatches, not typed refusals.
 
 use crate::number_text;
 use crate::number_words;
@@ -186,9 +186,9 @@ pub(crate) fn spelled_logical(text: &ExcelText) -> Option<bool> {
 
 /// The value as text to concatenate, in UTF-16 code units: text as it is, a number as its text
 /// ([`number_text`], Excel's text with `.` as the decimal separator and no column width), TRUE
-/// and FALSE as those words, Empty and Missing as empty text, an error as itself. A number that
-/// is not finite is no worksheet value, and a number near a 16th-digit tie whose side decides its
-/// text has no text here; both are refused as not modelled.
+/// and FALSE as those words, Empty and Missing as empty text, an error as itself. Every finite
+/// number has text under that model, including its documented near-tie mismatches. A number
+/// that is not finite is no worksheet value and is refused as not modelled.
 pub(crate) fn text(value: &CalcValue) -> Result<Cow<'_, [u16]>, Stop> {
     match value.core_ref() {
         CoreRef::Text(text) => Ok(Cow::Borrowed(text.utf16_code_units())),
