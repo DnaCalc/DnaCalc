@@ -226,6 +226,7 @@ pub(crate) struct Entry {
     pub(crate) path: PathBuf,
     /// Frozen by content selection; later phases refuse a changed source.
     pub(crate) batch_sha256: Option<String>,
+    pub(crate) batch_input_identity: Option<String>,
     pub(crate) committed: Option<PathBuf>,
     /// For an `.xlsb`, its SpreadsheetML twin in the same folder, when there is one.
     pub(crate) inventory: Option<PathBuf>,
@@ -263,6 +264,7 @@ pub(crate) fn folder_workbooks(dir: &Path) -> Result<Vec<Entry>, String> {
                 name,
                 path: path.clone(),
                 batch_sha256: None,
+                batch_input_identity: None,
                 committed: path
                     .with_extension("capture.json")
                     .is_file()
@@ -316,6 +318,7 @@ pub(crate) fn oracle_workbooks(root: &Path) -> Result<Vec<Entry>, String> {
                 name: case.name.clone(),
                 path: case.fixture.clone(),
                 batch_sha256: None,
+                batch_input_identity: None,
                 committed: committed.is_file().then_some(committed),
                 inventory: None,
                 oracle: Some(case),
@@ -762,11 +765,16 @@ fn compare_one(
         if key["fixture"].as_str() != Some(snapshot) {
             return Err("workbook bytes changed after inventory admission".into());
         }
+        let (input_identity, capture_source) = crate::corpus_batch::input_identity(&entry.path, &entry.name, snapshot);
+        if entry.batch_input_identity.as_deref() != Some(input_identity.as_str()) {
+            return Err("authored inputs changed after batch inventory admission".into());
+        }
         let comparison_source = if capture.is_some() {
-            calc_oracle_excel::capture_source_sha256(&entry.path, snapshot)?
+            capture_source?
         } else {
             snapshot.to_owned()
         };
+        key["input_identity"] = json!(input_identity);
         key["comparison_source"] = json!(comparison_source);
         if args.resume
             && let Some(triage) = crate::corpus_batch::completed(out, &key)
@@ -1095,6 +1103,7 @@ fn one_workbook(run: &mut Run<'_>, program: &Path, entry: &Entry, out: &Path) ->
     let mut workbook = Workbook {
         name: entry.name.clone(),
         sha256: None,
+        input_identity: entry.batch_input_identity.clone(),
         capture: None,
         inventory_formula_cells: None,
         failure_key: None,
@@ -1145,13 +1154,20 @@ fn one_workbook(run: &mut Run<'_>, program: &Path, entry: &Entry, out: &Path) ->
         });
         return workbook;
     }
-    let capture_source = calc_oracle_excel::capture_source_sha256(&entry.path, &sha256);
+    let (input_identity, capture_source) = crate::corpus_batch::input_identity(&entry.path, &entry.name, &sha256);
+    let inputs_changed = entry.batch_input_identity.as_deref() != Some(input_identity.as_str());
     if let Some(case) = &entry.oracle {
         let bytes = bytes.as_deref().expect("committed oracle bytes read above");
         workbook.inventory_formula_cells = package_parts(bytes)
             .and_then(|parts| workbook_sections(&parts))
             .ok()
             .map(|sections| sections.iter().map(|s| s.formula_cells).sum());
+        if inputs_changed {
+            workbook.failure_key = Some("SourceChanged".into());
+            workbook.outcome = Err(NotCompared { stage: "capture".into(),
+                reason: "authored inputs no longer match the batch inventory".into() });
+            return workbook;
+        }
         let capture_sha256 = match &capture_source {
             Ok(hash) => hash,
             Err(reason) => {
@@ -1211,6 +1227,12 @@ fn one_workbook(run: &mut Run<'_>, program: &Path, entry: &Entry, out: &Path) ->
         }
     };
     workbook.inventory_formula_cells = Some(inventory.formulas.len() as u64);
+    if inputs_changed {
+        workbook.failure_key = Some("SourceChanged".into());
+        workbook.outcome = Err(NotCompared { stage: "capture".into(),
+            reason: "authored inputs no longer match the batch inventory".into() });
+        return workbook;
+    }
     let capture_sha256 = match capture_source {
         Ok(hash) => hash,
         Err(reason) => {

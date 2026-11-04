@@ -140,6 +140,22 @@ pub(crate) fn census(
     Ok(record)
 }
 
+/// Valid captures share their semantic key. Invalid sidecars remain separate inputs.
+pub(crate) fn input_identity(path: &Path, name: &str, workbook_sha256: &str) -> (String, Result<String, String>) {
+    let source = calc_oracle_excel::capture_source_sha256(path, workbook_sha256);
+    let identity = match &source {
+        Ok(digest) => digest.clone(),
+        Err(reason) => {
+            let authority = file_digest(&path.with_extension("entries.json"))
+                .unwrap_or_else(|error| error.to_string());
+            sha256_hex(&serde_json::to_vec(&json!([
+                "dnacalc-invalid-capture-input/1", name, workbook_sha256, authority, reason
+            ])).expect("invalid input identity serializes"))
+        }
+    };
+    (identity, source)
+}
+
 pub(crate) fn select(
     mut entries: Vec<super::corpus::Entry>,
     shard: Option<(u64, u64)>,
@@ -153,29 +169,30 @@ pub(crate) fn select(
         let read = file_digest(&entry.path);
         let digest = read.as_ref().ok().cloned();
         entry.batch_sha256 = digest.clone();
-        let duplicate = digest.as_ref().and_then(|hash| seen.get(hash)).cloned();
-        let shard_key = digest
-            .clone()
+        let source = digest.as_ref().map(|hash| input_identity(&entry.path, &entry.name, hash));
+        let valid = source.as_ref().is_some_and(|(_, result)| result.is_ok());
+        let identity = source.as_ref().map(|(identity, _)| identity.clone())
             .unwrap_or_else(|| sha256_hex(entry.name.as_bytes()));
-        let in_shard = shard.is_none_or(|(index, count)| shard_of(&shard_key, count) == index);
+        entry.batch_input_identity = Some(identity.clone());
+        let duplicate = valid.then(|| seen.get(&identity).cloned()).flatten();
+        let in_shard = shard.is_none_or(|(index, count)| shard_of(&identity, count) == index);
         let chosen = duplicate.is_none() && in_shard;
-        inventory.push(
-            json!({"name":entry.name, "path":entry.path, "sha256":digest,
+        inventory.push(json!({"name":entry.name, "path":entry.path, "sha256":digest,
+            "input_identity":identity, "capture_input_error":source.as_ref().and_then(|(_, result)|result.as_ref().err()),
             "duplicate_of":duplicate, "selected":chosen,
-            "read_error":read.err().map(|e|e.to_string())}),
-        );
-        if let Some(digest) = digest {
-            seen.entry(digest).or_insert_with(|| entry.name.clone());
+            "read_error":read.err().map(|error|error.to_string())}));
+        if valid {
+            seen.entry(identity).or_insert_with(|| entry.name.clone());
         }
         if chosen {
             selected.push(entry);
         }
     }
     selected.sort_by(|a, b| a.name.cmp(&b.name));
-    let keys:Vec<_>=inventory.iter().map(|row|json!({"name":row["name"],"sha256":row["sha256"],"duplicate_of":row["duplicate_of"]})).collect();
+    let keys:Vec<_>=inventory.iter().map(|row|json!({"name":row["name"],"sha256":row["sha256"],"input_identity":row["input_identity"],"capture_input_error":row["capture_input_error"],"duplicate_of":row["duplicate_of"]})).collect();
     let content_key = sha256_hex(&serde_json::to_vec(&keys).expect("inventory keys serialize"));
     let record = json!({"format":"dnacalc-corpus-inventory", "version":1,"content_key":content_key,
-        "rule":"one representative per content hash; zero-based shard from first 64 SHA-256 bits",
+        "rule":"one representative per validated input identity; invalid inputs retained separately; zero-based shard from first 64 identity bits",
         "shard":shard, "files":inventory, "unique_content":seen.len(),"selected":selected.len()});
     (selected, record)
 }
@@ -303,8 +320,9 @@ pub(crate) fn merge_summaries(paths: &[PathBuf], out: &Path) -> Result<(), Strin
             .as_array()
             .ok_or("missing workbook reports")?
         {
-            let key = workbook["sha256"]
+            let key = workbook["input_identity"]
                 .as_str()
+                .or_else(|| workbook["sha256"].as_str())
                 .map(str::to_owned)
                 .unwrap_or_else(|| format!("unknown:{}", workbook["name"]));
             if !seen.insert(key) {
@@ -743,6 +761,18 @@ mod tests {
                 .unwrap_err()
                 .contains("multiple shard")
         );
+        // Equal package bytes with distinct authored inputs are separate shard cases.
+        let mut left = fixture(0, "aaa", "code-a");
+        let mut right = fixture(1, "aaa", "code-a");
+        left["workbooks"][0]["input_identity"] = json!("authored-left");
+        right["workbooks"][0]["input_identity"] = json!("authored-right");
+        fs::write(&a, serde_json::to_vec(&left).unwrap()).unwrap();
+        fs::write(&b, serde_json::to_vec(&right).unwrap()).unwrap();
+        merge_summaries(&[a.clone(), b.clone()], &out).unwrap();
+        assert_eq!(read()["totals"]["counts"]["formula_cells"], 2);
+        right["workbooks"][0]["input_identity"] = json!("authored-left");
+        fs::write(&b, serde_json::to_vec(&right).unwrap()).unwrap();
+        assert!(merge_summaries(&[a.clone(), b.clone()], &out).unwrap_err().contains("multiple shard"));
         fs::write(
             &b,
             serde_json::to_vec(&fixture(1, "bbb", "code-b")).unwrap(),
