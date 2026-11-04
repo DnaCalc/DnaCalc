@@ -126,7 +126,16 @@ fn numeric(
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(id, services);
     let flush_input = matches!(id, TRUNC | ROUND | ROUNDUP | ROUNDDOWN | MOD);
-    Site::finish(numbers(&site, arguments, flush_input).and_then(|read| site.number(compute(&site, &read)?)))
+    Site::finish(numbers(&site, arguments, flush_input).and_then(|read| {
+        let result = compute(&site, &read)?;
+        // Only `stored` makes a NaN here: Excel's own bit pattern for a result past DBL_MAX,
+        // which the worksheet holds as a number.
+        if result.is_nan() && flush_input {
+            Ok(CalcValue::number(result))
+        } else {
+            site.number(result)
+        }
+    }))
 }
 
 /// The arguments as numbers: an array argument is refused first, then each argument is read in
@@ -295,7 +304,7 @@ fn nearest_digits(site: &Site<'_>, number: f64, places: f64) -> Step<f64> {
     let reading = reading(number, false);
     // Without a wrap, kept from 0 to 14 bounds digits to within 340 of 0.
     match reading.round_at(-digits.clamp(-PLACES, PLACES), Direction::Nearest) {
-        Some(rounded) if kept < 15 => Ok(flush(site.nearest(&rounded)?)),
+        Some(rounded) if kept < 15 => Ok(flush(stored(site, &rounded)?)),
         _ => whole_reading(site, number, &reading),
     }
 }
@@ -306,7 +315,34 @@ fn whole_reading(site: &Site<'_>, number: f64, reading: &ExactDecimal) -> Step<f
     if reading.is_value_of(number) {
         Ok(number)
     } else {
-        Ok(flush(site.nearest(reading)?))
+        Ok(flush(stored(site, reading)?))
+    }
+}
+
+/// An exact decimal result as Excel stores it in binary64: the nearest binary64, except that a
+/// result of 2^1024 or more keeps its 53-bit significand and carries its exponent into the
+/// exponent field without a check, so the field reads 2047 and the bits are a NaN. So
+/// ROUND(1.7976931348623157E+308,-308), 2E+308, is 0x7ff1ccf385ebc8a0 and the reading of
+/// DBL_MAX, 1.79769313486232E+308, is 0x7ff000000000000a, as Excel 16.0.20430 and 16.0.20527 give
+/// them (627 of 627 such bank rows). Excel shows such a value as 2E+308, ISNUMBER is TRUE, and
+/// arithmetic on it is #NUM!. A decimal of 2^1025 or more, which no reading reaches, is #NUM!.
+fn stored(site: &Site<'_>, decimal: &ExactDecimal) -> Step<f64> {
+    let nearest = site.nearest(decimal)?;
+    if nearest.is_finite() {
+        return Ok(nearest);
+    }
+    // Half the decimal, exactly: the same significand one binade lower.
+    let mut coefficient = decimal.coefficient.clone();
+    coefficient.add(&decimal.coefficient.times(&decimal::Natural::from_u64(4)));
+    let half = site.nearest(&ExactDecimal {
+        negative: decimal.negative,
+        coefficient,
+        exponent: decimal.exponent - 1,
+    })?;
+    if half.is_finite() {
+        Ok(f64::from_bits(half.to_bits() + (1 << 52)))
+    } else {
+        Err(Exit::Error(WorksheetErrorCode::Num))
     }
 }
 
@@ -345,9 +381,16 @@ fn directed(site: &Site<'_>, number: f64, places: f64, direction: Direction) -> 
     let position = (-places).clamp(-PLACES, PLACES);
     let reading = reading(number, true);
     let Some(down) = reading.round_at(position, Direction::TowardZero) else {
-        return whole_reading(site, number, &reading);
+        let whole = whole_reading(site, number, &reading)?;
+        // ROUNDUP gives #NUM! where ROUNDDOWN and TRUNC keep the bits past DBL_MAX (Excel
+        // 16.0.20430: 102 of 102 bank rows, ROUNDUP(1.7976931348623153E+308,0) among them).
+        return if whole.is_nan() && direction == Direction::AwayFromZero {
+            Err(Exit::Error(WorksheetErrorCode::Num))
+        } else {
+            Ok(whole)
+        };
     };
-    let lower = site.nearest(&down)?;
+    let lower = stored(site, &down)?;
     let dropped = direction == Direction::AwayFromZero
         && reading
             .round_at(position, Direction::AwayFromZero)
@@ -362,7 +405,19 @@ fn directed(site: &Site<'_>, number: f64, places: f64, direction: Direction) -> 
             Err(Exit::Error(WorksheetErrorCode::Num))
         };
     }
+    if lower.is_nan() {
+        // Past DBL_MAX, adding the unit is an overflow: #NUM!, as Excel gives it.
+        return Err(Exit::Error(WorksheetErrorCode::Num));
+    }
     let unit = site.nearest(&ExactDecimal::unit(position))?;
+    // A unit below the normal range is not added, whichever the sign, and a positive number whose
+    // reading lies less than 2^-1026 above the truncation, both as binary64, stays at it (Excel
+    // 16.0.20527: ROUNDUP(1.0001086461844975E-307,307) is 1E-307, while
+    // ROUNDUP(-1.0001086461844975E-307,307) is -2E-307). The negative rule has no such distance.
+    if unit.is_subnormal() || (number > 0.0 && site.nearest(&reading)? - lower < SMALLEST_DISTANCE)
+    {
+        return Ok(flush(lower));
+    }
     let magnitude = site.add(lower.abs(), unit)?;
     Ok(flush(if number < 0.0 { -magnitude } else { magnitude }))
 }
@@ -512,7 +567,8 @@ fn to_multiple(site: &Site<'_>, number: f64, significance: f64, toward: Toward) 
 /// addition at an arithmetic site. So MOD(10,0.1) is 0.09999999999999945 and MOD(-5.3,1) is
 /// 0.7000000000000002, as Excel gives them (the catalogue oracle's sheet dcj9k_math: 124 of 124
 /// readings). A zero divisor is #DIV/0!, and a quotient of magnitude 1.1259E+12 or more is #NUM!
-/// (Excel: MOD(1125899999999,1) is 0 and MOD(1125900000000,1) is #NUM!).
+/// (Excel: MOD(1125899999999,1) is 0 and MOD(1125900000000,1) is #NUM!). A remainder below the
+/// normal range that needs the divisor added follows `tiny_remainder`.
 fn modulo(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
@@ -530,13 +586,12 @@ fn modulo(
             return Err(Exit::Error(WorksheetErrorCode::Num));
         }
         let remainder = number % divisor;
-        // The recorded banks distinguish binary-power and general divisors
-        // when reduction produces a subnormal intermediate.
-        let binary_divisor = divisor.abs().to_bits() & 0x000f_ffff_ffff_ffff == 0;
-        if remainder.is_subnormal() && !binary_divisor {
-            return Err(Exit::Error(WorksheetErrorCode::Num));
-        }
         let result = if remainder != 0.0 && (remainder < 0.0) != (divisor < 0.0) {
+            if remainder.is_subnormal()
+                && let Some(result) = tiny_remainder(site, remainder, divisor, quotient)?
+            {
+                return Ok(result);
+            }
             let adjusted = site.add(remainder, divisor)?;
             // A remainder the divisor absorbs is 0 (dc-bd5: MOD(-5,9.99999999999999E+307) is 0
             // in Excel 16.0.20430).
@@ -552,6 +607,43 @@ fn modulo(
         }
     })
 }
+
+/// A subnormal `remainder` whose sign differs from the `divisor`'s. A divisor whose Veltkamp low
+/// part (the bits a split at 2^27 + 1 leaves below its high half) is itself subnormal gives #NUM!,
+/// as does a quotient of 2^26 or more; the split's two parts are what a Dekker product of the
+/// count and the divisor multiplies, and these are the cases where that product leaves the normal
+/// range. Otherwise a remainder below 2^-1026 is added to the divisor's magnitude instead of taken
+/// from it, and a larger one (`None`) takes the ordinary step. So MOD(-1.0000000000000001E-296,
+/// 1E-296) is 1.0000000000000001E-296 and the same at 1E-300 is #NUM!, as Excel 16.0.20527 gives
+/// them. This rule matches all 152,395 bank rows with normal operands and 1,128 new readings.
+fn tiny_remainder(
+    site: &Site<'_>,
+    remainder: f64,
+    divisor: f64,
+    quotient: f64,
+) -> Step<Option<f64>> {
+    let magnitude = divisor.abs();
+    let scaled = VELTKAMP_SPLIT * magnitude;
+    let low = magnitude - (scaled - (scaled - magnitude));
+    if low.is_subnormal() || quotient.abs() >= MOD_DEKKER_COUNT {
+        return Err(Exit::Error(WorksheetErrorCode::Num));
+    }
+    if remainder.abs() >= SMALLEST_DISTANCE {
+        return Ok(None);
+    }
+    let sum = site.add(magnitude, remainder.abs())?;
+    Ok(Some(if divisor < 0.0 { -sum } else { sum }))
+}
+
+/// 2^27 + 1, Veltkamp's multiplier for splitting a binary64 into two 26-bit halves.
+const VELTKAMP_SPLIT: f64 = 134_217_729.0;
+
+/// 2^26: from here a subnormal remainder gives #NUM!.
+const MOD_DEKKER_COUNT: f64 = 67_108_864.0;
+
+/// 2^-1026: ROUNDUP's smallest distance above the truncation, and MOD's smallest subnormal
+/// remainder taken from the divisor rather than added to it.
+const SMALLEST_DISTANCE: f64 = f64::MIN_POSITIVE / 16.0;
 
 /// The magnitude of number/divisor at and above which Excel's MOD is #NUM!, measured by bisection
 /// (dc-j9k).

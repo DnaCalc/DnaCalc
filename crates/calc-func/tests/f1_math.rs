@@ -278,6 +278,18 @@ fn rounding_family_matches_recorded_bank_rows() {
         // ROUNDUP is the ROUNDDOWN result plus one unit, added in binary64.
         ("ROUNDUP", 0xbff2_0000_0000_0000, 0x4000_0000_0000_0000, Some(0xbff2_147a_e147_ae15)),
         ("ROUNDUP", 0x400c_47ae_147a_e148, 0x4000_0000_0000_0000, Some(0x400c_51eb_851e_b851)),
+        // ROUNDUP: a positive reading under 2^-1026 above the truncation stays, a unit below the
+        // normal range is not added, and otherwise the unit is added.
+        ("ROUNDUP", 0x0031_fa98_2c40_c60e, 0x4073_3000_0000_0000, Some(0x0031_fa18_2c40_c60d)),
+        ("ROUNDUP", 0x8035_fa18_2c40_c60e, 0x4073_4000_0000_0000, Some(0x8035_9283_684d_ba77)),
+        ("ROUNDUP", 0x01a5_6e1f_c3c5_c026, 0x4073_3000_0000_0000, Some(0x01a5_6e1f_e6ed_23b2)),
+        // MOD with a subnormal remainder of the other sign: added to the divisor below 2^-1026,
+        // taken from it above, and #NUM! for a count of 2^26 or more or a divisor whose Veltkamp
+        // low part is subnormal (the last row is Excel 16.0.20527).
+        ("MOD", 0x0020_0000_0000_0001, 0x8020_0000_0000_0000, Some(0x8020_0000_0000_0001)),
+        ("MOD", 0x0020_8000_0000_0000, 0x8020_0000_0000_0000, Some(0x801f_0000_0000_0000)),
+        ("MOD", 0x01c0_0000_0000_0001, 0x8020_0000_0000_0000, None),
+        ("MOD", 0x827a_28ed_c580_e50f, 0x027a_28ed_c580_e50e, Some(0x027a_28ed_c580_e50f)),
         // MROUND counts a quotient within 5E-15 below a half up.
         ("MROUND", 0x4037_7fff_ffff_ffff, 0x3ff0_0000_0000_0000, Some(0x4038_0000_0000_0000)),
         ("MROUND", 0xbfa9_9999_9999_9978, 0xbfb9_9999_9999_999a, Some(0xbfb9_9999_9999_999a)),
@@ -298,6 +310,18 @@ fn rounding_family_matches_recorded_bank_rows() {
     exact(call("ROUND", vec![n(1.5), n(2_147_483_647.0)]), 0.0);
     exact(call("ROUND", vec![n(1.5), n(2_147_483_646.0)]), 1.5);
     exact(call("TRUNC", vec![n(1.5), n(1e300)]), 1.5);
+    // Past DBL_MAX Excel keeps the significand and carries the exponent into the field's top
+    // value: NaN bit patterns that the worksheet holds as numbers (Excel 16.0.20527, Value2).
+    for (function, number, digits, bits) in [
+        ("ROUND", f64::MAX, -308.0, 0x7ff1_ccf3_85eb_c8a0u64),
+        ("ROUND", -f64::MAX, -308.0, 0xfff1_ccf3_85eb_c8a0),
+        ("ROUND", f64::MAX, -307.0, 0x7ff0_0541_9221_015d),
+        ("ROUND", f64::MAX, 0.0, 0x7ff0_0000_0000_000a),
+        ("TRUNC", f64::from_bits(0x7fef_ffff_ffff_fffc), 0.0, 0x7ff0_0000_0000_000a),
+    ] {
+        exact(call(function, vec![n(number), n(digits)]), f64::from_bits(bits));
+    }
+    error(call("ROUNDUP", vec![n(f64::MAX), n(-308.0)]), Num);
     exact(call("ROUNDUP", vec![n(1.5), n(1e300)]), 1.5);
     error(call("ROUNDUP", vec![n(1.5), n(-1e300)]), Num);
 }

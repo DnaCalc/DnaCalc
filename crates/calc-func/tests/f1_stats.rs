@@ -446,10 +446,12 @@ fn mod_reports_a_subnormal_remainder_as_num() {
     error(call("MOD", vec![n(f64::from_bits(0x0010_0000_0000_0000)), n(f64::from_bits(0x8010_0000_0000_0001))]), Num);
     error(call("MOD", vec![n(f64::from_bits(1)), n(0.0)]), Div0);
     exact(call("MOD", vec![n(f64::from_bits(1)), n(0.1)]), 0.0);
-    // W111 tiny-00005 and refinement-00006/01014 separate both binary boundaries.
-    // Excel records 0x8010000000000001 here. Without the fitted reversed
-    // adjustment the final remainder is subnormal and this method returns NUM.
-    error(call("MOD", vec![n(f64::from_bits(0x0010_0000_0000_0001)), n(f64::from_bits(0x8010_0000_0000_0000))]), Num);
+    // W111 tiny-00005 and refinement-00006/01014 separate both binary boundaries: a remainder
+    // below 2^-1026 is added to the divisor, and one above it is taken from it.
+    exact(
+        call("MOD", vec![n(f64::from_bits(0x0010_0000_0000_0001)), n(f64::from_bits(0x8010_0000_0000_0000))]),
+        f64::from_bits(0x8010_0000_0000_0001),
+    );
     error(call("MOD", vec![n(f64::from_bits(0x0011_0000_0000_0000)), n(f64::from_bits(0x8010_0000_0000_0000))]), Num);
     error(call("MOD", vec![n(f64::from_bits(0x01b0_0000_0000_0001)), n(f64::from_bits(0x8010_0000_0000_0000))]), Num);
     // A binary-power divisor preserves a tiny intermediate with a normal final remainder.
