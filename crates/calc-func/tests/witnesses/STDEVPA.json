@@ -11,7 +11,7 @@
     {"args":["0x0010000000000000","0x0010000000000000","0x0010000000000000"],"expected_bits":"0x0000000000000000","id":"w111broad-20260929-STDEVPA-00008","reading":"r0"},
     {"args":["0x3dde5cb9f1822a1b","0x41b85ec949ac7519","0x4000c15f62e28122","0x41110c13af84147d","0x3eb1ff9ed787deaf","0x3f547ca66bd0b88a","0x40a78be8eb01408d","0x41229a53893a147e","0x3f1941d9dfbf2a39","0x4098791d2aac56f6","0x41047fe342ac62d3","0x3fa089602118176f","0x4141149022dcb41d","0x40792156dbf4e090","0x4043b198d7157f8f","0x40c4839e90777bbd"],"expected_bits":"0x419795826472d322","id":"w111broad-20260929-STDEVPA-00867","reading":"r0"},
     {"args":["0x3de18eaa82fb7aef","0x3f8c668cd6d44ad8","0x3e01877d9d524afb","0x3f1960e58d97723e","0x4162d340a4724961","0x419415be03ea3def","0x410f52aec2a0e062","0x418ce96b42fd4b48"],"expected_bits":"0x417de8234cd50b25","id":"w111broad-20260929-STDEVPA-00651","reading":"r0"},
-    {"args":["0x3dffdd160ca33e9f","0x3e161f73590520bf","0x3eb329f0ece62116"],"calc_func":"0x3ea20dd20f8c384c","expected_bits":"0x3ea20dd20f8c384b","id":"w111broad-20260929-STDEVPA-00791","reading":"r0"},
+    {"args":["0x3dffdd160ca33e9f","0x3e161f73590520bf","0x3eb329f0ece62116"],"expected_bits":"0x3ea20dd20f8c384b","id":"w111broad-20260929-STDEVPA-00791","reading":"r0"},
     {"args":["0x3e3dd66b01815ce9","0x40267bc35c247c31"],"expected_bits":"0x40167bc35be8cf5b","id":"w111broad-20260929-STDEVPA-00763","reading":"r0"},
     {"args":["0x3e557a74e677e6cf","0x3fc3e53930c87a21"],"expected_bits":"0x3fb3e53905d39053","id":"w111broad-20260929-STDEVPA-00679","reading":"r0"},
     {"args":["0x3e71c808beb45721","0x3de31838c96bc481","0x409c3f5548f02278","0x3e55d2469e96965f"],"expected_bits":"0x40887684a9260717","id":"w111broad-20260929-STDEVPA-00779","reading":"r0"},

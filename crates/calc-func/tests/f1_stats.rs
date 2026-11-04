@@ -86,6 +86,68 @@ fn variance_uses_raw_moments_and_stores_pc64_steps() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn variance_centered_guard_uses_the_absolute_mean() {
+    // dc-j9k.13: original VAR-00375 and R25 canonical Excel Value2
+    // scale probes, build20527. The population and sample switches differ
+    // even though power-of-two scaling preserves relative conditioning.
+    for (function, exponent, expected) in [
+        ("VAR.S",0,0x3e6f1f88c6bbc51a),
+        ("VAR.S",2,0x3eaf1f88c6bbc519),
+        ("VAR.P",2,0x3e9f1f88c6bbc51a),
+        ("VAR.P",4,0x3edf1f88c6bbc519),
+    ] {
+        let inputs=[0x3df64afacd3a935a,0x3f3650b65dc7a1d6]
+            .into_iter().map(|b|n(f64::from_bits(b)*2.0f64.powi(exponent))).collect();
+        exact(call(function,inputs),f64::from_bits(expected));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn stdev_stores_the_extended_square_root() {
+    // R25 canonical Excel scalar Value2 readings, build20527. These dyadic
+    // triples separate one binary64 rounding from PC64 sqrt followed by a
+    // double store; both upward and downward double-rounding edges occur.
+    for (function,x,expected) in [
+        ("STDEV.S",0x3ff07f30e248f14c,0x3fe2c4c55ae2d85e),
+        ("STDEV.S",0x3ff1263494ab94ff,0x3fe32c5695fa57ce),
+        ("STDEV.P",0x3ffcc9cd40bfadd4,0x3fe78de332b83efa),
+        ("STDEV.P",0x3ffcb2ce7481aa28,0x3fe77bdc0a81553c),
+    ] {
+        exact(call(function,vec![n(0.0),n(1.0),n(f64::from_bits(x))]),f64::from_bits(expected));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn variance_cancellation_guard_keeps_the_observed_edge() {
+    // Adjacent scalar-input edges bisected in Excel build20527 at both
+    // unit and2^20 scales. The old numerator<0.01*squares guard differs.
+    for (function,last,first,expected) in [
+        ("VAR.S",0x3ff1f82ec882c0f6,0x3fec0fa26efa7e14,0x3f8f07c1f07c1e94),
+        ("VAR.S",0x3ff1f82ec882c0f7,0x3fec0fa26efa7e12,0x3f8f07c1f07c1f00),
+        ("VAR.P",0x3ff1f82ec882c0f6,0x3fec0fa26efa7e14,0x3f84afd6a052bf0d),
+        ("VAR.P",0x3ff1f82ec882c0f7,0x3fec0fa26efa7e12,0x3f84afd6a052bf1c),
+    ] {
+        exact(call(function,vec![n(f64::from_bits(first)),n(1.0),n(f64::from_bits(last))]),f64::from_bits(expected));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn variance_cancellation_guard_stores_the_ratio() {
+    // New R25 scalar readings distinguish the stored ratio from0.99*Q
+    // and correction/0.99, which the unit-mean bisections did not separate.
+    for (inputs,expected) in [
+        ([0x3ff855cedad2ef9d,0x3ffbc048fa348fe5,0x3fff2ac31996302d],0x3fa7564c31110ea2),
+        ([0x3ff77a7154a3211f,0x3ffac620a1ad2489,0x3ffe11cfeeb727f3],0x3fa5b8f7fad4bab8),
+    ] {
+        exact(call("VAR.S",inputs.into_iter().map(|b|n(f64::from_bits(b))).collect()),f64::from_bits(expected));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn order_statistics() {
     exact(call("MODE.SNGL", vec![data()]), 4.0);
     exact(call("MODE", vec![n(1.0), n(2.0), n(2.0), n(1.0)]), 1.0);

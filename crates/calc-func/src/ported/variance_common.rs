@@ -1,6 +1,6 @@
 use crate::value::WorksheetErrorCode;
 use super::excel_numeric::{excel_x87_add as add, excel_x87_sub as sub,
-    excel_x87_mul as mul, excel_x87_div as div};
+    excel_x87_mul as mul, excel_x87_div as div, excel_sqrt_staged};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VarianceInclusionPolicy {
@@ -42,24 +42,28 @@ pub fn variance_from_values(
         VarianceDivisor::Population => count,
         VarianceDivisor::Sample => (values.len() - 1) as f64,
     };
-    // The captured large-offset controls require a centered second pass.
-    // The original cancellation sweep brackets this switch near1%. Its
-    // exact boundary, and the small-magnitude branch, remain Excel questions.
-    // Nonfinite raw moments also take the centered pass rather than allowing
-    // overflow in x*x to destroy a finite centered result.
-    if !numerator.is_finite() || numerator < mul(0.01, left) {
-        let mean = div(total, count);
+    let raw_divisor = match divisor {
+        VarianceDivisor::Population => mul(count, denom),
+        VarianceDivisor::Sample => denom,
+    };
+    let variance = div(numerator, raw_divisor);
+    let mean = div(total, count);
+    // R25 scalar-cell bisections distinguish these stored comparisons from
+    // numerator<0.01*squares, a resident product, and strict variance*1000<mean.
+    // The original negative-mean controls also require the absolute mean.
+    // Range/array transfer at the new edges remains a separate Excel question.
+    // Nonfinite raw moments take the centered pass to retain finite centered
+    // results when an intermediate square or count*squares overflows.
+    let cancellation = div(div(square_total, count), squares) > 0.99;
+    let small_variance = mul(variance, 1000.0) <= mean.abs();
+    if !variance.is_finite() || cancellation || small_variance {
         let centered = values.iter().fold(0.0, |q, &x| {
             let delta = sub(x, mean);
             add(q, mul(delta, delta))
         });
         Ok(div(centered, denom))
     } else {
-        let divisor = match divisor {
-            VarianceDivisor::Population => mul(count, denom),
-            VarianceDivisor::Sample => denom,
-        };
-        Ok(div(numerator, divisor))
+        Ok(variance)
     }
 }
 
@@ -67,7 +71,7 @@ pub fn stdev_from_values(
     values: &[f64],
     divisor: VarianceDivisor,
 ) -> Result<f64, WorksheetErrorCode> {
-    variance_from_values(values, divisor).map(f64::sqrt)
+    variance_from_values(values, divisor).map(excel_sqrt_staged)
 }
 
 #[cfg(test)]
