@@ -523,6 +523,70 @@ fn recorded_gcd_lcm_admit_the_exact_operand_boundary() {
     }
 }
 
+/// Retained w111-depreciation-padding-20260929 and independent-20260929 controls:
+/// earlier bad text is #VALUE!, while earlier padding still precedes a later optional error.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_db_ddb_coercion_precedes_later_padding() {
+    use calc_func::value::CalcArray;
+    let cases: &[(&str, &str, &[f64], u64, WorksheetErrorCode)] = &[
+        ("original-00033", "=DB(CHOOSE({1,2,3;4,5,6},A100,A101,\"bad\",A102,A103,\"bad\"),CHOOSE({1,2;3,4},A104,A105,A106,A107),A108,A109,A110)",
+            &[1000.0, 1000.0, 1000.0, 1000.0, 100.0, 100.0, 100.0, 100.0, 10.0, 2.0, 6.0], 0x4067190624dd2f1a, WorksheetErrorCode::Value),
+        ("original-00038", "=DB(CHOOSE({1,2,3;4,5,6},A100,A101,\"bad\",A102,A103,\"bad\"),A104,CHOOSE({1,2;3,4},A105,A106,A107,A108),A109,A110)",
+            &[1000.0, 1000.0, 1000.0, 1000.0, 100.0, 10.0, 10.0, 10.0, 10.0, 2.0, 6.0], 0x4067190624dd2f1a, WorksheetErrorCode::Value),
+        ("original-00043", "=DB(A100,CHOOSE({1,2,3;4,5,6},A101,A102,\"bad\",A103,A104,\"bad\"),CHOOSE({1,2;3,4},A105,A106,A107,A108),A109,A110)",
+            &[1000.0, 100.0, 100.0, 100.0, 100.0, 10.0, 10.0, 10.0, 10.0, 2.0, 6.0], 0x4067190624dd2f1a, WorksheetErrorCode::Value),
+        ("original-00048", "=DDB(CHOOSE({1,2,3;4,5,6},A100,A101,\"bad\",A102,A103,\"bad\"),CHOOSE({1,2;3,4},A104,A105,A106,A107),A108,A109,A110)",
+            &[1000.0, 1000.0, 1000.0, 1000.0, 100.0, 100.0, 100.0, 100.0, 10.0, 2.0, 2.0], 0x4064000000000000, WorksheetErrorCode::Value),
+        ("original-00053", "=DDB(CHOOSE({1,2,3;4,5,6},A100,A101,\"bad\",A102,A103,\"bad\"),A104,CHOOSE({1,2;3,4},A105,A106,A107,A108),A109,A110)",
+            &[1000.0, 1000.0, 1000.0, 1000.0, 100.0, 10.0, 10.0, 10.0, 10.0, 2.0, 2.0], 0x4064000000000000, WorksheetErrorCode::Value),
+        ("original-00058", "=DDB(A100,CHOOSE({1,2,3;4,5,6},A101,A102,\"bad\",A103,A104,\"bad\"),CHOOSE({1,2;3,4},A105,A106,A107,A108),A109,A110)",
+            &[1000.0, 100.0, 100.0, 100.0, 100.0, 10.0, 10.0, 10.0, 10.0, 2.0, 2.0], 0x4064000000000000, WorksheetErrorCode::Value),
+        ("independent-00209", "=DB(CHOOSE({1,2;3,4},A100,A101,A102,A103),A104,A105,A106,CHOOSE({1,2,3;4,5,6},A107,A108,#NULL!,A109,A110,#NULL!))",
+            &[1375.0, 1375.0, 1375.0, 1375.0, 125.0, 9.75, 3.125, 4.5, 4.5, 4.5, 4.5], 0x406b2be01a63a02a, WorksheetErrorCode::NA),
+        ("independent-00219", "=DB(CHOOSE({1,2,3;4,5,6},A100,A101,\"invalid\",A102,A103,\"invalid\"),A104,A105,A106,CHOOSE({1,2;3,4},A107,A108,A109,A110))",
+            &[1375.0, 1375.0, 1375.0, 1375.0, 125.0, 9.75, 3.125, 4.5, 4.5, 4.5, 4.5], 0x406b2be01a63a02a, WorksheetErrorCode::Value),
+        ("independent-00221", "=DB(CHOOSE({1,2;3,4},A100,A101,A102,A103),A104,A105,A106,CHOOSE({1,2,3;4,5,6},A107,A108,\"invalid\",A109,A110,\"invalid\"))",
+            &[1375.0, 1375.0, 1375.0, 1375.0, 125.0, 9.75, 3.125, 4.5, 4.5, 4.5, 4.5], 0x406b2be01a63a02a, WorksheetErrorCode::NA),
+        ("independent-00259", "=DB(A100,CHOOSE({1,2,3;4,5,6},A101,A102,\"invalid\",A103,A104,\"invalid\"),A105,A106,CHOOSE({1,2;3,4},A107,A108,A109,A110))",
+            &[1375.0, 125.0, 125.0, 125.0, 125.0, 9.75, 3.125, 4.5, 4.5, 4.5, 4.5], 0x406b2be01a63a02a, WorksheetErrorCode::Value),
+        ("independent-00261", "=DB(A100,CHOOSE({1,2;3,4},A101,A102,A103,A104),A105,A106,CHOOSE({1,2,3;4,5,6},A107,A108,\"invalid\",A109,A110,\"invalid\"))",
+            &[1375.0, 125.0, 125.0, 125.0, 125.0, 9.75, 3.125, 4.5, 4.5, 4.5, 4.5], 0x406b2be01a63a02a, WorksheetErrorCode::NA),
+        ("independent-00299", "=DB(A100,A101,A102,CHOOSE({1,2,3;4,5,6},A103,A104,\"invalid\",A105,A106,\"invalid\"),CHOOSE({1,2;3,4},A107,A108,A109,A110))",
+            &[1375.0, 125.0, 9.75, 3.125, 3.125, 3.125, 3.125, 4.5, 4.5, 4.5, 4.5], 0x406b2be01a63a02a, WorksheetErrorCode::Value),
+        ("independent-00301", "=DB(A100,A101,A102,CHOOSE({1,2;3,4},A103,A104,A105,A106),CHOOSE({1,2,3;4,5,6},A107,A108,\"invalid\",A109,A110,\"invalid\"))",
+            &[1375.0, 125.0, 9.75, 3.125, 3.125, 3.125, 3.125, 4.5, 4.5, 4.5, 4.5], 0x406b2be01a63a02a, WorksheetErrorCode::NA),
+        ("independent-00334", "=DDB(CHOOSE({1,2;3,4},A100,A101,A102,A103),A104,A105,A106,CHOOSE({1,2,3;4,5,6},A107,A108,#NULL!,A109,A110,#NULL!))",
+            &[1375.0, 1375.0, 1375.0, 1375.0, 125.0, 9.75, 3.125, 1.5, 1.5, 1.5, 1.5], 0x40628a73e06e783b, WorksheetErrorCode::NA),
+        ("independent-00344", "=DDB(CHOOSE({1,2,3;4,5,6},A100,A101,\"invalid\",A102,A103,\"invalid\"),A104,A105,A106,CHOOSE({1,2;3,4},A107,A108,A109,A110))",
+            &[1375.0, 1375.0, 1375.0, 1375.0, 125.0, 9.75, 3.125, 1.5, 1.5, 1.5, 1.5], 0x40628a73e06e783b, WorksheetErrorCode::Value),
+        ("independent-00346", "=DDB(CHOOSE({1,2;3,4},A100,A101,A102,A103),A104,A105,A106,CHOOSE({1,2,3;4,5,6},A107,A108,\"invalid\",A109,A110,\"invalid\"))",
+            &[1375.0, 1375.0, 1375.0, 1375.0, 125.0, 9.75, 3.125, 1.5, 1.5, 1.5, 1.5], 0x40628a73e06e783b, WorksheetErrorCode::NA),
+        ("independent-00384", "=DDB(A100,CHOOSE({1,2,3;4,5,6},A101,A102,\"invalid\",A103,A104,\"invalid\"),A105,A106,CHOOSE({1,2;3,4},A107,A108,A109,A110))",
+            &[1375.0, 125.0, 125.0, 125.0, 125.0, 9.75, 3.125, 1.5, 1.5, 1.5, 1.5], 0x40628a73e06e783b, WorksheetErrorCode::Value),
+        ("independent-00386", "=DDB(A100,CHOOSE({1,2;3,4},A101,A102,A103,A104),A105,A106,CHOOSE({1,2,3;4,5,6},A107,A108,\"invalid\",A109,A110,\"invalid\"))",
+            &[1375.0, 125.0, 125.0, 125.0, 125.0, 9.75, 3.125, 1.5, 1.5, 1.5, 1.5], 0x40628a73e06e783b, WorksheetErrorCode::NA),
+        ("independent-00424", "=DDB(A100,A101,A102,CHOOSE({1,2,3;4,5,6},A103,A104,\"invalid\",A105,A106,\"invalid\"),CHOOSE({1,2;3,4},A107,A108,A109,A110))",
+            &[1375.0, 125.0, 9.75, 3.125, 3.125, 3.125, 3.125, 1.5, 1.5, 1.5, 1.5], 0x40628a73e06e783b, WorksheetErrorCode::Value),
+        ("independent-00426", "=DDB(A100,A101,A102,CHOOSE({1,2;3,4},A103,A104,A105,A106),CHOOSE({1,2,3;4,5,6},A107,A108,\"invalid\",A109,A110,\"invalid\"))",
+            &[1375.0, 125.0, 9.75, 3.125, 3.125, 3.125, 3.125, 1.5, 1.5, 1.5, 1.5], 0x40628a73e06e783b, WorksheetErrorCode::NA),
+    ];
+    for (id, formula, inputs, bits, error) in cases {
+        let mut session = Session::new("Sheet1").unwrap();
+        session.set_formula_cell("J20").unwrap();
+        for (index, number) in inputs.iter().enumerate() {
+            session.set_input(&format!("A{}", 100 + index), InputValue::number(*number).unwrap()).unwrap();
+        }
+        session.set_formula(formula);
+        let calculated = session.calculate();
+        let number = CalcValue::number(f64::from_bits(*bits));
+        let row = vec![number.clone(), number, CalcValue::error(*error)];
+        let expected = CalcValue::array(CalcArray::from_rows(vec![row.clone(), row]).unwrap());
+        assert_eq!(calculated.result, Some(expected), "{id}: {formula}: {:?}", calculated.diagnostics);
+        assert!(calculated.diagnostics.is_empty());
+    }
+}
+
 /// Recorded hypgeom.dist-domain-00026..00029 and the fresh fractional
 /// support controls in OxFunc-Evidence's HYPGEOM.DIST banks.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

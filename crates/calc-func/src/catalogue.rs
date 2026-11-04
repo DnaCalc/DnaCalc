@@ -593,15 +593,17 @@ impl<'c> FunctionCallTarget<'c> {
     }
 
     /// Whether an absent lifted coordinate produces #N/A before the eager kernel runs.
-    /// W111's independent padding controls retain this policy for DB/DDB/VDB and the two
-    /// directed rounding functions, whose full validation order differs from argument order.
+    /// W111's independent padding controls retain this policy for VDB and the two directed
+    /// rounding functions, whose full validation order differs from argument order. DB and
+    /// DDB read their required arguments before the optional one; their scalar adapters select
+    /// earlier coercion errors before later padding.
     /// A formed earlier argument error still precedes padding in those named calls.
     /// Operators retain their existing policy until their error/padding order is measured.
     pub fn padding_precedes_call(self) -> bool {
         self.entry.notation != Notation::Call
             || matches!(
                 self.entry.spelling,
-                "DB" | "DDB" | "VDB" | "ROUNDUP" | "ROUNDDOWN"
+                "VDB" | "ROUNDUP" | "ROUNDDOWN"
             )
     }
 
