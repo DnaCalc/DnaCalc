@@ -175,7 +175,12 @@ pub(crate) fn materialize(source: &ConditionalRuleSource) -> Result<XmlPart, Sav
                 let end = reader.element_end()?;
                 let mut replacement = Vec::new();
                 if let Some(formula) = source.formulas.get(formula_index) {
-                    write_formula(&formula_prefix, formula, &mut replacement);
+                    let tag = RawTag::parse(&xml.bytes()[span.0..span.1]);
+                    replacement.extend(tag.rebuilt(&[], false));
+                    xstring(&formula.encode_utf16().collect::<Vec<_>>(), &mut replacement);
+                    replacement.extend_from_slice(b"</");
+                    replacement.extend_from_slice(tag.prefix());
+                    replacement.extend_from_slice(b"formula>");
                 }
                 formula_index += 1;
                 splice.replace((span.0, end), &replacement);
@@ -240,12 +245,14 @@ fn parse(xml: &XmlPart) -> Result<Vec<load::ConditionalFormat>, String> {
 }
 
 pub fn conditional_rule(source: &ConditionalRuleSource) -> Result<load::ConditionalRule, String> {
+    // Materialization writes current priority/stop fields. Preserve the original spelling's
+    // validity before those defaults can conceal an unread imported value or formula count.
+    let original=XmlPart::new("conditional-original.xml".into(),source.source.to_vec(),XmlLimits::default());
+    let unread=parse(&original)?.into_iter().any(|b|b.unread_container || b.rules.iter().any(|r|r.unread));
     let xml = materialize(source).map_err(|e| e.to_string())?;
-    parse(&xml)?
-        .into_iter()
-        .flat_map(|b| b.rules)
-        .next()
-        .ok_or_else(|| "No conditional rule was read".into())
+    let mut rule=parse(&xml)?.into_iter().flat_map(|b|b.rules).next().ok_or_else(||"No conditional rule was read".to_owned())?;
+    rule.unread |= unread;
+    Ok(rule)
 }
 
 /// Creates one of the supported visual rules, with original application artwork supplied by UI.

@@ -174,3 +174,5 @@ pub fn convert_binary_workbook(
 }
 
 pub use save::{copied_validation_source,copied_conditional_source,conditional_with_dxf};
+
+pub use load::validation::movement_supported as validation_movement_supported;

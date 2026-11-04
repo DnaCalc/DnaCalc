@@ -22,7 +22,7 @@ pub fn text_style_for(
         if index != 0 {
             out.unsupported = Some("The cell style is unavailable".into());
         }
-        return table_style(host,at,out,if index==0{0}else{u32::MAX},if index==0{0}else{u32::MAX});
+        return table_style(host,at,out,if index==0{0}else{u32::MAX},if index==0{0}else{u32::MAX},index==0);
     };
     let parent = format
         .xf_id
@@ -31,7 +31,10 @@ pub fn text_style_for(
         .font_id
         .or_else(|| parent.and_then(|p| p.font_id))
         .unwrap_or(0);
+    let mut automatic_font = false;
     if let Some(font) = styles.fonts.get(font_id as usize) {
+        automatic_font = font.color.as_ref().is_none_or(|c|
+            c.auto && c.rgb.is_none() && c.indexed.is_none() && c.theme.is_none() && c.tint.is_none());
         out.family = font.name.clone();
         let size = font
             .size
@@ -253,18 +256,49 @@ pub fn text_style_for(
         || matches!(out.horizontal.as_deref(),Some("fill"|"justify"|"distributed"|"centerContinuous"))) {
         out.unsupported=Some("Shrink-to-fit with wrapping, rotation, merged cells or special horizontal alignment is preserved but not painted (dc-971p.6)".into());
     }
-    table_style(host,at,out,font_id,fill_id)
+    table_style(host,at,out,font_id,fill_id,automatic_font)
 }
-fn table_style(host:&calc_host::HostState,at:calc_host::value::CellKey,mut out:TextStyle,font_id:u32,fill_id:u32)->TextStyle{
-    if let Some(table)=host.model().definitions().tables().iter().find(|t|t.area.contains(at)){
-        let style=&table.style;
-        if let Some(theme)=style.medium_accent_theme(){
-            let header=table.header_rows>0&&at.row()==table.area.first().row();let total=table.totals_rows>0&&at.row()==table.area.last().row();
-            let emphasis=header||total||(style.first_column&&at.column()==table.area.first().column())||(style.last_column&&at.column()==table.area.last().column());
-            let striped=(style.row_stripes&&(at.row()-table.area.first().row()).saturating_sub(u32::from(table.header_rows>0))%2==0)||(style.column_stripes&&(at.column()-table.area.first().column())%2==0);
-            if fill_id==0&&out.fill.is_none()&&out.brush.is_none(){let color=calc_host::StyleColor{rgb:host.theme_accent((theme-4) as usize).map(|s|format!("FF{s}")),tint:if header{None}else{Some(if total{"0.6"}else{"0.8"}.into())},..Default::default()};if header||total||striped{out.fill=crate::cells::style_color(host,&color);}}
-            if font_id==0{if emphasis{out.bold=true;}if header{out.font_color=Some("#ffffff".into());}}
-        }else if style.name.is_some(){out.unsupported.get_or_insert("This table style is preserved; its table effects are not painted".into());}
+fn table_style(
+    host: &calc_host::HostState,
+    at: calc_host::value::CellKey,
+    mut out: TextStyle,
+    font_id: u32,
+    fill_id: u32,
+    automatic_font: bool,
+) -> TextStyle {
+    if let Some(table) = host.model().definitions().tables().iter().find(|t| t.area.contains(at)) {
+        let style = &table.style;
+        if let Some(theme) = style.medium_accent_theme() {
+            let header = table.header_rows > 0 && at.row() == table.area.first().row();
+            let total = table.totals_rows > 0 && at.row() == table.area.last().row();
+            let emphasis = header || total
+                || (style.first_column && at.column() == table.area.first().column())
+                || (style.last_column && at.column() == table.area.last().column());
+            let striped = (style.row_stripes
+                && (at.row() - table.area.first().row()).saturating_sub(u32::from(table.header_rows > 0)) % 2 == 0)
+                || (style.column_stripes && (at.column() - table.area.first().column()) % 2 == 0);
+            let mut table_fill = false;
+            if fill_id == 0 && out.fill.is_none() && out.brush.is_none() && (header || total || striped) {
+                let color = calc_host::StyleColor {
+                    rgb: host.theme_accent((theme - 4) as usize).map(|s| format!("FF{s}")),
+                    tint: if header { None } else { Some(if total { "0.6" } else { "0.8" }.into()) },
+                    ..Default::default()
+                };
+                out.fill = crate::cells::style_color(host, &color);
+                table_fill = out.fill.is_some();
+            }
+            if font_id == 0 {
+                if emphasis { out.bold = true; }
+                if header { out.font_color = Some("#ffffff".into()); }
+            }
+            // A preset's pale bands and totals need a foreground independent of the UI theme.
+            // Cell font overrides and manually supplied body fills retain their own styling.
+            if automatic_font && out.font_color.is_none() && table_fill {
+                out.font_color = Some(if header { "#ffffff" } else { "#000000" }.into());
+            }
+        } else if style.name.is_some() {
+            out.unsupported.get_or_insert("This table style is preserved; its table effects are not painted".into());
+        }
     }
     out
 }
@@ -272,6 +306,52 @@ fn table_style(host:&calc_host::HostState,at:calc_host::value::CellKey,mut out:T
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn table_preset_fill_projects_readable_automatic_text_and_preserves_explicit_colours() {
+        use calc_host::{HostSession, SkinIntent, TableChange, WorkbookCommand};
+        let mut book = HostSession::open(
+            std::sync::Arc::new(calc_host::MemorySource::new(calc_host::blank_package())),
+            &Default::default(), Default::default(),
+        ).unwrap();
+        let sheet = book.host().sheets()[0].id();
+        let at = |row| calc_host::value::CellKey::new(sheet, row, 1).unwrap();
+        let revision = book.host().revision().get();
+        let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::Table {
+            revision, change: TableChange::Create {
+                area: calc_host::value::GridArea::new(at(1), at(4)).unwrap(),
+                name: "Contrast".into(),
+            },
+        }));
+        assert!(receipt.accepted(), "{receipt:?}");
+        let host = book.host();
+        let header = text_style(host, at(1), 64.);
+        assert!(header.fill.is_some());
+        assert_eq!(header.font_color.as_deref(), Some("#ffffff"));
+        let band = text_style(host, at(2), 64.);
+        assert!(band.fill.is_some());
+        assert_eq!(band.font_color.as_deref(), Some("#000000"));
+        // A changed font family still has automatic colour.
+        let mut styles = (**host.styles()).clone();
+        let index = calc_host::patched_style(&mut styles, 0, &calc_host::FormatPatch {
+            font_name: Some("monospace".into()), ..Default::default()
+        }).unwrap();
+        assert_eq!(text_style_for(host, at(2), 64., &styles, index).font_color.as_deref(), Some("#000000"));
+        let normal = TextStyle { font_color: Some("#000000".into()), ..Default::default() };
+        assert_eq!(table_style(host, at(1), normal, 0, 0, false).font_color.as_deref(), Some("#ffffff"));
+        let explicit = TextStyle { font_color: Some("#123456".into()), ..Default::default() };
+        assert_eq!(table_style(host, at(1), explicit, 1, 0, false).font_color.as_deref(), Some("#123456"));
+        let font = styles.cell_formats[index as usize].font_id.unwrap() as usize;
+        styles.fonts[font].color = Some(calc_host::StyleColor { theme: Some("99".into()), ..Default::default() });
+        let unresolved = text_style_for(host, at(2), 64., &styles, index);
+        assert!(unresolved.fill.is_some());
+        assert_eq!(unresolved.font_color, None, "An unresolved explicit font is not automatic");
+        styles.fonts[font].color = Some(calc_host::StyleColor { auto: true, ..Default::default() });
+        assert_eq!(text_style_for(host, at(2), 64., &styles, index).font_color.as_deref(), Some("#000000"));
+        let manual = TextStyle { fill: Some("#101010".into()), ..Default::default() };
+        assert_eq!(table_style(host, at(2), manual, 0, 1, true).font_color, None);
+        assert_eq!(text_style(host, at(3), 64.).font_color, None);
+    }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn imported_style_projection_is_the_same_source_for_rendering_and_fitting() {

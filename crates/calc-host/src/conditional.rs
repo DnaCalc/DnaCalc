@@ -698,6 +698,15 @@ impl HostState {
     /// The conditional formats of `sheet`, prepared for the current revision (see
     /// [`crate::conditional`]); empty for a sheet the file gave none.
     pub fn conditional_formats(&self, sheet: SheetId) -> ConditionalFormats {
+        self.prepare_conditional_formats(sheet, None)
+    }
+
+    /// Prepare only rules intersecting this range, through the same evaluator as painting.
+    pub(crate) fn conditional_formats_for(&self, area: GridArea) -> ConditionalFormats {
+        self.prepare_conditional_formats(area.sheet(), Some(area))
+    }
+
+    fn prepare_conditional_formats(&self, sheet: SheetId, area: Option<GridArea>) -> ConditionalFormats {
         let mut rules = Vec::new();
         for (index, source) in self
             .model
@@ -705,6 +714,7 @@ impl HostState {
             .conditional_rules(sheet)
             .iter()
             .enumerate()
+            .filter(|(_, source)| area.is_none_or(|a| source.areas.iter().any(|b| a.intersection(*b).is_some())))
         {
             if let (Ok(rule), Some(origin)) = (calc_doc::conditional_rule(source), source.origin())
             {

@@ -233,7 +233,7 @@ fn conditional_rules_keep_namespaces_escapes_and_container_extensions() {
             ""
         };
         let worksheet = format!(
-            "<x:worksheet xmlns:x=\"{MAIN}\"><x:sheetData/><x:conditionalFormatting sqref=\"A1:A3\"><x:cfRule type=\"expression\" priority=\"1\"><x:formula>LEN(\"_x005F_x0041_\")=7</x:formula></x:cfRule>{extra}</x:conditionalFormatting></x:worksheet>"
+            "<x:worksheet xmlns:x=\"{MAIN}\"><x:sheetData/><x:conditionalFormatting sqref=\"A1:A3\"><x:cfRule type=\"expression\" priority=\"1\"><x:formula xmlns:v=\"urn:formula-retention\" v:keep=\"yes\">LEN(\"_x005F_x0041_\")=7</x:formula></x:cfRule>{extra}</x:conditionalFormatting></x:worksheet>"
         );
         let entries = source
             .package()
@@ -291,6 +291,8 @@ fn conditional_rules_keep_namespaces_escapes_and_container_extensions() {
         assert_eq!(rules.len(), 2);
         assert_eq!(crate::conditional_rule(&rules[0]).unwrap().kind, "dataBar");
         assert_eq!(rules[1].formulas, vec!["LEN(\"_x0041_\")=7"]);
+        assert!(crate::conditional_rule(&rules[1]).unwrap().unread);
+        assert!(String::from_utf8_lossy(&rules[1].source).contains("v:keep=\"yes\""));
     }
 }
 

@@ -12,6 +12,8 @@ use calc_doc_model::value::{CellKey, GridArea, SheetId};
 pub struct SheetReview {
     /// Source conditional extensions need their own interpretation before colour filtering.
     pub conditional_extensions: bool,
+    /// Complete source ranges of extension-backed rules, or `None` if their scope is unread.
+    pub conditional_extension_areas: Option<Vec<(u32, u32, u32, u32)>>,
     pub notes: Vec<ReviewNote>,
     pub links: Vec<ReviewLink>,
     pub unsupported: Vec<String>,

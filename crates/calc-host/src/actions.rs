@@ -2,7 +2,7 @@
 //! the session commits one transaction, records history and recalculates.
 use crate::value::{CellKey, GridArea, SheetId};
 use crate::{Axis, CellEdit, HostState, SheetEdit, SheetKey, SheetName, SheetVisibility};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Sort columns in priority order, with an independent direction per column.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -532,7 +532,8 @@ pub(crate) fn conditional_edits(
 
 /// A bounded row permutation. Ordering comes from the existing evaluator; edits use the same
 /// immutable copy snapshots and reference relocation as Paste, in one transaction. Source-only
-/// metadata and qualified formula references remain refused until their movement is measured.
+/// metadata and unsupported qualified references remain refused. Notes and validations follow
+/// the same validated permutation without overwriting one row’s metadata with another’s.
 fn sort_rows(
     host: &HostState,
     area: GridArea,
@@ -575,14 +576,17 @@ fn sort_rows(
     {
         return Err(unavailable("merged cells"));
     }
-    if host
-        .model()
-        .definitions()
-        .tables()
-        .iter()
-        .any(|t| t.area.intersection(data).is_some())
-    {
-        return Err(unavailable("table rows"));
+    for table in host.model().definitions().tables().iter().filter(|t|t.area.intersection(data).is_some()) {
+        let top=table.area.first().row().checked_add(table.header_rows).ok_or_else(||unavailable("invalid table boundaries"))?;
+        let bottom=table.area.last().row().checked_sub(table.totals_rows).ok_or_else(||unavailable("invalid table boundaries"))?;
+        let complete = table.header_rows<=1 && table.totals_rows<=1 && top<=bottom
+            && data.first().row()==top && data.last().row()==bottom
+            && data.first().column()==table.area.first().column() && data.last().column()==table.area.last().column();
+        if !complete {return Err(unavailable("a partial table or its header/total cells; select the complete data body"));}
+        if table.opaque || table.axis_opaque || table.column_formulas.iter().any(Option::is_some)
+            || table.filter.as_ref().is_some_and(|f|f.unsupported||!f.columns.is_empty()||!f.filtered_rows.is_empty()) {
+            return Err(unavailable("filtered tables or unread/calculated table metadata"));
+        }
     }
     if host
         .model()
@@ -627,15 +631,19 @@ fn sort_rows(
     if !host.loaded.cell_sort_metadata_supported(area.sheet()) {
         return Err(unavailable("source cell decorations or worksheet objects"));
     }
+    if host.axis_edits.iter().any(|e|e.sheet()==area.sheet())
+        && host.model().definitions().review_notes(area.sheet()).iter().any(|n|
+            data.contains(n.at) && matches!(n.source.as_ref(),Some(calc_doc_model::ReviewSource::Note{..}))) {
+        return Err(unavailable("notes after row or column edits; save and reopen first"));
+    }
     let review = host.sheet_review(area.sheet());
     if !review.unsupported.is_empty()
-        || review.notes.iter().any(|n| data.contains(n.at))
         || review
             .links
             .iter()
             .any(|l| data.intersection(l.area).is_some())
     {
-        return Err(unavailable("cells with notes or hyperlinks"));
+        return Err(unavailable("cells with unread review fields or hyperlinks"));
     }
     // Rule ranges and formulas are separate authored objects. Do not strand them by moving
     // only cell inputs, and never infer a formula value from a saved cache.
@@ -650,15 +658,6 @@ fn sort_rows(
         .is_empty()
     {
         return Err(unavailable("a sheet with conditional formatting"));
-    }
-    if host.loaded.sheet(area.sheet()).is_some_and(|sheet| {
-        sheet.validations().iter().any(|validation| {
-            host.current_areas(area.sheet(), &validation.areas)
-                .iter()
-                .any(|v| data.intersection(*v).is_some())
-        })
-    }) {
-        return Err(unavailable("cells with data validation"));
     }
     for row in first..=area.last().row() {
         for col in area.first().column()..=area.last().column() {
@@ -716,6 +715,7 @@ fn sort_rows(
     }
     let mut seen = BTreeSet::new();
     let mut edits = Vec::new();
+    let mut rows = BTreeMap::new();
     for index in 0..count {
         let Some(calc_value::CoreRef::Number(number)) =
             order.get(index as usize, 0).map(|v| v.core_ref())
@@ -731,6 +731,7 @@ fn sort_rows(
         }
         let source_row = first + number as u32 - 1;
         let target_row = first + index;
+        rows.insert(source_row,target_row);
         if source_row == target_row {
             continue;
         }
@@ -744,10 +745,11 @@ fn sort_rows(
         let copy =
             crate::CopySnapshot::capture(host, band(source_row)).map_err(|e| e.to_string())?;
         edits.extend(
-            copy.edits(host, band(target_row), crate::PasteMode::All, false, None)
+            copy.sorted_row_edits(host, band(target_row))
                 .map_err(|e| e.to_string())?,
         );
     }
+    crate::copy_metadata::permute_rows(host,data,&rows,&mut edits).map_err(|e|e.to_string())?;
     Ok(edits)
 }
 

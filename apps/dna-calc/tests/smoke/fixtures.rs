@@ -223,3 +223,9 @@ pub(crate) fn renderer_grid(bytes: &[u8]) -> Result<Vec<u8>, String> {
         ]),
     )
 }
+
+/// A standard validation variation; its values/formulas are synthetic inputs, not Excel answers.
+pub(crate) fn sort_metadata(bytes:&[u8])->Result<Vec<u8>,String>{
+    let sheet=r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:C6"/><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>Key</t></is></c><c r="B1" t="inlineStr"><is><t>Payload</t></is></c><c r="C1" t="inlineStr"><is><t>Total</t></is></c></row><row r="2"><c r="A2"><v>3</v></c><c r="B2" t="inlineStr"><is><t>three</t></is></c><c r="C2"><f>A2*2</f></c></row><row r="3"><c r="A3"><v>1</v></c><c r="B3" t="inlineStr"><is><t>one</t></is></c><c r="C3"><f>A3*2</f></c></row><row r="4"><c r="A4"><v>2</v></c><c r="B4" t="inlineStr"><is><t>two</t></is></c><c r="C4"><f>A4*2</f></c></row><row r="5"><c r="A5"><v>1</v></c><c r="B5" t="inlineStr"><is><t>one second</t></is></c><c r="C5"><f>A5*2</f></c></row></sheetData><dataValidations count="2"><dataValidation type="custom" showErrorMessage="1" showInputMessage="1" promptTitle="Row rule" prompt="Keep the row payload" errorTitle="Row payload" error="Keep the row payload" sqref="B2 B6"><formula1>AND($A2=3,B2="three")</formula1></dataValidation><dataValidation type="whole" allowBlank="1" sqref="C2:C5"><formula1>0</formula1><formula2>100</formula2></dataValidation></dataValidations></worksheet>"#;
+    crate::oracle_cases::replace_package_parts(bytes,&std::collections::BTreeMap::from([("xl/worksheets/sheet1.xml".into(),sheet.as_bytes().to_vec())]))
+}

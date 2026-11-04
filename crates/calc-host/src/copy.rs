@@ -246,6 +246,14 @@ impl CopySnapshot {
         self.edits_oriented(host, to, mode, cut, series, false)
     }
 
+    /// Sort cell inputs/styles through the clipboard relocator. The complete permutation
+    /// applies metadata once, after every source row has been read from immutable snapshots.
+    pub(crate) fn sorted_row_edits(&self,host:&HostState,to:GridArea)->Result<Vec<CellEdit>,CopyRefusal>{
+        let to=self.target(to)?;
+        check_destination(host,to,PasteMode::All)?;
+        copy_edits_from(host,self.from,to,false,Some(self),PasteMode::All,None,false,false,false)
+    }
+
     pub(crate) fn edits_oriented(
         &self,
         host: &HostState,
@@ -299,6 +307,7 @@ impl CopySnapshot {
             series,
             false,
             transpose,
+            true,
         )
     }
 
@@ -321,6 +330,7 @@ impl CopySnapshot {
             series.then_some(down),
             true,
             false,
+            true,
         )
     }
 
@@ -625,6 +635,7 @@ fn copy_edits_from(
     series: Option<bool>,
     partial: bool,
     transpose: bool,
+    include_metadata: bool,
 ) -> Result<Vec<CellEdit>, CopyRefusal> {
     let restored = if matches!(mode, PasteMode::All | PasteMode::Formats) {
         if let Some(snapshot) = snapshot {
@@ -1007,7 +1018,7 @@ fn copy_edits_from(
             }
         }
     }
-    crate::copy_metadata::append(host,source_model,from,to,mode,cut,transpose,&mut edits)?;
+    if include_metadata {crate::copy_metadata::append(host,source_model,from,to,mode,cut,transpose,&mut edits)?;}
     Ok(edits)
 }
 

@@ -49,11 +49,12 @@ const WORKSHEET: &str = concat!(
     r#"</worksheet>"#
 );
 
-/// The default font, fill, border and cell format Excel writes for a new workbook.
+/// The new workbook's default font, fill, border and cell format.
+/// This minimal package has no theme part, so its font colour is automatic.
 const STYLES: &str = concat!(
     r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#,
     r#"<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">"#,
-    r#"<fonts count="1"><font><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font></fonts>"#,
+    r#"<fonts count="1"><font><sz val="11"/><color auto="1"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font></fonts>"#,
     r#"<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>"#,
     r#"<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>"#,
     r#"<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>"#,
@@ -98,6 +99,8 @@ mod tests {
         let document = open(source, &OpenPolicy::default()).expect("the blank package opens");
         let mut ids: IdAllocator<SheetId> = IdAllocator::new();
         let loaded = load(&document, &mut ids).expect("its workbook loads");
+        assert!(loaded.styles().fonts[0].color.as_ref().unwrap().auto);
+        assert!(loaded.theme_colors().is_empty());
         let sheets = loaded.model().sheets();
         assert_eq!(sheets.len(), 1);
         assert_eq!(sheets[0].name().text().to_string_lossy(), "Sheet1");

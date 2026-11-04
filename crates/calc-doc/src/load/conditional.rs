@@ -68,6 +68,9 @@ pub struct IconSet {
 /// One rule (`<cfRule>`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ConditionalRule {
+    /// Source fields outside the interpreted standard rule; consumers needing a complete look
+    /// must refuse rather than treating an unrecognised colour or condition as absent.
+    pub unread: bool,
     /// The rule's `type`: `cellIs`, `expression`, `colorScale`, `dataBar`, `iconSet`, `top10`,
     /// `aboveAverage`, `duplicateValues`, `uniqueValues`, `containsText`, `notContainsText`,
     /// `beginsWith`, `endsWith`, `containsBlanks`, `notContainsBlanks`, `containsErrors`,
@@ -150,14 +153,24 @@ pub(crate) fn areas(sqref: &str) -> Vec<(u32, u32, u32, u32)> {
         .collect()
 }
 
+fn complete_areas(sqref: &str) -> Option<Vec<(u32, u32, u32, u32)>> {
+    sqref.split_whitespace().map(|part| address::area(part)
+        .or_else(|| address::cell(part).map(|(r,c)| (r,c,r,c))))
+        .collect::<Option<Vec<_>>>().filter(|areas| !areas.is_empty())
+}
+
 /// Reads the `<conditionalFormatting>` element whose start tag `element` was just read.
 pub(crate) fn read_block(
     events: &mut Events<'_>,
     element: &XmlElement,
 ) -> Result<ConditionalFormat, LoadError> {
+    let areas = element.attribute("sqref").and_then(complete_areas);
     let mut block = ConditionalFormat {
-        unread_container: false,
-        areas: areas(element.attribute("sqref").unwrap_or_default()),
+        unread_container: areas.is_none() || element.attributes.iter().any(|a| {
+            a.name.namespace.is_some() || !(a.name.local.as_str() == "sqref"
+                || (a.name.local.as_str() == "pivot" && matches!(a.value.as_str(), "0" | "false")))
+        }),
+        areas: areas.unwrap_or_default(),
         rules: Vec::new(),
     };
     loop {
@@ -177,7 +190,17 @@ pub(crate) fn read_block(
 }
 
 fn read_rule(events: &mut Events<'_>, element: &XmlElement) -> Result<ConditionalRule, LoadError> {
+    let bad_priority=number::<u32>(element,"priority").is_none_or(|n|n==0);
+    let bad_unsigned=["dxfId","rank","stdDev"].iter().any(|key|element.attribute(key).is_some() && number::<u32>(element,key).is_none());
+    let bad_flags=["stopIfTrue","percent","bottom","aboveAverage","equalAverage"].iter().any(|key|element.attribute(key).is_some_and(|v|!matches!(v.trim(),"0"|"1"|"true"|"false")));
     let mut rule = ConditionalRule {
+        unread: bad_priority || bad_unsigned || bad_flags || element.attributes.iter().any(|a| {
+            a.name.namespace.is_some()
+                || !matches!(a.name.local.as_str(),
+                    "type" | "priority" | "stopIfTrue" | "dxfId" | "operator" | "text"
+                    | "rank" | "percent" | "bottom" | "aboveAverage" | "equalAverage"
+                    | "stdDev" | "timePeriod")
+        }),
         kind: element.attribute("type").unwrap_or_default().to_owned(),
         priority: number(element, "priority").unwrap_or(i64::MAX),
         stop_if_true: flag(element, "stopIfTrue", false),
@@ -200,6 +223,7 @@ fn read_rule(events: &mut Events<'_>, element: &XmlElement) -> Result<Conditiona
     loop {
         match events.next()? {
             Some(XmlEvent::Start(child)) if child.name.is(MAIN_NAMESPACE, "formula") => {
+                rule.unread |= !child.attributes.is_empty();
                 rule.formulas
                     .push(String::from_utf16_lossy(&super::strings::decode(
                         &events.text()?,
@@ -233,11 +257,21 @@ fn read_rule(events: &mut Events<'_>, element: &XmlElement) -> Result<Conditiona
                 });
             }
             Some(XmlEvent::Start(child)) if child.name.is(MAIN_NAMESPACE, "extLst") => {
+                rule.unread = true;
                 rule.extension_id = read_rule_extension_id(events)?;
             }
-            Some(XmlEvent::Start(_)) => events.skip()?,
+            Some(XmlEvent::Start(_)) => {
+                rule.unread = true;
+                events.skip()?;
+            }
             Some(XmlEvent::Text(_)) => {}
-            Some(XmlEvent::End(_)) => return Ok(rule),
+            Some(XmlEvent::End(_)) => {
+                if matches!(rule.kind.as_str(),"expression"|"cellIs") {
+                    let count=if rule.kind=="cellIs" && matches!(rule.operator.as_deref(),Some("between"|"notBetween")){2}else{1};
+                    rule.unread |= rule.formulas.len()!=count || rule.color_scale.is_some() || rule.data_bar.is_some() || rule.icon_set.is_some();
+                }
+                return Ok(rule);
+            },
             None => return Err(events.invalid("the part ends inside cfRule")),
         }
     }
@@ -289,11 +323,15 @@ pub(crate) fn read_extensions(
     events: &mut Events<'_>,
     bars: &mut BTreeMap<String, DataBarExtension>,
     validations: &mut Vec<super::validation::Validation>,
-) -> Result<(usize, bool), LoadError> {
+) -> Result<(usize, bool, Option<Vec<(u32, u32, u32, u32)>>), LoadError> {
     let mut unread = 0usize;
     let mut conditional = false;
     let mut depth = 1u32;
     let mut rule_id: Option<String> = None;
+    let mut ranges = Vec::new();
+    let mut scope: Option<(u32, Option<Vec<(u32, u32, u32, u32)>>)> = None;
+    let mut collection_depth = None;
+    let mut unscoped = false;
     while depth > 0 {
         match events.next()? {
             Some(XmlEvent::Start(element))
@@ -301,13 +339,33 @@ pub(crate) fn read_extensions(
                     || element.name.is(X14_NAMESPACE, "conditionalFormattings") =>
             {
                 conditional = true;
+                if element.name.local.as_str() == "conditionalFormatting" {
+                    unscoped |= scope.is_some();
+                    unscoped |= !element.attributes.is_empty();
+                    scope = Some((depth + 1, None));
+                } else {
+                    unscoped |= collection_depth.is_some();
+                    unscoped |= !element.attributes.is_empty();
+                    collection_depth = Some(depth + 1);
+                }
                 depth += 1;
             }
+            Some(XmlEvent::Start(element)) if element.name.is("http://schemas.microsoft.com/office/excel/2006/main", "sqref") && scope.is_some() => {
+                unscoped |= !element.attributes.is_empty();
+                let text = events.text()?;
+                let parsed = complete_areas(&text);
+                let (_, held) = scope.as_mut().unwrap();
+                unscoped |= held.is_some() || parsed.is_none();
+                *held = parsed;
+                unscoped |= scope.as_ref().is_some_and(|(at,_)| *at != depth);
+            }
             Some(XmlEvent::Start(element)) if element.name.is(X14_NAMESPACE, "dataValidation") => {
+                unscoped |= collection_depth.is_some();
                 validations.push(super::validation::read_x14(events, &element)?);
             }
             Some(XmlEvent::Start(element)) if element.name.is(X14_NAMESPACE, "cfRule") => {
                 conditional = true;
+                unscoped |= scope.as_ref().is_none_or(|(at,_)| *at != depth);
                 if element.attribute("type") != Some("dataBar") {
                     unread += 1;
                 }
@@ -316,6 +374,7 @@ pub(crate) fn read_extensions(
             }
             Some(XmlEvent::Start(element)) if element.name.is(X14_NAMESPACE, "dataBar") => {
                 conditional = true;
+                unscoped |= scope.is_none();
                 if let Some(id) = rule_id.clone() {
                     bars.insert(
                         id,
@@ -328,13 +387,24 @@ pub(crate) fn read_extensions(
                 }
                 depth += 1;
             }
-            Some(XmlEvent::Start(_)) => depth += 1,
-            Some(XmlEvent::End(_)) => depth -= 1,
+            Some(XmlEvent::Start(_)) => {
+                unscoped |= collection_depth.is_some() && scope.is_none();
+                depth += 1;
+            }
+            Some(XmlEvent::End(_)) => {
+                if scope.as_ref().is_some_and(|(at,_)| *at == depth) {
+                    if let Some((_, Some(areas))) = scope.take() { ranges.extend(areas); }
+                    else { unscoped = true; }
+                }
+                if collection_depth == Some(depth) { collection_depth = None; }
+                depth -= 1;
+            }
             Some(XmlEvent::Text(_)) => {}
             None => return Err(events.invalid("the part ends inside extLst")),
         }
     }
-    Ok((unread, conditional))
+    let ranges = (!unscoped && !ranges.is_empty()).then_some(ranges);
+    Ok((unread, conditional, ranges))
 }
 
 /// The blocks with each data bar's lengths and fill taken from Excel 2010's extension when it

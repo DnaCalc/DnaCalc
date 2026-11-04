@@ -8074,6 +8074,133 @@ Case {
     Case {name:"stacked fitting: a trailing newline keeps its fourth grapheme row through fitting and XLSX",actions:&[
         Action::Into("name-box","H23\u{E007}"),Action::Wait(Check::Count("[data-cell=H23] .dc-cell-text > span",4)),Action::Click("autofit-rows"),Action::Wait(Check::Style(cell!("H23"),"height:79px")),Action::Click("autofit-columns"),Action::Wait(Check::MaxWidth(cell!("H23"),64)),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("alignment.xlsx"),Action::DiscardReplacement,Action::Into("name-box","H23\u{E007}")],checks:&[Check::Style(cell!("H23"),"height:79px"),Check::MaxWidth(cell!("H23"),64),Check::TextBounds(cell!("H23")),Check::Text(cell!("H23"),"A\nB\n"),Check::PlanCell("H23","style.rotation","255"),Check::Count("[data-cell=H23] .dc-cell-text > span",4)]},
 
+    Case {
+        name: "conditional colour filters: imported solid rules filter rows and recalculate both aggregate functions",
+        actions: &[
+            Action::Window(1440,1400),
+            Action::Upload("open-file", "crates/calc-host/tests/fixtures/dc_6yw/conditional-formats.xlsx"),
+            Action::DiscardReplacement, Action::Click("skin-grid"),
+            Action::Into("name-box", "A12\u{E007}"), Action::Wait(Check::ActiveSemantic("A12")), Action::Into(BAR, "=SUBTOTAL(9,D2:D10)\u{E007}"), Action::Wait(Check::PlanCell("A12", "text", "102")),
+            Action::Into("name-box", "B12\u{E007}"), Action::Wait(Check::ActiveSemantic("B12")), Action::Into(BAR, "=SUBTOTAL(109,D2:D10)\u{E007}"), Action::Wait(Check::PlanCell("B12", "text", "102")),
+            Action::Into("name-box", "C12\u{E007}"), Action::Wait(Check::ActiveSemantic("C12")), Action::Into(BAR, "=AGGREGATE(9,4,D2:D10)\u{E007}"), Action::Wait(Check::PlanCell("C12", "text", "102")),
+            Action::Into("name-box", "D12\u{E007}"), Action::Wait(Check::ActiveSemantic("D12")), Action::Into(BAR, "=AGGREGATE(9,5,D2:D10)\u{E007}"), Action::Wait(Check::PlanCell("D12", "text", "102")),
+            Action::Into("name-box", "A4\u{E007}"), Action::Wait(Check::ActiveSemantic("A4")), Action::OpenDetails("axis-tools"), Action::Click("hide-rows"), Action::Wait(Check::PlanAbsent("A4")), Action::Wait(Check::PlanCell("B12", "text", "88")),
+            Action::Into("name-box", "A1:D10\u{E007}"), Action::Wait(Check::ActiveSemantic("A1")), Action::OpenDetails("filter-tools"), Action::Click("filter-enable"),
+            Action::Wait(Check::TextContains("filter-summary", "A1:D10")),
+            Action::OpenDetails("filter-color-tools"), Action::Into("filter-color", "#ffc7ce"), Action::Click("filter-color-apply"),
+        ],
+        checks: &[Check::TextContains("filter-summary", "4 rows filtered out"),
+            Check::PlanCell("A12", "text", "80"), Check::PlanCell("B12", "text", "66"),
+            Check::PlanCell("C12", "text", "102"), Check::PlanCell("D12", "text", "66"),
+            Check::PlanCell("D12", "provenance", "calculated"), Check::PlanAbsent("A3"), Check::PlanAbsent("A4"),
+            Check::Style("[data-dnacalc=cell-decoration][data-cell=A2]", "background-color:#ffc7ce")],
+    },
+    Case {
+        name: "conditional colour filters: Undo and Redo preserve the independently hidden row",
+        actions: &[Action::Click("undo"), Action::Wait(Check::TextContains("filter-summary", "0 rows filtered out")),
+            Action::Wait(Check::PlanCell("B12", "text", "88")), Action::Click("redo")],
+        checks: &[Check::PlanCell("A12", "text", "80"), Check::PlanCell("B12", "text", "66"),
+            Check::PlanAbsent("A3"), Check::PlanAbsent("A4"), Check::TextContains("filter-summary", "4 rows filtered out")],
+    },
+    Case {
+        name: "conditional colour filters: saved criteria and source rules reapply after real XLSX reopening",
+        actions: &[Action::ClearDownloads, Action::Click("save"), Action::UploadDownload("conditional-formats.xlsx"),
+            Action::DiscardReplacement, Action::OpenDetails("filter-tools"), Action::Click("filter-reapply")],
+        checks: &[Check::PlanCell("A12", "text", "80"), Check::PlanCell("D12", "text", "66"),
+            Check::PlanCell("D12", "provenance", "calculated"), Check::PlanAbsent("A4"),
+            Check::TextContains("filter-summary", "4 rows filtered out")],
+    },
+    Case {
+        name: "conditional colour filters: a relative other-column formula supplies the displayed font colour",
+        actions: &[Action::Click("filter-clear"), Action::Into("filter-column", "4"),
+            Action::OpenDetails("filter-color-tools"), Action::Choose("filter-color-kind", "font"),
+            Action::Into("filter-color", "#0000ff"), Action::Click("filter-color-apply")],
+        checks: &[Check::PlanCell("A12", "text", "68"), Check::PlanCell("B12", "text", "54"),
+            Check::PlanCell("C12", "text", "102"), Check::PlanCell("D12", "text", "54"),
+            Check::Style(cell!("D2"), "color:#0000ff"), Check::PlanAbsent("A4"), Check::PlanAbsent("A7"),
+            Check::TextContains("filter-summary", "5 rows filtered out")],
+    },
+    Case {
+        name: "conditional colour filters: no fill excludes coloured rows and phone controls remain reachable",
+        actions: &[Action::Click("filter-clear"), Action::Into("filter-column", "1"),
+            Action::OpenDetails("filter-color-tools"), Action::Choose("filter-color-kind", "fill"),
+            Action::Into("filter-color", ""), Action::Click("filter-color-apply"), Action::Window(390,844),
+            Action::Into("name-box", "A12\u{E007}")],
+        checks: &[Check::PlanCell("A12", "text", "22"), Check::PlanCell("D12", "text", "22"),
+            Check::PlanAbsent("A2"), Check::PlanAbsent("A4"), Check::TextContains("filter-summary", "5 rows filtered out"),
+            Check::Fits, Check::Narrow(390), Check::Reachable("filter-color"), Check::Reachable("filter-color-apply")],
+    },
+    Case {
+        name: "conditional colour filters: an unsupported scale refuses without changing row visibility",
+        actions: &[Action::Window(1440,1400), Action::Click("filter-remove"),
+            Action::Into("name-box", "A1:N10\u{E007}"), Action::OpenDetails("filter-tools"), Action::Click("filter-enable"),
+            Action::Wait(Check::TextContains("filter-summary", "A1:N10")), Action::Into("filter-column", "5"),
+            Action::OpenDetails("filter-color-tools"), Action::Into("filter-color", "#86c97e"), Action::Click("filter-color-apply")],
+        checks: &[Check::TextContains("status", "this conditional rule is not modelled"),
+            Check::TextContains("filter-summary", "0 rows filtered out"), Check::PlanCell("A12", "text", "102"),
+            Check::PlanCell("D12", "text", "88"), Check::PlanAbsent("A4"),
+            Check::Style("[data-dnacalc=cell-decoration][data-cell=E2]", "background-color:#86c97e")],
+    },
+
+    Case {
+        name:"sort metadata: row formulas validation and authored notes move together",
+        actions:&[
+            Action::Window(1440,1000),Action::ValidationFixture("sort"),Action::UploadDownload("validation-sort.xlsx"),Action::DiscardReplacement,
+            Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),Action::Wait(Check::PlanCell("C5","text","2")),
+            Action::Into("name-box","B2\u{E007}"),Action::Wait(Check::ActiveSemantic("B2")),Action::Click("review-tools"),Action::Click("note-new"),Action::Wait(Check::Focused("note-text")),Action::Into("note-author","Row author"),Action::Into("note-text","Three 🧬"),Action::Click("note-save"),Action::Wait(Check::TextContains("review-note","Three 🧬")),Action::Click("review-close"),
+            Action::Into("name-box","B3\u{E007}"),Action::Wait(Check::ActiveSemantic("B3")),Action::Click("review-tools"),Action::Click("note-new"),Action::Wait(Check::Focused("note-text")),Action::Into("note-author","Row author"),Action::Into("note-text","One note"),Action::Click("note-save"),Action::Wait(Check::TextContains("review-note","One note")),Action::Click("review-close"),
+            Action::Into("name-box","A1:C5\u{E007}"),Action::Wait(Check::ActiveSemantic("A1")),Action::OpenDetails("sort-tools"),Action::Click("sort-ascending"),Action::Wait(Check::TextContains("status","Sorted")),
+            Action::Into("name-box","B5\u{E007}"),Action::Wait(Check::ActiveSemantic("B5")),Action::Click("review-tools"),
+        ],
+        checks:&[Check::TextContains("review-note","Three 🧬"),Check::TextContains("review-validation","custom"),Check::TextContains("validation-prompt","Row rule"),Check::PlanCell("B2","text","one"),Check::PlanCell("B3","text","one second"),Check::PlanCell("C5","text","6"),Check::PlanCell("C5","formula","true"),Check::PlanCell("C5","provenance","calculated")],
+    },
+    Case {
+        name:"sort metadata: Undo and Redo restore the note and validation origins",
+        actions:&[Action::Click("review-close"),Action::Click("undo"),Action::Wait(Check::PlanCell("B2","text","three")),Action::Into("name-box","B2\u{E007}"),Action::Wait(Check::ActiveSemantic("B2")),Action::Click("review-tools"),Action::Wait(Check::TextContains("review-note","Three 🧬")),Action::Wait(Check::TextContains("review-validation","custom")),Action::Click("review-close"),Action::Click("redo"),Action::Wait(Check::PlanCell("B5","text","three")),Action::Into("name-box","B2\u{E007}"),Action::Wait(Check::ActiveSemantic("B2")),Action::Click("review-tools")],
+        checks:&[Check::TextContains("review-note","One note"),Check::Absent("review-validation"),Check::Absent("validation-prompt"),Check::PlanCell("C2","text","2")],
+    },
+    Case {
+        name:"sort metadata: imported notes and rules can sort again after real XLSX reopening",
+        actions:&[Action::Click("review-close"),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("validation-sort.xlsx"),Action::DiscardReplacement,Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),Action::Into("name-box","A1:C5\u{E007}"),Action::Wait(Check::ActiveSemantic("A1")),Action::OpenDetails("sort-tools"),Action::Click("sort-descending"),Action::Wait(Check::TextContains("status","Sorted")),Action::Into("name-box","B2\u{E007}"),Action::Wait(Check::ActiveSemantic("B2")),Action::Click("review-tools")],
+        checks:&[Check::TextContains("review-note","Three 🧬"),Check::TextContains("review-validation","custom"),Check::TextContains("validation-prompt","Row rule"),Check::PlanCell("C2","text","6"),Check::PlanCell("C2","formula","true"),Check::PlanCell("B4","text","one"),Check::PlanCell("B5","text","one second")],
+    },
+    Case {
+        name:"sort metadata: the moved custom rule still rejects the proposed entry",
+        actions:&[Action::Click("review-close"),Action::Into(BAR,"wrong\u{E007}"),Action::Wait(Check::Rendered("validation-dialog",true)),Action::Wait(Check::TextContains("validation-message","Keep the row payload")),Action::Click("validation-cancel"),Action::Wait(Check::Absent("[data-dnacalc=validation-dialog][open]")),Action::Click("review-tools")],
+        checks:&[Check::TextContains("review-note","Three 🧬"),Check::PlanCell("B2","text","three"),Check::PlanCell("C2","text","6"),Check::TextContains("validation-prompt","Row rule")],
+    },
+    Case {
+        name:"sort metadata: an independently moved note is retained on a narrow saved sheet",
+        actions:&[Action::Click("review-close"),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("validation-sort.xlsx"),Action::DiscardReplacement,Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),Action::Window(390,844),Action::Into("name-box","B4\u{E007}"),Action::Wait(Check::ActiveSemantic("B4")),Action::Click("review-tools")],
+        checks:&[Check::TextContains("review-note","One note"),Check::Absent("review-validation"),Check::Fits,Check::Narrow(390),Check::Reachable("review-close"),Check::PlanCell("C4","text","2")],
+    },
+
+    Case {name:"table sorting: complete data rows move formulas while headers and totals stay",actions:&[
+        Action::Window(1440,1000),Action::ExternalClipboard("Item\tAmount\tDouble\nThree\t3\t=B2*2\nOne\t1\t=B3*2\nTwo\t2\t=B4*2",false),Action::Into("name-box","A1\u{E007}"),Action::Wait(Check::ActiveSemantic("A1")),Action::Keys("grid","\u{E009}v\u{E000}"),Action::Wait(Check::PlanCell("C4","text","4")),
+        Action::Into("name-box","A1:C4\u{E007}"),Action::Wait(Check::ActiveSemantic("A1")),Action::OpenDetails("table-tools"),Action::Into("table-name","SortSales"),Action::Click("table-create"),Action::Wait(Check::Count("filter-header",3)),Action::Click("table-totals"),Action::Wait(Check::PlanCell("C5","text","12")),Action::Into("table-total-column","2"),Action::Choose("table-total-function","sum"),Action::Click("table-total-apply"),Action::Wait(Check::PlanCell("B5","text","6")),
+        Action::Into("name-box","D1\u{E007}"),Action::Wait(Check::ActiveSemantic("D1")),Action::Into(BAR,"=SUM(SortSales[Amount])\u{E007}"),Action::Wait(Check::PlanCell("D1","text","6")),Action::Into("name-box","A1:C4\u{E007}"),Action::Wait(Check::ActiveSemantic("A1")),Action::OpenDetails("sort-tools"),Action::Into("sort-column","2"),Action::Click("sort-ascending"),Action::Wait(Check::TextContains("status","Sorted"))
+    ],checks:&[Check::PlanCell("A1","text","Item"),Check::PlanCell("A2","text","One"),Check::PlanCell("A4","text","Three"),Check::PlanCell("C2","text","2"),Check::PlanCell("C4","text","6"),Check::PlanCell("C4","formula","true"),Check::PlanCell("B5","text","6"),Check::PlanCell("C5","text","12"),Check::PlanCell("D1","text","6"),Check::Count("filter-header",3)]},
+    Case {name:"table sorting: one Undo and Redo restore every row and keep table definitions",actions:&[
+        Action::Click("undo"),Action::Wait(Check::PlanCell("A2","text","Three")),Action::Wait(Check::PlanCell("C2","text","6")),Action::Click("redo"),Action::Wait(Check::PlanCell("A2","text","One")),Action::Into("name-box","A1\u{E007}"),Action::Wait(Check::ActiveSemantic("A1")),Action::OpenDetails("table-tools")
+    ],checks:&[Check::TextContains("table-summary","SortSales"),Check::TextContains("table-summary","A1:C5"),Check::PlanCell("C2","text","2"),Check::PlanCell("C5","text","12"),Check::Count("filter-header",3)]},
+    Case {name:"table sorting: imported table data sort after real XLSX reopening",actions:&[
+        Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::Wait(Check::PlanCell("C5","text","12")),Action::Into("name-box","A1:C4\u{E007}"),Action::Wait(Check::ActiveSemantic("A1")),Action::OpenDetails("sort-tools"),Action::Into("sort-column","2"),Action::Click("sort-descending"),Action::Wait(Check::PlanCell("A2","text","Three"))
+    ],checks:&[Check::PlanCell("A4","text","One"),Check::PlanCell("C2","text","6"),Check::PlanCell("C4","text","2"),Check::PlanCell("C4","formula","true"),Check::PlanCell("B5","text","6"),Check::PlanCell("C5","text","12"),Check::PlanCell("D1","text","6")]},
+    Case {name:"table sorting: partial columns and total rows refuse before changing cells",actions:&[
+        Action::Into("name-box","A2:B4\u{E007}"),Action::Wait(Check::ActiveSemantic("A2")),Action::OpenDetails("sort-tools"),Action::Click("sort-header"),Action::Click("sort-ascending"),Action::Wait(Check::TextContains("status","partial table")),Action::Wait(Check::PlanCell("A2","text","Three")),Action::Into("name-box","A1:C5\u{E007}"),Action::Wait(Check::ActiveSemantic("A1")),Action::Click("sort-header"),Action::Click("sort-ascending"),Action::Wait(Check::TextContains("status","partial table"))
+    ],checks:&[Check::PlanCell("A2","text","Three"),Check::PlanCell("A4","text","One"),Check::PlanCell("C2","text","6"),Check::PlanCell("C5","text","12"),Check::Count("filter-header",3)]},
+    Case {name:"table sorting: complete body selection sorts from phone controls and saves",actions:&[
+        Action::Into("name-box","A2:C4\u{E007}"),Action::Wait(Check::ActiveSemantic("A2")),Action::Window(390,844),Action::OpenDetails("sort-tools"),Action::Click("sort-header"),Action::Click("sort-ascending"),Action::Wait(Check::PlanCell("A2","text","One")),Action::Wait(Check::Fits),Action::Wait(Check::Reachable("sort-ascending")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::Wait(Check::PlanCell("C5","text","12")),Action::Into("name-box","A1\u{E007}"),Action::Wait(Check::ActiveSemantic("A1")),Action::OpenDetails("table-tools")
+    ],checks:&[Check::PlanCell("A2","text","One"),Check::PlanCell("C2","text","2"),Check::PlanCell("B5","text","6"),Check::PlanCell("C5","text","12"),Check::Count("filter-header",3),Check::TextContains("table-summary","A1:C5"),Check::Fits,Check::Narrow(390),Check::Reachable("table-totals")]},
+
+
+    Case {name:"table colours: automatic text stays readable in dark DOM and Canvas with explicit colours retained",actions:&[
+        Action::Window(1440,1000),Action::Click("settings-toggle"),Action::Choose("theme","cockpit-dark"),Action::Click("settings-toggle"),Action::Into("name-box","A1\u{E007}"),Action::Wait(Check::ActiveSemantic("A1")),
+        Action::Wait(Check::PlanCell("A2","style.font_color","#000000")),Action::Wait(Check::Computed(cell!("A2"),"color:#000000")),Action::Wait(Check::PlanCell("A1","style.font_color","#ffffff")),Action::Wait(Check::PlanCell("C5","style.font_color","#000000")),
+        Action::Into("name-box","A2\u{E007}"),Action::Wait(Check::ActiveSemantic("A2")),Action::Click("format-cells"),Action::Click("format-tab-font"),Action::Into("format-font-color","#123456"),Action::Click("format-apply"),Action::Wait(Check::PlanCell("A2","style.font_color","#123456")),
+        Action::OpenDetails("pane-tools"),Action::SetPainter("canvas"),Action::Wait(Check::CanvasInk("A2")),Action::Wait(Check::PlanCell("B2","style.font_color","#000000")),Action::SetPainter("dom")
+    ],checks:&[Check::Computed(cell!("A2"),"color:#123456"),Check::Computed(cell!("B2"),"color:#000000"),Check::PlanCell("C5","text","12"),Check::PlanCell("A1","style.font_color","#ffffff")]},
+
 ];
 
 /// The script that reads what one check looks at.
@@ -8906,4 +9033,7 @@ CaseGroup {
     CaseGroup {name:"chart-import",start:625,end:628,core:3,setup:&[]},
     CaseGroup {name:"font-variants",start:628,end:634,core:6,setup:&[]},
     CaseGroup {name:"stacked-fitting",start:634,end:640,core:6,setup:&[]},
+    CaseGroup { name: "conditional-colour-filters", start: 640, end: 646, core: 6, setup: &[] },
+    CaseGroup {name:"sort-metadata",start:646,end:651,core:5,setup:&[]},
+    CaseGroup {name:"table-sorting",start:651,end:657,core:6,setup:&[]},
 ];
