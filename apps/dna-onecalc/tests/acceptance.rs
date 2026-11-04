@@ -214,6 +214,23 @@ fn wrapping_keeps_short_vectors_and_validates_counts_and_shapes() {
     assert!(failures.is_empty(), "{} wrapping differences:\n{}", failures.len(), failures.join("\n"));
 }
 
+/// Captured fn2 helper controls distinguish first/later scalar source errors, reference/array
+/// origins, and single-cell BYROW/BYCOL results from unsupported nested MAP/SCAN results.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn lambda_helpers_follow_the_retained_source_and_result_rules() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_form(calc_fml::FormulaForm::Dynamic);
+    session.add_sheet("Data").unwrap();
+    session.set_input("Data!C1", InputValue::error(WorksheetErrorCode::NA)).unwrap();
+    check_captured_questions(include_bytes!(
+        "../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json"
+    ), &mut session, |f| {
+        f.cell.sheet().strip_prefix("fn2_q").and_then(|n| n.parse::<u32>().ok())
+            .is_some_and(|n| matches!(n, 31 | 33..=42 | 88..=92))
+    }, 16);
+}
+
 /// Recorded POISSON branch/control answers from OxFunc-Evidence's
 /// poisson.dist-branch-00128..00129, 00084..00085 and 00224..00225.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
