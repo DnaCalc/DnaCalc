@@ -8,10 +8,10 @@
     {"bitness":"64-bit","cpu":null,"excel_build":"20228","id":"r2","platform":"Windows","source":"OxFunc-Evidence work/w109/G3-07-gauss/answers-gauss-route-discovery-v1.json"}
   ],
   "witnesses": [
-    {"args":["0x3fe07d0c006a39a0"],"calc_func":"0x3fc931437539cf44","expected_bits":"0x3fc931437539cf48","id":"cdf-z-GAUSS-00203-z-staging-discriminator","reading":"r0"},
+    {"args":["0x3fe07d0c006a39a0"],"expected_bits":"0x3fc931437539cf48","id":"cdf-z-GAUSS-00203-z-staging-discriminator","reading":"r0"},
     {"args":["0x3fe0aa6c139581f5"],"expected_bits":"0x3fc970946f2bc2e8","id":"cdf-z-GAUSS-00013-z-staging-discriminator","reading":"r0"},
     {"args":["0x3fe0cd19a3384eb4"],"expected_bits":"0x3fc9a0d8a7186018","id":"cdf-z-GAUSS-00263-fresh-control","reading":"r0"},
-    {"args":["0x3fe0f4347bdbe9fb"],"calc_func":"0x3fc9d72550da7b5c","expected_bits":"0x3fc9d72550da7b60","id":"cdf-z-GAUSS-00113-z-staging-discriminator","reading":"r0"},
+    {"args":["0x3fe0f4347bdbe9fb"],"expected_bits":"0x3fc9d72550da7b60","id":"cdf-z-GAUSS-00113-z-staging-discriminator","reading":"r0"},
     {"args":["0x3fe19cac951b838a"],"expected_bits":"0x3fcabf7ef950a2d0","id":"cdf-z-GAUSS-00335-fresh-control","reading":"r0"},
     {"args":["0x402433e058403618"],"expected_bits":"0x3fe0000000000000","id":"cdf-z-GAUSS-00101-z-staging-discriminator","reading":"r0"},
     {"args":["0xbffe4d6be27b8694"],"expected_bits":"0xbfde22e9f150eb60","id":"cdf-z-GAUSS-00248-z-staging-discriminator","reading":"r0"},
@@ -93,7 +93,7 @@
     {"args":["0xbf50624dd2f1aa0a"],"expected_bits":"0xbf3a2523c3018400","id":"gauss-discovery-06019-transported_landmark-0xbf50624dd2f1aa0a","reading":"r1"},
     {"args":["0xbfc6a09e667f3ba3"],"expected_bits":"0xbfb1f5e1a35c3b68","id":"gauss-discovery-06103-transported_landmark-0xbfc6a09e667f3ba3","reading":"r1"},
     {"args":["0xbfc6a09e667f3bf6"],"expected_bits":"0xbfb1f5e1a35c3bac","id":"gauss-discovery-06186-transported_landmark-0xbfc6a09e667f3bf6","reading":"r1"},
-    {"args":["0xbfe6a09e667f3bc4"],"calc_func":"0xbfd0a7ef5c18edcd","expected_bits":"0xbfd0a7ef5c18edce","id":"gauss-discovery-06270-transported_landmark-0xbfe6a09e667f3bc4","reading":"r1"},
+    {"args":["0xbfe6a09e667f3bc4"],"expected_bits":"0xbfd0a7ef5c18edce","id":"gauss-discovery-06270-transported_landmark-0xbfe6a09e667f3bc4","reading":"r1"},
     {"args":["0xbfeffffffff3be59"],"expected_bits":"0xbfd5d897a23bb88a","id":"gauss-discovery-06353-seeded_random-0xbfeffffffff3be59","reading":"r1"},
     {"args":["0xbfefffffffffffad"],"expected_bits":"0xbfd5d897a241a6d2","id":"gauss-discovery-06437-unit_boundary-0xbfefffffffffffad","reading":"r1"},
     {"args":["0xbff0000000000000"],"calc_func":"0xbfd5d897a241a6fb","expected_bits":"0xbfd5d897a241a6fc","id":"gauss-discovery-06520-unit_boundary-0xbff0000000000000","reading":"r1"},

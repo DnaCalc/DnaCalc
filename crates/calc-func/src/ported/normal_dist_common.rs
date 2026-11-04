@@ -26,51 +26,66 @@ pub fn phi_kernel(x: f64) -> f64 {
     if v.abs() < f64::MIN_POSITIVE { 0.0 } else { v }
 }
 
-/// Constant term `N(0)` of the numerator of Excel's small-argument erf rational
-/// `x * N(t) / D(t)`, `t = x*x`. Measured from recorded answers, as are the three constants
-/// below (see [`erf_approx`]). The published table is not identified: Cody's 1969 table
-/// (SPECFUN CALERF) shares only the constant-term ratio, as every accurate table must.
-const ERF_N0: f64 = f64::from_bits(0x3ff1_df5e_70c7_956b);
-/// Constant term `D(0)` of the denominator. `N(0) / D(0)` is `2/sqrt(pi)` to binary64 accuracy.
-const ERF_D0: f64 = f64::from_bits(0x3fef_ada1_5778_ece6);
-/// Linear coefficient of `N`: the only binary64 inside the bracket of the edge where stored `N`
-/// first leaves `N(0)` (Excel, between `x = 0x3e5e280f6c1e72dc` and its successor).
-const ERF_N1: f64 = f64::from_bits(0x3fc2_01d8_627a_7d2d);
-/// Linear coefficient of `D`, from the edge where stored `D` first leaves `D(0)` (Excel, between
-/// `x = 0x3e47bc15e9263272` and its successor); this bracket holds this binary64 and the next,
-/// and no recorded answer tells them apart.
-const ERF_D1: f64 = f64::from_bits(0x3fdd_191a_ca8d_2496);
-/// `2^-16`. Below it `t^2 < 2^-64`, which is under half a unit of the 64-bit register for `N`
-/// and about that for `D`, so the terms past the linear ones (not measured yet) are invisible.
-const ERF_LINEAR_MAX: f64 = f64::from_bits(0x3ef0_0000_0000_0000);
+/// `N(t)` of Excel's erf rational `x * N(t) / D(t)`, `t = x*x`, lowest power first. Measured from
+/// Excel's answers (see [`erf_approx`]); the published table is not identified. Orders 0 and 1 are
+/// exact. Orders 2 and above were read from runs of 20,000 consecutive doubles at a dozen sites,
+/// so the last bits of order 3 and above can be off, which shows only above 0.25.
+const ERF_N: [u64; 5] = [
+    0x3ff1_df5e_70c7_956b,
+    0x3fc2_01d8_627a_7d2c,
+    0x3fa6_f289_d165_b303,
+    0x3f5d_93a5_813e_372c,
+    0x3f29_3276_7df2_64b2,
+];
+/// `D(t)`, lowest power first, measured as [`ERF_N`]. The degrees (4, 5) are measured: a fifth
+/// term of `N` and a sixth of `D` fit to zero.
+const ERF_D: [u64; 6] = [
+    0x3fef_ada1_5778_ece6,
+    0x3fdd_191a_ca8d_2499,
+    0x3fb7_9f85_ba68_803e,
+    0x3f85_6de5_da86_af12,
+    0x3f46_0975_1b5b_6488,
+    0x3ef4_f20a_473a_5ab0,
+];
+
+/// One Horner evaluation with every product and sum stored to binary64, as `erf_approx` needs.
+fn stored_horner(coefficients: &[u64], t: f64) -> f64 {
+    use crate::ported::excel_numeric::{excel_x87_add, excel_x87_mul};
+    let mut value = 0.0;
+    for (i, &bits) in coefficients.iter().enumerate().rev() {
+        let c = f64::from_bits(bits);
+        value = if i + 1 == coefficients.len() { c } else { excel_x87_add(excel_x87_mul(value, t), c) };
+    }
+    value
+}
 
 /// The shared ERF body (ERF, ERF.PRECISE, the below-half ERFC complement and GAUSS's tiny
 /// route).
 ///
-/// Excel evaluates small arguments as `x * N(t) / D(t)` on the x87 at precision 64. Both
-/// polynomials are stored to binary64, then the product is stored, then the quotient:
+/// For `|x| < 0.5` Excel evaluates a (4, 5) rational `x * N(t) / D(t)` as compiled double
+/// arithmetic on the x87 at precision 64: every operation is `RN53(RN64(..))`, that is, its
+/// result is stored to binary64 before the next one reads it, in the order
 ///
 /// ```text
-/// N = RN53(RN64(N(t)))     D = RN53(RN64(D(t)))
-/// p = RN53(RN64(x * N))    y = RN53(RN64(p / D))
+/// t = x*x;  N = Horner(t);  D = Horner(t);  p = x*N;  y = p/D
 /// ```
 ///
-/// The stores are shown by Excel directly: the stored `D` steps at sharp edges that bisection
-/// found to one input ulp. The two `D` edges measured place `D'(0)` in brackets that agree to
-/// 1e-15 only when each edge carries the 64-bit register's half unit, which is the double
-/// rounding above. The measured coefficients give `N'(0)/N(0) - D'(0)/D(0) = -1/3` to 2e-16,
-/// the Taylor coefficient of erf, which nothing in the measurement imposed.
+/// Excel shows this directly. Stored `N` and `D` step at edges found by bisection to one input
+/// ulp, and the two `D` edges measured agree to 1e-15 only with the 64-bit register's half unit on
+/// each. Of the store placements raced on 2,000 consecutive answers at each of about 20 sites up
+/// to 0.5, all stores leaves 0.5% of the rows unexplained (the coefficients' last bits) and every
+/// other placement more than twice that. The measured coefficients give `N1/N0 - D1/D0 = -1/3`
+/// to 2e-16 and reproduce erf to a flat offset of 9e-17 up to 0.5, past which the error climbs at
+/// once, which places the approximation's design interval.
 ///
-/// Below `2^-16` this reproduces all 499,814 recorded ERF.PRECISE answers with nonzero
-/// argument. Above it the higher coefficients are not measured, so the body stays on
-/// `libm::erf`; subnormal arguments cannot be written to a cell (Excel reads them back as
-/// zero) and also stay there.
+/// Above 0.5 the body is still `libm::erf`. Subnormal arguments cannot be written to a cell (Excel
+/// reads them back as zero) and also stay there.
 pub fn erf_approx(x: f64) -> f64 {
-    if x.is_normal() && x.abs() < ERF_LINEAR_MAX {
-        use crate::ported::excel_numeric::{excel_x87_div, excel_x87_mul, excel_x87_mul_add};
+    if x.is_normal() && x.abs() < 0.5 {
+        use crate::ported::excel_numeric::{excel_x87_div, excel_x87_mul};
         let t = excel_x87_mul(x, x);
-        let numerator = excel_x87_mul_add(ERF_N1, t, ERF_N0);
-        let denominator = excel_x87_mul_add(ERF_D1, t, ERF_D0);
+        let numerator = stored_horner(&ERF_N, t);
+        let denominator = stored_horner(&ERF_D, t);
         return excel_x87_div(excel_x87_mul(x, numerator), denominator);
     }
     libm::erf(x)
@@ -110,11 +125,11 @@ mod tests {
         assert_eq!(phi_kernel(39.0), 0.0);
     }
 
-    /// Recorded Excel `ERF.PRECISE` answers below `2^-16` (`OxFunc-Evidence`: the build-20131
+    /// Recorded Excel `ERF.PRECISE` answers below 0.5 (`OxFunc-Evidence`: the build-20131
     /// oracle cache, `readings/excel-20527/ERF.PRECISE.json`, W109 banks b16, b17 and
     /// b26-zcross). Each pair is `(argument bits, Excel result bits)`. The first group is
     /// mismatched by `libm::erf`; the second already matched and must stay matched.
-    const ERF_TINY_RECORDED: [(u64, u64); 29] = [
+    const ERF_TINY_RECORDED: [(u64, u64); 33] = [
         // libm::erf misses these by one unit in the last place.
         (0x3d70000000000000, 0x3d720dd750429b6e),
         (0x3d7cfde8d4cc4149, 0x3d805b5d30f4cc06),
@@ -131,6 +146,10 @@ mod tests {
         (0xbe223ab45be40eee, 0xbe2491cfea3435ea),
         (0x3e30000000000001, 0x3e320dd750429b6f),
         (0x3e80000000000000, 0x3e820dd750429b56),
+        (0x3f30000000000000, 0x3f320dd74a3dfe55),
+        (0x3f90000000000000, 0x3f920d77083f17a1),
+        (0x3fb0000000000000, 0x3fb207d480e90659),
+        (0x3fd0000000000000, 0x3fd1af54e232d60a),
         (0x3ee0000000000000, 0x3ee20dd750411a47),
         // libm::erf already matches these.
         (0x3d7024d3d9e093a8, 0x3d7237658117c44d),
@@ -150,7 +169,7 @@ mod tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn erf_tiny_route_reproduces_recorded_excel_answers() {
+    fn erf_rational_reproduces_recorded_excel_answers() {
         for (x, excel) in ERF_TINY_RECORDED {
             let actual = erf_approx(f64::from_bits(x)).to_bits();
             assert_eq!(actual, excel, "ERF.PRECISE({x:#018x}): calculated {actual:#018x}, Excel {excel:#018x}");
@@ -162,9 +181,10 @@ mod tests {
     fn erf_measured_coefficients_reproduce_the_taylor_series() {
         // N(0)/D(0) = 2/sqrt(pi) and N'(0)/N(0) - D'(0)/D(0) = -1/3: erf(x)/x's first two Taylor
         // coefficients, which the measurements did not impose.
-        let ratio = ERF_N0 / ERF_D0;
-        assert!((ratio - f64::from_bits(0x3ff2_0dd7_5042_9b6d)).abs() <= 2.0 * f64::EPSILON);
-        assert!((ERF_N1 / ERF_N0 - ERF_D1 / ERF_D0 + 1.0 / 3.0).abs() < 1e-15);
+        let (n0, n1) = (f64::from_bits(ERF_N[0]), f64::from_bits(ERF_N[1]));
+        let (d0, d1) = (f64::from_bits(ERF_D[0]), f64::from_bits(ERF_D[1]));
+        assert!((n0 / d0 - f64::from_bits(0x3ff2_0dd7_5042_9b6d)).abs() <= 2.0 * f64::EPSILON);
+        assert!((n1 / n0 - d1 / d0 + 1.0 / 3.0).abs() < 1e-15);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
