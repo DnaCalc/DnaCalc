@@ -221,7 +221,7 @@ pub(crate) fn apply(
     styles: &calc_doc_model::StyleTable,
 ) -> Result<BTreeSet<u32>, String> {
     let first = filter.area.first().row() + 1;
-    let work = filter
+    let mut work = filter
         .columns
         .values()
         .map(|c| match c {
@@ -259,6 +259,7 @@ pub(crate) fn apply(
     }
     let mut plans = Vec::new();
     let mut colors = Vec::new();
+    let mut conditional_current = false;
     for (col, criteria) in &filter.columns {
         if let FilterCriteria::Color { dxf_id, cell_color } = criteria {
             let area = GridArea::new(
@@ -266,8 +267,15 @@ pub(crate) fn apply(
                 CellKey::new(filter.area.sheet(), filter.area.last().row(), *col).unwrap(),
             )
             .unwrap();
+            if host.model().definitions().tables().iter().any(|table| {
+                table.area.intersection(area).is_some() && table.style.name.as_ref().is_some_and(|s| !s.is_empty())
+            }) {
+                return Err(refusal("colour filtering on styled tables needs the table's effective colours and is not modelled"));
+            }
             if host.loaded().sheet(area.sheet()).is_some_and(|sheet| {
-                sheet.review().conditional_extensions
+                (sheet.review().conditional_extensions && sheet.review().conditional_extension_areas.as_ref().is_none_or(|areas| {
+                    host.current_areas(area.sheet(), areas).iter().any(|a| a.intersection(area).is_some())
+                }))
                     || sheet.conditional_formats().iter().any(|block| {
                         block.unread_container
                             && (block.areas.is_empty()
@@ -281,16 +289,50 @@ pub(crate) fn apply(
                     "colour filtering with unread conditional formatting or conditional extensions is not modelled",
                 ));
             }
-            if host
-                .model()
-                .definitions()
-                .conditional_rules(area.sheet())
-                .iter()
-                .any(|rule| rule.areas.iter().any(|a| a.intersection(area).is_some()))
+            for source in host.model().definitions().conditional_rules(area.sheet())
+                .iter().filter(|rule| rule.areas.iter().any(|a| a.intersection(area).is_some()))
             {
-                return Err(refusal(
-                    "colour filtering on conditionally formatted cells is not modelled",
-                ));
+                // Detached painting may inspect a held manual-mode observation. Authoring new
+                // visibility needs current values; until per-rule read certificates are exposed,
+                // require the workbook's published formula results to be current.
+                if !conditional_current {
+                    if host.engine.stale(host.model()).is_none_or(|cells| !cells.is_empty()) {
+                        return Err(refusal("needs current calculated conditional-format values; calculate the workbook first"));
+                    }
+                    conditional_current = true;
+                }
+                work = work.saturating_add(1);
+                if work.saturating_mul(filter.area.row_count() as usize) > 2_000_000 {
+                    return Err(refusal("conditional colour criteria need more than 2000000 row comparisons"));
+                }
+                let rule = calc_doc::conditional_rule(source)
+                    .map_err(|_| refusal("a conditional colour rule cannot be interpreted"))?;
+                if rule.unread || !matches!(rule.kind.as_str(), "cellIs" | "expression") {
+                    return Err(refusal("colour filtering with this conditional rule is not modelled"));
+                }
+                if let Some(id) = rule.dxf {
+                    let dxf = host.styles().differential_formats.get(id as usize)
+                        .ok_or_else(|| refusal("a conditional colour format is unavailable"))?;
+                    // The shared conditional look represents explicit solid colours. Patterned
+                    // fills, automatic colours and fill removal need a richer look before filtering.
+                    let color = if *cell_color {
+                        if let Some(fill) = &dxf.fill {
+                            if fill.gradient.is_some() || !fill.other_children.is_empty()
+                                || !matches!(fill.pattern_type.as_deref(), None | Some("solid"))
+                            {
+                                return Err(refusal("colour filtering on conditional pattern fills is not modelled"));
+                            }
+                            Some(fill.fg_color.as_ref().or(fill.bg_color.as_ref())
+                                .ok_or_else(|| refusal("a conditional fill colour is unavailable"))?)
+                        } else { None }
+                    } else { dxf.font.as_ref().and_then(|font| font.color.as_ref()) };
+                    if let Some(color) = color {
+                        if color.auto || crate::conditional::resolve(host, color).is_none() {
+                            return Err(refusal("a conditional colour cannot be resolved"));
+                        }
+                        color_value(host, Some(color), None)?;
+                    }
+                }
             }
             let dxf = styles
                 .differential_formats
@@ -301,7 +343,7 @@ pub(crate) fn apply(
             } else {
                 font_color(host, dxf.font.as_ref())?
             };
-            colors.push((*col, *cell_color, color));
+            colors.push((*col, *cell_color, color, host.conditional_formats_for(area)));
             continue;
         }
         let origin = CellKey::new(filter.area.sheet(), first, *col).unwrap();
@@ -434,7 +476,7 @@ pub(crate) fn apply(
             }
         }
         if !hidden.contains(&row) {
-            for (col, cell_color, expected) in &colors {
+            for (col, cell_color, expected, formats) in &colors {
                 let at = CellKey::new(filter.area.sheet(), row, *col).unwrap();
                 let table = host.styles();
                 let default_format = calc_doc_model::CellFormat::default();
@@ -447,7 +489,7 @@ pub(crate) fn apply(
                 let parent = format
                     .xf_id
                     .and_then(|i| table.cell_style_formats.get(i as usize));
-                let actual = if *cell_color {
+                let mut actual = if *cell_color {
                     let index = format
                         .fill_id
                         .or_else(|| parent.and_then(|p| p.fill_id))
@@ -468,6 +510,21 @@ pub(crate) fn apply(
                     }
                     font_color(host, font)?
                 };
+                if formats.rule_count() > 0 {
+                    let refused = formats.refused();
+                    let look = formats.look(host, at).unwrap_or_default();
+                    if formats.refused() != refused {
+                        return Err(refusal("needs current calculated conditional-format values"));
+                    }
+                    if let Some(color) = if *cell_color { look.fill } else { look.font_color } {
+                        actual = Some(match color {
+                            crate::LookColor::Rgb(rgb) => rgb,
+                            crate::LookColor::Indexed(index) => color_value(host,
+                                Some(&calc_doc_model::StyleColor { indexed: Some(index.to_string()), ..Default::default() }), None)?
+                                .ok_or_else(|| refusal("a conditional indexed colour cannot be resolved"))?,
+                        });
+                    }
+                }
                 if &actual != expected {
                     hidden.insert(row);
                     break;

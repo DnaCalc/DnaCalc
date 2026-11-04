@@ -8074,6 +8074,74 @@ Case {
     Case {name:"stacked fitting: a trailing newline keeps its fourth grapheme row through fitting and XLSX",actions:&[
         Action::Into("name-box","H23\u{E007}"),Action::Wait(Check::Count("[data-cell=H23] .dc-cell-text > span",4)),Action::Click("autofit-rows"),Action::Wait(Check::Style(cell!("H23"),"height:79px")),Action::Click("autofit-columns"),Action::Wait(Check::MaxWidth(cell!("H23"),64)),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("alignment.xlsx"),Action::DiscardReplacement,Action::Into("name-box","H23\u{E007}")],checks:&[Check::Style(cell!("H23"),"height:79px"),Check::MaxWidth(cell!("H23"),64),Check::TextBounds(cell!("H23")),Check::Text(cell!("H23"),"A\nB\n"),Check::PlanCell("H23","style.rotation","255"),Check::Count("[data-cell=H23] .dc-cell-text > span",4)]},
 
+    Case {
+        name: "conditional colour filters: imported solid rules filter rows and recalculate both aggregate functions",
+        actions: &[
+            Action::Window(1440,1400),
+            Action::Upload("open-file", "crates/calc-host/tests/fixtures/dc_6yw/conditional-formats.xlsx"),
+            Action::DiscardReplacement, Action::Click("skin-grid"),
+            Action::Into("name-box", "A12\u{E007}"), Action::Wait(Check::ActiveSemantic("A12")), Action::Into(BAR, "=SUBTOTAL(9,D2:D10)\u{E007}"), Action::Wait(Check::PlanCell("A12", "text", "102")),
+            Action::Into("name-box", "B12\u{E007}"), Action::Wait(Check::ActiveSemantic("B12")), Action::Into(BAR, "=SUBTOTAL(109,D2:D10)\u{E007}"), Action::Wait(Check::PlanCell("B12", "text", "102")),
+            Action::Into("name-box", "C12\u{E007}"), Action::Wait(Check::ActiveSemantic("C12")), Action::Into(BAR, "=AGGREGATE(9,4,D2:D10)\u{E007}"), Action::Wait(Check::PlanCell("C12", "text", "102")),
+            Action::Into("name-box", "D12\u{E007}"), Action::Wait(Check::ActiveSemantic("D12")), Action::Into(BAR, "=AGGREGATE(9,5,D2:D10)\u{E007}"), Action::Wait(Check::PlanCell("D12", "text", "102")),
+            Action::Into("name-box", "A4\u{E007}"), Action::Wait(Check::ActiveSemantic("A4")), Action::OpenDetails("axis-tools"), Action::Click("hide-rows"), Action::Wait(Check::PlanAbsent("A4")), Action::Wait(Check::PlanCell("B12", "text", "88")),
+            Action::Into("name-box", "A1:D10\u{E007}"), Action::Wait(Check::ActiveSemantic("A1")), Action::OpenDetails("filter-tools"), Action::Click("filter-enable"),
+            Action::Wait(Check::TextContains("filter-summary", "A1:D10")),
+            Action::OpenDetails("filter-color-tools"), Action::Into("filter-color", "#ffc7ce"), Action::Click("filter-color-apply"),
+        ],
+        checks: &[Check::TextContains("filter-summary", "4 rows filtered out"),
+            Check::PlanCell("A12", "text", "80"), Check::PlanCell("B12", "text", "66"),
+            Check::PlanCell("C12", "text", "102"), Check::PlanCell("D12", "text", "66"),
+            Check::PlanCell("D12", "provenance", "calculated"), Check::PlanAbsent("A3"), Check::PlanAbsent("A4"),
+            Check::Style("[data-dnacalc=cell-decoration][data-cell=A2]", "background-color:#ffc7ce")],
+    },
+    Case {
+        name: "conditional colour filters: Undo and Redo preserve the independently hidden row",
+        actions: &[Action::Click("undo"), Action::Wait(Check::TextContains("filter-summary", "0 rows filtered out")),
+            Action::Wait(Check::PlanCell("B12", "text", "88")), Action::Click("redo")],
+        checks: &[Check::PlanCell("A12", "text", "80"), Check::PlanCell("B12", "text", "66"),
+            Check::PlanAbsent("A3"), Check::PlanAbsent("A4"), Check::TextContains("filter-summary", "4 rows filtered out")],
+    },
+    Case {
+        name: "conditional colour filters: saved criteria and source rules reapply after real XLSX reopening",
+        actions: &[Action::ClearDownloads, Action::Click("save"), Action::UploadDownload("conditional-formats.xlsx"),
+            Action::DiscardReplacement, Action::OpenDetails("filter-tools"), Action::Click("filter-reapply")],
+        checks: &[Check::PlanCell("A12", "text", "80"), Check::PlanCell("D12", "text", "66"),
+            Check::PlanCell("D12", "provenance", "calculated"), Check::PlanAbsent("A4"),
+            Check::TextContains("filter-summary", "4 rows filtered out")],
+    },
+    Case {
+        name: "conditional colour filters: a relative other-column formula supplies the displayed font colour",
+        actions: &[Action::Click("filter-clear"), Action::Into("filter-column", "4"),
+            Action::OpenDetails("filter-color-tools"), Action::Choose("filter-color-kind", "font"),
+            Action::Into("filter-color", "#0000ff"), Action::Click("filter-color-apply")],
+        checks: &[Check::PlanCell("A12", "text", "68"), Check::PlanCell("B12", "text", "54"),
+            Check::PlanCell("C12", "text", "102"), Check::PlanCell("D12", "text", "54"),
+            Check::Style(cell!("D2"), "color:#0000ff"), Check::PlanAbsent("A4"), Check::PlanAbsent("A7"),
+            Check::TextContains("filter-summary", "5 rows filtered out")],
+    },
+    Case {
+        name: "conditional colour filters: no fill excludes coloured rows and phone controls remain reachable",
+        actions: &[Action::Click("filter-clear"), Action::Into("filter-column", "1"),
+            Action::OpenDetails("filter-color-tools"), Action::Choose("filter-color-kind", "fill"),
+            Action::Into("filter-color", ""), Action::Click("filter-color-apply"), Action::Window(390,844),
+            Action::Into("name-box", "A12\u{E007}")],
+        checks: &[Check::PlanCell("A12", "text", "22"), Check::PlanCell("D12", "text", "22"),
+            Check::PlanAbsent("A2"), Check::PlanAbsent("A4"), Check::TextContains("filter-summary", "5 rows filtered out"),
+            Check::Fits, Check::Narrow(390), Check::Reachable("filter-color"), Check::Reachable("filter-color-apply")],
+    },
+    Case {
+        name: "conditional colour filters: an unsupported scale refuses without changing row visibility",
+        actions: &[Action::Window(1440,1400), Action::Click("filter-remove"),
+            Action::Into("name-box", "A1:N10\u{E007}"), Action::OpenDetails("filter-tools"), Action::Click("filter-enable"),
+            Action::Wait(Check::TextContains("filter-summary", "A1:N10")), Action::Into("filter-column", "5"),
+            Action::OpenDetails("filter-color-tools"), Action::Into("filter-color", "#86c97e"), Action::Click("filter-color-apply")],
+        checks: &[Check::TextContains("status", "this conditional rule is not modelled"),
+            Check::TextContains("filter-summary", "0 rows filtered out"), Check::PlanCell("A12", "text", "102"),
+            Check::PlanCell("D12", "text", "88"), Check::PlanAbsent("A4"),
+            Check::Style("[data-dnacalc=cell-decoration][data-cell=E2]", "background-color:#86c97e")],
+    },
+
 ];
 
 /// The script that reads what one check looks at.
@@ -8906,4 +8974,5 @@ CaseGroup {
     CaseGroup {name:"chart-import",start:625,end:628,core:3,setup:&[]},
     CaseGroup {name:"font-variants",start:628,end:634,core:6,setup:&[]},
     CaseGroup {name:"stacked-fitting",start:634,end:640,core:6,setup:&[]},
+    CaseGroup { name: "conditional-colour-filters", start: 640, end: 646, core: 6, setup: &[] },
 ];

@@ -14109,3 +14109,231 @@ fn dc_971p_6__double_underline_and_stacked_text_share_history_and_save() {
     let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert!(part_text(&saved,"xl/styles.xml").contains("textRotation=\"255\""));let reopened=session(&saved);let styles=reopened.host().styles();let font=&styles.fonts[styles.cell_formats[reopened.host().cell_style(at(s,"B1")) as usize].font_id.unwrap() as usize];assert_eq!(font.underline.as_deref(),Some("double"));assert!(font.strike);assert_eq!(calc_host::search::entry_text(reopened.host().model().cell(at(s,"A1"))),"Aé🧬");
     for patch in [FormatPatch{underline_style:Some("wavy".into()),..Default::default()},FormatPatch{rotation:Some(254),..Default::default()},FormatPatch{underline:Some(false),underline_style:Some("double".into()),..Default::default()}] {let revision=book.host().revision();assert!(!book.dispatch(SkinIntent::Command(W::FormatCells{areas:vec![GridArea::cell(at(s,"A1"))],patch})).accepted());assert_eq!(book.host().revision(),revision);}
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_37__conditional_fill_and_font_filters_read_the_existing_excel_looks() {
+    use calc_host::{FilterChange as F, WorkbookCommand as W};
+    let bytes = include_bytes!("fixtures/dc_6yw/conditional-formats.xlsx");
+    let mut book = session(bytes);
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    let s = book.host().sheets()[0].id();
+    for (address, formula) in [
+        ("P1", "=SUBTOTAL(9,D2:D10)"),
+        ("P2", "=SUBTOTAL(109,D2:D10)"),
+        ("P3", "=AGGREGATE(9,4,D2:D10)"),
+        ("P4", "=AGGREGATE(9,5,D2:D10)"),
+    ] {
+        assert!(enter(&mut book, at(s, address), formula).accepted());
+    }
+    assert!(book.dispatch(SkinIntent::Command(W::AxisFormat {
+        sheet: s, rows: true, first: 4, count: 1, size_bits: None, hidden: Some(true),
+    })).accepted());
+    let command = |book: &mut HostSession, change| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::AutoFilter { sheet: s, revision, change }))
+    };
+    assert!(command(&mut book, F::Enable {
+        area: GridArea::new(at(s, "A1"), at(s, "D10")).unwrap(),
+    }).accepted());
+    // These colours and their conditions were captured from this existing Excel fixture;
+    // this test exercises applying a colour filter, rather than recapturing its looks.
+    let before = book.host().model().definitions().auto_filter(s).cloned();
+    let receipt = command(&mut book, F::Color {
+        column: 1, cell_color: true, color: "#ffc7ce".into(),
+    });
+    assert!(receipt.accepted(), "{receipt:?}");
+    let filtered = book.host().model().definitions().auto_filter(s).unwrap().clone();
+    assert_eq!(filtered.filtered_rows.iter().copied().collect::<Vec<_>>(), vec![3, 5, 8, 10]);
+    for (address, expected) in [("P1", 80.), ("P2", 66.), ("P3", 102.), ("P4", 66.)] {
+        assert_eq!(session_calculated(&book, at(s, address)).unwrap().as_number(), Some(expected), "{address}");
+    }
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(book.host().model().definitions().auto_filter(s), before.as_ref());
+    assert_eq!(session_calculated(&book, at(s, "P2")).unwrap().as_number(), Some(88.));
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert_eq!(book.host().model().definitions().auto_filter(s), Some(&filtered));
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let xml = part_text(&saved, "xl/worksheets/sheet1.xml");
+    assert!(xml.contains("<colorFilter dxfId="), "{xml}");
+    assert!(xml.contains("cellColor=\"1\""), "{xml}");
+    let mut reopened = session(&saved);
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    let r = reopened.host().sheets()[0].id();
+    let revision = reopened.host().revision().get();
+    let receipt = reopened.dispatch(SkinIntent::Command(W::AutoFilter { sheet: r, revision, change: F::Reapply }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    assert_eq!(reopened.host().model().definitions().auto_filter(r).unwrap().filtered_rows, filtered.filtered_rows);
+    assert_eq!(session_calculated(&reopened, at(r, "P4")).unwrap().as_number(), Some(66.));
+    assert!(command(&mut book, F::Clear).accepted());
+    assert!(command(&mut book, F::Color { column: 4, cell_color: false, color: "#0000ff".into() }).accepted());
+    assert_eq!(book.host().model().definitions().auto_filter(s).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(), vec![3, 5, 7, 8, 10]);
+    assert_eq!(session_calculated(&book, at(s, "P1")).unwrap().as_number(), Some(68.));
+    assert_eq!(session_calculated(&book, at(s, "P4")).unwrap().as_number(), Some(54.));
+    assert!(command(&mut book, F::Clear).accepted());
+    assert_eq!(session_calculated(&book, at(s, "P1")).unwrap().as_number(), Some(102.));
+    assert_eq!(session_calculated(&book, at(s, "P4")).unwrap().as_number(), Some(88.));
+    assert!(book.host().model().definitions().axis_layouts().get(s, calc_host::Axis::Rows, 4).hidden());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_37__conditional_colour_priority_and_stale_rules_are_atomic() {
+    use calc_host::{FilterChange as F, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let s = book.host().sheets()[0].id();
+    for (address, input) in [("A1", "Amount"), ("A2", "1"), ("A3", "2"), ("A4", "3")] {
+        assert!(enter(&mut book, at(s, address), input).accepted());
+    }
+    for (formula, colour, stop) in [("A2=2", "#0000ff", true), ("A2>0", "#ff0000", false)] {
+        let revision = book.host().revision().get();
+        let receipt = book.dispatch(SkinIntent::Command(W::Conditional {
+            sheet: s, revision, index: None,
+            change: calc_host::ConditionalChange::Condition {
+                kind: "expression".into(), applies: "A2:A4".into(), color: colour.into(),
+                formulas: vec![formula.into()], operator: "".into(), rank: 10, percent: false, stop,
+            },
+        }));
+        assert!(receipt.accepted(), "{receipt:?}");
+    }
+    let command = |book: &mut HostSession, change| {
+        let revision = book.host().revision().get();
+        book.dispatch(SkinIntent::Command(W::AutoFilter { sheet: s, revision, change }))
+    };
+    assert!(command(&mut book, F::Enable { area: GridArea::new(at(s, "A1"), at(s, "A4")).unwrap() }).accepted());
+    assert!(command(&mut book, F::Color { column: 1, cell_color: true, color: "#ff0000".into() }).accepted());
+    assert_eq!(book.host().model().definitions().auto_filter(s).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(), vec![3]);
+    // A condition must not fall back to the underlying fill when its formula is unavailable.
+    assert!(enter(&mut book, at(s, "D1"), "=1+1").accepted());
+    assert!(book.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual)).accepted());
+    assert!(enter(&mut book, at(s, "D1"), "=3+1").accepted());
+    let revision = book.host().revision().get();
+    let receipt = book.dispatch(SkinIntent::Command(W::Conditional {
+        sheet: s, revision, index: Some(0), change: calc_host::ConditionalChange::Update {
+            applies: "A2:A4".into(), formulas: vec!["$D$1>0".into()], stop: true,
+        },
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    let revision = book.host().revision();
+    let styles = book.host().styles().clone();
+    let filter = book.host().model().definitions().auto_filter(s).cloned();
+    let denied = command(&mut book, F::Color { column: 1, cell_color: true, color: "#00ff00".into() });
+    assert!(!denied.accepted(), "{denied:?}");
+    assert_eq!(book.host().revision(), revision);
+    assert_eq!(book.host().styles(), &styles);
+    assert_eq!(book.host().model().definitions().auto_filter(s), filter.as_ref());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_37__unread_conditional_rule_fields_keep_colour_filtering_atomic() {
+    use calc_host::{FilterChange as F, WorkbookCommand as W};
+    let original = include_bytes!("fixtures/dc_6yw/conditional-formats.xlsx");
+    for (before, after) in [
+        ("<cfRule type=\"cellIs\"", "<cfRule xmlns:v=\"urn:filter-rule-test\" v:effect=\"keep\" type=\"cellIs\""),
+        ("</cfRule>", "<v:effect xmlns:v=\"urn:filter-rule-test\"/></cfRule>"),
+        ("<formula>", "<formula xmlns:v=\"urn:filter-rule-test\" v:effect=\"keep\">"),
+        ("sqref=\"A1:A10\"", "sqref=\"E2:E4 invalid\""),
+        ("sqref=\"A1:A10\"", "sqref=\"\""),
+        ("sqref=\"A1:A10\"", ""),
+        ("<conditionalFormatting sqref=\"A1:A10\"", "<conditionalFormatting xmlns:v=\"urn:filter-rule-test\" v:effect=\"keep\" sqref=\"A1:A10\""),
+    ] {
+        let bytes = package_with_part_from(original, "xl/worksheets/sheet1.xml", |xml| {
+            assert!(xml.contains(before));
+            xml.replacen(before, after, 1)
+        });
+        let mut book = session(&bytes);
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        let s = book.host().sheets()[0].id();
+        let revision = book.host().revision().get();
+        assert!(book.dispatch(SkinIntent::Command(W::AutoFilter { sheet: s, revision,
+            change: F::Enable { area: GridArea::new(at(s, "A1"), at(s, "A10")).unwrap() },
+        })).accepted());
+        let revision = book.host().revision();
+        let styles = book.host().styles().clone();
+        let filter = book.host().model().definitions().auto_filter(s).cloned();
+        let denied = book.dispatch(SkinIntent::Command(W::AutoFilter { sheet: s, revision: revision.get(),
+            change: F::Color { column: 1, cell_color: true, color: "#ffc7ce".into() },
+        }));
+        assert!(!denied.accepted(), "{after}: {denied:?}");
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(book.host().styles(), &styles);
+        assert_eq!(book.host().model().definitions().auto_filter(s), filter.as_ref());
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        assert!(part_text(&saved, "xl/worksheets/sheet1.xml").contains(after));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_37__extension_colour_scope_requires_one_complete_direct_range() {
+    use calc_host::{FilterChange as F, WorkbookCommand as W};
+    for (scope, column, accepted, attribute) in [
+        ("<xm:sqref>E2:E4</xm:sqref></x14:conditionalFormatting><v:unknown xmlns:v=\"urn:unread-filter-scope\"/><x14:conditionalFormatting><xm:sqref>F2:F4</xm:sqref>", 1, false, ""),
+        ("<xm:sqref>E2:E4</xm:sqref>", 1, true, ""),
+        ("<xm:sqref>E2:E4</xm:sqref>", 1, false, "collection"),
+        ("<xm:sqref>E2:E4</xm:sqref>", 1, false, "range"),
+        ("<xm:sqref>E2:E4</xm:sqref>", 5, false, ""),
+        ("<xm:sqref>E2:E4</xm:sqref><xm:sqref>F2:F4</xm:sqref>", 1, false, ""),
+        ("<xm:sqref>E2:E4 invalid</xm:sqref>", 1, false, ""),
+        ("<x14:cfRule type=\"expression\" priority=\"2\"><xm:sqref>E2:E4</xm:sqref></x14:cfRule>", 1, false, ""),
+        ("", 1, false, ""),
+    ] {
+        let extension = format!("<extLst><ext uri=\"urn:filter-scope-test\"><x14:conditionalFormattings xmlns:x14=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/main\" xmlns:xm=\"http://schemas.microsoft.com/office/excel/2006/main\"><x14:conditionalFormatting><x14:cfRule type=\"expression\" priority=\"1\"/>{scope}</x14:conditionalFormatting></x14:conditionalFormattings></ext></extLst>");
+        let extension = match attribute {
+            "collection" => extension.replacen("<x14:conditionalFormattings ", "<x14:conditionalFormattings xmlns:v=\"urn:unread-filter-scope\" v:scope=\"unknown\" ", 1),
+            "range" => extension.replacen("<xm:sqref>", "<xm:sqref xmlns:v=\"urn:unread-filter-scope\" v:scope=\"unknown\">", 1),
+            _ => extension,
+        };
+        let bytes = package_with_part_from(&calc_host::blank_package(), "xl/worksheets/sheet1.xml", |xml| xml.replace("</worksheet>", &format!("{extension}</worksheet>")));
+        let mut book = session(&bytes);
+        let s = book.host().sheets()[0].id();
+        for (address, input) in [("A1", "Key"), ("A2", "1"), ("A3", "2"), ("A4", "3")] {
+            assert!(enter(&mut book, at(s, address), input).accepted());
+        }
+        let revision = book.host().revision().get();
+        assert!(book.dispatch(SkinIntent::Command(W::AutoFilter { sheet: s, revision,
+            change: F::Enable { area: GridArea::new(at(s, "A1"), at(s, "E4")).unwrap() },
+        })).accepted());
+        let revision = book.host().revision();
+        let styles = book.host().styles().clone();
+        let filter = book.host().model().definitions().auto_filter(s).cloned();
+        let receipt = book.dispatch(SkinIntent::Command(W::AutoFilter { sheet: s, revision: revision.get(),
+            change: F::Color { column, cell_color: true, color: "#ff0000".into() },
+        }));
+        assert_eq!(receipt.accepted(), accepted, "{scope}: {receipt:?}");
+        if !accepted {
+            assert_eq!(book.host().revision(), revision);
+            assert_eq!(book.host().styles(), &styles);
+            assert_eq!(book.host().model().definitions().auto_filter(s), filter.as_ref());
+        }
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        assert!(part_text(&saved, "xl/worksheets/sheet1.xml").contains(&extension));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_37__table_style_colours_refuse_before_committing_raw_style_comparisons() {
+    use calc_host::{FilterChange as F, WorkbookCommand as W};
+    let mut book = session(&calc_host::blank_package());
+    let (s, part) = create_test_table(&mut book);
+    let revision = book.host().revision();
+    let styles = book.host().styles().clone();
+    let tables = book.host().model().definitions().tables().to_vec();
+    assert!(tables[0].style.name.is_some());
+    for (cell_color, color) in [(true, "#4472c4"), (false, "#000000")] {
+        let receipt = book.dispatch(SkinIntent::Command(W::TableFilter {
+            sheet: s, revision: revision.get(), part: part.clone(),
+            change: F::Color { column: 1, cell_color, color: color.into() },
+        }));
+        assert!(!receipt.accepted(), "{receipt:?}");
+        assert!(receipt.error.unwrap().to_string().contains("effective colours"));
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(book.host().styles(), &styles);
+        assert_eq!(book.host().model().definitions().tables(), tables);
+    }
+}

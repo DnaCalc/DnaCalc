@@ -175,7 +175,12 @@ pub(crate) fn materialize(source: &ConditionalRuleSource) -> Result<XmlPart, Sav
                 let end = reader.element_end()?;
                 let mut replacement = Vec::new();
                 if let Some(formula) = source.formulas.get(formula_index) {
-                    write_formula(&formula_prefix, formula, &mut replacement);
+                    let tag = RawTag::parse(&xml.bytes()[span.0..span.1]);
+                    replacement.extend(tag.rebuilt(&[], false));
+                    xstring(&formula.encode_utf16().collect::<Vec<_>>(), &mut replacement);
+                    replacement.extend_from_slice(b"</");
+                    replacement.extend_from_slice(tag.prefix());
+                    replacement.extend_from_slice(b"formula>");
                 }
                 formula_index += 1;
                 splice.replace((span.0, end), &replacement);

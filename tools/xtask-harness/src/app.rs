@@ -2226,6 +2226,7 @@ fn wait_for(app: &App, session: &Session, check: &Check, settle: Duration) -> Op
 /// record. Returns the failures.
 fn run_case(ws: &Workspace, app: &App, session: &Session, case: &Case) -> Vec<String> {
     let mut failures = Vec::new();
+    let mut rendered_state_recorded = false;
     for (index, action) in case.actions.iter().enumerate() {
         if let Err(e) = act(ws, app, session, action) {
             failures.push(format!("action {} failed: {e}", index + 1));
@@ -2240,6 +2241,12 @@ fn run_case(ws: &Workspace, app: &App, session: &Session, case: &Case) -> Vec<St
     for check in case.checks {
         if let Some(failure) = wait_for(app, session, check, SETTLE) {
             failures.push(failure);
+            if !rendered_state_recorded && matches!(check, Check::PlanCell(..) | Check::PlanAbsent(_)) {
+                rendered_state_recorded = true;
+                if let Ok(state) = session.script(&format!(r#"{READ_PLANS}return {{window:[innerWidth,innerHeight],active:document.querySelector('[data-dnacalc=name-box]')?.value,status:document.querySelector('[data-dnacalc=status]')?.textContent,grids:Array.from(document.querySelectorAll('[data-dnacalc=grid]')).map(g=>({{rect:g.getBoundingClientRect().toJSON(),scroll:[g.scrollLeft,g.scrollTop]}})),plans:plans.map(p=>({{pane:p.pane,pending:p.pending,viewport:p.plan.viewport,publication:p.plan.publication,range:[p.plan.cells[0]?.address,p.plan.cells.at(-1)?.address],formulas:p.plan.cells.filter(c=>c.shown.formula).slice(0,32).map(c=>[c.address,c.shown.text,c.shown.formula,c.shown.provenance])}}))}};"#)) {
+                    failures.push(format!("rendered page state: {state}"));
+                }
+            }
             if matches!(check, Check::PainterStable) {
                 if let Ok(state) = session.script(&format!(r#"{READ_PLANS}var changes=[];function compare(a,b,path){{if(JSON.stringify(a)===JSON.stringify(b)||changes.length>=32)return;if(a&&b&&typeof a==='object'&&typeof b==='object'){{for(var k of new Set([...Object.keys(a),...Object.keys(b)]))compare(a[k],b[k],path+'.'+k);}}else changes.push({{path,before:a,after:b}});}}compare(window.__dcPresentation,plans[0],'plan');return changes;"#)) {
                     failures.push(format!("presentation differences: {state}"));
@@ -3010,8 +3017,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 229,
-            "the two applications have 229 core cases including candidate validation, conditional formats, editable review content, validation audits and the existing editing routes"
+            total, 235,
+            "the two applications have 235 core cases including conditional colour filters, candidate validation, conditional formats, editable review content, validation audits and the existing editing routes"
         );
     }
 
