@@ -587,6 +587,95 @@ fn recorded_db_ddb_coercion_precedes_later_padding() {
     }
 }
 
+/// W111 depreciation-padding and independent-20260929: required numeric
+/// coercion and factor coercion precede a later absent array coordinate.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_vdb_coercion_precedes_later_padding() {
+    use calc_func::value::CalcArray;
+    let cases: &[(&str, &str, &[u64], usize, usize, u64, WorksheetErrorCode)] = &[
+        ("w111dep-padding-00063-vdb-earlier-0-later-padding-1-badtext", "=VDB(CHOOSE({1,2,3;4,5,6},A100,A101,\"bad\",A102,A103,\"bad\"),CHOOSE({1,2;3,4},A104,A105,A106,A107),A108,A109,A110,A111,TRUE)",
+            &[0x408f400000000000, 0x408f400000000000, 0x408f400000000000, 0x408f400000000000, 0x4059000000000000, 0x4059000000000000, 0x4059000000000000, 0x4059000000000000, 0x4024000000000000, 0x3ff0000000000000, 0x4000000000000000, 0x4000000000000000], 2, 3, 0x4064000000000000, WorksheetErrorCode::Value),
+        ("w111dep-padding-00068-vdb-earlier-0-later-padding-2-badtext", "=VDB(CHOOSE({1,2,3;4,5,6},A100,A101,\"bad\",A102,A103,\"bad\"),A104,CHOOSE({1,2;3,4},A105,A106,A107,A108),A109,A110,A111,TRUE)",
+            &[0x408f400000000000, 0x408f400000000000, 0x408f400000000000, 0x408f400000000000, 0x4059000000000000, 0x4024000000000000, 0x4024000000000000, 0x4024000000000000, 0x4024000000000000, 0x3ff0000000000000, 0x4000000000000000, 0x4000000000000000], 2, 3, 0x4064000000000000, WorksheetErrorCode::Value),
+        ("w111dep-padding-00073-vdb-earlier-1-later-padding-2-badtext", "=VDB(A100,CHOOSE({1,2,3;4,5,6},A101,A102,\"bad\",A103,A104,\"bad\"),CHOOSE({1,2;3,4},A105,A106,A107,A108),A109,A110,A111,TRUE)",
+            &[0x408f400000000000, 0x4059000000000000, 0x4059000000000000, 0x4059000000000000, 0x4059000000000000, 0x4024000000000000, 0x4024000000000000, 0x4024000000000000, 0x4024000000000000, 0x3ff0000000000000, 0x4000000000000000, 0x4000000000000000], 2, 3, 0x4064000000000000, WorksheetErrorCode::Value),
+        ("w111dep-padding-independent-00469-vdb-independent-padding-0-6-False-badtext-False-False", "=VDB(CHOOSE({1,2,3;4,5,6},A100,A101,\"invalid\",A102,A103,\"invalid\"),A104,A105,A106,A107,A108,CHOOSE({1,2;3,4},TRUE,TRUE,TRUE,TRUE))",
+            &[0x40957c0000000000, 0x40957c0000000000, 0x40957c0000000000, 0x40957c0000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000], 2, 3, 0x40764227a2b5d435, WorksheetErrorCode::Value),
+        ("w111dep-padding-independent-00470-vdb-independent-padding-0-6-False-badtext-False-True", "=VDB(CHOOSE({1,2,3;4,5,6},A100,A101,\"invalid\",A102,A103,\"invalid\"),CHOOSE({1},A104),A105,A106,A107,A108,CHOOSE({1,2;3,4},TRUE,TRUE,TRUE,TRUE))",
+            &[0x40957c0000000000, 0x40957c0000000000, 0x40957c0000000000, 0x40957c0000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000], 2, 3, 0x40764227a2b5d435, WorksheetErrorCode::Value),
+        ("w111dep-padding-independent-00471-vdb-independent-padding-0-6-False-badtext-True-False", "=VDB(CHOOSE({1,2;3,4},A100,A101,A102,A103),A104,A105,A106,A107,A108,CHOOSE({1,2,3;4,5,6},TRUE,TRUE,\"invalid\",TRUE,TRUE,\"invalid\"))",
+            &[0x40957c0000000000, 0x40957c0000000000, 0x40957c0000000000, 0x40957c0000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000], 2, 3, 0x40764227a2b5d435, WorksheetErrorCode::NA),
+        ("w111dep-padding-independent-00489-vdb-independent-padding-0-6-True-badtext-False-False", "=VDB(CHOOSE({1,2;3,4;5,6},A100,A101,A102,A103,\"invalid\",\"invalid\"),A104,A105,A106,A107,A108,CHOOSE({1,2;3,4},TRUE,TRUE,TRUE,TRUE))",
+            &[0x40957c0000000000, 0x40957c0000000000, 0x40957c0000000000, 0x40957c0000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000], 3, 2, 0x40764227a2b5d435, WorksheetErrorCode::Value),
+        ("w111dep-padding-independent-00491-vdb-independent-padding-0-6-True-badtext-True-False", "=VDB(CHOOSE({1,2;3,4},A100,A101,A102,A103),A104,A105,A106,A107,A108,CHOOSE({1,2;3,4;5,6},TRUE,TRUE,TRUE,TRUE,\"invalid\",\"invalid\"))",
+            &[0x40957c0000000000, 0x40957c0000000000, 0x40957c0000000000, 0x40957c0000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000], 3, 2, 0x40764227a2b5d435, WorksheetErrorCode::NA),
+        ("w111dep-padding-independent-00509-vdb-independent-padding-1-6-False-badtext-False-False", "=VDB(A100,CHOOSE({1,2,3;4,5,6},A101,A102,\"invalid\",A103,A104,\"invalid\"),A105,A106,A107,A108,CHOOSE({1,2;3,4},TRUE,TRUE,TRUE,TRUE))",
+            &[0x40957c0000000000, 0x405f400000000000, 0x405f400000000000, 0x405f400000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000], 2, 3, 0x40764227a2b5d435, WorksheetErrorCode::Value),
+        ("w111dep-padding-independent-00511-vdb-independent-padding-1-6-False-badtext-True-False", "=VDB(A100,CHOOSE({1,2;3,4},A101,A102,A103,A104),A105,A106,A107,A108,CHOOSE({1,2,3;4,5,6},TRUE,TRUE,\"invalid\",TRUE,TRUE,\"invalid\"))",
+            &[0x40957c0000000000, 0x405f400000000000, 0x405f400000000000, 0x405f400000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000], 2, 3, 0x40764227a2b5d435, WorksheetErrorCode::NA),
+        ("w111dep-padding-independent-00529-vdb-independent-padding-1-6-True-badtext-False-False", "=VDB(A100,CHOOSE({1,2;3,4;5,6},A101,A102,A103,A104,\"invalid\",\"invalid\"),A105,A106,A107,A108,CHOOSE({1,2;3,4},TRUE,TRUE,TRUE,TRUE))",
+            &[0x40957c0000000000, 0x405f400000000000, 0x405f400000000000, 0x405f400000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000], 3, 2, 0x40764227a2b5d435, WorksheetErrorCode::Value),
+        ("w111dep-padding-independent-00531-vdb-independent-padding-1-6-True-badtext-True-False", "=VDB(A100,CHOOSE({1,2;3,4},A101,A102,A103,A104),A105,A106,A107,A108,CHOOSE({1,2;3,4;5,6},TRUE,TRUE,TRUE,TRUE,\"invalid\",\"invalid\"))",
+            &[0x40957c0000000000, 0x405f400000000000, 0x405f400000000000, 0x405f400000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000], 3, 2, 0x40764227a2b5d435, WorksheetErrorCode::NA),
+        ("w111dep-padding-independent-00549-vdb-independent-padding-5-6-False-badtext-False-False", "=VDB(A100,A101,A102,A103,A104,CHOOSE({1,2,3;4,5,6},A105,A106,\"invalid\",A107,A108,\"invalid\"),CHOOSE({1,2;3,4},TRUE,TRUE,TRUE,TRUE))",
+            &[0x40957c0000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000, 0x3ff8000000000000, 0x3ff8000000000000, 0x3ff8000000000000], 2, 3, 0x40764227a2b5d435, WorksheetErrorCode::Value),
+        ("w111dep-padding-independent-00551-vdb-independent-padding-5-6-False-badtext-True-False", "=VDB(A100,A101,A102,A103,A104,CHOOSE({1,2;3,4},A105,A106,A107,A108),CHOOSE({1,2,3;4,5,6},TRUE,TRUE,\"invalid\",TRUE,TRUE,\"invalid\"))",
+            &[0x40957c0000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000, 0x3ff8000000000000, 0x3ff8000000000000, 0x3ff8000000000000], 2, 3, 0x40764227a2b5d435, WorksheetErrorCode::NA),
+        ("w111dep-padding-independent-00569-vdb-independent-padding-5-6-True-badtext-False-False", "=VDB(A100,A101,A102,A103,A104,CHOOSE({1,2;3,4;5,6},A105,A106,A107,A108,\"invalid\",\"invalid\"),CHOOSE({1,2;3,4},TRUE,TRUE,TRUE,TRUE))",
+            &[0x40957c0000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000, 0x3ff8000000000000, 0x3ff8000000000000, 0x3ff8000000000000], 3, 2, 0x40764227a2b5d435, WorksheetErrorCode::Value),
+        ("w111dep-padding-independent-00571-vdb-independent-padding-5-6-True-badtext-True-False", "=VDB(A100,A101,A102,A103,A104,CHOOSE({1,2;3,4},A105,A106,A107,A108),CHOOSE({1,2;3,4;5,6},TRUE,TRUE,TRUE,TRUE,\"invalid\",\"invalid\"))",
+            &[0x40957c0000000000, 0x405f400000000000, 0x4023800000000000, 0x3ff2000000000000, 0x400b000000000000, 0x3ff8000000000000, 0x3ff8000000000000, 0x3ff8000000000000, 0x3ff8000000000000], 3, 2, 0x40764227a2b5d435, WorksheetErrorCode::NA),
+    ];
+    for (id, formula, inputs, rows, cols, bits, error) in cases {
+        let mut session = Session::new("Sheet1").unwrap();
+        session.set_formula_cell("J20").unwrap();
+        for (index, bits) in inputs.iter().enumerate() {
+            session.set_input(&format!("A{}", 100 + index), InputValue::number(f64::from_bits(*bits)).unwrap()).unwrap();
+        }
+        session.set_formula(formula);
+        let calculated = session.calculate();
+        let expected = CalcArray::from_rows((0..*rows).map(|row| (0..*cols).map(|col| {
+            if (*rows == 3 && row == 2) || (*cols == 3 && col == 2) {
+                CalcValue::error(*error)
+            } else {
+                CalcValue::number(f64::from_bits(*bits))
+            }
+        }).collect()).collect()).unwrap();
+        assert_eq!(calculated.result, Some(CalcValue::array(expected)), "{id}: {formula}: {:?}", calculated.diagnostics);
+        assert!(calculated.diagnostics.is_empty());
+    }
+}
+
+/// Selected W111 depreciation-options 00022..00031 and W089 seed 00323:
+/// an explicit missing factor is zero, distinct from an absent optional factor.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_vdb_explicit_missing_factor_is_zero() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J20").unwrap();
+    for (index, value) in [1000.0, 100.0, 10.0, 1.0, 2.0].into_iter().enumerate() {
+        session.set_input(&format!("A{}", 100 + index), InputValue::number(value).unwrap()).unwrap();
+    }
+    session.set_input("A105", InputValue::blank()).unwrap();
+    for (formula, expected) in [
+        ("=VDB(2400,300,120,6,18)", CalcValue::number(f64::from_bits(0x4078c4e5981baf06))),
+        ("=VDB(A100,A101,A102,A103,A104,,FALSE)", CalcValue::number(f64::from_bits(0x4056800000000000))),
+        ("=VDB(A100,A101,A102,A103,A104,A105,FALSE)", CalcValue::number(f64::from_bits(0x4056800000000000))),
+        ("=VDB(A100,A101,A102,A103,A104,\"\",FALSE)", CalcValue::error(WorksheetErrorCode::Value)),
+        ("=VDB(A100,A101,A102,A103,A104,\"2\",FALSE)", CalcValue::number(f64::from_bits(0x4064000000000000))),
+        ("=VDB(A100,A101,A102,A103,A104,\"TRUE\",FALSE)", CalcValue::error(WorksheetErrorCode::Value)),
+        ("=VDB(A100,A101,A102,A103,A104,\"FALSE\",FALSE)", CalcValue::error(WorksheetErrorCode::Value)),
+        ("=VDB(A100,A101,A102,A103,A104,TRUE,FALSE)", CalcValue::number(f64::from_bits(0x4056800000000000))),
+        ("=VDB(A100,A101,A102,A103,A104,#N/A,FALSE)", CalcValue::error(WorksheetErrorCode::NA)),
+    ] {
+        session.set_formula(formula);
+        let calculated = session.calculate();
+        assert_eq!(calculated.result, Some(expected), "{formula}: {:?}", calculated.diagnostics);
+        assert!(calculated.diagnostics.is_empty());
+    }
+}
+
 /// Recorded hypgeom.dist-domain-00026..00029 and the fresh fractional
 /// support controls in OxFunc-Evidence's HYPGEOM.DIST banks.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

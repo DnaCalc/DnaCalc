@@ -18,6 +18,102 @@ use std::sync::Arc;
 const G: &str = r#"GROUPBY({"a";"b";"a"},{1;2;3},LAMBDA(x,x),0,0)"#;
 const G78: &str = r#"GROUPBY({"a";"b";"a"},{1;2;3},LAMBDA(x,{7,8}),0,0)"#;
 
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_ztvv_2__an_excel_empty_spill_marker_is_cached_until_the_owner_calculates() {
+    let bytes = include_bytes!(
+        "../../calc-engine/tests/fixtures/excel-calc-probes/P04/changed-seed-volatile-alternates-changed-seed-range-01.xlsm"
+    );
+    let mut session = HostSession::open(
+        Arc::new(MemorySource::new(bytes.to_vec())),
+        &OpenPolicy::default(),
+        HostOptions {
+            calc_mode: Some(CalcMode::Manual),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    session.set_calculation_budget(calc_host::WorkBudget::evaluations(1));
+    let sheet = session.host().sheets()[0].id();
+    let anchor = CellKey::new(sheet, 1, 6).unwrap();
+    let member = CellKey::new(sheet, 2, 6).unwrap();
+    let request = ProjectionRequest {
+        cells: vec![anchor, member],
+    };
+    let before = project(session.host(), &request).unwrap();
+    for (cell, n) in before.cells().iter().zip([1., 2.]) {
+        let ProjectedValue::FileCached(cache) = cell.value() else {
+            panic!("{cell:?}")
+        };
+        assert_eq!(cache.value().to_value().as_number(), Some(n));
+    }
+    // Isolate the recorded independent SEQUENCE control using ordinary edits.
+    // The other, unregistered UDF arrays remain pending producers whose future
+    // extents could overlap F1; their cached shapes cannot certify a fresh spill.
+    for column in [1, 4] {
+        assert!(
+            session
+                .dispatch(SkinIntent::EnterCell {
+                    at: CellKey::new(sheet, 1, column).unwrap(),
+                    text: String::new()
+                })
+                .accepted()
+        );
+    }
+    let calculate = |session: &mut HostSession| {
+        assert!(
+            session
+                .dispatch(SkinIntent::CalculateRange {
+                    areas: vec![calc_host::value::GridArea::new(anchor, member).unwrap()]
+                })
+                .accepted()
+        );
+        for _ in 0..100 {
+            if !session.has_pending_calculation() {
+                return;
+            }
+            assert!(!matches!(
+                session.advance_calculation(),
+                calc_host::HostProgress::Failed(_)
+            ));
+        }
+        panic!("spill calculation did not finish");
+    };
+    calculate(&mut session);
+    let after = project(session.host(), &request).unwrap();
+    for (cell, n) in after.cells().iter().zip([1., 2.]) {
+        let ProjectedValue::Calculated { value, calculation } = cell.value() else {
+            panic!("{cell:?}")
+        };
+        assert_eq!(value.as_number(), Some(n));
+        assert!(!calculation.held_by_circular_rule() && !calculation.reads_external_links());
+    }
+    assert!(
+        session
+            .dispatch(SkinIntent::EnterCell {
+                at: anchor,
+                text: "=SEQUENCE(1)".into()
+            })
+            .accepted()
+    );
+    calculate(&mut session);
+    let resized = project(session.host(), &request).unwrap();
+    assert!(matches!(resized.cells()[1].value(), ProjectedValue::Empty));
+    let mut saved = Vec::new();
+    session.save(&Default::default(), &mut saved).unwrap();
+    let reopened = HostSession::open(
+        Arc::new(MemorySource::new(saved)),
+        &OpenPolicy::default(),
+        HostOptions {
+            calc_mode: Some(CalcMode::Manual),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let page = project(reopened.host(), &request).unwrap();
+    assert!(matches!(page.cells()[1].value(), ProjectedValue::Empty));
+}
+
 fn shown(session: &HostSession, at: CellKey) -> String {
     let projection =
         project(session.host(), &ProjectionRequest { cells: vec![at] }).expect("projected");
