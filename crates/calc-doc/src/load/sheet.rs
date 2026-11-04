@@ -72,6 +72,7 @@ struct Filled {
     /// (top, left, bottom, right)
     area: (u32, u32, u32, u32),
     data_table: bool,
+    dynamic_array: bool,
 }
 
 /// The spelling of each worksheet error in a cell's `<v>`, matched exactly.
@@ -174,6 +175,7 @@ struct Formula {
     /// A data table's `dt2D`, `dtr`, `r1` and `r2`.
     data_table: [Option<String>; 4],
     text: String,
+    calculate_always: bool,
 }
 
 struct Sheet<'a> {
@@ -196,8 +198,8 @@ struct Sheet<'a> {
 
 impl Sheet<'_> {
     /// Whether the cell at `row` and `column` lies in a filled area other than at its anchor,
-    /// and whether that area is a data table's.
-    fn filled_at(&mut self, row: u32, column: u32) -> Option<bool> {
+    /// and whether that area is a data table or a dynamic array.
+    fn filled_at(&mut self, row: u32, column: u32) -> Option<(bool, bool)> {
         self.filled.retain(|filled| filled.area.2 >= row);
         self.filled
             .iter()
@@ -207,7 +209,7 @@ impl Sheet<'_> {
                     && (left..=right).contains(&column)
                     && (row, column) != (top, left)
             })
-            .map(|filled| filled.data_table)
+            .map(|filled| (filled.data_table, filled.dynamic_array))
     }
 
     /// A cell's cached value as its `<v>` and `vm` give it: a `vm` naming a rich error gives
@@ -432,6 +434,7 @@ impl Sheet<'_> {
                         attribute("r2"),
                     ],
                     text,
+                    calculate_always: matches!(child.attribute("ca"), Some("1" | "true")),
                 });
                 if previous.is_some() {
                     return Err(twice("a cell with two formulas"));
@@ -468,8 +471,20 @@ impl Sheet<'_> {
             self.load.unloaded.push((key, UnloadedCell::MacroSheet));
             return Ok(column);
         }
-        if let Some(data_table) = self.filled_at(row, column) {
-            if formula.is_some() {
+        if let Some((data_table, dynamic_array)) = self.filled_at(row, column) {
+            // Excel's P04/P06 saved spills carry `<f ca="1"/>` on members.
+            // Only a proven dynamic footprint can own this empty cache marker;
+            // a real expression or another formula declaration still overlaps.
+            let spill_cache_marker = dynamic_array
+                && formula.as_ref().is_some_and(|f| {
+                    f.calculate_always
+                        && f.text.is_empty()
+                        && matches!(f.kind.as_deref(), None | Some("normal"))
+                        && f.index.is_none()
+                        && f.area.is_none()
+                        && f.data_table.iter().all(Option::is_none)
+                });
+            if formula.is_some() && !spill_cache_marker {
                 return Err(fail(CellError::Malformed {
                     detail: "a formula inside the area an array formula or data table fills",
                 }));
@@ -636,6 +651,7 @@ impl Sheet<'_> {
                     self.filled.push(Filled {
                         area,
                         data_table: true,
+                        dynamic_array: false,
                     });
                     return Ok(());
                 }
@@ -665,6 +681,7 @@ impl Sheet<'_> {
                     self.filled.push(Filled {
                         area,
                         data_table: false,
+                        dynamic_array: matches!(kind, ArrayKind::Dynamic { .. }),
                     });
                 }
                 self.record(row, column, None, cache);

@@ -15,6 +15,86 @@ use cdoc_m1_1_support::d1::*;
 
 const FIXTURE: &str = "../cdoc_m1_2/d1.saved.xlsx";
 
+/// Excel's recorded P04 package has F1:F2 as a dynamic spill. F2's empty
+/// `<f ca="1"/>` is a spill-cache marker, not a second authored formula.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_ztvv_2__empty_excel_spill_formula_markers_keep_cache_provenance() {
+    let bytes = include_bytes!(
+        "../../calc-engine/tests/fixtures/excel-calc-probes/P04/changed-seed-volatile-alternates-changed-seed-range-01.xlsm"
+    );
+    let loaded = load(bytes);
+    let sheet = loaded.model().sheets()[0].id();
+    assert_eq!(loaded.model().cell(at(sheet, "F2")), None);
+    let source = loaded.sheets().iter().find(|s| s.id() == sheet).unwrap();
+    assert!(source.formula(2, 6).is_none());
+    assert_eq!(source.formulas().count(), 3);
+    assert_eq!(cached_number(source.value_cache(2, 6).unwrap().value()), 2.);
+    let unchanged = save_untouched(bytes);
+    assert_eq!(
+        part(&unchanged, "xl/worksheets/sheet1.xml"),
+        part(bytes, "xl/worksheets/sheet1.xml")
+    );
+    // Replacing the owner must remove its old members, including empty f markers.
+    let model = edited(
+        &loaded,
+        vec![WorkbookOp::SetCell {
+            at: at(sheet, "F1"),
+            input: formula("7"),
+        }],
+    );
+    let (saved, _) = save_model(&loaded, &model);
+    let reopened = load(&saved);
+    assert_eq!(reopened.model().cell(at(sheet, "F2")), None);
+    assert!(
+        reopened
+            .sheets()
+            .iter()
+            .find(|s| s.id() == sheet)
+            .unwrap()
+            .value_cache(2, 6)
+            .is_none()
+    );
+    let source = part_text(bytes, "xl/worksheets/sheet1.xml");
+    for marker in [
+        "<f ca=\"1\">1</f>",
+        "<f ca=\"1\" t=\"shared\" si=\"0\"/>",
+        "<f ca=\"1\" t=\"array\" ref=\"F2\"/>",
+        "<f/>",
+    ] {
+        let xml = source.replace("<f ca=\"1\"/>", marker);
+        assert_ne!(xml, source);
+        let control = replace_part(bytes, "xl/worksheets/sheet1.xml", xml.as_bytes());
+        assert!(
+            calc_doc::load(
+                &open(&control),
+                &mut calc_doc::model::value::IdAllocator::new()
+            )
+            .is_err(),
+            "{marker}"
+        );
+    }
+    for xml in [
+        source.replace("<c r=\"F1\" cm=\"1\">", "<c r=\"F1\">"),
+        source.replace("ref=\"F1:F2\"", "ref=\"F1\""),
+        source.replace(
+            "<f t=\"array\" aca=\"1\" ref=\"F1:F2\" ca=\"1\">_xlfn.SEQUENCE(2)</f>",
+            "<f t=\"dataTable\" ref=\"F1:F2\" r1=\"A2\"/>",
+        ),
+    ] {
+        assert_ne!(xml, source);
+        let control = replace_part(bytes, "xl/worksheets/sheet1.xml", xml.as_bytes());
+        assert!(
+            calc_doc::load(
+                &open(&control),
+                &mut calc_doc::model::value::IdAllocator::new()
+            )
+            .is_err(),
+            "an empty marker requires its proven dynamic footprint"
+        );
+    }
+}
+
 fn area(sheet: calc_doc::model::value::SheetId, a: &str, b: &str) -> GridArea {
     GridArea::new(at(sheet, a), at(sheet, b)).unwrap()
 }
