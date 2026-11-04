@@ -1042,6 +1042,17 @@ pub(crate) struct SequenceWork {
 
 impl SequenceWork {
     pub(crate) fn new(args: &[CalcValue]) -> Result<Self, DynamicArrayReshapeEvalError> {
+        // Fn2 roots164/165: formed argument errors keep their order before a
+        // dimension-derived error. Arrays and callable values keep their own route.
+        for value in args {
+            if value.callable_value().is_none()
+                && let CoreRef::Error(code) = value.core_ref()
+            {
+                return Err(DynamicArrayReshapeEvalError::Preparation(
+                    CoercionError::WorksheetError(code),
+                ));
+            }
+        }
         fn dimension(arg: Option<&CalcValue>) -> Result<usize, DynamicArrayReshapeEvalError> {
             let raw = match arg {
                 None => return Ok(1),
