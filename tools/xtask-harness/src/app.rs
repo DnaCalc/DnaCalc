@@ -1040,6 +1040,8 @@ pub enum Action {
     OpenFieldLink(&'static str),
     RememberFieldLink(&'static str),
     OpenRememberedLink,
+    /// Reload the actual application, preserving browser personal templates.
+    Reload,
     /// Two real clicks on a trailing row or column header boundary.
     DoubleClickEdge(&'static str, bool),
     CtrlClick(&'static str),
@@ -1591,6 +1593,10 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 "window.__ocSavedLink=document.querySelector({selector}).value;return null;"
             ))?;
             Ok(())
+        }
+        Action::Reload => {
+            let url=session.script("return window.location.href;")?.as_str().ok_or("No page URL")?.to_owned();
+            session.post("/url",json!({"url":url}))?;Ok(())
         }
         Action::OpenRememberedLink => {
             let url = session.script("return window.__ocSavedLink;")?;
@@ -3015,8 +3021,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 254,
-            "the two applications have 254 core cases including templates, complete table sorting, sorted notes/validation, conditional colour filters, candidate validation, conditional formats, editable review content, validation audits and the existing editing routes"
+            total, 259,
+            "the two applications have 259 core cases including templates, complete table sorting, sorted notes/validation, conditional colour filters, candidate validation, conditional formats, editable review content, validation audits and the existing editing routes"
         );
     }
 

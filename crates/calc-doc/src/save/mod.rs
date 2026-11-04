@@ -34,6 +34,9 @@ mod sheets;
 mod strings;
 mod structural;
 mod styles;
+mod template_merge;
+mod template_styles;
+pub use template_merge::{merge as merge_template_sheets,rename_sheet as rename_template_sheet};
 #[cfg(test)]
 mod tests;
 pub(crate) mod text;
@@ -253,6 +256,7 @@ pub struct SaveViews {
 /// revision the caller holds.
 #[derive(Debug, PartialEq, Eq)]
 pub enum SaveRefusal {
+    TemplateNotModelled { detail: String, owner: &'static str },
     /// Macro-free output would discard active content. Choose a macro-enabled format.
     MacroLoss { owner: &'static str },
     OutlineNotModelled { part:String, owner: &'static str },
@@ -355,6 +359,7 @@ pub enum SaveRefusal {
 impl fmt::Display for SaveRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::TemplateNotModelled { detail, owner } => write!(f, "{detail} ({owner}); nothing changed"),
             Self::WindowView {detail,owner}=>write!(f,"{detail} ({owner})"),
             Self::OutlineNotModelled {part,owner} => write!(f,"Outline metadata in {part} cannot be rewritten ({owner}); no bytes written"),
             Self::StyleExpansionNotModelled { cells, owner } => write!(

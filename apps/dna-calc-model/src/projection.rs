@@ -545,6 +545,9 @@ pub enum TableChange {Create{area:Area,name:String},Resize{part:String,area:Area
 /// What the page asks of the server.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Request {
+    InspectTemplate,
+    OpenTemplate {name:String},
+    InsertTemplate {name:Option<String>,revision:u64},
     FilterValues { sheet:Sheet, table:Option<String>, column:u32 },
     Names {
         query: String,
@@ -713,7 +716,9 @@ impl Request {
     pub fn is_command(&self) -> bool {
         matches!(
             self,
-            Self::EvaluateName { .. }
+            Self::OpenTemplate { .. }
+                | Self::InsertTemplate { .. }
+                | Self::EvaluateName { .. }
                 | Self::New
                 | Self::Open { .. }
                 | Self::OpenForEditing { .. }
@@ -992,6 +997,7 @@ pub struct PastePreview {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Reply {
+    TemplateFormat(FileFormat),
     FilterValues { revision:u64, values:Result<(Vec<(String,bool)>,bool),String>, criteria:Option<FilterChange> },
     Names(crate::names::NamePage),
     NameEvaluation(crate::names::NameEvaluation),

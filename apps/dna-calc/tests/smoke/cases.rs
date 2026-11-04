@@ -8249,6 +8249,37 @@ Case {
         checks:&[Check::Reachable("save-as-name"),Check::Reachable("save-as-format"),Check::Reachable("save-as-confirm"),Check::Reachable("save-as-cancel")],
     },
 
+    Case {
+        name:"templates: inserted worksheets calculate renamed qualified references and undo together",
+        actions:&[Action::Click("save-as-cancel"),Action::Window(1440,1000),Action::UploadDownload("Budget.xltx"),Action::DiscardReplacement,
+            Action::OpenDetails("file-menu"),Action::UploadDownloadTo("Budget.xltx","template-file"),Action::Wait(Check::Value("template-list","Budget.xltx")),Action::Click("template-insert"),
+            Action::Wait(Check::Count("[data-dnacalc=sheet-jump] option",2)),Action::Wait(Check::Text(cell!("B1"),"18")),Action::Click("undo"),Action::Wait(Check::Count("[data-dnacalc=sheet-jump] option",1)),Action::Click("redo")],
+        checks:&[Check::Count("[data-dnacalc=sheet-jump] option",2),Check::Text(cell!("B1"),"18"),Check::PlanCell("B1","provenance","calculated")],
+    },
+    Case {
+        name:"templates: Sheet default supplies new worksheets and clearing restores blank insertion",
+        actions:&[Action::OpenDetails("file-menu"),Action::Choose("template-list","Budget.xltx"),Action::Click("template-default-sheet"),Action::Click("file-toggle"),
+            Action::OpenDetails("sheet-tools"),Action::Click("sheet-add"),Action::Wait(Check::Count("[data-dnacalc=sheet-jump] option",3)),Action::Wait(Check::Text(cell!("B1"),"18")),
+            Action::OpenDetails("file-menu"),Action::Click("template-clear-defaults"),Action::Click("file-toggle"),Action::OpenDetails("sheet-tools"),Action::Click("sheet-add")],
+        checks:&[Check::Count("[data-dnacalc=sheet-jump] option",4),Check::PlanAbsent("B1")],
+    },
+    Case {
+        name:"templates: Book default survives startup and can be edited without creating a workbook",
+        actions:&[Action::OpenDetails("file-menu"),Action::Choose("template-list","Budget.xltx"),Action::Click("template-default-book"),Action::Reload,
+            Action::Wait(Check::Text("document","Book1.xlsx")),Action::Wait(Check::Text(cell!("B1"),"18")),Action::OpenDetails("file-menu"),Action::Choose("template-list","Book.xltx"),Action::Click("template-edit"),Action::DiscardReplacement],
+        checks:&[Check::Text("document","Book.xltx"),Check::Attr("document","data-template","true"),Check::Text(cell!("B1"),"18")],
+    },
+    Case {
+        name:"templates: saving an edited personal default updates its stored contents",
+        actions:&[Action::Into("name-box","A1\u{E007}"),Action::Into(BAR,"9\u{E007}"),Action::Wait(Check::Text(cell!("B1"),"27")),Action::Click("save"),Action::Wait(Check::Text("document","Book.xltx")),Action::OpenDetails("file-menu"),Action::Choose("template-list","Budget.xltx"),Action::Click("template-default-sheet"),Action::Choose("template-list","Sheet.xltx"),Action::Click("template-remove"),Action::Reload],
+        checks:&[Check::Text("document","Book1.xlsx"),Check::Text(cell!("B1"),"27"),Check::Attr("document","data-unsaved","true")],
+    },
+    Case {
+        name:"templates: removing defaults persists and keeps the original personal template",
+        actions:&[Action::OpenDetails("file-menu"),Action::Click("template-clear-defaults"),Action::Reload,Action::Wait(Check::Text("document","Book1.xlsx")),Action::OpenDetails("file-menu"),Action::Choose("template-list","Budget.xltx")],
+        checks:&[Check::PlanAbsent("B1"),Check::Value("template-list","Budget.xltx"),Check::Count("[data-dnacalc=template-list] option",2)],
+    },
+
 ];
 
 /// The script that reads what one check looks at.
@@ -9086,5 +9117,5 @@ CaseGroup {
     CaseGroup { name: "conditional-colour-filters", start: 640, end: 646, core: 6, setup: &[] },
     CaseGroup {name:"sort-metadata",start:646,end:651,core:5,setup:&[]},
     CaseGroup {name:"table-sorting",start:651,end:657,core:6,setup:&[]},
-    CaseGroup {name:"templates",start:657,end:665,core:8,setup:&[]},
+    CaseGroup {name:"templates",start:657,end:670,core:13,setup:&[]},
 ];
