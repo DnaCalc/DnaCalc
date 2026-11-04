@@ -762,6 +762,8 @@ pub(super) enum Origin {
 pub(super) enum Held {
     /// Numbers only: text, logicals and blank cells are skipped.
     Numbers,
+    /// MODE also skips direct text and logical arguments.
+    ModeNumbers,
     /// The A-suffixed rule: in a reference, text is 0, TRUE is 1 and FALSE is 0; blank cells are
     /// skipped. In an array text and logicals are skipped (dc-bd5: Excel 16.0.20527 gives
     /// MAXA({-1,"a"}) -1, MINA({1,TRUE}) 1, STDEVA({1,"a",3}) 1.414... and VARA({1,TRUE,3}) 2).
@@ -781,6 +783,11 @@ pub(super) fn number_of(
     origin: Origin,
     value: &CalcValue,
 ) -> Step<Option<f64>> {
+    if matches!(held, Held::ModeNumbers)
+        && matches!(value.core_ref(), CoreRef::Text(_) | CoreRef::Logical(_))
+    {
+        return Ok(None);
+    }
     if origin == Origin::Direct {
         return site.number_argument(index, value).map(Some);
     }
@@ -794,7 +801,7 @@ pub(super) fn number_of(
             Ok(Some(if b { 1.0 } else { 0.0 }))
         }
         (Held::Values | Held::AverageValues, CoreRef::Text(_) | CoreRef::Logical(_)) => Ok(None),
-        (Held::Numbers, CoreRef::Text(_) | CoreRef::Logical(_))
+        (Held::Numbers | Held::ModeNumbers, CoreRef::Text(_) | CoreRef::Logical(_))
         | (_, CoreRef::Empty | CoreRef::Missing) => Ok(None),
         (_, CoreRef::Array(_) | CoreRef::Reference(_)) => Err(site.not_modelled(Some(index))),
     }
