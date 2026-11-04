@@ -436,33 +436,33 @@ fn normal_error_functions_publish_recorded_underflows() {
 fn error_function_tails_record_known_gaps() {
     // These ERFC arguments belong to different halves of the frozen split.
     for function in ["ERFC", "ERFC.PRECISE"] {
-        recorded_calculation(call(function, vec![n(f64::from_bits(0x4021_0c8a_deec_196e))]), f64::from_bits(0x3922_d992_80b1_9df9), f64::from_bits(0x3922d99280b19e1e));
-        recorded_calculation(call(function, vec![n(f64::from_bits(0x4024_2bc8_1cf3_8194))]), f64::from_bits(0x3680_fa89_4f89_d6df), f64::from_bits(0x3680fa894f89d6ff));
+        recorded_calculation(call(function, vec![n(f64::from_bits(0x4021_0c8a_deec_196e))]), f64::from_bits(0x3922_d992_80b1_9df9), f64::from_bits(0x3922d99280b19df8));
+        recorded_calculation(call(function, vec![n(f64::from_bits(0x4024_2bc8_1cf3_8194))]), f64::from_bits(0x3680_fa89_4f89_d6df), f64::from_bits(0x3680fa894f89d6de));
         // Residuals between 2^-49 and 2^-48, from both split halves.
-        recorded_calculation(call(function, vec![n(f64::from_bits(0x4019_3db4_8c78_fb1d))]), f64::from_bits(0x3c20_95a4_42f6_d57d), f64::from_bits(0x3c2095a442f6d571));
-        recorded_calculation(call(function, vec![n(f64::from_bits(0x401c_c218_61f7_e239))]), f64::from_bits(0x3b0a_c48e_8af8_7271), f64::from_bits(0x3b0ac48e8af87259));
+        recorded_calculation(call(function, vec![n(f64::from_bits(0x4019_3db4_8c78_fb1d))]), f64::from_bits(0x3c20_95a4_42f6_d57d), f64::from_bits(0x3c2095a442f6d57d));
+        recorded_calculation(call(function, vec![n(f64::from_bits(0x401c_c218_61f7_e239))]), f64::from_bits(0x3b0a_c48e_8af8_7271), f64::from_bits(0x3b0ac48e8af87270));
         // Residuals between 2^-50 and 2^-49, from both split halves.
-        recorded_calculation(call(function, vec![n(f64::from_bits(0x4010_5ad1_5827_f62f))]), f64::from_bits(0x3e3f_a6da_a7f6_9fce), f64::from_bits(0x3e3fa6daa7f69fc5));
-        recorded_calculation(call(function, vec![n(f64::from_bits(0x4010_836a_af1b_be42))]), f64::from_bits(0x3e36_a4ab_c77f_b3ec), f64::from_bits(0x3e36a4abc77fb3f7));
+        recorded_calculation(call(function, vec![n(f64::from_bits(0x4010_5ad1_5827_f62f))]), f64::from_bits(0x3e3f_a6da_a7f6_9fce), f64::from_bits(0x3e3fa6daa7f69fd0));
+        recorded_calculation(call(function, vec![n(f64::from_bits(0x4010_836a_af1b_be42))]), f64::from_bits(0x3e36_a4ab_c77f_b3ec), f64::from_bits(0x3e36a4abc77fb3ea));
     }
     recorded_calculation(call("NORM.S.DIST", vec![
         n(f64::from_bits(0xc026_a496_5d40_5589)), b(true),
-    ]), f64::from_bits(0x39da_0ca4_2246_3668), f64::from_bits(0x39da0ca422463696));
+    ]), f64::from_bits(0x39da_0ca4_2246_3668), f64::from_bits(0x39da0ca422463667));
     recorded_calculation(call("NORM.S.DIST", vec![
         n(f64::from_bits(0xc020_0893_4d02_54c4)), b(true),
-    ]), f64::from_bits(0x3cc3_8f68_673d_153e), f64::from_bits(0x3cc38f68673d1530));
+    ]), f64::from_bits(0x3cc3_8f68_673d_153e), f64::from_bits(0x3cc38f68673d153e));
     recorded_calculation(call("NORM.S.DIST", vec![
         n(f64::from_bits(0xc016_a24f_cfb0_a98c)), b(true),
-    ]), f64::from_bits(0x3e40_653f_58c2_faf3), f64::from_bits(0x3e40653f58c2faeb));
+    ]), f64::from_bits(0x3e40_653f_58c2_faf3), f64::from_bits(0x3e40653f58c2faf4));
     recorded_calculation(call("NORM.S.DIST", vec![
         n(f64::from_bits(0xc016_aa4e_776d_04bd)), b(true),
-    ]), f64::from_bits(0x3e3f_5501_63f6_fedc), f64::from_bits(0x3e3f550163f6fee8));
+    ]), f64::from_bits(0x3e3f_5501_63f6_fedc), f64::from_bits(0x3e3f550163f6fedc));
     // Recorded oc10307 distinguishes the PC64 square in the residual.
-    recorded_calculation(call("NORM.S.DIST", vec![n(-17.145244843201656), b(true)]), f64::from_bits(0x3256_fcaf_346e_9729), f64::from_bits(0x3256fcaf346e96cd));
+    recorded_calculation(call("NORM.S.DIST", vec![n(-17.145244843201656), b(true)]), f64::from_bits(0x3256_fcaf_346e_9729), f64::from_bits(0x3256fcaf346e972a));
     // The same staging reaches the normal wrappers (recorded oc2613).
     for function in ["NORM.DIST", "NORMDIST"] {
         recorded_calculation(call(function, vec![n(-33.26358352947733), n(-3.934034287489425),
-            n(3.7542580713919134), b(true)]), f64::from_bits(0x3ce9_47e8_34b5_2568), f64::from_bits(0x3ce947e834b5255b));
+            n(3.7542580713919134), b(true)]), f64::from_bits(0x3ce9_47e8_34b5_2568), f64::from_bits(0x3ce947e834b52568));
     }
 }
 
