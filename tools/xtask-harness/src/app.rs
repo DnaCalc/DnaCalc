@@ -25,7 +25,7 @@
 //! page may still answer, fails the case there. A browser whose driver is missing fails the run;
 //! it is never skipped.
 //!
-//! With no filters, `smoke` runs the routine core (217 cases across the two apps and all six
+//! With no filters, `smoke` runs the routine core (229 cases across the two apps and all six
 //! Calc skins). `--suite full` runs every case; sweep uses full bundle suites, and site smoke
 //! retains every ordinary case (worker-fault/latency cases require a local bundle). `--group name`
 //! selects an independent scenario; `--case substring` matches case names without regard to
@@ -1102,6 +1102,7 @@ pub enum Check {
     PainterStable,
     HeaderHeightRetained,
     MinHeight(&'static str, u32),
+    MaxWidth(&'static str, u32),
     CanvasInk(&'static str),
     MergedCell(&'static str, u32, u32),
     Editability(&'static str, bool),
@@ -1310,6 +1311,7 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
                 if pinned {"s.left>h.left+1&&s.top>h.top+1"} else {"Math.abs(s.left-h.left)<2&&Math.abs(s.top-h.top)<2&&s.zoom===h.zoom&&s.address===h.address"})
         }
         Check::TextBounds(name)=>format!("var e={};if(!e)return false;var t=e.querySelector('.dc-cell-text');if(!t)return false;var a=e.getBoundingClientRect(),b=t.getBoundingClientRect();return b.left>=a.left-1&&b.right<=a.right+1&&b.top>=a.top-1&&b.bottom<=a.bottom+1;",q(name)),
+        Check::MaxWidth(name,_) => format!("var e={};return e?e.getBoundingClientRect().width:null;",q(name)),
         Check::FitsText(name) => format!("var e={};if(!e)return null;var s=getComputedStyle(e),c=document.createElement('canvas').getContext('2d');c.font=s.font;return [c.measureText(e.value||e.textContent).width,e.clientWidth-parseFloat(s.paddingLeft)-parseFloat(s.paddingRight)];",q(name)),
         Check::Role(..) | Check::Name(..) => unreachable!(),
         Check::DragExtended => "var g=document.querySelector('[data-dnacalc=grid]'),s=document.querySelector('[data-dnacalc=selection]');if(!g||!s)return false;var a=s.dataset.area, n=Number(a.split(':')[1]?.match(/[0-9]+$/)?.[0]);return a.startsWith('A1:')&&n>g.querySelectorAll('[role=row]').length&&g.scrollTop>0;".to_owned(),
@@ -1379,6 +1381,7 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
         | Check::MergedCell(..)
         | Check::Editability(..)
         | Check::FontReflow(_) => seen.get("ok").and_then(Value::as_bool) == Some(true),
+        Check::MaxWidth(_,width) => seen.as_f64().is_some_and(|n|n>0.&&n<=f64::from(*width)),
         Check::FitsText(_) => seen.as_array().is_some_and(|v| {
             v[0].as_f64()
                 .zip(v[1].as_f64())
@@ -1531,6 +1534,7 @@ fn describe(check: &Check) -> String {
         }
         Check::TextBounds(name) => format!("{name}'s rendered text fits within its cell"),
         Check::FitsText(name) => format!("{name} displays its complete text"),
+        Check::MaxWidth(name,width) => format!("{name} is no wider than {width}px"),
         Check::DragExtended => {
             "selection extends beyond the initial viewport after a real out-of-view drag".to_owned()
         }
@@ -2096,6 +2100,13 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             if let Some(reason) = wait_for(app, session, &Check::PlanReady, SETTLE) {
                 return Err(reason);
             }
+            let started=Instant::now();
+            loop {
+                let current=session.script(&format!("{READ_PLANS}var p=plans[0],g=document.querySelector('[data-dnacalc=grid][data-grid-active=true]');return !!p&&!p.pending&&!!g&&p.plan.viewport.width===g.clientWidth&&p.plan.viewport.height===g.clientHeight;"))?;
+                if current.as_bool()==Some(true) {break;}
+                if started.elapsed()>SETTLE {return Err("The committed viewport does not match the actual active grid".into());}
+                thread::sleep(Duration::from_millis(100));
+            }
             session.script(&format!(
                 "{READ_PLANS}window.__dcPresentation=plans[0];window.__dcHeaderHeight=document.querySelector('.dc-mast')?.getBoundingClientRect().height;window.__dcTextBounds=Object.fromEntries(Array.from(document.querySelectorAll('[data-dnacalc=cell]')).map(e=>[e.dataset.cell,e.querySelector('.dc-cell-text')?.getBoundingClientRect().width]));return null;"
             ))?;
@@ -2229,6 +2240,11 @@ fn run_case(ws: &Workspace, app: &App, session: &Session, case: &Case) -> Vec<St
     for check in case.checks {
         if let Some(failure) = wait_for(app, session, check, SETTLE) {
             failures.push(failure);
+            if matches!(check, Check::PainterStable) {
+                if let Ok(state) = session.script(&format!(r#"{READ_PLANS}var changes=[];function compare(a,b,path){{if(JSON.stringify(a)===JSON.stringify(b)||changes.length>=32)return;if(a&&b&&typeof a==='object'&&typeof b==='object'){{for(var k of new Set([...Object.keys(a),...Object.keys(b)]))compare(a[k],b[k],path+'.'+k);}}else changes.push({{path,before:a,after:b}});}}compare(window.__dcPresentation,plans[0],'plan');return changes;"#)) {
+                    failures.push(format!("presentation differences: {state}"));
+                }
+            }
         }
     }
     match faults(app, session) {
@@ -2994,8 +3010,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 217,
-            "the two applications have 217 core cases including candidate validation, conditional formats, editable review content, validation audits and the existing editing routes"
+            total, 229,
+            "the two applications have 229 core cases including candidate validation, conditional formats, editable review content, validation audits and the existing editing routes"
         );
     }
 

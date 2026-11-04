@@ -60,6 +60,14 @@ pub(crate) fn decoration_css(underline: bool, strike: bool) -> &'static str {
         (false, false) => "",
     }
 }
+pub(crate) fn double_underline(style: &TextStyle, conditional: Option<&crate::cells::ConditionalShown>) -> bool {
+    style.underline && style.underline_style.as_deref()==Some("double")
+        && !conditional.is_some_and(|c|c.underline)
+}
+pub(super) fn underline_width(pixels:f64,zoom:f64)->f64 { zoom.min(pixels*zoom/5.) }
+pub(crate) fn double_underline_css(pixels:f64,zoom:f64)->String {
+    format!(";text-decoration-line:underline;text-decoration-style:double;text-decoration-skip-ink:none;text-decoration-thickness:{}px",underline_width(pixels,zoom))
+}
 /// One font declaration for rendering, measurement, and the font-presence probes.
 pub fn font_css(
     style: &TextStyle,
@@ -310,9 +318,22 @@ pub fn measure(rows: bool, cells: &[wire::Cell]) -> Result<Vec<(u32, u64)>, Stri
                 width
             ),
         );
-        probe.set_text_content(Some(text));
+        probe.set_text_content(None);
+        if cell.style.rotation == 255 {
+            for cluster in super::alignment::graphemes(text) {
+                let line = document().create_element("span")
+                    .map_err(|_| "Stacked text measurement is unavailable")?;
+                crate::style::css(line.clone(), super::alignment::STACKED_LINE_CSS.into());
+                line.set_text_content(Some(&cluster));
+                probe.append_child(&line)
+                    .map_err(|_| "Stacked text measurement is unavailable")?;
+            }
+        } else {
+            probe.set_text_content(Some(text));
+        }
         let r = probe.get_bounding_client_rect();
-        let (w, h) = rotated_size(r.width(), r.height(), cell.style.rotation);
+        let (w, h) = if cell.style.rotation==255 { (r.width(),r.height()) }
+            else { rotated_size(r.width(), r.height(), cell.style.rotation) };
         let pixels = if rows { h + 4. } else { w + 8. + indent + icon };
         samples.push((if rows { cell.at.2 } else { cell.at.3 }, pixels));
     }

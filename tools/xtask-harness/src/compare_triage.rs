@@ -485,6 +485,9 @@ impl Read {
 /// call it ran and the areas it read.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct Retained {
+    /// A recorded Excel entry refusal reached through the application's graph.
+    /// It explains a failing comparison; it supplies no calculated value.
+    pub(crate) entry_failure: Option<CellAddress>,
     pub(crate) calls: Vec<Call>,
     pub(crate) reads: Vec<Read>,
     /// The application's existing graph also records shape-only dependencies,
@@ -938,11 +941,12 @@ pub(crate) fn triage(
         let cell = &report.cells[i];
         let kept = retained.get(&cell.formula.cell);
         let difference = difference_of(cell, kept);
-        let read = kept.and_then(|kept| {
+        let entry_failure = kept.and_then(|kept|kept.entry_failure.as_ref());
+        let read = entry_failure.cloned().or_else(||kept.and_then(|kept| {
             kept.reads
                 .iter()
                 .find_map(|read| first_differing(&differing, read, &cell.formula.cell))
-        });
+        }));
         match read.and_then(|read| index.get(&read).copied()) {
             Some(read) => {
                 parent[i] = Some(read);
@@ -1521,6 +1525,7 @@ mod tests {
         retained.insert(
             at(1, 1),
             Retained {
+                entry_failure: None,
                 precedents: Vec::new(),
                 calls: vec![call("SUM", "Call", false)],
                 reads: vec![read(1, 3, 2, 3)],
@@ -1529,6 +1534,7 @@ mod tests {
         retained.insert(
             at(2, 1),
             Retained {
+                entry_failure: None,
                 precedents: Vec::new(),
                 calls: vec![call("+", "Infix", false), call("-", "Prefix", true)],
                 reads: vec![read(1, 1, 1, 1)],
@@ -1537,6 +1543,7 @@ mod tests {
         retained.insert(
             at(3, 1),
             Retained {
+                entry_failure: None,
                 precedents: Vec::new(),
                 calls: vec![call("*", "Infix", false)],
                 reads: vec![read(1, 1, 2, 1)],
@@ -1545,6 +1552,7 @@ mod tests {
         retained.insert(
             at(1, 2),
             Retained {
+                entry_failure: None,
                 precedents: Vec::new(),
                 calls: vec![call("ROUND", "Call", false)],
                 reads: vec![read(3, 2, 3, 2)],
@@ -1553,6 +1561,7 @@ mod tests {
         retained.insert(
             at(2, 2),
             Retained {
+                entry_failure: None,
                 precedents: Vec::new(),
                 calls: Vec::new(),
                 reads: Vec::new(),
@@ -1627,6 +1636,7 @@ mod tests {
         retained.insert(
             at(1, 1),
             Retained {
+                entry_failure: None,
                 precedents: Vec::new(),
                 calls: vec![
                     call("SUM", "Call", false),

@@ -210,6 +210,27 @@ through the shared portable SHA-256 implementation. A source changed after that 
 refused before parsing or calculation; resume takes a new snapshot. `--dna-only` calculates files without observations through
 the existing comparison route, retaining an explicit source inventory with no Excel answers;
 none can score a match. Existing committed/cached live captures still supply the comparisons.
+DNA-only runs explicitly open with macros disabled and events off. They do not
+execute file VBA or its open handlers. Live captures retain their recorded macro
+and event policy; missing enabled-policy metadata still refuses that route.
+For a separate saved-value comparison, add `--saved-excel <provenance.json>` to
+corpus or compare. This manifest has format `dnacalc-excel-saved-provenance`,
+version 1, and a `packages` object keyed by exact package SHA-256. Each entry names
+`application`, `app_version`, `file_version` (all fileVersion attributes), and
+`evidence` identifying retained Excel-save records and their hashes. Build it from
+those records, never from DNA outputs or an application name alone: DNA saves and
+patched probe inputs can retain Excel metadata. The reader checks that metadata
+against the package, reads typed XML values, and excludes live-answer cells,
+volatile or explicitly dirty formulas and their readers, and unreconstructed
+array shapes. Missing lineage or metadata cannot supply an answer.
+`saved-excel.record.json` and `saved-excel.report.json` use the same capture and
+verdict types and the same calculated results as the main comparison.
+`saved_excel_oracle` counts these supplemental comparisons separately in summaries;
+its matched count never enters the live `pass` count. It is a comparison with
+Excel's saved decimals, which can be stale and can lose binary64 digits, not a
+fresh Excel recalculation. Refusals, held values and external caches never match
+in these supplemental counts. The provenance manifest and all supplemental
+outputs participate in content-verified resume and shard merging.
 Every attempt keeps its own log and payload. Resume verifies workbook, capture, executable and
 result hashes; a partial, timed-out or changed result is recalculated. `--timeout` covers the source census, optional capture and comparison of one file.
 Package admission and census run in an owned child process too. Use `cargo xtask corpus --merge

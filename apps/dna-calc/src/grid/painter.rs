@@ -346,7 +346,7 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
     };
     let available = (cell.rect.w - left - right).max(1.);
     let mut shown = cell.shown.text.clone();
-    if horizontal == "fill" && !shown.is_empty() {
+    if horizontal == "fill" && s.rotation != 255 && !shown.is_empty() {
         let w = width(ctx, &shown);
         if w > 0. {
             shown = shown.repeat(
@@ -357,7 +357,10 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
         }
     }
     let wrap = s.wrap || matches!(horizontal, "justify" | "distributed");
-    let lines = if wrap && s.rotation == 0 {
+    let stacked = s.rotation == 255;
+    let lines = if stacked {
+        alignment::graphemes(&shown)
+    } else if wrap && s.rotation == 0 {
         alignment::wrapped_lines(
             &autofit::font_css(s, Some(&c), italic, scale),
             &shown,
@@ -387,11 +390,16 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
     } else {
         line_height * 0.8
     };
+    let double = autofit::double_underline(s,Some(&c));
     let decorate = |x: f64, y: f64, advance: f64| {
         if c.underline || c.strike || s.underline || s.strike {
             ctx.set_line_width(scale);
+            let stroke = if double { autofit::underline_width(s.pixels,scale) } else { scale };
+            ctx.set_line_width(stroke);
+            let under = baseline + stroke;
             for offset in [
-                (c.underline || s.underline).then_some(baseline + scale),
+                (c.underline || s.underline).then_some(under),
+                double.then_some(under+2.*stroke),
                 (c.strike || s.strike).then_some(line_height / 2.),
             ]
             .into_iter()
@@ -411,12 +419,19 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
     for (i, line) in lines.iter().enumerate() {
         let line = line.trim_end_matches('\n');
         let w = width(ctx, line);
-        let x = match horizontal {
+        let x = if stacked {
+            let left_edge = match horizontal {
+                "right" => cell.rect.x + cell.rect.w - right - block_width,
+                "center" | "centerContinuous" => cell.anchor.x + (cell.anchor.w-block_width)/2.,
+                _ => cell.rect.x + left,
+            };
+            left_edge + (block_width-w)/2.
+        } else { match horizontal {
             "right" => cell.rect.x + cell.rect.w - right - w,
             "center" | "centerContinuous" => cell.anchor.x + cell.anchor.w / 2. - w / 2.,
             _ => cell.rect.x + left,
-        };
-        let y = match vertical {
+        } };
+        let y = if stacked { top + i as f64 * line_height } else { match vertical {
             "distributed" => {
                 cell.rect.y
                     + (cell.rect.h - height) / (lines.len() as f64 * 2.)
@@ -426,9 +441,9 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
                 cell.rect.y + i as f64 * (cell.rect.h - line_height) / (lines.len() - 1) as f64
             }
             _ => top + i as f64 * line_height,
-        };
+        } };
         ctx.save();
-        if s.rotation != 0 {
+        if s.rotation != 0 && !stacked {
             let (rw, rh) = autofit::rotated_size(block_width, height, s.rotation);
             let cx = match horizontal {
                 "right" => cell.rect.x + cell.rect.w - right - rw / 2.,
@@ -446,7 +461,7 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
             let decoration_y = -height / 2. + i as f64 * line_height;
             let _ = ctx.fill_text(line, decoration_x, decoration_y + baseline);
             decorate(decoration_x, decoration_y, w);
-        } else if horizontal == "distributed" || (horizontal == "justify" && i + 1 < lines.len()) {
+        } else if !stacked && (horizontal == "distributed" || (horizontal == "justify" && i + 1 < lines.len())) {
             let parts = if horizontal == "distributed" {
                 alignment::distributed_segments(line)
             } else {

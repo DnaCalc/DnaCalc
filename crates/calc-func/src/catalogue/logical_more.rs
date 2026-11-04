@@ -29,11 +29,22 @@ pub(super) fn selects_whole_result(
     numeric: &NumericMode,
 ) -> bool {
     match id {
-        IFS => arguments
+        // Malformed pairs have no new capture; preserve their existing admission.
+        IFS if !arguments.len().is_multiple_of(2) => arguments
             .iter()
             .step_by(2)
             .all(|value| value.callable_value().is_none() && crate::coerce::logical(value).is_ok()),
+        // Fn2 root208: once a scalar condition selects a result, later condition
+        // arrays do not enlarge it. Invalid conditions still take the lifted route.
+        IFS => ifs_index(&Site::new(IFS, &EvalServices::new(numeric)), arguments).is_ok(),
         SWITCH => {
+            // Fn2 root022: a formed scalar expression error is one result, even
+            // when an unused case result is an array. Callable cores stay distinct.
+            if arguments[0].callable_value().is_none()
+                && matches!(arguments[0].core_ref(), CoreRef::Error(_))
+            {
+                return true;
+            }
             let end = arguments.len() - usize::from(arguments.len().is_multiple_of(2));
             let scalar = std::iter::once(&arguments[0])
                 .chain(arguments[1..end].iter().step_by(2))
@@ -126,13 +137,22 @@ fn ifs(
         if !a.len().is_multiple_of(2) {
             return fail(WorksheetErrorCode::Value);
         }
-        for pair in (0..a.len()).step_by(2) {
-            if flag(s, a, pair)? {
-                return Ok(selected(&a[pair + 1]));
-            }
+        match ifs_index(s, a)? {
+            Some(index) => Ok(selected(&a[index])),
+            None => fail(WorksheetErrorCode::NA),
         }
-        fail(WorksheetErrorCode::NA)
     })
+}
+
+/// The first true IFS condition. Shape admission and selection share logical coercion;
+/// the kernel validates pair structure before using the selected result index.
+fn ifs_index(site: &Site<'_>, arguments: &[CalcValue]) -> Step<Option<usize>> {
+    for pair in (0..arguments.len()).step_by(2) {
+        if flag(site, arguments, pair)? {
+            return Ok(Some(pair + 1));
+        }
+    }
+    Ok(None)
 }
 
 fn switch(

@@ -45,13 +45,14 @@ pub fn text_style_for(
         }
         out.bold = font.bold;
         out.italic = font.italic;
-        out.underline = font.underline.as_deref().is_some_and(|v| v != "none");
+        out.underline = matches!(font.underline.as_deref(),Some("single"|"double"));
+        out.underline_style = font.underline.clone();
         out.strike = font.strike;
         if !font.other_children.is_empty()
             || font
                 .underline
                 .as_deref()
-                .is_some_and(|v| !matches!(v, "none" | "single"))
+                .is_some_and(|v| !matches!(v, "none" | "single" | "double"))
         {
             out.unsupported = Some(
                 "Additional font effects or underline variants are preserved but not painted"
@@ -228,9 +229,10 @@ pub fn text_style_for(
             match n.parse::<i16>() {
                 Ok(n @ 0..=90) => out.rotation = -n,
                 Ok(n @ 91..=180) => out.rotation = n - 90,
+                Ok(255) => out.rotation = 255,
                 _ => {
                     out.unsupported =
-                        Some("Vertical or invalid text rotation is unavailable".into())
+                        Some("This text rotation is unavailable".into())
                 }
             }
         }

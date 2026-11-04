@@ -3,6 +3,8 @@
 use super::{autofit, render_plan::PlannedCell};
 use crate::cells::ConditionalShown;
 
+pub(super) const STACKED_LINE_CSS: &str = "display:block;flex:none;height:1em;line-height:1;white-space:pre;overflow:hidden";
+
 pub struct TextLine {
     pub text: String,
     pub segments: Option<Vec<String>>,
@@ -95,6 +97,14 @@ pub fn layout(
         })],
     };
     let font = autofit::font_css(style, Some(conditional), italic, zoom);
+    if style.rotation == 255 {
+        out.lines = graphemes(&out.lines[0].text).into_iter().map(|text|TextLine {
+            text, segments: None,
+            css: STACKED_LINE_CSS.into(),
+        }).collect();
+        out.span.push_str(";display:flex;flex-direction:column;align-items:center");
+        return out;
+    }
     if style.rotation != 0 {
         if let Ok((w, h)) = autofit::probe(&font, &out.lines[0].text) {
             let (w, h) = autofit::rotated_size(w, h, style.rotation);
@@ -204,7 +214,6 @@ pub fn layout(
 /// Keep the original text content, including spaces, inside the visual spans. Segmenter keeps
 /// combining marks and emoji sequences together; no second copy of the cell value is stored.
 pub(super) fn distributed_segments(text: &str) -> Vec<String> {
-    use wasm_bindgen::JsCast;
     let mut words = Vec::<String>::new();
     for word in text.split_inclusive(char::is_whitespace) {
         if word.trim().is_empty() && !words.is_empty() {
@@ -216,6 +225,12 @@ pub(super) fn distributed_segments(text: &str) -> Vec<String> {
     if words.iter().filter(|s| !s.trim().is_empty()).count() > 1 {
         return words;
     }
+    graphemes(text)
+}
+
+/// Shared clusters for stacked text, distributed alignment and Canvas painting.
+pub(super) fn graphemes(text: &str) -> Vec<String> {
+    use wasm_bindgen::JsCast;
     let options = js_sys::Intl::SegmenterOptions::new();
     options.set_granularity(js_sys::Intl::SegmenterGranularity::Grapheme);
     let segmenter = js_sys::Intl::Segmenter::new(&js_sys::Array::new(), options.as_ref());

@@ -31,7 +31,8 @@
 //! not decided ([`Beyond`]), whichever pass would decide it: U+0000, the Hangul conjoining jamo,
 //! U+30A0, the isolated and medial forms of Arabic marks, and an iteration mark after a
 //! special (see [`super::sort_key`]). Iteration after Han uses the measured repeat primary,
-//! confirmed by fn1's comparison and ordering controls; iteration after a special remains undecided.
+//! confirmed by fn1's comparison and ordering controls. Fn3 also establishes a bounded strict
+//! prefix order for three marks after three specials; their weights remain unknown.
 
 use super::Beyond;
 use super::sort_key::{diacritic_order, leading_order, parts, refused};
@@ -72,7 +73,13 @@ fn weighed(a: &[u16], b: &[u16]) -> Result<Ordering, Beyond> {
     let left = parts(a);
     let right = parts(b);
     if left.is_err() || right.is_err() {
-        return leading_order(&left, &right).ok_or(Beyond {
+        return leading_order(&left, &right).or_else(|| {
+            match (left.is_ok(), right.is_ok()) {
+                (true, false) if measured_iteration_extension(a, b) => Some(Ordering::Less),
+                (false, true) if measured_iteration_extension(b, a) => Some(Ordering::Greater),
+                _ => None,
+            }
+        }).ok_or(Beyond {
             operand: usize::from(left.is_ok()),
         });
     }
@@ -83,6 +90,22 @@ fn weighed(a: &[u16], b: &[u16]) -> Result<Ordering, Beyond> {
         .cmp(&right.primary)
         .then_with(|| diacritic_order(a, &left, b, &right))
         .then_with(|| left.rest.cmp(&right.rest)))
+}
+
+/// Fn3 records a strict order against the exact bare prefix for these three marks immediately
+/// after these three specials. This does not assign a primary weight, or compare different
+/// prefixes with equal primaries. The two-unit suffix follows by transitivity: a completed
+/// prefix precedes that prefix plus its known special, which precedes the measured mark.
+/// A combining unit, another mark/special, or a tail beyond this suffix remains unmodelled.
+fn measured_iteration_extension(shorter: &[u16], longer: &[u16]) -> bool {
+    let Some(suffix) = longer.strip_prefix(shorter) else { return false; };
+    let special = |unit: u16| matches!(unit, 0x002D | 0x0027 | 0x2010);
+    let mark = |unit: u16| matches!(unit, 0x309D | 0x3005 | 0x30FC);
+    match suffix {
+        &[iteration] => mark(iteration) && shorter.last().is_some_and(|&unit| special(unit)),
+        &[punctuation, iteration] => special(punctuation) && mark(iteration),
+        _ => false,
+    }
 }
 
 #[cfg(test)]

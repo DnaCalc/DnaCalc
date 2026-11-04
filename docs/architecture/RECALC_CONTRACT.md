@@ -661,6 +661,21 @@ it. Missing or interactive macro policy on a VBA-bearing package prevents a cert
 comparison. Linked source workbooks follow the same application policy. An admitted
 event failure prevents a calculated pass in that comparison.
 
+DNA-only comparison inventories explicitly select opened-with-macros-disabled and
+events off (dc-ztvv, 2026-11-04); they make no assertion about a previous Excel session.
+Their optional attested Excel-saved oracle is reported separately from live captures
+and still requires actual DNA calculation proof. File caches and refused VBA calls
+never become matches. See the bulk-port plan for provenance and exclusions.
+
+Prefix publication (dc-cynd, 2026-11-04): a completed spill can be installed before a
+later blank reader's certificate is validated against the admitted requirement cut.
+The pending-producer query now recognizes an installed certificate for that exact
+required version, as dependency-span validation already does. It does not discharge
+a refused, imported or older producer. The P05 disabled-macro file regression fails
+before the fix and covers short/growing/shrinking footprints at unlimited and
+one-evaluation budgets; the disabled UDF remains a counted refusal. This changes
+certificate validation, without a new claim about Excel callback or SCC counts.
+
 The UI ingress delivers Change after an authored cell-write commit, before
 automatic calculation. This remains a DNA policy pending UI recordings. P22
 (20527, ordinary COM) records automatic Calculate before Change, with new formula

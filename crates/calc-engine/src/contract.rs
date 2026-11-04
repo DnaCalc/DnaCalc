@@ -914,6 +914,15 @@ pub(crate) fn producer_pending_in(
                         state.contract.requirement(**node)
                     }
                 });
+            // Prefix publication can install a producer before this validator
+            // is called with an empty Progress and the original requirement cut.
+            // As in span_versions_at, only a stamp for that required version
+            // discharges it; an imported or older result still remains pending.
+            if result.and_then(FormulaResult::stamp).is_some_and(|stamp|
+                stamp.certification.required == current.required)
+            {
+                current.satisfied = current.required;
+            }
             if progress.is_evaluated(**node)
                 && matches!(
                     progress.staged(**node),

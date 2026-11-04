@@ -8,7 +8,7 @@ use super::kit::{fail, flag, grid, num, text_arg};
 use crate::call::EvalServices;
 use crate::ported::text_kernels as tk;
 use crate::ported::text_more::{self as k, Delimited, Side};
-use crate::value::{CalcArray, ExcelText};
+use crate::value::{ArrayShape, CalcArray, ExcelText};
 use crate::locale::LocaleId;
 use crate::format::{self, Failure};
 use crate::locale::{CalcEnvironment, FormatProfile};
@@ -405,7 +405,20 @@ fn regexextract(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
         (0, [(start, end), ..]) | (1, [(start, end)]) => Ok(crate::catalogue::kit::text_value(
             &chars[*start..*end].iter().collect::<String>(),
         )),
-        // Several matches as an array, and capture groups (mode 2), are not modelled.
+        // All matches spill vertically (the public example); lifted fn2 roots078/079
+        // retain each call's first cell through the existing evaluator.
+        (1, matches) => {
+            let cells = matches.iter().map(|(start, end)| {
+                crate::catalogue::kit::text_value(&chars[*start..*end].iter().collect::<String>())
+            }).collect();
+            Ok(CalcValue::array(CalcArray::new(
+                ArrayShape { rows: matches.len(), cols: 1 }, cells,
+            ).expect("a nonempty list of matches")))
+        }
+        // The admitted pattern parser rejects capturing-group syntax. Fn2 root079
+        // records Value when a matched group-free pattern is asked for captures.
+        (2, [_, ..]) => fail(WorksheetErrorCode::Value),
+        // Capture groups and their no-match behavior remain unmodelled.
         (0..=2, _) => Err(site.not_modelled(Some(2))),
         _ => fail(WorksheetErrorCode::Value),
     }

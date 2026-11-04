@@ -12,8 +12,9 @@
 //! LAMBDA that does not take the number of arguments the helper passes is #VALUE!. An error among
 //! the other arguments is the result (`=BYCOL(#REF!,LAMBDA(x,x))` is #REF!). MAP pads a
 //! shorter array with #N/A and takes the shape of its first array when that holds every item (a
-//! row otherwise). MAP, BYROW and BYCOL give #CALC! when a call returns an array; SCAN and
-//! MAKEARRAY give #VALUE!. REDUCE's accumulator may be an array. MAKEARRAY's dimensions are
+//! row otherwise). MAP and SCAN give #CALC! when a call returns an array; BYROW and BYCOL admit
+//! a one-cell result array but reject larger ones with #CALC!. MAKEARRAY gives #VALUE! for an
+//! array result. REDUCE's accumulator may be an array. MAKEARRAY's dimensions are
 //! positive integers, anything else #VALUE!.
 
 use super::kit::{fail, grid, scalar_error};
@@ -106,22 +107,15 @@ fn map_task(
     a: &[CalcValue],
     sv: &mut EvalServices<'_>,
 ) -> Step<Box<dyn KernelTask>> {
+    // Fn2 roots031/034: a direct first-source error precedes even a valid LAMBDA.
+    // Root035 keeps invalid-LAMBDA validation ahead of a later scalar source error.
+    scalar_error(&a[0])?;
     let inputs = a.len() - 1;
     let mut sources = Vec::with_capacity(inputs);
     for index in 0..inputs {
         sources.push(prepared(site, a, index, sv)?);
     }
-    let f = match lambda(a, inputs, inputs) {
-        Ok(f) => f,
-        Err(invalid_lambda) => {
-            // unswept-00382: a formed scalar source error precedes invalid-LAMBDA validation.
-            // A valid LAMBDA keeps receiving its input items through the existing helper route.
-            for source in &a[..inputs] {
-                scalar_error(source)?;
-            }
-            return Err(invalid_lambda);
-        }
-    };
+    let f = lambda(a, inputs, inputs)?;
     let lists: Vec<Vec<CalcValue>> = sources.iter().map(items).collect();
     let count = lists.iter().map(Vec::len).max().unwrap_or(1);
     let shape = sources
@@ -387,12 +381,24 @@ impl KernelTask for HelperTask {
                 Ok(None) => return Ok(None),
                 Err(CallAbandoned) => return Err(refused()),
             };
+            // A one-cell row/column's lifted TEXTSPLIT returns a one-cell array. Fn2
+            // roots089/090 admit that single value; larger results still fail below.
+            let value = if matches!(&self.input, HelperInput::By { .. })
+                && value.callable_value().is_none()
+                && let Some(result) = value.as_array()
+                && result.shape() == (ArrayShape { rows: 1, cols: 1 })
+            {
+                result.get(0, 0).expect("one cell").clone()
+            } else {
+                value
+            };
             let (keep, error) = match &mut self.input {
                 HelperInput::Reduce {
                     accumulator, scan, ..
                 } => {
                     *accumulator = value.clone();
-                    (*scan, W::Value)
+                    // Fn2 root092: SCAN cannot publish an array accumulator as a cell.
+                    (*scan, W::Calc)
                 }
                 HelperInput::MakeArray => (true, W::Value),
                 _ => (true, W::Calc),
