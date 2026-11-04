@@ -27,6 +27,12 @@ def catalogue_names(root):
         # Only ported_family! declaration rows, never comments, test strings or kernels.
         source = source.split("ported_family! {", 1)[-1] if "ported_family! {" in source else ""
         names.update(re.findall(r'^\s*\d+\s+\w+\s+"([A-Z][A-Z0-9.]*)"\s+\(', source, re.M))
+    # Numeric text/formatting kernels are scalar for scalar arguments. Select only
+    # these entries from their family, which also contains array and hyperlink calls.
+    source = (directory / "text_format.rs").read_text(encoding="utf-8")
+    declared = set(re.findall(r'^\s*\d+\s+\w+\s+"([A-Z][A-Z0-9.]*)"\s+\(', source, re.M))
+    names.update(declared & {"FIXED", "DOLLAR", "TEXT", "VALUE", "NUMBERVALUE",
+                             "VALUETOTEXT", "ASC", "DBCS"})
     source = (directory / "aggregate.rs").read_text(encoding="utf-8")
     names.update(re.findall(r'aggregate\(\w+, "([A-Z]+)"', source))
     if "ERF.PRECISE" not in names or "SUM" not in names:
