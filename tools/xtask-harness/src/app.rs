@@ -3031,8 +3031,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 298,
-            "the two applications have 298 core cases including typed colour filters, calendar conditional sorting, template array insertion, ten percent zoom, qualified aggregates, row hyperlinks, typed conditional row formats, case/custom sorting, templates, complete table sorting, sorted notes/validation, conditional colour filters, candidate validation, conditional formats, editable review content, validation audits and the existing editing routes"
+            total, 305,
+            "the two applications have 305 core cases including seven completion repair cases and all 298 inherited core cases"
         );
     }
 

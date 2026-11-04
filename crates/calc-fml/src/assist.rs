@@ -234,15 +234,26 @@ pub struct Completion {
 }
 
 impl Completion {
-    /// `text` with the prefix replaced by `proposal`'s insert text, and the caret just after it.
+    /// Replace the name being edited, retaining an existing opening parenthesis and arguments.
+    /// `replace` records the typed prefix; acceptance also consumes the token's remaining suffix.
     pub fn apply(&self, text: &str, proposal: Proposal) -> (String, usize) {
         let units: Vec<u16> = text.encode_utf16().collect();
         let start = self.replace.start.min(units.len());
-        let end = self.replace.end().min(units.len());
-        let insert = proposal.insert_text();
+        let end = lex(text)
+            .into_iter()
+            .find(|token| {
+                token.kind() == TokenKind::Identifier
+                    && token.span().start == start
+                    && token.span().end() >= self.replace.end()
+            })
+            .map_or(self.replace.end(), |token| token.span().end())
+            .min(units.len());
+        let spaces = units[end..].iter().take_while(|u| matches!(**u, 9 | 10 | 12 | 13 | 32)).count();
+        let has_open = units.get(end + spaces) == Some(&(b'(' as u16));
+        let insert = if has_open { proposal.label().to_owned() } else { proposal.insert_text() };
         let mut out: Vec<u16> = units[..start].to_vec();
         out.extend(insert.encode_utf16());
-        let caret = out.len();
+        let caret = out.len() + if has_open { spaces + 1 } else { 0 };
         out.extend_from_slice(&units[end..]);
         (String::from_utf16_lossy(&out), caret)
     }
@@ -476,6 +487,23 @@ mod tests {
         assert_eq!(complete("=SU", 1), None, "the caret before the name");
         let none = complete("=ZZZQ", 5).expect("a name being typed");
         assert!(none.proposals.is_empty());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn accepting_completion_preserves_arguments_and_replaces_the_whole_name() {
+        for (text, caret, expected, after) in [
+            ("=SUMX(1,2)", 4, "=SUM(1,2)", 5),
+            ("=SUM(1,2)", 4, "=SUM(1,2)", 5),
+            ("=SUMX + 2", 4, "=SUM( + 2", 5),
+            ("=SUMX  (1,2)", 4, "=SUM  (1,2)", 7),
+            ("=SUMX\u{c}(1,2)", 4, "=SUM\u{c}(1,2)", 6),
+            ("=IF(TRUE,\"😀\",SUMX(1,2))", 17, "=IF(TRUE,\"😀\",SUM(1,2))", 18),
+        ] {
+            let completion = complete(text, caret).expect(text);
+            let sum = completion.proposals.iter().copied().find(|p| p.label() == "SUM").unwrap();
+            assert_eq!(completion.apply(text, sum), (expected.to_owned(), after), "{text}");
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

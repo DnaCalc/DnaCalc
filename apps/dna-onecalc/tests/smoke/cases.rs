@@ -585,6 +585,17 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
         checks: &[Check::DownloadedJson("onecalc-session.json","/formula","=SEQUENCE(1,3)"),Check::Value("formula","=SEQUENCE(1,3)"),Check::Array(&[&["1","2","3"]]),Check::Text("fixture-state","Unchanged snapshot")],
     },
 
+    Case {
+        name: "completion repair: an edited function name retains its argument list",
+        actions: &[Action::Formula("=SUMX(4,5)"), Action::Keys("formula", "\u{E011}\u{E014}\u{E014}\u{E014}\u{E014}\u{E004}")],
+        checks: &[Check::Value("formula", "=SUM(4,5)"), Check::Text("active-parameter", "number1"), Check::Text("result", "number 9")],
+    },
+    Case {
+        name: "completion repair: accepting an existing function keeps one opening parenthesis",
+        actions: &[Action::Formula("=SUM(6,7)"), Action::Keys("formula", "\u{E011}\u{E014}\u{E014}\u{E014}\u{E014}\u{E004}")],
+        checks: &[Check::Value("formula", "=SUM(6,7)"), Check::Text("active-parameter", "number1"), Check::Text("result", "number 13")],
+    },
+
 ];
 
 pub(crate) const ONECALC_GROUPS: &[CaseGroup] = &[
@@ -617,4 +628,5 @@ pub(crate) const ONECALC_GROUPS: &[CaseGroup] = &[
         setup: &[],
     },
     CaseGroup {name:"friendly-functions",start:52,end:55,core:3,setup:&[]},
+    CaseGroup {name:"completion-repair",start:55,end:57,core:2,setup:&[]},
 ];
