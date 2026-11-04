@@ -161,7 +161,11 @@ pub(crate) fn alignment(bytes: &[u8]) -> Result<Vec<u8>, String> {
     styles=styles.replacen(&format!("<fonts count=\"{fonts}\""),&format!("<fonts count=\"{}\"",fonts+3),1).replacen("</fonts>",&format!("{added_fonts}</fonts>"),1)
         .replacen(&format!("<cellXfs count=\"{formats}\""),&format!("<cellXfs count=\"{}\"",formats+4),1).replacen("</cellXfs>",&format!("{added_formats}</cellXfs>"),1);
     let font_rows=format!(r#"<row r="20" ht="90" customHeight="1"><c r="B20" s="{formats}" t="inlineStr"><is><t>Double</t></is></c><c r="D20" s="{}" t="inlineStr"><is><t>Aé🧬</t></is></c><c r="F20" s="{}" t="inlineStr"><is><t>Accounting</t></is></c><c r="G20" s="{}" t="inlineStr"><is><t>AB</t></is></c></row><row r="21" ht="90" customHeight="1"><c r="D21" s="{}" t="inlineStr"><is><t>é👩‍🔬Z</t></is></c></row>"#,formats+1,formats+2,formats+3,formats+1);
-    sheet=sheet.replace("A1:N18","A1:N21").replacen("</sheetData>",&format!("{font_rows}</sheetData>"),1);
+    let font_rows=format!(r#"{font_rows}<row r="22" ht="90" customHeight="1"><c r="H22" s="{}" t="inlineStr"><is><t xml:space="preserve">A
+B</t></is></c></row><row r="23" ht="90" customHeight="1"><c r="H23" s="{}" t="inlineStr"><is><t xml:space="preserve">A
+B
+</t></is></c></row>"#,formats+1,formats+1);
+    sheet=sheet.replace("A1:N18","A1:N23").replacen("</sheetData>",&format!("{font_rows}</sheetData>"),1);
     crate::oracle_cases::replace_package_parts(
         bytes,
         &std::collections::BTreeMap::from([

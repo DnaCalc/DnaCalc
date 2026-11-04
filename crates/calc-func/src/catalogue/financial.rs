@@ -270,9 +270,14 @@ ported_family! {
         out(s, dep::ddb_kernel(cost, salvage, life, period, factor))
     }
     25 vdb_fn "VDB" (5, 7) [V "cost", V "salvage", V "life", V "start_period", V "end_period", V "factor", V "no_switch"] |s, a, sv| {
-        let factor = if given(a, 5) { num(s, a, 5)? } else { 2.0 };
+        // W111 typed and padding controls read the required arguments, then factor,
+        // then no_switch. An explicit empty factor slot coerces to zero; only an
+        // absent trailing factor takes the default of two.
+        let (cost, salvage, life, start, end) =
+            (num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?, num(s, a, 3)?, num(s, a, 4)?);
+        let factor = if a.len() > 5 { num(s, a, 5)? } else { 2.0 };
         let no_switch = if given(a, 6) && !a[6].is_empty() { flag(s, a, 6)? } else { false };
-        out(s, dep::vdb_kernel(num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?, num(s, a, 3)?, num(s, a, 4)?, factor, no_switch))
+        out(s, dep::vdb_kernel(cost, salvage, life, start, end, factor, no_switch))
     }
     26 amorlinc_fn "AMORLINC" (6, 7) [V "cost", V "date_purchased", V "first_period", V "salvage", V "period", V "rate", V "basis"] |s, a, sv| {
         let purchased = date_1900(s, a, 1, sv)?;

@@ -3,6 +3,8 @@
 use super::{autofit, render_plan::PlannedCell};
 use crate::cells::ConditionalShown;
 
+pub(super) const STACKED_LINE_CSS: &str = "display:block;flex:none;height:1em;line-height:1;white-space:pre;overflow:hidden";
+
 pub struct TextLine {
     pub text: String,
     pub segments: Option<Vec<String>>,
@@ -98,7 +100,7 @@ pub fn layout(
     if style.rotation == 255 {
         out.lines = graphemes(&out.lines[0].text).into_iter().map(|text|TextLine {
             text, segments: None,
-            css: "display:block;flex:none;height:1em;line-height:1;white-space:pre;overflow:hidden".into(),
+            css: STACKED_LINE_CSS.into(),
         }).collect();
         out.span.push_str(";display:flex;flex-direction:column;align-items:center");
         return out;

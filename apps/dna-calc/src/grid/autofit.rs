@@ -259,9 +259,6 @@ pub fn measure(rows: bool, cells: &[wire::Cell]) -> Result<Vec<(u32, u64)>, Stri
         .map_err(|_| "The grid is unavailable")?
         .ok_or("Return to Grid before fitting contents")?;
     for cell in cells {
-        if cell.style.rotation == 255 {
-            return Err("AutoFit for stacked text is unavailable (dc-971p.16)".into());
-        }
         if let Some(reason) = &cell.style.unsupported {
             return Err(reason.clone());
         }
@@ -321,9 +318,22 @@ pub fn measure(rows: bool, cells: &[wire::Cell]) -> Result<Vec<(u32, u64)>, Stri
                 width
             ),
         );
-        probe.set_text_content(Some(text));
+        probe.set_text_content(None);
+        if cell.style.rotation == 255 {
+            for cluster in super::alignment::graphemes(text) {
+                let line = document().create_element("span")
+                    .map_err(|_| "Stacked text measurement is unavailable")?;
+                crate::style::css(line.clone(), super::alignment::STACKED_LINE_CSS.into());
+                line.set_text_content(Some(&cluster));
+                probe.append_child(&line)
+                    .map_err(|_| "Stacked text measurement is unavailable")?;
+            }
+        } else {
+            probe.set_text_content(Some(text));
+        }
         let r = probe.get_bounding_client_rect();
-        let (w, h) = rotated_size(r.width(), r.height(), cell.style.rotation);
+        let (w, h) = if cell.style.rotation==255 { (r.width(),r.height()) }
+            else { rotated_size(r.width(), r.height(), cell.style.rotation) };
         let pixels = if rows { h + 4. } else { w + 8. + indent + icon };
         samples.push((if rows { cell.at.2 } else { cell.at.3 }, pixels));
     }

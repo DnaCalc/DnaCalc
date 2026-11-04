@@ -8061,6 +8061,19 @@ Case {
     Case {name:"font variants: unsupported accounting effects stay labelled and controls fit three widths",actions:&[
         Action::Into("name-box","F20\u{E007}"),Action::Wait(Check::TextContains("style-note","underline variants")),Action::Window(390,844),Action::Click("format-cells"),Action::Wait(Check::Focused("format-number")),Action::Click("format-tab-font"),Action::Wait(Check::Fits),Action::Wait(Check::Reachable("format-underline-style")),Action::Click("format-cancel"),Action::Window(900,900),Action::Wait(Check::Fits),Action::Window(1440,1400)],checks:&[Check::Fits,Check::PlanCell("F20","style.underline_style","singleAccounting"),Check::PlanCell("F20","style.underline","false"),Check::TextContains("style-note","preserved but not painted")]},
 
+    Case {name:"stacked fitting: row AutoFit measures three rendered graphemes in the stored font",actions:&[
+        Action::Window(1440,1400),Action::SetPainter("dom"),Action::ClearDownloads,Action::AlignmentFixture,Action::UploadDownload("alignment.xlsx"),Action::DiscardReplacement,Action::Into("name-box","D21\u{E007}"),Action::Wait(Check::Style(cell!("D21"),"width:84px")),Action::OpenDetails("axis-tools"),Action::Click("autofit-rows")],checks:&[Check::TextContains("status","Fitted contents"),Check::Style(cell!("D21"),"height:60px"),Check::TextBounds(cell!("D21")),Check::Count("[data-cell=D21] .dc-cell-text > span",3)]},
+    Case {name:"stacked fitting: column AutoFit uses the widest grapheme and ordinary Undo Redo",actions:&[
+        Action::Click("autofit-columns"),Action::Wait(Check::MaxWidth(cell!("D21"),64)),Action::Click("undo"),Action::Wait(Check::Style(cell!("D21"),"width:84px")),Action::Click("redo")],checks:&[Check::MaxWidth(cell!("D21"),64),Check::TextBounds(cell!("D21")),Check::Style(cell!("D21"),"height:60px"),Check::Text(cell!("D21"),"é👩‍🔬Z")]},
+    Case {name:"stacked fitting: fitted dimensions orientation and source survive actual XLSX reopening",actions:&[
+        Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("alignment.xlsx"),Action::DiscardReplacement,Action::Into("name-box","D21\u{E007}")],checks:&[Check::MaxWidth(cell!("D21"),64),Check::Style(cell!("D21"),"height:60px"),Check::TextBounds(cell!("D21")),Check::PlanCell("D21","style.rotation","255"),Check::Count("[data-cell=D21] .dc-cell-text > span",3)]},
+    Case {name:"stacked fitting: wrapped stacked combinations refuse without an authored command",actions:&[
+        Action::Into("name-box","G20\u{E007}"),Action::OpenDetails("axis-tools"),Action::Wait(Check::ActiveSemantic("G20")),Action::Wait(Check::TextBounds(cell!("G20"))),Action::RememberPresentation,Action::Click("autofit-rows")],checks:&[Check::TextContains("status","wrapping and rotation is unavailable"),Check::PainterStable,Check::Style(cell!("G20"),"height:120px"),Check::PlanCell("G20","style.rotation","255")]},
+    Case {name:"stacked fitting: an embedded source newline occupies one fixed grapheme row",actions:&[
+        Action::Into("name-box","H22\u{E007}"),Action::Wait(Check::Count("[data-cell=H22] .dc-cell-text > span",3)),Action::Click("autofit-rows")],checks:&[Check::Style(cell!("H22"),"height:60px"),Check::TextBounds(cell!("H22")),Check::Text(cell!("H22"),"A\nB"),Check::Count("[data-cell=H22] .dc-cell-text > span",3)]},
+    Case {name:"stacked fitting: a trailing newline keeps its fourth grapheme row through fitting and XLSX",actions:&[
+        Action::Into("name-box","H23\u{E007}"),Action::Wait(Check::Count("[data-cell=H23] .dc-cell-text > span",4)),Action::Click("autofit-rows"),Action::Wait(Check::Style(cell!("H23"),"height:79px")),Action::Click("autofit-columns"),Action::Wait(Check::MaxWidth(cell!("H23"),64)),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("alignment.xlsx"),Action::DiscardReplacement,Action::Into("name-box","H23\u{E007}")],checks:&[Check::Style(cell!("H23"),"height:79px"),Check::MaxWidth(cell!("H23"),64),Check::TextBounds(cell!("H23")),Check::Text(cell!("H23"),"A\nB\n"),Check::PlanCell("H23","style.rotation","255"),Check::Count("[data-cell=H23] .dc-cell-text > span",4)]},
+
 ];
 
 /// The script that reads what one check looks at.
@@ -8892,4 +8905,5 @@ CaseGroup {
     CaseGroup {name:"tables",start:612,end:625,core:13,setup:&[]},
     CaseGroup {name:"chart-import",start:625,end:628,core:3,setup:&[]},
     CaseGroup {name:"font-variants",start:628,end:634,core:6,setup:&[]},
+    CaseGroup {name:"stacked-fitting",start:634,end:640,core:6,setup:&[]},
 ];

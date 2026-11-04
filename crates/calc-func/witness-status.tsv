@@ -535,7 +535,7 @@ VARP	full	20430	1210	791	72	numeric	f72c394c0c+changes
 VARP	pinned	20430	120	78	57	numeric	dd2d82c25f+changes
 VARPA	full	20430	1212	766	154	numeric	f72c394c0c+changes
 VARPA	pinned	20430	120	78	4	last_bit	dd2d82c25f+changes
-VDB	full	20430	2201	2201	-	exact	f72c394c0c+changes
+VDB	full	20430	2201	2201	-	exact	bf46ff8362+changes
 VDB	pinned	20430	120	120	-	exact	dd2d82c25f+changes
 WEEKDAY	full	20430	19523	19523	-	exact	f72c394c0c+changes
 WEEKDAY	pinned	20430	120	120	-	exact	dd2d82c25f+changes
