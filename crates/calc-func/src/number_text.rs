@@ -1,6 +1,6 @@
 //! A number's text when the & operator reads the number as text, as Excel gives it with `.` as
-//! the decimal separator and no column width; cell display, TEXT and other number formats are not
-//! this conversion.
+//! the decimal separator and no column width. Its first15-digit rounding is also used by
+//! FIXED/TEXT (fn8 midpoint controls); their formatting after that step remains separate.
 //!
 //! The rule, as measured in Excel 16.0 (build 20430) under the Windows locale en-ZA, whose decimal
 //! separator `.` is en-US's (en-US itself was not measured); the text holds no thousands
@@ -58,26 +58,29 @@ pub(crate) fn text(x: f64) -> Option<String> {
     if x == 0.0 || x.is_subnormal() {
         return Some("0".to_owned());
     }
-    let negative = x < 0.0;
-    let exact = ExactDecimal::binary(x.abs());
+    Some(shaped(x < 0.0, first_precision(x.abs())))
+}
+
+/// The shared first15 significant digits. The unresolved near-tie departures
+/// documented above apply to formatting as well as concatenation (dc-b1l.25).
+pub(crate) fn decimal(x: f64) -> ExactDecimal {
+    if x == 0.0 || x.is_subnormal() { return ExactDecimal::read(0.0); }
+    let (digits, exponent) = first_precision(x.abs());
+    ExactDecimal {
+        negative: x < 0.0,
+        coefficient: Natural::from_u64(ascii(&digits).parse().expect("at most15 digits")),
+        exponent: exponent - digits.len() as i32 + 1,
+    }
+}
+
+fn first_precision(x: f64) -> (Vec<u8>, i32) {
+    let exact = ExactDecimal::binary(x);
     let all = exact.coefficient.digits();
-    // The exponent of the leading digit: the value is d1.d2d3... * 10^exponent.
     let length = i32::try_from(all.len()).expect("a digit count");
     let exponent = length - 1 + exact.exponent;
-    if near_tie(&exact.coefficient, &all) {
-        return Some(shaped(
-            negative,
-            first_rounding(all.as_bytes(), exponent, false),
-        ));
-    }
-    let up = all
-        .as_bytes()
-        .get(SIGNIFICANT_DIGITS)
-        .is_some_and(|&d| d >= b'5');
-    Some(shaped(
-        negative,
-        first_rounding(all.as_bytes(), exponent, up),
-    ))
+    let up = !near_tie(&exact.coefficient, &all)
+        && all.as_bytes().get(SIGNIFICANT_DIGITS).is_some_and(|&d| d >= b'5');
+    first_rounding(all.as_bytes(), exponent, up)
 }
 
 /// Whether the exact value `coefficient` (whose decimal digits are `digits`) lies within a
