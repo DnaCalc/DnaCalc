@@ -391,6 +391,16 @@ impl HostFacts for ReaderHost<'_, '_> {
         self.shared.host.borrow_mut().as_deref_mut()?.sheet_count()
     }
 
+    fn workbook_name(&mut self) -> Option<String> {
+        self.fact(
+            crate::FactSubject::Workbook,
+            crate::ReadPurpose::SheetMetadata,
+            crate::ObservableFacets::SheetMetadata,
+            crate::FactInvalidation::OnChange,
+        );
+        self.shared.host.borrow_mut().as_deref_mut()?.workbook_name()
+    }
+
     fn workbook_facts(&mut self) -> Option<std::sync::Arc<dyn calc_func::WorkbookFacts>> {
         self.fact(
             crate::FactSubject::Workbook,

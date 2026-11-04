@@ -1902,6 +1902,10 @@ impl HostFacts for WorkbookReader<'_> {
         String::from_utf16(entry.name().text().utf16_code_units()).ok()
     }
 
+    fn workbook_name(&mut self) -> Option<String> {
+        self.view.inputs.definitions().workbook_name().map(str::to_owned)
+    }
+
     fn sheet_count(&mut self) -> Option<u32> {
         u32::try_from(self.view.inputs.sheets().len()).ok()
     }
