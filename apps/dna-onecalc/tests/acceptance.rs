@@ -56,6 +56,44 @@ fn caller_comes_from_the_formula_instance() {
     }
 }
 
+/// The existing fn3 capture supplies all twelve months and seven weekdays per tag,
+/// plus era boundaries. Read expected UTF-16 from that retained capture, never a cache.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn locale_tagged_date_names_follow_the_retained_fn3_readings() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let capture: serde_json::Value = serde_json::from_slice(include_bytes!(
+        "../../../crates/calc-func/tests/captures/fn3_questions/oracle.capture.json"
+    )).unwrap();
+    let profile = format_profile(LocaleId::EnZa).with_separators(".", " ").unwrap();
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_environment(Some(CalcEnvironment {
+        profile: Some(profile), ..CalcEnvironment::dates(DateSystem::System1900)
+    }));
+    let mut failures = Vec::new();
+    let mut compared = 0;
+    for entry in capture["formulas"].as_array().unwrap().iter().filter(|f| f["sheet"] == "fn3_text") {
+        let formula = entry["formula"].as_str().unwrap();
+        let observation = capture["observations"].as_array().unwrap().iter().find(|o|
+            o["sheet"] == entry["sheet"] && o["row"] == entry["row"] && o["column"] == entry["column"]
+        ).expect("every fn3 text question was observed");
+        let expected = observation["excel_raw"]["text"].as_str().expect("a typed Excel text answer");
+        session.set_formula(formula);
+        let calculated = session.calculate();
+        let actual = match calculated.result.as_ref().map(CalcValue::core_ref) {
+            Some(calc_func::value::CoreRef::Text(text)) => text.utf16_code_units().iter()
+                .map(|unit| format!("{unit:04x}")).collect::<String>(),
+            _ => format!("{:?}", calculated.result),
+        };
+        compared += 1;
+        if actual != expected || !calculated.diagnostics.is_empty() {
+            failures.push(format!("{formula}: expected {expected}, actual {actual}; {:?}", calculated.diagnostics));
+        }
+    }
+    assert_eq!(compared, 170, "the complete retained text question section");
+    assert!(failures.is_empty(), "{} of {compared} locale names differ:\n{}", failures.len(), failures.join("\n"));
+}
+
 /// Recorded POISSON branch/control answers from OxFunc-Evidence's
 /// poisson.dist-branch-00128..00129, 00084..00085 and 00224..00225.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
