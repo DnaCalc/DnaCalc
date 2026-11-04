@@ -377,6 +377,7 @@ pub struct LoadedWorkbook {
     styles: Arc<StyleTable>,
     theme_colors: Arc<[String]>,
     date_system: DateSystem,
+    compatibility_version: u32,
     calc_mode: CalcMode,
     /// The sheet `<workbookView activeTab>` names (dc-uar).
     active_sheet: Option<SheetId>,
@@ -742,6 +743,12 @@ impl LoadedWorkbook {
         self.date_system
     }
 
+    /// The workbook's explicit CompatibilityVersion, or 1 when the file predates that setting.
+    /// A present version element without setVersion is unknown (0), not an inferred version.
+    pub fn compatibility_version(&self) -> u32 {
+        self.compatibility_version
+    }
+
     /// The calculation mode the workbook part's `calcPr` names.
     pub fn calc_mode(&self) -> CalcMode {
         self.calc_mode
@@ -1035,6 +1042,7 @@ struct WorkbookPart {
     /// The sheets it declares, in workbook order.
     sheets: Vec<DeclaredSheet>,
     date_system: DateSystem,
+    compatibility_version: u32,
     calc_mode: CalcMode,
     /// The first `workbookView`'s `activeTab`, 0 when it states none.
     active_tab: usize,
@@ -1074,6 +1082,7 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
     let mut names: BTreeSet<Vec<u16>> = BTreeSet::new();
     let mut keys = BTreeSet::new();
     let mut date_system = None;
+    let mut compatibility_version = None;
     let mut calc_mode = CalcMode::Automatic;
     let mut active_tab: Option<usize> = None;
     let mut iteration = IterationSettings::EXCEL_DEFAULT;
@@ -1100,6 +1109,41 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
                     return Err(events.invalid("a workbookPr whose date1904 is not a boolean"));
                 }
             });
+            continue;
+        }
+        if element.name.is(MAIN_NAMESPACE, "extLst") {
+            // MS-XLSX 2.6.259 / 5.42: the qualified version element carries unsigned setVersion.
+            // The extension URI is retained in P01/saved-caches.json (cold-app-01.xlsm).
+            // Read only the workbook extension's direct child; unrelated vendor XML stays opaque.
+            let mut depth = 1usize;
+            let mut compatibility_extension = false;
+            while depth > 0 {
+                match events.next()? {
+                    Some(XmlEvent::Start(child)) => {
+                        depth += 1;
+                        if depth == 2 {
+                            compatibility_extension = child.name.is(MAIN_NAMESPACE, "ext")
+                                && child.attribute("uri").is_some_and(|uri|
+                                    uri.eq_ignore_ascii_case("{D14903EA-33C4-47F7-8F05-3474C54BE107}"));
+                        } else if depth == 3 && compatibility_extension && child.name.is(
+                            "http://schemas.microsoft.com/office/spreadsheetml/2024/workbookCompatibilityVersion",
+                            "version",
+                        ) {
+                            if compatibility_version.is_some() {
+                                return Err(events.invalid("two workbook compatibility versions"));
+                            }
+                            compatibility_version = Some(match child.attribute("setVersion") {
+                                None => 0,
+                                Some(value) => value.trim().parse::<u32>().map_err(|_|
+                                    events.invalid("setVersion is not an unsigned integer"))?,
+                            });
+                        }
+                    }
+                    Some(XmlEvent::End(_)) => depth -= 1,
+                    Some(XmlEvent::Text(_)) => {}
+                    None => return Err(events.invalid("the part ends inside workbook extensions")),
+                }
+            }
             continue;
         }
         if element.name.is(MAIN_NAMESPACE, "bookViews") {
@@ -1288,6 +1332,7 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
     Ok(WorkbookPart {
         sheets: declared,
         date_system: date_system.unwrap_or(DateSystem::Date1900),
+        compatibility_version: compatibility_version.unwrap_or(1),
         calc_mode,
         active_tab: active_tab.unwrap_or(0),
         iteration,
@@ -1389,6 +1434,7 @@ pub fn load(
     let WorkbookPart {
         sheets: declared,
         date_system,
+        compatibility_version,
         calc_mode,
         active_tab,
         iteration,
@@ -1619,6 +1665,7 @@ pub fn load(
         styles,
         theme_colors: theme_colors.into(),
         date_system,
+        compatibility_version,
         calc_mode,
         active_sheet: issued.get(active_tab).copied(),
         defined_names_not_loaded: defined_names.len() - layout.locators_resolved,

@@ -66,6 +66,10 @@ fn environment(context: Option<&WitnessInvocation>) -> Result<CalcEnvironment, &
     let Some(context) = context else {
         return Ok(environment);
     };
+    environment.compatibility_version = match context.compatibility_version.as_deref() {
+        None => 1,
+        Some(value) => value.parse().map_err(|_| "fault:WitnessCompatibilityVersion")?,
+    };
     environment.date_system = match context.date_system.as_deref() {
         None | Some("1900") => DateSystem::System1900,
         Some("1904") => DateSystem::System1904,

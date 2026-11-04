@@ -2416,3 +2416,45 @@ async fn dc_snz_3__vba() {
         "ACCEPT-NOTE: dc_snz_3__vba: Add2(A1,2) through OneCalc Session; browser additionally drives load, reload, failed load, budget and unload through the mounted surface"
     );
 }
+
+/// W111's recorded Version2 LEN results and Microsoft's five-function Unicode contract.
+/// Version1 and B-function controls preserve the earlier UTF-16 behavior. LEFT/RIGHT retain
+/// their separately measured policy; no locale or formula-form guess selects a version.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn workbook_compatibility_version_controls_only_the_five_text_counters() {
+    use calc_func::locale::{CalcEnvironment, DateSystem};
+    use calc_func::value::ExcelText;
+    let units = |value: &[u16]| CalcValue::text(ExcelText::from_utf16_code_units(value.to_vec()));
+    let mut session = Session::new("Sheet1").unwrap();
+    for version in [1, 2] {
+        let mut environment = CalcEnvironment::dates(DateSystem::System1900);
+        environment.compatibility_version = version;
+        session.set_environment(Some(environment));
+        for (formula, expected) in [
+            ("=LEN(\"A😀B\")", CalcValue::number(if version == 1 { 4.0 } else { 3.0 })),
+            ("=LEN(\"👩‍💻\")", CalcValue::number(if version == 1 { 5.0 } else { 3.0 })),
+            ("=LENB(\"A😀B\")", CalcValue::number(4.0)),
+            ("=MID(\"A😀B\",2,1)", if version == 1 { units(&[0xD83D]) } else { units(&[0xD83D, 0xDE00]) }),
+            ("=MID(\"A😀B\",3,1)", if version == 1 { units(&[0xDE00]) } else { units(&[66]) }),
+            ("=MIDB(\"A😀B\",2,1)", units(&[0xD83D])),
+            ("=FIND(\"B\",\"A😀B\")", CalcValue::number(if version == 1 { 4.0 } else { 3.0 })),
+            ("=FINDB(\"B\",\"A😀B\")", CalcValue::number(4.0)),
+            ("=SEARCH(\"?B\",\"A😀B\",2)", CalcValue::number(if version == 1 { 3.0 } else { 2.0 })),
+            ("=SEARCHB(\"?B\",\"A😀B\",2)", CalcValue::number(3.0)),
+            ("=REPLACE(\"A😀B\",2,1,\"x\")", if version == 1 { units(&[65,120,0xDE00,66]) } else { units(&[65,120,66]) }),
+            ("=REPLACEB(\"A😀B\",2,1,\"x\")", units(&[65,120,0xDE00,66])),
+            ("=LEFT(\"A😀B\",2)", units(&[65,0xD83D,0xDE00])),
+            ("=RIGHT(\"A😀B\",2)", units(&[0xD83D,0xDE00,66])),
+        ] {
+            session.set_formula(formula);
+            let calculated = session.calculate();
+            assert_eq!(calculated.result, Some(expected), "version{version} {formula}: {:?}", calculated.diagnostics);
+        }
+    }
+    let mut unsupported = CalcEnvironment::dates(DateSystem::System1900);
+    unsupported.compatibility_version = 3;
+    session.set_environment(Some(unsupported));
+    session.set_formula("=LEN(\"A😀B\")");
+    assert!(session.calculate().result.is_none(), "an unsupported version must not choose an inferred counting policy");
+}

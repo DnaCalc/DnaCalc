@@ -71,3 +71,16 @@ fn every_pinned_witness_row_calculates_as_pinned() {
         failures.iter().take(40).cloned().collect::<Vec<_>>().join("\n")
     );
 }
+
+/// The retained W111 typed run explicitly recorded CompatibilityVersion2. LEN's raw
+/// Value2 answer for w111typed-00072 is3; this exercises the shared native/pinned-bank caller.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_compatibility_version_reaches_the_witness_call() {
+    let context = calc_verdict::WitnessInvocation {
+        compatibility_version: Some("2".into()), ..Default::default()
+    };
+    let args = [serde_json::json!("A😀B")];
+    assert_eq!(witness_call::calculate("LEN", &args, None, Some(&context), true), "0x4008000000000000");
+    assert_eq!(witness_call::calculate("LEN", &args, None, None, true), "0x4010000000000000");
+}
