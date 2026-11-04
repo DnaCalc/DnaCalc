@@ -139,21 +139,24 @@ ported_family! {
         out(s, k::lcm_fn::lcm_kernel(&items))
     }
     40 multinomial "MULTINOMIAL" (1, 255) [R "number1", R "number2"] |s, a, sv| {
-        reject_logical(&a[0])?;
-        // Every value, held or direct, is read as a number and truncated; a blank cell is
-        // skipped.
-        let mut items = Vec::new();
+        // Admission runs across every value before the numeric domain is checked.
+        // Held blank cells are skipped; logicals are rejected in every origin.
+        let mut numbers = Vec::new();
         values(s, a, 0, a.len(), sv, &mut |held, value| {
             if held && matches!(value.core_ref(), CoreRef::Empty) {
                 return Ok(());
             }
-            let n = s.number_argument(0, value)?;
+            reject_logical(value)?;
+            numbers.push(s.number_argument(0, value)?);
+            Ok(())
+        })?;
+        let mut items = Vec::with_capacity(numbers.len());
+        for n in numbers {
             if !n.is_finite() || n < 0.0 {
                 return fail(WorksheetErrorCode::Num);
             }
             items.push(n.trunc() as i64);
-            Ok(())
-        })?;
+        }
         out(s, k::multinomial::multinomial_kernel(&items))
     }
     41 arabic "ARABIC" (1, 1) [V "text"] |s, a, sv| {
@@ -187,10 +190,9 @@ ported_family! {
         out(s, k::decimal_fn::decimal_kernel(&t, radix))
     }
     45 seriessum "SERIESSUM" (4, 4) [V "x", V "n", V "m", R "coefficients"] |s, a, sv| {
-        reject_logical(&a[0])?;
-        let x = num(s, a, 0)?;
-        let n = num(s, a, 1)?;
-        let m = num(s, a, 2)?;
+        let x = super::kit::num_without_logical(s, a, 0)?;
+        let n = super::kit::num_without_logical(s, a, 1)?;
+        let m = super::kit::num_without_logical(s, a, 2)?;
         let coefficients = grid(s, a, 3, sv)?;
         let mut sum = 0.0;
         for (i, cell) in coefficients.cells.iter().enumerate() {

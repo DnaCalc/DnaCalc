@@ -1,0 +1,460 @@
+{
+  "function": "SERIESSUM",
+  "witnesses": [
+    {
+      "id": "fn7-SERIESSUM-later-logical-order-1",
+      "args": [
+        "0x4000000000000000",
+        "TRUE",
+        "0x4000000000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-SERIESSUM-later-logical-order-2",
+      "args": [
+        "0x4000000000000000",
+        "0x3ff0000000000000",
+        "TRUE",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-SERIESSUM-later-logical-order-3",
+      "args": [
+        "0x4000000000000000",
+        "FALSE",
+        "0x4000000000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-SERIESSUM-later-logical-order-4",
+      "args": [
+        "0x4000000000000000",
+        "0x3ff0000000000000",
+        "FALSE",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-SERIESSUM-later-logical-order-5",
+      "args": [
+        "error:Ref",
+        "TRUE",
+        "0x4000000000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "error:Ref"
+    },
+    {
+      "id": "fn7-SERIESSUM-later-logical-order-6",
+      "args": [
+        "0x4000000000000000",
+        "TRUE",
+        "error:Ref",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "error:Value"
+    }
+  ],
+  "service_questions": [
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": false,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": false,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "error",
+        "code": "#REF!"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "error",
+        "code": "#REF!"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ]
+  ],
+  "service_response": [
+    {
+      "cohort": "later-logical-order",
+      "response": {
+        "version": 1,
+        "id": "e594ba0a777746cd9a34bc4325279d1d",
+        "ok": true,
+        "rows": [
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          }
+        ],
+        "inputs": [
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": false
+            },
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": false
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "error",
+              "code": "#REF!"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "error",
+              "code": "#REF!"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ]
+        ],
+        "excel_version": "16.0",
+        "excel_build": "20527",
+        "excel_file_version": "16.0.20527.20088",
+        "excel_pid": 48560,
+        "automation_security_before": 1,
+        "automation_security_after": 1,
+        "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261104T1706304736232-405e5f976fc24b8aab01384836cd2d23\\receipt.json",
+        "session_receipt_sha256": "d1a16f9c6763943b414d62c4d4fe806501464291eccae251738c19861aa0b6c2",
+        "machine": "GOVERT-OMEN",
+        "timestamp": "2026-11-04T17:06:34.176726+00:00",
+        "service_seconds": 4.515999999828637,
+        "request_sha256": "d72c696f5d9693fda177da2ea498211c93c09959b14c39f9a183a8ac3d643334",
+        "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\e594ba0a777746cd9a34bc4325279d1d"
+      },
+      "questions": [
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": false,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": false,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ]
+      ]
+    }
+  ],
+  "retained_wrapper_sha256": {
+    "live-seriessum-later-logical-order.json": "a4e3d61eb46b0b8dc7d7d083b121d5d84ffb6f52174c4062b8adef25a774c442"
+  },
+  "unselected_questions": []
+}

@@ -1,0 +1,1356 @@
+{
+  "function": "YEARFRAC",
+  "witnesses": [
+    {
+      "id": "fn7-YEARFRAC-later-logical-order-1",
+      "args": [
+        "0x4000000000000000",
+        "TRUE",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-YEARFRAC-later-logical-order-2",
+      "args": [
+        "0x4000000000000000",
+        "0x4014000000000000",
+        "TRUE"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-YEARFRAC-later-logical-order-3",
+      "args": [
+        "0x4000000000000000",
+        "0x4014000000000000",
+        "FALSE"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-YEARFRAC-later-logical-order-4",
+      "args": [
+        "0xbff0000000000000",
+        "TRUE",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-YEARFRAC-later-logical-order-5",
+      "args": [
+        "error:Ref",
+        "TRUE",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Ref"
+    },
+    {
+      "id": "fn7-YEARFRAC-later-logical-order-6",
+      "args": [
+        "TRUE",
+        "error:Ref",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-1",
+      "args": [
+        "0xbff0000000000000",
+        "TRUE",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-2",
+      "args": [
+        "0xbff0000000000000",
+        "error:Ref",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-3",
+      "args": [
+        "0xbff0000000000000",
+        "0x4014000000000000",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-4",
+      "args": [
+        "0xbfe0000000000000",
+        "TRUE",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-5",
+      "args": [
+        "0xbfe0000000000000",
+        "error:Ref",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-6",
+      "args": [
+        "0xbfe0000000000000",
+        "0x4014000000000000",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-7",
+      "args": [
+        "0x0000000000000000",
+        "TRUE",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-8",
+      "args": [
+        "0x0000000000000000",
+        "error:Ref",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Ref"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-10",
+      "args": [
+        "0x3fe0000000000000",
+        "TRUE",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-11",
+      "args": [
+        "0x3fe0000000000000",
+        "error:Ref",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Ref"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-13",
+      "args": [
+        "0x41469240c0000000",
+        "TRUE",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-14",
+      "args": [
+        "0x41469240c0000000",
+        "error:Ref",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Ref"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-16",
+      "args": [
+        "0x4146924100000000",
+        "TRUE",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-17",
+      "args": [
+        "0x4146924100000000",
+        "error:Ref",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-18",
+      "args": [
+        "0x4146924100000000",
+        "0x4014000000000000",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Num"
+    }
+  ],
+  "service_questions": [
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": false,
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "bff0000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "error",
+        "code": "#REF!"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "error",
+        "code": "#REF!"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "bff0000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "bff0000000000000"
+      },
+      {
+        "type": "error",
+        "code": "#REF!"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "bff0000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "bfe0000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "bfe0000000000000"
+      },
+      {
+        "type": "error",
+        "code": "#REF!"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "bfe0000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "error",
+        "code": "#REF!"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3fe0000000000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3fe0000000000000"
+      },
+      {
+        "type": "error",
+        "code": "#REF!"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "41469240c0000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "41469240c0000000"
+      },
+      {
+        "type": "error",
+        "code": "#REF!"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4146924100000000"
+      },
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4146924100000000"
+      },
+      {
+        "type": "error",
+        "code": "#REF!"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4146924100000000"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ]
+  ],
+  "service_response": [
+    {
+      "cohort": "later-logical-order",
+      "response": {
+        "version": 1,
+        "id": "44912bb6ce194cd0a0b8523b0b0f9932",
+        "ok": true,
+        "rows": [
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          }
+        ],
+        "inputs": [
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": false
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "bff0000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "error",
+              "code": "#REF!"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "error",
+              "code": "#REF!"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ]
+        ],
+        "excel_version": "16.0",
+        "excel_build": "20527",
+        "excel_file_version": "16.0.20527.20088",
+        "excel_pid": 48560,
+        "automation_security_before": 1,
+        "automation_security_after": 1,
+        "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261104T1705183509347-b5b7ec6d5c9d496dabe80120bc30fb15\\receipt.json",
+        "session_receipt_sha256": "67c6f0a477c317159288c93927b51a467696d04f15f422211a4317a4542feb0e",
+        "machine": "GOVERT-OMEN",
+        "timestamp": "2026-11-04T17:05:22.168419+00:00",
+        "service_seconds": 4.640000000130385,
+        "request_sha256": "1aaf4bbc1b57b542522c75ba0ce2ecc4bbe3c555a2e3fa897330ed8a48e80578",
+        "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\44912bb6ce194cd0a0b8523b0b0f9932"
+      },
+      "questions": [
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": false,
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "bff0000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ]
+      ]
+    },
+    {
+      "cohort": "date-admission-boundaries",
+      "response": {
+        "version": 1,
+        "id": "55474e0a7c854f6fb2a024ab6134fd5b",
+        "ok": true,
+        "rows": [
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "3f8c71c71c71c71c"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "3f8c71c71c71c71c"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "40bfa3fd27d27d28"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          }
+        ],
+        "inputs": [
+          [
+            {
+              "type": "number",
+              "bits": "bff0000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "bff0000000000000"
+            },
+            {
+              "type": "error",
+              "code": "#REF!"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "bff0000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "bfe0000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "bfe0000000000000"
+            },
+            {
+              "type": "error",
+              "code": "#REF!"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "bfe0000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "error",
+              "code": "#REF!"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3fe0000000000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3fe0000000000000"
+            },
+            {
+              "type": "error",
+              "code": "#REF!"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3fe0000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "41469240c0000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "41469240c0000000"
+            },
+            {
+              "type": "error",
+              "code": "#REF!"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "41469240c0000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4146924100000000"
+            },
+            {
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4146924100000000"
+            },
+            {
+              "type": "error",
+              "code": "#REF!"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4146924100000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ]
+        ],
+        "excel_version": "16.0",
+        "excel_build": "20527",
+        "excel_file_version": "16.0.20527.20088",
+        "excel_pid": 31600,
+        "automation_security_before": 1,
+        "automation_security_after": 1,
+        "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261104T1710052058196-40a83355f4fd4ada9ba6d64229e4bbfb\\receipt.json",
+        "session_receipt_sha256": "49ac731b0cf3102ecdea7b603aab8444f8e6fefc562698314e1cb899ecebf56a",
+        "machine": "GOVERT-OMEN",
+        "timestamp": "2026-11-04T17:10:08.166153+00:00",
+        "service_seconds": 3.671000000089407,
+        "request_sha256": "73edce8540d2e309f21c3b2346e790df50d3de3493c728eeaba36e359c05b22e",
+        "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\55474e0a7c854f6fb2a024ab6134fd5b"
+      },
+      "questions": [
+        [
+          {
+            "type": "number",
+            "bits": "bff0000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "bff0000000000000"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "bff0000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "bfe0000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "bfe0000000000000"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "bfe0000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3fe0000000000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3fe0000000000000"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3fe0000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "41469240c0000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "41469240c0000000"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "41469240c0000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4146924100000000"
+          },
+          {
+            "type": "boolean",
+            "value": true,
+            "mode": "literal"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4146924100000000"
+          },
+          {
+            "type": "error",
+            "code": "#REF!"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4146924100000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          }
+        ]
+      ]
+    }
+  ],
+  "retained_wrapper_sha256": {
+    "live-yearfrac-later-logical-order.json": "98fe133fa8b14a422bc3a404ec4ec0ddd7e88fe8dc2a5ea92d06b18d9632c076",
+    "live-yearfrac-date-admission-boundaries.json": "c5bb63822cbdf97f43cf07c038c2e740daa6aa71a99e8eb98b0de4a1393ec7b2"
+  },
+  "unselected_questions": [
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-9",
+      "reason": "Numeric algorithm or separate calendar-zero control retained in full response, not credited by this argument-admission change."
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-12",
+      "reason": "Numeric algorithm or separate calendar-zero control retained in full response, not credited by this argument-admission change."
+    },
+    {
+      "id": "fn7-YEARFRAC-date-admission-boundaries-15",
+      "reason": "Numeric algorithm or separate calendar-zero control retained in full response, not credited by this argument-admission change."
+    }
+  ]
+}
