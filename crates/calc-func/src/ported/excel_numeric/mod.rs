@@ -234,7 +234,7 @@ fn tan_with<F: Fpu>(x: f64) -> f64 {
 /// Distinct from the shared internal `lgamma`; only the published GAMMALN
 /// surfaces route here.
 mod gammaln;
-pub(crate) use gammaln::gammaln_excel;
+pub(crate) use gammaln::{gamma_excel, gammaln_excel};
 
 
 const EXP_TABLE_BITS: u32 = 7;
