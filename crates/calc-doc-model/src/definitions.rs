@@ -120,7 +120,7 @@ pub struct Table {
     pub opaque:bool,
     /// Imported metadata whose axis references cannot be kept consistent.
     pub axis_opaque:bool,
-    /// Imported calculated-column sources; authoring remains refused.
+    /// Calculated-column sources, anchored at the first data row.
     pub column_formulas:Vec<Option<String>>,
     /// The table's `name`.
     pub name: String,
@@ -141,6 +141,14 @@ pub struct Table {
 
 #[derive(Clone,Debug,Default,PartialEq,Eq,Hash)]
 pub struct TableStyle {pub name:Option<String>,pub first_column:bool,pub last_column:bool,pub row_stripes:bool,pub column_stripes:bool}
+impl TableStyle {
+    /// The six accent variants of the supported medium band/header preset.
+    pub fn medium_accent_theme(&self) -> Option<u32> {
+        let name = self.name.as_deref()?;
+        let index = name.strip_prefix("TableStyleMedium")?.parse::<u32>().ok()?;
+        ((2..=7).contains(&index) && name == format!("TableStyleMedium{index}")).then_some(index + 2)
+    }
+}
 
 /// Why the model holds no input for a cell that the file gave content. A calculation reads such a
 /// cell as not available, never as blank; the codec keeps the cell's bytes for a save.

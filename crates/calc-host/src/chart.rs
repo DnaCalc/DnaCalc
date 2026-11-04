@@ -110,6 +110,11 @@ pub struct ChartView {
 const OFFICE_ACCENTS: [&str; 6] = ["4472C4", "ED7D31", "A5A5A5", "FFC000", "5B9BD5", "70AD47"];
 
 impl HostState {
+    /// The workbook's accent1–accent6, with the same Office fallback for charts and tables.
+    pub fn theme_accent(&self, index: usize) -> Option<String> {
+        let fallback = OFFICE_ACCENTS.get(index)?;
+        Some(self.loaded.theme_colors().get(4+index).filter(|c|c.len()==6).cloned().unwrap_or_else(||(*fallback).to_owned()))
+    }
     /// The charts on `sheet`, in the drawing's order, with their series as the workbook holds
     /// them now; and how many charts the file holds that could not be read.
     pub fn charts(&self, sheet: SheetId) -> (Vec<ChartView>, usize) {
@@ -120,11 +125,7 @@ impl HostState {
         let theme = self.loaded.theme_colors();
         let palette: Vec<String> = (0..6)
             .map(|i| {
-                theme
-                    .get(4 + i)
-                    .filter(|c| c.len() == 6)
-                    .cloned()
-                    .unwrap_or_else(|| OFFICE_ACCENTS[i].to_owned())
+                self.theme_accent(i).expect("six theme accents")
             })
             .collect();
         let scheme = |name: &str| -> Option<String> {
