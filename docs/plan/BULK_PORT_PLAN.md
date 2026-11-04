@@ -266,3 +266,30 @@ hold and separate-VM requirement for untrusted corpus captures still apply.
 The tracker (`br ready`) holds these packages with their dependencies. The old plan bundle
 (`BEAD_DETAILS.md`, `BEAD_GRAPH.md`, `beads.*.jsonl`, `build_plan.py`) stays in `docs/plan/` as
 history and no longer describes the tracker.
+
+Trusted evidence code comparisons (dc-ztvv.13) use the same `compare` and `corpus`
+commands with `--trusted-code <manifest.json>` and a separate output directory.
+The default DNA-only route still disables file VBA and events. The explicit route
+reads a version 1 `dnacalc-trusted-evidence-code` JSON manifest with `workbooks`
+keyed by each original package SHA-256. Each entry requires `vba` and `events`
+booleans, an `xlls` list, and nonempty `evidence` explaining the authorization.
+XLL entries require `path` and `sha256`; relative paths resolve beside the manifest.
+Only independently listed linked packages may run file code. Runtime admission
+failures remain typed failures for the whole affected workbook; source is never
+stripped to force admission. A missing provider is still a refused call.
+
+Example entry: `{"vba":true,"events":false,"xlls":[],"evidence":"owned probe"}`.
+Run the disabled and trusted routes separately and report their counts separately.
+The manifest digest binds child execution, output, resume and shard merging.
+An inventory without Excel observations still cannot earn a live match. Observed
+captures must record the same VBA/event policy. Native XLL observations additionally
+require the entry's `live_capture_sha256` to attest the exact capture taken with
+those providers enabled. Supplemental saved-cache evidence stays separate.
+
+Native XLL execution requires Windows x64 and local, hash-verified providers;
+Linux reports a typed platform refusal. File formulas bind canonical and `_xll.`
+names to the same native registrations. The existing asynchronous continuation
+route accepts returns without re-entering the formula prefix, with a bounded wait.
+Linked native providers currently refuse because they need one shared application
+owner. Class/designer modules, unsupported Range calls and broader file-VBA runtime
+coverage remain dc-snz.15; this comparison route does not claim to implement them.

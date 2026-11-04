@@ -14,8 +14,22 @@ fn changed_saved_provenance_is_refused_before_comparison_starts() {
     let digest = crate::corpus_batch::file_digest(&provenance).unwrap();
     let args = parse_args(&[root.to_string_lossy().into_owned(),"--dna-only".into(),"--saved-excel".into(),provenance.to_string_lossy().into_owned()]).unwrap();
     fs::write(&provenance,b"changed").unwrap();
-    let (result,_) = compare_one(&root.join("no-executable"),&entries[0],None,&root.join("out"),&args,"binary",&calc_verdict::sha256_hex(b"fixture"),Some(&digest));
+    let (result,_) = compare_one(&root.join("no-executable"),&entries[0],None,&root.join("out"),&args,"binary",&calc_verdict::sha256_hex(b"fixture"),Some(&digest),None);
     assert!(result.unwrap_err().reason.contains("provenance changed after corpus admission"));
+    assert!(!root.join("out/attempt-1.log").exists());
+}
+
+#[test]
+fn changed_trusted_manifest_is_refused_before_comparison_starts() {
+    let root = scratch("changed-trusted-manifest");
+    let path = root.join("case.xlsx"); fs::write(&path,b"fixture").unwrap();
+    let (entries,_) = crate::corpus_batch::select(folder_workbooks(&root).unwrap(),None);
+    let manifest = root.join("trusted.json"); fs::write(&manifest,b"admitted").unwrap();
+    let digest = crate::corpus_batch::file_digest(&manifest).unwrap();
+    let args = parse_args(&[root.to_string_lossy().into_owned(),"--dna-only".into(),"--trusted-code".into(),manifest.to_string_lossy().into_owned()]).unwrap();
+    fs::write(&manifest,b"changed").unwrap();
+    let (result,_) = compare_one(&root.join("no-executable"),&entries[0],None,&root.join("out"),&args,"binary",&calc_verdict::sha256_hex(b"fixture"),None,Some(&digest));
+    assert!(result.unwrap_err().reason.contains("trusted-code manifest changed after corpus admission"));
     assert!(!root.join("out/attempt-1.log").exists());
 }
 
@@ -28,6 +42,7 @@ fn a_changed_batch_source_is_refused_before_a_child_is_started() {
     let args = parse_args(&[root.to_string_lossy().into_owned(), "--dna-only".into()]).unwrap();
     let mut run = Run {
         saved_excel_digest: None,
+        trusted_code_digest: None,
         args: &args,
         cache: Cache {
             root: root.join("cache"),
@@ -172,6 +187,7 @@ fn arguments_have_their_defaults_and_refusals() {
         parsed,
         Args {
             saved_excel: None,
+            trusted_code: None,
             dir: Some(PathBuf::from("corpus-dir")),
             oracle: false,
             out: PathBuf::from(DEFAULT_OUT),

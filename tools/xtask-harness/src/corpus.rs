@@ -75,7 +75,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::time::{Duration, Instant};
 
-pub const USAGE: &str = "usage: cargo xtask corpus [<dir>] [--recursive] [--oracle] [--out <dir>] [--cache <dir>] [--import <capture.json>]... [--no-capture] [--dna-only] [--saved-excel <provenance.json>] [--timeout <s>] [--shard <index/count>] [--resume] [--minimize] | cargo xtask corpus --merge <summary.json>... --out <dir>";
+pub const USAGE: &str = "usage: cargo xtask corpus [<dir>] [--recursive] [--oracle] [--out <dir>] [--cache <dir>] [--import <capture.json>]... [--no-capture] [--dna-only] [--saved-excel <provenance.json>] [--trusted-code <manifest.json>] [--timeout <s>] [--shard <index/count>] [--resume] [--minimize] | cargo xtask corpus --merge <summary.json>... --out <dir>";
 
 const EXIT_FAILED: u8 = 1;
 const EXIT_USAGE: u8 = 2;
@@ -103,6 +103,7 @@ pub(crate) struct Args {
     pub(crate) minimize: bool,
     pub(crate) dna_only: bool,
     pub(crate) saved_excel: Option<PathBuf>,
+    pub(crate) trusted_code: Option<PathBuf>,
     pub(crate) merges: Vec<PathBuf>,
 }
 
@@ -121,6 +122,7 @@ pub(crate) fn parse_args(args: &[String]) -> Result<Args, String> {
         minimize: false,
         dna_only: false,
         saved_excel: None,
+        trusted_code: None,
         merges: Vec::new(),
     };
     let (mut out, mut cache, mut timeout) = (None, None, None);
@@ -144,6 +146,10 @@ pub(crate) fn parse_args(args: &[String]) -> Result<Args, String> {
             "--recursive" => parsed.recursive = true,
             "--resume" => parsed.resume = true,
             "--minimize" => parsed.minimize = true,
+            "--trusted-code" => {
+                if parsed.trusted_code.is_some() { return Err("--trusted-code is given twice".into()); }
+                parsed.trusted_code = Some(PathBuf::from(value("--trusted-code")?));
+            }
             "--saved-excel" => {
                 if parsed.saved_excel.is_some() { return Err("--saved-excel is given twice".into()); }
                 parsed.saved_excel = Some(PathBuf::from(value("--saved-excel")?));
@@ -629,6 +635,7 @@ struct Run<'a> {
     build: Option<Result<String, String>>,
     program_digest: String,
     saved_excel_digest: Option<String>,
+    trusted_code_digest: Option<String>,
 }
 
 impl Run<'_> {
@@ -761,6 +768,7 @@ fn compare_one(
     program_digest: &str,
     snapshot: &str,
     saved_excel_digest: Option<&str>,
+    trusted_code_digest: Option<&str>,
 ) -> (Result<Value, NotCompared>, f64) {
     let not = |reason: String| NotCompared {
         stage: "compare".to_owned(),
@@ -784,6 +792,10 @@ fn compare_one(
         };
         key["input_identity"] = json!(input_identity);
         key["comparison_source"] = json!(comparison_source);
+        key["trusted_code"] = json!(trusted_code_digest);
+        if args.trusted_code.as_ref().map(|path|crate::corpus_batch::file_digest(path)).transpose().map_err(|e|e.to_string())?.as_deref() != trusted_code_digest {
+            return Err("trusted-code manifest changed after corpus admission".into());
+        }
         key["saved_excel"] = json!(saved_excel_digest);
         if args.saved_excel.as_ref().map(|path|crate::corpus_batch::file_digest(path)).transpose().map_err(|e|e.to_string())?.as_deref() != saved_excel_digest {
             return Err("Excel-save provenance changed after corpus admission".into());
@@ -826,6 +838,9 @@ fn compare_one(
             command.arg("--minimize");
         }
         if let Some(path) = &args.saved_excel { command.arg("--saved-excel").arg(path); }
+        if let Some(path) = &args.trusted_code {
+            command.arg("--trusted-code").arg(path).arg("--trusted-code-sha256").arg(trusted_code_digest.ok_or("missing admitted trusted manifest digest")?);
+        }
         let result = crate::corpus_batch::bounded(&mut command, &log, args.timeout);
         let outcome = match &result {
             Ok(status) if status.success() => "completed".to_owned(),
@@ -865,6 +880,9 @@ fn compare_one(
         if triage["saved_excel_provenance_sha256"] != key["saved_excel"] {
             return Err("comparison used different Excel-save provenance than the admitted manifest".into());
         }
+        if triage["trusted_code_sha256"] != key["trusted_code"] {
+            return Err("comparison used different trusted code than the admitted manifest".into());
+        }
         read_triage(&triage)?;
         crate::corpus_batch::publish(&payload, out)?;
         crate::corpus_batch::finish(out, &key)?;
@@ -889,6 +907,10 @@ fn run_corpus(args: &Args) -> u8 {
     let saved_excel_digest = match args.saved_excel.as_ref().map(|path|crate::corpus_batch::file_digest(path)).transpose() {
         Ok(digest) => digest,
         Err(error) => { eprintln!("xtask corpus: cannot hash Excel-save provenance: {error}"); return EXIT_FAILED; }
+    };
+    let trusted_code_digest = match args.trusted_code.as_ref().map(|path|crate::trusted_code::Manifest::read(path,None).map(|m|m.digest)).transpose() {
+        Ok(digest) => digest,
+        Err(error) => { eprintln!("xtask corpus: {error}"); return EXIT_FAILED; }
     };
     let cache = Cache {
         root: args.cache.clone(),
@@ -966,6 +988,7 @@ fn run_corpus(args: &Args) -> u8 {
     };
     let mut run = Run {
         saved_excel_digest,
+        trusted_code_digest,
         args,
         cache,
         build: None,
@@ -1029,6 +1052,8 @@ fn run_corpus(args: &Args) -> u8 {
             "resume": args.resume,
             "dna_only_fallback": args.dna_only,
             "saved_excel_provenance_sha256": run.saved_excel_digest,
+            "trusted_code_sha256": run.trusted_code_digest,
+            "execution_route": if args.trusted_code.is_some() {"trusted-evidence-code"} else {"captured-policy-or-disabled-inventory"},
             "comparison_timeout_s": args.timeout.as_secs(),
             "resumed_stage_times": "from the verified original comparison",
             "executable_sha256": run.program_digest,
@@ -1215,6 +1240,7 @@ fn one_workbook(run: &mut Run<'_>, program: &Path, entry: &Entry, out: &Path) ->
                 run.args,
                 &run.program_digest,
                 run.saved_excel_digest.as_deref(),
+                run.trusted_code_digest.as_deref(),
             );
             return workbook;
         }
@@ -1315,6 +1341,7 @@ fn one_workbook(run: &mut Run<'_>, program: &Path, entry: &Entry, out: &Path) ->
         &run.program_digest,
         &sha256,
         run.saved_excel_digest.as_deref(),
+        run.trusted_code_digest.as_deref(),
     );
     if workbook.inventory_formula_cells.is_none() {
         workbook.inventory_formula_cells = fs::read(dir.join("inventory.record.json"))
@@ -1377,6 +1404,7 @@ fn sectioned_workbook(
     args: &Args,
     program_digest: &str,
     saved_excel_digest: Option<&str>,
+    trusted_code_digest: Option<&str>,
 ) {
     let file_started = Instant::now();
     let states = match section_states(case, bytes) {
@@ -1467,6 +1495,7 @@ fn sectioned_workbook(
             program_digest,
             sha256,
             saved_excel_digest,
+            trusted_code_digest,
         );
         compare_seconds += seconds;
         match triage.and_then(|triage| {
