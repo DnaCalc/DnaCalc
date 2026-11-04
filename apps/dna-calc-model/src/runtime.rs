@@ -77,8 +77,8 @@ impl Default for FilterTools {
 }
 
 #[derive(Clone,Debug,PartialEq,Eq)]
-pub struct TableTools {pub name:String,pub rows:String,pub columns:String,pub total_column:String,pub total_function:String}
-impl Default for TableTools{fn default()->Self{Self{name:"Table1".into(),rows:String::new(),columns:String::new(),total_column:"1".into(),total_function:"sum".into()}}}
+pub struct TableTools {pub name:String,pub rows:String,pub columns:String,pub total_column:String,pub total_function:String,pub column:String,pub column_name:String,pub formula:String}
+impl Default for TableTools{fn default()->Self{Self{name:"Table1".into(),rows:String::new(),columns:String::new(),total_column:"1".into(),total_function:"sum".into(),column:"1".into(),column_name:String::new(),formula:String::new()}}}
 
 /// Shared Find/Replace/Go To inputs and workbook-relative query results.
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -535,9 +535,9 @@ pub struct FilterView {
 }
 
 #[derive(Clone,Debug,PartialEq,Eq,Serialize,Deserialize)]
-pub struct TableView {pub part:String,pub name:String,pub area:Area,pub columns:Vec<String>,pub headers:bool,pub totals:bool,pub style:String,pub row_stripes:bool,pub column_stripes:bool,pub first_column:bool,pub last_column:bool,pub opaque:bool,pub filter:Option<FilterView>}
+pub struct TableView {pub part:String,pub name:String,pub area:Area,pub columns:Vec<String>,#[serde(default)]pub column_formulas:Vec<Option<String>>,pub headers:bool,pub totals:bool,pub style:String,pub row_stripes:bool,pub column_stripes:bool,pub first_column:bool,pub last_column:bool,pub opaque:bool,pub filter:Option<FilterView>}
 #[derive(Clone,Debug,PartialEq,Eq,Serialize,Deserialize)]
-pub enum TableChange {Create{area:Area,name:String},Resize{part:String,area:Area},Options{part:String,headers:bool,totals:bool,style:String,row_stripes:bool,column_stripes:bool,first_column:bool,last_column:bool},Total{part:String,column:u32,function:String}}
+pub enum TableChange {Create{area:Area,name:String},Resize{part:String,area:Area},Options{part:String,headers:bool,totals:bool,style:String,row_stripes:bool,column_stripes:bool,first_column:bool,last_column:bool},Total{part:String,column:u32,function:String},RenameColumn{part:String,column:u32,name:String},CalculatedColumn{part:String,column:u32,formula:Option<String>}}
 
 /// What the page asks of the server.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
