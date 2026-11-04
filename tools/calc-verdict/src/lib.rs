@@ -90,7 +90,7 @@ pub use verdict::{
     judge,
 };
 pub use witness::{
-    ReadingSource, Severity, WITNESS_SET_FORMAT, WitnessRow, WitnessSet, decode_argument,
+    ReadingSource, Severity, WITNESS_SET_FORMAT, WitnessInvocation, WitnessRow, WitnessSet, decode_argument,
     decode_result, encode_result, result_index, select_result,
 };
 

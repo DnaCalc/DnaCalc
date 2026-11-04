@@ -186,6 +186,64 @@ pub fn select_result(value: &CalcValue, index: Option<(usize, usize)>) -> Option
     }
 }
 
+/// Invocation facts recorded by a capture. Missing fields stay missing; a build or
+/// platform does not establish an argument transport, locale or workbook setting.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct WitnessInvocation {
+    pub input_transport: Option<String>,
+    pub input_sheet_state: Option<String>,
+    pub locale: Option<String>,
+    pub decimal_separator: Option<String>,
+    pub thousands_separator: Option<String>,
+    pub date_system: Option<String>,
+    pub compatibility_version: Option<String>,
+}
+
+impl WitnessInvocation {
+    pub fn is_empty(&self) -> bool {
+        self == &Self::default()
+    }
+
+    pub fn decode(value: &Value, path: &str) -> Result<Self, String> {
+        let node = value.as_object().ok_or_else(|| format!("{path}: an object is required"))?;
+        let mut result = Self::default();
+        for (key, value) in node {
+            let field = match key.as_str() {
+                "input_transport" => &mut result.input_transport,
+                "input_sheet_state" => &mut result.input_sheet_state,
+                "locale" => &mut result.locale,
+                "decimal_separator" => &mut result.decimal_separator,
+                "thousands_separator" => &mut result.thousands_separator,
+                "date_system" => &mut result.date_system,
+                "compatibility_version" => &mut result.compatibility_version,
+                _ => return Err(format!("{path}.{key}: unknown invocation field")),
+            };
+            *field = if value.is_null() {
+                None
+            } else {
+                Some(value.as_str().ok_or_else(|| format!("{path}.{key}: a string is required"))?.to_owned())
+            };
+        }
+        Ok(result)
+    }
+
+    pub fn to_json(&self) -> Value {
+        let mut node = Map::new();
+        for (key, value) in [
+            ("input_transport", &self.input_transport),
+            ("input_sheet_state", &self.input_sheet_state),
+            ("locale", &self.locale),
+            ("decimal_separator", &self.decimal_separator),
+            ("thousands_separator", &self.thousands_separator),
+            ("date_system", &self.date_system),
+            ("compatibility_version", &self.compatibility_version),
+        ] {
+            if let Some(value) = value { node.insert(key.to_owned(), json!(value)); }
+        }
+        Value::Object(node)
+    }
+}
+
 /// Where a set's rows were read: one capture or bank, and the environment it recorded.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReadingSource {
@@ -197,6 +255,7 @@ pub struct ReadingSource {
     pub platform: Option<String>,
     pub bitness: Option<String>,
     pub cpu: Option<String>,
+    pub invocation: Option<WitnessInvocation>,
 }
 
 impl ReadingSource {
@@ -283,6 +342,9 @@ impl WitnessSet {
                 platform: optional_text(node, "platform"),
                 bitness: optional_text(node, "bitness"),
                 cpu: optional_text(node, "cpu"),
+                invocation: node.get("invocation").filter(|v| !v.is_null())
+                    .map(|v| WitnessInvocation::decode(v, &format!("{path}.invocation")))
+                    .transpose()?.filter(|c| !c.is_empty()),
             });
         }
         let mut witnesses = Vec::new();
@@ -329,10 +391,11 @@ impl WitnessSet {
         out.push_str(&format!("  \"selection\": {},\n", json!(self.selection)));
         out.push_str("  \"readings\": [\n");
         for (i, r) in self.readings.iter().enumerate() {
-            let node = json!({
+            let mut node = json!({
                 "id": r.id, "source": r.source, "excel_build": r.excel_build,
                 "platform": r.platform, "bitness": r.bitness, "cpu": r.cpu,
             });
+            if let Some(invocation) = &r.invocation { node["invocation"] = invocation.to_json(); }
             let comma = if i + 1 < self.readings.len() { "," } else { "" };
             out.push_str(&format!("    {node}{comma}\n"));
         }
@@ -360,6 +423,23 @@ impl WitnessSet {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn invocation_fields_round_trip_without_inventing_missing_facts() {
+        let context = WitnessInvocation {
+            input_transport: Some("cell_value2_bulk".into()),
+            date_system: Some("1900".into()),
+            compatibility_version: Some("2".into()),
+            ..Default::default()
+        };
+        let json = context.to_json();
+        assert_eq!(WitnessInvocation::decode(&json, "context").unwrap(), context);
+        assert!(json.get("locale").is_none());
+        assert!(json.get("decimal_separator").is_none());
+        assert!(WitnessInvocation::decode(&json!({"locale": 1033}), "context").is_err());
+        assert!(WitnessInvocation::decode(&json!({"invented": "en-US"}), "context").is_err());
+    }
 
     fn n(bits: u64) -> CalcValue {
         CalcValue::number(f64::from_bits(bits))
@@ -418,6 +498,7 @@ mod tests {
                 platform: Some("Windows".into()),
                 bitness: Some("64-bit".into()),
                 cpu: None,
+                invocation: None,
             }],
             witnesses: vec![WitnessRow {
                 id: "a".into(),
