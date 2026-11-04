@@ -19,20 +19,30 @@
 //! is repeated in a fresh process, with both results retained. The process-isolation API below
 //! remains for timing and for the existing worker containment tests.
 //!
+//! An optional `oracle.entries.json` beside a fixture declares authored entry questions at
+//! explicit cells. The worker verifies their stored text and form against the source inventory,
+//! opens a separate copy with those cells blank, and attempts Formula/Formula2 assignments under
+//! manual calculation. A setter refusal retains the original inventory cell with an entry
+//! failure and no Excel formula, raw value, saved cache or reopened value. Missing observations
+//! remain failures. No repaired workbook supplies a result.
+//! Authored text must serialize to its declared stored text through `calc_doc::file_form`.
+//! The source key binds the workbook and the ordered consumed entry fields; formatting and
+//! build/provenance comments in the sidecar do not change it. Entry fixtures are captured whole.
+//!
 //! What the isolation enforces, and how a capture shows it (`worker/capture-worker.ps1` holds the
 //! detail):
 //!
 //! - Settings: the worker changes no setting that persists beyond its own Excel instance. The
 //!   settings it sets are session-only: the Application's Visible, DisplayAlerts, ScreenUpdating,
-//!   EnableEvents, Interactive and AutomationSecurity belong to the running instance, and the
+//!   EnableEvents and Interactive belong to the running instance, and the
 //!   calculation settings (Calculation, Iteration, MaxIterations, MaxChange) are taken from the
 //!   workbook Excel opens and saved with the package it saves in the capture's work directory. It
 //!   writes no Excel option of the user's profile (not AskToUpdateLinks, not
 //!   IgnoreRemoteRequests) and no add-in's state, so a capture killed on its timeout leaves
 //!   nothing of the owner's Excel to put back; a unit test checks the script assigns none of them.
-//! - Macros: AutomationSecurity is set to 3 (force-disable) and EnableEvents off before the
-//!   workbook opens, and both are read back; one that does not read back as set refuses the
-//!   capture before the workbook is opened.
+//! - Macros: AutomationSecurity is read and preserved, with its existing value recorded. The
+//!   worker never changes macro policy. EnableEvents is turned off and read back before opening
+//!   the workbook. This does not establish that VBA UDFs are disabled under the existing policy.
 //! - Add-ins: before opening the workbook, the worker reads every add-in's state (AddIns2: IsOpen and
 //!   Installed; COMAddIns: Connect; AddIns: Installed) and whether XLL functions are registered,
 //!   and switches none off or on. One that is open in the capture's instance, one of AddIns2 whose
@@ -137,7 +147,7 @@ mod worker_tests;
 pub use calc_verdict::sha256_hex;
 pub use capture::{
     CalculationMode, CalculationPolicy, CaptureOutcome, CaptureRequest, capture,
-    capture_tool_revision, excel_available, isolation_failures, windows_powershell,
+    capture_source_sha256, capture_tool_revision, excel_available, isolation_failures, windows_powershell,
 };
 pub use convert::STAGE_SPILL;
 pub use isolation::{

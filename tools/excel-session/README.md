@@ -36,17 +36,27 @@ Ownership requires a new Excel PID absent from the prelaunch list, its start tim
 PID 3144 and `/restore` processes are refused. Cleanup checks that exact tuple. Only the host's
 serialized deadline may stop an active job and its owned Excel. A client can cancel its own
 still-queued request; it never terminates a process based on a stale status read. No process-wide
-Excel kill or security policy or registry change is used. The existing workbook capture worker
-temporarily sets the owned application's `AutomationSecurity` to 3 to disable macros; reset
-restores the recorded value. Witness, iteration and event jobs preserve and check that value.
+Excel kill or security policy or registry change is used. Capture, timing, witness, iteration and
+event workers preserve and check the application's existing `AutomationSecurity`. The host
+refuses drift and recycles its process without assigning that setting.
 Launch attempts are persisted before COM activation; a failed activation can therefore be counted
 without claiming a confirmed new PID.
 
 `run-packet.ps1 -PacketDirectory <packet> -OutputDirectory <new-directory>` generalizes the
 supplied RUN-R16 runner. It validates packet hashes, freezes product predictions through the
 existing witness reader, retains new canonical readings and raw worker files, and reports launches.
+`-XtaskExecutable` selects an already built command harness and records its hash; this avoids
+overlapping Cargo use while the per-commit check runs in its own target directory.
 `-CapturePending` also uses the existing sectioned catalogue capture. The adaptive R19 script
 uses the same route without modification and inherits the selected session directory.
+
+An oracle's optional `oracle.entries.json` uses the capture worker to attempt explicitly authored
+Formula/Formula2 entries at their original callers. The source workbook stays unchanged; entry
+errors retain their inventory cells without invented Excel values. They count as missing results.
+The existing file-form serializer validates authored versus stored text before Excel runs. The
+capture identity includes the ordered entry declarations, so changed or removed entry inputs
+make an old capture stale. Comments and build provenance do not change that identity. These
+fixtures use whole-workbook captures; splitting them into ordinary sections is refused.
 
 The eng9 runner uses a fresh-required job per pure condition and resets/verifies the baseline
 between ten separately seeded workbook trials. It retains trial order and explicitly records
@@ -64,11 +74,10 @@ Earlier and resumed groups use different processes. Every receipt and raw result
 and the resume inventory lists remaining trials and launch counts. `--dry-run` audits and
 writes the proposed remaining trial groups without starting Excel.
 
-Set `DNACALC_EXCEL_PRESERVE_AUTOMATION_SECURITY=1` before starting the host when the session
-must not write that application setting, including assignments of its existing value. The host
+The host always preserves `AutomationSecurity`, including avoiding assignments of its existing value. It
 records this policy in its status and receipts. A different value refuses reset and recycles the
-owned process; it is never restored by assigning the baseline. A client requesting this policy
-refuses an already running host without it. The host retains its policy until stopped.
+owned process; it is never restored by assigning the baseline. Clients
+refuse an already running older host without this policy.
 
 Status readers permit atomic replacement while their handle is open. Metadata publication retries
 temporary Windows sharing/access errors for a bounded interval, retaining the old file and the

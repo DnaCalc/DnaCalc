@@ -1,4 +1,5 @@
 use crate::locale::{DateSystem as WorkbookDateSystem, excel_serial_from_ymd, ymd_from_excel_serial};
+use crate::ported::excel_numeric::{excel_x87_div, excel_x87_mul, excel_x87_sub};
 use crate::value::CalcValue;
 use crate::value::WorksheetErrorCode;
 
@@ -195,7 +196,11 @@ pub fn disc_kernel(
     // Excel: (1 - pr/redemption)*(B/D) (dc-j9k: 60 of 60 readings in the catalogue oracle's
     // sheet dcj9k_closed_form; dividing by the fraction D/B matched 41).
     let (days, year) = security_days_and_year(settlement, maturity, basis)?;
-    Ok((1.0 - pr / redemption) * (year / days))
+    // Build20430's 12,000 original security readings distinguish stored PC64
+    // operations from binary64 arithmetic. Keep the published association.
+    let ratio = excel_x87_div(pr, redemption);
+    let spread = excel_x87_sub(1.0, ratio);
+    Ok(excel_x87_mul(spread, excel_x87_div(year, days)))
 }
 
 pub fn intrate_kernel(
@@ -218,7 +223,9 @@ pub fn intrate_kernel(
     // Excel: ((redemption - investment)/investment)*(B/D) (dc-j9k: 40 of 40 readings; dividing
     // by the fraction D/B matched 28).
     let (days, year) = security_days_and_year(settlement, maturity, basis)?;
-    Ok(((redemption - investment) / investment) * (year / days))
+    let spread = excel_x87_sub(redemption, investment);
+    let ratio = excel_x87_div(spread, investment);
+    Ok(excel_x87_mul(ratio, excel_x87_div(year, days)))
 }
 
 pub fn received_kernel(
@@ -241,13 +248,14 @@ pub fn received_kernel(
     // Excel: investment/(1 - discount*D/B), the product before the division (dc-j9k: 38 of 38
     // readings; discount times the fraction D/B matched 33).
     let (days, year) = security_days_and_year(settlement, maturity, basis)?;
-    let denom = 1.0 - discount * days / year;
+    let accrual = excel_x87_div(excel_x87_mul(discount, days), year);
+    let denom = excel_x87_sub(1.0, accrual);
     if denom <= 0.0 {
         return Err(DiscountBillYearfracEvalError::Domain(
             WorksheetErrorCode::Num,
         ));
     }
-    Ok(investment / denom)
+    Ok(excel_x87_div(investment, denom))
 }
 
 pub fn pricedisc_kernel(
@@ -270,7 +278,9 @@ pub fn pricedisc_kernel(
     // Excel: redemption - discount*redemption*D/B, from left to right (dc-j9k: 40 of 40
     // readings; redemption*(1 - discount*fraction) matched 21).
     let (days, year) = security_days_and_year(settlement, maturity, basis)?;
-    Ok(redemption - discount * redemption * days / year)
+    let amount = excel_x87_mul(discount, redemption);
+    let accrual = excel_x87_div(excel_x87_mul(amount, days), year);
+    Ok(excel_x87_sub(redemption, accrual))
 }
 
 fn tbill_days(settlement: f64, maturity: f64) -> Result<f64, DiscountBillYearfracEvalError> {
@@ -342,7 +352,9 @@ pub fn tbillyield_kernel(
     // Excel groups the day-scale factor before the final multiplication:
     // ((100-pr)/pr) * (360/dsm).  The mathematically equivalent left-associative
     // `*360/dsm` form differs by 1 ULP on hundreds of settlement/price rows.
-    Ok(((100.0 - pr) / pr) * (360.0 / dsm))
+    let spread = excel_x87_sub(100.0, pr);
+    let ratio = excel_x87_div(spread, pr);
+    Ok(excel_x87_mul(ratio, excel_x87_div(360.0, dsm)))
 }
 
 pub fn tbilleq_kernel(
@@ -380,9 +392,8 @@ pub fn tbilleq_kernel(
 ///   TBILLEQ = (-t + sqrt(t*t - (2t - 1) * (1 - 1/p))) / (t - 0.5)
 ///
 /// `year` is 365, except that a 366-day bill (possible only across a Feb 29) uses 366, so t = 1.
-/// The operation order below reproduces 711 of 712 live long-bill rows bit-exactly on Excel
-/// 20430 (two fresh corpora, W111-5 G8-02); the one residual is a 1-2 ULP row
-/// (dsm 203, discount 0.21193) that no pure-double ordering reaches.
+/// The shared staged SQRT resolves the recorded cancellation discrepancy in
+/// the long-bill numerator; all 2,400 TBILLEQ bank outcomes agree at R23.
 fn tbilleq_long_bill(dsm: f64, discount: f64) -> Result<f64, DiscountBillYearfracEvalError> {
     let num = || DiscountBillYearfracEvalError::Domain(WorksheetErrorCode::Num);
     let price = 100.0 - discount * 100.0 * dsm / 360.0;
@@ -396,7 +407,7 @@ fn tbilleq_long_bill(dsm: f64, discount: f64) -> Result<f64, DiscountBillYearfra
     if disc < 0.0 {
         return Err(num());
     }
-    Ok((-t + disc.sqrt()) / (t - 0.5))
+    Ok((-t + crate::ported::excel_numeric::excel_sqrt_staged(disc)) / (t - 0.5))
 }
 
 pub fn map_discount_bill_yearfrac_error_to_ws(

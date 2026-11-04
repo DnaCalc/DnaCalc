@@ -80,7 +80,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
-pub const USAGE: &str = "cargo xtask witness judge [--func <F>] [--bank pinned|full] [--trace <path>] | cargo xtask witness compare --before <trace> --after <trace> | cargo xtask witness refresh [--func <F>] | cargo xtask witness pin [--func <F>] [--rows <N>] | cargo xtask witness read --func <F>[,<F>...] [--timeout <s>] [--inputs <json> [--new-only]]";
+pub const USAGE: &str = "cargo xtask witness judge [--func <F>] [--bank pinned|full] [--trace <path>] | cargo xtask witness compare --before <trace> --after <trace> | cargo xtask witness refresh [--func <F>] | cargo xtask witness pin [--func <F>] [--rows <N>] | cargo xtask witness read --func <F>[,<F>...] [--timeout <s>] [--inputs <json> [--new-only] [--repeat-calls]]";
 
 const CHECKOUT: &str = "OxFunc-Evidence";
 const MANIFESTS: [&str; 2] = ["manifest.tsv", "w109-manifest.tsv"];
@@ -118,6 +118,7 @@ struct Request {
     after: Option<PathBuf>,
     inputs: Option<PathBuf>,
     new_only: bool,
+    repeat_calls: bool,
 }
 
 fn parse_args(raw: &[String]) -> Result<Request, String> {
@@ -141,6 +142,7 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
         after: None,
         inputs: None,
         new_only: false,
+        repeat_calls: false,
     };
     let mut it = rest.iter();
     while let Some(arg) = it.next() {
@@ -151,6 +153,7 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
             "--after" if verb == Verb::Compare => request.after = Some(PathBuf::from(value()?)),
             "--inputs" if verb == Verb::Read => request.inputs = Some(PathBuf::from(value()?)),
             "--new-only" if verb == Verb::Read => request.new_only = true,
+            "--repeat-calls" if verb == Verb::Read => request.repeat_calls = true,
             "--trace" if verb == Verb::Judge => request.trace = Some(PathBuf::from(value()?)),
             "--bank" if verb == Verb::Judge => {
                 request.bank = match value()?.as_str() {
@@ -185,6 +188,9 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
     }
     if request.new_only && request.inputs.is_none() {
         return Err("--new-only requires --inputs".into());
+    }
+    if request.repeat_calls && request.inputs.is_none() {
+        return Err("--repeat-calls requires --inputs".into());
     }
     if request.inputs.is_some() && request.function.as_deref().is_some_and(|f| f.contains(',')) {
         return Err("--inputs reads one function at a time".into());
@@ -1726,7 +1732,7 @@ fn input_key(args: &[Value]) -> String {
     Value::Array(args.iter().map(canonical).collect()).to_string()
 }
 
-fn supplied_inputs(bytes: &[u8], function: &str) -> Result<(Value, Vec<WitnessRow>), String> {
+fn supplied_inputs(bytes: &[u8], function: &str, repeat_calls: bool) -> Result<(Value, Vec<WitnessRow>), String> {
     let doc: Value = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
     if doc["function"]
         .as_str()
@@ -1770,7 +1776,7 @@ fn supplied_inputs(bytes: &[u8], function: &str) -> Result<(Value, Vec<WitnessRo
         if literal_transport && args.iter().any(|a| decode_argument(a, id).unwrap().as_number().is_none()) {
             return Err(format!("{id}: formula_literals requires finite numbers"));
         }
-        if !calls.insert((input_key(&args), index, literal_transport)) {
+        if !calls.insert((input_key(&args), index, literal_transport)) && !repeat_calls {
             return Err(format!("duplicate input call {id}"));
         }
         out.push(WitnessRow {
@@ -1793,9 +1799,10 @@ fn predict_inputs(
     function: &str,
     path: &Path,
     new_only: bool,
+    repeat_calls: bool,
 ) -> Result<(WitnessSet, Value), String> {
     let bytes = fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let (doc, mut rows) = supplied_inputs(&bytes, function)?;
+    let (doc, mut rows) = supplied_inputs(&bytes, function, repeat_calls)?;
     let novelty = if new_only {
         let (banks, unread_files) = load_full(checkout, Some(function))?;
         if !unread_files.is_empty() { return Err("cannot establish novelty: some bank records could not be read".into()); }
@@ -1844,7 +1851,7 @@ fn predict_inputs(
         "model_source_diff_sha256": calc_oracle_excel::sha256_hex(diff.as_bytes()),
         "model_source_dirty": !diff.is_empty(), "numeric_mode": "Fast",
         "inputs_path": path.to_string_lossy(), "inputs_sha256": calc_oracle_excel::sha256_hex(&bytes),
-        "input_document": doc, "novelty": novelty,
+        "input_document": doc, "novelty": novelty, "repeat_calls": repeat_calls,
         "predictions": rows.iter().map(|r| serde_json::json!({"id": r.id, "args": r.args,
             "result_index": r.result_index, "calc_func_prediction": r.expected})).collect::<Vec<_>>()
     });
@@ -1910,7 +1917,7 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
     let mut failed = false;
     for function in functions {
         let (set, prediction) = match &request.inputs {
-            Some(path) => { let (set, metadata) = predict_inputs(root, checkout, &function, path, request.new_only)?; (set, Some(metadata)) },
+            Some(path) => { let (set, metadata) = predict_inputs(root, checkout, &function, path, request.new_only, request.repeat_calls)?; (set, Some(metadata)) },
             None => {
                 let sets = pinned_sets(root, Some(&function))?;
                 let Some((_, set)) = sets.into_iter().next() else {
@@ -2245,25 +2252,30 @@ mod tests {
         assert_eq!(input_key(&[json!("0x3FF0000000000000")]), input_key(&[json!("0x3ff0000000000000")]));
         assert_ne!(input_key(&[json!("0x0000000000000000")]), input_key(&[json!("0x8000000000000000")]));
         let mut doc = json!({"function":"GAMMA", "witnesses":[{"id":"a", "args":["0x3ff0000000000000"]}]});
-        assert_eq!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA").unwrap().1.len(), 1);
-        assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "ERF.PRECISE").is_err());
+        assert_eq!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA", false).unwrap().1.len(), 1);
+        assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "ERF.PRECISE", false).is_err());
         doc["witnesses"][0]["args"][0] = json!("0x7ff0000000000000");
-        assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA").is_err());
+        assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA", false).is_err());
         doc["witnesses"][0]["args"][0] = json!("0x3ff0000000000000");
         doc["witnesses"][0]["result_index"] = json!([0, 1]);
-        assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA").is_err());
+        assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA", false).is_err());
         doc["witnesses"][0].as_object_mut().unwrap().remove("result_index");
         let duplicate = doc["witnesses"][0].clone();
         doc["witnesses"].as_array_mut().unwrap().push(duplicate);
-        assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA").unwrap_err().contains("duplicate input id"));
+        assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA", false).unwrap_err().contains("duplicate input id"));
         doc["witnesses"][1]["id"] = json!("b");
-        assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA").unwrap_err().contains("duplicate input call"));
+        assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA", false).unwrap_err().contains("duplicate input call"));
+        let repeated = supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA", true).unwrap().1;
+        assert_eq!(repeated.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(), ["a", "b"]);
+        assert_eq!(repeated[0].args, repeated[1].args);
+        assert!(parse_args(&args("read --func GAMMA --inputs repeated.json --repeat-calls")).unwrap().repeat_calls);
+        assert!(parse_args(&args("read --func GAMMA --repeat-calls")).is_err());
         doc["witnesses"][1]["input_transport"] = json!("formula_literals");
-        assert_eq!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA").unwrap().1.len(), 2);
+        assert_eq!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA", false).unwrap().1.len(), 2);
         doc["witnesses"][1]["args"][0] = json!(true);
-        assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA").unwrap_err().contains("requires finite numbers"));
+        assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA", false).unwrap_err().contains("requires finite numbers"));
         doc["witnesses"][1]["input_transport"] = json!("unknown");
-        assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA").unwrap_err().contains("unknown input_transport"));
+        assert!(supplied_inputs(&serde_json::to_vec(&doc).unwrap(), "GAMMA", false).unwrap_err().contains("unknown input_transport"));
     }
 
     #[test]

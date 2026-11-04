@@ -301,6 +301,7 @@ dependencies = [
 name = "calc-oracle-excel"
 version = "0.1.0"
 dependencies = [
+ "calc-doc",
  "calc-verdict",
  "serde_json",
  "windows-sys 0.61.2",

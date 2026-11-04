@@ -37,6 +37,7 @@ fn a_timed_out_workbook_keeps_its_known_formula_denominator() {
             Workbook {
                 name: "timeout.xlsx".into(),
                 sha256: None,
+                input_identity: None,
                 capture: None,
                 inventory_formula_cells: Some(17),
                 failure_key: None,
@@ -49,6 +50,7 @@ fn a_timed_out_workbook_keeps_its_known_formula_denominator() {
             Workbook {
                 name: "unreadable.xls".into(),
                 sha256: None,
+                input_identity: None,
                 capture: None,
                 inventory_formula_cells: None,
                 failure_key: Some("Workbook:Cell:overlapping array footprint".into()),
@@ -350,6 +352,7 @@ fn a_match_from_external_link_caches_is_counted_apart_from_pass() {
             failure_key: None,
             name: "w.xlsx".to_owned(),
             sha256: None,
+            input_identity: None,
             capture: None,
             outcome: Ok(compared),
             times: Times::default(),
@@ -406,6 +409,7 @@ fn a_match_held_by_the_circular_rule_is_counted_apart_from_pass() {
             failure_key: None,
             name: "w.xlsx".to_owned(),
             sha256: None,
+            input_identity: None,
             capture: None,
             outcome: Ok(compared),
             times: Times::default(),
@@ -504,6 +508,7 @@ fn the_corpus_totals_and_causes_merge_the_workbooks() {
                 failure_key: None,
                 name: "one.xlsx".to_owned(),
                 sha256: Some("aa".to_owned()),
+                input_identity: None,
                 capture: Some("cache build 16.0.1".to_owned()),
                 outcome: Ok(first),
                 times: Times {
@@ -516,6 +521,7 @@ fn the_corpus_totals_and_causes_merge_the_workbooks() {
                 failure_key: None,
                 name: "two.xlsx".to_owned(),
                 sha256: Some("bb".to_owned()),
+                input_identity: None,
                 capture: None,
                 outcome: Ok(second),
                 times: Times {
@@ -529,6 +535,7 @@ fn the_corpus_totals_and_causes_merge_the_workbooks() {
                 failure_key: None,
                 name: "three.xlsx".to_owned(),
                 sha256: None,
+                input_identity: None,
                 capture: None,
                 outcome: Err(NotCompared {
                     stage: "capture".to_owned(),
@@ -663,6 +670,7 @@ fn cells_awaiting_capture_remain_in_the_failure_denominator() {
             failure_key: None,
             name: "w.xlsx".to_owned(),
             sha256: None,
+            input_identity: None,
             capture: None,
             outcome: Ok(compared),
             times: Times::default(),

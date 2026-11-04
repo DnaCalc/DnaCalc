@@ -5,7 +5,7 @@
 //!
 //! It takes one live capture of the fixture through `calc_oracle_excel::capture`, whose
 //! documentation states what the isolation enforces: no setting changed beyond the worker's own
-//! Excel instance, macros force-disabled and events off, a workbook whose package holds one of
+//! Excel instance, macro policy preserved and events off, a workbook whose package holds one of
 //! the checked routes to external data (a refresh-on-load connection, pivot cache or query table,
 //! an OLE or DDE link, a call to a listed external-data function) refused before Excel starts, a
 //! capture refused before the workbook opens when an add-in is open in the worker's Excel

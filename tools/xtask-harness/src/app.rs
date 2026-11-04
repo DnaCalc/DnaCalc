@@ -2100,6 +2100,13 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             if let Some(reason) = wait_for(app, session, &Check::PlanReady, SETTLE) {
                 return Err(reason);
             }
+            let started=Instant::now();
+            loop {
+                let current=session.script(&format!("{READ_PLANS}var p=plans[0],g=document.querySelector('[data-dnacalc=grid][data-grid-active=true]');return !!p&&!p.pending&&!!g&&p.plan.viewport.width===g.clientWidth&&p.plan.viewport.height===g.clientHeight;"))?;
+                if current.as_bool()==Some(true) {break;}
+                if started.elapsed()>SETTLE {return Err("The committed viewport does not match the actual active grid".into());}
+                thread::sleep(Duration::from_millis(100));
+            }
             session.script(&format!(
                 "{READ_PLANS}window.__dcPresentation=plans[0];window.__dcHeaderHeight=document.querySelector('.dc-mast')?.getBoundingClientRect().height;window.__dcTextBounds=Object.fromEntries(Array.from(document.querySelectorAll('[data-dnacalc=cell]')).map(e=>[e.dataset.cell,e.querySelector('.dc-cell-text')?.getBoundingClientRect().width]));return null;"
             ))?;

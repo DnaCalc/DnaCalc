@@ -59,7 +59,7 @@ try {
         if (-not (Live $state)) { throw 'Session host did not start.' }
     }
 } finally { $mutex.ReleaseMutex(); $mutex.Dispose() }
-if ($env:DNACALC_EXCEL_PRESERVE_AUTOMATION_SECURITY -eq '1' -and -not $state.preserve_automation_security) {
+if (-not $state.preserve_automation_security) {
     throw 'The running Excel host does not preserve AutomationSecurity; stop it before selecting this policy.'
 }
 if($Start){Read-Status|ConvertTo-Json -Depth 15;return}

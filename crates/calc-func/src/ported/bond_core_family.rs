@@ -3,7 +3,8 @@
 //!
 //! Parts of this file are a translation, changed, of ExcelFinancialFunctions by Luca Bolognese
 //! (https://github.com/fsprojects/ExcelFinancialFunctions, `bonds.fs` and `daycountbasis.fs`;
-//! Copyright 2010-2013, Apache License 2.0): `yielddisc_kernel` (`yieldDisc`), the accrued-interest
+//! Copyright 2010-2013, Apache License 2.0): `yielddisc_kernel` (`yieldDisc`),
+//! `pricemat_kernel`'s factors and price association (`getMatFactors`, `priceMat`), the accrued-interest
 //! kernel (after `accrInt`), and the day-count and coupon-date helpers named after their F#
 //! counterparts in their doc comments (`changeMonth`, `dateDiff360Us`, `findPcdNcd`,
 //! `IDayCount.DaysBetween`, `actualCoupDays`, `IDayCount.CoupDays`). They were rewritten in Rust
@@ -12,7 +13,7 @@
 
 use crate::locale::{DateSystem as WorkbookDateSystem, excel_serial_from_ymd, ymd_from_excel_serial};
 use crate::value::{CalcValue, CoreValue, WorksheetErrorCode};
-use crate::ported::excel_numeric::crt_pow;
+use crate::ported::excel_numeric::{crt_pow, excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_sub};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BondCoreEvalError {
@@ -460,16 +461,20 @@ pub fn pricemat_kernel(
         return Err(derr(WorksheetErrorCode::Num));
     }
     let b = days_in_year_for_mat(issue, settlement, basis_)?;
-    let dim = dd(issue, maturity, basis_)?;
-    let a = dd(issue, settlement, basis_)?;
-    let dsm = dim - a;
-    let future = 100.0 + (dim / b * rate_ * 100.0);
-    let accrued = a / b * rate_ * 100.0;
-    let den = 1.0 + (dsm / b * yld);
+    // Published EFF getMatFactors uses numerator-position day counts. This
+    // distinction matters for a February-end issue and a 31st maturity.
+    // Its original price association with stored-PC64 operations reproduces
+    // all 2,404 recorded PRICEMAT bank outcomes at R23.
+    let dim = days_between_num(issue, maturity, basis_)?;
+    let a = days_between_num(issue, settlement, basis_)?;
+    let dsm = excel_x87_sub(dim, a);
+    let future = excel_x87_add(100.0, excel_x87_mul(excel_x87_mul(excel_x87_div(dim, b), rate_), 100.0));
+    let accrued = excel_x87_mul(excel_x87_mul(excel_x87_div(a, b), rate_), 100.0);
+    let den = excel_x87_add(1.0, excel_x87_mul(excel_x87_div(dsm, b), yld));
     if den <= 0.0 {
         return Err(derr(WorksheetErrorCode::Num));
     }
-    Ok(future / den - accrued)
+    Ok(excel_x87_sub(excel_x87_div(future, den), accrued))
 }
 pub fn yieldmat_kernel(
     settlement: f64,

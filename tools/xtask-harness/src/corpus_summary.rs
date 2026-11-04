@@ -204,6 +204,7 @@ pub(crate) struct NotCompared {
 pub(crate) struct Workbook {
     pub(crate) name: String,
     pub(crate) sha256: Option<String>,
+    pub(crate) input_identity: Option<String>,
     /// Where the capture it was compared with came from.
     pub(crate) capture: Option<String>,
     pub(crate) inventory_formula_cells: Option<u64>,
@@ -590,6 +591,7 @@ impl Summary {
                 let mut entry = json!({
                     "name": workbook.name,
                     "sha256": workbook.sha256,
+                    "input_identity": workbook.input_identity,
                     "capture": workbook.capture,
                     "inventory_formula_cells":workbook.inventory_formula_cells,
                 });

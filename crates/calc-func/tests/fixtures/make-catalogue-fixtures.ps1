@@ -39,6 +39,7 @@
 
 param(
     [Parameter(Mandatory = $true)][string]$OutDir,
+    [string]$Fn2IndexShapes,
     [string]$QuestionSectionFile = '',
     [string]$QuestionCase = ''
 )
@@ -234,7 +235,9 @@ $Metadata = $Decl + '<metadata xmlns="' + $Main + '" xmlns:xda="http://schemas.m
 
 # Writes a workbook of the worksheets $Sheets (each @(name, worksheet XML)), in order; with
 # -DynamicArrays also the metadata part, which the source formulas of New-OracleSheet name.
-function Write-Workbook([string]$Path, $Sheets, [switch]$DynamicArrays) {
+# Question families may request the 1904 date system or workbook-scoped formula names.
+# Omitting both keeps the original package bytes unchanged.
+function Write-Workbook([string]$Path, $Sheets, [switch]$DynamicArrays, [switch]$Date1904, $Names = @()) {
     $types = $Decl + '<Types xmlns="' + $ContentTypes + '">' +
         '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
         '<Default Extension="xml" ContentType="application/xml"/>' +
@@ -259,8 +262,18 @@ function Write-Workbook([string]$Path, $Sheets, [switch]$DynamicArrays) {
         [void]$rels.Add(@(('rId' + ($index + 2)), "$Rel/sheetMetadata", 'metadata.xml'))
     }
     $types += '</Types>'
-    $workbook = $Decl + '<workbook xmlns="' + $Main + '" xmlns:r="' + $Rel + '"><bookViews><workbookView/></bookViews>' +
-        '<sheets>' + $entries + '</sheets><calcPr fullCalcOnLoad="1"/></workbook>'
+    $properties = ''
+    if ($Date1904) { $properties = '<workbookPr date1904="1"/>' }
+    $definedNames = ''
+    if ($Names.Count -gt 0) {
+        $definedNames = '<definedNames>'
+        foreach ($name in $Names) {
+            $definedNames += '<definedName name="' + (Get-Escaped $name[0]) + '">' + (Get-Escaped $name[1]) + '</definedName>'
+        }
+        $definedNames += '</definedNames>'
+    }
+    $workbook = $Decl + '<workbook xmlns="' + $Main + '" xmlns:r="' + $Rel + '">' + $properties + '<bookViews><workbookView/></bookViews>' +
+        '<sheets>' + $entries + '</sheets>' + $definedNames + '<calcPr fullCalcOnLoad="1"/></workbook>'
     $all = New-Object System.Collections.ArrayList
     [void]$all.Add(@('[Content_Types].xml', $types))
     [void]$all.Add(@('_rels/.rels', (New-Relationships @(, @('rId1', "$Rel/officeDocument", 'xl/workbook.xml')))))
@@ -437,8 +450,20 @@ Write-Workbook (Join-Path $OutDir 'dcj9k_r22/oracle.xlsx') $r22Questions
 # Stored text comes from calc-doc's existing file_form serializer; the packet's authored
 # spelling, explicit form and caller remain alongside it in this section's layout.
 $fn2Sheets = @(, @('Data', (New-OracleSheet $prefixInputs @())))
-$fn2Path = Join-Path $PSScriptRoot 'fn2_questions/fn2-layout.json'
+$fn2Path = Join-Path $PSScriptRoot 'fn2_questions/oracle.entries.json'
 $fn2 = Get-Content -LiteralPath $fn2Path -Raw -Encoding UTF8 | ConvertFrom-Json
+$indexShapes = @{}
+$fn2IndexSheets = @()
+if ($Fn2IndexShapes) {
+    $shapeLayout = Get-Content -LiteralPath $Fn2IndexShapes -Raw -Encoding UTF8 | ConvertFrom-Json
+    foreach ($shape in $shapeLayout.questions) {
+        if ($indexShapes.ContainsKey($shape.question_id)) { throw 'Duplicate INDEX shape question' }
+        if ($shape.rows -lt 1 -or $shape.columns -lt 1 -or $shape.rows * $shape.columns -gt 10000) { throw 'INDEX shape outside the bounded probe layout' }
+        $indexShapes[$shape.question_id] = $shape
+    }
+    if ($indexShapes.Count -ne @($fn2.questions).Count) { throw 'INDEX shapes do not cover the authored questions' }
+    $fn2IndexSheets = @(, @('Data', (New-OracleSheet $prefixInputs @())))
+}
 foreach ($question in $fn2.questions) {
     if ($question.formula_form -eq 'Dynamic') {
         $sources = , @($question.source_cell, $question.stored_formula_text)
@@ -450,6 +475,24 @@ foreach ($question in $fn2.questions) {
     } else { throw "Unknown fn2 formula form: $($question.formula_form)" }
     $fn2Sheets += , @($question.source_sheet, $sourceXml)
     $fn2Sheets += , @($question.observer_sheet, (New-OracleSheet @() $question.observer_stored_formulas))
+    if ($Fn2IndexShapes) {
+        if (-not $indexShapes.ContainsKey($question.question_id)) { throw 'INDEX shape is missing an authored question' }
+        $shape = $indexShapes[$question.question_id]
+        $observers = @($question.observer_stored_formulas)
+        for ($row = 1; $row -le $shape.rows; $row++) {
+            for ($column = 1; $column -le $shape.columns; $column++) {
+                $observers += "INDEX(_xlfn.ANCHORARRAY('$($question.source_sheet)'!$($question.source_cell)),$row,$column)"
+            }
+        }
+        $fn2IndexSheets += , @($question.source_sheet, $sourceXml)
+        $fn2IndexSheets += , @($question.observer_sheet, (New-OracleSheet @() $observers))
+    }
 }
 
 Write-Workbook (Join-Path $OutDir 'fn2_questions/oracle.xlsx') $fn2Sheets -DynamicArrays
+if ($Fn2IndexShapes) { Write-Workbook (Join-Path $OutDir 'fn2_questions_index/oracle.xlsx') $fn2IndexSheets -DynamicArrays }
+
+# fn3 questions stay in a new workbook; captured workbook sheet lists remain unchanged.
+$fn3Sheets = @(, @('fn3_collation', (New-OracleSheet @() (Get-SectionLines 'sheet-fn3_collation.txt' 'fn3_questions'))))
+$fn3Sheets += , @('fn3_text', (New-OracleSheet @() (Get-SectionLines 'sheet-fn3_text.txt' 'fn3_questions')))
+Write-Workbook (Join-Path $OutDir 'fn3_questions/oracle.xlsx') $fn3Sheets
