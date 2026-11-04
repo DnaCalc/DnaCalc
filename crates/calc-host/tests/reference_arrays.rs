@@ -16,6 +16,31 @@ use calc_host::{
 };
 use std::sync::Arc;
 
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_b1l__retained_legacy_mround_and_quotient_reference_controls() {
+    let bytes = include_bytes!("../../calc-func/tests/fixtures/fn2_questions/oracle.xlsx");
+    let capture = calc_verdict::CaptureRecord::decode(include_bytes!("../../calc-func/tests/captures/fn2_questions/oracle.capture.json")).unwrap();
+    let mut book = HostSession::open(Arc::new(MemorySource::new(bytes.to_vec())),&OpenPolicy::default(),HostOptions {
+        calc_mode:Some(CalcMode::Automatic),..HostOptions::default()
+    }).unwrap();
+    assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+    for _ in 0..128 { if !book.has_pending_calculation() { break; } book.advance_calculation(); }
+    assert!(!book.has_pending_calculation());
+    let mut checked = 0;
+    for observed in &capture.observations {
+        if !["fn2_q176","fn2_q177","fn2_q178","fn2_q179","fn2_q180","fn2_q181","fn2_q182","fn2_q183","fn2_o176","fn2_o177","fn2_o178","fn2_o179","fn2_o180","fn2_o181","fn2_o182","fn2_o183"].contains(&observed.cell.sheet()) { continue; }
+        if observed.cell.sheet().starts_with("fn2_o") && observed.cell.row()!=1 { continue; }
+        let sheet = book.host().sheets().iter().find(|s|s.name().text().to_string_lossy()==observed.cell.sheet()).unwrap().id();
+        let at = CellKey::new(sheet,observed.cell.row(),observed.cell.column()).unwrap();
+        let page = project(book.host(),&ProjectionRequest {cells:vec![at]}).unwrap();
+        let ProjectedValue::Calculated {value,..} = page.cells()[0].value() else { panic!("the recorded control must calculate: {:?}",page.cells()[0]); };
+        assert_eq!(value,observed.observation.expected(),"{}!{}",observed.cell.sheet(),observed.cell.a1());
+        checked+=1;
+    }
+    assert_eq!(checked,16);
+}
+
 fn shown(session: &HostSession, at: CellKey) -> String {
     let projection =
         project(session.host(), &ProjectionRequest { cells: vec![at] }).expect("projected");

@@ -74,7 +74,7 @@ use calc_verdict::{
     Provenance, ResultSet, RunIdentity, VerdictPolicy, judge, sha256_hex,
 };
 use serde_json::json;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
@@ -82,7 +82,7 @@ use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-pub const USAGE: &str = "usage: cargo xtask compare --fixture <xlsx> (--capture <capture.json> | --dna-only) --out <dir> [--minimize] [--exact-target <excel build>,<channel>,<compatibility>,<numeric environment>]";
+pub const USAGE: &str = "usage: cargo xtask compare --fixture <xlsx> (--capture <capture.json> | --dna-only) --out <dir> [--saved-excel <provenance.json>] [--minimize] [--exact-target <excel build>,<channel>,<compatibility>,<numeric environment>]";
 
 const EXIT_REFUSED: u8 = 1;
 const EXIT_USAGE: u8 = 2;
@@ -93,6 +93,7 @@ const EXIT_MISSING_CAPTURE: u8 = 4;
 struct Request {
     fixture: PathBuf,
     capture: Option<PathBuf>,
+    saved_excel: Option<PathBuf>,
     minimize: bool,
     inventory_only: bool,
     out: PathBuf,
@@ -114,7 +115,7 @@ fn refused(message: String) -> Failure {
 }
 
 fn parse_args(args: &[String]) -> Result<Request, String> {
-    let (mut fixture, mut capture, mut out, mut target) = (None, None, None, None);
+    let (mut fixture, mut capture, mut out, mut target, mut saved_excel) = (None, None, None, None, None);
     let (mut minimize, mut dna_only, mut inventory_only) = (false, false, false);
     let mut rest = args.iter();
     while let Some(flag) = rest.next() {
@@ -125,6 +126,7 @@ fn parse_args(args: &[String]) -> Result<Request, String> {
         let slot = match flag.as_str() {
             "--fixture" => &mut fixture,
             "--capture" => &mut capture,
+            "--saved-excel" => &mut saved_excel,
             "--out" => &mut out,
             "--exact-target" => &mut target,
             other => return Err(format!("unknown argument {other:?}")),
@@ -138,6 +140,7 @@ fn parse_args(args: &[String]) -> Result<Request, String> {
     Ok(Request {
         fixture: PathBuf::from(fixture.ok_or("--fixture is required")?),
         capture: capture.map(PathBuf::from),
+        saved_excel: saved_excel.map(PathBuf::from),
         minimize,
         inventory_only,
         out: PathBuf::from(out.ok_or("--out is required")?),
@@ -446,6 +449,7 @@ fn seconds(duration: Option<Duration>) -> String {
 
 /// What the run produced for the verdict and the triage.
 struct Run {
+    saved_reference: Option<(CaptureRecord, serde_json::Value)>,
     source_caches: serde_json::Value,
     model: Option<Arc<calc_host::ModelRoot>>,
     linked_inputs: Vec<serde_json::Value>,
@@ -678,6 +682,14 @@ fn run_workbook(
     numeric: NumericMode,
     retain_matching: bool,
 ) -> Result<Run, Failure> {
+    run_workbook_with_saved(fixture, name, fixture_path, capture, numeric, retain_matching, None)
+}
+
+fn run_workbook_with_saved(
+    fixture: &[u8], name: Option<&str>, fixture_path: Option<&Path>,
+    capture: &CaptureRecord, numeric: NumericMode, retain_matching: bool,
+    saved_origin: Option<&serde_json::Value>,
+) -> Result<Run, Failure> {
     let empty_record = || InstrumentRecord {
         case: capture.case.clone(),
         source: capture.source.clone(),
@@ -727,6 +739,7 @@ fn run_workbook(
             // Workbook admission failed, so no result claims an applied calculation context.
             let context = "no-host: workbook admission refused".to_owned();
             return Ok(Run {
+                saved_reference: None,
                 source_caches: json!({"cells":[],"counts":{},"unavailable":reason}),
                 model: None,
                 linked_inputs: Vec::new(),
@@ -991,11 +1004,27 @@ fn run_workbook(
             .collect(),
         ..empty_record()
     };
+    // Failed Excel entry leaves a different authored input at that location.
+    // Follow the existing application graph, including shape-only consumers,
+    // so descendants are not blamed on ROWS/COLUMNS or on a valid calculation.
+    let mut entry_failures = HashMap::new();
+    for failure in capture.session.iter().flat_map(|session|&session.failures)
+        .filter(|failure|failure.stage=="entry") {
+        let Some(root) = &failure.cell else { continue; };
+        let Some(at) = key_of(root) else { continue; };
+        let mut pending = std::collections::VecDeque::from([at]);
+        while let Some(at) = pending.pop_front() {
+            if entry_failures.contains_key(&at) { continue; }
+            entry_failures.insert(at,root.clone());
+            pending.extend(host.dependents(at));
+        }
+    }
     let retained = instrument
         .retained
         .into_iter()
         .filter_map(|(at, (calls, reads))| {
             let kept = Retained {
+                entry_failure: entry_failures.get(&at).cloned(),
                 precedents: host.precedents(at).unwrap_or_default(),
                 calls: calls
                     .into_iter()
@@ -1031,6 +1060,10 @@ fn run_workbook(
         .collect();
     let revision = host.revision().get();
     Ok(Run {
+        saved_reference: saved_origin.map(|origin|
+            crate::compare_saved::reference(fixture, &host, capture, (!origin.is_null()).then_some(origin))
+                .unwrap_or_else(|reason|crate::compare_saved::unavailable(capture,&reason))
+        ),
         source_caches,
         model,
         linked_inputs,
@@ -1151,13 +1184,22 @@ fn compare(request: &Request) -> Result<(), Failure> {
     .map_err(judge_failure)?;
 
     let name = request.fixture.file_name().and_then(|name| name.to_str());
-    let mut run = run_workbook(
+    let saved_provenance = request.saved_excel.as_ref().map(|path| {
+        let bytes = read(path, "Excel-save provenance")?;
+        let value: serde_json::Value = serde_json::from_slice(&bytes)
+            .map_err(|e|refused(e.to_string()))?;
+        if value["format"] != "dnacalc-excel-saved-provenance" || value["version"] != 1
+            || !value["packages"].is_object() { return Err(refused("invalid Excel-save provenance manifest".into())); }
+        Ok((value["packages"][sha256_hex(&fixture)].clone(),sha256_hex(&bytes)))
+    }).transpose()?;
+    let mut run = run_workbook_with_saved(
         &fixture,
         name,
         Some(&request.fixture),
         &capture,
         numeric.clone(),
         request.minimize,
+        saved_provenance.as_ref().map(|(origin,_)|origin),
     )?;
     let started = Instant::now();
     let report = judge(&capture, &run.results, &run.record, &policy).map_err(judge_failure)?;
@@ -1216,6 +1258,44 @@ fn compare(request: &Request) -> Result<(), Failure> {
         }
     }
     triage_json["source_cache_counts"] = run.source_caches["counts"].clone();
+    triage_json["saved_excel_provenance_sha256"] = json!(saved_provenance.as_ref().map(|(_,digest)|digest));
+    if request.saved_excel.is_some() {
+        let mut saved_counts = json!({"reference_cells":0,"matched":0,"mismatched":0,"refused":0,"failed_or_missing":capture.formulas.len(),"external_links":0,"circular_rule":0});
+        let fallback = {
+            let mut reference = capture.clone();
+            reference.acquisition = calc_verdict::Acquisition::FileCacheReplay;
+            reference.observations.clear();
+            (reference,json!({"unavailable":"workbook admission failed"}))
+        };
+        let (reference, info) = run.saved_reference.as_ref().unwrap_or(&fallback);
+        let mut metadata = info.clone();
+        {
+            let saved_report = judge(reference, &run.results, &run.record, &policy).map_err(judge_failure)?;
+            let mut counts = BTreeMap::<String,u64>::new();
+            let referenced: std::collections::BTreeSet<_> = reference.observations.iter().map(|o|&o.cell).collect();
+            for cell in &saved_report.cells {
+                let bucket = if !referenced.contains(&cell.formula.cell) { "failed_or_missing" }
+                    else if cell.circular_rule { "circular_rule" }
+                    else if cell.external_links { "external_links" }
+                    else { match &cell.verdict {
+                        calc_verdict::Verdict::Matched {..} => "matched",
+                        calc_verdict::Verdict::Mismatched {..} => "mismatched",
+                        calc_verdict::Verdict::NotModeled {..} => "refused",
+                        _ => "failed_or_missing",
+                    }};
+                *counts.entry(bucket.into()).or_default() += 1;
+            }
+            for key in ["matched","mismatched","refused","failed_or_missing","external_links","circular_rule"] {
+                saved_counts[key] = json!(counts.get(key).copied().unwrap_or(0));
+            }
+            saved_counts["reference_cells"] = json!(reference.observations.len());
+            write(&request.out.join("saved-excel.record.json"), &reference.encode().map_err(|e|refused(e.to_string()))?)?;
+            write(&request.out.join("saved-excel.report.json"), &saved_report.encode())?;
+        }
+        metadata["counts"] = saved_counts.clone();
+        write(&request.out.join("saved-excel.json"), &serde_json::to_string_pretty(&metadata).expect("metadata serializes"))?;
+        triage_json["saved_excel_counts"] = saved_counts;
+    }
     write(&request.out.join("triage.json"), &serde_json::to_string_pretty(&triage_json).expect("triage serializes"))?;
     if request.minimize {
         crate::compare_minimize::write_cases(&request.out, &capture, &report, &run.retained, run.model.as_deref(), &numeric)
@@ -1338,6 +1418,96 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn dna_only_macro_disabled_run_calculates_chains_and_keeps_saved_reference_separate() {
+        let bytes = include_bytes!("../../../crates/calc-engine/tests/fixtures/excel-calc-probes/P08/observer-cold-off-01.xlsm");
+        let capture = crate::compare_inventory::source_record(bytes, "observer-cold-off-01.xlsm").unwrap();
+        assert_eq!(capture_setting(&capture,"comparison_policy"),Some("opened-with-macros-disabled"));
+        let origin = json!({"application":"Microsoft Excel","app_version":"16.0300",
+            "file_version":{"appName":"xl","lastEdited":"7","lowestEdited":"7","rupBuild":"30527","codeName":"{82680DD9-3F13-7979-5B5F-3D2375947C00}"},
+            "evidence":{"record":"P08/saved-caches.json"}});
+        let run = run_workbook_with_saved(bytes,Some("observer-cold-off-01.xlsm"),None,&capture,NumericMode::Fast,false,Some(&origin)).unwrap();
+        assert!(run.workbook.is_none());
+        let live = judge(&capture,&run.results,&run.record,&VerdictPolicy::default()).unwrap();
+        assert_eq!(live.counts.denominator,2003);
+        assert_eq!(live.counts.matched,0);
+        let (saved,_) = run.saved_reference.as_ref().unwrap();
+        let report = judge(saved,&run.results,&run.record,&VerdictPolicy::default()).unwrap();
+        assert_eq!(report.counts.matched,2000);
+        assert_eq!(report.counts.not_modeled,3);
+        assert_eq!(report.counts.strict_certified,0);
+        assert!(saved.observations.iter().all(|o|matches!(o.observation,Observation::ExcelSavedCache(_))));
+        let host = HostState::open(Arc::new(MemorySource::new(bytes.to_vec())),&OpenPolicy::default(),HostOptions::default()).unwrap();
+        assert!(crate::compare_saved::reference(bytes,&host,&capture,None).unwrap().0.observations.is_empty());
+        let mut wrong = origin.clone(); wrong["app_version"] = json!("wrong");
+        assert!(crate::compare_saved::reference(bytes,&host,&capture,Some(&wrong)).unwrap().0.observations.is_empty());
+    }
+
+    #[test]
+    fn saved_reference_excludes_volatile_names_lazy_calls_dirty_readers_and_spill_children() {
+        // Authored control of the reader's exclusions, not new Excel evidence.
+        let base = include_bytes!("../../../crates/calc-engine/tests/fixtures/excel-calc-probes/P08/observer-cold-off-01.xlsm");
+        let parts = crate::oracle_cases::package_parts(base).unwrap();
+        let workbook = String::from_utf8(parts["xl/workbook.xml"].clone()).unwrap()
+            .replace("<calcPr", "<definedNames><definedName name=\"Pulse\">RAND()</definedName></definedNames><calcPr");
+        let sheet = br#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1">
+            <c r="A1"><f>RAND()</f><v>0.5</v></c><c r="B1"><f>A1+1</f><v>1.5</v></c>
+            <c r="C1"><f>Pulse+1</f><v>1.5</v></c><c r="D1"><f>IF(FALSE,RAND(),7)</f><v>7</v></c>
+            <c r="E1"><f>1+1</f><v>2</v></c><c r="F1"><f ca="1">1+1</f><v>2</v></c>
+            <c r="G1"><f>F1+1</f><v>3</v></c>
+            <c r="H1" t="e" vm="1"><f>1+"x"</f><v>#VALUE!</v></c>
+            <c r="J1" cm="1"><f t="array" ref="J1:J2">_xlfn.SEQUENCE(2,1,RAND())</f><v>0.5</v></c>
+            <c r="K1"><f>J2+1</f><v>2.5</v></c></row><row r="2"><c r="J2"><v>1.5</v></c></row>
+            </sheetData></worksheet>"#;
+        let bytes = crate::oracle_cases::replace_package_parts(base,&BTreeMap::from([
+            ("xl/workbook.xml".into(),workbook.into_bytes()),("xl/worksheets/sheet1.xml".into(),sheet.to_vec())
+        ])).unwrap();
+        let capture = crate::compare_inventory::source_record(&bytes,"authored-reader-control.xlsm").unwrap();
+        let origin = json!({"application":"Microsoft Excel","app_version":"16.0300",
+            "file_version":{"appName":"xl","lastEdited":"7","lowestEdited":"7","rupBuild":"30527","codeName":"{82680DD9-3F13-7979-5B5F-3D2375947C00}"},"evidence":{"control":"authored test, not Excel provenance"}});
+        let run = run_workbook_with_saved(&bytes,None,None,&capture,NumericMode::Fast,false,Some(&origin)).unwrap();
+        assert!(run.workbook.is_none());
+        let (reference,_) = run.saved_reference.unwrap();
+        assert_eq!(reference.observations.iter().map(|o|o.cell.a1()).collect::<Vec<_>>(),["E1"]);
+        let report = judge(&reference,&run.results,&run.record,&VerdictPolicy::default()).unwrap();
+        assert_eq!(report.counts.matched,1);
+    }
+
+    #[test]
+    fn unavailable_saved_xml_metadata_preserves_the_application_results() {
+        let bytes = include_bytes!("../../../crates/calc-doc/tests/fixtures/dc_5sr/features.xlsb");
+        let capture = crate::compare_inventory::source_record(bytes,"features.xlsb").unwrap();
+        let ordinary = run_workbook(bytes,None,None,&capture,NumericMode::Fast,false).unwrap();
+        let optional = run_workbook_with_saved(bytes,None,None,&capture,NumericMode::Fast,false,Some(&json!({}))).unwrap();
+        assert!(optional.workbook.is_none());
+        assert_eq!(optional.results,ordinary.results);
+        assert_eq!(optional.record.encode().unwrap(),ordinary.record.encode().unwrap());
+        let (reference,info) = optional.saved_reference.unwrap();
+        assert!(reference.observations.is_empty());
+        assert!(info["unavailable"].is_string());
+    }
+
+    #[test]
+    fn refused_excel_entry_owns_value_and_shape_only_observer_mismatches() {
+        let bytes = include_bytes!("../../../crates/calc-func/tests/fixtures/fn2_questions/oracle.xlsx");
+        let capture = CaptureRecord::decode(include_bytes!("../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json")).unwrap();
+        let run = run_workbook(bytes,Some("oracle.xlsx"),None,&capture,NumericMode::Fast,false).unwrap();
+        let report = judge(&capture,&run.results,&run.record,&VerdictPolicy::default()).unwrap();
+        let triage = compare_triage::triage(&capture,&report,&run.dna,&run.retained,run.workbook.as_ref(),run.declared.as_deref());
+        let mut checked = 0;
+        for (i,cell) in report.cells.iter().enumerate() {
+            if !["fn2_o123","fn2_o124","fn2_o184","fn2_o185"].contains(&cell.formula.cell.sheet()) { continue; }
+            assert!(matches!(cell.verdict,calc_verdict::Verdict::Mismatched {..}));
+            assert_eq!(triage.cells[i].class,Class::Capture,"{}",cell.formula.cell.sheet());
+            assert_eq!(triage.cells[i].role,Some(compare_triage::Role::ReadsRoot));
+            assert_eq!(triage.cells[i].key,"capture failure at stage entry");
+            let root = triage.cells[i].root.unwrap();
+            assert_eq!(report.cells[root].formula.cell.sheet(),cell.formula.cell.sheet().replace("_o","_q"));
+            checked+=1;
+        }
+        assert_eq!(checked,12);
+    }
 
     #[test]
     fn captured_macro_policy_controls_file_execution_and_event_admission() {
@@ -1697,7 +1867,7 @@ mod tests {
         let fixture=dir.join("input.xlsx");
         fs::write(&fixture,include_bytes!("../../../crates/calc-engine/tests/fixtures/l3/oracle.xlsx")).unwrap();
         let out=dir.join("out");
-        compare(&Request {fixture,capture:None,minimize:false,inventory_only:false,out:out.clone(),target:None}).unwrap();
+        compare(&Request {fixture,capture:None,saved_excel:None,minimize:false,inventory_only:false,out:out.clone(),target:None}).unwrap();
         let report:serde_json::Value=serde_json::from_slice(&fs::read(out.join("report.json")).unwrap()).unwrap();
         assert_eq!(report["counts"]["denominator"],112);
         assert_eq!(report["counts"]["matched"],0);
@@ -1705,7 +1875,7 @@ mod tests {
         let inventory=CaptureRecord::decode(&fs::read(out.join("inventory.record.json")).unwrap()).unwrap();
         assert_eq!(inventory.acquisition,calc_verdict::Acquisition::FileCacheReplay);
         assert!(inventory.observations.is_empty());
-        assert!(inventory.environment.is_none());
+        assert_eq!(capture_setting(&inventory, "automation_security"),Some("3"));
         let triage:serde_json::Value=serde_json::from_slice(&fs::read(out.join("triage.json")).unwrap()).unwrap();
         let counts=crate::corpus_summary::read_triage(&triage).unwrap().counts;
         assert_eq!(counts.pass,0);
@@ -1768,6 +1938,7 @@ mod tests {
         let failure = compare(&Request {
             fixture: fixture.clone(),
             capture: Some(marker),
+            saved_excel: None,
             minimize: false,
             inventory_only: false,
             out: out.clone(),
@@ -1778,6 +1949,7 @@ mod tests {
         let failure = compare(&Request {
             fixture: dir.join("absent.xlsx"),
             capture: Some(dir.join("absent.json")),
+            saved_excel: None,
             minimize: false,
             inventory_only: false,
             out: out.clone(),

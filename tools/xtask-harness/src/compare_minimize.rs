@@ -516,6 +516,7 @@ mod tests {
             reads.insert(
                 target,
                 Retained {
+                    entry_failure: None,
                     calls: Vec::new(),
                     precedents: Vec::new(),
                     reads: vec![Read {

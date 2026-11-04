@@ -174,6 +174,15 @@ impl HostState {
         self.engine.plan_cache_stats()
     }
 
+    /// Already-bound volatile formula anchors. This passive query neither binds
+    /// nor calculates a formula; callers can follow `dependents` for its readers.
+    pub fn volatile_formula_cells(&self) -> Vec<CellKey> {
+        self.engine.nodes()
+            .filter(|node| self.engine.is_volatile(node.id()))
+            .map(|node| node.anchor())
+            .collect()
+    }
+
     /// A read-only source cut for another workbook's engine context. Imported and
     /// uncertified formula values remain unavailable inside the snapshot.
     pub fn linked_snapshot(&self) -> Arc<calc_engine::LinkedWorkbookSnapshot> {

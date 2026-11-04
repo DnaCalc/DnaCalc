@@ -1179,9 +1179,11 @@ impl Run<'_, '_> {
             return Ok(value);
         }
         // The W111 MROUND/QUOTIENT reference controls distinguish a true multi-cell
-        // reference from an array materialized by unary plus. Formula2 rejects the former
-        // even when the caller aligns with it; a one-cell reference still supplies its value.
-        if self.instance.plan.form == FormulaForm::Dynamic
+        // reference from an array materialized by unary plus. The retained fn2
+        // Legacy controls confirm the first argument, including beneath
+        // SUMPRODUCT and after INDEX. Legacy's second argument remains unmeasured;
+        // a one-cell reference still supplies its value.
+        if (self.instance.plan.form == FormulaForm::Dynamic || index == 0)
             && rejects_multi_cell_reference(target)
             && let CoreRef::Reference(reference) = value.core_ref()
             && let [area] = reference.areas()
