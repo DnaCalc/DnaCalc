@@ -250,7 +250,9 @@ pub(crate) fn gammaln_excel(x: f64) -> f64 {
 /// answers show on every band of GAMMA.
 const SQRT_2PI: f64 = f64::from_bits(0x4004_0D93_1FF6_2706);
 
-// SPECFUN GAMMA (Cody): `1 + N(y)/D(y)` for `Gamma(1+y)`, `0 <= y < 1`. Excel's own seed on
+// SPECFUN GAMMA: `1 + N(y)/D(y)` for `Gamma(1+y)`, `0 <= y < 1`. W. J. Cody and L. Stoltz, latest
+// modification October 12, 1989, https://netlib.org/specfun/gamma; every digit below compared
+// with that page's double-precision DATA P and Q on 2026-11-04. Excel's own seed on
 // this interval is not identified: it is a chain of stored multiplications that starts from
 // `SQRT_2PI`, and this rational stands in for its value only.
 const SEED_P: [f64; 8] = [
