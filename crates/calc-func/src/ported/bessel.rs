@@ -26,6 +26,10 @@
 //! - R16 Value2 readings (Excel build 20527) bracket I's admission boundary at
 //!   adjacent binary64 magnitudes: 709.7 is numeric and its successor is #NUM!,
 //!   at orders 0, 1, 2, 3, 10 and 100. Negative arguments agree at orders 0..2.
+//! - R19's eleven independently re-read J/Y boundaries agree with rejecting
+//!   inputs whose stored published phase is above 2^27-1. The phase constants
+//!   are 0.785398164 and 2.356194491; forward orders require both seeds. This is an input
+//!   admission rule, not an identification of the remaining numeric bodies.
 //!
 //! The generic J/Y bodies are published methods, not an
 //! identification of Excel's program. Exact disagreement counts are retained
@@ -151,20 +155,35 @@ fn k1(x: D) -> D {
 
 // --- J0, J1, Y0, Y1 ---------------------------------------------------------------------------
 
-// Public-library bodies, with no Excel-derived polynomial or phase cutoff.
+fn admit_phase(x: D, phase: f64) -> Result<(), WorksheetErrorCode> {
+    // R16/R19 Value2 observations, including adjacent input pairs at eleven
+    // function/order/sign combinations. Compare the stored published phase;
+    // no answer, fitted numerical coefficient or argument-specific selector
+    // enters the calculation. Higher forward orders inherit the J0/Y0 bound.
+    if x.0.abs() - phase > ((1_u32 << 27) - 1) as f64 {
+        Err(WorksheetErrorCode::Num)
+    } else {
+        Ok(())
+    }
+}
+
+// Public-library numeric bodies, with the independently measured admission rule.
 fn j0(x: D) -> R {
+    admit_phase(x, 0.785398164)?;
     if x.0.abs() < 8.0 {
         let value = super::bessel_rational::j0(x.0);
         return if value.is_finite() { Ok(D::new(value)) } else { Err(WorksheetErrorCode::Num) };
     }
  Ok(D::new(libm::j0(x.0))) }
 fn j1(x: D) -> R {
+    admit_phase(x, 2.356194491)?;
     if x.0.abs() < 8.0 {
         let value = super::bessel_rational::j1(x.0);
         return if value.is_finite() { Ok(D::new(value)) } else { Err(WorksheetErrorCode::Num) };
     }
  Ok(D::new(libm::j1(x.0))) }
 fn y0(x: D) -> R {
+    admit_phase(x, 0.785398164)?;
     if x.0 >= 8.0 {
         let value = super::bessel_rational::y0_large(x.0);
         return if value.is_finite() { Ok(D::new(value)) } else { Err(WorksheetErrorCode::Num) };
@@ -176,6 +195,7 @@ fn y0(x: D) -> R {
     }
  Ok(D::new(libm::y0(x.0))) }
 fn y1(x: D) -> R {
+    admit_phase(x, 2.356194491)?;
     if x.0 >= 8.0 {
         let value = super::bessel_rational::y1_large(x.0);
         return if value.is_finite() { Ok(D::new(value)) } else { Err(WorksheetErrorCode::Num) };
@@ -394,8 +414,8 @@ mod tests {
         assert_eq!(besselj_kernel(5.0, 10_000_000.5), Ok(0.0));
         assert_eq!(bessely_kernel(0.0, 1.0), Err(Num));
         assert_eq!(besselk_kernel(-1.0, 1.0), Err(Num));
-        assert_eq!(besselj_kernel(134217728.0, 0.0).unwrap().to_bits(), 0xbed7ff19ed9c47a0, "recorded Excel NUM; phase cutoff removed");
-        assert_eq!(besselj_kernel(134217727.5, 0.0).unwrap().to_bits(), 0xbf03e23975421ed4, "recorded Excel -3.792512787637833E-05");
+        assert_eq!(besselj_kernel(134217728.0, 0.0), Err(Num), "original recorded Excel NUM");
+        assert_eq!(besselj_kernel(134217727.5, 0.0).unwrap().to_bits(), 0xbf03e23975421ed4, "unchanged fdlibm value at an admitted input; Excel's numeric bits remain open");
         assert_eq!(besseli_kernel(709.78, 0.0), Err(Num));
         // Original Excel NUM reading; the published backward program agrees.
         assert_eq!(besselj_kernel(1e-300, 2.0), Err(Num));

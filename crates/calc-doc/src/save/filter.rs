@@ -9,14 +9,82 @@ use crate::{
     xml::{XmlEvent, XmlPart},
 };
 use calc_doc_model::{AutoFilter, Axis, Definitions, FilterCriteria};
-fn render(prefix: &str, filter: &AutoFilter, definitions: &Definitions) -> Vec<u8> {
+/// Retain the imported filter identity while replacing owned criteria and visibility.
+pub(super) fn render_with_source(
+    prefix: &str,
+    filter: &AutoFilter,
+    definitions: &Definitions,
+    source: Option<&[u8]>,
+) -> Result<Vec<u8>, SaveRefusal> {
+    let bytes = render(prefix, filter, definitions);
+    let end = bytes
+        .iter()
+        .position(|b| *b == b'>')
+        .expect("rendered opening")
+        + 1;
+    let tag = RawTag::parse(&bytes[..end]);
+    let mut changes = Vec::<(String, Option<String>)>::new();
+    let namespace = if prefix.is_empty() {
+        "xmlns".into()
+    } else {
+        format!("xmlns:{}", prefix.trim_end_matches(':'))
+    };
+    changes.push((namespace, Some(MAIN_NAMESPACE.into())));
+    let mut source_tag = None;
+    if let Some(source) = source {
+        let xml = XmlPart::new(
+            "filter-source.xml".into(),
+            source.to_vec(),
+            crate::xml::XmlLimits::default(),
+        );
+        let mut r = Reader::new(&xml);
+        let (e, span) = r.root("autoFilter")?;
+        let raw = source[span.0..span.1].to_vec();
+        for a in &e.attributes {
+            if a.name.is(
+                "http://schemas.microsoft.com/office/spreadsheetml/2014/revision",
+                "uid",
+            ) {
+                let revision_prefix = if prefix == "dnarev:" {
+                    "dnarev2"
+                } else {
+                    "dnarev"
+                };
+                changes.push((
+                    format!("xmlns:{revision_prefix}"),
+                    Some("http://schemas.microsoft.com/office/spreadsheetml/2014/revision".into()),
+                ));
+                changes.push((format!("{revision_prefix}:uid"), Some(a.value.to_string())));
+            }
+        }
+        source_tag = Some(raw);
+    }
+    let changes = changes
+        .iter()
+        .map(|(n, v)| (n.as_str(), v.as_deref()))
+        .collect::<Vec<_>>();
+    let opening = tag.rebuilt(&changes, false);
+    let mut out = if let Some(source) = source_tag {
+        RawTag::parse(&opening).with_inherited_namespaces(&RawTag::parse(&source))
+    } else {
+        opening
+    };
+    out.extend_from_slice(&bytes[end..]);
+    Ok(out)
+}
+pub(super) fn render(prefix: &str, filter: &AutoFilter, definitions: &Definitions) -> Vec<u8> {
     let a = filter.area;
     let mut out = format!(
-        "<{prefix}autoFilter ref=\"{}{}:{}{}\">",
+        "<{prefix}autoFilter ref=\"{}{}:{}{}\" {}=\"{MAIN_NAMESPACE}\">",
         column_letters(a.first().column()),
         a.first().row(),
         column_letters(a.last().column()),
-        a.last().row()
+        a.last().row(),
+        if prefix.is_empty() {
+            "xmlns".into()
+        } else {
+            format!("xmlns:{}", prefix.trim_end_matches(':'))
+        }
     )
     .into_bytes();
     for (col, criteria) in &filter.columns {
@@ -130,6 +198,9 @@ pub(super) fn rewrite(
     filter: Option<&AutoFilter>,
     definitions: &Definitions,
 ) -> Result<Vec<u8>, SaveRefusal> {
+    let source = super::reader::element_sources(xml, |e| e.name.is(MAIN_NAMESPACE, "autoFilter"))?
+        .into_iter()
+        .next();
     let mut reader = Reader::new(xml);
     let (_, root) = reader.root("worksheet")?;
     let tag = RawTag::parse(&xml.bytes()[root.0..root.1]);
@@ -143,7 +214,12 @@ pub(super) fn rewrite(
                 reader.element_end()?;
                 if !written {
                     if let Some(f) = filter {
-                        out.extend(render(&prefix, f, definitions));
+                        out.extend(render_with_source(
+                            &prefix,
+                            f,
+                            definitions,
+                            source.as_deref(),
+                        )?);
                     }
                     written = true;
                 }
@@ -173,7 +249,12 @@ pub(super) fn rewrite(
                     .any(|n| e.name.is(MAIN_NAMESPACE, n))
                 {
                     if let Some(f) = filter {
-                        out.extend(render(&prefix, f, definitions));
+                        out.extend(render_with_source(
+                            &prefix,
+                            f,
+                            definitions,
+                            source.as_deref(),
+                        )?);
                     }
                     written = true;
                 }
@@ -197,7 +278,12 @@ pub(super) fn rewrite(
             (XmlEvent::End(_), span) => {
                 if !written {
                     if let Some(f) = filter {
-                        out.extend(render(&prefix, f, definitions));
+                        out.extend(render_with_source(
+                            &prefix,
+                            f,
+                            definitions,
+                            source.as_deref(),
+                        )?);
                     }
                 }
                 out.extend_from_slice(&xml.bytes()[span.0..]);

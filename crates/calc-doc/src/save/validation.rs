@@ -13,7 +13,11 @@ const X14: &str = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main
 const XM: &str = "http://schemas.microsoft.com/office/excel/2006/main";
 
 pub(crate) fn sources(xml: &XmlPart) -> Result<Vec<std::sync::Arc<[u8]>>, SaveRefusal> {
-    super::reader::element_sources(xml,|e|e.name.local=="dataValidation" && matches!(e.name.namespace.as_deref(),Some(MAIN_NAMESPACE|X14))).map(|v|v.into_iter().map(Into::into).collect())
+    super::reader::element_sources(xml, |e| {
+        e.name.local == "dataValidation"
+            && matches!(e.name.namespace.as_deref(), Some(MAIN_NAMESPACE | X14))
+    })
+    .map(|v| v.into_iter().map(Into::into).collect())
 }
 fn sqref(rule: &Validation) -> String {
     rule.areas
@@ -57,7 +61,14 @@ fn render(rule: &Validation) -> Result<(bool, Vec<u8>), SaveRefusal> {
         ] {
             if let Some(value) = value {
                 bytes.extend_from_slice(format!(" {name}=").as_bytes());
-                if matches!(name,"errorTitle"|"error"|"promptTitle"|"prompt"){super::text::xstring_attribute(&value.encode_utf16().collect::<Vec<_>>(),&mut bytes);}else{attribute_value(value, &mut bytes);}
+                if matches!(name, "errorTitle" | "error" | "promptTitle" | "prompt") {
+                    super::text::xstring_attribute(
+                        &value.encode_utf16().collect::<Vec<_>>(),
+                        &mut bytes,
+                    );
+                } else {
+                    attribute_value(value, &mut bytes);
+                }
             }
         }
         bytes.push(b'>');
@@ -73,7 +84,15 @@ fn render(rule: &Validation) -> Result<(bool, Vec<u8>), SaveRefusal> {
     };
     let xml = XmlPart::new(
         "validation-source.xml".into(),
-        if rule.authored_copy{super::reader::without_revision_ids(&XmlPart::new("validation-copy.xml".into(),source.to_vec(),XmlLimits::default()))?}else{source.to_vec()},
+        if rule.authored_copy {
+            super::reader::without_revision_ids(&XmlPart::new(
+                "validation-copy.xml".into(),
+                source.to_vec(),
+                XmlLimits::default(),
+            ))?
+        } else {
+            source.to_vec()
+        },
         XmlLimits::default(),
     );
     let mut reader = Reader::new(&xml);
@@ -91,8 +110,11 @@ fn render(rule: &Validation) -> Result<(bool, Vec<u8>), SaveRefusal> {
                         &tag.rebuilt(&[("sqref", Some(&areas))], tag.is_empty()),
                     );
                 }
-            } else if (e.name.is(MAIN_NAMESPACE,"formula1") || e.name.is(MAIN_NAMESPACE,"formula2")) && !x14
-                || (e.name.is(X14,"formula1") || e.name.is(X14,"formula2")) && x14 {
+            } else if (e.name.is(MAIN_NAMESPACE, "formula1")
+                || e.name.is(MAIN_NAMESPACE, "formula2"))
+                && !x14
+                || (e.name.is(X14, "formula1") || e.name.is(X14, "formula2")) && x14
+            {
                 slot = if e.name.local == "formula1" { 1 } else { 2 };
                 if !x14 {
                     let end = reader.element_end()?;
@@ -182,10 +204,16 @@ pub(super) fn rewrite(xml: &XmlPart, rules: &[Validation]) -> Result<Vec<u8>, Sa
     let (mut mi, mut xi) = (false, false);
     let mut ext_close = None;
     let mut sheet_close = None;
+    let mut depth = 0usize;
     while let Some((event, span)) = reader.next()? {
+        match &event {
+            XmlEvent::Start(_) => depth += 1,
+            XmlEvent::End(_) => depth = depth.saturating_sub(1),
+            _ => {}
+        }
         match event {
             XmlEvent::Start(e)
-                if e.name.is(MAIN_NAMESPACE, "dataValidations")
+                if (depth == 2 && e.name.is(MAIN_NAMESPACE, "dataValidations"))
                     || e.name.is(X14, "dataValidations") =>
             {
                 let is_main = e.name.is(MAIN_NAMESPACE, "dataValidations");
@@ -227,10 +255,12 @@ pub(super) fn rewrite(xml: &XmlPart, rules: &[Validation]) -> Result<Vec<u8>, Sa
                     );
                 }
                 *done = true;
+                depth = depth.saturating_sub(1);
                 splice.replace((span.0, end), &replacement);
             }
             XmlEvent::Start(e)
-                if !mi
+                if depth == 2
+                    && !mi
                     && e.name.namespace.as_deref() == Some(MAIN_NAMESPACE)
                     && matches!(
                         e.name.local.as_ref(),
@@ -259,7 +289,9 @@ pub(super) fn rewrite(xml: &XmlPart, rules: &[Validation]) -> Result<Vec<u8>, Sa
                 splice.replace((span.0, span.0), &main);
                 mi = true;
             }
-            XmlEvent::End(e) if e.is(MAIN_NAMESPACE, "extLst") => ext_close = Some(span.0),
+            XmlEvent::End(e) if depth == 1 && e.is(MAIN_NAMESPACE, "extLst") => {
+                ext_close = Some(span.0)
+            }
             XmlEvent::End(e) if e.is(MAIN_NAMESPACE, "worksheet") => sheet_close = Some(span.0),
             _ => {}
         }
@@ -286,4 +318,8 @@ pub(super) fn rewrite(xml: &XmlPart, rules: &[Validation]) -> Result<Vec<u8>, Sa
     Ok(splice.finish())
 }
 
-pub fn copied_validation_source(rule:&Validation)->Result<Validation,String>{let mut rule=rule.clone();rule.authored_copy=true;Ok(rule)}
+pub fn copied_validation_source(rule: &Validation) -> Result<Validation, String> {
+    let mut rule = rule.clone();
+    rule.authored_copy = true;
+    Ok(rule)
+}

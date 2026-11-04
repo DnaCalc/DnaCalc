@@ -17,6 +17,7 @@ use std::sync::Arc;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CellEdit {
     /// Authored style table, in the same transaction as its cell assignments.
+    Tables(Vec<calc_doc_model::Table>),
     Styles(Arc<calc_doc_model::StyleTable>),
     AutoFilter { sheet: calc_doc_model::value::SheetId, filter: Option<calc_doc_model::AutoFilter> },
     /// Document layout metadata, independent of cell contents.
@@ -82,6 +83,7 @@ pub enum CellEdit {
 impl CellEdit {
     fn operation(self) -> WorkbookOp {
         match self {
+            CellEdit::Tables(tables)=>WorkbookOp::SetTables(tables),
             CellEdit::Styles(styles) => WorkbookOp::SetStyles(styles),
             CellEdit::AutoFilter { sheet, filter } => WorkbookOp::SetAutoFilter { sheet, filter },
             CellEdit::Layout(edit) => WorkbookOp::EditSkinLayout(edit),
@@ -379,7 +381,11 @@ pub fn dispatch(
             }
         }
     }
+    if batch.operations.iter().filter_map(|op|if let WorkbookOp::EditAxis(e)=op{Some(*e)}else{None}).any(|edit|host.model.definitions().tables().iter().any(|t|!crate::tables::axis_compatible(host,t,edit))){return Err(CommandError::Document(EditError::SheetOperation("Axis edits with unsupported imported table metadata are not modelled (dc-971p.41); nothing changed".into())));}
+    for op in &batch.operations {if let WorkbookOp::SetAxisFormat(edit)=op {if edit.axis()==calc_doc_model::Axis::Rows&&host.model.definitions().tables().iter().any(|t|t.sheet==edit.sheet()&&t.filter.as_ref().is_some_and(|f|f.unsupported&&edit.index()>f.area.first().row()&&edit.index()<=f.area.last().row())){return Err(CommandError::Document(EditError::SheetOperation("Row visibility with this imported table filter is not modelled (dc-971p.41); nothing changed".into())));}}}
+    crate::tables::validate_cells(host,&batch).map_err(|s|CommandError::Document(EditError::SheetOperation(s)))?;
     for op in &batch.operations {
+        if let WorkbookOp::SetTables(tables)=op {crate::tables::validate(host,tables).map_err(|s|CommandError::Document(EditError::SheetOperation(s)))?;}
         if let WorkbookOp::SetValidations { sheet, rules } = op {
             let invalid = host.model.sheet_by_id(*sheet).is_none()
                 || host.loaded.sheet(*sheet).is_some_and(|s| s.protected() || s.is_macro_sheet())
@@ -495,12 +501,13 @@ pub fn dispatch(
     let engine = calc_engine::prepare_edit(&mut host.engine, &host.model, &batch)
         .map_err(CommandError::Engine)?;
 
+    let tables_changed=batch.operations.iter().any(|op|match op{WorkbookOp::SetTables(next)=>{let old=host.model.definitions().tables();old.len()!=next.len()||old.iter().zip(next).any(|(a,b)|a.name!=b.name||a.display_name!=b.display_name||a.sheet!=b.sheet||a.area!=b.area||a.header_rows!=b.header_rows||a.totals_rows!=b.totals_rows||a.columns!=b.columns||a.filter!=b.filter)},_=>false});
     let facts_changed = batch
         .operations
         .iter()
         .any(|op| matches!(op, WorkbookOp::SetAxisFormat(_) | WorkbookOp::SetAutoFilter { .. }));
     let changes_inputs =
-        facts_changed || !engine.seeds().is_empty() || !engine.node_changes().is_empty();
+        tables_changed || facts_changed || !engine.seeds().is_empty() || !engine.node_changes().is_empty();
     let (mut added, mut replaced, mut removed) = (0usize, 0usize, 0usize);
     for change in engine.node_changes() {
         match change {
@@ -544,7 +551,7 @@ pub fn dispatch(
     // and the seeds' dependents, less the removed ones: at most this many.
     // A structural edit leaves every node pending.
     let mut pending = Vec::with_capacity(
-        if axis_edits.is_empty() && sheet_edit.is_none() && !facts_changed {
+        if axis_edits.is_empty() && sheet_edit.is_none() && !facts_changed && !tables_changed {
             pending_before + added + replaced + seeded
         } else {
             formula_cells
@@ -553,6 +560,7 @@ pub fn dispatch(
 
     let committed = calc_engine::commit_edit(engine);
     host.model = document.into_model();
+    if tables_changed {host.engine=host.engine.rebuilt(&host.model);}
     for edit in &axis_edits {
         host.references.apply(&axis_transform(*edit));
     }

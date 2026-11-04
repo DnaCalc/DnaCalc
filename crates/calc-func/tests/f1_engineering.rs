@@ -75,6 +75,36 @@ fn bessel_functions() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn bessel_recorded_adjacent_phase_domain_boundaries() {
+    // Original R19 Value2 readings, Excel build 20527, BESSELJ-4/BESSELY-3.
+    // Each high endpoint and its predecessor were observed independently;
+    // requested, submitted and read-back operands agree. These assertions
+    // concern admission only; the remaining numeric J-body mismatches stay open.
+    for (function, order, high, negative) in [
+        ("BESSELJ", 0.0, 0x419fffffff243f6c_u64, false),
+        ("BESSELJ", 0.0, 0x419fffffff243f6c, true),
+        ("BESSELJ", 1.0, 0x41a0000002b65f21, false),
+        ("BESSELJ", 1.0, 0x41a0000002b65f21, true),
+        ("BESSELJ", 2.0, 0x419fffffff243f6c, false),
+        ("BESSELJ", 2.0, 0x419fffffff243f6c, true),
+        ("BESSELJ", 3.0, 0x419fffffff243f6c, false),
+        ("BESSELJ", 4.0, 0x419fffffff243f6c, false),
+        ("BESSELY", 0.0, 0x419fffffff243f6c, false),
+        ("BESSELY", 1.0, 0x41a0000002b65f21, false),
+        ("BESSELY", 2.0, 0x419fffffff243f6c, false),
+    ] {
+        let sign = if negative { -1.0 } else { 1.0 };
+        let inside = sign * f64::from_bits(high - 1);
+        let outside = sign * f64::from_bits(high);
+        let value = call(function, vec![n(inside), n(order)]).unwrap();
+        assert!(value.as_number().is_some_and(f64::is_finite),
+            "{function}({inside},{order}) must remain numeric");
+        error(call(function, vec![n(outside), n(order)]), Num);
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn besseli_recorded_adjacent_domain_boundary() {
     // R16 Value2 readings, excel-20527/r16-BESSELI-2.json: 018..029,
     // 054..059. The submitted and read-back binary64 operands agree.

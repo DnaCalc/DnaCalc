@@ -44,21 +44,15 @@ fn label(at: CellKey) -> String {
 fn literal(s: &str) -> String {
     s.replace('~', "~~").replace('*', "~*").replace('?', "~?")
 }
-fn validate_area(host: &HostState, area: GridArea) -> Result<(), String> {
-    let sheet = host
-        .loaded()
-        .sheet(area.sheet())
-        .ok_or_else(|| refusal("sheet is unavailable"))?;
-    if sheet.protected() || sheet.is_macro_sheet() {
-        return Err(refusal("requires an editable worksheet"));
-    }
+fn validate_area(host: &HostState, area: GridArea,table:Option<&str>) -> Result<(), String> {
+    if host.model().sheet_by_id(area.sheet()).is_none()||host.loaded().sheet(area.sheet()).is_some_and(|s|s.protected()||s.is_macro_sheet()){return Err(refusal("requires an editable worksheet"));}
     if area.row_count() < 2 || area.row_count() > 32769 || area.column_count() > 256 {
         return Err(refusal(
             "supports a header and 1–32768 data rows in at most 256 columns",
         ));
     }
     if host.model().definitions().tables().iter().any(|t| {
-        t.sheet == area.sheet()
+        table.is_none() && t.sheet == area.sheet()
             && t.area.first().row() <= area.last().row()
             && t.area.last().row() > area.first().row()
     }) {
@@ -80,6 +74,9 @@ pub(crate) fn prepare(
     revision: u64,
     change: FilterChange,
 ) -> Result<Vec<CellEdit>, String> {
+    prepare_for(host,sheet,revision,None,change)
+}
+pub(crate) fn prepare_for(host:&HostState,sheet:SheetId,revision:u64,table:Option<&str>,change:FilterChange)->Result<Vec<CellEdit>,String>{
     if revision != host.revision().get() {
         return Err("The workbook changed; reopen the filter and try again".into());
     }
@@ -128,9 +125,10 @@ pub(crate) fn prepare(
         }
         change => change,
     };
-    let old = host.model().definitions().auto_filter(sheet);
+    let target=if let Some(part)=table{Some(host.model().definitions().tables().iter().find(|t|t.part==part&&t.sheet==sheet).ok_or("The table no longer exists")?)}else{None};
+    let old=target.map_or_else(||host.model().definitions().auto_filter(sheet),|t|t.filter.as_ref());
     if let Some(filter) = old
-        && host.model().definitions().tables().iter().any(|t| {
+        && table.is_none() && host.model().definitions().tables().iter().any(|t| {
             t.sheet == sheet
                 && t.area.first().row() <= filter.area.last().row()
                 && t.area.last().row() > filter.area.first().row()
@@ -155,14 +153,15 @@ pub(crate) fn prepare(
                     "already exists; remove it before choosing another range",
                 ));
             }
-            validate_area(host, area)?;
+            validate_area(host, area,table)?;
+            if target.is_some_and(|t|t.header_rows==0||t.area.first()!=area.first()||t.area.last().column()!=area.last().column()||t.area.last().row()-t.totals_rows!=area.last().row()){return Err(refusal("range must be the table header and data rows"));}
             Some(AutoFilter::new(area))
         }
         change => {
             let mut f = old
                 .cloned()
                 .ok_or("Select a range and enable AutoFilter first")?;
-            validate_area(host, f.area)?;
+            validate_area(host, f.area,table)?;
             if f.unsupported {
                 return Err(refusal(
                     "has imported criteria or metadata whose editing is not modelled; the original XML is retained",
@@ -201,17 +200,14 @@ pub(crate) fn prepare(
     if host
         .loaded()
         .sheet(sheet)
-        .is_none_or(|s| s.protected() || s.is_macro_sheet())
+        .is_some_and(|s| s.protected() || s.is_macro_sheet())
     {
         return Err(refusal("requires an editable worksheet"));
     }
     let mut edits = if next.as_ref() == old {
         Vec::new()
     } else {
-        vec![CellEdit::AutoFilter {
-            sheet,
-            filter: next,
-        }]
+        if let Some(part)=table{let mut tables=host.model().definitions().tables().to_vec();tables.iter_mut().find(|t|t.part==part).unwrap().filter=next;vec![CellEdit::Tables(tables)]}else{vec![CellEdit::AutoFilter {sheet,filter:next}]}
     };
     if let Some(styles) = staged_styles.filter(|s| s != host.styles().as_ref()) {
         edits.insert(0, CellEdit::Styles(std::sync::Arc::new(styles)));
@@ -219,7 +215,7 @@ pub(crate) fn prepare(
     Ok(edits)
 }
 
-fn apply(
+pub(crate) fn apply(
     host: &HostState,
     filter: &AutoFilter,
     styles: &calc_doc_model::StyleTable,
@@ -488,12 +484,11 @@ pub fn filter_values(
     sheet: SheetId,
     column: u32,
 ) -> Result<(Vec<(String, bool)>, bool), String> {
-    let f = host
-        .model()
-        .definitions()
-        .auto_filter(sheet)
-        .ok_or("Enable AutoFilter first")?;
-    validate_area(host, f.area)?;
+    filter_values_for(host,sheet,None,column)
+}
+pub fn filter_values_for(host:&HostState,sheet:SheetId,table:Option<&str>,column:u32)->Result<(Vec<(String,bool)>,bool),String>{
+    let f=if let Some(part)=table{host.model().definitions().tables().iter().find(|t|t.sheet==sheet&&t.part==part).and_then(|t|t.filter.as_ref())}else{host.model().definitions().auto_filter(sheet)}.ok_or("Enable AutoFilter first")?;
+    validate_area(host, f.area,table)?;
     if !(f.area.first().column()..=f.area.last().column()).contains(&column) {
         return Err(refusal("column is outside its range"));
     }

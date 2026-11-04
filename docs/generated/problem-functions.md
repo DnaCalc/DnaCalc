@@ -8,8 +8,8 @@ python3 racer/corpus_cases.py problem-functions ../DnaCalc ../DnaCalc/docs/gener
 
 Last-bit: finite numeric mismatches <=16 ULP; larger numeric: >16 ULP. This split is triage, not a relaxed verdict. Every mismatch, refusal, unread, missing, pending, external and circular-policy cell remains an inclusive failure. Corpus functions are inferred from formula spelling, unwrapping INDEX selections; bank functions use canonical judge identities. Counts are observations per source; corpus and bank may overlap and must not be added as unique calls. Bank reference/locale context gaps remain failures, not proven numerical defects.
 
-Corpus: 19,973/22,339 matched; 2,366 inclusive failures, including 1,265 pending.
-Bank: 3,232,943/3,875,673 matched; 642,730 failures, including 116 unread.
+Corpus: 19,974/22,339 matched; 2,365 inclusive failures, including 1,265 pending.
+Bank: 3,233,036/3,875,673 matched; 642,637 failures, including 116 unread.
 
 Larger numeric and last-bit columns count numeric mismatches; other columns count remaining mismatches. Bank refusals and unread rows are separate. Corpus refusals/missing are recorded in the JSON, outside the mismatch table.
 
@@ -27,7 +27,7 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | MOD | 0 | 0 | 0 | 2,596 | 772 | 1,606 | 0 | 0 |
 | POISSON.DIST | 1 | 11 | 0 | 2,240 | 8,064 | 0 | 0 | 4 |
 | LOGNORM.DIST | 0 | 0 | 0 | 1,229 | 2,635 | 0 | 0 | 0 |
-| BESSELJ | 29 | 0 | 1 | 832 | 0 | 72 | 0 | 0 |
+| BESSELJ | 29 | 0 | 0 | 832 | 0 | 0 | 0 | 0 |
 | LOGNORMDIST | 0 | 0 | 0 | 753 | 1,880 | 0 | 0 | 0 |
 | BETA.DIST | 0 | 1 | 0 | 574 | 1,363 | 0 | 0 | 0 |
 | YIELD | 2 | 0 | 0 | 423 | 95 | 0 | 0 | 0 |
@@ -125,7 +125,7 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | Z.TEST | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | ZTEST | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | BESSELK | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |
-| BESSELY | 0 | 1 | 0 | 0 | 0 | 21 | 0 | 0 |
+| BESSELY | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | BETA.INV | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | CONFIDENCE.NORM | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | CONFIDENCE.T | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |

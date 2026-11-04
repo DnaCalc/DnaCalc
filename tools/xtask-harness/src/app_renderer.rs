@@ -123,7 +123,7 @@ pub(super) fn finish(
 }
 
 pub(super) fn run_measurements(
-    _ws: &Workspace,
+    ws: &Workspace,
     app: &App,
     browser: &Browser,
     page_url: &str,
@@ -136,7 +136,7 @@ pub(super) fn run_measurements(
         } else {
             ["canvas", "dom"]
         } {
-            let (_driver, session) = open(browser)?;
+            let (_driver, session) = open(browser, &ws.root.join("target/app-smoke-downloads"))?;
             let result = (|| {
                 start_group(app, &session, &page(page_url, Some(mode)))?;
                 session.script(&format!("window.__rendererTrial={trial};return null;"))?;

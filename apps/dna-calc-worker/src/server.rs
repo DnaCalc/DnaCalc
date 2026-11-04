@@ -692,7 +692,7 @@ impl Server {
                     }
                     Ok(Reply::Subscribed)
                 }
-                Request::FilterValues { sheet,column } => Ok(Reply::FilterValues { revision:self.book.host().revision().get(), values:calc_host::filter_values(self.book.host(),sheet.id(),column), criteria:self.book.host().model().definitions().auto_filter(sheet.id()).and_then(|f|f.columns.get(&column)).map(|c|match c {calc_host::FilterCriteria::Values{values,blank}=>wire::FilterChange::Values{column,values:values.clone(),blank:*blank},calc_host::FilterCriteria::Dates{groups,values,blank}=>wire::FilterChange::Dates{column,groups:groups.clone(),values:values.clone(),blank:*blank},calc_host::FilterCriteria::Top{top,percent,value}=>wire::FilterChange::Top{column,top:*top,percent:*percent,value:value.clone()},calc_host::FilterCriteria::Color{dxf_id,cell_color}=>wire::FilterChange::ColorReference{column,dxf_id:*dxf_id,cell_color:*cell_color},calc_host::FilterCriteria::Custom{and,predicates}=>wire::FilterChange::Custom{column,and:*and,predicates:predicates.iter().map(|p|(p.operator.xml().to_owned(),p.value.clone())).collect()}}) }),
+                Request::FilterValues { sheet,table,column } => Ok(Reply::FilterValues { revision:self.book.host().revision().get(), values:calc_host::filter_values_for(self.book.host(),sheet.id(),table.as_deref(),column), criteria:table.as_ref().map_or_else(||self.book.host().model().definitions().auto_filter(sheet.id()),|part|self.book.host().model().definitions().tables().iter().find(|t|t.part==*part&&t.sheet==sheet.id()).and_then(|t|t.filter.as_ref())).and_then(|f|f.columns.get(&column)).map(|c|match c {calc_host::FilterCriteria::Values{values,blank}=>wire::FilterChange::Values{column,values:values.clone(),blank:*blank},calc_host::FilterCriteria::Dates{groups,values,blank}=>wire::FilterChange::Dates{column,groups:groups.clone(),values:values.clone(),blank:*blank},calc_host::FilterCriteria::Top{top,percent,value}=>wire::FilterChange::Top{column,top:*top,percent:*percent,value:value.clone()},calc_host::FilterCriteria::Color{dxf_id,cell_color}=>wire::FilterChange::ColorReference{column,dxf_id:*dxf_id,cell_color:*cell_color},calc_host::FilterCriteria::Custom{and,predicates}=>wire::FilterChange::Custom{column,and:*and,predicates:predicates.iter().map(|p|(p.operator.xml().to_owned(),p.value.clone())).collect()}}) }),
                 Request::Geometry(sheet) => Ok(Reply::Geometry(self.geometry(sheet))),
                 Request::UsedArea(sheet) => Ok(Reply::UsedArea(
                     self.book.used_area(sheet.id()).map(Area::of),
@@ -1236,7 +1236,12 @@ impl Server {
                 direction,
             } => return self.notebook_order(placement, direction),
 
-            Intent::AutoFilter {sheet,revision,change} => {
+            Intent::Table{revision,change}=>{
+                use wire::TableChange as W;use calc_host::TableChange as H;
+                let change=match change{W::Create{area:a,name}=>H::Create{area:area(a)?,name},W::Resize{part,area:a}=>H::Resize{part,area:area(a)?},W::Options{part,headers,totals,style,row_stripes,column_stripes,first_column,last_column}=>H::Options{part,headers,totals,style,row_stripes,column_stripes,first_column,last_column},W::Total{part,column,function}=>H::Total{part,column,function}};
+                SkinIntent::Command(calc_host::WorkbookCommand::Table{revision,change})
+            }
+            Intent::AutoFilter {sheet,revision,table,change} => {
                 use wire::FilterChange as W; use calc_host::{FilterChange as H,FilterCriteria,FilterPredicate,FilterOperator};
                 let change=match change {
                     W::Enable(a)=>H::Enable{area:area(a)?},
@@ -1248,7 +1253,7 @@ impl Server {
                     W::ColorReference{column,dxf_id,cell_color}=>H::Column{column,criteria:Some(FilterCriteria::Color{dxf_id,cell_color})},
                     W::ClearColumn(column)=>H::Column{column,criteria:None}, W::Clear=>H::Clear,W::Remove=>H::Remove,W::Reapply=>H::Reapply,
                 };
-                SkinIntent::Command(calc_host::WorkbookCommand::AutoFilter{sheet:sheet.id(),revision,change})
+                SkinIntent::Command(if let Some(part)=table{calc_host::WorkbookCommand::TableFilter{sheet:sheet.id(),revision,part,change}}else{calc_host::WorkbookCommand::AutoFilter{sheet:sheet.id(),revision,change}})
             },
             Intent::SortRows {area:a,keys,header,revision} => SkinIntent::Command(calc_host::WorkbookCommand::SortRows {area:area(a)?,keys:keys.into_iter().map(|(column,descending)|calc_host::SortKey{column,descending}).collect(),header,revision}),
             Intent::Replace {
@@ -2121,7 +2126,8 @@ impl Server {
             .unwrap_or_default();
         let layouts=self.book.host().model().definitions().axis_layouts();
         geometry.outline=[calc_host::Axis::Rows,calc_host::Axis::Columns].into_iter().flat_map(|axis|layouts.outline_groups(sheet.id(),axis).into_iter().map(move |g|wire::OutlineGroup {rows:axis==calc_host::Axis::Rows,first:g.first,last:g.last,level:g.level,summary:g.summary,collapsed:g.collapsed})).collect();
-        geometry.auto_filter=self.book.host().model().definitions().auto_filter(sheet.id()).map(|f|wire::FilterView{area:Area::of(f.area),columns:f.columns.keys().copied().collect(),filtered:f.filtered_rows.len() as u32,unsupported:f.unsupported});
+        geometry.auto_filter=self.book.host().model().definitions().auto_filter(sheet.id()).map(|f|wire::FilterView{table:None,area:Area::of(f.area),columns:f.columns.keys().copied().collect(),filtered:f.filtered_rows.len() as u32,unsupported:f.unsupported});
+        geometry.tables=self.book.host().model().definitions().tables().iter().filter(|t|t.sheet==sheet.id()).map(|t|wire::TableView{part:t.part.clone(),name:t.display_name.clone(),area:Area::of(t.area),columns:t.columns.clone(),headers:t.header_rows>0,totals:t.totals_rows>0,style:t.style.name.clone().unwrap_or_default(),row_stripes:t.style.row_stripes,column_stripes:t.style.column_stripes,first_column:t.style.first_column,last_column:t.style.last_column,opaque:t.opaque,filter:t.filter.as_ref().map(|f|wire::FilterView{table:Some(t.part.clone()),area:Area::of(f.area),columns:f.columns.keys().copied().collect(),filtered:f.filtered_rows.len() as u32,unsupported:f.unsupported})}).collect();
         geometry.merges = self
             .book
             .host()

@@ -1428,6 +1428,7 @@ pub fn load(
     let mut sheets = Vec::with_capacity(declared.len());
     let (mut arrays, mut unloaded, mut tables) = (Vec::new(), Vec::new(), Vec::new());
     let mut auto_filters = Vec::new();
+    let mut table_visibility=Vec::new();
     let mut conditional_sources = Vec::new();
     let mut data_tables = Vec::new();
     let mut hidden_rows: Vec<(SheetId, u32, Option<(u32, u32, u32, u32)>)> = Vec::new();
@@ -1450,15 +1451,11 @@ pub fn load(
                 );
                 if let Some(mut filter)=loaded.filter {
                     filter.unsupported |= filter.columns.values().any(|c|matches!(c,calc_doc_model::FilterCriteria::Color{dxf_id,..} if styles.differential_formats.get(*dxf_id as usize).is_none()));
-                    let physically_hidden=loaded.hidden_rows.iter().copied().filter(|r|*r>filter.area.first().row() && *r<=filter.area.last().row()).collect::<std::collections::BTreeSet<_>>();
-                    let mut outline_layout=calc_doc_model::AxisLayouts::default();loaded.geometry.add_to_model(id,&mut outline_layout);
-                    let outlined=outline_layout.outline_groups(id,calc_doc_model::Axis::Rows).into_iter().filter(|g|g.collapsed).flat_map(|g|g.first..=g.last).filter(|r|*r>filter.area.first().row() && *r<=filter.area.last().row()).collect::<std::collections::BTreeSet<_>>();
-                    let manual=loaded.filter_manual.filter(|m| m.union(&filter.filtered_rows).copied().chain(outlined.iter().copied()).collect::<std::collections::BTreeSet<_>>()==physically_hidden && m.iter().all(|r|*r>filter.area.first().row() && *r<=filter.area.last().row()));
-                    if manual.is_none() {filter.filtered_rows=if filter.columns.is_empty() && !filter.unsupported {Default::default()} else {physically_hidden};}
+                    let manual=loaded.filter_manual;
                     auto_filters.push((id,filter,manual));
                 }
                 unloaded.extend(loaded.unloaded);
-                tables.extend(sheet_tables);
+                for (mut table,manual) in sheet_tables {if let Some(f)=&mut table.filter{f.unsupported|=f.columns.values().any(|c|matches!(c,calc_doc_model::FilterCriteria::Color{dxf_id,..}if styles.differential_formats.get(*dxf_id as usize).is_none()));table_visibility.push((id,f.clone(),manual));}tables.push(table);}
                 sheets.push(LoadedSheet {
                     id,
                     relationship: declared.relationship.clone(),
@@ -1531,19 +1528,20 @@ pub fn load(
             })
         })
         .collect();
+    // Each authored filter owns its excluded rows; side-by-side tables share physical hiding.
+    for sheet in &sheets {
+        let physical=hidden_rows.iter().filter(|(id,_,_)|*id==sheet.id).map(|(_,row,_)|*row).collect::<Vec<_>>();
+        let peers=auto_filters.iter().chain(table_visibility.iter()).filter(|(id,_,_)|*id==sheet.id).flat_map(|(_,f,_)|f.filtered_rows.iter().copied()).collect::<std::collections::BTreeSet<_>>();
+        for (table,(id,f,manual)) in auto_filters.iter_mut().map(|v|(false,v)).chain(table_visibility.iter_mut().map(|v|(true,v))).filter(|(_, (id,_,_))|*id==sheet.id){let _=id;*manual=filter::visibility(f,manual.take(),&physical,&sheet.geometry,&peers,table);}
+    }
+    for table in &mut tables {if let Some(filter)=&mut table.filter {if let Some((_,normalized,_))=table_visibility.iter().find(|(sheet,f,_)|*sheet==table.sheet&&f.area==filter.area){*filter=normalized.clone();}}}
     // A hidden row below the header of the sheet's filter range or of a table's (whose filter the
     // table part holds) is taken as hidden by the filter; any other hidden row as hidden by hand.
     let hidden_rows: Vec<(SheetId, u32, RowHidden)> = hidden_rows
         .into_iter()
         .map(|(sheet, row, auto_filter)| {
-            let in_filter = auto_filter
-                .is_some_and(|(top, _, bottom, _)| row > top && row <= bottom)
-                || tables.iter().any(|table: &calc_doc_model::Table| {
-                    table.sheet == sheet
-                        && row > table.area.first().row()
-                        && row <= table.area.last().row()
-                });
-            let in_filter=auto_filters.iter().find(|(s,f,_)|*s==sheet && row>f.area.first().row() && row<=f.area.last().row()).map_or(in_filter,|(_,f,_)|f.filtered_rows.contains(&row)) || tables.iter().any(|t: &calc_doc_model::Table|t.sheet==sheet && row>t.area.first().row() && row<=t.area.last().row());
+            let _=auto_filter;
+            let in_filter=auto_filters.iter().chain(table_visibility.iter()).filter(|(s,_,_)|*s==sheet).any(|(_,f,_)|f.filtered_rows.contains(&row));
             let why = if in_filter {
                 RowHidden::Filtered
             } else {
@@ -1558,7 +1556,7 @@ pub fn load(
     }
     // Remove filter visibility from the manual axis flags. Ordinary imports cannot distinguish
     // both causes; DNA's validated extension restores them independently when it is present.
-    for (sheet,filter,manual) in &auto_filters {
+    for (sheet,filter,manual) in auto_filters.iter().chain(table_visibility.iter()) {
         for row in filter.filtered_rows.iter().chain(manual.iter().flat_map(|m|m.iter())).copied().collect::<std::collections::BTreeSet<_>>() {
             if filter.filtered_rows.contains(&row) || manual.as_ref().is_some_and(|m|m.contains(&row)) {
                 let f=axis_layouts.get(*sheet,calc_doc_model::Axis::Rows,row).with_hidden(manual.as_ref().is_some_and(|m|m.contains(&row)));

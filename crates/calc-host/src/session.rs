@@ -1234,6 +1234,7 @@ impl HostSession {
             matches!(
                 edit,
                 CellEdit::ConditionalRules { .. }
+                    | CellEdit::Tables(_)
                     | CellEdit::Styles(_)
                     | CellEdit::SetFormat { .. }
             )
