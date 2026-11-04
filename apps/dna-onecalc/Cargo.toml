@@ -36,6 +36,10 @@ wasm-bindgen = "=0.2.117"
 js-sys = "=0.3.94"
 web-sys = { version = "=0.3.94", features = ["HtmlElement", "HtmlTextAreaElement", "KeyboardEvent", "console", "Document", "Element", "Storage", "Window"] }
 
+# Retained Excel readings use the existing portable capture codec in Session tests.
+[dev-dependencies]
+calc-verdict = { path = "../../tools/calc-verdict" }
+
 # The dependency case reads cargo metadata's JSON. Test-only, native-only.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 serde_json = "=1.0.154"

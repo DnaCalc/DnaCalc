@@ -56,42 +56,68 @@ fn caller_comes_from_the_formula_instance() {
     }
 }
 
-/// The existing fn3 capture supplies all twelve months and seven weekdays per tag,
-/// plus era boundaries. Read expected UTF-16 from that retained capture, never a cache.
+/// Evaluate retained raw Excel readings through the public application route. The canonical
+/// capture codec supplies typed expected values, including their original UTF-16 code units.
+fn check_captured_questions(
+    bytes: &[u8], session: &mut Session,
+    include: impl Fn(&calc_verdict::FormulaCell) -> bool, expected_count: usize,
+) {
+    let capture = calc_verdict::CaptureRecord::decode(bytes).unwrap();
+    let mut failures = Vec::new();
+    let mut compared = 0;
+    for entry in capture.formulas.iter().filter(|entry| include(entry)) {
+        let formula = entry.formula.as_ref().expect("a retained formula");
+        let observation = capture.observations.iter().find(|o| o.cell == entry.cell)
+            .expect("every selected question was observed");
+        let calc_verdict::Observation::ExcelRaw(expected) = &observation.observation else {
+            panic!("a selected question needs a raw Excel reading");
+        };
+        session.set_formula_cell(&entry.cell.a1()).unwrap();
+        session.set_formula(formula);
+        let calculated = session.calculate();
+        compared += 1;
+        if calculated.result.as_ref() != Some(expected) || !calculated.diagnostics.is_empty() {
+            failures.push(format!("{} {formula}: expected {expected:?}, actual {:?}; {:?}",
+                entry.cell.sheet(), calculated.result, calculated.diagnostics));
+        }
+    }
+    assert_eq!(compared, expected_count, "all selected retained questions must run");
+    assert!(failures.is_empty(), "{} of {compared} readings differ:\n{}", failures.len(), failures.join("\n"));
+}
+
+/// All twelve months and seven weekdays per tag, plus the captured era boundaries.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn locale_tagged_date_names_follow_the_retained_fn3_readings() {
     use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
-    let capture: serde_json::Value = serde_json::from_slice(include_bytes!(
-        "../../../crates/calc-func/tests/captures/fn3_questions/oracle.capture.json"
-    )).unwrap();
     let profile = format_profile(LocaleId::EnZa).with_separators(".", " ").unwrap();
     let mut session = Session::new("Sheet1").unwrap();
     session.set_environment(Some(CalcEnvironment {
         profile: Some(profile), ..CalcEnvironment::dates(DateSystem::System1900)
     }));
-    let mut failures = Vec::new();
-    let mut compared = 0;
-    for entry in capture["formulas"].as_array().unwrap().iter().filter(|f| f["sheet"] == "fn3_text") {
-        let formula = entry["formula"].as_str().unwrap();
-        let observation = capture["observations"].as_array().unwrap().iter().find(|o|
-            o["sheet"] == entry["sheet"] && o["row"] == entry["row"] && o["column"] == entry["column"]
-        ).expect("every fn3 text question was observed");
-        let expected = observation["excel_raw"]["text"].as_str().expect("a typed Excel text answer");
-        session.set_formula(formula);
-        let calculated = session.calculate();
-        let actual = match calculated.result.as_ref().map(CalcValue::core_ref) {
-            Some(calc_func::value::CoreRef::Text(text)) => text.utf16_code_units().iter()
-                .map(|unit| format!("{unit:04x}")).collect::<String>(),
-            _ => format!("{:?}", calculated.result),
-        };
-        compared += 1;
-        if actual != expected || !calculated.diagnostics.is_empty() {
-            failures.push(format!("{formula}: expected {expected}, actual {actual}; {:?}", calculated.diagnostics));
-        }
-    }
-    assert_eq!(compared, 170, "the complete retained text question section");
-    assert!(failures.is_empty(), "{} of {compared} locale names differ:\n{}", failures.len(), failures.join("\n"));
+    check_captured_questions(include_bytes!(
+        "../../../crates/calc-func/tests/captures/fn3_questions/oracle.capture.json"
+    ), &mut session, |f| f.cell.sheet() == "fn3_text", 170);
+}
+
+/// Fn2 roots 001..010 and 232..239 retain direct errors, actual one-cell arrays,
+/// and a one-cell reference containing the same #N/A input as distinct origins.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn scalar_errors_keep_their_array_argument_origins() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_form(calc_fml::FormulaForm::Dynamic);
+    session.add_sheet("Data").unwrap();
+    session.set_input("Data!B1", InputValue::text("x").unwrap()).unwrap();
+    session.set_input("Data!B2", InputValue::text("y").unwrap()).unwrap();
+    session.set_input("Data!B3", InputValue::text("x").unwrap()).unwrap();
+    session.set_input("Data!C1", InputValue::error(WorksheetErrorCode::NA)).unwrap();
+    check_captured_questions(include_bytes!(
+        "../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json"
+    ), &mut session, |f| {
+        f.cell.sheet().strip_prefix("fn2_q").and_then(|n| n.parse::<u32>().ok())
+            .is_some_and(|n| matches!(n, 1..=10 | 232..=239))
+    }, 18);
 }
 
 /// Recorded POISSON branch/control answers from OxFunc-Evidence's

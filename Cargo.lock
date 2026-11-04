@@ -920,6 +920,7 @@ dependencies = [
  "calc-fml",
  "calc-func",
  "calc-vba",
+ "calc-verdict",
  "dna-formula-ui",
  "js-sys",
  "leptos",
