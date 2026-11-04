@@ -92,12 +92,15 @@ fn check_captured_questions(
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn delivered_scalar_readings_follow_the_application_route() {
-    let readings: [&[u8]; 5] = [
+    let readings: [&[u8]; 8] = [
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/LOWER.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/PROPER.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/REGEXTEST.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/SQRT.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/DATEVALUE.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/COUPNUM.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/COUPDAYSNC.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/COUPDAYBS.reading.json"),
     ];
     let mut failures = Vec::new();
     let mut count = 0;
@@ -139,8 +142,24 @@ fn delivered_scalar_readings_follow_the_application_route() {
             }
         }
     }
-    assert_eq!(count, 38);
-    assert!(failures.is_empty(), "{} of38 readings differ:\n{}", failures.len(), failures.join("\n"));
+    assert_eq!(count, 1136);
+    assert!(failures.is_empty(), "{} of{count} readings differ:\n{}", failures.len(), failures.join("\n"));
+}
+
+/// Fn4 qd225..qd236 use literal dates at the start of the 1900 calendar.
+/// The original Excel error observations are retained unchanged.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn delivered_fn4_coupon_counts_at_calendar_start() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_environment(Some(calc_func::locale::CalcEnvironment::dates(
+        calc_func::locale::DateSystem::System1900,
+    )));
+    check_captured_questions(include_bytes!(
+        "../../../crates/calc-func/tests/captures/fn4_questions/functions-fn4-date-domain.capture.json"
+    ), &mut session, |entry| entry.cell.row() == 20 && entry.cell.column() == 10
+        && entry.cell.sheet().strip_prefix("qd").and_then(|s| s.parse::<usize>().ok())
+            .is_some_and(|n| (225..=236).contains(&n)), 12);
 }
 
 /// All twelve months and seven weekdays per tag, plus the captured era boundaries.
