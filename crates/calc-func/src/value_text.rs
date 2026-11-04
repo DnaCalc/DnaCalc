@@ -29,14 +29,19 @@
 //!
 //! Text this grammar does not read is #VALUE!, text holding a letter or symbol beyond ASCII
 //! included (2016–17 Winter, with an en dash, is #VALUE! in dc_e00t's capture). Text holding a
-//! digit of another script or an unmeasured space beyond ASCII, text read under a profile whose separators or
+//! digit of an unmeasured script or an unmeasured space beyond ASCII, text read under a profile whose separators or
 //! currency lie beyond ASCII, a date without a year when the call has no clock, and number text
 //! in another locale's date order (which no read measured) are refused as not modelled.
+//! Fn4 accepts Arabic-Indic, extended Arabic-Indic, Devanagari and Thai decimal digits in
+//! the measured ASCII en-ZA/host profiles, also mixed with ASCII digits. Fullwidth digits are
+//! rejected there; unmeasured profiles retain a refusal for these scripts. Script-digit time
+//! and fraction forms stay refused. In the measured en-ZA/host profiles, three-component
+//! numeric dates require one/two-digit month and day tokens; a longer token is not a padded day.
 //! The retained w111 numeric-text readings reject NBSP, em space, narrow NBSP and ideographic
 //! space outside a profile's numeric grammar. A valid number using such a profile separator
 //! remains refused: those positive forms have not been measured here.
 
-use crate::locale::{DateComponentOrder, DateSystem, FormatProfile};
+use crate::locale::{DateComponentOrder, DateSystem, FormatProfile, LocaleId};
 use crate::ported::date_kernels::{OFFSET_1904, days_in_month, ymd_1900};
 
 /// What text reads as.
@@ -83,6 +88,9 @@ pub(crate) fn read(units: &[u16], context: &ReadContext<'_>) -> Result<Reading, 
     ]
     .iter()
     .all(|s| s.is_ascii());
+    let measured_digits = ascii_profile
+        && matches!(context.profile.id, LocaleId::EnZa | LocaleId::CurrentExcelHost);
+    let mut translated_digits = false;
     let mut beyond = false;
     let mut measured_space = false;
     for decoded in char::decode_utf16(units.iter().copied()) {
@@ -92,6 +100,21 @@ pub(crate) fn read(units: &[u16], context: &ReadContext<'_>) -> Result<Reading, 
                 text.push(c);
                 measured_space = true;
             }
+            // Fn4 qt031..qt096 accepts these four digit scripts in the measured profiles.
+            // Fn7 live SQRT/DATEVALUE controls also confirm mixed-script numbers, exponent
+            // digits and three-component dates; unmeasured fraction/time forms stay refused.
+            Ok(c @ ('\u{0660}'..='\u{0669}' | '\u{06f0}'..='\u{06f9}'
+                | '\u{0966}'..='\u{096f}' | '\u{0e50}'..='\u{0e59}')) if measured_digits => {
+                translated_digits = true;
+                let zero = match c {
+                    '\u{0660}'..='\u{0669}' => 0x0660,
+                    '\u{06f0}'..='\u{06f9}' => 0x06f0,
+                    '\u{0966}'..='\u{096f}' => 0x0966,
+                    _ => 0x0e50,
+                };
+                text.push(char::from_u32(u32::from('0') + u32::from(c) - zero).unwrap());
+            }
+            Ok('\u{ff10}'..='\u{ff19}') if measured_digits => return Err(Unread::Rejected),
             // A digit of another script, a space other than ASCII's, or a profile whose
             // separators or currency lie beyond ASCII: what Excel reads is not modelled.
             Ok(c) if c.is_numeric() || c.is_whitespace() || !ascii_profile => {
@@ -121,9 +144,12 @@ pub(crate) fn read(units: &[u16], context: &ReadContext<'_>) -> Result<Reading, 
         return Err(Unread::Rejected);
     }
     if let Some(n) = fraction(text) {
+        if translated_digits {
+            return Err(Unread::NotModelled);
+        }
         return n.map(Reading::Number);
     }
-    date_time(text, context).map(Reading::DateTime)
+    date_time(text, context, !translated_digits).map(Reading::DateTime)
 }
 
 // --- numbers ------------------------------------------------------------------------------------
@@ -541,6 +567,12 @@ fn date_of(tokens: &[Token], context: &ReadContext<'_>) -> Result<i64, Unread> {
                             return Err(Unread::NotModelled);
                         }
                     };
+                    // Fn4 list-controls ql041..ql085: month/day tokens have one or two
+                    // digits. A three/four-digit final token is not a day with leading zeros.
+                    if matches!(context.profile.id, LocaleId::EnZa | LocaleId::CurrentExcelHost)
+                        && (m.1 > 2 || d.1 > 2) {
+                        return Err(Unread::Rejected);
+                    }
                     serial_1900(full_year(y.0, y.1), m.0, d.0)
                 }
                 [a, b] => {
@@ -607,7 +639,7 @@ fn date_of(tokens: &[Token], context: &ReadContext<'_>) -> Result<i64, Unread> {
     }
 }
 
-fn date_time(text: &str, context: &ReadContext<'_>) -> Result<f64, Unread> {
+fn date_time(text: &str, context: &ReadContext<'_>, allow_time: bool) -> Result<f64, Unread> {
     let tokens = tokens(text)?;
     // A time at the start, or after the last space.
     let mut time = None;
@@ -653,6 +685,9 @@ fn date_time(text: &str, context: &ReadContext<'_>) -> Result<f64, Unread> {
             time = Some(fraction);
             date_tokens = &[];
         }
+    }
+    if time.is_some() && !allow_time {
+        return Err(Unread::NotModelled);
     }
     let date = if date_tokens.is_empty() {
         None

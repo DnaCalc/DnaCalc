@@ -1,0 +1,175 @@
+{
+  "function": "DATEVALUE",
+  "witnesses": [
+    {
+      "id": "fn7-DATEVALUE-digits-1",
+      "args": [
+        "\u0662\u0660\u0662\u0664-\u0660\u0661-\u0660\u0662"
+      ],
+      "expected_bits": "0x40e61da000000000"
+    },
+    {
+      "id": "fn7-DATEVALUE-digits-2",
+      "args": [
+        "\u06f2\u06f0\u06f2\u06f4-\u06f0\u06f1-\u06f0\u06f2"
+      ],
+      "expected_bits": "0x40e61da000000000"
+    },
+    {
+      "id": "fn7-DATEVALUE-digits-3",
+      "args": [
+        "\u0968\u0966\u0968\u096a-\u0966\u0967-\u0966\u0968"
+      ],
+      "expected_bits": "0x40e61da000000000"
+    },
+    {
+      "id": "fn7-DATEVALUE-digits-4",
+      "args": [
+        "\u0e52\u0e50\u0e52\u0e54-\u0e50\u0e51-\u0e50\u0e52"
+      ],
+      "expected_bits": "0x40e61da000000000"
+    },
+    {
+      "id": "fn7-DATEVALUE-digits-5",
+      "args": [
+        "2024-002-01"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-DATEVALUE-digits-6",
+      "args": [
+        "2024-02-001"
+      ],
+      "expected_bits": "error:Value"
+    }
+  ],
+  "service_request_function": "DATEVALUE",
+  "service_questions": [
+    [
+      {
+        "type": "text",
+        "value": "\u0662\u0660\u0662\u0664-\u0660\u0661-\u0660\u0662",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "\u06f2\u06f0\u06f2\u06f4-\u06f0\u06f1-\u06f0\u06f2",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "\u0968\u0966\u0968\u096a-\u0966\u0967-\u0966\u0968",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "\u0e52\u0e50\u0e52\u0e54-\u0e50\u0e51-\u0e50\u0e52",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "2024-002-01",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "2024-02-001",
+        "mode": "literal"
+      }
+    ]
+  ],
+  "service_response": {
+    "version": 1,
+    "id": "18d16d9a4f4a48f68e9a744326187825",
+    "ok": true,
+    "rows": [
+      {
+        "type": "number",
+        "bits": "40e61da000000000"
+      },
+      {
+        "type": "number",
+        "bits": "40e61da000000000"
+      },
+      {
+        "type": "number",
+        "bits": "40e61da000000000"
+      },
+      {
+        "type": "number",
+        "bits": "40e61da000000000"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      }
+    ],
+    "inputs": [
+      [
+        {
+          "type": "text",
+          "value": "\u0662\u0660\u0662\u0664-\u0660\u0661-\u0660\u0662"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "\u06f2\u06f0\u06f2\u06f4-\u06f0\u06f1-\u06f0\u06f2"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "\u0968\u0966\u0968\u096a-\u0966\u0967-\u0966\u0968"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "\u0e52\u0e50\u0e52\u0e54-\u0e50\u0e51-\u0e50\u0e52"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "2024-002-01"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "2024-02-001"
+        }
+      ]
+    ],
+    "excel_version": "16.0",
+    "excel_build": "20527",
+    "excel_file_version": "16.0.20527.20088",
+    "excel_pid": 62236,
+    "automation_security_before": 1,
+    "automation_security_after": 1,
+    "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261104T1517553609007-e9c46f1e78484ea4b5bebaf6cdc2f8a4\\receipt.json",
+    "session_receipt_sha256": "89ea41887d454e99e001489a97a1e3d167bb032de332ce75aee7bb7c8a29cf59",
+    "machine": "GOVERT-OMEN",
+    "timestamp": "2026-11-04T15:17:58.688706+00:00",
+    "service_seconds": 4.625,
+    "request_sha256": "3631dca770cf5c8e1d2c8a62abefef51c048805eab3ea39032b675fb9feb29a5",
+    "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\18d16d9a4f4a48f68e9a744326187825"
+  },
+  "retained_wrapper_sha256": "8622377f8ae30a0e47f5d78d42c051347c239d4fbd3c38053333c40116cf4744"
+}
