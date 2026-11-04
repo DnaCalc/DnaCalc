@@ -2,7 +2,7 @@ param([string]$SessionDirectory=$env:DNACALC_EXCEL_SESSION, [string]$Script, [st
     [string]$Environment='default', [string]$WorkingDirectory=(Get-Location).Path,
     [int]$TimeoutSeconds=900, [switch]$FreshRequired, [switch]$Stop, [switch]$Status,
     [ValidateRange(1,1000000)][int]$LeakEvery=50, [switch]$Start,
-    [string]$PacketId=$env:DNACALC_EXCEL_PACKET)
+    [string]$PacketId=$env:DNACALC_EXCEL_PACKET, [switch]$NoSaveBaseline)
 $ErrorActionPreference='Stop'
 if (-not $SessionDirectory) { $SessionDirectory=Join-Path $PSScriptRoot '../../target/excel-session' }
 $root=[IO.Path]::GetFullPath($SessionDirectory)
@@ -49,7 +49,9 @@ try {
         $hostScript=Join-Path $PSScriptRoot 'host.ps1'
         # ShellExecute creates a detached hidden console without inheriting the client's pipes.
         # RedirectStandardOutput on Start-Process made Rust's wait-for-EOF outlive the client.
-        $hostProcess=Start-Process -FilePath (Join-Path $PSHOME 'pwsh.exe') -WindowStyle Hidden -PassThru -ArgumentList @('-NoLogo','-NoProfile','-NonInteractive','-STA','-File',('"'+$hostScript+'"'),'-SessionDirectory',('"'+$root+'"'),'-LeakEvery',"$LeakEvery")
+        $hostArguments=@('-NoLogo','-NoProfile','-NonInteractive','-STA','-File',('"'+$hostScript+'"'),'-SessionDirectory',('"'+$root+'"'),'-LeakEvery',"$LeakEvery")
+        if ($NoSaveBaseline) { $hostArguments+='-NoSaveBaseline' }
+        $hostProcess=Start-Process -FilePath (Join-Path $PSHOME 'pwsh.exe') -WindowStyle Hidden -PassThru -ArgumentList $hostArguments
         $deadline=[DateTime]::UtcNow.AddSeconds(45)
         do {
             if ($hostProcess.HasExited) { throw ('Session host exited: '+(Get-Content (Join-Path $root 'host.stderr') -Raw)) }
@@ -61,6 +63,9 @@ try {
 } finally { $mutex.ReleaseMutex(); $mutex.Dispose() }
 if (-not $state.preserve_automation_security) {
     throw 'The running Excel host does not preserve AutomationSecurity; stop it before selecting this policy.'
+}
+if ([bool]$state.no_save_baseline -ne [bool]$NoSaveBaseline) {
+    throw 'The running host has a different baseline saving policy; select a dedicated session directory.'
 }
 if($Start){Read-Status|ConvertTo-Json -Depth 15;return}
 $id=[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffff')+'-'+[Guid]::NewGuid().ToString('N')
