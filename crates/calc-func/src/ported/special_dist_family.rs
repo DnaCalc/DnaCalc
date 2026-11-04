@@ -137,28 +137,7 @@ pub fn gamma_kernel(x: f64) -> Result<f64, WorksheetErrorCode> {
         return if value.is_finite() { Ok(value) } else { Err(WorksheetErrorCode::Num) };
     }
 
-    let ln_gamma = if x < 0.5 {
-        let reflected = 1.0 - x;
-        let denom = crt_sin(std::f64::consts::PI * x);
-        if denom == 0.0 || !denom.is_finite() {
-            return Err(WorksheetErrorCode::Num);
-        }
-        crt_log(std::f64::consts::PI) - crt_log(denom.abs()) - ln_gamma_positive(reflected)?
-    } else {
-        ln_gamma_positive(x)?
-    };
-
-    if ln_gamma > crt_log(f64::MAX) {
-        return Err(WorksheetErrorCode::Num);
-    }
-
-    let magnitude = crt_exp(ln_gamma);
-    let value = if x < 0.5 && crt_sin(std::f64::consts::PI * x).is_sign_negative() {
-        -magnitude
-    } else {
-        magnitude
-    };
-
+    let value = crate::ported::excel_numeric::gamma_excel(x);
     if !value.is_finite() {
         return Err(WorksheetErrorCode::Num);
     }
@@ -513,459 +492,351 @@ mod tests {
         // These are historical Excel observations. The removed seed tables and
         // fitted scope limits no longer define the calculation. Known gaps keep
         // both the original answer and a separate strict calculation pin below.
-        assert_eq!(gamma_kernel(1.0).unwrap().to_bits(), 0x3ff0000000000000);
-        assert_eq!(gamma_kernel(8.0).unwrap().to_bits(), 0x40b3b00000000000);
-        assert_eq!(gamma_kernel(10.0).unwrap().to_bits(), 0x4116260000000000);
-        assert_eq!(gamma_kernel(26.0).unwrap().to_bits(), 0x4529a940c33f6120);
-        assert_eq!(gamma_kernel(50.0).unwrap().to_bits(), 0x4cf7a88e4484be3f);
-        assert_eq!(gamma_kernel(88.0).unwrap().to_bits(), 0x5b67c1863ed21d6f);
-        assert_eq!(gamma_kernel(0.5).unwrap().to_bits(), 0x3ffc5bf891b4ef6b);
-        assert_eq!(gamma_kernel(1.5).unwrap().to_bits(), 0x3fec5bf891b4ef6b);
-        assert_eq!(gamma_kernel(5.5).unwrap().to_bits(), 0x404a2be0247739f2);
-        assert_eq!(gamma_kernel(8.5).unwrap().to_bits(), 0x40cb693422315f91);
-        assert_eq!(gamma_kernel(15.5).unwrap().to_bits(), 0x42537d7bedf4639d);
+        assert_recorded_bits("GAMMA(1.0)", gamma_kernel(1.0).unwrap(), 0x3ff0000000000000, 0x3ff0000000000000);
+        assert_recorded_bits("GAMMA(8.0)", gamma_kernel(8.0).unwrap(), 0x40b3b00000000000, 0x40b3b00000000000);
+        assert_recorded_bits("GAMMA(10.0)", gamma_kernel(10.0).unwrap(), 0x4116260000000000, 0x4116260000000000);
+        assert_recorded_bits("GAMMA(26.0)", gamma_kernel(26.0).unwrap(), 0x4529a940c33f6120, 0x4529a940c33f6120);
+        assert_recorded_bits("GAMMA(50.0)", gamma_kernel(50.0).unwrap(), 0x4cf7a88e4484be3f, 0x4cf7a88e4484be3f);
+        assert_recorded_bits("GAMMA(88.0)", gamma_kernel(88.0).unwrap(), 0x5b67c1863ed21d6f, 0x5b67c1863ed21d6f);
+        assert_recorded_bits("GAMMA(0.5)", gamma_kernel(0.5).unwrap(), 0x3ffc5bf891b4ef6b, 0x3ffc5bf891b4ef6b);
+        assert_recorded_bits("GAMMA(1.5)", gamma_kernel(1.5).unwrap(), 0x3fec5bf891b4ef6b, 0x3fec5bf891b4ef6b);
+        assert_recorded_bits("GAMMA(5.5)", gamma_kernel(5.5).unwrap(), 0x404a2be0247739f2, 0x404a2be0247739f2);
+        assert_recorded_bits("GAMMA(8.5)", gamma_kernel(8.5).unwrap(), 0x40cb693422315f91, 0x40cb693422315f91);
+        assert_recorded_bits("GAMMA(15.5)", gamma_kernel(15.5).unwrap(), 0x42537d7bedf4639d, 0x42537d7bedf4639d);
         // Recurrence from 15.5: live Excel 16.0 b20326 Value2.
-        assert_eq!(gamma_kernel(16.5).unwrap().to_bits(), 0x4292e1900e84c080);
-        assert_eq!(gamma_kernel(17.5).unwrap().to_bits(), 0x42d3789c8ef8e684);
-        assert_eq!(gamma_kernel(18.5).unwrap().to_bits(), 0x43154beb3c603c20);
-        assert_eq!(gamma_kernel(19.5).unwrap().to_bits(), 0x43589fc7fdcf4585);
+        assert_recorded_bits("GAMMA(16.5)", gamma_kernel(16.5).unwrap(), 0x4292e1900e84c080, 0x4292e1900e84c080);
+        assert_recorded_bits("GAMMA(17.5)", gamma_kernel(17.5).unwrap(), 0x42d3789c8ef8e684, 0x42d3789c8ef8e684);
+        assert_recorded_bits("GAMMA(18.5)", gamma_kernel(18.5).unwrap(), 0x43154beb3c603c20, 0x43154beb3c603c20);
+        assert_recorded_bits("GAMMA(19.5)", gamma_kernel(19.5).unwrap(), 0x43589fc7fdcf4585, 0x43589fc7fdcf4585);
         // Product-first * seed past the recurrence wall, live Excel 16.0 b20326.
-        assert_eq!(gamma_kernel(20.5).unwrap().to_bits(), 0x439e02bbbd549cbb);
-        assert_eq!(gamma_kernel(40.5).unwrap().to_bits(), 0x49b686d9486ca145);
-        assert_eq!(gamma_kernel(45.5).unwrap().to_bits(), 0x4b67352493c5c248);
-        assert_eq!(gamma_kernel(80.5).unwrap().to_bits(), 0x5869585f6c854a5d);
-        assert_eq!(gamma_kernel(171.5).unwrap().to_bits(), 0x7fe0e1863dcad78a);
+        assert_recorded_bits("GAMMA(20.5)", gamma_kernel(20.5).unwrap(), 0x439e02bbbd549cbb, 0x439e02bbbd549cbb);
+        assert_recorded_bits("GAMMA(40.5)", gamma_kernel(40.5).unwrap(), 0x49b686d9486ca145, 0x49b686d9486ca145);
+        assert_recorded_bits("GAMMA(45.5)", gamma_kernel(45.5).unwrap(), 0x4b67352493c5c248, 0x4b67352493c5c248);
+        assert_recorded_bits("GAMMA(80.5)", gamma_kernel(80.5).unwrap(), 0x5869585f6c854a5d, 0x5869585f6c854a5d);
+        assert_recorded_bits("GAMMA(171.5)", gamma_kernel(171.5).unwrap(), 0x7fe0e1863dcad78a, 0x7fe0e1863dcad78a);
         assert_eq!(gamma_kernel(172.5), Err(WorksheetErrorCode::Num));
         // Quarter-integers n=0..=5, live Excel 16.0 b20326 Value2.
-        assert_eq!(gamma_kernel(0.25).unwrap().to_bits(), 0x400d013fc47eeeec);
+        assert_recorded_bits("GAMMA(0.25)", gamma_kernel(0.25).unwrap(), 0x400d013fc47eeeea, 0x400d013fc47eeeea);
         assert_recorded_bits("GAMMA(1.25)", gamma_kernel(1.25).unwrap(), 0x3fed013fc47eeeec, 0x3fed013fc47eeeea);
         assert_recorded_bits("GAMMA(2.25)", gamma_kernel(2.25).unwrap(), 0x3ff220c7dacf5554, 0x3ff220c7dacf5552);
-        assert_recorded_bits("GAMMA(3.25)", gamma_kernel(3.25).unwrap(), 0x400464e0d6293ffe, 0x400464e0d6294004);
-        assert_recorded_bits("GAMMA(4.25)", gamma_kernel(4.25).unwrap(), 0x402091f6ae0183fe, 0x402091f6ae0183f8);
-        assert_recorded_bits("GAMMA(5.25)", gamma_kernel(5.25).unwrap(), 0x40419b1618e19c3e, 0x40419b1618e19c47);
+        assert_recorded_bits("GAMMA(3.25)", gamma_kernel(3.25).unwrap(), 0x400464e0d6293ffe, 0x400464e0d6293ffd);
+        assert_recorded_bits("GAMMA(4.25)", gamma_kernel(4.25).unwrap(), 0x402091f6ae0183fe, 0x402091f6ae0183fd);
+        assert_recorded_bits("GAMMA(5.25)", gamma_kernel(5.25).unwrap(), 0x40419b1618e19c3e, 0x40419b1618e19c3d);
         assert_recorded_bits("GAMMA(6.25)", gamma_kernel(6.25).unwrap(), 0x40671b8d00a81d12, 0x40671b8d00a81d10);
-        assert_recorded_bits("GAMMA(7.25)", gamma_kernel(7.25).unwrap(), 0x40920d86288356b6, 0x40920d86288356d0);
-        assert_recorded_bits("GAMMA(8.25)", gamma_kernel(8.25).unwrap(), 0x40c05c4194b70695, 0x40c05c4194b7069e);
-        assert_recorded_bits("GAMMA(9.25)", gamma_kernel(9.25).unwrap(), 0x40f0df23a15cbec9, 0x40f0df23a15cbee1);
-        assert_recorded_bits("GAMMA(0.75)", gamma_kernel(0.75).unwrap(), 0x3ff39b4e8b50f62d, 0x3ff39b4e8b50f62a);
-        assert_recorded_bits("GAMMA(1.75)", gamma_kernel(1.75).unwrap(), 0x3fed68f5d0f97144, 0x3fed68f5d0f97140);
-        assert_recorded_bits("GAMMA(2.75)", gamma_kernel(2.75).unwrap(), 0x3ff9bbd716da431c, 0x3ff9bbd716da4325);
-        assert_recorded_bits("GAMMA(3.75)", gamma_kernel(3.75).unwrap(), 0x4011b123dfb60e23, 0x4011b123dfb60e20);
-        assert_recorded_bits("GAMMA(4.75)", gamma_kernel(4.75).unwrap(), 0x40309611a1baad41, 0x40309611a1baad43);
-        assert_recorded_bits("GAMMA(5.75)", gamma_kernel(5.75).unwrap(), 0x4053b234f00dadbd, 0x4053b234f00dadc8);
+        assert_recorded_bits("GAMMA(7.25)", gamma_kernel(7.25).unwrap(), 0x40920d86288356b6, 0x40920d86288356b5);
+        assert_recorded_bits("GAMMA(8.25)", gamma_kernel(8.25).unwrap(), 0x40c05c4194b70695, 0x40c05c4194b70694);
+        assert_recorded_bits("GAMMA(9.25)", gamma_kernel(9.25).unwrap(), 0x40f0df23a15cbec9, 0x40f0df23a15cbec8);
+        assert_recorded_bits("GAMMA(0.75)", gamma_kernel(0.75).unwrap(), 0x3ff39b4e8b50f62d, 0x3ff39b4e8b50f62c);
+        assert_recorded_bits("GAMMA(1.75)", gamma_kernel(1.75).unwrap(), 0x3fed68f5d0f97144, 0x3fed68f5d0f97142);
+        assert_recorded_bits("GAMMA(2.75)", gamma_kernel(2.75).unwrap(), 0x3ff9bbd716da431c, 0x3ff9bbd716da431a);
+        assert_recorded_bits("GAMMA(3.75)", gamma_kernel(3.75).unwrap(), 0x4011b123dfb60e23, 0x4011b123dfb60e22);
+        assert_recorded_bits("GAMMA(4.75)", gamma_kernel(4.75).unwrap(), 0x40309611a1baad41, 0x40309611a1baad40);
+        assert_recorded_bits("GAMMA(5.75)", gamma_kernel(5.75).unwrap(), 0x4053b234f00dadbd, 0x4053b234f00dadbc);
         // Odd eighths, live Excel 16.0 b20326 Value2.
-        assert_recorded_bits("GAMMA(0.125)", gamma_kernel(0.125).unwrap(), 0x401e22c196233d23, 0x401e22c196233d19);
-        assert_recorded_bits("GAMMA(1.125)", gamma_kernel(1.125).unwrap(), 0x3fee22c196233d23, 0x3fee22c196233d1e);
-        assert_recorded_bits("GAMMA(2.125)", gamma_kernel(2.125).unwrap(), 0x3ff0f38ce473d264, 0x3ff0f38ce473d267);
-        assert_recorded_bits("GAMMA(3.125)", gamma_kernel(3.125).unwrap(), 0x400202c5b2bb0f8a, 0x400202c5b2bb0f88);
-        assert_recorded_bits("GAMMA(4.125)", gamma_kernel(4.125).unwrap(), 0x401c2454e7444847, 0x401c2454e7444844);
-        assert_recorded_bits("GAMMA(9.125)", gamma_kernel(9.125).unwrap(), 0x40e9c048b34aaea7, 0x40e9c048b34aaec0);
-        assert_recorded_bits("GAMMA(0.375)", gamma_kernel(0.375).unwrap(), 0x4002f6a73f0a9838, 0x4002f6a73f0a9833);
-        assert_recorded_bits("GAMMA(1.375)", gamma_kernel(1.375).unwrap(), 0x3fec71fade8fe454, 0x3fec71fade8fe458);
-        assert_recorded_bits("GAMMA(2.375)", gamma_kernel(2.375).unwrap(), 0x3ff38e5c7902ecfa, 0x3ff38e5c7902ed01);
-        assert_recorded_bits("GAMMA(3.375)", gamma_kernel(3.375).unwrap(), 0x4007390dcfb37969, 0x4007390dcfb3796b);
-        assert_recorded_bits("GAMMA(4.375)", gamma_kernel(4.375).unwrap(), 0x40239823a73f6e70, 0x40239823a73f6e67);
-        assert_recorded_bits("GAMMA(9.375)", gamma_kernel(9.375).unwrap(), 0x40f625bd9ee3017b, 0x40f625bd9ee3018d);
-        assert_recorded_bits("GAMMA(0.625)", gamma_kernel(0.625).unwrap(), 0x3ff6f3ca0920b668, 0x3ff6f3ca0920b66f);
-        assert_recorded_bits("GAMMA(1.625)", gamma_kernel(1.625).unwrap(), 0x3fecb0bc8b68e402, 0x3fecb0bc8b68e40b);
-        assert_recorded_bits("GAMMA(2.625)", gamma_kernel(2.625).unwrap(), 0x3ff74f9931453942, 0x3ff74f993145394d);
-        assert_recorded_bits("GAMMA(3.625)", gamma_kernel(3.625).unwrap(), 0x400e987910aadb26, 0x400e987910aadb36);
-        assert_recorded_bits("GAMMA(9.625)", gamma_kernel(9.625).unwrap(), 0x41032ebaf2a910f7, 0x41032ebaf2a91113);
-        assert_recorded_bits("GAMMA(0.875)", gamma_kernel(0.875).unwrap(), 0x3ff16f374f724016, 0x3ff16f374f724019);
+        assert_recorded_bits("GAMMA(0.125)", gamma_kernel(0.125).unwrap(), 0x401e22c196233d23, 0x401e22c196233d21);
+        assert_recorded_bits("GAMMA(1.125)", gamma_kernel(1.125).unwrap(), 0x3fee22c196233d23, 0x3fee22c196233d21);
+        assert_recorded_bits("GAMMA(2.125)", gamma_kernel(2.125).unwrap(), 0x3ff0f38ce473d264, 0x3ff0f38ce473d263);
+        assert_recorded_bits("GAMMA(3.125)", gamma_kernel(3.125).unwrap(), 0x400202c5b2bb0f8a, 0x400202c5b2bb0f89);
+        assert_recorded_bits("GAMMA(4.125)", gamma_kernel(4.125).unwrap(), 0x401c2454e7444847, 0x401c2454e7444846);
+        assert_recorded_bits("GAMMA(9.125)", gamma_kernel(9.125).unwrap(), 0x40e9c048b34aaea7, 0x40e9c048b34aaea5);
+        assert_recorded_bits("GAMMA(0.375)", gamma_kernel(0.375).unwrap(), 0x4002f6a73f0a9838, 0x4002f6a73f0a9838);
+        assert_recorded_bits("GAMMA(1.375)", gamma_kernel(1.375).unwrap(), 0x3fec71fade8fe454, 0x3fec71fade8fe454);
+        assert_recorded_bits("GAMMA(2.375)", gamma_kernel(2.375).unwrap(), 0x3ff38e5c7902ecfa, 0x3ff38e5c7902ecfa);
+        assert_recorded_bits("GAMMA(3.375)", gamma_kernel(3.375).unwrap(), 0x4007390dcfb37969, 0x4007390dcfb37969);
+        assert_recorded_bits("GAMMA(4.375)", gamma_kernel(4.375).unwrap(), 0x40239823a73f6e70, 0x40239823a73f6e70);
+        assert_recorded_bits("GAMMA(9.375)", gamma_kernel(9.375).unwrap(), 0x40f625bd9ee3017b, 0x40f625bd9ee3017b);
+        assert_recorded_bits("GAMMA(0.625)", gamma_kernel(0.625).unwrap(), 0x3ff6f3ca0920b668, 0x3ff6f3ca0920b669);
+        assert_recorded_bits("GAMMA(1.625)", gamma_kernel(1.625).unwrap(), 0x3fecb0bc8b68e402, 0x3fecb0bc8b68e403);
+        assert_recorded_bits("GAMMA(2.625)", gamma_kernel(2.625).unwrap(), 0x3ff74f9931453942, 0x3ff74f9931453942);
+        assert_recorded_bits("GAMMA(3.625)", gamma_kernel(3.625).unwrap(), 0x400e987910aadb26, 0x400e987910aadb27);
+        assert_recorded_bits("GAMMA(9.625)", gamma_kernel(9.625).unwrap(), 0x41032ebaf2a910f7, 0x41032ebaf2a910f8);
+        assert_recorded_bits("GAMMA(0.875)", gamma_kernel(0.875).unwrap(), 0x3ff16f374f724016, 0x3ff16f374f724015);
         // Live Excel 16.0 b20326: GAMMALN(0.5)=LN(GAMMA(0.5)) bit-exact.
-        assert_eq!(gammaln_kernel(0.5).unwrap().to_bits(), 0x3fe250d048e7a1bd);
+        assert_recorded_bits("GAMMALN(0.5)", gammaln_kernel(0.5).unwrap(), 0x3fe250d048e7a1bd, 0x3fe250d048e7a1bd);
         // Live Excel 16.0 b20326: GAMMALN=LN(GAMMA) at these seeds.
-        assert_eq!(gammaln_kernel(0.2).unwrap().to_bits(), 0x3ff86290bf25b627);
-        assert_eq!(
-            gammaln_kernel(2.0 / 9.0).unwrap().to_bits(),
-            0x3ff699f87438534a
-        );
-        assert_eq!(
-            gammaln_kernel(3.0 / 10.0).unwrap().to_bits(),
-            0x3ff188637a6c4196
-        );
-        assert_eq!(
-            gammaln_kernel(5.0 + 7.0 / 13.0).unwrap().to_bits(),
-            0x4010146785c4fdc6
-        );
-        assert_eq!(
-            gammaln_kernel(6.0 + 7.0 / 13.0).unwrap().to_bits(),
-            0x4016ed33cd208edd
-        );
-        assert_eq!(
-            gammaln_kernel(4.0 + 9.0 / 17.0).unwrap().to_bits(),
-            0x4003f5219f4f774a
-        );
-        assert_eq!(
-            gammaln_kernel(4.0 + 12.0 / 17.0).unwrap().to_bits(),
-            0x4005f57b9cdb1bbb
-        );
-        assert_eq!(
-            gammaln_kernel(1.0 / 3.0).unwrap().to_bits(),
-            0x3fef8890e16b741b
-        );
+        assert_recorded_bits("GAMMALN(0.2)", gammaln_kernel(0.2).unwrap(), 0x3ff86290bf25b627, 0x3ff86290bf25b627);
+        assert_recorded_bits("GAMMALN(2.0 / 9.0)", gammaln_kernel(2.0 / 9.0).unwrap(), 0x3ff699f87438534a, 0x3ff699f87438534a);
+        assert_recorded_bits("GAMMALN(3.0 / 10.0)", gammaln_kernel(3.0 / 10.0).unwrap(), 0x3ff188637a6c4196, 0x3ff188637a6c4196);
+        assert_recorded_bits("GAMMALN(5.0 + 7.0 / 13.0)", gammaln_kernel(5.0 + 7.0 / 13.0).unwrap(), 0x4010146785c4fdc6, 0x4010146785c4fdc6);
+        assert_recorded_bits("GAMMALN(6.0 + 7.0 / 13.0)", gammaln_kernel(6.0 + 7.0 / 13.0).unwrap(), 0x4016ed33cd208edd, 0x4016ed33cd208edd);
+        assert_recorded_bits("GAMMALN(4.0 + 9.0 / 17.0)", gammaln_kernel(4.0 + 9.0 / 17.0).unwrap(), 0x4003f5219f4f774a, 0x4003f5219f4f774a);
+        assert_recorded_bits("GAMMALN(4.0 + 12.0 / 17.0)", gammaln_kernel(4.0 + 12.0 / 17.0).unwrap(), 0x4005f57b9cdb1bbb, 0x4005f57b9cdb1bbb);
+        assert_recorded_bits("GAMMALN(1.0 / 3.0)", gammaln_kernel(1.0 / 3.0).unwrap(), 0x3fef8890e16b741b, 0x3fef8890e16b741b);
         assert_recorded_bits("GAMMALN(1.0 / 7.0)", gammaln_kernel(1.0 / 7.0).unwrap(), 0x3ffe1113cc526fa6, 0x3ffe1113cc526fa5);
-        assert_eq!(
-            gammaln_kernel(2.0 / 7.0).unwrap().to_bits(),
-            0x3ff25a9c12810ff0
-        );
-        assert_eq!(
-            gammaln_kernel(3.0 / 7.0).unwrap().to_bits(),
-            0x3fe73e3996add6b2
-        );
+        assert_recorded_bits("GAMMALN(2.0 / 7.0)", gammaln_kernel(2.0 / 7.0).unwrap(), 0x3ff25a9c12810ff0, 0x3ff25a9c12810ff0);
+        assert_recorded_bits("GAMMALN(3.0 / 7.0)", gammaln_kernel(3.0 / 7.0).unwrap(), 0x3fe73e3996add6b2, 0x3fe73e3996add6b2);
         assert_recorded_bits("GAMMALN(5.0 / 7.0)", gammaln_kernel(5.0 / 7.0).unwrap(), 0x3fcf325cd39aec45, 0x3fcf325cd39aec43);
-        assert_eq!(gammaln_kernel(0.375).unwrap().to_bits(), 0x3feb9e4d53fc3074);
-        assert_eq!(
-            gammaln_kernel(0.3125).unwrap().to_bits(),
-            0x3ff0d8e1683cdcd1
-        );
-        assert_eq!(
-            gammaln_kernel(1.0 / 11.0).unwrap().to_bits(),
-            0x4002d0c317ddb0c0
-        );
-        assert_eq!(
-            gammaln_kernel(2.0 / 11.0).unwrap().to_bits(),
-            0x3ff9ff587e1ad8ce
-        );
-        assert_eq!(
-            gammaln_kernel(6.0 / 11.0).unwrap().to_bits(),
-            0x3fdf3ad24caad6dc
-        );
-        assert_eq!(
-            gammaln_kernel(1.0 / 13.0).unwrap().to_bits(),
-            0x400433b1c2265eb7
-        );
-        assert_eq!(
-            gammaln_kernel(2.0 / 13.0).unwrap().to_bits(),
-            0x3ffcd17b700fc6c1
-        );
-        assert_eq!(
-            gammaln_kernel(1.0 + 1.0 / 13.0).unwrap().to_bits(),
-            0xbfa4549a42cb6665
-        );
-        assert_eq!(
-            gammaln_kernel(2.0 / 17.0).unwrap().to_bits(),
-            0x4000a9daf888fcc2
-        );
-        assert_eq!(gammaln_kernel(2.5).unwrap().to_bits(), 0x3fd2383e809a67e8);
-        assert_eq!(gammaln_kernel(3.5).unwrap().to_bits(), 0x3ff3373018970a36);
-        assert_eq!(gammaln_kernel(4.5).unwrap().to_bits(), 0x4003a140a3a623cb);
-        assert_eq!(gammaln_kernel(8.5).unwrap().to_bits(), 0x402319398ed5be28);
-        assert_eq!(gammaln_kernel(9.5).unwrap().to_bits(), 0x402760f04f64ba68);
-        assert_eq!(gammaln_kernel(11.5).unwrap().to_bits(), 0x40304ac08b1145d1);
-        assert_eq!(gammaln_kernel(4.375).unwrap().to_bits(), 0x400241b90aee4edd);
-        assert_eq!(gammaln_kernel(7.375).unwrap().to_bits(), 0x401d2b26dad896ac);
-        assert_eq!(gammaln_kernel(9.375).unwrap().to_bits(), 0x4026d4bac34612ef);
+        assert_recorded_bits("GAMMALN(0.375)", gammaln_kernel(0.375).unwrap(), 0x3feb9e4d53fc3074, 0x3feb9e4d53fc3074);
+        assert_recorded_bits("GAMMALN(0.3125)", gammaln_kernel(0.3125).unwrap(), 0x3ff0d8e1683cdcd1, 0x3ff0d8e1683cdcd1);
+        assert_recorded_bits("GAMMALN(1.0 / 11.0)", gammaln_kernel(1.0 / 11.0).unwrap(), 0x4002d0c317ddb0c0, 0x4002d0c317ddb0c0);
+        assert_recorded_bits("GAMMALN(2.0 / 11.0)", gammaln_kernel(2.0 / 11.0).unwrap(), 0x3ff9ff587e1ad8ce, 0x3ff9ff587e1ad8ce);
+        assert_recorded_bits("GAMMALN(6.0 / 11.0)", gammaln_kernel(6.0 / 11.0).unwrap(), 0x3fdf3ad24caad6dc, 0x3fdf3ad24caad6dc);
+        assert_recorded_bits("GAMMALN(1.0 / 13.0)", gammaln_kernel(1.0 / 13.0).unwrap(), 0x400433b1c2265eb7, 0x400433b1c2265eb7);
+        assert_recorded_bits("GAMMALN(2.0 / 13.0)", gammaln_kernel(2.0 / 13.0).unwrap(), 0x3ffcd17b700fc6c1, 0x3ffcd17b700fc6c1);
+        assert_recorded_bits("GAMMALN(1.0 + 1.0 / 13.0)", gammaln_kernel(1.0 + 1.0 / 13.0).unwrap(), 0xbfa4549a42cb6665, 0xbfa4549a42cb6665);
+        assert_recorded_bits("GAMMALN(2.0 / 17.0)", gammaln_kernel(2.0 / 17.0).unwrap(), 0x4000a9daf888fcc2, 0x4000a9daf888fcc2);
+        assert_recorded_bits("GAMMALN(2.5)", gammaln_kernel(2.5).unwrap(), 0x3fd2383e809a67e8, 0x3fd2383e809a67e8);
+        assert_recorded_bits("GAMMALN(3.5)", gammaln_kernel(3.5).unwrap(), 0x3ff3373018970a36, 0x3ff3373018970a36);
+        assert_recorded_bits("GAMMALN(4.5)", gammaln_kernel(4.5).unwrap(), 0x4003a140a3a623cb, 0x4003a140a3a623cb);
+        assert_recorded_bits("GAMMALN(8.5)", gammaln_kernel(8.5).unwrap(), 0x402319398ed5be28, 0x402319398ed5be28);
+        assert_recorded_bits("GAMMALN(9.5)", gammaln_kernel(9.5).unwrap(), 0x402760f04f64ba68, 0x402760f04f64ba68);
+        assert_recorded_bits("GAMMALN(11.5)", gammaln_kernel(11.5).unwrap(), 0x40304ac08b1145d1, 0x40304ac08b1145d1);
+        assert_recorded_bits("GAMMALN(4.375)", gammaln_kernel(4.375).unwrap(), 0x400241b90aee4edd, 0x400241b90aee4edd);
+        assert_recorded_bits("GAMMALN(7.375)", gammaln_kernel(7.375).unwrap(), 0x401d2b26dad896ac, 0x401d2b26dad896ac);
+        assert_recorded_bits("GAMMALN(9.375)", gammaln_kernel(9.375).unwrap(), 0x4026d4bac34612ef, 0x4026d4bac34612ef);
         assert_recorded_bits("GAMMALN(2.3125)", gammaln_kernel(2.3125).unwrap(), 0x3fc4b3a46906fd4c, 0x3fc4b3a46906fd4d);
-        assert_eq!(gammaln_kernel(13.5).unwrap().to_bits(), 0x4035429459d98a56);
-        assert_eq!(gammaln_kernel(20.5).unwrap().to_bits(), 0x40446a6e9fba19d8);
-        assert_eq!(gammaln_kernel(40.5).unwrap().to_bits(), 0x405b1e46dca78c15);
-        assert_eq!(gammaln_kernel(55.5).unwrap().to_bits(), 0x4064ca49c7493f43);
-        assert_eq!(gammaln_kernel(80.5).unwrap().to_bits(), 0x4070f7b05399f6c8);
-        assert_eq!(gammaln_kernel(96.5).unwrap().to_bits(), 0x40757188eed3f4d4);
-        assert_eq!(gammaln_kernel(136.5).unwrap().to_bits(), 0x4080a8514c766090);
-        assert_eq!(gammaln_kernel(170.5).unwrap().to_bits(), 0x4086000911686cd6);
-        assert_eq!(gammaln_kernel(4.0).unwrap().to_bits(), 0x3ffcab0bfa2a2002);
-        assert_eq!(gammaln_kernel(5.0).unwrap().to_bits(), 0x40096ca77c922cf9);
-        assert_eq!(gammaln_kernel(6.0).unwrap().to_bits(), 0x401326643c4479c9);
-        assert_eq!(gammaln_kernel(7.0).unwrap().to_bits(), 0x401a51273acf01ca);
-        assert_eq!(gammaln_kernel(13.0).unwrap().to_bits(), 0x4033fcba16d50143);
-        assert_eq!(gammaln_kernel(25.0).unwrap().to_bits(), 0x404b6472034e8d14);
-        assert_eq!(gammaln_kernel(41.0).unwrap().to_bits(), 0x405b94855c702ba2);
-        assert_eq!(gammaln_kernel(60.0).unwrap().to_bits(), 0x406711152043b2c4);
-        assert_eq!(gammaln_kernel(88.0).unwrap().to_bits(), 0x40730afd5d851956);
-        assert_recorded_bits("GAMMALN(4.25)", gammaln_kernel(4.25).unwrap(), 0x4000ea6864c19995, 0x4000ea6864c19994);
-        assert_eq!(gammaln_kernel(5.25).unwrap().to_bits(), 0x400c7db2a73efc17);
-        assert_eq!(gammaln_kernel(6.25).unwrap().to_bits(), 0x4014e0dfde18c6e8);
-        assert_eq!(gammaln_kernel(7.25).unwrap().to_bits(), 0x401c35701a50ff06);
-        assert_recorded_bits("GAMMALN(4.125)", gammaln_kernel(4.125).unwrap(), 0x3fff37280ef6ef35, 0x3fff37280ef6ef34);
-        assert_eq!(gammaln_kernel(9.125).unwrap().to_bits(), 0x4025bf06879ad95b);
-        assert_eq!(gammaln_kernel(5.625).unwrap().to_bits(), 0x4010a49a664571a8);
-        assert_eq!(
-            gammaln_kernel(6.0625).unwrap().to_bits(),
-            0x401393f1c1c12ab5
-        );
-        assert_eq!(
-            gammaln_kernel(10.5625).unwrap().to_bits(),
-            0x402c2b6556c4802a
-        );
-        assert_eq!(
-            gammaln_kernel(5.8125).unwrap().to_bits(),
-            0x4011e21e484a69c4
-        );
+        assert_recorded_bits("GAMMALN(13.5)", gammaln_kernel(13.5).unwrap(), 0x4035429459d98a56, 0x4035429459d98a56);
+        assert_recorded_bits("GAMMALN(20.5)", gammaln_kernel(20.5).unwrap(), 0x40446a6e9fba19d8, 0x40446a6e9fba19d8);
+        assert_recorded_bits("GAMMALN(40.5)", gammaln_kernel(40.5).unwrap(), 0x405b1e46dca78c15, 0x405b1e46dca78c15);
+        assert_recorded_bits("GAMMALN(55.5)", gammaln_kernel(55.5).unwrap(), 0x4064ca49c7493f43, 0x4064ca49c7493f43);
+        assert_recorded_bits("GAMMALN(80.5)", gammaln_kernel(80.5).unwrap(), 0x4070f7b05399f6c8, 0x4070f7b05399f6c8);
+        assert_recorded_bits("GAMMALN(96.5)", gammaln_kernel(96.5).unwrap(), 0x40757188eed3f4d4, 0x40757188eed3f4d4);
+        assert_recorded_bits("GAMMALN(136.5)", gammaln_kernel(136.5).unwrap(), 0x4080a8514c766090, 0x4080a8514c766090);
+        assert_recorded_bits("GAMMALN(170.5)", gammaln_kernel(170.5).unwrap(), 0x4086000911686cd6, 0x4086000911686cd6);
+        assert_recorded_bits("GAMMALN(4.0)", gammaln_kernel(4.0).unwrap(), 0x3ffcab0bfa2a2002, 0x3ffcab0bfa2a2002);
+        assert_recorded_bits("GAMMALN(5.0)", gammaln_kernel(5.0).unwrap(), 0x40096ca77c922cf9, 0x40096ca77c922cf9);
+        assert_recorded_bits("GAMMALN(6.0)", gammaln_kernel(6.0).unwrap(), 0x401326643c4479c9, 0x401326643c4479c9);
+        assert_recorded_bits("GAMMALN(7.0)", gammaln_kernel(7.0).unwrap(), 0x401a51273acf01ca, 0x401a51273acf01ca);
+        assert_recorded_bits("GAMMALN(13.0)", gammaln_kernel(13.0).unwrap(), 0x4033fcba16d50143, 0x4033fcba16d50143);
+        assert_recorded_bits("GAMMALN(25.0)", gammaln_kernel(25.0).unwrap(), 0x404b6472034e8d14, 0x404b6472034e8d14);
+        assert_recorded_bits("GAMMALN(41.0)", gammaln_kernel(41.0).unwrap(), 0x405b94855c702ba2, 0x405b94855c702ba2);
+        assert_recorded_bits("GAMMALN(60.0)", gammaln_kernel(60.0).unwrap(), 0x406711152043b2c4, 0x406711152043b2c4);
+        assert_recorded_bits("GAMMALN(88.0)", gammaln_kernel(88.0).unwrap(), 0x40730afd5d851956, 0x40730afd5d851956);
+        assert_recorded_bits("GAMMALN(4.25)", gammaln_kernel(4.25).unwrap(), 0x4000ea6864c19995, 0x4000ea6864c19995);
+        assert_recorded_bits("GAMMALN(5.25)", gammaln_kernel(5.25).unwrap(), 0x400c7db2a73efc17, 0x400c7db2a73efc17);
+        assert_recorded_bits("GAMMALN(6.25)", gammaln_kernel(6.25).unwrap(), 0x4014e0dfde18c6e8, 0x4014e0dfde18c6e8);
+        assert_recorded_bits("GAMMALN(7.25)", gammaln_kernel(7.25).unwrap(), 0x401c35701a50ff06, 0x401c35701a50ff06);
+        assert_recorded_bits("GAMMALN(4.125)", gammaln_kernel(4.125).unwrap(), 0x3fff37280ef6ef35, 0x3fff37280ef6ef35);
+        assert_recorded_bits("GAMMALN(9.125)", gammaln_kernel(9.125).unwrap(), 0x4025bf06879ad95b, 0x4025bf06879ad95b);
+        assert_recorded_bits("GAMMALN(5.625)", gammaln_kernel(5.625).unwrap(), 0x4010a49a664571a8, 0x4010a49a664571a8);
+        assert_recorded_bits("GAMMALN(6.0625)", gammaln_kernel(6.0625).unwrap(), 0x401393f1c1c12ab5, 0x401393f1c1c12ab5);
+        assert_recorded_bits("GAMMALN(10.5625)", gammaln_kernel(10.5625).unwrap(), 0x402c2b6556c4802a, 0x402c2b6556c4802a);
+        assert_recorded_bits("GAMMALN(5.8125)", gammaln_kernel(5.8125).unwrap(), 0x4011e21e484a69c4, 0x4011e21e484a69c4);
         assert_recorded_bits("GAMMALN(2.0 + 9.0 / 11.0)", gammaln_kernel(2.0 + 9.0 / 11.0).unwrap(), 0x3fe1069a7a544ca4, 0x3fe1069a7a544ca3);
-        assert_recorded_bits("GAMMALN(3.0 + 10.0 / 11.0)", gammaln_kernel(3.0 + 10.0 / 11.0).unwrap(), 0x3ffadc28e27d15b4, 0x3ffadc28e27d15b3);
-        assert_eq!(
-            gammaln_kernel(3.0 + 9.0 / 13.0).unwrap().to_bits(),
-            0x3ff6b4a5c4f4a9fe
-        );
+        assert_recorded_bits("GAMMALN(3.0 + 10.0 / 11.0)", gammaln_kernel(3.0 + 10.0 / 11.0).unwrap(), 0x3ffadc28e27d15b4, 0x3ffadc28e27d15b4);
+        assert_recorded_bits("GAMMALN(3.0 + 9.0 / 13.0)", gammaln_kernel(3.0 + 9.0 / 13.0).unwrap(), 0x3ff6b4a5c4f4a9fe, 0x3ff6b4a5c4f4a9fe);
         assert_recorded_bits("GAMMALN(4.0 + 9.0 / 13.0)", gammaln_kernel(4.0 + 9.0 / 13.0).unwrap(), 0x4005cd86f3998423, 0x4005cd86f3998422);
-        assert_eq!(
-            gammaln_kernel(3.0 + 11.0 / 17.0).unwrap().to_bits(),
-            0x3ff5de146efd5ef9
-        );
-        assert_eq!(
-            gammaln_kernel(3.0 + 5.0 / 9.0).unwrap().to_bits(),
-            0x3ff4344afd96d888
-        );
-        assert_recorded_bits("GAMMA(1.0 / 11.0)", gamma_kernel(1.0 / 11.0).unwrap(), 0x402503020775740e, 0x4025030207757410);
-        assert_recorded_bits("GAMMA(2.0 / 11.0 - 1.0)", gamma_kernel(2.0 / 11.0 - 1.0).unwrap(), 0xc018d2e886307c56, 0xc018d2e886307c52);
+        assert_recorded_bits("GAMMALN(3.0 + 11.0 / 17.0)", gammaln_kernel(3.0 + 11.0 / 17.0).unwrap(), 0x3ff5de146efd5ef9, 0x3ff5de146efd5ef9);
+        assert_recorded_bits("GAMMALN(3.0 + 5.0 / 9.0)", gammaln_kernel(3.0 + 5.0 / 9.0).unwrap(), 0x3ff4344afd96d888, 0x3ff4344afd96d888);
+        assert_recorded_bits("GAMMA(1.0 / 11.0)", gamma_kernel(1.0 / 11.0).unwrap(), 0x402503020775740e, 0x402503020775740d);
+        assert_recorded_bits("GAMMA(2.0 / 11.0 - 1.0)", gamma_kernel(2.0 / 11.0 - 1.0).unwrap(), 0xc018d2e886307c56, 0xc018d2e886307c56);
         assert_recorded_bits("GAMMA(10.0 / 11.0 - 1.0)", gamma_kernel(10.0 / 11.0 - 1.0).unwrap(), 0xc02759d36b08112c, 0xc02759d36b08112b);
-        assert_recorded_bits("GAMMA(2.0 / 17.0 - 1.0)", gamma_kernel(2.0 / 17.0 - 1.0).unwrap(), 0xc0223263939b0e07, 0xc0223263939b0e06);
-        assert_recorded_bits("GAMMA(16.0 / 17.0 - 1.0)", gamma_kernel(16.0 / 17.0 - 1.0).unwrap(), 0xc031a384fa1f7fe9, 0xc031a384fa1f7fea);
-        assert_recorded_bits("GAMMA(4.0 / 7.0 - 1.0)", gamma_kernel(4.0 / 7.0 - 1.0).unwrap(), 0xc00d17f07153aa1f, 0xc00d17f07153aa1a);
-        assert_recorded_bits("GAMMA(3.0 / 7.0 - 1.0)", gamma_kernel(3.0 / 7.0 - 1.0).unwrap(), 0xc00cf1f647776ae2, 0xc00cf1f647776adf);
-        assert_eq!(
-            gamma_kernel(5.0 / 7.0 - 1.0).unwrap().to_bits(),
-            0xc011dd28623c84b3
-        );
-        assert_recorded_bits("GAMMA(0.3125 - 1.0)", gamma_kernel(0.3125 - 1.0).unwrap(), 0xc010ace9d2fd5a80, 0xc010ace9d2fd5a7d);
+        assert_recorded_bits("GAMMA(2.0 / 17.0 - 1.0)", gamma_kernel(2.0 / 17.0 - 1.0).unwrap(), 0xc0223263939b0e07, 0xc0223263939b0e08);
+        assert_recorded_bits("GAMMA(16.0 / 17.0 - 1.0)", gamma_kernel(16.0 / 17.0 - 1.0).unwrap(), 0xc031a384fa1f7fe9, 0xc031a384fa1f7fe8);
+        assert_recorded_bits("GAMMA(4.0 / 7.0 - 1.0)", gamma_kernel(4.0 / 7.0 - 1.0).unwrap(), 0xc00d17f07153aa1f, 0xc00d17f07153aa20);
+        assert_recorded_bits("GAMMA(3.0 / 7.0 - 1.0)", gamma_kernel(3.0 / 7.0 - 1.0).unwrap(), 0xc00cf1f647776ae2, 0xc00cf1f647776ae2);
+        assert_recorded_bits("GAMMA(5.0 / 7.0 - 1.0)", gamma_kernel(5.0 / 7.0 - 1.0).unwrap(), 0xc011dd28623c84b4, 0xc011dd28623c84b4);
+        assert_recorded_bits("GAMMA(0.3125 - 1.0)", gamma_kernel(0.3125 - 1.0).unwrap(), 0xc010ace9d2fd5a80, 0xc010ace9d2fd5a81);
         assert_recorded_bits("GAMMA(0.8125 - 1.0)", gamma_kernel(0.8125 - 1.0).unwrap(), 0xc0188b2142750366, 0xc0188b2142750367);
-        assert_recorded_bits("GAMMA(5.0 / 9.0 - 1.0)", gamma_kernel(5.0 / 9.0 - 1.0).unwrap(), 0xc00cd0199151d380, 0xc00cd0199151d37b);
-        assert_recorded_bits("GAMMA(1.0 / 12.0 - 1.0)", gamma_kernel(1.0 / 12.0 - 1.0).unwrap(), 0xc02916f40e4cd8ec, 0xc02916f40e4cd8e4);
-        assert_recorded_bits("GAMMA(7.0 / 12.0 - 1.0)", gamma_kernel(7.0 / 12.0 - 1.0).unwrap(), 0xc00d59e9547e6784, 0xc00d59e9547e677d);
-        assert_recorded_bits("GAMMA(3.0 / 7.0 - 2.0)", gamma_kernel(3.0 / 7.0 - 2.0).unwrap(), 0x40026b6e2d7a89d6, 0x40026b6e2d7a89d2);
-        assert_recorded_bits("GAMMA(0.3125 - 2.0)", gamma_kernel(0.3125 - 2.0).unwrap(), 0x4003c373f094912f, 0x4003c373f094912d);
-        assert_recorded_bits("GAMMA(0.8125 - 2.0)", gamma_kernel(0.8125 - 2.0).unwrap(), 0x4014ab0e88ce53b4, 0x4014ab0e88ce53b6);
-        assert_recorded_bits("GAMMA(5.0 / 9.0 - 2.0)", gamma_kernel(5.0 / 9.0 - 2.0).unwrap(), 0x4003f287dac27ebb, 0x4003f287dac27ebd);
-        assert_recorded_bits("GAMMA(7.0 / 12.0 - 2.0)", gamma_kernel(7.0 / 12.0 - 2.0).unwrap(), 0x4004b7efff684912, 0x4004b7efff684905);
-        assert_recorded_bits("GAMMA(3.0 / 7.0 - 3.0)", gamma_kernel(3.0 / 7.0 - 3.0).unwrap(), 0xbfeca71d2a4cd669, 0xbfeca71d2a4cd660);
-        assert_recorded_bits("GAMMA(0.8125 - 3.0)", gamma_kernel(0.8125 - 3.0).unwrap(), 0xc002e589a1a6b2ee, 0xc002e589a1a6b2f1);
-        assert_recorded_bits("GAMMA(5.0 / 9.0 - 3.0)", gamma_kernel(5.0 / 9.0 - 3.0).unwrap(), 0xbff0521210137ef6, 0xbff0521210137ef2);
-        assert_recorded_bits("GAMMA(3.0 / 7.0 - 4.0)", gamma_kernel(3.0 / 7.0 - 4.0).unwrap(), 0x3fd00ba9eeba6397, 0x3fd00ba9eeba6395);
-        assert_recorded_bits("GAMMA(0.8125 - 4.0)", gamma_kernel(0.8125 - 4.0).unwrap(), 0x3fe7b6a2acbd1cc6, 0x3fe7b6a2acbd1ccf);
-        assert_recorded_bits("GAMMA(4.0 / 17.0 - 1.0)", gamma_kernel(4.0 / 17.0 - 1.0).unwrap(), 0xc014385d00d157bc, 0xc014385d00d157bf);
-        assert_recorded_bits("GAMMA(8.0 / 17.0 - 1.0)", gamma_kernel(8.0 / 17.0 - 1.0).unwrap(), 0xc00c705568bcba1a, 0xc00c705568bcba1c);
-        assert_recorded_bits("GAMMA(15.0 / 17.0 - 1.0)", gamma_kernel(15.0 / 17.0 - 1.0).unwrap(), 0xc0226a7819660d8a, 0xc0226a7819660d8b);
-        assert_recorded_bits("GAMMA(1.0 / 11.0 - 1.0)", gamma_kernel(1.0 / 11.0 - 1.0).unwrap(), 0xc0271ce8a1cdffa6, 0xc0271ce8a1cdffa2);
-        assert_eq!(
-            gamma_kernel(4.0 / 11.0 - 1.0).unwrap().to_bits(),
-            0xc00ec37c94034c8b
-        );
-        assert_recorded_bits("GAMMA(3.0 / 13.0 - 1.0)", gamma_kernel(3.0 / 13.0 - 1.0).unwrap(), 0xc01484b4654e4e7d, 0xc01484b4654e4e81);
-        assert_recorded_bits("GAMMA(12.0 / 13.0 - 1.0)", gamma_kernel(12.0 / 13.0 - 1.0).unwrap(), 0xc02b517c3426d534, 0xc02b517c3426d536);
-        assert_recorded_bits("GAMMA(0.2 - 1.0)", gamma_kernel(0.2 - 1.0).unwrap(), 0xc016f447aae4691a, 0xc016f447aae46918);
-        assert_recorded_bits("GAMMA(1.0 / 9.0 - 1.0)", gamma_kernel(1.0 / 9.0 - 1.0).unwrap(), 0xc0232d118093e5ec, 0xc0232d118093e5e8);
-        assert_recorded_bits("GAMMA(0.1 - 1.0)", gamma_kernel(0.1 - 1.0).unwrap(), 0xc0252420fa9e47ee, 0xc0252420fa9e47e7);
-        assert_recorded_bits("GAMMA(0.1875 - 1.0)", gamma_kernel(0.1875 - 1.0).unwrap(), 0xc018328e296d19c4, 0xc018328e296d19b9);
-        assert_recorded_bits("GAMMA(0.2 - 2.0)", gamma_kernel(0.2 - 2.0).unwrap(), 0x400981332fa874c7, 0x400981332fa874ba);
-        assert_recorded_bits("GAMMA(0.4 - 2.0)", gamma_kernel(0.4 - 2.0).unwrap(), 0x40027c12dd913f0b, 0x40027c12dd913eff);
-        assert_recorded_bits("GAMMA(0.8 - 2.0)", gamma_kernel(0.8 - 2.0).unwrap(), 0x401367614f035c42, 0x401367614f035c35);
-        assert_recorded_bits("GAMMA(1.0 / 9.0 - 2.0)", gamma_kernel(1.0 / 9.0 - 2.0).unwrap(), 0x40144dd64be7e463, 0x40144dd64be7e45b);
-        assert_recorded_bits("GAMMA(0.4 - 3.0)", gamma_kernel(0.4 - 3.0).unwrap(), 0xbfec701d061a885f, 0xbfec701d061a8852);
-        assert_recorded_bits("GAMMA(0.6 - 3.0)", gamma_kernel(0.6 - 3.0).unwrap(), 0xbff1ba7d9c17f309, 0xbff1ba7d9c17f2ff);
-        assert_recorded_bits("GAMMA(0.6 - 4.0)", gamma_kernel(0.6 - 4.0).unwrap(), 0x3fd4db6699859665, 0x3fd4db6699859667);
-        assert_recorded_bits("GAMMA(4.0 / 17.0 - 2.0)", gamma_kernel(4.0 / 17.0 - 2.0).unwrap(), 0x4006ea8b8975c9d5, 0x4006ea8b8975c9d4);
-        assert_recorded_bits("GAMMA(8.0 / 17.0 - 2.0)", gamma_kernel(8.0 / 17.0 - 2.0).unwrap(), 0x40029837d82ca111, 0x40029837d82ca104);
-        assert_recorded_bits("GAMMA(9.0 / 17.0 - 2.0)", gamma_kernel(9.0 / 17.0 - 2.0).unwrap(), 0x4003613ad22c67dd, 0x4003613ad22c67d2);
-        assert_recorded_bits("GAMMA(4.0 / 11.0 - 2.0)", gamma_kernel(4.0 / 11.0 - 2.0).unwrap(), 0x4002cccc21903d00, 0x4002cccc21903cfd);
-        assert_recorded_bits("GAMMA(12.0 / 13.0 - 2.0)", gamma_kernel(12.0 / 13.0 - 2.0).unwrap(), 0x40295df354ff7cd5, 0x40295df354ff7cd8);
-        assert_recorded_bits("GAMMA(4.0 / 11.0 - 3.0)", gamma_kernel(4.0 / 11.0 - 3.0).unwrap(), 0xbfec862ce379bda8, 0xbfec862ce379bdb2);
-        assert_recorded_bits("GAMMA(4.0 / 5.0 - 3.0)", gamma_kernel(4.0 / 5.0 - 3.0).unwrap(), 0xc001a3ccd3776b1f, 0xc001a3ccd3776b1d);
-        assert_recorded_bits("GAMMA(7.0 / 10.0 - 3.0)", gamma_kernel(7.0 / 10.0 - 3.0).unwrap(), 0xbff7275a1542102b, 0xbff7275a15421022);
-        assert_recorded_bits("GAMMA(13.0 / 17.0 - 3.0)", gamma_kernel(13.0 / 17.0 - 3.0).unwrap(), 0xbffdb533a6598980, 0xbffdb533a659896e);
-        assert_recorded_bits("GAMMA(4.0 / 7.0 - 2.0)", gamma_kernel(4.0 / 7.0 - 2.0).unwrap(), 0x40045d8eb5ba90af, 0x40045d8eb5ba90ab);
-        assert_recorded_bits("GAMMA(5.0 / 7.0 - 2.0)", gamma_kernel(5.0 / 7.0 - 2.0).unwrap(), 0x400bc9cd0a970753, 0x400bc9cd0a97074c);
-        assert_recorded_bits("GAMMA(4.0 / 7.0 - 3.0)", gamma_kernel(4.0 / 7.0 - 3.0).unwrap(), 0xbff0c58495a8b362, 0xbff0c58495a8b363);
-        assert_recorded_bits("GAMMA(13.0 / 17.0 - 4.0)", gamma_kernel(13.0 / 17.0 - 4.0).unwrap(), 0x3fe25d65bf455058, 0x3fe25d65bf45505c);
-        assert_recorded_bits("GAMMA(3.0 / 7.0 - 5.0)", gamma_kernel(3.0 / 7.0 - 5.0).unwrap(), 0xbfac146961c62e4a, 0xbfac146961c62e43);
-        assert_recorded_bits("GAMMA(4.0 / 11.0 - 5.0)", gamma_kernel(4.0 / 11.0 - 5.0).unwrap(), 0xbfab11e8576075be, 0xbfab11e8576075b3);
-        assert_recorded_bits("GAMMA(3.0 / 7.0 - 6.0)", gamma_kernel(3.0 / 7.0 - 6.0).unwrap(), 0x3f8428e9328127cc, 0x3f8428e9328127c1);
-        assert_recorded_bits("GAMMA(1.0 / 7.0 - 2.0)", gamma_kernel(1.0 / 7.0 - 2.0).unwrap(), 0x4010744059232347, 0x401074405923234c);
-        assert_recorded_bits("GAMMA(2.0 / 7.0 - 2.0)", gamma_kernel(2.0 / 7.0 - 2.0).unwrap(), 0x4004930000532bf6, 0x4004930000532bfa);
-        assert_recorded_bits("GAMMA(3.0 / 10.0 - 2.0)", gamma_kernel(3.0 / 10.0 - 2.0).unwrap(), 0x40041c83ef183e01, 0x40041c83ef183df9);
-        assert_recorded_bits("GAMMA(1.0 / 16.0 - 2.0)", gamma_kernel(1.0 / 16.0 - 2.0).unwrap(), 0x40210bca4ee7e960, 0x40210bca4ee7e94c);
-        assert_recorded_bits("GAMMA(1.0 / 8.0 - 2.0)", gamma_kernel(1.0 / 8.0 - 2.0).unwrap(), 0x40125e53dcbb44f5, 0x40125e53dcbb44ed);
-        assert_recorded_bits("GAMMA(5.0 / 8.0 - 2.0)", gamma_kernel(5.0 / 8.0 - 2.0).unwrap(), 0x400641bc27e1a91f, 0x400641bc27e1a919);
-        assert_recorded_bits("GAMMA(7.0 / 8.0 - 2.0)", gamma_kernel(7.0 / 8.0 - 2.0).unwrap(), 0x401efe9b37e78e60, 0x401efe9b37e78e5a);
-        assert_recorded_bits("GAMMA(1.0 / 4.0 - 2.0)", gamma_kernel(1.0 / 4.0 - 2.0).unwrap(), 0x4006195527ff2ff0, 0x4006195527ff2fe5);
-        assert_recorded_bits("GAMMA(4.0 / 7.0 - 4.0)", gamma_kernel(4.0 / 7.0 - 4.0).unwrap(), 0x3fd3911aae9a269d, 0x3fd3911aae9a2699);
-        assert_recorded_bits("GAMMA(13.0 / 17.0 - 5.0)", gamma_kernel(13.0 / 17.0 - 5.0).unwrap(), 0xbfc158356d8892fe, 0xbfc158356d8892f8);
-        assert_recorded_bits("GAMMA(3.0 / 5.0 - 5.0)", gamma_kernel(3.0 / 5.0 - 5.0).unwrap(), 0xbfb2f6002e79716d, 0xbfb2f6002e797165);
-        assert_recorded_bits("GAMMA(3.0 / 7.0 - 7.0)", gamma_kernel(3.0 / 7.0 - 7.0).unwrap(), 0xbf588ad91c17aae2, 0xbf588ad91c17aac9);
-        assert_recorded_bits("GAMMA(9.0 / 16.0 - 2.0)", gamma_kernel(9.0 / 16.0 - 2.0).unwrap(), 0x40041f85b0607201, 0x40041f85b06071f2);
-        assert_recorded_bits("GAMMA(7.0 / 16.0 - 2.0)", gamma_kernel(7.0 / 16.0 - 2.0).unwrap(), 0x40026e268c11c261, 0x40026e268c11c25b);
-        assert_recorded_bits("GAMMA(3.0 / 10.0 - 3.0)", gamma_kernel(3.0 / 10.0 - 3.0).unwrap(), 0xbfedcb6e1fd81004, 0xbfedcb6e1fd80fec);
-        assert_eq!(
-            gamma_kernel(5.0 / 8.0 - 3.0).unwrap().to_bits(),
-            0xbff2be17b5cb80f2
-        );
+        assert_recorded_bits("GAMMA(5.0 / 9.0 - 1.0)", gamma_kernel(5.0 / 9.0 - 1.0).unwrap(), 0xc00cd0199151d380, 0xc00cd0199151d382);
+        assert_recorded_bits("GAMMA(1.0 / 12.0 - 1.0)", gamma_kernel(1.0 / 12.0 - 1.0).unwrap(), 0xc02916f40e4cd8ec, 0xc02916f40e4cd8ec);
+        assert_recorded_bits("GAMMA(7.0 / 12.0 - 1.0)", gamma_kernel(7.0 / 12.0 - 1.0).unwrap(), 0xc00d59e9547e6784, 0xc00d59e9547e6785);
+        assert_recorded_bits("GAMMA(3.0 / 7.0 - 2.0)", gamma_kernel(3.0 / 7.0 - 2.0).unwrap(), 0x40026b6e2d7a89d6, 0x40026b6e2d7a89d6);
+        assert_recorded_bits("GAMMA(0.3125 - 2.0)", gamma_kernel(0.3125 - 2.0).unwrap(), 0x4003c373f094912f, 0x4003c373f0949131);
+        assert_recorded_bits("GAMMA(0.8125 - 2.0)", gamma_kernel(0.8125 - 2.0).unwrap(), 0x4014ab0e88ce53b4, 0x4014ab0e88ce53b5);
+        assert_recorded_bits("GAMMA(5.0 / 9.0 - 2.0)", gamma_kernel(5.0 / 9.0 - 2.0).unwrap(), 0x4003f287dac27ebb, 0x4003f287dac27ebc);
+        assert_recorded_bits("GAMMA(7.0 / 12.0 - 2.0)", gamma_kernel(7.0 / 12.0 - 2.0).unwrap(), 0x4004b7efff684912, 0x4004b7efff684913);
+        assert_recorded_bits("GAMMA(3.0 / 7.0 - 3.0)", gamma_kernel(3.0 / 7.0 - 3.0).unwrap(), 0xbfeca71d2a4cd669, 0xbfeca71d2a4cd668);
+        assert_recorded_bits("GAMMA(0.8125 - 3.0)", gamma_kernel(0.8125 - 3.0).unwrap(), 0xc002e589a1a6b2ee, 0xc002e589a1a6b2ef);
+        assert_recorded_bits("GAMMA(5.0 / 9.0 - 3.0)", gamma_kernel(5.0 / 9.0 - 3.0).unwrap(), 0xbff0521210137ef6, 0xbff0521210137ef5);
+        assert_recorded_bits("GAMMA(3.0 / 7.0 - 4.0)", gamma_kernel(3.0 / 7.0 - 4.0).unwrap(), 0x3fd00ba9eeba6397, 0x3fd00ba9eeba6396);
+        assert_recorded_bits("GAMMA(0.8125 - 4.0)", gamma_kernel(0.8125 - 4.0).unwrap(), 0x3fe7b6a2acbd1cc6, 0x3fe7b6a2acbd1cc7);
+        assert_recorded_bits("GAMMA(4.0 / 17.0 - 1.0)", gamma_kernel(4.0 / 17.0 - 1.0).unwrap(), 0xc014385d00d157bc, 0xc014385d00d157bc);
+        assert_recorded_bits("GAMMA(8.0 / 17.0 - 1.0)", gamma_kernel(8.0 / 17.0 - 1.0).unwrap(), 0xc00c705568bcba1a, 0xc00c705568bcba17);
+        assert_recorded_bits("GAMMA(15.0 / 17.0 - 1.0)", gamma_kernel(15.0 / 17.0 - 1.0).unwrap(), 0xc0226a7819660d8a, 0xc0226a7819660d8a);
+        assert_recorded_bits("GAMMA(1.0 / 11.0 - 1.0)", gamma_kernel(1.0 / 11.0 - 1.0).unwrap(), 0xc0271ce8a1cdffa6, 0xc0271ce8a1cdffa6);
+        assert_recorded_bits("GAMMA(4.0 / 11.0 - 1.0)", gamma_kernel(4.0 / 11.0 - 1.0).unwrap(), 0xc00ec37c94034c8a, 0xc00ec37c94034c8a);
+        assert_recorded_bits("GAMMA(3.0 / 13.0 - 1.0)", gamma_kernel(3.0 / 13.0 - 1.0).unwrap(), 0xc01484b4654e4e7d, 0xc01484b4654e4e7d);
+        assert_recorded_bits("GAMMA(12.0 / 13.0 - 1.0)", gamma_kernel(12.0 / 13.0 - 1.0).unwrap(), 0xc02b517c3426d534, 0xc02b517c3426d534);
+        assert_recorded_bits("GAMMA(0.2 - 1.0)", gamma_kernel(0.2 - 1.0).unwrap(), 0xc016f447aae4691a, 0xc016f447aae46919);
+        assert_recorded_bits("GAMMA(1.0 / 9.0 - 1.0)", gamma_kernel(1.0 / 9.0 - 1.0).unwrap(), 0xc0232d118093e5ec, 0xc0232d118093e5ed);
+        assert_recorded_bits("GAMMA(0.1 - 1.0)", gamma_kernel(0.1 - 1.0).unwrap(), 0xc0252420fa9e47ee, 0xc0252420fa9e47ed);
+        assert_recorded_bits("GAMMA(0.1875 - 1.0)", gamma_kernel(0.1875 - 1.0).unwrap(), 0xc018328e296d19c4, 0xc018328e296d19c4);
+        assert_recorded_bits("GAMMA(0.2 - 2.0)", gamma_kernel(0.2 - 2.0).unwrap(), 0x400981332fa874c7, 0x400981332fa874c6);
+        assert_recorded_bits("GAMMA(0.4 - 2.0)", gamma_kernel(0.4 - 2.0).unwrap(), 0x40027c12dd913f0b, 0x40027c12dd913f0c);
+        assert_recorded_bits("GAMMA(0.8 - 2.0)", gamma_kernel(0.8 - 2.0).unwrap(), 0x401367614f035c42, 0x401367614f035c40);
+        assert_recorded_bits("GAMMA(1.0 / 9.0 - 2.0)", gamma_kernel(1.0 / 9.0 - 2.0).unwrap(), 0x40144dd64be7e463, 0x40144dd64be7e464);
+        assert_recorded_bits("GAMMA(0.4 - 3.0)", gamma_kernel(0.4 - 3.0).unwrap(), 0xbfec701d061a885f, 0xbfec701d061a8861);
+        assert_recorded_bits("GAMMA(0.6 - 3.0)", gamma_kernel(0.6 - 3.0).unwrap(), 0xbff1ba7d9c17f309, 0xbff1ba7d9c17f309);
+        assert_recorded_bits("GAMMA(0.6 - 4.0)", gamma_kernel(0.6 - 4.0).unwrap(), 0x3fd4db6699859665, 0x3fd4db6699859665);
+        assert_recorded_bits("GAMMA(4.0 / 17.0 - 2.0)", gamma_kernel(4.0 / 17.0 - 2.0).unwrap(), 0x4006ea8b8975c9d5, 0x4006ea8b8975c9d5);
+        assert_recorded_bits("GAMMA(8.0 / 17.0 - 2.0)", gamma_kernel(8.0 / 17.0 - 2.0).unwrap(), 0x40029837d82ca111, 0x40029837d82ca10f);
+        assert_recorded_bits("GAMMA(9.0 / 17.0 - 2.0)", gamma_kernel(9.0 / 17.0 - 2.0).unwrap(), 0x4003613ad22c67dd, 0x4003613ad22c67de);
+        assert_recorded_bits("GAMMA(4.0 / 11.0 - 2.0)", gamma_kernel(4.0 / 11.0 - 2.0).unwrap(), 0x4002cccc21903d00, 0x4002cccc21903cff);
+        assert_recorded_bits("GAMMA(12.0 / 13.0 - 2.0)", gamma_kernel(12.0 / 13.0 - 2.0).unwrap(), 0x40295df354ff7cd5, 0x40295df354ff7cd5);
+        assert_recorded_bits("GAMMA(4.0 / 11.0 - 3.0)", gamma_kernel(4.0 / 11.0 - 3.0).unwrap(), 0xbfec862ce379bda8, 0xbfec862ce379bda6);
+        assert_recorded_bits("GAMMA(4.0 / 5.0 - 3.0)", gamma_kernel(4.0 / 5.0 - 3.0).unwrap(), 0xc001a3ccd3776b1f, 0xc001a3ccd3776b1e);
+        assert_recorded_bits("GAMMA(7.0 / 10.0 - 3.0)", gamma_kernel(7.0 / 10.0 - 3.0).unwrap(), 0xbff7275a1542102b, 0xbff7275a1542102b);
+        assert_recorded_bits("GAMMA(13.0 / 17.0 - 3.0)", gamma_kernel(13.0 / 17.0 - 3.0).unwrap(), 0xbffdb533a6598980, 0xbffdb533a659897f);
+        assert_recorded_bits("GAMMA(4.0 / 7.0 - 2.0)", gamma_kernel(4.0 / 7.0 - 2.0).unwrap(), 0x40045d8eb5ba90af, 0x40045d8eb5ba90b0);
+        assert_recorded_bits("GAMMA(5.0 / 7.0 - 2.0)", gamma_kernel(5.0 / 7.0 - 2.0).unwrap(), 0x400bc9cd0a970753, 0x400bc9cd0a970753);
+        assert_recorded_bits("GAMMA(4.0 / 7.0 - 3.0)", gamma_kernel(4.0 / 7.0 - 3.0).unwrap(), 0xbff0c58495a8b362, 0xbff0c58495a8b362);
+        assert_recorded_bits("GAMMA(13.0 / 17.0 - 4.0)", gamma_kernel(13.0 / 17.0 - 4.0).unwrap(), 0x3fe25d65bf455058, 0x3fe25d65bf455058);
+        assert_recorded_bits("GAMMA(3.0 / 7.0 - 5.0)", gamma_kernel(3.0 / 7.0 - 5.0).unwrap(), 0xbfac146961c62e4a, 0xbfac146961c62e4a);
+        assert_recorded_bits("GAMMA(4.0 / 11.0 - 5.0)", gamma_kernel(4.0 / 11.0 - 5.0).unwrap(), 0xbfab11e8576075be, 0xbfab11e8576075bd);
+        assert_recorded_bits("GAMMA(3.0 / 7.0 - 6.0)", gamma_kernel(3.0 / 7.0 - 6.0).unwrap(), 0x3f8428e9328127cc, 0x3f8428e9328127cc);
+        assert_recorded_bits("GAMMA(1.0 / 7.0 - 2.0)", gamma_kernel(1.0 / 7.0 - 2.0).unwrap(), 0x4010744059232347, 0x4010744059232346);
+        assert_recorded_bits("GAMMA(2.0 / 7.0 - 2.0)", gamma_kernel(2.0 / 7.0 - 2.0).unwrap(), 0x4004930000532bf6, 0x4004930000532bf6);
+        assert_recorded_bits("GAMMA(3.0 / 10.0 - 2.0)", gamma_kernel(3.0 / 10.0 - 2.0).unwrap(), 0x40041c83ef183e01, 0x40041c83ef183e01);
+        assert_recorded_bits("GAMMA(1.0 / 16.0 - 2.0)", gamma_kernel(1.0 / 16.0 - 2.0).unwrap(), 0x40210bca4ee7e960, 0x40210bca4ee7e960);
+        assert_recorded_bits("GAMMA(1.0 / 8.0 - 2.0)", gamma_kernel(1.0 / 8.0 - 2.0).unwrap(), 0x40125e53dcbb44f5, 0x40125e53dcbb44f4);
+        assert_recorded_bits("GAMMA(5.0 / 8.0 - 2.0)", gamma_kernel(5.0 / 8.0 - 2.0).unwrap(), 0x400641bc27e1a91f, 0x400641bc27e1a920);
+        assert_recorded_bits("GAMMA(7.0 / 8.0 - 2.0)", gamma_kernel(7.0 / 8.0 - 2.0).unwrap(), 0x401efe9b37e78e60, 0x401efe9b37e78e5e);
+        assert_recorded_bits("GAMMA(1.0 / 4.0 - 2.0)", gamma_kernel(1.0 / 4.0 - 2.0).unwrap(), 0x4006195527ff2ff0, 0x4006195527ff2fef);
+        assert_recorded_bits("GAMMA(4.0 / 7.0 - 4.0)", gamma_kernel(4.0 / 7.0 - 4.0).unwrap(), 0x3fd3911aae9a269d, 0x3fd3911aae9a269d);
+        assert_recorded_bits("GAMMA(13.0 / 17.0 - 5.0)", gamma_kernel(13.0 / 17.0 - 5.0).unwrap(), 0xbfc158356d8892fe, 0xbfc158356d8892fd);
+        assert_recorded_bits("GAMMA(3.0 / 5.0 - 5.0)", gamma_kernel(3.0 / 5.0 - 5.0).unwrap(), 0xbfb2f6002e79716d, 0xbfb2f6002e79716d);
+        assert_recorded_bits("GAMMA(3.0 / 7.0 - 7.0)", gamma_kernel(3.0 / 7.0 - 7.0).unwrap(), 0xbf588ad91c17aae2, 0xbf588ad91c17aae3);
+        assert_recorded_bits("GAMMA(9.0 / 16.0 - 2.0)", gamma_kernel(9.0 / 16.0 - 2.0).unwrap(), 0x40041f85b0607201, 0x40041f85b0607200);
+        assert_recorded_bits("GAMMA(7.0 / 16.0 - 2.0)", gamma_kernel(7.0 / 16.0 - 2.0).unwrap(), 0x40026e268c11c261, 0x40026e268c11c261);
+        assert_recorded_bits("GAMMA(3.0 / 10.0 - 3.0)", gamma_kernel(3.0 / 10.0 - 3.0).unwrap(), 0xbfedcb6e1fd81004, 0xbfedcb6e1fd81003);
+        assert_recorded_bits("GAMMA(5.0 / 8.0 - 3.0)", gamma_kernel(5.0 / 8.0 - 3.0).unwrap(), 0xbff2be17b5cb80f2, 0xbff2be17b5cb80f2);
         assert_recorded_bits("GAMMA(3.0 / 10.0 - 4.0)", gamma_kernel(3.0 / 10.0 - 4.0).unwrap(), 0x3fd01aef6b28aeb6, 0x3fd01aef6b28aeb5);
-        assert_recorded_bits("GAMMA(3.0 / 5.0 - 6.0)", gamma_kernel(3.0 / 5.0 - 6.0).unwrap(), 0x3f8c171cb6a0f3e3, 0x3f8c171cb6a0f3d8);
+        assert_recorded_bits("GAMMA(3.0 / 5.0 - 6.0)", gamma_kernel(3.0 / 5.0 - 6.0).unwrap(), 0x3f8c171cb6a0f3e3, 0x3f8c171cb6a0f3e3);
         assert_recorded_bits("GAMMA(9.0 / 16.0 - 3.0)", gamma_kernel(9.0 / 16.0 - 3.0).unwrap(), 0xbff082e3d8ecac50, 0xbff082e3d8ecac4f);
-        assert_recorded_bits("GAMMA(9.0 / 16.0 - 4.0)", gamma_kernel(9.0 / 16.0 - 4.0).unwrap(), 0x3fd336901d00c882, 0x3fd336901d00c87f);
-        assert_recorded_bits("GAMMA(5.0 / 8.0 - 5.0)", gamma_kernel(5.0 / 8.0 - 5.0).unwrap(), 0xbfb44f33f8314ec5, 0xbfb44f33f8314ec1);
-        assert_recorded_bits("GAMMA(3.0 / 5.0 - 7.0)", gamma_kernel(3.0 / 5.0 - 7.0).unwrap(), 0xbf618e71f224986e, 0xbf618e71f2249858);
-        assert_recorded_bits("GAMMA(1.0 / 4.0 - 4.0)", gamma_kernel(1.0 / 4.0 - 4.0).unwrap(), 0x3fd124b7f9ca9e35, 0x3fd124b7f9ca9e2a);
-        assert_recorded_bits("GAMMA(1.0 / 16.0 - 5.0)", gamma_kernel(1.0 / 16.0 - 5.0).unwrap(), 0xbfc31a54d7fe74d3, 0xbfc31a54d7fe74da);
-        assert_recorded_bits("GAMMA(5.0 / 8.0 - 6.0)", gamma_kernel(5.0 / 8.0 - 6.0).unwrap(), 0x3f8e3a5941c66955, 0x3f8e3a5941c66956);
-        assert_recorded_bits("GAMMA(1.0 / 16.0 - 6.0)", gamma_kernel(1.0 / 16.0 - 6.0).unwrap(), 0x3f99bd13fffdeb8d, 0x3f99bd13fffdeb7a);
-        assert_recorded_bits("GAMMA(3.0 / 5.0 - 8.0)", gamma_kernel(3.0 / 5.0 - 8.0).unwrap(), 0x3f32fadc0cb1f0e5, 0x3f32fadc0cb1f0d7);
-        assert_eq!(
-            gamma_kernel(1.0 / 4.0 - 1.0).unwrap().to_bits(),
-            0xc013562a82ff49f2
-        );
-        assert_recorded_bits("GAMMA(6.0 / 7.0 - 1.0)", gamma_kernel(6.0 / 7.0 - 1.0).unwrap(), 0xc01ef6236c822d27, 0xc01ef6236c822d22);
-        assert_recorded_bits("GAMMA(1.0 / 7.0 - 1.0)", gamma_kernel(1.0 / 7.0 - 1.0).unwrap(), 0xc01e8ec0a58a6616, 0xc01e8ec0a58a6612);
-        assert_recorded_bits("GAMMA(1.0 / 17.0 - 1.0)", gamma_kernel(1.0 / 17.0 - 1.0).unwrap(), 0xc0318204fc0456a0, 0xc0318204fc04569e);
-        assert_recorded_bits("GAMMA(6.0 / 17.0 - 1.0)", gamma_kernel(6.0 / 17.0 - 1.0).unwrap(), 0xc00f34fd6869612f, 0xc00f34fd68696128);
-        assert_recorded_bits("GAMMA(14.0 / 17.0 - 1.0)", gamma_kernel(14.0 / 17.0 - 1.0).unwrap(), 0xc019d01d2ce313ac, 0xc019d01d2ce313ad);
-        assert_recorded_bits("GAMMA(1.0 / 17.0 - 2.0)", gamma_kernel(1.0 / 17.0 - 2.0).unwrap(), 0x402209d6970c3a38, 0x402209d6970c3a21);
-        assert_eq!(
-            gamma_kernel(1.0 / 3.0 - 1.0).unwrap().to_bits(),
-            0xc01012d97eaf6235
-        );
-        assert_recorded_bits("GAMMA(2.0 / 3.0 - 1.0)", gamma_kernel(2.0 / 3.0 - 1.0).unwrap(), 0xc0103fd9ade928db, 0xc0103fd9ade928d8);
-        assert_recorded_bits("GAMMA(5.0 + 7.0 / 13.0)", gamma_kernel(5.0 + 7.0 / 13.0).unwrap(), 0x404bd9370fcb65c6, 0x404bd9370fcb65d2);
-        assert_recorded_bits("GAMMA(6.0 + 7.0 / 13.0)", gamma_kernel(6.0 + 7.0 / 13.0).unwrap(), 0x4073479c4602f7b1, 0x4073479c4602f7ca);
-        assert_recorded_bits("GAMMA(4.0 + 9.0 / 17.0)", gamma_kernel(4.0 + 9.0 / 17.0).unwrap(), 0x40283c6c383a1e14, 0x40283c6c383a1e1a);
-        assert_recorded_bits("GAMMA(4.0 + 12.0 / 17.0)", gamma_kernel(4.0 + 12.0 / 17.0).unwrap(), 0x402f2001077bf3ab, 0x402f2001077bf3a6);
-        assert_recorded_bits("GAMMA(2.0 / 13.0 - 2.0)", gamma_kernel(2.0 / 13.0 - 2.0).unwrap(), 0x400f0457b7c6bb2d, 0x400f0457b7c6bb24);
+        assert_recorded_bits("GAMMA(9.0 / 16.0 - 4.0)", gamma_kernel(9.0 / 16.0 - 4.0).unwrap(), 0x3fd336901d00c882, 0x3fd336901d00c881);
+        assert_recorded_bits("GAMMA(5.0 / 8.0 - 5.0)", gamma_kernel(5.0 / 8.0 - 5.0).unwrap(), 0xbfb44f33f8314ec5, 0xbfb44f33f8314ec6);
+        assert_recorded_bits("GAMMA(3.0 / 5.0 - 7.0)", gamma_kernel(3.0 / 5.0 - 7.0).unwrap(), 0xbf618e71f224986e, 0xbf618e71f224986e);
+        assert_recorded_bits("GAMMA(1.0 / 4.0 - 4.0)", gamma_kernel(1.0 / 4.0 - 4.0).unwrap(), 0x3fd124b7f9ca9e35, 0x3fd124b7f9ca9e34);
+        assert_recorded_bits("GAMMA(1.0 / 16.0 - 5.0)", gamma_kernel(1.0 / 16.0 - 5.0).unwrap(), 0xbfc31a54d7fe74d3, 0xbfc31a54d7fe74d3);
+        assert_recorded_bits("GAMMA(5.0 / 8.0 - 6.0)", gamma_kernel(5.0 / 8.0 - 6.0).unwrap(), 0x3f8e3a5941c66955, 0x3f8e3a5941c66957);
+        assert_recorded_bits("GAMMA(1.0 / 16.0 - 6.0)", gamma_kernel(1.0 / 16.0 - 6.0).unwrap(), 0x3f99bd13fffdeb8d, 0x3f99bd13fffdeb8e);
+        assert_recorded_bits("GAMMA(3.0 / 5.0 - 8.0)", gamma_kernel(3.0 / 5.0 - 8.0).unwrap(), 0x3f32fadc0cb1f0e5, 0x3f32fadc0cb1f0e5);
+        assert_recorded_bits("GAMMA(1.0 / 4.0 - 1.0)", gamma_kernel(1.0 / 4.0 - 1.0).unwrap(), 0xc013562a82ff49f1, 0xc013562a82ff49f1);
+        assert_recorded_bits("GAMMA(6.0 / 7.0 - 1.0)", gamma_kernel(6.0 / 7.0 - 1.0).unwrap(), 0xc01ef6236c822d27, 0xc01ef6236c822d28);
+        assert_recorded_bits("GAMMA(1.0 / 7.0 - 1.0)", gamma_kernel(1.0 / 7.0 - 1.0).unwrap(), 0xc01e8ec0a58a6616, 0xc01e8ec0a58a6615);
+        assert_recorded_bits("GAMMA(1.0 / 17.0 - 1.0)", gamma_kernel(1.0 / 17.0 - 1.0).unwrap(), 0xc0318204fc0456a0, 0xc0318204fc04569f);
+        assert_recorded_bits("GAMMA(6.0 / 17.0 - 1.0)", gamma_kernel(6.0 / 17.0 - 1.0).unwrap(), 0xc00f34fd6869612f, 0xc00f34fd6869612e);
+        assert_recorded_bits("GAMMA(14.0 / 17.0 - 1.0)", gamma_kernel(14.0 / 17.0 - 1.0).unwrap(), 0xc019d01d2ce313ac, 0xc019d01d2ce313ab);
+        assert_recorded_bits("GAMMA(1.0 / 17.0 - 2.0)", gamma_kernel(1.0 / 17.0 - 2.0).unwrap(), 0x402209d6970c3a38, 0x402209d6970c3a38);
+        assert_recorded_bits("GAMMA(1.0 / 3.0 - 1.0)", gamma_kernel(1.0 / 3.0 - 1.0).unwrap(), 0xc01012d97eaf6236, 0xc01012d97eaf6236);
+        assert_recorded_bits("GAMMA(2.0 / 3.0 - 1.0)", gamma_kernel(2.0 / 3.0 - 1.0).unwrap(), 0xc0103fd9ade928db, 0xc0103fd9ade928da);
+        assert_recorded_bits("GAMMA(5.0 + 7.0 / 13.0)", gamma_kernel(5.0 + 7.0 / 13.0).unwrap(), 0x404bd9370fcb65c6, 0x404bd9370fcb65c7);
+        assert_recorded_bits("GAMMA(6.0 + 7.0 / 13.0)", gamma_kernel(6.0 + 7.0 / 13.0).unwrap(), 0x4073479c4602f7b1, 0x4073479c4602f7b2);
+        assert_recorded_bits("GAMMA(4.0 + 9.0 / 17.0)", gamma_kernel(4.0 + 9.0 / 17.0).unwrap(), 0x40283c6c383a1e14, 0x40283c6c383a1e15);
+        assert_recorded_bits("GAMMA(4.0 + 12.0 / 17.0)", gamma_kernel(4.0 + 12.0 / 17.0).unwrap(), 0x402f2001077bf3ab, 0x402f2001077bf3aa);
+        assert_recorded_bits("GAMMA(2.0 / 13.0 - 2.0)", gamma_kernel(2.0 / 13.0 - 2.0).unwrap(), 0x400f0457b7c6bb2d, 0x400f0457b7c6bb2c);
         assert_recorded_bits("GAMMA(11.0 / 13.0 - 2.0)", gamma_kernel(11.0 / 13.0 - 2.0).unwrap(), 0x401926a4f4f886c3, 0x401926a4f4f886c1);
-        assert_recorded_bits("GAMMA(2.0 / 11.0 - 2.0)", gamma_kernel(2.0 / 11.0 - 2.0).unwrap(), 0x400b4e662d355592, 0x400b4e662d355588);
-        assert_eq!(
-            gamma_kernel(10.0 / 11.0 - 2.0).unwrap().to_bits(),
-            0x402567ac77720fc5
-        );
-        assert_recorded_bits("GAMMA(13.0 / 17.0 - 2.0)", gamma_kernel(13.0 / 17.0 - 2.0).unwrap(), 0x401099f737502731, 0x401099f737502726);
-        assert_recorded_bits("GAMMA(2.0 / 13.0 - 3.0)", gamma_kernel(2.0 / 13.0 - 3.0).unwrap(), 0xbff5cbb342dead0b, 0xbff5cbb342dead0e);
-        assert_recorded_bits("GAMMA(11.0 / 13.0 - 3.0)", gamma_kernel(11.0 / 13.0 - 3.0).unwrap(), 0xc0075abdbee6c648, 0xc0075abdbee6c642);
-        assert_recorded_bits("GAMMA(2.0 / 11.0 - 3.0)", gamma_kernel(2.0 / 11.0 - 3.0).unwrap(), 0xbff360edac786e4b, 0xbff360edac786e40);
-        assert_recorded_bits("GAMMA(10.0 / 11.0 - 3.0)", gamma_kernel(10.0 / 11.0 - 3.0).unwrap(), 0xc014796d50dc6821, 0xc014796d50dc6822);
-        assert_recorded_bits("GAMMA(2.0 / 13.0 - 4.0)", gamma_kernel(2.0 / 13.0 - 4.0).unwrap(), 0x3fd6aae36443be34, 0x3fd6aae36443be2c);
-        assert_recorded_bits("GAMMA(10.0 / 11.0 - 4.0)", gamma_kernel(10.0 / 11.0 - 4.0).unwrap(), 0x3ffa7f05f02c4a85, 0x3ffa7f05f02c4a89);
-        assert_recorded_bits("GAMMA(2.0 / 11.0 - 5.0)", gamma_kernel(2.0 / 11.0 - 5.0).unwrap(), 0xbfb0daa03f849286, 0xbfb0daa03f849284);
-        assert_recorded_bits("GAMMA(10.0 / 11.0 - 5.0)", gamma_kernel(10.0 / 11.0 - 5.0).unwrap(), 0xbfd9e84a12a87660, 0xbfd9e84a12a8766c);
-        assert_recorded_bits("GAMMA(6.0 / 11.0 - 6.0)", gamma_kernel(6.0 / 11.0 - 6.0).unwrap(), 0x3f887deb47c3ce38, 0x3f887deb47c3ce2a);
-        assert_recorded_bits("GAMMA(10.0 / 11.0 - 6.0)", gamma_kernel(10.0 / 11.0 - 6.0).unwrap(), 0x3fb45b15a0f213de, 0x3fb45b15a0f213db);
-        assert_recorded_bits("GAMMA(10.0 / 11.0 - 7.0)", gamma_kernel(10.0 / 11.0 - 7.0).unwrap(), 0xbf8abc68d3642961, 0xbf8abc68d364298c);
-        assert_recorded_bits("GAMMA(10.0 / 11.0 - 11.0)", gamma_kernel(10.0 / 11.0 - 11.0).unwrap(), 0xbec4ceb5db83f371, 0xbec4ceb5db83f39b);
-        assert_recorded_bits("GAMMA(1.0 + 2.0 / 11.0)", gamma_kernel(1.0 + 2.0 / 11.0).unwrap(), 0x3fed8addb6f81d80, 0x3fed8addb6f81d84);
-        assert_recorded_bits("GAMMA(2.0 + 4.0 / 11.0)", gamma_kernel(2.0 + 4.0 / 11.0).unwrap(), 0x3ff36a412884def4, 0x3ff36a412884defb);
-        assert_recorded_bits("GAMMA(3.0 + 7.0 / 11.0)", gamma_kernel(3.0 + 7.0 / 11.0).unwrap(), 0x400eff16b2482ffa, 0x400eff16b2482fe8);
-        assert_recorded_bits("GAMMA(3.0 + 9.0 / 11.0)", gamma_kernel(3.0 + 9.0 / 11.0).unwrap(), 0x401330e6942a4ed8, 0x401330e6942a4ede);
-        assert_recorded_bits("GAMMA(3.0 + 10.0 / 11.0)", gamma_kernel(3.0 + 10.0 / 11.0).unwrap(), 0x40156f771dde0918, 0x40156f771dde090d);
-        assert_recorded_bits("GAMMA(2.0 / 11.0)", gamma_kernel(2.0 / 11.0).unwrap(), 0x40144f786dca9448, 0x40144f786dca9444);
-        assert_recorded_bits("GAMMA(5.0 / 11.0)", gamma_kernel(5.0 / 11.0).unwrap(), 0x3fff2c8ab61daf0f, 0x3fff2c8ab61daf08);
-        assert_recorded_bits("GAMMA(10.0 / 11.0)", gamma_kernel(10.0 / 11.0).unwrap(), 0x3ff0fb827c62f539, 0x3ff0fb827c62f536);
-        assert_recorded_bits("GAMMA(1.0 / 13.0)", gamma_kernel(1.0 / 13.0).unwrap(), 0x4028fce1e0ed23fb, 0x4028fce1e0ed23f7);
-        assert_recorded_bits("GAMMA(1.0 / 13.0 - 1.0)", gamma_kernel(1.0 / 13.0 - 1.0).unwrap(), 0xc02b11f4b3ab91aa, 0xc02b11f4b3ab91a4);
-        assert_recorded_bits("GAMMA(2.0 / 13.0 - 1.0)", gamma_kernel(2.0 / 13.0 - 1.0).unwrap(), 0xc01ca18c0c19e7d7, 0xc01ca18c0c19e7d8);
-        assert_recorded_bits("GAMMA(11.0 / 13.0 - 1.0)", gamma_kernel(11.0 / 13.0 - 1.0).unwrap(), 0xc01d05347d1ec2db, 0xc01d05347d1ec2d5);
-        assert_recorded_bits("GAMMA(1.0 + 1.0 / 13.0)", gamma_kernel(1.0 + 1.0 / 13.0).unwrap(), 0x3feec1160123dd84, 0x3feec1160123dd82);
-        assert_recorded_bits("GAMMA(2.0 + 1.0 / 13.0)", gamma_kernel(2.0 + 1.0 / 13.0).unwrap(), 0x3ff08f5a9e270120, 0x3ff08f5a9e27012a);
-        assert_recorded_bits("GAMMA(3.0 + 2.0 / 13.0)", gamma_kernel(3.0 + 2.0 / 13.0).unwrap(), 0x4002867b673e729a, 0x4002867b673e729f);
-        assert_recorded_bits("GAMMA(4.0 + 7.0 / 13.0)", gamma_kernel(4.0 + 7.0 / 13.0).unwrap(), 0x40288b6041fd0743, 0x40288b6041fd0748);
-        assert_recorded_bits("GAMMA(4.0 + 9.0 / 13.0)", gamma_kernel(4.0 + 9.0 / 13.0).unwrap(), 0x402e860ed048074e, 0x402e860ed048074c);
-        assert_eq!(
-            gamma_kernel(6.0 / 13.0).unwrap().to_bits(),
-            0x3ffeb36ee50fd917
-        );
-        assert_recorded_bits("GAMMA(12.0 / 13.0)", gamma_kernel(12.0 / 13.0).unwrap(), 0x3ff0cfaee504346b, 0x3ff0cfaee504346e);
-        assert_recorded_bits("GAMMA(1.0 / 17.0)", gamma_kernel(1.0 / 17.0).unwrap(), 0x40307a5f0b4f6098, 0x40307a5f0b4f6094);
-        assert_recorded_bits("GAMMA(1.0 + 3.0 / 17.0)", gamma_kernel(1.0 + 3.0 / 17.0).unwrap(), 0x3fed97a61860c048, 0x3fed97a61860c045);
-        assert_recorded_bits("GAMMA(3.0 + 7.0 / 17.0)", gamma_kernel(3.0 + 7.0 / 17.0).unwrap(), 0x400826f7fa7c0065, 0x400826f7fa7c0070);
-        assert_recorded_bits("GAMMA(3.0 + 15.0 / 17.0)", gamma_kernel(3.0 + 15.0 / 17.0).unwrap(), 0x4014be7ce451b13d, 0x4014be7ce451b145);
-        assert_recorded_bits("GAMMA(8.0 / 17.0)", gamma_kernel(8.0 / 17.0).unwrap(), 0x3ffe1c96ab222e75, 0x3ffe1c96ab222e78);
-        assert_recorded_bits("GAMMA(16.0 / 17.0)", gamma_kernel(16.0 / 17.0).unwrap(), 0x3ff099e6910e9682, 0x3ff099e6910e9683);
-        assert_recorded_bits("GAMMA(-0.5)", gamma_kernel(-0.5).unwrap(), 0xc00c5bf891b4ef6a, 0xc00c5bf891b4ef69);
-        assert_recorded_bits("GAMMA(-1.5)", gamma_kernel(-1.5).unwrap(), 0x4002e7fb0bcdf4f1, 0x4002e7fb0bcdf4e8);
-        assert_recorded_bits("GAMMA(1.0 / 16.0)", gamma_kernel(1.0 / 16.0).unwrap(), 0x402ef66a79533ee8, 0x402ef66a79533ee9);
-        assert_recorded_bits("GAMMA(3.0 / 16.0)", gamma_kernel(3.0 / 16.0).unwrap(), 0x4013a91381a8a4ee, 0x4013a91381a8a4e7);
-        assert_recorded_bits("GAMMA(5.0 / 16.0)", gamma_kernel(5.0 / 16.0).unwrap(), 0x4006edc1821c5c71, 0x4006edc1821c5c6d);
-        assert_recorded_bits("GAMMA(7.0 / 16.0)", gamma_kernel(7.0 / 16.0).unwrap(), 0x400032cfe11b9bd7, 0x400032cfe11b9bd8);
-        assert_recorded_bits("GAMMA(9.0 / 16.0)", gamma_kernel(9.0 / 16.0).unwrap(), 0x3ff94fa627d94f66, 0x3ff94fa627d94f62);
-        assert_recorded_bits("GAMMA(11.0 / 16.0)", gamma_kernel(11.0 / 16.0).unwrap(), 0x3ff517bf09b399f5, 0x3ff517bf09b399f6);
-        assert_recorded_bits("GAMMA(13.0 / 16.0)", gamma_kernel(13.0 / 16.0).unwrap(), 0x3ff26858f1d7c28d, 0x3ff26858f1d7c295);
+        assert_recorded_bits("GAMMA(2.0 / 11.0 - 2.0)", gamma_kernel(2.0 / 11.0 - 2.0).unwrap(), 0x400b4e662d355592, 0x400b4e662d355592);
+        assert_recorded_bits("GAMMA(10.0 / 11.0 - 2.0)", gamma_kernel(10.0 / 11.0 - 2.0).unwrap(), 0x402567ac77720fc4, 0x402567ac77720fc4);
+        assert_recorded_bits("GAMMA(13.0 / 17.0 - 2.0)", gamma_kernel(13.0 / 17.0 - 2.0).unwrap(), 0x401099f737502731, 0x401099f737502730);
+        assert_recorded_bits("GAMMA(2.0 / 13.0 - 3.0)", gamma_kernel(2.0 / 13.0 - 3.0).unwrap(), 0xbff5cbb342dead0b, 0xbff5cbb342dead0a);
+        assert_recorded_bits("GAMMA(11.0 / 13.0 - 3.0)", gamma_kernel(11.0 / 13.0 - 3.0).unwrap(), 0xc0075abdbee6c648, 0xc0075abdbee6c646);
+        assert_recorded_bits("GAMMA(2.0 / 11.0 - 3.0)", gamma_kernel(2.0 / 11.0 - 3.0).unwrap(), 0xbff360edac786e4b, 0xbff360edac786e4b);
+        assert_recorded_bits("GAMMA(10.0 / 11.0 - 3.0)", gamma_kernel(10.0 / 11.0 - 3.0).unwrap(), 0xc014796d50dc6821, 0xc014796d50dc6820);
+        assert_recorded_bits("GAMMA(2.0 / 13.0 - 4.0)", gamma_kernel(2.0 / 13.0 - 4.0).unwrap(), 0x3fd6aae36443be34, 0x3fd6aae36443be33);
+        assert_recorded_bits("GAMMA(10.0 / 11.0 - 4.0)", gamma_kernel(10.0 / 11.0 - 4.0).unwrap(), 0x3ffa7f05f02c4a85, 0x3ffa7f05f02c4a84);
+        assert_recorded_bits("GAMMA(2.0 / 11.0 - 5.0)", gamma_kernel(2.0 / 11.0 - 5.0).unwrap(), 0xbfb0daa03f849286, 0xbfb0daa03f849286);
+        assert_recorded_bits("GAMMA(10.0 / 11.0 - 5.0)", gamma_kernel(10.0 / 11.0 - 5.0).unwrap(), 0xbfd9e84a12a87660, 0xbfd9e84a12a8765f);
+        assert_recorded_bits("GAMMA(6.0 / 11.0 - 6.0)", gamma_kernel(6.0 / 11.0 - 6.0).unwrap(), 0x3f887deb47c3ce38, 0x3f887deb47c3ce37);
+        assert_recorded_bits("GAMMA(10.0 / 11.0 - 6.0)", gamma_kernel(10.0 / 11.0 - 6.0).unwrap(), 0x3fb45b15a0f213de, 0x3fb45b15a0f213dd);
+        assert_recorded_bits("GAMMA(10.0 / 11.0 - 7.0)", gamma_kernel(10.0 / 11.0 - 7.0).unwrap(), 0xbf8abc68d3642961, 0xbf8abc68d3642960);
+        assert_recorded_bits("GAMMA(10.0 / 11.0 - 11.0)", gamma_kernel(10.0 / 11.0 - 11.0).unwrap(), 0xbec4ceb5db83f371, 0xbec4ceb5db83f370);
+        assert_recorded_bits("GAMMA(1.0 + 2.0 / 11.0)", gamma_kernel(1.0 + 2.0 / 11.0).unwrap(), 0x3fed8addb6f81d80, 0x3fed8addb6f81d80);
+        assert_recorded_bits("GAMMA(2.0 + 4.0 / 11.0)", gamma_kernel(2.0 + 4.0 / 11.0).unwrap(), 0x3ff36a412884def4, 0x3ff36a412884def3);
+        assert_recorded_bits("GAMMA(3.0 + 7.0 / 11.0)", gamma_kernel(3.0 + 7.0 / 11.0).unwrap(), 0x400eff16b2482ffa, 0x400eff16b2482ff9);
+        assert_recorded_bits("GAMMA(3.0 + 9.0 / 11.0)", gamma_kernel(3.0 + 9.0 / 11.0).unwrap(), 0x401330e6942a4ed8, 0x401330e6942a4ed7);
+        assert_recorded_bits("GAMMA(3.0 + 10.0 / 11.0)", gamma_kernel(3.0 + 10.0 / 11.0).unwrap(), 0x40156f771dde0918, 0x40156f771dde0917);
+        assert_recorded_bits("GAMMA(2.0 / 11.0)", gamma_kernel(2.0 / 11.0).unwrap(), 0x40144f786dca9448, 0x40144f786dca9448);
+        assert_recorded_bits("GAMMA(5.0 / 11.0)", gamma_kernel(5.0 / 11.0).unwrap(), 0x3fff2c8ab61daf0f, 0x3fff2c8ab61daf0e);
+        assert_recorded_bits("GAMMA(10.0 / 11.0)", gamma_kernel(10.0 / 11.0).unwrap(), 0x3ff0fb827c62f539, 0x3ff0fb827c62f538);
+        assert_recorded_bits("GAMMA(1.0 / 13.0)", gamma_kernel(1.0 / 13.0).unwrap(), 0x4028fce1e0ed23fb, 0x4028fce1e0ed23fb);
+        assert_recorded_bits("GAMMA(1.0 / 13.0 - 1.0)", gamma_kernel(1.0 / 13.0 - 1.0).unwrap(), 0xc02b11f4b3ab91aa, 0xc02b11f4b3ab91aa);
+        assert_recorded_bits("GAMMA(2.0 / 13.0 - 1.0)", gamma_kernel(2.0 / 13.0 - 1.0).unwrap(), 0xc01ca18c0c19e7d7, 0xc01ca18c0c19e7d6);
+        assert_recorded_bits("GAMMA(11.0 / 13.0 - 1.0)", gamma_kernel(11.0 / 13.0 - 1.0).unwrap(), 0xc01d05347d1ec2db, 0xc01d05347d1ec2d8);
+        assert_recorded_bits("GAMMA(1.0 + 1.0 / 13.0)", gamma_kernel(1.0 + 1.0 / 13.0).unwrap(), 0x3feec1160123dd84, 0x3feec1160123dd84);
+        assert_recorded_bits("GAMMA(2.0 + 1.0 / 13.0)", gamma_kernel(2.0 + 1.0 / 13.0).unwrap(), 0x3ff08f5a9e270120, 0x3ff08f5a9e270120);
+        assert_recorded_bits("GAMMA(3.0 + 2.0 / 13.0)", gamma_kernel(3.0 + 2.0 / 13.0).unwrap(), 0x4002867b673e729a, 0x4002867b673e729a);
+        assert_recorded_bits("GAMMA(4.0 + 7.0 / 13.0)", gamma_kernel(4.0 + 7.0 / 13.0).unwrap(), 0x40288b6041fd0743, 0x40288b6041fd0744);
+        assert_recorded_bits("GAMMA(4.0 + 9.0 / 13.0)", gamma_kernel(4.0 + 9.0 / 13.0).unwrap(), 0x402e860ed048074e, 0x402e860ed048074e);
+        assert_recorded_bits("GAMMA(6.0 / 13.0)", gamma_kernel(6.0 / 13.0).unwrap(), 0x3ffeb36ee50fd917, 0x3ffeb36ee50fd917);
+        assert_recorded_bits("GAMMA(12.0 / 13.0)", gamma_kernel(12.0 / 13.0).unwrap(), 0x3ff0cfaee504346b, 0x3ff0cfaee504346c);
+        assert_recorded_bits("GAMMA(1.0 / 17.0)", gamma_kernel(1.0 / 17.0).unwrap(), 0x40307a5f0b4f6098, 0x40307a5f0b4f6097);
+        assert_recorded_bits("GAMMA(1.0 + 3.0 / 17.0)", gamma_kernel(1.0 + 3.0 / 17.0).unwrap(), 0x3fed97a61860c048, 0x3fed97a61860c046);
+        assert_recorded_bits("GAMMA(3.0 + 7.0 / 17.0)", gamma_kernel(3.0 + 7.0 / 17.0).unwrap(), 0x400826f7fa7c0065, 0x400826f7fa7c0066);
+        assert_recorded_bits("GAMMA(3.0 + 15.0 / 17.0)", gamma_kernel(3.0 + 15.0 / 17.0).unwrap(), 0x4014be7ce451b13d, 0x4014be7ce451b13c);
+        assert_recorded_bits("GAMMA(8.0 / 17.0)", gamma_kernel(8.0 / 17.0).unwrap(), 0x3ffe1c96ab222e75, 0x3ffe1c96ab222e73);
+        assert_recorded_bits("GAMMA(16.0 / 17.0)", gamma_kernel(16.0 / 17.0).unwrap(), 0x3ff099e6910e9682, 0x3ff099e6910e9681);
+        assert_recorded_bits("GAMMA(-0.5)", gamma_kernel(-0.5).unwrap(), 0xc00c5bf891b4ef6a, 0xc00c5bf891b4ef6b);
+        assert_recorded_bits("GAMMA(-1.5)", gamma_kernel(-1.5).unwrap(), 0x4002e7fb0bcdf4f1, 0x4002e7fb0bcdf4f2);
+        assert_recorded_bits("GAMMA(1.0 / 16.0)", gamma_kernel(1.0 / 16.0).unwrap(), 0x402ef66a79533ee8, 0x402ef66a79533ee7);
+        assert_recorded_bits("GAMMA(3.0 / 16.0)", gamma_kernel(3.0 / 16.0).unwrap(), 0x4013a91381a8a4ee, 0x4013a91381a8a4ef);
+        assert_recorded_bits("GAMMA(5.0 / 16.0)", gamma_kernel(5.0 / 16.0).unwrap(), 0x4006edc1821c5c71, 0x4006edc1821c5c72);
+        assert_recorded_bits("GAMMA(7.0 / 16.0)", gamma_kernel(7.0 / 16.0).unwrap(), 0x400032cfe11b9bd7, 0x400032cfe11b9bd7);
+        assert_recorded_bits("GAMMA(9.0 / 16.0)", gamma_kernel(9.0 / 16.0).unwrap(), 0x3ff94fa627d94f66, 0x3ff94fa627d94f64);
+        assert_recorded_bits("GAMMA(11.0 / 16.0)", gamma_kernel(11.0 / 16.0).unwrap(), 0x3ff517bf09b399f5, 0x3ff517bf09b399f2);
+        assert_recorded_bits("GAMMA(13.0 / 16.0)", gamma_kernel(13.0 / 16.0).unwrap(), 0x3ff26858f1d7c28d, 0x3ff26858f1d7c28e);
         assert_recorded_bits("GAMMA(15.0 / 16.0)", gamma_kernel(15.0 / 16.0).unwrap(), 0x3ff0a490a6519230, 0x3ff0a490a6519231);
-        assert_recorded_bits("GAMMA(1.0625)", gamma_kernel(1.0625).unwrap(), 0x3feef66a79533ee8, 0x3feef66a79533ee9);
-        assert_recorded_bits("GAMMA(9.0625)", gamma_kernel(9.0625).unwrap(), 0x40e682cf40f15007, 0x40e682cf40f15018);
-        assert_recorded_bits("GAMMA(4.3125)", gamma_kernel(4.3125).unwrap(), 0x4022027d3db6cf53, 0x4022027d3db6cf57);
-        assert_recorded_bits("GAMMA(10.5625)", gamma_kernel(10.5625).unwrap(), 0x4133f93261bf1bc0, 0x4133f93261bf1bde);
-        assert_recorded_bits("GAMMA(5.8125)", gamma_kernel(5.8125).unwrap(), 0x4055db68b6f3576c, 0x4055db68b6f3577d);
+        assert_recorded_bits("GAMMA(1.0625)", gamma_kernel(1.0625).unwrap(), 0x3feef66a79533ee8, 0x3feef66a79533ee7);
+        assert_recorded_bits("GAMMA(9.0625)", gamma_kernel(9.0625).unwrap(), 0x40e682cf40f15007, 0x40e682cf40f15006);
+        assert_recorded_bits("GAMMA(4.3125)", gamma_kernel(4.3125).unwrap(), 0x4022027d3db6cf53, 0x4022027d3db6cf54);
+        assert_recorded_bits("GAMMA(10.5625)", gamma_kernel(10.5625).unwrap(), 0x4133f93261bf1bc0, 0x4133f93261bf1bbe);
+        assert_recorded_bits("GAMMA(5.8125)", gamma_kernel(5.8125).unwrap(), 0x4055db68b6f3576c, 0x4055db68b6f3576c);
         // Live Excel 16.0 b20326 fifths in (0,1). Recurrence n=1 already 1 ULP.
-        assert_recorded_bits("GAMMA(1.0 / 5.0)", gamma_kernel(1.0 / 5.0).unwrap(), 0x40125d0622505413, 0x40125d0622505415);
+        assert_recorded_bits("GAMMA(1.0 / 5.0)", gamma_kernel(1.0 / 5.0).unwrap(), 0x40125d0622505413, 0x40125d0622505412);
         assert_recorded_bits("GAMMA(1.0 + 1.0 / 5.0)", gamma_kernel(1.0 + 1.0 / 5.0).unwrap(), 0x3fed61a36a1a201f, 0x3fed61a36a1a201e);
-        assert_recorded_bits("GAMMA(2.0 / 5.0)", gamma_kernel(2.0 / 5.0).unwrap(), 0x4001beca6e4dff14, 0x4001beca6e4dff11);
-        assert_recorded_bits("GAMMA(3.0 / 5.0)", gamma_kernel(3.0 / 5.0).unwrap(), 0x3ff7d3bb4061b952, 0x3ff7d3bb4061b958);
-        assert_recorded_bits("GAMMA(4.0 / 5.0)", gamma_kernel(4.0 / 5.0).unwrap(), 0x3ff2a0af5617b4b9, 0x3ff2a0af5617b4b5);
-        assert_recorded_bits("GAMMA(1.0 / 10.0)", gamma_kernel(1.0 / 10.0).unwrap(), 0x402306ea7b280d88, 0x402306ea7b280d85);
-        assert_recorded_bits("GAMMA(3.0 / 10.0)", gamma_kernel(3.0 / 10.0).unwrap(), 0x4007eebbb8aec4ab, 0x4007eebbb8aec4a5);
-        assert_recorded_bits("GAMMA(1.0 + 3.0 / 10.0)", gamma_kernel(1.0 + 3.0 / 10.0).unwrap(), 0x3fecb81477381f33, 0x3fecb81477381f38);
-        assert_recorded_bits("GAMMA(7.0 / 10.0)", gamma_kernel(7.0 / 10.0).unwrap(), 0x3ff4c4d5ab21ea23, 0x3ff4c4d5ab21ea27);
-        assert_recorded_bits("GAMMA(9.0 / 10.0)", gamma_kernel(9.0 / 10.0).unwrap(), 0x3ff1191a68f2b5e1, 0x3ff1191a68f2b5e2);
-        assert_recorded_bits("GAMMA(1.0 / 7.0)", gamma_kernel(1.0 / 7.0).unwrap(), 0x401a313769520e5a, 0x401a313769520e5c);
-        assert_recorded_bits("GAMMA(1.0 + 1.0 / 7.0)", gamma_kernel(1.0 + 1.0 / 7.0).unwrap(), 0x3fedef1ac182598b, 0x3fedef1ac182598e);
-        assert_recorded_bits("GAMMA(2.0 + 1.0 / 7.0)", gamma_kernel(2.0 + 1.0 / 7.0).unwrap(), 0x3ff11aeab7b8332b, 0x3ff11aeab7b8332d);
-        assert_eq!(
-            gamma_kernel(2.0 / 7.0).unwrap().to_bits(),
-            0x400931634450f1e8
-        );
-        assert_recorded_bits("GAMMA(3.0 / 7.0)", gamma_kernel(3.0 / 7.0).unwrap(), 0x40008a43968d61a6, 0x40008a43968d61a4);
-        assert_recorded_bits("GAMMA(4.0 / 7.0)", gamma_kernel(4.0 / 7.0).unwrap(), 0x3ff8eff2aa47b664, 0x3ff8eff2aa47b669);
-        assert_recorded_bits("GAMMA(5.0 / 7.0)", gamma_kernel(5.0 / 7.0).unwrap(), 0x3ff46a774bb2e0cd, 0x3ff46a774bb2e0cc);
-        assert_recorded_bits("GAMMA(6.0 / 7.0)", gamma_kernel(6.0 / 7.0).unwrap(), 0x3ff1b138d04a62f3, 0x3ff1b138d04a62f2);
-        assert_recorded_bits("GAMMA(1.0 / 12.0)", gamma_kernel(1.0 / 12.0).unwrap(), 0x4026ffb50d1bc6dc, 0x4026ffb50d1bc6db);
-        assert_recorded_bits("GAMMA(5.0 / 12.0)", gamma_kernel(5.0 / 12.0).unwrap(), 0x4001053ca2989062, 0x4001053ca298905a);
-        assert_recorded_bits("GAMMA(7.0 / 12.0)", gamma_kernel(7.0 / 12.0).unwrap(), 0x3ff87597c6695642, 0x3ff87597c6695640);
-        assert_recorded_bits("GAMMA(11.0 / 12.0)", gamma_kernel(11.0 / 12.0).unwrap(), 0x3ff0e384cb7476b6, 0x3ff0e384cb7476b8);
-        assert_recorded_bits("GAMMA(1.0 + 1.0 / 12.0)", gamma_kernel(1.0 + 1.0 / 12.0).unwrap(), 0x3feeaa46bc250925, 0x3feeaa46bc250923);
+        assert_recorded_bits("GAMMA(2.0 / 5.0)", gamma_kernel(2.0 / 5.0).unwrap(), 0x4001beca6e4dff14, 0x4001beca6e4dff15);
+        assert_recorded_bits("GAMMA(3.0 / 5.0)", gamma_kernel(3.0 / 5.0).unwrap(), 0x3ff7d3bb4061b952, 0x3ff7d3bb4061b952);
+        assert_recorded_bits("GAMMA(4.0 / 5.0)", gamma_kernel(4.0 / 5.0).unwrap(), 0x3ff2a0af5617b4b9, 0x3ff2a0af5617b4b7);
+        assert_recorded_bits("GAMMA(1.0 / 10.0)", gamma_kernel(1.0 / 10.0).unwrap(), 0x402306ea7b280d88, 0x402306ea7b280d87);
+        assert_recorded_bits("GAMMA(3.0 / 10.0)", gamma_kernel(3.0 / 10.0).unwrap(), 0x4007eebbb8aec4ab, 0x4007eebbb8aec4ab);
+        assert_recorded_bits("GAMMA(1.0 + 3.0 / 10.0)", gamma_kernel(1.0 + 3.0 / 10.0).unwrap(), 0x3fecb81477381f33, 0x3fecb81477381f33);
+        assert_recorded_bits("GAMMA(7.0 / 10.0)", gamma_kernel(7.0 / 10.0).unwrap(), 0x3ff4c4d5ab21ea23, 0x3ff4c4d5ab21ea23);
+        assert_recorded_bits("GAMMA(9.0 / 10.0)", gamma_kernel(9.0 / 10.0).unwrap(), 0x3ff1191a68f2b5e1, 0x3ff1191a68f2b5df);
+        assert_recorded_bits("GAMMA(1.0 / 7.0)", gamma_kernel(1.0 / 7.0).unwrap(), 0x401a313769520e5a, 0x401a313769520e58);
+        assert_recorded_bits("GAMMA(1.0 + 1.0 / 7.0)", gamma_kernel(1.0 + 1.0 / 7.0).unwrap(), 0x3fedef1ac182598b, 0x3fedef1ac182598a);
+        assert_recorded_bits("GAMMA(2.0 + 1.0 / 7.0)", gamma_kernel(2.0 + 1.0 / 7.0).unwrap(), 0x3ff11aeab7b8332b, 0x3ff11aeab7b8332a);
+        assert_recorded_bits("GAMMA(2.0 / 7.0)", gamma_kernel(2.0 / 7.0).unwrap(), 0x400931634450f1e8, 0x400931634450f1e8);
+        assert_recorded_bits("GAMMA(3.0 / 7.0)", gamma_kernel(3.0 / 7.0).unwrap(), 0x40008a43968d61a6, 0x40008a43968d61a6);
+        assert_recorded_bits("GAMMA(4.0 / 7.0)", gamma_kernel(4.0 / 7.0).unwrap(), 0x3ff8eff2aa47b664, 0x3ff8eff2aa47b665);
+        assert_recorded_bits("GAMMA(5.0 / 7.0)", gamma_kernel(5.0 / 7.0).unwrap(), 0x3ff46a774bb2e0cd, 0x3ff46a774bb2e0cd);
+        assert_recorded_bits("GAMMA(6.0 / 7.0)", gamma_kernel(6.0 / 7.0).unwrap(), 0x3ff1b138d04a62f3, 0x3ff1b138d04a62f4);
+        assert_recorded_bits("GAMMA(1.0 / 12.0)", gamma_kernel(1.0 / 12.0).unwrap(), 0x4026ffb50d1bc6dc, 0x4026ffb50d1bc6dc);
+        assert_recorded_bits("GAMMA(5.0 / 12.0)", gamma_kernel(5.0 / 12.0).unwrap(), 0x4001053ca2989062, 0x4001053ca2989062);
+        assert_recorded_bits("GAMMA(7.0 / 12.0)", gamma_kernel(7.0 / 12.0).unwrap(), 0x3ff87597c6695642, 0x3ff87597c6695643);
+        assert_recorded_bits("GAMMA(11.0 / 12.0)", gamma_kernel(11.0 / 12.0).unwrap(), 0x3ff0e384cb7476b6, 0x3ff0e384cb7476b6);
+        assert_recorded_bits("GAMMA(1.0 + 1.0 / 12.0)", gamma_kernel(1.0 + 1.0 / 12.0).unwrap(), 0x3feeaa46bc250925, 0x3feeaa46bc250925);
         assert_recorded_bits("GAMMA(1.0 + 5.0 / 12.0)", gamma_kernel(1.0 + 5.0 / 12.0).unwrap(), 0x3fec5e0fb9a8f0a4, 0x3fec5e0fb9a8f0a3);
-        assert_recorded_bits("GAMMA(3.0 + 7.0 / 12.0)", gamma_kernel(3.0 + 7.0 / 12.0).unwrap(), 0x400d2e10d85584c4, 0x400d2e10d85584d0);
-        assert_eq!(
-            gamma_kernel(1.0 / 3.0).unwrap().to_bits(),
-            0x40056e77539482f2
-        );
-        assert_recorded_bits("GAMMA(2.0 / 3.0)", gamma_kernel(2.0 / 3.0).unwrap(), 0x3ff5aa77928c3679, 0x3ff5aa77928c367f);
-        assert_recorded_bits("GAMMA(1.0 / 9.0)", gamma_kernel(1.0 / 9.0).unwrap(), 0x40210b9dc79fe8d4, 0x40210b9dc79fe8d1);
-        assert_eq!(
-            gamma_kernel(2.0 / 9.0).unwrap().to_bits(),
-            0x40106d2331a5de8d
-        );
-        assert_eq!(
-            gamma_kernel(4.0 / 9.0).unwrap().to_bits(),
-            0x3fffe2e4518a6b60
-        );
+        assert_recorded_bits("GAMMA(3.0 + 7.0 / 12.0)", gamma_kernel(3.0 + 7.0 / 12.0).unwrap(), 0x400d2e10d85584c4, 0x400d2e10d85584c5);
+        assert_recorded_bits("GAMMA(1.0 / 3.0)", gamma_kernel(1.0 / 3.0).unwrap(), 0x40056e77539482f2, 0x40056e77539482f2);
+        assert_recorded_bits("GAMMA(2.0 / 3.0)", gamma_kernel(2.0 / 3.0).unwrap(), 0x3ff5aa77928c3679, 0x3ff5aa77928c3679);
+        assert_recorded_bits("GAMMA(1.0 / 9.0)", gamma_kernel(1.0 / 9.0).unwrap(), 0x40210b9dc79fe8d4, 0x40210b9dc79fe8d4);
+        assert_recorded_bits("GAMMA(2.0 / 9.0)", gamma_kernel(2.0 / 9.0).unwrap(), 0x40106d2331a5de8d, 0x40106d2331a5de8d);
+        assert_recorded_bits("GAMMA(4.0 / 9.0)", gamma_kernel(4.0 / 9.0).unwrap(), 0x3fffe2e4518a6b62, 0x3fffe2e4518a6b62);
         assert_recorded_bits("GAMMA(5.0 / 9.0)", gamma_kernel(5.0 / 9.0).unwrap(), 0x3ff99c88812c4a39, 0x3ff99c88812c4a3a);
-        assert_recorded_bits("GAMMA(3.0 + 5.0 / 9.0)", gamma_kernel(3.0 + 5.0 / 9.0).unwrap(), 0x400c48114add546c, 0x400c48114add5464);
-        assert_recorded_bits("GAMMA(1.0 + 7.0 / 9.0)", gamma_kernel(1.0 + 7.0 / 9.0).unwrap(), 0x3fed9f1d49c5b48d, 0x3fed9f1d49c5b48c);
+        assert_recorded_bits("GAMMA(3.0 + 5.0 / 9.0)", gamma_kernel(3.0 + 5.0 / 9.0).unwrap(), 0x400c48114add546c, 0x400c48114add546a);
+        assert_recorded_bits("GAMMA(1.0 + 7.0 / 9.0)", gamma_kernel(1.0 + 7.0 / 9.0).unwrap(), 0x3fed9f1d49c5b48d, 0x3fed9f1d49c5b48b);
         assert_recorded_bits("GAMMA(7.0 / 9.0)", gamma_kernel(7.0 / 9.0).unwrap(), 0x3ff30adbf89161c8, 0x3ff30adbf89161c7);
-        assert_recorded_bits("GAMMA(8.0 / 9.0)", gamma_kernel(8.0 / 9.0).unwrap(), 0x3ff13e800bd48928, 0x3ff13e800bd4892d);
-        assert_eq!(
-            gamma_kernel(-1.0 / 3.0).unwrap().to_bits(),
-            0xc0103fd9ade928da
-        );
-        assert_recorded_bits("GAMMA(-2.0 / 3.0)", gamma_kernel(-2.0 / 3.0).unwrap(), 0xc01012d97eaf6234, 0xc01012d97eaf6230);
-        assert_recorded_bits("GAMMA(-0.25)", gamma_kernel(-0.25).unwrap(), 0xc0139b4e8b50f62d, 0xc0139b4e8b50f62b);
+        assert_recorded_bits("GAMMA(8.0 / 9.0)", gamma_kernel(8.0 / 9.0).unwrap(), 0x3ff13e800bd48928, 0x3ff13e800bd48929);
+        assert_recorded_bits("GAMMA(-1.0 / 3.0)", gamma_kernel(-1.0 / 3.0).unwrap(), 0xc0103fd9ade928da, 0xc0103fd9ade928da);
+        assert_recorded_bits("GAMMA(-2.0 / 3.0)", gamma_kernel(-2.0 / 3.0).unwrap(), 0xc01012d97eaf6234, 0xc01012d97eaf6234);
+        assert_recorded_bits("GAMMA(-0.25)", gamma_kernel(-0.25).unwrap(), 0xc0139b4e8b50f62d, 0xc0139b4e8b50f62c);
         assert_recorded_bits("GAMMA(-0.2)", gamma_kernel(-0.2).unwrap(), 0xc01748db2b9da1e7, 0xc01748db2b9da1e5);
-        assert_eq!(gamma_kernel(-0.125).unwrap().to_bits(), 0xc0216f374f724016);
-        assert_recorded_bits("GAMMA(-0.375)", gamma_kernel(-0.375).unwrap(), 0xc00e9a62b6d6488b, 0xc00e9a62b6d64887);
-        assert_recorded_bits("GAMMA(-0.625)", gamma_kernel(-0.625).unwrap(), 0xc00e5771fe7759f3, 0xc00e5771fe7759eb);
-        assert_recorded_bits("GAMMA(-0.875)", gamma_kernel(-0.875).unwrap(), 0xc021386e9eef90a6, 0xc021386e9eef90a1);
-        assert_recorded_bits("GAMMA(-5.0 / 7.0)", gamma_kernel(-5.0 / 7.0).unwrap(), 0xc011a292496bdc89, 0xc011a292496bdc88);
-        assert_recorded_bits("GAMMA(-6.0 / 7.0)", gamma_kernel(-6.0 / 7.0).unwrap(), 0xc01e8ec0a58a6611, 0xc01e8ec0a58a6612);
-        assert_recorded_bits("GAMMA(-2.0 / 9.0)", gamma_kernel(-2.0 / 9.0).unwrap(), 0xc0156c3777a38e01, 0xc0156c3777a38e06);
-        assert_recorded_bits("GAMMA(-7.0 / 9.0)", gamma_kernel(-7.0 / 9.0).unwrap(), 0xc0151e9af6b0b06c, 0xc0151e9af6b0b06a);
-        assert_recorded_bits("GAMMA(-7.0 / 10.0)", gamma_kernel(-7.0 / 10.0).unwrap(), 0xc011183cf1a167e7, 0xc011183cf1a167e4);
-        assert_recorded_bits("GAMMA(-5.0 / 12.0)", gamma_kernel(-5.0 / 12.0).unwrap(), 0xc00d59e9547e6786, 0xc00d59e9547e6783);
-        assert_recorded_bits("GAMMA(-7.0 / 12.0)", gamma_kernel(-7.0 / 12.0).unwrap(), 0xc00d2d8c847340a9, 0xc00d2d8c847340aa);
-        assert_eq!(
-            gamma_kernel(-1.0 / 16.0).unwrap().to_bits(),
-            0xc030a490a6519230
-        );
-        assert_recorded_bits("GAMMA(-5.0 / 16.0)", gamma_kernel(-5.0 / 16.0).unwrap(), 0xc010dfcc07c2e191, 0xc010dfcc07c2e18c);
-        assert_recorded_bits("GAMMA(-7.0 / 16.0)", gamma_kernel(-7.0 / 16.0).unwrap(), 0xc00ced502d8aa3e2, 0xc00ced502d8aa3dc);
-        assert_recorded_bits("GAMMA(-9.0 / 16.0)", gamma_kernel(-9.0 / 16.0).unwrap(), 0xc00ccc1c3adbbfb7, 0xc00ccc1c3adbbfb8);
-        assert_recorded_bits("GAMMA(-15.0 / 16.0)", gamma_kernel(-15.0 / 16.0).unwrap(), 0xc030836bfc70aa15, 0xc030836bfc70aa0d);
+        assert_recorded_bits("GAMMA(-0.125)", gamma_kernel(-0.125).unwrap(), 0xc0216f374f724015, 0xc0216f374f724015);
+        assert_recorded_bits("GAMMA(-0.375)", gamma_kernel(-0.375).unwrap(), 0xc00e9a62b6d6488b, 0xc00e9a62b6d6488c);
+        assert_recorded_bits("GAMMA(-0.625)", gamma_kernel(-0.625).unwrap(), 0xc00e5771fe7759f3, 0xc00e5771fe7759f3);
+        assert_recorded_bits("GAMMA(-0.875)", gamma_kernel(-0.875).unwrap(), 0xc021386e9eef90a6, 0xc021386e9eef90a5);
+        assert_recorded_bits("GAMMA(-5.0 / 7.0)", gamma_kernel(-5.0 / 7.0).unwrap(), 0xc011a292496bdc89, 0xc011a292496bdc89);
+        assert_recorded_bits("GAMMA(-6.0 / 7.0)", gamma_kernel(-6.0 / 7.0).unwrap(), 0xc01e8ec0a58a6611, 0xc01e8ec0a58a660f);
+        assert_recorded_bits("GAMMA(-2.0 / 9.0)", gamma_kernel(-2.0 / 9.0).unwrap(), 0xc0156c3777a38e01, 0xc0156c3777a38e00);
+        assert_recorded_bits("GAMMA(-7.0 / 9.0)", gamma_kernel(-7.0 / 9.0).unwrap(), 0xc0151e9af6b0b06c, 0xc0151e9af6b0b06c);
+        assert_recorded_bits("GAMMA(-7.0 / 10.0)", gamma_kernel(-7.0 / 10.0).unwrap(), 0xc011183cf1a167e7, 0xc011183cf1a167e7);
+        assert_recorded_bits("GAMMA(-5.0 / 12.0)", gamma_kernel(-5.0 / 12.0).unwrap(), 0xc00d59e9547e6786, 0xc00d59e9547e6785);
+        assert_recorded_bits("GAMMA(-7.0 / 12.0)", gamma_kernel(-7.0 / 12.0).unwrap(), 0xc00d2d8c847340a9, 0xc00d2d8c847340a8);
+        assert_recorded_bits("GAMMA(-1.0 / 16.0)", gamma_kernel(-1.0 / 16.0).unwrap(), 0xc030a490a6519231, 0xc030a490a6519231);
+        assert_recorded_bits("GAMMA(-5.0 / 16.0)", gamma_kernel(-5.0 / 16.0).unwrap(), 0xc010dfcc07c2e191, 0xc010dfcc07c2e18f);
+        assert_recorded_bits("GAMMA(-7.0 / 16.0)", gamma_kernel(-7.0 / 16.0).unwrap(), 0xc00ced502d8aa3e2, 0xc00ced502d8aa3e1);
+        assert_recorded_bits("GAMMA(-9.0 / 16.0)", gamma_kernel(-9.0 / 16.0).unwrap(), 0xc00ccc1c3adbbfb7, 0xc00ccc1c3adbbfb7);
+        assert_recorded_bits("GAMMA(-15.0 / 16.0)", gamma_kernel(-15.0 / 16.0).unwrap(), 0xc030836bfc70aa15, 0xc030836bfc70aa15);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn gamma_tiny_inputs_record_known_gaps_and_reject_subnormals() {
-        assert_recorded_bits("GAMMA(1e-16)", gamma_kernel(1e-16).unwrap(), 0x4341c37937e08000, 0x4341c37937e08011);
-        assert_recorded_bits("GAMMA(f64::MIN_POSITIVE)", gamma_kernel(f64::MIN_POSITIVE).unwrap(), 0x7fd0000000000000, 0x7fcfffffffffff09);
+        assert_recorded_bits("GAMMA(1e-16)", gamma_kernel(1e-16).unwrap(), 0x4341c37937e08000, 0x4341c37937e08000);
+        assert_recorded_bits("GAMMA(f64::MIN_POSITIVE)", gamma_kernel(f64::MIN_POSITIVE).unwrap(), 0x7fd0000000000000, 0x7fd0000000000000);
         assert_recorded_bits("GAMMA(1e-20)", gamma_kernel(1e-20).unwrap(),
-            (1.0_f64 / 1e-20).to_bits(), 0x4415af1d78b58c45);
+            (1.0_f64 / 1e-20).to_bits(), 0x4415af1d78b58c40);
         assert_eq!(
             gamma_kernel(f64::from_bits(1)),
             Err(WorksheetErrorCode::Num)
