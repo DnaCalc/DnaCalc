@@ -1,0 +1,720 @@
+{
+  "capture_provenance": {
+    "automation_security_after": 1,
+    "automation_security_before": 1,
+    "calculation_settings": {
+      "CompatibilityVersion": 2,
+      "Date1904": false,
+      "DecimalSeparator": ".",
+      "PrecisionAsDisplayed": false,
+      "ThousandsSeparator": " ",
+      "UseSystemSeparators": true,
+      "calculation": -4135,
+      "compatibility_version": null,
+      "unavailable": []
+    },
+    "captured_utc": "2026-11-04T02:18:05Z",
+    "environment": {
+      "cpu_id": "AMD Ryzen 7 4800H with Radeon Graphics         ",
+      "excel_bitness": "64-bit",
+      "excel_build": "20527",
+      "excel_file_version": "16.0.20527.20088",
+      "excel_input_plumbing": "cell_value2_bulk",
+      "excel_operating_system": "Microsoft Windows NT 10.0.26200.0",
+      "excel_version": "16.0",
+      "platform": "Windows"
+    },
+    "frozen_model_predictions": {
+      "calc_func_commit": "818c20e4c544bd614bc5fb82eb285fa5e4fae66e",
+      "formula_literal_ids": [],
+      "frozen_path": "C:\\Work\\DnaCalc\\DnaCalc-win\\target/witness/frozen\\REGEXTEST-20261104T021751Z.json",
+      "frozen_sha256": "e4422c583cb2be8f9a32015f94c2441ae916d63bb98a1e61cceb0fc6c623d40b",
+      "inputs_path": "C:\\Work\\DnaCalc\\codex-runs\\excel-questions-fn3\\REGEXTEST.inputs.json",
+      "inputs_sha256": "a12436f6a0fe5dde883dabb1989c77d2c712ce4263cc198a4c7bd8c323887ebe",
+      "novelty": null,
+      "selection": null
+    },
+    "inputs": "C:\\Work\\DnaCalc\\codex-runs\\excel-questions-fn3\\REGEXTEST.inputs.json",
+    "reader": "calc-oracle-excel 0.1.0; worker results 1; worker sha256:8a0ea57f14cd6e8198137d917f3df91a3f61a99197460aacdfabe398807551dd; witness worker sha256:3f716c7cda564233ec9ffc8efb53816ea4d0ad92c567c739c6b61f702e7ac0da",
+    "schema_version": "dnacalc-witness-reading/1"
+  },
+  "function": "REGEXTEST",
+  "input_audits": [
+    {
+      "audit": {
+        "argument_literals": null,
+        "effective_callee_inputs": "not directly observable",
+        "formula": "=REGEXTEST(RC[1],RC[2],RC[3])",
+        "read_back": [
+          {
+            "text": "00c9"
+          },
+          {
+            "text": "005b00e9002d00e9005d"
+          },
+          {
+            "number": "3ff0000000000000"
+          }
+        ],
+        "requested": [
+          {
+            "text": "É"
+          },
+          {
+            "text": "[é-é]"
+          },
+          {
+            "number": "3ff0000000000000"
+          }
+        ],
+        "submitted_value2": [
+          {
+            "text": "00c9"
+          },
+          {
+            "text": "005b00e9002d00e9005d"
+          },
+          {
+            "number": "3ff0000000000000"
+          }
+        ],
+        "transport": "cell_value2_bulk"
+      },
+      "id": "fn3-regextest-001",
+      "observed_raw": {
+        "logical": true
+      },
+      "reading_failure": null
+    },
+    {
+      "audit": {
+        "argument_literals": null,
+        "effective_callee_inputs": "not directly observable",
+        "formula": "=REGEXTEST(RC[1],RC[2],RC[3])",
+        "read_back": [
+          {
+            "text": "00c9"
+          },
+          {
+            "text": "005b00e9005d"
+          },
+          {
+            "number": "3ff0000000000000"
+          }
+        ],
+        "requested": [
+          {
+            "text": "É"
+          },
+          {
+            "text": "[é]"
+          },
+          {
+            "number": "3ff0000000000000"
+          }
+        ],
+        "submitted_value2": [
+          {
+            "text": "00c9"
+          },
+          {
+            "text": "005b00e9005d"
+          },
+          {
+            "number": "3ff0000000000000"
+          }
+        ],
+        "transport": "cell_value2_bulk"
+      },
+      "id": "fn3-regextest-002",
+      "observed_raw": {
+        "logical": true
+      },
+      "reading_failure": null
+    },
+    {
+      "audit": {
+        "argument_literals": null,
+        "effective_callee_inputs": "not directly observable",
+        "formula": "=REGEXTEST(RC[1],RC[2],RC[3])",
+        "read_back": [
+          {
+            "text": "03a3"
+          },
+          {
+            "text": "005b03b1002d03c9005d"
+          },
+          {
+            "number": "3ff0000000000000"
+          }
+        ],
+        "requested": [
+          {
+            "text": "Σ"
+          },
+          {
+            "text": "[α-ω]"
+          },
+          {
+            "number": "3ff0000000000000"
+          }
+        ],
+        "submitted_value2": [
+          {
+            "text": "03a3"
+          },
+          {
+            "text": "005b03b1002d03c9005d"
+          },
+          {
+            "number": "3ff0000000000000"
+          }
+        ],
+        "transport": "cell_value2_bulk"
+      },
+      "id": "fn3-regextest-003",
+      "observed_raw": {
+        "logical": true
+      },
+      "reading_failure": null
+    },
+    {
+      "audit": {
+        "argument_literals": null,
+        "effective_callee_inputs": "not directly observable",
+        "formula": "=REGEXTEST(RC[1],RC[2],RC[3])",
+        "read_back": [
+          {
+            "text": "4e2d"
+          },
+          {
+            "text": "005c0064"
+          },
+          {
+            "number": "0000000000000000"
+          }
+        ],
+        "requested": [
+          {
+            "text": "中"
+          },
+          {
+            "text": "\\d"
+          },
+          {
+            "number": "0000000000000000"
+          }
+        ],
+        "submitted_value2": [
+          {
+            "text": "4e2d"
+          },
+          {
+            "text": "005c0064"
+          },
+          {
+            "number": "0000000000000000"
+          }
+        ],
+        "transport": "cell_value2_bulk"
+      },
+      "id": "fn3-regextest-004",
+      "observed_raw": {
+        "logical": false
+      },
+      "reading_failure": null
+    },
+    {
+      "audit": {
+        "argument_literals": null,
+        "effective_callee_inputs": "not directly observable",
+        "formula": "=REGEXTEST(RC[1],RC[2],RC[3])",
+        "read_back": [
+          {
+            "text": "0301"
+          },
+          {
+            "text": "005c0077"
+          },
+          {
+            "number": "0000000000000000"
+          }
+        ],
+        "requested": [
+          {
+            "text": "́"
+          },
+          {
+            "text": "\\w"
+          },
+          {
+            "number": "0000000000000000"
+          }
+        ],
+        "submitted_value2": [
+          {
+            "text": "0301"
+          },
+          {
+            "text": "005c0077"
+          },
+          {
+            "number": "0000000000000000"
+          }
+        ],
+        "transport": "cell_value2_bulk"
+      },
+      "id": "fn3-regextest-005",
+      "observed_raw": {
+        "logical": true
+      },
+      "reading_failure": null
+    },
+    {
+      "audit": {
+        "argument_literals": null,
+        "effective_callee_inputs": "not directly observable",
+        "formula": "=REGEXTEST(RC[1],RC[2],RC[3])",
+        "read_back": [
+          {
+            "text": "203f"
+          },
+          {
+            "text": "005c0077"
+          },
+          {
+            "number": "0000000000000000"
+          }
+        ],
+        "requested": [
+          {
+            "text": "‿"
+          },
+          {
+            "text": "\\w"
+          },
+          {
+            "number": "0000000000000000"
+          }
+        ],
+        "submitted_value2": [
+          {
+            "text": "203f"
+          },
+          {
+            "text": "005c0077"
+          },
+          {
+            "number": "0000000000000000"
+          }
+        ],
+        "transport": "cell_value2_bulk"
+      },
+      "id": "fn3-regextest-006",
+      "observed_raw": {
+        "logical": true
+      },
+      "reading_failure": null
+    },
+    {
+      "audit": {
+        "argument_literals": null,
+        "effective_callee_inputs": "not directly observable",
+        "formula": "=REGEXTEST(RC[1],RC[2],RC[3])",
+        "read_back": [
+          {
+            "text": "0061000d0062"
+          },
+          {
+            "text": "0061002e0062"
+          },
+          {
+            "number": "0000000000000000"
+          }
+        ],
+        "requested": [
+          {
+            "text": "a\rb"
+          },
+          {
+            "text": "a.b"
+          },
+          {
+            "number": "0000000000000000"
+          }
+        ],
+        "submitted_value2": [
+          {
+            "text": "0061000d0062"
+          },
+          {
+            "text": "0061002e0062"
+          },
+          {
+            "number": "0000000000000000"
+          }
+        ],
+        "transport": "cell_value2_bulk"
+      },
+      "id": "fn3-regextest-007",
+      "observed_raw": {
+        "logical": false
+      },
+      "reading_failure": null
+    },
+    {
+      "audit": {
+        "argument_literals": null,
+        "effective_callee_inputs": "not directly observable",
+        "formula": "=REGEXTEST(RC[1],RC[2],RC[3])",
+        "read_back": [
+          {
+            "text": "0061000d000a0062"
+          },
+          {
+            "text": "0061002e0062"
+          },
+          {
+            "number": "0000000000000000"
+          }
+        ],
+        "requested": [
+          {
+            "text": "a\r\nb"
+          },
+          {
+            "text": "a.b"
+          },
+          {
+            "number": "0000000000000000"
+          }
+        ],
+        "submitted_value2": [
+          {
+            "text": "0061000d000a0062"
+          },
+          {
+            "text": "0061002e0062"
+          },
+          {
+            "number": "0000000000000000"
+          }
+        ],
+        "transport": "cell_value2_bulk"
+      },
+      "id": "fn3-regextest-008",
+      "observed_raw": {
+        "logical": false
+      },
+      "reading_failure": null
+    },
+    {
+      "audit": {
+        "argument_literals": null,
+        "effective_callee_inputs": "not directly observable",
+        "formula": "=REGEXTEST(RC[1],RC[2],RC[3])",
+        "read_back": [
+          {
+            "text": "212a"
+          },
+          {
+            "text": "006b"
+          },
+          {
+            "number": "3ff0000000000000"
+          }
+        ],
+        "requested": [
+          {
+            "text": "K"
+          },
+          {
+            "text": "k"
+          },
+          {
+            "number": "3ff0000000000000"
+          }
+        ],
+        "submitted_value2": [
+          {
+            "text": "212a"
+          },
+          {
+            "text": "006b"
+          },
+          {
+            "number": "3ff0000000000000"
+          }
+        ],
+        "transport": "cell_value2_bulk"
+      },
+      "id": "fn3-regextest-009",
+      "observed_raw": {
+        "logical": true
+      },
+      "reading_failure": null
+    },
+    {
+      "audit": {
+        "argument_literals": null,
+        "effective_callee_inputs": "not directly observable",
+        "formula": "=REGEXTEST(RC[1],RC[2],RC[3])",
+        "read_back": [
+          {
+            "text": "017f"
+          },
+          {
+            "text": "0073"
+          },
+          {
+            "number": "3ff0000000000000"
+          }
+        ],
+        "requested": [
+          {
+            "text": "ſ"
+          },
+          {
+            "text": "s"
+          },
+          {
+            "number": "3ff0000000000000"
+          }
+        ],
+        "submitted_value2": [
+          {
+            "text": "017f"
+          },
+          {
+            "text": "0073"
+          },
+          {
+            "number": "3ff0000000000000"
+          }
+        ],
+        "transport": "cell_value2_bulk"
+      },
+      "id": "fn3-regextest-010",
+      "observed_raw": {
+        "logical": true
+      },
+      "reading_failure": null
+    },
+    {
+      "audit": {
+        "argument_literals": null,
+        "effective_callee_inputs": "not directly observable",
+        "formula": "=REGEXTEST(RC[1],RC[2],RC[3])",
+        "read_back": [
+          {
+            "text": "00df"
+          },
+          {
+            "text": "1e9e"
+          },
+          {
+            "number": "3ff0000000000000"
+          }
+        ],
+        "requested": [
+          {
+            "text": "ß"
+          },
+          {
+            "text": "ẞ"
+          },
+          {
+            "number": "3ff0000000000000"
+          }
+        ],
+        "submitted_value2": [
+          {
+            "text": "00df"
+          },
+          {
+            "text": "1e9e"
+          },
+          {
+            "number": "3ff0000000000000"
+          }
+        ],
+        "transport": "cell_value2_bulk"
+      },
+      "id": "fn3-regextest-011",
+      "observed_raw": {
+        "logical": true
+      },
+      "reading_failure": null
+    },
+    {
+      "audit": {
+        "argument_literals": null,
+        "effective_callee_inputs": "not directly observable",
+        "formula": "=REGEXTEST(RC[1],RC[2],RC[3])",
+        "read_back": [
+          {
+            "text": "d801dc00"
+          },
+          {
+            "text": "d801dc28"
+          },
+          {
+            "number": "3ff0000000000000"
+          }
+        ],
+        "requested": [
+          {
+            "text": "𐐀"
+          },
+          {
+            "text": "𐐨"
+          },
+          {
+            "number": "3ff0000000000000"
+          }
+        ],
+        "submitted_value2": [
+          {
+            "text": "d801dc00"
+          },
+          {
+            "text": "d801dc28"
+          },
+          {
+            "number": "3ff0000000000000"
+          }
+        ],
+        "transport": "cell_value2_bulk"
+      },
+      "id": "fn3-regextest-012",
+      "observed_raw": {
+        "logical": true
+      },
+      "reading_failure": null
+    }
+  ],
+  "transport_audit_readings": [],
+  "unread": [],
+  "witnesses": [
+    {
+      "args": [
+        "É",
+        "[é-é]",
+        "0x3ff0000000000000"
+      ],
+      "calc_func_prediction": "fault:NotImplemented",
+      "expected_bits": "logical:True",
+      "id": "fn3-regextest-001"
+    },
+    {
+      "args": [
+        "É",
+        "[é]",
+        "0x3ff0000000000000"
+      ],
+      "calc_func_prediction": "logical:True",
+      "expected_bits": "logical:True",
+      "id": "fn3-regextest-002"
+    },
+    {
+      "args": [
+        "Σ",
+        "[α-ω]",
+        "0x3ff0000000000000"
+      ],
+      "calc_func_prediction": "fault:NotImplemented",
+      "expected_bits": "logical:True",
+      "id": "fn3-regextest-003"
+    },
+    {
+      "args": [
+        "中",
+        "\\d",
+        "0x0000000000000000"
+      ],
+      "calc_func_prediction": "logical:False",
+      "expected_bits": "logical:False",
+      "id": "fn3-regextest-004"
+    },
+    {
+      "args": [
+        "́",
+        "\\w",
+        "0x0000000000000000"
+      ],
+      "calc_func_prediction": "logical:False",
+      "expected_bits": "logical:True",
+      "id": "fn3-regextest-005"
+    },
+    {
+      "args": [
+        "‿",
+        "\\w",
+        "0x0000000000000000"
+      ],
+      "calc_func_prediction": "logical:False",
+      "expected_bits": "logical:True",
+      "id": "fn3-regextest-006"
+    },
+    {
+      "args": [
+        "a\rb",
+        "a.b",
+        "0x0000000000000000"
+      ],
+      "calc_func_prediction": "logical:True",
+      "expected_bits": "logical:False",
+      "id": "fn3-regextest-007"
+    },
+    {
+      "args": [
+        "a\r\nb",
+        "a.b",
+        "0x0000000000000000"
+      ],
+      "calc_func_prediction": "logical:False",
+      "expected_bits": "logical:False",
+      "id": "fn3-regextest-008"
+    },
+    {
+      "args": [
+        "K",
+        "k",
+        "0x3ff0000000000000"
+      ],
+      "calc_func_prediction": "logical:True",
+      "expected_bits": "logical:True",
+      "id": "fn3-regextest-009"
+    },
+    {
+      "args": [
+        "ſ",
+        "s",
+        "0x3ff0000000000000"
+      ],
+      "calc_func_prediction": "logical:True",
+      "expected_bits": "logical:True",
+      "id": "fn3-regextest-010"
+    },
+    {
+      "args": [
+        "ß",
+        "ẞ",
+        "0x3ff0000000000000"
+      ],
+      "calc_func_prediction": "logical:True",
+      "expected_bits": "logical:True",
+      "id": "fn3-regextest-011"
+    },
+    {
+      "args": [
+        "𐐀",
+        "𐐨",
+        "0x3ff0000000000000"
+      ],
+      "calc_func_prediction": "logical:True",
+      "expected_bits": "logical:True",
+      "id": "fn3-regextest-012"
+    }
+  ]
+}

@@ -41,7 +41,7 @@ struct RegexClass {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum RegexClassItem {
     Single(char),
-    Range(char, char),
+    Range(char, char, Option<Vec<char>>),
     Digit,
     Word,
     Space,
@@ -72,7 +72,11 @@ enum RegexClassPiece {
 }
 
 fn is_word_char(ch: char) -> bool {
-    ch.is_alphanumeric() || ch == '_'
+    // Fn3 retains Mn and Pc membership; the PCRE2 pattern specification describes
+    // these additions to Unicode word characters. Keep one predicate for boundaries too.
+    ch.is_alphanumeric()
+        || calc_value::is_nonspacing_mark(ch)
+        || calc_value::is_connector_punctuation(ch)
 }
 
 fn chars_equal(lhs: char, rhs: char, case_sensitive: bool) -> bool {
@@ -83,23 +87,35 @@ fn chars_equal(lhs: char, rhs: char, case_sensitive: bool) -> bool {
     }
 }
 
-fn range_contains(ch: char, start: char, end: char, case_sensitive: bool) -> bool {
+fn range_contains(ch: char, start: char, end: char, folded: &Option<Vec<char>>, case_sensitive: bool) -> bool {
     if case_sensitive {
         ch >= start && ch <= end
-    } else if ch.is_ascii() && start.is_ascii() && end.is_ascii() {
-        let folded = ch.to_ascii_lowercase();
-        let lo = start.to_ascii_lowercase();
-        let hi = end.to_ascii_lowercase();
-        folded >= lo && folded <= hi
     } else {
-        ch >= start && ch <= end
+        folded.as_ref().is_some_and(|range|
+            range.binary_search(&calc_value::unicode_simple_case_fold(ch)).is_ok())
     }
+}
+
+// Fold the complete admitted range, rather than folding just its endpoints:
+// a fold can reverse or collapse interior characters (for example Greek sigma).
+// Wider caseless ranges stay unsupported; case-sensitive matching needs no table.
+fn folded_range(start: char, end: char) -> Option<Vec<char>> {
+    if end < start || end as u32 - start as u32 > 4096 {
+        return None;
+    }
+    let mut folded: Vec<_> = (start as u32..=end as u32)
+        .filter_map(char::from_u32)
+        .map(calc_value::unicode_simple_case_fold)
+        .collect();
+    folded.sort_unstable();
+    folded.dedup();
+    Some(folded)
 }
 
 fn class_item_matches(item: &RegexClassItem, ch: char, case_sensitive: bool) -> bool {
     match item {
         RegexClassItem::Single(expected) => chars_equal(ch, *expected, case_sensitive),
-        RegexClassItem::Range(start, end) => range_contains(ch, *start, *end, case_sensitive),
+        RegexClassItem::Range(start, end, folded) => range_contains(ch, *start, *end, folded, case_sensitive),
         RegexClassItem::Digit => ch.is_ascii_digit(),
         RegexClassItem::Word => is_word_char(ch),
         RegexClassItem::Space => ch.is_whitespace(),
@@ -140,7 +156,7 @@ fn atom_consumes_input(atom: &RegexAtom) -> bool {
 fn consuming_atom_matches(atom: &RegexAtom, ch: char, case_sensitive: bool) -> bool {
     match atom {
         RegexAtom::Literal(expected) => chars_equal(ch, *expected, case_sensitive),
-        RegexAtom::Any => ch != '\n',
+        RegexAtom::Any => ch != '\n' && ch != '\r',
         RegexAtom::Digit => ch.is_ascii_digit(),
         RegexAtom::NotDigit => !ch.is_ascii_digit(),
         RegexAtom::Word => is_word_char(ch),
@@ -377,7 +393,7 @@ fn parse_char_class(chars: &[char], index: &mut usize) -> Result<RegexAtom, Unsu
                 RegexClassPiece::Literal(end),
             ) = (&pieces[i], &pieces[i + 1], &pieces[i + 2])
             {
-                items.push(RegexClassItem::Range(*start, *end));
+                items.push(RegexClassItem::Range(*start, *end, folded_range(*start, *end)));
                 i += 3;
                 continue;
             }
@@ -465,12 +481,11 @@ pub(crate) fn regex_matches(
 ) -> Result<(Vec<char>, Vec<(usize, usize)>), Unsupported> {
     let haystack: Vec<char> = text.chars().collect();
     let tokens = parse_regex_pattern(pattern)?;
-    // The fn1 controls establish Unicode literal case equality, not closure of a Unicode
-    // range under casing. Keep those ranges refused until their rule is measured.
+    // The fn3 readings admit Unicode range closure through the same simple fold as
+    // literals. A range beyond the bounded table remains a typed refusal.
     if !case_sensitive && tokens.iter().any(|token| match &token.atom {
         RegexAtom::Class(class) => class.items.iter().any(|item| {
-            matches!(item, RegexClassItem::Range(start, end)
-                if !text.is_ascii() || !start.is_ascii() || !end.is_ascii())
+            matches!(item, RegexClassItem::Range(_, _, None))
         }),
         _ => false,
     }) {
