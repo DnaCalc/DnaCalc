@@ -785,6 +785,56 @@ fn fv_exp(rate: f64, m: f64, payment: f64, present_value: f64, tf: f64) -> f64 {
     -(present_value * factor + payment * tf * (expm1_growth / rate))
 }
 
+/// What Excel's PMT, IPMT and PPMT share for payments at the end of a period (dc-j9k.12): the
+/// series logarithm `L` of 1 + rate and PMT's stored quotient
+/// `q = RN53(RN64((pv + fv * v^n) / em_n))`, `em_n = expm1(-(n * L))`, `v^n = 1 + em_n`.
+/// `None` where PMT itself takes another route: a rate outside the series' range, equal and
+/// opposite balances, or an em of zero.
+fn end_payment_quotient(
+    periodic_rate: f64,
+    periods: f64,
+    present_value: f64,
+    future_value: f64,
+) -> Option<(f64, f64)> {
+    if periodic_rate == 0.0 || !(-1.0 / 3.0..=0.5).contains(&periodic_rate) {
+        return None;
+    }
+    if present_value != 0.0 && future_value == -present_value {
+        return None;
+    }
+    let log_growth = excel_log1p_atanh(periodic_rate);
+    let em = crate::ported::excel_numeric::excel_expm1_spilled(-(periods * log_growth));
+    if em == 0.0 || !em.is_finite() {
+        return None;
+    }
+    let quotient = excel_x87_div(present_value + future_value * (1.0 + em), em);
+    quotient.is_finite().then_some((log_growth, quotient))
+}
+
+/// Period `period_index` of an end-of-period annuity on Excel's own pieces (dc-j9k.12), with
+/// `m = periods - period_index + 1` periods left, `t = -(m * L)`, `em_m = expm1(t)` (the x87
+/// Kahan expm1) and `u = exp(t)` (the x87 exponential that expm1 starts from):
+/// interest `-RN(RN(RN(q * em_m) - RN(fv * u)) * rate)` and principal
+/// `RN(RN(RN(q - fv) * u) * rate)`, every RN the x87 store RN53(RN64(.)).
+fn end_payment_parts(
+    periodic_rate: f64,
+    period_index: f64,
+    periods: f64,
+    future_value: f64,
+    log_growth: f64,
+    quotient: f64,
+) -> (f64, f64) {
+    let t = -((periods - period_index + 1.0) * log_growth);
+    let em = crate::ported::excel_numeric::excel_expm1_spilled(t);
+    let u = crate::ported::excel_numeric::excel_exp(t);
+    let interest = -excel_x87_mul(
+        excel_x87_sub(excel_x87_mul(quotient, em), excel_x87_mul(future_value, u)),
+        periodic_rate,
+    );
+    let principal = excel_x87_mul(excel_x87_mul(excel_x87_sub(quotient, future_value), u), periodic_rate);
+    (interest, principal)
+}
+
 /// IPMT on the correctly-rounded numeric core (W108 Bead C). Interest portion of
 /// payment `period_index`: the remaining balance entering the period times `r`,
 /// reconstructed from the core PMT and the `fv_exp` balance recurrence.
@@ -817,6 +867,17 @@ pub fn ipmt(
         return Err(FinancialError::Num);
     }
     let periodic_payment = pmt(periodic_rate, periods, present_value, future_value, timing)?;
+    // dc-j9k.12: payments at the end of a period take Excel's own pieces. On the catalogue
+    // oracle and bank rows with fv 0 (95 of 95) the interest is -RN(RN(q * em_m) * rate).
+    if matches!(timing, PaymentTiming::EndOfPeriod)
+        && let Some((log_growth, quotient)) =
+            end_payment_quotient(periodic_rate, periods, present_value, future_value)
+    {
+        let (interest, _) = end_payment_parts(
+            periodic_rate, period_index, periods, future_value, log_growth, quotient,
+        );
+        return if interest.is_finite() { Ok(interest) } else { Err(FinancialError::Num) };
+    }
     let tf = timing.factor(periodic_rate); // 1 + r·type
     let type_is_beginning = matches!(timing, PaymentTiming::BeginningOfPeriod);
     // Remaining balance entering `period_index` (the `rip` term); interest = rip·r. Excel
@@ -874,6 +935,18 @@ pub fn ppmt(
     )?;
     if periodic_rate == 0.0 || (period_index <= 1.0 && matches!(timing, PaymentTiming::BeginningOfPeriod)) {
         return Ok(payment - interest);
+    }
+    // dc-j9k.12: payments at the end of a period take Excel's own pieces: the principal is
+    // RN(RN(RN(q - fv) * u) * rate) with u = exp(-(m * L)), not a payment less interest.
+    // Catalogue oracle, bank and fresh Excel rows: 138 of 138 with fv 0, 25 of 27 with fv.
+    if matches!(timing, PaymentTiming::EndOfPeriod)
+        && let Some((log_growth, quotient)) =
+            end_payment_quotient(periodic_rate, periods, present_value, future_value)
+    {
+        let (_, principal) = end_payment_parts(
+            periodic_rate, period_index, periods, future_value, log_growth, quotient,
+        );
+        return if principal.is_finite() { Ok(principal) } else { Err(FinancialError::Num) };
     }
     // Excel does not subtract the interest from the payment, which cancels when the interest
     // is nearly the whole payment (dc-j9k: PPMT(0.1809,1,375,57755.66,635.76) is -8.79e-24 in
@@ -1394,18 +1467,9 @@ mod tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn ppmt_exactness_witness_pins_current_local_bits_and_excel_gap() {
-        // W108 Bead C — open discrepancy, MAGNITUDE COLLAPSED. On the CR core,
-        // PPMT(0.05/12, 1, 360, 200000) = 0xc06e09eace050724; Excel (PPMT-0000) is
-        // 0xc06e09eace050723 — a 1-ULP gap (Excel's bespoke transcendental last
-        // bit). The prior wrong-kernel local was 0xc06e09eace0506e4 (~63 ULP off
-        // Excel). Pin the NEW local bits with the Excel target recorded; the 1-ULP
-        // residual is a tracked W108 open bug, not an acceptance.
-        // dc-j9k (2026-10-24): PPMT now discounts the principal directly, v^m*(pmt - fv*r),
-        // which matches Excel on 58 of 150 catalogue-oracle PPMT readings and brings the rest
-        // within 84 ulp (the subtraction pmt - IPMT missed by up to whole units); on this
-        // witness it gives 0xc06e09eace050721, 2 ulp below Excel where the subtraction was 1
-        // above.
+    fn ppmt_exactness_witness_matches_excel() {
+        // Excel (PPMT-0000): PPMT(0.05/12, 1, 360, 200000) = 0xc06e09eace050723. dc-j9k.12:
+        // the principal RN(RN(q * u) * rate) reaches it; the earlier forms were 1 to 2 ulp off.
         let ppmt_actual = ppmt(
             0.05 / 12.0,
             1.0,
@@ -1415,11 +1479,7 @@ mod tests {
             PaymentTiming::EndOfPeriod,
         )
         .expect("ppmt witness");
-        let ppmt_current_local = f64::from_bits(0xc06e09eace050721);
-        let ppmt_excel_target = f64::from_bits(0xc06e09eace050723);
-
-        assert_bits(ppmt_actual, ppmt_current_local);
-        assert_ne!(ppmt_actual.to_bits(), ppmt_excel_target.to_bits());
+        assert_bits(ppmt_actual, f64::from_bits(0xc06e09eace050723));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
