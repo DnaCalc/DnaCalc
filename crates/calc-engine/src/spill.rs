@@ -85,9 +85,12 @@ impl SpillOutcome {
 
 /// A value as a cell of a spill shows it: a blank element as 0, as Excel shows an array element
 /// that came from a blank cell; an element that holds an array (a GROUPBY result's, dc-h9u) as
-/// #VALUE!, as Excel 16.0.20527 shows it.
+/// #VALUE!, as Excel 16.0.20527 shows it. A callable shows its worksheet core (fn2 q017–020);
+/// its identity stays available inside the expression until this publication boundary.
 pub(crate) fn shown(value: &CalcValue) -> CalcValue {
-    if value.is_empty() || value.is_missing() {
+    if value.callable_value().is_some() {
+        CalcValue::new(value.core().clone())
+    } else if value.is_empty() || value.is_missing() {
         CalcValue::number(0.0)
     } else if (value.as_array().is_some() && value.callable_value().is_none())
         || value.as_reference().is_some()

@@ -632,6 +632,7 @@ pub(crate) struct RecalcView<'a> {
     pub(crate) cached_observation: bool,
     pub(crate) caller: Option<NodeId>,
     pub(crate) scope: Option<&'a crate::contract::CalcScope>,
+    pub(crate) range_refused: Option<&'a BTreeSet<NodeId>>,
     pub(crate) boundary: Option<&'a Cell<Option<calc_fml::ReadDenial>>>,
     pub(crate) boundary_caches: Option<&'a BoundarySnapshot>,
     pub(crate) boundary_used: Option<&'a Cell<bool>>,
@@ -787,6 +788,16 @@ impl<'a> RecalcView<'a> {
         }
         if let Some(spill) = self.state.spills.covering(at) {
             let anchor = spill.anchor();
+            if let Some(node) = self.state.node_at(anchor)
+                && self
+                    .range_refused
+                    .is_some_and(|nodes| nodes.contains(&node))
+            {
+                if let Some(boundary) = self.boundary {
+                    boundary.set(Some(iterative_range_denial()));
+                }
+                return Err((node, anchor));
+            }
             if self.scope.is_some_and(|scope| !scope.contains(anchor)) {
                 if let Some(spill) = self.boundary_caches.and_then(|pin| pin.spills.covering(at)) {
                     if let Some(used) = self.boundary_used {
@@ -1158,6 +1169,17 @@ impl<'a> WorkbookReader<'a> {
             }));
         }
 
+        if self
+            .view
+            .range_refused
+            .is_some_and(|nodes| nodes.contains(&node))
+        {
+            self.denial.set(Some(iterative_range_denial()));
+            if let Some(boundary) = self.view.boundary {
+                boundary.set(Some(iterative_range_denial()));
+            }
+            return Ok(None);
+        }
         if self.view.scope.is_some_and(|scope| !scope.contains(at)) {
             if let Some(value) = self
                 .view
@@ -1514,6 +1536,13 @@ impl<'a> WorkbookReader<'a> {
     }
 }
 
+pub(crate) fn iterative_range_denial() -> calc_fml::ReadDenial {
+    calc_fml::ReadDenial {
+        construct: "a dependency on an unresolved cyclic Manual range target",
+        owner: "dc-hsa5.11",
+    }
+}
+
 fn scope_denial() -> calc_fml::ReadDenial {
     calc_fml::ReadDenial {
         construct: "an out-of-scope formula without a complete permitted cache (dc-hsa5.4)",
@@ -1732,6 +1761,18 @@ impl ReferenceReader for WorkbookReader<'_> {
 
     fn spill_extent(&mut self, anchor: CellKey) -> SpillExtent {
         let view = self.view;
+        if !view.cached_observation
+            && view.state.node_at(anchor).is_some_and(|node| {
+                view.range_refused
+                    .is_some_and(|nodes| nodes.contains(&node))
+            })
+        {
+            self.denial.set(Some(iterative_range_denial()));
+            if let Some(boundary) = view.boundary {
+                boundary.set(Some(iterative_range_denial()));
+            }
+            return SpillExtent::NotModelled;
+        }
         // Shape-only consumers inherit source provenance without consuming the value.
         let _ = self.formula_lookup(anchor);
         if view.cached_observation {
@@ -2065,6 +2106,7 @@ impl CachedReadLease {
             cached_observation: true,
             caller: None,
             scope: None,
+            range_refused: None,
             boundary: None,
             boundary_caches: Some(&self.0.cache),
             boundary_used: None,

@@ -68,7 +68,7 @@
     {"args":["0xf4657251f47da0ee"],"expected_bits":"error:Num","id":"oc2768","reading":"r0"},
     {"args":["0xf879a91f82fb437a"],"expected_bits":"error:Num","id":"oc2989","reading":"r0"},
     {"args":["0x0000000000000000"],"expected_bits":"0x0000000000000000","id":"w1115-ASINH-00000","reading":"r1"},
-    {"args":["0x0000000000000001"],"calc_func":"fault:NotImplemented","expected_bits":"0x0000000000000000","id":"w1115-ASINH-00002","reading":"r1"},
+    {"args":["0x0000000000000001"],"expected_bits":"0x0000000000000000","id":"w1115-ASINH-00002","reading":"r1"},
     {"args":["0x0010000000000000"],"expected_bits":"0x0000000000000000","id":"w1115-ASINH-00004","reading":"r1"},
     {"args":["0x01a56e1fc2f8f359"],"expected_bits":"0x0000000000000000","id":"w1115-ASINH-00005","reading":"r1"},
     {"args":["0x01e0c4e8286167a1"],"expected_bits":"0x0000000000000000","id":"w1115-ASINH-00783","reading":"r1"},

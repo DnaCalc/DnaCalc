@@ -121,8 +121,8 @@ pub enum NotModeled {
     /// not calculated (a file cache, or a result not modelled) is refused here as
     /// [`EvalFault::MissingInput`].
     Evaluation(EvalFault),
-    /// The evaluation returned a value a cell cannot hold as calculated here: a callable, a
-    /// reference, an empty or omitted value, or a number that is not finite (an array result is
+    /// The evaluation returned a value a cell cannot hold as calculated here: a reference,
+    /// an empty or omitted value, or a number that is not finite (an array result is
     /// shown by its anchor and spills, `spill.rs`).
     Result(CalcValue),
 }
@@ -131,6 +131,13 @@ impl NotModeled {
     /// The calculated value `value`, or the refusal of a value a cell cannot hold as calculated
     /// here.
     pub(crate) fn publishable(value: CalcValue) -> Result<CalcValue, NotModeled> {
+        // Expression results retain callable identity. A cell publishes its worksheet face,
+        // using the same projection as spill cells (retained fn2 q017–020).
+        let value = if value.callable_value().is_some() {
+            crate::spill::shown(&value)
+        } else {
+            value
+        };
         let held = value.callable_value().is_none()
             && match value.core_ref() {
                 CoreRef::Number(number) => number.is_finite(),

@@ -11,6 +11,30 @@ use f1_support::*;
 
 const PI: f64 = std::f64::consts::PI;
 
+/// Original Excel20430 observations oc1418, oc1065 and oc1762.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn asinh_stores_each_identity_operation_from_pc64() {
+    for (input, expected) in [
+        (0x3e73_4f4b_587c_834b, 0x3e73_4f4b_5859_1206),
+        (0x3ed0_51e2_e324_9a58, 0x3ed0_51e2_e326_b736),
+        (0xbeb0_32f7_6bce_6f24, 0xbeb0_32f7_6bdb_73b3),
+    ] {
+        exact(call("ASINH", vec![n(f64::from_bits(input))]), f64::from_bits(expected));
+    }
+}
+
+/// Every subnormal has x*x rounding to zero and 1+abs(x) rounding to one.
+/// Both signs therefore reach LN(1), whose published result is positive zero.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn asinh_admits_subnormal_inputs_whose_identity_is_exact_zero() {
+    for input in [0x0000_0000_0000_0001, 0x8000_0000_0000_0001,
+                  0x000f_ffff_ffff_ffff, 0x800f_ffff_ffff_ffff] {
+        exact(call("ASINH", vec![n(f64::from_bits(input))]), 0.0);
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn circular_functions() {
@@ -224,4 +248,80 @@ fn fn1_ecma_ceiling_matches_the_recorded_controls() {
         exact(call("ECMA.CEILING", vec![n(value), n(significance)]), expected);
     }
     error(call("ECMA.CEILING", vec![n(4.3), n(-2.0)]), Num);
+}
+
+/// Recorded Excel answers (build 20430, OxFunc-Evidence scalar bank) for the rounding family's
+/// digit-count, fifteen-digit reading, ROUNDUP assembly and MROUND half rules. Each row is
+/// `(function, number bits, digits bits, Excel's answer bits)`; `None` stands for #NUM!.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn rounding_family_matches_recorded_bank_rows() {
+    #[rustfmt::skip]
+    let rows: &[(&str, u64, u64, Option<u64>)] = &[
+        // ROUND keeps digits + exponent + 1 significant digits in 32-bit arithmetic: a sum
+        // that wraps below the 32-bit range keeps fifteen digits, one above it keeps none.
+        ("ROUND", 0x9233_cf3f_bcba_bd40, 0xc1df_ffff_d60e_432a, Some(0x9233_cf3f_bcba_bd3c)),
+        ("ROUND", 0xc2d9_945c_a262_0000, 0x41df_ffff_fcc0_0000, Some(0)),
+        // A 16-digit tie read on the x87 unit at 64-bit precision: ROUND drops it.
+        ("ROUND", 0xc316_a939_8069_56e4, 0x402c_0000_0000_0000, Some(0xc316_a939_8069_56d0)),
+        // ROUNDDOWN keeps it.
+        ("ROUNDDOWN", 0x42f0_168e_a699_71b8, 0, Some(0x42f0_168e_a699_71c0)),
+        // The directed functions read num_digits as 16 bits of its magnitude below 2^32; a
+        // magnitude with the 16-bit sign bit set, or 2^32 or more, counts as 100 places.
+        ("ROUNDDOWN", 0x2b31_482f_e620_c5cf, 0x40e0_0000_0000_0000, Some(0x2b2b_ff2e_e48e_0530)),
+        ("ROUNDDOWN", 0x2b9b_00ca_d793_3513, 0x40ef_ffe0_0000_0000, Some(0x2b9a_e737_0fa0_78fc)),
+        ("ROUNDDOWN", 0xd4b2_d135_2447_6f3a, 0xc1df_ffff_c600_0000, Some(0xd4b2_49ad_2594_c37d)),
+        // ROUNDUP adds no unit for such a positive count and has none to add for a negative one.
+        ("ROUNDUP", 0x270b_bc24_37e4_5a41, 0x41df_ffff_afc0_0000, Some(0)),
+        // -2147483748 is 100 below 2^31 in its low 16 bits: ROUNDUP to 1E+100.
+        ("ROUNDUP", 0x166e_3d71_f622_be8f, 0xc1e0_0000_0c80_0000, Some(0x54b2_49ad_2594_c37d)),
+        // ROUNDUP is the ROUNDDOWN result plus one unit, added in binary64.
+        ("ROUNDUP", 0xbff2_0000_0000_0000, 0x4000_0000_0000_0000, Some(0xbff2_147a_e147_ae15)),
+        ("ROUNDUP", 0x400c_47ae_147a_e148, 0x4000_0000_0000_0000, Some(0x400c_51eb_851e_b851)),
+        // ROUNDUP: a positive reading under 2^-1026 above the truncation stays, a unit below the
+        // normal range is not added, and otherwise the unit is added.
+        ("ROUNDUP", 0x0031_fa98_2c40_c60e, 0x4073_3000_0000_0000, Some(0x0031_fa18_2c40_c60d)),
+        ("ROUNDUP", 0x8035_fa18_2c40_c60e, 0x4073_4000_0000_0000, Some(0x8035_9283_684d_ba77)),
+        ("ROUNDUP", 0x01a5_6e1f_c3c5_c026, 0x4073_3000_0000_0000, Some(0x01a5_6e1f_e6ed_23b2)),
+        // MOD with a subnormal remainder of the other sign: added to the divisor below 2^-1026,
+        // taken from it above, and #NUM! for a count of 2^26 or more or a divisor whose Veltkamp
+        // low part is subnormal (the last row is Excel 16.0.20527).
+        ("MOD", 0x0020_0000_0000_0001, 0x8020_0000_0000_0000, Some(0x8020_0000_0000_0001)),
+        ("MOD", 0x0020_8000_0000_0000, 0x8020_0000_0000_0000, Some(0x801f_0000_0000_0000)),
+        ("MOD", 0x01c0_0000_0000_0001, 0x8020_0000_0000_0000, None),
+        ("MOD", 0x827a_28ed_c580_e50f, 0x027a_28ed_c580_e50e, Some(0x027a_28ed_c580_e50f)),
+        // MROUND counts a quotient within 5E-15 below a half up.
+        ("MROUND", 0x4037_7fff_ffff_ffff, 0x3ff0_0000_0000_0000, Some(0x4038_0000_0000_0000)),
+        ("MROUND", 0xbfa9_9999_9999_9978, 0xbfb9_9999_9999_999a, Some(0xbfb9_9999_9999_999a)),
+        ("MROUND", 0x2431_da05_80b5_7755, 0x20fc_dcb2_1a5b_96d6, Some(0x2431_da05_80b5_7756)),
+    ];
+    for &(function, number, digits, expected) in rows {
+        let result = call(
+            function,
+            vec![n(f64::from_bits(number)), n(f64::from_bits(digits))],
+        );
+        match expected {
+            Some(bits) => exact(result, f64::from_bits(bits)),
+            None => error(result, Num),
+        }
+    }
+    // MROUND(6.05,0.1) stays 6, the quotient 60.49999999999999 lying 7E-15 below the half.
+    exact(call("MROUND", vec![n(6.05), n(0.1)]), 6.0);
+    exact(call("ROUND", vec![n(1.5), n(2_147_483_647.0)]), 0.0);
+    exact(call("ROUND", vec![n(1.5), n(2_147_483_646.0)]), 1.5);
+    exact(call("TRUNC", vec![n(1.5), n(1e300)]), 1.5);
+    // Past DBL_MAX Excel keeps the significand and carries the exponent into the field's top
+    // value: NaN bit patterns that the worksheet holds as numbers (Excel 16.0.20527, Value2).
+    for (function, number, digits, bits) in [
+        ("ROUND", f64::MAX, -308.0, 0x7ff1_ccf3_85eb_c8a0u64),
+        ("ROUND", -f64::MAX, -308.0, 0xfff1_ccf3_85eb_c8a0),
+        ("ROUND", f64::MAX, -307.0, 0x7ff0_0541_9221_015d),
+        ("ROUND", f64::MAX, 0.0, 0x7ff0_0000_0000_000a),
+        ("TRUNC", f64::from_bits(0x7fef_ffff_ffff_fffc), 0.0, 0x7ff0_0000_0000_000a),
+    ] {
+        exact(call(function, vec![n(number), n(digits)]), f64::from_bits(bits));
+    }
+    error(call("ROUNDUP", vec![n(f64::MAX), n(-308.0)]), Num);
+    exact(call("ROUNDUP", vec![n(1.5), n(1e300)]), 1.5);
+    error(call("ROUNDUP", vec![n(1.5), n(-1e300)]), Num);
 }

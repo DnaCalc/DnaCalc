@@ -8,23 +8,26 @@
 //!
 //! ABS, SIGN, INT, EVEN and ODD act on the binary64 itself: its absolute value, sign and integer
 //! parts are exact. TRUNC, ROUND, ROUNDUP and ROUNDDOWN round to a decimal position; they read
-//! each number rounded to 15 significant digits ([`ExactDecimal::fifteen`]), compute on that
-//! decimal exactly, and convert the exact result once to the nearest binary64 at an arithmetic
-//! site. So ROUND(2.675,2) is 2.68, as the typed 2.675 reads, although the binary64 of 2.675 lies
-//! below the half, and TRUNC(2.9999999999999996) is 3 (dc-bd5). MOD and QUOTIENT divide in
-//! binary64 (QUOTIENT(0.3,0.1) is 2).
+//! each number to 15 significant digits ([`ExactDecimal::fifteen_x87`] where the scaling is exact
+//! on the x87 unit, [`ExactDecimal::fifteen`] elsewhere), compute on that decimal exactly, and
+//! convert the exact result once to the nearest binary64 at an arithmetic site. So
+//! ROUND(2.675,2) is 2.68, as the typed 2.675 reads, although the binary64 of 2.675 lies below
+//! the half, and TRUNC(2.9999999999999996) is 3 (dc-bd5). ROUND counts num_digits as a 32-bit
+//! integer and the directed functions as a 16-bit one (`nearest_digits`, `directed_places`);
+//! ROUNDUP adds its unit in binary64 (`directed`). MOD and QUOTIENT divide in binary64
+//! (QUOTIENT(0.3,0.1) is 2).
 //!
 //! CEILING and FLOOR compute in binary64: the quotient number / significance, rounded at an
 //! arithmetic site, is taken to the integer above or below it, and the significance times that
 //! integer is rounded at another. So CEILING(0.3,0.1) is 0.30000000000000004 and FLOOR(0.3,0.1)
 //! is 0.2, the binary64 quotient being 2.9999999999999996.
 //!
-//! MROUND counts its multiples from the binary64 quotient number / multiple, rounded to the
-//! nearest integer, a half away from zero; the count times the multiple's exact decimal reading is
-//! computed exactly and converted once. Its page's Known Limitations example gives MROUND(6.05,0.1)
-//! as 6.0 and MROUND(7.05,0.1) as 7.1. Counting from the binary64 quotients, 60.49999999999999 and
-//! 70.5, agrees with both outcomes; counting on the decimal readings gives the half 60.5 and so
-//! 6.1 for the first.
+//! MROUND counts its multiples from the binary64 quotient number / multiple, rounded at an
+//! arithmetic site, to the integer below it, plus one when its fraction is at least a half less
+//! 5E-15 (`nearest_multiple`); the count times the multiple is rounded at another site. Its
+//! page's Known Limitations example gives MROUND(6.05,0.1) as 6.0 and MROUND(7.05,0.1) as 7.1.
+//! Counting from the binary64 quotients, 60.49999999999999 and 70.5, agrees with both outcomes;
+//! counting on the decimal readings gives the half 60.5 and so 6.1 for the first.
 //!
 //! No page settles which of these rules Excel's division follows for each function; the owner's
 //! Excel capture of the oracle rows that tell them apart (CEILING(0.3,0.1), FLOOR(0.3,0.1),
@@ -123,7 +126,16 @@ fn numeric(
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(id, services);
     let flush_input = matches!(id, TRUNC | ROUND | ROUNDUP | ROUNDDOWN | MOD);
-    Site::finish(numbers(&site, arguments, flush_input).and_then(|read| site.number(compute(&site, &read)?)))
+    Site::finish(numbers(&site, arguments, flush_input).and_then(|read| {
+        let result = compute(&site, &read)?;
+        // Only `stored` makes a NaN here: Excel's own bit pattern for a result past DBL_MAX,
+        // which the worksheet holds as a number.
+        if result.is_nan() && flush_input {
+            Ok(CalcValue::number(result))
+        } else {
+            site.number(result)
+        }
+    }))
 }
 
 /// The arguments as numbers: an array argument is refused first, then each argument is read in
@@ -212,7 +224,7 @@ fn trunc(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     numeric(TRUNC, arguments, services, |site, n| {
-        to_digits(
+        directed(
             site,
             n[0],
             n.get(1).copied().unwrap_or(0.0),
@@ -227,7 +239,7 @@ fn round(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     numeric(ROUND, arguments, services, |site, n| {
-        to_digits(site, n[0], n[1], Direction::Nearest)
+        nearest_digits(site, n[0], n[1])
     })
 }
 
@@ -237,7 +249,7 @@ fn roundup(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     numeric(ROUNDUP, arguments, services, |site, n| {
-        to_digits(site, n[0], n[1], Direction::AwayFromZero)
+        directed(site, n[0], n[1], Direction::AwayFromZero)
     })
 }
 
@@ -247,38 +259,167 @@ fn rounddown(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     numeric(ROUNDDOWN, arguments, services, |site, n| {
-        to_digits(site, n[0], n[1], Direction::TowardZero)
+        directed(site, n[0], n[1], Direction::TowardZero)
     })
 }
 
 /// Beyond this many places either way no number's reading has a digit (a reading's digits lie
-/// between 10^-1074 and 10^308), so clamping num_digits here changes no result.
-const PLACES: f64 = 2000.0;
+/// between 10^-1074 and 10^308), so clamping a position here changes no result.
+const PLACES: i32 = 2000;
 
-/// `number`, read as an exact decimal, rounded in `direction` to `places` decimal places, of
-/// which only the integer part counts. A number with no digit beyond that position is the result
-/// unchanged, with no rounding; otherwise the rounded decimal is converted at an arithmetic site.
-fn to_digits(site: &Site<'_>, number: f64, places: f64, direction: Direction) -> Step<f64> {
+/// The fifteen significant digits the rounding functions round: the x87 reading where it is
+/// known ([`ExactDecimal::fifteen_x87`]), and otherwise the number read to fifteen significant
+/// digits, a half away from zero ([`ExactDecimal::fifteen`]).
+fn reading(number: f64, ties_up: bool) -> ExactDecimal {
+    ExactDecimal::fifteen_x87(number, ties_up).unwrap_or_else(|| ExactDecimal::fifteen(number).0)
+}
+
+/// A result below the normal range is 0, as Excel gives it (dc-bd5:
+/// ROUNDDOWN(2.5E-308,308) is 0 in Excel 16.0.20430).
+fn flush(result: f64) -> f64 {
+    if result.is_subnormal() { 0.0 } else { result }
+}
+
+/// ROUND's kernel. num_digits counts as a 32-bit integer, toward zero and limited to
+/// +/-2147483647, and ROUND keeps `digits + e + 1` significant digits of the number, e being its
+/// decimal exponent, the sum taken in 32-bit two's complement: fifteen or more keep the whole
+/// reading, fewer than none give 0, and otherwise the reading is rounded at 10^-digits. So
+/// ROUND(1.5,2147483647) is 0 (the sum wraps negative) where 2147483646 leaves 1.5, and
+/// ROUND(-5.480222088275654E-221,-2147483480.2228494) is -5.48022208827565E-221 (the sum wraps
+/// positive), as Excel 16.0.20430 gives them (the OxFunc-Evidence bank's integer-threshold,
+/// hyperbolic and count-refinement runs).
+fn nearest_digits(site: &Site<'_>, number: f64, places: f64) -> Step<f64> {
     if number == 0.0 {
         return Ok(0.0);
     }
-    // ROUND with num_digits of 2147483647 or more is 0, where 2147483646 leaves 1.5 as it is;
-    // ROUNDUP, ROUNDDOWN and TRUNC leave it (dc-bd5: Excel 16.0.20527, ROUND(1.5,1E+300) and
-    // ROUND(1.5,2147483647) are 0, ROUNDUP(1.5,1E+300) and TRUNC(1.5,1E+300) are 1.5).
-    if direction == Direction::Nearest && places >= 2_147_483_647.0 {
+    let limit = f64::from(i32::MAX);
+    // An integer within +/-2147483647, so the conversion is exact.
+    let digits = decimal::truncate(places).clamp(-limit, limit) as i32;
+    let kept = digits
+        .wrapping_add(ExactDecimal::binary(number).magnitude())
+        .wrapping_add(1);
+    if kept < 0 {
         return Ok(0.0);
     }
-    // An integer within +/-2000 after the clamp, so the conversion to i32 is exact.
-    let places = decimal::truncate(places).clamp(-PLACES, PLACES) as i32;
-    let (reading, changed) = ExactDecimal::fifteen(number);
-    let result = match reading.round_at(-places, direction) {
-        None if changed => site.nearest(&reading)?,
-        None => return Ok(number),
-        Some(rounded) => site.nearest(&rounded)?,
+    let reading = reading(number, false);
+    // Without a wrap, kept from 0 to 14 bounds digits to within 340 of 0.
+    match reading.round_at(-digits.clamp(-PLACES, PLACES), Direction::Nearest) {
+        Some(rounded) if kept < 15 => Ok(flush(stored(site, &rounded)?)),
+        _ => whole_reading(site, number, &reading),
+    }
+}
+
+/// The reading itself as the result: the number unchanged, with no rounding, when the reading
+/// is its exact value, and otherwise the reading converted at an arithmetic site.
+fn whole_reading(site: &Site<'_>, number: f64, reading: &ExactDecimal) -> Step<f64> {
+    if reading.is_value_of(number) {
+        Ok(number)
+    } else {
+        Ok(flush(stored(site, reading)?))
+    }
+}
+
+/// An exact decimal result as Excel stores it in binary64: the nearest binary64, except that a
+/// result of 2^1024 or more keeps its 53-bit significand and carries its exponent into the
+/// exponent field without a check, so the field reads 2047 and the bits are a NaN. So
+/// ROUND(1.7976931348623157E+308,-308), 2E+308, is 0x7ff1ccf385ebc8a0 and the reading of
+/// DBL_MAX, 1.79769313486232E+308, is 0x7ff000000000000a, as Excel 16.0.20430 and 16.0.20527 give
+/// them (627 of 627 such bank rows). Excel shows such a value as 2E+308, ISNUMBER is TRUE, and
+/// arithmetic on it is #NUM!. A decimal of 2^1025 or more, which no reading reaches, is #NUM!.
+fn stored(site: &Site<'_>, decimal: &ExactDecimal) -> Step<f64> {
+    let nearest = site.nearest(decimal)?;
+    if nearest.is_finite() {
+        return Ok(nearest);
+    }
+    // Half the decimal, exactly: the same significand one binade lower.
+    let mut coefficient = decimal.coefficient.clone();
+    coefficient.add(&decimal.coefficient.times(&decimal::Natural::from_u64(4)));
+    let half = site.nearest(&ExactDecimal {
+        negative: decimal.negative,
+        coefficient,
+        exponent: decimal.exponent - 1,
+    })?;
+    if half.is_finite() {
+        Ok(f64::from_bits(half.to_bits() + (1 << 52)))
+    } else {
+        Err(Exit::Error(WorksheetErrorCode::Num))
+    }
+}
+
+/// How ROUNDUP, ROUNDDOWN and TRUNC count num_digits: the 16 low bits of the integer part of its
+/// magnitude, with its sign. A magnitude of 2^32 or more, or one whose 16 low bits reach 32768,
+/// counts as 100 places either way and is out of range (false in the second place). So 32768 to
+/// 65535 places count as 100, 65537 as 1, and -2147483748 as -100, as Excel 16.0.20430 gives
+/// them (the OxFunc-Evidence bank's count-refinement and held-out runs).
+fn directed_places(places: f64) -> (i32, bool) {
+    let magnitude = places.abs();
+    let low = if magnitude >= 4_294_967_296.0 {
+        None
+    } else {
+        // Below 2^32, so the conversion is exact; the mask keeps 16 bits.
+        let low = (decimal::truncate(magnitude) as u64) & 0xFFFF;
+        (low < 0x8000).then(|| i32::try_from(low).expect("15 bits"))
     };
-    // A result below the normal range is 0, as Excel gives it (dc-bd5:
-    // ROUNDDOWN(2.5E-308,308) is 0 in Excel 16.0.20430).
-    Ok(if result.is_subnormal() { 0.0 } else { result })
+    let (count, in_range) = match low {
+        Some(low) => (low, true),
+        None => (100, false),
+    };
+    (if places < 0.0 { -count } else { count }, in_range)
+}
+
+/// ROUNDUP's, ROUNDDOWN's and TRUNC's kernel: the reading truncated at 10^-places, and for
+/// ROUNDUP, when a digit was dropped, that truncation plus one unit of the place, the two
+/// converted to binary64 and added at an arithmetic site (so ROUNDUP(-1.125,2) is
+/// -1.1300000000000001 and ROUNDUP(3.535,2) 3.5399999999999996, as Excel gives them). With
+/// num_digits out of range ROUNDUP adds no unit for a positive count and is #NUM! for a negative
+/// one whenever a digit is dropped.
+fn directed(site: &Site<'_>, number: f64, places: f64, direction: Direction) -> Step<f64> {
+    if number == 0.0 {
+        return Ok(0.0);
+    }
+    let (places, in_range) = directed_places(places);
+    let position = (-places).clamp(-PLACES, PLACES);
+    let reading = reading(number, true);
+    let Some(down) = reading.round_at(position, Direction::TowardZero) else {
+        let whole = whole_reading(site, number, &reading)?;
+        // ROUNDUP gives #NUM! where ROUNDDOWN and TRUNC keep the bits past DBL_MAX (Excel
+        // 16.0.20430: 102 of 102 bank rows, ROUNDUP(1.7976931348623153E+308,0) among them).
+        return if whole.is_nan() && direction == Direction::AwayFromZero {
+            Err(Exit::Error(WorksheetErrorCode::Num))
+        } else {
+            Ok(whole)
+        };
+    };
+    let lower = stored(site, &down)?;
+    let dropped = direction == Direction::AwayFromZero
+        && reading
+            .round_at(position, Direction::AwayFromZero)
+            .is_some_and(|up| up.coefficient != down.coefficient);
+    if !dropped {
+        return Ok(flush(lower));
+    }
+    if !in_range {
+        return if places > 0 {
+            Ok(flush(lower))
+        } else {
+            Err(Exit::Error(WorksheetErrorCode::Num))
+        };
+    }
+    if lower.is_nan() {
+        // Past DBL_MAX, adding the unit is an overflow: #NUM!, as Excel gives it.
+        return Err(Exit::Error(WorksheetErrorCode::Num));
+    }
+    let unit = site.nearest(&ExactDecimal::unit(position))?;
+    // A unit below the normal range is not added, whichever the sign, and a positive number whose
+    // reading lies less than 2^-1026 above the truncation, both as binary64, stays at it (Excel
+    // 16.0.20527: ROUNDUP(1.0001086461844975E-307,307) is 1E-307, while
+    // ROUNDUP(-1.0001086461844975E-307,307) is -2E-307). The negative rule has no such distance.
+    if unit.is_subnormal() || (number > 0.0 && site.nearest(&reading)? - lower < SMALLEST_DISTANCE)
+    {
+        return Ok(flush(lower));
+    }
+    let magnitude = site.add(lower.abs(), unit)?;
+    Ok(flush(if number < 0.0 { -magnitude } else { magnitude }))
 }
 
 /// How CEILING and FLOOR choose a multiple of the significance.
@@ -309,22 +450,35 @@ fn mround(
 }
 
 /// The multiple MROUND chooses for `number` and `multiple`, both non-zero and of one sign: the
-/// count of multiples is their binary64 quotient, a division at an arithmetic site, rounded to the
-/// nearest integer, a half away from zero; the result is the count times the multiple, a binary64
-/// product (dc-j9k). So MROUND(6.05,0.1) is 6, its quotient being 60.49999999999999, and
-/// MROUND(1.3,0.2) is 1.4000000000000001 and MROUND(7.05,0.1) 7.1000000000000005, as Excel gives
-/// them (the catalogue oracle's sheet dcj9k_math: 125 of 125 readings). A quotient beyond
-/// binary64's range is #NUM!.
+/// count of multiples is the integer part of their quotient, a division at an arithmetic site,
+/// plus one when the quotient's fraction is a half or within [`MROUND_HALF_TOLERANCE`] below it;
+/// the result is the count times the multiple, a product at an arithmetic site (dc-j9k). So
+/// MROUND(6.05,0.1) is 6, its quotient 60.49999999999999 lying 7.1E-15 below the half, while
+/// MROUND(23.499999999999996,1) is 24 and MROUND(-0.04999999999999977,-0.1) is -0.1, as Excel
+/// 16.0.20430 gives them (the OxFunc-Evidence bank's half-boundary and fraction-cutoff runs). A
+/// quotient beyond binary64's range is #NUM!.
 fn nearest_multiple(site: &Site<'_>, number: f64, multiple: f64) -> Step<f64> {
     // Positive, since the signs agree.
     let quotient = site.divide(number, multiple)?;
     if quotient.is_infinite() {
         return Err(Exit::Error(WorksheetErrorCode::Num));
     }
-    let count = (quotient + 0.5).floor();
-    let count = if count - quotient > 0.5 { count - 1.0 } else { count };
+    let whole = decimal::floor(quotient);
+    // Exact: the fraction of a binary64, and its distance below a half when it is near one.
+    let below_half = 0.5 - (quotient - whole);
+    let count = if below_half <= MROUND_HALF_TOLERANCE {
+        whole + 1.0
+    } else {
+        whole
+    };
     site.multiply(count, multiple)
 }
+
+/// How far below a half MROUND's quotient fraction still counts up. The recorded bank pins it
+/// within one binary64 step at 0.5: for quotients below 1, fractions 0.5 - 4.996E-15 count up
+/// and 0.5 - 5.0515E-15 count down. 5E-15 is the decimal in that interval, and with it every
+/// recorded MROUND reading matches.
+const MROUND_HALF_TOLERANCE: f64 = 5e-15;
 
 /// CEILING: the number rounded up to a multiple of the significance; for a negative number and a
 /// positive significance up is toward zero, and for both negative it is away from zero. A
@@ -413,7 +567,8 @@ fn to_multiple(site: &Site<'_>, number: f64, significance: f64, toward: Toward) 
 /// addition at an arithmetic site. So MOD(10,0.1) is 0.09999999999999945 and MOD(-5.3,1) is
 /// 0.7000000000000002, as Excel gives them (the catalogue oracle's sheet dcj9k_math: 124 of 124
 /// readings). A zero divisor is #DIV/0!, and a quotient of magnitude 1.1259E+12 or more is #NUM!
-/// (Excel: MOD(1125899999999,1) is 0 and MOD(1125900000000,1) is #NUM!).
+/// (Excel: MOD(1125899999999,1) is 0 and MOD(1125900000000,1) is #NUM!). A remainder below the
+/// normal range that needs the divisor added follows `tiny_remainder`.
 fn modulo(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
@@ -431,13 +586,12 @@ fn modulo(
             return Err(Exit::Error(WorksheetErrorCode::Num));
         }
         let remainder = number % divisor;
-        // The recorded banks distinguish binary-power and general divisors
-        // when reduction produces a subnormal intermediate.
-        let binary_divisor = divisor.abs().to_bits() & 0x000f_ffff_ffff_ffff == 0;
-        if remainder.is_subnormal() && !binary_divisor {
-            return Err(Exit::Error(WorksheetErrorCode::Num));
-        }
         let result = if remainder != 0.0 && (remainder < 0.0) != (divisor < 0.0) {
+            if remainder.is_subnormal()
+                && let Some(result) = tiny_remainder(site, remainder, divisor, quotient)?
+            {
+                return Ok(result);
+            }
             let adjusted = site.add(remainder, divisor)?;
             // A remainder the divisor absorbs is 0 (dc-bd5: MOD(-5,9.99999999999999E+307) is 0
             // in Excel 16.0.20430).
@@ -453,6 +607,43 @@ fn modulo(
         }
     })
 }
+
+/// A subnormal `remainder` whose sign differs from the `divisor`'s. A divisor whose Veltkamp low
+/// part (the bits a split at 2^27 + 1 leaves below its high half) is itself subnormal gives #NUM!,
+/// as does a quotient of 2^26 or more; the split's two parts are what a Dekker product of the
+/// count and the divisor multiplies, and these are the cases where that product leaves the normal
+/// range. Otherwise a remainder below 2^-1026 is added to the divisor's magnitude instead of taken
+/// from it, and a larger one (`None`) takes the ordinary step. So MOD(-1.0000000000000001E-296,
+/// 1E-296) is 1.0000000000000001E-296 and the same at 1E-300 is #NUM!, as Excel 16.0.20527 gives
+/// them. This rule matches all 152,395 bank rows with normal operands and 1,128 new readings.
+fn tiny_remainder(
+    site: &Site<'_>,
+    remainder: f64,
+    divisor: f64,
+    quotient: f64,
+) -> Step<Option<f64>> {
+    let magnitude = divisor.abs();
+    let scaled = VELTKAMP_SPLIT * magnitude;
+    let low = magnitude - (scaled - (scaled - magnitude));
+    if low.is_subnormal() || quotient.abs() >= MOD_DEKKER_COUNT {
+        return Err(Exit::Error(WorksheetErrorCode::Num));
+    }
+    if remainder.abs() >= SMALLEST_DISTANCE {
+        return Ok(None);
+    }
+    let sum = site.add(magnitude, remainder.abs())?;
+    Ok(Some(if divisor < 0.0 { -sum } else { sum }))
+}
+
+/// 2^27 + 1, Veltkamp's multiplier for splitting a binary64 into two 26-bit halves.
+const VELTKAMP_SPLIT: f64 = 134_217_729.0;
+
+/// 2^26: from here a subnormal remainder gives #NUM!.
+const MOD_DEKKER_COUNT: f64 = 67_108_864.0;
+
+/// 2^-1026: ROUNDUP's smallest distance above the truncation, and MOD's smallest subnormal
+/// remainder taken from the divisor rather than added to it.
+const SMALLEST_DISTANCE: f64 = f64::MIN_POSITIVE / 16.0;
 
 /// The magnitude of number/divisor at and above which Excel's MOD is #NUM!, measured by bisection
 /// (dc-j9k).

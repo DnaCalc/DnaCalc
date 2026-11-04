@@ -85,7 +85,8 @@ pub use read::{
 };
 pub use recalc::{
     RecalcFailure, RecalcProgress, RecalcWork, StartError, WorkBudget, begin_recalc,
-    begin_recalc_scoped, finish, publish_ready, step, supersede_recalc, supersede_recalc_scoped,
+    begin_recalc_scoped, begin_recalc_scoped_with_poststate, finish, publish_ready, step,
+    supersede_recalc, supersede_recalc_scoped,
 };
 pub use result::{
     CacheWithoutFormula, CalcTick, Calculation, FormulaResult, NotModeled, SpillChange,

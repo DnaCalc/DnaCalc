@@ -202,6 +202,25 @@ dc_86f and dc_10y_iteration first-calculation values cover order, held seeds and
 the recorded limits; their reopen observations describe later calculations.
 Cross-workbook cyclic requests retain their named refusal before admission.
 
+Manual mixed scalar Range (dc-hsa5.11.2, 2026-11-04): twelve eng10 conditions
+retain cyclic targets and their readers while independent D1=2+2 calculates 4,
+for zero/asymmetric seeds and limits 1, 2 and 5. The exact input/result packet is
+under P14/eng10-20261104. DNA admits this partial command with StillRequired,
+emits TargetsRefused naming dc-hsa5.11, and completes Incomplete. Cyclic targets
+and the conservative graph-reader closure keep their old results and unmet
+requirements; those retained values never count as calculated. Independent
+results name this command's producing invocation. Warm value/shape reads cannot
+consume an unresolved selected cyclic target. Cancellation and supersession
+retain the refusal counts, and a narrow completion preserves known cycle demand
+outside its scope. Automatic mixed requests, callbacks, tables, multi-cell
+arrays/spills and newly discovered cyclic Range dependencies remain refused.
+These final-value observations do not settle SCC execution counts or mid-cycle
+caches. The original pure cyclic Range conditions remain nonpasses.
+A typed refusal during an admitted mixed command fails it before replacing a
+warm result: a missing outside cache can stop a reader before its own cycle is
+discovered. A later authorized workbook calculation retains that seed. This is a
+DNA integrity control, without a new Excel observation.
+
 Nonnumeric stopping (dc-hsa5.11.1, 2026-11-04): the eng10 fresh-process
 delivery distinguishes logical outputs from numeric stopping samples. A NOT
 self-reference beside a numeric 0.125 increment and its downstream reader does

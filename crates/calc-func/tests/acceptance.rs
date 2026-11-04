@@ -1897,7 +1897,9 @@ fn shown_value(value: &CalcValue) -> String {
 /// consistency (the test sheet against the oracle workbook's constant cells, an Exact call against
 /// its Fast row); the comparison with Excel is calc_verdict::judge's alone.
 fn identical(a: &CalcValue, b: &CalcValue) -> bool {
-    a == b && a.as_number().map(f64::to_bits) == b.as_number().map(f64::to_bits)
+    // A NaN number (Excel's bit pattern past DBL_MAX) is identical to the same bits.
+    let both_nan = a.as_number().is_some_and(f64::is_nan) && b.as_number().is_some_and(f64::is_nan);
+    (a == b || both_nan) && a.as_number().map(f64::to_bits) == b.as_number().map(f64::to_bits)
 }
 
 /// The bead that owns the Excel behaviour a row shows, when that is not cfunc-m1.2, and the
@@ -8190,9 +8192,9 @@ fn large_integers_rows(s: &mut TestSheet) -> Rows {
         s,
         "TRUNC",
         [cell(s, "A8")],
-        E(Num),
+        N(f64::from_bits(0xfff0_0000_0000_000a)),
         Measured(
-            "dc-bd5: the 15-digit reading -1.79769313486232E308 lies beyond binary64's range; Excel's live value is a NaN no cell holds, and #NUM! once the saved workbook is reopened (Excel 16.0.20430, cfunc_m3_2's capture)"
+            "dc-j9k.18: the 15-digit reading -1.79769313486232E308 lies beyond binary64's range; Excel keeps its significand and carries the exponent into the field's top value, the NaN bits 0xfff000000000000a, which the cell holds as a number until the saved workbook (#NUM! in <v>) is reopened (Excel 16.0.20430, cfunc_m3_2's capture)"
         )
     );
     rnd!(
@@ -8288,9 +8290,9 @@ fn large_integers_rows(s: &mut TestSheet) -> Rows {
         s,
         "ROUND",
         [cell(s, "A7"), num("0")],
-        E(Num),
+        N(f64::from_bits(0x7ff0_0000_0000_000a)),
         Measured(
-            "dc-bd5: the 15-digit reading 1.79769313486232E308 lies beyond binary64's range; Excel's live value is a NaN no cell holds, and #NUM! once the saved workbook is reopened (Excel 16.0.20430, cfunc_m3_2's capture)"
+            "dc-j9k.18: the 15-digit reading 1.79769313486232E308 lies beyond binary64's range; Excel keeps its significand and carries the exponent into the field's top value, the NaN bits 0x7ff000000000000a, which the cell holds as a number until the saved workbook (#NUM! in <v>) is reopened (Excel 16.0.20430, cfunc_m3_2's capture)"
         )
     );
     rnd!(
@@ -8306,8 +8308,10 @@ fn large_integers_rows(s: &mut TestSheet) -> Rows {
         s,
         "ROUND",
         [cell(s, "A7"), num("-308")],
-        E(Num),
-        Choice(OVERFLOW)
+        N(f64::from_bits(0x7ff1_ccf3_85eb_c8a0)),
+        Measured(
+            "dc-j9k.18: 2E+308 past binary64's range, its significand kept and its exponent carried into the field's top value: the NaN bits 0x7ff1ccf385ebc8a0 (Excel 16.0.20430, cfunc_m3_2's capture)"
+        )
     );
     rnd!(
         r,

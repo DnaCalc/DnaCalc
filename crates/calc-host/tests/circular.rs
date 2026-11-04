@@ -348,6 +348,834 @@ fn dc_hsa5_11__p14_nonnumeric_stopping() {
     assert_eq!(comparisons, 180);
 }
 
+/// The delivered mixed Range commands leave selected cyclic/dependent caches
+/// unchanged while the independent scalar D1 computes. Cache equality is never
+/// counted as calculated work. The profile is Manual and StillRequired.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_11__p14_mixed_range_keeps_nonpasses() {
+    use calc_host::value::GridArea;
+    use calc_host::{HostProgress, WorkBudget};
+    use serde_json::Value;
+    let records = std::str::from_utf8(include_bytes!(
+        "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/range-observations.jsonl"
+    )).unwrap().lines().map(|line|serde_json::from_str::<Value>(line).unwrap()).collect::<Vec<_>>();
+    assert_eq!(records.len(), 12);
+    let mut comparisons = 0;
+    let mut failures = Vec::new();
+    let mut evaluated = 0;
+    for record in records {
+        let name = record["condition"].as_str().unwrap();
+        let result = &record["result"];
+        assert!(result["fatal"].is_null());
+        let bytes: &[u8] = match name {
+            "E10-Range-mixed-n1-zero" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-Range-mixed-n1-zero.xlsx"
+            ),
+            "E10-Range-all-readers-n1-zero" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-Range-all-readers-n1-zero.xlsx"
+            ),
+            "E10-Range-mixed-n1-asymmetric" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-Range-mixed-n1-asymmetric.xlsx"
+            ),
+            "E10-Range-all-readers-n1-asymmetric" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-Range-all-readers-n1-asymmetric.xlsx"
+            ),
+            "E10-Range-mixed-n2-zero" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-Range-mixed-n2-zero.xlsx"
+            ),
+            "E10-Range-all-readers-n2-zero" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-Range-all-readers-n2-zero.xlsx"
+            ),
+            "E10-Range-mixed-n2-asymmetric" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-Range-mixed-n2-asymmetric.xlsx"
+            ),
+            "E10-Range-all-readers-n2-asymmetric" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-Range-all-readers-n2-asymmetric.xlsx"
+            ),
+            "E10-Range-mixed-n5-zero" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-Range-mixed-n5-zero.xlsx"
+            ),
+            "E10-Range-all-readers-n5-zero" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-Range-all-readers-n5-zero.xlsx"
+            ),
+            "E10-Range-mixed-n5-asymmetric" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-Range-mixed-n5-asymmetric.xlsx"
+            ),
+            "E10-Range-all-readers-n5-asymmetric" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-Range-all-readers-n5-asymmetric.xlsx"
+            ),
+            _ => panic!("missing recorded range input {name}"),
+        };
+        assert_eq!(
+            calc_verdict::sha256_hex(bytes),
+            result["input_sha256"].as_str().unwrap()
+        );
+        let observations = result["observations"].as_array().unwrap();
+        let stage = |name: &str| observations.iter().find(|o| o["stage"] == name).unwrap();
+        let seeds = stage("seeds-verified")["cells"].as_array().unwrap();
+        assert_eq!(seeds.len(), 5);
+        let last = match result["condition"]["range"].as_str().unwrap() {
+            "A1:D1" => 4,
+            "A1:E1" => 5,
+            other => panic!("unknown scope {other}"),
+        };
+        for budget in [usize::MAX, 1] {
+            let mut book = session_without_recalc(bytes);
+            assert!(
+                book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+                    .accepted()
+            );
+            book.set_calculation_budget(WorkBudget::evaluations(budget));
+            let sheet = book.host().sheets()[0].id();
+            let at = |column| CellKey::new(sheet, 1, column).unwrap();
+            let request = ProjectionRequest {
+                cells: (1..=5).map(at).collect(),
+            };
+            for (cell, seed) in project(book.host(), &request)
+                .unwrap()
+                .cells()
+                .iter()
+                .zip(seeds)
+            {
+                let ProjectedValue::FileCached(cache) = cell.value() else {
+                    panic!("{name}: initial seed must not be calculated: {cell:?}");
+                };
+                assert_eq!(cache.value().to_value(), p14_value(&seed["value"]));
+            }
+            for command in 1..=2 {
+                assert!(
+                    book.dispatch(SkinIntent::CalculateRange {
+                        areas: vec![GridArea::new(at(1), at(last)).unwrap()]
+                    })
+                    .accepted()
+                );
+                let mut steps = 0;
+                while book.has_pending_calculation() {
+                    assert!(
+                        !matches!(book.advance_calculation(), HostProgress::Failed(_)),
+                        "{name}"
+                    );
+                    steps += 1;
+                    assert!(steps < 1000, "{name}");
+                }
+                let actual = project(book.host(), &request).unwrap();
+                let events = book.take_calculation_events();
+                let admission = events
+                    .iter()
+                    .find_map(|event| match event {
+                        calc_host::CalcEvent::Admitted(receipt) => Some(receipt),
+                        _ => None,
+                    })
+                    .expect("the mixed command is admitted");
+                let completion = events
+                    .iter()
+                    .find_map(|event| match event {
+                        calc_host::CalcEvent::Completed(receipt) => Some(receipt),
+                        _ => None,
+                    })
+                    .expect("the mixed command completes explicitly");
+                assert_eq!(
+                    admission.range_post_state,
+                    calc_host::RangePostState::StillRequired
+                );
+                assert_eq!(completion.command, admission.command);
+                assert_eq!(completion.outcome, calc_host::CompletionOutcome::Incomplete);
+                assert_eq!(completion.coverage.required, last as usize);
+                assert_eq!(completion.coverage.calculated, 1);
+                assert_eq!(completion.coverage.refused, last as usize - 1);
+                assert_eq!(completion.coverage.held, 0);
+                assert_eq!(completion.coverage.uncertified, 0);
+                let refused = events
+                    .iter()
+                    .find_map(|event| match event {
+                        calc_host::CalcEvent::TargetsRefused {
+                            command,
+                            targets,
+                            owner,
+                            ..
+                        } if *command == admission.command && *owner == "dc-hsa5.11" => {
+                            Some(targets)
+                        }
+                        _ => None,
+                    })
+                    .expect("the unresolved targets carry an owning work package");
+                let wanted_targets = (1..=last)
+                    .filter(|column| *column != 4)
+                    .map(at)
+                    .collect::<std::collections::BTreeSet<_>>();
+                assert_eq!(
+                    refused
+                        .iter()
+                        .copied()
+                        .collect::<std::collections::BTreeSet<_>>(),
+                    wanted_targets
+                );
+                let expected = stage(&format!("after-command-{command}"))["cells"]
+                    .as_array()
+                    .unwrap();
+                assert_eq!(expected.len(), 5);
+                for (cell, expected) in actual.cells().iter().zip(expected) {
+                    comparisons += 1;
+                    let wanted = p14_value(&expected["value"]);
+                    if cell.at().column() == 4 {
+                        let calculation = match cell.value() {
+                            ProjectedValue::Calculated { value, calculation }
+                                if value == &wanted =>
+                            {
+                                Some(calculation)
+                            }
+                            ProjectedValue::Stale(stale) if stale.last_value() == Some(&wanted) => {
+                                stale.last_calculation()
+                            }
+                            _ => None,
+                        };
+                        if let Some(calculation) = calculation {
+                            assert!(!calculation.held_by_circular_rule());
+                            let stamp = calculation
+                                .stamp()
+                                .expect("the independent scalar needs an ordinary certificate");
+                            assert_eq!(stamp.certification.command, admission.command, "{name}");
+                            assert!(
+                                matches!(&stamp.computed_by, calc_engine::contract::ComputationOrigin::Evaluated { root } if root.pass.command == admission.command),
+                                "{name}: ForceAll needs a new producing invocation"
+                            );
+                            evaluated += 1;
+                        } else {
+                            failures.push(format!("{name} command{command} budget{budget}: independent D1 must calculate {wanted:?}; got {:?}; failure {:?}",cell.value(),actual.recalc_failure()));
+                        }
+                    } else {
+                        let cache = match cell.value() {
+                            ProjectedValue::FileCached(cache) => cache,
+                            ProjectedValue::Stale(stale) if stale.last_value().is_none() => {
+                                stale.file_cache().unwrap()
+                            }
+                            other => panic!(
+                                "{name}: retained/outside seed must remain an uncalculated nonpass: {other:?}"
+                            ),
+                        };
+                        assert_eq!(cache.value().to_value(), wanted, "{name}");
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(comparisons, 240);
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+    assert_eq!(evaluated, 48);
+}
+
+/// DNA cancellation/supersession controls, rather than additional Excel observations.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_11__mixed_range_cancellation_and_supersession_keep_obligations() {
+    use calc_host::value::GridArea;
+    use calc_host::{CalcEvent, CompletionOutcome, WorkBudget};
+    let bytes = include_bytes!(
+        "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-Range-mixed-n1-zero.xlsx"
+    );
+    for cancel in [true, false] {
+        let mut book = session_without_recalc(bytes);
+        assert!(
+            book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+                .accepted()
+        );
+        p14_enter(&mut book, 1, 26, "10");
+        p14_enter(&mut book, 1, 4, "=Z1+1");
+        p14_enter(&mut book, 2, 4, "=Z1+2");
+        p14_enter(&mut book, 3, 4, "=Z1+3");
+        book.set_calculation_budget(WorkBudget::evaluations(1));
+        let before = (1..=3)
+            .map(|c| p14_visible(&book, 1, c))
+            .collect::<Vec<_>>();
+        book.take_calculation_events();
+        let sheet = book.host().sheets()[0].id();
+        let at = |row, column| CellKey::new(sheet, row, column).unwrap();
+        assert!(
+            book.dispatch(SkinIntent::CalculateRange {
+                areas: vec![GridArea::new(at(1, 1), at(3, 4)).unwrap()]
+            })
+            .accepted()
+        );
+        assert!(
+            book.has_pending_calculation(),
+            "one evaluation cannot finish three independent targets"
+        );
+        if cancel {
+            book.cancel_calculation();
+            assert!(!book.has_pending_calculation());
+        } else {
+            p14_enter(&mut book, 1, 26, "20");
+            p14_advance(&mut book);
+        }
+        let events = book.take_calculation_events();
+        let admissions = events
+            .iter()
+            .filter_map(|event| match event {
+                CalcEvent::Admitted(r) => Some(r.command),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let completions = events
+            .iter()
+            .filter_map(|event| match event {
+                CalcEvent::Completed(r) | CalcEvent::Superseded(r) => Some(r),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(admissions.len(), if cancel { 1 } else { 2 });
+        assert_eq!(completions.len(), admissions.len());
+        for command in &admissions {
+            assert_eq!(
+                events
+                    .iter()
+                    .filter(|event| matches!(event,
+                CalcEvent::TargetsRefused { command: id, targets, owner: "dc-hsa5.11", .. }
+                    if id == command && targets.len() == 3))
+                    .count(),
+                1
+            );
+        }
+        let interrupted = completions
+            .iter()
+            .find(|r| r.command == admissions[0])
+            .unwrap();
+        assert_eq!(interrupted.coverage.required, 6);
+        assert_eq!(interrupted.coverage.refused, 3);
+        if cancel {
+            assert_eq!(interrupted.outcome, CompletionOutcome::Cancelled);
+        } else {
+            assert!(matches!(
+                interrupted.outcome,
+                CompletionOutcome::Superseded { .. }
+            ));
+            let completed = completions
+                .iter()
+                .find(|r| r.command == admissions[1])
+                .unwrap();
+            assert_eq!(completed.outcome, CompletionOutcome::Incomplete);
+            assert_eq!(completed.coverage.required, 6);
+            assert_eq!(completed.coverage.calculated, 3);
+            assert_eq!(completed.coverage.refused, 3);
+            for row in 1..=3 {
+                assert_eq!(
+                    p14_visible(&book, row, 4).0,
+                    CalcValue::number(20.0 + row as f64)
+                );
+            }
+        }
+        for (column, old) in (1..=3).zip(&before) {
+            assert_eq!(p14_visible(&book, 1, column), *old);
+        }
+        // A subsequent authorized workbook command still consumes the retained seeds.
+        assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+        p14_advance(&mut book);
+        assert_eq!(p14_visible(&book, 1, 1).0, CalcValue::number(1.0));
+        assert_eq!(p14_visible(&book, 1, 2).0, CalcValue::number(2.0));
+    }
+}
+
+/// The measured partial command applies only to Manual scalar work. An array
+/// discovered during execution must fail without installing an unmeasured spill.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_11__mixed_range_rejects_automatic_and_new_spills() {
+    use calc_host::value::GridArea;
+    let bytes = include_bytes!(
+        "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-Range-mixed-n1-zero.xlsx"
+    );
+    let mut automatic = session_without_recalc(bytes);
+    assert!(
+        automatic
+            .dispatch(SkinIntent::SetCalcMode(CalcMode::Automatic))
+            .accepted()
+    );
+    p14_advance(&mut automatic);
+    let sheet = automatic.host().sheets()[0].id();
+    let at = |c| CellKey::new(sheet, 1, c).unwrap();
+    let receipt = automatic.dispatch(SkinIntent::CalculateRange {
+        areas: vec![GridArea::new(at(1), at(4)).unwrap()],
+    });
+    assert!(matches!(
+        receipt.recalc,
+        Some(calc_host::HostProgress::Failed(
+            calc_host::RecalcFailed::Refused(calc_engine::StartError::NotModeledScope {
+                owner: "dc-hsa5.11",
+                ..
+            })
+        ))
+    ));
+
+    let mut book = session_without_recalc(bytes);
+    assert!(
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+            .accepted()
+    );
+    p14_enter(&mut book, 1, 26, "1");
+    p14_enter(&mut book, 1, 4, "=SEQUENCE(Z1)");
+    let before = p14_visible(&book, 1, 4);
+    p14_enter(&mut book, 1, 26, "2");
+    assert!(
+        book.dispatch(SkinIntent::CalculateRange {
+            areas: vec![GridArea::new(at(1), at(4)).unwrap()]
+        })
+        .accepted()
+    );
+    p14_advance(&mut book);
+    let page = project(book.host(), &ProjectionRequest { cells: vec![at(4)] }).unwrap();
+    assert!(
+        matches!(
+            page.recalc_failure(),
+            Some(calc_host::RecalcFailed::Failed(
+                calc_engine::RecalcFailure::NotModeledScope {
+                    owner: "dc-hsa5.11",
+                    ..
+                }
+            ))
+        ),
+        "{:?}",
+        page.recalc_failure()
+    );
+    assert_eq!(p14_visible(&book, 1, 4), before);
+}
+
+/// A denied read must not replace a warm result before discovering that the
+/// reader itself is cyclic. Its retained value is a later workbook seed.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_11__mixed_range_denial_preserves_hidden_cycle_seed() {
+    let mut book = session_without_recalc(&calc_host::blank_package());
+    assert!(
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+            .accepted()
+    );
+    set_iteration(&mut book, IterationSettings::new(true, 1, 0.001));
+    p14_enter(&mut book, 1, 1, "=A1+1");
+    p14_enter(&mut book, 1, 4, "=INDIRECT(\"A1\")+INDIRECT(\"D1\")");
+    assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+    p14_advance(&mut book);
+    let mut bytes = Vec::new();
+    save(book.host(), &SavePolicy::default(), &mut bytes).unwrap();
+    for budget in [usize::MAX, 1] {
+        let mut book = session_without_recalc(&bytes);
+        book.set_calculation_budget(calc_host::WorkBudget::evaluations(budget));
+        let before = p14_visible(&book, 1, 4);
+        let previous_a = p14_visible(&book, 1, 1).0.as_number().unwrap();
+        let sheet = book.host().sheets()[0].id();
+        let at = |c| CellKey::new(sheet, 1, c).unwrap();
+        assert!(
+            book.dispatch(SkinIntent::CalculateRange {
+                areas: vec![calc_host::value::GridArea::new(at(1), at(4)).unwrap()]
+            })
+            .accepted()
+        );
+        p14_advance(&mut book);
+        let page = project(book.host(), &ProjectionRequest { cells: vec![at(4)] }).unwrap();
+        assert!(
+            matches!(
+                page.recalc_failure(),
+                Some(calc_host::RecalcFailed::Failed(
+                    calc_engine::RecalcFailure::NotModeledScope {
+                        owner: "dc-hsa5.11",
+                        ..
+                    }
+                ))
+            ),
+            "{:?}",
+            page.recalc_failure()
+        );
+        assert_eq!(p14_visible(&book, 1, 4), before);
+        assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+        p14_advance(&mut book);
+        assert_eq!(
+            p14_visible(&book, 1, 4).0,
+            CalcValue::number(before.0.as_number().unwrap() + previous_a + 1.0)
+        );
+    }
+}
+
+/// An unknown collision must refuse before replacing the scalar's warm result.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_11__mixed_range_unknown_array_collision_keeps_seed() {
+    use calc_host::value::GridArea;
+    let bytes = include_bytes!(
+        "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-Range-mixed-n1-zero.xlsx"
+    );
+    for budget in [usize::MAX, 1] {
+        let mut book = session_without_recalc(bytes);
+        assert!(
+            book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+                .accepted()
+        );
+        p14_enter(&mut book, 1, 26, "1");
+        p14_enter(&mut book, 1, 4, "=SEQUENCE(Z1)");
+        let before = p14_visible(&book, 1, 4);
+        let sheet = book.host().sheets()[0].id();
+        let at = |r, c| CellKey::new(sheet, r, c).unwrap();
+        // The outside anchor stays uncalculated; only a potential spill child meets D2.
+        assert!(
+            book.dispatch(SkinIntent::Edit {
+                edits: vec![CellEdit::SetArray {
+                    array: calc_host::ArrayFormula::new(
+                        GridArea::new(at(2, 3), at(2, 5)).unwrap(),
+                        calc_host::ArrayKind::Dynamic { collapsed: false }
+                    ),
+                    formula: calc_host::FormulaText::new(
+                        calc_host::value::ExcelText::from_interop_assignment("SEQUENCE(1,3)")
+                    )
+                    .unwrap(),
+                }]
+            })
+            .accepted()
+        );
+        p14_enter(&mut book, 1, 26, "2");
+        book.set_calculation_budget(calc_host::WorkBudget::evaluations(budget));
+        assert!(
+            book.dispatch(SkinIntent::CalculateRange {
+                areas: vec![GridArea::new(at(1, 1), at(1, 4)).unwrap()]
+            })
+            .accepted()
+        );
+        p14_advance(&mut book);
+        let page = project(
+            book.host(),
+            &ProjectionRequest {
+                cells: vec![at(1, 4)],
+            },
+        )
+        .unwrap();
+        assert!(
+            matches!(
+                page.recalc_failure(),
+                Some(calc_host::RecalcFailed::Failed(
+                    calc_engine::RecalcFailure::NotModeledScope {
+                        owner: "dc-hsa5.11",
+                        ..
+                    }
+                ))
+            ),
+            "{:?}",
+            page.recalc_failure()
+        );
+        assert_eq!(p14_visible(&book, 1, 4), before);
+    }
+}
+
+/// A missing outside cache can stop a reader before its own self-reference is
+/// discovered. This DNA integrity control preserves the next workbook seed.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_11__mixed_range_boundary_refusal_keeps_hidden_cycle_seed() {
+    let mut book = session_without_recalc(&calc_host::blank_package());
+    assert!(
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+            .accepted()
+    );
+    set_iteration(&mut book, IterationSettings::new(true, 1, 0.001));
+    p14_enter(&mut book, 1, 26, "TRUE");
+    p14_enter(&mut book, 1, 1, "=A1+1");
+    p14_enter(
+        &mut book,
+        1,
+        4,
+        "=IF(Z1,1,INDIRECT(\"E1\"))+INDIRECT(\"D1\")",
+    );
+    assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+    p14_advance(&mut book);
+    let mut bytes = Vec::new();
+    save(book.host(), &SavePolicy::default(), &mut bytes).unwrap();
+    for budget in [usize::MAX, 1] {
+        let mut book = session_without_recalc(&bytes);
+        book.set_calculation_budget(calc_host::WorkBudget::evaluations(budget));
+        let previous = p14_visible(&book, 1, 4).0;
+        let sheet = book.host().sheets()[0].id();
+        let at = |c| CellKey::new(sheet, 1, c).unwrap();
+        // Author E1 without entry calculation, outside the admitted A1:D1 scope.
+        assert!(
+            book.dispatch(SkinIntent::Edit {
+                edits: vec![CellEdit::Set {
+                    at: at(5),
+                    input: calc_host::CellInput::Formula(
+                        calc_host::FormulaText::new(
+                            calc_host::value::ExcelText::from_interop_assignment("1+1")
+                        )
+                        .unwrap()
+                    ),
+                }]
+            })
+            .accepted()
+        );
+        p14_enter(&mut book, 1, 26, "FALSE");
+        assert!(
+            book.dispatch(SkinIntent::CalculateRange {
+                areas: vec![calc_host::value::GridArea::new(at(1), at(4)).unwrap()]
+            })
+            .accepted()
+        );
+        p14_advance(&mut book);
+        let page = project(book.host(), &ProjectionRequest { cells: vec![at(4)] }).unwrap();
+        assert!(matches!(
+            page.recalc_failure(),
+            Some(calc_host::RecalcFailed::Failed(
+                calc_engine::RecalcFailure::NotModeledScope {
+                    owner: "dc-hsa5.11",
+                    ..
+                }
+            ))
+        ));
+        assert_eq!(p14_visible(&book, 1, 4).0, previous);
+        p14_enter(&mut book, 1, 26, "TRUE");
+        assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+        p14_advance(&mut book);
+        assert_eq!(
+            p14_visible(&book, 1, 4).0,
+            CalcValue::number(previous.as_number().unwrap() + 1.0)
+        );
+    }
+}
+
+fn p14_advance(book: &mut HostSession) {
+    let mut steps = 0;
+    while book.has_pending_calculation() {
+        book.advance_calculation();
+        steps += 1;
+        assert!(steps < 10000, "finite P14 work must terminate");
+    }
+}
+
+fn p14_enter(book: &mut HostSession, row: u32, column: u32, text: &str) {
+    let at = CellKey::new(book.host().sheets()[0].id(), row, column).unwrap();
+    assert!(
+        book.dispatch(SkinIntent::EnterCell {
+            at,
+            text: text.into()
+        })
+        .accepted()
+    );
+}
+
+fn p14_visible(
+    book: &HostSession,
+    row: u32,
+    column: u32,
+) -> (CalcValue, Option<calc_host::Calculation>) {
+    let at = CellKey::new(book.host().sheets()[0].id(), row, column).unwrap();
+    let page = project(book.host(), &ProjectionRequest { cells: vec![at] }).unwrap();
+    match page.cells()[0].value() {
+        ProjectedValue::Calculated { value, calculation } => {
+            (value.clone(), Some(calculation.clone()))
+        }
+        ProjectedValue::Stale(stale) if stale.last_value().is_some() => (
+            stale.last_value().unwrap().clone(),
+            stale.last_calculation().cloned(),
+        ),
+        ProjectedValue::FileCached(cache) => (cache.value().to_value(), None),
+        ProjectedValue::Stale(stale) if stale.file_cache().is_some() => {
+            (stale.file_cache().unwrap().value().to_value(), None)
+        }
+        other => panic!("no displayed value: {other:?}"),
+    }
+}
+
+/// DNA lifecycle controls: an unsupported range must not consume a warm cyclic
+/// value, lose its seeds/topology, or discharge another component's future demand.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_11__mixed_range_preserves_warm_cycles_and_read_guards() {
+    use calc_host::value::GridArea;
+    use calc_host::{CalcEvent, CompletionOutcome, WorkBudget};
+    let bytes = include_bytes!(
+        "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-Range-mixed-n1-zero.xlsx"
+    );
+    for budget in [usize::MAX, 1] {
+        let mut book = session_without_recalc(bytes);
+        assert!(
+            book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+                .accepted()
+        );
+        book.set_calculation_budget(WorkBudget::evaluations(budget));
+        assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+        p14_advance(&mut book);
+        assert_eq!(p14_visible(&book, 1, 1).0, CalcValue::number(1.0));
+        assert_eq!(p14_visible(&book, 1, 2).0, CalcValue::number(2.0));
+        p14_enter(&mut book, 1, 26, "3");
+        p14_enter(&mut book, 1, 4, "=Z1+1");
+        p14_enter(&mut book, 1, 6, "=INDIRECT(\"A1\")+1");
+        p14_enter(&mut book, 1, 7, "=ROWS(INDIRECT(\"A1\")#)");
+        p14_enter(&mut book, 1, 26, "10");
+        let before = (1..=3)
+            .map(|c| p14_visible(&book, 1, c))
+            .collect::<Vec<_>>();
+        book.take_calculation_events();
+        let sheet = book.host().sheets()[0].id();
+        let at = |column| CellKey::new(sheet, 1, column).unwrap();
+        assert!(
+            book.dispatch(SkinIntent::CalculateRange {
+                areas: vec![GridArea::new(at(1), at(4)).unwrap()]
+            })
+            .accepted()
+        );
+        p14_advance(&mut book);
+        for (column, old) in (1..=3).zip(&before) {
+            let shown = p14_visible(&book, 1, column);
+            assert_eq!(shown.0, old.0);
+            assert_eq!(
+                shown.1.as_ref().map(|c| c.tick()),
+                old.1.as_ref().map(|c| c.tick()),
+                "a retained result must not acquire a new calculation"
+            );
+        }
+        assert_eq!(p14_visible(&book, 1, 4).0, CalcValue::number(11.0));
+        let events = book.take_calculation_events();
+        let completion = events
+            .iter()
+            .find_map(|e| {
+                if let CalcEvent::Completed(r) = e {
+                    Some(r)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        assert_eq!(completion.outcome, CompletionOutcome::Incomplete);
+        assert_eq!(completion.coverage.required, 4);
+        assert_eq!(completion.coverage.calculated, 1);
+        assert_eq!(completion.coverage.refused, 3);
+        assert!(!book.has_pending_calculation());
+        for column in [6, 7] {
+            assert!(
+                book.dispatch(SkinIntent::CalculateRange {
+                    areas: vec![
+                        GridArea::new(at(1), at(4)).unwrap(),
+                        GridArea::cell(at(column))
+                    ]
+                })
+                .accepted()
+            );
+            p14_advance(&mut book);
+            let page = project(
+                book.host(),
+                &ProjectionRequest {
+                    cells: vec![at(column)],
+                },
+            )
+            .unwrap();
+            assert!(
+                matches!(
+                    page.recalc_failure(),
+                    Some(calc_host::RecalcFailed::Failed(
+                        calc_engine::RecalcFailure::NotModeledScope {
+                            owner: "dc-hsa5.11",
+                            ..
+                        }
+                    ))
+                ),
+                "column {column}: {:?}",
+                page.recalc_failure()
+            );
+            for (c, old) in (1..=3).zip(&before) {
+                assert_eq!(p14_visible(&book, 1, c), *old);
+            }
+        }
+        assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+        p14_advance(&mut book);
+        assert_eq!(p14_visible(&book, 1, 1).0, CalcValue::number(3.0));
+        assert_eq!(p14_visible(&book, 1, 2).0, CalcValue::number(4.0));
+    }
+    // A narrow completion must retain a clean component outside its scope for F9.
+    let mut book = session_without_recalc(bytes);
+    assert!(
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+            .accepted()
+    );
+    p14_enter(&mut book, 1, 24, "=Y1+1");
+    p14_enter(&mut book, 1, 25, "=X1+1");
+    assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+    p14_advance(&mut book);
+    let y = p14_visible(&book, 1, 25).0.as_number().unwrap();
+    let sheet = book.host().sheets()[0].id();
+    let at = |column| CellKey::new(sheet, 1, column).unwrap();
+    assert!(
+        book.dispatch(SkinIntent::CalculateRange {
+            areas: vec![GridArea::new(at(1), at(4)).unwrap()]
+        })
+        .accepted()
+    );
+    p14_advance(&mut book);
+    assert_eq!(p14_visible(&book, 1, 25).0, CalcValue::number(y));
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    p14_advance(&mut book);
+    assert_eq!(p14_visible(&book, 1, 24).0, CalcValue::number(y + 1.0));
+    assert_eq!(p14_visible(&book, 1, 25).0, CalcValue::number(y + 2.0));
+}
+
+/// Refusing a newly discovered dynamic cycle preserves its saved warm seed for
+/// a later ordinary command. This is a DNA refusal/provenance control.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_11__dynamic_range_refusal_keeps_warm_seed() {
+    use calc_host::WorkBudget;
+    use calc_host::value::GridArea;
+    let mut authored = session_without_recalc(&calc_host::blank_package());
+    assert!(
+        authored
+            .dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+            .accepted()
+    );
+    set_iteration(&mut authored, IterationSettings::new(true, 1, 0.001));
+    p14_enter(&mut authored, 1, 1, "=INDIRECT(\"A1\")+1");
+    p14_enter(&mut authored, 1, 4, "=2+2");
+    assert!(authored.dispatch(SkinIntent::Rebuild).accepted());
+    p14_advance(&mut authored);
+    let held = p14_visible(&authored, 1, 1).0;
+    let mut bytes = Vec::new();
+    save(authored.host(), &SavePolicy::default(), &mut bytes).unwrap();
+    for budget in [usize::MAX, 1] {
+        let mut book = session_without_recalc(&bytes);
+        assert!(
+            book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+                .accepted()
+        );
+        book.set_calculation_budget(WorkBudget::evaluations(budget));
+        assert_eq!(p14_visible(&book, 1, 1).0, held);
+        let sheet = book.host().sheets()[0].id();
+        let at = |column| CellKey::new(sheet, 1, column).unwrap();
+        assert!(
+            book.dispatch(SkinIntent::CalculateRange {
+                areas: vec![GridArea::new(at(1), at(4)).unwrap()]
+            })
+            .accepted()
+        );
+        p14_advance(&mut book);
+        let page = project(book.host(), &ProjectionRequest { cells: vec![at(1)] }).unwrap();
+        assert!(
+            matches!(
+                page.recalc_failure(),
+                Some(calc_host::RecalcFailed::Failed(
+                    calc_engine::RecalcFailure::NotModeledScope {
+                        owner: "dc-hsa5.11",
+                        ..
+                    }
+                ))
+            ),
+            "{:?}",
+            page.recalc_failure()
+        );
+        assert_eq!(p14_visible(&book, 1, 1).0, held);
+        assert!(
+            p14_visible(&book, 1, 1).1.is_none(),
+            "refusal cannot create a producing calculation"
+        );
+        assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+        p14_advance(&mut book);
+        assert_eq!(
+            p14_visible(&book, 1, 1).0,
+            CalcValue::number(held.as_number().unwrap() + 1.0)
+        );
+    }
+}
+
 /// Recorded first-calculation values, including held seeds and sheet/cell order, must survive
 /// a yield at any position of an iterative sweep. Reopen observations are deliberately separate:
 /// reopening and calculating again advances divergent cycles in the recorded Excel sessions.
