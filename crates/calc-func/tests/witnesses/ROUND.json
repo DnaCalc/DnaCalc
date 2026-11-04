@@ -104,7 +104,7 @@
     {"args":["0x0010000000000000","0x4073300000000000"],"expected_bits":"0x0000000000000000","id":"w111roundendpoint-ROUND-00022","reading":"r5"},
     {"args":["0x0010000000000000","0x4073400000000000"],"expected_bits":"0x0000000000000000","id":"w111roundendpoint-ROUND-00023","reading":"r5"},
     {"args":["0x0010000000000020","0x0000000000000000"],"expected_bits":"0x0000000000000000","id":"w111roundendpoint-ROUND-00915","reading":"r5"},
-    {"args":["0x7fefffffffffffc0","0xc073300000000000"],"calc_func":"error:Num","expected_bits":"0x7ff005419221015d","id":"w111roundendpoint-ROUND-03013","reading":"r5"},
+    {"args":["0x7fefffffffffffc0","0xc073300000000000"],"expected_bits":"0x7ff005419221015d","id":"w111roundendpoint-ROUND-03013","reading":"r5"},
     {"args":["0x7fefffffffffffe0","0x4074300000000000"],"expected_bits":"0x7fefffffffffffe2","id":"w111roundendpoint-ROUND-02125","reading":"r5"},
     {"args":["0x8010000000000000","0x402e000000000000"],"expected_bits":"0x0000000000000000","id":"w111roundendpoint-ROUND-00007","reading":"r5"},
     {"args":["0x801000000000001f","0xc073500000000000"],"expected_bits":"0x0000000000000000","id":"w111roundendpoint-ROUND-00869","reading":"r5"},
