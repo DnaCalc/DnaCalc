@@ -8369,6 +8369,22 @@ Case {
         Action::RememberView("active-cell"),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::Wait(Check::Text("zoom","10%")),Action::Wait(Check::ActiveSemantic("XFD1048576")),Action::Into("name-box","XFD1048576\u{E007}"),Action::Wait(Check::PlanCell("XFD1048576","text","7"))
     ],checks:&[Check::Value("zoom-percent","10"),Check::Value("name-box","XFD1048576"),Check::PlanCell("XFD1048576","text","7")]},
 
+    Case {name:"template arrays: Manual insertion retains the existing spill and imports cached cells as stale",actions:&[
+        Action::Window(1440,1000),Action::Into("name-box","A1\u{E007}"),Action::Into(BAR,"2\u{E007}"),Action::Into("name-box","B1\u{E007}"),Action::Into(BAR,"=SEQUENCE(A1)+10\u{E007}"),Action::Wait(Check::PlanCell("B2","text","12")),Action::ClearDownloads,
+        Action::OpenDetails("file-menu"),Action::Click("save-as"),Action::Into("save-as-name","Spill"),Action::Choose("save-as-format","xltx"),Action::Click("save-as-confirm"),Action::Wait(Check::Text("document","Spill.xltx")),Action::Click("new"),Action::DiscardReplacement,
+        Action::Into("name-box","A1\u{E007}"),Action::Into(BAR,"3\u{E007}"),Action::Into("name-box","C1\u{E007}"),Action::Into(BAR,"=SEQUENCE(A1)+20\u{E007}"),Action::Wait(Check::PlanCell("C3","text","23")),Action::Choose("calc-mode","manual"),Action::Into("name-box","A1\u{E007}"),Action::Into(BAR,"4\u{E007}"),Action::Wait(Check::PlanCell("C3","provenance","stale")),
+        Action::OpenDetails("file-menu"),Action::UploadDownloadTo("Spill.xltx","template-file"),Action::Wait(Check::Value("template-list","Spill.xltx")),Action::Click("template-insert"),Action::Wait(Check::Count("[data-dnacalc=sheet-jump] option",2)),Action::Wait(Check::PlanCell("B2","text","12")),Action::Wait(Check::PlanCell("B2","provenance","stale")),Action::Click("[data-dnacalc=sheet-tab][data-sheet=Sheet1]"),Action::Wait(Check::PlanCell("C3","text","23"))
+    ],checks:&[Check::PlanCell("C1","provenance","stale"),Check::PlanCell("C3","provenance","stale"),Check::PlanCell("C1","text","21"),Check::PlanCell("A1","text","4")]},
+    Case {name:"template arrays: Undo and Redo preserve stale holdings until Calculate",actions:&[
+        Action::Click("undo"),Action::Wait(Check::Count("[data-dnacalc=sheet-jump] option",1)),Action::Wait(Check::PlanCell("C3","provenance","stale")),Action::Wait(Check::PlanCell("C3","text","23")),Action::Click("redo"),Action::Wait(Check::Count("[data-dnacalc=sheet-jump] option",2)),Action::Click("[data-dnacalc=sheet-tab][data-sheet=Sheet1]"),Action::Wait(Check::PlanCell("C3","text","23")),Action::Wait(Check::PlanCell("C3","provenance","stale")),Action::Click("calculate"),Action::Wait(Check::PlanCell("C4","text","24"))
+    ],checks:&[Check::PlanCell("C4","provenance","calculated"),Check::PlanCell("C1","text","21"),Check::Value("calc-mode","manual")]},
+    Case {name:"template arrays: actual XLSX reopening recalculates both independent spills",actions:&[
+        Action::OpenDetails("file-menu"),Action::Click("save-as"),Action::Into("save-as-name","Inserted-spills"),Action::Choose("save-as-format","xlsx"),Action::Click("save-as-confirm"),Action::Wait(Check::Text("document","Inserted-spills.xlsx")),Action::UploadDownload("Inserted-spills.xlsx"),Action::DiscardReplacement,Action::Click("calculate"),Action::Wait(Check::PlanCell("C4","text","24")),Action::Click("[data-dnacalc=sheet-tab][data-sheet=Sheet2]"),Action::Wait(Check::PlanCell("B2","text","12"))
+    ],checks:&[Check::PlanCell("B1","provenance","calculated"),Check::PlanCell("B2","provenance","calculated"),Check::Count("[data-dnacalc=sheet-jump] option",2)]},
+    Case {name:"template arrays: another saved template inserts through phone controls",actions:&[
+        Action::Window(390,844),Action::OpenDetails("file-menu"),Action::Choose("template-list","Spill.xltx"),Action::Click("template-insert"),Action::Wait(Check::Count("[data-dnacalc=sheet-jump] option",3)),Action::Click("calculate"),Action::Wait(Check::PlanCell("B2","text","12"))
+    ],checks:&[Check::PlanCell("B2","provenance","calculated"),Check::Fits,Check::Narrow(390),Check::Reachable("name-box")]},
+
 ];
 
 /// The script that reads what one check looks at.
@@ -9213,4 +9229,5 @@ CaseGroup {
     CaseGroup {name:"hyperlink-sorting",start:683,end:688,core:5,setup:&[]},
     CaseGroup {name:"qualified-aggregates",start:688,end:692,core:4,setup:&[]},
     CaseGroup {name:"ten-percent-zoom",start:692,end:697,core:5,setup:&[]},
+    CaseGroup {name:"template-arrays",start:697,end:701,core:4,setup:&[]},
 ];

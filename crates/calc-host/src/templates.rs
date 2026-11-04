@@ -41,22 +41,6 @@ pub(crate) fn prepare(
             ));
         }
     }
-    if !host.model.definitions().data_tables().is_empty()
-        || !source.host().model().definitions().data_tables().is_empty()
-        || host.model.definitions().arrays().next().is_some()
-        || host.engine.spills().next().is_some()
-        || source
-            .host()
-            .model()
-            .definitions()
-            .arrays()
-            .next()
-            .is_some()
-    {
-        return Err(fail(
-            "Template insertion with array formulas, spills or data tables needs array-image merging",
-        ));
-    }
 
     let mut used: Vec<String> = host
         .model
