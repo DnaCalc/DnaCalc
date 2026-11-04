@@ -17,6 +17,7 @@ pub fn host_patch(p: FormatPatch) -> calc_host::FormatPatch {
         bold: p.bold,
         italic: p.italic,
         underline: p.underline,
+        underline_style: p.underline_style,
         strike: p.strike,
         font_color: p.font_color,
         fill: p.fill,
@@ -69,6 +70,7 @@ fn properties(host: &calc_host::HostState, at: CellKey) -> FormatPatch {
         .and_then(|v| match v {
             0..=90 => Some(v),
             91..=180 => Some(90 - v),
+            255 => Some(255),
             _ => None,
         });
     let rgb = |c: &calc_host::StyleColor| cells::style_color(host, c);
@@ -121,6 +123,7 @@ fn properties(host: &calc_host::HostState, at: CellKey) -> FormatPatch {
         bold: Some(font.bold),
         italic: Some(font.italic),
         underline: Some(font.underline.as_deref().is_some_and(|v| v != "none")),
+        underline_style: Some(font.underline.clone().unwrap_or("none".into())),
         strike: Some(font.strike),
         font_color: Some(font.color.as_ref().and_then(rgb).unwrap_or_default()),
         fill: match fill {
@@ -167,6 +170,7 @@ pub fn selection(book: &Workbook, areas: Vec<GridArea>) -> Result<FormatSelectio
             bold,
             italic,
             underline,
+            underline_style,
             strike,
             font_color,
             fill,

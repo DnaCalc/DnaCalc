@@ -110,7 +110,7 @@ pub(crate) fn alignment(bytes: &[u8]) -> Result<Vec<u8>, String> {
     }
     let extra_count = xfs.len();
     let first = count + 15;
-    let styles=styles.replacen(&format!("<fills count=\"{fill_count}\""),&format!("<fills count=\"{}\"",fill_count+20),1).replacen("</fills>",&format!("{fills}</fills>"),1)
+    let mut styles=styles.replacen(&format!("<fills count=\"{fill_count}\""),&format!("<fills count=\"{}\"",fill_count+20),1).replacen("</fills>",&format!("{fills}</fills>"),1)
         .replacen(&format!("<borders count=\"{border_count}\""),&format!("<borders count=\"{}\"",border_count+7),1).replacen("</borders>",&format!("{borders}</borders>"),1)
         .replacen(&format!("<fonts count=\"{font_count}\""),&format!("<fonts count=\"{}\"",font_count+1),1).replacen("</fonts>","<font><sz val=\"16\"/><name val=\"monospace\"/><color rgb=\"FF000000\"/><b/></font></fonts>",1)
         .replacen(&format!("<cellXfs count=\"{}\"",count+15),&format!("<cellXfs count=\"{}\"",count+15+extra_count),1).replacen("</cellXfs>",&format!("{}</cellXfs>",xfs.join("")),1);
@@ -153,6 +153,15 @@ pub(crate) fn alignment(bytes: &[u8]) -> Result<Vec<u8>, String> {
         let end = start + sheet[start..].find("</row>").ok_or("fixture row end")?;
         sheet.insert_str(end, &cells);
     }
+    // Font/orientation witnesses extend this same synthetic workbook.
+    let fonts = record_count(&styles,"fonts")?;
+    let formats = record_count(&styles,"cellXfs")?;
+    let added_fonts = r#"<font><sz val="14"/><name val="monospace"/><u val="double"/></font><font><sz val="14"/><name val="monospace"/></font><font><sz val="14"/><name val="monospace"/><u val="singleAccounting"/></font>"#;
+    let added_formats = format!(r#"<xf fontId="{fonts}" applyFont="1"/><xf fontId="{}" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center" textRotation="255"/></xf><xf fontId="{}" applyFont="1"/><xf fontId="{}" applyFont="1" applyAlignment="1"><alignment textRotation="255" wrapText="1"/></xf>"#,fonts+1,fonts+2,fonts+1);
+    styles=styles.replacen(&format!("<fonts count=\"{fonts}\""),&format!("<fonts count=\"{}\"",fonts+3),1).replacen("</fonts>",&format!("{added_fonts}</fonts>"),1)
+        .replacen(&format!("<cellXfs count=\"{formats}\""),&format!("<cellXfs count=\"{}\"",formats+4),1).replacen("</cellXfs>",&format!("{added_formats}</cellXfs>"),1);
+    let font_rows=format!(r#"<row r="20" ht="90" customHeight="1"><c r="B20" s="{formats}" t="inlineStr"><is><t>Double</t></is></c><c r="D20" s="{}" t="inlineStr"><is><t>Aé🧬</t></is></c><c r="F20" s="{}" t="inlineStr"><is><t>Accounting</t></is></c><c r="G20" s="{}" t="inlineStr"><is><t>AB</t></is></c></row><row r="21" ht="90" customHeight="1"><c r="D21" s="{}" t="inlineStr"><is><t>é👩‍🔬Z</t></is></c></row>"#,formats+1,formats+2,formats+3,formats+1);
+    sheet=sheet.replace("A1:N18","A1:N21").replacen("</sheetData>",&format!("{font_rows}</sheetData>"),1);
     crate::oracle_cases::replace_package_parts(
         bytes,
         &std::collections::BTreeMap::from([

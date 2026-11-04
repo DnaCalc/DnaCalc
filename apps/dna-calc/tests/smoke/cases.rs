@@ -8047,6 +8047,20 @@ Case {
         Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("charts.xlsx"),Action::DiscardReplacement],checks:&[
         Check::Attr("[data-dnacalc=chart][data-chart=\"Chart 2\"]","data-kind","bar"),Check::Attr("[data-dnacalc=chart][data-chart=\"Chart 3\"]","data-kind","line"),Check::Attr("[data-dnacalc=chart][data-chart=\"Chart 5\"]","data-kind","pie"),Check::Attr("[data-dnacalc=chart][data-chart=\"Chart 6\"]","data-kind","scatter"),Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","data-value","40")]},
 
+    Case {name:"font variants: imported double underline and stacked graphemes paint from stored styles",actions:&[
+        Action::Window(1440,1400),Action::SetPainter("dom"),Action::ClearDownloads,Action::AlignmentFixture,Action::UploadDownload("alignment.xlsx"),Action::DiscardReplacement,Action::Into("name-box","B20\u{E007}")],checks:&[
+        Check::Text(cell!("B20"),"Double"),Check::PlanCell("B20","style.underline_style","double"),Check::Computed("[data-cell=B20] .dc-cell-text","text-decoration-style:double"),Check::PlanCell("D20","style.rotation","255"),Check::Count("[data-cell=D20] .dc-cell-text > span",3),Check::Count("[data-cell=D21] .dc-cell-text > span",3)]},
+    Case {name:"font variants: Canvas paints the same stacked text without a workbook command",actions:&[
+        Action::Into("name-box","D21\u{E007}"),Action::Wait(Check::TextBounds(cell!("D21"))),Action::RememberPresentation,Action::SetPainter("canvas")],checks:&[Check::PainterStable,Check::CanvasInk("B20"),Check::CanvasInk("D20"),Check::CanvasInk("D21")]},
+    Case {name:"font variants: mixed underline styles author and preview double while strike stays single",actions:&[
+        Action::SetPainter("dom"),Action::Into("name-box","B20:D21\u{E007}"),Action::Click("format-cells"),Action::Wait(Check::Focused("format-number")),Action::Click("format-tab-font"),Action::Wait(Check::Value("format-underline-style","")),Action::Choose("format-underline-style","none"),Action::Wait(Check::Value("format-underline","false")),Action::Choose("format-underline-style","double"),Action::Wait(Check::Value("format-underline","true")),Action::Choose("format-underline","false"),Action::Wait(Check::Value("format-underline-style","none")),Action::Choose("format-underline-style","double"),Action::Wait(Check::Value("format-underline","true")),Action::Choose("format-strike","true"),Action::Wait(Check::Computed("format-preview-text","text-decoration-style:double")),Action::Wait(Check::Computed("format-preview","text-decoration-line:line-through")),Action::Click("format-apply"),Action::Wait(Check::PlanCell("D21","style.underline_style","double")),Action::Click("undo"),Action::Wait(Check::PlanCell("D21","style.underline","false")),Action::Click("redo")],checks:&[Check::PlanCell("D21","style.underline_style","double"),Check::PlanCell("D21","style.strike","true"),Check::PlanCell("D21","style.rotation","255"),Check::Text(cell!("B20"),"Double")]},
+    Case {name:"font variants: author stacked orientation through the ordinary format transaction and history",actions:&[
+        Action::Into("name-box","B20\u{E007}"),Action::Click("format-cells"),Action::Wait(Check::Focused("format-number")),Action::Click("format-tab-alignment"),Action::Choose("format-orientation","stacked"),Action::Click("format-apply"),Action::Wait(Check::PlanCell("B20","style.rotation","255")),Action::Click("undo"),Action::Wait(Check::PlanCell("B20","style.rotation","0")),Action::Click("redo")],checks:&[Check::PlanCell("B20","style.rotation","255"),Check::Count("[data-cell=B20] .dc-cell-text > span",6),Check::PlanCell("B20","style.underline_style","double")]},
+    Case {name:"font variants: real XLSX reopening retains double underline strike and stacked orientation",actions:&[
+        Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("alignment.xlsx"),Action::DiscardReplacement,Action::Into("name-box","B20\u{E007}")],checks:&[Check::PlanCell("B20","style.rotation","255"),Check::PlanCell("D21","style.underline_style","double"),Check::PlanCell("D21","style.strike","true"),Check::Count("[data-cell=D21] .dc-cell-text > span",3),Check::Text(cell!("D21"),"é👩‍🔬Z")]},
+    Case {name:"font variants: unsupported accounting effects stay labelled and controls fit three widths",actions:&[
+        Action::Into("name-box","F20\u{E007}"),Action::Wait(Check::TextContains("style-note","underline variants")),Action::Window(390,844),Action::Click("format-cells"),Action::Wait(Check::Focused("format-number")),Action::Click("format-tab-font"),Action::Wait(Check::Fits),Action::Wait(Check::Reachable("format-underline-style")),Action::Click("format-cancel"),Action::Window(900,900),Action::Wait(Check::Fits),Action::Window(1440,1400)],checks:&[Check::Fits,Check::PlanCell("F20","style.underline_style","singleAccounting"),Check::PlanCell("F20","style.underline","false"),Check::TextContains("style-note","preserved but not painted")]},
+
 ];
 
 /// The script that reads what one check looks at.
@@ -8877,4 +8891,5 @@ CaseGroup {
     CaseGroup {name:"review-create",start:606,end:612,core:6,setup:&[]},
     CaseGroup {name:"tables",start:612,end:625,core:13,setup:&[]},
     CaseGroup {name:"chart-import",start:625,end:628,core:3,setup:&[]},
+    CaseGroup {name:"font-variants",start:628,end:634,core:6,setup:&[]},
 ];

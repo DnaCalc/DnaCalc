@@ -25,7 +25,7 @@
 //! page may still answer, fails the case there. A browser whose driver is missing fails the run;
 //! it is never skipped.
 //!
-//! With no filters, `smoke` runs the routine core (217 cases across the two apps and all six
+//! With no filters, `smoke` runs the routine core (223 cases across the two apps and all six
 //! Calc skins). `--suite full` runs every case; sweep uses full bundle suites, and site smoke
 //! retains every ordinary case (worker-fault/latency cases require a local bundle). `--group name`
 //! selects an independent scenario; `--case substring` matches case names without regard to
@@ -2994,8 +2994,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 217,
-            "the two applications have 217 core cases including candidate validation, conditional formats, editable review content, validation audits and the existing editing routes"
+            total, 223,
+            "the two applications have 223 core cases including candidate validation, conditional formats, editable review content, validation audits and the existing editing routes"
         );
     }
 

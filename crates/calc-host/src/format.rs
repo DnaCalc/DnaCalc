@@ -22,6 +22,7 @@ pub struct FormatPatch {
     pub bold: Option<bool>,
     pub italic: Option<bool>,
     pub underline: Option<bool>,
+    pub underline_style: Option<String>,
     pub strike: Option<bool>,
     pub font_color: Option<String>,
     pub fill: Option<String>,
@@ -79,10 +80,10 @@ impl FormatPatch {
         {
             return Err("Choose a vertical alignment".into());
         }
-        if self.rotation.is_some_and(|n| !(-90..=90).contains(&n))
+        if self.rotation.is_some_and(|n| n != 255 && !(-90..=90).contains(&n))
             || self.indent.is_some_and(|n| n > 250)
         {
-            return Err("Rotation must be -90 to 90 degrees; indent 0 to 250".into());
+            return Err("Rotation must be -90 to 90 degrees or stacked text; indent 0 to 250".into());
         }
         if self.font_name.as_ref().is_some_and(|s| {
             s.trim().is_empty() || s.encode_utf16().count() > 255 || s.chars().any(char::is_control)
@@ -94,6 +95,12 @@ impl FormatPatch {
                 .map_or(true, |n| !n.is_finite() || !(1.0..=409.0).contains(&n))
         }) {
             return Err("Font size must be 1 to 409 points".into());
+        }
+        if self.underline_style.as_deref().is_some_and(|v| !matches!(v,"none"|"single"|"double")) {
+            return Err("Choose no underline, single or double underline".into());
+        }
+        if let (Some(on),Some(kind))=(self.underline,self.underline_style.as_deref()) {
+            if on != (kind!="none") { return Err("The underline choices disagree".into()); }
         }
         for c in [&self.font_color, &self.fill].into_iter().flatten() {
             color(c)?;
@@ -266,6 +273,9 @@ pub fn patched_style(
     }
     if let Some(v) = patch.underline {
         font.underline = v.then(|| "single".into());
+    }
+    if let Some(v) = &patch.underline_style {
+        font.underline = (v!="none").then(||v.clone());
     }
     if let Some(v) = patch.strike {
         font.strike = v;

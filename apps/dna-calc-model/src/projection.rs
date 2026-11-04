@@ -108,6 +108,8 @@ pub struct TextStyle {
     #[serde(default)]
     pub diagonal: [Option<BorderShown>; 2],
     pub underline: bool,
+    #[serde(default)]
+    pub underline_style: Option<String>,
     pub strike: bool,
     /// Left, right, top and bottom at the physical cell boundary.
     pub borders: [Option<BorderShown>; 4],
@@ -140,6 +142,7 @@ impl Default for TextStyle {
             brush: None,
             diagonal: Default::default(),
             underline: false,
+            underline_style: None,
             strike: false,
             borders: Default::default(),
             family: None,

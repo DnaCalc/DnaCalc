@@ -51,6 +51,7 @@ fn dc_971p__format_cells_is_atomic_undoable_and_round_trips_styles() {
             bold: Some(true),
             italic: Some(true),
             underline: Some(true),
+            underline_style: None,
             strike: Some(true),
             font_color: Some("#123456".into()),
             fill: Some("#ffeedd".into()),
@@ -14041,4 +14042,15 @@ fn dc_971p_41__calculated_formula_namespaces_and_quoted_attributes_survive_renam
     let augmented=package_with_part_from(&saved,&part,|xml|xml.replace("<calculatedColumnFormula ",r#"<m:calculatedColumnFormula xmlns:m="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:v="urn:keep" v:note="a>b" array="0" "#).replace("</calculatedColumnFormula>","</m:calculatedColumnFormula>"));
     let mut book=session(&augmented);let s=book.host().sheets()[0].id();assert!(!book.host().model().definitions().tables()[0].axis_opaque);
     let done=table_action(&mut book,T::RenameColumn{part:part.clone(),column:2,name:"Revenue".into()});assert!(done.accepted(),"{done:?}");let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let xml=part_text(&saved,&part);assert!(xml.contains(r#"v:note="a>b""#),"{xml}");assert!(xml.contains(r#"array="0""#));assert!(xml.contains("</m:calculatedColumnFormula>"));let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());assert_eq!(calculated(reopened.host(),at(s,"A3")),Some(CalcValue::number(14.)));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_6__double_underline_and_stacked_text_share_history_and_save() {
+    use calc_host::{WorkbookCommand as W,FormatPatch};let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();enter(&mut book,at(s,"A1"),"Aé🧬");enter(&mut book,at(s,"B1"),"12.3");
+    let done=book.dispatch(SkinIntent::Command(W::FormatCells{areas:vec![GridArea::new(at(s,"A1"),at(s,"B1")).unwrap()],patch:FormatPatch{font_name:Some("monospace".into()),font_size:Some("14".into()),underline_style:Some("double".into()),strike:Some(true),rotation:Some(255),..Default::default()}}));assert!(done.accepted(),"{done:?}");
+    let style=book.host().cell_style(at(s,"A1"));let styles=book.host().styles();let font=&styles.fonts[styles.cell_formats[style as usize].font_id.unwrap() as usize];assert_eq!(font.underline.as_deref(),Some("double"));assert!(font.strike);assert_eq!(book.host().cell_alignment(at(s,"A1")).unwrap().text_rotation.as_deref(),Some("255"));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().cell_style(at(s,"A1")),0);assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert!(part_text(&saved,"xl/styles.xml").contains("textRotation=\"255\""));let reopened=session(&saved);let styles=reopened.host().styles();let font=&styles.fonts[styles.cell_formats[reopened.host().cell_style(at(s,"B1")) as usize].font_id.unwrap() as usize];assert_eq!(font.underline.as_deref(),Some("double"));assert!(font.strike);assert_eq!(calc_host::search::entry_text(reopened.host().model().cell(at(s,"A1"))),"Aé🧬");
+    for patch in [FormatPatch{underline_style:Some("wavy".into()),..Default::default()},FormatPatch{rotation:Some(254),..Default::default()},FormatPatch{underline:Some(false),underline_style:Some("double".into()),..Default::default()}] {let revision=book.host().revision();assert!(!book.dispatch(SkinIntent::Command(W::FormatCells{areas:vec![GridArea::cell(at(s,"A1"))],patch})).accepted());assert_eq!(book.host().revision(),revision);}
 }

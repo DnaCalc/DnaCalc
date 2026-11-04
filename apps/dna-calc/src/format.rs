@@ -210,7 +210,8 @@ pub fn controls(controller: Controller) -> impl IntoView {
                     {choice(controller,"format-vertical","Vertical",|p|&p.vertical,|p|&mut p.vertical,&[("top","Top"),("center","Centre"),("bottom","Bottom"),("justify","Justify"),("distributed","Distributed")])}
                     {toggle(controller,"format-wrap","Wrap text",|p|p.wrap,|p|&mut p.wrap)}
                     {toggle(controller,"format-shrink","Shrink to fit",|p|p.shrink,|p|&mut p.shrink)}
-                    <label>"Rotation (degrees)"<input type="number" min="-90" max="90" data-dnacalc="format-rotation" placeholder="Mixed / unchanged" prop:value=move ||patch.with(|p|p.rotation).or_else(||selection.with(|s|s.as_ref().and_then(|s|s.common.rotation))).map(|n|n.to_string()).unwrap_or_default() on:input=move |ev|patch.update(|p|p.rotation=event_target_value(&ev).parse().ok())/></label>
+                    <label>"Text orientation"<select data-dnacalc="format-orientation" prop:value=move ||patch.with(|p|p.rotation).or_else(||selection.with(|s|s.as_ref().and_then(|s|s.common.rotation))).map_or("",|n|if n==255{"stacked"}else{"normal"}) on:change=move |ev|patch.update(|p|p.rotation=match event_target_value(&ev).as_str(){"stacked"=>Some(255),"normal"=>Some(0),_=>None})><option value="">"Mixed / unchanged"</option><option value="normal">"Normal or angled"</option><option value="stacked">"Stacked vertically"</option></select></label>
+                    <label>"Rotation (degrees)"<input type="number" min="-90" max="90" data-dnacalc="format-rotation" disabled=move ||patch.with(|p|p.rotation).or_else(||selection.with(|s|s.as_ref().and_then(|s|s.common.rotation)))==Some(255) placeholder="Mixed / unchanged" prop:value=move ||patch.with(|p|p.rotation).or_else(||selection.with(|s|s.as_ref().and_then(|s|s.common.rotation))).filter(|n|*n!=255).map(|n|n.to_string()).unwrap_or_default() on:input=move |ev|patch.update(|p|p.rotation=event_target_value(&ev).parse().ok())/></label>
                     <label>"Indent"<input type="number" min="0" max="250" data-dnacalc="format-indent" placeholder="Mixed / unchanged" prop:value=move ||patch.with(|p|p.indent).or_else(||selection.with(|s|s.as_ref().and_then(|s|s.common.indent))).map(|n|n.to_string()).unwrap_or_default() on:input=move |ev|patch.update(|p|p.indent=event_target_value(&ev).parse().ok())/></label>
                 </fieldset>
                 <fieldset role="tabpanel" id="dc-format-panel-2" aria-labelledby="dc-format-tab-2" hidden=move ||tab.get()!=2><legend>"Font"</legend>
@@ -218,7 +219,8 @@ pub fn controls(controller: Controller) -> impl IntoView {
                     {text(controller,"format-size","Size (points)",|p|&p.font_size,|p|&mut p.font_size)}
                     {toggle(controller,"format-bold","Bold",|p|p.bold,|p|&mut p.bold)}
                     {toggle(controller,"format-italic","Italic",|p|p.italic,|p|&mut p.italic)}
-                    {toggle(controller,"format-underline","Underline",|p|p.underline,|p|&mut p.underline)}
+                    {toggle(controller,"format-underline","Underline",|p|p.underline_style.as_deref().map(|v|v!="none").or(p.underline),|p|{p.underline_style=None;&mut p.underline})}
+                    <label>"Underline style"<select data-dnacalc="format-underline-style" prop:value=move ||patch.with(|p|p.underline_style.clone().or_else(||p.underline.map(|b|if b{"single".into()}else{"none".into()}))).or_else(||selection.with(|s|s.as_ref().and_then(|s|s.common.underline_style.clone()))).unwrap_or_default() on:change=move |ev|{let value=event_target_value(&ev);patch.update(|p|{p.underline=None;p.underline_style=(!value.is_empty()).then_some(value);});}><option value="">"Mixed / unchanged"</option><option value="none">"None"</option><option value="single">"Single"</option><option value="double">"Double"</option>{move ||selection.with(|s|s.as_ref().and_then(|s|s.common.underline_style.clone())).filter(|s|!matches!(s.as_str(),"none"|"single"|"double")).map(|s|view!{<option value=s.clone() disabled>{format!("{s} (preserved)")}</option>})}</select></label>
                     {toggle(controller,"format-strike","Strikethrough",|p|p.strike,|p|&mut p.strike)}
                     {text(controller,"format-font-color","Colour (#rrggbb; empty = automatic)",|p|&p.font_color,|p|&mut p.font_color)}
                 </fieldset>
@@ -245,8 +247,9 @@ pub fn controls(controller: Controller) -> impl IntoView {
                 let mut style=crate::grid::autofit::font_css(&cell.style,cell.conditional.as_ref(),false,1.);
                 if let Some(color)=cell.color.as_ref().or(cell.style.font_color.as_ref()){style.push_str(&format!(";color:{color}"));}
                 if let Some(fill)=&cell.style.fill{style.push_str(&format!(";background-color:{fill}"));}
-                style.push_str(crate::grid::autofit::decoration_css(cell.style.underline,cell.style.strike));
-                view!{<output data-dnacalc="format-preview" use:css=style>{cell.text}</output><span class="dc-note">{if cell.format==crate::wire::FormatShown::NotModelled {"This format is preserved, but its display is not modelled"}else{""}}</span>}
+                let double=crate::grid::autofit::double_underline(&cell.style,None);
+                style.push_str(crate::grid::autofit::decoration_css(cell.style.underline&&!double,cell.style.strike));
+                view!{<output data-dnacalc="format-preview" use:css=style><span data-dnacalc="format-preview-text" use:css=if double{crate::grid::autofit::double_underline_css(cell.style.pixels,1.)}else{String::new()}>{cell.text}</span></output><span class="dc-note">{if cell.format==crate::wire::FormatShown::NotModelled {"This format is preserved, but its display is not modelled"}else{""}}</span>}
             })}</div>
             <p class="dc-note">"Base format sample; conditional formatting can override the grid display."</p>
             <p role="status" data-dnacalc="format-message">{move ||message.get()}</p>
