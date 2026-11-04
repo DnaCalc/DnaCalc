@@ -182,7 +182,11 @@ fn prepare_project(
             })
         })
         .collect::<Result<Vec<_>, String>>()?;
-    let project = calc_vba::events::load_project(&modules, max_steps, backend)?;
+    let project = if file_project {
+        calc_vba::events::load_file_project(&modules, max_steps, backend)?
+    } else {
+        calc_vba::events::load_project(&modules, max_steps, backend)?
+    };
     let mut owner = WorkbookEvents {
         project,
         sheets: BTreeMap::new(),
