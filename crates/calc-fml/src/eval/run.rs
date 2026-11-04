@@ -1849,10 +1849,13 @@ impl Run<'_, '_> {
                     }
                 }
                 let value = self.lazy_once(target, &element)?;
-                // W111's lifted IF/IFERROR/IFNA positions turn selected blanks into zero.
+                // W111 lifted IF/IFERROR/IFNA and Dynamic fn2 q193 CHOOSE selections
+                // materialize selected blanks into zero.
                 // Scalar calls retain their kernels' blank policy (dc-ibp2 controls).
                 let value = if (target.0.argument_demand() == ArgumentDemand::FallbackOnError
-                    || target.0.spelling() == "IF")
+                    || target.0.spelling() == "IF"
+                    || (target.0.spelling() == "CHOOSE"
+                        && self.instance.plan.form == FormulaForm::Dynamic))
                     && value.is_empty()
                 {
                     CalcValue::number(0.0)

@@ -209,6 +209,26 @@ fn unmeasured_iteration_contexts_remain_refused() {
     }
 }
 
+/// Retained Dynamic fn2 q193: CHOOSE materializes selected blank references into zeros when
+/// an array selector lifts the call. Scalar CHOOSE retains its reference origin.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_choose_array_selector_materializes_blank_references() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_form(calc_fml::FormulaForm::Dynamic);
+    session.add_sheet("Data").unwrap();
+    session.set_input("Data!Z1", InputValue::blank()).unwrap();
+    session.set_input("Data!Z2", InputValue::blank()).unwrap();
+    check_captured_questions(include_bytes!(
+        "../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json"
+    ), &mut session, |f| f.cell.sheet() == "fn2_q193", 1);
+    for formula in ["=ISBLANK(CHOOSE(1,Data!Z1,Data!Z2))", "=ISREF(CHOOSE(1,Data!Z1,Data!Z2))"] {
+        session.set_formula(formula);
+        let calculated = session.calculate();
+        assert_eq!(calculated.result, Some(CalcValue::logical(true)), "{formula}: {:?}", calculated.diagnostics);
+    }
+}
+
 /// Fn2 roots011/013/014 and their ROWS/COLUMNS observers establish zero-count and one-cell
 /// behavior. Larger short vectors and matrices follow the documented WRAPROWS/WRAPCOLS contract.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
