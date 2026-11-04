@@ -189,6 +189,11 @@
   "allowed": {}
  },
  "files": [
+  {"path": "crates/calc-func/tests/fixtures/dcztvv_r23/oracle.xlsx", "class": "own-work", "reason": "dc-j9k R25: unchanged original R23 corpus-seeded questions, canonical file forms and entry layout, or Excel capture delivered under excel-results-r23; captured entry refusal remains a failure. No numerical source code copied."},
+  {"path": "crates/calc-func/tests/fixtures/dcztvv_r23/oracle.entries.json", "class": "own-work", "reason": "dc-j9k R25: unchanged original R23 corpus-seeded questions, canonical file forms and entry layout, or Excel capture delivered under excel-results-r23; captured entry refusal remains a failure. No numerical source code copied."},
+  {"path": "crates/calc-func/tests/fixtures/dcztvv_r23/sheet-dcztvv_r23.txt", "class": "own-work", "reason": "dc-j9k R25: unchanged original R23 corpus-seeded questions, canonical file forms and entry layout, or Excel capture delivered under excel-results-r23; captured entry refusal remains a failure. No numerical source code copied."},
+  {"path": "crates/calc-func/tests/captures/dcztvv_r23/oracle.capture.json", "class": "own-work", "reason": "dc-j9k R25: unchanged original R23 corpus-seeded questions, canonical file forms and entry layout, or Excel capture delivered under excel-results-r23; captured entry refusal remains a failure. No numerical source code copied."},
+
   {"path": "crates/calc-func/tests/fixtures/fn2_questions/oracle.xlsx", "class": "own-work", "reason": "dc-j9k R22: isolate the incoming fn2 unanswered questions, generated from the existing unchanged formula layout and serializer, to preserve captured catalogue context."},
   {"path": "crates/calc-func/tests/fixtures/dcj9k_r21/sheet-dcj9k_r21.txt", "class": "own-work", "reason": "dc-j9k R21 questions moved in R22: original LINEST/LOGEST scaling, translation, permutations and operand echoes in a separate workbook; no expected values or external implementation copied."},
   {"path": "crates/calc-func/tests/fixtures/dcj9k_r21/oracle.xlsx", "class": "own-work", "reason": "dc-j9k R22: the existing generator writes unchanged R21 questions separately to preserve catalogue capture context; no answers or source code copied."},

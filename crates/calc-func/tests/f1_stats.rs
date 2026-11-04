@@ -64,6 +64,28 @@ fn variances() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn variance_uses_raw_moments_and_stores_pc64_steps() {
+    // dc-j9k.13: unchanged dcj9k_statistics rows3/4, and original Value2
+    // bank controls that distinguish stored-PC64 from binary64 arithmetic.
+    let values = arr(vec![vec![157.0,376.82,189.207,12.38,12.473,483.0,306.24,324.1852,482.235,78.0]]);
+    exact(call("VAR.S",vec![values.clone()]),f64::from_bits(0x40df28debfbf8a84));
+    exact(call("VAR.P",vec![values]),f64::from_bits(0x40dc0b2edfc5fcac));
+    for (function, inputs, expected) in [
+        ("VAR.S",vec![0x401f9ff8b1ae9622,0x3dec0d7d522e744a],0x403f41118f2dd16d),
+        ("VARA",vec![0x4131a34bfb9b7e44,0x40fa6b7f92badf71,0x3f75f0dffa58b4e0,0x4010650ce689e755],0x42526677cc6392c1),
+        ("VARPA",vec![0xbfa2f23c41294257,0xbf93ada99cf88290,0xbfa7af86a74f6c6f,0xbf9b0346769d2b10],0x3f1bbc847d1cdb90),
+        ("VARPA",vec![0xc00bfc19a70301b6,0xc02a57246263f85d,0xc013c8bda588aba9,0x3fdd23da709d15f7],0x40389bdd995cc0d4),
+    ] {
+        exact(call(function,inputs.into_iter().map(|b|n(f64::from_bits(b))).collect()),f64::from_bits(expected));
+    }
+    // Large-offset cancellation takes the centered pass.
+    exact(call("VAR.S",vec![arr(vec![vec![1000000001.0,1000000002.0,1000000003.0]])]),1.0);
+    exact(call("VAR.P",vec![n(7.0)]),0.0);
+    error(call("VAR.S",vec![n(7.0)]),Div0);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn order_statistics() {
     exact(call("MODE.SNGL", vec![data()]), 4.0);
     exact(call("MODE", vec![n(1.0), n(2.0), n(2.0), n(1.0)]), 1.0);
