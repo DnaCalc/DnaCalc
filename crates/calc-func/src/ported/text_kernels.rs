@@ -69,21 +69,26 @@ pub(crate) fn mid_start(n: f64) -> Result<usize, WorksheetErrorCode> {
     Ok(truncated as usize)
 }
 
+fn unit_width(units: &[u16], offset: usize) -> usize {
+    if (0xD800..=0xDBFF).contains(&units[offset])
+        && units.get(offset + 1).is_some_and(|next| (0xDC00..=0xDFFF).contains(next)) {
+        2
+    } else {
+        1
+    }
+}
+
 fn character_boundary(text: &ExcelText, count: usize) -> usize {
     let units = text.utf16_code_units();
     let (mut offset, mut seen) = (0, 0);
     while offset < units.len() && seen < count {
-        let paired = (0xD800..=0xDBFF).contains(&units[offset])
-            && units
-                .get(offset + 1)
-                .is_some_and(|next| (0xDC00..=0xDFFF).contains(next));
-        offset += if paired { 2 } else { 1 };
+        offset += unit_width(units, offset);
         seen += 1;
     }
     offset
 }
 
-fn slice_character_count(text: &ExcelText) -> usize {
+pub(crate) fn slice_character_count(text: &ExcelText) -> usize {
     std::char::decode_utf16(text.utf16_code_units().iter().copied()).count()
 }
 
@@ -121,14 +126,19 @@ pub(crate) fn take_right(text: &ExcelText, count: usize) -> ExcelText {
     ExcelText::from_utf16_code_units(text.utf16_code_units()[start..].to_vec())
 }
 
-/// MID and MIDB: `count` UTF-16 code units from the one-based `start_one_based`.
-pub(crate) fn take_mid(text: &ExcelText, start_one_based: usize, count: usize) -> ExcelText {
+/// MID counts valid surrogate pairs once in Version 2; MIDB keeps its UTF-16 unit policy.
+pub(crate) fn take_mid(text: &ExcelText, start_one_based: usize, count: usize, pairs: bool) -> ExcelText {
     let units = text.utf16_code_units();
-    let start = start_one_based.saturating_sub(1);
+    let first = start_one_based.saturating_sub(1);
+    let start = if pairs { character_boundary(text, first) } else { first };
     if count == 0 || start >= units.len() {
         return ExcelText::from_utf16_code_units(Vec::new());
     }
-    let end = start.saturating_add(count).min(units.len());
+    let end = if pairs {
+        character_boundary(text, first.saturating_add(count))
+    } else {
+        start.saturating_add(count).min(units.len())
+    };
     ExcelText::from_utf16_code_units(units[start..end].to_vec())
 }
 
@@ -224,10 +234,16 @@ pub(crate) fn replace(
     start_num: usize,
     num_chars: usize,
     new_text: &ExcelText,
+    pairs: bool,
 ) -> ExcelText {
     let units = old_text.utf16_code_units();
-    let start_index = start_num.saturating_sub(1).min(units.len());
-    let end_index = start_index.saturating_add(num_chars).min(units.len());
+    let first = start_num.saturating_sub(1);
+    let start_index = if pairs { character_boundary(old_text, first) } else { first.min(units.len()) };
+    let end_index = if pairs {
+        character_boundary(old_text, first.saturating_add(num_chars))
+    } else {
+        start_index.saturating_add(num_chars).min(units.len())
+    };
     let mut out = Vec::with_capacity(
         start_index + new_text.len_utf16_code_units() + units.len().saturating_sub(end_index),
     );
@@ -241,34 +257,36 @@ pub(crate) fn find(
     find_text: &ExcelText,
     within_text: &ExcelText,
     start_num: usize,
+    pairs: bool,
 ) -> Result<f64, WorksheetErrorCode> {
     let needle = find_text.utf16_code_units();
     let hay = within_text.utf16_code_units();
     if needle.is_empty() {
-        if start_num <= hay.len() + 1 {
+        let length = if pairs { slice_character_count(within_text) } else { hay.len() };
+        if start_num <= length + 1 {
             return Ok(start_num as f64);
         }
         return Err(WorksheetErrorCode::Value);
     }
-    let start_index = start_num - 1;
-    if start_index >= hay.len() || needle.len() > hay.len() {
-        return Err(WorksheetErrorCode::Value);
-    }
-    for index in start_index..=hay.len() - needle.len() {
+    let mut index = if pairs { character_boundary(within_text, start_num - 1) } else { start_num - 1 };
+    let mut position = start_num;
+    while index < hay.len() && needle.len() <= hay.len() - index {
         if &hay[index..index + needle.len()] == needle {
-            return Ok((index + 1) as f64);
+            return Ok(position as f64);
         }
+        index += if pairs { unit_width(hay, index) } else { 1 };
+        position += 1;
     }
     Err(WorksheetErrorCode::Value)
 }
 
-/// Whether the SEARCH pattern (`*` any run, `?` one unit, `~` escaping the next) matches a prefix
+/// Whether the SEARCH pattern (`*` any run, `?` one counted position, `~` escaping the next) matches a prefix
 /// of `text`.
-fn search_pattern_matches_prefix(pattern: &[u16], text: &[u16]) -> bool {
+fn search_pattern_matches_prefix(pattern: &[u16], text: &[u16], pairs: bool) -> bool {
     // memo[p * (t_len + 1) + t]: 0 unknown, 1 false, 2 true.
     let width = text.len() + 1;
     let mut memo = vec![0u8; (pattern.len() + 1) * width];
-    fn rec(pattern: &[u16], text: &[u16], p: usize, t: usize, memo: &mut [u8], width: usize) -> bool {
+    fn rec(pattern: &[u16], text: &[u16], p: usize, t: usize, memo: &mut [u8], width: usize, pairs: bool) -> bool {
         let slot = p * width + t;
         if memo[slot] != 0 {
             return memo[slot] == 2;
@@ -281,32 +299,39 @@ fn search_pattern_matches_prefix(pattern: &[u16], text: &[u16]) -> bool {
                     if p + 1 == pattern.len() {
                         true
                     } else {
-                        (t..=text.len()).any(|next| rec(pattern, text, p + 1, next, memo, width))
+                        let mut next = t;
+                        loop {
+                            if rec(pattern, text, p + 1, next, memo, width, pairs) { break true; }
+                            if next == text.len() { break false; }
+                            next += if pairs { unit_width(text, next) } else { 1 };
+                        }
                     }
                 }
-                63 => t < text.len() && rec(pattern, text, p + 1, t + 1, memo, width),
+                63 => t < text.len() && rec(pattern, text, p + 1,
+                    t + if pairs { unit_width(text, t) } else { 1 }, memo, width, pairs),
                 126 if p + 1 < pattern.len() => {
                     t < text.len()
                         && search_units_equal(pattern[p + 1], text[t])
-                        && rec(pattern, text, p + 2, t + 1, memo, width)
+                        && rec(pattern, text, p + 2, t + 1, memo, width, pairs)
                 }
                 ch => {
                     t < text.len()
                         && search_units_equal(ch, text[t])
-                        && rec(pattern, text, p + 1, t + 1, memo, width)
+                        && rec(pattern, text, p + 1, t + 1, memo, width, pairs)
                 }
             }
         };
         memo[slot] = if result { 2 } else { 1 };
         result
     }
-    rec(pattern, text, 0, 0, &mut memo, width)
+    rec(pattern, text, 0, 0, &mut memo, width, pairs)
 }
 
 pub(crate) fn search(
     find_text: &ExcelText,
     within_text: &ExcelText,
     start_num: usize,
+    pairs: bool,
 ) -> Result<f64, WorksheetErrorCode> {
     let pattern = find_text.utf16_code_units();
     let hay = within_text.utf16_code_units();
@@ -314,19 +339,20 @@ pub(crate) fn search(
         if hay.is_empty() && start_num == 1 {
             return Ok(1.0);
         }
-        if start_num <= hay.len() {
+        let length = if pairs { slice_character_count(within_text) } else { hay.len() };
+        if start_num <= length {
             return Ok(start_num as f64);
         }
         return Err(WorksheetErrorCode::Value);
     }
-    let start_index = start_num - 1;
-    if start_index >= hay.len() {
-        return Err(WorksheetErrorCode::Value);
-    }
-    for index in start_index..hay.len() {
-        if search_pattern_matches_prefix(pattern, &hay[index..]) {
-            return Ok((index + 1) as f64);
+    let mut index = if pairs { character_boundary(within_text, start_num - 1) } else { start_num - 1 };
+    let mut position = start_num;
+    while index < hay.len() {
+        if search_pattern_matches_prefix(pattern, &hay[index..], pairs) {
+            return Ok(position as f64);
         }
+        index += if pairs { unit_width(hay, index) } else { 1 };
+        position += 1;
     }
     Err(WorksheetErrorCode::Value)
 }
@@ -570,11 +596,11 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn search_folds_case_beyond_ascii_and_reads_wildcards() {
-        assert_eq!(search(&t("é"), &t("XÉ"), 1), Ok(2.0));
-        assert_eq!(search(&t("σ"), &t("ΑΣ"), 1), Ok(2.0));
-        assert_eq!(search(&t("b*d"), &t("abcde"), 1), Ok(2.0));
-        assert_eq!(search(&t("~*"), &t("a*b"), 1), Ok(2.0));
-        assert_eq!(find(&t("B"), &t("abc"), 1), Err(WorksheetErrorCode::Value));
+        assert_eq!(search(&t("é"), &t("XÉ"), 1, false), Ok(2.0));
+        assert_eq!(search(&t("σ"), &t("ΑΣ"), 1, false), Ok(2.0));
+        assert_eq!(search(&t("b*d"), &t("abcde"), 1, false), Ok(2.0));
+        assert_eq!(search(&t("~*"), &t("a*b"), 1, false), Ok(2.0));
+        assert_eq!(find(&t("B"), &t("abc"), 1, false), Err(WorksheetErrorCode::Value));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -585,7 +611,7 @@ mod tests {
         assert_eq!(take_left(&emoji, 1), text(vec![0xD83D, 0xDE00]));
         assert_eq!(take_right(&emoji, 1), t("A"));
         // MID counts code units (dc-fl2).
-        assert_eq!(take_mid(&emoji, 2, 5), text(vec![0xDE00, 0x41]));
+        assert_eq!(take_mid(&emoji, 2, 5, false), text(vec![0xDE00, 0x41]));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

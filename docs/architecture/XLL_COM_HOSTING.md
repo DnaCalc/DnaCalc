@@ -933,8 +933,8 @@ beside the saved package's formula metadata.
 The existing native fixture now records the result operand's type after xlAsyncReturn.
 Separate default and numeric-sentinel conditions use the same fixture binary; marker files
 retained in each capture select the condition and a 50 ms delay. Excel 16.0.20527.20088
-returns type zero for both a zeroed operand and one initially containing numeric 13.25.
-The host now clears that type on accepted completion instead of supplying Boolean TRUE.
+returns 32 zero bytes for both a zeroed operand and one initially containing numeric 13.25.
+The host now clears the whole operand on accepted completion instead of supplying Boolean TRUE.
 Its completion value and the existing P07 admission, overwrite and late-return rules remain
 independent of that output operand. A regression exercises the exported callback route.
 
@@ -942,3 +942,10 @@ The reference case extends the earlier entry/calculation cases with a real nativ
 the observed output type. Earlier capture files and their strict failures remain unchanged.
 The verifier still compares every raw callback result and keeps any difference as a failure.
 This bounded result does not settle the managed RTD lifecycle traffic still open in dc-snz.23.
+
+For native and extended RTD captures made by the session host, the verifier accepts
+`--excel-session <retained-ledger>`. It checks the exact PID/start-time tuple, pre-activation
+inventory, successful fresh-job receipt, retained host and runner hashes, security baseline
+and capture interval. The runner's raw inventory includes the already-owned session PID;
+that metadata stays unchanged. Without the explicit ledger, the original ownership check
+still refuses that PID. Value, callback and ordered RTD comparisons are unchanged.

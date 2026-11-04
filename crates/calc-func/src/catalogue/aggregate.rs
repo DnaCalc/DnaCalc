@@ -438,8 +438,10 @@ fn blanks(
     let reference = match argument.core_ref() {
         CoreRef::Reference(reference) => reference,
         CoreRef::Error(code) => return Err(Exit::Error(code)),
-        // Array evaluation belongs to calc-fml; explicit omission is still unmeasured.
-        CoreRef::Array(_) | CoreRef::Missing => {
+        // Retained fn2 q187: an omitted optional LAMBDA parameter is #VALUE!.
+        CoreRef::Missing => return Err(Exit::Error(WorksheetErrorCode::Value)),
+        // Array evaluation belongs to calc-fml.
+        CoreRef::Array(_) => {
             return Err(Exit::Fault(FunctionFault::ReferenceRequired {
                 id: site.id(),
                 index: 0,

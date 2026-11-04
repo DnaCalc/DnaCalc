@@ -445,11 +445,11 @@ unsafe fn async_return(args: &[*mut XlOper12], result: *mut XlOper12) -> i32 {
     let value = unsafe { from_oper(args[1], &SheetMap::default(), None) };
     *lock = Some(value);
     completion.ready.notify_one();
-    // Excel20527 clears the result type on successful completion, including
-    // an operand initially containing a number. Type zero has no defined value.
+    // Excel20527 clears all result bytes on successful completion, including
+    // an operand initially containing a number.
     if !result.is_null() {
         unsafe {
-            std::ptr::addr_of_mut!((*result).xltype).write_unaligned(0);
+            std::ptr::write_bytes(result.cast::<u8>(), 0, std::mem::size_of::<XlOper12>());
         }
     }
     SUCCESS
@@ -879,6 +879,7 @@ pub(crate) fn coerce(value: CalcValue, kind: u32) -> Result<CalcValue, (i32, Str
     match (value.core_ref(), kind) {
         (CoreRef::Text(t), XL_NUM | XL_INT) => {
             let environment = calc_func::locale::CalcEnvironment {
+                compatibility_version: 1,
                 date_system: calc_func::locale::DateSystem::System1900,
                 profile: calc_func::locale::FormatProfile::for_culture("en-US"),
                 now: None,
@@ -1207,17 +1208,25 @@ mod tests {
 
     /// Native-only: exercises the executable callback route with the operands measured in Excel.
     #[test]
-    fn async_return_clears_the_result_type_and_keeps_the_completion_value() {
-        for mut result in [XlOper12::default(), XlOper12::number(13.25)] {
+    fn async_return_clears_the_result_operand_and_keeps_the_completion_value() {
+        for sentinel in [None, Some(13.25f64)] {
+            let mut result_bytes = [0xa5u8; std::mem::size_of::<XlOper12>()];
+            let result = result_bytes.as_mut_ptr().cast::<XlOper12>();
+            if let Some(value) = sentinel {
+                result_bytes[..8].copy_from_slice(&value.to_ne_bytes());
+                unsafe { std::ptr::addr_of_mut!((*result).xltype).write_unaligned(XL_NUM) };
+            } else {
+                result_bytes.fill(0);
+            }
             let request = pending().unwrap();
             let mut h = handle(request.key);
             let mut value = XlOper12::number(42.);
             let args = [&mut h as *mut XlOper12, &mut value];
             assert_eq!(
-                unsafe { dispatch(XL_ASYNC_RETURN, 2, args.as_ptr(), &mut result) },
+                unsafe { dispatch(XL_ASYNC_RETURN, 2, args.as_ptr(), result) },
                 SUCCESS
             );
-            assert_eq!(result.xltype, 0);
+            assert_eq!(result_bytes, [0; std::mem::size_of::<XlOper12>()]);
             assert_eq!(
                 wait(request.key, &request.completion).unwrap(),
                 CalcValue::number(42.)

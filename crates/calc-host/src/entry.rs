@@ -304,6 +304,7 @@ mod tests {
             .and_then(|profile| profile.with_separators(".", " "))
             .unwrap();
         let environment = CalcEnvironment {
+            compatibility_version: 1,
             date_system: calc_fml::DateSystem::System1900,
             profile: Some(profile),
             now: None,

@@ -348,6 +348,7 @@ impl HostState {
     /// set ([`HostState::set_clock`]), none at first.
     pub fn entry_environment(&self) -> CalcEnvironment {
         CalcEnvironment {
+            compatibility_version: self.loaded.compatibility_version(),
             date_system: if self.declared_date1904() {
                 FmlDateSystem::System1904
             } else {

@@ -202,6 +202,18 @@ dc_86f and dc_10y_iteration first-calculation values cover order, held seeds and
 the recorded limits; their reopen observations describe later calculations.
 Cross-workbook cyclic requests retain their named refusal before admission.
 
+Nonnumeric stopping (dc-hsa5.11.1, 2026-11-04): the eng10 fresh-process
+delivery distinguishes logical outputs from numeric stopping samples. A NOT
+self-reference beside a numeric 0.125 increment and its downstream reader does
+not keep a sweep running at MaxChange just below or equal to 1. An all-error
+self-reference at MaxChange zero stops with the first command's recorded #N/A,
+including MaxIterations 2 and 5; a numeric peer continues to drive the sweep.
+The engine now distinguishes no numeric sample from a numeric zero change.
+The latter retains the strict threshold rule. Fifteen unchanged authored inputs
+give 180 HostSession final-value comparisons at two budgets. These observations
+do not settle general SCC execution counts or intermediate cache visibility;
+iterative results retain their existing uncertified publication boundary.
+
 ### 3.3 Invocation
 
 ```rust
