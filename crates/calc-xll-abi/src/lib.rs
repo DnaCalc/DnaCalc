@@ -87,7 +87,7 @@ pub struct XlArray12 {
 #[derive(Clone, Copy)]
 pub struct XlBigData {
     pub data: *mut u8,
-    pub byte_count: i64,
+    pub byte_count: i32,
 }
 
 #[repr(C)]
@@ -175,6 +175,29 @@ mod tests {
         {
             assert_eq!(std::mem::size_of::<XlReference12>(), 16);
             assert_eq!(std::mem::offset_of!(XlArray12, rows), 8);
+            assert_eq!(std::mem::offset_of!(XlBigData, byte_count), 8);
+            assert_eq!(std::mem::size_of::<XlBigData>(), 16);
+            let data = XlBigData {
+                data: std::ptr::null_mut(),
+                byte_count: 0,
+            };
+            assert_eq!(std::mem::size_of_val(&data.byte_count), 4);
+        }
+    }
+
+    /// Native-only: reads the C ABI field beside deliberately nonzero structure padding.
+    #[test]
+    fn big_data_count_is_a_signed_32_bit_field() {
+        for count in [i32::MIN, -1, 0, 1, i32::MAX] {
+            let mut bytes = [0xa5u8; std::mem::size_of::<XlBigData>()];
+            let offset = std::mem::offset_of!(XlBigData, byte_count);
+            bytes[offset..offset + 4].copy_from_slice(&count.to_ne_bytes());
+            let field = unsafe {
+                std::ptr::read_unaligned(std::ptr::addr_of!(
+                    (*bytes.as_ptr().cast::<XlBigData>()).byte_count
+                ))
+            };
+            assert_eq!(field, count);
         }
     }
 }
