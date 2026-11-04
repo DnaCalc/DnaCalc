@@ -1181,10 +1181,9 @@ impl Run<'_, '_> {
         // The W111 MROUND/QUOTIENT reference controls distinguish a true multi-cell
         // reference from an array materialized by unary plus. The retained fn2
         // Legacy controls confirm the first argument, including beneath
-        // SUMPRODUCT and after INDEX. Legacy's second argument remains unmeasured;
-        // a one-cell reference still supplies its value.
-        if (self.instance.plan.form == FormulaForm::Dynamic || index == 0)
-            && rejects_multi_cell_reference(target)
+        // SUMPRODUCT and after INDEX; eng13 q01/q03 confirm the second.
+        // A one-cell reference still supplies its value.
+        if rejects_multi_cell_reference(target)
             && let CoreRef::Reference(reference) = value.core_ref()
             && let [area] = reference.areas()
             && area.cell_count() > 1
@@ -1288,17 +1287,16 @@ impl Run<'_, '_> {
                     .cloned()
                     .expect("a non-empty array");
             }
-            // Dynamic fn2 q212/q213 distinguish a computed Empty in a paired
-            // result from a raw blank reference (q194/q195). Preserve that origin
-            // before value admission reads a reference. Only the existing whole
-            // scalar-selection route below applies this normalization.
+            // Dynamic fn2 q212/q213 and Legacy eng13 q05/q06 distinguish a
+            // computed Empty in a paired result from a raw blank reference.
+            // Preserve that origin before value admission reads a reference. Only
+            // the existing whole scalar-selection route applies this normalization.
             let paired_result = match target.0.spelling() {
                 "IFS" => index % 2 == 1,
                 "SWITCH" => index >= 2 && index % 2 == 0,
                 _ => false,
             };
-            if form == FormulaForm::Dynamic
-                && paired_result
+            if paired_result
                 && value.callable_value().is_none()
                 && value.is_empty()
             {

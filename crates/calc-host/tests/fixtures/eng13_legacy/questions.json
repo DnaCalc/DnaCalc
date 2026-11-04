@@ -1,0 +1,336 @@
+[
+  {
+    "observer_cells": [
+      "D1",
+      "D2",
+      "D3",
+      "D4"
+    ],
+    "id": "eng13-legacy-denominator-01",
+    "formula_cell": "J2",
+    "sheet": "q01",
+    "question": {
+      "id": "eng13-legacy-denominator-01",
+      "formula_form": "Legacy",
+      "caller": "J2",
+      "formula_text": "=MROUND(2,Data!A1:A3)",
+      "data": {
+        "Data!A1": 1,
+        "Data!A2": 5,
+        "Data!A3": 3
+      },
+      "expected": null,
+      "question": "true multi-cell multiple reference",
+      "readbacks": [
+        "Formula",
+        "Formula2",
+        "HasArray",
+        "SavedAsArray",
+        "typed Value2",
+        "full spill shape if any"
+      ],
+      "required_route": "new workbook through existing make-catalogue-fixtures.ps1 New-OracleSheet/Write-Workbook and existing authored-entry/capture route; enter with Range.Formula, not Formula2; keep one source question per sheet and observers on their own sheets"
+    },
+    "observer_sheet": "o01"
+  },
+  {
+    "observer_cells": [
+      "D1",
+      "D2",
+      "D3",
+      "D4"
+    ],
+    "id": "eng13-legacy-denominator-02",
+    "formula_cell": "J2",
+    "sheet": "q02",
+    "question": {
+      "id": "eng13-legacy-denominator-02",
+      "formula_form": "Legacy",
+      "caller": "J2",
+      "formula_text": "=MROUND(2,+Data!A1:A3)",
+      "data": {
+        "Data!A1": 1,
+        "Data!A2": 5,
+        "Data!A3": 3
+      },
+      "expected": null,
+      "question": "matching unary-plus multiple control",
+      "readbacks": [
+        "Formula",
+        "Formula2",
+        "HasArray",
+        "SavedAsArray",
+        "typed Value2",
+        "full spill shape if any"
+      ],
+      "required_route": "new workbook through existing make-catalogue-fixtures.ps1 New-OracleSheet/Write-Workbook and existing authored-entry/capture route; enter with Range.Formula, not Formula2; keep one source question per sheet and observers on their own sheets"
+    },
+    "observer_sheet": "o02"
+  },
+  {
+    "observer_cells": [
+      "D1",
+      "D2",
+      "D3",
+      "D4"
+    ],
+    "id": "eng13-legacy-denominator-03",
+    "formula_cell": "J2",
+    "sheet": "q03",
+    "question": {
+      "id": "eng13-legacy-denominator-03",
+      "formula_form": "Legacy",
+      "caller": "J2",
+      "formula_text": "=QUOTIENT(12,Data!A1:A3)",
+      "data": {
+        "Data!A1": 1,
+        "Data!A2": 5,
+        "Data!A3": 3
+      },
+      "expected": null,
+      "question": "true multi-cell denominator reference",
+      "readbacks": [
+        "Formula",
+        "Formula2",
+        "HasArray",
+        "SavedAsArray",
+        "typed Value2",
+        "full spill shape if any"
+      ],
+      "required_route": "new workbook through existing make-catalogue-fixtures.ps1 New-OracleSheet/Write-Workbook and existing authored-entry/capture route; enter with Range.Formula, not Formula2; keep one source question per sheet and observers on their own sheets"
+    },
+    "observer_sheet": "o03"
+  },
+  {
+    "observer_cells": [
+      "D1",
+      "D2",
+      "D3",
+      "D4"
+    ],
+    "id": "eng13-legacy-denominator-04",
+    "formula_cell": "J2",
+    "sheet": "q04",
+    "question": {
+      "id": "eng13-legacy-denominator-04",
+      "formula_form": "Legacy",
+      "caller": "J2",
+      "formula_text": "=QUOTIENT(12,+Data!A1:A3)",
+      "data": {
+        "Data!A1": 1,
+        "Data!A2": 5,
+        "Data!A3": 3
+      },
+      "expected": null,
+      "question": "matching unary-plus denominator control",
+      "readbacks": [
+        "Formula",
+        "Formula2",
+        "HasArray",
+        "SavedAsArray",
+        "typed Value2",
+        "full spill shape if any"
+      ],
+      "required_route": "new workbook through existing make-catalogue-fixtures.ps1 New-OracleSheet/Write-Workbook and existing authored-entry/capture route; enter with Range.Formula, not Formula2; keep one source question per sheet and observers on their own sheets"
+    },
+    "observer_sheet": "o04"
+  },
+  {
+    "observer_cells": [
+      "D1",
+      "D2",
+      "D3",
+      "D4"
+    ],
+    "id": "eng13-legacy-blank-ifs-computed-empty",
+    "formula_cell": "J2",
+    "sheet": "q05",
+    "question": {
+      "id": "eng13-legacy-blank-ifs-computed-empty",
+      "formula_form": "Legacy",
+      "caller": "J2",
+      "formula_text": "=IFS(TRUE,IFERROR(Data!D4,1))&\"|\"",
+      "data": {},
+      "expected": null,
+      "question": "Legacy ifs-computed-empty; leave Data!D4 truly blank, not an authored empty-text cell",
+      "readbacks": [
+        "Formula",
+        "Formula2",
+        "HasArray",
+        "SavedAsArray",
+        "typed Value2",
+        "full spill shape if any"
+      ],
+      "required_route": "new workbook through existing make-catalogue-fixtures.ps1 New-OracleSheet/Write-Workbook and existing authored-entry/capture route; enter with Range.Formula, not Formula2; keep one source question per sheet and observers on their own sheets",
+      "blank_cells": [
+        "Data!D4"
+      ]
+    },
+    "observer_sheet": "o05"
+  },
+  {
+    "observer_cells": [
+      "D1",
+      "D2",
+      "D3",
+      "D4"
+    ],
+    "id": "eng13-legacy-blank-switch-computed-empty",
+    "formula_cell": "J2",
+    "sheet": "q06",
+    "question": {
+      "id": "eng13-legacy-blank-switch-computed-empty",
+      "formula_form": "Legacy",
+      "caller": "J2",
+      "formula_text": "=SWITCH(1,1,IFERROR(Data!D4,1))&\"|\"",
+      "data": {},
+      "expected": null,
+      "question": "Legacy switch-computed-empty; leave Data!D4 truly blank, not an authored empty-text cell",
+      "readbacks": [
+        "Formula",
+        "Formula2",
+        "HasArray",
+        "SavedAsArray",
+        "typed Value2",
+        "full spill shape if any"
+      ],
+      "required_route": "new workbook through existing make-catalogue-fixtures.ps1 New-OracleSheet/Write-Workbook and existing authored-entry/capture route; enter with Range.Formula, not Formula2; keep one source question per sheet and observers on their own sheets",
+      "blank_cells": [
+        "Data!D4"
+      ]
+    },
+    "observer_sheet": "o06"
+  },
+  {
+    "observer_cells": [
+      "D1",
+      "D2",
+      "D3",
+      "D4"
+    ],
+    "id": "eng13-legacy-blank-ifs-blank-reference",
+    "formula_cell": "J2",
+    "sheet": "q07",
+    "question": {
+      "id": "eng13-legacy-blank-ifs-blank-reference",
+      "formula_form": "Legacy",
+      "caller": "J2",
+      "formula_text": "=ISBLANK(IFS(TRUE,Data!D4))",
+      "data": {},
+      "expected": null,
+      "question": "Legacy ifs-blank-reference; leave Data!D4 truly blank, not an authored empty-text cell",
+      "readbacks": [
+        "Formula",
+        "Formula2",
+        "HasArray",
+        "SavedAsArray",
+        "typed Value2",
+        "full spill shape if any"
+      ],
+      "required_route": "new workbook through existing make-catalogue-fixtures.ps1 New-OracleSheet/Write-Workbook and existing authored-entry/capture route; enter with Range.Formula, not Formula2; keep one source question per sheet and observers on their own sheets",
+      "blank_cells": [
+        "Data!D4"
+      ]
+    },
+    "observer_sheet": "o07"
+  },
+  {
+    "observer_cells": [
+      "D1",
+      "D2",
+      "D3",
+      "D4"
+    ],
+    "id": "eng13-legacy-blank-switch-blank-reference",
+    "formula_cell": "J2",
+    "sheet": "q08",
+    "question": {
+      "id": "eng13-legacy-blank-switch-blank-reference",
+      "formula_form": "Legacy",
+      "caller": "J2",
+      "formula_text": "=ISBLANK(SWITCH(1,1,Data!D4))",
+      "data": {},
+      "expected": null,
+      "question": "Legacy switch-blank-reference; leave Data!D4 truly blank, not an authored empty-text cell",
+      "readbacks": [
+        "Formula",
+        "Formula2",
+        "HasArray",
+        "SavedAsArray",
+        "typed Value2",
+        "full spill shape if any"
+      ],
+      "required_route": "new workbook through existing make-catalogue-fixtures.ps1 New-OracleSheet/Write-Workbook and existing authored-entry/capture route; enter with Range.Formula, not Formula2; keep one source question per sheet and observers on their own sheets",
+      "blank_cells": [
+        "Data!D4"
+      ]
+    },
+    "observer_sheet": "o08"
+  },
+  {
+    "observer_cells": [
+      "D1",
+      "D2",
+      "D3",
+      "D4"
+    ],
+    "id": "eng13-legacy-blank-ifs-empty-text",
+    "formula_cell": "J2",
+    "sheet": "q09",
+    "question": {
+      "id": "eng13-legacy-blank-ifs-empty-text",
+      "formula_form": "Legacy",
+      "caller": "J2",
+      "formula_text": "=IFS(TRUE,\"\")&\"|\"",
+      "data": {},
+      "expected": null,
+      "question": "Legacy ifs-empty-text; leave Data!D4 truly blank, not an authored empty-text cell",
+      "readbacks": [
+        "Formula",
+        "Formula2",
+        "HasArray",
+        "SavedAsArray",
+        "typed Value2",
+        "full spill shape if any"
+      ],
+      "required_route": "new workbook through existing make-catalogue-fixtures.ps1 New-OracleSheet/Write-Workbook and existing authored-entry/capture route; enter with Range.Formula, not Formula2; keep one source question per sheet and observers on their own sheets",
+      "blank_cells": [
+        "Data!D4"
+      ]
+    },
+    "observer_sheet": "o09"
+  },
+  {
+    "observer_cells": [
+      "D1",
+      "D2",
+      "D3",
+      "D4"
+    ],
+    "id": "eng13-legacy-blank-switch-empty-text",
+    "formula_cell": "J2",
+    "sheet": "q10",
+    "question": {
+      "id": "eng13-legacy-blank-switch-empty-text",
+      "formula_form": "Legacy",
+      "caller": "J2",
+      "formula_text": "=SWITCH(1,1,\"\")&\"|\"",
+      "data": {},
+      "expected": null,
+      "question": "Legacy switch-empty-text; leave Data!D4 truly blank, not an authored empty-text cell",
+      "readbacks": [
+        "Formula",
+        "Formula2",
+        "HasArray",
+        "SavedAsArray",
+        "typed Value2",
+        "full spill shape if any"
+      ],
+      "required_route": "new workbook through existing make-catalogue-fixtures.ps1 New-OracleSheet/Write-Workbook and existing authored-entry/capture route; enter with Range.Formula, not Formula2; keep one source question per sheet and observers on their own sheets",
+      "blank_cells": [
+        "Data!D4"
+      ]
+    },
+    "observer_sheet": "o10"
+  }
+]
