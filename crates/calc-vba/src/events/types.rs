@@ -12,6 +12,8 @@ pub(super) const SHEET: [u8; 16] = *b"DnaCalcSheet0001";
 pub(super) const BOOK: [u8; 16] = *b"DnaCalcBook00001";
 pub(super) const SHEET_EVENTS: [u8; 16] = *b"DnaSheetEvents01";
 pub(super) const BOOK_EVENTS: [u8; 16] = *b"DnaBookEvents001";
+pub(super) const APP: [u8; 16] = *b"DnaCalcApp000001";
+pub(super) const APP_EVENTS: [u8; 16] = *b"DnaAppEvents0001";
 pub(super) fn iid(v: [u8; 16]) -> ComInterfaceIid {
     ComInterfaceIid {
         data1: u32::from_le_bytes(v[..4].try_into().unwrap()),
@@ -86,7 +88,33 @@ fn event(
         coclass: Some(class.into()),
     }
 }
-pub(crate) struct EventTypes;
+pub(crate) struct EventTypes {
+    pub(crate) automatic_events: bool,
+}
+
+// These descriptors allow complete original source to compile. No implementation
+// is implied: a reached member without a host implementation must refuse.
+fn declaration(
+    name: &str,
+    token: i32,
+    kind: K,
+    parameters: &[&str],
+    required: usize,
+    result: T,
+) -> TypeLibMemberMetadata {
+    let mut m = member(name, 0, result, RANGE, 0);
+    m.token = token;
+    m.vtable_slot = None;
+    m.vtable_slot_bound = None;
+    m.interface_iid = None;
+    m.invoke_kind = kind;
+    m.requires_argument = required != 0;
+    m.parameter_names = parameters.iter().map(|s| (*s).into()).collect();
+    m.parameter_optional = (0..parameters.len()).map(|i| i >= required).collect();
+    m.parameter_types = vec![T::Variant; parameters.len()];
+    m
+}
+
 impl TypeLibResolver for EventTypes {
     fn interface_iid(
         &self,
@@ -101,9 +129,13 @@ impl TypeLibResolver for EventTypes {
                 .to_ascii_lowercase()
                 .as_str()
             {
+                "range" if !self.automatic_events => {
+                    crate::runtime::spreadsheet::SpreadsheetTypes.interface_iid(request, blob)
+                }
                 "range" => Some(iid(RANGE)),
                 "worksheet" => Some(iid(SHEET)),
                 "workbook" => Some(iid(BOOK)),
+                "application" => Some(iid(APP)),
                 _ => None,
             }
         } else {
@@ -115,7 +147,30 @@ impl TypeLibResolver for EventTypes {
             return crate::runtime::spreadsheet::SpreadsheetTypes.resolve(request);
         }
         let class = request.requested_coclass.as_deref().unwrap_or("Range");
-        let (members, events) = match class.to_ascii_lowercase().as_str() {
+        let (mut members, mut events) = match class.to_ascii_lowercase().as_str() {
+            "application" => (
+                crate::runtime::spreadsheet::SpreadsheetTypes
+                    .resolve(&TypeLibResolveRequest {
+                        reference_name: "DnaCalc".into(),
+                        requested_coclass: Some("Application".into()),
+                        ..request.clone()
+                    })?
+                    .members,
+                vec![event(
+                    "AfterCalculate",
+                    1,
+                    "Application",
+                    APP_EVENTS,
+                    vec![],
+                    vec![],
+                )],
+            ),
+            "range" if !self.automatic_events => (
+                crate::runtime::spreadsheet::SpreadsheetTypes
+                    .resolve(request)?
+                    .members,
+                vec![],
+            ),
             "range" => (
                 vec![
                     member("Value2", 0, T::Variant, RANGE, 5),
@@ -153,8 +208,197 @@ impl TypeLibResolver for EventTypes {
             ),
             _ => return None,
         };
+        if !self.automatic_events && !class.eq_ignore_ascii_case("Application") {
+            events.clear();
+        }
+        match class.to_ascii_lowercase().as_str() {
+            "range" => {
+                for (name, kind, args, required) in [
+                    (
+                        "Address",
+                        K::PropertyGet,
+                        &[
+                            "RowAbsolute",
+                            "ColumnAbsolute",
+                            "ReferenceStyle",
+                            "External",
+                            "RelativeTo",
+                        ][..],
+                        0,
+                    ),
+                    ("Cells", K::PropertyGet, &["RowIndex", "ColumnIndex"][..], 0),
+                    ("HasSpill", K::PropertyGet, &[][..], 0),
+                    ("SpillingToRange", K::PropertyGet, &[][..], 0),
+                    ("Formula", K::PropertyGet, &[][..], 0),
+                    ("FormulaR1C1", K::PropertyGet, &[][..], 0),
+                    ("Formula2R1C1", K::PropertyGet, &[][..], 0),
+                    ("HasArray", K::PropertyGet, &[][..], 0),
+                    ("SavedAsArray", K::PropertyGet, &[][..], 0),
+                    ("Formula2", K::PropertyGet, &[][..], 0),
+                    ("Formula", K::PropertyPut, &["value"][..], 1),
+                    ("FormulaR1C1", K::PropertyPut, &["value"][..], 1),
+                    ("Formula2R1C1", K::PropertyPut, &["value"][..], 1),
+                    ("Formula2", K::PropertyPut, &["value"][..], 1),
+                    ("Value2", K::PropertyPut, &["value"][..], 1),
+                    ("ClearContents", K::Method, &[][..], 0),
+                    ("Clear", K::Method, &[][..], 0),
+                    ("Calculate", K::Method, &[][..], 0),
+                    ("Select", K::Method, &[][..], 0),
+                    ("CalculateRowMajorOrder", K::Method, &[][..], 0),
+                ] {
+                    if name == "Address" {
+                        if self.automatic_events {
+                            continue;
+                        }
+                        members.retain(|m| m.name != "Address");
+                    }
+                    // The native no-argument Address slot stays available to event
+                    // callbacks; worksheet calls keep the shared projection token.
+                    let token = if name == "Address" {
+                        5
+                    } else {
+                        100 + members.len() as i32
+                    };
+                    members.push(declaration(name, token, kind, args, required, T::Variant));
+                }
+            }
+            "worksheet" => {
+                for (name, args, required) in [
+                    ("Range", &["Cell1", "Cell2"][..], 1),
+                    ("Cells", &["RowIndex", "ColumnIndex"][..], 0),
+                    ("UsedRange", &[][..], 0),
+                    ("Rows", &["Index"][..], 0),
+                    ("EnableCalculation", &[][..], 0),
+                    ("ListObjects", &["Index"][..], 0),
+                ] {
+                    members.push(declaration(
+                        name,
+                        100 + members.len() as i32,
+                        K::PropertyGet,
+                        args,
+                        required,
+                        T::Variant,
+                    ));
+                }
+                members.push(declaration(
+                    "Name",
+                    110,
+                    K::PropertyPut,
+                    &["value"],
+                    1,
+                    T::Variant,
+                ));
+                members.push(declaration(
+                    "EnableCalculation",
+                    111,
+                    K::PropertyPut,
+                    &["value"],
+                    1,
+                    T::Variant,
+                ));
+                members.push(declaration("Activate", 112, K::Method, &[], 0, T::Variant));
+                members.push(declaration("Calculate", 113, K::Method, &[], 0, T::Variant));
+            }
+            "workbook" => {
+                for (name, args, required) in [
+                    ("Worksheets", &["Index"][..], 0),
+                    ("Sheets", &["Index"][..], 0),
+                    ("Names", &[][..], 0),
+                    ("VBProject", &[][..], 0),
+                    ("Date1904", &[][..], 0),
+                    ("PrecisionAsDisplayed", &[][..], 0),
+                    ("ForceFullCalculation", &[][..], 0),
+                    ("FullName", &[][..], 0),
+                ] {
+                    members.push(declaration(
+                        name,
+                        100 + members.len() as i32,
+                        K::PropertyGet,
+                        args,
+                        required,
+                        T::Variant,
+                    ));
+                }
+                members.push(declaration(
+                    "SaveAs",
+                    120,
+                    K::Method,
+                    &[
+                        "Filename",
+                        "FileFormat",
+                        "Password",
+                        "WriteResPassword",
+                        "ReadOnlyRecommended",
+                        "CreateBackup",
+                        "AccessMode",
+                        "ConflictResolution",
+                        "AddToMru",
+                        "TextCodepage",
+                        "TextVisualLayout",
+                        "Local",
+                    ],
+                    1,
+                    T::Variant,
+                ));
+                members.push(declaration(
+                    "Close",
+                    121,
+                    K::Method,
+                    &["SaveChanges", "Filename", "RouteWorkbook"],
+                    0,
+                    T::Variant,
+                ));
+                members.push(declaration(
+                    "SaveCopyAs",
+                    122,
+                    K::Method,
+                    &["Filename"],
+                    1,
+                    T::Variant,
+                ));
+                members.push(declaration("Activate", 123, K::Method, &[], 0, T::Variant));
+                members.push(declaration(
+                    "ForceFullCalculation",
+                    124,
+                    K::PropertyPut,
+                    &["value"],
+                    1,
+                    T::Variant,
+                ));
+                members.push(declaration(
+                    "IsAddin",
+                    125,
+                    K::PropertyPut,
+                    &["value"],
+                    1,
+                    T::Variant,
+                ));
+                members.push(declaration("Save", 126, K::Method, &[], 0, T::Variant));
+            }
+            _ => {}
+        }
         Some(TypeLibMetadataBlob {
-            constants: Vec::new(),
+            constants: [
+                ("xlCalculationManual", -4135),
+                ("xlCalculationAutomatic", -4105),
+                ("xlCalculationSemiautomatic", 2),
+                ("xlOpenXMLWorkbookMacroEnabled", 52),
+                ("xlWBATWorksheet", -4167),
+                ("xlErrValue", 2015),
+                ("xlErrRef", 2023),
+                ("xlYes", 1),
+                ("xlSrcRange", 1),
+                ("xlThreadModeManual", 1),
+                ("xlOpenXMLWorkbook", 51),
+                ("xlOpenXMLAddIn", 55),
+            ]
+            .into_iter()
+            .map(|(name, value)| oxvba_com::TypeLibConstantMetadata {
+                owner: "Excel".into(),
+                name: name.into(),
+                value: oxvba_com::ComDefaultValue::Int(value),
+            })
+            .collect(),
             identity: TypeLibResolvedIdentity {
                 reference_name: request.reference_name.clone(),
                 requested_coclass: Some(class.into()),
@@ -169,7 +413,10 @@ impl TypeLibResolver for EventTypes {
             member_name_to_token: members.iter().map(|m| (m.name.clone(), m.token)).collect(),
             members,
             events,
-            coclass_names: vec![class.into()],
+            coclass_names: ["Range", "Worksheet", "Workbook", "Application"]
+                .into_iter()
+                .map(str::to_owned)
+                .collect(),
         })
     }
 }

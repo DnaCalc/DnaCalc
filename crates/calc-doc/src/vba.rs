@@ -33,10 +33,11 @@ impl Default for VbaReadPolicy {
     }
 }
 
-/// The two module kinds encoded in the project directory. The second combines three kinds.
+/// The directory's combined nonprocedural kind is refined only by a PROJECT declaration.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum VbaModuleKind {
     Procedural,
+    Class,
     DocumentClassOrDesigner,
 }
 
@@ -243,6 +244,11 @@ pub(crate) fn read(
     let code_page = project.information.code_page;
     let encoding =
         codepage::to_encoding(code_page).ok_or(VbaReadError::UnsupportedCodePage(code_page))?;
+    let declarations = stream(&mut container, "/PROJECT", policy.max_project_bytes)?;
+    let declarations = encoding
+        .decode_without_bom_handling_and_without_replacement(&declarations)
+        .ok_or_else(|| invalid("PROJECT text encoding"))?;
+    let mut classes = project_classes(&declarations)?;
     let mut modules = Vec::new();
     let mut names = std::collections::BTreeSet::new();
     let mut total = 0usize;
@@ -279,12 +285,17 @@ pub(crate) fn read(
                 code_page,
             })?
             .into_owned();
+        let class = classes.remove(&calc_doc_model::value::fold_workbook_name(&module.name));
+        if class && matches!(module.module_type, directory::ModuleType::Procedural) {
+            return Err(invalid("PROJECT class conflicts with the module directory"));
+        }
         modules.push(VbaModuleSource {
             name: module.name.clone(),
             stream_name: module.stream_name.clone(),
             source_offset: module.text_offset,
             kind: match module.module_type {
                 directory::ModuleType::Procedural => VbaModuleKind::Procedural,
+                directory::ModuleType::DocClsDesigner if class => VbaModuleKind::Class,
                 directory::ModuleType::DocClsDesigner => VbaModuleKind::DocumentClassOrDesigner,
             },
             private: module.private,
@@ -295,11 +306,46 @@ pub(crate) fn read(
             source,
         });
     }
+    if !classes.is_empty() {
+        return Err(invalid("PROJECT class is absent from the module directory"));
+    }
     Ok(Some(VbaProjectSource {
         part: part.into(),
         code_page,
         modules,
     }))
+}
+
+fn project_classes(text: &str) -> Result<std::collections::BTreeSet<String>, VbaReadError> {
+    let mut names = std::collections::BTreeSet::new();
+    let mut classes = std::collections::BTreeSet::new();
+    for line in text.lines() {
+        if line.starts_with('[') {
+            break;
+        }
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        if !["Class", "Module", "Document", "BaseClass"]
+            .iter()
+            .any(|k| key.eq_ignore_ascii_case(k))
+        {
+            continue;
+        }
+        let name = if key.eq_ignore_ascii_case("Document") {
+            value.split('/').next().unwrap_or_default()
+        } else {
+            value
+        };
+        let name = calc_doc_model::value::fold_workbook_name(name);
+        if name.is_empty() || !names.insert(name.clone()) {
+            return Err(invalid("ambiguous PROJECT module identity"));
+        }
+        if key.eq_ignore_ascii_case("Class") {
+            classes.insert(name);
+        }
+    }
+    Ok(classes)
 }
 
 #[cfg(test)]

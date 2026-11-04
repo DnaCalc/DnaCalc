@@ -11,6 +11,7 @@ pub use source::{EventReadContext, EventSource};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModuleKind {
     Standard,
+    Class,
     Worksheet,
     Workbook,
 }
@@ -44,7 +45,7 @@ pub fn load_project(
     max_steps: u64,
     backend: Option<Backend>,
 ) -> Result<LoadedProject, String> {
-    load_project_impl(modules, max_steps, backend, false)
+    load_project_impl(modules, max_steps, backend, false, true)
 }
 
 /// An opened workbook's worksheet lookup also admits its private standard-module
@@ -54,7 +55,16 @@ pub fn load_file_project(
     max_steps: u64,
     backend: Option<Backend>,
 ) -> Result<LoadedProject, String> {
-    load_project_impl(modules, max_steps, backend, true)
+    load_file_project_with_events(modules, max_steps, backend, true)
+}
+
+pub fn load_file_project_with_events(
+    modules: &[ProjectModule],
+    max_steps: u64,
+    backend: Option<Backend>,
+    automatic_events: bool,
+) -> Result<LoadedProject, String> {
+    load_project_impl(modules, max_steps, backend, true, automatic_events)
 }
 
 fn load_project_impl(
@@ -62,6 +72,7 @@ fn load_project_impl(
     max_steps: u64,
     backend: Option<Backend>,
     private_worksheet_lookup: bool,
+    automatic_events: bool,
 ) -> Result<LoadedProject, String> {
     if modules.is_empty()
         || modules.len() > 1024
@@ -70,7 +81,7 @@ fn load_project_impl(
     {
         return Err("VBA project exceeds its source/module limits (dc-hsa5.12)".into());
     }
-    let module = Module::load_event_project(modules, private_worksheet_lookup)
+    let module = Module::load_event_project(modules, private_worksheet_lookup, automatic_events)
         .map_err(|e| format!("document project (dc-hsa5.12): {e}"))?;
     crate::prepare_project(module, max_steps, backend)
         .map_err(|e| format!("document project (dc-hsa5.12): {e}"))

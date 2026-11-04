@@ -119,6 +119,19 @@ impl CodeCache {
         self.0.clear();
     }
     pub fn prepare(&mut self, module: Module, backend: Backend) -> Result<OwnedSession, Error> {
+        // The dynamic JIT currently drops a native WithEvents binding without
+        // calling the host's subscription refusal. Decline that image before
+        // initialization or user code; default admission can select the VM.
+        if backend == Backend::Jit
+            && !module.event_project
+            && module.engine.event_routes().iter().any(|route| {
+                route.document_class.is_none() && route.native.is_some()
+            })
+        {
+            return Err(Error::UnsupportedBackend(
+                "dynamic native WithEvents binding requires the interpreter (dc-snz.15)".into(),
+            ));
+        }
         let (module, functions, spreadsheet, event_project) = split_module(module);
         OwnedSession::wrap(
             self.0.prepare(module, backend).map_err(engine_error)?,

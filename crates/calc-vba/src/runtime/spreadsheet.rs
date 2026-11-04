@@ -246,7 +246,8 @@ impl SpreadsheetHost {
     fn lookup(&self, object: &ObjectRef) -> HalResult<Object> {
         // raw() is only defined for compatibility carriers, never a native IUnknown.
         if !object.is_compat_object() {
-            return Err(fault(438, "foreign native object"));
+            return self
+                .unsupported("a native spreadsheet object outside the supported projection");
         }
         self.objects
             .lock()
@@ -610,8 +611,17 @@ impl ComHal for SpreadsheetHost {
                 7 => "COLUMNS",
                 8 => "CELLS",
                 9 => "AREAS",
+                100..=299 => {
+                    return self
+                        .unsupported("a declared Range member outside the supported host surface");
+                }
                 _ => return Err(fault(438, "unknown typed projection member")),
             },
+            (_, 100..=399, _) => {
+                return self.unsupported(
+                    "a declared member or accessor outside the supported host surface",
+                );
+            }
             _ => return Err(fault(438, "unsupported typed projection member/accessor")),
         };
         if args.iter().any(|arg| arg.name.is_some()) {
@@ -626,7 +636,13 @@ impl ComHal for SpreadsheetHost {
                     .unwrap_or_else(|| Variant::from_error_code(-2147352572))
             })
             .collect::<Vec<_>>();
-        self.invoke_projected_member(object, name, &args)
+        let args =
+            if name == "ADDRESS" && args.iter().all(|a| a.as_error_code() == Some(-2147352572)) {
+                &[][..]
+            } else {
+                &args[..]
+            };
+        self.invoke_projected_member(object, name, args)
             .map(oxvba_runtime::RuntimeCallResult::value)
     }
 
@@ -715,7 +731,7 @@ impl ComHal for SpreadsheetHost {
         self.invoke_projected_member(self.lookup(&request.object)?, &name, &args)
     }
     fn subscribe_event(&self, _: ObjectRef, _: ComMemberToken) -> HalResult<ComSubscriptionToken> {
-        Err(fault(438, "events are unavailable"))
+        self.unsupported("spreadsheet WithEvents subscriptions are not modelled")
     }
     fn poll_event_callback(&self) -> HalResult<Option<ComCallbackPayload>> {
         Ok(None)
@@ -797,6 +813,48 @@ impl oxvba_symbol::TypeLibResolver for SpreadsheetTypes {
                 vtable_slot_bound: None,
             }
         }
+        if request.reference_name.eq_ignore_ascii_case("DnaCalc")
+            && let Some(global) = request.requested_coclass.as_deref().filter(|name| {
+                ["ActiveSheet", "ActiveWorkbook", "ActiveWindow", "Selection"]
+                    .iter()
+                    .any(|s| name.eq_ignore_ascii_case(s))
+            })
+        {
+            let declarations = match global.to_ascii_lowercase().as_str() {
+                "activesheet" => vec![
+                    member("Name", 1, Kind::PropertyGet, 0, Ty::Variant),
+                    member("Range", 2, Kind::PropertyGet, 2, Ty::Variant),
+                ],
+                "activeworkbook" => vec![member("Name", 1, Kind::PropertyGet, 0, Ty::Variant)],
+                "activewindow" => vec![
+                    member("ScrollRow", 1, Kind::PropertyGet, 0, Ty::Variant),
+                    member("ScrollRow", 1, Kind::PropertyPut, 1, Ty::Variant),
+                ],
+                "selection" => vec![member("Address", 1, Kind::PropertyGet, 5, Ty::Variant)],
+                _ => unreachable!("validated global"),
+            };
+            return Some(TypeLibMetadataBlob {
+                constants: Vec::new(),
+                identity: TypeLibResolvedIdentity {
+                    reference_name: request.reference_name.clone(),
+                    requested_coclass: Some(global.into()),
+                    importlib: "host:dnacalc-readonly-v1".into(),
+                    libid: None,
+                    major_version: 1,
+                    minor_version: 0,
+                    lcid: None,
+                    cache_key: format!("dnacalc-readonly-v1:{global}"),
+                },
+                activation_prog_id: Some(format!("DnaCalc.{global}")),
+                member_name_to_token: declarations
+                    .iter()
+                    .map(|m| (m.name.clone(), m.token))
+                    .collect(),
+                members: declarations,
+                events: vec![],
+                coclass_names: vec![global.into()],
+            });
+        }
         if request
             .reference_name
             .eq_ignore_ascii_case("DnaCalcObjects")
@@ -837,7 +895,7 @@ impl oxvba_symbol::TypeLibResolver for SpreadsheetTypes {
             return None;
         }
         let class = if application { "Application" } else { "Range" };
-        let members = if application {
+        let mut members = if application {
             vec![
                 member("Caller", 1, Kind::PropertyGet, 0, Ty::Object),
                 member("WorksheetFunction", 2, Kind::PropertyGet, 0, Ty::Object),
@@ -856,6 +914,80 @@ impl oxvba_symbol::TypeLibResolver for SpreadsheetTypes {
                 member("Areas", 9, Kind::PropertyGet, 0, Ty::Object),
             ]
         };
+        if application {
+            for name in [
+                "Version",
+                "Build",
+                "CalculationVersion",
+                "OperatingSystem",
+                "Calculation",
+                "Iteration",
+                "MaxIterations",
+                "MaxChange",
+                "CalculateBeforeSave",
+                "EnableEvents",
+                "MultiThreadedCalculation",
+                "AutomationSecurity",
+                "AddIns",
+                "COMAddIns",
+                "Workbooks",
+                "CutCopyMode",
+            ] {
+                let token = 100 + members.len() as i32;
+                members.push(member(name, token, Kind::PropertyGet, 0, Ty::Variant));
+                if [
+                    "Calculation",
+                    "Iteration",
+                    "MaxIterations",
+                    "MaxChange",
+                    "CalculateBeforeSave",
+                    "EnableEvents",
+                    "AutomationSecurity",
+                    "CutCopyMode",
+                ]
+                .contains(&name)
+                {
+                    members.push(member(name, token, Kind::PropertyPut, 1, Ty::Variant));
+                }
+            }
+            for (name, args) in [
+                ("Calculate", 0),
+                ("CalculateFull", 0),
+                ("CalculateFullRebuild", 0),
+                ("Run", 31),
+                ("MacroOptions", 11),
+                ("RegisterXLL", 1),
+                ("Union", 30),
+            ] {
+                members.push(member(
+                    name,
+                    200 + members.len() as i32,
+                    Kind::Method,
+                    args,
+                    Ty::Variant,
+                ));
+            }
+            let metadata = members
+                .iter_mut()
+                .find(|m| m.name == "MacroOptions")
+                .expect("declared member");
+            metadata.parameter_names = [
+                "Macro",
+                "Description",
+                "HasMenu",
+                "MenuText",
+                "HasShortcutKey",
+                "ShortcutKey",
+                "Category",
+                "StatusBar",
+                "HelpContextID",
+                "HelpFile",
+                "ArgumentDescriptions",
+            ]
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+        }
         Some(TypeLibMetadataBlob {
             constants: Vec::new(),
             identity: TypeLibResolvedIdentity {

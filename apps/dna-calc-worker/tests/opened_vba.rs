@@ -169,11 +169,25 @@ fn worker_file_open_fault_is_reported_once_and_unsupported_projects_stay_typed()
     let unsupported = include_bytes!(
         "../../../crates/calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/cases/automatic-basic/artifact.xlsm"
     );
-    assert!(matches!(
-        Workbook::open("p22.xlsm", unsupported.to_vec()),
+    let refusal = match Workbook::open("p22.xlsm", unsupported.to_vec()) {
         Err(dna_calc_worker::workbook::OpenRefused::Vba(
-            calc_host_vba::FileProjectError::UnsupportedModule(_)
-        ))
+            calc_host_vba::FileProjectError::Preparation(detail),
+        )) => detail,
+        Err(other) => panic!("expected the remaining automatic-event refusal: {other:?}"), // ubs:ignore[rust.ownership.panic-macro] A different refusal must fail this regression.
+        Ok(_) => panic!("unsupported automatic events cannot run on file open"), // ubs:ignore[rust.ownership.panic-macro] Unexpected admission must fail this regression.
+    };
+    assert!(refusal.contains("unsupported automatic-event prefix"), "{refusal}");
+    assert!(refusal.contains("dc-hsa5.12"), "{refusal}");
+    let designer = vba_project::replace_project_declaration(
+        unsupported,
+        "Class=P22Events",
+        "BaseClass=P22Events",
+    );
+    assert!(matches!(
+        Workbook::open("designer.xlsm", designer),
+        Err(dna_calc_worker::workbook::OpenRefused::Vba(
+            calc_host_vba::FileProjectError::UnsupportedModule(name)
+        )) if name == "P22Events"
     ));
     assert!(
         Workbook::open_with_project_policy(

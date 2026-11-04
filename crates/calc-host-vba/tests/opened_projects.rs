@@ -84,6 +84,445 @@ fn opened(bytes: &[u8], name: &str) -> HostSession {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn original_recalculation_probe_project_is_admitted_without_source_removal() {
+    let bytes = include_bytes!(
+        "../../calc-engine/tests/fixtures/excel-calc-probes/P04/plain-settles-full-01.xlsm"
+    );
+    for backend in [None, Some(calc_vba::Backend::Interpreter)] {
+        let mut session = opened(bytes, "probe.xlsm");
+        session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
+        let original = session
+            .host()
+            .loaded()
+            .read_vba_project(&Default::default())
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            original
+                .modules
+                .iter()
+                .find(|m| m.name == "ProbeEvents")
+                .unwrap()
+                .kind,
+            calc_host::VbaModuleKind::Class
+        );
+        let project = calc_host_vba::prepare_file_project_with_events(
+            session.host(),
+            "probe.xlsm",
+            1_000_000,
+            backend,
+            false,
+        )
+        .unwrap()
+        .unwrap();
+        session.set_workbook_events_enabled(false);
+        project.install(&mut session);
+        enter(&mut session, 8, 4, "=SizeUdf()");
+        enter(&mut session, 9, 4, "=OracleProbe.SizeUdf()");
+        enter(&mut session, 10, 4, "=IFERROR(PlainProbe(52,3),999)");
+        full(&mut session);
+        // The retained workbook's unarmed SizeUdf body assigns v = 2.
+        assert!(
+            original
+                .modules
+                .iter()
+                .find(|m| m.name == "OracleProbe")
+                .unwrap()
+                .source
+                .contains("v = 2")
+        );
+        assert_eq!(value(&session, 8, 4).as_number(), Some(2.));
+        assert_eq!(value(&session, 9, 4).as_number(), Some(2.));
+        let at = calc_value::CellKey::new(session.host().sheets()[0].id(), 10, 4).unwrap();
+        let page = calc_host::project(
+            session.host(),
+            &calc_host::ProjectionRequest { cells: vec![at] },
+        )
+        .unwrap();
+        assert!(
+            matches!(
+                page.cells()[0].value(),
+                calc_host::ProjectedValue::NotModeled { .. }
+            ),
+            "{:?}",
+            page.cells()[0].value()
+        );
+        let mut saved = Vec::new();
+        session.save(&Default::default(), &mut saved).unwrap();
+        let reopened = opened(&saved, "probe.xlsm");
+        let retained = reopened
+            .host()
+            .loaded()
+            .read_vba_project(&Default::default())
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            original, retained,
+            "admission and calls must preserve all original source"
+        );
+        assert!(session.take_workbook_event_failures().failures.is_empty());
+        session.set_workbook_events_enabled(true);
+        full(&mut session);
+        let failures = session.take_workbook_event_failures();
+        assert!(!failures.failures.is_empty());
+        assert!(
+            failures
+                .failures
+                .iter()
+                .all(|f| f.reason.contains("dc-snz.15"))
+        );
+        assert!(
+            calc_host_vba::prepare_file_project(session.host(), "probe.xlsm", 1_000_000, backend)
+                .is_err()
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn file_classes_share_one_session_and_declared_unsupported_members_stay_refused() {
+    let original = include_bytes!(
+        "../../calc-engine/tests/fixtures/excel-calc-probes/P04/plain-settles-full-01.xlsm"
+    );
+    let expressions = [
+        "Application.Version",
+        "ThisWorkbook.Date1904",
+        "Sheet1.Range(\"A1\")",
+        "ThisWorkbook.Name",
+        "ActiveWorkbook.Name",
+        "UnsupportedSave()",
+    ];
+    let mut module = "Private instance As ProbeEvents\nPublic Function NextCount() As Long\n If instance Is Nothing Then Set instance = New ProbeEvents\n NextCount = instance.NextCount()\nEnd Function\n".to_owned();
+    for (index, expression) in expressions.iter().enumerate() {
+        module.push_str(&format!("Public Function Unsupported{index}() As Variant\n On Error Resume Next\n Unsupported{index} = {expression}\n Unsupported{index} = 999\nEnd Function\n"));
+    }
+    module.push_str("Public Function UnsupportedSave() As Long\n On Error Resume Next\n ThisWorkbook.Save\n UnsupportedSave = 999\nEnd Function\n");
+    let bytes = vba_project::replace_sources(
+        original,
+        &[
+            ("OracleProbe", &module),
+            (
+                "ProbeEvents",
+                "Private n As Long\nPublic Function NextCount() As Long\n n = n + 1\n NextCount = n\nEnd Function\n",
+            ),
+            ("Sheet1", ""),
+            ("ThisWorkbook", ""),
+        ],
+    );
+    for backend in backends() {
+        let mut session = opened(&bytes, "class.xlsm");
+        session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
+        session.set_workbook_events_enabled(false);
+        calc_host_vba::activate_file_project(&mut session, "class.xlsm", 100_000, Some(backend))
+            .unwrap();
+        enter(&mut session, 1, 4, "=NextCount()");
+        full(&mut session);
+        assert_eq!(value(&session, 1, 4).as_number(), Some(1.));
+        full(&mut session);
+        assert_eq!(value(&session, 1, 4).as_number(), Some(2.));
+        for index in 0..expressions.len() {
+            enter(
+                &mut session,
+                index as u32 + 2,
+                4,
+                &format!("=IFERROR(Unsupported{index}(),777)"),
+            );
+        }
+        full(&mut session);
+        for (index, expression) in expressions.iter().enumerate() {
+            let at = calc_value::CellKey::new(session.host().sheets()[0].id(), index as u32 + 2, 4)
+                .unwrap();
+            let page = calc_host::project(
+                session.host(),
+                &calc_host::ProjectionRequest { cells: vec![at] },
+            )
+            .unwrap();
+            assert!(
+                matches!(
+                    page.cells()[0].value(),
+                    calc_host::ProjectedValue::NotModeled { .. }
+                ),
+                "{backend:?} {expression}: {:?}",
+                page.cells()[0].value()
+            );
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn project_class_declarations_cannot_admit_designers_or_conflicting_identities() {
+    let original = include_bytes!(
+        "../../calc-engine/tests/fixtures/excel-calc-probes/P04/plain-settles-full-01.xlsm"
+    );
+    for replacement in [
+        "Class=ProbeEvents\r\nClass=ProbeEvents",
+        "Class=ProbeEvents\r\nBaseClass=ProbeEvents",
+        "Class=MissingClass",
+        "Class=OracleProbe",
+        "BaseClass=ProbeEvents",
+        "Document=ProbeEvents/&H00000000",
+        "Class=Sheet1\r\nClass=ProbeEvents",
+    ] {
+        let bytes =
+            vba_project::replace_project_declaration(original, "Class=ProbeEvents", replacement);
+        let session = opened(&bytes, "invalid.xlsm");
+        let error = calc_host_vba::prepare_file_project_with_events(
+            session.host(),
+            "invalid.xlsm",
+            100_000,
+            None,
+            false,
+        )
+        .err()
+        .expect("invalid module identity must refuse before compilation");
+        assert!(
+            error.to_string().contains("dc-snz.15"),
+            "{replacement}: {error}"
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dynamic_native_sinks_cannot_hide_an_unsupported_subscription_or_retry_a_prefix() {
+    let original = include_bytes!(
+        "../../calc-engine/tests/fixtures/excel-calc-probes/P04/plain-settles-full-01.xlsm"
+    );
+    let bytes = vba_project::replace_sources(
+        original,
+        &[
+            (
+                "OracleProbe",
+                "Private entries As Long\nPublic Function BindSink() As Long\n On Error Resume Next\n entries = entries + 1\n Dim sink As ProbeEvents\n Set sink = New ProbeEvents\n Set sink.XL = Application\n BindSink = 999\nEnd Function\nPublic Function EntryCount() As Long\n EntryCount = entries\nEnd Function\n",
+            ),
+            (
+                "ProbeEvents",
+                "Public WithEvents XL As Application\nPrivate Sub XL_AfterCalculate()\nEnd Sub\n",
+            ),
+            ("Sheet1", ""),
+            ("ThisWorkbook", ""),
+        ],
+    );
+    for backend in [None, Some(calc_vba::Backend::Interpreter)] {
+        let mut session = opened(&bytes, "sink.xlsm");
+        session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
+        session.set_workbook_events_enabled(false);
+        calc_host_vba::activate_file_project(&mut session, "sink.xlsm", 100_000, backend).unwrap();
+        enter(&mut session, 1, 4, "=IFERROR(BindSink(),777)");
+        full(&mut session);
+        let at = calc_value::CellKey::new(session.host().sheets()[0].id(), 1, 4).unwrap();
+        let page = calc_host::project(
+            session.host(),
+            &calc_host::ProjectionRequest { cells: vec![at] },
+        )
+        .unwrap();
+        assert!(
+            matches!(
+                page.cells()[0].value(),
+                calc_host::ProjectedValue::NotModeled { .. }
+            ),
+            "{:?}",
+            page.cells()[0].value()
+        );
+        enter(&mut session, 2, 4, "=EntryCount()");
+        let at = calc_value::CellKey::new(session.host().sheets()[0].id(), 2, 4).unwrap();
+        session.dispatch(SkinIntent::CalculateRange {
+            areas: vec![calc_value::GridArea::new(at, at).unwrap()],
+        });
+        drain(&mut session);
+        assert_eq!(value(&session, 2, 4).as_number(), Some(1.));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let session = opened(&bytes, "sink.xlsm");
+        let error = calc_host_vba::prepare_file_project_with_events(
+            session.host(),
+            "sink.xlsm",
+            100_000,
+            Some(calc_vba::Backend::Jit),
+            false,
+        )
+        .err()
+        .expect("explicit JIT refuses before entering this project");
+        assert!(
+            error.to_string().contains("dynamic native WithEvents"),
+            "{error}"
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn events_off_admission_checks_each_source_identity_including_class_and_name_swaps() {
+    let original = include_bytes!(
+        "../../calc-engine/tests/fixtures/excel-calc-probes/P04/plain-settles-full-01.xlsm"
+    );
+    let renamed_class = vba_project::replace_sources(
+        original,
+        &[
+            (
+                "OracleProbe",
+                "Public Function Probe() As Long\n Dim instance As Renamed\n Set instance = New Renamed\n Probe = instance.Value\nEnd Function\n",
+            ),
+            (
+                "ProbeEvents",
+                "Attribute VB_Name = \"Renamed\"\nPublic Function Value() As Long\n Value = 42\nEnd Function\n",
+            ),
+            ("Sheet1", ""),
+            ("ThisWorkbook", ""),
+        ],
+    );
+    let swapped = vba_project::replace_sources(
+        LOCAL,
+        &[
+            (
+                "Module1",
+                "Attribute VB_Name = \"PrivateModule\"\nPublic Function A() As Long\n A = 1\nEnd Function\n",
+            ),
+            (
+                "PrivateModule",
+                "Attribute VB_Name = \"Module1\"\nPublic Function B() As Long\n B = 2\nEnd Function\n",
+            ),
+            ("Sheet1", ""),
+            ("ThisWorkbook", ""),
+        ],
+    );
+    for bytes in [renamed_class, swapped] {
+        let session = opened(&bytes, "identity.xlsm");
+        let error = calc_host_vba::prepare_file_project_with_events(
+            session.host(),
+            "identity.xlsm",
+            100_000,
+            None,
+            false,
+        )
+        .err()
+        .expect("source identities must match their individual directory modules");
+        assert!(error.to_string().contains("directory identity"), "{error}");
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn original_probe_families_compile_as_complete_events_off_projects() {
+    let sources: &[(&str, &[u8])] = &[
+        (
+            "P02",
+            include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P02/auto-app-01.xlsm"
+            ),
+        ),
+        (
+            "P03",
+            include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P03/double-direct-01.xlsm"
+            ),
+        ),
+        (
+            "P05",
+            include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P05/child-scope-existing-child-growth-01.xlsm"
+            ),
+        ),
+        (
+            "P06",
+            include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P06/disabled-open-auto~manual-true-save-disabled-01-tested.xlsm-01.xlsm"
+            ),
+        ),
+        (
+            "P08",
+            include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P08/observer-cold-lower-chain-01.xlsm"
+            ),
+        ),
+        (
+            "P07",
+            include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P07/P07-ui-owned.xlsm"),
+        ),
+        (
+            "P09",
+            include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P09/cse-01.xlsm"),
+        ),
+    ];
+    let mut failures = Vec::new();
+    for (name, source) in sources {
+        let session = opened(source, "probe.xlsm");
+        if let Err(error) = calc_host_vba::prepare_file_project_with_events(
+            session.host(),
+            "probe.xlsm",
+            100_000,
+            Some(calc_vba::Backend::Interpreter),
+            false,
+        ) {
+            failures.push(format!("{name}: {error}"));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn remaining_original_source_compiler_gaps_stay_typed() {
+    for source in [
+        include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P01/cold-app-01.xlsm")
+            .as_slice(),
+        include_bytes!(
+            "../../calc-engine/tests/fixtures/excel-calc-probes/P10/close-owner-01.xlsm"
+        )
+        .as_slice(),
+    ] {
+        let session = opened(source, "probe.xlsm");
+        let error = calc_host_vba::prepare_file_project_with_events(
+            session.host(),
+            "probe.xlsm",
+            100_000,
+            Some(calc_vba::Backend::Interpreter),
+            false,
+        )
+        .err()
+        .expect("remaining compiler gap refuses the whole original project");
+        assert!(matches!(
+            error,
+            calc_host_vba::FileProjectError::Preparation(_)
+        ));
+        assert!(error.to_string().contains("compile:"), "{error}");
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn events_off_file_range_arguments_keep_the_shared_projection_tokens() {
+    let bytes = vba_project::replace_sources(
+        LOCAL,
+        &[
+            (
+                "Module1",
+                "Public Function InspectRange(x As Range) As String\n InspectRange = CStr(x.Count) & \":\" & CStr(x.Row) & \":\" & CStr(x.Column) & \":\" & x.Address\nEnd Function\n",
+            ),
+            ("PrivateModule", ""),
+            ("Sheet1", ""),
+            ("ThisWorkbook", ""),
+        ],
+    );
+    for backend in backends() {
+        let mut session = opened(&bytes, "range.xlsm");
+        session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
+        session.set_workbook_events_enabled(false);
+        calc_host_vba::activate_file_project(&mut session, "range.xlsm", 100_000, Some(backend))
+            .unwrap();
+        enter(&mut session, 1, 4, "=InspectRange(A1:B2)");
+        full(&mut session);
+        assert_eq!(
+            value(&session, 1, 4).as_text().unwrap().to_string_lossy(),
+            "4:1:1:$A$1:$B$2"
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn file_project_sources_compile_with_their_exported_attributes() {
     for (bytes, name) in [
         (
