@@ -122,7 +122,7 @@ pub enum NotModeled {
     /// [`EvalFault::MissingInput`].
     Evaluation(EvalFault),
     /// The evaluation returned a value a cell cannot hold as calculated here: a reference,
-    /// an empty or omitted value, or a number that is not finite (an array result is
+    /// an empty or omitted value, or an unqualified nonfinite number (an array result is
     /// shown by its anchor and spills, `spill.rs`).
     Result(CalcValue),
 }
@@ -140,7 +140,7 @@ impl NotModeled {
         };
         let held = value.callable_value().is_none()
             && match value.core_ref() {
-                CoreRef::Number(number) => number.is_finite(),
+                CoreRef::Number(number) => number.is_finite() || value.is_excel_overflow(),
                 CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Error(_) => true,
                 CoreRef::Empty | CoreRef::Missing | CoreRef::Array(_) | CoreRef::Reference(_) => {
                     false
@@ -360,13 +360,14 @@ mod tests {
     use super::*;
     use calc_value::{CalcArray, WorksheetErrorCode};
 
-    /// The values a cell holds as calculated are finite numbers, texts, logicals and errors; every
-    /// other value the evaluator could return is refused, not published.
+    /// Cells hold finite numbers, qualified Excel rounding encodings, texts, logicals and errors.
+    /// An ordinary NaN with the same encoding as a qualified result is still refused.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn only_scalar_values_are_published() {
         for held in [
             CalcValue::number(2.5),
+            CalcValue::excel_overflow_number(f64::from_bits(0x7ff1_ccf3_85eb_c8a0)).unwrap(),
             CalcValue::logical(true),
             CalcValue::error(WorksheetErrorCode::Div0),
             CalcValue::text(calc_value::ExcelText::from_interop_assignment("a")),
@@ -380,6 +381,8 @@ mod tests {
         for refused in [
             CalcValue::number(f64::INFINITY),
             CalcValue::number(f64::NAN),
+            CalcValue::number(f64::from_bits(0x7ff1_ccf3_85eb_c8a0)),
+            CalcValue::number(f64::from_bits(0xfff0_0000_0000_000a)),
             CalcValue::empty(),
             CalcValue::missing(),
             array,

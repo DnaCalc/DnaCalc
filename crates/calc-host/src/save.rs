@@ -167,8 +167,9 @@ impl fmt::Debug for PreparedSave {
 }
 
 /// The cached value a calculated value is saved as; `None` for a value no cell holds as a cache.
-fn cached(core: CoreRef<'_>) -> Option<CachedValue> {
-    match core {
+fn cached(value: &calc_value::CalcValue) -> Option<CachedValue> {
+    match value.core_ref() {
+        CoreRef::Number(_) if value.is_excel_overflow() => Some(CachedValue::Error(calc_value::WorksheetErrorCode::Num)),
         CoreRef::Number(number) => FiniteNumber::new(number).map(CachedValue::Number),
         CoreRef::Text(text) => CellText::new(text.clone()).map(CachedValue::Text),
         CoreRef::Logical(logical) => Some(CachedValue::Logical(logical)),
@@ -275,7 +276,7 @@ pub(crate) fn prepare_image(
             {
                 if let Some(result) = engine.permitted_cache(at) {
                     let cache = match result {
-                        FormulaResult::Calculated { value, .. } => cached(value.core_ref()),
+                        FormulaResult::Calculated { value, .. } => cached(value),
                         FormulaResult::FileCached(cache) => Some(cache.value().clone()),
                         FormulaResult::NotModeled { .. } => None,
                     };
@@ -297,7 +298,7 @@ pub(crate) fn prepare_image(
             let Some(FormulaResult::Calculated { value, .. }) = engine.result(at) else {
                 continue;
             };
-            let Some(cached_value) = cached(value.core_ref()) else {
+            let Some(cached_value) = cached(value) else {
                 continue;
             };
             values.insert(at, cached_value);
@@ -312,7 +313,7 @@ pub(crate) fn prepare_image(
                         if member == at {
                             continue;
                         }
-                        if let Some(member_value) = cached(spill.value_at(member).core_ref()) {
+                        if let Some(member_value) = cached(&spill.value_at(member)) {
                             values.insert(member, member_value);
                         }
                     }
@@ -331,7 +332,7 @@ pub(crate) fn prepare_image(
         }
         if let Some(FormulaResult::Calculated { value, calculation }) = engine.result(at)
             && !calculation.held_by_circular_rule()
-            && let Some(value) = cached(value.core_ref())
+            && let Some(value) = cached(value)
         {
             values.insert(at, value);
         }

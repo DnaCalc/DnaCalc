@@ -52,7 +52,9 @@ const NEAR_TIE_BITS: u32 = 60;
 /// The text of a finite number, as ASCII (see the module documentation). It is always `Some`;
 /// the option is kept for the callers that refuse a number without a text.
 pub(crate) fn text(x: f64) -> Option<String> {
-    debug_assert!(x.is_finite(), "only a finite number has a text");
+    if !x.is_finite() {
+        return None;
+    }
     if x == 0.0 || x.is_subnormal() {
         return Some("0".to_owned());
     }

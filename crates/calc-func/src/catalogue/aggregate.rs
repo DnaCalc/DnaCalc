@@ -302,14 +302,32 @@ fn extreme(
         None
     };
     let arguments: &[CalcValue] = held_references.as_deref().unwrap_or(arguments);
-    let mut best: Option<f64> = None;
-    let read = each_number(&site, arguments, services, held, &mut |n| {
-        if best.is_none_or(|best| replaces(n, best)) {
-            best = Some(n);
+    let mut best: Option<CalcValue> = None;
+    let read = each_value(&site, arguments, services, &mut |index, origin, value| {
+        let n = if value.is_excel_overflow() {
+            value.as_number()
+        } else {
+            number_of(&site, held, index, origin, value)?
+        };
+        let Some(n) = n else { return Ok(()); };
+        if best.as_ref().is_some_and(|best| best.is_excel_overflow() || value.is_excel_overflow()) {
+            // A single numeric value passes through. Choosing among overflow and
+            // other numbers is not established by the retained MAX(A1) reading.
+            return Err(site.not_modelled(Some(index)));
+        }
+        if best.as_ref().is_none_or(|best| {
+            let prior = best.as_number().expect("selected number");
+            replaces(n, prior)
+        }) {
+            best = Some(if value.is_excel_overflow() { value.clone() } else { CalcValue::number(n) });
         }
         Ok(())
     });
-    Site::finish(read.and_then(|()| site.number(best.unwrap_or(0.0))))
+    Site::finish(read.and_then(|()| match best {
+        Some(value) if value.is_excel_overflow() => Ok(value),
+        Some(value) => site.number(value.as_number().expect("selected number")),
+        None => site.number(0.0),
+    }))
 }
 
 /// COUNT: how many numbers there are. A held number counts; a direct argument counts when it is
@@ -767,6 +785,7 @@ pub(super) fn number_of(
         return site.number_argument(index, value).map(Some);
     }
     match (held, value.core_ref()) {
+        (_, CoreRef::Number(_)) if value.is_excel_overflow() => Err(Exit::Error(WorksheetErrorCode::Num)),
         (_, CoreRef::Number(n)) => site.argument(index, coerce::operand(n)).map(Some),
         (_, CoreRef::Error(code)) => Err(Exit::Error(code)),
         (Held::AverageValues, CoreRef::Text(_)) => Ok(Some(0.0)),

@@ -337,6 +337,20 @@ successful `CompletionReceipt(K)`, which carries a barrier the mirror applies be
 one unit including removals. The original path publishes at `finish`; the dc-hsa5.4 update below adds
 nonterminal certified scalar units through that same host/worker projection route.
 
+Rounding past DBL_MAX (dc-j9k.19, 2026-11-04): ROUND, ROUNDDOWN and TRUNC explicitly
+qualify their measured exponent-field-2047 encodings in CalcValue. A copied value retains
+that qualification; an ordinary NaN, even with identical bits, never receives it.
+Publication validates every displayed spill or fixed-array member before installing the image.
+N, ABS, unary minus and single-number extrema preserve the bits. Arithmetic returns #NUM!,
+TEXT returns #VALUE!, and type/error predicates see a number. The recorded positive comparison
+and reflexive equality work; distinct encodings, negative ordering and extrema choosing among
+multiple numbers remain typed refusals pending eng15 questions.
+General rendering covers the four recorded .Text readings; custom cell formats remain explicitly
+unmodelled, and width-dependent parity still needs measurements. Save writes #NUM! caches,
+Manual reopen retains their file-cache provenance, and full recalculation restores the encodings.
+The saved-cache reader continues to require finite numeric XML because these caches have error
+type. New oracle capture and additional formatting/order measurements remain open.
+
 ## 5. The VBA read view
 
 Linked workbook inputs (dc-ylr, 2026-11-03): the portable host calculation domain

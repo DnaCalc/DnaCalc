@@ -868,6 +868,229 @@ fn enter(session: &mut HostSession, at: CellKey, text: &str) -> IntentReceipt {
     receipt
 }
 
+/// Excel 16.0.20527, dc-j9k.19: live overflow encodings are numeric values;
+/// saved caches are #NUM!, and a full calculation restores the live encodings.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_j9k_19__overflow_bits_survive_cells_and_save_as_num_errors() {
+    use calc_value::WorksheetErrorCode as W;
+    let mut book = session(&calc_host::blank_package());
+    assert!(
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+            .accepted()
+    );
+    let s = book.host().sheets()[0].id();
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![
+                CellEdit::Set {
+                    at: at(s, "Z1"),
+                    input: number(f64::MAX)
+                },
+                CellEdit::Set {
+                    at: at(s, "Z2"),
+                    input: number(-f64::MAX)
+                },
+            ]
+        })
+        .accepted()
+    );
+    let roots = [
+        ("ROUND(Z1,-308)", 0x7ff1_ccf3_85eb_c8a0, "2E+308"),
+        ("ROUND(Z1,-307)", 0x7ff0_0541_9221_015d, "1.8E+308"),
+        ("ROUND(Z1,0)", 0x7ff0_0000_0000_000a, "1.8E+308"),
+        ("ROUND(Z2,-308)", 0xfff1_ccf3_85eb_c8a0, "2E+308"),
+    ];
+    for (index, (root, _, _)) in roots.iter().enumerate() {
+        let row = index + 1;
+        for (column, formula) in [
+            ("A", root.to_string()),
+            ("B", format!("A{row}")),
+            ("C", format!("N(A{row})")),
+            ("D", format!("MAX(A{row})")),
+            ("E", format!("ABS(A{row})")),
+            ("F", format!("IFERROR(A{row},\"err\")")),
+            ("G", format!("-A{row}")),
+            ("H", format!("A{row}+0")),
+            ("I", format!("A{row}*1")),
+            ("J", format!("A{row}-A{row}")),
+            ("K", format!("ROUND(A{row},0)")),
+            ("L", format!("SUM(A{row})")),
+            ("M", format!("TEXT(A{row},\"0\")")),
+            ("N", format!("ISNUMBER(A{row})")),
+            ("O", format!("ISERROR(A{row})")),
+            ("P", format!("TYPE(A{row})")),
+            ("Q", format!("ERROR.TYPE(A{row})")),
+        ] {
+            enter(
+                &mut book,
+                at(s, &format!("{column}{row}")),
+                &format!("={formula}"),
+            );
+        }
+    }
+    for (cell, formula) in [
+        ("R1", "=A1=A1"),
+        ("S1", "=A1>0"),
+        ("T1", "=SUM(A1:A2)"),
+        ("V1", "=HSTACK(A1,A2)"),
+    ] {
+        enter(&mut book, at(s, cell), formula);
+    }
+    let check = |book: &HostSession| {
+        let s = book.host().sheets()[0].id();
+        for (index, (_, bits, display)) in roots.iter().enumerate() {
+            let row = index + 1;
+            for column in ["A", "B", "C", "D", "E", "F", "G"] {
+                let cell = format!("{column}{row}");
+                let value = session_calculated(book, at(s, &cell))
+                    .unwrap_or_else(|| panic!("{cell}: {:?}", session_value(book, at(s, &cell))));
+                assert!(value.is_excel_overflow(), "{cell}: {value:?}");
+                assert_eq!(value.as_number().unwrap().to_bits(), *bits, "{cell}");
+                assert_eq!(
+                    calc_func::general_format(
+                        &calc_func::locale::format_profile(calc_func::locale::LocaleId::EnUs),
+                        value.as_number().unwrap()
+                    ),
+                    *display,
+                    "{cell}"
+                );
+            }
+            for (columns, expected) in [
+                (&["H", "I", "J", "K", "L"][..], CalcValue::error(W::Num)),
+                (&["M"][..], CalcValue::error(W::Value)),
+                (&["N"][..], CalcValue::logical(true)),
+                (&["O"][..], CalcValue::logical(false)),
+                (&["P"][..], CalcValue::number(1.0)),
+                (&["Q"][..], CalcValue::error(W::NA)),
+            ] {
+                for column in columns {
+                    let cell = format!("{column}{row}");
+                    assert_eq!(
+                        session_calculated(book, at(s, &cell)),
+                        Some(expected.clone()),
+                        "{cell}: {:?}",
+                        session_value(book, at(s, &cell))
+                    );
+                }
+            }
+        }
+        for cell in ["R1", "S1"] {
+            assert_eq!(
+                session_calculated(book, at(s, cell)),
+                Some(CalcValue::logical(true)),
+                "{cell}"
+            );
+        }
+        assert_eq!(
+            session_calculated(book, at(s, "T1")),
+            Some(CalcValue::error(W::Num))
+        );
+        for (cell, bits) in [("V1", roots[0].1), ("W1", roots[1].1)] {
+            let value = session_calculated(book, at(s, cell)).unwrap();
+            assert!(value.is_excel_overflow());
+            assert_eq!(value.as_number().unwrap().to_bits(), bits);
+        }
+    };
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    check(&book);
+    let mut bytes = Vec::new();
+    book.save(&SavePolicy::default(), &mut bytes).unwrap();
+    let xml = part_text(&bytes, "xl/worksheets/sheet1.xml");
+    assert!(!xml.contains("NaN") && !xml.contains("inf"), "{xml}");
+    let mut reopened = session(&bytes);
+    let rs = reopened.host().sheets()[0].id();
+    for row in 1..=4 {
+        for column in ["A", "B", "C", "D", "E", "F", "G"] {
+            let cell = format!("{column}{row}");
+            match session_value(&reopened, at(rs, &cell)) {
+                ProjectedValue::FileCached(cache) => {
+                    assert_eq!(cache.value().to_value(), CalcValue::error(W::Num), "{cell}")
+                }
+                other => panic!("{cell}: {other:?}"),
+            }
+        }
+    }
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    check(&reopened);
+}
+
+/// A kernel returning an ordinary NaN cannot publish it, even beside a qualified
+/// rounding value whose anchor would be publishable. No part of its spill installs.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_j9k_19__other_kernel_nan_is_refused_in_scalar_and_spill_positions() {
+    #[derive(Debug)]
+    struct OtherKernel(CalcValue);
+    impl calc_fml::UserFunction for OtherKernel {
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            Ok(self.0.clone())
+        }
+    }
+    let bits = 0x7ff1_ccf3_85eb_c8a0;
+    let raw = CalcValue::number(f64::from_bits(bits));
+    let qualified = CalcValue::excel_overflow_number(f64::from_bits(bits)).unwrap();
+    let arrays = [
+        raw.clone(),
+        CalcValue::array(
+            calc_value::CalcArray::from_rows(vec![vec![qualified, raw.clone()]]).unwrap(),
+        ),
+        CalcValue::array(
+            calc_value::CalcArray::from_rows(vec![vec![CalcValue::number(1.0), raw]]).unwrap(),
+        ),
+    ];
+    for (returned, fixed) in arrays
+        .into_iter()
+        .flat_map(|value| [(value.clone(), false), (value, true)])
+    {
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        let mut functions = calc_fml::CallableTable::new();
+        functions
+            .register("OtherKernel", Rc::new(OtherKernel(returned)))
+            .unwrap();
+        book.set_user_functions(functions);
+        if fixed {
+            assert!(
+                book.dispatch(SkinIntent::Edit {
+                    edits: vec![CellEdit::SetArray {
+                        array: calc_host::ArrayFormula::new(
+                            GridArea::new(at(s, "A1"), at(s, "B1")).unwrap(),
+                            calc_host::ArrayKind::Legacy
+                        ),
+                        formula: calc_host::FormulaText::new(
+                            calc_value::ExcelText::from_interop_assignment("OtherKernel()")
+                        )
+                        .unwrap(),
+                    }]
+                })
+                .accepted()
+            );
+        } else {
+            enter(&mut book, at(s, "A1"), "=OtherKernel()");
+        }
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        assert!(matches!(
+            session_value(&book, at(s, "A1")),
+            ProjectedValue::NotModeled { .. }
+        ));
+        assert!(session_calculated(&book, at(s, "B1")).is_none());
+        if !fixed {
+            assert!(matches!(
+                session_value(&book, at(s, "B1")),
+                ProjectedValue::Empty
+            ));
+        }
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        let xml = part_text(&saved, "xl/worksheets/sheet1.xml");
+        assert!(
+            !xml.contains("NaN") && !xml.contains("#NUM!"),
+            "a refused kernel supplies no cache: {xml}"
+        );
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_22__typed_workbook_commands_keep_history_and_replay() {
