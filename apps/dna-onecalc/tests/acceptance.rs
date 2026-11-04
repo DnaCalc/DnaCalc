@@ -246,6 +246,23 @@ fn sequence_argument_errors_precede_shape_validation() {
     }, 17);
 }
 
+/// Fn2 roots022/208 distinguish expression errors and an already selected scalar result
+/// from invalid conditions and selectors that really need array lifting.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn scalar_selection_keeps_its_shape_before_unused_arrays() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_form(calc_fml::FormulaForm::Dynamic);
+    session.add_sheet("Data").unwrap();
+    session.set_input("Data!Z1", InputValue::blank()).unwrap();
+    check_captured_questions(include_bytes!(
+        "../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json"
+    ), &mut session, |f| {
+        f.cell.sheet().strip_prefix("fn2_q").and_then(|n| n.parse::<u32>().ok())
+            .is_some_and(|n| matches!(n, 16 | 21..=22 | 84..=85 | 153 | 170..=171 | 194..=195 | 208..=209))
+    }, 12);
+}
+
 /// Recorded POISSON branch/control answers from OxFunc-Evidence's
 /// poisson.dist-branch-00128..00129, 00084..00085 and 00224..00225.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
