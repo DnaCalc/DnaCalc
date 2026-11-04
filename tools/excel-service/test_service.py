@@ -47,6 +47,18 @@ class ProtocolTests(unittest.TestCase):
             validate(self.request(expires=time.time() - 1), self.names, "a" * 32)
         validate(self.request(rows=[[number(-0.0), text('="test"')]]), self.names, "a" * 32)
 
+    def test_scalar_numeric_formatting_entries_are_admitted_without_array_or_link_entries(self):
+        for name in ("FIXED", "DOLLAR", "TEXT", "VALUE", "NUMBERVALUE", "VALUETOTEXT", "ASC", "DBCS"):
+            with self.subTest(name=name):
+                request = self.request(function=name, rows=[[number(1234.5)]])
+                self.assertIs(validate(request, self.names, "a" * 32), request)
+        for name in ("TEXTSPLIT", "REGEXEXTRACT", "HYPERLINK", "ENCODEURL"):
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                validate(self.request(function=name), self.names, "a" * 32)
+        request = self.request(function="FIXED", rows=[[text("C:\\secret.xlsx")]])
+        with self.assertRaises(ValueError):
+            validate(request, self.names, "a" * 32)
+
     def test_queue_and_adaptive_helpers_retain_exact_inputs(self):
         with tempfile.TemporaryDirectory() as directory:
             client = Client(directory, timeout=3)

@@ -15,6 +15,10 @@ run = excel.consecutive_run("ERF.PRECISE", "3e47bc15e9263000", 1000)
 ```
 Hex means 16 binary64 bit digits, not `float.hex()` notation. `number(1.0)` also works.
 Replies contain typed rows, exact input readbacks, Excel build, machine and UTC timestamp.
+New replies also retain the witness worker's calculation settings, including actual decimal and
+thousands separators and workbook date/compatibility settings (unavailable fields stay absent).
+Scalar numeric formatting/text calls include FIXED, DOLLAR, TEXT, VALUE, NUMBERVALUE,
+VALUETOTEXT, ASC and DBCS; this does not admit array-producing or hyperlink entries from their family.
 `text(..., literal=True)` and `boolean(..., literal=True)` select direct literals;
 numbers always travel through Value2 cells. `error("#DIV/0!")` and `blank()` use cells.
 Helpers vary one nonnegative finite argument; `arguments=` supplies the other arguments.
