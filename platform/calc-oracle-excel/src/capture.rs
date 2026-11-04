@@ -403,6 +403,21 @@ pub fn capture(request: &CaptureRequest) -> Result<CaptureOutcome, CaptureError>
     if let Some(copy) = &inventory_copy {
         worker_request["inventory"] = serde_json::json!(copy.to_string_lossy());
     }
+    // Explicit authored-entry questions may include expressions Excel rejects at entry time.
+    // Keep the source package unchanged; the worker enters them into a blank copy and records
+    // refusals without inventing a value for the cell.
+    let entry_layout = request.fixture.with_extension("entries.json");
+    let entry_layout_hash = if entry_layout.is_file() {
+        let bytes = fs::read(&entry_layout)
+            .map_err(|e| setup(format!("cannot read {}: {e}", entry_layout.display())))?;
+        let copy = work.join("entries.json");
+        fs::write(&copy, &bytes)
+            .map_err(|e| setup(format!("cannot retain {}: {e}", copy.display())))?;
+        worker_request["entry_layout"] = serde_json::json!(copy.to_string_lossy());
+        Some(sha256_hex(&bytes))
+    } else {
+        None
+    };
     fs::write(&request_file, worker_request.to_string())
         .map_err(|e| setup(format!("cannot write {}: {e}", request_file.display())))?;
 
@@ -504,12 +519,16 @@ pub fn capture(request: &CaptureRequest) -> Result<CaptureOutcome, CaptureError>
         }
     };
     let clock_after = local_clock();
+    let mut tool = capture_tool_revision(request.repository.as_deref());
+    if let Some(hash) = entry_layout_hash {
+        tool.push_str(&format!("; authored entry layout sha256:{hash}"));
+    }
     let mut record = convert::convert(
         &result,
         Frame {
             case: request.case.clone(),
             source,
-            tool: capture_tool_revision(request.repository.as_deref()),
+            tool,
             revision: request.revision,
             operations: request.operations.clone(),
             output_package: output_hash,
@@ -529,7 +548,9 @@ pub fn capture(request: &CaptureRequest) -> Result<CaptureOutcome, CaptureError>
     // dc-uar: the file Excel opened, as its full name, which CELL("filename") and a reference to
     // another sheet in CELL("address") name.
     if let Some(environment) = record.environment.as_mut() {
-        let opened = std::path::absolute(&input_copy).unwrap_or_else(|_| input_copy.clone());
+        let opened_input = result["entry_input"].as_str().map(PathBuf::from)
+            .unwrap_or_else(|| input_copy.clone());
+        let opened = std::path::absolute(&opened_input).unwrap_or(opened_input);
         environment.settings.push((
             "workbook_path".to_owned(),
             opened.to_string_lossy().replace('/', "\\"),

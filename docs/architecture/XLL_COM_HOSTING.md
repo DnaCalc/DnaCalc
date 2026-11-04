@@ -922,3 +922,8 @@ The baseline checks cover recorded application settings, workbooks, registered f
 add-ins; they cannot prove absence of hidden framework state. Jobs requiring a new process
 must declare that condition explicitly. This changes measurement orchestration, not the RTD
 lifecycle or native async compatibility claims in sections 21 and 22.
+
+Capture and timing workers now preserve the existing AutomationSecurity value, as witness
+workers already do. The host always checks for drift without assigning that setting, including
+when restoring the recorded baseline. Raw capture records retain Formula and Formula2 separately
+beside the saved package's formula metadata.

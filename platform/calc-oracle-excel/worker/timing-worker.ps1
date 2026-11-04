@@ -7,8 +7,8 @@
 # capture-worker.ps1, which then defines its functions and starts nothing): the package checks
 # that keep Excel from ever opening a workbook with external content it could refresh, the new
 # Excel instance whose PID it prints before anything else touches it, the session settings
-# (DisplayAlerts, ScreenUpdating, EnableEvents and Interactive off, AutomationSecurity 3), each read
-# back, and the add-in checks. It writes no option of the user's profile: it reads, and never sets,
+# (DisplayAlerts, ScreenUpdating, EnableEvents and Interactive off), each read
+# back, unchanged AutomationSecurity, and the add-in checks. It writes no option of the user's profile: it reads, and never sets,
 # MultiThreadedCalculation, which Excel keeps in the profile.
 #
 # What it does, in order:
@@ -155,13 +155,15 @@ try {
     $Output.excel_pid = $excelPid
     Send-Line "excel-pid $excelPid"
 
+    $securityBefore = Get-ComProperty $excel 'AutomationSecurity'
+    if ($securityBefore -notin @(1, 2, 3)) { throw 'AutomationSecurity could not be read as a known value' }
+    $Output['automation_security_before'] = $securityBefore
     $excel.Visible = $false
     $excel.DisplayAlerts = $false
     $excel.ScreenUpdating = $false
     $excel.EnableEvents = $false
-    $excel.AutomationSecurity = 3
     $excel.Interactive = $false
-    $expected = [ordered]@{ DisplayAlerts = $false; EnableEvents = $false; Interactive = $false; AutomationSecurity = 3 }
+    $expected = [ordered]@{ DisplayAlerts = $false; EnableEvents = $false; Interactive = $false; AutomationSecurity = $securityBefore }
     $notIsolated = New-Object System.Collections.ArrayList
     foreach ($name in $expected.Keys) {
         $want = $expected[$name]
@@ -255,6 +257,8 @@ try {
         }
         $Output.multithreaded_restored = Get-Flag $mtc 'Enabled'
     }
+    $Output['automation_security_after'] = Get-ComProperty $excel 'AutomationSecurity'
+    if ($Output.automation_security_after -ne $securityBefore) { throw 'AutomationSecurity changed during timing' }
 } catch {
     $Output.fatal = "$($_.Exception.Message) (timing-worker.ps1 line $($_.InvocationInfo.ScriptLineNumber))"
 } finally {
