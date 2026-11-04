@@ -234,7 +234,9 @@ $Metadata = $Decl + '<metadata xmlns="' + $Main + '" xmlns:xda="http://schemas.m
 
 # Writes a workbook of the worksheets $Sheets (each @(name, worksheet XML)), in order; with
 # -DynamicArrays also the metadata part, which the source formulas of New-OracleSheet name.
-function Write-Workbook([string]$Path, $Sheets, [switch]$DynamicArrays) {
+# Question families may request the 1904 date system or workbook-scoped formula names.
+# Omitting both keeps the original package bytes unchanged.
+function Write-Workbook([string]$Path, $Sheets, [switch]$DynamicArrays, [switch]$Date1904, $Names = @()) {
     $types = $Decl + '<Types xmlns="' + $ContentTypes + '">' +
         '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
         '<Default Extension="xml" ContentType="application/xml"/>' +
@@ -259,8 +261,18 @@ function Write-Workbook([string]$Path, $Sheets, [switch]$DynamicArrays) {
         [void]$rels.Add(@(('rId' + ($index + 2)), "$Rel/sheetMetadata", 'metadata.xml'))
     }
     $types += '</Types>'
-    $workbook = $Decl + '<workbook xmlns="' + $Main + '" xmlns:r="' + $Rel + '"><bookViews><workbookView/></bookViews>' +
-        '<sheets>' + $entries + '</sheets><calcPr fullCalcOnLoad="1"/></workbook>'
+    $properties = ''
+    if ($Date1904) { $properties = '<workbookPr date1904="1"/>' }
+    $definedNames = ''
+    if ($Names.Count -gt 0) {
+        $definedNames = '<definedNames>'
+        foreach ($name in $Names) {
+            $definedNames += '<definedName name="' + (Get-Escaped $name[0]) + '">' + (Get-Escaped $name[1]) + '</definedName>'
+        }
+        $definedNames += '</definedNames>'
+    }
+    $workbook = $Decl + '<workbook xmlns="' + $Main + '" xmlns:r="' + $Rel + '">' + $properties + '<bookViews><workbookView/></bookViews>' +
+        '<sheets>' + $entries + '</sheets>' + $definedNames + '<calcPr fullCalcOnLoad="1"/></workbook>'
     $all = New-Object System.Collections.ArrayList
     [void]$all.Add(@('[Content_Types].xml', $types))
     [void]$all.Add(@('_rels/.rels', (New-Relationships @(, @('rId1', "$Rel/officeDocument", 'xl/workbook.xml')))))
