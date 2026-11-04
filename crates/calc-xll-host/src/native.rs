@@ -818,6 +818,18 @@ impl XllHost {
     pub fn functions(&self) -> Result<UserFunctions, String> {
         self.functions_with_early_execution(&[])
     }
+    /// Stored workbook formulas may use Excel's `_xll.` spelling. Both names bind
+    /// the same adapter and registration owner; no provider is loaded a second time.
+    pub fn functions_for_workbook(&self) -> Result<UserFunctions, String> {
+        let mut functions = self.functions()?;
+        let aliases = functions.registrations().filter(|(_,name)| !name.to_ascii_lowercase().starts_with("_xll."))
+            .map(|(provider,name)| {
+                let handle = functions.bind(provider,name).expect("enumerated native registration");
+                (provider.map(str::to_owned),format!("_xll.{name}"),Rc::clone(functions.resolve(handle).expect("live native registration")))
+            }).collect::<Vec<_>>();
+        for (provider,name,function) in aliases { functions.register_for(provider.as_deref(),&name,function)?; }
+        Ok(functions)
+    }
     /// Explicit trusted-owner grants, for example the recorded P08 XPure probe.
     /// `$` alone never grants ordering permission. Republish the resulting callable
     /// table so changed grants receive new callable generations.

@@ -192,6 +192,20 @@ pub(crate) fn dollar(profile: &FormatProfile, value: f64, places: i32) -> Render
 /// shows a value as a cell would.
 pub fn general(profile: &FormatProfile, value: f64) -> String {
     const WIDTH: i64 = 11;
+    if !value.is_finite() {
+        if !value.is_nan() {
+            return "#NUM!".to_owned();
+        }
+        // Excel's retained exponent-field-2047 readings show two significant digits,
+        // without a minus sign, even when the stored encoding has its sign bit set.
+        let exact = ExactDecimal::binary(value);
+        let exponent = exact.magnitude();
+        let (mantissa, carry) = significant(&exact, 2);
+        let (head, tail) = mantissa.split_at(1);
+        let tail = tail.trim_end_matches('0');
+        let point = if tail.is_empty() { "" } else { profile.decimal_separator };
+        return format!("{head}{point}{tail}E+{}", i64::from(exponent) + carry);
+    }
     if value == 0.0 || value.is_subnormal() {
         return "0".to_owned();
     }
@@ -1080,6 +1094,15 @@ pub fn cell_text(
         Failure::NotModelled => CellFormatError::NotModelled,
     };
     match value.core_ref() {
+        CoreRef::Number(number) if value.is_excel_overflow() => {
+            if code.trim().eq_ignore_ascii_case("general") {
+                Ok(general(profile, number))
+            } else {
+                // The retained readings cover General only. A custom cell format
+                // has no measured rendering yet; the application labels its fallback.
+                Err(CellFormatError::NotModelled)
+            }
+        }
         CoreRef::Number(number) => text(profile, system, number, code).map_err(failure),
         CoreRef::Text(text) => {
             text_of_text(&text.to_string_lossy(), code, profile).map_err(failure)
@@ -1181,6 +1204,9 @@ pub fn cell_color(code: &str, value: &crate::value::CalcValue) -> Option<FormatC
 
 /// TEXT of a number under `code`.
 pub(crate) fn text(profile: &FormatProfile, system: DateSystem, value: f64, code: &str) -> Rendered {
+    if !value.is_finite() {
+        return Err(Failure::Value);
+    }
     let sections = sections(code);
     let (section, signed_section) = choose(&sections, value)?;
     let (stripped, name_locale) = strip_tokens(&section)?;

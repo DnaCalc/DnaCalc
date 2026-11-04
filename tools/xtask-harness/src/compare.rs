@@ -82,7 +82,7 @@ use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-pub const USAGE: &str = "usage: cargo xtask compare --fixture <xlsx> (--capture <capture.json> | --dna-only) --out <dir> [--saved-excel <provenance.json>] [--minimize] [--exact-target <excel build>,<channel>,<compatibility>,<numeric environment>]";
+pub const USAGE: &str = "usage: cargo xtask compare --fixture <xlsx> (--capture <capture.json> | --dna-only) --out <dir> [--saved-excel <provenance.json>] [--trusted-code <manifest.json>] [--minimize] [--exact-target <excel build>,<channel>,<compatibility>,<numeric environment>]";
 
 const EXIT_REFUSED: u8 = 1;
 const EXIT_USAGE: u8 = 2;
@@ -94,6 +94,8 @@ struct Request {
     fixture: PathBuf,
     capture: Option<PathBuf>,
     saved_excel: Option<PathBuf>,
+    trusted_code: Option<PathBuf>,
+    trusted_code_sha256: Option<String>,
     minimize: bool,
     inventory_only: bool,
     out: PathBuf,
@@ -116,6 +118,7 @@ fn refused(message: String) -> Failure {
 
 fn parse_args(args: &[String]) -> Result<Request, String> {
     let (mut fixture, mut capture, mut out, mut target, mut saved_excel) = (None, None, None, None, None);
+    let (mut trusted_code, mut trusted_code_sha256) = (None, None);
     let (mut minimize, mut dna_only, mut inventory_only) = (false, false, false);
     let mut rest = args.iter();
     while let Some(flag) = rest.next() {
@@ -127,6 +130,8 @@ fn parse_args(args: &[String]) -> Result<Request, String> {
             "--fixture" => &mut fixture,
             "--capture" => &mut capture,
             "--saved-excel" => &mut saved_excel,
+            "--trusted-code" => &mut trusted_code,
+            "--trusted-code-sha256" => &mut trusted_code_sha256,
             "--out" => &mut out,
             "--exact-target" => &mut target,
             other => return Err(format!("unknown argument {other:?}")),
@@ -137,10 +142,13 @@ fn parse_args(args: &[String]) -> Result<Request, String> {
     }
     if dna_only && capture.is_some() { return Err("--dna-only and --capture cannot be combined".into()); }
     if !dna_only && capture.is_none() { return Err("--capture is required (or --dna-only without Excel observations)".into()); }
+    if trusted_code_sha256.is_some() && trusted_code.is_none() { return Err("--trusted-code-sha256 needs --trusted-code".into()); }
     Ok(Request {
         fixture: PathBuf::from(fixture.ok_or("--fixture is required")?),
         capture: capture.map(PathBuf::from),
         saved_excel: saved_excel.map(PathBuf::from),
+        trusted_code: trusted_code.map(PathBuf::from),
+        trusted_code_sha256,
         minimize,
         inventory_only,
         out: PathBuf::from(out.ok_or("--out is required")?),
@@ -682,14 +690,26 @@ fn run_workbook(
     numeric: NumericMode,
     retain_matching: bool,
 ) -> Result<Run, Failure> {
-    run_workbook_with_saved(fixture, name, fixture_path, capture, numeric, retain_matching, None)
+    run_workbook_with_code(fixture, name, fixture_path, capture, numeric, retain_matching, None, None, None)
 }
 
+#[cfg(test)]
 fn run_workbook_with_saved(
     fixture: &[u8], name: Option<&str>, fixture_path: Option<&Path>,
     capture: &CaptureRecord, numeric: NumericMode, retain_matching: bool,
     saved_origin: Option<&serde_json::Value>,
 ) -> Result<Run, Failure> {
+    run_workbook_with_code(fixture,name,fixture_path,capture,numeric,retain_matching,saved_origin,None,None)
+}
+
+fn run_workbook_with_code(
+    fixture: &[u8], name: Option<&str>, fixture_path: Option<&Path>,
+    capture: &CaptureRecord, numeric: NumericMode, retain_matching: bool,
+    saved_origin: Option<&serde_json::Value>, trusted: Option<&crate::trusted_code::Manifest>,
+    capture_digest: Option<&str>,
+) -> Result<Run, Failure> {
+    // Native owners outlive every session/domain borrowing their callable adapters.
+    let mut linked_code = Vec::new();
     let empty_record = || InstrumentRecord {
         case: capture.case.clone(),
         source: capture.source.clone(),
@@ -717,11 +737,16 @@ fn run_workbook_with_saved(
         message: format!("HostState::open refused the package: {failure}"),
         key: open_key(&failure), class: Class::Doc,
     }).and_then(|host| {
-        prepare_captured_vba(&host, name.unwrap_or("Book1"), capture)
-            .map(|project| (host, project))
+        if let Some(trusted) = trusted {
+            trusted.prepare(&host,name.unwrap_or("Book1"),capture,&sha256_hex(fixture),capture_digest,false)
+                .map(|code|(host,None,Some(code)))
+        } else {
+            prepare_captured_vba(&host, name.unwrap_or("Book1"), capture)
+                .map(|project| (host, project, None))
+        }
     });
     let open_time = started.elapsed();
-    let (mut host, vba_project) = match opened {
+    let (mut host, vba_project, trusted_owner) = match opened {
         Ok(host) => host,
         Err(failure) => {
             let reason = failure.message.clone();
@@ -809,9 +834,10 @@ fn run_workbook_with_saved(
         project.install(&mut session);
         session.notify_workbook_open();
     }
+    if let Some(code) = &trusted_owner { code.install(&mut session); }
     let root = domain.insert_session(session).expect("new calculation domain");
     let linked_inputs = fixture_path
-        .map(|path| crate::linked_workbooks::load(&mut domain, root, path, &options, capture))
+        .map(|path| crate::linked_workbooks::load(&mut domain, root, path, &options, capture, trusted, capture_digest, &mut linked_code))
         .unwrap_or_default();
     let mut workbook = match domain.request_calculation(&[root], true) {
         Err(error) => Some(WorkbookFailure {
@@ -834,6 +860,17 @@ fn run_workbook_with_saved(
                 }
                 calc_host::DomainProgress::Advanced { .. } => {}
                 calc_host::DomainProgress::Waiting { .. } => {
+                    if let Some(code) = &trusted_owner {
+                        match code.poll(&mut domain,root) {
+                            Ok(true) => continue,
+                            Err(error) => break Some(WorkbookFailure {class:Class::Engine,key:"XllReturn:dc-ztvv.13".into(),message:error}),
+                            Ok(false) if code.has_async(&domain,root) && started.elapsed() < Duration::from_secs(20) => {
+                                std::thread::sleep(Duration::from_millis(2));
+                                continue;
+                            }
+                            Ok(false) => {}
+                        }
+                    }
                     break Some(WorkbookFailure {
                         class: Class::Engine,
                         key: "waiting_external".into(),
@@ -1113,8 +1150,12 @@ fn numeric_name(numeric: &NumericMode) -> String {
 /// prints the summary.
 fn compare(request: &Request) -> Result<(), Failure> {
     let fixture = read(&request.fixture, "fixture")?;
+    let trusted = request.trusted_code.as_ref().map(|path|
+        crate::trusted_code::Manifest::read(path,request.trusted_code_sha256.as_deref()).map_err(refused)).transpose()?;
+    let mut capture_digest = None;
     let capture = if let Some(path) = &request.capture {
         let capture_bytes = read(path, "capture record")?;
+        capture_digest = Some(sha256_hex(&capture_bytes));
         if let Some(missing) = MissingCapture::recognize(&capture_bytes) {
             return Err(Failure { code: EXIT_MISSING_CAPTURE, message: format!("{}: {missing}", path.display()) });
         }
@@ -1122,7 +1163,7 @@ fn compare(request: &Request) -> Result<(), Failure> {
     } else {
         let name = request.fixture.file_name().and_then(|name|name.to_str()).unwrap_or("workbook");
         fs::create_dir_all(&request.out).map_err(|e|refused(e.to_string()))?;
-        let inventory = match crate::compare_inventory::source_record(&fixture, name) {
+        let mut inventory = match crate::compare_inventory::source_record(&fixture, name) {
             Ok(record)=>record,
             Err(error)=>{
                 let failure=json!({"format":"dnacalc-source-inventory-failure","version":1,
@@ -1131,6 +1172,19 @@ fn compare(request: &Request) -> Result<(), Failure> {
                 return Err(refused(format!("source formula inventory (dc-ztvv): {error}")));
             }
         };
+        if let Some(trusted) = &trusted {
+            let policy = trusted.policy(&sha256_hex(&fixture));
+            if let Some(environment) = &mut inventory.environment {
+                for (key,value) in &mut environment.settings {
+                    match key.as_str() {
+                        "comparison_policy" => *value = "trusted-evidence-code-inventory".into(),
+                        "automation_security" => *value = if policy["vba"]==true {"1"} else {"3"}.into(),
+                        "enable_events" => *value = (policy["events"]==true).to_string(),
+                        _ => {}
+                    }
+                }
+            }
+        }
         write(&request.out.join("inventory.record.json"), &inventory.encode().map_err(|e|refused(e.to_string()))?)?;
         inventory
     };
@@ -1143,7 +1197,7 @@ fn compare(request: &Request) -> Result<(), Failure> {
         calc_oracle_excel::capture_source_sha256(&request.fixture, &workbook_hash)
             .map_err(|e| refused(format!("invalid capture inputs: {e}")))?
     } else {
-        workbook_hash
+        workbook_hash.clone()
     };
     let digest = format!("sha256:{input_hash}");
     if capture.source != digest {
@@ -1192,7 +1246,7 @@ fn compare(request: &Request) -> Result<(), Failure> {
             || !value["packages"].is_object() { return Err(refused("invalid Excel-save provenance manifest".into())); }
         Ok((value["packages"][sha256_hex(&fixture)].clone(),sha256_hex(&bytes)))
     }).transpose()?;
-    let mut run = run_workbook_with_saved(
+    let mut run = run_workbook_with_code(
         &fixture,
         name,
         Some(&request.fixture),
@@ -1200,6 +1254,7 @@ fn compare(request: &Request) -> Result<(), Failure> {
         numeric.clone(),
         request.minimize,
         saved_provenance.as_ref().map(|(origin,_)|origin),
+        trusted.as_ref(), capture_digest.as_deref(),
     )?;
     let started = Instant::now();
     let report = judge(&capture, &run.results, &run.record, &policy).map_err(judge_failure)?;
@@ -1258,6 +1313,9 @@ fn compare(request: &Request) -> Result<(), Failure> {
         }
     }
     triage_json["source_cache_counts"] = run.source_caches["counts"].clone();
+    triage_json["trusted_code_sha256"] = json!(trusted.as_ref().map(|manifest|&manifest.digest));
+    triage_json["execution_policy"] = trusted.as_ref().map(|manifest|manifest.policy(&workbook_hash))
+        .unwrap_or_else(||json!({"route":"captured-policy-or-disabled-inventory"}));
     triage_json["saved_excel_provenance_sha256"] = json!(saved_provenance.as_ref().map(|(_,digest)|digest));
     if request.saved_excel.is_some() {
         let mut saved_counts = json!({"reference_cells":0,"matched":0,"mismatched":0,"refused":0,"failed_or_missing":capture.formulas.len(),"external_links":0,"circular_rule":0});
@@ -1529,6 +1587,38 @@ mod tests {
             checked+=1;
         }
         assert_eq!(checked,12);
+    }
+
+    #[test]
+    fn trusted_file_project_uses_the_application_route_without_inventing_observations() {
+        let bytes = include_bytes!("../../../crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm");
+        let dir = std::env::temp_dir().join(format!("xtask-trusted-code-{}",std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let fixture = dir.join("local.xlsm"); fs::write(&fixture,bytes).unwrap();
+        let manifest = dir.join("trusted.json");
+        fs::write(&manifest,serde_json::to_vec(&json!({"format":"dnacalc-trusted-evidence-code","version":1,
+            "workbooks":{sha256_hex(bytes):{"vba":true,"events":false,"xlls":[],"evidence":"authored test control"}}})).unwrap()).unwrap();
+        let trusted = crate::trusted_code::Manifest::read(&manifest,None).unwrap();
+        let mut capture = crate::compare_inventory::source_record(bytes,"local.xlsm").unwrap();
+        let disabled = run_workbook(bytes,Some("local.xlsm"),None,&capture,NumericMode::Fast,false).unwrap();
+        let enabled = run_workbook_with_code(bytes,Some("local.xlsm"),None,&capture,NumericMode::Fast,false,None,Some(&trusted),None).unwrap();
+        assert!(enabled.workbook.is_none());
+        let b1 = |run: &Run|run.results.results.iter().find(|r|r.cell.sheet()=="Cases" && r.cell.a1()=="B1").unwrap().clone();
+        assert!(matches!(b1(&disabled).provenance,Provenance::NotModeled {..}));
+        assert_eq!(b1(&enabled).value.unwrap().as_number(),Some(102.));
+        let report = judge(&capture,&enabled.results,&enabled.record,&VerdictPolicy::default()).unwrap();
+        assert_eq!(report.counts.matched,0); assert!(report.counts.calculated>0);
+        compare(&Request {fixture,capture:None,saved_excel:None,trusted_code:Some(manifest.clone()),
+            trusted_code_sha256:Some(trusted.digest.clone()),minimize:false,inventory_only:false,out:dir.join("out"),target:None}).unwrap();
+        let triage:serde_json::Value=serde_json::from_slice(&fs::read(dir.join("out/triage.json")).unwrap()).unwrap();
+        assert_eq!(triage["trusted_code_sha256"],trusted.digest);
+        assert_eq!(triage["execution_policy"]["vba"],true);
+        // Synthetic policy guard: this is not a new Excel observation or a scored pass.
+        capture.observations.push(calc_verdict::CellObservation {cell:capture.formulas[0].cell.clone(),observation:Observation::ExcelRaw(CalcValue::number(102.))});
+        let blocked = run_workbook_with_code(bytes,None,None,&capture,NumericMode::Fast,false,None,Some(&trusted),None).unwrap();
+        assert_eq!(blocked.workbook.unwrap().key,"TrustedCodePolicy:dc-ztvv.13");
+        assert!(blocked.record.evaluations.is_empty());
+        assert!(crate::trusted_code::Manifest::read(&manifest,Some(&"0".repeat(64))).is_err());
     }
 
     #[test]
@@ -1889,7 +1979,7 @@ mod tests {
         let fixture=dir.join("input.xlsx");
         fs::write(&fixture,include_bytes!("../../../crates/calc-engine/tests/fixtures/l3/oracle.xlsx")).unwrap();
         let out=dir.join("out");
-        compare(&Request {fixture,capture:None,saved_excel:None,minimize:false,inventory_only:false,out:out.clone(),target:None}).unwrap();
+        compare(&Request {fixture,capture:None,saved_excel:None,trusted_code:None,trusted_code_sha256:None,minimize:false,inventory_only:false,out:out.clone(),target:None}).unwrap();
         let report:serde_json::Value=serde_json::from_slice(&fs::read(out.join("report.json")).unwrap()).unwrap();
         assert_eq!(report["counts"]["denominator"],112);
         assert_eq!(report["counts"]["matched"],0);
@@ -1961,6 +2051,8 @@ mod tests {
             fixture: fixture.clone(),
             capture: Some(marker),
             saved_excel: None,
+            trusted_code: None,
+            trusted_code_sha256: None,
             minimize: false,
             inventory_only: false,
             out: out.clone(),
@@ -1972,6 +2064,8 @@ mod tests {
             fixture: dir.join("absent.xlsx"),
             capture: Some(dir.join("absent.json")),
             saved_excel: None,
+            trusted_code: None,
+            trusted_code_sha256: None,
             minimize: false,
             inventory_only: false,
             out: out.clone(),

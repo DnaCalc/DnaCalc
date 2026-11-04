@@ -123,7 +123,7 @@ fn scalar<'v>(site: &Site<'_>, value: &'v CalcValue) -> Step<CoreRef<'v>> {
     match value.core_ref() {
         _ if value.callable_value().is_some() => Err(site.not_modelled(Some(0))),
         CoreRef::Missing | CoreRef::Array(_) => Err(site.not_modelled(Some(0))),
-        CoreRef::Number(n) if !n.is_finite() => Err(site.not_modelled(Some(0))),
+        CoreRef::Number(n) if !n.is_finite() && !value.is_excel_overflow() => Err(site.not_modelled(Some(0))),
         core => Ok(core),
     }
 }
@@ -429,6 +429,7 @@ fn n_of(site: &Site<'_>, argument: &CalcValue, services: &mut EvalServices<'_>) 
         _ => argument.clone(),
     };
     known(site, &value).and_then(|core| match core {
+        CoreRef::Number(_) if value.is_excel_overflow() => Ok(value.clone()),
         CoreRef::Number(x) => site
             .argument(0, coerce::operand(x))
             .and_then(|x| site.number(x)),

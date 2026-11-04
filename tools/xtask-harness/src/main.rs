@@ -131,6 +131,8 @@ mod compare_minimize;
 mod compare_triage;
 #[cfg(not(target_arch = "wasm32"))]
 mod linked_workbooks;
+#[cfg(not(target_arch = "wasm32"))]
+mod trusted_code;
 // The corpus command takes captures through calc-oracle-excel, like the capture command.
 #[cfg(not(target_arch = "wasm32"))]
 mod corpus;
@@ -235,3 +237,10 @@ fn main() -> ExitCode {
 
 #[cfg(target_arch = "wasm32")]
 fn main() {}
+
+#[cfg(windows)]
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MdCallBack12(function: i32, count: i32,
+    args: *const *mut calc_xll_abi::XlOper12, result: *mut calc_xll_abi::XlOper12) -> i32 {
+    unsafe { calc_xll_host::dispatch(function, count, args, result) }
+}

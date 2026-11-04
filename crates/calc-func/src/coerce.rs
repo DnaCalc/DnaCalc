@@ -130,6 +130,9 @@ impl Decimal {
 /// text through [`text_as_decimal`], an error as itself. An array (whose operator lifts over its
 /// elements) and a reference are not read here.
 pub(crate) fn number(value: &CalcValue) -> Result<Numeric, Stop> {
+    if value.is_excel_overflow() {
+        return Err(Stop::Error(WorksheetErrorCode::Num));
+    }
     match value.core_ref() {
         CoreRef::Number(n) => operand(n).map(Numeric::Number),
         CoreRef::Logical(b) => Ok(Numeric::Number(if b { 1.0 } else { 0.0 })),

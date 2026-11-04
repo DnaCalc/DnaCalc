@@ -281,10 +281,11 @@ pub(crate) fn merge_summaries(paths: &[PathBuf], out: &Path) -> Result<(), Strin
                 .ok_or("summary has no executable identity")?
                 .to_owned(),
             report["run"]["saved_excel_provenance_sha256"].clone(),
+            report["run"]["trusted_code_sha256"].clone(),
         );
         if let Some(held) = &identity {
             if held != &id {
-                return Err("shard corpus or executable identities differ".into());
+                return Err("shard corpus, executable or execution-policy identities differ".into());
             }
         } else {
             identity = Some(id);
@@ -387,7 +388,7 @@ pub(crate) fn merge_summaries(paths: &[PathBuf], out: &Path) -> Result<(), Strin
         }
         reports.push(json!(path));
     }
-    let (inventory, executable, saved_provenance) = identity.ok_or("no shard summaries")?;
+    let (inventory, executable, saved_provenance, trusted_code) = identity.ok_or("no shard summaries")?;
     let count = shard_count.ok_or("no shard count")?;
     let missing: Vec<_> = (0..count).filter(|n| !shard_ids.contains(n)).collect();
     let cells = totals["counts"]["formula_cells"].as_u64().unwrap_or(0);
@@ -419,7 +420,7 @@ pub(crate) fn merge_summaries(paths: &[PathBuf], out: &Path) -> Result<(), Strin
     let summary = json!({"format":"dnacalc-corpus-summary","version":2,
         "rule":"pass requires a calculated value equal to live Excel; all other inventoried formulas fail; unknown inventories are explicit",
         "run":{"merged_summaries":reports,"finished_utc":crate::accept::utc_now(),"corpus_inventory_sha256":inventory,
-            "executable_sha256":executable,"saved_excel_provenance_sha256":saved_provenance,"shards_complete":missing.is_empty(),"missing_shards":missing},
+            "executable_sha256":executable,"saved_excel_provenance_sha256":saved_provenance,"trusted_code_sha256":trusted_code,"shards_complete":missing.is_empty(),"missing_shards":missing},
         "totals":totals,"workbooks":workbooks,"root_causes":root_causes,"file_failures":file_failures});
     fs::create_dir_all(out).map_err(|e| e.to_string())?;
     fs::write(
@@ -777,6 +778,11 @@ mod tests {
         assert_eq!(read()["run"]["shards_complete"], true);
         assert_eq!(read()["totals"]["counts"]["fail"], 2);
         assert_eq!(read()["root_causes"]["other"][0]["cells"], 2);
+        let mut enabled = fixture(1,"bbb","code-a");
+        enabled["run"]["trusted_code_sha256"] = json!("different-policy");
+        fs::write(&b,serde_json::to_vec(&enabled).unwrap()).unwrap();
+        assert!(merge_summaries(&[a.clone(),b.clone()],&out).unwrap_err().contains("execution-policy identities differ"));
+
         fs::write(
             &b,
             serde_json::to_vec(&fixture(1, "aaa", "code-a")).unwrap(),

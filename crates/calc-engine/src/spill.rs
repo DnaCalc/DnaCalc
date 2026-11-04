@@ -64,6 +64,17 @@ pub(crate) enum SpillOutcome {
 }
 
 impl SpillOutcome {
+    /// Validate every cell of the installed image, including children. A rejected
+    /// child refuses the whole image before any anchor or occupancy is published.
+    pub(crate) fn publishable_value(&self) -> Result<CalcValue, crate::NotModeled> {
+        if let Self::Fills(spill) = self {
+            for value in spill.values.iter_row_major() {
+                crate::NotModeled::publishable(value.clone())?;
+            }
+        }
+        crate::NotModeled::publishable(self.anchor_value())
+    }
+
     /// The value the anchor shows.
     pub(crate) fn anchor_value(&self) -> CalcValue {
         match self {

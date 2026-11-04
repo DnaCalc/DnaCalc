@@ -86,6 +86,9 @@ fn rendered(site: &Site<'_>, result: Result<String, Failure>) -> Step<CalcValue>
 /// TEXT: a number (or text that reads as one) rendered with the code, other text through the
 /// code's text section.
 fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
+    if a[0].is_excel_overflow() {
+        return fail(WorksheetErrorCode::Value);
+    }
     let (environment, profile) = profile(site)?;
     let code = text_arg(site, a, 1)?.to_string_lossy();
     let number = match a[0].core_ref() {
