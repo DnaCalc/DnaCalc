@@ -625,6 +625,18 @@ pub(crate) fn restore(
     earlier: &Arc<ModelRoot>,
     axis_edits: Vec<AxisEdit>,
 ) -> Result<CommandReceipt, CommandError> {
+    restore_inner(host,earlier,axis_edits,None)
+}
+
+/// Source rebasing leaves live coordinates unchanged and retains honest held values.
+pub(crate) fn restore_package_source(host:&mut HostState,earlier:&Arc<ModelRoot>,source:&calc_doc::LoadedWorkbook)->Result<CommandReceipt,CommandError>{
+    let caches=source.sheets().iter().filter(|s|host.model.sheet_by_id(s.id()).is_none()).flat_map(|sheet|{
+        sheet.formulas().filter_map(move |(r,c,record)|record.cache().map(|cache|(CellKey::new(sheet.id(),r,c).unwrap(),cache.clone())))
+            .chain(sheet.value_caches().filter_map(|(r,c,cache)|{let at=CellKey::new(sheet.id(),r,c).unwrap();(earlier.definitions().array_containing(at).is_some()&&earlier.definitions().unloaded(at).is_none()).then(||(at,cache.clone()))}))
+    }).collect();
+    restore_inner(host,earlier,host.axis_edits.clone(),Some(caches))
+}
+fn restore_inner(host:&mut HostState,earlier:&Arc<ModelRoot>,axis_edits:Vec<AxisEdit>,caches:Option<Vec<(CellKey,calc_doc_model::FileCached)>>)->Result<CommandReceipt,CommandError>{
     let transformed_scope = if host.scoped_calculation_active() {
         let mut before: Vec<_> = host.model.sheets().iter().map(|sheet| sheet.id()).collect();
         let mut after: Vec<_> = earlier.sheets().iter().map(|sheet| sheet.id()).collect();
@@ -717,7 +729,9 @@ pub(crate) fn restore(
         .model
         .restored(earlier)
         .map_err(|error| CommandError::Document(EditError::Model(error)))?;
-    let engine = host.engine.rebuilt(&model);
+    let engine = if let Some(caches)=caches {
+        host.engine.rebuilt_with_held_caches(&host.model,&model,caches).map_err(|e|CommandError::Document(EditError::SheetOperation(e.to_string())))?
+    }else{host.engine.rebuilt(&model)};
     host.model = model;
     for edit in reference_edits {
         host.references.apply(&edit);

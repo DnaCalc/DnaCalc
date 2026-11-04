@@ -1144,6 +1144,32 @@ impl EngineState {
         state
     }
 
+    /// Rebase a package extension while retaining unchanged live holdings as stale displays.
+    /// Every node remains pending; old read certificates are discarded. New worksheet caches
+    /// enter through the ordinary imported-cache validator and never become calculated values.
+    pub fn rebuilt_with_held_caches(&self,before:&ModelRoot,inputs:&ModelRoot,caches:impl IntoIterator<Item=(CellKey,FileCached)>)->Result<Self,CacheWithoutFormula> {
+        let imported=Self::with_file_caches(inputs,caches)?;
+        let mut state=self.rebuilt(inputs);
+        for (at,result) in imported.results(){
+            if let Some(node)=state.node_at(at){state.results.publish(node,at,result.clone(),None);}
+        }
+        for (node,spill) in &imported.cached_arrays {
+            let at=imported.node(*node).expect("cached array owner").anchor();
+            if let Some(node)=state.node_at(at){state.cached_arrays.insert(node,spill.clone());}
+        }
+        for old in self.nodes() {
+            let at=old.anchor();
+            if before.cell(at)!=inputs.cell(at) || before.array_containing(at)!=inputs.array_containing(at){continue;}
+            let Some(node)=state.node_at(at)else{continue};
+            if self.entered.contains(&old.id()){state.entered.insert(node);}
+            if let Some(result)=self.results.of(old.id()){state.results.publish(node,at,result.clone().without_stamp(),None);}
+            if let Some(spill)=self.spills.get(at){state.spills.insert(spill.clone());}
+            if let Some(spill)=self.cached_arrays.get(&old.id()){state.cached_arrays.insert(node,spill.clone());}
+            if let Some(area)=self.blocked_spills.get(&at){state.blocked_spills.insert(at,*area);}
+        }
+        Ok(state)
+    }
+
     /// Rebuild derived bindings/edges before a public ForceAll command. Authored
     /// identities, held caches and spills survive; existing result proofs do not.
     /// The owner must have no active calculation using this mutable graph.

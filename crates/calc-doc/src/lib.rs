@@ -96,7 +96,7 @@ pub use load::{
     ColumnSpan, ConditionalFormat, ConditionalRule, DataBar, DateSystem, DrawingPoint,
     FORMULA_MAX_UTF16_CODE_UNITS, FormulaRecord, IconSet, LayoutWarning, LoadError, LoadedSheet,
     LoadedWorkbook, ReviewLink, ReviewNote, RowFormat, SharedFormula, SheetCharts, SheetGeometry,
-    SheetReview, SheetView, Threshold, Validation, load,
+    SheetReview, SheetView, Threshold, Validation, load, load_preserving_sheet_ids,
 };
 pub use opc::{
     CONTENT_TYPES_ENTRY, CONTENT_TYPES_NAMESPACE, ContentTypes, Package, Part,
@@ -107,6 +107,7 @@ pub use save::file_form::{
     FileForm, FileFormError, file_form, file_form_with_links, file_form_with_lookup,
 };
 pub use save::{
+    merge_template_sheets, rename_template_sheet,
     DocumentSnapshot, SaveFormat, SavePlan, SavePolicy, SaveViews, SaveReceipt, SaveRefusal, StructuralEdits,
     WriteError, SpreadsheetFormat, conditional_rule, new_condition_rule, new_conditional_rule, prepare_save, write,
 };

@@ -194,7 +194,7 @@ fn cached(core: CoreRef<'_>) -> Option<CachedValue> {
 /// as opened; the permitted-cache profile writes its pinned cache values and flags.
 pub fn prepare_save(host: &HostState, policy: &SavePolicy) -> Result<PreparedSave, SaveFailed> {
     let cache_policy = if host.calc_mode() == calc_doc::CalcMode::Manual
-        && policy.format == calc_doc::SaveFormat::Xml
+        && matches!(policy.format,calc_doc::SaveFormat::Xml|calc_doc::SaveFormat::Spreadsheet(_))
     {
         SaveCachePolicy::PreservePermittedCaches
     } else {
