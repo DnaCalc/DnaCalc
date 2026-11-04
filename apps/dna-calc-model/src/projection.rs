@@ -348,7 +348,8 @@ pub enum Intent {
         rows: u32,
         columns: u32,
     },
-    AutoFilter { sheet:Sheet, revision:u64, change:FilterChange },
+    Table {revision:u64,change:TableChange},
+    AutoFilter { sheet:Sheet, revision:u64, table:Option<String>, change:FilterChange },
     SortRows {
         area: Area,
         keys: Vec<(u32, bool)>,
@@ -529,13 +530,19 @@ pub enum FilterChange {
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FilterView {
+    #[serde(default)] pub table:Option<String>,
     pub area:Area, pub columns:Vec<u32>, pub filtered:u32, pub unsupported:bool,
 }
+
+#[derive(Clone,Debug,PartialEq,Eq,Serialize,Deserialize)]
+pub struct TableView {pub part:String,pub name:String,pub area:Area,pub columns:Vec<String>,pub headers:bool,pub totals:bool,pub style:String,pub row_stripes:bool,pub column_stripes:bool,pub first_column:bool,pub last_column:bool,pub opaque:bool,pub filter:Option<FilterView>}
+#[derive(Clone,Debug,PartialEq,Eq,Serialize,Deserialize)]
+pub enum TableChange {Create{area:Area,name:String},Resize{part:String,area:Area},Options{part:String,headers:bool,totals:bool,style:String,row_stripes:bool,column_stripes:bool,first_column:bool,last_column:bool},Total{part:String,column:u32,function:String}}
 
 /// What the page asks of the server.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Request {
-    FilterValues { sheet:Sheet, column:u32 },
+    FilterValues { sheet:Sheet, table:Option<String>, column:u32 },
     Names {
         query: String,
         page: u64,
@@ -811,6 +818,7 @@ pub struct Geometry {
     pub summary_right: bool,
     #[serde(default)]
     pub auto_filter: Option<FilterView>,
+    #[serde(default)] pub tables:Vec<TableView>,
     /// Areas whose absent cells are known empty in this committed subscription root.
     #[serde(default)]
     pub coverage: Vec<Area>,

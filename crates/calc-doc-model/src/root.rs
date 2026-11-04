@@ -731,6 +731,7 @@ impl ModelRoot {
         // The cell formats the batch sets, in order.
         let mut formats: Vec<(CellKey, Option<u32>)> = Vec::new();
         let mut styles = None;
+        let mut tables = None;
         let mut filters = Vec::new();
         let mut conditional = Vec::new();
         let mut review = Vec::new();
@@ -743,6 +744,7 @@ impl ModelRoot {
         for (operation, op) in batch.operations.iter().enumerate() {
             match op {
                 WorkbookOp::SetStyles(value) => styles = Some(Arc::clone(value)),
+                WorkbookOp::SetTables(value)=>{for t in value{self.position_of(operation,t.sheet)?;}tables=Some(value.clone());},
                 WorkbookOp::SetValidations { sheet, rules } => {
                     self.position_of(operation, *sheet)?;
                     validations.push((*sheet, rules.clone()));
@@ -901,7 +903,7 @@ impl ModelRoot {
             Some(definitions) => Arc::new(definitions),
             None => Arc::clone(&self.definitions),
         };
-        if styles.is_some()
+        if tables.is_some() || styles.is_some()
             || !conditional.is_empty()
             || !review.is_empty()
             || !validations.is_empty()
@@ -913,7 +915,8 @@ impl ModelRoot {
             || iteration.is_some_and(|settings| settings != definitions.iteration())
         {
             let mut next = Definitions::clone(&definitions);
-            if let Some(styles) = styles {
+            if let Some(tables)=tables {next=next.with_tables(tables);}
+        if let Some(styles) = styles {
                 next = next.with_styles(styles);
             }
             for (sheet, filter) in filters { next = next.with_auto_filter(sheet, filter);

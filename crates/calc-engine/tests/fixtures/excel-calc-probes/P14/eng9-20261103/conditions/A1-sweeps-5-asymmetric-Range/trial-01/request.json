@@ -1,0 +1,30 @@
+{
+  "action": "trial",
+  "condition": {
+    "id": "A1-sweeps-5-asymmetric-Range",
+    "formulas": {
+      "A1": "=B1+1",
+      "B1": "=A1+1",
+      "C1": "=C1+1",
+      "D1": "=SUM(A1:B1)"
+    },
+    "seeds": {
+      "A1": 77,
+      "B1": 55,
+      "C1": 100,
+      "D1": 999
+    },
+    "iterations": 5,
+    "change_bits": "3f50624dd2f1a9fc",
+    "iteration": true,
+    "operation": "Range",
+    "commands": 2,
+    "range": "A1:D1",
+    "reverse_entry": false,
+    "reverse_chain": false,
+    "input_sha256": "ee5bef35e0815a31c7ddf1e5456ec414094a5df8bcace29cffb2bb71689c5c95"
+  },
+  "trial": 1,
+  "input": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng9\\inputs\\A1-sweeps-5-asymmetric-Range.xlsx",
+  "input_sha256": "ee5bef35e0815a31c7ddf1e5456ec414094a5df8bcace29cffb2bb71689c5c95"
+}

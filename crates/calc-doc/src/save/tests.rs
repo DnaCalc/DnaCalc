@@ -293,3 +293,47 @@ fn conditional_rules_keep_namespaces_escapes_and_container_extensions() {
         assert_eq!(rules[1].formulas, vec!["LEN(\"_x0041_\")=7"]);
     }
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_41__filter_rewrite_owns_its_prefix_after_source_rebinding() {
+    let document = open(
+        Arc::new(MemorySource::new(package())),
+        &OpenPolicy::default(),
+    )
+    .unwrap();
+    let loaded = load(&document, &mut IdAllocator::new()).unwrap();
+    let sheet = loaded.model().sheets()[0].id();
+    let area = GridArea::new(key(sheet, 1, 1), key(sheet, 3, 2)).unwrap();
+    let source = format!(
+        r#"<s:worksheet xmlns:s="{MAIN}"><s:sheetData/><m:autoFilter xmlns:m="{MAIN}" xmlns:s="http://schemas.microsoft.com/office/spreadsheetml/2014/revision" s:uid="keep-me" ref="A1:B3"/></s:worksheet>"#
+    );
+    let part = crate::xml::XmlPart::new(
+        "sheet.xml".into(),
+        source.into_bytes(),
+        crate::xml::XmlLimits::default(),
+    );
+    let output = super::filter::rewrite(
+        &part,
+        Some(&calc_doc_model::AutoFilter::new(area)),
+        loaded.model().definitions(),
+    )
+    .unwrap();
+    let part =
+        crate::xml::XmlPart::new("sheet.xml".into(), output, crate::xml::XmlLimits::default());
+    let mut reader = part.reader();
+    let mut filters = 0;
+    while let Some(event) = reader.next_event().unwrap() {
+        if let XmlEvent::Start(e) = event {
+            if e.name.local == "autoFilter" {
+                assert!(e.name.is(MAIN, "autoFilter"));
+                assert!(e.attributes.iter().any(|a| a.name.is(
+                    "http://schemas.microsoft.com/office/spreadsheetml/2014/revision",
+                    "uid"
+                ) && a.value == "keep-me"));
+                filters += 1;
+            }
+        }
+    }
+    assert_eq!(filters, 1);
+}

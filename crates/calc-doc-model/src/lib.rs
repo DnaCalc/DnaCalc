@@ -87,7 +87,7 @@ pub use calc_value as value;
 pub use cells::{CellPage, OccupiedCells, PAGE_COLUMNS, PAGE_ROWS};
 pub use definitions::{
     ArrayFormula, ArrayKind, DataTable, DataTableInputs, DefinedName, Definitions, ExternalBook,
-    ExternalSheet, IterationSettings, NameScope, RowHidden, Table, UnloadedCell,
+    ExternalSheet, IterationSettings, NameScope, RowHidden, Table, TableStyle, UnloadedCell,
 };
 pub use input::{CellInput, CellText, FiniteNumber, FormulaText, FormulaTextError};
 pub use layout::{

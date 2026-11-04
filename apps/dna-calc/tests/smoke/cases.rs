@@ -1210,6 +1210,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
     Case {
         name: "charts are drawn where Excel puts them, with their series' values",
         actions: &[
+            Action::Window(1440, 1400),
             Action::Upload(
                 "open-file",
                 "crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx",
@@ -2841,6 +2842,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
     Case {
         name: "clipboard: a real external TSV matrix pastes into a new workbook",
         actions: &[
+            Action::Window(1280, 1400),
             Action::Click("new"),
             Action::DiscardReplacement,
             Action::Click("skin-atlas"),
@@ -6442,6 +6444,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
     Case {
         name: "renderer: switching to Canvas2D keeps the committed plan and paints actual text",
         actions: &[
+            Action::Window(1440, 1400),
             Action::Into(BAR, "=6*7\u{E007}"),
             Action::Into("name-box", "A1\u{E007}"),
             Action::Wait(Check::PlanCell("A1", "text", "42")),
@@ -8008,6 +8011,28 @@ Case {
         checks:&[Check::Fits,Check::Computed("note-run","font-weight:700"),Check::Computed("note-run","font-style:italic"),Check::TextContains("review-note","Local author & Ω"),Check::Focused("note-save"),Check::Reachable("note-save")],
     },
 
+    Case {name:"tables: create a banded ListObject with real header buttons",actions:&[
+        Action::Window(1440,1000),Action::Click("skin-grid"),Action::ExternalClipboard("Item\tAmount\nFirst\t5\nSecond\t9\nThird\t2",false),Action::Into("name-box","A1\u{E007}"),Action::Keys("grid","\u{E009}v\u{E000}"),Action::Wait(Check::Text(cell!("B4"),"2")),Action::Into("name-box","A1:B3\u{E007}"),Action::OpenDetails("table-tools"),Action::Into("table-name","Sales"),Action::Click("table-create")],checks:&[Check::TextContains("table-summary","Sales"),Check::Count("filter-header",2),Check::Value("table-headers","true"),Check::Value("table-bands","true"),Check::Computed(cell!("A1"),"font-weight:700")]},
+    Case {name:"tables: resize rebinds structured references through Undo and Redo",actions:&[
+        Action::Into("name-box","D1\u{E007}"),Action::Into(BAR,"=SUM(Sales[Amount])\u{E007}"),Action::Wait(Check::Text(cell!("D1"),"14")),Action::Into("name-box","A1\u{E007}"),Action::OpenDetails("table-tools"),Action::Into("table-rows","4"),Action::Click("table-resize"),Action::Wait(Check::Text(cell!("D1"),"16")),Action::Click("undo"),Action::Wait(Check::Text(cell!("D1"),"14")),Action::Click("redo")],checks:&[Check::Text(cell!("D1"),"16"),Check::TextContains("table-summary","A1:B4")]},
+    Case {name:"tables: total rows and their functions use ordinary calculated formulas",actions:&[
+        Action::Click("table-totals"),Action::Wait(Check::Text(cell!("B5"),"16")),Action::Into("table-total-column","2"),Action::Choose("table-total-function","max"),Action::Click("table-total-apply")],checks:&[Check::Text(cell!("B5"),"9"),Check::Text(cell!("D1"),"16"),Check::Value("table-totals","true")]},
+    Case {name:"tables: header and banding options keep names and data",actions:&[
+        Action::Click("table-headers"),Action::Wait(Check::Count("filter-header",0)),Action::Wait(Check::Text(cell!("D1"),"16")),Action::Click("table-headers"),Action::Wait(Check::Count("filter-header",2)),Action::Click("table-bands"),Action::Wait(Check::Value("table-bands","false")),Action::Click("table-bands")],checks:&[Check::Count("filter-header",2),Check::Value("table-bands","true"),Check::Text(cell!("B5"),"9"),Check::Text(cell!("A1"),"Item")]},
+    Case {name:"tables: filter buttons and metadata survive actual XLSX reopening",actions:&[
+        Action::Click("[data-dnacalc=filter-header][data-filter-column=\"2\"]"),Action::Wait(Check::Count("filter-choice",3)),Action::Click("filter-select-none"),Action::Click("[data-dnacalc=filter-choice][data-filter-value=\"9\"]"),Action::Click("filter-apply"),Action::Wait(Check::PlanAbsent("A2")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::OpenDetails("filter-tools")],checks:&[Check::Count("filter-header",2),Check::TextContains("filter-summary","2 rows filtered out"),Check::PlanAbsent("A2"),Check::PlanAbsent("A4"),Check::Text(cell!("B5"),"9")]},
+    Case {name:"tables: clearing a table filter restores rows and phone controls stay reachable",actions:&[
+        Action::Click("filter-clear"),Action::Wait(Check::Text(cell!("B2"),"5")),Action::Wait(Check::Text(cell!("B4"),"2")),Action::Into("name-box","A1\u{E007}"),Action::OpenDetails("table-tools"),Action::Window(390,844),Action::Click("table-name"),Action::Keys("table-name",TAB)],checks:&[Check::Fits,Check::Focused("table-create"),Check::Reachable("table-create"),Check::Name("table-create","Create from selection")]},
+    Case {name:"charts: imported column bar line pie and scatter plots render read-only",actions:&[
+        Action::Window(1600,1800),Action::Upload("open-file","crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx"),Action::DiscardReplacement,Action::Click("skin-grid")],checks:&[
+        Check::Attr("[data-dnacalc=chart][data-chart=\"Chart 1\"]","data-kind","column"),Check::Attr("[data-dnacalc=chart][data-chart=\"Chart 2\"]","data-kind","bar"),Check::Attr("[data-dnacalc=chart][data-chart=\"Chart 3\"]","data-kind","line"),Check::Attr("[data-dnacalc=chart][data-chart=\"Chart 5\"]","data-kind","pie"),Check::Attr("[data-dnacalc=chart][data-chart=\"Chart 6\"]","data-kind","scatter"),Check::Attr("[data-chart=\"Chart 5\"] [data-series=\"0\"][data-point=\"0\"]","data-value","12"),Check::Attr("[data-chart=\"Chart 6\"] [data-series=\"0\"][data-point=\"0\"]","data-x","12")]},
+    Case {name:"charts: columns bars pie slices and scatter X values follow the existing evaluator",actions:&[
+        Action::Into("name-box","B2\u{E007}"),Action::Into(BAR,"40\u{E007}")],checks:&[
+        Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","data-value","40"),Check::Attr("[data-chart=\"Chart 2\"] [data-series=\"0\"][data-point=\"0\"]","data-value","40"),Check::Attr("[data-chart=\"Chart 3\"] [data-series=\"0\"][data-point=\"0\"]","data-value","48"),Check::Attr("[data-chart=\"Chart 5\"] [data-series=\"0\"][data-point=\"0\"]","data-value","40"),Check::Attr("[data-chart=\"Chart 6\"] [data-series=\"0\"][data-point=\"0\"]","data-x","40")]},
+    Case {name:"charts: all five requested plot families survive XLSX save and reopen",actions:&[
+        Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("charts.xlsx"),Action::DiscardReplacement],checks:&[
+        Check::Attr("[data-dnacalc=chart][data-chart=\"Chart 2\"]","data-kind","bar"),Check::Attr("[data-dnacalc=chart][data-chart=\"Chart 3\"]","data-kind","line"),Check::Attr("[data-dnacalc=chart][data-chart=\"Chart 5\"]","data-kind","pie"),Check::Attr("[data-dnacalc=chart][data-chart=\"Chart 6\"]","data-kind","scatter"),Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","data-value","40")]},
+
 ];
 
 /// The script that reads what one check looks at.
@@ -8836,4 +8861,6 @@ CaseGroup {
     },
     CaseGroup {name:"candidate-validation",start:601,end:606,core:5,setup:&[]},
     CaseGroup {name:"review-create",start:606,end:612,core:6,setup:&[]},
+    CaseGroup {name:"tables",start:612,end:618,core:6,setup:&[]},
+    CaseGroup {name:"chart-import",start:618,end:621,core:3,setup:&[]},
 ];

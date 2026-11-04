@@ -107,6 +107,7 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
             CellEdit::Clear { area } => *area,
             CellEdit::SetArray { array, .. } => array.area(),
             CellEdit::AutoFilter { .. }
+            | CellEdit::Tables(_)
             | CellEdit::Styles(_)
             | CellEdit::Layout(_)
             | CellEdit::ReviewNotes { .. }
@@ -220,6 +221,7 @@ pub(crate) fn inverse(
             }
         }
     }
+    if edits.iter().any(|e|matches!(e,CellEdit::Tables(_))){inverse.push(CellEdit::Tables(definitions.tables().to_vec()));}
     let mut filters = BTreeSet::new();
     for edit in edits {
         if let CellEdit::AutoFilter { sheet, .. } = edit && filters.insert(*sheet) {

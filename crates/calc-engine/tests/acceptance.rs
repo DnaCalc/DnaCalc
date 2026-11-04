@@ -4020,7 +4020,7 @@ fn dc_m3u__tables_and_3d_through_the_engine() {
         (at(tab, 2, 3), formula("Sales[[#This Row],[Qty]]*10")),
         (at(tab, 3, 3), formula("Sales[[#This Row],[Qty]]*10")),
     ];
-    let table = calc_doc_model::Table {
+    let table = calc_doc_model::Table {id:1,style:Default::default(),filter:None,totals_functions:vec![],totals_labels:vec![],opaque:false,axis_opaque:false,column_formulas:vec![],
         name: "Sales".to_owned(),
         display_name: "Sales".to_owned(),
         part: "xl/tables/table1.xml".to_owned(),

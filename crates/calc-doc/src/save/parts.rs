@@ -870,8 +870,11 @@ pub(super) fn worksheet_child(
     body: &[u8],
     before: &[&str],
 ) -> Result<Vec<u8>, SaveRefusal> {
+    root_child(xml,"worksheet",local,body,before)
+}
+pub(super) fn root_child(xml:&XmlPart,root_name:&str,local:&str,body:&[u8],before:&[&str])->Result<Vec<u8>,SaveRefusal>{
     let mut reader = Reader::new(xml);
-    let (_, root) = reader.root("worksheet")?;
+    let (_, root) = reader.root(root_name)?;
     let tag = RawTag::parse(&xml.bytes()[root.0..root.1]);
     let mut splice = Splice::new(xml.bytes());
     if tag.is_empty() {

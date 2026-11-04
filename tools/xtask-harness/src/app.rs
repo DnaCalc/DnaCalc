@@ -25,7 +25,7 @@
 //! page may still answer, fails the case there. A browser whose driver is missing fails the run;
 //! it is never skipped.
 //!
-//! With no filters, `smoke` runs the routine core (201 cases across the two apps and all six
+//! With no filters, `smoke` runs the routine core (210 cases across the two apps and all six
 //! Calc skins). `--suite full` runs every case; sweep uses full bundle suites, and site smoke
 //! retains every ordinary case (worker-fault/latency cases require a local bundle). `--group name`
 //! selects an independent scenario; `--case substring` matches case names without regard to
@@ -906,7 +906,7 @@ impl Session {
 }
 
 /// Starts `browser`'s driver and a headless session in it.
-fn open(browser: &Browser) -> Result<(DriverProcess, Session), String> {
+fn open(browser: &Browser, download_root: &Path) -> Result<(DriverProcess, Session), String> {
     let program = variable_file(browser.variable)
         .or_else(|| find_on_path(browser.program))
         .ok_or_else(|| {
@@ -942,8 +942,10 @@ fn open(browser: &Browser) -> Result<(DriverProcess, Session), String> {
         }
         thread::sleep(Duration::from_millis(200));
     }
-    let downloads =
-        std::env::temp_dir().join(format!("dnacalc-smoke-{}-{port}", std::process::id()));
+    // Keep actual downloads on the workspace filesystem. A full /tmp on this
+    // Linux host left empty JSON files even when Firefox reported a completed
+    // download. Reading and importing the real file remains part of the smoke.
+    let downloads = download_root.join(format!("{}-{port}", std::process::id()));
     fs::create_dir_all(&downloads)
         .map_err(|error| format!("cannot create smoke download folder: {error}"))?;
     let capabilities = match browser.name {
@@ -1339,7 +1341,7 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
             q(name)
         ),
         Check::Absent(name) => format!("return {} === null;", q(name)),
-        Check::Value(name, _) => format!("var e = {}; return e ? e.value : null;", q(name)),
+        Check::Value(name, _) => format!("var e = {}; return e ? (e.type===\"checkbox\" ? String(e.checked) : e.value) : null;", q(name)),
         Check::Focused(name) => format!("return {} === document.activeElement;", q(name)),
         Check::Attr(name, attribute, _) => format!(
             "var e = {}; return e ? e.getAttribute('{attribute}') : null;",
@@ -2628,7 +2630,7 @@ fn run_browser(
     if let Some(run) = workbook.filter(|r| r.renderer_report.is_some()) {
         return renderer::run_measurements(ws, app, browser, page, run);
     }
-    let (_driver, session) = open(browser)?;
+    let (_driver, session) = open(browser, &ws.root.join("target/app-smoke-downloads"))?;
     let page = renderer::page(page, selection.renderer.as_deref());
     let page = page.as_str();
     let outcome = (|| {
@@ -2992,8 +2994,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 201,
-            "the two applications have 201 core cases including candidate validation, conditional formats, editable review content, validation audits and the existing editing routes"
+            total, 210,
+            "the two applications have 210 core cases including candidate validation, conditional formats, editable review content, validation audits and the existing editing routes"
         );
     }
 
