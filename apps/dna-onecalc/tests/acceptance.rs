@@ -101,7 +101,7 @@ fn check_captured_questions(
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn delivered_scalar_readings_follow_the_application_route() {
-    let readings: [&[u8]; 23] = [
+    let readings: [&[u8]; 28] = [
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/LOWER.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/PROPER.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/REGEXTEST.reading.json"),
@@ -112,6 +112,11 @@ fn delivered_scalar_readings_follow_the_application_route() {
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/COUPDAYBS.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/MODE.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/MODE.SNGL.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/DISC.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/INTRATE.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/RECEIVED.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/PRICEDISC.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/ACCRINTM.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/WORKDAY.INTL.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/NETWORKDAYS.INTL.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/DELTA.reading.json"),
@@ -178,7 +183,7 @@ fn delivered_scalar_readings_follow_the_application_route() {
             }
         }
     }
-    assert_eq!(count, 1542);
+    assert_eq!(count, 1644);
     assert!(failures.is_empty(), "{} of{count} readings differ:\n{}", failures.len(), failures.join("\n"));
 }
 
@@ -266,6 +271,23 @@ fn delivered_fn4_scalar_logical_positions_and_error_order() {
         && entry.cell.sheet().strip_prefix("qa").and_then(|s| s.parse::<usize>().ok())
             .is_some_and(|n| n <= 148 && !matches!(n,
                 4 | 12 | 16 | 24 | 32 | 40 | 50 | 54 | 62 | 72 | 82 | 92 | 102 | 112 | 120 | 124 | 128 | 132)), 130);
+}
+
+/// The original fn4 blank-reference questions use genuine empty cells, not missing inputs.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn delivered_fn4_blank_date_references_read_serial_zero() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_environment(Some(calc_func::locale::CalcEnvironment::dates(
+        calc_func::locale::DateSystem::System1900,
+    )));
+    session.set_input("B1", InputValue::blank()).unwrap();
+    check_captured_questions(include_bytes!(
+        "../../../crates/calc-func/tests/captures/fn4_questions/functions-fn4-arguments.capture.json"
+    ), &mut session, |entry| entry.cell.row() == 20 && entry.cell.column() == 10
+        && entry.cell.sheet().strip_prefix("qa").and_then(|s| s.parse::<usize>().ok())
+            .is_some_and(|n| matches!(n,
+                4 | 12 | 16 | 24 | 32 | 40 | 50 | 54 | 62 | 72 | 82 | 92 | 102 | 112 | 120 | 124 | 128 | 132)), 18);
 }
 
 /// Fn4 q093..q096 read a genuine typed #BUSY! input and retain Excel's four results.

@@ -36,6 +36,69 @@
         "0x3fb999999999999a"
       ],
       "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-TBILLPRICE-calendar-zero-1",
+      "args": [
+        "0x0000000000000000",
+        "0x0000000000000000",
+        "0x3fb999999999999a"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-TBILLPRICE-calendar-zero-2",
+      "args": [
+        "0x0000000000000000",
+        "0x3ff0000000000000",
+        "0x3fb999999999999a"
+      ],
+      "expected_bits": "0x4058fe38e38e38e3"
+    },
+    {
+      "id": "fn7-TBILLPRICE-calendar-zero-3",
+      "args": [
+        "0x0000000000000000",
+        "0x4014000000000000",
+        "0x3fb999999999999a"
+      ],
+      "expected_bits": "0x4058f71c71c71c72"
+    },
+    {
+      "id": "fn7-TBILLPRICE-calendar-zero-4",
+      "args": [
+        "0x3ff0000000000000",
+        "0x0000000000000000",
+        "0x3fb999999999999a"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-TBILLPRICE-calendar-zero-5",
+      "args": [
+        "0x0000000000000000",
+        "0x4076d00000000000",
+        "0x3fb999999999999a"
+      ],
+      "expected_bits": "0x4056771c71c71c72"
+    },
+    {
+      "id": "fn7-TBILLPRICE-calendar-zero-6",
+      "args": [
+        "0x0000000000000000",
+        "0x4076e00000000000",
+        "0x3fb999999999999a"
+      ],
+      "expected_bits": "0x4056755555555555"
+    },
+    {
+      "id": "fn7-TBILLPRICE-calendar-zero-7",
+      "args": [
+        "0x0000000000000000",
+        "0x4076f00000000000",
+        "0x3fb999999999999a"
+      ],
+      "expected_bits": "error:Num"
     }
   ],
   "service_questions": [
@@ -93,6 +156,104 @@
         "type": "boolean",
         "value": true,
         "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "3fb999999999999a"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3fb999999999999a"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3fb999999999999a"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3fb999999999999a"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3fb999999999999a"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4076d00000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3fb999999999999a"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4076e00000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3fb999999999999a"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4076f00000000000"
       },
       {
         "type": "number",
@@ -259,10 +420,262 @@
           }
         ]
       ]
+    },
+    {
+      "cohort": "calendar-zero",
+      "response": {
+        "version": 1,
+        "id": "c7c049893ab140ed97cc2871eacae9cb",
+        "ok": true,
+        "rows": [
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "number",
+            "bits": "4058fe38e38e38e3"
+          },
+          {
+            "type": "number",
+            "bits": "4058f71c71c71c72"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "number",
+            "bits": "4056771c71c71c72"
+          },
+          {
+            "type": "number",
+            "bits": "4056755555555555"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          }
+        ],
+        "inputs": [
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4076d00000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4076e00000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4076f00000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            }
+          ]
+        ],
+        "excel_version": "16.0",
+        "excel_build": "20527",
+        "excel_file_version": "16.0.20527.20088",
+        "excel_pid": 31600,
+        "automation_security_before": 1,
+        "automation_security_after": 1,
+        "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261104T1716525198568-b0ef1b0ed5cc488f87049f217c3b332c\\receipt.json",
+        "session_receipt_sha256": "6a12ff72c5e3e01d1c6b42a882c683a90ef4d1e734a2efe84bd50dd436fe90ac",
+        "machine": "GOVERT-OMEN",
+        "timestamp": "2026-11-04T17:17:01.428182+00:00",
+        "service_seconds": 17.155999999959022,
+        "request_sha256": "394f0bad81a02353932426836558dee08aa47484c7f8db507bb58d121c4461d3",
+        "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\c7c049893ab140ed97cc2871eacae9cb"
+      },
+      "questions": [
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4076d00000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4076e00000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4076f00000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          }
+        ]
+      ]
     }
   ],
   "retained_wrapper_sha256": {
-    "live-tbillprice-later-logical-order.json": "616e39a328ab018f88ac53eb4061094ec215580ae137949bcf9dc3c55f401a83"
+    "live-tbillprice-later-logical-order.json": "616e39a328ab018f88ac53eb4061094ec215580ae137949bcf9dc3c55f401a83",
+    "live-tbillprice-calendar-zero.json": "01c2c6fcfc426b8b3f5b75bdd689d4a1812a04c6fae9310daa1217045b9a8059"
   },
   "unselected_questions": []
 }
