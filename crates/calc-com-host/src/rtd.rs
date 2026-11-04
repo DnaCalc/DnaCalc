@@ -233,14 +233,11 @@ impl RtdClient {
     /// Reconcile only after this cell has a successful producing certificate and
     /// no live evaluation. Reused certificates keep their recorded declarations;
     /// aborted or skipped native calls cannot keep a transport connected.
-    /// A completed cached call can renew an existing transport through an exact
-    /// admitted input read in that same producing certificate.
     pub fn reconcile_evaluation(
         &self,
         providers: &BTreeSet<RtdProvider>,
         caller: CellKey,
         invocations: &BTreeSet<u64>,
-        inputs: &BTreeSet<calc_xll_host::RtdInputKey>,
     ) -> Result<(), String> {
         let mut state = self
             .state
@@ -254,16 +251,6 @@ impl RtdClient {
             .values()
             .filter(|call| call.caller == caller && providers.contains(&call.provider))
             .flat_map(|call| call.subscriptions.iter().copied())
-            .chain(inputs.iter().filter_map(|read| {
-                // Cached native results can use an admitted RTD read without
-                // making xlfRtd again. Only a completed call retained by this
-                // producing certificate can renew that provider's transport.
-                state
-                    .declarations
-                    .values()
-                    .any(|call| call.caller == caller && call.provider == read.callable)
-                    .then_some(read.subscription)
-            }))
             .collect();
         for (&id, topic) in &mut state.topics {
             if providers.contains(&topic.provider) && !declared.contains(&id) {
@@ -621,81 +608,5 @@ fn replacement_preserves_another_callers_topic_lease() {
         vec![(provider, old)]
     );
     assert_eq!(queued_events(&client), vec![(1, 1), (1, 2), (2, 1)]);
-    client.close().unwrap();
-}
-
-/// Native-only: a completed cached UDF keeps only its producing certificate's admitted RTD read.
-#[test]
-fn cached_call_renews_only_a_certified_rtd_read() {
-    let client = RtdClient::new().unwrap();
-    assert_eq!(
-        unsafe { dna_rtd_test_attach_queued(client.state.borrow().pointer) },
-        0
-    );
-    let provider = RtdProvider {
-        table: 1,
-        slot: 0,
-        generation: 1,
-    };
-    let providers = BTreeSet::from([provider]);
-    let sheet = calc_value::SheetId::from_parts(0, 0);
-    let caller = CellKey::new(sheet, 1, 1).unwrap();
-    let sibling = CellKey::new(sheet, 1, 2).unwrap();
-    let topic = client
-        .subscribe(provider, caller, "fixture", &["cached".into()])
-        .unwrap();
-    let other = client
-        .subscribe(provider, sibling, "fixture", &["sibling".into()])
-        .unwrap();
-    let input = calc_xll_host::RtdInputKey {
-        callable: provider,
-        subscription: topic,
-    };
-    client.finish_call(provider, caller, 100, &[topic]).unwrap();
-    client
-        .reconcile_evaluation(
-            &providers,
-            caller,
-            &BTreeSet::from([100]),
-            &BTreeSet::from([input]),
-        )
-        .unwrap();
-    // This native call returned its cached result without invoking xlfRtd again.
-    client.finish_call(provider, caller, 101, &[]).unwrap();
-    client
-        .reconcile_evaluation(
-            &providers,
-            caller,
-            &BTreeSet::from([101]),
-            &BTreeSet::from([input]),
-        )
-        .unwrap();
-    assert!(client.state.borrow().topics[&topic].connected);
-    assert_eq!(queued_events(&client), vec![(1, 1), (1, 2)]);
-    // A completed call with no producing read cannot keep the transport alive.
-    client.finish_call(provider, caller, 102, &[]).unwrap();
-    client
-        .reconcile_evaluation(&providers, caller, &BTreeSet::from([102]), &BTreeSet::new())
-        .unwrap();
-    assert!(!client.state.borrow().topics[&topic].connected);
-    assert!(client.state.borrow().topics[&other].connected);
-    assert_eq!(queued_events(&client), vec![(1, 1), (1, 2), (2, 1)]);
-    // A read alone also cannot renew an aborted/skipped call's transport.
-    assert_eq!(
-        client
-            .subscribe(provider, caller, "fixture", &["cached".into()])
-            .unwrap(),
-        topic
-    );
-    client
-        .reconcile_evaluation(
-            &providers,
-            caller,
-            &BTreeSet::from([103]),
-            &BTreeSet::from([input]),
-        )
-        .unwrap();
-    assert!(!client.state.borrow().topics[&topic].connected);
-    assert!(client.state.borrow().topics[&other].connected);
     client.close().unwrap();
 }
