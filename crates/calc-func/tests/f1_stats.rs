@@ -518,6 +518,15 @@ fn gamma_cumulative_stores_the_final_series_product() {
     exact(call("GAMMA.DIST", vec![n(f64::from_bits(0x3ee4e69846c122d8)), n(f64::from_bits(0x4000000000000000)), n(f64::from_bits(0x3ff0000000000000)), b(true)]), f64::from_bits(0x3dcb4d6c2d100466));
 }
 
+/// Original catalogue dc96l3_discrete!D178: POISSON.DIST(33,33.3,TRUE).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn poisson_cumulative_retains_the_temme_correction() {
+    for function in ["POISSON.DIST", "POISSON"] {
+        exact(call(function, vec![n(33.0), n(33.3), b(true)]), f64::from_bits(0x3fe0_cfa4_9a24_03b8));
+    }
+}
+
 /// Recorded lower-series gains and protected controls from both argument halves.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

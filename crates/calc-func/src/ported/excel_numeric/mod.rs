@@ -530,6 +530,23 @@ pub(crate) fn excel_x87_mul_add(a: f64, b: f64, c: f64) -> f64 {
     Native::store(&Native::add(&product, &load(c), CW), CW)
 }
 
+/// Temme's `c * (w +/- coefficient * t / rta)`, retaining each PC64 result
+/// until the final binary64 store. The complement starts from that stored result.
+pub(crate) fn excel_x87_temme_finish(
+    c: f64, w: f64, coefficient: f64, t: f64, rta: f64, subtract: bool,
+) -> (f64, f64) {
+    let correction = Native::div(&Native::mul(&load(coefficient), &load(t), CW), &load(rta), CW);
+    let inner = if subtract {
+        Native::sub(&load(w), &correction, CW)
+    } else {
+        Native::add(&load(w), &correction, CW)
+    };
+    let answer = Native::store(&Native::mul(&load(c), &inner, CW), CW);
+    let half = load(0.5);
+    let complement = Native::store(&Native::add(&half, &Native::sub(&half, &load(answer), CW), CW), CW);
+    (answer, complement)
+}
+
 /// `RN53(RN64(a / b))` — the x87 double-rounded quotient (W109: XNPV's
 /// per-term `value / pow`). Bit-exact to 64-bit Excel on `x86_64`.
 pub(crate) fn excel_x87_div(a: f64, b: f64) -> f64 {
