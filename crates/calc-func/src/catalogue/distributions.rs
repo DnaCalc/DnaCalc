@@ -394,7 +394,7 @@ fn t_test_of(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Ste
     let kind = whole(site, a, 3)?;
     let result = match kind {
         1 => {
-            let pairs = super::kit::pairs(site, a, 0, 1, sv)?;
+            let pairs = super::kit::pairs(site, a, 0, 1, super::kit::PairScalars::Coerce, sv)?;
             st::t_test_paired_kernel(&pairs, tails)
         }
         2 | 3 => {

@@ -685,16 +685,21 @@ fn least_squares(
         let norm = squares.sqrt();
         let alpha = -norm.copysign(x0);
         let mut v = matrix[j].1[j..].to_vec();
-        v[0] = x0 - alpha;
-        let vv = rest + v[0] * v[0];
+        // Householder's I - 2vv'/(v'v), with every reflector operation
+        // stored as RN53(RN64(operation)). Use the shared native/software
+        // arithmetic, including each dot-product term and vector update.
+        v[0] = excel_numeric::excel_x87_sub(x0, alpha);
+        let vv = excel_numeric::excel_x87_add(rest, excel_numeric::excel_x87_mul(v[0], v[0]));
         let reflect = |a: &mut [f64]| {
             let t = v
                 .iter()
                 .zip(a[j..].iter())
-                .fold(0.0, |sum, (vi, ai)| sum + vi * ai);
-            let f = 2.0 * t / vv;
+                .fold(0.0, |sum, (vi, ai)| {
+                    excel_numeric::excel_x87_add(sum, excel_numeric::excel_x87_mul(*vi, *ai))
+                });
+            let f = excel_numeric::excel_x87_div(excel_numeric::excel_x87_mul(2.0, t), vv);
             for (ai, vi) in a[j..].iter_mut().zip(v.iter()) {
-                *ai -= f * vi;
+                *ai = excel_numeric::excel_x87_sub(*ai, excel_numeric::excel_x87_mul(f, *vi));
             }
         };
         for (_, column) in matrix.iter_mut().skip(j + 1) {

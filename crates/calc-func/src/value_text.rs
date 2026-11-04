@@ -261,6 +261,11 @@ fn number(text: &str, profile: &FormatProfile) -> Result<Option<f64>, Unread> {
         return Ok(None);
     }
     let scale = exponent - fraction_digits - if percent { 2 } else { 0 };
+    // W111 percent-bounds: a zero coefficient still validates the percent-adjusted
+    // exponent. decimal()'s zero fast return otherwise bypasses this admission rule.
+    if percent && digits.bytes().all(|digit| digit == b'0') && !(-308..=308).contains(&scale) {
+        return Err(Unread::Rejected);
+    }
     decimal(&digits, scale)
         .map(|n| Some(if negative && n != 0.0 { -n } else { n }))
         .ok_or(Unread::Rejected)

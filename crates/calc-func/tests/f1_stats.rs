@@ -665,3 +665,66 @@ fn beta_normalizer_and_fraction_carry_selected_products_into_the_sum() {
     exact(call("F.DIST", vec![n(4.0), n(4.0), n(8.0), b(true)]),
         f64::from_bits(0x3fee_8d2b_3183_aff0));
 }
+
+/// Original catalogue answers, including every recorded selection of both fits.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn linest_stored_reflector_matches_original_excel_selections() {
+    {
+        // corpus:calc-func_catalogue_oracle.xlsx:dcj9k_linest_stats:1091:4 and the other original selections of this fit.
+        let result = call("LINEST", vec![arr(vec![vec![-17.979], vec![-0.126], vec![8.0], vec![-5.0], vec![1.7], vec![37.0], vec![12.4], vec![14.46], vec![-8.0], vec![24.2]]),
+            arr(vec![vec![20.8, 50.0], vec![34.0, 23.41], vec![38.875, -17.7], vec![4.863, 36.9], vec![42.1, 6.0], vec![-14.55, 44.41], vec![-4.57, -12.96], vec![-9.909, 2.589], vec![47.549, 42.0], vec![54.9, -17.63]]), b(true), b(true)]).expect("LINEST array");
+        let values = result.as_array().expect("LINEST array");
+        for (row, column, expected) in [
+            (1, 1, "0xbfd27fdb7ef796a7"),
+            (1, 2, "0xbfd1a33c9c5095e3"),
+            (1, 3, "0x40311a7710d73964"),
+            (2, 1, "0x3fc863a97e13b089"),
+            (2, 2, "0x3fc9963b81442b03"),
+            (2, 3, "0x401dc5ac009d3792"),
+            (3, 1, "0x3fd5207539f192f3"),
+            (3, 2, "0x402e02041aa086c9"),
+            (3, 3, "error:NA"),
+            (4, 1, "0x3ffb98672c7a3bc3"),
+            (4, 2, "0x401c000000000000"),
+            (4, 3, "error:NA"),
+            (5, 1, "0x4088443548feaaee"),
+            (5, 2, "0x40989f4ed822bc97"),
+            (5, 3, "error:NA"),
+        ] {
+            let actual = values.get(row - 1, column - 1).expect("recorded selection");
+            assert_eq!(calc_verdict::encode_result(actual).as_deref(), Some(expected), "row={row} column={column}");
+        }
+    }
+    {
+        // corpus:calc-func_catalogue_oracle.xlsx:dcj9k_linest_stats:1176:4 and the other original selections of this fit.
+        let result = call("LINEST", vec![arr(vec![vec![31.78], vec![5.61], vec![-9.09]]),
+            arr(vec![vec![53.56, 30.22, 32.0], vec![-9.0, -17.977, 47.17], vec![9.4, -11.83, 39.39]]), b(false), b(true)]).expect("LINEST array");
+        let values = result.as_array().expect("LINEST array");
+        for (row, column, expected) in [
+            (1, 1, "0x3fe9f2f302983561"),
+            (1, 2, "0x4003a2d805c5bf11"),
+            (1, 3, "0xbff46aa36a83eafe"),
+            (1, 4, "0x0000000000000000"),
+            (2, 1, "0x0000000000000000"),
+            (2, 2, "0x0000000000000000"),
+            (2, 3, "0x0000000000000000"),
+            (2, 4, "error:NA"),
+            (3, 1, "0x3ff0000000000000"),
+            (3, 2, "0x0000000000000000"),
+            (3, 3, "error:NA"),
+            (3, 4, "error:NA"),
+            (4, 1, "error:Num"),
+            (4, 2, "0x0000000000000000"),
+            (4, 3, "error:NA"),
+            (4, 4, "error:NA"),
+            (5, 1, "0x409190463f141206"),
+            (5, 2, "0x0000000000000000"),
+            (5, 3, "error:NA"),
+            (5, 4, "error:NA"),
+        ] {
+            let actual = values.get(row - 1, column - 1).expect("recorded selection");
+            assert_eq!(calc_verdict::encode_result(actual).as_deref(), Some(expected), "row={row} column={column}");
+        }
+    }
+}

@@ -249,6 +249,231 @@ fn recorded_address_omitted_column_differs_from_blank() {
     }
 }
 
+/// W111 date-typed 00155 and refinement 00772..00868; depreciation-options
+/// 00000/00011 and independent 00092/00208; locale-profile 00193 and 00252.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_optional_placeholders_are_supplied_values() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let mut profile = format_profile(LocaleId::EnZa);
+    profile.decimal_separator = ".";
+    profile.thousands_separator = " ";
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_environment(Some(CalcEnvironment {
+        profile: Some(profile), ..CalcEnvironment::dates(DateSystem::System1900)
+    }));
+    let formulas = ["=WEEKDAY(0,)", "=WEEKDAY(1,)", "=WEEKDAY(FALSE,)",
+        "=WEEKDAY(TRUE,)", "=WEEKDAY(\"1\",)", "=WEEKDAY(,)",
+        "=DB(1000,100,10,2,)", "=DDB(1000,100,10,2,)"];
+    let mut actuals: Vec<_> = formulas.iter().map(|formula| {
+        session.set_formula(formula);
+        (*formula, session.calculate().result)
+    }).collect();
+    let mut expected: Vec<_> = formulas.iter().map(|formula| {
+        (*formula, Some(CalcValue::error(WorksheetErrorCode::Num)))
+    }).collect();
+    // Recorded missing-argument controls differ between these two format functions.
+    for (formula, shown) in [("=DOLLAR(1234.5,)", "R1 235"), ("=FIXED(1234.5,)", "1 234.50")] {
+        session.set_formula(formula);
+        actuals.push((formula, session.calculate().result));
+        expected.push((formula, Some(CalcValue::text(
+            calc_func::value::ExcelText::from_interop_assignment(shown)))));
+    }
+    assert_eq!(actuals, expected);
+    // Leaving the return type out still uses WEEKDAY's default.
+    session.set_formula("=WEEKDAY(1)");
+    assert_eq!(session.calculate().result, Some(CalcValue::number(1.0)));
+}
+
+/// W111 locale-profile-20260929: 00145/00146/00151..00154, zero after currency rounding.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_dollar_retains_a_negative_sign_after_rounding() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let mut profile = format_profile(LocaleId::EnZa);
+    profile.decimal_separator = ".";
+    profile.thousands_separator = " ";
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_environment(Some(CalcEnvironment {
+        profile: Some(profile), ..CalcEnvironment::dates(DateSystem::System1900)
+    }));
+    for (bits, places, expected) in [
+        (0xbf74_7ae1_47ae_147b, 0, "-R0"), (0xbf74_7ae1_47ae_147b, 1, "-R0.0"),
+        (0xc005_6666_6666_6666, -3, "R0"), (0xc005_6666_6666_6666, -1, "R0"),
+        (0xbf74_7ae1_47ae_147b, -3, "R0"), (0xbf74_7ae1_47ae_147b, -1, "R0"),
+    ] {
+        session.set_input("A100", InputValue::number(f64::from_bits(bits)).unwrap()).unwrap();
+        session.set_formula(&format!("=DOLLAR(A100,{places})"));
+        assert_eq!(session.calculate().result, Some(CalcValue::text(
+            calc_func::value::ExcelText::from_interop_assignment(expected))));
+    }
+}
+
+/// W111 locale-profile-20260929: 00275/00287/00299/00311/00323.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_text_at_format_reads_numbers() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let mut profile = format_profile(LocaleId::EnZa);
+    profile.decimal_separator = ".";
+    profile.thousands_separator = " ";
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_environment(Some(CalcEnvironment {
+        profile: Some(profile), ..CalcEnvironment::dates(DateSystem::System1900)
+    }));
+    session.set_formula("=TEXT(A100,\"@\")");
+    for (bits, expected) in [(0, "0"), (0x3ff0_0000_0000_0000, "1"),
+        (0xbff0_0000_0000_0000, "-1"), (0x4093_4a44_9ba5_e354, "1234.567"),
+        (0x40e6_1212_0000_0000, "45200.5625")] {
+        session.set_input("A100", InputValue::number(f64::from_bits(bits)).unwrap()).unwrap();
+        assert_eq!(session.calculate().result, Some(CalcValue::text(
+            calc_func::value::ExcelText::from_interop_assignment(expected))), "{bits:#018x}");
+    }
+}
+
+/// The five recorded bare-@ values do not decide between cell General and full numeric text.
+/// Keep the different-precision case unanswered until the fn4 controls are captured.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn unmeasured_text_at_precision_stays_refused() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J20").unwrap();
+    session.set_environment(Some(CalcEnvironment {
+        profile: Some(format_profile(LocaleId::CurrentExcelHost)),
+        ..CalcEnvironment::dates(DateSystem::System1900)
+    }));
+    session.set_input("A1", InputValue::number(123456789012345.0).unwrap()).unwrap();
+    session.set_formula("=TEXT(A1,\"@\")");
+    let result = session.calculate();
+    assert!(result.result.is_none());
+    assert!(format!("{:?}", result.diagnostics).contains("NotImplemented"));
+}
+
+/// W111 numeric-text-percent-bounds-20260929: zero coefficients, lower/upper exponent
+/// refusals, and the retained positive controls at the upper exponent boundary.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_zero_percentage_exponents_are_validated() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J20").unwrap();
+    session.set_environment(Some(CalcEnvironment {
+        profile: Some(format_profile(LocaleId::CurrentExcelHost)),
+        ..CalcEnvironment::dates(DateSystem::System1900)
+    }));
+    let forms = |coefficient: &str, exponent: i32| [
+        format!("{coefficient}e{exponent}%"), format!("% {coefficient}e{exponent}"),
+        format!("( {coefficient}e{exponent} % )"),
+    ];
+    for coefficient in ["0", "00", "0.0", "0.00"] {
+        for exponent in -311..=-307 {
+            for text in forms(coefficient, exponent) {
+                session.set_formula(&format!("=ABS(\"{text}\")"));
+                assert_eq!(session.calculate().result, Some(CalcValue::error(WorksheetErrorCode::Value)), "{text}");
+            }
+        }
+    }
+    for coefficient in ["0", "00"] {
+        for text in forms(coefficient, 311) {
+            session.set_formula(&format!("=ABS(\"{text}\")"));
+            assert_eq!(session.calculate().result, Some(CalcValue::error(WorksheetErrorCode::Value)), "{text}");
+        }
+    }
+    for (coefficient, exponent) in [("0", 310), ("00", 310), ("0.0", 311), ("0.00", 311)] {
+        for text in forms(coefficient, exponent) {
+            session.set_formula(&format!("=ABS(\"{text}\")"));
+            let result = session.calculate();
+            assert_eq!(result.result, Some(CalcValue::number(0.0)), "{text}");
+            assert!(result.diagnostics.is_empty());
+        }
+    }
+}
+
+/// OxFunc-Evidence unswept-structural-sweep-001, cases 00109..00126, 00284..00289,
+/// 00476..00481, 00596..00601 and 00614..00619: paired lists skip scalar text/logicals.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_paired_statistics_skip_nonnumeric_scalar_items() {
+    let mut session = Session::new("Sheet1").unwrap();
+    let mut results = Vec::new();
+    for function in ["CORREL", "COVARIANCE.P", "COVARIANCE.S", "INTERCEPT", "PEARSON", "RSQ", "SLOPE"] {
+        for argument in ["\"\"", "\"2\"", "TRUE"] {
+            let formula = format!("={function}({argument},2)");
+            session.set_formula(&formula);
+            results.push((formula, session.calculate(), CalcValue::error(WorksheetErrorCode::Div0)));
+        }
+        for (argument, expected) in [
+            ("{2;3}", CalcValue::error(WorksheetErrorCode::NA)),
+            ("NA()", CalcValue::error(WorksheetErrorCode::NA)),
+            ("2", if function == "COVARIANCE.P" { CalcValue::number(0.0) }
+                else { CalcValue::error(WorksheetErrorCode::Div0) }),
+        ] {
+            let formula = format!("={function}({argument},2)");
+            session.set_formula(&formula);
+            results.push((formula, session.calculate(), expected));
+        }
+    }
+    for (formula, result, expected) in results {
+        assert_eq!(result.result, Some(expected), "{formula}: {:?}", result.diagnostics);
+        assert!(result.diagnostics.is_empty());
+    }
+}
+
+/// W111 numeric-to-text-heldout-typed-20260929, EXACT cases 03436, 03453 and 03454.
+/// The number is above its decimal midpoint by more than the measured tie-discrepancy band.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_number_text_above_the_tie_band_rounds_up() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J20").unwrap();
+    session.set_input("A100", InputValue::number(f64::from_bits(0x4449_4efd_9aa8_09c8)).unwrap()).unwrap();
+    session.set_formula("=EXACT(A100,\"9.33720954786629E+20\")");
+    let positive = session.calculate();
+    for at in ["A100", "A101", "A103", "B200"] {
+        session.set_input(at, InputValue::number(f64::from_bits(0xc449_4efd_9aa8_09c8)).unwrap()).unwrap();
+    }
+    session.set_input("A102", InputValue::number(0.0).unwrap()).unwrap();
+    session.set_formula("=EXACT(B200,\"-9.33720954786629E+20\")");
+    let negative = session.calculate();
+    session.set_formula("=EXACT(CHOOSE({1,2;3,4},A100,A101,A102,A103),\"-9.33720954786629E+20\")");
+    let array = session.calculate();
+    for result in [positive, negative] {
+        assert_eq!(result.result, Some(CalcValue::logical(true)), "{:?}", result.diagnostics);
+        assert!(result.diagnostics.is_empty());
+    }
+    let expected = calc_func::value::CalcArray::from_rows(vec![
+        vec![CalcValue::logical(true), CalcValue::logical(true)],
+        vec![CalcValue::logical(false), CalcValue::logical(true)],
+    ]).unwrap();
+    assert_eq!(array.result, Some(CalcValue::array(expected)), "{:?}", array.diagnostics);
+    assert!(array.diagnostics.is_empty());
+}
+
+/// OxFunc-Evidence w111-broad-20260929 FLOOR cases 00000..00009, 00062 and 00067:
+/// zero has a zero multiple, while a nonzero number with zero significance is #DIV/0!.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_floor_zero_identity_precedes_its_multiple_error() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J20").unwrap();
+    for zero in [0x0000_0000_0000_0000, 0x8000_0000_0000_0000] {
+        session.set_input("A1", InputValue::number(f64::from_bits(zero)).unwrap()).unwrap();
+        for multiple in [0.0, 0.1, 2.0, -0.1, -2.0] {
+            session.set_input("B1", InputValue::number(multiple).unwrap()).unwrap();
+            session.set_formula("=FLOOR(A1,B1)");
+            let result = session.calculate();
+            assert_eq!(result.result, Some(CalcValue::number(0.0)), "{zero:#018x}, {multiple}: {:?}", result.diagnostics);
+            assert_eq!(result.result.unwrap().as_number().map(f64::to_bits), Some(0));
+            assert!(result.diagnostics.is_empty());
+        }
+    }
+    for number in [1, -1] {
+        session.set_formula(&format!("=FLOOR({number},0)"));
+        assert_eq!(session.calculate().result, Some(CalcValue::error(WorksheetErrorCode::Div0)));
+    }
+}
+
 /// Recorded hypgeom.dist-domain-00026..00029 and the fresh fractional
 /// support controls in OxFunc-Evidence's HYPGEOM.DIST banks.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
