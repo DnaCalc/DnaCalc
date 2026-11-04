@@ -1006,9 +1006,7 @@ mod outline_tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn outline_gutters_leave_cell_sizes_text_metrics_and_zoom_unchanged() {
-        use crate::projection::{Geometry,OutlineGroup};
-        let geometry=Geometry{outline:vec![OutlineGroup{rows:false,first:2,last:4,summary:5,level:7,collapsed:false},OutlineGroup{rows:true,first:2,last:4,summary:5,level:3,collapsed:false}],..Geometry::default()};
-        let plain=sheet_metrics(None);let grouped=sheet_metrics(Some(&geometry));
+        let (plain,grouped)=outline_metrics();
         for scale in [0.5,1.,1.75,4.] {
             let a=plain.scaled(scale);let b=grouped.scaled(scale);
             assert_eq!(a.scale,b.scale);assert_eq!(a.width(2),b.width(2));assert_eq!(a.height(2),b.height(2));
@@ -1016,4 +1014,33 @@ mod outline_tests {
             assert_eq!(b.header_h-a.header_h,112.*scale);assert_eq!(b.header_w-a.header_w,48.*scale);
         }
     }
+    fn outline_metrics() -> (GridMetrics, GridMetrics) {
+        use crate::projection::{Geometry, OutlineGroup};
+        let geometry=Geometry{outline:vec![OutlineGroup{rows:false,first:2,last:4,summary:5,level:7,collapsed:false},OutlineGroup{rows:true,first:2,last:4,summary:5,level:3,collapsed:false}],..Geometry::default()};
+        (sheet_metrics(None),sheet_metrics(Some(&geometry)))
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn low_zoom_outline_gutters_preserve_sizes_and_cell_hit_targets() {
+        let (plain,grouped)=outline_metrics();
+        let viewport=Viewport::default();
+        for scale in [0.1,0.25] {
+            let a=plain.scaled(scale);let b=grouped.scaled(scale);
+            assert_eq!(a.scale,b.scale);
+            assert_eq!(crate::render_plan::text_width("outline typography",&a),crate::render_plan::text_width("outline typography",&b));
+            for row in [1,2,10] { for column in [1,2,10] {
+                let first=cell_rect(&a,&viewport,row,column);let second=cell_rect(&b,&viewport,row,column);
+                assert_eq!(first.w,second.w);assert_eq!(first.h,second.h);
+                for (metrics,rect) in [(&a,first),(&b,second)] {
+                    assert_eq!(hit_test(metrics,&viewport,100,100,rect.x+rect.w/2.,rect.y+rect.h/2.),HitTarget::Cell{row,col:column});
+                }
+            }}
+            // Adding scaled headers and then subtracting them can round one ULP
+            // differently from scaling the gutter alone. Cell sizes above stay exact.
+            for (actual,expected) in [(b.header_h-a.header_h,112.*scale),(b.header_w-a.header_w,48.*scale)] {
+                assert!((actual-expected).abs() <= expected.abs()*f64::EPSILON*4.,"{actual} != {expected}");
+            }
+        }
+    }
+
 }

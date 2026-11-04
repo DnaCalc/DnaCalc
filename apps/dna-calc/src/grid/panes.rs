@@ -421,7 +421,7 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn frozen_and_scrolling_cells_share_the_inverse_at_every_zoom() {
-        for zoom in [0.5, 1.0, 1.75, 4.0] {
+        for zoom in [0.1, 0.25, 0.5, 1.0, 1.75, 4.0] {
             let m = GridMetrics::default().scaled(zoom);
             let p = Panes {
                 rows: 1,
@@ -468,7 +468,7 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn hidden_bands_do_not_change_the_frozen_cell_hit_target() {
-        for zoom in [0.5, 1.0, 2.5] {
+        for zoom in [0.1, 0.25, 0.5, 1.0, 2.5] {
             let mut m = GridMetrics::default();
             m.rows = geometry::Sizes::new(m.row_height, [(1, 0.0), (3, 42.0)]);
             m.cols = geometry::Sizes::new(m.col_width, [(2, 0.0), (4, 120.0)]);
@@ -651,7 +651,7 @@ mod origin_tests {
         assert_eq!(p.counts(), (2, 2));
         let mut ids = calc_value::IdAllocator::<SheetId>::new();
         let sheet = ids.issue().unwrap();
-        for zoom in [0.5, 1., 1.75, 4.] {
+        for zoom in [0.1, 0.25, 0.5, 1., 1.75, 4.] {
             let m = GridMetrics::default().scaled(zoom);
             let (x, y) = p.imported_scroll(&g, &m, 0);
             let v = Viewport {

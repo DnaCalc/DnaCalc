@@ -2242,7 +2242,7 @@ impl Server {
                     || pane.x < 0.
                     || pane.y < 0.
                     || !pane.zoom.is_finite()
-                    || !(0.5..=4.).contains(&pane.zoom)
+                    || !(dna_calc_model::viewport::ZOOM_MIN..=dna_calc_model::viewport::ZOOM_MAX).contains(&pane.zoom)
                 {
                     return Err("Invalid saved pane position or zoom".into());
                 }
@@ -5252,7 +5252,7 @@ mod window_tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn window_save_converts_zoomed_offsets_and_pins_the_ordinary_save_route() {
-        for zoom in [0.5, 1., 1.75, 4.] {
+        for zoom in [0.1, 0.25, 0.5, 1., 1.75, 4.] {
             let mut server = Server::new();
             let s = server.book.host().sheets()[0].id();
             let sheet = Sheet::of(s);

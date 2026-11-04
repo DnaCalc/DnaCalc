@@ -9,8 +9,8 @@
 
 /// The zoom step each zoom-in or zoom-out multiplies or divides the factor by.
 pub const ZOOM_STEP: f64 = 1.25;
-/// The smallest zoom factor (50%): below it the cell text is no longer readable.
-pub const ZOOM_MIN: f64 = 0.5;
+/// The smallest worksheet zoom factor (10%), matching the documented Excel range.
+pub const ZOOM_MIN: f64 = 0.1;
 /// The largest zoom factor (400%).
 pub const ZOOM_MAX: f64 = 4.0;
 
@@ -28,11 +28,11 @@ pub fn parse_zoom_percent(text: &str) -> Result<f64, &'static str> {
         .trim_end_matches('%')
         .trim()
         .parse::<f64>()
-        .map_err(|_| "Enter a zoom percentage from 50 to 400")?;
-    if value.is_finite() && (50.0..=400.0).contains(&value) {
+        .map_err(|_| "Enter a zoom percentage from 10 to 400")?;
+    if value.is_finite() && (ZOOM_MIN * 100.0..=ZOOM_MAX * 100.0).contains(&value) {
         Ok(value / 100.0)
     } else {
-        Err("Enter a zoom percentage from 50 to 400")
+        Err("Enter a zoom percentage from 10 to 400")
     }
 }
 
@@ -175,7 +175,7 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn physical_scroll_surfaces_reach_both_excel_edges_at_every_zoom() {
-        for zoom in [0.5, 1.0, 4.0] {
+        for zoom in [0.1, 0.25, 0.5, 1.0, 4.0] {
             for viewport in [320.0, 844.0, 1000.0] {
                 let content = 22.0 + 1_048_576.0 * 20.0 * zoom;
                 let scale = ScrollScale::new(content, viewport);
@@ -347,7 +347,10 @@ mod zoom_entry_tests {
         assert_eq!(super::parse_zoom_percent(" 125 % "), Ok(1.25));
         assert_eq!(super::parse_zoom_percent("50"), Ok(0.5));
         assert_eq!(super::parse_zoom_percent("400"), Ok(4.0));
-        for text in ["", "NaN", "inf", "0", "49.9", "400.1", "one"] {
+        assert_eq!(super::parse_zoom_percent("10"), Ok(0.1));
+        assert_eq!(super::parse_zoom_percent("25"), Ok(0.25));
+        assert!(matches!(super::parse_zoom_percent("49.9"),Ok(z) if (z-0.499).abs()<1e-12));
+        for text in ["", "NaN", "inf", "0", "9.9", "400.1", "one"] {
             assert!(super::parse_zoom_percent(text).is_err(), "{text}");
         }
     }
