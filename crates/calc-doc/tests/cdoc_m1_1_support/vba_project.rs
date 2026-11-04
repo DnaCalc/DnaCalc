@@ -10,6 +10,23 @@ pub fn replace_sources(bytes: &[u8], sources: &[(&str, &str)]) -> Vec<u8> {
     replace_project(bytes, sources, None)
 }
 
+/// A fresh namespace-edit control with the exact supplied project binary. The
+/// original captured package has rich metadata whose sheet rename is refused.
+/// This authors an empty sheet, without changing or filtering any VBA module.
+#[allow(dead_code)]
+pub fn minimal_control(bytes: &[u8]) -> Vec<u8> {
+    let binary = support::d1::part(bytes, "xl/vbaProject.bin").unwrap();
+    let parts: &[(&str, &[u8])] = &[
+        ("[Content_Types].xml", br#"<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.ms-excel.sheet.macroEnabled.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/vbaProject.bin" ContentType="application/vnd.ms-office.vbaProject"/></Types>"#),
+        ("_rels/.rels", br#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="book" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>"#),
+        ("xl/workbook.xml", br#"<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><workbookPr codeName="ThisWorkbook"/><sheets><sheet name="Cases" sheetId="1" r:id="sheet"/></sheets></workbook>"#),
+        ("xl/_rels/workbook.xml.rels", br#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="sheet" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="vba" Type="http://schemas.microsoft.com/office/2006/relationships/vbaProject" Target="vbaProject.bin"/></Relationships>"#),
+        ("xl/worksheets/sheet1.xml", br#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetPr codeName="Sheet1"/><sheetData/></worksheet>"#),
+        ("xl/vbaProject.bin", &binary),
+    ];
+    support::build_zip(&parts.iter().map(|(name, data)| support::RawEntry::stored(name, data)).collect::<Vec<_>>())
+}
+
 #[allow(dead_code)]
 pub fn replace_project_declaration(bytes: &[u8], from: &str, to: &str) -> Vec<u8> {
     replace_project(bytes, &[], Some((from, to)))
