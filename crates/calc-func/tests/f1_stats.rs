@@ -612,16 +612,16 @@ fn small_erf_matches_recorded_answers() {
     }
 }
 
-/// Recorded oc1302 and smallz-0018 retain the removed model's curvature clues.
+/// Recorded oc1302 and smallz-0018: the (4, 5) stored rational below 0.5 (dc-j9k.6).
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn small_erf_records_known_curvature_gaps() {
-    for (input, expected, calculated) in [
-        (0x3f1c_0000_0000_0000, 0x3f1f_9838_ca70_8460, 0x3f1f9838ca70845f),
-        (0x3f83_0000_0000_0000, 0x3f85_7047_602b_fba1, 0x3f857047602bfba0),
+fn small_erf_matches_recorded_curvature_rows() {
+    for (input, expected) in [
+        (0x3f1c_0000_0000_0000, 0x3f1f_9838_ca70_8460),
+        (0x3f83_0000_0000_0000, 0x3f85_7047_602b_fba1),
     ] {
         for function in ["ERF.PRECISE", "ERF"] {
-            recorded_calculation(call(function, vec![n(f64::from_bits(input))]), f64::from_bits(expected), f64::from_bits(calculated));
+            exact(call(function, vec![n(f64::from_bits(input))]), f64::from_bits(expected));
         }
     }
 }
