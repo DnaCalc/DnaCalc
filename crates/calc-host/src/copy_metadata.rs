@@ -732,3 +732,92 @@ fn append_notes(
     }
     Ok(())
 }
+/// Apply one validated row permutation to authored metadata, using the same immutable source
+/// as the cell snapshots. Metadata is replaced once, never independently for each copied row.
+pub(crate) fn permute_rows(
+    host: &HostState,
+    data: GridArea,
+    rows: &BTreeMap<u32, u32>,
+    edits: &mut Vec<CellEdit>,
+) -> Result<(), CopyRefusal> {
+    if rows.iter().all(|(source, target)| source == target) {
+        return Ok(());
+    }
+    let sheet = data.sheet();
+    let mut notes = host.model().definitions().review_notes(sheet).to_vec();
+    for note in &mut notes {
+        if data.contains(note.at) {
+            let row = *rows
+                .get(&note.at.row())
+                .ok_or_else(|| refusal("The sort permutation omits a note row"))?;
+            note.at = CellKey::new(sheet, row, note.at.column()).unwrap();
+        }
+    }
+    if notes != host.model().definitions().review_notes(sheet) {
+        host.loaded()
+            .check_sorted_note_shapes(sheet, &notes)
+            .map_err(|_| refusal("The original note boxes cannot follow this sort (dc-971p.38)"))?;
+        edits.push(CellEdit::ReviewNotes { sheet, notes });
+    }
+    let mut rules = Vec::new();
+    let mut fragments = 0usize;
+    for original in host.model().definitions().validations(sheet) {
+        // Keep the inherited prompt-only source refusal. This increment moves active rules;
+        // a type=none record has no condition whose relative origin can be checked here.
+        if original.kind == "none" {
+            return Err(refusal("Sorting prompt-only validation records is unavailable (dc-971p.38)"));
+        }
+        if !calc_doc::validation_movement_supported(original) {
+            return Err(refusal(
+                "Sorting unread validation source fields is unavailable (dc-971p.38)",
+            ));
+        }
+        let original_areas = areas(original, sheet);
+        let Some(origin) = original_areas.first().map(|a| a.first()) else {
+            return Err(refusal(
+                "A validation rule has no complete range (dc-971p.38)",
+            ));
+        };
+        let mut target = Vec::new();
+        for area in &original_areas {
+            target.extend(subtract(*area, data));
+            if let Some(intersection) = area.intersection(data) {
+                fragments = fragments.saturating_add(intersection.row_count() as usize);
+                if fragments > crate::COPY_LIMIT as usize {
+                    return Err(refusal(
+                        "This sort would produce too many validation row fragments (dc-971p.38)",
+                    ));
+                }
+                for source in intersection.first().row()..=intersection.last().row() {
+                    let row = *rows
+                        .get(&source)
+                        .ok_or_else(|| refusal("The sort permutation omits a validation row"))?;
+                    target.push(
+                        GridArea::new(
+                            CellKey::new(sheet, row, intersection.first().column()).unwrap(),
+                            CellKey::new(sheet, row, intersection.last().column()).unwrap(),
+                        )
+                        .unwrap(),
+                    );
+                }
+            }
+        }
+        let target = merge(target);
+        if target == original_areas {
+            rules.push(original.clone());
+            continue;
+        }
+        let mut rule = original.clone();
+        let to = target
+            .first()
+            .ok_or_else(|| refusal("A sorted validation rule lost all ranges"))?
+            .first();
+        rule.areas = tuples(&target);
+        valid_texts(&mut rule, |f| relocate(host.model(), f, origin, to))?;
+        rules.push(rule);
+    }
+    if rules != host.model().definitions().validations(sheet) {
+        edits.push(CellEdit::Validations { sheet, rules });
+    }
+    Ok(())
+}

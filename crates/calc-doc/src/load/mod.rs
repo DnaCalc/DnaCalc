@@ -403,6 +403,11 @@ impl LoadedWorkbook {
 
     /// Whether a rectangular shift can preserve this sheet's position metadata today.
     pub fn cell_shift_metadata_supported(&self, sheet: SheetId) -> bool {
+        self.cell_position_metadata_supported(sheet,false)
+    }
+
+    fn cell_position_metadata_supported(&self, sheet:SheetId, sorting:bool)->bool {
+        let review_supported=sorting && self.check_sorted_note_shapes(sheet,self.model().definitions().review_notes(sheet)).is_ok();
         let Some(sheet) = self.sheet(sheet) else {
             return true;
         };
@@ -411,7 +416,8 @@ impl LoadedWorkbook {
             .relationships_of(Some(sheet.part().name()))
             .is_some_and(|rels| {
                 rels.items().iter().any(|r| {
-                    !["printerSettings", "image", "customProperty", "hyperlink"]
+                    !(review_supported && ["comments","threadedComment","vmlDrawing"].iter().any(|kind|r.kind.ends_with(&format!("/{kind}"))))
+                    && !["printerSettings", "image", "customProperty", "hyperlink"]
                         .iter()
                         .any(|kind| r.kind.ends_with(&format!("/{kind}")))
                 })
@@ -429,7 +435,6 @@ impl LoadedWorkbook {
                     if matches!(
                         e.name.local.as_str(),
                         "hyperlinks"
-                            | "legacyDrawing"
                             | "drawing"
                             | "oleObjects"
                             | "autoFilter"
@@ -450,6 +455,7 @@ impl LoadedWorkbook {
                 {
                     return false;
                 }
+                Ok(Some(crate::xml::XmlEvent::Start(e))) if e.name.local == "legacyDrawing" && (!review_supported || !e.name.is(MAIN_NAMESPACE,"legacyDrawing")) => return false,
                 Ok(None) => return true,
                 Err(_) => return false,
                 _ => {}
@@ -462,7 +468,7 @@ impl LoadedWorkbook {
     /// positional objects, decorated strings anywhere in its workbook, or source-only cell
     /// attributes remains unchanged until those records can follow the cells.
     pub fn cell_sort_metadata_supported(&self, sheet: SheetId) -> bool {
-        if !self.cell_shift_metadata_supported(sheet) {
+        if !self.cell_position_metadata_supported(sheet,true) {
             return false;
         }
         let Some(sheet) = self.sheet(sheet) else {
@@ -1618,4 +1624,102 @@ pub fn load(
         layout_warnings: layout.warnings,
         fixed_names: layout.fixed_names,
     })
+}
+impl LoadedWorkbook {
+    /// Preflight the same source-preserving note-box transform the writer will apply. Source
+    /// records are matched by identity, so occupied-cell swaps cannot exchange their boxes.
+    pub fn check_sorted_note_shapes(
+        &self,
+        sheet: SheetId,
+        notes: &[calc_doc_model::ReviewNote],
+    ) -> Result<(), crate::SaveRefusal> {
+        let Some(source) = self.sheet(sheet) else {
+            return Ok(());
+        };
+        let invalid = || crate::SaveRefusal::InvalidPart {
+            part: source.part().name().into(),
+            detail: "The original note drawing cannot follow row sorting (dc-971p.38)".into(),
+        };
+        let rels = self.package.relationships_of(Some(source.part().name()));
+        let mut drawing = None;
+        for suffix in ["/comments", "/threadedComment", "/vmlDrawing"] {
+            let relevant = rels
+                .map(|r| {
+                    r.items()
+                        .iter()
+                        .filter(|r| r.kind.ends_with(suffix))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            if relevant.len() > 1 {
+                return Err(invalid());
+            }
+            for rel in relevant {
+                let Some(target) = rel
+                    .resolved
+                    .as_ref()
+                    .filter(|_| rel.mode == crate::opc::TargetMode::Internal)
+                else {
+                    return Err(invalid());
+                };
+                if self.package.part(target).is_none()
+                    || self
+                        .package
+                        .relationships()
+                        .iter()
+                        .flat_map(|rs| rs.items())
+                        .filter(|r| {
+                            r.resolved
+                                .as_deref()
+                                .is_some_and(|p| p.eq_ignore_ascii_case(target))
+                        })
+                        .count()
+                        != 1
+                {
+                    return Err(invalid());
+                }
+                if suffix == "/vmlDrawing" {
+                    drawing = Some((rel.id.as_str(), target.as_str()));
+                }
+            }
+        }
+        let xml = self
+            .package
+            .read_xml(source.part().name())
+            .map_err(|_| invalid())?;
+        let mut reader = xml.reader();
+        let mut legacy = 0;
+        while let Some(event) = reader.next_event().map_err(|_| invalid())? {
+            if let crate::xml::XmlEvent::Start(e) = event
+                && e.name.is(MAIN_NAMESPACE, "legacyDrawing")
+            {
+                legacy += 1;
+                if drawing.is_none_or(|(id, _)| {
+                    e.attributes
+                        .iter()
+                        .find(|a| a.name.is(RELATIONSHIP_ATTRIBUTES, "id"))
+                        .map(|a| a.value.as_str())
+                        != Some(id)
+                }) {
+                    return Err(invalid());
+                }
+            }
+        }
+        if legacy != usize::from(drawing.is_some()) {
+            return Err(invalid());
+        }
+        let before = self.model().definitions().review_notes(sheet);
+        if let Some((_, drawing)) = drawing {
+            let xml = self.package.read_xml(drawing).map_err(|_| invalid())?;
+            crate::save::review::check_note_shapes(&xml, before, notes)
+        } else if before.iter().any(|n| {
+            !n.source
+                .as_ref()
+                .is_some_and(calc_doc_model::ReviewSource::threaded)
+        }) {
+            Err(invalid())
+        } else {
+            Ok(())
+        }
+    }
 }

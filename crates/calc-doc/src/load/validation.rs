@@ -114,3 +114,100 @@ pub(crate) fn read_x14(
     }
     Ok(validation)
 }
+/// Sorting can move only a complete standard range/formula record. Source attributes that
+/// affect prompts, entry methods and revision identity are preserved by the existing writer.
+pub fn movement_supported(rule: &Validation) -> bool {
+    if !matches!(rule.kind.as_str(), "whole" | "decimal" | "list" | "date" | "time" | "textLength" | "custom") || rule.formula1.is_none() {
+        return false;
+    }
+    let Some(source) = &rule.source else {
+        return true;
+    };
+    let xml = crate::xml::XmlPart::new(
+        "validation-movement.xml".into(),
+        source.to_vec(),
+        crate::xml::XmlLimits::default(),
+    );
+    let check = || -> Result<bool, LoadError> {
+        let mut events = Events::new(&xml);
+        let Some(XmlEvent::Start(root)) = events.next()? else {
+            return Ok(false);
+        };
+        if !root.name.is(MAIN_NAMESPACE, "dataValidation")
+            || root.attributes.iter().any(|a| {
+                !(a.name.namespace.is_none()
+                    && matches!(
+                        a.name.local.as_str(),
+                        "type"
+                            | "errorStyle"
+                            | "imeMode"
+                            | "operator"
+                            | "allowBlank"
+                            | "showDropDown"
+                            | "showInputMessage"
+                            | "showErrorMessage"
+                            | "errorTitle"
+                            | "error"
+                            | "promptTitle"
+                            | "prompt"
+                            | "sqref"
+                    ))
+                    && !a.name.is(
+                        "http://schemas.microsoft.com/office/spreadsheetml/2014/revision",
+                        "uid",
+                    )
+            })
+        {
+            return Ok(false);
+        }
+        let Some(scope) = root.attribute("sqref") else {
+            return Ok(false);
+        };
+        let parts = scope.split_whitespace().collect::<Vec<_>>();
+        if parts.is_empty()
+            || parts
+                .iter()
+                .any(|part| super::address::area(part).is_none())
+        {
+            return Ok(false);
+        }
+        let (mut one, mut two) = (false, false);
+        loop {
+            match events.next()? {
+                Some(XmlEvent::Start(e))
+                    if e.name.is(MAIN_NAMESPACE, "formula1")
+                        || e.name.is(MAIN_NAMESPACE, "formula2") =>
+                {
+                    if !e.attributes.is_empty() {
+                        return Ok(false);
+                    }
+                    let seen = if e.name.local == "formula1" {
+                        &mut one
+                    } else {
+                        &mut two
+                    };
+                    if *seen {
+                        return Ok(false);
+                    }
+                    *seen = true;
+                    // The source text differs after prior relocation. Presence and plain source
+                    // shape are checked here; the model owns the current formula.
+                    match events.next()? {
+                        Some(XmlEvent::Text(_)) => {}
+                        Some(XmlEvent::End(_)) => continue,
+                        _ => return Ok(false),
+                    };
+                    if !matches!(events.next()?, Some(XmlEvent::End(_))) {
+                        return Ok(false);
+                    }
+                }
+                Some(XmlEvent::Text(text)) if text.trim().is_empty() => {}
+                Some(XmlEvent::End(_)) => {
+                    return Ok(one == rule.formula1.is_some() && two == rule.formula2.is_some());
+                }
+                _ => return Ok(false),
+            }
+        }
+    };
+    check().unwrap_or(false)
+}

@@ -311,6 +311,11 @@ pub fn dispatch(
     let mut outline_layouts=host.model.definitions().axis_layouts().clone();
     let mut filter_areas=host.model.definitions().auto_filters().map(|(s,f)|(s,f.area)).collect::<std::collections::BTreeMap<_,_>>();
     for edit in &axis_edits {
+        if crate::review::has_sorted_imported_notes(host,edit.sheet()) {
+            return Err(CommandError::Document(EditError::SheetOperation("Row or column edits with sorted notes are not modelled (dc-971p.38); save and reopen first; nothing changed".into())));
+        }
+    }
+    for edit in &axis_edits {
         if host.loaded.sheet(edit.sheet()).is_some_and(|s|s.geometry().outline_unsupported) {return Err(CommandError::Document(EditError::SheetOperation("Structural edits of imported outline metadata are not modelled (dc-971p.39); nothing changed".into())));}
         let next_outlines=outline_layouts.moved(*edit);
         let next_groups=next_outlines.outline_groups(edit.sheet(),edit.axis());

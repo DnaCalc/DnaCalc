@@ -190,8 +190,11 @@ pub(crate) fn read_block(
 }
 
 fn read_rule(events: &mut Events<'_>, element: &XmlElement) -> Result<ConditionalRule, LoadError> {
+    let bad_priority=number::<u32>(element,"priority").is_none_or(|n|n==0);
+    let bad_unsigned=["dxfId","rank","stdDev"].iter().any(|key|element.attribute(key).is_some() && number::<u32>(element,key).is_none());
+    let bad_flags=["stopIfTrue","percent","bottom","aboveAverage","equalAverage"].iter().any(|key|element.attribute(key).is_some_and(|v|!matches!(v.trim(),"0"|"1"|"true"|"false")));
     let mut rule = ConditionalRule {
-        unread: element.attributes.iter().any(|a| {
+        unread: bad_priority || bad_unsigned || bad_flags || element.attributes.iter().any(|a| {
             a.name.namespace.is_some()
                 || !matches!(a.name.local.as_str(),
                     "type" | "priority" | "stopIfTrue" | "dxfId" | "operator" | "text"
@@ -262,7 +265,13 @@ fn read_rule(events: &mut Events<'_>, element: &XmlElement) -> Result<Conditiona
                 events.skip()?;
             }
             Some(XmlEvent::Text(_)) => {}
-            Some(XmlEvent::End(_)) => return Ok(rule),
+            Some(XmlEvent::End(_)) => {
+                if matches!(rule.kind.as_str(),"expression"|"cellIs") {
+                    let count=if rule.kind=="cellIs" && matches!(rule.operator.as_deref(),Some("between"|"notBetween")){2}else{1};
+                    rule.unread |= rule.formulas.len()!=count || rule.color_scale.is_some() || rule.data_bar.is_some() || rule.icon_set.is_some();
+                }
+                return Ok(rule);
+            },
             None => return Err(events.invalid("the part ends inside cfRule")),
         }
     }

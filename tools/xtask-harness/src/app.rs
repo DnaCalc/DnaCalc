@@ -1765,6 +1765,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 }
                 let parts = crate::oracle_cases::package_parts(&bytes)?;
                 if let Action::ValidationFixture(kind) = action {
+                    if *kind=="sort" {return fs::write(session.downloads.join("validation-sort.xlsx"),calc_cases::fixtures::sort_metadata(&bytes)?).map_err(|e|e.to_string());}
                     let name = "xl/worksheets/sheet1.xml";
                     let xml =
                         std::str::from_utf8(parts.get(name).ok_or("no validation worksheet")?)
@@ -3017,8 +3018,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 235,
-            "the two applications have 235 core cases including conditional colour filters, candidate validation, conditional formats, editable review content, validation audits and the existing editing routes"
+            total, 240,
+            "the two applications have 240 core cases including sorted notes/validation, conditional colour filters, candidate validation, conditional formats, editable review content, validation audits and the existing editing routes"
         );
     }
 

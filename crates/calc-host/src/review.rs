@@ -711,3 +711,32 @@ fn valid_id(id: &str) -> bool {
             }
         })
 }
+/// The document currently replays axis edits before note reconciliation. Until that replay
+/// records note-box permutations in order, do not let it act on an imported box's old row.
+pub(crate) fn has_sorted_imported_notes(host: &HostState, sheet: SheetId) -> bool {
+    host.model()
+        .definitions()
+        .review_notes(sheet)
+        .iter()
+        .any(|note| {
+            if !matches!(note.source, Some(ReviewSource::Note { .. })) {
+                return false;
+            }
+            let original = host
+                .loaded()
+                .model()
+                .definitions()
+                .review_notes(sheet)
+                .iter()
+                .find(|old| old.source == note.source);
+            let Some(old) = original else {
+                return true;
+            };
+            let expected = host
+                .axis_edits
+                .iter()
+                .filter(|e| e.sheet() == sheet)
+                .try_fold(old.at, |at, e| calc_doc_model::moved_cell(*e, at));
+            expected != Some(note.at)
+        })
+}

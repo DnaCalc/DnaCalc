@@ -826,7 +826,18 @@ pub(super) fn finish(
                 }
             })
             .collect::<BTreeSet<_>>();
-        if desired_positions != previous_positions {
+        let mut shape_moves=BTreeMap::new();
+        for old in base.definitions().review_notes(sheet.id()).iter().filter(|n|!n.source.as_ref().is_some_and(ReviewSource::threaded)) {
+            if let Some(new)=notes.iter().find(|n|identity_matches(old,n)) {
+                let (r,c)=(old.at.row(),old.at.column());
+                let origin=if let Some(m)=&moves[index]{m.area((r,c,r,c)).map(|a|(a.0,a.1))}else{Some((r,c))};
+                let Some(origin)=origin else {return Err(SaveRefusal::InvalidPart{part:sheet.part().name().into(),detail:"The original box of a moved note was deleted by an axis edit (dc-971p.38)".into()});};
+                if origin!=(new.at.row(),new.at.column()){shape_moves.insert(origin,(new.at.row(),new.at.column()));}
+            }
+        }
+        if !shape_moves.is_empty() && moves[index].is_some() {return Err(SaveRefusal::InvalidPart{part:sheet.part().name().into(),detail:"Note box permutations combined with row or column edits are not modelled (dc-971p.38); save and reopen between them".into()});}
+        let previous_positions=previous_positions.into_iter().map(|at|shape_moves.get(&at).copied().unwrap_or(at)).collect::<BTreeSet<_>>();
+        if desired_positions != previous_positions || !shape_moves.is_empty() {
             let removed = previous_positions
                 .difference(&desired_positions)
                 .copied()
@@ -837,6 +848,7 @@ pub(super) fn finish(
                 sheet.part().name(),
                 &notes,
                 &removed,
+                &shape_moves,
                 out,
             )?;
         }
@@ -849,12 +861,14 @@ fn finish_vml(
     sheet: &str,
     notes: &[&ReviewNote],
     removed: &BTreeSet<(u32, u32)>,
+    moves: &BTreeMap<(u32,u32),(u32,u32)>,
     out: &mut Changes,
 ) -> Result<(), SaveRefusal> {
     let name = related(package, sheet, "/vmlDrawing")
         .unwrap_or_else(|| new_part(package, out, workbook, "drawings", "vml"));
     let empty=b"<xml xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:x=\"urn:schemas-microsoft-com:office:excel\"></xml>";
     let xml = parts::current_part(package, out, &name, empty)?;
+    let xml=if moves.is_empty(){xml}else{let moved=move_note_shapes(&xml,moves)?;xml.with_bytes(moved)};
     let mut shape_sources =
         super::reader::element_sources(&xml, |e| e.name.is(VML, "shape"))?.into_iter();
     let mut reader = Reader::new(&xml);
@@ -998,5 +1012,324 @@ fn finish_vml(
             )?,
         );
     }
+    Ok(())
+}
+/// Coordinates and source text spans of an unambiguous legacy note shape. Keeping the source
+/// spans lets row permutations preserve the original box, identity and all other shape fields.
+struct NoteShape {
+    at: (u32, u32),
+    row: (usize, usize),
+    column: (usize, usize),
+    anchor: (usize, usize),
+    corners: [u32; 8],
+}
+fn note_definition_end(reader: &mut Reader<'_>) -> Result<(), SaveRefusal> {
+    let mut depth = 1usize;
+    while depth > 0 {
+        match reader.expect()?.0 {
+            XmlEvent::Start(e) => {
+                if e.name.is(VML, "shape")
+                    || e.name.is(VML, "group")
+                    || e.name.is(EXCEL, "ClientData")
+                    || e.name.is(EXCEL, "Row")
+                    || e.name.is(EXCEL, "Column")
+                    || e.name.is(EXCEL, "Anchor")
+                {
+                    return Err(
+                        reader.invalid("A note drawing definition contains a positional object")
+                    );
+                }
+                depth += 1;
+            }
+            XmlEvent::End(_) => depth -= 1,
+            XmlEvent::Text(_) => {}
+        }
+    }
+    Ok(())
+}
+fn note_shapes(xml: &XmlPart) -> Result<Vec<NoteShape>, SaveRefusal> {
+    let mut reader = Reader::new(xml);
+    let (XmlEvent::Start(root), _) = reader.expect()? else {
+        return Err(reader.invalid("Missing note drawing root"));
+    };
+    if root.name.local != "xml" || root.name.namespace.is_some() {
+        return Err(reader.invalid("Unsupported note drawing root"));
+    }
+    let mut shapes = Vec::new();
+    let mut ids = BTreeSet::new();
+    let mut positions = BTreeSet::new();
+    while let Some((event, _)) = reader.next()? {
+        match event {
+            XmlEvent::Start(e) if e.name.is(VML, "shapetype") => {
+                if !e
+                    .attribute("id")
+                    .is_some_and(|id| !id.is_empty() && ids.insert(id.to_ascii_lowercase()))
+                {
+                    return Err(reader.invalid("Note drawing identities are missing or repeated"));
+                }
+                note_definition_end(&mut reader)?;
+            }
+            XmlEvent::Start(e)
+                if e.name
+                    .is("urn:schemas-microsoft-com:office:office", "shapelayout") =>
+            {
+                note_definition_end(&mut reader)?;
+            }
+            XmlEvent::Start(e) if e.name.is(VML, "shape") => {
+                if !e
+                    .attribute("id")
+                    .is_some_and(|id| !id.is_empty() && ids.insert(id.to_ascii_lowercase()))
+                {
+                    return Err(reader.invalid("Note shape identities are missing or repeated"));
+                }
+                let mut depth = 1usize;
+                let (mut client, mut active_client, mut row, mut column, mut anchor) =
+                    (false, false, None, None, None);
+                while depth > 0 {
+                    let (event, _) = reader.expect()?;
+                    match event {
+                        XmlEvent::Start(e)
+                            if e.name.is(VML, "shape") || e.name.is(VML, "group") =>
+                        {
+                            return Err(
+                                reader.invalid("Nested positional note shapes are unavailable")
+                            );
+                        }
+                        XmlEvent::Start(e) if e.name.is(EXCEL, "ClientData") => {
+                            if depth != 1 || client || e.attribute("ObjectType") != Some("Note") {
+                                return Err(reader.invalid(
+                                    "The drawing contains a control or ambiguous note client data",
+                                ));
+                            }
+                            client = true;
+                            active_client = true;
+                            depth += 1;
+                        }
+                        XmlEvent::Start(e)
+                            if e.name.is(EXCEL, "Row")
+                                || e.name.is(EXCEL, "Column")
+                                || e.name.is(EXCEL, "Anchor") =>
+                        {
+                            if depth != 2 || !active_client {
+                                return Err(reader
+                                    .invalid("Note shape coordinates have an unsupported scope"));
+                            }
+                            let (XmlEvent::Text(text), text_span) = reader.expect()? else {
+                                return Err(
+                                    reader.invalid("A note shape coordinate is not plain text")
+                                );
+                            };
+                            let (XmlEvent::End(end), _) = reader.expect()? else {
+                                return Err(
+                                    reader.invalid("A note shape coordinate has nested content")
+                                );
+                            };
+                            if end != e.name {
+                                return Err(reader.invalid("A note shape coordinate is not closed"));
+                            }
+                            match e.name.local.as_str() {
+                                "Row" => {
+                                    let value = text
+                                        .trim()
+                                        .parse::<u32>()
+                                        .ok()
+                                        .filter(|n| *n < calc_doc_model::value::MAX_ROWS)
+                                        .ok_or_else(|| reader.invalid("Invalid note row"))?;
+                                    if row.replace((value + 1, text_span)).is_some() {
+                                        return Err(reader.invalid("Repeated note row"));
+                                    }
+                                }
+                                "Column" => {
+                                    let value = text
+                                        .trim()
+                                        .parse::<u32>()
+                                        .ok()
+                                        .filter(|n| *n < calc_doc_model::value::MAX_COLUMNS)
+                                        .ok_or_else(|| reader.invalid("Invalid note column"))?;
+                                    if column.replace((value + 1, text_span)).is_some() {
+                                        return Err(reader.invalid("Repeated note column"));
+                                    }
+                                }
+                                _ => {
+                                    let values = text
+                                        .split(',')
+                                        .map(|n| n.trim().parse::<u32>())
+                                        .collect::<Result<Vec<_>, _>>()
+                                        .map_err(|_| reader.invalid("Invalid note anchor"))?;
+                                    let corners: [u32; 8] = values.try_into().map_err(|_| {
+                                        reader.invalid("A note anchor needs eight coordinates")
+                                    })?;
+                                    if [0, 4]
+                                        .into_iter()
+                                        .any(|i| corners[i] >= calc_doc_model::value::MAX_COLUMNS)
+                                        || [2, 6]
+                                            .into_iter()
+                                            .any(|i| corners[i] >= calc_doc_model::value::MAX_ROWS)
+                                        || corners[0] > corners[4]
+                                        || corners[2] > corners[6]
+                                    {
+                                        return Err(
+                                            reader.invalid("The note box is outside the grid")
+                                        );
+                                    }
+                                    if anchor.replace((corners, text_span)).is_some() {
+                                        return Err(reader.invalid("Repeated note anchor"));
+                                    }
+                                }
+                            };
+                        }
+                        XmlEvent::Start(_) => depth += 1,
+                        XmlEvent::End(e) => {
+                            if depth == 2 && e.is(EXCEL, "ClientData") {
+                                active_client = false;
+                            }
+                            depth -= 1;
+                        }
+                        XmlEvent::Text(_) => {}
+                    }
+                }
+                let (Some((r, rs)), Some((c, cs)), Some((corners, span))) = (row, column, anchor)
+                else {
+                    return Err(
+                        reader.invalid("A note shape has no complete cell and box coordinates")
+                    );
+                };
+                if !positions.insert((r, c)) {
+                    return Err(reader.invalid("Repeated note drawing positions"));
+                }
+                shapes.push(NoteShape {
+                    at: (r, c),
+                    row: rs,
+                    column: cs,
+                    anchor: span,
+                    corners,
+                });
+            }
+            XmlEvent::Start(_) => {
+                return Err(
+                    reader.invalid("The drawing contains positional objects other than notes")
+                );
+            }
+            XmlEvent::End(_) => {
+                reader.end()?;
+                return Ok(shapes);
+            }
+            XmlEvent::Text(text) if !text.trim().is_empty() => {
+                return Err(reader.invalid("Unexpected text in the note drawing"));
+            }
+            _ => {}
+        }
+    }
+    Err(reader.invalid("The note drawing is not closed"))
+}
+fn move_note_shapes(
+    xml: &XmlPart,
+    moves: &BTreeMap<(u32, u32), (u32, u32)>,
+) -> Result<Vec<u8>, SaveRefusal> {
+    let shapes = note_shapes(xml)?;
+    let mut found = BTreeSet::new();
+    let mut destinations = BTreeSet::new();
+    for shape in &shapes {
+        if !destinations.insert(moves.get(&shape.at).copied().unwrap_or(shape.at)) {
+            return Err(SaveRefusal::InvalidPart {
+                part: xml.name().into(),
+                detail: "Moving note boxes would duplicate a drawing position (dc-971p.38)".into(),
+            });
+        }
+    }
+    let mut replacements = Vec::new();
+    for shape in shapes {
+        let Some(&(row, column)) = moves.get(&shape.at) else {
+            continue;
+        };
+        found.insert(shape.at);
+        let delta_row = i64::from(row) - i64::from(shape.at.0);
+        let delta_col = i64::from(column) - i64::from(shape.at.1);
+        let mut corners = shape.corners;
+        for index in [0, 2, 4, 6] {
+            let value = i64::from(corners[index])
+                + if index == 0 || index == 4 {
+                    delta_col
+                } else {
+                    delta_row
+                };
+            let limit = if index == 0 || index == 4 {
+                calc_doc_model::value::MAX_COLUMNS
+            } else {
+                calc_doc_model::value::MAX_ROWS
+            };
+            if value < 0 || value >= i64::from(limit) {
+                return Err(SaveRefusal::InvalidPart {
+                    part: xml.name().into(),
+                    detail:
+                        "Moving the original note box outside the grid is unavailable (dc-971p.38)"
+                            .into(),
+                });
+            }
+            corners[index] = value as u32;
+        }
+        if row != shape.at.0 {
+            replacements.push((shape.row, (row - 1).to_string().into_bytes()));
+        }
+        if column != shape.at.1 {
+            replacements.push((shape.column, (column - 1).to_string().into_bytes()));
+        }
+        if corners != shape.corners {
+            replacements.push((
+                shape.anchor,
+                corners
+                    .iter()
+                    .map(u32::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+                    .into_bytes(),
+            ));
+        }
+    }
+    if moves.keys().any(|at| !found.contains(at)) {
+        return Err(SaveRefusal::InvalidPart{part:xml.name().into(),detail:"An original note box is unavailable; sorting cannot replace it with a default (dc-971p.38)".into()});
+    }
+    // VML ClientData fields may appear in any source order. Splice consumes source bytes
+    // monotonically, so order all replacements by byte position after validating every shape.
+    replacements.sort_by_key(|(range, _)| range.0);
+    let mut splice = Splice::new(xml.bytes());
+    for (range, bytes) in replacements {
+        splice.replace(range, &bytes);
+    }
+    Ok(splice.finish())
+}
+pub(crate) fn check_note_shapes(
+    xml: &XmlPart,
+    before: &[ReviewNote],
+    after: &[ReviewNote],
+) -> Result<(), SaveRefusal> {
+    let shapes = note_shapes(xml)?;
+    let originals = before
+        .iter()
+        .filter(|n| !n.source.as_ref().is_some_and(ReviewSource::threaded))
+        .collect::<Vec<_>>();
+    let positions = originals
+        .iter()
+        .map(|n| (n.at.row(), n.at.column()))
+        .collect::<BTreeSet<_>>();
+    if positions.len() != originals.len() || positions != shapes.iter().map(|s| s.at).collect() {
+        return Err(SaveRefusal::InvalidPart {
+            part: xml.name().into(),
+            detail: "Original notes and their boxes do not have one complete identity (dc-971p.38)"
+                .into(),
+        });
+    }
+    let mut moves = BTreeMap::new();
+    for old in originals {
+        if let Some(new) = after.iter().find(|n| identity_matches(old, n))
+            && old.at != new.at
+        {
+            moves.insert(
+                (old.at.row(), old.at.column()),
+                (new.at.row(), new.at.column()),
+            );
+        }
+    }
+    move_note_shapes(xml, &moves)?;
     Ok(())
 }

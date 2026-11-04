@@ -8142,6 +8142,39 @@ Case {
             Check::Style("[data-dnacalc=cell-decoration][data-cell=E2]", "background-color:#86c97e")],
     },
 
+    Case {
+        name:"sort metadata: row formulas validation and authored notes move together",
+        actions:&[
+            Action::Window(1440,1000),Action::ValidationFixture("sort"),Action::UploadDownload("validation-sort.xlsx"),Action::DiscardReplacement,
+            Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),Action::Wait(Check::PlanCell("C5","text","2")),
+            Action::Into("name-box","B2\u{E007}"),Action::Wait(Check::ActiveSemantic("B2")),Action::Click("review-tools"),Action::Click("note-new"),Action::Wait(Check::Focused("note-text")),Action::Into("note-author","Row author"),Action::Into("note-text","Three 🧬"),Action::Click("note-save"),Action::Wait(Check::TextContains("review-note","Three 🧬")),Action::Click("review-close"),
+            Action::Into("name-box","B3\u{E007}"),Action::Wait(Check::ActiveSemantic("B3")),Action::Click("review-tools"),Action::Click("note-new"),Action::Wait(Check::Focused("note-text")),Action::Into("note-author","Row author"),Action::Into("note-text","One note"),Action::Click("note-save"),Action::Wait(Check::TextContains("review-note","One note")),Action::Click("review-close"),
+            Action::Into("name-box","A1:C5\u{E007}"),Action::Wait(Check::ActiveSemantic("A1")),Action::OpenDetails("sort-tools"),Action::Click("sort-ascending"),Action::Wait(Check::TextContains("status","Sorted")),
+            Action::Into("name-box","B5\u{E007}"),Action::Wait(Check::ActiveSemantic("B5")),Action::Click("review-tools"),
+        ],
+        checks:&[Check::TextContains("review-note","Three 🧬"),Check::TextContains("review-validation","custom"),Check::TextContains("validation-prompt","Row rule"),Check::PlanCell("B2","text","one"),Check::PlanCell("B3","text","one second"),Check::PlanCell("C5","text","6"),Check::PlanCell("C5","formula","true"),Check::PlanCell("C5","provenance","calculated")],
+    },
+    Case {
+        name:"sort metadata: Undo and Redo restore the note and validation origins",
+        actions:&[Action::Click("review-close"),Action::Click("undo"),Action::Wait(Check::PlanCell("B2","text","three")),Action::Into("name-box","B2\u{E007}"),Action::Wait(Check::ActiveSemantic("B2")),Action::Click("review-tools"),Action::Wait(Check::TextContains("review-note","Three 🧬")),Action::Wait(Check::TextContains("review-validation","custom")),Action::Click("review-close"),Action::Click("redo"),Action::Wait(Check::PlanCell("B5","text","three")),Action::Into("name-box","B2\u{E007}"),Action::Wait(Check::ActiveSemantic("B2")),Action::Click("review-tools")],
+        checks:&[Check::TextContains("review-note","One note"),Check::Absent("review-validation"),Check::Absent("validation-prompt"),Check::PlanCell("C2","text","2")],
+    },
+    Case {
+        name:"sort metadata: imported notes and rules can sort again after real XLSX reopening",
+        actions:&[Action::Click("review-close"),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("validation-sort.xlsx"),Action::DiscardReplacement,Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),Action::Into("name-box","A1:C5\u{E007}"),Action::Wait(Check::ActiveSemantic("A1")),Action::OpenDetails("sort-tools"),Action::Click("sort-descending"),Action::Wait(Check::TextContains("status","Sorted")),Action::Into("name-box","B2\u{E007}"),Action::Wait(Check::ActiveSemantic("B2")),Action::Click("review-tools")],
+        checks:&[Check::TextContains("review-note","Three 🧬"),Check::TextContains("review-validation","custom"),Check::TextContains("validation-prompt","Row rule"),Check::PlanCell("C2","text","6"),Check::PlanCell("C2","formula","true"),Check::PlanCell("B4","text","one"),Check::PlanCell("B5","text","one second")],
+    },
+    Case {
+        name:"sort metadata: the moved custom rule still rejects the proposed entry",
+        actions:&[Action::Click("review-close"),Action::Into(BAR,"wrong\u{E007}"),Action::Wait(Check::Rendered("validation-dialog",true)),Action::Wait(Check::TextContains("validation-message","Keep the row payload")),Action::Click("validation-cancel"),Action::Wait(Check::Absent("[data-dnacalc=validation-dialog][open]")),Action::Click("review-tools")],
+        checks:&[Check::TextContains("review-note","Three 🧬"),Check::PlanCell("B2","text","three"),Check::PlanCell("C2","text","6"),Check::TextContains("validation-prompt","Row rule")],
+    },
+    Case {
+        name:"sort metadata: an independently moved note is retained on a narrow saved sheet",
+        actions:&[Action::Click("review-close"),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("validation-sort.xlsx"),Action::DiscardReplacement,Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),Action::Window(390,844),Action::Into("name-box","B4\u{E007}"),Action::Wait(Check::ActiveSemantic("B4")),Action::Click("review-tools")],
+        checks:&[Check::TextContains("review-note","One note"),Check::Absent("review-validation"),Check::Fits,Check::Narrow(390),Check::Reachable("review-close"),Check::PlanCell("C4","text","2")],
+    },
+
 ];
 
 /// The script that reads what one check looks at.
@@ -8975,4 +9008,5 @@ CaseGroup {
     CaseGroup {name:"font-variants",start:628,end:634,core:6,setup:&[]},
     CaseGroup {name:"stacked-fitting",start:634,end:640,core:6,setup:&[]},
     CaseGroup { name: "conditional-colour-filters", start: 640, end: 646, core: 6, setup: &[] },
+    CaseGroup {name:"sort-metadata",start:646,end:651,core:5,setup:&[]},
 ];
