@@ -581,20 +581,19 @@ fn binomial_mass_uses_the_internal_normalization_logarithm() {
     }
 }
 
-/// Recorded tiny ERF answers retain constraints for a future program search.
+/// Recorded tiny ERF answers: the stored-product route below 2^-27 (dc-j9k.6) reproduces them.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn tiny_erf_records_known_gaps() {
-    for (input, expected, calculated) in [
-        (0x3d70_5e80_0000_0000, 0x3d72_7879_0ff4_a4d4, 0x3d7278790ff4a4d3),
-        (0x3d73_5c29_021a_4811, 0x3d75_d86d_8b33_b7f4, 0x3d75d86d8b33b7f3),
+fn tiny_erf_matches_recorded_answers() {
+    for (input, expected) in [
+        (0x3d70_5e80_0000_0000, 0x3d72_7879_0ff4_a4d4),
+        (0x3d73_5c29_021a_4811, 0x3d75_d86d_8b33_b7f4),
     ] {
-        recorded_calculation(call("ERF.PRECISE", vec![n(f64::from_bits(input))]), f64::from_bits(expected), f64::from_bits(calculated));
-        recorded_calculation(call("ERF", vec![n(f64::from_bits(input))]), f64::from_bits(expected), f64::from_bits(calculated));
+        exact(call("ERF.PRECISE", vec![n(f64::from_bits(input))]), f64::from_bits(expected));
+        exact(call("ERF", vec![n(f64::from_bits(input))]), f64::from_bits(expected));
     }
     // gauss-discovery-00059: the tiny wrapper uses the same ERF calculation.
-    recorded_calculation(call("GAUSS", vec![n(f64::from_bits(0x005f_e189_b32b_8147))]),
-        f64::from_bits(0x0049_6ff7_0f27_3fff), f64::from_bits(0x00496ff70f273ffe));
+    exact(call("GAUSS", vec![n(f64::from_bits(0x005f_e189_b32b_8147))]), f64::from_bits(0x0049_6ff7_0f27_3fff));
 }
 
 /// Recorded b17-s20-03582 and b16-g25-01840 retain their original answers.

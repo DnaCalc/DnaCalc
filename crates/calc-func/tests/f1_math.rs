@@ -249,3 +249,55 @@ fn fn1_ecma_ceiling_matches_the_recorded_controls() {
     }
     error(call("ECMA.CEILING", vec![n(4.3), n(-2.0)]), Num);
 }
+
+/// Recorded Excel answers (build 20430, OxFunc-Evidence scalar bank) for the rounding family's
+/// digit-count, fifteen-digit reading, ROUNDUP assembly and MROUND half rules. Each row is
+/// `(function, number bits, digits bits, Excel's answer bits)`; `None` stands for #NUM!.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn rounding_family_matches_recorded_bank_rows() {
+    #[rustfmt::skip]
+    let rows: &[(&str, u64, u64, Option<u64>)] = &[
+        // ROUND keeps digits + exponent + 1 significant digits in 32-bit arithmetic: a sum
+        // that wraps below the 32-bit range keeps fifteen digits, one above it keeps none.
+        ("ROUND", 0x9233_cf3f_bcba_bd40, 0xc1df_ffff_d60e_432a, Some(0x9233_cf3f_bcba_bd3c)),
+        ("ROUND", 0xc2d9_945c_a262_0000, 0x41df_ffff_fcc0_0000, Some(0)),
+        // A 16-digit tie read on the x87 unit at 64-bit precision: ROUND drops it.
+        ("ROUND", 0xc316_a939_8069_56e4, 0x402c_0000_0000_0000, Some(0xc316_a939_8069_56d0)),
+        // ROUNDDOWN keeps it.
+        ("ROUNDDOWN", 0x42f0_168e_a699_71b8, 0, Some(0x42f0_168e_a699_71c0)),
+        // The directed functions read num_digits as 16 bits of its magnitude below 2^32; a
+        // magnitude with the 16-bit sign bit set, or 2^32 or more, counts as 100 places.
+        ("ROUNDDOWN", 0x2b31_482f_e620_c5cf, 0x40e0_0000_0000_0000, Some(0x2b2b_ff2e_e48e_0530)),
+        ("ROUNDDOWN", 0x2b9b_00ca_d793_3513, 0x40ef_ffe0_0000_0000, Some(0x2b9a_e737_0fa0_78fc)),
+        ("ROUNDDOWN", 0xd4b2_d135_2447_6f3a, 0xc1df_ffff_c600_0000, Some(0xd4b2_49ad_2594_c37d)),
+        // ROUNDUP adds no unit for such a positive count and has none to add for a negative one.
+        ("ROUNDUP", 0x270b_bc24_37e4_5a41, 0x41df_ffff_afc0_0000, Some(0)),
+        // -2147483748 is 100 below 2^31 in its low 16 bits: ROUNDUP to 1E+100.
+        ("ROUNDUP", 0x166e_3d71_f622_be8f, 0xc1e0_0000_0c80_0000, Some(0x54b2_49ad_2594_c37d)),
+        // ROUNDUP is the ROUNDDOWN result plus one unit, added in binary64.
+        ("ROUNDUP", 0xbff2_0000_0000_0000, 0x4000_0000_0000_0000, Some(0xbff2_147a_e147_ae15)),
+        ("ROUNDUP", 0x400c_47ae_147a_e148, 0x4000_0000_0000_0000, Some(0x400c_51eb_851e_b851)),
+        // MROUND counts a quotient within 5E-15 below a half up.
+        ("MROUND", 0x4037_7fff_ffff_ffff, 0x3ff0_0000_0000_0000, Some(0x4038_0000_0000_0000)),
+        ("MROUND", 0xbfa9_9999_9999_9978, 0xbfb9_9999_9999_999a, Some(0xbfb9_9999_9999_999a)),
+        ("MROUND", 0x2431_da05_80b5_7755, 0x20fc_dcb2_1a5b_96d6, Some(0x2431_da05_80b5_7756)),
+    ];
+    for &(function, number, digits, expected) in rows {
+        let result = call(
+            function,
+            vec![n(f64::from_bits(number)), n(f64::from_bits(digits))],
+        );
+        match expected {
+            Some(bits) => exact(result, f64::from_bits(bits)),
+            None => error(result, Num),
+        }
+    }
+    // MROUND(6.05,0.1) stays 6, the quotient 60.49999999999999 lying 7E-15 below the half.
+    exact(call("MROUND", vec![n(6.05), n(0.1)]), 6.0);
+    exact(call("ROUND", vec![n(1.5), n(2_147_483_647.0)]), 0.0);
+    exact(call("ROUND", vec![n(1.5), n(2_147_483_646.0)]), 1.5);
+    exact(call("TRUNC", vec![n(1.5), n(1e300)]), 1.5);
+    exact(call("ROUNDUP", vec![n(1.5), n(1e300)]), 1.5);
+    error(call("ROUNDUP", vec![n(1.5), n(-1e300)]), Num);
+}

@@ -180,6 +180,33 @@ impl Natural {
         (self.limbs[at / 32] >> (at % 32)) & 1 == 1
     }
 
+    /// 2^exponent.
+    fn pow2(exponent: u32) -> Self {
+        let mut power = Natural::from_u64(1);
+        power.times_pow2(exponent);
+        power
+    }
+
+    fn from_u128(value: u128) -> Self {
+        let mut natural = Natural {
+            limbs: (0..4)
+                .map(|at| low32((value >> (32 * at)) as u64))
+                .collect(),
+        };
+        natural.normalize();
+        natural
+    }
+
+    /// The value when it is below 2^128.
+    fn to_u128(&self) -> Option<u128> {
+        (self.limbs.len() <= 4).then(|| {
+            self.limbs
+                .iter()
+                .rev()
+                .fold(0u128, |value, &limb| (value << 32) | u128::from(limb))
+        })
+    }
+
     /// self * 2 + incoming.
     fn shift_in(&mut self, incoming: bool) {
         self.mul_add_small(2, u32::from(incoming));
@@ -333,6 +360,103 @@ impl ExactDecimal {
         }
     }
 
+    /// 1 * 10^exponent.
+    pub(crate) fn unit(exponent: i32) -> ExactDecimal {
+        ExactDecimal {
+            negative: false,
+            coefficient: Natural::from_u64(1),
+            exponent,
+        }
+    }
+
+    /// The decimal exponent of a non-zero decimal: the e with 10^e <= |self| < 10^(e+1).
+    pub(crate) fn magnitude(&self) -> i32 {
+        let length = i32::try_from(self.coefficient.digits().len()).expect("a digit count");
+        length - 1 + self.exponent
+    }
+
+    /// How ROUND (`ties_up` false) and ROUNDUP, ROUNDDOWN and TRUNC (`ties_up` true) read a
+    /// finite non-zero number to fifteen significant digits, where the scaling is exact on the
+    /// x87 unit: |x| scaled by 10^n, n = 14 - e for the decimal exponent e of |x|, is rounded
+    /// once to 64 significant bits (the x87 unit at 64-bit precision; 10^|n| is exact there for
+    /// |n| <= 27), and that value is rounded to an integer, a half up for the directed functions
+    /// and down for ROUND. So ROUND(1594628480062905,14) is 1594628480062900 and
+    /// ROUNDDOWN(283025097725723.5,0) is 283025097725724, as Excel gives them, and
+    /// ROUNDDOWN(53311.02038735315,10), whose 10^10 multiple lies 0.2 * 2^-64 below a half,
+    /// reads the half. `None` when |n| > 27: how Excel scales by a larger power is not known.
+    pub(crate) fn fifteen_x87(x: f64, ties_up: bool) -> Option<ExactDecimal> {
+        let shift = 14 - ExactDecimal::binary(x).magnitude();
+        if shift.abs() > 27 {
+            return None;
+        }
+        let bits = x.abs().to_bits();
+        let biased = i32::try_from((bits >> 52) & 0x7FF).expect("an 11-bit exponent");
+        let fraction_bits = bits & ((1u64 << 52) - 1);
+        let (mantissa, exponent) = if biased == 0 {
+            (fraction_bits, -1074)
+        } else {
+            (fraction_bits | (1u64 << 52), biased - 1075)
+        };
+        let mut numerator = Natural::from_u64(mantissa);
+        let mut denominator = Natural::from_u64(1);
+        if shift >= 0 {
+            numerator.times_pow10(shift.unsigned_abs());
+        } else {
+            denominator = Natural::pow10(shift.unsigned_abs());
+        }
+        // The scaled value rounded to 64 bits: kept * 2^power.
+        let (kept, power) = round_to_64_bits(&numerator, exponent, &denominator);
+        let whole = if power >= 0 {
+            let mut whole = Natural::from_u128(kept);
+            whole.times_pow2(power.unsigned_abs());
+            whole
+        } else {
+            let drop = power.unsigned_abs();
+            let (whole, rest) = if drop >= 128 {
+                (0, kept)
+            } else {
+                (kept >> drop, kept - ((kept >> drop) << drop))
+            };
+            let half = if drop > 128 {
+                u128::MAX
+            } else {
+                1u128 << (drop - 1)
+            };
+            let up = rest > half || (rest == half && ties_up);
+            Natural::from_u128(whole + u128::from(up))
+        };
+        Some(
+            ExactDecimal {
+                negative: x < 0.0,
+                coefficient: whole,
+                exponent: -shift,
+            }
+            .normalized(),
+        )
+    }
+
+    /// The same value with no trailing zero in its coefficient.
+    pub(crate) fn normalized(mut self) -> ExactDecimal {
+        while !self.coefficient.is_zero() {
+            let mut shorter = self.coefficient.clone();
+            if shorter.div_small(10) != 0 {
+                break;
+            }
+            self.coefficient = shorter;
+            self.exponent += 1;
+        }
+        self
+    }
+
+    /// Whether this decimal is exactly the value of the finite binary64 `x`.
+    pub(crate) fn is_value_of(&self, x: f64) -> bool {
+        let this = self.clone().normalized();
+        let that = ExactDecimal::binary(x).normalized();
+        this.coefficient == that.coefficient
+            && (this.coefficient.is_zero()
+                || (this.exponent == that.exponent && this.negative == that.negative))
+    }
+
     /// The exact value of a finite binary64, whatever decimal it shows. Zero of either sign is +0.
     pub(crate) fn binary(x: f64) -> ExactDecimal {
         let negative = x < 0.0;
@@ -409,6 +533,34 @@ impl ExactDecimal {
             exponent: position,
         })
     }
+}
+
+/// numerator * 2^exponent / denominator rounded to 64 significant bits, to the nearest and a
+/// tie to even, as `(kept, power)` with the value kept * 2^power and kept below 2^64.
+fn round_to_64_bits(numerator: &Natural, exponent: i32, denominator: &Natural) -> (u128, i32) {
+    // Scale so the integer quotient has at least 66 bits.
+    let scale = (66 + denominator.bit_len()).saturating_sub(numerator.bit_len());
+    let mut scaled = numerator.clone();
+    scaled.times_pow2(u32::try_from(scale).expect("a bit count"));
+    let (quotient, remainder) = scaled.div_rem(denominator);
+    let drop = u32::try_from(quotient.bit_len() - 64).expect("a bit count");
+    let (high, low) = quotient.div_rem(&Natural::pow2(drop));
+    let mut kept = high.to_u128().expect("64 bits");
+    let up = match low.cmp(&Natural::pow2(drop - 1)) {
+        Ordering::Greater => true,
+        Ordering::Less => false,
+        Ordering::Equal => !remainder.is_zero() || kept & 1 == 1,
+    };
+    let mut power = exponent - i32::try_from(scale).expect("a bit count")
+        + i32::try_from(drop).expect("a bit count");
+    if up {
+        kept += 1;
+        if kept == 1u128 << 64 {
+            kept >>= 1;
+            power += 1;
+        }
+    }
+    (kept, power)
 }
 
 /// The integer part of a binary64, toward zero, found from its bits: exact on every target.
