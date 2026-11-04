@@ -127,15 +127,14 @@ fn pow_direct<F: Fpu>(base: f64, exponent: f64) -> f64 {
     F::store(&pow2::<F>(&t), CW)
 }
 
-/// GEOMEAN's root: the binary64 product, then `2^(log2(product) / n)` in extended precision.
-pub(crate) fn excel_root_x87(values: &[f64]) -> f64 {
-    root::<Native>(values)
+/// GEOMEAN's current root reconstruction from its caller's stored product.
+pub(crate) fn excel_root_x87(product: f64, count: usize) -> f64 {
+    root::<Native>(product, count)
 }
 
-fn root<F: Fpu>(values: &[f64]) -> f64 {
-    let product: f64 = values.iter().product();
+fn root<F: Fpu>(product: f64, count: usize) -> f64 {
     let log2 = F::fyl2x(&ext_one(), &load(product), CW);
-    let t = F::div(&log2, &load(values.len() as f64), CW);
+    let t = F::div(&log2, &load(count as f64), CW);
     F::store(&pow2::<F>(&t), CW)
 }
 
@@ -165,7 +164,7 @@ mod tests {
         assert_eq!(log_with::<Soft>(core::f64::consts::E, &ext_ln2()), 1.0);
         assert_eq!(log_with::<Soft>(1000.0, &ext_lg2()), 3.0);
         assert_eq!(pow_direct::<Soft>(2.0, 10.0), 1024.0);
-        assert_eq!(root::<Soft>(&[2.0, 8.0]), 4.0);
+        assert_eq!(root::<Soft>(16.0, 2), 4.0);
         assert!(exp_with::<Soft>(1.5, CW_RZ) <= exp_with::<Soft>(1.5, CW));
     }
 }
