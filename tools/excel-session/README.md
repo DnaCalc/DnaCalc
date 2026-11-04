@@ -32,6 +32,12 @@ Differences are reported as leakage observations, never used to change an answer
 can differ legitimately. The fresh repeat's clean process is kept for later jobs. Receipts count
 all launch attempts, including fresh repeats and recovery; launch records survive host restarts.
 
+The exact current capture worker also reuses one hash-verified script copy within the host.
+This avoids PowerShell retaining a separately parsed copy for every workbook. Other scripts and
+unknown worker versions keep their submitted paths. Receipts retain the submitted and executed
+paths and hashes; a modified cached copy refuses execution. Every workbook still receives the
+same baseline checks and its own unchanged request, raw result and saved package.
+
 Ownership requires a new Excel PID absent from the prelaunch list, its start time and Excel image.
 PID 3144 and `/restore` processes are refused. Cleanup checks that exact tuple. Only the host's
 serialized deadline may stop an active job and its owned Excel. A client can cancel its own

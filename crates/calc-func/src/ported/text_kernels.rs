@@ -480,6 +480,11 @@ fn adjacent_letter(chars: &[char], index: usize, offset: isize) -> bool {
 }
 
 fn push_lower(out: &mut String, ch: char, is_final_sigma: bool) {
+    // The delivered fn3 LOWER/PROPER readings preserve supplementary pairs.
+    if ch as u32 > 0xFFFF {
+        out.push(ch);
+        return;
+    }
     match ch {
         'İ' => out.push('i'),
         'ẞ' => out.push('ẞ'),
@@ -523,13 +528,15 @@ pub(crate) fn proper(text: &ExcelText) -> ExcelText {
     let mut out = String::new();
     let mut start_of_word = true;
     for (index, ch) in chars.iter().copied().enumerate() {
-        if ch.is_alphabetic() {
+        // PROPER treats a supplementary pair as a word boundary (fn3-proper-002).
+        if ch as u32 <= 0xFFFF && ch.is_alphabetic() {
             if start_of_word {
                 push_upper(&mut out, ch);
             } else {
                 let is_final_sigma = ch == 'Σ'
                     && adjacent_letter(&chars, index, -1)
-                    && !adjacent_letter(&chars, index, 1);
+                    && !chars.get(index + 1).is_some_and(|&next|
+                        next.is_alphabetic() || calc_value::is_combining_mark(next));
                 push_lower(&mut out, ch, is_final_sigma);
             }
             start_of_word = false;

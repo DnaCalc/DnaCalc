@@ -10,6 +10,8 @@ foreach ($name in 'queue','running','completed','launches') { [void][IO.Director
 $lock = [IO.File]::Open((Join-Path $root 'host.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
 $script:hostSource=[IO.File]::ReadAllBytes($PSCommandPath)
 $script:hostSha=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($script:hostSource)).ToLowerInvariant()
+$captureWorker=Join-Path $PSScriptRoot '../../platform/calc-oracle-excel/worker/capture-worker.ps1'
+$script:captureWorkerSha=(Get-FileHash -LiteralPath $captureWorker).Hash.ToLowerInvariant()
 $script:app = $null
 $script:owned = $null
 $script:baseline = $null
@@ -91,7 +93,9 @@ function Status($Job = $script:activeJob) {
     Write-Json (Join-Path $root 'host.json') ([ordered]@{host_pid=$PID;host_start_ticks=$hostTicks;excel=$script:owned;launches=$script:launches;sequence=$script:sequence;ordinary_sequence=$script:ordinarySequence;active_job=$Job;environment=$script:environment;preserve_automation_security=$global:DnaExcelSessionState.PreserveAutomationSecurity})
 }
 function Read-Property($Object, [string]$Name) {
-    $Object.GetType().InvokeMember($Name, [Reflection.BindingFlags]::GetProperty, $null, $Object, $null)
+    # Resolving a COM object's runtime type repeatedly asks for its type information.
+    # Use the same throwing dispatch reader as the capture worker.
+    [System.__ComObject].InvokeMember($Name, [Reflection.BindingFlags]::GetProperty, $null, $Object, $null)
 }
 function Snapshot {
     $a = $global:DnaExcelSessionState.App
@@ -220,19 +224,32 @@ function Run-Script($Job, [string]$Directory, [switch]$Repeat) {
         else { throw 'Leakage sampling needs Request/Result or RunDirectory parameters.' }
     }
     $parameters['OwnedExcel']=$script:app
+    $executionScript=$Job.script
+    $executionHash=(Get-FileHash -LiteralPath $Job.script).Hash.ToLowerInvariant()
+    if ([IO.Path]::GetFileName($Job.script) -ceq 'capture-worker.ps1' -and $executionHash -ceq $script:captureWorkerSha) {
+        # This worker uses absolute request paths and no script-relative resources.
+        # One immutable path avoids retaining another parsed copy for every workbook.
+        $cache=Join-Path $root ('worker-scripts/'+$executionHash)
+        [void][IO.Directory]::CreateDirectory($cache)
+        $executionScript=Join-Path $cache 'capture-worker.ps1'
+        if (-not(Test-Path -LiteralPath $executionScript)) { Copy-Item -LiteralPath $Job.script -Destination $executionScript }
+        if ((Get-FileHash -LiteralPath $executionScript).Hash.ToLowerInvariant() -cne $executionHash) {
+            throw 'Cached capture worker differs from the submitted script; execution refused.'
+        }
+    }
     Push-Location $Job.working_directory
-    try { & $Job.script @parameters *> (Join-Path $Directory 'worker.log') } finally { Pop-Location }
+    try { & $executionScript @parameters *> (Join-Path $Directory 'worker.log') } finally { Pop-Location }
     if ($parameters.ContainsKey('Result')) {
         $result=Get-Content -LiteralPath $parameters.Result -Raw -Encoding utf8|ConvertFrom-Json
         if ($result.PSObject.Properties['fatal'] -and $result.fatal) { throw $result.fatal }
-        return @{result=$parameters.Result;data=$result;eligible=($null -ne $result.PSObject.Properties['rows'] -or $null -ne $result.PSObject.Properties['cells'])}
+        return @{result=$parameters.Result;data=$result;eligible=($null -ne $result.PSObject.Properties['rows'] -or $null -ne $result.PSObject.Properties['cells']);execution_script=$executionScript;execution_script_sha256=$executionHash}
     }
     if ($parameters.ContainsKey('RunDirectory')) {
         $controller=Join-Path $parameters.RunDirectory 'controller.jsonl'
         $values=@(Read-TraceObservations $controller)
-        return @{result=$controller;data=@{trace_values=$values};eligible=($values.Count -gt 0)}
+        return @{result=$controller;data=@{trace_values=$values};eligible=($values.Count -gt 0);execution_script=$executionScript;execution_script_sha256=$executionHash}
     }
-    return @{result=$null;data=$null;eligible=$false}
+    return @{result=$null;data=$null;eligible=$false;execution_script=$executionScript;execution_script_sha256=$executionHash}
 }
 function Comparable($Run) {
     if (-not $Run.data) { return $null }
@@ -298,6 +315,8 @@ try {
             $script:environment=$job.environment
             Status $job.id
             $run=Run-Script $job $directory
+            $receipt['execution_script']=$run.execution_script
+            $receipt['execution_script_sha256']=$run.execution_script_sha256
             if ($run.result) { $receipt['result_sha256']=(Get-FileHash -LiteralPath $run.result).Hash.ToLowerInvariant() }
             $receipt['observed_after_job']=Snapshot
             $receipt.baseline_after=Reset-Baseline

@@ -4607,8 +4607,8 @@
   {
    "path": "crates/calc-value/src/combining_marks.rs",
    "class": "permissive-third-party",
-   "reason": "Unicode 15.0 Mn/Mc property ranges moved unchanged from calc-fml/src/syntax/combining_marks.rs; one shared table for the lexer and text casing. Unicode notice: deploy/notices/ported.txt.",
-   "parts": [{"class": "permissive-third-party", "source": "unicode", "what": "Unicode combining-mark ranges generated from Unicode 15.0 data", "shipped": "yes"}]
+   "reason": "Unicode 15.0 Mn/Mc property ranges moved unchanged from calc-fml/src/syntax/combining_marks.rs; shared by lexer and text casing. Extended with Mn/Pc ranges generated from local Python Unicode 15.1 metadata for measured regex word membership (dc-b1l.31). Unicode notice: deploy/notices/ported.txt.",
+   "parts": [{"class": "permissive-third-party", "source": "unicode", "what": "Unicode combining-mark ranges generated from Unicode 15.0 data, plus Unicode 15.1 Mn/Pc property ranges", "shipped": "yes"}]
   },
   {
    "path": "crates/calc-value/src/grid.rs",
@@ -4905,6 +4905,9 @@
    "path": "crates/calc-func/tests/witnesses/MATCH.json",
    "class": "own-work",
    "reason": "Existing Excel measurements selected through cargo xtask witness pin; captured origin retained, no recorded answers changed (dc-ymjf.2.1)"
-  }
+  },
+  {"path": "crates/calc-func/tests/captures/fn3_questions/LOWER.reading.json", "class": "own-work", "reason": "Raw scalar values and argument read-back audits measured by the existing Excel witness worker; delivered fn3 evidence, unchanged."},
+  {"path": "crates/calc-func/tests/captures/fn3_questions/PROPER.reading.json", "class": "own-work", "reason": "Raw scalar values and argument read-back audits measured by the existing Excel witness worker; delivered fn3 evidence, unchanged."},
+  {"path": "crates/calc-func/tests/captures/fn3_questions/REGEXTEST.reading.json", "class": "own-work", "reason": "Raw scalar values and argument read-back audits measured by the existing Excel witness worker; delivered fn3 evidence, unchanged."}
  ]
 }

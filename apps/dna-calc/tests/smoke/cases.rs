@@ -8193,6 +8193,14 @@ Case {
         Action::Into("name-box","A2:C4\u{E007}"),Action::Wait(Check::ActiveSemantic("A2")),Action::Window(390,844),Action::OpenDetails("sort-tools"),Action::Click("sort-header"),Action::Click("sort-ascending"),Action::Wait(Check::PlanCell("A2","text","One")),Action::Wait(Check::Fits),Action::Wait(Check::Reachable("sort-ascending")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::Wait(Check::PlanCell("C5","text","12")),Action::Into("name-box","A1\u{E007}"),Action::Wait(Check::ActiveSemantic("A1")),Action::OpenDetails("table-tools")
     ],checks:&[Check::PlanCell("A2","text","One"),Check::PlanCell("C2","text","2"),Check::PlanCell("B5","text","6"),Check::PlanCell("C5","text","12"),Check::Count("filter-header",3),Check::TextContains("table-summary","A1:C5"),Check::Fits,Check::Narrow(390),Check::Reachable("table-totals")]},
 
+
+    Case {name:"table colours: automatic text stays readable in dark DOM and Canvas with explicit colours retained",actions:&[
+        Action::Window(1440,1000),Action::Click("settings-toggle"),Action::Choose("theme","cockpit-dark"),Action::Click("settings-toggle"),Action::Into("name-box","A1\u{E007}"),Action::Wait(Check::ActiveSemantic("A1")),
+        Action::Wait(Check::PlanCell("A2","style.font_color","#000000")),Action::Wait(Check::Computed(cell!("A2"),"color:#000000")),Action::Wait(Check::PlanCell("A1","style.font_color","#ffffff")),Action::Wait(Check::PlanCell("C5","style.font_color","#000000")),
+        Action::Into("name-box","A2\u{E007}"),Action::Wait(Check::ActiveSemantic("A2")),Action::Click("format-cells"),Action::Click("format-tab-font"),Action::Into("format-font-color","#123456"),Action::Click("format-apply"),Action::Wait(Check::PlanCell("A2","style.font_color","#123456")),
+        Action::OpenDetails("pane-tools"),Action::SetPainter("canvas"),Action::Wait(Check::CanvasInk("A2")),Action::Wait(Check::PlanCell("B2","style.font_color","#000000")),Action::SetPainter("dom")
+    ],checks:&[Check::Computed(cell!("A2"),"color:#123456"),Check::Computed(cell!("B2"),"color:#000000"),Check::PlanCell("C5","text","12"),Check::PlanCell("A1","style.font_color","#ffffff")]},
+
 ];
 
 /// The script that reads what one check looks at.
@@ -9027,5 +9035,5 @@ CaseGroup {
     CaseGroup {name:"stacked-fitting",start:634,end:640,core:6,setup:&[]},
     CaseGroup { name: "conditional-colour-filters", start: 640, end: 646, core: 6, setup: &[] },
     CaseGroup {name:"sort-metadata",start:646,end:651,core:5,setup:&[]},
-    CaseGroup {name:"table-sorting",start:651,end:656,core:5,setup:&[]},
+    CaseGroup {name:"table-sorting",start:651,end:657,core:6,setup:&[]},
 ];

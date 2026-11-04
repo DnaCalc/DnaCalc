@@ -33,6 +33,16 @@ pub fn unicode_simple_case_fold(ch: char) -> char {
 pub fn is_combining_mark(ch: char) -> bool {
     combining_marks::is_combining_mark(ch)
 }
+/// Whether a character has Unicode general category Mn (nonspacing mark).
+pub fn is_nonspacing_mark(ch: char) -> bool {
+    combining_marks::is_nonspacing_mark(ch)
+}
+
+/// Whether a character has Unicode general category Pc (connector punctuation).
+pub fn is_connector_punctuation(ch: char) -> bool {
+    combining_marks::is_connector_punctuation(ch)
+}
+
 mod grid;
 mod id;
 mod name_case;
