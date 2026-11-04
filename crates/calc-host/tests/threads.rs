@@ -92,6 +92,93 @@ fn oracle_workbooks() -> Vec<PathBuf> {
     found
 }
 
+/// Native-only: exercises native workers across a wide level and late dynamic reads.
+#[test]
+fn dc_dxm__wide_levels_and_late_reads_keep_serial_values_and_certificates() {
+    use calc_host::{CellEdit, HostCommand, dispatch, interpret_entry};
+    let bytes = calc_host::blank_package();
+    let mut one = open(&bytes, 1).expect("a new workbook");
+    let mut several = open(&bytes, 8).expect("a new workbook");
+    let sheet = one.sheets()[0].id();
+    let at = |row| CellKey::new(sheet, row, 1).unwrap();
+    let edit = |row, text: &str| CellEdit::Set {
+        at: at(row),
+        input: interpret_entry(text).unwrap().unwrap(),
+    };
+    let edits: Vec<_> = (1..=70_000)
+        .map(|row| {
+            edit(
+                row,
+                match row {
+                    2 => "=INDIRECT(\"A70000\")+1",
+                    69_999 => "=INDIRECT(\"A1\")+2",
+                    _ => "=ROW()+1",
+                },
+            )
+        })
+        .collect();
+    for host in [&mut one, &mut several] {
+        let base = host.revision();
+        dispatch(
+            host,
+            HostCommand {
+                base,
+                edits: edits.clone(),
+            },
+        )
+        .unwrap();
+    }
+    let cells: Vec<_> = (1..=70_000).map(at).collect();
+    for phase in 0..3 {
+        if phase == 1 {
+            calculate_full(&mut one);
+            calculate_full(&mut several);
+        } else if phase == 2 {
+            for host in [&mut one, &mut several] {
+                let base = host.revision();
+                dispatch(
+                    host,
+                    HostCommand {
+                        base,
+                        edits: vec![edit(70_000, "=42")],
+                    },
+                )
+                .unwrap();
+            }
+        }
+        let published = recalculate(&mut one);
+        assert!(!published.is_empty());
+        if phase < 2 {
+            assert_eq!(published.len(), 70_000);
+        }
+        assert_eq!(recalculate(&mut several), published);
+        assert_eq!(
+            shown(&one, &cells),
+            shown(&several, &cells),
+            "phase {phase}"
+        );
+        let values = project(
+            &several,
+            &ProjectionRequest {
+                cells: vec![at(1), at(2), at(69_999), at(70_000)],
+            },
+        )
+        .unwrap();
+        let expected = if phase == 2 {
+            [2., 43., 4., 42.]
+        } else {
+            [2., 70_002., 4., 70_001.]
+        };
+        for (cell, number) in values.cells().iter().zip(expected) {
+            assert!(
+                matches!(cell.value(), calc_host::ProjectedValue::Calculated { value, .. } if value.as_number() == Some(number)),
+                "phase {phase}: {:?}",
+                cell.value()
+            );
+        }
+    }
+}
+
 #[test]
 fn dc_2m0__oracle_workbooks_recalculate_alike_on_one_thread_and_several() {
     let (mut compared, mut cells) = (0, 0);

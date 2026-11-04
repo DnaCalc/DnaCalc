@@ -626,6 +626,13 @@ admission returns a typed refusal before replacement. Public standard-module UDF
 including Option Private Module, share one state with the attached document events.
 Private Function worksheet lookup and the XML/binary forced-UDF distinction remain open.
 
+File-project event values cannot yet retain their read provenance after entering VBA
+module state. A Target.Value2 read therefore refuses file caches, stale values and
+calculated values with held, imported, external or other cache qualifications
+(dc-snz.15). The event refusal remains visible even when VBA catches the error.
+Literal values and ordinary certified calculations remain readable. The explicit-source
+event API retains its existing observation policy; full event-state provenance remains open.
+
 Workbook_Open runs once after file-project installation and before automatic
 calculation; replacement does not replay it. Open, Change, Calculate and BeforeSave
 are the admitted event surface. The compiler's resolved document symbols and current

@@ -102,50 +102,74 @@ impl<T> Slots<T> {
     }
 }
 
-// Four bytes of a u32 slot select three bounded pointer pages and one value page. A cut
-// shares its root in O(1); changing a slot copies at most four pages of 256 entries.
-type Page<T> = Arc<BTreeMap<u8, T>>;
+// Four bytes of a u32 slot select three bounded pointer pages and one value page.
+// A directory grows only within its 256-entry page, including for sparse high slots.
+// A cut shares its root in O(1); a write copies at most four bounded pages.
+type Page<T> = Arc<Vec<Option<T>>>;
 type Leaf<T> = Arc<[Option<T>; 256]>;
 #[derive(Clone, Debug)]
 pub(crate) struct SlotCut<T>(Page<Page<Page<Leaf<T>>>>);
 impl<T> Default for SlotCut<T> {
     fn default() -> Self {
-        Self(Arc::new(BTreeMap::new()))
+        Self(Arc::new(Vec::new()))
     }
 }
+
+fn page_entry<T: Clone>(page: &mut Page<T>, index: u8, create: impl FnOnce() -> T) -> &mut T {
+    let page = Arc::make_mut(page);
+    let index = usize::from(index);
+    if page.len() <= index {
+        page.resize_with(index + 1, || None);
+    }
+    page[index].get_or_insert_with(create)
+}
+
+fn trim_page<T>(page: &mut Vec<Option<T>>) {
+    while page.last().is_some_and(Option::is_none) {
+        page.pop();
+    }
+}
+
 impl<T: Clone> SlotCut<T> {
     pub fn get(&self, slot: u32) -> Option<&T> {
         let [a, b, c, d] = slot.to_be_bytes();
-        self.0.get(&a)?.get(&b)?.get(&c)?[usize::from(d)].as_ref()
+        self.0
+            .get(usize::from(a))?
+            .as_ref()?
+            .get(usize::from(b))?
+            .as_ref()?
+            .get(usize::from(c))?
+            .as_ref()?[usize::from(d)]
+        .as_ref()
     }
     pub fn insert(&mut self, slot: u32, value: T) {
         let [a, b, c, d] = slot.to_be_bytes();
-        let root = Arc::make_mut(&mut self.0);
-        let a = Arc::make_mut(root.entry(a).or_default());
-        let b = Arc::make_mut(a.entry(b).or_default());
-        let leaf = b
-            .entry(c)
-            .or_insert_with(|| Arc::new(std::array::from_fn(|_| None)));
+        let first = page_entry(&mut self.0, a, || Arc::new(Vec::new()));
+        let second = page_entry(first, b, || Arc::new(Vec::new()));
+        let leaf = page_entry(second, c, || Arc::new(std::array::from_fn(|_| None)));
         Arc::make_mut(leaf)[usize::from(d)] = Some(value);
     }
     pub fn remove(&mut self, slot: u32) {
         if self.get(slot).is_none() {
             return;
         }
-        let [a, b, c, d] = slot.to_be_bytes();
+        let [a, b, c, d] = slot.to_be_bytes().map(usize::from);
         let root = Arc::make_mut(&mut self.0);
-        let first = Arc::make_mut(root.get_mut(&a).unwrap());
-        let second = Arc::make_mut(first.get_mut(&b).unwrap());
-        let leaf = Arc::make_mut(second.get_mut(&c).unwrap());
-        leaf[usize::from(d)] = None;
+        let first = Arc::make_mut(root[a].as_mut().unwrap());
+        let second = Arc::make_mut(first[b].as_mut().unwrap());
+        let leaf = Arc::make_mut(second[c].as_mut().unwrap());
+        leaf[d] = None;
         if leaf.iter().all(Option::is_none) {
-            second.remove(&c);
+            second[c] = None;
+            trim_page(second);
         }
         if second.is_empty() {
-            first.remove(&b);
+            first[b] = None;
+            trim_page(first);
         }
         if first.is_empty() {
-            root.remove(&a);
+            root[a] = None;
+            trim_page(root);
         }
     }
 }

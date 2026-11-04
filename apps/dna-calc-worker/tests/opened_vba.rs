@@ -40,6 +40,25 @@ fn number(book: &Workbook, column: u32) -> f64 {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn worker_opens_file_udfs_and_preserve_policy_executes_no_project() {
     for budget in [WorkBudget::UNLIMITED, WorkBudget::evaluations(1)] {
+        let mut binary = Workbook::open_with_budget(
+            "local.xlsb",
+            include_bytes!("../../../crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsb")
+                .to_vec(),
+            budget,
+        )
+        .unwrap();
+        binary.dispatch(SkinIntent::Recalculate);
+        drain(&mut binary);
+        let cells = (1..=4)
+            .map(|row| calc_value::CellKey::new(binary.host().sheets()[0].id(), row, 2).unwrap())
+            .collect();
+        for cell in binary.project(cells) {
+            assert!(
+                matches!(cell.value(), ProjectedValue::Calculated { value, .. } if value.as_number() == Some(102.)),
+                "{:?}",
+                cell.value()
+            );
+        }
         let mut book = Workbook::open_with_budget("local.xlsm", LOCAL.to_vec(), budget).unwrap();
         book.dispatch(SkinIntent::Recalculate);
         drain(&mut book);

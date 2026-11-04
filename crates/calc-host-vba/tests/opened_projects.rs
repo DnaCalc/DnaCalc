@@ -73,9 +73,9 @@ fn value(session: &HostSession, row: u32, column: u32) -> calc_value::CalcValue 
     }
 }
 
-fn opened(bytes: &[u8]) -> HostSession {
+fn opened(bytes: &[u8], name: &str) -> HostSession {
     HostSession::open(
-        Arc::new(MemorySource::new(bytes.to_vec())),
+        Arc::new(MemorySource::new(bytes.to_vec()).named(name)),
         &OpenPolicy::default(),
         HostOptions::default(),
     )
@@ -85,19 +85,20 @@ fn opened(bytes: &[u8]) -> HostSession {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn file_project_sources_compile_with_their_exported_attributes() {
-    for bytes in [
-        include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/local.xlsm").as_slice(),
-        include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/local.xlsb").as_slice(),
+    for (bytes, name) in [
+        (
+            include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/local.xlsm").as_slice(),
+            "local.xlsm",
+        ),
+        (
+            include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/local.xlsb").as_slice(),
+            "local.xlsb",
+        ),
     ] {
         for backend in backends() {
-            let mut session = opened(bytes);
-            calc_host_vba::activate_file_project(
-                &mut session,
-                "local.xlsm",
-                100_000,
-                Some(backend),
-            )
-            .unwrap();
+            let mut session = opened(bytes, name);
+            calc_host_vba::activate_file_project(&mut session, name, 100_000, Some(backend))
+                .unwrap();
             assert!(session.dispatch(SkinIntent::Recalculate).accepted());
             drain(&mut session);
             for (row, expected) in [(1, 102.), (2, 102.), (3, 102.), (4, 102.)] {
@@ -128,7 +129,7 @@ fn file_project_events_share_state_and_reopen_starts_a_new_session() {
         ],
     );
     for backend in backends() {
-        let mut session = opened(&bytes);
+        let mut session = opened(&bytes, "file.xlsm");
         calc_host_vba::activate_file_project(&mut session, "file.xlsm", 100_000, Some(backend))
             .unwrap();
         session.notify_workbook_open(); // Repeated owner delivery does not enter the handler again.
@@ -156,7 +157,7 @@ fn file_project_events_share_state_and_reopen_starts_a_new_session() {
             "1:1:2:1"
         );
         assert!(session.take_workbook_event_failures().failures.is_empty());
-        let mut reopened = opened(&bytes);
+        let mut reopened = opened(&bytes, "file.xlsm");
         calc_host_vba::activate_file_project(&mut reopened, "file.xlsm", 100_000, Some(backend))
             .unwrap();
         enter(&mut reopened, 1, 4, "=Probe()");
@@ -166,5 +167,92 @@ fn file_project_events_share_state_and_reopen_starts_a_new_session() {
             value(&reopened, 1, 4).as_text().unwrap().to_string_lossy(),
             "1:1:0:0"
         );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn file_event_state_refuses_stale_target_values_even_when_vba_catches_the_error() {
+    const MODULE: &str = "Public Held As Double\nPublic Function MyFunc(ByVal x As Double) As Double\n MyFunc = x + 100\nEnd Function\nPublic Function Probe() As Double\n Probe = Held\nEnd Function\n";
+    const CHANGE: &str = "Private Sub Worksheet_Change(ByVal Target As Excel.Range)\n On Error Resume Next\n Held = Target.Value2\nEnd Sub\n";
+    let bytes = vba_project::replace_sources(
+        LOCAL,
+        &[
+            ("Module1", MODULE),
+            ("PrivateModule", "Option Private Module\n"),
+            ("Sheet1", CHANGE),
+            ("ThisWorkbook", ""),
+        ],
+    );
+    for backend in backends() {
+        for file_project in [true, false] {
+            let mut session = opened(&bytes, "file.xlsm");
+            session.cancel_calculation();
+            assert!(
+                session
+                    .dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual))
+                    .accepted()
+            );
+            // Enter before installing the owner, so setup raises no Change callback.
+            enter(&mut session, 1, 4, "=Probe()");
+            if file_project {
+                calc_host_vba::activate_file_project(
+                    &mut session,
+                    "file.xlsm",
+                    100_000,
+                    Some(backend),
+                )
+                .unwrap();
+            } else {
+                // Preserve the explicit-source API's existing observation policy.
+                let sheet = session.host().sheets()[0].id();
+                let modules = [
+                    calc_host_vba::ModuleSource {
+                        name: "Module1".into(),
+                        source: MODULE.into(),
+                        target: calc_host_vba::ModuleTarget::Standard,
+                    },
+                    calc_host_vba::ModuleSource {
+                        name: "Sheet1".into(),
+                        source: CHANGE.into(),
+                        target: calc_host_vba::ModuleTarget::Worksheet(sheet),
+                    },
+                ];
+                calc_host_vba::prepare(
+                    session.host(),
+                    "file.xlsm",
+                    &modules,
+                    100_000,
+                    Some(backend),
+                )
+                .unwrap()
+                .install(&mut session);
+            }
+            full(&mut session);
+            assert_eq!(value(&session, 1, 2).as_number(), Some(102.));
+            assert_eq!(value(&session, 1, 4).as_number(), Some(0.));
+            enter(&mut session, 1, 2, "=MyFunc(3)");
+            full(&mut session);
+            assert_eq!(value(&session, 1, 2).as_number(), Some(103.));
+            assert_eq!(
+                value(&session, 1, 4).as_number(),
+                Some(if file_project { 0. } else { 102. }),
+                "{backend:?} file={file_project}"
+            );
+            let failures = session.take_workbook_event_failures();
+            if file_project {
+                assert_eq!(failures.failures.len(), 1, "{failures:?}");
+                assert!(
+                    failures.failures[0].reason.contains("dc-snz.15"),
+                    "{failures:?}"
+                );
+            } else {
+                assert!(failures.failures.is_empty(), "{failures:?}");
+            }
+            enter(&mut session, 1, 2, "7");
+            full(&mut session);
+            assert_eq!(value(&session, 1, 4).as_number(), Some(7.));
+            assert!(session.take_workbook_event_failures().failures.is_empty());
+        }
     }
 }

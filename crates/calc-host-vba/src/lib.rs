@@ -16,6 +16,7 @@ pub struct WorkbookEvents {
     sheets: BTreeMap<SheetId, EventSource>,
     book: Option<EventSource>,
     max_steps: u64,
+    file_project: bool,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModuleTarget {
@@ -101,7 +102,7 @@ pub fn prepare_file_project(
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    prepare(host, name, &modules, max_steps, backend)
+    prepare_project(host, name, &modules, max_steps, backend, true)
         .map(Some)
         .map_err(FileProjectError::Preparation)
 }
@@ -137,6 +138,17 @@ pub fn prepare(
     modules: &[ModuleSource],
     max_steps: u64,
     backend: Option<calc_vba::Backend>,
+) -> Result<Rc<WorkbookEvents>, String> {
+    prepare_project(host, name, modules, max_steps, backend, false)
+}
+
+fn prepare_project(
+    host: &HostState,
+    name: &str,
+    modules: &[ModuleSource],
+    max_steps: u64,
+    backend: Option<calc_vba::Backend>,
+    file_project: bool,
 ) -> Result<Rc<WorkbookEvents>, String> {
     let mut sheets = BTreeSet::new();
     let mut documents = Vec::new();
@@ -176,6 +188,7 @@ pub fn prepare(
         sheets: BTreeMap::new(),
         book: None,
         max_steps,
+        file_project,
     };
     // Attach all new identities before replacing any live registration. A failed
     // attachment drops only the new project; its handlers have never been raised.
@@ -199,7 +212,26 @@ pub fn prepare(
     Ok(Rc::new(owner))
 }
 
-struct Read<'a>(&'a HostState);
+// A copied event value outlives its read in mutable VBA state. Until that state
+// carries observation provenance, file projects cannot erase these qualifications.
+fn event_input_needs_provenance(value: &ProjectedValue) -> bool {
+    match value {
+        ProjectedValue::FileCached(_) | ProjectedValue::Stale(_) => true,
+        ProjectedValue::Calculated { calculation, .. } => {
+            calculation.reads_external_links()
+                || calculation.held_by_circular_rule()
+                || calculation.stamp().is_none_or(|stamp| {
+                    stamp.reads.uses_imported_cache
+                        || stamp.reads.uses_boundary_cache
+                        || stamp.reads.legacy_boundary
+                        || !stamp.reads.observations.is_empty()
+                })
+        }
+        _ => false,
+    }
+}
+
+struct Read<'a>(&'a HostState, bool);
 impl EventReadContext for Read<'_> {
     fn read_reference(&self, reference: &ReferenceLike) -> Result<CalcValue, String> {
         if reference.area_count() != 1 {
@@ -223,6 +255,9 @@ impl EventReadContext for Read<'_> {
             .cells()
             .iter()
             .map(|cell| match cell.value() {
+                value if self.1 && event_input_needs_provenance(value) => Err(
+                    "File-project event reads with cached or uncertified provenance are not modelled (dc-snz.15)".into(),
+                ),
                 ProjectedValue::Literal(value) | ProjectedValue::Calculated { value, .. } => {
                     Ok(value.clone())
                 }
@@ -255,7 +290,7 @@ impl EventReadContext for Read<'_> {
 impl WorkbookEventHandler for WorkbookEvents {
     fn workbook_open(&self, host: &HostState) -> Result<(), String> {
         if let Some(source) = &self.book {
-            source.open(&Read(host), self.max_steps)?;
+            source.open(&Read(host, self.file_project), self.max_steps)?;
         }
         Ok(())
     }
@@ -268,7 +303,7 @@ impl WorkbookEventHandler for WorkbookEvents {
         if let Some(source) = self.sheets.get(&sheet) {
             source.change(
                 ReferenceLike::from_areas(target.to_vec()).map_err(|e| e.to_string())?,
-                &Read(host),
+                &Read(host, self.file_project),
                 self.max_steps,
             )?;
         }
@@ -276,14 +311,14 @@ impl WorkbookEventHandler for WorkbookEvents {
     }
     fn worksheet_calculate(&self, host: &HostState, sheet: SheetId) -> Result<(), String> {
         if let Some(source) = self.sheets.get(&sheet) {
-            source.calculate(&Read(host), self.max_steps)?;
+            source.calculate(&Read(host, self.file_project), self.max_steps)?;
         }
         Ok(())
     }
     fn before_save(&self, host: &HostState, _: SaveOperation) -> Result<BeforeSaveOutcome, String> {
         // These are programmatic save commands. The UI SaveAs dialog flag is a separate input.
         let cancel = if let Some(source) = &self.book {
-            source.before_save(false, &Read(host), self.max_steps)?
+            source.before_save(false, &Read(host, self.file_project), self.max_steps)?
         } else {
             false
         };

@@ -36,7 +36,9 @@ first calculation and binds document modules by the persisted VBA code names. UD
 and admitted Open/Change/Calculate/BeforeSave handlers share one owning session;
 reopen starts fresh state. Unsupported source, signatures, document events and
 class/designer modules remain named refusals. The Preserve open policy executes no
-VBA. Comparisons respect captured macro/event policy. See
+VBA. File events refuse cached or uncertified Target values before copying them into
+module state, including when VBA catches the read error; retaining that provenance in
+state remains open. Comparisons respect captured macro/event policy. See
 [the recalculation contract](../architecture/RECALC_CONTRACT.md) for the event boundary
 and remaining private-procedure, forced-UDF and object-model gaps. OneCalc's explicit
 standard-module route keeps its existing dependency ceiling.

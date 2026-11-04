@@ -2278,6 +2278,13 @@ mod parallel {
                     let node = order[positions[index]];
                     let attempt =
                         evaluate_with(state, inputs, &shared, local, node, None, None, &mut silent);
+                    // Unfinished speculative work is replayed by process on the owner.
+                    // Its continuation belongs to this node, never the worker's next one.
+                    if !matches!(&attempt, Ok(Attempt::Done(_))) {
+                        *local = EvalLocal::default();
+                    } else {
+                        debug_assert!(local.activation.is_none() && local.placement.is_none());
+                    }
                     if attempts[index].set(attempt).is_err() {
                         unreachable!("each formula of a level is taken once");
                     }
