@@ -27,7 +27,6 @@ struct CouponContext {
     maturity: i64,
     frequency: i64,
     basis: CouponBasis,
-    maturity_anchor_day: i64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,7 +34,6 @@ struct CouponPeriod {
     previous: i64,
     next: i64,
     remaining_coupons: i64,
-    raw_previous: i64,
 }
 
 fn max_excel_serial() -> i64 {
@@ -182,9 +180,6 @@ fn parse_coupon_context(
     let maturity = parse_coupon_date(maturity)?;
     let frequency = parse_frequency(frequency)?;
     let basis = parse_basis(basis.unwrap_or(0.0))?;
-    let (_, _, maturity_anchor_day) =
-        ymd_from_excel_serial(WorkbookDateSystem::System1900, maturity as f64)
-            .ok_or(WorksheetErrorCode::Num)?;
     if settlement >= maturity {
         return Err(WorksheetErrorCode::Num);
     }
@@ -193,7 +188,6 @@ fn parse_coupon_context(
         maturity,
         frequency,
         basis,
-        maturity_anchor_day,
     })
 }
 
@@ -203,7 +197,7 @@ fn parse_coupon_context(
 /// gives month-end coupons. Chaining off an already-clamped date drifted to month ends after
 /// the first short month (maturity 2046-08-28 quarterly gave a next coupon of 2045-05-31
 /// where Excel gives 2045-05-28). Live Excel 20430, W111-5 G8-08.
-fn coupon_date_before_maturity(ctx: CouponContext, periods: i64) -> Option<i64> {
+fn coupon_date_before_maturity(ctx: CouponContext, periods: i64, preserve_month_end: bool) -> Option<i64> {
     let months_per_coupon = 12 / ctx.frequency;
     let (year, month, day) =
         ymd_from_excel_serial(WorkbookDateSystem::System1900, ctx.maturity as f64)?;
@@ -214,11 +208,11 @@ fn coupon_date_before_maturity(ctx: CouponContext, periods: i64) -> Option<i64> 
     let target_year = month_index.div_euclid(12);
     let target_month = month_index.rem_euclid(12) + 1;
     let month_end = days_in_month(target_year, target_month);
-    let maturity_is_month_end = day == days_in_month(year, month);
+    let maturity_is_month_end = preserve_month_end && day == days_in_month(year, month);
     let target_day = if maturity_is_month_end {
         month_end
     } else {
-        ctx.maturity_anchor_day.min(month_end)
+        day.min(month_end)
     };
     Some(excel_serial_from_ymd_unbounded_1900(
         target_year,
@@ -232,13 +226,12 @@ fn locate_coupon_period(ctx: CouponContext) -> Result<CouponPeriod, WorksheetErr
     let mut coupons = 1i64;
     loop {
         let previous =
-            coupon_date_before_maturity(ctx, coupons).ok_or(WorksheetErrorCode::Num)?;
+            coupon_date_before_maturity(ctx, coupons, true).ok_or(WorksheetErrorCode::Num)?;
         if previous <= ctx.settlement {
             return Ok(CouponPeriod {
                 previous: previous.max(0),
                 next,
                 remaining_coupons: coupons,
-                raw_previous: previous,
             });
         }
         next = previous;
@@ -264,12 +257,28 @@ pub fn coupdays_kernel(
     basis: Option<f64>,
 ) -> Result<f64, WorksheetErrorCode> {
     let ctx = parse_coupon_context(settlement, maturity, frequency, basis)?;
+    if ctx.basis == CouponBasis::ActualActual {
+        // COUPDAYS has its own recorded calendar interval. Walk backwards
+        // with ordinary clamped month shifts; a February visit can reduce
+        // the day used by every earlier step. At the next coupon, measure
+        // one period backwards with month-end preservation. Reusing the
+        // anchored COUPNCD/COUPPCD pair changes these integer day counts.
+        // Original Excel20131/20430 readings:965/965 Actual/Actual outcomes in the
+        // R24 finite Gregorian study. No numerical tolerance enters this rule.
+        let mut next = ctx;
+        loop {
+            let previous = coupon_date_before_maturity(next, 1, false)
+                .ok_or(WorksheetErrorCode::Num)?;
+            if previous <= ctx.settlement {
+                let start = coupon_date_before_maturity(next, 1, true)
+                    .ok_or(WorksheetErrorCode::Num)?;
+                return Ok(actual_days(start, next.maturity));
+            }
+            next.maturity = previous;
+        }
+    }
     let period = locate_coupon_period(ctx)?;
-    let period_start = match ctx.basis {
-        CouponBasis::ActualActual => period.raw_previous,
-        _ => period.previous,
-    };
-    coupon_day_count(period_start, period.next, ctx.basis, ctx.frequency)
+    coupon_day_count(period.previous, period.next, ctx.basis, ctx.frequency)
 }
 
 pub fn coupdaysnc_kernel(
