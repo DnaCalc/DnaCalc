@@ -75,6 +75,18 @@ pub(crate) fn excel_exp_rz(x: f64) -> f64 {
     exp_with::<Native>(x, CW_RZ)
 }
 
+/// `exp(t - x - c)` with the difference in the 64-bit registers, stored once. GAMMA.DIST's
+/// prefactor: storing `t - x` puts a slow line of amplitude 5 units in the residual that Excel's
+/// answers do not have.
+pub(crate) fn excel_exp_difference(t: f64, x: f64, c: f64) -> f64 {
+    exp_difference::<Native>(t, x, c)
+}
+
+fn exp_difference<F: Fpu>(t: f64, x: f64, c: f64) -> f64 {
+    let difference = F::sub(&F::sub(&load(t), &load(x), CW), &load(c), CW);
+    F::store(&exp_ext::<F>(&difference), CW)
+}
+
 /// `constant * log2 x` by `FYL2X`, with the logarithm's special values.
 fn log_with<F: Fpu>(x: f64, constant: &Ext80) -> f64 {
     if x.is_nan() {
