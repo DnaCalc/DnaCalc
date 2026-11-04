@@ -16,6 +16,43 @@ use calc_host::{
 };
 use std::sync::Arc;
 
+/// Excel 16.0.20527, eng13's unchanged Legacy capture. The workbook keeps true
+/// second-argument references beside unary-plus controls, and computed Empty
+/// beside raw blank references and empty text. All 50 roots and observers run
+/// through the same host open/rebuild/project route as the application.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_b1l34_dc_ejvk5__legacy_argument_and_selected_result_origins() {
+    let capture = calc_verdict::CaptureRecord::decode(include_bytes!(
+        "captures/eng13_legacy/oracle.capture.json"
+    )).unwrap();
+    let mut book = HostSession::open(
+        Arc::new(MemorySource::new(include_bytes!(
+            "fixtures/eng13_legacy/oracle.xlsx"
+        ).to_vec())),
+        &OpenPolicy::default(),
+        HostOptions { calc_mode: Some(CalcMode::Automatic), ..HostOptions::default() },
+    ).unwrap();
+    assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+    for _ in 0..128 {
+        if !book.has_pending_calculation() { break; }
+        book.advance_calculation();
+    }
+    assert!(!book.has_pending_calculation());
+    assert_eq!(capture.observations.len(), 50);
+    for observed in &capture.observations {
+        let sheet = book.host().sheets().iter()
+            .find(|s| s.name().text().to_string_lossy() == observed.cell.sheet()).unwrap().id();
+        let at = CellKey::new(sheet, observed.cell.row(), observed.cell.column()).unwrap();
+        let page = project(book.host(), &ProjectionRequest { cells: vec![at] }).unwrap();
+        let ProjectedValue::Calculated { value, .. } = page.cells()[0].value() else {
+            panic!("the recorded result must calculate: {:?}", page.cells()[0]);
+        };
+        assert_eq!(value, observed.observation.expected(), "{}!{}",
+            observed.cell.sheet(), observed.cell.a1());
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_b1l__retained_legacy_mround_and_quotient_reference_controls() {
