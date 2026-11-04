@@ -4,10 +4,31 @@ use calc_verdict::sha256_hex;
 use serde_json::{Value, json};
 use std::{
     fs,
+    io::{self, Read},
     path::{Path, PathBuf},
     process::{Command, ExitStatus, Stdio},
     time::{Duration, Instant},
 };
+
+/// Hash folder inputs without allocating their whole contents in the parent.
+/// Parsing and evaluation stay in the owned, timed child process.
+pub(crate) fn file_digest(path: &Path) -> io::Result<String> {
+    reader_digest(fs::File::open(path)?)
+}
+
+fn reader_digest(mut input: impl Read) -> io::Result<String> {
+    let mut hash = calc_verdict::Sha256::new();
+    let mut buffer = [0u8; 64 * 1024];
+    loop {
+        let size = match input.read(&mut buffer) {
+            Ok(0) => return Ok(hash.finish_hex()),
+            Ok(size) => size,
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(error),
+        };
+        hash.update(&buffer[..size]);
+    }
+}
 
 /// Keep package inflation, model admission and source census inside the same
 /// owned-process timeout as calculation. The parent never opens an untrusted
@@ -128,9 +149,10 @@ pub(crate) fn select(
     let mut seen = std::collections::BTreeMap::<String, String>::new();
     let mut selected = Vec::new();
     let mut inventory = Vec::new();
-    for entry in entries {
-        let read = fs::read(&entry.path);
-        let digest = read.as_ref().ok().map(|bytes| sha256_hex(bytes));
+    for mut entry in entries {
+        let read = file_digest(&entry.path);
+        let digest = read.as_ref().ok().cloned();
+        entry.batch_sha256 = digest.clone();
         let duplicate = digest.as_ref().and_then(|hash| seen.get(hash)).cloned();
         let shard_key = digest
             .clone()
@@ -422,11 +444,8 @@ pub(crate) fn key(
     executable: &str,
     minimize: bool,
 ) -> Result<Value, String> {
-    let digest = |path: &Path| {
-        fs::read(path)
-            .map(|bytes| sha256_hex(&bytes))
-            .map_err(|e| format!("cannot hash {}: {e}", path.display()))
-    };
+    let digest =
+        |path: &Path| file_digest(path).map_err(|e| format!("cannot hash {}: {e}", path.display()));
     Ok(json!({"format":"dnacalc-corpus-completion", "version":1,
         "fixture":digest(fixture)?, "capture":capture.map(digest).transpose()?,
         "executable":executable, "minimize":minimize}))
@@ -463,7 +482,7 @@ pub(crate) fn completed(out: &Path, key: &Value) -> Option<Value> {
         {
             return None;
         }
-        if sha256_hex(&fs::read(out.join(path)).ok()?) != hash.as_str()? {
+        if file_digest(&out.join(path)).ok()? != hash.as_str()? {
             return None;
         }
     }
@@ -490,7 +509,7 @@ fn output_hashes(
                 .expect("child output")
                 .to_string_lossy()
                 .replace('\\', "/");
-            let digest = sha256_hex(&fs::read(&path).map_err(|e| e.to_string())?);
+            let digest = file_digest(&path).map_err(|e| e.to_string())?;
             hashes.insert(relative, json!(digest));
         }
     }
@@ -500,12 +519,12 @@ fn output_hashes(
 pub(crate) fn finish(out: &Path, key: &Value) -> Result<(), String> {
     let mut hashes = serde_json::Map::new();
     for name in OUTPUTS {
-        let bytes = fs::read(out.join(name)).map_err(|e| format!("missing {name}: {e}"))?;
-        hashes.insert((*name).into(), json!(sha256_hex(&bytes)));
+        let digest = file_digest(&out.join(name)).map_err(|e| format!("missing {name}: {e}"))?;
+        hashes.insert((*name).into(), json!(digest));
     }
     if key["capture"].is_null() {
-        let bytes = fs::read(out.join("inventory.record.json")).map_err(|e| e.to_string())?;
-        hashes.insert("inventory.record.json".into(), json!(sha256_hex(&bytes)));
+        let digest = file_digest(&out.join("inventory.record.json")).map_err(|e| e.to_string())?;
+        hashes.insert("inventory.record.json".into(), json!(digest));
     }
     if key["minimize"] == true {
         output_hashes(out, &out.join("cases"), &mut hashes)?;
@@ -599,6 +618,61 @@ pub(crate) fn publish(attempt: &Path, out: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn streamed_file_hashes_retry_interruptions_and_never_return_a_partial_digest() {
+        struct Chunks {
+            remaining: usize,
+            calls: usize,
+            fail: bool,
+        }
+        impl Read for Chunks {
+            fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+                assert_eq!(buffer.len(), 64 * 1024, "bounded corpus hash buffer");
+                self.calls += 1;
+                if self.fail && self.calls == 4 {
+                    return Err(io::Error::other("authored read failure"));
+                }
+                if self.calls.is_multiple_of(7) {
+                    return Err(io::ErrorKind::Interrupted.into());
+                }
+                let n = self.remaining.min(257).min(buffer.len());
+                buffer[..n].fill(b'a');
+                self.remaining -= n;
+                Ok(n)
+            }
+        }
+        let expected = "9bc1b2a288b26af7257a36277ae3816a7d4f16e89c1e7e77d0a5c48bad62b360";
+        assert_eq!(
+            reader_digest(Chunks {
+                remaining: 1048576,
+                calls: 0,
+                fail: false
+            })
+            .unwrap(),
+            expected
+        );
+        let error = reader_digest(Chunks {
+            remaining: 1048576,
+            calls: 0,
+            fail: true,
+        })
+        .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::Other);
+        let dir = scratch("streamed-hash");
+        let path = dir.join("input.bin");
+        {
+            use std::io::Write;
+            let mut file = fs::File::create(&path).unwrap();
+            for _ in 0..256 {
+                file.write_all(&[b'a'; 4096]).unwrap();
+            }
+        }
+        assert_eq!(file_digest(&path).unwrap(), expected);
+        assert_eq!(
+            file_digest(&dir.join("missing.bin")).unwrap_err().kind(),
+            io::ErrorKind::NotFound
+        );
+    }
     fn scratch(name: &str) -> PathBuf {
         let path = std::env::temp_dir().join(format!("corpus-batch-{}-{name}", std::process::id()));
         fs::create_dir_all(&path).unwrap();

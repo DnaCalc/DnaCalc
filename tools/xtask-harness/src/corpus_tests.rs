@@ -4,6 +4,41 @@
 use super::*;
 
 #[test]
+fn a_changed_batch_source_is_refused_before_a_child_is_started() {
+    let root = scratch("changed-after-inventory");
+    let path = root.join("case.xlsx");
+    fs::write(&path, b"old source").unwrap();
+    let (entries, _) = crate::corpus_batch::select(folder_workbooks(&root).unwrap(), None);
+    let args = parse_args(&[root.to_string_lossy().into_owned(), "--dna-only".into()]).unwrap();
+    let mut run = Run {
+        args: &args,
+        cache: Cache {
+            root: root.join("cache"),
+        },
+        build: None,
+        program_digest: String::new(),
+    };
+    fs::write(&path, b"new source").unwrap();
+    let report = one_workbook(
+        &mut run,
+        &root.join("no-such-executable"),
+        &entries[0],
+        &root.join("out"),
+    );
+    assert_eq!(report.failure_key.as_deref(), Some("SourceChanged"));
+    assert_eq!(report.outcome.as_ref().unwrap_err().stage, "read");
+    assert!(report.inventory_formula_cells.is_none());
+    assert_eq!(
+        report.sha256.as_deref(),
+        Some(calc_verdict::sha256_hex(b"new source").as_str())
+    );
+    assert!(
+        !root.join("out").exists(),
+        "no source-census or comparison child ran"
+    );
+}
+
+#[test]
 fn a_linux_cache_lookup_keeps_the_recorded_iteration_limits() {
     let cache = Cache {
         root: scratch("linux-policy"),

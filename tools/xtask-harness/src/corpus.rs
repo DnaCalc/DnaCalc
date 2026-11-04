@@ -224,6 +224,8 @@ pub(crate) fn file_safe(text: &str) -> String {
 pub(crate) struct Entry {
     pub(crate) name: String,
     pub(crate) path: PathBuf,
+    /// Frozen by content selection; later phases refuse a changed source.
+    pub(crate) batch_sha256: Option<String>,
     pub(crate) committed: Option<PathBuf>,
     /// For an `.xlsb`, its SpreadsheetML twin in the same folder, when there is one.
     pub(crate) inventory: Option<PathBuf>,
@@ -260,6 +262,7 @@ pub(crate) fn folder_workbooks(dir: &Path) -> Result<Vec<Entry>, String> {
             entries.push(Entry {
                 name,
                 path: path.clone(),
+                batch_sha256: None,
                 committed: path
                     .with_extension("capture.json")
                     .is_file()
@@ -312,6 +315,7 @@ pub(crate) fn oracle_workbooks(root: &Path) -> Result<Vec<Entry>, String> {
             Entry {
                 name: case.name.clone(),
                 path: case.fixture.clone(),
+                batch_sha256: None,
                 committed: committed.is_file().then_some(committed),
                 inventory: None,
                 oracle: Some(case),
@@ -924,8 +928,8 @@ fn run_corpus(args: &Args) -> u8 {
     let program_digest = if program.as_os_str().is_empty() {
         String::new()
     } else {
-        match fs::read(&program) {
-            Ok(bytes) => sha256_hex(&bytes),
+        match crate::corpus_batch::file_digest(&program) {
+            Ok(digest) => digest,
             Err(e) => {
                 eprintln!("xtask corpus: cannot hash executable: {e}");
                 return EXIT_FAILED;
@@ -1100,37 +1104,66 @@ fn one_workbook(run: &mut Run<'_>, program: &Path, entry: &Entry, out: &Path) ->
         }),
         times: Times::default(),
     };
-    let bytes = match fs::read(&entry.path) {
-        Ok(bytes) => bytes,
+    // Only committed oracle metadata is inspected in the parent. Folder input
+    // inflation and model admission remain inside the bounded census child.
+    let bytes = if entry.oracle.is_some() {
+        match fs::read(&entry.path) {
+            Ok(bytes) => Some(bytes),
+            Err(e) => {
+                workbook.outcome = Err(NotCompared {
+                    stage: "read".into(),
+                    reason: format!("cannot read {}: {e}", entry.path.display()),
+                });
+                return workbook;
+            }
+        }
+    } else {
+        None
+    };
+    let sha256 = match bytes
+        .as_deref()
+        .map(sha256_hex)
+        .map(Ok)
+        .unwrap_or_else(|| crate::corpus_batch::file_digest(&entry.path))
+    {
+        Ok(digest) => digest,
         Err(e) => {
             workbook.outcome = Err(NotCompared {
-                stage: "read".to_owned(),
+                stage: "read".into(),
                 reason: format!("cannot read {}: {e}", entry.path.display()),
             });
             return workbook;
         }
     };
-    if entry.oracle.is_some() {
-        workbook.inventory_formula_cells = package_parts(&bytes)
+    workbook.sha256 = Some(sha256.clone());
+    if entry.batch_sha256.as_deref() != Some(sha256.as_str()) {
+        workbook.failure_key = Some("SourceChanged".into());
+        workbook.outcome = Err(NotCompared {
+            stage: "read".into(),
+            reason: "workbook no longer matches its batch inventory; resume to take a new snapshot"
+                .into(),
+        });
+        return workbook;
+    }
+    let capture_source = calc_oracle_excel::capture_source_sha256(&entry.path, &sha256);
+    if let Some(case) = &entry.oracle {
+        let bytes = bytes.as_deref().expect("committed oracle bytes read above");
+        workbook.inventory_formula_cells = package_parts(bytes)
             .and_then(|parts| workbook_sections(&parts))
             .ok()
             .map(|sections| sections.iter().map(|s| s.formula_cells).sum());
-    }
-    let sha256 = sha256_hex(&bytes);
-    workbook.sha256 = Some(sha256.clone());
-    let capture_sha256 = match calc_oracle_excel::capture_source_sha256(&entry.path, &sha256) {
-        Ok(hash) => hash,
-        Err(reason) => {
-            workbook.capture = Some(format!("awaiting capture: invalid capture inputs: {reason}"));
-            workbook.outcome = awaiting(&bytes, &reason);
-            return workbook;
-        }
-    };
-    if let Some(case) = &entry.oracle {
+        let capture_sha256 = match &capture_source {
+            Ok(hash) => hash,
+            Err(reason) => {
+                workbook.capture = Some(format!("awaiting capture: invalid capture inputs: {reason}"));
+                workbook.outcome = awaiting(bytes, reason);
+                return workbook;
+            }
+        };
         if case.sectioned() {
-            if capture_sha256 != sha256 {
+            if capture_sha256 != &sha256 {
                 workbook.capture = Some("awaiting capture: authored-entry fixtures require whole-workbook captures".to_owned());
-                workbook.outcome = awaiting(&bytes, "authored-entry fixtures require whole-workbook captures");
+                workbook.outcome = awaiting(bytes, "authored-entry fixtures require whole-workbook captures");
                 return workbook;
             }
             sectioned_workbook(
@@ -1138,7 +1171,7 @@ fn one_workbook(run: &mut Run<'_>, program: &Path, entry: &Entry, out: &Path) ->
                 program,
                 entry,
                 case,
-                &bytes,
+                bytes,
                 &sha256,
                 out,
                 run.args,
@@ -1148,7 +1181,7 @@ fn one_workbook(run: &mut Run<'_>, program: &Path, entry: &Entry, out: &Path) ->
         }
         if let Err(reason) = whole_state(case, &sha256) {
             workbook.capture = Some(format!("awaiting capture: {reason}"));
-            workbook.outcome = awaiting(&bytes, &reason);
+            workbook.outcome = awaiting(bytes, &reason);
             return workbook;
         }
     }
@@ -1178,6 +1211,17 @@ fn one_workbook(run: &mut Run<'_>, program: &Path, entry: &Entry, out: &Path) ->
         }
     };
     workbook.inventory_formula_cells = Some(inventory.formulas.len() as u64);
+    let capture_sha256 = match capture_source {
+        Ok(hash) => hash,
+        Err(reason) => {
+            workbook.capture = Some(format!("invalid capture inputs: {reason}"));
+            workbook.outcome = Err(NotCompared {
+                stage: "capture".into(),
+                reason: format!("invalid capture inputs: {reason}"),
+            });
+            return workbook;
+        }
+    };
     let policy = match inventory_policy(&inventory) {
         Ok(policy) => policy,
         Err(reason) => {
