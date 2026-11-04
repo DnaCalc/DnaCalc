@@ -183,7 +183,7 @@ type Kept = (Vec<ExecutedCall>, Vec<ReadBuffer>);
 
 /// The read observer `step` is given: it records every evaluation the evaluator reports, and keeps
 /// the calls and reads of an evaluation whose value differs from the capture's observation of its
-/// cell.
+/// cell. Minimisation also retains matching producers' bounded read traces.
 struct Instrument<'c> {
     /// The capture's observation of each inventory cell on a sheet the workbook holds.
     expected: HashMap<CellKey, &'c CalcValue>,
@@ -199,6 +199,8 @@ struct Instrument<'c> {
     /// Runs kept for the current evaluation, at most `compare_triage::READ_ENTRIES`.
     kept: usize,
     retained: HashMap<CellKey, Kept>,
+    /// Only `--minimize` needs matching producers for shape-only dependencies.
+    retain_matching: bool,
 }
 
 impl<'c> Instrument<'c> {
@@ -212,6 +214,7 @@ impl<'c> Instrument<'c> {
             reads: Vec::new(),
             kept: 0,
             retained: HashMap::new(),
+            retain_matching: false,
         }
     }
 
@@ -308,7 +311,7 @@ impl ReadObserver for Instrument<'_> {
             (Ok(value), Some(expected)) => calc_verdict::compare(expected, value).is_some(),
             _ => false,
         };
-        if differs {
+        if differs || self.retain_matching {
             let kept = if self.current == Some(at) {
                 (
                     std::mem::take(&mut self.calls),
@@ -639,7 +642,7 @@ pub(crate) fn locale_profile(
 /// The array the published spill of the array formula anchored at `at` shows, its cells in
 /// row-major order, when it fills more than its anchor and every cell of it projects as
 /// calculated; `None` otherwise.
-fn spilled_array(host: &HostState, at: CellKey) -> Option<CalcValue> {
+pub(crate) fn spilled_array(host: &HostState, at: CellKey) -> Option<CalcValue> {
     let area = host.spill_area(at)?;
     if area.cell_count() < 2 {
         return None;
@@ -673,6 +676,7 @@ fn run_workbook(
     fixture_path: Option<&Path>,
     capture: &CaptureRecord,
     numeric: NumericMode,
+    retain_matching: bool,
 ) -> Result<Run, Failure> {
     let empty_record = || InstrumentRecord {
         case: capture.case.clone(),
@@ -782,6 +786,7 @@ fn run_workbook(
         .collect();
 
     let mut instrument = Instrument::new(expected);
+    instrument.retain_matching = retain_matching;
     let started = Instant::now();
     let options = host.options().clone();
     let mut domain = calc_host::CalculationDomain::new();
@@ -991,6 +996,7 @@ fn run_workbook(
         .into_iter()
         .filter_map(|(at, (calls, reads))| {
             let kept = Retained {
+                precedents: host.precedents(at).unwrap_or_default(),
                 calls: calls
                     .into_iter()
                     .map(|call| {
@@ -1151,6 +1157,7 @@ fn compare(request: &Request) -> Result<(), Failure> {
         Some(&request.fixture),
         &capture,
         numeric.clone(),
+        request.minimize,
     )?;
     let started = Instant::now();
     let report = judge(&capture, &run.results, &run.record, &policy).map_err(judge_failure)?;
@@ -1304,20 +1311,46 @@ mod test_package;
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn minimisation_retains_matching_producer_reads_without_changing_results() {
+        let mut book = calc_host::HostSession::open(
+            std::sync::Arc::new(calc_host::MemorySource::new(calc_host::blank_package())),
+            &calc_host::OpenPolicy::default(), calc_host::HostOptions::default(),
+        ).unwrap();
+        let sheet = book.host().sheets()[0].id();
+        for (column, text) in [(1, "1"), (2, "=A1+1")] {
+            assert!(book.dispatch(calc_host::SkinIntent::EnterCell {
+                at: calc_host::value::CellKey::new(sheet, 1, column).unwrap(), text: text.into(),
+            }).accepted());
+        }
+        while book.has_pending_calculation() { book.advance_calculation(); }
+        let mut fixture = Vec::new();
+        calc_host::save(book.host(), &calc_host::SavePolicy::default(), &mut fixture).unwrap();
+        let capture = crate::compare_inventory::source_record(&fixture, "matching-producer-control").unwrap();
+        let ordinary = super::run_workbook(&fixture, None, None, &capture, calc_host::value::NumericMode::Fast, false).unwrap();
+        let minimising = super::run_workbook(&fixture, None, None, &capture, calc_host::value::NumericMode::Fast, true).unwrap();
+        assert!(ordinary.retained.is_empty());
+        let retained = minimising.retained.values().next().unwrap();
+        assert!(!retained.reads.is_empty());
+        assert!(!retained.precedents.is_empty());
+        assert_eq!(ordinary.results, minimising.results);
+        assert_eq!(ordinary.record.encode().unwrap(), minimising.record.encode().unwrap());
+    }
+
     use super::*;
 
     #[test]
     fn captured_macro_policy_controls_file_execution_and_event_admission() {
         let bytes = include_bytes!("../../../crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm");
         let mut capture = CaptureRecord::decode(br#"{"format":"dnacalc-capture-record","version":1,"case":"vba-policy-control","source":"sha256:00","acquisition":{"kind":"file_cache_replay"},"environment":null,"sheets":[{"name":"Cases","visibility":"visible"}],"formulas":[{"sheet":"Cases","row":1,"column":2,"kind":"ordinary"}],"observations":[]}"#).unwrap();
-        let unknown = run_workbook(bytes, Some("local.xlsm"), None, &capture, NumericMode::Fast).unwrap();
+        let unknown = run_workbook(bytes, Some("local.xlsm"), None, &capture, NumericMode::Fast, false).unwrap();
         assert_eq!(unknown.workbook.as_ref().unwrap().class, Class::Context);
         assert!(unknown.record.evaluations.is_empty());
         capture.environment = Some(calc_verdict::ExcelEnvironment {
             target: NumericTargetId::new("test", "test", "test", "test").unwrap(),
             settings: vec![("automation_security".into(), "3".into())],
         });
-        let disabled = run_workbook(bytes, Some("local.xlsm"), None, &capture, NumericMode::Fast).unwrap();
+        let disabled = run_workbook(bytes, Some("local.xlsm"), None, &capture, NumericMode::Fast, false).unwrap();
         assert!(matches!(disabled.results.results[0].provenance, Provenance::NotModeled { .. }));
         let host = HostState::open(Arc::new(MemorySource::new(bytes.to_vec())), &OpenPolicy::default(), HostOptions::default()).unwrap();
         for enabled in [false, true] {
@@ -1327,7 +1360,7 @@ mod tests {
             ];
             let (_, events) = prepare_captured_vba(&host, "local.xlsm", &capture).unwrap().unwrap();
             assert_eq!(events, enabled);
-            let admitted = run_workbook(bytes, Some("local.xlsm"), None, &capture, NumericMode::Fast).unwrap();
+            let admitted = run_workbook(bytes, Some("local.xlsm"), None, &capture, NumericMode::Fast, false).unwrap();
             assert!(admitted.workbook.is_none());
             assert!(matches!(admitted.results.results[0].provenance, Provenance::Calculated { .. }));
             assert_eq!(admitted.results.results[0].value.as_ref().unwrap().as_number(), Some(102.));
@@ -1429,6 +1462,7 @@ mod tests {
             Some(&path),
             &capture,
             NumericMode::Fast,
+            false,
         )
         .unwrap();
         assert!(run.workbook.is_none());
@@ -1459,6 +1493,7 @@ mod tests {
             Some(&path),
             &capture,
             NumericMode::Fast,
+            false,
         )
         .unwrap();
         let report = judge(
@@ -1772,7 +1807,7 @@ mod tests {
             br#"{"format": "dnacalc-capture-record", "version": 1, "case": "k", "source": "sha256:00", "acquisition": {"kind": "file_cache_replay"}, "environment": null, "sheets": [{"name": "Inputs", "visibility": "visible"}, {"name": "Calc", "visibility": "visible"}], "formulas": [{"sheet": "Calc", "row": 1, "column": 3, "kind": "ordinary"}], "observations": []}"#,
         )
         .unwrap();
-        let run = run_workbook(&fixture, None, None, &capture, NumericMode::Fast).unwrap();
+        let run = run_workbook(&fixture, None, None, &capture, NumericMode::Fast, false).unwrap();
         let Dna::Refused(refusal) = &run.dna[0] else {
             panic!("Calc!C1 is {:?}", run.dna[0]);
         };

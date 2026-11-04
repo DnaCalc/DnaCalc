@@ -64,7 +64,7 @@ use crate::owners::function_owner;
 use calc_engine::NotModeled;
 use calc_fml::{CompileError, EvalFault};
 use calc_func::{FunctionFault, FunctionId, catalogue};
-use calc_host::value::{CalcValue, CellKey, CoreValue, SheetId};
+use calc_host::value::{CalcValue, CellKey, CoreValue, GridArea, SheetId};
 use calc_verdict::{
     CaptureRecord, CellAddress, CellVerdict, MismatchClass, StaleSource, Verdict, VerdictReport,
 };
@@ -487,6 +487,9 @@ impl Read {
 pub(crate) struct Retained {
     pub(crate) calls: Vec<Call>,
     pub(crate) reads: Vec<Read>,
+    /// The application's existing graph also records shape-only dependencies,
+    /// which need no value read and therefore do not appear in `reads`.
+    pub(crate) precedents: Vec<GridArea>,
 }
 
 /// A value as `triage.json` writes it: a number as its bits in hex and its shortest decimal.
@@ -1518,6 +1521,7 @@ mod tests {
         retained.insert(
             at(1, 1),
             Retained {
+                precedents: Vec::new(),
                 calls: vec![call("SUM", "Call", false)],
                 reads: vec![read(1, 3, 2, 3)],
             },
@@ -1525,6 +1529,7 @@ mod tests {
         retained.insert(
             at(2, 1),
             Retained {
+                precedents: Vec::new(),
                 calls: vec![call("+", "Infix", false), call("-", "Prefix", true)],
                 reads: vec![read(1, 1, 1, 1)],
             },
@@ -1532,6 +1537,7 @@ mod tests {
         retained.insert(
             at(3, 1),
             Retained {
+                precedents: Vec::new(),
                 calls: vec![call("*", "Infix", false)],
                 reads: vec![read(1, 1, 2, 1)],
             },
@@ -1539,6 +1545,7 @@ mod tests {
         retained.insert(
             at(1, 2),
             Retained {
+                precedents: Vec::new(),
                 calls: vec![call("ROUND", "Call", false)],
                 reads: vec![read(3, 2, 3, 2)],
             },
@@ -1546,6 +1553,7 @@ mod tests {
         retained.insert(
             at(2, 2),
             Retained {
+                precedents: Vec::new(),
                 calls: Vec::new(),
                 reads: Vec::new(),
             },
@@ -1619,6 +1627,7 @@ mod tests {
         retained.insert(
             at(1, 1),
             Retained {
+                precedents: Vec::new(),
                 calls: vec![
                     call("SUM", "Call", false),
                     call("+", "Infix", false),

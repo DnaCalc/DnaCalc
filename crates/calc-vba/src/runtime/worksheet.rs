@@ -10,11 +10,23 @@ use std::collections::BTreeMap;
 
 pub(super) type Bridges = BTreeMap<(String, String), oxvba_embed::Procedure>;
 
+#[derive(Clone)]
+pub(super) struct Refusal {
+    pub name: String,
+    pub qualified_name: String,
+    pub reason: &'static str,
+}
+#[derive(Default)]
+pub(super) struct PrivateEntries {
+    pub bridges: Bridges,
+    pub refusals: Vec<Refusal>,
+}
+
 pub(super) fn private_entries(
     manifest: &mut sym::SymbolProjectManifest,
     engine: &oxvba_embed::Module,
-) -> Result<Bridges, Error> {
-    let mut bridges = Bridges::new();
+) -> Result<PrivateEntries, Error> {
+    let mut entries = PrivateEntries::default();
     let source = manifest
         .modules
         .iter()
@@ -46,10 +58,15 @@ pub(super) fn private_entries(
             .any(|p| p.param_array || p.array_element.is_some() || !scalar(&p.ty))
             || !procedure.return_type.as_ref().is_some_and(scalar)
         {
-            return Err(Error::UnsupportedSignature(format!(
-                "private worksheet entry {}.{} needs a signature outside the scalar file-project carriers (dc-snz.15)",
-                procedure.module, procedure.name
-            )));
+            // An unused private helper must not prevent supported UDFs from
+            // running. Keep its real worksheet identity as a typed refusal;
+            // neither bind an unsupported ABI nor execute any procedure prefix.
+            entries.refusals.push(Refusal {
+                name: procedure.name.clone(),
+                qualified_name: format!("{}.{}", procedure.module, procedure.name),
+                reason: "private worksheet entry with a signature outside the supported scalar carriers",
+            });
+            continue;
         }
         let name = loop {
             let name = format!("DnaCalcWorksheetPrivate{serial}");
@@ -101,7 +118,9 @@ pub(super) fn private_entries(
             .find(|m| m.module_name == procedure.module)
             .ok_or_else(|| Error::Compile("private entry module disappeared".into()))?;
         module.source.push_str(&entry);
-        bridges.insert((procedure.module.clone(), name), procedure.clone());
+        entries
+            .bridges
+            .insert((procedure.module.clone(), name), procedure.clone());
     }
-    Ok(bridges)
+    Ok(entries)
 }

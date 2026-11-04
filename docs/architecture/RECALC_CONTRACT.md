@@ -632,7 +632,10 @@ internal forwarding entries in the private procedures' own modules. The workshee
 registry publishes the original names. The original declarations retain their VBA
 visibility, and saved source never contains the generated entries. Optional defaults
 and ByRef copies use the ordinary adapter; Long, Double, Boolean, String and Variant
-are admitted. Private array, ParamArray and object signatures remain typed refusals.
+are admitted. A private signature outside those scalar carriers registers a typed
+refusal for that worksheet entry. Unused private array, ParamArray and object
+helpers therefore allow the project's supported entries to run. A refused call
+executes no procedure prefix, and IFERROR cannot turn it into a calculated value.
 Explicit source-module loading keeps its existing public-only worksheet inventory.
 The XML/binary forced-UDF distinction remains open.
 
