@@ -189,6 +189,11 @@ pub enum RecalcFailure {
     WrongDestination,
     CallableBindingMismatch,
     ExternalInputMismatch,
+    /// A scope interaction discovered during evaluation has no measured profile.
+    NotModeledScope {
+        construct: &'static str,
+        owner: &'static str,
+    },
     /// A read of `area` by the evaluation of the formula at `formula` did not complete, so the
     /// evaluation's result was discarded: the read observer stopped the recalculation there
     /// ([`ReadObserver::observe`]), or the reads broke CalcFml's reader contract, which the
@@ -227,6 +232,9 @@ pub enum RecalcFailure {
 impl fmt::Display for RecalcFailure {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            RecalcFailure::NotModeledScope { construct, owner } => {
+                write!(f, "{construct} is not modelled ({owner})")
+            }
             RecalcFailure::WrongDestination => {
                 f.write_str("the result destination differs from its admitted owner")
             }
@@ -465,6 +473,9 @@ pub struct RecalcWork {
     iteration: IterationSettings,
     /// The formulas on a cycle.
     cyclic: BTreeSet<NodeId>,
+    /// Manual iterative Range targets whose calculation is not established.
+    /// They retain their old results and unmet requirements, outside Progress.
+    range_refused: BTreeSet<NodeId>,
     /// With iteration on, the value each formula on a cycle holds as the recalculation stands:
     /// its value at the end of the last pass, or its new value once evaluated in this pass;
     /// `None` when its result is no value.
@@ -554,6 +565,7 @@ pub(crate) struct EvalShared<'a> {
     volatile_inputs: u64,
     boundary_caches: &'a crate::read::BoundarySnapshot,
     scope: &'a CalcScope,
+    range_refused: &'a BTreeSet<NodeId>,
     pub(crate) calculation: &'a Calculation,
     pub(crate) environment: Option<calc_fml::CalcEnvironment>,
     pub(crate) random_seed: u64,
@@ -586,6 +598,7 @@ impl<'a> EvalShared<'a> {
             workbook_facts: self.workbook_facts,
             caller: local.current_node.get(),
             scope: Some(self.scope),
+            range_refused: Some(self.range_refused),
             boundary: Some(&local.boundary_read),
             boundary_caches: Some(self.boundary_caches),
             boundary_used: Some(&local.boundary_used),
@@ -613,6 +626,7 @@ macro_rules! shared_of {
             facts_version: $work.facts_version,
             volatile_inputs: $work.volatile_input_version,
             scope: &$work.admission.scope,
+            range_refused: &$work.range_refused,
             boundary_caches: &$work.boundary_caches,
             calculation: &$work.calculation,
             environment: $work.environment,
@@ -621,8 +635,7 @@ macro_rules! shared_of {
             workbook_facts: $work.workbook_facts.as_ref(),
             progress: &$work.progress,
             spills: &$work.spills,
-            iterates: ($work.iteration.enabled() && !$work.cyclic.is_empty())
-                .then_some(&$work.iterates),
+            iterates: $work.iterating().then_some(&$work.iterates),
             kept: (!$work.iteration.enabled()).then_some(&$work.kept),
             waits_on: &$work.waits_on,
             cyclic: &$work.cyclic,
@@ -865,7 +878,8 @@ impl RecalcWork {
     }
     fn coverage(&self) -> ScopeCoverage {
         let mut coverage = ScopeCoverage {
-            required: self.progress.scheduled(),
+            required: self.progress.scheduled() + self.range_refused.len(),
+            refused: self.range_refused.len(),
             ..ScopeCoverage::default()
         };
         for (_, result) in self.progress.staged_results() {
@@ -957,14 +971,20 @@ impl RecalcWork {
 
     /// Whether the formulas on a cycle are calculated iteratively.
     fn iterating(&self) -> bool {
-        self.iteration.enabled() && !self.cyclic.is_empty()
+        self.iteration.enabled() && !self.cyclic.is_empty() && !self.iterative_range()
+    }
+
+    fn iterative_range(&self) -> bool {
+        self.iteration.enabled()
+            && matches!(self.admission.scope, CalcScope::Range(_))
+            && self.admission.selection != EvalSelection::FormulaEntry
     }
 
     /// Makes `nodes` formulas on a cycle, each starting from its last calculated value in `state`
     /// (0 when it has none) when iteration is on.
     fn add_cyclic(&mut self, state: &EngineState, nodes: impl IntoIterator<Item = NodeId>) {
         for node in nodes {
-            if self.cyclic.insert(node) && self.iteration.enabled() {
+            if self.cyclic.insert(node) && self.iteration.enabled() && !self.iterative_range() {
                 self.iteration_complete = false;
                 let start = starting_value(state, node);
                 self.iterates.insert(node, Some(start.clone()));
@@ -1030,6 +1050,7 @@ pub fn begin_recalc(
         CalcScope::Workbook,
         EvalSelection::DirtyAndVolatile,
         false,
+        RangePostState::Satisfied,
     )
 }
 
@@ -1042,7 +1063,32 @@ pub fn begin_recalc_scoped(
     scope: CalcScope,
     selection: EvalSelection,
 ) -> Result<RecalcWork, StartError> {
-    begin_with_scope(state, inputs, mode, scope, selection, false)
+    begin_recalc_scoped_with_poststate(
+        state,
+        inputs,
+        mode,
+        scope,
+        selection,
+        RangePostState::Satisfied,
+    )
+}
+
+/// The owner supplies the admitted range post-state before scheduling. StillRequired
+/// selects the measured Manual range profile; it cannot be inferred from file caches.
+pub fn begin_recalc_scoped_with_poststate(
+    state: &mut EngineState,
+    inputs: &ModelRoot,
+    mode: NumericMode,
+    scope: CalcScope,
+    selection: EvalSelection,
+    poststate: RangePostState,
+) -> Result<RecalcWork, StartError> {
+    assert!(
+        poststate == RangePostState::Satisfied
+            || (matches!(scope, CalcScope::Range(_)) && selection.forces_all()),
+        "StillRequired belongs to an admitted forced range request"
+    );
+    begin_with_scope(state, inputs, mode, scope, selection, false, poststate)
 }
 
 fn begin_with_scope(
@@ -1052,6 +1098,7 @@ fn begin_with_scope(
     scope: CalcScope,
     requested_selection: EvalSelection,
     empty_successor: bool,
+    poststate: RangePostState,
 ) -> Result<RecalcWork, StartError> {
     if requested_selection == EvalSelection::FormulaEntry
         && !matches!(&scope, CalcScope::Range(areas) if areas.len() == 1 && areas[0].cell_count() == 1)
@@ -1315,18 +1362,40 @@ fn begin_with_scope(
     state.readers_cache = cache;
     order.retain(|node| scope.contains(live_anchor(state, *node)));
     cyclic.retain(|node| scope.contains(live_anchor(state, *node)));
+    let mut range_refused = BTreeSet::new();
     if iteration.enabled()
         && !cyclic.is_empty()
         && matches!(&scope, CalcScope::Range(_))
         && selection != EvalSelection::FormulaEntry
     {
-        // P14's Range.Calculate kept its seeds, unlike the workbook commands.
-        // Mixed targets and dynamic cyclic ranges still need qualification;
-        // refuse this profile before any target can be called calculated.
-        return Err(StartError::NotModeledScope {
-            construct: "iterative range calculation with circular formulas",
-            owner: "dc-hsa5.11",
-        });
+        if poststate != RangePostState::StillRequired {
+            return Err(iterative_range_refusal());
+        }
+        // Only the measured pure scalar Manual profile can admit independent work.
+        // Its conservative graph closure may retain additional unmeasured readers.
+        if order.iter().any(|node| {
+            let at = live_anchor(state, *node);
+            matches!(state.bindings.get(node), Some(Binding::DataTable(_)))
+                || matches!(state.bindings.get(node), Some(Binding::Placed(instance, _)) if instance.plan().has_user_calls())
+                || inputs.definitions().array(at).is_some_and(|array| array.area().cell_count() > 1)
+                || state.spills.get(at).is_some_and(|spill| spill.area().cell_count() > 1)
+                || state.cached_arrays.get(node).is_some_and(|spill| spill.area().cell_count() > 1)
+        }) {
+            return Err(iterative_range_refusal());
+        }
+        range_refused.extend(
+            dirty_closure(state, inputs, cyclic.clone(), &|node| {
+                invalidation_areas(state, inputs, node)
+            })
+            .members()
+            .iter()
+            .copied()
+            .filter(|node| scope.contains(live_anchor(state, *node))),
+        );
+        order.retain(|node| !range_refused.contains(node));
+        if order.is_empty() {
+            return Err(iterative_range_refusal());
+        }
     }
     if cyclic.is_empty()
         && selection.forces_all()
@@ -1374,7 +1443,7 @@ fn begin_with_scope(
         },
         pass,
         scope,
-        range_post_state: crate::contract::RangePostState::Satisfied,
+        range_post_state: poststate,
         selection,
         admitted: AdmissionFrontier {
             model: revision,
@@ -1496,6 +1565,7 @@ fn begin_with_scope(
         failure: None,
         iteration,
         cyclic: BTreeSet::new(),
+        range_refused,
         iterates: BTreeMap::new(),
         pass_start: BTreeMap::new(),
         passes: 0,
@@ -1504,8 +1574,41 @@ fn begin_with_scope(
     })
     .map(|mut work| {
         work.add_cyclic(state, cyclic);
+        if !work.range_refused.is_empty() {
+            work.events.push(CalcEvent::TargetsRefused {
+                command: work.admission.command,
+                targets: work
+                    .range_refused
+                    .iter()
+                    .map(|node| live_anchor(state, *node))
+                    .collect(),
+                construct: "cyclic targets and their readers in a Manual range calculation",
+                owner: "dc-hsa5.11",
+            });
+        }
         work
     })
+}
+
+fn iterative_range_refusal() -> StartError {
+    StartError::NotModeledScope {
+        construct: "iterative range calculation with circular formulas",
+        owner: "dc-hsa5.11",
+    }
+}
+
+fn dynamic_range_failure() -> RecalcFailure {
+    RecalcFailure::NotModeledScope {
+        construct: "a dynamic circular reference in an iterative range calculation",
+        owner: "dc-hsa5.11",
+    }
+}
+
+fn mixed_range_spill_failure() -> RecalcFailure {
+    RecalcFailure::NotModeledScope {
+        construct: "multi-cell spill placement in an iterative mixed range calculation",
+        owner: "dc-hsa5.11",
+    }
 }
 
 /// An edit opens a successor. Candidate reads are checked against the new requirements, not
@@ -1569,7 +1672,12 @@ pub fn supersede_recalc_scoped(
         .to_vec();
         state.contract.invalidate(affected);
     }
-    let mut next = begin_with_scope(state, inputs, mode, scope, selection, true)?;
+    let poststate = if matches!(scope, CalcScope::Range(_)) && selection.forces_all() {
+        previous.admission.range_post_state
+    } else {
+        RangePostState::Satisfied
+    };
+    let mut next = begin_with_scope(state, inputs, mode, scope, selection, true, poststate)?;
     if previous.admission.range_post_state == crate::contract::RangePostState::StillRequired
         && matches!(next.admission.scope, CalcScope::Range(_))
         && next.admission.selection.forces_all()
@@ -1586,6 +1694,11 @@ pub fn supersede_recalc_scoped(
     );
     events.push(CalcEvent::Superseded(terminal));
     events.push(CalcEvent::Admitted(next.admission.clone()));
+    events.extend(
+        next.events
+            .drain(..)
+            .filter(|event| !matches!(event, CalcEvent::Admitted(_))),
+    );
     next.events = events;
     let force = next.admission.selection.forces_all();
     let mut candidates: BTreeMap<NodeId, FormulaResult> = std::mem::take(&mut previous.progress)
@@ -2681,7 +2794,22 @@ pub fn finish(
             .invalidate(work.invalidated_outside.iter().copied());
         state.pending.extend(work.invalidated_outside);
     }
-    state.cycle_members = work.cyclic;
+    if matches!(work.admission.scope, CalcScope::Workbook) {
+        state.cycle_members = work.cyclic;
+    } else {
+        // A narrow command cannot discharge the known cyclic demand elsewhere.
+        let outside = state
+            .cycle_members
+            .iter()
+            .copied()
+            .filter(|node| {
+                state.node(*node).is_some()
+                    && !work.admission.scope.contains(live_anchor(state, *node))
+            })
+            .collect::<BTreeSet<_>>();
+        state.cycle_members = outside;
+        state.cycle_members.extend(work.cyclic);
+    }
     state.published_mode = Some(work.calculation.mode().clone());
     spill_changes.sort_by_key(|change| change.anchor);
     changes.sort_by_key(|(at, _)| *at);
@@ -3791,7 +3919,12 @@ fn next_node(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) -> 
             let stuck: Vec<NodeId> = work.waits_on.keys().copied().collect();
             work.waits_on.clear();
             work.waiting.clear();
-            if work.iteration.enabled() {
+            if work.iterative_range() {
+                // Preserve the historical values needed by a later ordinary
+                // calculation; a refusal result would overwrite those seeds.
+                work.failure = Some(dynamic_range_failure());
+                return None;
+            } else if work.iteration.enabled() {
                 let mut stuck = stuck;
                 sort_members(state, inputs, &mut stuck);
                 work.add_cyclic(state, stuck.iter().copied());
@@ -4144,8 +4277,17 @@ fn next_wave(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) {
                     .copied()
                     .filter(|node| !work.admission.scope.contains(live_anchor(state, *node))),
             );
-            order.retain(|node| work.admission.scope.contains(live_anchor(state, *node)));
+            order.retain(|node| {
+                work.admission.scope.contains(live_anchor(state, *node))
+                    && !work.range_refused.contains(node)
+            });
             cyclic.retain(|node| work.admission.scope.contains(live_anchor(state, *node)));
+            if work.iterative_range()
+                && cyclic.iter().any(|node| !work.range_refused.contains(node))
+            {
+                work.failure = Some(dynamic_range_failure());
+                return;
+            }
             work.add_cyclic(state, cyclic);
             for node in &order {
                 let evaluated = work.progress.is_evaluated(*node);
@@ -4163,7 +4305,11 @@ fn next_wave(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) {
                 construct: "spill ranges that kept changing size within one recalculation",
                 owner: "dc-10y",
             });
-            for node in roots {
+            for node in roots
+                .into_iter()
+                .filter(|node| !work.range_refused.contains(node))
+                .collect::<Vec<_>>()
+            {
                 work.progress.schedule(node);
                 let done = refused(work, refusal.clone());
                 stage(state, inputs, work, node, done);
@@ -4329,6 +4475,10 @@ fn resume_cycle(
     work: &mut RecalcWork,
     mut chain: Vec<NodeId>,
 ) {
+    if work.iterative_range() {
+        work.failure = Some(dynamic_range_failure());
+        return;
+    }
     for member in &chain {
         if let Some(awaited) = work.waits_on.remove(member)
             && let Some(waiters) = work.waiting.get_mut(&awaited)
@@ -4377,6 +4527,22 @@ fn stage(
     node: NodeId,
     mut done: Done,
 ) {
+    if work.range_refused.contains(&node) {
+        work.failure = Some(RecalcFailure::ScopeViolation {
+            at: live_anchor(state, node),
+        });
+        return;
+    }
+    if !work.range_refused.is_empty()
+        && (done
+            .spill
+            .as_ref()
+            .is_some_and(|spill| spill.area().cell_count() > 1)
+            || done.blocked.is_some_and(|area| area.cell_count() > 1))
+    {
+        work.failure = Some(mixed_range_spill_failure());
+        return;
+    }
     let at = live_anchor(state, node);
     let before = match work.filled.get(node) {
         Some(filled) => *filled,
@@ -5482,6 +5648,15 @@ fn evaluate_unstamped(
     if let Some(area) = stopped {
         return Err(RecalcFailure::ReadFailed { formula, area });
     }
+    if local.boundary_read.get() == Some(crate::read::iterative_range_denial()) {
+        // The denied reader may itself have a cycle hidden after this read.
+        // Preserve its previous result for a later authorized workbook seed.
+        let denial = crate::read::iterative_range_denial();
+        return Err(RecalcFailure::NotModeledScope {
+            construct: denial.construct,
+            owner: denial.owner,
+        });
+    }
     // With iteration off, a formula that read one a circular reference left uncalculated is not
     // calculated either (dc-10y).
     if kept_read {
@@ -5636,6 +5811,17 @@ fn place_value(
     mut dynamic: Vec<Prerequisite>,
     calculation: Calculation,
 ) -> Result<Attempt, RecalcFailure> {
+    if !shared.range_refused.is_empty()
+        && role == ArrayRole::Spill
+        && value.callable_value().is_none()
+        && value
+            .as_array()
+            .is_some_and(|array| !array.is_boxed() && array.cell_count() > 1)
+    {
+        // Refuse the attempted extent before collision handling, including an
+        // unknown outside array whose children overlap this new spill.
+        return Err(mixed_range_spill_failure());
+    }
     if shared.parallel_scheduling
         && matches!(role, ArrayRole::Spill)
         && parallel_limit(state, node).is_some()

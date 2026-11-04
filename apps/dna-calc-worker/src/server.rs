@@ -81,6 +81,147 @@ impl Default for Server {
     }
 }
 
+#[cfg(test)]
+mod mixed_range_tests {
+    use super::*;
+
+    /// Exercise the same requests, calculation driver and serialized events as the page.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_hsa5_11__mixed_range_worker_reports_unresolved_targets() {
+        for budget in [usize::MAX, 1] {
+            let mut server = Server::new();
+            server
+                .execute_current(Request::Intent(Intent::SetCalcMode { manual: true }), None)
+                .reply
+                .unwrap();
+            server
+                .execute_current(
+                    Request::Intent(Intent::SetIteration {
+                        enabled: true,
+                        max_iterations: 1,
+                        max_change_bits: 0.001_f64.to_bits(),
+                    }),
+                    None,
+                )
+                .reply
+                .unwrap();
+            let sheet = server.book.host().sheets()[0].id();
+            let at = |column| CellKey::new(sheet, 1, column).unwrap();
+            for (column, text) in [(1, "=B1+1"), (2, "=A1+1"), (3, "=A1+1"), (4, "=2+2")] {
+                server
+                    .execute_current(
+                        Request::Intent(Intent::EnterCell {
+                            at: Key::of(at(column)),
+                            text: text.into(),
+                        }),
+                        None,
+                    )
+                    .reply
+                    .unwrap();
+            }
+            server
+                .execute_current(Request::Intent(Intent::Rebuild), None)
+                .reply
+                .unwrap();
+            while server.has_pending_calculation() {
+                server.advance_calculation();
+            }
+            let old = calc_host::project(
+                server.book.host(),
+                &calc_host::ProjectionRequest {
+                    cells: (1..=3).map(at).collect(),
+                },
+            )
+            .unwrap();
+            server.take_events();
+            server.set_calculation_budget(calc_host::WorkBudget::evaluations(budget));
+            server
+                .execute_current(
+                    Request::Intent(Intent::CalculateRange {
+                        areas: vec![Area::of(GridArea::new(at(1), at(4)).unwrap())],
+                    }),
+                    None,
+                )
+                .reply
+                .unwrap();
+            let mut steps = 0;
+            while server.has_pending_calculation() {
+                server.advance_calculation();
+                steps += 1;
+                assert!(steps < 1000);
+            }
+            let events = server.take_events();
+            let events = events
+                .iter()
+                .map(|event| {
+                    let text = dna_calc_protocol::encode(event);
+                    dna_calc_protocol::decode::<Event>(&text).unwrap()
+                })
+                .collect::<Vec<_>>();
+            let command = events
+                .iter()
+                .find_map(|event| match event {
+                    Event::Calculation {
+                        receipt: wire::CalculationEvent::Admitted { command, .. },
+                        ..
+                    } => Some(*command),
+                    _ => None,
+                })
+                .unwrap();
+            assert!(events.iter().any(|event| matches!(event, Event::Calculation {
+                receipt: wire::CalculationEvent::TargetsRefused { command: id, targets, owner, .. }, ..
+            } if *id == command && owner == "dc-hsa5.11" && targets == &(1..=3).map(|c| Key::of(at(c))).collect::<Vec<_>>())));
+            assert!(
+                events
+                    .iter()
+                    .any(|event| matches!(event, Event::Calculation {
+                receipt: wire::CalculationEvent::Completed {
+                    command: id, outcome: wire::CalculationOutcome::Incomplete,
+                    required: 4, calculated: 1, refused: 3, ..
+                }, ..
+            } if *id == command))
+            );
+            let now = calc_host::project(
+                server.book.host(),
+                &calc_host::ProjectionRequest {
+                    cells: (1..=4).map(at).collect(),
+                },
+            )
+            .unwrap();
+            for (before, after) in old.cells().iter().zip(now.cells()) {
+                let retained = |value: &calc_host::ProjectedValue| match value {
+                    calc_host::ProjectedValue::Calculated { value, calculation } => {
+                        (value.clone(), calculation.tick())
+                    }
+                    calc_host::ProjectedValue::Stale(stale) => (
+                        stale.last_value().unwrap().clone(),
+                        stale.last_calculation().unwrap().tick(),
+                    ),
+                    other => panic!("expected a warm result: {other:?}"),
+                };
+                assert_eq!(retained(before.value()), retained(after.value()));
+            }
+            let (value, calculation) = match now.cells()[3].value() {
+                calc_host::ProjectedValue::Calculated { value, calculation } => {
+                    (value, calculation)
+                }
+                calc_host::ProjectedValue::Stale(stale) => (
+                    stale.last_value().unwrap(),
+                    stale.last_calculation().unwrap(),
+                ),
+                other => panic!("the independent scalar must be evaluated: {other:?}"),
+            };
+            assert_eq!(value, &calc_host::value::CalcValue::number(4.0));
+            assert_eq!(
+                calculation.stamp().unwrap().certification.command.sequence,
+                command
+            );
+        }
+    }
+}
+
 impl Server {
     /// A server over a new, empty workbook.
     pub fn new() -> Server {
@@ -1877,6 +2018,18 @@ impl Server {
             }
         };
         let receipt = match event {
+            E::TargetsRefused {
+                command,
+                targets,
+                construct,
+                owner,
+            } => wire::CalculationEvent::TargetsRefused {
+                domain: command.domain_incarnation,
+                command: command.sequence,
+                targets: targets.into_iter().map(Key::of).collect(),
+                construct: construct.into(),
+                owner: owner.into(),
+            },
             E::Reevaluated {
                 previous: _,
                 next,

@@ -94,6 +94,7 @@ impl DetachedFormula {
             cached_observation: false,
             caller: None,
             scope: None,
+            range_refused: None,
             boundary: None,
             boundary_caches: None,
             boundary_used: None,

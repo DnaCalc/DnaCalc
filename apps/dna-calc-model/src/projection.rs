@@ -1389,6 +1389,13 @@ pub enum CalculationEvent {
         range_post_state: CalculationRangePostState,
         predecessor: Option<u64>,
     },
+    TargetsRefused {
+        domain: u64,
+        command: u64,
+        targets: Vec<Key>,
+        construct: String,
+        owner: String,
+    },
     Yielded {
         domain: u64,
         command: u64,

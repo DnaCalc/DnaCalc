@@ -404,6 +404,13 @@ pub enum CalcEvent {
         revision: AuthoredRevision,
     },
     Admitted(AdmissionReceipt),
+    /// These targets remain unmet and retain their old result provenance.
+    TargetsRefused {
+        command: CalcCommandId,
+        targets: Vec<CellKey>,
+        construct: &'static str,
+        owner: &'static str,
+    },
     Yielded {
         pass: CalcPassId,
         remaining: usize,
