@@ -121,7 +121,14 @@ static std::string oper(Address p, int depth = 0) {
         for (int64_t i=0; i<limit; ++i) { if (i) s+=","; s += oper(values+i*32, depth+1); }
         s += "],\"omitted\":"+std::to_string(count-limit)+"}"; break;
     }
-    case 2050: s += "{\"opaque_handle\":"+hex(read<Address>(p))+",\"byte_count\":"+std::to_string(read<int64_t>(p+8))+"}"; break;
+    case 2050: {
+        std::ostringstream raw, padding;
+        for (unsigned i=0;i<32;++i) raw << std::hex << std::setw(2) << std::setfill('0') << (int)bytes[i];
+        for (unsigned i=12;i<16;++i) padding << std::hex << std::setw(2) << std::setfill('0') << (int)bytes[i];
+        s += "{\"opaque_handle\":"+hex(read<Address>(p))+",\"byte_count\":"+std::to_string(read<int32_t>(p+8))+"}";
+        s += ",\"abi_storage\":{\"layout\":\"xloper12-bigdata-long32/1\",\"raw32\":"+quote(raw.str())+",\"padding_after_cbData\":"+quote(padding.str())+"}";
+        break;
+    }
     default: {
         std::ostringstream raw; for (unsigned char c: bytes) raw << std::hex << std::setw(2) << std::setfill('0') << (int)c;
         s += "{\"raw32\":"+quote(raw.str())+"}";

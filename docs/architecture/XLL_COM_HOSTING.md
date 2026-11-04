@@ -949,3 +949,20 @@ inventory, successful fresh-job receipt, retained host and runner hashes, securi
 and capture interval. The runner's raw inventory includes the already-owned session PID;
 that metadata stays unchanged. Without the explicit ledger, the original ownership check
 still refuses that PID. Value, callback and ordered RTD comparisons are unchanged.
+
+## 25. BigData count layout (dc-snz.23)
+
+The XLOPER12 BigData declaration uses `long cbData`, which is signed 32-bit on
+Windows, including x64. The ABI and tracer previously read 64 bits, including
+the following four padding bytes. Sources: the published
+[XLOPER12 declaration](https://xloil.readthedocs.io/en/v0.9.2/doxygen/_xl_call_slim_8h_source.html)
+and [Windows data types](https://learn.microsoft.com/windows/win32/winprog/windows-data-types).
+
+The ABI now declares that field as i32. New traces retain all 32 operand bytes
+and identify the four bytes following cbData separately. Before comparing the
+declared fields, the verifier checks the decoded pointer, signed count and type
+against the retained bytes. Padding stays in the raw comparison and diagnostics;
+it is not treated as part of the count. Tests change each declared field and
+check rejection of inconsistent raw storage. Earlier captures keep their original
+decoding and are not rewritten. Fresh native qualification and the remaining
+managed RTD lifecycle comparison remain open.

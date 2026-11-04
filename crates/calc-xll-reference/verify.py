@@ -420,6 +420,36 @@ def verify_x1(excel, excel_control, host, host_control):
     }
 
 
+def defined_boundary(value):
+    """Check the new BigData decoder against its retained bytes before comparing fields.
+
+    cbData is a signed 32-bit C long. Its following padding is retained in raw
+    records, while every declared field remains part of the defined comparison.
+    Older captures keep their original decoding and comparison behavior.
+    """
+    if isinstance(value, dict):
+        if "abi_storage" in value:
+            require(set(value) == {"type", "value", "abi_storage"}, "Unexpected BigData operand fields")
+            require(isinstance(value["type"], int) and value["type"] & 0xfff == 2050, "BigData storage on another operand type")
+            storage = value["abi_storage"]
+            require(set(storage) == {"layout", "raw32", "padding_after_cbData"}
+                    and storage["layout"] == "xloper12-bigdata-long32/1", "Unknown BigData storage layout")
+            require(isinstance(storage["raw32"], str) and re.fullmatch(r"[0-9a-f]{64}", storage["raw32"]), "Invalid BigData raw operand")
+            raw = bytes.fromhex(storage["raw32"])
+            fields = value["value"]
+            require(set(fields) == {"opaque_handle", "byte_count"}, "Unexpected BigData value fields")
+            require(isinstance(fields["opaque_handle"], str) and re.fullmatch(r"0x[0-9a-f]+", fields["opaque_handle"]), "Invalid raw BigData identity")
+            require(int(fields["opaque_handle"], 16) == struct.unpack_from("<Q", raw)[0], "BigData pointer differs from raw bytes")
+            require(type(fields["byte_count"]) is int and fields["byte_count"] == struct.unpack_from("<i", raw, 8)[0], "BigData cbData differs from raw bytes")
+            require(value["type"] == struct.unpack_from("<I", raw, 24)[0], "BigData type differs from raw bytes")
+            require(storage["padding_after_cbData"] == raw[12:16].hex(), "BigData padding differs from raw bytes")
+            return {"type": value["type"], "value": defined_boundary(fields)}
+        return {key: defined_boundary(child) for key, child in value.items()}
+    if isinstance(value, list):
+        return [defined_boundary(child) for child in value]
+    return value
+
+
 def normalize_x2(value):
     """Normalize only process identities: sheet IDs, handles, GUID names and XLL paths.
 
@@ -443,13 +473,14 @@ def normalize_x2(value):
 def invocation_record(trace, entry, defined=True):
     events, enters, leaves = trace
     returned = leaves[entry["call"]]
-    callbacks = [[x["function"], normalize_x2(x["args"]), leaves[x["call"]]["return_code"],
-                  None if defined and x["function"] == 16384 else normalize_x2(leaves[x["call"]].get("result"))]
+    normalize = lambda value: normalize_x2(defined_boundary(value) if defined else value)
+    callbacks = [[x["function"], normalize(x["args"]), leaves[x["call"]]["return_code"],
+                  None if defined and x["function"] == 16384 else normalize(leaves[x["call"]].get("result"))]
                  for x in enters.values() if x["entry"].endswith("!MdCallBack12")
                  and x["thread"] == entry["thread"] and entry["seq"] < x["seq"]
                  and leaves[x["call"]]["seq"] < returned["seq"]]
-    return {"arguments": normalize_x2(entry.get("args")),
-            "result": normalize_x2(returned.get("result")), "callbacks": callbacks}
+    return {"arguments": normalize(entry.get("args")),
+            "result": normalize(returned.get("result")), "callbacks": callbacks}
 
 
 def x2_invocation(trace, name):
@@ -482,8 +513,8 @@ def framework_callbacks(trace, teardown=False):
             continue
         end = leaves[entry["call"]]
         fn = entry["function"]
-        args = normalize_x2(entry["args"])
-        result = normalize_x2(end.get("result"))
+        args = normalize_x2(defined_boundary(entry["args"]))
+        result = normalize_x2(defined_boundary(end.get("result")))
         raw_result = json.loads(json.dumps(result))
         identity = None
         if fn == 149 and end["return_code"] == 0:
@@ -762,10 +793,12 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
             # Excel-DNA's ObjectParam reads hData only for XlTypeBigData
             # (XlMarshalContext.cs:597-600). Keep cbData differences explicit;
             # they are not evidence that every raw argument byte agrees.
-            for record in records:
+            for record, raw_record in zip(records, raw_records):
                 handle = record["arguments"][1]
                 require(handle["code"] == "X" and handle["value"]["type"] == 2050, "Async handle type differs")
-                opaque_storage.append(handle["value"]["value"].pop("byte_count"))
+                opaque_storage.append(handle["value"]["value"]["byte_count"])
+                if "abi_storage" not in raw_record["arguments"][1]["value"]:
+                    handle["value"]["value"].pop("byte_count")
         require(records[0] == records[1], "Defined native arguments/result/nested callbacks differ for " + name)
         call_comparisons[name] = {"same_defined_arguments_and_result": True, "same_raw_record_after_identity_normalization": raw_equal,
                                   "invocations_each_host": len(records[0]) if x3 else 1,
