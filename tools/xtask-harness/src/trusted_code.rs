@@ -57,7 +57,6 @@ impl Manifest {
         if value["format"] != "dnacalc-trusted-evidence-code" || value["version"] != 1 {
             return Err("invalid trusted-evidence code manifest".into());
         }
-        let directory = path.parent().unwrap_or(Path::new("."));
         let mut entries = BTreeMap::new();
         for (hash, entry) in value["workbooks"]
             .as_object()
@@ -85,16 +84,18 @@ impl Manifest {
                 .ok_or("trusted workbook needs an xlls list")?
             {
                 let path = PathBuf::from(artifact["path"].as_str().ok_or("XLL needs a path")?);
+                if !path.is_absolute() {
+                    return Err(
+                        "XLL artifact paths must be absolute so the manifest binds their origin"
+                            .into(),
+                    );
+                }
                 let hash = artifact["sha256"]
                     .as_str()
                     .filter(|s| digest(s))
                     .ok_or("XLL needs an exact hash")?;
                 xlls.push(Artifact {
-                    path: if path.is_absolute() {
-                        path
-                    } else {
-                        directory.join(path)
-                    },
+                    path,
                     digest: hash.into(),
                 });
             }
@@ -408,6 +409,36 @@ mod tests {
         )
         .unwrap()
     }
+    #[test]
+    fn manifest_location_cannot_change_a_relative_provider_origin() {
+        let directory = std::env::temp_dir().join(format!("trusted-origin-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("manifest.json");
+        let mut value = json!({"format":"dnacalc-trusted-evidence-code","version":1,
+            "workbooks":{"0".repeat(64):{"vba":false,"events":false,"evidence":"authored origin control",
+                "xlls":[{"path":"provider.xll","sha256":"0".repeat(64)}]}}});
+        std::fs::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
+        assert!(
+            Manifest::read(&path, None)
+                .unwrap_err()
+                .contains("must be absolute")
+        );
+        value["workbooks"]["0".repeat(64)]["xlls"][0]["path"] =
+            json!(directory.join("provider.xll"));
+        std::fs::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
+        let before = Manifest::read(&path, None).unwrap();
+        let relocated = directory.join("elsewhere");
+        std::fs::create_dir_all(&relocated).unwrap();
+        let moved = relocated.join("manifest.json");
+        std::fs::copy(&path, &moved).unwrap();
+        let after = Manifest::read(&moved, None).unwrap();
+        assert_eq!(before.digest, after.digest);
+        assert_eq!(
+            before.policy(&"0".repeat(64)),
+            after.policy(&"0".repeat(64))
+        );
+    }
+
     #[test]
     fn trusted_project_admission_keeps_unsupported_class_source_intact() {
         let bytes = include_bytes!(

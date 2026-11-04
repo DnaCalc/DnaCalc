@@ -273,7 +273,8 @@ The default DNA-only route still disables file VBA and events. The explicit rout
 reads a version 1 `dnacalc-trusted-evidence-code` JSON manifest with `workbooks`
 keyed by each original package SHA-256. Each entry requires `vba` and `events`
 booleans, an `xlls` list, and nonempty `evidence` explaining the authorization.
-XLL entries require `path` and `sha256`; relative paths resolve beside the manifest.
+XLL entries require an absolute `path` and `sha256`. Moving a provider changes the
+manifest digest; moving the manifest cannot change provider resolution.
 Only independently listed linked packages may run file code. Runtime admission
 failures remain typed failures for the whole affected workbook; source is never
 stripped to force admission. A missing provider is still a refused call.
