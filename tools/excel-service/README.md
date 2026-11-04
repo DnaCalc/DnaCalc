@@ -15,8 +15,11 @@ run = excel.consecutive_run("ERF.PRECISE", "3e47bc15e9263000", 1000)
 ```
 Hex means 16 binary64 bit digits, not `float.hex()` notation. `number(1.0)` also works.
 Replies contain typed rows, exact input readbacks, Excel build, machine and UTC timestamp.
-New replies also retain the witness worker's calculation settings, including actual decimal and
-thousands separators and workbook date/compatibility settings (unavailable fields stay absent).
+New replies also retain the witness worker's calculation settings, including Application decimal/
+thousands separator properties and workbook date/compatibility settings (unavailable fields stay absent).
+With UseSystemSeparators enabled, those Application properties can differ from the characters Excel
+renders. Keep the observed text and original settings; a current setting does not establish a
+historical bank's missing context. FIXED rows with no_commas enabled need no grouping separator.
 Scalar numeric formatting/text calls include FIXED, DOLLAR, TEXT, VALUE, NUMBERVALUE,
 VALUETOTEXT, ASC and DBCS; this does not admit array-producing or hyperlink entries from their family.
 `text(..., literal=True)` and `boolean(..., literal=True)` select direct literals;

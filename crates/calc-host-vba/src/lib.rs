@@ -17,10 +17,12 @@ pub struct WorkbookEvents {
     book: Option<EventSource>,
     max_steps: u64,
     file_project: bool,
+    automatic_events: bool,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModuleTarget {
     Standard,
+    Class,
     Workbook,
     Worksheet(SheetId),
 }
@@ -63,6 +65,18 @@ pub fn prepare_file_project(
     max_steps: u64,
     backend: Option<calc_vba::Backend>,
 ) -> Result<Option<Rc<WorkbookEvents>>, FileProjectError> {
+    prepare_file_project_with_events(host, name, max_steps, backend, true)
+}
+
+/// A disabled-events admission still compiles every module. Its owner refuses
+/// event delivery if a caller later enables events without preparing again.
+pub fn prepare_file_project_with_events(
+    host: &HostState,
+    name: &str,
+    max_steps: u64,
+    backend: Option<calc_vba::Backend>,
+    automatic_events: bool,
+) -> Result<Option<Rc<WorkbookEvents>>, FileProjectError> {
     let Some(project) = host
         .loaded()
         .read_vba_project(&Default::default())
@@ -87,6 +101,12 @@ pub fn prepare_file_project(
         .map(|module| {
             let target = match module.kind {
                 calc_host::VbaModuleKind::Procedural => ModuleTarget::Standard,
+                calc_host::VbaModuleKind::Class => {
+                    if documents.contains_key(&calc_value::fold_workbook_name(&module.name)) {
+                        return Err(FileProjectError::DocumentIdentity(module.name));
+                    }
+                    ModuleTarget::Class
+                }
                 calc_host::VbaModuleKind::DocumentClassOrDesigner => {
                     match documents.get(&calc_value::fold_workbook_name(&module.name)) {
                         Some(Some(sheet)) => ModuleTarget::Worksheet(*sheet),
@@ -102,12 +122,27 @@ pub fn prepare_file_project(
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    prepare_project(host, name, &modules, max_steps, backend, true)
-        .map(Some)
-        .map_err(FileProjectError::Preparation)
+    prepare_project(
+        host,
+        name,
+        &modules,
+        max_steps,
+        backend,
+        true,
+        automatic_events,
+    )
+    .map(Some)
+    .map_err(FileProjectError::Preparation)
 }
 
 impl WorkbookEvents {
+    fn require_automatic_events(&self) -> Result<(), String> {
+        if self.automatic_events {
+            Ok(())
+        } else {
+            Err("file project was admitted with automatic events disabled; prepare it again before event delivery (dc-snz.15)".into())
+        }
+    }
     /// Publish the UDF registry and event owner only after the entire project is ready.
     pub fn install(self: Rc<Self>, session: &mut calc_host::HostSession) {
         let functions = self.functions();
@@ -131,7 +166,13 @@ pub fn activate_file_project(
     max_steps: u64,
     backend: Option<calc_vba::Backend>,
 ) -> Result<bool, FileProjectError> {
-    if let Some(project) = prepare_file_project(session.host(), name, max_steps, backend)? {
+    if let Some(project) = prepare_file_project_with_events(
+        session.host(),
+        name,
+        max_steps,
+        backend,
+        session.workbook_events_enabled(),
+    )? {
         project.install(session);
         session.notify_workbook_open();
         Ok(true)
@@ -147,7 +188,7 @@ pub fn prepare(
     max_steps: u64,
     backend: Option<calc_vba::Backend>,
 ) -> Result<Rc<WorkbookEvents>, String> {
-    prepare_project(host, name, modules, max_steps, backend, false)
+    prepare_project(host, name, modules, max_steps, backend, false, true)
 }
 
 fn prepare_project(
@@ -157,6 +198,7 @@ fn prepare_project(
     max_steps: u64,
     backend: Option<calc_vba::Backend>,
     file_project: bool,
+    automatic_events: bool,
 ) -> Result<Rc<WorkbookEvents>, String> {
     let mut sheets = BTreeSet::new();
     let mut documents = Vec::new();
@@ -166,6 +208,7 @@ fn prepare_project(
         .map(|module| {
             let kind = match module.target {
                 ModuleTarget::Standard => ModuleKind::Standard,
+                ModuleTarget::Class => ModuleKind::Class,
                 ModuleTarget::Workbook if !workbook => {
                     workbook = true;
                     ModuleKind::Workbook
@@ -191,7 +234,12 @@ fn prepare_project(
         })
         .collect::<Result<Vec<_>, String>>()?;
     let project = if file_project {
-        calc_vba::events::load_file_project(&modules, max_steps, backend)?
+        calc_vba::events::load_file_project_with_events(
+            &modules,
+            max_steps,
+            backend,
+            automatic_events,
+        )?
     } else {
         calc_vba::events::load_project(&modules, max_steps, backend)?
     };
@@ -201,6 +249,7 @@ fn prepare_project(
         book: None,
         max_steps,
         file_project,
+        automatic_events,
     };
     // Attach all new identities before replacing any live registration. A failed
     // attachment drops only the new project; its handlers have never been raised.
@@ -306,6 +355,7 @@ impl WorkbookEventHandler for WorkbookEvents {
         }
     }
     fn workbook_open(&self, host: &HostState) -> Result<(), String> {
+        self.require_automatic_events()?;
         if let Some(source) = &self.book {
             source.open(&Read(host, self.file_project), self.max_steps)?;
         }
@@ -317,6 +367,7 @@ impl WorkbookEventHandler for WorkbookEvents {
         sheet: SheetId,
         target: &[GridArea],
     ) -> Result<(), String> {
+        self.require_automatic_events()?;
         if let Some(source) = self.sheets.get(&sheet) {
             source.change(
                 ReferenceLike::from_areas(target.to_vec()).map_err(|e| e.to_string())?,
@@ -327,12 +378,14 @@ impl WorkbookEventHandler for WorkbookEvents {
         Ok(())
     }
     fn worksheet_calculate(&self, host: &HostState, sheet: SheetId) -> Result<(), String> {
+        self.require_automatic_events()?;
         if let Some(source) = self.sheets.get(&sheet) {
             source.calculate(&Read(host, self.file_project), self.max_steps)?;
         }
         Ok(())
     }
     fn before_save(&self, host: &HostState, operation: SaveOperation) -> Result<BeforeSaveOutcome, String> {
+        self.require_automatic_events()?;
         let cancel = if let Some(source) = &self.book {
             source.before_save(operation == SaveOperation::SaveAsDialog, &Read(host, self.file_project), self.max_steps)?
         } else {

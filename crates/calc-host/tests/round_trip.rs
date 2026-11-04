@@ -15365,6 +15365,7 @@ fn dc_971p_38__text_blank_and_error_conditions_sort_through_stored_formulas() {
         let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
         let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());check(reopened.host());
         let mut twin=session(&bytes);assert!(replay(book.intent_log(),&mut twin).mismatches.is_empty());check(twin.host());
+        check_pointwise_colour_filter_history_and_reopen(&mut book,None);
     }
 }
 
@@ -15581,4 +15582,79 @@ fn dc_bctq__conflicting_palette_refusal_keeps_current_spills_and_history_unchang
         assert_eq!(book.host().sheets().len(),1);assert_eq!(book.host().sheets()[0].id(),s);assert_eq!((book.host().revision(),book.history_depth(),value(book.host(),at(s,"C1")),value(book.host(),at(s,"C3"))),before);
         assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(matches!(value(book.host(),at(s,"C1")),ProjectedValue::Empty));assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(session_calculated(&book,at(s,"C3")).unwrap().as_number(),Some(13.));
     }
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__calendar_condition_formulas_keep_periods_clock_provenance_and_rows(){
+    use calc_host::{ConditionalChange as C,WorkbookCommand as W,LookColor};
+    for(period,condition,matching)in [
+        ("today","FLOOR(B2,1)=TODAY()","=TODAY()"),
+        ("yesterday","FLOOR(B2,1)=TODAY()-1","=TODAY()-1"),
+        ("tomorrow","FLOOR(B2,1)=TODAY()+1","=TODAY()+1"),
+        ("last7Days","AND(B2>=TODAY()-6,B2<TODAY()+1)","=TODAY()-3"),
+        ("thisMonth","AND(B2>=DATE(YEAR(TODAY()),MONTH(TODAY()),1),B2<DATE(YEAR(TODAY()),MONTH(TODAY())+1,1))","=TODAY()"),
+        ("lastMonth","AND(B2>=DATE(YEAR(TODAY()),MONTH(TODAY())-1,1),B2<DATE(YEAR(TODAY()),MONTH(TODAY()),1))","=DATE(YEAR(TODAY()),MONTH(TODAY())-1,1)"),
+        ("nextMonth","AND(B2>=DATE(YEAR(TODAY()),MONTH(TODAY())+1,1),B2<DATE(YEAR(TODAY()),MONTH(TODAY())+2,1))","=DATE(YEAR(TODAY()),MONTH(TODAY())+1,1)"),
+        ("thisWeek","AND(B2>=TODAY()-WEEKDAY(TODAY())+1,B2<TODAY()-WEEKDAY(TODAY())+8)","=TODAY()"),
+        ("lastWeek","AND(B2>=TODAY()-WEEKDAY(TODAY())-6,B2<TODAY()-WEEKDAY(TODAY())+1)","=TODAY()-7"),
+        ("nextWeek","AND(B2>=TODAY()-WEEKDAY(TODAY())+8,B2<TODAY()-WEEKDAY(TODAY())+15)","=TODAY()+7"),
+    ]{
+        let mut seed=session(&calc_host::blank_package());seed.set_clock(Some(45000.75));let s=seed.host().sheets()[0].id();
+        for(a,t)in [("A1","Key"),("A2","2"),("A3","1"),("B2",matching),("B3","=TODAY()-4000")]{assert!(enter(&mut seed,at(s,a),t).accepted());}
+        let revision=seed.host().revision().get();assert!(seed.dispatch(SkinIntent::Command(W::Conditional{sheet:s,revision,index:None,change:C::Condition{kind:"expression".into(),applies:"B2:B3".into(),color:"#123456".into(),formulas:vec![condition.into()],operator:String::new(),rank:1,percent:false,stop:true}})).accepted());
+        let mut bytes=Vec::new();seed.save(&SavePolicy::default(),&mut bytes).unwrap();let bytes=package_with_part_from(&bytes,"xl/worksheets/sheet1.xml",|xml|xml.replace("type=\"expression\"",&format!("type=\"timePeriod\" timePeriod=\"{period}\"")));
+        let fill=|host:&HostState,address|host.conditional_formats(host.sheets()[0].id()).look(host,at(host.sheets()[0].id(),address)).and_then(|l|l.fill);
+        let mut without_clock=session(&bytes);let s=without_clock.host().sheets()[0].id();assert!(without_clock.dispatch(SkinIntent::Recalculate).accepted());assert!(matches!(value(without_clock.host(),at(s,"B2")),ProjectedValue::NotModeled{..}));assert_eq!(fill(without_clock.host(),"B2"),None);
+        let mut book=session(&bytes);let s=book.host().sheets()[0].id();book.set_clock(Some(45000.75));assert!(book.dispatch(SkinIntent::Recalculate).accepted());assert_eq!(fill(book.host(),"B2"),Some(LookColor::Rgb("#123456".into())),"{period}");assert_eq!(fill(book.host(),"B3"),None,"{period}");
+        let before=book.host().model().definitions().conditional_rules(s).to_vec();let revision=book.host().revision().get();let receipt=book.dispatch(SkinIntent::Command(W::SortRows{area:GridArea::new(at(s,"A1"),at(s,"B3")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:true,revision}));assert!(receipt.accepted(),"{period}: {receipt:?}");
+        let check=|host:&HostState|{let s=host.sheets()[0].id();assert_eq!(host.model().cell(at(s,"A2")),Some(&number(1.)));assert_eq!(fill(host,"B2"),None,"{period}");assert_eq!(fill(host,"B3"),Some(LookColor::Rgb("#123456".into())),"{period}");assert!(matches!(value(host,at(s,"B3")),ProjectedValue::Calculated{..}));let rules=host.model().definitions().conditional_rules(s);assert_eq!(rules.len(),2);for rule in rules{let parsed=calc_doc::conditional_rule(rule).unwrap();assert_eq!(parsed.kind,"timePeriod");assert_eq!(parsed.time_period.as_deref(),Some(period));assert_eq!(parsed.formulas,[condition.replace("B2",&format!("B{}",rule.origin().unwrap().row()))]);assert!(parsed.stop_if_true);assert!(parsed.text.is_none()&&parsed.operator.is_none());}assert_eq!(host.conditional_formats(s).refused(),0);};
+        check(book.host());assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().model().definitions().conditional_rules(s),before);assert!(book.dispatch(SkinIntent::Redo).accepted());check(book.host());
+        let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);reopened.set_clock(Some(45000.75));assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());check(reopened.host());let mut twin=session(&bytes);twin.set_clock(Some(45000.75));assert!(replay(book.intent_log(),&mut twin).mismatches.is_empty());check(twin.host());
+        check_pointwise_colour_filter_history_and_reopen(&mut book,Some(45000.75));
+    }
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__invalid_calendar_condition_fields_refuse_without_changing_rows(){
+    for(attrs,formulas)in [
+        ("", "<formula>B2&gt;0</formula>"),
+        ("timePeriod=\"Today\"", "<formula>B2&gt;0</formula>"),
+        ("timePeriod=\"nextDay\"", "<formula>B2&gt;0</formula>"),
+        ("timePeriod=\"today\" text=\"date\"", "<formula>B2&gt;0</formula>"),
+        ("timePeriod=\"today\" operator=\"equal\"", "<formula>B2&gt;0</formula>"),
+        ("timePeriod=\"today\"", ""),
+        ("timePeriod=\"today\"", "<formula>B2&gt;0</formula><formula>B2&lt;10</formula>"),
+    ]{
+        let bytes=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",&format!("<conditionalFormatting sqref=\"B2:B3\"><cfRule type=\"timePeriod\" {attrs} priority=\"1\">{formulas}</cfRule></conditionalFormatting></worksheet>")));let mut book=session(&bytes);let s=book.host().sheets()[0].id();for(a,t)in[("A2","2"),("A3","1"),("B2","20"),("B3","10")]{assert!(enter(&mut book,at(s,a),t).accepted());}let before=(book.host().revision(),book.history_depth(),book.host().model().definitions().conditional_rules(s).to_vec());let receipt=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::SortRows{area:GridArea::new(at(s,"A2"),at(s,"B3")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:false,revision:before.0.get()}));assert!(!receipt.accepted(),"{attrs} {formulas}: {receipt:?}");assert_eq!((book.host().revision(),book.history_depth(),book.host().model().definitions().conditional_rules(s).to_vec()),before);assert_eq!(book.host().model().cell(at(s,"A2")),Some(&number(2.)));
+    }
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_37__calendar_colour_filters_refuse_missing_clock_and_invalid_source_atomically(){
+    use calc_host::{FilterChange as F,ConditionalChange as C,WorkbookCommand as W};
+    let mut seed=session(&calc_host::blank_package());seed.set_clock(Some(45000.75));let s=seed.host().sheets()[0].id();for(a,t)in[("A1","Key"),("A2","1"),("A3","2"),("B2","45000"),("B3","44999")]{assert!(enter(&mut seed,at(s,a),t).accepted());}
+    let revision=seed.host().revision().get();assert!(seed.dispatch(SkinIntent::Command(W::Conditional{sheet:s,revision,index:None,change:C::Condition{kind:"expression".into(),applies:"B2:B3".into(),color:"#123456".into(),formulas:vec!["FLOOR(B2,1)=TODAY()".into()],operator:String::new(),rank:1,percent:false,stop:false}})).accepted());let mut bytes=Vec::new();seed.save(&SavePolicy::default(),&mut bytes).unwrap();let bytes=package_with_part_from(&bytes,"xl/worksheets/sheet1.xml",|xml|xml.replace("type=\"expression\"","type=\"timePeriod\" timePeriod=\"today\""));
+    let command=|book:&mut HostSession,change|{let sheet=book.host().sheets()[0].id();let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::AutoFilter{sheet,revision,change}))};
+    for invalid in [false,true]{
+        let bytes=if invalid{package_with_part_from(&bytes,"xl/worksheets/sheet1.xml",|xml|xml.replace("timePeriod=\"today\"","timePeriod=\"today\" text=\"unread\""))}else{bytes.clone()};let mut book=session(&bytes);let s=book.host().sheets()[0].id();if invalid{book.set_clock(Some(45000.75));}assert!(command(&mut book,F::Enable{area:GridArea::new(at(s,"A1"),at(s,"B3")).unwrap()}).accepted());
+        let before=(book.host().revision(),book.history_depth(),book.host().styles().clone(),book.host().model().definitions().auto_filter(s).cloned());let denied=command(&mut book,F::Color{column:2,cell_color:true,color:"#123456".into()});assert!(!denied.accepted(),"{denied:?}");assert_eq!((book.host().revision(),book.history_depth(),book.host().styles().clone(),book.host().model().definitions().auto_filter(s).cloned()),before);
+        if !invalid{book.set_clock(Some(45000.75));assert!(command(&mut book,F::Color{column:2,cell_color:true,color:"#123456".into()}).accepted());assert_eq!(book.host().model().definitions().auto_filter(s).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>(),[3]);book.set_clock(None);let before=(book.host().revision(),book.history_depth(),book.host().styles().clone(),book.host().model().definitions().auto_filter(s).cloned());assert!(!command(&mut book,F::Reapply).accepted());assert_eq!((book.host().revision(),book.history_depth(),book.host().styles().clone(),book.host().model().definitions().auto_filter(s).cloned()),before);}
+    }
+}
+
+// Called after the row-movement assertions for every supported formula-backed family.
+fn check_pointwise_colour_filter_history_and_reopen(book:&mut HostSession,clock:Option<f64>){
+    use calc_host::{FilterChange as F,WorkbookCommand as W};
+    let s=book.host().sheets()[0].id();assert!(enter(book,at(s,"C1"),"=SUBTOTAL(9,A2:A3)").accepted());
+    let command=|book:&mut HostSession,change|{let revision=book.host().revision().get();book.dispatch(SkinIntent::Command(W::AutoFilter{sheet:s,revision,change}))};
+    assert!(command(book,F::Enable{area:GridArea::new(at(s,"A1"),at(s,"B3")).unwrap()}).accepted());let before=book.host().model().definitions().auto_filter(s).cloned();let receipt=command(book,F::Color{column:2,cell_color:true,color:"#123456".into()});assert!(receipt.accepted(),"{receipt:?}");
+    let rows=|book:&HostSession|book.host().model().definitions().auto_filter(book.host().sheets()[0].id()).unwrap().filtered_rows.iter().copied().collect::<Vec<_>>();assert_eq!(rows(book),[2]);assert_eq!(session_calculated(book,at(s,"C1")).unwrap().as_number(),Some(2.));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().model().definitions().auto_filter(s),before.as_ref());assert_eq!(session_calculated(book,at(s,"C1")).unwrap().as_number(),Some(3.));assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(rows(book),[2]);
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);reopened.set_clock(clock);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());let r=reopened.host().sheets()[0].id();
+    let rules=reopened.host().model().definitions().conditional_rules(r);assert_eq!(rules.len(),2);assert!(rules.iter().all(|rule| !String::from_utf8_lossy(&rule.source).contains("urn:dnacalc:autofilter-visibility:v1")),"AutoFilter extensions must stay outside conditional rule sources");
+    let revision=reopened.host().revision().get();let receipt=reopened.dispatch(SkinIntent::Command(W::AutoFilter{sheet:r,revision,change:F::Reapply}));assert!(receipt.accepted(),"{receipt:?}");assert_eq!(rows(&reopened),[2]);assert_eq!(session_calculated(&reopened,at(r,"C1")).unwrap().as_number(),Some(2.));
+    assert!(command(book,F::Clear).accepted());assert!(rows(book).is_empty());assert!(command(book,F::Color{column:2,cell_color:true,color:String::new()}).accepted());assert_eq!(rows(book),[3]);assert_eq!(session_calculated(book,at(s,"C1")).unwrap().as_number(),Some(1.));
 }

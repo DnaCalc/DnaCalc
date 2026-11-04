@@ -101,7 +101,7 @@ fn check_captured_questions(
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn delivered_scalar_readings_follow_the_application_route() {
-    let readings: [&[u8]; 28] = [
+    let readings: [&[u8]; 35] = [
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/LOWER.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/PROPER.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/REGEXTEST.reading.json"),
@@ -130,6 +130,14 @@ fn delivered_scalar_readings_follow_the_application_route() {
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/TBILLYIELD.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/ERF.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/SERIESSUM.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/IRR.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/TEXT.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/CUMIPMT.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/CUMPRINC.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/YIELD.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/ODDFYIELD.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/FIXED.reading.json"),
+
     ];
     let mut failures = Vec::new();
     let mut count = 0;
@@ -149,7 +157,9 @@ fn delivered_scalar_readings_follow_the_application_route() {
             for (index, value) in witness["args"].as_array().unwrap().iter().enumerate() {
                 let text = value.as_str().unwrap();
                 let question = &reading["service_questions"][witness_index][index];
-                let input = if question["type"].as_str() == Some("boolean") {
+                let input = if question["type"].as_str() == Some("blank") {
+                    InputValue::blank()
+                } else if question["type"].as_str() == Some("boolean") {
                     InputValue::logical(question["value"].as_bool().unwrap())
                 } else if question["type"].as_str() == Some("error") {
                     let value = calc_verdict::decode_result(text).unwrap();
@@ -183,8 +193,25 @@ fn delivered_scalar_readings_follow_the_application_route() {
             }
         }
     }
-    assert_eq!(count, 1644);
+    assert_eq!(count, 3215);
     assert!(failures.is_empty(), "{} of{count} readings differ:\n{}", failures.len(), failures.join("\n"));
+}
+
+/// R24 retains logical literals beside explicit Missing slots for these four
+/// financial entries. Empty references remain separate controls in the source.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_b1l37__financial_admission_uses_original_r24_answers() {
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_environment(Some(calc_func::locale::CalcEnvironment::dates(
+        calc_func::locale::DateSystem::System1900,
+    )));
+    check_captured_questions(include_bytes!(
+        "../../../crates/calc-func/tests/captures/dcztvv_r24/oracle.capture.json"
+    ), &mut session, |f| f.cell.sheet() == "dcztvv_r24" && matches!(f.cell.row(),
+        3040..=3042 | 3065..=3067 | 3287..=3289 | 3312..=3314 |
+        3455..=3457 | 3480..=3482 | 3564..=3566 | 3589..=3591
+    ), 24);
 }
 
 /// Fn4 qd225..qd236 use literal dates at the start of the 1900 calendar.
@@ -562,8 +589,8 @@ fn regexextract_retains_the_captured_lifted_results() {
     ), &mut session, |f| matches!(f.cell.sheet(), "fn2_q078" | "fn2_q079"), 2);
 }
 
-/// The public REGEXEXTRACT example spills Dylan/Williams vertically. The retained fn2
-/// controls establish Value for matching capture-group mode without a capturing group.
+/// Fn5 establishes horizontal all-match results and one outer capture. Group-free
+/// capture mode is Value even without a match; unsupported captures remain refused.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn regexextract_publishes_all_matches_and_keeps_unmeasured_modes_refused() {
@@ -572,14 +599,16 @@ fn regexextract_publishes_all_matches_and_keeps_unmeasured_modes_refused() {
     let text = |s| CalcValue::text(calc_func::value::ExcelText::from_interop_assignment(s));
     let mut failures = Vec::new();
     for (formula, expected) in [
-        ("=ROWS(REGEXEXTRACT(\"DylanWilliams\",\"[A-Z][a-z]+\",1))", CalcValue::number(2.0)),
-        ("=COLUMNS(REGEXEXTRACT(\"DylanWilliams\",\"[A-Z][a-z]+\",1))", CalcValue::number(1.0)),
-        ("=INDEX(REGEXEXTRACT(\"DylanWilliams\",\"[A-Z][a-z]+\",1),2,1)", text("Williams")),
+        ("=ROWS(REGEXEXTRACT(\"DylanWilliams\",\"[A-Z][a-z]+\",1))", CalcValue::number(1.0)),
+        ("=COLUMNS(REGEXEXTRACT(\"DylanWilliams\",\"[A-Z][a-z]+\",1))", CalcValue::number(2.0)),
+        ("=INDEX(REGEXEXTRACT(\"DylanWilliams\",\"[A-Z][a-z]+\",1),1,2)", text("Williams")),
         ("=REGEXEXTRACT(\"DylanWilliams\",\"[A-Z][a-z]+\")", text("Dylan")),
         ("=REGEXEXTRACT(\"Dylan\",\"[A-Z][a-z]+\",1)", text("Dylan")),
         ("=REGEXEXTRACT(\"123\",\"[A-Z][a-z]+\",1)", CalcValue::error(WorksheetErrorCode::NA)),
         ("=REGEXEXTRACT(\"a12b34\",\"[0-9]+\",2)", CalcValue::error(WorksheetErrorCode::Value)),
         ("=REGEXEXTRACT(\"a12b34\",\"[0-9]+\",3)", CalcValue::error(WorksheetErrorCode::Value)),
+        ("=REGEXEXTRACT(\"abc\",\"[0-9]+\",2)", CalcValue::error(WorksheetErrorCode::Value)),
+        ("=REGEXEXTRACT(\"a12b\",\"([0-9]+)\",2)", text("12")),
     ] {
         session.set_formula(formula);
         let calculated = session.calculate();
@@ -588,7 +617,11 @@ fn regexextract_publishes_all_matches_and_keeps_unmeasured_modes_refused() {
                 calculated.result, calculated.diagnostics));
         }
     }
-    for formula in ["=REGEXEXTRACT(\"abc\",\"[0-9]+\",2)", "=REGEXEXTRACT(\"a12b\",\"([0-9]+)\",2)"] {
+    for formula in [
+        "=REGEXEXTRACT(\"abc\",\"([0-9]+)\",2)",
+        "=REGEXEXTRACT(\"a12b\",\"(([0-9]+))\",2)",
+        "=REGEXEXTRACT(\"a12b\",\"([0-9]+)(b)\",2)",
+    ] {
         session.set_formula(formula);
         let calculated = session.calculate();
         assert!(calculated.result.is_none(), "{formula}: {:?}", calculated.result);

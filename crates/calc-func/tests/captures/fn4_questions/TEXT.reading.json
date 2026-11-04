@@ -1,0 +1,7383 @@
+{
+  "function": "TEXT",
+  "witnesses": [
+    {
+      "id": "fn8-TEXT-weekday-001",
+      "args": [
+        "0x0000000000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Sat Saturday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-002",
+      "args": [
+        "0x0000000000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-01-00 Sat"
+    },
+    {
+      "id": "fn8-TEXT-weekday-003",
+      "args": [
+        "0x3ff0000000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Sun Sunday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-004",
+      "args": [
+        "0x3ff0000000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-01-01 Sun"
+    },
+    {
+      "id": "fn8-TEXT-weekday-005",
+      "args": [
+        "0x4000000000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Mon Monday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-006",
+      "args": [
+        "0x4000000000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-01-02 Mon"
+    },
+    {
+      "id": "fn8-TEXT-weekday-007",
+      "args": [
+        "0x4018000000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Fri Friday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-008",
+      "args": [
+        "0x4018000000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-01-06 Fri"
+    },
+    {
+      "id": "fn8-TEXT-weekday-009",
+      "args": [
+        "0x401c000000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Sat Saturday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-010",
+      "args": [
+        "0x401c000000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-01-07 Sat"
+    },
+    {
+      "id": "fn8-TEXT-weekday-011",
+      "args": [
+        "0x403c000000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Sat Saturday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-012",
+      "args": [
+        "0x403c000000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-01-28 Sat"
+    },
+    {
+      "id": "fn8-TEXT-weekday-013",
+      "args": [
+        "0x403f000000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Tue Tuesday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-014",
+      "args": [
+        "0x403f000000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-01-31 Tue"
+    },
+    {
+      "id": "fn8-TEXT-weekday-015",
+      "args": [
+        "0x404d000000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Mon Monday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-016",
+      "args": [
+        "0x404d000000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-02-27 Mon"
+    },
+    {
+      "id": "fn8-TEXT-weekday-017",
+      "args": [
+        "0x404d800000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Tue Tuesday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-018",
+      "args": [
+        "0x404d800000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-02-28 Tue"
+    },
+    {
+      "id": "fn8-TEXT-weekday-019",
+      "args": [
+        "0x404e800000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Thu Thursday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-020",
+      "args": [
+        "0x404e800000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-03-01 Thu"
+    },
+    {
+      "id": "fn8-TEXT-weekday-021",
+      "args": [
+        "0x404f000000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Fri Friday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-022",
+      "args": [
+        "0x404f000000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-03-02 Fri"
+    },
+    {
+      "id": "fn8-TEXT-weekday-023",
+      "args": [
+        "0x4076d00000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Sun Sunday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-024",
+      "args": [
+        "0x4076d00000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-12-30 Sun"
+    },
+    {
+      "id": "fn8-TEXT-weekday-025",
+      "args": [
+        "0x4096d40000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Thu Thursday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-026",
+      "args": [
+        "0x4096d40000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1903-12-31 Thu"
+    },
+    {
+      "id": "fn8-TEXT-weekday-027",
+      "args": [
+        "0x4096d80000000000",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Fri Friday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-028",
+      "args": [
+        "0x4096d80000000000",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1904-01-01 Fri"
+    },
+    {
+      "id": "fn8-TEXT-weekday-029",
+      "args": [
+        "0x404dffffffea8671",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Wed Wednesday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-030",
+      "args": [
+        "0x404dffffffea8671",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-02-29 Wed"
+    },
+    {
+      "id": "fn8-TEXT-weekday-031",
+      "args": [
+        "0x404e7fffffea8671",
+        "ddd dddd"
+      ],
+      "expected_bits": "text:Thu Thursday"
+    },
+    {
+      "id": "fn8-TEXT-weekday-032",
+      "args": [
+        "0x404e7fffffea8671",
+        "yyyy-mm-dd ddd"
+      ],
+      "expected_bits": "text:1900-03-01 Thu"
+    },
+    {
+      "id": "fn8-TEXT-era-0-0",
+      "args": [
+        "0x0000000000000000",
+        "e"
+      ],
+      "expected_bits": "text:1900",
+      "additional_source": 0,
+      "source_index": 0
+    },
+    {
+      "id": "fn8-TEXT-era-0-1",
+      "args": [
+        "0x0000000000000000",
+        "ee"
+      ],
+      "expected_bits": "text:1900",
+      "additional_source": 0,
+      "source_index": 1
+    },
+    {
+      "id": "fn8-TEXT-era-0-2",
+      "args": [
+        "0x0000000000000000",
+        "eee"
+      ],
+      "expected_bits": "text:1900",
+      "additional_source": 0,
+      "source_index": 2
+    },
+    {
+      "id": "fn8-TEXT-era-0-3",
+      "args": [
+        "0x0000000000000000",
+        "g"
+      ],
+      "expected_bits": "text:",
+      "additional_source": 0,
+      "source_index": 3
+    },
+    {
+      "id": "fn8-TEXT-era-0-4",
+      "args": [
+        "0x0000000000000000",
+        "gg"
+      ],
+      "expected_bits": "text:",
+      "additional_source": 0,
+      "source_index": 4
+    },
+    {
+      "id": "fn8-TEXT-era-0-5",
+      "args": [
+        "0x0000000000000000",
+        "ggg"
+      ],
+      "expected_bits": "text:",
+      "additional_source": 0,
+      "source_index": 5
+    },
+    {
+      "id": "fn8-TEXT-era-0-6",
+      "args": [
+        "0x0000000000000000",
+        "r"
+      ],
+      "expected_bits": "text:R",
+      "additional_source": 0,
+      "source_index": 6
+    },
+    {
+      "id": "fn8-TEXT-era-0-7",
+      "args": [
+        "0x0000000000000000",
+        "R"
+      ],
+      "expected_bits": "text:R",
+      "additional_source": 0,
+      "source_index": 7
+    },
+    {
+      "id": "fn8-TEXT-era-0-8",
+      "args": [
+        "0x0000000000000000",
+        "zero"
+      ],
+      "expected_bits": "text:z1900Ro",
+      "additional_source": 0,
+      "source_index": 8
+    },
+    {
+      "id": "fn8-TEXT-era-0-9",
+      "args": [
+        "0x0000000000000000",
+        "ZERO"
+      ],
+      "expected_bits": "error:Value",
+      "additional_source": 0,
+      "source_index": 9
+    },
+    {
+      "id": "fn8-TEXT-era-0-10",
+      "args": [
+        "0x0000000000000000",
+        "e r"
+      ],
+      "expected_bits": "text:1900 R",
+      "additional_source": 0,
+      "source_index": 10
+    },
+    {
+      "id": "fn8-TEXT-era-0-11",
+      "args": [
+        "0x0000000000000000",
+        "yyyy e g r"
+      ],
+      "expected_bits": "text:1900 1900  R",
+      "additional_source": 0,
+      "source_index": 11
+    },
+    {
+      "id": "fn8-TEXT-era-0-12",
+      "args": [
+        "0x0000000000000000",
+        "\"r\""
+      ],
+      "expected_bits": "text:R",
+      "additional_source": 0,
+      "source_index": 12
+    },
+    {
+      "id": "fn8-TEXT-era-0-13",
+      "args": [
+        "0x0000000000000000",
+        "\"zero\""
+      ],
+      "expected_bits": "text:zero",
+      "additional_source": 0,
+      "source_index": 13
+    },
+    {
+      "id": "fn8-TEXT-era-0-14",
+      "args": [
+        "0x3ff0000000000000",
+        "e"
+      ],
+      "expected_bits": "text:1900",
+      "additional_source": 0,
+      "source_index": 14
+    },
+    {
+      "id": "fn8-TEXT-era-0-15",
+      "args": [
+        "0x3ff0000000000000",
+        "ee"
+      ],
+      "expected_bits": "text:1900",
+      "additional_source": 0,
+      "source_index": 15
+    },
+    {
+      "id": "fn8-TEXT-era-0-16",
+      "args": [
+        "0x3ff0000000000000",
+        "eee"
+      ],
+      "expected_bits": "text:1900",
+      "additional_source": 0,
+      "source_index": 16
+    },
+    {
+      "id": "fn8-TEXT-era-0-17",
+      "args": [
+        "0x3ff0000000000000",
+        "g"
+      ],
+      "expected_bits": "text:",
+      "additional_source": 0,
+      "source_index": 17
+    },
+    {
+      "id": "fn8-TEXT-era-0-18",
+      "args": [
+        "0x3ff0000000000000",
+        "gg"
+      ],
+      "expected_bits": "text:",
+      "additional_source": 0,
+      "source_index": 18
+    },
+    {
+      "id": "fn8-TEXT-era-0-19",
+      "args": [
+        "0x3ff0000000000000",
+        "ggg"
+      ],
+      "expected_bits": "text:",
+      "additional_source": 0,
+      "source_index": 19
+    },
+    {
+      "id": "fn8-TEXT-era-0-20",
+      "args": [
+        "0x3ff0000000000000",
+        "r"
+      ],
+      "expected_bits": "text:R",
+      "additional_source": 0,
+      "source_index": 20
+    },
+    {
+      "id": "fn8-TEXT-era-0-21",
+      "args": [
+        "0x3ff0000000000000",
+        "R"
+      ],
+      "expected_bits": "text:R",
+      "additional_source": 0,
+      "source_index": 21
+    },
+    {
+      "id": "fn8-TEXT-era-0-22",
+      "args": [
+        "0x3ff0000000000000",
+        "zero"
+      ],
+      "expected_bits": "text:z1900Ro",
+      "additional_source": 0,
+      "source_index": 22
+    },
+    {
+      "id": "fn8-TEXT-era-0-23",
+      "args": [
+        "0x3ff0000000000000",
+        "ZERO"
+      ],
+      "expected_bits": "error:Value",
+      "additional_source": 0,
+      "source_index": 23
+    },
+    {
+      "id": "fn8-TEXT-era-0-24",
+      "args": [
+        "0x3ff0000000000000",
+        "e r"
+      ],
+      "expected_bits": "text:1900 R",
+      "additional_source": 0,
+      "source_index": 24
+    },
+    {
+      "id": "fn8-TEXT-era-0-25",
+      "args": [
+        "0x3ff0000000000000",
+        "yyyy e g r"
+      ],
+      "expected_bits": "text:1900 1900  R",
+      "additional_source": 0,
+      "source_index": 25
+    },
+    {
+      "id": "fn8-TEXT-era-0-26",
+      "args": [
+        "0x3ff0000000000000",
+        "\"r\""
+      ],
+      "expected_bits": "text:R",
+      "additional_source": 0,
+      "source_index": 26
+    },
+    {
+      "id": "fn8-TEXT-era-0-27",
+      "args": [
+        "0x3ff0000000000000",
+        "\"zero\""
+      ],
+      "expected_bits": "text:zero",
+      "additional_source": 0,
+      "source_index": 27
+    },
+    {
+      "id": "fn8-TEXT-era-0-28",
+      "args": [
+        "0x404e000000000000",
+        "e"
+      ],
+      "expected_bits": "text:1900",
+      "additional_source": 0,
+      "source_index": 28
+    },
+    {
+      "id": "fn8-TEXT-era-0-29",
+      "args": [
+        "0x404e000000000000",
+        "ee"
+      ],
+      "expected_bits": "text:1900",
+      "additional_source": 0,
+      "source_index": 29
+    },
+    {
+      "id": "fn8-TEXT-era-0-30",
+      "args": [
+        "0x404e000000000000",
+        "eee"
+      ],
+      "expected_bits": "text:1900",
+      "additional_source": 0,
+      "source_index": 30
+    },
+    {
+      "id": "fn8-TEXT-era-0-31",
+      "args": [
+        "0x404e000000000000",
+        "g"
+      ],
+      "expected_bits": "text:",
+      "additional_source": 0,
+      "source_index": 31
+    },
+    {
+      "id": "fn8-TEXT-era-0-32",
+      "args": [
+        "0x404e000000000000",
+        "gg"
+      ],
+      "expected_bits": "text:",
+      "additional_source": 0,
+      "source_index": 32
+    },
+    {
+      "id": "fn8-TEXT-era-0-33",
+      "args": [
+        "0x404e000000000000",
+        "ggg"
+      ],
+      "expected_bits": "text:",
+      "additional_source": 0,
+      "source_index": 33
+    },
+    {
+      "id": "fn8-TEXT-era-0-34",
+      "args": [
+        "0x404e000000000000",
+        "r"
+      ],
+      "expected_bits": "text:R",
+      "additional_source": 0,
+      "source_index": 34
+    },
+    {
+      "id": "fn8-TEXT-era-0-35",
+      "args": [
+        "0x404e000000000000",
+        "R"
+      ],
+      "expected_bits": "text:R",
+      "additional_source": 0,
+      "source_index": 35
+    },
+    {
+      "id": "fn8-TEXT-era-0-36",
+      "args": [
+        "0x404e000000000000",
+        "zero"
+      ],
+      "expected_bits": "text:z1900Ro",
+      "additional_source": 0,
+      "source_index": 36
+    },
+    {
+      "id": "fn8-TEXT-era-0-37",
+      "args": [
+        "0x404e000000000000",
+        "ZERO"
+      ],
+      "expected_bits": "error:Value",
+      "additional_source": 0,
+      "source_index": 37
+    },
+    {
+      "id": "fn8-TEXT-era-0-38",
+      "args": [
+        "0x404e000000000000",
+        "e r"
+      ],
+      "expected_bits": "text:1900 R",
+      "additional_source": 0,
+      "source_index": 38
+    },
+    {
+      "id": "fn8-TEXT-era-0-39",
+      "args": [
+        "0x404e000000000000",
+        "yyyy e g r"
+      ],
+      "expected_bits": "text:1900 1900  R",
+      "additional_source": 0,
+      "source_index": 39
+    },
+    {
+      "id": "fn8-TEXT-era-0-40",
+      "args": [
+        "0x404e000000000000",
+        "\"r\""
+      ],
+      "expected_bits": "text:R",
+      "additional_source": 0,
+      "source_index": 40
+    },
+    {
+      "id": "fn8-TEXT-era-0-41",
+      "args": [
+        "0x404e000000000000",
+        "\"zero\""
+      ],
+      "expected_bits": "text:zero",
+      "additional_source": 0,
+      "source_index": 41
+    },
+    {
+      "id": "fn8-TEXT-era-0-42",
+      "args": [
+        "0x40e5482000000000",
+        "e"
+      ],
+      "expected_bits": "text:2019",
+      "additional_source": 0,
+      "source_index": 42
+    },
+    {
+      "id": "fn8-TEXT-era-0-43",
+      "args": [
+        "0x40e5482000000000",
+        "ee"
+      ],
+      "expected_bits": "text:2019",
+      "additional_source": 0,
+      "source_index": 43
+    },
+    {
+      "id": "fn8-TEXT-era-0-44",
+      "args": [
+        "0x40e5482000000000",
+        "eee"
+      ],
+      "expected_bits": "text:2019",
+      "additional_source": 0,
+      "source_index": 44
+    },
+    {
+      "id": "fn8-TEXT-era-0-45",
+      "args": [
+        "0x40e5482000000000",
+        "g"
+      ],
+      "expected_bits": "text:",
+      "additional_source": 0,
+      "source_index": 45
+    },
+    {
+      "id": "fn8-TEXT-era-0-46",
+      "args": [
+        "0x40e5482000000000",
+        "gg"
+      ],
+      "expected_bits": "text:",
+      "additional_source": 0,
+      "source_index": 46
+    },
+    {
+      "id": "fn8-TEXT-era-0-47",
+      "args": [
+        "0x40e5482000000000",
+        "ggg"
+      ],
+      "expected_bits": "text:",
+      "additional_source": 0,
+      "source_index": 47
+    },
+    {
+      "id": "fn8-TEXT-era-0-48",
+      "args": [
+        "0x40e5482000000000",
+        "r"
+      ],
+      "expected_bits": "text:R",
+      "additional_source": 0,
+      "source_index": 48
+    },
+    {
+      "id": "fn8-TEXT-era-0-49",
+      "args": [
+        "0x40e5482000000000",
+        "R"
+      ],
+      "expected_bits": "text:R",
+      "additional_source": 0,
+      "source_index": 49
+    },
+    {
+      "id": "fn8-TEXT-era-0-50",
+      "args": [
+        "0x40e5482000000000",
+        "zero"
+      ],
+      "expected_bits": "text:z2019Ro",
+      "additional_source": 0,
+      "source_index": 50
+    },
+    {
+      "id": "fn8-TEXT-era-0-51",
+      "args": [
+        "0x40e5482000000000",
+        "ZERO"
+      ],
+      "expected_bits": "error:Value",
+      "additional_source": 0,
+      "source_index": 51
+    },
+    {
+      "id": "fn8-TEXT-era-0-52",
+      "args": [
+        "0x40e5482000000000",
+        "e r"
+      ],
+      "expected_bits": "text:2019 R",
+      "additional_source": 0,
+      "source_index": 52
+    },
+    {
+      "id": "fn8-TEXT-era-0-53",
+      "args": [
+        "0x40e5482000000000",
+        "yyyy e g r"
+      ],
+      "expected_bits": "text:2019 2019  R",
+      "additional_source": 0,
+      "source_index": 53
+    },
+    {
+      "id": "fn8-TEXT-era-0-54",
+      "args": [
+        "0x40e5482000000000",
+        "\"r\""
+      ],
+      "expected_bits": "text:R",
+      "additional_source": 0,
+      "source_index": 54
+    },
+    {
+      "id": "fn8-TEXT-era-0-55",
+      "args": [
+        "0x40e5482000000000",
+        "\"zero\""
+      ],
+      "expected_bits": "text:zero",
+      "additional_source": 0,
+      "source_index": 55
+    },
+    {
+      "id": "fn8-TEXT-era-0-56",
+      "args": [
+        "0x40e5484000000000",
+        "e"
+      ],
+      "expected_bits": "text:2019",
+      "additional_source": 0,
+      "source_index": 56
+    },
+    {
+      "id": "fn8-TEXT-era-0-57",
+      "args": [
+        "0x40e5484000000000",
+        "ee"
+      ],
+      "expected_bits": "text:2019",
+      "additional_source": 0,
+      "source_index": 57
+    },
+    {
+      "id": "fn8-TEXT-era-0-58",
+      "args": [
+        "0x40e5484000000000",
+        "eee"
+      ],
+      "expected_bits": "text:2019",
+      "additional_source": 0,
+      "source_index": 58
+    },
+    {
+      "id": "fn8-TEXT-era-0-59",
+      "args": [
+        "0x40e5484000000000",
+        "g"
+      ],
+      "expected_bits": "text:",
+      "additional_source": 0,
+      "source_index": 59
+    },
+    {
+      "id": "fn8-TEXT-era-0-60",
+      "args": [
+        "0x40e5484000000000",
+        "gg"
+      ],
+      "expected_bits": "text:",
+      "additional_source": 0,
+      "source_index": 60
+    },
+    {
+      "id": "fn8-TEXT-era-0-61",
+      "args": [
+        "0x40e5484000000000",
+        "ggg"
+      ],
+      "expected_bits": "text:",
+      "additional_source": 0,
+      "source_index": 61
+    },
+    {
+      "id": "fn8-TEXT-era-0-62",
+      "args": [
+        "0x40e5484000000000",
+        "r"
+      ],
+      "expected_bits": "text:R",
+      "additional_source": 0,
+      "source_index": 62
+    },
+    {
+      "id": "fn8-TEXT-era-0-63",
+      "args": [
+        "0x40e5484000000000",
+        "R"
+      ],
+      "expected_bits": "text:R",
+      "additional_source": 0,
+      "source_index": 63
+    },
+    {
+      "id": "fn8-TEXT-era-0-64",
+      "args": [
+        "0x40e5484000000000",
+        "zero"
+      ],
+      "expected_bits": "text:z2019Ro",
+      "additional_source": 0,
+      "source_index": 64
+    },
+    {
+      "id": "fn8-TEXT-era-0-65",
+      "args": [
+        "0x40e5484000000000",
+        "ZERO"
+      ],
+      "expected_bits": "error:Value",
+      "additional_source": 0,
+      "source_index": 65
+    },
+    {
+      "id": "fn8-TEXT-era-0-66",
+      "args": [
+        "0x40e5484000000000",
+        "e r"
+      ],
+      "expected_bits": "text:2019 R",
+      "additional_source": 0,
+      "source_index": 66
+    },
+    {
+      "id": "fn8-TEXT-era-0-67",
+      "args": [
+        "0x40e5484000000000",
+        "yyyy e g r"
+      ],
+      "expected_bits": "text:2019 2019  R",
+      "additional_source": 0,
+      "source_index": 67
+    },
+    {
+      "id": "fn8-TEXT-era-0-68",
+      "args": [
+        "0x40e5484000000000",
+        "\"r\""
+      ],
+      "expected_bits": "text:R",
+      "additional_source": 0,
+      "source_index": 68
+    },
+    {
+      "id": "fn8-TEXT-era-0-69",
+      "args": [
+        "0x40e5484000000000",
+        "\"zero\""
+      ],
+      "expected_bits": "text:zero",
+      "additional_source": 0,
+      "source_index": 69
+    },
+    {
+      "id": "fn8-TEXT-era-0-70",
+      "args": [
+        "0x40e5f90000000000",
+        "e"
+      ],
+      "expected_bits": "text:2023",
+      "additional_source": 0,
+      "source_index": 70
+    },
+    {
+      "id": "fn8-TEXT-era-0-71",
+      "args": [
+        "0x40e5f90000000000",
+        "ee"
+      ],
+      "expected_bits": "text:2023",
+      "additional_source": 0,
+      "source_index": 71
+    },
+    {
+      "id": "fn8-TEXT-era-0-72",
+      "args": [
+        "0x40e5f90000000000",
+        "eee"
+      ],
+      "expected_bits": "text:2023",
+      "additional_source": 0,
+      "source_index": 72
+    },
+    {
+      "id": "fn8-TEXT-era-0-73",
+      "args": [
+        "0x40e5f90000000000",
+        "g"
+      ],
+      "expected_bits": "text:",
+      "additional_source": 0,
+      "source_index": 73
+    },
+    {
+      "id": "fn8-TEXT-era-0-74",
+      "args": [
+        "0x40e5f90000000000",
+        "gg"
+      ],
+      "expected_bits": "text:",
+      "additional_source": 0,
+      "source_index": 74
+    },
+    {
+      "id": "fn8-TEXT-era-0-75",
+      "args": [
+        "0x40e5f90000000000",
+        "ggg"
+      ],
+      "expected_bits": "text:",
+      "additional_source": 0,
+      "source_index": 75
+    },
+    {
+      "id": "fn8-TEXT-era-0-76",
+      "args": [
+        "0x40e5f90000000000",
+        "r"
+      ],
+      "expected_bits": "text:R",
+      "additional_source": 0,
+      "source_index": 76
+    },
+    {
+      "id": "fn8-TEXT-era-0-77",
+      "args": [
+        "0x40e5f90000000000",
+        "R"
+      ],
+      "expected_bits": "text:R",
+      "additional_source": 0,
+      "source_index": 77
+    },
+    {
+      "id": "fn8-TEXT-era-0-78",
+      "args": [
+        "0x40e5f90000000000",
+        "zero"
+      ],
+      "expected_bits": "text:z2023Ro",
+      "additional_source": 0,
+      "source_index": 78
+    },
+    {
+      "id": "fn8-TEXT-era-0-79",
+      "args": [
+        "0x40e5f90000000000",
+        "ZERO"
+      ],
+      "expected_bits": "error:Value",
+      "additional_source": 0,
+      "source_index": 79
+    },
+    {
+      "id": "fn8-TEXT-era-0-80",
+      "args": [
+        "0x40e5f90000000000",
+        "e r"
+      ],
+      "expected_bits": "text:2023 R",
+      "additional_source": 0,
+      "source_index": 80
+    },
+    {
+      "id": "fn8-TEXT-era-0-81",
+      "args": [
+        "0x40e5f90000000000",
+        "yyyy e g r"
+      ],
+      "expected_bits": "text:2023 2023  R",
+      "additional_source": 0,
+      "source_index": 81
+    },
+    {
+      "id": "fn8-TEXT-era-0-82",
+      "args": [
+        "0x40e5f90000000000",
+        "\"r\""
+      ],
+      "expected_bits": "text:R",
+      "additional_source": 0,
+      "source_index": 82
+    },
+    {
+      "id": "fn8-TEXT-era-0-83",
+      "args": [
+        "0x40e5f90000000000",
+        "\"zero\""
+      ],
+      "expected_bits": "text:zero",
+      "additional_source": 0,
+      "source_index": 83
+    },
+    {
+      "id": "fn8-TEXT-era-1-0",
+      "args": [
+        "0x40e5f90000000000",
+        "r"
+      ],
+      "expected_bits": "text:R",
+      "additional_source": 1,
+      "source_index": 0
+    },
+    {
+      "id": "fn8-TEXT-era-1-1",
+      "args": [
+        "0x40e5f90000000000",
+        "R"
+      ],
+      "expected_bits": "text:R",
+      "additional_source": 1,
+      "source_index": 1
+    },
+    {
+      "id": "fn8-TEXT-era-1-2",
+      "args": [
+        "0x40e5f90000000000",
+        "rr"
+      ],
+      "expected_bits": "text:RR",
+      "additional_source": 1,
+      "source_index": 2
+    },
+    {
+      "id": "fn8-TEXT-era-1-3",
+      "args": [
+        "0x40e5f90000000000",
+        "rR"
+      ],
+      "expected_bits": "text:RR",
+      "additional_source": 1,
+      "source_index": 3
+    },
+    {
+      "id": "fn8-TEXT-era-1-4",
+      "args": [
+        "0x40e5f90000000000",
+        "Rr"
+      ],
+      "expected_bits": "text:RR",
+      "additional_source": 1,
+      "source_index": 4
+    },
+    {
+      "id": "fn8-TEXT-era-1-5",
+      "args": [
+        "0x40e5f90000000000",
+        "rrr"
+      ],
+      "expected_bits": "text:RRR",
+      "additional_source": 1,
+      "source_index": 5
+    },
+    {
+      "id": "fn8-TEXT-era-1-6",
+      "args": [
+        "0x40e5f90000000000",
+        "ro"
+      ],
+      "expected_bits": "text:Ro",
+      "additional_source": 1,
+      "source_index": 6
+    },
+    {
+      "id": "fn8-TEXT-era-1-7",
+      "args": [
+        "0x40e5f90000000000",
+        "ar"
+      ],
+      "expected_bits": "text:aR",
+      "additional_source": 1,
+      "source_index": 7
+    },
+    {
+      "id": "fn8-TEXT-era-1-8",
+      "args": [
+        "0x40e5f90000000000",
+        "r a"
+      ],
+      "expected_bits": "text:R a",
+      "additional_source": 1,
+      "source_index": 8
+    },
+    {
+      "id": "fn8-TEXT-era-1-9",
+      "args": [
+        "0x40e5f90000000000",
+        "\"r\""
+      ],
+      "expected_bits": "text:R",
+      "additional_source": 1,
+      "source_index": 9
+    },
+    {
+      "id": "fn8-TEXT-era-1-10",
+      "args": [
+        "0x40e5f90000000000",
+        "\"R\""
+      ],
+      "expected_bits": "text:R",
+      "additional_source": 1,
+      "source_index": 10
+    },
+    {
+      "id": "fn8-TEXT-era-1-11",
+      "args": [
+        "0x40e5f90000000000",
+        "\"rr\""
+      ],
+      "expected_bits": "text:rr",
+      "additional_source": 1,
+      "source_index": 11
+    },
+    {
+      "id": "fn8-TEXT-era-1-12",
+      "args": [
+        "0x40e5f90000000000",
+        "\"ro\""
+      ],
+      "expected_bits": "text:ro",
+      "additional_source": 1,
+      "source_index": 12
+    },
+    {
+      "id": "fn8-TEXT-era-1-13",
+      "args": [
+        "0x40e5f90000000000",
+        "\"ar\""
+      ],
+      "expected_bits": "text:ar",
+      "additional_source": 1,
+      "source_index": 13
+    },
+    {
+      "id": "fn8-TEXT-era-1-14",
+      "args": [
+        "0x40e5f90000000000",
+        "r\"o\""
+      ],
+      "expected_bits": "text:Ro",
+      "additional_source": 1,
+      "source_index": 14
+    },
+    {
+      "id": "fn8-TEXT-era-1-15",
+      "args": [
+        "0x40e5f90000000000",
+        "\"r\"o"
+      ],
+      "expected_bits": "text:Ro",
+      "additional_source": 1,
+      "source_index": 15
+    },
+    {
+      "id": "fn8-TEXT-era-1-16",
+      "args": [
+        "0x40e5f90000000000",
+        "\"ro\"r"
+      ],
+      "expected_bits": "text:roR",
+      "additional_source": 1,
+      "source_index": 16
+    },
+    {
+      "id": "fn8-TEXT-era-1-17",
+      "args": [
+        "0x40e5f90000000000",
+        "\"zero\""
+      ],
+      "expected_bits": "text:zero",
+      "additional_source": 1,
+      "source_index": 17
+    },
+    {
+      "id": "fn8-TEXT-era-1-18",
+      "args": [
+        "0x40e5f90000000000",
+        "zero"
+      ],
+      "expected_bits": "text:z2023Ro",
+      "additional_source": 1,
+      "source_index": 18
+    },
+    {
+      "id": "fn8-TEXT-era-1-19",
+      "args": [
+        "0x40e5f90000000000",
+        "0r"
+      ],
+      "expected_bits": "text:45000R",
+      "additional_source": 1,
+      "source_index": 19
+    },
+    {
+      "id": "fn8-TEXT-era-1-20",
+      "args": [
+        "0x40e5f90000000000",
+        "r0"
+      ],
+      "expected_bits": "text:R45000",
+      "additional_source": 1,
+      "source_index": 20
+    },
+    {
+      "id": "fn8-TEXT-era-1-21",
+      "args": [
+        "0x40e5f90000000000",
+        "0\"r\""
+      ],
+      "expected_bits": "text:45000R",
+      "additional_source": 1,
+      "source_index": 21
+    },
+    {
+      "id": "fn8-TEXT-era-1-22",
+      "args": [
+        "0x40e5f90000000000",
+        "0\"rr\""
+      ],
+      "expected_bits": "text:45000rr",
+      "additional_source": 1,
+      "source_index": 22
+    },
+    {
+      "id": "fn8-TEXT-era-1-23",
+      "args": [
+        "0x40e5f90000000000",
+        "e\"r\""
+      ],
+      "expected_bits": "text:2023R",
+      "additional_source": 1,
+      "source_index": 23
+    },
+    {
+      "id": "fn8-TEXT-era-1-24",
+      "args": [
+        "0x40e5f90000000000",
+        "e\"ro\""
+      ],
+      "expected_bits": "text:2023ro",
+      "additional_source": 1,
+      "source_index": 24
+    },
+    {
+      "id": "fn8-TEXT-era-1-25",
+      "args": [
+        "0x40e5f90000000000",
+        "\"e\"r"
+      ],
+      "expected_bits": "text:eR",
+      "additional_source": 1,
+      "source_index": 25
+    },
+    {
+      "id": "fn8-TEXT-era-1-26",
+      "args": [
+        "0x40e5f90000000000",
+        "g r"
+      ],
+      "expected_bits": "text: R",
+      "additional_source": 1,
+      "source_index": 26
+    },
+    {
+      "id": "fn8-TEXT-era-1-27",
+      "args": [
+        "0x40e5f90000000000",
+        "g\"r\""
+      ],
+      "expected_bits": "text:R",
+      "additional_source": 1,
+      "source_index": 27
+    },
+    {
+      "id": "fn8-TEXT-era-1-28",
+      "args": [
+        "0x40e5f90000000000",
+        "eE"
+      ],
+      "expected_bits": "error:Value",
+      "additional_source": 1,
+      "source_index": 28
+    },
+    {
+      "id": "fn8-TEXT-era-1-29",
+      "args": [
+        "0x40e5f90000000000",
+        "E"
+      ],
+      "expected_bits": "error:Value",
+      "additional_source": 1,
+      "source_index": 29
+    },
+    {
+      "id": "fn8-TEXT-era-1-30",
+      "args": [
+        "0x40e5f90000000000",
+        "EE"
+      ],
+      "expected_bits": "error:Value",
+      "additional_source": 1,
+      "source_index": 30
+    },
+    {
+      "id": "fn8-TEXT-era-1-31",
+      "args": [
+        "0x40e5f90000000000",
+        "gggg"
+      ],
+      "expected_bits": "text:",
+      "additional_source": 1,
+      "source_index": 31
+    },
+    {
+      "id": "fn8-TEXT-literal-boundary-1",
+      "args": [
+        "0x40e5f90000000000",
+        " "
+      ],
+      "expected_bits": "text: ",
+      "additional_response": 2,
+      "source_index": 0
+    },
+    {
+      "id": "fn8-TEXT-literal-boundary-2",
+      "args": [
+        "0x40e5f90000000000",
+        "  "
+      ],
+      "expected_bits": "text: ",
+      "additional_response": 2,
+      "source_index": 1
+    },
+    {
+      "id": "fn8-TEXT-literal-boundary-4",
+      "args": [
+        "0x40e5f90000000000",
+        "R R"
+      ],
+      "expected_bits": "text:R R",
+      "additional_response": 2,
+      "source_index": 3
+    },
+    {
+      "id": "fn8-TEXT-literal-boundary-5",
+      "args": [
+        "0x40e5f90000000000",
+        "0 0"
+      ],
+      "expected_bits": "text:45 000",
+      "additional_response": 2,
+      "source_index": 4
+    },
+    {
+      "id": "fn8-TEXT-literal-boundary-6",
+      "args": [
+        "0x40e5f90000000000",
+        "0 "
+      ],
+      "expected_bits": "text:45",
+      "additional_response": 2,
+      "source_index": 5
+    },
+    {
+      "id": "fn8-TEXT-literal-boundary-7",
+      "args": [
+        "0x40e5f90000000000",
+        " r"
+      ],
+      "expected_bits": "text: R",
+      "additional_response": 2,
+      "source_index": 6
+    },
+    {
+      "id": "fn8-TEXT-literal-boundary-8",
+      "args": [
+        "0x40e5f90000000000",
+        "r "
+      ],
+      "expected_bits": "text:R ",
+      "additional_response": 2,
+      "source_index": 7
+    },
+    {
+      "id": "fn8-TEXT-literal-boundary-9",
+      "args": [
+        "0x40e5f90000000000",
+        "a r"
+      ],
+      "expected_bits": "text:a R",
+      "additional_response": 2,
+      "source_index": 8
+    },
+    {
+      "id": "fn8-TEXT-literal-boundary-10",
+      "args": [
+        "0x40e5f90000000000",
+        "0r a"
+      ],
+      "expected_bits": "text:45000R a",
+      "additional_response": 2,
+      "source_index": 9
+    },
+    {
+      "id": "fn8-TEXT-literal-boundary-11",
+      "args": [
+        "0x40e5f90000000000",
+        "g r a"
+      ],
+      "expected_bits": "text: R a",
+      "additional_response": 2,
+      "source_index": 10
+    },
+    {
+      "id": "fn8-TEXT-literal-boundary-12",
+      "args": [
+        "0x40e5f90000000000",
+        "\" \""
+      ],
+      "expected_bits": "text: ",
+      "additional_response": 2,
+      "source_index": 11
+    },
+    {
+      "id": "fn8-TEXT-literal-boundary-13",
+      "args": [
+        "0x40e5f90000000000",
+        "eEe"
+      ],
+      "expected_bits": "error:Value",
+      "additional_response": 2,
+      "source_index": 12
+    },
+    {
+      "id": "fn8-TEXT-literal-boundary-14",
+      "args": [
+        "0x40e5f90000000000",
+        "eE+0"
+      ],
+      "expected_bits": "error:Value",
+      "additional_response": 2,
+      "source_index": 13
+    },
+    {
+      "id": "fn8-TEXT-literal-boundary-15",
+      "args": [
+        "0x40e5f90000000000",
+        "0E+0"
+      ],
+      "expected_bits": "text:5E+4",
+      "additional_response": 2,
+      "source_index": 14
+    },
+    {
+      "id": "fn8-TEXT-literal-boundary-19",
+      "args": [
+        "0x40e5f90000000000",
+        "r%"
+      ],
+      "expected_bits": "text:R%",
+      "additional_response": 2,
+      "source_index": 18
+    },
+    {
+      "id": "fn8-TEXT-literal-boundary-20",
+      "args": [
+        "0x40e5f90000000000",
+        "r@"
+      ],
+      "expected_bits": "text:45000",
+      "additional_response": 2,
+      "source_index": 19
+    }
+  ],
+  "service_questions": [
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4018000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4018000000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "401c000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "401c000000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "403c000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "403c000000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "403f000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "403f000000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404d000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404d000000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404d800000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404d800000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e800000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e800000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404f000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404f000000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4076d00000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4076d00000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4096d40000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4096d40000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4096d80000000000"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4096d80000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404dffffffea8671"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404dffffffea8671"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e7fffffea8671"
+      },
+      {
+        "type": "text",
+        "value": "ddd dddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e7fffffea8671"
+      },
+      {
+        "type": "text",
+        "value": "yyyy-mm-dd ddd",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "text",
+        "value": "e",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ee",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "text",
+        "value": "eee",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "text",
+        "value": "g",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "text",
+        "value": "gg",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ggg",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "text",
+        "value": "r",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "text",
+        "value": "R",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "text",
+        "value": "zero",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ZERO",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "text",
+        "value": "e r",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy e g r",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "text",
+        "value": "\"r\"",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "text",
+        "value": "\"zero\"",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "text",
+        "value": "e",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ee",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "text",
+        "value": "eee",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "text",
+        "value": "g",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "text",
+        "value": "gg",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ggg",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "text",
+        "value": "r",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "text",
+        "value": "R",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "text",
+        "value": "zero",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ZERO",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "text",
+        "value": "e r",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy e g r",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "text",
+        "value": "\"r\"",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "text",
+        "value": "\"zero\"",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "text",
+        "value": "e",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ee",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "text",
+        "value": "eee",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "text",
+        "value": "g",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "text",
+        "value": "gg",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ggg",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "text",
+        "value": "r",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "text",
+        "value": "R",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "text",
+        "value": "zero",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "text",
+        "value": "ZERO",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "text",
+        "value": "e r",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy e g r",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "text",
+        "value": "\"r\"",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "text",
+        "value": "\"zero\"",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5482000000000"
+      },
+      {
+        "type": "text",
+        "value": "e",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5482000000000"
+      },
+      {
+        "type": "text",
+        "value": "ee",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5482000000000"
+      },
+      {
+        "type": "text",
+        "value": "eee",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5482000000000"
+      },
+      {
+        "type": "text",
+        "value": "g",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5482000000000"
+      },
+      {
+        "type": "text",
+        "value": "gg",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5482000000000"
+      },
+      {
+        "type": "text",
+        "value": "ggg",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5482000000000"
+      },
+      {
+        "type": "text",
+        "value": "r",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5482000000000"
+      },
+      {
+        "type": "text",
+        "value": "R",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5482000000000"
+      },
+      {
+        "type": "text",
+        "value": "zero",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5482000000000"
+      },
+      {
+        "type": "text",
+        "value": "ZERO",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5482000000000"
+      },
+      {
+        "type": "text",
+        "value": "e r",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5482000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy e g r",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5482000000000"
+      },
+      {
+        "type": "text",
+        "value": "\"r\"",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5482000000000"
+      },
+      {
+        "type": "text",
+        "value": "\"zero\"",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5484000000000"
+      },
+      {
+        "type": "text",
+        "value": "e",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5484000000000"
+      },
+      {
+        "type": "text",
+        "value": "ee",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5484000000000"
+      },
+      {
+        "type": "text",
+        "value": "eee",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5484000000000"
+      },
+      {
+        "type": "text",
+        "value": "g",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5484000000000"
+      },
+      {
+        "type": "text",
+        "value": "gg",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5484000000000"
+      },
+      {
+        "type": "text",
+        "value": "ggg",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5484000000000"
+      },
+      {
+        "type": "text",
+        "value": "r",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5484000000000"
+      },
+      {
+        "type": "text",
+        "value": "R",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5484000000000"
+      },
+      {
+        "type": "text",
+        "value": "zero",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5484000000000"
+      },
+      {
+        "type": "text",
+        "value": "ZERO",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5484000000000"
+      },
+      {
+        "type": "text",
+        "value": "e r",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5484000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy e g r",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5484000000000"
+      },
+      {
+        "type": "text",
+        "value": "\"r\"",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5484000000000"
+      },
+      {
+        "type": "text",
+        "value": "\"zero\"",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "e",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "ee",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "eee",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "g",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "gg",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "ggg",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "r",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "R",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "zero",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "ZERO",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "e r",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "yyyy e g r",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "\"r\"",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "\"zero\"",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "r",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "R",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "rr",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "rR",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "Rr",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "rrr",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "ro",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "ar",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "r a",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "\"r\"",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "\"R\"",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "\"rr\"",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "\"ro\"",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "\"ar\"",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "r\"o\"",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "\"r\"o",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "\"ro\"r",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "\"zero\"",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "zero",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "0r",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "r0",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "0\"r\"",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "0\"rr\"",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "e\"r\"",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "e\"ro\"",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "\"e\"r",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "g r",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "g\"r\"",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "eE",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "E",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "EE",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "gggg",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": " ",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "  ",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "R R",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "0 0",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "0 ",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": " r",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "r ",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "a r",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "0r a",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "g r a",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "\" \"",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "eEe",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "eE+0",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "0E+0",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "r%",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "40e5f90000000000"
+      },
+      {
+        "type": "text",
+        "value": "r@",
+        "mode": "literal"
+      }
+    ]
+  ],
+  "service_response": {
+    "version": 1,
+    "id": "b28c2af53aaa4c5ca1e6b6be32a95aa6",
+    "ok": true,
+    "rows": [
+      {
+        "type": "text",
+        "value": "Sat Saturday"
+      },
+      {
+        "type": "text",
+        "value": "1900-01-00 Sat"
+      },
+      {
+        "type": "text",
+        "value": "Sun Sunday"
+      },
+      {
+        "type": "text",
+        "value": "1900-01-01 Sun"
+      },
+      {
+        "type": "text",
+        "value": "Mon Monday"
+      },
+      {
+        "type": "text",
+        "value": "1900-01-02 Mon"
+      },
+      {
+        "type": "text",
+        "value": "Fri Friday"
+      },
+      {
+        "type": "text",
+        "value": "1900-01-06 Fri"
+      },
+      {
+        "type": "text",
+        "value": "Sat Saturday"
+      },
+      {
+        "type": "text",
+        "value": "1900-01-07 Sat"
+      },
+      {
+        "type": "text",
+        "value": "Sat Saturday"
+      },
+      {
+        "type": "text",
+        "value": "1900-01-28 Sat"
+      },
+      {
+        "type": "text",
+        "value": "Tue Tuesday"
+      },
+      {
+        "type": "text",
+        "value": "1900-01-31 Tue"
+      },
+      {
+        "type": "text",
+        "value": "Mon Monday"
+      },
+      {
+        "type": "text",
+        "value": "1900-02-27 Mon"
+      },
+      {
+        "type": "text",
+        "value": "Tue Tuesday"
+      },
+      {
+        "type": "text",
+        "value": "1900-02-28 Tue"
+      },
+      {
+        "type": "text",
+        "value": "Thu Thursday"
+      },
+      {
+        "type": "text",
+        "value": "1900-03-01 Thu"
+      },
+      {
+        "type": "text",
+        "value": "Fri Friday"
+      },
+      {
+        "type": "text",
+        "value": "1900-03-02 Fri"
+      },
+      {
+        "type": "text",
+        "value": "Sun Sunday"
+      },
+      {
+        "type": "text",
+        "value": "1900-12-30 Sun"
+      },
+      {
+        "type": "text",
+        "value": "Thu Thursday"
+      },
+      {
+        "type": "text",
+        "value": "1903-12-31 Thu"
+      },
+      {
+        "type": "text",
+        "value": "Fri Friday"
+      },
+      {
+        "type": "text",
+        "value": "1904-01-01 Fri"
+      },
+      {
+        "type": "text",
+        "value": "Wed Wednesday"
+      },
+      {
+        "type": "text",
+        "value": "1900-02-29 Wed"
+      },
+      {
+        "type": "text",
+        "value": "Thu Thursday"
+      },
+      {
+        "type": "text",
+        "value": "1900-03-01 Thu"
+      }
+    ],
+    "inputs": [
+      [
+        {
+          "type": "number",
+          "bits": "0000000000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "0000000000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "3ff0000000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "3ff0000000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "4000000000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "4000000000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "4018000000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "4018000000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "401c000000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "401c000000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "403c000000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "403c000000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "403f000000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "403f000000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "404d000000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "404d000000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "404d800000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "404d800000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "404e800000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "404e800000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "404f000000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "404f000000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "4076d00000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "4076d00000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "4096d40000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "4096d40000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "4096d80000000000"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "4096d80000000000"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "404dffffffea8671"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "404dffffffea8671"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "404e7fffffea8671"
+        },
+        {
+          "type": "text",
+          "value": "ddd dddd"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "404e7fffffea8671"
+        },
+        {
+          "type": "text",
+          "value": "yyyy-mm-dd ddd"
+        }
+      ]
+    ],
+    "excel_version": "16.0",
+    "excel_build": "20527",
+    "excel_file_version": "16.0.20527.20088",
+    "excel_pid": 57860,
+    "calculation_settings": {
+      "calculation": -4135,
+      "compatibility_version": null,
+      "unavailable": [],
+      "PrecisionAsDisplayed": false,
+      "Date1904": false,
+      "CompatibilityVersion": 2,
+      "UseSystemSeparators": true,
+      "DecimalSeparator": ".",
+      "ThousandsSeparator": "\u00a0"
+    },
+    "automation_security_before": 1,
+    "automation_security_after": 1,
+    "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261104T2129354613234-7d7ee85f2d0048f480c329fe4ca3b162\\receipt.json",
+    "session_receipt_sha256": "65211831cff886dc90f9ea6d5290641032d58dfb5df9d0722d9033b29b2d5a52",
+    "machine": "GOVERT-OMEN",
+    "timestamp": "2026-11-04T21:29:46.779727+00:00",
+    "service_seconds": 16.937999999849126,
+    "request_sha256": "f5327a06c780ce1f243b0c99463af3f2a23cdd7d1ab8c52850f3e401a9f70265",
+    "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\b28c2af53aaa4c5ca1e6b6be32a95aa6"
+  },
+  "source": "Original fn8 TEXT serial-weekday discriminators. Exact questions, input readbacks and full reply retained unchanged; numeric and text results projected through the existing witness codec. Additional literal-boundary controls retain the full20 answers; witnesses omit four separate decimal-only or mantissa-less-exponent cases still not modelled. Escapes and locale tags are refused by the live service; their old handling is preserved.",
+  "additional_service_responses": [
+    {
+      "questions": [
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "text",
+            "value": "e",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "text",
+            "value": "ee",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "text",
+            "value": "eee",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "text",
+            "value": "g",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "text",
+            "value": "gg",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "text",
+            "value": "ggg",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "text",
+            "value": "r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "text",
+            "value": "R",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "text",
+            "value": "zero",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "text",
+            "value": "ZERO",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "text",
+            "value": "e r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "text",
+            "value": "yyyy e g r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "text",
+            "value": "\"r\"",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "text",
+            "value": "\"zero\"",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "text",
+            "value": "e",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "text",
+            "value": "ee",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "text",
+            "value": "eee",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "text",
+            "value": "g",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "text",
+            "value": "gg",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "text",
+            "value": "ggg",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "text",
+            "value": "r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "text",
+            "value": "R",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "text",
+            "value": "zero",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "text",
+            "value": "ZERO",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "text",
+            "value": "e r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "text",
+            "value": "yyyy e g r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "text",
+            "value": "\"r\"",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "text",
+            "value": "\"zero\"",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "text",
+            "value": "e",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "text",
+            "value": "ee",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "text",
+            "value": "eee",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "text",
+            "value": "g",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "text",
+            "value": "gg",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "text",
+            "value": "ggg",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "text",
+            "value": "r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "text",
+            "value": "R",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "text",
+            "value": "zero",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "text",
+            "value": "ZERO",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "text",
+            "value": "e r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "text",
+            "value": "yyyy e g r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "text",
+            "value": "\"r\"",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "text",
+            "value": "\"zero\"",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5482000000000"
+          },
+          {
+            "type": "text",
+            "value": "e",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5482000000000"
+          },
+          {
+            "type": "text",
+            "value": "ee",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5482000000000"
+          },
+          {
+            "type": "text",
+            "value": "eee",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5482000000000"
+          },
+          {
+            "type": "text",
+            "value": "g",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5482000000000"
+          },
+          {
+            "type": "text",
+            "value": "gg",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5482000000000"
+          },
+          {
+            "type": "text",
+            "value": "ggg",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5482000000000"
+          },
+          {
+            "type": "text",
+            "value": "r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5482000000000"
+          },
+          {
+            "type": "text",
+            "value": "R",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5482000000000"
+          },
+          {
+            "type": "text",
+            "value": "zero",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5482000000000"
+          },
+          {
+            "type": "text",
+            "value": "ZERO",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5482000000000"
+          },
+          {
+            "type": "text",
+            "value": "e r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5482000000000"
+          },
+          {
+            "type": "text",
+            "value": "yyyy e g r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5482000000000"
+          },
+          {
+            "type": "text",
+            "value": "\"r\"",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5482000000000"
+          },
+          {
+            "type": "text",
+            "value": "\"zero\"",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5484000000000"
+          },
+          {
+            "type": "text",
+            "value": "e",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5484000000000"
+          },
+          {
+            "type": "text",
+            "value": "ee",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5484000000000"
+          },
+          {
+            "type": "text",
+            "value": "eee",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5484000000000"
+          },
+          {
+            "type": "text",
+            "value": "g",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5484000000000"
+          },
+          {
+            "type": "text",
+            "value": "gg",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5484000000000"
+          },
+          {
+            "type": "text",
+            "value": "ggg",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5484000000000"
+          },
+          {
+            "type": "text",
+            "value": "r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5484000000000"
+          },
+          {
+            "type": "text",
+            "value": "R",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5484000000000"
+          },
+          {
+            "type": "text",
+            "value": "zero",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5484000000000"
+          },
+          {
+            "type": "text",
+            "value": "ZERO",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5484000000000"
+          },
+          {
+            "type": "text",
+            "value": "e r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5484000000000"
+          },
+          {
+            "type": "text",
+            "value": "yyyy e g r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5484000000000"
+          },
+          {
+            "type": "text",
+            "value": "\"r\"",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5484000000000"
+          },
+          {
+            "type": "text",
+            "value": "\"zero\"",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "e",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "ee",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "eee",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "g",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "gg",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "ggg",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "R",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "zero",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "ZERO",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "e r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "yyyy e g r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "\"r\"",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "\"zero\"",
+            "mode": "literal"
+          }
+        ]
+      ],
+      "response": {
+        "version": 1,
+        "id": "25f7c7b226a342d1b5e693b5e1ba6a4b",
+        "ok": true,
+        "rows": [
+          {
+            "type": "text",
+            "value": "1900"
+          },
+          {
+            "type": "text",
+            "value": "1900"
+          },
+          {
+            "type": "text",
+            "value": "1900"
+          },
+          {
+            "type": "text",
+            "value": ""
+          },
+          {
+            "type": "text",
+            "value": ""
+          },
+          {
+            "type": "text",
+            "value": ""
+          },
+          {
+            "type": "text",
+            "value": "R"
+          },
+          {
+            "type": "text",
+            "value": "R"
+          },
+          {
+            "type": "text",
+            "value": "z1900Ro"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "text",
+            "value": "1900 R"
+          },
+          {
+            "type": "text",
+            "value": "1900 1900  R"
+          },
+          {
+            "type": "text",
+            "value": "R"
+          },
+          {
+            "type": "text",
+            "value": "zero"
+          },
+          {
+            "type": "text",
+            "value": "1900"
+          },
+          {
+            "type": "text",
+            "value": "1900"
+          },
+          {
+            "type": "text",
+            "value": "1900"
+          },
+          {
+            "type": "text",
+            "value": ""
+          },
+          {
+            "type": "text",
+            "value": ""
+          },
+          {
+            "type": "text",
+            "value": ""
+          },
+          {
+            "type": "text",
+            "value": "R"
+          },
+          {
+            "type": "text",
+            "value": "R"
+          },
+          {
+            "type": "text",
+            "value": "z1900Ro"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "text",
+            "value": "1900 R"
+          },
+          {
+            "type": "text",
+            "value": "1900 1900  R"
+          },
+          {
+            "type": "text",
+            "value": "R"
+          },
+          {
+            "type": "text",
+            "value": "zero"
+          },
+          {
+            "type": "text",
+            "value": "1900"
+          },
+          {
+            "type": "text",
+            "value": "1900"
+          },
+          {
+            "type": "text",
+            "value": "1900"
+          },
+          {
+            "type": "text",
+            "value": ""
+          },
+          {
+            "type": "text",
+            "value": ""
+          },
+          {
+            "type": "text",
+            "value": ""
+          },
+          {
+            "type": "text",
+            "value": "R"
+          },
+          {
+            "type": "text",
+            "value": "R"
+          },
+          {
+            "type": "text",
+            "value": "z1900Ro"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "text",
+            "value": "1900 R"
+          },
+          {
+            "type": "text",
+            "value": "1900 1900  R"
+          },
+          {
+            "type": "text",
+            "value": "R"
+          },
+          {
+            "type": "text",
+            "value": "zero"
+          },
+          {
+            "type": "text",
+            "value": "2019"
+          },
+          {
+            "type": "text",
+            "value": "2019"
+          },
+          {
+            "type": "text",
+            "value": "2019"
+          },
+          {
+            "type": "text",
+            "value": ""
+          },
+          {
+            "type": "text",
+            "value": ""
+          },
+          {
+            "type": "text",
+            "value": ""
+          },
+          {
+            "type": "text",
+            "value": "R"
+          },
+          {
+            "type": "text",
+            "value": "R"
+          },
+          {
+            "type": "text",
+            "value": "z2019Ro"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "text",
+            "value": "2019 R"
+          },
+          {
+            "type": "text",
+            "value": "2019 2019  R"
+          },
+          {
+            "type": "text",
+            "value": "R"
+          },
+          {
+            "type": "text",
+            "value": "zero"
+          },
+          {
+            "type": "text",
+            "value": "2019"
+          },
+          {
+            "type": "text",
+            "value": "2019"
+          },
+          {
+            "type": "text",
+            "value": "2019"
+          },
+          {
+            "type": "text",
+            "value": ""
+          },
+          {
+            "type": "text",
+            "value": ""
+          },
+          {
+            "type": "text",
+            "value": ""
+          },
+          {
+            "type": "text",
+            "value": "R"
+          },
+          {
+            "type": "text",
+            "value": "R"
+          },
+          {
+            "type": "text",
+            "value": "z2019Ro"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "text",
+            "value": "2019 R"
+          },
+          {
+            "type": "text",
+            "value": "2019 2019  R"
+          },
+          {
+            "type": "text",
+            "value": "R"
+          },
+          {
+            "type": "text",
+            "value": "zero"
+          },
+          {
+            "type": "text",
+            "value": "2023"
+          },
+          {
+            "type": "text",
+            "value": "2023"
+          },
+          {
+            "type": "text",
+            "value": "2023"
+          },
+          {
+            "type": "text",
+            "value": ""
+          },
+          {
+            "type": "text",
+            "value": ""
+          },
+          {
+            "type": "text",
+            "value": ""
+          },
+          {
+            "type": "text",
+            "value": "R"
+          },
+          {
+            "type": "text",
+            "value": "R"
+          },
+          {
+            "type": "text",
+            "value": "z2023Ro"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "text",
+            "value": "2023 R"
+          },
+          {
+            "type": "text",
+            "value": "2023 2023  R"
+          },
+          {
+            "type": "text",
+            "value": "R"
+          },
+          {
+            "type": "text",
+            "value": "zero"
+          }
+        ],
+        "inputs": [
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "text",
+              "value": "e"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "text",
+              "value": "ee"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "text",
+              "value": "eee"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "text",
+              "value": "g"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "text",
+              "value": "gg"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "text",
+              "value": "ggg"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "text",
+              "value": "r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "text",
+              "value": "R"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "text",
+              "value": "zero"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "text",
+              "value": "ZERO"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "text",
+              "value": "e r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "text",
+              "value": "yyyy e g r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "text",
+              "value": "\"r\""
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "text",
+              "value": "\"zero\""
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "text",
+              "value": "e"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "text",
+              "value": "ee"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "text",
+              "value": "eee"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "text",
+              "value": "g"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "text",
+              "value": "gg"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "text",
+              "value": "ggg"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "text",
+              "value": "r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "text",
+              "value": "R"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "text",
+              "value": "zero"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "text",
+              "value": "ZERO"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "text",
+              "value": "e r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "text",
+              "value": "yyyy e g r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "text",
+              "value": "\"r\""
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "text",
+              "value": "\"zero\""
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "text",
+              "value": "e"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "text",
+              "value": "ee"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "text",
+              "value": "eee"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "text",
+              "value": "g"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "text",
+              "value": "gg"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "text",
+              "value": "ggg"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "text",
+              "value": "r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "text",
+              "value": "R"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "text",
+              "value": "zero"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "text",
+              "value": "ZERO"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "text",
+              "value": "e r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "text",
+              "value": "yyyy e g r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "text",
+              "value": "\"r\""
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "text",
+              "value": "\"zero\""
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5482000000000"
+            },
+            {
+              "type": "text",
+              "value": "e"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5482000000000"
+            },
+            {
+              "type": "text",
+              "value": "ee"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5482000000000"
+            },
+            {
+              "type": "text",
+              "value": "eee"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5482000000000"
+            },
+            {
+              "type": "text",
+              "value": "g"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5482000000000"
+            },
+            {
+              "type": "text",
+              "value": "gg"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5482000000000"
+            },
+            {
+              "type": "text",
+              "value": "ggg"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5482000000000"
+            },
+            {
+              "type": "text",
+              "value": "r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5482000000000"
+            },
+            {
+              "type": "text",
+              "value": "R"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5482000000000"
+            },
+            {
+              "type": "text",
+              "value": "zero"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5482000000000"
+            },
+            {
+              "type": "text",
+              "value": "ZERO"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5482000000000"
+            },
+            {
+              "type": "text",
+              "value": "e r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5482000000000"
+            },
+            {
+              "type": "text",
+              "value": "yyyy e g r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5482000000000"
+            },
+            {
+              "type": "text",
+              "value": "\"r\""
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5482000000000"
+            },
+            {
+              "type": "text",
+              "value": "\"zero\""
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5484000000000"
+            },
+            {
+              "type": "text",
+              "value": "e"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5484000000000"
+            },
+            {
+              "type": "text",
+              "value": "ee"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5484000000000"
+            },
+            {
+              "type": "text",
+              "value": "eee"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5484000000000"
+            },
+            {
+              "type": "text",
+              "value": "g"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5484000000000"
+            },
+            {
+              "type": "text",
+              "value": "gg"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5484000000000"
+            },
+            {
+              "type": "text",
+              "value": "ggg"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5484000000000"
+            },
+            {
+              "type": "text",
+              "value": "r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5484000000000"
+            },
+            {
+              "type": "text",
+              "value": "R"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5484000000000"
+            },
+            {
+              "type": "text",
+              "value": "zero"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5484000000000"
+            },
+            {
+              "type": "text",
+              "value": "ZERO"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5484000000000"
+            },
+            {
+              "type": "text",
+              "value": "e r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5484000000000"
+            },
+            {
+              "type": "text",
+              "value": "yyyy e g r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5484000000000"
+            },
+            {
+              "type": "text",
+              "value": "\"r\""
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5484000000000"
+            },
+            {
+              "type": "text",
+              "value": "\"zero\""
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "e"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "ee"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "eee"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "g"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "gg"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "ggg"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "R"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "zero"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "ZERO"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "e r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "yyyy e g r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "\"r\""
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "\"zero\""
+            }
+          ]
+        ],
+        "excel_version": "16.0",
+        "excel_build": "20527",
+        "excel_file_version": "16.0.20527.20150",
+        "excel_pid": 58876,
+        "calculation_settings": {
+          "calculation": -4135,
+          "compatibility_version": null,
+          "unavailable": [],
+          "PrecisionAsDisplayed": false,
+          "Date1904": false,
+          "CompatibilityVersion": 2,
+          "UseSystemSeparators": true,
+          "DecimalSeparator": ".",
+          "ThousandsSeparator": "\u00a0"
+        },
+        "automation_security_before": 1,
+        "automation_security_after": 1,
+        "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261104T2220401628169-ba9560f815384e3eb08a46cb61271086\\receipt.json",
+        "session_receipt_sha256": "f93d6c5ad5403ad5fd5ac9ca330f623c3bbed8105f3abb295ee1f7f6762f17a8",
+        "machine": "GOVERT-OMEN",
+        "timestamp": "2026-11-04T22:20:44.684901+00:00",
+        "service_seconds": 5.25,
+        "request_sha256": "fc4fcb2839641ab4866f8b6261ed0d4271e0abb6120dcbbc2ea9d39e2992154e",
+        "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\25f7c7b226a342d1b5e693b5e1ba6a4b"
+      }
+    },
+    {
+      "questions": [
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "R",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "rr",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "rR",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "Rr",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "rrr",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "ro",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "ar",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "r a",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "\"r\"",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "\"R\"",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "\"rr\"",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "\"ro\"",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "\"ar\"",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "r\"o\"",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "\"r\"o",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "\"ro\"r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "\"zero\"",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "zero",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "0r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "r0",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "0\"r\"",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "0\"rr\"",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "e\"r\"",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "e\"ro\"",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "\"e\"r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "g r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "g\"r\"",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "eE",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "E",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "EE",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "gggg",
+            "mode": "literal"
+          }
+        ]
+      ],
+      "response": {
+        "version": 1,
+        "id": "db07ea3e1eba4c05899be05375f9eef3",
+        "ok": true,
+        "rows": [
+          {
+            "type": "text",
+            "value": "R"
+          },
+          {
+            "type": "text",
+            "value": "R"
+          },
+          {
+            "type": "text",
+            "value": "RR"
+          },
+          {
+            "type": "text",
+            "value": "RR"
+          },
+          {
+            "type": "text",
+            "value": "RR"
+          },
+          {
+            "type": "text",
+            "value": "RRR"
+          },
+          {
+            "type": "text",
+            "value": "Ro"
+          },
+          {
+            "type": "text",
+            "value": "aR"
+          },
+          {
+            "type": "text",
+            "value": "R a"
+          },
+          {
+            "type": "text",
+            "value": "R"
+          },
+          {
+            "type": "text",
+            "value": "R"
+          },
+          {
+            "type": "text",
+            "value": "rr"
+          },
+          {
+            "type": "text",
+            "value": "ro"
+          },
+          {
+            "type": "text",
+            "value": "ar"
+          },
+          {
+            "type": "text",
+            "value": "Ro"
+          },
+          {
+            "type": "text",
+            "value": "Ro"
+          },
+          {
+            "type": "text",
+            "value": "roR"
+          },
+          {
+            "type": "text",
+            "value": "zero"
+          },
+          {
+            "type": "text",
+            "value": "z2023Ro"
+          },
+          {
+            "type": "text",
+            "value": "45000R"
+          },
+          {
+            "type": "text",
+            "value": "R45000"
+          },
+          {
+            "type": "text",
+            "value": "45000R"
+          },
+          {
+            "type": "text",
+            "value": "45000rr"
+          },
+          {
+            "type": "text",
+            "value": "2023R"
+          },
+          {
+            "type": "text",
+            "value": "2023ro"
+          },
+          {
+            "type": "text",
+            "value": "eR"
+          },
+          {
+            "type": "text",
+            "value": " R"
+          },
+          {
+            "type": "text",
+            "value": "R"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "text",
+            "value": ""
+          }
+        ],
+        "inputs": [
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "R"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "rr"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "rR"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "Rr"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "rrr"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "ro"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "ar"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "r a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "\"r\""
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "\"R\""
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "\"rr\""
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "\"ro\""
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "\"ar\""
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "r\"o\""
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "\"r\"o"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "\"ro\"r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "\"zero\""
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "zero"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "0r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "r0"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "0\"r\""
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "0\"rr\""
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "e\"r\""
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "e\"ro\""
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "\"e\"r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "g r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "g\"r\""
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "eE"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "E"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "EE"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "gggg"
+            }
+          ]
+        ],
+        "excel_version": "16.0",
+        "excel_build": "20527",
+        "excel_file_version": "16.0.20527.20150",
+        "excel_pid": 58876,
+        "calculation_settings": {
+          "calculation": -4135,
+          "compatibility_version": null,
+          "unavailable": [],
+          "PrecisionAsDisplayed": false,
+          "Date1904": false,
+          "CompatibilityVersion": 2,
+          "UseSystemSeparators": true,
+          "DecimalSeparator": ".",
+          "ThousandsSeparator": "\u00a0"
+        },
+        "automation_security_before": 1,
+        "automation_security_after": 1,
+        "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261104T2222556071989-cc717780d3424370922969e1a23f2984\\receipt.json",
+        "session_receipt_sha256": "d6286f92c432cfd84bb293f7e6f4828af09e0d85bb5ad126391863afdd794243",
+        "machine": "GOVERT-OMEN",
+        "timestamp": "2026-11-04T22:23:00.159755+00:00",
+        "service_seconds": 5.546000000089407,
+        "request_sha256": "e8771b300634b2675d63829da461ec51a7e2f6a2d7d6f4c4af44d752237593ae",
+        "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\db07ea3e1eba4c05899be05375f9eef3"
+      }
+    },
+    {
+      "questions": [
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": " ",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "  ",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": ".",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "R R",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "0 0",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "0 ",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": " r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "r ",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "a r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "0r a",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "g r a",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "\" \"",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "eEe",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "eE+0",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "0E+0",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "e+0",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "R. R",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "r.r",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "r%",
+            "mode": "literal"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "40e5f90000000000"
+          },
+          {
+            "type": "text",
+            "value": "r@",
+            "mode": "literal"
+          }
+        ]
+      ],
+      "response": {
+        "version": 1,
+        "id": "69980445620d4d9d814eb099eafc7c20",
+        "ok": true,
+        "rows": [
+          {
+            "type": "text",
+            "value": " "
+          },
+          {
+            "type": "text",
+            "value": " "
+          },
+          {
+            "type": "text",
+            "value": "45000."
+          },
+          {
+            "type": "text",
+            "value": "R R"
+          },
+          {
+            "type": "text",
+            "value": "45 000"
+          },
+          {
+            "type": "text",
+            "value": "45"
+          },
+          {
+            "type": "text",
+            "value": " R"
+          },
+          {
+            "type": "text",
+            "value": "R "
+          },
+          {
+            "type": "text",
+            "value": "a R"
+          },
+          {
+            "type": "text",
+            "value": "45000R a"
+          },
+          {
+            "type": "text",
+            "value": " R a"
+          },
+          {
+            "type": "text",
+            "value": " "
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "text",
+            "value": "5E+4"
+          },
+          {
+            "type": "error",
+            "code": "#VALUE!"
+          },
+          {
+            "type": "text",
+            "value": "R45.R"
+          },
+          {
+            "type": "text",
+            "value": "R45000.R"
+          },
+          {
+            "type": "text",
+            "value": "R%"
+          },
+          {
+            "type": "text",
+            "value": "45000"
+          }
+        ],
+        "inputs": [
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": " "
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "  "
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "."
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "R R"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "0 0"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "0 "
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": " r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "r "
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "a r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "0r a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "g r a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "\" \""
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "eEe"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "eE+0"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "0E+0"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "e+0"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "R. R"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "r.r"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "r%"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40e5f90000000000"
+            },
+            {
+              "type": "text",
+              "value": "r@"
+            }
+          ]
+        ],
+        "excel_version": "16.0",
+        "excel_build": "20527",
+        "excel_file_version": "16.0.20527.20150",
+        "excel_pid": 4924,
+        "calculation_settings": {
+          "calculation": -4135,
+          "compatibility_version": null,
+          "unavailable": [],
+          "PrecisionAsDisplayed": false,
+          "Date1904": false,
+          "CompatibilityVersion": 2,
+          "UseSystemSeparators": true,
+          "DecimalSeparator": ".",
+          "ThousandsSeparator": "\u00a0"
+        },
+        "automation_security_before": 1,
+        "automation_security_after": 1,
+        "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261104T2232055831487-e4940e91a5034dc895998efdab664e4d\\receipt.json",
+        "session_receipt_sha256": "ba1bd203e1757f87c9dea943434c6705fb2ac3f0448e01257eb117f9c3ff797e",
+        "machine": "GOVERT-OMEN",
+        "timestamp": "2026-11-04T22:32:10.510340+00:00",
+        "service_seconds": 5.936999999918044,
+        "request_sha256": "75a94f818c741627f66f3a7ad126f1ca788a061beae405feefe91c3cf71221a9",
+        "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\69980445620d4d9d814eb099eafc7c20"
+      }
+    }
+  ],
+  "additional_scope": "Unchanged116 fn8 scalar era/currency questions, complete replies and exact typed readbacks. Original32weekday questions/reply remain unchanged; no source observation replaced."
+}

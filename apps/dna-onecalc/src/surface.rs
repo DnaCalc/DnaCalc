@@ -155,22 +155,8 @@ fn environment(locale: &str) -> CalcEnvironment {
         compatibility_version: 1,
         date_system: DateSystem::System1900,
         profile: FormatProfile::for_culture(locale),
-        now: clock(),
+        now: dna_formula_ui::web::serial_clock(),
     }
-}
-
-/// The browser's local time as an Excel serial date number in the 1900 system: days since
-/// 1899-12-30, the epoch of serial numbers from 1900-03-01 on.
-#[cfg(target_arch = "wasm32")]
-fn clock() -> Option<f64> {
-    let now = js_sys::Date::new_0();
-    let local_ms = now.get_time() - now.get_timezone_offset() * 60_000.0;
-    Some(local_ms / 86_400_000.0 + 25_569.0)
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn clock() -> Option<f64> {
-    None
 }
 
 /// The grid's cell at a 0-based index, row by row.

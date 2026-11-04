@@ -8385,6 +8385,32 @@ Case {
         Action::Window(390,844),Action::OpenDetails("file-menu"),Action::Choose("template-list","Spill.xltx"),Action::Click("template-insert"),Action::Wait(Check::Count("[data-dnacalc=sheet-jump] option",3)),Action::Click("calculate"),Action::Wait(Check::PlanCell("B2","text","12"))
     ],checks:&[Check::PlanCell("B2","provenance","calculated"),Check::Fits,Check::Narrow(390),Check::Reachable("name-box")]},
 
+    Case{name:"calendar sorting: today's calculated date and conditional fill move with its row",actions:&[
+        Action::Window(1440,1000),Action::ValidationFixture("sort-periods"),Action::UploadDownload("validation-sort-periods.xlsx"),Action::DiscardReplacement,Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),Action::Wait(Check::Style("[data-dnacalc=cell-decoration][data-cell=C2]","background-color:#123456")),Action::Wait(Check::Style("[data-dnacalc=cell-decoration][data-cell=C6]","background-color:#123456")),Action::Into("name-box","A1:C5\u{E007}"),Action::OpenDetails("sort-tools"),Action::Click("sort-ascending"),Action::Wait(Check::PlanCell("A5","text","3"))
+    ],checks:&[Check::Style("[data-dnacalc=cell-decoration][data-cell=C5]","background-color:#123456"),Check::Style("[data-dnacalc=cell-decoration][data-cell=C6]","background-color:#123456"),Check::Absent("[data-dnacalc=cell-decoration][data-cell=C2]"),Check::PlanCell("C5","provenance","calculated"),Check::PlanCell("C5","formula","true")]},
+    Case{name:"calendar sorting: Undo Redo retains the stored date condition",actions:&[
+        Action::Click("undo"),Action::Wait(Check::PlanCell("A2","text","3")),Action::Wait(Check::Style("[data-dnacalc=cell-decoration][data-cell=C2]","background-color:#123456")),Action::Click("redo"),Action::Wait(Check::PlanCell("A5","text","3"))
+    ],checks:&[Check::Style("[data-dnacalc=cell-decoration][data-cell=C5]","background-color:#123456"),Check::Style("[data-dnacalc=cell-decoration][data-cell=C6]","background-color:#123456"),Check::PlanCell("C5","provenance","calculated")]},
+    Case{name:"calendar sorting: actual saved XLSX retains the calendar type and outside cell",actions:&[
+        Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("validation-sort-periods.xlsx"),Action::DiscardReplacement,Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),Action::Wait(Check::PlanCell("A5","text","3")),Action::Wait(Check::Style("[data-dnacalc=cell-decoration][data-cell=C5]","background-color:#123456"))
+    ],checks:&[Check::Style("[data-dnacalc=cell-decoration][data-cell=C6]","background-color:#123456"),Check::PlanCell("C5","provenance","calculated"),Check::PlanCell("C6","provenance","calculated")]},
+    Case{name:"calendar sorting: descending calendar rows remain usable on a phone",actions:&[
+        Action::Window(390,844),Action::Into("name-box","A1:C5\u{E007}"),Action::OpenDetails("sort-tools"),Action::Click("sort-descending"),Action::Wait(Check::PlanCell("A2","text","3")),Action::Click("[data-dnacalc=sort-tools]>summary"),Action::Wait(Check::Style("[data-dnacalc=cell-decoration][data-cell=C6]","background-color:#123456"))
+    ],checks:&[Check::Fits,Check::Style("[data-dnacalc=cell-decoration][data-cell=C2]","background-color:#123456"),Check::Style("[data-dnacalc=cell-decoration][data-cell=C6]","background-color:#123456"),Check::PlanCell("C2","provenance","calculated")]},
+
+    Case{name:"typed colour filters: a calendar condition filters the visible date colour",actions:&[
+        Action::Window(1440,1000),Action::ValidationFixture("sort-periods"),Action::UploadDownload("validation-sort-periods.xlsx"),Action::DiscardReplacement,Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),Action::Wait(Check::Style("[data-dnacalc=cell-decoration][data-cell=C2]","background-color:#123456")),Action::Into("name-box","D1\u{E007}"),Action::Into(BAR,"=SUBTOTAL(9,A2:A5)\u{E007}"),Action::Wait(Check::PlanCell("D1","text","7")),Action::Into("name-box","A1:C5\u{E007}"),Action::OpenDetails("filter-tools"),Action::Click("filter-enable"),Action::Wait(Check::TextContains("filter-summary","A1:C5")),Action::Into("filter-column","3"),Action::OpenDetails("filter-color-tools"),Action::Into("filter-color","#123456"),Action::Click("filter-color-apply"),Action::Wait(Check::PlanCell("D1","text","3"))
+    ],checks:&[Check::TextContains("filter-summary","3 rows filtered out"),Check::PlanAbsent("A3"),Check::PlanCell("D1","provenance","calculated"),Check::Style("[data-dnacalc=cell-decoration][data-cell=C2]","background-color:#123456"),Check::Style("[data-dnacalc=cell-decoration][data-cell=C6]","background-color:#123456")]},
+    Case{name:"typed colour filters: one Undo and Redo restore aggregate visibility",actions:&[
+        Action::Click("undo"),Action::Wait(Check::PlanCell("D1","text","7")),Action::Wait(Check::TextContains("filter-summary","0 rows filtered out")),Action::Click("redo"),Action::Wait(Check::PlanCell("D1","text","3"))
+    ],checks:&[Check::TextContains("filter-summary","3 rows filtered out"),Check::PlanAbsent("A3"),Check::PlanCell("D1","provenance","calculated")]},
+    Case{name:"typed colour filters: actual XLSX reopening reapplies the stored calendar colour",actions:&[
+        Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("validation-sort-periods.xlsx"),Action::DiscardReplacement,Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),Action::OpenDetails("filter-tools"),Action::Click("filter-reapply"),Action::Wait(Check::PlanCell("D1","text","3"))
+    ],checks:&[Check::TextContains("filter-summary","3 rows filtered out"),Check::PlanAbsent("A3"),Check::PlanCell("D1","provenance","calculated"),Check::Style("[data-dnacalc=cell-decoration][data-cell=C6]","background-color:#123456")]},
+    Case{name:"typed colour filters: no fill selects other dates and phone controls stay reachable",actions:&[
+        Action::Click("filter-clear"),Action::Into("filter-column","3"),Action::OpenDetails("filter-color-tools"),Action::Into("filter-color",""),Action::Click("filter-color-apply"),Action::Wait(Check::PlanCell("D1","text","4")),Action::Window(390,844),Action::Into("name-box","D1\u{E007}"),Action::Wait(Check::Reachable("filter-color")),Action::Keys("filter-color","\u{E004}")
+    ],checks:&[Check::TextContains("filter-summary","1 rows filtered out"),Check::PlanAbsent("A2"),Check::PlanCell("D1","provenance","calculated"),Check::Fits,Check::Narrow(390),Check::Reachable("filter-color-apply"),Check::Focused("filter-color-apply"),Check::HitTarget("filter-color-apply")]},
+
 ];
 
 /// The script that reads what one check looks at.
@@ -9230,4 +9256,6 @@ CaseGroup {
     CaseGroup {name:"qualified-aggregates",start:688,end:692,core:4,setup:&[]},
     CaseGroup {name:"ten-percent-zoom",start:692,end:697,core:5,setup:&[]},
     CaseGroup {name:"template-arrays",start:697,end:701,core:4,setup:&[]},
+    CaseGroup {name:"calendar-sorting",start:701,end:705,core:4,setup:&[]},
+    CaseGroup {name:"typed-colour-filters",start:705,end:709,core:4,setup:&[]},
 ];

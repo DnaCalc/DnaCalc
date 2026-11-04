@@ -13,7 +13,7 @@ use super::comparison::{Want, order};
 use super::kit::{fail, flag};
 use super::{ArgumentDemand, CatalogueEntry, Family, FunctionId, Kernel, Notation, Parameter};
 use crate::call::{EvalServices, FunctionFault};
-use crate::kernel::{Site, Step};
+use crate::kernel::{Exit, Site, Step};
 use crate::value::{CalcValue, CallableArityShape, CoreRef, NumericMode, WorksheetErrorCode};
 use std::cmp::Ordering;
 
@@ -57,8 +57,16 @@ pub(super) fn selects_whole_result(
                 });
             // A matching scalar prefix never reads a later array case. Reuse SWITCH's
             // selector and comparison rules without invoking a kernel or evaluating args.
+            // Fn5 selection012: a scalar case error also decides one whole
+            // result before an unused array result can enlarge it.
             scalar
-                || switch_index(&Site::new(SWITCH, &EvalServices::new(numeric)), arguments).is_ok()
+                || match switch_index(&Site::new(SWITCH, &EvalServices::new(numeric)), arguments) {
+                    Ok(_) => true,
+                    Err(Exit::Error(_)) => std::iter::once(&arguments[0])
+                        .chain(arguments[1..end].iter().step_by(2))
+                        .all(|value| value.callable_value().is_none()),
+                    Err(_) => false,
+                }
         }
         _ => false,
     }

@@ -732,6 +732,22 @@ calculated values with held, imported, external or other cache qualifications
 Literal values and ordinary certified calculations remain readable. The explicit-source
 event API retains its existing observation policy; full event-state provenance remains open.
 
+Events-off file admission (dc-snz.15, 2026-11-04) distinguishes ordinary classes by
+the compound project's `PROJECT Class=` declaration, checked against its directory
+and document identities. It compiles every original module through the existing
+dynamic VBA session and leaves document event routes unsubscribed. Re-enabling
+host events refuses delivery until the project is prepared again with events on;
+that admission still checks unsupported automatic handlers. Finite member
+declarations permit complete source compilation without supplying implementations.
+Reached unsupported members remain typed refusals through VBA error handlers and
+worksheet IFERROR. Dynamic JIT native WithEvents bindings are declined before
+initialization; default admission selects the interpreter, and an explicit JIT
+request refuses. Ordinary class state and Range arguments use the existing shared
+session and reference projection. The original P04 SizeUdf executes its authored
+unarmed return of 2 without changing saved source. P01 temporary-array UBound and
+P10 Input$ remain compiler gaps; general object writes and native subscriptions
+remain unimplemented. These controls are not new Excel captures or event parity.
+
 Workbook_Open runs once after file-project installation and before automatic
 calculation; replacement does not replay it. Open, Change, Calculate and BeforeSave
 are the admitted event surface. The compiler's resolved document symbols and current

@@ -600,7 +600,7 @@ pub(crate) fn prepare_captured_vba(
             message: "the enabled-VBA capture does not establish its event policy".into(),
         }),
     };
-    calc_host_vba::prepare_file_project(host, name, 100_000, None)
+    calc_host_vba::prepare_file_project_with_events(host, name, 100_000, None, events)
         .map(|project| project.map(|project| (project, events)))
         .map_err(|failure| WorkbookFailure {
             class: Class::Doc,

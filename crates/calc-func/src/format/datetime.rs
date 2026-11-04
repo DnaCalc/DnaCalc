@@ -24,6 +24,8 @@ enum DateTimeTokenKind {
     AmPmLower,
     Era,
     EraYear,
+    /// An uppercase E without an exponent sign is invalid in the measured host grammar.
+    UpperExponent,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,8 +37,14 @@ enum DateTimePart {
     },
 }
 
+pub(crate) fn has_invalid_exponent(section: &str) -> bool {
+    section.contains('E') && tokenize_datetime_format(section, None).iter().any(|part| {
+        matches!(part, DateTimePart::Token { kind: DateTimeTokenKind::UpperExponent, .. })
+    })
+}
+
 pub(crate) fn looks_like_datetime_format(section: &str) -> bool {
-    let parts = tokenize_datetime_format(section);
+    let parts = tokenize_datetime_format(section, None);
     let has_datetime_token = parts.iter().any(|part| match part {
         DateTimePart::Token { .. } => true,
         DateTimePart::Literal(_) => false,
@@ -75,12 +83,13 @@ pub(crate) fn render_with_datetime_tokens(
     value: f64,
     section: &str,
     name_locale: Option<LocaleId>,
+    untagged_locale: bool,
 ) -> Option<String> {
     if !value.is_finite() {
         return None;
     }
 
-    let parts = classify_minute_tokens(tokenize_datetime_format(section));
+    let parts = classify_minute_tokens(tokenize_datetime_format(section, Some(profile)));
     if !parts
         .iter()
         .any(|part| matches!(part, DateTimePart::Token { .. }))
@@ -93,7 +102,7 @@ pub(crate) fn render_with_datetime_tokens(
             part,
             DateTimePart::Token {
                 kind: DateTimeTokenKind::Year | DateTimeTokenKind::Month | DateTimeTokenKind::Day
-                    | DateTimeTokenKind::Era | DateTimeTokenKind::EraYear,
+                    | DateTimeTokenKind::Era | DateTimeTokenKind::EraYear | DateTimeTokenKind::UpperExponent,
                 ..
             }
         )
@@ -134,7 +143,19 @@ pub(crate) fn render_with_datetime_tokens(
     } else {
         None
     };
-    let weekday_index = date.map(|(year, month, day)| weekday_from_ymd(year, month, day));
+    // TEXT follows the same serial calendar as WEEKDAY, including fictitious
+    // 1900-02-29. Use the day after the existing time rounding, not Gregorian y/m/d.
+    let weekday_index = date.and_then(|_| {
+        let serial = time.elapsed_seconds.div_euclid(86_400) as f64
+            + if date_system == WorkbookDateSystem::System1904 {
+                crate::ported::date_kernels::OFFSET_1904
+            } else {
+                0.0
+            };
+        crate::ported::date_kernels::weekday(serial, None)
+            .ok()
+            .map(|day| day as usize - 1)
+    });
     // A locale tag selects names, while separators and other formatting fields remain those
     // of the workbook profile. Fn1 measured German, French, Japanese and Russian names.
     let names_profile = FormatProfile { id: name_locale.unwrap_or(profile.id), ..*profile };
@@ -218,8 +239,17 @@ pub(crate) fn render_with_datetime_tokens(
                     DateTimeTokenKind::AmPmLower => {
                         super::designator(profile, time.hour < 12).to_string()
                     }
-                    DateTimeTokenKind::Era | DateTimeTokenKind::EraYear => {
+                    DateTimeTokenKind::Era | DateTimeTokenKind::EraYear | DateTimeTokenKind::UpperExponent => {
                         let (year, month, day) = date?;
+                        // Fn5 zero section and fn8 width/era-boundary controls:
+                        // an untagged e is Gregorian; g contributes no era name.
+                        if untagged_locale && super::measured_host(profile) {
+                            match kind {
+                                DateTimeTokenKind::EraYear => { rendered.push_str(&year.to_string()); continue; }
+                                DateTimeTokenKind::Era => continue,
+                                _ => return None,
+                            }
+                        }
                         // Fn3 measures g/gg/ggg and e/ee on both sides of the
                         // Heisei/Reiwa transition. Calendar start dates are public facts:
                         // https://www.npb.go.jp/en/products/gazette/books/kanpo_history.html
@@ -235,8 +265,8 @@ pub(crate) fn render_with_datetime_tokens(
                             (DateTimeTokenKind::Era, 1) => latin.to_owned(),
                             (DateTimeTokenKind::Era, 2) => short.to_owned(),
                             (DateTimeTokenKind::Era, 3) => long.to_owned(),
-                            (DateTimeTokenKind::EraYear, 1) => (year - base_year).to_string(),
-                            (DateTimeTokenKind::EraYear, 2) => format!("{:02}", year - base_year),
+                            (DateTimeTokenKind::EraYear | DateTimeTokenKind::UpperExponent, 1) => (year - base_year).to_string(),
+                            (DateTimeTokenKind::EraYear | DateTimeTokenKind::UpperExponent, 2) => format!("{:02}", year - base_year),
                             _ => return None,
                         }
                     }
@@ -249,23 +279,32 @@ pub(crate) fn render_with_datetime_tokens(
     Some(rendered)
 }
 
-fn tokenize_datetime_format(section: &str) -> Vec<DateTimePart> {
+fn tokenize_datetime_format(section: &str, profile: Option<&FormatProfile>) -> Vec<DateTimePart> {
     let chars: Vec<char> = section.chars().collect();
     let mut parts = Vec::new();
     let mut literal = String::new();
     let mut index = 0;
     let mut in_quotes = false;
+    let mut quoted_literal = String::new();
+    let mut quoted_escape = false;
 
     while index < chars.len() {
         let ch = chars[index];
         if ch == '"' {
+            if in_quotes {
+                literal.push_str(if quoted_escape { &quoted_literal } else {
+                    profile.map_or(quoted_literal.as_str(), |p| super::currency_literal(p, &quoted_literal))
+                });
+                quoted_escape = false;
+                quoted_literal.clear();
+            }
             in_quotes = !in_quotes;
             index += 1;
             continue;
         }
         if ch == '\\' {
             if let Some(next) = chars.get(index + 1) {
-                literal.push(*next);
+                if in_quotes { quoted_literal.push(*next); quoted_escape = true; } else { literal.push(*next); }
                 index += 2;
             } else {
                 index += 1;
@@ -273,7 +312,7 @@ fn tokenize_datetime_format(section: &str) -> Vec<DateTimePart> {
             continue;
         }
         if in_quotes {
-            literal.push(ch);
+            quoted_literal.push(ch);
             index += 1;
             continue;
         }
@@ -326,6 +365,7 @@ fn tokenize_datetime_format(section: &str) -> Vec<DateTimePart> {
             'h' => Some(DateTimeTokenKind::Hour),
             's' => Some(DateTimeTokenKind::Second),
             'g' => Some(DateTimeTokenKind::Era),
+            'e' if ch == 'E' && !matches!(chars.get(index + 1), Some('+' | '-')) => Some(DateTimeTokenKind::UpperExponent),
             'e' => Some(DateTimeTokenKind::EraYear),
             _ => None,
         };
@@ -335,15 +375,24 @@ fn tokenize_datetime_format(section: &str) -> Vec<DateTimePart> {
                 .iter()
                 .take_while(|candidate| candidate.to_ascii_lowercase() == lower)
                 .count();
+            // Mixed e/E runs are invalid in untagged host formats too.
+            // Tagged Japanese rendering keeps its prior case-insensitive width.
+            let kind = if lower == 'e' && chars[index..index + width].contains(&'E')
+                && (width > 1 || !matches!(chars.get(index + width), Some('+' | '-'))) {
+                DateTimeTokenKind::UpperExponent
+            } else { kind };
             push_literal(&mut parts, &mut literal);
             parts.push(DateTimePart::Token { kind, width });
             index += width;
         } else {
-            literal.push(ch);
+            let atom = ch.to_string();
+            literal.push_str(profile.map_or(atom.as_str(), |p| super::currency_literal(p, &atom)));
             index += 1;
         }
     }
 
+    // Preserve the previous treatment of an unfinished quote.
+    literal.push_str(&quoted_literal);
     push_literal(&mut parts, &mut literal);
     parts
 }
@@ -476,28 +525,5 @@ impl TimeParts {
             elapsed_seconds: total_seconds,
             subsecond: total_units.rem_euclid(unit),
         }
-    }
-}
-
-fn weekday_from_ymd(year: i64, month: i64, day: i64) -> usize {
-    let mut month = month;
-    let mut year = year;
-    if month < 3 {
-        month += 12;
-        year -= 1;
-    }
-    let k = year.rem_euclid(100);
-    let j = year.div_euclid(100);
-    let h =
-        (day + (13 * (month + 1)).div_euclid(5) + k + k.div_euclid(4) + j.div_euclid(4) + 5 * j)
-            .rem_euclid(7);
-    match h {
-        0 => 6,
-        1 => 0,
-        2 => 1,
-        3 => 2,
-        4 => 3,
-        5 => 4,
-        _ => 5,
     }
 }

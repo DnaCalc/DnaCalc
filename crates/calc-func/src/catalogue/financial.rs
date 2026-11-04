@@ -7,14 +7,15 @@
 //! the arguments as OxFunc's surfaces read them.
 //!
 //! Single-value parameters are value parameters, so a formula lifts them over an array (calc-fml).
-//! An omitted argument is read as 0, as OxFunc's financial surfaces read it. NPV reads its values
+//! Most omitted arguments read as0; required CUMIPMT/CUMPRINC slots give #N/A,
+//! and those entries reject logicals (unchanged R24 and fn8 live controls). NPV reads its values
 //! by the aggregate rule ([`super::aggregate`]); IRR, XNPV and XIRR read theirs by OxFunc's
 //! collectors. AMORLINC and AMORDEGRC count their dates in the date system of the call's
 //! environment ([`crate::locale::CalcEnvironment`]); a call without one is refused as not
 //! modelled.
 
 use super::aggregate::Held;
-use super::kit::{fail, flag, given, grid, num, numbers, opt, out};
+use super::kit::{fail, flag, given, grid, num, numbers, opt, out, reject_logical};
 use crate::call::EvalServices;
 use crate::kernel::{Site, Step};
 use crate::locale::DateSystem;
@@ -33,6 +34,18 @@ const CODE: u16 = 300;
 /// The days from 1 January 1900 (serial 1 of the 1900 system, which counts a 29 February 1900)
 /// to 1 January 1904 (serial 0 of the 1904 system).
 pub(super) const OFFSET_1904: f64 = 1462.0;
+
+/// Required scalar financial slots distinguish a Missing placeholder from a
+/// blank cell. The latter still reaches the existing numeric coercion as zero.
+pub(super) fn required_number(value: &CalcValue) -> Step<()> {
+    if value.is_missing() { return fail(W::NA); }
+    reject_logical(value)
+}
+
+pub(super) fn required_num(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<f64> {
+    required_number(&a[index])?;
+    num(site, a, index)
+}
 
 /// A time-value kernel's result: its number, or the worksheet error its failure maps to.
 fn tv_out(site: &Site<'_>, result: Result<f64, FinancialError>) -> Step<CalcValue> {
@@ -207,18 +220,33 @@ ported_family! {
         tv_out(s, tv::effect(num(s, a, 0)?, num(s, a, 1)?))
     }
     16 cumipmt_fn "CUMIPMT" (6, 6) [V "rate", V "nper", V "pv", V "start_period", V "end_period", V "type"] |s, a, sv| {
-        cumulative_out(s, cumulative::cumipmt_kernel(num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?, num(s, a, 3)?, num(s, a, 4)?, num(s, a, 5)?))
+        cumulative_out(s, cumulative::cumipmt_kernel(required_num(s, a, 0)?, required_num(s, a, 1)?, required_num(s, a, 2)?, required_num(s, a, 3)?, required_num(s, a, 4)?, required_num(s, a, 5)?))
     }
     17 cumprinc_fn "CUMPRINC" (6, 6) [V "rate", V "nper", V "pv", V "start_period", V "end_period", V "type"] |s, a, sv| {
-        cumulative_out(s, cumulative::cumprinc_kernel(num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?, num(s, a, 3)?, num(s, a, 4)?, num(s, a, 5)?))
+        cumulative_out(s, cumulative::cumprinc_kernel(required_num(s, a, 0)?, required_num(s, a, 1)?, required_num(s, a, 2)?, required_num(s, a, 3)?, required_num(s, a, 4)?, required_num(s, a, 5)?))
     }
     18 irr_fn "IRR" (1, 2) [R "values", V "guess"] |s, a, sv| {
-        let values = resolved(s, a, 0, sv)?;
+        let mut values = resolved(s, a, 0, sv)?;
+        // Fn7 scalar readings: held cells keep the collector's held-value rule,
+        // even when the range is one cell. Direct text and logicals are ignored
+        // too. Admit the guess before these scalar collections; a direct error
+        // and larger arrays retain their existing validation order.
+        let scalar = values.callable_value().is_none()
+            && (matches!(a[0].core_ref(), CoreRef::Reference(_))
+                && !matches!(values.core_ref(), CoreRef::Array(_))
+                || matches!(values.core_ref(), CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Empty));
+        let mut g = None;
+        if scalar {
+            g = guess(s, a, 1, sv)?;
+            values = CalcValue::array(CalcArray::from_scalar(values));
+        }
         let cashflows = match cash::collect_irr_values_from_eval(&values) {
             Ok(cashflows) => cashflows,
             Err(error) => return cash_err(error),
         };
-        let g = guess(s, a, 1, sv)?;
+        if !scalar {
+            g = guess(s, a, 1, sv)?;
+        }
         out(s, cash::irr_kernel(&cashflows, g))
     }
     19 xnpv_fn "XNPV" (3, 3) [V "rate", R "values", R "dates"] |s, a, sv| {

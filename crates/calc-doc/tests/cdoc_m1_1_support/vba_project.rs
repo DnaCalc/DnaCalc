@@ -7,6 +7,19 @@ use std::{
 };
 
 pub fn replace_sources(bytes: &[u8], sources: &[(&str, &str)]) -> Vec<u8> {
+    replace_project(bytes, sources, None)
+}
+
+#[allow(dead_code)]
+pub fn replace_project_declaration(bytes: &[u8], from: &str, to: &str) -> Vec<u8> {
+    replace_project(bytes, &[], Some((from, to)))
+}
+
+fn replace_project(
+    bytes: &[u8],
+    sources: &[(&str, &str)],
+    declaration: Option<(&str, &str)>,
+) -> Vec<u8> {
     let source = Arc::new(calc_doc::MemorySource::new(bytes.to_vec()));
     let document = calc_doc::open(source, &Default::default()).unwrap();
     let loaded = calc_doc::load(&document, &mut Default::default()).unwrap();
@@ -49,6 +62,20 @@ pub fn replace_sources(bytes: &[u8], sources: &[(&str, &str)]) -> Vec<u8> {
             .write_all(&bytes)
             .unwrap();
     }
+    if let Some((from, to)) = declaration {
+        let mut text = String::new();
+        compound
+            .open_stream("/PROJECT")
+            .unwrap()
+            .read_to_string(&mut text)
+            .unwrap();
+        assert!(text.contains(from), "test declaration is present");
+        compound
+            .create_stream("/PROJECT")
+            .unwrap()
+            .write_all(text.replace(from, to).as_bytes())
+            .unwrap();
+    }
     let binary = compound.into_inner().into_inner();
     let entries = support::parse_zip(bytes)
         .entries
@@ -60,7 +87,7 @@ pub fn replace_sources(bytes: &[u8], sources: &[(&str, &str)]) -> Vec<u8> {
                 match entry.method {
                     0 => entry.payload(bytes).to_vec(),
                     8 => miniz_oxide::inflate::decompress_to_vec(entry.payload(bytes)).unwrap(),
-                    _ => panic!("unsupported test package compression"),
+                    _ => panic!("unsupported test package compression"), // ubs:ignore[rust.ownership.panic-macro] An unknown authored fixture encoding must fail its test.
                 }
             };
             support::RawEntry::stored(&entry.name, &content)

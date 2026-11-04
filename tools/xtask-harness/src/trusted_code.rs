@@ -183,13 +183,12 @@ impl Manifest {
             }
         }
         let project = if vba {
-            calc_host_vba::prepare_file_project(host, name, 100_000, None).map_err(|e| {
-                WorkbookFailure {
+            calc_host_vba::prepare_file_project_with_events(host, name, 100_000, None, events)
+                .map_err(|e| WorkbookFailure {
                     class: Class::Doc,
                     key: "VbaProject:dc-snz.15".into(),
                     message: e.to_string(),
-                }
-            })?
+                })?
         } else {
             None
         };
@@ -440,7 +439,7 @@ mod tests {
     }
 
     #[test]
-    fn trusted_project_admission_keeps_unsupported_class_source_intact() {
+    fn trusted_project_admits_complete_class_source_and_keeps_event_refusals_typed() {
         let bytes = include_bytes!(
             "../../../crates/calc-engine/tests/fixtures/excel-calc-probes/P08/observer-cold-off-01.xlsm"
         );
@@ -466,12 +465,24 @@ mod tests {
                 live_capture: None,
             },
         );
-        let error = manifest
+        let original = host.loaded().read_vba_project(&Default::default()).unwrap().unwrap();
+        let admitted = manifest
             .prepare(&host, "probe.xlsm", &capture, &hash, None, false)
-            .err()
             .unwrap();
+        assert!(admitted.project.is_some());
+        assert!(admitted.functions.contains("PlainProbe"));
+        assert!(admitted.functions.contains("OracleProbe.PlainProbe"));
+        assert!(!admitted.functions.contains("ProbeEvents.XL_AfterCalculate"));
+        let mut session = HostSession::new(host);
+        admitted.install(&mut session);
+        assert!(!session.workbook_events_enabled());
+        assert!(session.take_workbook_event_failures().failures.is_empty());
+        assert_eq!(original, session.host().loaded().read_vba_project(&Default::default()).unwrap().unwrap());
+        manifest.entries.get_mut(&hash).unwrap().events = true;
+        let error = manifest.prepare(session.host(), "probe.xlsm", &capture, &hash, None, false).err().expect("unsupported automatic events still refuse before installation");
         assert_eq!(error.key, "VbaProject:dc-snz.15");
-        assert!(error.message.contains("ProbeEvents"));
+        assert!(error.message.contains("unsupported automatic-event prefix"), "{error:?}");
+        assert_eq!(original, session.host().loaded().read_vba_project(&Default::default()).unwrap().unwrap());
     }
     #[test]
     fn native_capture_attestation_and_linked_owner_are_checked_before_loading() {

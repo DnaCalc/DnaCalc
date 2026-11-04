@@ -109,17 +109,20 @@ impl Module {
             spreadsheet_objects,
             false,
             false,
+            true,
         )
     }
     pub(crate) fn load_event_project(
         modules: &[crate::events::ProjectModule],
         private_worksheet_lookup: bool,
+        automatic_events: bool,
     ) -> Result<Self, Error> {
         let modules = modules
             .iter()
             .map(|module| {
                 let host = match module.kind {
                     crate::events::ModuleKind::Standard => None,
+                    crate::events::ModuleKind::Class => None,
                     crate::events::ModuleKind::Worksheet => Some("Excel.Worksheet"),
                     crate::events::ModuleKind::Workbook => Some("Excel.Workbook"),
                 };
@@ -128,7 +131,9 @@ impl Module {
                 attributes.vb_predeclared_id = host.is_some();
                 sym::ModuleUnit {
                     module_name: module.name.clone(),
-                    module_kind: if host.is_some() {
+                    module_kind: if module.kind == crate::events::ModuleKind::Class {
+                        sym::ModuleKind::Class
+                    } else if host.is_some() {
                         sym::ModuleKind::Document
                     } else {
                         sym::ModuleKind::Procedural
@@ -138,13 +143,20 @@ impl Module {
                 }
             })
             .collect();
-        Self::load_modules(modules, true, true, private_worksheet_lookup)
+        Self::load_modules(
+            modules,
+            true,
+            true,
+            private_worksheet_lookup,
+            automatic_events,
+        )
     }
     fn load_modules(
         modules: Vec<sym::ModuleUnit>,
         spreadsheet_objects: bool,
         events: bool,
         private_worksheet_lookup: bool,
+        automatic_events: bool,
     ) -> Result<Self, Error> {
         let procedural: std::collections::HashSet<_> = modules
             .iter()
@@ -159,6 +171,18 @@ impl Module {
                 vec![
                     sym::ProjectReference::HostInjected {
                         referenced_project_name: "DnaCalc.Application".into(),
+                    },
+                    sym::ProjectReference::HostInjected {
+                        referenced_project_name: "DnaCalc.ActiveSheet".into(),
+                    },
+                    sym::ProjectReference::HostInjected {
+                        referenced_project_name: "DnaCalc.ActiveWorkbook".into(),
+                    },
+                    sym::ProjectReference::HostInjected {
+                        referenced_project_name: "DnaCalc.ActiveWindow".into(),
+                    },
+                    sym::ProjectReference::HostInjected {
+                        referenced_project_name: "DnaCalc.Selection".into(),
                     },
                     sym::ProjectReference::TypeLibrary {
                         // VBA resolves unqualified types in reference order. The source-compatible
@@ -187,15 +211,16 @@ impl Module {
             conditional_constants: Default::default(),
             conditional_compilation_target: Default::default(),
         };
+        let event_types = crate::events::types::EventTypes { automatic_events };
         let resolver: &dyn oxvba_symbol::TypeLibResolver = if events {
-            &crate::events::types::EventTypes
+            &event_types
         } else if spreadsheet_objects {
             &spreadsheet::SpreadsheetTypes
         } else {
             &oxvba_symbol::CatalogTypeLibResolver
         };
         if events {
-            validate_document_events(&manifest, resolver)?;
+            validate_project_modules(&manifest, resolver, automatic_events)?;
         }
         let mut engine =
             oxvba_embed::Module::load_project(&manifest, resolver).map_err(engine_error)?;
@@ -209,6 +234,7 @@ impl Module {
             Default::default()
         };
         if events
+            && automatic_events
             && let Some(route) = engine
                 .event_routes()
                 .iter()
@@ -269,6 +295,7 @@ impl Module {
             })
             .collect();
         if events
+            && automatic_events
             && functions.iter().any(|(_, procedure)| {
                 procedure
                     .parameters
@@ -283,6 +310,7 @@ impl Module {
             return Err(Error::UnsupportedSignature("object-valued worksheet UDF signatures in document projects require the shared Range projection (dc-hsa5.12)".into()));
         }
         if events
+            && automatic_events
             && functions.iter().any(|(_, procedure)| {
                 procedure.parameters.iter().any(|p| {
                     !matches!(
@@ -311,7 +339,7 @@ impl Module {
             functions,
             worksheet_refusals: entries.refusals,
             spreadsheet,
-            event_project: events,
+            event_project: events && automatic_events,
         })
     }
     pub fn functions(&self) -> impl ExactSizeIterator<Item = &Function> {
@@ -324,34 +352,65 @@ impl Module {
     }
 }
 
-fn validate_document_events(
+fn validate_project_modules(
     manifest: &sym::SymbolProjectManifest,
     resolver: &dyn oxvba_symbol::TypeLibResolver,
+    automatic_events: bool,
 ) -> Result<(), Error> {
     use oxvba_symbol::model::SymbolKind;
     let env = oxvba_symbol::build_resolution_environment(manifest, resolver)
         .map_err(|error| Error::Compile(error.to_string()))?;
-    for module in env.modules().filter(|module| module.module_kind == sym::ModuleKind::Document) {
-        let unit = manifest.modules.iter().find(|unit|
-            unit.module_kind == sym::ModuleKind::Document
-                && oxvba_symbol::model::fold_identifier(&unit.module_name)
-                    == oxvba_symbol::model::fold_identifier(module.module_name)
-        ).ok_or_else(|| Error::UnsupportedSignature(format!(
-            "document module {} changed its directory identity (dc-snz.15)", module.module_name
-        )))?;
-        let source = unit.attributes.host_document_type.as_deref().ok_or_else(||
-            Error::UnsupportedSignature("document host type is unavailable (dc-hsa5.12)".into())
-        )?;
+    let compiled = env.modules().collect::<Vec<_>>();
+    if compiled.len() != manifest.modules.len() {
+        return Err(Error::UnsupportedSignature(
+            "project module inventory changed its directory identity (dc-snz.15)".into(),
+        ));
+    }
+    // The compiler preserves active manifest order and honors exported VB_Name.
+    // Compare each source unit, so even a permutation of existing names refuses.
+    for (module, unit) in compiled.into_iter().zip(&manifest.modules) {
+        // ubs:ignore[rust.security.constant-time-compare] These are public source module kinds and names, not secrets.
+        if module.module_kind != unit.module_kind
+            || oxvba_symbol::model::fold_identifier(&unit.module_name)
+                != oxvba_symbol::model::fold_identifier(module.module_name)
+        {
+            return Err(Error::UnsupportedSignature(format!(
+                "project module {} changed its directory identity (dc-snz.15)",
+                unit.module_name
+            )));
+        }
+        // ubs:ignore[rust.security.constant-time-compare] A public module-kind discriminator controls event validation.
+        if !automatic_events || module.module_kind != sym::ModuleKind::Document {
+            continue;
+        }
+        let source = unit
+            .attributes
+            .host_document_type
+            .as_deref()
+            .ok_or_else(|| {
+                Error::UnsupportedSignature("document host type is unavailable (dc-hsa5.12)".into())
+            })?;
         let prefix = format!("{}_", source.rsplit('.').next().expect("host type name"));
         let events = env.com_source_event_metadata(source).unwrap_or_default();
-        for id in env.symbols.symbols_in_scope(module.module_scope)
+        for id in env
+            .symbols
+            .symbols_in_scope(module.module_scope)
             .map_err(|error| Error::Compile(error.to_string()))?
         {
             let symbol = env.symbols.symbol(id).expect("declared symbol");
-            if !matches!(symbol.kind, SymbolKind::Procedure | SymbolKind::Function) { continue; }
-            let name = &env.symbols.name(symbol.name).expect("declared name").first_spelling;
-            if name.len() >= prefix.len() && name.as_bytes()[..prefix.len()].eq_ignore_ascii_case(prefix.as_bytes())
-                && !events.iter().any(|event| name[prefix.len()..].eq_ignore_ascii_case(&event.name))
+            if !matches!(symbol.kind, SymbolKind::Procedure | SymbolKind::Function) {
+                continue;
+            }
+            let name = &env
+                .symbols
+                .name(symbol.name)
+                .expect("declared name")
+                .first_spelling;
+            if name.len() >= prefix.len()
+                && name.as_bytes()[..prefix.len()].eq_ignore_ascii_case(prefix.as_bytes())
+                && !events
+                    .iter()
+                    .any(|event| name[prefix.len()..].eq_ignore_ascii_case(&event.name))
             {
                 return Err(Error::UnsupportedSignature(format!(
                     "document procedure {name} has an unsupported automatic-event prefix (dc-hsa5.12)"
@@ -361,7 +420,6 @@ fn validate_document_events(
     }
     Ok(())
 }
-
 /// Excel exports these descriptive member attributes inside the procedure. The
 /// pinned frontend accepts them at module level. Relocate only complete, parsed
 /// metadata statements; preserve all executable text and every other attribute.

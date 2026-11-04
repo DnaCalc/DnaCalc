@@ -11,8 +11,8 @@
 //! and back for COUPNCD's and COUPPCD's results; a call without an environment is refused as not
 //! modelled.
 
-use super::financial::{OFFSET_1904, date_1900};
-use super::kit::{fail, given, num, reject_logical};
+use super::financial::{OFFSET_1904, date_1900, required_num, required_number};
+use super::kit::{fail, given, num, num_without_logical, reject_logical};
 use crate::call::EvalServices;
 use crate::kernel::{Site, Step};
 use crate::locale::DateSystem;
@@ -46,6 +46,14 @@ fn bill_arguments(site: &Site<'_>, a: &[CalcValue], sv: &EvalServices<'_>) -> St
     let maturity = super::kit::checked_date_serial(date_1900(site, a, 1, sv)?)?;
     let rate = super::kit::num_without_logical(site, a, 2)?;
     Ok([settlement, maturity, rate])
+}
+
+/// The yield entries admit each calendar serial before the next argument.
+/// Fn8 conflicts retain negative/beyond-calendar NUM ahead of later errors;
+/// zero and the fictitious1900 day still reach the existing bond kernel.
+fn yield_date(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &EvalServices<'_>) -> Step<f64> {
+    required_number(&a[index])?;
+    super::kit::checked_date_serial(date_1900(site, a, index, sv)?)
 }
 
 fn bond_out(site: &Site<'_>, result: Result<f64, bond::BondCoreEvalError>) -> Step<CalcValue> {
@@ -118,8 +126,13 @@ ported_family! {
         bond_out(s, bond::price_kernel(settlement, maturity, num(s, a, 2)?, num(s, a, 3)?, num(s, a, 4)?, num(s, a, 5)?, Some(or(s, a, 6, 0.0)?)))
     }
     2 yield_fn "YIELD" (6, 7) [V "settlement", V "maturity", V "rate", V "pr", V "redemption", V "frequency", V "basis"] |s, a, sv| {
-        let (settlement, maturity) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
-        bond_out(s, bond::yield_kernel(settlement, maturity, num(s, a, 2)?, num(s, a, 3)?, num(s, a, 4)?, num(s, a, 5)?, Some(or(s, a, 6, 0.0)?)))
+        let settlement = yield_date(s, a, 0, sv)?;
+        let maturity = yield_date(s, a, 1, sv)?;
+        let (rate, price, redemption) = (required_num(s, a, 2)?, required_num(s, a, 3)?, required_num(s, a, 4)?);
+        // Fn8 adjacent-error controls read basis before frequency in YIELD.
+        let basis = if given(a, 6) { num_without_logical(s, a, 6)? } else { 0.0 };
+        let frequency = required_num(s, a, 5)?;
+        bond_out(s, bond::yield_kernel(settlement, maturity, rate, price, redemption, frequency, Some(basis)))
     }
     3 duration_fn "DURATION" (5, 6) [V "settlement", V "maturity", V "coupon", V "yld", V "frequency", V "basis"] |s, a, sv| {
         let (settlement, maturity) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
@@ -208,8 +221,11 @@ ported_family! {
         odd_out(s, odd::oddfprice_kernel(dates[0], dates[1], dates[2], dates[3], num(s, a, 4)?, num(s, a, 5)?, num(s, a, 6)?, num(s, a, 7)?, basis(s, a, 8)?))
     }
     24 oddfyield_fn "ODDFYIELD" (8, 9) [V "settlement", V "maturity", V "issue", V "first_coupon", V "rate", V "pr", V "redemption", V "frequency", V "basis"] |s, a, sv| {
-        let dates = [date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?, date_1900(s, a, 2, sv)?, date_1900(s, a, 3, sv)?];
-        odd_out(s, odd::oddfyield_kernel(dates[0], dates[1], dates[2], dates[3], num(s, a, 4)?, num(s, a, 5)?, num(s, a, 6)?, num(s, a, 7)?, basis(s, a, 8)?))
+        let dates = [yield_date(s, a, 0, sv)?, yield_date(s, a, 1, sv)?, yield_date(s, a, 2, sv)?, yield_date(s, a, 3, sv)?];
+        let (rate, price, redemption, frequency) = (required_num(s, a, 4)?, required_num(s, a, 5)?, required_num(s, a, 6)?, required_num(s, a, 7)?);
+        // ODDFYIELD keeps frequency before basis, unlike YIELD.
+        let basis = if a.len() > 8 { Some(num_without_logical(s, a, 8)?) } else { None };
+        odd_out(s, odd::oddfyield_kernel(dates[0], dates[1], dates[2], dates[3], rate, price, redemption, frequency, basis))
     }
     25 oddlprice_fn "ODDLPRICE" (7, 8) [V "settlement", V "maturity", V "last_interest", V "rate", V "yld", V "redemption", V "frequency", V "basis"] |s, a, sv| {
         let dates = [date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?, date_1900(s, a, 2, sv)?];

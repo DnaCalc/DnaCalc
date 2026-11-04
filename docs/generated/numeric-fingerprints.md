@@ -168,5 +168,5 @@ All problem-list entries are reported, including workbook-only, text/discrete an
 | TEXTSPLIT | workbook-only | unresolved | unresolved | — | unmeasured |
 | WEEKNUM | observed | unresolved: flat quantized windows | unresolved | 0, 0 | unmeasured |
 | LN | observed | single/double indistinguishable | unresolved | 7, 7 | unmeasured |
-| LOG | observed | ideal single/double leaf rejected on this window | unresolved | 8, 8 | unmeasured |
+| LOG | observed | double division in the public-LN quotient model; ideal leaf rejected | unresolved | 8, 8 | unmeasured |
 | LOG10 | observed | ideal single/double leaf rejected on this window | unresolved | 8, 8 | unmeasured |
