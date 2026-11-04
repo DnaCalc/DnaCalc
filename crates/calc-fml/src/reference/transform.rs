@@ -1062,7 +1062,14 @@ pub fn convert_notation(
             continue;
         }
         let written = String::from_utf16(&units[site.span.start..site.span.end()]).ok()?;
-        let (qualifier, _) = split_qualifier(&written);
+        let (qualifier, selector) = split_qualifier(&written);
+        // A table selector keeps its authored membership and current-row semantics
+        // through a copy. Converting its bound area would freeze it to old cells.
+        if super::structured::is_selector(selector)
+            && !(from == ReferenceNotation::R1C1
+                && selector.split(':').all(|end| notation::r1c1(end.trim()).is_some())) {
+            continue;
+        }
         let body = match to {
             ReferenceNotation::R1C1 => r1c1_text(operand.shape),
             ReferenceNotation::A1 => a1_text(operand.shape, at),
@@ -1845,6 +1852,11 @@ mod tests {
         assert_eq!(to_a1("R3C2+R[-2]C[-1]+RC"), "$B$3+B3+C5");
         assert_eq!(to_r1c1("SUM(C:E)+$A$1:B9"), "SUM(C:C[2])+R1C1:R[4]C[-1]");
         assert_eq!(to_a1("SUM(R2:R4)+SUM(C2)"), "SUM($2:$4)+SUM($B:$B)");
+        // The parser diagnoses whitespace around a range colon. Do not turn that
+        // unsupported spelling into a claimed successful conversion.
+        for text in ["SUM(C : C[2])", "SUM(R : R[2])"] {
+            assert_eq!(convert_notation(text, at, R1C1, A1, &catalog), None);
+        }
         // Not measured: an offset that leaves the grid.
         assert_eq!(to_a1("R[-10]C"), "#REF!");
         for text in ["$B$3*2+B3", "SUM(Sheet2!A1:B2)", "SUM(C:E)+$A$1:B9"] {

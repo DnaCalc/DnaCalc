@@ -130,6 +130,7 @@ fn is_space(byte: u8) -> bool {
 }
 
 impl<'a> RawTag<'a> {
+    pub(super) fn qualified_name(&self) -> &[u8] { self.name }
     /// Splits a start tag the XML reader has already accepted, so it is well formed: `<`, a name,
     /// attributes whose values are quoted, and `>` or `/>`.
     pub(super) fn parse(tag: &'a [u8]) -> Self {
