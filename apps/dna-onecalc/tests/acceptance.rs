@@ -242,6 +242,23 @@ fn delivered_fn4_digit_scripts_and_numeric_date_widths() {
     ), &mut session, |entry| primary(entry, 41, 85), 45);
 }
 
+/// Fn4 qt001..qt030 distinguish General display, active @ and quoted @.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn delivered_fn4_numeric_text_placeholders_use_general_display() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let mut session = Session::new("Sheet1").unwrap();
+    let profile = format_profile(LocaleId::EnZa).with_separators(".", " ").unwrap();
+    session.set_environment(Some(CalcEnvironment {
+        profile: Some(profile), ..CalcEnvironment::dates(DateSystem::System1900)
+    }));
+    check_captured_questions(include_bytes!(
+        "../../../crates/calc-func/tests/captures/fn4_questions/functions-fn4-text-controls.capture.json"
+    ), &mut session, |entry| entry.cell.row() == 20 && entry.cell.column() == 10
+        && entry.cell.sheet().strip_prefix("qt").and_then(|s| s.parse::<usize>().ok())
+            .is_some_and(|n| (1..=30).contains(&n)), 30);
+}
+
 /// Fn4 ql104..ql133 distinguish MODE's ignored direct text/logicals from numbers.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -917,11 +934,11 @@ fn recorded_text_at_format_reads_numbers() {
     }
 }
 
-/// The five recorded bare-@ values do not decide between cell General and full numeric text.
-/// Keep the different-precision case unanswered until the fn4 controls are captured.
+/// Fn4 qt001 supplies the previously unanswered different-precision case.
+/// Its exact captured text selects General rather than full numeric conversion.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn unmeasured_text_at_precision_stays_refused() {
+fn recorded_text_at_precision_uses_general_display() {
     use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
     let mut session = Session::new("Sheet1").unwrap();
     session.set_formula_cell("J20").unwrap();
@@ -932,8 +949,9 @@ fn unmeasured_text_at_precision_stays_refused() {
     session.set_input("A1", InputValue::number(123456789012345.0).unwrap()).unwrap();
     session.set_formula("=TEXT(A1,\"@\")");
     let result = session.calculate();
-    assert!(result.result.is_none());
-    assert!(format!("{:?}", result.diagnostics).contains("NotImplemented"));
+    assert_eq!(result.result, Some(CalcValue::text(
+        calc_func::value::ExcelText::from_interop_assignment("1.23457E+14"))));
+    assert!(result.diagnostics.is_empty());
 }
 
 /// W111 numeric-text-percent-bounds-20260929: zero coefficients, lower/upper exponent

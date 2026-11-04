@@ -452,6 +452,8 @@ enum Item {
     Exponent(bool),
     /// `%`.
     Percent,
+    /// An active text placeholder, distinguished from a quoted or escaped `@`.
+    TextPlaceholder,
     Literal(String),
 }
 
@@ -495,6 +497,10 @@ fn items(section: &str, profile: &FormatProfile) -> Result<Vec<Item>, Failure> {
             }
             '%' => {
                 out.push(Item::Percent);
+                at += 1;
+            }
+            '@' => {
+                out.push(Item::TextPlaceholder);
                 at += 1;
             }
             'E' | 'e' if matches!(chars.get(at + 1), Some('+' | '-')) => {
@@ -666,7 +672,7 @@ fn literal_text(item: &Item, profile: &FormatProfile) -> Result<String, Failure>
         Item::Percent => "%".to_owned(),
         Item::Group => profile.thousands_separator.to_owned(),
         Item::Point => profile.decimal_separator.to_owned(),
-        Item::Digit(_) | Item::Exponent(_) => return Err(Failure::NotModelled),
+        Item::Digit(_) | Item::Exponent(_) | Item::TextPlaceholder => return Err(Failure::NotModelled),
     })
 }
 
@@ -1175,15 +1181,6 @@ pub fn cell_color(code: &str, value: &crate::value::CalcValue) -> Option<FormatC
 
 /// TEXT of a number under `code`.
 pub(crate) fn text(profile: &FormatProfile, system: DateSystem, value: f64, code: &str) -> Rendered {
-    // W111 locale-profile 00275..00323: a bare text format shows a numeric value.
-    if code == "@" {
-        let shown = general(profile, value);
-        let canonical = crate::number_text::text(value).ok_or(Failure::NotModelled)?
-            .replace('.', profile.decimal_separator);
-        // These observations do not distinguish cell General from full numeric text.
-        // Keep the different-precision cases unanswered until the fn4 controls are read.
-        return if shown == canonical { Ok(shown) } else { Err(Failure::NotModelled) };
-    }
     let sections = sections(code);
     let (section, signed_section) = choose(&sections, value)?;
     let (stripped, name_locale) = strip_tokens(&section)?;
@@ -1221,15 +1218,24 @@ pub(crate) fn text(profile: &FormatProfile, system: DateSystem, value: f64, code
         if items.iter().any(|i| matches!(i, Item::Point | Item::Group | Item::Exponent(_))) {
             return Err(Failure::NotModelled);
         }
-        if stripped.contains('@') {
-            return Err(Failure::NotModelled);
+        if items.iter().any(|i| matches!(i, Item::TextPlaceholder)) {
+            // Fn4 qt001..qt030: active @ and @! select General for numbers,
+            // including values whose full numeric text has different precision.
+            return Ok(general(profile, if signed_section { value.abs() } else { value }));
         }
-        return items
+        let literal = items
             .iter()
             .map(|i| literal_text(i, profile))
-            .collect::<Result<String, Failure>>();
+            .collect::<Result<String, Failure>>()?;
+        // Keep the ordinary automatic sign when section selection has not
+        // suppressed it, even for quoted text (fn4 qt008). Empty stays empty.
+        return Ok(if value < 0.0 && !signed_section && !literal.is_empty() {
+            format!("-{literal}")
+        } else {
+            literal
+        });
     }
-    if stripped.contains('@') {
+    if items.iter().any(|i| matches!(i, Item::TextPlaceholder)) {
         return Err(Failure::NotModelled);
     }
     numeric(profile, value, &items, !magnitude_only)
