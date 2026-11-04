@@ -51,7 +51,7 @@ if ($null -eq $global:StandinCells) {
 $cells = New-Object StandinItems
 $formulaCells = @()
 foreach ($spec in $global:StandinCells) {
-    $cell = [pscustomobject]@{ Row = $spec[0]; Column = $spec[1]; HasFormula = $true; Formula2 = $spec[2]; Value2 = $spec[3] }
+    $cell = [pscustomobject]@{ Row = $spec[0]; Column = $spec[1]; HasFormula = $true; Formula2 = $spec[2]; Formula = $spec[2]; Value2 = $spec[3] }
     $spill = $spec[4]
     if ($null -eq $spill) {
         $cell | Add-Member -MemberType NoteProperty -Name HasSpill -Value $false

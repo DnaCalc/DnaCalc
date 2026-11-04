@@ -151,6 +151,10 @@ fn pending(root: &Path) -> Result<(Vec<Pending>, Vec<String>), String> {
         let bytes = fs::read(&case.fixture)
             .map_err(|e| format!("cannot read {}: {e}", case.fixture.display()))?;
         if case.sectioned() {
+            let workbook_hash = sha256_hex(&bytes);
+            if calc_oracle_excel::capture_source_sha256(&case.fixture, &workbook_hash)? != workbook_hash {
+                return Err("authored-entry fixtures require whole-workbook captures".to_owned());
+            }
             let (states, orphans) = section_states(&case, &bytes)?;
             let captured = states.iter().filter(|s| s.capture.is_some()).count();
             let waiting: Vec<SectionState> =
@@ -640,19 +644,22 @@ fn run_split(args: &SplitArgs) -> Result<Vec<String>, String> {
         .into_iter()
         .find(|case| fs::canonicalize(&case.fixture).is_ok_and(|path| path == fixture))
         .ok_or_else(|| format!("{} is not an oracle workbook of this repository", args.fixture.display()))?;
+    let bytes = fs::read(&case.fixture)
+        .map_err(|e| format!("cannot read {}: {e}", case.fixture.display()))?;
+    let workbook_hash = sha256_hex(&bytes);
+    let input_hash = calc_oracle_excel::capture_source_sha256(&case.fixture, &workbook_hash)?;
+    if input_hash != workbook_hash { return Err("authored-entry captures cannot be split into ordinary section captures".to_owned()); }
     if !case.sectioned() {
         fs::create_dir_all(case.captures.join(crate::oracle_cases::SECTIONS_DIR))
             .map_err(|e| format!("cannot create the sections folder of {}: {e}", case.name))?;
     }
-    let bytes = fs::read(&case.fixture)
-        .map_err(|e| format!("cannot read {}: {e}", case.fixture.display()))?;
     let record = fs::read(&args.capture)
         .map_err(|e| format!("cannot read {}: {e}", args.capture.display()))
         .and_then(|bytes| {
             CaptureRecord::decode(&bytes)
                 .map_err(|e| format!("{} does not decode: {e}", args.capture.display()))
         })?;
-    let digest = format!("sha256:{}", sha256_hex(&bytes));
+    let digest = format!("sha256:{input_hash}");
     if record.source != digest {
         return Err(format!(
             "the capture is of {}, and {} is {digest}: its cells do not map one to one onto the workbook's sections",

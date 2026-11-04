@@ -13,7 +13,7 @@ $script:hostSha=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData(
 $script:app = $null
 $script:owned = $null
 $script:baseline = $null
-$global:DnaExcelSessionState=[pscustomobject]@{App=$null;Baseline=$null;Root=$root;PreserveAutomationSecurity=($env:DNACALC_EXCEL_PRESERVE_AUTOMATION_SECURITY -eq '1')}
+$global:DnaExcelSessionState=[pscustomobject]@{App=$null;Baseline=$null;Root=$root;PreserveAutomationSecurity=$true}
 $script:launches = 0
 $script:sequence = 0
 $script:ordinarySequence = 0
@@ -137,7 +137,6 @@ function Reset-Baseline {
     $a.CalculateBeforeSave = $false
     if ($baseline) {
         foreach ($key in 'Visible','DisplayAlerts','ScreenUpdating','EnableEvents','Interactive','UseSystemSeparators','DecimalSeparator','ThousandsSeparator','StatusBar') { $a.$key = $baseline[$key] }
-        if (-not $global:DnaExcelSessionState.PreserveAutomationSecurity) { $a.AutomationSecurity = $baseline['AutomationSecurity'] }
         $a.MultiThreadedCalculation.Enabled = $baseline['mtc_enabled']
         $a.MultiThreadedCalculation.ThreadMode = $baseline['mtc_mode']
         if ($baseline['mtc_mode'] -eq 1) { $a.MultiThreadedCalculation.ThreadCount = $baseline['mtc_count'] }

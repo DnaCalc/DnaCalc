@@ -4847,7 +4847,7 @@
    "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
   },
   {
-     "path": "crates/calc-func/tests/fixtures/fn2_questions/fn2-layout.json",
+     "path": "crates/calc-func/tests/fixtures/fn2_questions/oracle.entries.json",
      "class": "own-work",
      "reason": "fn2 unanswered question layout and file forms from the existing calc-doc serializer; no expected values"
   },
@@ -4860,6 +4860,41 @@
    "path": "crates/calc-func/tests/fixtures/dcj9k_r22/oracle.xlsx",
    "class": "own-work",
    "reason": "Separate unanswered R22 workbook from the existing make-catalogue-fixtures generator; no captured values"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/dcj9k_r21/oracle.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/dcj9k_r22/oracle.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/captures/fn2_questions/oracle.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/fn3_questions/sheet-fn3_collation.txt",
+   "class": "own-work",
+   "reason": "Original fn3 questions supplied by this project, written by the existing catalogue generator in a separate workbook; no expected Excel values."
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/fn3_questions/sheet-fn3_text.txt",
+   "class": "own-work",
+   "reason": "Original fn3 questions supplied by this project, written by the existing catalogue generator in a separate workbook; no expected Excel values."
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/fn3_questions/oracle.xlsx",
+   "class": "own-work",
+   "reason": "Original fn3 questions supplied by this project, written by the existing catalogue generator in a separate workbook; no expected Excel values."
+  },
+  {
+   "path": "crates/calc-func/tests/captures/fn3_questions/oracle.capture.json",
+   "class": "own-work",
+   "reason": "Excel capture: values read from live Excel by cargo xtask capture (measurement)"
   }
  ]
 }

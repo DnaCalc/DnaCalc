@@ -39,6 +39,7 @@
 
 param(
     [Parameter(Mandatory = $true)][string]$OutDir,
+    [string]$Fn2IndexShapes,
     [string]$QuestionSectionFile = '',
     [string]$QuestionCase = ''
 )
@@ -449,8 +450,20 @@ Write-Workbook (Join-Path $OutDir 'dcj9k_r22/oracle.xlsx') $r22Questions
 # Stored text comes from calc-doc's existing file_form serializer; the packet's authored
 # spelling, explicit form and caller remain alongside it in this section's layout.
 $fn2Sheets = @(, @('Data', (New-OracleSheet $prefixInputs @())))
-$fn2Path = Join-Path $PSScriptRoot 'fn2_questions/fn2-layout.json'
+$fn2Path = Join-Path $PSScriptRoot 'fn2_questions/oracle.entries.json'
 $fn2 = Get-Content -LiteralPath $fn2Path -Raw -Encoding UTF8 | ConvertFrom-Json
+$indexShapes = @{}
+$fn2IndexSheets = @()
+if ($Fn2IndexShapes) {
+    $shapeLayout = Get-Content -LiteralPath $Fn2IndexShapes -Raw -Encoding UTF8 | ConvertFrom-Json
+    foreach ($shape in $shapeLayout.questions) {
+        if ($indexShapes.ContainsKey($shape.question_id)) { throw 'Duplicate INDEX shape question' }
+        if ($shape.rows -lt 1 -or $shape.columns -lt 1 -or $shape.rows * $shape.columns -gt 10000) { throw 'INDEX shape outside the bounded probe layout' }
+        $indexShapes[$shape.question_id] = $shape
+    }
+    if ($indexShapes.Count -ne @($fn2.questions).Count) { throw 'INDEX shapes do not cover the authored questions' }
+    $fn2IndexSheets = @(, @('Data', (New-OracleSheet $prefixInputs @())))
+}
 foreach ($question in $fn2.questions) {
     if ($question.formula_form -eq 'Dynamic') {
         $sources = , @($question.source_cell, $question.stored_formula_text)
@@ -462,6 +475,24 @@ foreach ($question in $fn2.questions) {
     } else { throw "Unknown fn2 formula form: $($question.formula_form)" }
     $fn2Sheets += , @($question.source_sheet, $sourceXml)
     $fn2Sheets += , @($question.observer_sheet, (New-OracleSheet @() $question.observer_stored_formulas))
+    if ($Fn2IndexShapes) {
+        if (-not $indexShapes.ContainsKey($question.question_id)) { throw 'INDEX shape is missing an authored question' }
+        $shape = $indexShapes[$question.question_id]
+        $observers = @($question.observer_stored_formulas)
+        for ($row = 1; $row -le $shape.rows; $row++) {
+            for ($column = 1; $column -le $shape.columns; $column++) {
+                $observers += "INDEX(_xlfn.ANCHORARRAY('$($question.source_sheet)'!$($question.source_cell)),$row,$column)"
+            }
+        }
+        $fn2IndexSheets += , @($question.source_sheet, $sourceXml)
+        $fn2IndexSheets += , @($question.observer_sheet, (New-OracleSheet @() $observers))
+    }
 }
 
 Write-Workbook (Join-Path $OutDir 'fn2_questions/oracle.xlsx') $fn2Sheets -DynamicArrays
+if ($Fn2IndexShapes) { Write-Workbook (Join-Path $OutDir 'fn2_questions_index/oracle.xlsx') $fn2IndexSheets -DynamicArrays }
+
+# fn3 questions stay in a new workbook; captured workbook sheet lists remain unchanged.
+$fn3Sheets = @(, @('fn3_collation', (New-OracleSheet @() (Get-SectionLines 'sheet-fn3_collation.txt' 'fn3_questions'))))
+$fn3Sheets += , @('fn3_text', (New-OracleSheet @() (Get-SectionLines 'sheet-fn3_text.txt' 'fn3_questions')))
+Write-Workbook (Join-Path $OutDir 'fn3_questions/oracle.xlsx') $fn3Sheets

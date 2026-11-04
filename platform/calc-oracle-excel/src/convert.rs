@@ -634,6 +634,7 @@ pub(crate) fn convert(result: &Value, frame: Frame) -> Result<CaptureRecord, Str
     let mut formulas = Vec::new();
     let mut shared_ranges = Vec::new();
     let mut observations = Vec::new();
+    let mut entry_rejections = BTreeSet::new();
     // The cells that spill after the full rebuild, with their spill ranges.
     let mut spills: BTreeMap<CellAddress, Spill> = BTreeMap::new();
     for (i, formula) in array(result, "formulas")?.iter().enumerate() {
@@ -717,6 +718,34 @@ pub(crate) fn convert(result: &Value, frame: Frame) -> Result<CaptureRecord, Str
             (other, _) => return Err(no_kind(formula, &cell, other)),
         };
         let mut text_formula = None;
+        if let Some(read) = cells.get(&cell)
+            && let Some(rejected) = read.get("entry_rejected")
+        {
+            // An observed setter refusal has no Excel result. Retain its place in the original
+            // inventory, but neither a blank cell nor its old cache can become an observation.
+            if !rejected.is_object()
+                || rejected["has_formula"] != false
+                || rejected["error"]["message"].as_str().is_none_or(str::is_empty)
+                || read.get("value").is_some()
+                || read.get("spill").is_some()
+            {
+                return Err(format!("invalid authored-entry refusal at {}", place(&cell)));
+            }
+            let requested = text(rejected, "requested", "entry_rejected")?;
+            let units_read = read["requested_formula"].as_str().and_then(units)
+                .and_then(|u| String::from_utf16(&u).ok());
+            if units_read.as_deref() != Some(requested) {
+                return Err(format!("authored-entry refusal text differs at {}", place(&cell)));
+            }
+            entry_rejections.insert(cell.clone());
+            formulas.push(FormulaCell {
+                cell,
+                kind,
+                formula: None,
+                dynamic_array: false,
+            });
+            continue;
+        }
         match cells.get(&cell) {
             None => {
                 return Err(format!(
@@ -823,6 +852,9 @@ pub(crate) fn convert(result: &Value, frame: Frame) -> Result<CaptureRecord, Str
     for (i, entry) in array(result, "saved")?.iter().enumerate() {
         let at = format!("saved[{i}]");
         let cell = address(entry, &at)?;
+        if entry_rejections.contains(&cell) {
+            return Err(format!("authored-entry refusal has a saved value at {}", place(&cell)));
+        }
         if spills.contains_key(&cell) {
             // The cache of a spilling cell holds only the top-left value of its array.
             continue;
@@ -862,6 +894,9 @@ pub(crate) fn convert(result: &Value, frame: Frame) -> Result<CaptureRecord, Str
     let mut reopen_failures = Vec::new();
     for (i, entry) in array(result, "reopened")?.iter().enumerate() {
         let cell = address(entry, &format!("reopened[{i}]"))?;
+        if entry_rejections.contains(&cell) {
+            return Err(format!("authored-entry refusal has a reopened value at {}", place(&cell)));
+        }
         // A cell that spills after the rebuild and after reopening over the same range has the
         // array it shows after reopening as its reopened value; one that spills in neither its
         // Value2. A spill that changed, or cannot be read, after reopening is a failure.
@@ -1059,6 +1094,37 @@ mod tests {
             ],
             "failures": [{"stage": "inventory", "sheet": "S", "row": 9, "column": 9, "message": "extra"}]
         })
+    }
+
+    #[test]
+    fn an_entry_rejection_keeps_the_inventory_without_creating_an_excel_value() {
+        let mut raw = result();
+        raw["cells"][0] = json!({"sheet":"S","row":1,"column":2,
+            "requested_formula":"003d0031002f0030", "entry_rejected":{
+                "requested":"=1/0", "has_formula":false,
+                "error":{"message":"observed setter failure","hresult":-2146827284i64}}});
+        for list in ["saved", "reopened"] {
+            raw[list].as_array_mut().unwrap().retain(|v| !(v["sheet"]=="S" && v["row"]==1 && v["column"]==2));
+        }
+        raw["failures"].as_array_mut().unwrap().push(json!({"stage":"entry",
+            "sheet":"S","row":1,"column":2,"message":"observed setter failure"}));
+        let converted = convert(&raw, frame()).unwrap();
+        let at = |cell: &CellAddress| cell.sheet()=="S" && cell.row()==1 && cell.column()==2;
+        assert!(converted.formulas.iter().any(|f| at(&f.cell)));
+        assert!(converted.formulas.iter().filter(|f| at(&f.cell)).all(|f| f.formula.is_none() && !f.dynamic_array));
+        assert!(!converted.observations.iter().any(|v| at(&v.cell)));
+        let session = converted.session.as_ref().unwrap();
+        assert!(!session.saved.iter().any(|v| at(&v.cell)));
+        assert!(!session.reopened.iter().any(|v| at(&v.cell)));
+        assert!(session.failures.iter().any(|f| f.stage=="entry" && f.cell.as_ref().is_some_and(at)));
+        raw["cells"][0]["value"] = json!({"empty":true});
+        assert!(convert(&raw, frame()).unwrap_err().contains("invalid authored-entry refusal"));
+        raw["cells"][0].as_object_mut().unwrap().remove("value");
+        for list in ["saved", "reopened"] {
+            let mut mutated = raw.clone();
+            mutated[list].as_array_mut().unwrap().push(json!({"sheet":"S","row":1,"column":2,"t":"n","v":"0030","value":{"empty":true},"spill":null}));
+            assert!(convert(&mutated, frame()).unwrap_err().contains("authored-entry refusal has a"));
+        }
     }
 
     #[test]

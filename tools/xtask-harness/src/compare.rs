@@ -1099,7 +1099,14 @@ fn compare(request: &Request) -> Result<(), Failure> {
         println!("xtask compare: source inventory only; {} formula cells; no evaluation or Excel observation",capture.formulas.len());
         return Ok(());
     }
-    let digest = format!("sha256:{}", sha256_hex(&fixture));
+    let workbook_hash = sha256_hex(&fixture);
+    let input_hash = if request.capture.is_some() {
+        calc_oracle_excel::capture_source_sha256(&request.fixture, &workbook_hash)
+            .map_err(|e| refused(format!("invalid capture inputs: {e}")))?
+    } else {
+        workbook_hash
+    };
+    let digest = format!("sha256:{input_hash}");
     if capture.source != digest {
         return Err(refused(format!(
             "the fixture {} has the content hash {digest} and the capture record's source is {}: the capture is not of these bytes",

@@ -5,8 +5,8 @@
 # adapter's unit tests run Read-Package, Get-PackageRefusals and Get-AddInStates without Excel.
 #
 # It changes no setting that persists beyond its own Excel instance. It sets only the
-# Application's Visible, DisplayAlerts, ScreenUpdating, EnableEvents, Interactive and
-# AutomationSecurity, which belong to the running instance, and the calculation settings
+# Application's Visible, DisplayAlerts, ScreenUpdating, EnableEvents and Interactive,
+# which belong to the running instance, and the calculation settings
 # (Calculation, Iteration, MaxIterations, MaxChange), which Excel takes from the workbook it opens
 # and saves with the workbook it saves (the output package in the work directory). It writes no
 # Excel option of the user's profile and no add-in's state, so a timeout that kills it before its
@@ -28,7 +28,7 @@
 #   3. starts a new Excel instance through COM and prints its PID, from Application.Hwnd, on
 #      standard output before anything else touches it;
 #   4. sets the session settings above (DisplayAlerts, ScreenUpdating, EnableEvents and Interactive
-#      off, AutomationSecurity 3, force-disable macros), each read back, and reads the state of
+#      off), each read back, preserves and checks AutomationSecurity, and reads the state of
 #      every add-in (AddIns2: IsOpen and Installed; COMAddIns: Connect; AddIns: Installed) and
 #      whether XLL functions are registered. A setting that does not read back as set, an add-in
 #      that is open in this instance, an add-in of AddIns2 whose state cannot be read and
@@ -417,6 +417,8 @@ function Read-Package([string]$Path) {
         $sheets = New-Object System.Collections.ArrayList
         $formulas = New-Object System.Collections.ArrayList
         $caches = @{}
+        $storedFormulas = @{}
+        $sheetParts = @{}
         $externalCalls = New-Object System.Collections.ArrayList
         foreach ($sheet in $workbook.SelectNodes('/x:workbook/x:sheets/x:sheet', $names)) {
             $name = $sheet.GetAttribute('name')
@@ -424,6 +426,7 @@ function Read-Package([string]$Path) {
             if ($null -eq $rel) { throw "sheet $name has no relationship" }
             if ($rel.type -eq ($RelPrefix + 'chartsheet')) { continue }
             $part = Resolve-Target $workbookPart $rel.target
+            $sheetParts[$name] = $part
             $document = Read-Part $zip $part
             if ($null -eq $document) { throw "the part $part of sheet $name is missing" }
             # The formulas of every sheet with cells (worksheets, macro sheets, dialog sheets): those
@@ -471,6 +474,7 @@ function Read-Package([string]$Path) {
                 $key = Get-Key $name $place.row $place.column
                 $f = $c.SelectSingleNode('x:f', $sheetNames)
                 if ($null -ne $f) {
+                    $storedFormulas[$key] = $f.InnerText
                     $type = $f.GetAttribute('t')
                     if ($type -eq '') { $type = 'normal' }
                     $entry = [ordered]@{ sheet = $name; row = $place.row; column = $place.column; type = $type; si = $null; ref = $null; cm = $null; dynamic_array_metadata = $false }
@@ -555,7 +559,7 @@ function Read-Package([string]$Path) {
             $root = Read-Root $entry
             if ($null -ne $root) { [void]$roots.Add($root) }
         }
-        return @{ sheets = $sheets; formulas = $formulas; caches = $caches; connections = $connections; links = $links; roots = $roots; external_calls = $externalCalls }
+        return @{ sheets = $sheets; formulas = $formulas; caches = $caches; connections = $connections; links = $links; roots = $roots; external_calls = $externalCalls; stored_formulas = $storedFormulas; sheet_parts = $sheetParts }
     } finally {
         $zip.Dispose()
     }
@@ -943,6 +947,8 @@ $Output = [ordered]@{
     reopened = (New-Object System.Collections.ArrayList)
     failures = $Failures
 }
+$entryQuestions = @()
+$entryRejected = @{}
 $excel = $null
 $workbook = $null
 try {
@@ -973,15 +979,18 @@ try {
     $Output.excel_pid = $excelPid
     Send-Line "excel-pid $excelPid"
 
+    $securityBefore = Get-ComProperty $excel 'AutomationSecurity'
+    if ($securityBefore -notin @(1, 2, 3)) { throw 'AutomationSecurity could not be read as a known value' }
+    $Output['automation_security_before'] = $securityBefore
+    # Preserve the existing macro policy, including when the worker owns its application.
     # The session settings (see the header): each belongs to this Excel instance alone.
     $excel.Visible = $false
     $excel.DisplayAlerts = $false
     $excel.ScreenUpdating = $false
     $excel.EnableEvents = $false
-    $excel.AutomationSecurity = 3
     $excel.Interactive = $false
     # Each read back through Get-ComProperty, so a read that fails is not taken for the value set.
-    $expected = [ordered]@{ DisplayAlerts = $false; EnableEvents = $false; Interactive = $false; AutomationSecurity = 3 }
+    $expected = [ordered]@{ DisplayAlerts = $false; EnableEvents = $false; Interactive = $false; AutomationSecurity = $securityBefore }
     $notIsolated = New-Object System.Collections.ArrayList
     foreach ($name in $expected.Keys) {
         $want = $expected[$name]
@@ -1018,14 +1027,71 @@ try {
     # stored as 77 and 55 read 254 and 255 after the open, then 200 more after each assignment;
     # opened under manual calculation they read 77 and 55 until the rebuild, then 254 and 255).
     # Each setting is therefore assigned only when Excel does not already hold it.
-    if ($req.calculation.mode -eq 'manual') {
+    $openPath = [string]$req.input
+    if ($req.PSObject.Properties.Name -contains 'entry_layout') {
+        $entryBytes = [IO.File]::ReadAllBytes([string]$req.entry_layout)
+        $entryHasher = [Security.Cryptography.SHA256]::Create()
+        try { $entryDigest = [BitConverter]::ToString($entryHasher.ComputeHash($entryBytes)).Replace('-','').ToLowerInvariant() }
+        finally { $entryHasher.Dispose() }
+        if ($entryDigest -cne $req.entry_layout_sha256) { throw 'Authored entry bytes differ from the validated input snapshot' }
+        $layout = [Text.Encoding]::UTF8.GetString($entryBytes) | ConvertFrom-Json
+        $entryQuestions = @($layout.questions)
+        $openPath = Join-Path (Split-Path -Parent $req.input) 'entry-input.xlsx'
+        Copy-Item -LiteralPath $req.input -Destination $openPath
+        $zip = [IO.Compression.ZipFile]::Open($openPath, [IO.Compression.ZipArchiveMode]::Update)
+        $seenEntries = @{}
+        try {
+            foreach ($question in $entryQuestions) {
+                $place = Split-Reference $question.source_cell
+                if ($null -eq $place) { throw 'An authored entry has no relative A1 caller' }
+                $key = Get-Key $question.source_sheet $place.row $place.column
+                if ($seenEntries.ContainsKey($key)) { throw "Duplicate authored entry $key" }
+                $seenEntries[$key] = $true
+                if (-not $inventory.ContainsKey($key) -or $package.stored_formulas[$key] -cne $question.stored_formula_text) { throw "Authored entry differs from the source inventory at $key" }
+                $entry = $inventory[$key]
+                $dynamic = $entry.type -eq 'array' -and $entry.dynamic_array_metadata
+                if (($question.formula_form -eq 'Dynamic') -ne $dynamic -or $question.formula_form -notin @('Dynamic','Legacy')) { throw "Authored formula form differs at $key" }
+                if ((Get-ExternalCalls $question.formula_text).Count -gt 0) { throw "Authored entry declares external content at $key" }
+                $part = $package.sheet_parts[$question.source_sheet]
+                $document = Read-Part $zip $part
+                $ns = [Xml.XmlNamespaceManager]::new($document.NameTable); $ns.AddNamespace('x',$MainNs)
+                $node = $document.SelectSingleNode("/x:worksheet/x:sheetData/x:row/x:c[@r='$($question.source_cell)']",$ns)
+                if ($null -eq $node) { throw "Authored caller absent at $key" }
+                [void]$node.ParentNode.RemoveChild($node)
+                $zip.GetEntry($part).Delete()
+                $stream = $zip.CreateEntry($part).Open()
+                try { $document.Save($stream) } finally { $stream.Dispose() }
+            }
+        } finally { $zip.Dispose() }
+        $Output['authored_entries'] = $entryQuestions
+        $Output['entry_input'] = $openPath
+    }
+    if ($req.calculation.mode -eq 'manual' -or $entryQuestions.Count -gt 0) {
         $blank = $excel.Workbooks.Add()
         $excel.Calculation = $modes['manual']
-        $workbook = Open-Workbook $excel $req.input
+        $workbook = Open-Workbook $excel $openPath
         $blank.Close($false)
         $blank = $null
     } else {
-        $workbook = Open-Workbook $excel $req.input
+        $workbook = Open-Workbook $excel $openPath
+    }
+    foreach ($question in $entryQuestions) {
+        $place = Split-Reference $question.source_cell
+        $entry = $inventory[(Get-Key $question.source_sheet $place.row $place.column)]
+        $cell = Read-Cell $workbook $entry
+        $entryError = $null
+        try {
+            if ($question.formula_form -eq 'Dynamic') { $cell.Formula2 = [string]$question.formula_text }
+            else { $cell.Formula = [string]$question.formula_text }
+        } catch { $entryError = @{message=$_.Exception.ToString();hresult=$_.Exception.HResult} }
+        $hasFormula = Get-ComProperty $cell 'HasFormula'
+        if ($hasFormula -isnot [bool]) { throw 'Authored entry HasFormula did not return a boolean' }
+        if ($entryError) {
+            if ($hasFormula) { throw 'Formula entry threw after installing a formula; the state cannot be classified as an entry refusal' }
+            $rejected = [ordered]@{question_id=$question.question_id;requested=$question.formula_text;form=$question.formula_form;error=$entryError;has_formula=$hasFormula;read_formula=(Get-ComProperty $cell 'Formula');read_formula2=(Get-ComProperty $cell 'Formula2')}
+            $entryRejected[(Get-Key $entry.sheet $entry.row $entry.column)] = $rejected
+            Add-Failure 'entry' $entry ("$($question.formula_form) formula entry refused for $($question.formula_text): " + $entryError.message)
+        } elseif (-not $hasFormula) { throw 'Formula assignment returned without installing a formula or reporting an entry error' }
     }
     $wantedMode = $modes[$req.calculation.mode]
     $wantedIteration = [bool]$req.calculation.iteration
@@ -1253,6 +1319,11 @@ try {
     Add-Setting 'connections' ($connectionSettings -join ';')
 
     foreach ($entry in $package.formulas) {
+        $rejectedKey = Get-Key $entry.sheet $entry.row $entry.column
+        if ($entryRejected.ContainsKey($rejectedKey)) {
+            [void]$Output.cells.Add([ordered]@{sheet=$entry.sheet;row=$entry.row;column=$entry.column;requested_formula=(Get-Units $entryRejected[$rejectedKey].requested);entry_rejected=$entryRejected[$rejectedKey]})
+            continue
+        }
         $cell = Read-Cell $workbook $entry
         try {
             $has = Get-ComProperty $cell 'HasFormula'
@@ -1270,12 +1341,15 @@ try {
         } catch {
             throw "Range.Formula2 cannot be read at $($entry.sheet)!R$($entry.row)C$($entry.column) ($($_.Exception.Message)); this capture reads formula text through Formula2 only, so it is refused"
         }
-        [void]$Output.cells.Add([ordered]@{ sheet = $entry.sheet; row = $entry.row; column = $entry.column; formula = (Get-Units $formula); value = (Read-Value $cell); spill = (Read-Spill $cell) })
+        $legacyFormula = Get-ComProperty $cell 'Formula'
+        if ($legacyFormula -isnot [string]) { throw 'Range.Formula did not return text' }
+        [void]$Output.cells.Add([ordered]@{ sheet = $entry.sheet; row = $entry.row; column = $entry.column; formula = (Get-Units $formula); formula_legacy = (Get-Units $legacyFormula); value = (Read-Value $cell); spill = (Read-Spill $cell) })
     }
     # The inventory cells that spill, by sheet, each covering the rows and columns of its
     # SpillingToRange from itself.
     $spilling = @{}
     foreach ($read in $Output.cells) {
+        if ($read.Contains('entry_rejected')) { continue }
         if ($null -eq $read.spill -or -not $read.spill.Contains('rows')) { continue }
         if (-not $spilling.ContainsKey($read.sheet)) { $spilling[$read.sheet] = New-Object System.Collections.ArrayList }
         [void]$spilling[$read.sheet].Add($read)
@@ -1361,6 +1435,7 @@ try {
     $saved = Read-Package $req.output
     $Output.saved_formulas = $saved.formulas
     foreach ($entry in $package.formulas) {
+        if ($entryRejected.ContainsKey((Get-Key $entry.sheet $entry.row $entry.column))) { continue }
         $cache = $saved.caches[(Get-Key $entry.sheet $entry.row $entry.column)]
         if ($null -eq $cache) {
             Add-Failure 'save' $entry 'the saved package holds no cached value for this formula cell'
@@ -1371,6 +1446,7 @@ try {
     $savedFormulas = @{}
     foreach ($entry in $saved.formulas) { $savedFormulas[(Get-Key $entry.sheet $entry.row $entry.column)] = $entry }
     foreach ($entry in $package.formulas) {
+        if ($entryRejected.ContainsKey((Get-Key $entry.sheet $entry.row $entry.column))) { continue }
         if (-not $savedFormulas.ContainsKey((Get-Key $entry.sheet $entry.row $entry.column))) { Add-Failure 'save' $entry 'the saved package holds no formula for this formula cell' }
     }
     foreach ($entry in $saved.formulas) {
@@ -1379,11 +1455,14 @@ try {
 
     $workbook = Open-Workbook $excel $req.output
     foreach ($entry in $package.formulas) {
+        if ($entryRejected.ContainsKey((Get-Key $entry.sheet $entry.row $entry.column))) { continue }
         $cell = Read-Cell $workbook $entry
         [void]$Output.reopened.Add([ordered]@{ sheet = $entry.sheet; row = $entry.row; column = $entry.column; value = (Read-Value $cell); spill = (Read-Spill $cell) })
     }
     $workbook.Close($false)
     $workbook = $null
+    $Output['automation_security_after'] = Get-ComProperty $excel 'AutomationSecurity'
+    if ($Output.automation_security_after -ne $securityBefore) { throw 'AutomationSecurity changed during capture' }
 } catch {
     $Output.fatal = "$($_.Exception.Message) (capture-worker.ps1 line $($_.InvocationInfo.ScriptLineNumber))"
 } finally {

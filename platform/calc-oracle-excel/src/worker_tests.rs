@@ -733,6 +733,37 @@ fn a_connected_com_add_in_is_recorded_and_the_capture_completes() {
     );
 }
 
+/// Native-only: runs the capture PowerShell worker against stand-in COM objects.
+#[test]
+fn capture_preserves_each_existing_automation_security_value_without_writing_it() {
+    for security in [1, 2, 3] {
+        let setup = format!(
+            "{FULL_STANDIN}\n$app | Add-Member -Force -MemberType ScriptProperty -Name AutomationSecurity -Value {{ {security} }} -SecondValue {{ throw 'AutomationSecurity must never be assigned' }}\n"
+        );
+        let (code, lines, result) = run_main_flow(
+            &format!("preserve-security-{security}"),
+            &fixture("infra_m1_2/untrusted-link.xlsx"),
+            &setup,
+        );
+        assert_eq!(code, Some(0), "{lines:?}\n{result}");
+        assert_eq!(result["fatal"], Value::Null, "{result}");
+        assert_eq!(result["automation_security_before"], security);
+        assert_eq!(result["automation_security_after"], security);
+        let settings = result["environment"]["settings"].as_array().unwrap();
+        assert!(settings.contains(&json!(["automation_security", security.to_string()])));
+    }
+    for script in [
+        include_str!("../worker/timing-worker.ps1"),
+        include_str!("../../../tools/excel-session/host.ps1"),
+    ] {
+        assert!(
+            member_assignments(script)
+                .iter()
+                .all(|name| !name.ends_with(".AutomationSecurity"))
+        );
+    }
+}
+
 /// The control of the refusal test above: a stand-in with only idle add-ins passes the isolation
 /// and the worker goes on to open the workbook (the stand-in's Workbooks.Open is called, and
 /// throws), so the stand-in does show an open when one happens.
@@ -892,7 +923,8 @@ fn the_main_flow_runs_to_a_record_against_a_stand_in_excel() {
             .find(|(n, _)| n == name)
             .map(|(_, v)| v.as_str())
     };
-    assert_eq!(setting("automation_security"), Some("3"));
+    // The stand-in starts at 1; capture records it without changing the macro policy.
+    assert_eq!(setting("automation_security"), Some("1"));
     assert_eq!(setting("display_alerts"), Some("false"));
     assert_eq!(setting("external_links"), Some("link-target.xlsx"));
     assert_eq!(setting("add_ins"), Some(""));
@@ -1973,7 +2005,6 @@ fn the_worker_assigns_only_session_settings() {
     assert_eq!(
         excel,
         [
-            "AutomationSecurity",
             "Calculation",
             "DisplayAlerts",
             "EnableEvents",
@@ -1986,6 +2017,7 @@ fn the_worker_assigns_only_session_settings() {
         ]
     );
     for forbidden in [
+        "AutomationSecurity",
         "AskToUpdateLinks",
         "IgnoreRemoteRequests",
         "Connect",
