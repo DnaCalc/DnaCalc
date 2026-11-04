@@ -101,7 +101,7 @@ fn check_captured_questions(
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn delivered_scalar_readings_follow_the_application_route() {
-    let readings: [&[u8]; 35] = [
+    let readings: [&[u8]; 37] = [
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/LOWER.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/PROPER.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/REGEXTEST.reading.json"),
@@ -137,6 +137,9 @@ fn delivered_scalar_readings_follow_the_application_route() {
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/YIELD.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/ODDFYIELD.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/FIXED.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/VALUE.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/NUMBERVALUE.reading.json"),
+
 
     ];
     let mut failures = Vec::new();
@@ -193,7 +196,7 @@ fn delivered_scalar_readings_follow_the_application_route() {
             }
         }
     }
-    assert_eq!(count, 3215);
+    assert_eq!(count, 3343);
     assert!(failures.is_empty(), "{} of{count} readings differ:\n{}", failures.len(), failures.join("\n"));
 }
 
