@@ -8,97 +8,95 @@ python3 racer/corpus_cases.py problem-functions ../DnaCalc ../DnaCalc/docs/gener
 
 Last-bit: finite numeric mismatches <=16 ULP; larger numeric: >16 ULP. This split is triage, not a relaxed verdict. Every mismatch, refusal, unread, missing, pending, external and circular-policy cell remains an inclusive failure. Corpus labels follow exact single-cell aliases, infer calls from formula spelling and unwrap INDEX selections; unresolved references and infix operators remain explicit. Bank functions use canonical judge identities. Counts are observations per source; corpus and bank may overlap and must not be added as unique calls. Bank reference/locale context gaps remain failures, not proven numerical defects.
 
-Corpus: 21,487/22,830 matched (94.11739%); 1,343 inclusive failures, including 0 pending.
-Bank: 3,267,258/3,910,050 matched (83.56052%); 642,792 failures, including 116 unread.
+Corpus: 22,561/23,798 matched (94.80208%); 1,237 inclusive failures, including 0 pending.
+Bank: 3,656,063/3,910,050 matched (93.50425%); 253,987 failures, including 116 unread.
 
 Larger numeric and last-bit columns count numeric mismatches; other columns count remaining mismatches. Bank refusals and unread rows are separate. Corpus refusals/missing are recorded in the JSON, outside the mismatch table.
 
 | Function | Corpus larger | Corpus last-bit | Corpus other | Bank larger | Bank last-bit | Bank other | Bank refused | Bank unread |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| BINOM.DIST | 10 | 61 | 0 | 10,606 | 27,729 | 0 | 0 | 0 |
-| GAMMA.DIST | 0 | 4 | 0 | 6,428 | 48,335 | 0 | 0 | 0 |
-| TRUNC | 0 | 0 | 1 | 5,969 | 340 | 95 | 0 | 0 |
-| ROUNDUP | 0 | 0 | 0 | 5,900 | 2,173 | 3,362 | 0 | 0 |
-| ROUNDDOWN | 0 | 0 | 0 | 5,734 | 338 | 102 | 0 | 0 |
-| MROUND | 0 | 0 | 0 | 5,704 | 0 | 0 | 0 | 0 |
+| BINOM.DIST | 13 | 72 | 0 | 10,606 | 27,729 | 0 | 0 | 0 |
+| GAMMA.DIST | 1 | 16 | 0 | 6,428 | 48,335 | 0 | 0 | 0 |
 | GAMMA | 0 | 0 | 0 | 5,154 | 7,013 | 0 | 0 | 0 |
-| ROUND | 0 | 0 | 2 | 4,849 | 186 | 430 | 0 | 0 |
 | NORM.S.DIST | 0 | 1 | 0 | 3,999 | 9,727 | 0 | 0 | 0 |
-| MOD | 0 | 0 | 0 | 2,596 | 772 | 1,606 | 0 | 0 |
-| POISSON.DIST | 1 | 10 | 0 | 2,240 | 8,065 | 0 | 0 | 4 |
+| POISSON.DIST | 2 | 20 | 0 | 2,240 | 8,065 | 0 | 0 | 4 |
 | LOGNORM.DIST | 0 | 0 | 0 | 1,466 | 3,008 | 0 | 0 | 0 |
-| BESSELJ | 29 | 0 | 0 | 840 | 0 | 0 | 0 | 0 |
+| BESSELJ | 41 | 0 | 6 | 840 | 0 | 0 | 0 | 0 |
 | LOGNORMDIST | 0 | 0 | 0 | 753 | 1,880 | 0 | 0 | 0 |
 | BETA.DIST | 0 | 1 | 0 | 574 | 1,363 | 0 | 0 | 0 |
-| YIELD | 2 | 0 | 0 | 424 | 95 | 0 | 0 | 0 |
+| ROUNDDOWN | 0 | 0 | 0 | 492 | 321 | 0 | 0 | 0 |
+| TRUNC | 0 | 0 | 0 | 492 | 321 | 0 | 0 | 0 |
+| ROUNDUP | 0 | 0 | 0 | 451 | 327 | 41 | 0 | 0 |
+| YIELD | 19 | 1 | 15 | 424 | 95 | 0 | 0 | 0 |
 | ERFC.PRECISE | 0 | 0 | 0 | 373 | 756 | 0 | 0 | 0 |
+| RATE | 23 | 0 | 4 | 339 | 20 | 13 | 0 | 0 |
 | NEGBINOMDIST | 0 | 2 | 0 | 356 | 1,281 | 0 | 0 | 0 |
-| RATE | 3 | 0 | 0 | 339 | 20 | 13 | 0 | 0 |
-| IRR | 2 | 0 | 0 | 299 | 95 | 17 | 0 | 0 |
+| IRR | 5 | 0 | 5 | 299 | 95 | 17 | 0 | 0 |
 | ERFC | 0 | 0 | 0 | 268 | 151 | 0 | 0 | 0 |
-| PMT | 0 | 1 | 0 | 232 | 68,912 | 4 | 7 | 0 |
 | NORM.DIST | 0 | 0 | 0 | 217 | 116 | 0 | 0 | 0 |
+| PMT | 0 | 0 | 0 | 215 | 11,865 | 4 | 7 | 0 |
 | NORMDIST | 0 | 0 | 0 | 179 | 276 | 0 | 0 | 0 |
 | BINOM.DIST.RANGE | 0 | 2 | 0 | 163 | 321 | 0 | 0 | 0 |
 | KURT | 0 | 0 | 0 | 145 | 1,154 | 0 | 0 | 0 |
-| VAR.S | 44 | 32 | 0 | 16 | 395 | 0 | 0 | 0 |
-| VAR.P | 40 | 23 | 0 | 13 | 438 | 0 | 0 | 0 |
-| NEGBINOM.DIST | 0 | 5 | 0 | 50 | 104 | 0 | 0 | 0 |
-| LINEST | 49 | 8 | 0 | 0 | 0 | 0 | 0 | 0 |
-| LOGEST | 37 | 4 | 10 | 0 | 0 | 0 | 2 | 0 |
-| VARP | 14 | 2 | 0 | 12 | 407 | 0 | 0 | 0 |
+| NEGBINOM.DIST | 0 | 17 | 0 | 50 | 104 | 0 | 0 | 0 |
+| LINEST | 49 | 10 | 14 | 0 | 0 | 0 | 0 | 0 |
+| LOGEST | 37 | 7 | 24 | 0 | 0 | 0 | 2 | 0 |
 | BETADIST | 0 | 2 | 0 | 17 | 137 | 0 | 0 | 0 |
-| CUMIPMT | 1 | 66 | 0 | 15 | 11 | 0 | 0 | 0 |
+| CUMIPMT | 1 | 64 | 0 | 15 | 11 | 0 | 0 | 0 |
 | FV | 0 | 0 | 0 | 15 | 281 | 0 | 0 | 0 |
 | PV | 0 | 0 | 0 | 15 | 147 | 0 | 0 | 0 |
-| VAR | 5 | 5 | 0 | 9 | 403 | 0 | 0 | 0 |
+| ODDFYIELD | 15 | 0 | 19 | 0 | 0 | 0 | 0 | 0 |
 | FDIST | 0 | 2 | 0 | 13 | 3,745 | 0 | 0 | 0 |
-| VARPA | 0 | 14 | 0 | 13 | 433 | 0 | 0 | 0 |
 | F.TEST | 0 | 0 | 0 | 13 | 48 | 0 | 0 | 0 |
-| STDEV.P | 0 | 10 | 0 | 12 | 289 | 0 | 0 | 0 |
-| STDEV | 12 | 5 | 0 | 0 | 268 | 0 | 0 | 0 |
-| PPMT | 12 | 92 | 0 | 0 | 24 | 0 | 0 | 0 |
 | COUPDAYSNC | 0 | 0 | 0 | 12 | 0 | 0 | 0 | 0 |
-| STDEVPA | 0 | 0 | 0 | 9 | 277 | 0 | 0 | 0 |
-| VARA | 0 | 0 | 0 | 8 | 411 | 0 | 0 | 0 |
-| STDEV.S | 0 | 13 | 0 | 8 | 262 | 0 | 0 | 0 |
 | GAMMA.INV | 0 | 1 | 0 | 7 | 148 | 0 | 0 | 0 |
-| STDEVP | 0 | 0 | 0 | 5 | 271 | 0 | 0 | 0 |
-| HYPGEOM.DIST | 2 | 4 | 0 | 3 | 190 | 0 | 0 | 0 |
-| CUMPRINC | 4 | 153 | 0 | 0 | 354 | 0 | 0 | 0 |
+| PPMT | 7 | 49 | 0 | 0 | 7 | 0 | 0 | 0 |
+| HYPGEOM.DIST | 2 | 27 | 0 | 3 | 190 | 0 | 0 | 0 |
 | TINV | 0 | 2 | 0 | 4 | 13 | 0 | 0 | 0 |
 | CHIINV | 0 | 0 | 0 | 3 | 66 | 0 | 0 | 0 |
 | FINV | 0 | 2 | 0 | 3 | 27 | 0 | 0 | 0 |
+| STDEVA | 0 | 0 | 0 | 3 | 26 | 0 | 0 | 0 |
 | BINOM.INV | 0 | 0 | 0 | 3 | 0 | 0 | 0 | 0 |
-| STDEVA | 0 | 13 | 0 | 2 | 259 | 0 | 0 | 0 |
+| CUMPRINC | 2 | 148 | 0 | 0 | 401 | 0 | 0 | 0 |
 | CHIDIST | 0 | 2 | 0 | 2 | 152 | 0 | 0 | 0 |
 | TDIST | 0 | 2 | 0 | 2 | 66 | 0 | 0 | 0 |
+| VAR.P | 0 | 0 | 0 | 2 | 55 | 0 | 0 | 0 |
 | CEILING | 0 | 0 | 0 | 2 | 0 | 0 | 10 | 0 |
 | CEILING.PRECISE | 0 | 0 | 0 | 2 | 0 | 0 | 10 | 0 |
 | FLOOR.PRECISE | 0 | 0 | 0 | 2 | 0 | 0 | 10 | 0 |
 | ISO.CEILING | 0 | 0 | 0 | 2 | 0 | 0 | 10 | 0 |
-| ODDFYIELD | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | SWITCH | 0 | 0 | 0 | 2 | 0 | 0 | 2 | 0 |
-| IPMT | 1 | 79 | 0 | 0 | 27 | 0 | 0 | 0 |
+| IPMT | 1 | 57 | 0 | 0 | 9 | 0 | 0 | 0 |
+| VARP | 0 | 0 | 0 | 1 | 48 | 0 | 0 | 0 |
+| VAR.S | 0 | 0 | 0 | 1 | 47 | 0 | 0 | 0 |
+| VARA | 0 | 0 | 0 | 1 | 36 | 0 | 0 | 0 |
+| STDEV.S | 0 | 0 | 0 | 1 | 33 | 0 | 0 | 0 |
 | CHISQ.INV | 0 | 1 | 0 | 1 | 27 | 0 | 0 | 0 |
+| STDEV.P | 0 | 0 | 0 | 1 | 20 | 0 | 0 | 0 |
 | SKEW | 0 | 0 | 0 | 1 | 6 | 0 | 0 | 0 |
 | T.DIST.RT | 0 | 1 | 0 | 1 | 4 | 0 | 0 | 0 |
 | CRITBINOM | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | FLOOR | 0 | 0 | 0 | 1 | 0 | 0 | 10 | 0 |
-| ERF.PRECISE | 0 | 0 | 0 | 0 | 365,857 | 0 | 0 | 0 |
+| ERF.PRECISE | 0 | 0 | 0 | 0 | 76,339 | 0 | 0 | 0 |
 | GAMMALN.PRECISE | 0 | 0 | 0 | 0 | 4,085 | 0 | 0 | 0 |
 | GAMMALN | 0 | 0 | 0 | 0 | 2,530 | 0 | 0 | 0 |
-| GAUSS | 0 | 0 | 0 | 0 | 1,159 | 0 | 0 | 0 |
+| GAUSS | 0 | 0 | 0 | 0 | 481 | 0 | 0 | 0 |
 | DURATION | 0 | 2 | 0 | 0 | 333 | 0 | 0 | 0 |
 | F.DIST | 0 | 0 | 0 | 0 | 197 | 0 | 0 | 0 |
 | MDURATION | 0 | 0 | 0 | 0 | 157 | 0 | 0 | 0 |
 | GEOMEAN | 0 | 84 | 0 | 0 | 57 | 0 | 1 | 0 |
 | SINH | 0 | 0 | 0 | 0 | 130 | 0 | 0 | 0 |
+| ROUND | 0 | 0 | 0 | 0 | 124 | 0 | 0 | 0 |
 | NPV | 0 | 0 | 0 | 0 | 94 | 0 | 0 | 0 |
 | TANH | 0 | 0 | 0 | 0 | 58 | 0 | 0 | 0 |
 | COTH | 0 | 0 | 0 | 0 | 56 | 0 | 0 | 0 |
 | PRICE | 0 | 0 | 0 | 0 | 50 | 0 | 0 | 0 |
 | BETAINV | 0 | 2 | 0 | 0 | 44 | 0 | 0 | 0 |
+| VARPA | 0 | 0 | 0 | 0 | 43 | 0 | 0 | 0 |
+| VAR | 0 | 0 | 0 | 0 | 41 | 0 | 0 | 0 |
+| STDEV | 0 | 0 | 0 | 0 | 31 | 0 | 0 | 0 |
+| STDEVPA | 0 | 0 | 0 | 0 | 31 | 0 | 0 | 0 |
+| STDEVP | 0 | 0 | 0 | 0 | 30 | 0 | 0 | 0 |
 | CSCH | 0 | 0 | 0 | 0 | 6 | 0 | 0 | 0 |
 | GROWTH | 0 | 0 | 0 | 0 | 6 | 0 | 7 | 0 |
 | HYPGEOMDIST | 0 | 2 | 0 | 0 | 3 | 0 | 0 | 0 |
@@ -145,7 +143,7 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | EUROCONVERT | 0 | 0 | 0 | 0 | 0 | 0 | 13 | 0 |
 | EVEN | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | EXP | 0 | 0 | 0 | 0 | 0 | 0 | 12 | 0 |
-| FIXED | 0 | 0 | 0 | 0 | 0 | 0 | 989 | 0 |
+| FIXED | 0 | 0 | 0 | 0 | 0 | 0 | 788 | 0 |
 | FLOOR.MATH | 0 | 0 | 0 | 0 | 0 | 0 | 12 | 0 |
 | GESTEP | 0 | 0 | 0 | 0 | 0 | 0 | 4 | 0 |
 | IMCOSH | 0 | 0 | 0 | 0 | 0 | 7 | 0 | 0 |
