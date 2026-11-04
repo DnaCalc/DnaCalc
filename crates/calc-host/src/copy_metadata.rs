@@ -847,7 +847,6 @@ pub(crate) fn conditional_sort_supported(host: &HostState, sheet: calc_value::Sh
             || parsed.color_scale.is_some()
             || parsed.data_bar.is_some()
             || parsed.icon_set.is_some()
-            || parsed.text.is_some()
             || parsed.rank.is_some()
             || parsed.percent
             || parsed.bottom
@@ -868,8 +867,8 @@ pub(crate) fn conditional_sort_supported(host: &HostState, sheet: calc_value::Sh
             return false;
         }
         let count = match parsed.kind.as_str() {
-            "expression" if parsed.operator.is_none() => 1,
-            "cellIs" => match parsed.operator.as_deref() {
+            "expression" if parsed.operator.is_none() && parsed.text.is_none() => 1,
+            "cellIs" if parsed.text.is_none() => match parsed.operator.as_deref() {
                 Some("between" | "notBetween") => 2,
                 Some(
                     "equal" | "notEqual" | "lessThan" | "lessThanOrEqual" | "greaterThan"
@@ -877,6 +876,15 @@ pub(crate) fn conditional_sort_supported(host: &HostState, sheet: calc_value::Sh
                 ) => 1,
                 _ => return false,
             },
+            // These standard pointwise rules store their executable condition in <formula>,
+            // just as expression rules do. Preserve the type/text/operator source and rebase
+            // that condition through the same relocator; never infer a replacement condition.
+            // Standard operators: https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.spreadsheet.conditionalformattingoperatorvalues
+            "containsText" | "notContainsText" | "beginsWith" | "endsWith"
+                if parsed.text.is_some()
+                    && parsed.operator.as_deref() == Some(if parsed.kind == "notContainsText" { "notContains" } else { parsed.kind.as_str() }) => 1,
+            "containsBlanks" | "notContainsBlanks" | "containsErrors" | "notContainsErrors"
+                if parsed.text.is_none() && parsed.operator.is_none() => 1,
             _ => return false,
         };
         if rule.formulas.len() != count {

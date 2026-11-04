@@ -189,6 +189,12 @@ pub fn shown(value: &CalcValue, profile: Option<&FormatProfile>) -> String {
 /// A value alone, without its type: `7`, `ax`, `TRUE`, `#N/A`, and nothing for a blank. A number
 /// is the shortest decimal that round-trips its binary64 ([`display`]'s rule).
 pub fn plain(value: &CalcValue) -> String {
+    if value.is_excel_overflow() {
+        return calc_func::general_format(
+            &calc_func::locale::format_profile(calc_func::locale::LocaleId::EnUs),
+            value.as_number().expect("qualified numeric encoding"),
+        );
+    }
     match value.core() {
         CoreValue::Number(number) => number.to_string(),
         CoreValue::Text(text) => text.to_string_lossy(),
@@ -466,6 +472,30 @@ pub fn formatted_view(
 #[cfg(test)]
 mod formatted_results {
     use super::*;
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn qualified_overflow_uses_measured_general_and_refuses_custom_formats() {
+        let profile = FormatProfile::for_culture("en-US").unwrap();
+        for (bits, expected) in [
+            (0x7ff1_ccf3_85eb_c8a0, "2E+308"),
+            (0x7ff0_0000_0000_000a, "1.8E+308"),
+            (0xfff1_ccf3_85eb_c8a0, "2E+308"),
+        ] {
+            let value = CalcValue::excel_overflow_number(f64::from_bits(bits)).unwrap();
+            assert_eq!(plain(&value), expected);
+            assert_eq!(shown(&value, Some(&profile)), expected);
+            assert!(
+                matches!(formatted_view(Some(&value),Some(&profile),"General"),Ok(ResultView::Value {text,..}) if text==expected)
+            );
+            for code in ["0", "0.00E+00", "yyyy-mm-dd", "@"] {
+                assert!(
+                    formatted_view(Some(&value), Some(&profile), code).is_err(),
+                    "{code}"
+                );
+            }
+        }
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn scalar_and_array_formats_share_the_cell_formatter() {

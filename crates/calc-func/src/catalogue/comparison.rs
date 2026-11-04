@@ -210,6 +210,7 @@ pub(super) fn order(site: &Site<'_>, arguments: &[CalcValue], want: Want) -> Ste
     let mut operands = [Operand::Blank; 2];
     for (index, argument) in arguments.iter().enumerate() {
         operands[index] = match argument.core_ref() {
+            CoreRef::Number(n) if argument.is_excel_overflow() => Operand::Number(n),
             CoreRef::Number(n) => Operand::Number(site.argument(index, coerce::operand(n))?),
             CoreRef::Text(text) => Operand::Text(text.utf16_code_units()),
             CoreRef::Logical(b) => Operand::Logical(b),
@@ -242,6 +243,20 @@ pub(super) fn order(site: &Site<'_>, arguments: &[CalcValue], want: Want) -> Ste
 /// nearer ones by their 15-digit roundings, refused ([`in_band`]) where Excel's rounding may
 /// depart from the exact one and the departure could decide the comparison.
 pub(super) fn numbers(site: &Site<'_>, a: f64, b: f64) -> Step<Ordering> {
+    if a.is_nan() || b.is_nan() {
+        // Equality and positive overflow against a finite number have retained
+        // controls. Distinct encodings and negative ordering still await eng15.
+        if a.to_bits() == b.to_bits() {
+            return Ok(Ordering::Equal);
+        }
+        if (a.is_nan() && a.is_sign_negative())
+            || (b.is_nan() && b.is_sign_negative())
+            || (a.is_nan() && b.is_nan())
+        {
+            return Err(site.not_modelled(None));
+        }
+        return Ok(if a.is_nan() { Ordering::Greater } else { Ordering::Less });
+    }
     if a == b {
         return Ok(Ordering::Equal);
     }

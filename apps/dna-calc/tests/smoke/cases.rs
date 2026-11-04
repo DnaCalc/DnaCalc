@@ -8309,6 +8309,19 @@ Case {
         Action::Choose("rule-kind","top10"),Action::Into("rule-applies","B2:B4"),Action::Into("rule-rank","1"),Action::Click("rule-add"),Action::Wait(Check::Count("rule-row",6)),Action::Click("review-close"),Action::Into("name-box","A1:C4\u{E007}"),Action::OpenDetails("sort-tools"),Action::Click("sort-descending"),Action::Wait(Check::TextContains("status","conditional formatting"))
     ],checks:&[Check::PlanCell("A2","text","1"),Check::PlanCell("C2","text","10"),Check::PlanCell("A4","text","3")]},
 
+    Case {name:"typed conditional sorting: stored text blank and error formulas move through one command",actions:&[
+        Action::Window(1440,1000),Action::ValidationFixture("sort-pointwise"),Action::UploadDownload("validation-sort-pointwise.xlsx"),Action::DiscardReplacement,Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),Action::Wait(Check::PlanCell("C3","text","#DIV/0!")),Action::Wait(Check::Style("[data-dnacalc=cell-decoration][data-cell=B2]","background-color:#123456")),Action::Into("name-box","A1:C5\u{E007}"),Action::OpenDetails("sort-tools"),Action::Click("sort-ascending"),Action::Wait(Check::PlanCell("A5","text","3"))
+    ],checks:&[Check::PlanCell("C2","text","#DIV/0!"),Check::PlanCell("C2","provenance","calculated"),Check::Style("[data-dnacalc=cell-decoration][data-cell=B5]","background-color:#123456"),Check::Style("[data-dnacalc=cell-decoration][data-cell=C2]","background-color:#123456"),Check::Style("[data-dnacalc=cell-decoration][data-cell=C6]","background-color:#123456"),Check::Absent("[data-dnacalc=cell-decoration][data-cell=B2]")]},
+    Case {name:"typed conditional sorting: Undo Redo restores exact text and error decorations",actions:&[
+        Action::Click("undo"),Action::Wait(Check::PlanCell("A2","text","3")),Action::Wait(Check::Style("[data-dnacalc=cell-decoration][data-cell=B2]","background-color:#123456")),Action::Click("redo"),Action::Wait(Check::PlanCell("A5","text","3"))
+    ],checks:&[Check::PlanCell("C2","text","#DIV/0!"),Check::Style("[data-dnacalc=cell-decoration][data-cell=B5]","background-color:#123456"),Check::Style("[data-dnacalc=cell-decoration][data-cell=C2]","background-color:#123456")]},
+    Case {name:"typed conditional sorting: actual saved XLSX retains typed formulas and outside blanks",actions:&[
+        Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("validation-sort-pointwise.xlsx"),Action::DiscardReplacement,Action::Click("[data-dnacalc=sheet-tab][data-sheet=DV]"),Action::Wait(Check::PlanCell("A5","text","3")),Action::Wait(Check::PlanCell("C2","text","#DIV/0!"))
+    ],checks:&[Check::Style("[data-dnacalc=cell-decoration][data-cell=B5]","background-color:#123456"),Check::Style("[data-dnacalc=cell-decoration][data-cell=C2]","background-color:#123456"),Check::Style("[data-dnacalc=cell-decoration][data-cell=C6]","background-color:#123456"),Check::PlanCell("C2","provenance","calculated")]},
+    Case {name:"typed conditional sorting: saved rules sort descending on a phone",actions:&[
+        Action::Window(390,844),Action::Into("name-box","A1:C5\u{E007}"),Action::OpenDetails("sort-tools"),Action::Click("sort-descending"),Action::Wait(Check::PlanCell("A2","text","3")),Action::Wait(Check::PlanCell("C4","text","#DIV/0!")),Action::Click("[data-dnacalc=sort-tools]>summary"),Action::Wait(Check::Style("[data-dnacalc=cell-decoration][data-cell=C6]","background-color:#123456"))
+    ],checks:&[Check::Fits,Check::Style("[data-dnacalc=cell-decoration][data-cell=B2]","background-color:#123456"),Check::Style("[data-dnacalc=cell-decoration][data-cell=C4]","background-color:#123456"),Check::Style("[data-dnacalc=cell-decoration][data-cell=C6]","background-color:#123456"),Check::PlanCell("C4","provenance","calculated")]},
+
 ];
 
 /// The script that reads what one check looks at.
@@ -9149,4 +9162,5 @@ CaseGroup {
     CaseGroup {name:"templates",start:657,end:670,core:13,setup:&[]},
     CaseGroup {name:"sort-options",start:670,end:675,core:5,setup:&[]},
     CaseGroup {name:"conditional-sorting",start:675,end:679,core:4,setup:&[]},
+    CaseGroup {name:"typed-conditional-sorting",start:679,end:683,core:4,setup:&[]},
 ];

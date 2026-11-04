@@ -110,7 +110,15 @@ pub fn prepare_file_project(
 impl WorkbookEvents {
     /// Publish the UDF registry and event owner only after the entire project is ready.
     pub fn install(self: Rc<Self>, session: &mut calc_host::HostSession) {
-        session.set_user_functions(self.project.functions());
+        let functions = self.functions();
+        self.install_with_registry(session, functions);
+    }
+    /// File providers may compose native entries before publishing the complete registry.
+    pub fn functions(&self) -> calc_host::CallableTable {
+        self.project.functions()
+    }
+    pub fn install_with_registry(self: Rc<Self>, session: &mut calc_host::HostSession, functions: calc_host::CallableTable) {
+        session.set_user_functions(functions);
         session.set_workbook_event_handler(Some(self));
     }
 }
