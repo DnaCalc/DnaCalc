@@ -15303,3 +15303,92 @@ fn dc_971p_38__conditional_rule_fragment_limit_refuses_before_row_changes(){
     let revision=book.host().revision();let depth=book.history_depth();let before=book.host().model().definitions().conditional_rules(s).to_vec();assert_eq!(before.len(),513);
     let receipt=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::SortRows{area:GridArea::new(at(s,"A1"),at(s,"B3")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:true,revision:revision.get()}));assert!(!receipt.accepted(),"{receipt:?}");assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);assert_eq!(book.host().model().definitions().conditional_rules(s),before);assert_eq!(book.host().model().cell(at(s,"B2")),Some(&calc_host::interpret_entry("20").unwrap().unwrap()));
 }
+
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__text_blank_and_error_conditions_sort_through_stored_formulas() {
+    use calc_host::{ConditionalChange as C, WorkbookCommand as W, LookColor};
+    for (kind, extra, formula, first, second) in [
+        ("containsText", " text=\"red\" operator=\"containsText\"", "NOT(ISERROR(SEARCH(\"red\",B2)))", "red apple", "blue"),
+        ("notContainsText", " text=\"red\" operator=\"notContains\"", "ISERROR(SEARCH(\"red\",B2))", "blue", "red apple"),
+        ("beginsWith", " text=\"red\" operator=\"beginsWith\"", "LEFT(B2,3)=\"red\"", "red apple", "apple red"),
+        ("endsWith", " text=\"red\" operator=\"endsWith\"", "RIGHT(B2,3)=\"red\"", "apple red", "red apple"),
+        ("containsBlanks", "", "LEN(TRIM(B2))=0", "", "apple"),
+        ("notContainsBlanks", "", "LEN(TRIM(B2))>0", "apple", ""),
+        ("containsErrors", "", "ISERROR(B2)", "=1/0", "apple"),
+        ("notContainsErrors", "", "NOT(ISERROR(B2))", "apple", "=1/0"),
+    ] {
+        let mut seed = session(&calc_host::blank_package());
+        let s = seed.host().sheets()[0].id();
+        for (address, text) in [("A1","Key"),("A2","2"),("A3","1"),("B2",first),("B3",second)] {
+            assert!(enter(&mut seed,at(s,address),text).accepted());
+        }
+        let revision=seed.host().revision().get();
+        assert!(seed.dispatch(SkinIntent::Command(W::Conditional{sheet:s,revision,index:None,change:C::Condition{
+            kind:"expression".into(),applies:"B2:B3".into(),color:"#123456".into(),formulas:vec![formula.into()],operator:"".into(),rank:1,percent:false,stop:true,
+        }})).accepted());
+        let mut bytes=Vec::new();seed.save(&SavePolicy::default(),&mut bytes).unwrap();
+        let bytes=package_with_part_from(&bytes,"xl/worksheets/sheet1.xml",|xml| {
+            assert!(xml.contains("type=\"expression\""));
+            xml.replace("type=\"expression\"",&format!("type=\"{kind}\"{extra}"))
+        });
+        let mut book=session(&bytes);assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        let s=book.host().sheets()[0].id();
+        let fill=|host:&calc_host::HostState,address|host.conditional_formats(host.sheets()[0].id()).look(host,at(host.sheets()[0].id(),address)).and_then(|l|l.fill);
+        assert_eq!(fill(book.host(),"B2"),Some(LookColor::Rgb("#123456".into())),"{kind}");
+        assert_eq!(fill(book.host(),"B3"),None,"{kind}");
+        let before=book.host().model().definitions().conditional_rules(s).to_vec();
+        let revision=book.host().revision().get();
+        let receipt=book.dispatch(SkinIntent::Command(W::SortRows{area:GridArea::new(at(s,"A1"),at(s,"B3")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:true,revision}));
+        assert!(receipt.accepted(),"{kind}: {receipt:?}");
+        let check=|host:&calc_host::HostState| {
+            let s=host.sheets()[0].id();
+            assert_eq!(host.model().cell(at(s,"A2")),Some(&number(1.)));
+            assert_eq!(fill(host,"B2"),None,"{kind}");
+            assert_eq!(fill(host,"B3"),Some(LookColor::Rgb("#123456".into())),"{kind}");
+            let rules=host.model().definitions().conditional_rules(s);
+            assert_eq!(rules.len(),2);
+            assert!(rules.iter().all(|r|r.stop));
+            for rule in rules {
+                let parsed=calc_doc::conditional_rule(rule).unwrap();
+                assert_eq!(parsed.kind,kind);
+                assert_eq!(parsed.text,if extra.is_empty(){None}else{Some("red".into())});
+                assert_eq!(parsed.operator,if extra.is_empty(){None}else{Some(if kind=="notContainsText" {"notContains"}else{kind}.into())});
+                assert_eq!(parsed.formulas,[formula.replace("B2",&format!("B{}",rule.origin().unwrap().row()))]);
+            }
+            assert_eq!(host.conditional_formats(s).refused(),0);
+        };
+        check(book.host());
+        assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().model().definitions().conditional_rules(s),before);
+        assert!(book.dispatch(SkinIntent::Redo).accepted());check(book.host());
+        let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
+        let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());check(reopened.host());
+        let mut twin=session(&bytes);assert!(replay(book.intent_log(),&mut twin).mismatches.is_empty());check(twin.host());
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_38__invalid_pointwise_condition_fields_refuse_atomically() {
+    for attributes in [
+        "type=\"containsText\" text=\"red\"", // missing operator
+        "type=\"containsText\" operator=\"endsWith\" text=\"red\"",
+        "type=\"notContainsText\" operator=\"notContainsText\" text=\"red\"",
+        "type=\"containsText\" operator=\"containsText\"", // missing text
+        "type=\"containsErrors\" text=\"red\"",
+        "type=\"containsBlanks\" operator=\"equal\"",
+        "type=\"containsErrors\" timePeriod=\"today\"",
+    ] {
+        let bytes=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|xml|xml.replace("</worksheet>",&format!("<conditionalFormatting sqref=\"B2:B3\"><cfRule {attributes} priority=\"1\"><formula>B2&gt;0</formula></cfRule></conditionalFormatting></worksheet>")));
+        let mut book=session(&bytes);let s=book.host().sheets()[0].id();
+        for (a,t) in [("A2","2"),("A3","1"),("B2","20"),("B3","10")] {assert!(enter(&mut book,at(s,a),t).accepted());}
+        let revision=book.host().revision();let depth=book.history_depth();
+        let old=book.host().model().definitions().conditional_rules(s).to_vec();
+        let receipt=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::SortRows{area:GridArea::new(at(s,"A2"),at(s,"B3")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:false,revision:revision.get()}));
+        assert!(!receipt.accepted(),"{attributes}: {receipt:?}");
+        assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),depth);
+        assert_eq!(book.host().model().definitions().conditional_rules(s),old);
+        assert_eq!(book.host().model().cell(at(s,"A2")),Some(&number(2.)));
+    }
+}
