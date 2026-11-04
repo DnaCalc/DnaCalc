@@ -15523,3 +15523,62 @@ fn dc_971p_38__sort_and_axis_displacements_that_cancel_still_save_the_link(){
     assert!(book.dispatch(SkinIntent::EditAxis(AxisEdit::new(s,Axis::Rows,AxisChange::Delete,2,1).unwrap())).accepted());assert_eq!(book.host().sheet_review(s).links,before);
     let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let r=reopened.host().sheets()[0].id();let links=reopened.host().sheet_review(r).links;assert_eq!(links.len(),1);assert_eq!(links[0].area,GridArea::cell(at(r,"B2")));assert_eq!(links[0].location.as_deref(),Some("Sheet1!$D$1"));assert_eq!(links[0].tooltip.as_deref(),Some("Keep the moved link"));
 }
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_bctq__insertion_keeps_target_and_imported_arrays_spills_and_data_tables(){
+    use calc_host::{WorkbookCommand as W,SaveFormat,SpreadsheetFormat};
+    let raw=package_with_part_from(&calc_host::blank_package(),"xl/worksheets/sheet1.xml",|_|r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1"><v>1</v></c><c r="B1"><f>Sheet1!A1*10</f></c><c r="D1"><f t="array" ref="D1:D3">A1:A3*2</f></c><c r="H1"><f>A1*Z1</f></c><c r="Z1"><v>10</v></c></row><row r="2"><c r="A2"><v>2</v></c><c r="G2"><v>2</v></c><c r="H2"><f t="dataTable" ref="H2:H3" r1="A1"/><v>20</v></c></row><row r="3"><c r="A3"><v>3</v></c><c r="G3"><v>3</v></c><c r="H3"><v>30</v></c></row></sheetData></worksheet>"#.into());
+    let mut source=session(&raw);let ss=source.host().sheets()[0].id();assert!(enter(&mut source,at(ss,"F1"),"=SEQUENCE(3)+A1").accepted());assert!(source.dispatch(SkinIntent::Recalculate).accepted());
+    let mut bytes=Vec::new();source.save(&SavePolicy{format:SaveFormat::Spreadsheet(SpreadsheetFormat::Xltx),..Default::default()},&mut bytes).unwrap();
+    let mut book=session(&raw);let s=book.host().sheets()[0].id();assert!(enter(&mut book,at(s,"A1"),"4").accepted());assert!(enter(&mut book,at(s,"F1"),"=SEQUENCE(3)+A1").accepted());assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    let depth=book.history_depth().0;let revision=book.host().revision().get();let receipt=book.dispatch(SkinIntent::Command(W::InsertTemplate{bytes:bytes.into(),name:None,revision}));assert!(receipt.accepted(),"{receipt:?}");assert_eq!(book.history_depth().0,depth+1);assert_eq!(book.host().sheets()[0].id(),s);
+    let added=book.host().sheets()[1].id();
+    let check=|book:&HostSession,s,first:f64|{
+        for(a,n)in [("B1",first*10.),("D1",first*2.),("D2",4.),("D3",6.),("F1",first+1.),("F3",first+3.),("H2",20.),("H3",30.)]{assert_eq!(session_calculated(book,at(s,a)).unwrap().as_number(),Some(n),"{s:?} {a}");}
+        let defs=book.host().model().definitions();assert!(defs.arrays().any(|a|a.anchor().sheet()==s));assert!(defs.data_tables().iter().any(|t|t.area().sheet()==s));
+    };
+    check(&book,s,4.);check(&book,added,1.);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().sheets().len(),1);check(&book,s,4.);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(book.host().sheets()[1].id(),added);check(&book,s,4.);check(&book,added,1.);
+    assert!(enter(&mut book,at(added,"A1"),"7").accepted());check(&book,added,7.);check(&book,s,4.);
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());let rs=reopened.host().sheets()[0].id();let ra=reopened.host().sheets()[1].id();check(&reopened,rs,4.);check(&reopened,ra,7.);
+    for sheet in reopened.host().sheets(){let xml=part_text(&saved,reopened.host().loaded().sheet(sheet.id()).unwrap().part().name());assert!(xml.contains("t=\"array\""));assert!(xml.contains("t=\"dataTable\""));assert!(xml.contains("cm=\""));}
+    let mut twin=session(&raw);let result=replay(book.intent_log(),&mut twin);assert!(result.mismatches.is_empty(),"{result:?}");let ts=twin.host().sheets()[0].id();let ta=twin.host().sheets()[1].id();check(&twin,ts,4.);check(&twin,ta,7.);
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_bctq__manual_target_spills_keep_stamp_free_holdings_across_insertion_and_history(){
+    use calc_host::{WorkbookCommand as W,SaveFormat,SpreadsheetFormat};
+    let mut template=session(&calc_host::blank_package());let t=template.host().sheets()[0].id();assert!(enter(&mut template,at(t,"B1"),"=SEQUENCE(2)").accepted());let mut bytes=Vec::new();template.save(&SavePolicy{format:SaveFormat::Spreadsheet(SpreadsheetFormat::Xltx),..Default::default()},&mut bytes).unwrap();
+    for loaded in [false,true]{for dirty in [false,true]{
+        let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();assert!(enter(&mut book,at(s,"A1"),"2").accepted());assert!(enter(&mut book,at(s,"C1"),"=SEQUENCE(A1)+10").accepted());
+        if loaded {let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();book=session(&saved);assert!(book.dispatch(SkinIntent::Recalculate).accepted());}
+        let s=book.host().sheets()[0].id();assert!(enter(&mut book,at(s,"A1"),"3").accepted());assert_eq!(session_calculated(&book,at(s,"C3")).unwrap().as_number(),Some(13.));
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));if dirty {assert!(enter(&mut book,at(s,"A1"),"4").accepted());}
+        let held=|book:&HostSession|{for(a,n)in [("C1",11.),("C3",13.)]{let ProjectedValue::Stale(v)=value(book.host(),at(s,a))else{panic!("{a} must remain stale, loaded={loaded}, dirty={dirty}")};assert_eq!(v.last_value(),Some(&CalcValue::number(n)));assert!(v.last_calculation().is_some_and(|last|last.stamp().is_none()));}assert!(!matches!(value(book.host(),at(s,"C4")),ProjectedValue::Calculated{..}));};
+        let revision=book.host().revision().get();let receipt=book.dispatch(SkinIntent::Command(W::InsertTemplate{bytes:bytes.clone().into(),name:None,revision}));assert!(receipt.accepted(),"{receipt:?}");held(&book);
+        let added=book.host().sheets()[1].id();assert!(!matches!(value(book.host(),at(added,"B1")),ProjectedValue::Calculated{..}));
+        assert!(book.dispatch(SkinIntent::Undo).accepted());held(&book);assert!(book.dispatch(SkinIntent::Redo).accepted());held(&book);
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());assert_eq!(session_calculated(&book,at(s,"C3")).unwrap().as_number(),Some(13.));if dirty {assert_eq!(session_calculated(&book,at(s,"C4")).unwrap().as_number(),Some(14.));}else{assert!(matches!(value(book.host(),at(s,"C4")),ProjectedValue::Empty));}assert_eq!(session_calculated(&book,at(added,"B2")).unwrap().as_number(),Some(2.));
+        // Enter Manual after the automatic insertion/recalculation, then undo the same image.
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Automatic));book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(matches!(value(book.host(),at(s,"C1")),ProjectedValue::Stale(_)));assert!(book.dispatch(SkinIntent::Redo).accepted());assert!(matches!(value(book.host(),at(s,"C1")),ProjectedValue::Stale(_)));
+    }}
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_bctq__conflicting_palette_refusal_keeps_current_spills_and_history_unchanged(){
+    use calc_host::{WorkbookCommand as W,SaveFormat,SpreadsheetFormat};
+    let ordinary=calc_host::blank_package();
+    let custom=package_with_part_from(&ordinary,"xl/styles.xml",|xml|xml.replace("</styleSheet>","<colors><indexedColors><rgbColor rgb=\"FF112233\"/></indexedColors></colors></styleSheet>"));
+    for (target,source) in [(&ordinary,&custom),(&custom,&ordinary)]{
+        let mut template=session(source);let t=template.host().sheets()[0].id();assert!(enter(&mut template,at(t,"A1"),"=SEQUENCE(2)").accepted());let mut bytes=Vec::new();template.save(&SavePolicy{format:SaveFormat::Spreadsheet(SpreadsheetFormat::Xltx),..Default::default()},&mut bytes).unwrap();
+        let mut book=session(target);let s=book.host().sheets()[0].id();assert!(enter(&mut book,at(s,"C1"),"=SEQUENCE(3)+10").accepted());assert_eq!(session_calculated(&book,at(s,"C3")).unwrap().as_number(),Some(13.));
+        let before=(book.host().revision(),book.history_depth(),value(book.host(),at(s,"C1")),value(book.host(),at(s,"C3")));
+        let receipt=book.dispatch(SkinIntent::Command(W::InsertTemplate{bytes:bytes.into(),name:None,revision:before.0.get()}));assert!(!receipt.accepted());let reason=receipt.error.unwrap().to_string();assert!(reason.contains("different indexed colour palettes")&&reason.contains("dc-bctq"),"{reason}");
+        assert_eq!(book.host().sheets().len(),1);assert_eq!(book.host().sheets()[0].id(),s);assert_eq!((book.host().revision(),book.history_depth(),value(book.host(),at(s,"C1")),value(book.host(),at(s,"C3"))),before);
+        assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(matches!(value(book.host(),at(s,"C1")),ProjectedValue::Empty));assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(session_calculated(&book,at(s,"C3")).unwrap().as_number(),Some(13.));
+    }
+}
