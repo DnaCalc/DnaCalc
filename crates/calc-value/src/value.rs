@@ -455,22 +455,66 @@ pub enum CoreRef<'a> {
 
 /// A value: its worksheet-visible [`CoreValue`], and for a callable the [`CallableValue`] behind
 /// it (whose worksheet-visible core is `#CALC!`).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone)]
 pub struct CalcValue {
     core: CoreValue,
-    callable: Option<Arc<CallableValue>>,
+    metadata: Option<Arc<ValueMetadata>>,
+}
+
+// Reuse the optional metadata pointer rather than growing every operand/frame.
+// Deep scalar IF evaluations must still fit their existing one-megabyte stack.
+enum ValueMetadata {
+    Callable(CallableValue),
+    ExcelOverflow,
+}
+
+impl fmt::Debug for CalcValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut out = f.debug_struct("CalcValue");
+        out.field("core", &self.core).field("callable", &self.callable_value());
+        if self.is_excel_overflow() {
+            out.field("excel_overflow", &true);
+        }
+        out.finish()
+    }
+}
+
+impl PartialEq for CalcValue {
+    fn eq(&self, other: &Self) -> bool {
+        if self.is_excel_overflow() || other.is_excel_overflow() {
+            self.is_excel_overflow() == other.is_excel_overflow()
+                && self.as_number().map(f64::to_bits) == other.as_number().map(f64::to_bits)
+        } else {
+            self.core == other.core && self.callable_value() == other.callable_value()
+        }
+    }
 }
 
 impl CalcValue {
     pub const fn new(core: CoreValue) -> Self {
         CalcValue {
             core,
-            callable: None,
+            metadata: None,
         }
     }
 
     pub fn number(value: f64) -> Self {
         Self::new(CoreValue::Number(value))
+    }
+
+    /// The measured rounding conversion past DBL_MAX (dc-j9k.19). The exponent carries
+    /// into field 2047 while the significand remains intact. Only that conversion may
+    /// originate this qualification; copying the value preserves it. Ordinary number
+    /// construction, including an identical NaN from another kernel, never grants it.
+    pub fn excel_overflow_number(value: f64) -> Option<Self> {
+        value.is_nan().then(|| Self {
+            core: CoreValue::Number(value),
+            metadata: Some(Arc::new(ValueMetadata::ExcelOverflow)),
+        })
+    }
+
+    pub fn is_excel_overflow(&self) -> bool {
+        matches!(self.metadata.as_deref(), Some(ValueMetadata::ExcelOverflow))
     }
 
     pub fn text(value: ExcelText) -> Self {
@@ -506,7 +550,7 @@ impl CalcValue {
     pub fn callable(callable: CallableValue) -> Self {
         CalcValue {
             core: CoreValue::Error(WorksheetErrorCode::Calc),
-            callable: Some(Arc::new(callable)),
+            metadata: Some(Arc::new(ValueMetadata::Callable(callable))),
         }
     }
 
@@ -581,7 +625,10 @@ impl CalcValue {
     }
 
     pub fn callable_value(&self) -> Option<&CallableValue> {
-        self.callable.as_deref()
+        match self.metadata.as_deref() {
+            Some(ValueMetadata::Callable(callable)) => Some(callable),
+            Some(ValueMetadata::ExcelOverflow) | None => None,
+        }
     }
 }
 

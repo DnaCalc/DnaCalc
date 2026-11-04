@@ -5901,12 +5901,12 @@ fn place_value(
         SpillOutcome::Blocked { extent } => Some(*extent),
         _ => None,
     };
-    let shown = outcome.anchor_value();
+    let published = outcome.publishable_value();
     let spill = match outcome {
         SpillOutcome::Fills(spill) => Some(spill),
         SpillOutcome::Scalar(_) | SpillOutcome::Blocked { .. } => None,
     };
-    let result = match NotModeled::publishable(shown) {
+    let result = match published {
         Ok(value) => FormulaResult::Calculated { value, calculation },
         Err(refusal) => {
             return Ok(Attempt::Done(Done {

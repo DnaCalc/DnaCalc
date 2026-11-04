@@ -130,8 +130,8 @@ fn numeric(
         let result = compute(&site, &read)?;
         // Only `stored` makes a NaN here: Excel's own bit pattern for a result past DBL_MAX,
         // which the worksheet holds as a number.
-        if result.is_nan() && flush_input {
-            Ok(CalcValue::number(result))
+        if result.is_nan() && matches!(id, TRUNC | ROUND | ROUNDDOWN) {
+            Ok(CalcValue::excel_overflow_number(result).expect("the stored rounding result"))
         } else {
             site.number(result)
         }
@@ -169,6 +169,9 @@ fn abs(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
+    if arguments[0].is_excel_overflow() {
+        return Ok(arguments[0].clone());
+    }
     numeric(ABS, arguments, services, |_, n| Ok(n[0].abs()))
 }
 

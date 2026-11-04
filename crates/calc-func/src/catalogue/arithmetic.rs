@@ -154,6 +154,10 @@ fn negate(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
+    // Excel keeps the entire stored overflow encoding, including its sign bit.
+    if arguments[0].is_excel_overflow() {
+        return Ok(arguments[0].clone());
+    }
     let site = Site::new(NEGATE, services);
     Site::finish(
         site.scalar_operands(arguments)
@@ -172,6 +176,9 @@ fn unary_plus(
     let site = Site::new(UNARY_PLUS, services);
     Site::finish(site.scalar_operands(arguments).and_then(|()| {
         let operand = &arguments[0];
+        if operand.is_excel_overflow() {
+            return Ok(operand.clone());
+        }
         match operand.core_ref() {
             CoreRef::Number(n) => site.number(site.argument(0, coerce::operand(n))?),
             CoreRef::Empty | CoreRef::Missing => site.number(0.0),

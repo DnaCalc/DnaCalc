@@ -3186,6 +3186,8 @@ dependencies = [
  "calc-oracle-excel",
  "calc-platform-desktop",
  "calc-verdict",
+ "calc-xll-abi",
+ "calc-xll-host",
  "dna-strand",
  "miniz_oxide",
  "serde_json",

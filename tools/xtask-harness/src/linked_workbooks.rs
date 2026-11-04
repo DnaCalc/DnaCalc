@@ -87,6 +87,8 @@ pub(crate) fn load(
     fixture: &Path,
     options: &HostOptions,
     capture: &calc_verdict::CaptureRecord,
+    trusted: Option<&crate::trusted_code::Manifest>, capture_digest: Option<&str>,
+    owners: &mut Vec<crate::trusted_code::PreparedCode>,
 ) -> Vec<Value> {
     const MAX_WORKBOOKS: usize = 64;
     let mut records = Vec::new();
@@ -149,7 +151,15 @@ pub(crate) fn load(
                         - if source1904 { 1462.0 } else { 0.0 }
                 }));
                 let mut session = calc_host::HostSession::new(source);
-                match crate::compare::prepare_captured_vba(
+                if let Some(trusted) = trusted {
+                    match trusted.prepare(session.host(),source_path.file_name().and_then(|n|n.to_str()).unwrap_or("linked.xlsx"),capture,&hash,capture_digest,true) {
+                        Ok(code) => { code.install(&mut session); owners.push(code); }
+                        Err(error) => {
+                            records.push(json!({"referrer":path,"link":number,"source":source_path,"sha256":hash,"execution_policy":trusted.policy(&hash),"status":"external-cache: trusted code refused","key":error.key,"reason":error.message}));
+                            continue;
+                        }
+                    }
+                } else { match crate::compare::prepare_captured_vba(
                     session.host(),
                     source_path.file_name().and_then(|name| name.to_str()).unwrap_or("linked.xlsx"),
                     capture,
@@ -164,6 +174,7 @@ pub(crate) fn load(
                         records.push(json!({"referrer":path,"link":number,"source":source_path,"status":"external-cache: VBA project refused","reason":error.message}));
                         continue;
                     }
+                }
                 }
                 let source = domain
                     .insert_session(session)
