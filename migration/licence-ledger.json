@@ -4947,6 +4947,7 @@
   {"path": "crates/calc-func/tests/captures/fn4_questions/INTRATE.reading.json", "class": "own-work", "reason": "Live Excel actual/actual calendar discriminators for a fictitious versus real February29 endpoint; exact typed inputs/readbacks and full service responses retained unchanged."},
   {"path": "crates/calc-func/tests/captures/fn4_questions/RECEIVED.reading.json", "class": "own-work", "reason": "Live Excel actual/actual calendar discriminators for a fictitious versus real February29 endpoint; exact typed inputs/readbacks and full service responses retained unchanged."},
   {"path": "crates/calc-func/tests/captures/fn4_questions/PRICEDISC.reading.json", "class": "own-work", "reason": "Live Excel actual/actual calendar discriminators for a fictitious versus real February29 endpoint; exact typed inputs/readbacks and full service responses retained unchanged."},
-  {"path": "crates/calc-func/tests/captures/fn4_questions/ACCRINTM.reading.json", "class": "own-work", "reason": "Live Excel actual/actual calendar discriminators for a fictitious versus real February29 endpoint; exact typed inputs/readbacks and full service responses retained unchanged."}
+  {"path": "crates/calc-func/tests/captures/fn4_questions/ACCRINTM.reading.json", "class": "own-work", "reason": "Live Excel actual/actual calendar discriminators for a fictitious versus real February29 endpoint; exact typed inputs/readbacks and full service responses retained unchanged."},
+  {"path": "crates/calc-func/tests/captures/fn4_questions/IRR.reading.json", "class": "own-work", "reason": "Original fn7 live Excel scalar IRR observations; exact service questions, readbacks and unchanged replies retained, projected to the existing witness result codec."}
  ]
 }

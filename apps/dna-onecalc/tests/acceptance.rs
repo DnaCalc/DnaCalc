@@ -101,7 +101,7 @@ fn check_captured_questions(
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn delivered_scalar_readings_follow_the_application_route() {
-    let readings: [&[u8]; 28] = [
+    let readings: [&[u8]; 29] = [
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/LOWER.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/PROPER.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/REGEXTEST.reading.json"),
@@ -130,6 +130,7 @@ fn delivered_scalar_readings_follow_the_application_route() {
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/TBILLYIELD.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/ERF.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/SERIESSUM.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/IRR.reading.json"),
     ];
     let mut failures = Vec::new();
     let mut count = 0;
@@ -149,7 +150,9 @@ fn delivered_scalar_readings_follow_the_application_route() {
             for (index, value) in witness["args"].as_array().unwrap().iter().enumerate() {
                 let text = value.as_str().unwrap();
                 let question = &reading["service_questions"][witness_index][index];
-                let input = if question["type"].as_str() == Some("boolean") {
+                let input = if question["type"].as_str() == Some("blank") {
+                    InputValue::blank()
+                } else if question["type"].as_str() == Some("boolean") {
                     InputValue::logical(question["value"].as_bool().unwrap())
                 } else if question["type"].as_str() == Some("error") {
                     let value = calc_verdict::decode_result(text).unwrap();
@@ -183,7 +186,7 @@ fn delivered_scalar_readings_follow_the_application_route() {
             }
         }
     }
-    assert_eq!(count, 1644);
+    assert_eq!(count, 1704);
     assert!(failures.is_empty(), "{} of{count} readings differ:\n{}", failures.len(), failures.join("\n"));
 }
 

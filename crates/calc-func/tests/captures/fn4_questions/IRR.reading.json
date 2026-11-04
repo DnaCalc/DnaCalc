@@ -1,0 +1,1888 @@
+{
+  "function": "IRR",
+  "witnesses": [
+    {
+      "id": "fn7-IRR-_literal_absent",
+      "args": [
+        ""
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-IRR-_literal_error_na",
+      "args": [
+        "",
+        "error:NA"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-IRR-_literal_bad_text",
+      "args": [
+        "",
+        "x"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-IRR-_cell_absent",
+      "args": [
+        ""
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-IRR-_cell_error_na",
+      "args": [
+        "",
+        "error:NA"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-IRR-_cell_bad_text",
+      "args": [
+        "",
+        "x"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-IRR-numeric_text_literal_absent",
+      "args": [
+        "2"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-IRR-numeric_text_literal_error_na",
+      "args": [
+        "2",
+        "error:NA"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-IRR-numeric_text_literal_bad_text",
+      "args": [
+        "2",
+        "x"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-IRR-numeric_text_cell_absent",
+      "args": [
+        "2"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-IRR-numeric_text_cell_error_na",
+      "args": [
+        "2",
+        "error:NA"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-IRR-numeric_text_cell_bad_text",
+      "args": [
+        "2",
+        "x"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-IRR-bad_text_literal_absent",
+      "args": [
+        "x"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-IRR-bad_text_literal_error_na",
+      "args": [
+        "x",
+        "error:NA"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-IRR-bad_text_literal_bad_text",
+      "args": [
+        "x",
+        "x"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-IRR-bad_text_cell_absent",
+      "args": [
+        "x"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-IRR-bad_text_cell_error_na",
+      "args": [
+        "x",
+        "error:NA"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-IRR-bad_text_cell_bad_text",
+      "args": [
+        "x",
+        "x"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-IRR-negative_text_literal_absent",
+      "args": [
+        "-2"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-IRR-negative_text_literal_error_na",
+      "args": [
+        "-2",
+        "error:NA"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-IRR-negative_text_literal_bad_text",
+      "args": [
+        "-2",
+        "x"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-IRR-negative_text_cell_absent",
+      "args": [
+        "-2"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-IRR-negative_text_cell_error_na",
+      "args": [
+        "-2",
+        "error:NA"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-IRR-negative_text_cell_bad_text",
+      "args": [
+        "-2",
+        "x"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-IRR-zero_text_literal_absent",
+      "args": [
+        "0"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-IRR-zero_text_literal_error_na",
+      "args": [
+        "0",
+        "error:NA"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-IRR-zero_text_literal_bad_text",
+      "args": [
+        "0",
+        "x"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-IRR-zero_text_cell_absent",
+      "args": [
+        "0"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-IRR-zero_text_cell_error_na",
+      "args": [
+        "0",
+        "error:NA"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-IRR-zero_text_cell_bad_text",
+      "args": [
+        "0",
+        "x"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-IRR-true_literal_absent",
+      "args": [
+        "TRUE"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-IRR-true_literal_error_na",
+      "args": [
+        "TRUE",
+        "error:NA"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-IRR-true_literal_bad_text",
+      "args": [
+        "TRUE",
+        "x"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-IRR-true_cell_absent",
+      "args": [
+        "TRUE"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-IRR-true_cell_error_na",
+      "args": [
+        "TRUE",
+        "error:NA"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-IRR-true_cell_bad_text",
+      "args": [
+        "TRUE",
+        "x"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-IRR-false_literal_absent",
+      "args": [
+        "FALSE"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-IRR-false_literal_error_na",
+      "args": [
+        "FALSE",
+        "error:NA"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-IRR-false_literal_bad_text",
+      "args": [
+        "FALSE",
+        "x"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-IRR-false_cell_absent",
+      "args": [
+        "FALSE"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-IRR-false_cell_error_na",
+      "args": [
+        "FALSE",
+        "error:NA"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-IRR-false_cell_bad_text",
+      "args": [
+        "FALSE",
+        "x"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-IRR-blank_cell_absent",
+      "args": [
+        "empty"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-IRR-blank_cell_error_na",
+      "args": [
+        "empty",
+        "error:NA"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-IRR-blank_cell_bad_text",
+      "args": [
+        "empty",
+        "x"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-IRR-error_na_absent",
+      "args": [
+        "error:NA"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-IRR-error_na_error_na",
+      "args": [
+        "error:NA",
+        "error:NA"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-IRR-error_na_bad_text",
+      "args": [
+        "error:NA",
+        "x"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-IRR-error_div0_absent",
+      "args": [
+        "error:Div0"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-IRR-error_div0_error_na",
+      "args": [
+        "error:Div0",
+        "error:NA"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-IRR-error_div0_bad_text",
+      "args": [
+        "error:Div0",
+        "x"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-IRR-positive_number_absent",
+      "args": [
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-IRR-positive_number_error_na",
+      "args": [
+        "0x3ff0000000000000",
+        "error:NA"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-IRR-positive_number_bad_text",
+      "args": [
+        "0x3ff0000000000000",
+        "x"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-IRR-negative_number_absent",
+      "args": [
+        "0xbff0000000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-IRR-negative_number_error_na",
+      "args": [
+        "0xbff0000000000000",
+        "error:NA"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-IRR-negative_number_bad_text",
+      "args": [
+        "0xbff0000000000000",
+        "x"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-IRR-zero_number_absent",
+      "args": [
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-IRR-zero_number_error_na",
+      "args": [
+        "0x0000000000000000",
+        "error:NA"
+      ],
+      "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-IRR-zero_number_bad_text",
+      "args": [
+        "0x0000000000000000",
+        "x"
+      ],
+      "expected_bits": "error:Value"
+    }
+  ],
+  "service_questions": [
+    [
+      {
+        "type": "text",
+        "value": "",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "",
+        "mode": "literal"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "",
+        "mode": "literal"
+      },
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "",
+        "mode": "cell"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "",
+        "mode": "cell"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "",
+        "mode": "cell"
+      },
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "2",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "2",
+        "mode": "literal"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "2",
+        "mode": "literal"
+      },
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "2",
+        "mode": "cell"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "2",
+        "mode": "cell"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "2",
+        "mode": "cell"
+      },
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      },
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "cell"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "cell"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "cell"
+      },
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "-2",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "-2",
+        "mode": "literal"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "-2",
+        "mode": "literal"
+      },
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "-2",
+        "mode": "cell"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "-2",
+        "mode": "cell"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "-2",
+        "mode": "cell"
+      },
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "0",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "0",
+        "mode": "literal"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "0",
+        "mode": "literal"
+      },
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "0",
+        "mode": "cell"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "0",
+        "mode": "cell"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "0",
+        "mode": "cell"
+      },
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      }
+    ],
+    [
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "literal"
+      },
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "cell"
+      }
+    ],
+    [
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "cell"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      }
+    ],
+    [
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "cell"
+      },
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "boolean",
+        "value": false,
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "boolean",
+        "value": false,
+        "mode": "literal"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      }
+    ],
+    [
+      {
+        "type": "boolean",
+        "value": false,
+        "mode": "literal"
+      },
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "boolean",
+        "value": false,
+        "mode": "cell"
+      }
+    ],
+    [
+      {
+        "type": "boolean",
+        "value": false,
+        "mode": "cell"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      }
+    ],
+    [
+      {
+        "type": "boolean",
+        "value": false,
+        "mode": "cell"
+      },
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "blank"
+      }
+    ],
+    [
+      {
+        "type": "blank"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      }
+    ],
+    [
+      {
+        "type": "blank"
+      },
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "error",
+        "code": "#N/A"
+      }
+    ],
+    [
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      }
+    ],
+    [
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "error",
+        "code": "#DIV/0!"
+      }
+    ],
+    [
+      {
+        "type": "error",
+        "code": "#DIV/0!"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      }
+    ],
+    [
+      {
+        "type": "error",
+        "code": "#DIV/0!"
+      },
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "bff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "bff0000000000000"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "bff0000000000000"
+      },
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "literal"
+      }
+    ]
+  ],
+  "labels": [
+    "_literal_absent",
+    "_literal_error_na",
+    "_literal_bad_text",
+    "_cell_absent",
+    "_cell_error_na",
+    "_cell_bad_text",
+    "numeric_text_literal_absent",
+    "numeric_text_literal_error_na",
+    "numeric_text_literal_bad_text",
+    "numeric_text_cell_absent",
+    "numeric_text_cell_error_na",
+    "numeric_text_cell_bad_text",
+    "bad_text_literal_absent",
+    "bad_text_literal_error_na",
+    "bad_text_literal_bad_text",
+    "bad_text_cell_absent",
+    "bad_text_cell_error_na",
+    "bad_text_cell_bad_text",
+    "negative_text_literal_absent",
+    "negative_text_literal_error_na",
+    "negative_text_literal_bad_text",
+    "negative_text_cell_absent",
+    "negative_text_cell_error_na",
+    "negative_text_cell_bad_text",
+    "zero_text_literal_absent",
+    "zero_text_literal_error_na",
+    "zero_text_literal_bad_text",
+    "zero_text_cell_absent",
+    "zero_text_cell_error_na",
+    "zero_text_cell_bad_text",
+    "true_literal_absent",
+    "true_literal_error_na",
+    "true_literal_bad_text",
+    "true_cell_absent",
+    "true_cell_error_na",
+    "true_cell_bad_text",
+    "false_literal_absent",
+    "false_literal_error_na",
+    "false_literal_bad_text",
+    "false_cell_absent",
+    "false_cell_error_na",
+    "false_cell_bad_text",
+    "blank_cell_absent",
+    "blank_cell_error_na",
+    "blank_cell_bad_text",
+    "error_na_absent",
+    "error_na_error_na",
+    "error_na_bad_text",
+    "error_div0_absent",
+    "error_div0_error_na",
+    "error_div0_bad_text",
+    "positive_number_absent",
+    "positive_number_error_na",
+    "positive_number_bad_text",
+    "negative_number_absent",
+    "negative_number_error_na",
+    "negative_number_bad_text",
+    "zero_number_absent",
+    "zero_number_error_na",
+    "zero_number_bad_text"
+  ],
+  "response": {
+    "version": 1,
+    "id": "7c5cda1069534445a20ce9cf4bfc85e8",
+    "ok": true,
+    "rows": [
+      {
+        "type": "error",
+        "code": "#NUM!"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#NUM!"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#NUM!"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#NUM!"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#NUM!"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#NUM!"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#NUM!"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#NUM!"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#NUM!"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#NUM!"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#NUM!"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#NUM!"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#NUM!"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#NUM!"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#NUM!"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#NUM!"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#NUM!"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#NUM!"
+      },
+      {
+        "type": "error",
+        "code": "#N/A"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      }
+    ],
+    "inputs": [
+      [
+        {
+          "type": "text",
+          "value": ""
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": ""
+        },
+        {
+          "type": "error",
+          "code": "#N/A"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": ""
+        },
+        {
+          "type": "text",
+          "value": "x"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": ""
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": ""
+        },
+        {
+          "type": "error",
+          "code": "#N/A"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": ""
+        },
+        {
+          "type": "text",
+          "value": "x"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "2"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "2"
+        },
+        {
+          "type": "error",
+          "code": "#N/A"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "2"
+        },
+        {
+          "type": "text",
+          "value": "x"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "2"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "2"
+        },
+        {
+          "type": "error",
+          "code": "#N/A"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "2"
+        },
+        {
+          "type": "text",
+          "value": "x"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "x"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "x"
+        },
+        {
+          "type": "error",
+          "code": "#N/A"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "x"
+        },
+        {
+          "type": "text",
+          "value": "x"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "x"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "x"
+        },
+        {
+          "type": "error",
+          "code": "#N/A"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "x"
+        },
+        {
+          "type": "text",
+          "value": "x"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "-2"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "-2"
+        },
+        {
+          "type": "error",
+          "code": "#N/A"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "-2"
+        },
+        {
+          "type": "text",
+          "value": "x"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "-2"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "-2"
+        },
+        {
+          "type": "error",
+          "code": "#N/A"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "-2"
+        },
+        {
+          "type": "text",
+          "value": "x"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "0"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "0"
+        },
+        {
+          "type": "error",
+          "code": "#N/A"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "0"
+        },
+        {
+          "type": "text",
+          "value": "x"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "0"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "0"
+        },
+        {
+          "type": "error",
+          "code": "#N/A"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "0"
+        },
+        {
+          "type": "text",
+          "value": "x"
+        }
+      ],
+      [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ],
+      [
+        {
+          "type": "boolean",
+          "value": true
+        },
+        {
+          "type": "error",
+          "code": "#N/A"
+        }
+      ],
+      [
+        {
+          "type": "boolean",
+          "value": true
+        },
+        {
+          "type": "text",
+          "value": "x"
+        }
+      ],
+      [
+        {
+          "type": "boolean",
+          "value": true
+        }
+      ],
+      [
+        {
+          "type": "boolean",
+          "value": true
+        },
+        {
+          "type": "error",
+          "code": "#N/A"
+        }
+      ],
+      [
+        {
+          "type": "boolean",
+          "value": true
+        },
+        {
+          "type": "text",
+          "value": "x"
+        }
+      ],
+      [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ],
+      [
+        {
+          "type": "boolean",
+          "value": false
+        },
+        {
+          "type": "error",
+          "code": "#N/A"
+        }
+      ],
+      [
+        {
+          "type": "boolean",
+          "value": false
+        },
+        {
+          "type": "text",
+          "value": "x"
+        }
+      ],
+      [
+        {
+          "type": "boolean",
+          "value": false
+        }
+      ],
+      [
+        {
+          "type": "boolean",
+          "value": false
+        },
+        {
+          "type": "error",
+          "code": "#N/A"
+        }
+      ],
+      [
+        {
+          "type": "boolean",
+          "value": false
+        },
+        {
+          "type": "text",
+          "value": "x"
+        }
+      ],
+      [
+        {
+          "type": "blank"
+        }
+      ],
+      [
+        {
+          "type": "blank"
+        },
+        {
+          "type": "error",
+          "code": "#N/A"
+        }
+      ],
+      [
+        {
+          "type": "blank"
+        },
+        {
+          "type": "text",
+          "value": "x"
+        }
+      ],
+      [
+        {
+          "type": "error",
+          "code": "#N/A"
+        }
+      ],
+      [
+        {
+          "type": "error",
+          "code": "#N/A"
+        },
+        {
+          "type": "error",
+          "code": "#N/A"
+        }
+      ],
+      [
+        {
+          "type": "error",
+          "code": "#N/A"
+        },
+        {
+          "type": "text",
+          "value": "x"
+        }
+      ],
+      [
+        {
+          "type": "error",
+          "code": "#DIV/0!"
+        }
+      ],
+      [
+        {
+          "type": "error",
+          "code": "#DIV/0!"
+        },
+        {
+          "type": "error",
+          "code": "#N/A"
+        }
+      ],
+      [
+        {
+          "type": "error",
+          "code": "#DIV/0!"
+        },
+        {
+          "type": "text",
+          "value": "x"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "3ff0000000000000"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "3ff0000000000000"
+        },
+        {
+          "type": "error",
+          "code": "#N/A"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "3ff0000000000000"
+        },
+        {
+          "type": "text",
+          "value": "x"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "bff0000000000000"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "bff0000000000000"
+        },
+        {
+          "type": "error",
+          "code": "#N/A"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "bff0000000000000"
+        },
+        {
+          "type": "text",
+          "value": "x"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "0000000000000000"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "0000000000000000"
+        },
+        {
+          "type": "error",
+          "code": "#N/A"
+        }
+      ],
+      [
+        {
+          "type": "number",
+          "bits": "0000000000000000"
+        },
+        {
+          "type": "text",
+          "value": "x"
+        }
+      ]
+    ],
+    "excel_version": "16.0",
+    "excel_build": "20527",
+    "excel_file_version": "16.0.20527.20088",
+    "excel_pid": 65024,
+    "automation_security_before": 1,
+    "automation_security_after": 1,
+    "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261104T1820340868420-71a29e979da84d3b90a20c15c75ffab7\\receipt.json",
+    "session_receipt_sha256": "5c91413670e8700443a6a108b7e69e01c9b4fbd809bcf56484861c9498d0dfef",
+    "machine": "GOVERT-OMEN",
+    "timestamp": "2026-11-04T18:20:37.406328+00:00",
+    "service_seconds": 4.109000000171363,
+    "request_sha256": "531aac40cb01f3e236cc6339273536a325411b28d80ca30bcb35b7917b126582",
+    "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\7c5cda1069534445a20ce9cf4bfc85e8"
+  },
+  "source": "Unchanged fn7 scalar-admission service delivery. Only projection to the existing witness result codec is added; exact requested inputs/readbacks and full response retained."
+}

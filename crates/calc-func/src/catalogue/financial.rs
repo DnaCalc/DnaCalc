@@ -213,12 +213,27 @@ ported_family! {
         cumulative_out(s, cumulative::cumprinc_kernel(num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?, num(s, a, 3)?, num(s, a, 4)?, num(s, a, 5)?))
     }
     18 irr_fn "IRR" (1, 2) [R "values", V "guess"] |s, a, sv| {
-        let values = resolved(s, a, 0, sv)?;
+        let mut values = resolved(s, a, 0, sv)?;
+        // Fn7 scalar readings: held cells keep the collector's held-value rule,
+        // even when the range is one cell. Direct text and logicals are ignored
+        // too. Admit the guess before these scalar collections; a direct error
+        // and larger arrays retain their existing validation order.
+        let scalar = values.callable_value().is_none()
+            && (matches!(a[0].core_ref(), CoreRef::Reference(_))
+                && !matches!(values.core_ref(), CoreRef::Array(_))
+                || matches!(values.core_ref(), CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Empty));
+        let mut g = None;
+        if scalar {
+            g = guess(s, a, 1, sv)?;
+            values = CalcValue::array(CalcArray::from_scalar(values));
+        }
         let cashflows = match cash::collect_irr_values_from_eval(&values) {
             Ok(cashflows) => cashflows,
             Err(error) => return cash_err(error),
         };
-        let g = guess(s, a, 1, sv)?;
+        if !scalar {
+            g = guess(s, a, 1, sv)?;
+        }
         out(s, cash::irr_kernel(&cashflows, g))
     }
     19 xnpv_fn "XNPV" (3, 3) [V "rate", R "values", R "dates"] |s, a, sv| {
