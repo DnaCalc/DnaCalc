@@ -927,3 +927,18 @@ Capture and timing workers now preserve the existing AutomationSecurity value, a
 workers already do. The host always checks for drift without assigning that setting, including
 when restoring the recorded baseline. Raw capture records retain Formula and Formula2 separately
 beside the saved package's formula metadata.
+
+## 24. Native async result type (dc-snz.23)
+
+The existing native fixture now records the result operand's type after xlAsyncReturn.
+Separate default and numeric-sentinel conditions use the same fixture binary; marker files
+retained in each capture select the condition and a 50 ms delay. Excel 16.0.20527.20088
+returns type zero for both a zeroed operand and one initially containing numeric 13.25.
+The host now clears that type on accepted completion instead of supplying Boolean TRUE.
+Its completion value and the existing P07 admission, overwrite and late-return rules remain
+independent of that output operand. A regression exercises the exported callback route.
+
+The reference case extends the earlier entry/calculation cases with a real native getter for
+the observed output type. Earlier capture files and their strict failures remain unchanged.
+The verifier still compares every raw callback result and keeps any difference as a failure.
+This bounded result does not settle the managed RTD lifecycle traffic still open in dc-snz.23.

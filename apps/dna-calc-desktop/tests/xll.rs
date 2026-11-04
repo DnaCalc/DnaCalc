@@ -54,7 +54,23 @@ impl Drop for Fixture {
                 .to_string_lossy()
                 .starts_with(&format!("dnacalc-xll-{}-", std::process::id()))
         );
-        std::fs::remove_dir_all(resolved).unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        loop {
+            match std::fs::remove_dir_all(&resolved) {
+                Ok(()) => break,
+                Err(error)
+                    if matches!(error.raw_os_error(), Some(5 | 32 | 33))
+                        && std::time::Instant::now() < deadline =>
+                {
+                    // Retry possible brief file locks; permanent cleanup failures still fail.
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                }
+                Err(error) => panic!(
+                    "cannot remove verified fixture {}: {error}",
+                    resolved.display()
+                ),
+            }
+        }
     }
 }
 fn checked(output: Output) -> serde_json::Value {

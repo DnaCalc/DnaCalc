@@ -319,7 +319,11 @@ try {
         }
         $sheet.Range('A1').Value2 = 7
         foreach ($case in (Get-Content -LiteralPath $Cases -Raw | ConvertFrom-Json)) {
-            if ($case.PSObject.Properties['manual'] -and $case.manual) { $excel.Calculation=-4135 }
+            $requestedCalculation=if($case.PSObject.Properties['manual'] -and $case.manual){-4135}else{-4105}
+            if([int]$excel.Calculation -ne $requestedCalculation){$excel.Calculation=$requestedCalculation}
+            $actualCalculation=[int]$excel.Calculation
+            if($actualCalculation -ne $requestedCalculation){throw 'Requested calculation mode did not read back'}
+            Note ('calculation mode '+$case.formula) @{requested=$requestedCalculation;actual=$actualCalculation}
             $dependentCell=if($case.PSObject.Properties['dependent_cell']){[string]$case.dependent_cell}else{'C3'}
             if ($case.PSObject.Properties['dependent']) {
                 if ($case.PSObject.Properties['legacy'] -and $case.legacy) { $sheet.Range($dependentCell).Formula=[string]$case.dependent }

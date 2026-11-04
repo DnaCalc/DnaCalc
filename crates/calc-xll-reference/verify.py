@@ -816,7 +816,7 @@ def verify_x2(excel, excel_control, host, host_control, cases_path, publication_
                 require(len(output["async_returns"]) == case["expected_async_returns"] and all(r["disposition"] == "Accepted" for r in output["async_returns"]), "Native entry/calculation P07 completions differ")
                 require(not output["rtd_updates"], "Native async formula entry used RTD")
         x3_details["native_async_formula_entry"] = {"cases": len(entry_cases), "p07_returns_each_host_control": len(host_outputs[0]["async_returns"]), "raw_callback_result_differences": async_callback_differences,
-            "scope": "Actual owner formula-entry completion and later Manual Calculate. Excel leaves the xlAsyncReturn result operand type zero; the host supplies the documented Boolean. This raw difference stays a failed strict comparison."}
+            "scope": "Actual owner formula-entry completion and later Manual Calculate. Raw xlAsyncReturn result operands are compared; every difference remains a failed strict comparison."}
     x4_details = {}
     if x4:
         def com_calls(trace, start, end, thread, env):
