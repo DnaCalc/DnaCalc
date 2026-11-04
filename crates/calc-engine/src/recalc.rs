@@ -4036,7 +4036,7 @@ fn next_pass(work: &mut RecalcWork) -> bool {
     let change = work
         .order
         .iter()
-        .map(|node| {
+        .filter_map(|node| {
             let before = work.pass_start.get(node).and_then(Option::as_ref);
             let after = work
                 .progress
@@ -4051,13 +4051,16 @@ fn next_pass(work: &mut RecalcWork) -> bool {
                         value.as_array().is_some() || value.as_reference().is_some()
                     }))
             {
-                0.0
+                // Preserve the existing non-scalar boundary at MaxChange zero.
+                Some(0.0)
             } else {
                 change_between(before, after)
             }
         })
-        .fold(0.0f64, f64::max);
-    if work.passes >= work.iteration.max_iterations() || change < work.iteration.max_change() {
+        .reduce(f64::max);
+    if work.passes >= work.iteration.max_iterations()
+        || change.is_none_or(|change| change < work.iteration.max_change())
+    {
         work.iteration_complete = true;
         return false;
     }
@@ -4074,28 +4077,35 @@ fn next_pass(work: &mut RecalcWork) -> bool {
     true
 }
 
-/// P14's text/error outputs do not keep a sweep running. A numeric or logical
-/// output compares with the previous scalar number (zero for a text/error seed).
+/// P14's text, error and logical outputs supply no numeric stopping sample.
+/// A numeric output retains the prior number/logical baseline (zero for text/error).
+/// No samples stops even at MaxChange zero; a numeric zero change still uses the
+/// strict threshold comparison. Array and missing outcomes retain their prior rule.
 /// Other result shapes retain the conservative unequal-value rule.
-fn change_between(before: Option<&CalcValue>, after: Option<&CalcValue>) -> f64 {
-    let number = |value: &CalcValue| {
-        value.as_number().or_else(|| {
-            value
-                .as_logical()
-                .map(|value| if value { 1.0 } else { 0.0 })
-        })
-    };
-    match (before, after) {
-        (Some(_), Some(b)) if b.as_text().is_some() || b.as_error().is_some() => 0.0,
-        (Some(a), Some(b)) => match (number(a), number(b)) {
+fn change_between(before: Option<&CalcValue>, after: Option<&CalcValue>) -> Option<f64> {
+    Some(match (before, after) {
+        (_, Some(b))
+            if b.as_text().is_some() || b.as_error().is_some() || b.as_logical().is_some() =>
+        {
+            return None;
+        }
+        (Some(a), Some(b)) => match (
+            a.as_number()
+                .or_else(|| a.as_logical().map(|value| if value { 1.0 } else { 0.0 })),
+            b.as_number(),
+        ) {
             (Some(x), Some(y)) => (x - y).abs(),
-            (None, Some(y)) if a.as_text().is_some() || a.as_error().is_some() => y.abs(),
+            (None, Some(y))
+                if a.as_text().is_some() || a.as_error().is_some() =>
+            {
+                y.abs()
+            }
             _ if a == b => 0.0,
             _ => f64::INFINITY,
         },
         (None, None) => 0.0,
         _ => f64::INFINITY,
-    }
+    })
 }
 
 /// Begins the next wave: the formulas to calculate again and their dirty closure, ordered, each

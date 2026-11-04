@@ -165,6 +165,189 @@ fn session_without_recalc(bytes: &[u8]) -> HostSession {
     HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).expect("it opens")
 }
 
+fn p14_value(raw: &serde_json::Value) -> CalcValue {
+    use calc_host::value::{ExcelText, WorksheetErrorCode};
+    if let Some(bits) = raw["number"].as_str() {
+        CalcValue::number(f64::from_bits(u64::from_str_radix(bits, 16).unwrap()))
+    } else if let Some(value) = raw["logical"].as_bool() {
+        CalcValue::logical(value)
+    } else if let Some(units) = raw["text"].as_str() {
+        assert_eq!(units.len() % 4, 0);
+        CalcValue::text(ExcelText::from_utf16_code_units(
+            (0..units.len())
+                .step_by(4)
+                .map(|i| u16::from_str_radix(&units[i..i + 4], 16).unwrap())
+                .collect(),
+        ))
+    } else {
+        CalcValue::error(match raw["error_code"].as_u64().unwrap() {
+            2007 => WorksheetErrorCode::Div0,
+            2042 => WorksheetErrorCode::NA,
+            code => panic!("unhandled recorded error {code}"),
+        })
+    }
+}
+
+/// Eng10 fresh-process COM observations distinguish logical outputs from numeric
+/// stopping samples, and an all-error result from a numeric zero change. These
+/// final values do not establish general SCC execution counts or mid-cycle views.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_11__p14_nonnumeric_stopping() {
+    use calc_host::{HostProgress, WorkBudget};
+    use serde_json::Value;
+    let records = std::str::from_utf8(include_bytes!(
+        "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/stopping-observations.jsonl"
+    )).unwrap().lines().map(|line|serde_json::from_str::<Value>(line).unwrap()).collect::<Vec<_>>();
+    assert_eq!(records.len(), 15);
+    let mut comparisons = 0;
+    for record in records {
+        let result = &record["result"];
+        assert!(result["fatal"].is_null());
+        assert_eq!(result["condition"]["operation"], "Rebuild");
+        let name = record["condition"].as_str().unwrap();
+        let bytes: &[u8] = match name {
+            "E10-B6-boolean-n2-3fefffffffffffff" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-B6-boolean-n2-3fefffffffffffff.xlsx"
+            ),
+            "E10-B6-boolean-n2-3ff0000000000000" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-B6-boolean-n2-3ff0000000000000.xlsx"
+            ),
+            "E10-B6-boolean-n2-3ff0000000000001" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-B6-boolean-n2-3ff0000000000001.xlsx"
+            ),
+            "E10-B6-boolean-n2-0000000000000000" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-B6-boolean-n2-0000000000000000.xlsx"
+            ),
+            "E10-B6-error-n2-0000000000000000-peer-0" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-B6-error-n2-0000000000000000-peer-0.xlsx"
+            ),
+            "E10-B6-error-n2-0000000000000000-peer-1" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-B6-error-n2-0000000000000000-peer-1.xlsx"
+            ),
+            "E10-B6-boolean-n5-3fefffffffffffff" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-B6-boolean-n5-3fefffffffffffff.xlsx"
+            ),
+            "E10-B6-boolean-n5-3ff0000000000000" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-B6-boolean-n5-3ff0000000000000.xlsx"
+            ),
+            "E10-B6-boolean-n5-3ff0000000000001" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-B6-boolean-n5-3ff0000000000001.xlsx"
+            ),
+            "E10-B6-boolean-n5-0000000000000000" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-B6-boolean-n5-0000000000000000.xlsx"
+            ),
+            "E10-B6-error-n5-0000000000000000-peer-0" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-B6-error-n5-0000000000000000-peer-0.xlsx"
+            ),
+            "E10-B6-error-n5-0000000000000000-peer-1" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-B6-error-n5-0000000000000000-peer-1.xlsx"
+            ),
+            "E10-A2-Rebuild-eighth-0000000000000000" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-A2-Rebuild-eighth-0000000000000000.xlsx"
+            ),
+            "E10-A2-Rebuild-eighth-3fc0000000000000" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-A2-Rebuild-eighth-3fc0000000000000.xlsx"
+            ),
+            "E10-B6-error-n5-3f50624dd2f1a9fc-peer-0" => include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng10-20261104/inputs/E10-B6-error-n5-3f50624dd2f1a9fc-peer-0.xlsx"
+            ),
+            _ => panic!("missing recorded input {name}"),
+        };
+        assert_eq!(
+            calc_verdict::sha256_hex(bytes),
+            result["input_sha256"].as_str().unwrap()
+        );
+        let observations = result["observations"].as_array().unwrap();
+        let stage = |name: &str| observations.iter().find(|o| o["stage"] == name).unwrap();
+        let seeds = stage("seeds-verified")["cells"].as_array().unwrap();
+        for budget in [usize::MAX, 1] {
+            let mut book = session_without_recalc(bytes);
+            let iteration = book.host().model().definitions().iteration();
+            assert!(iteration.enabled());
+            assert_eq!(
+                u64::from(iteration.max_iterations()),
+                result["condition"]["iterations"].as_u64().unwrap()
+            );
+            assert_eq!(
+                iteration.max_change().to_bits(),
+                u64::from_str_radix(result["condition"]["change_bits"].as_str().unwrap(), 16)
+                    .unwrap()
+            );
+            assert!(
+                book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+                    .accepted()
+            );
+            book.set_calculation_budget(WorkBudget::evaluations(budget));
+            let sheet = book.host().sheets()[0].id();
+            let request = ProjectionRequest {
+                cells: seeds
+                    .iter()
+                    .map(|c| {
+                        CellKey::new(
+                            sheet,
+                            c["row"].as_u64().unwrap() as u32,
+                            c["column"].as_u64().unwrap() as u32,
+                        )
+                        .unwrap()
+                    })
+                    .collect(),
+            };
+            let initial = project(book.host(), &request).unwrap();
+            for (cell, seed) in initial.cells().iter().zip(seeds) {
+                let ProjectedValue::FileCached(cache) = cell.value() else {
+                    panic!("{name}: the seed is not calculated: {cell:?}");
+                };
+                assert_eq!(cache.value().to_value(), p14_value(&seed["value"]));
+            }
+            for command in 1..=result["condition"]["commands"].as_u64().unwrap() {
+                assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+                let before = project(book.host(), &request).unwrap();
+                let mut steps = 0;
+                while book.has_pending_calculation() {
+                    // DNA keeps iterative candidates private; Excel's intermediate
+                    // caches are a separate unanswered observation question.
+                    assert_eq!(
+                        project(book.host(), &request).unwrap().cells(),
+                        before.cells(),
+                        "{name}"
+                    );
+                    assert!(
+                        !matches!(book.advance_calculation(), HostProgress::Failed(_)),
+                        "{name}"
+                    );
+                    steps += 1;
+                    assert!(steps < 10000, "{name}");
+                }
+                let actual = project(book.host(), &request).unwrap();
+                assert!(actual.recalc_failure().is_none(), "{name}");
+                let expected = stage(&format!("after-command-{command}"))["cells"]
+                    .as_array()
+                    .unwrap();
+                assert_eq!(actual.cells().len(), expected.len());
+                for (cell, expected) in actual.cells().iter().zip(expected) {
+                    let ProjectedValue::Calculated { value, calculation } = cell.value() else {
+                        panic!("{name}: an evaluated result is required: {cell:?}");
+                    };
+                    assert!(!calculation.held_by_circular_rule());
+                    // Iterative sessions still use the existing uncertified
+                    // publication boundary. Matching final values does not
+                    // supply a SliceV1 read certificate.
+                    assert!(calculation.stamp().is_none(), "{name}");
+                    assert_eq!(
+                        value,
+                        &p14_value(&expected["value"]),
+                        "{name}, command {command}, budget {budget}, {:?}",
+                        cell.at()
+                    );
+                    comparisons += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(comparisons, 180);
+}
+
 /// Recorded first-calculation values, including held seeds and sheet/cell order, must survive
 /// a yield at any position of an iterative sweep. Reopen observations are deliberately separate:
 /// reopening and calculating again advances divergent cycles in the recorded Excel sessions.
@@ -364,7 +547,7 @@ fn dc_hsa5_11__a_spill_repair_reopens_the_iteration_decision() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_hsa5_11__p14_recorded_stopping_and_dependents() {
-    use calc_host::value::{ExcelText, GridArea, WorksheetErrorCode};
+    use calc_host::value::GridArea;
     use calc_host::{HostProgress, WorkBudget};
     use serde_json::Value;
     use std::collections::BTreeMap;
@@ -390,27 +573,6 @@ fn dc_hsa5_11__p14_recorded_stopping_and_dependents() {
     let mut commands = 0;
     let mut comparisons = 0;
     let mut refused_values = 0;
-    let decode = |raw: &Value| -> CalcValue {
-        if let Some(bits) = raw["number"].as_str() {
-            CalcValue::number(f64::from_bits(u64::from_str_radix(bits, 16).unwrap()))
-        } else if let Some(value) = raw["logical"].as_bool() {
-            CalcValue::logical(value)
-        } else if let Some(units) = raw["text"].as_str() {
-            assert_eq!(units.len() % 4, 0);
-            CalcValue::text(ExcelText::from_utf16_code_units(
-                (0..units.len())
-                    .step_by(4)
-                    .map(|i| u16::from_str_radix(&units[i..i + 4], 16).unwrap())
-                    .collect(),
-            ))
-        } else {
-            CalcValue::error(match raw["error_code"].as_u64().unwrap() {
-                2007 => WorksheetErrorCode::Div0,
-                2042 => WorksheetErrorCode::NA,
-                code => panic!("unhandled recorded error {code}"),
-            })
-        }
-    };
     for (name, trials) in groups {
         assert!(trials.len() >= 3, "{name}");
         let result = &trials[0]["result"];
@@ -567,7 +729,7 @@ fn dc_hsa5_11__p14_recorded_stopping_and_dependents() {
                 };
                 assert_eq!(
                     cache.value().to_value(),
-                    decode(&expected["value"]),
+                    p14_value(&expected["value"]),
                     "{name}"
                 );
             }
@@ -616,7 +778,7 @@ fn dc_hsa5_11__p14_recorded_stopping_and_dependents() {
                             ProjectedValue::Stale(stale) => stale.file_cache().unwrap(),
                             other => panic!("{name}: a refusal must not calculate {other:?}"),
                         };
-                        assert_eq!(cached.value().to_value(), decode(&seed["value"]));
+                        assert_eq!(cached.value().to_value(), p14_value(&seed["value"]));
                         refused_values += 1;
                     }
                     continue;
@@ -644,7 +806,7 @@ fn dc_hsa5_11__p14_recorded_stopping_and_dependents() {
                 assert_eq!(actual.cells().len(), expected.len());
                 for (cell, expected) in actual.cells().iter().zip(expected) {
                     comparisons += 1;
-                    let wanted = decode(&expected["value"]);
+                    let wanted = p14_value(&expected["value"]);
                     match cell.value() {
                         ProjectedValue::Calculated { value, calculation }
                             if value == &wanted && !calculation.held_by_circular_rule() => {}
