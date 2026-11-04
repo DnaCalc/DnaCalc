@@ -1,0 +1,271 @@
+{
+  "function": "SQRT",
+  "witnesses": [
+    {
+      "id": "fn7-SQRT-digits-1",
+      "args": [
+        "\u0661"
+      ],
+      "expected_bits": "0x3ff0000000000000"
+    },
+    {
+      "id": "fn7-SQRT-digits-2",
+      "args": [
+        "\u0661\u0662\u0663"
+      ],
+      "expected_bits": "0x40262e5acd0c3ebe"
+    },
+    {
+      "id": "fn7-SQRT-digits-3",
+      "args": [
+        "\u0661e\u0662"
+      ],
+      "expected_bits": "0x4024000000000000"
+    },
+    {
+      "id": "fn7-SQRT-digits-4",
+      "args": [
+        "\u0661.\u0662"
+      ],
+      "expected_bits": "0x3ff186f174f88472"
+    },
+    {
+      "id": "fn7-SQRT-digits-5",
+      "args": [
+        "1\u06623"
+      ],
+      "expected_bits": "0x40262e5acd0c3ebe"
+    },
+    {
+      "id": "fn7-SQRT-digits-6",
+      "args": [
+        "\u06f1\u0662\u0969\u0e54"
+      ],
+      "expected_bits": "0x4041906d51932c26"
+    },
+    {
+      "id": "fn7-SQRT-digits-7",
+      "args": [
+        "\uff11"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-SQRT-digits-8",
+      "args": [
+        "1\uff123"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-SQRT-digits-9",
+      "args": [
+        "\u0967\u0968\u0969"
+      ],
+      "expected_bits": "0x40262e5acd0c3ebe"
+    },
+    {
+      "id": "fn7-SQRT-digits-10",
+      "args": [
+        "\u0e51\u0e52\u0e53"
+      ],
+      "expected_bits": "0x40262e5acd0c3ebe"
+    }
+  ],
+  "service_request_function": "SQRT",
+  "service_questions": [
+    [
+      {
+        "type": "text",
+        "value": "\u0661",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "\u0661\u0662\u0663",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "\u0661e\u0662",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "\u0661.\u0662",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "1\u06623",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "\u06f1\u0662\u0969\u0e54",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "\uff11",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "1\uff123",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "\u0967\u0968\u0969",
+        "mode": "literal"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "\u0e51\u0e52\u0e53",
+        "mode": "literal"
+      }
+    ]
+  ],
+  "service_response": {
+    "version": 1,
+    "id": "f7fd860bc9f54b46bf53c7ba28f5dfb4",
+    "ok": true,
+    "rows": [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "40262e5acd0c3ebe"
+      },
+      {
+        "type": "number",
+        "bits": "4024000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff186f174f88472"
+      },
+      {
+        "type": "number",
+        "bits": "40262e5acd0c3ebe"
+      },
+      {
+        "type": "number",
+        "bits": "4041906d51932c26"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "error",
+        "code": "#VALUE!"
+      },
+      {
+        "type": "number",
+        "bits": "40262e5acd0c3ebe"
+      },
+      {
+        "type": "number",
+        "bits": "40262e5acd0c3ebe"
+      }
+    ],
+    "inputs": [
+      [
+        {
+          "type": "text",
+          "value": "\u0661"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "\u0661\u0662\u0663"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "\u0661e\u0662"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "\u0661.\u0662"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "1\u06623"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "\u06f1\u0662\u0969\u0e54"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "\uff11"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "1\uff123"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "\u0967\u0968\u0969"
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "value": "\u0e51\u0e52\u0e53"
+        }
+      ]
+    ],
+    "excel_version": "16.0",
+    "excel_build": "20527",
+    "excel_file_version": "16.0.20527.20088",
+    "excel_pid": 62236,
+    "automation_security_before": 1,
+    "automation_security_after": 1,
+    "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261104T1513062152402-e1ad0713a2094c1898e98035c402b9f2\\receipt.json",
+    "session_receipt_sha256": "31b8e4bb07b8a9cf494b3e9cc53902721bdeeb3554e95c748aba93c25d2832b9",
+    "machine": "GOVERT-OMEN",
+    "timestamp": "2026-11-04T15:13:08.648887+00:00",
+    "service_seconds": 3.155999999959022,
+    "request_sha256": "dc2a61ab8fa907a9798f0a522beff04d8616b5f2f7c5160ddd49674988038ca5",
+    "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\f7fd860bc9f54b46bf53c7ba28f5dfb4"
+  },
+  "retained_wrapper_sha256": "cffaca15b031f97f341431da583b3adc72c373b12a233d68960cc8e6ae9ad1df"
+}
