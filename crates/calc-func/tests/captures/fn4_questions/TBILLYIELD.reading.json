@@ -36,6 +36,69 @@
         "0x4056800000000000"
       ],
       "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-TBILLYIELD-calendar-zero-1",
+      "args": [
+        "0x0000000000000000",
+        "0x0000000000000000",
+        "0x4056800000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-TBILLYIELD-calendar-zero-2",
+      "args": [
+        "0x0000000000000000",
+        "0x3ff0000000000000",
+        "0x4056800000000000"
+      ],
+      "expected_bits": "0x4044000000000000"
+    },
+    {
+      "id": "fn7-TBILLYIELD-calendar-zero-3",
+      "args": [
+        "0x0000000000000000",
+        "0x4014000000000000",
+        "0x4056800000000000"
+      ],
+      "expected_bits": "0x4020000000000000"
+    },
+    {
+      "id": "fn7-TBILLYIELD-calendar-zero-4",
+      "args": [
+        "0x3ff0000000000000",
+        "0x0000000000000000",
+        "0x4056800000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "fn7-TBILLYIELD-calendar-zero-5",
+      "args": [
+        "0x0000000000000000",
+        "0x4076d00000000000",
+        "0x4056800000000000"
+      ],
+      "expected_bits": "0x3fbc0e070381c0e0"
+    },
+    {
+      "id": "fn7-TBILLYIELD-calendar-zero-6",
+      "args": [
+        "0x0000000000000000",
+        "0x4076e00000000000",
+        "0x4056800000000000"
+      ],
+      "expected_bits": "0x3fbbfa6784e56bb7"
+    },
+    {
+      "id": "fn7-TBILLYIELD-calendar-zero-7",
+      "args": [
+        "0x0000000000000000",
+        "0x4076f00000000000",
+        "0x4056800000000000"
+      ],
+      "expected_bits": "error:Num"
     }
   ],
   "service_questions": [
@@ -93,6 +156,104 @@
         "type": "boolean",
         "value": true,
         "mode": "literal"
+      },
+      {
+        "type": "number",
+        "bits": "4056800000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4056800000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4056800000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4014000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4056800000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4056800000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4076d00000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4056800000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4076e00000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4056800000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4076f00000000000"
       },
       {
         "type": "number",
@@ -259,10 +420,262 @@
           }
         ]
       ]
+    },
+    {
+      "cohort": "calendar-zero",
+      "response": {
+        "version": 1,
+        "id": "c42e5379e14b45dd8c11619e38ca40a7",
+        "ok": true,
+        "rows": [
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "number",
+            "bits": "4044000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4020000000000000"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          },
+          {
+            "type": "number",
+            "bits": "3fbc0e070381c0e0"
+          },
+          {
+            "type": "number",
+            "bits": "3fbbfa6784e56bb7"
+          },
+          {
+            "type": "error",
+            "code": "#NUM!"
+          }
+        ],
+        "inputs": [
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4056800000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4056800000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4056800000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4056800000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4076d00000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4056800000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4076e00000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4056800000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4076f00000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4056800000000000"
+            }
+          ]
+        ],
+        "excel_version": "16.0",
+        "excel_build": "20527",
+        "excel_file_version": "16.0.20527.20088",
+        "excel_pid": 31600,
+        "automation_security_before": 1,
+        "automation_security_after": 1,
+        "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261104T1717203826245-2d89bb44176c42809d22978299de5890\\receipt.json",
+        "session_receipt_sha256": "c9abbb17e124fe93957b3985eea51a67cb1ad9f8fa0efd1cc6d4fb30f1b68e5e",
+        "machine": "GOVERT-OMEN",
+        "timestamp": "2026-11-04T17:17:29.020979+00:00",
+        "service_seconds": 12.077999999979511,
+        "request_sha256": "6e7acbf26cfdb17a90e01dcf360ec82e6430b04aa7795dcc4da87466c4944f89",
+        "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\c42e5379e14b45dd8c11619e38ca40a7"
+      },
+      "questions": [
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4056800000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4056800000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4014000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4056800000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4056800000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4076d00000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4056800000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4076e00000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4056800000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4076f00000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4056800000000000"
+          }
+        ]
+      ]
     }
   ],
   "retained_wrapper_sha256": {
-    "live-tbillyield-later-logical-order.json": "c713379d2115a7c54e6095202ffde6a6e2b7b7bd012ccc77c2b8aa3c28cf3b1a"
+    "live-tbillyield-later-logical-order.json": "c713379d2115a7c54e6095202ffde6a6e2b7b7bd012ccc77c2b8aa3c28cf3b1a",
+    "live-tbillyield-calendar-zero.json": "8a5c0ddaebe5282b6f32e68fb62171b42ad53fbfaaddfd7a467fe0b27b5239e3"
   },
   "unselected_questions": []
 }

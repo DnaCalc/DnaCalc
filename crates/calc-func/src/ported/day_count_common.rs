@@ -139,7 +139,7 @@ fn real_days_in_year(year: i64) -> f64 {
 /// * if the dates are at most a year apart (same year, or the next year on an earlier or
 ///   equal month/day), the year length is 366 when both dates are in one leap year or a Feb 29
 ///   lies in the span (start before 1 March of a leap start year, or end on/after 1 March of a
-///   leap end year, or the end is a Feb 29), else 365, and the fraction is days / year length;
+///   leap end year, or the end is a real Feb 29), else 365, and the fraction is days / year length;
 /// * otherwise days / (days in the whole years start..=end / number of years), the year total
 ///   on the real calendar while `days` is the serial difference (so it includes Excel's
 ///   fictitious 1900-02-29).
@@ -164,7 +164,7 @@ pub fn excel_actual_actual_year(start: i64, end: i64) -> Result<(f64, f64), Work
     if within_a_year {
         let feb29_in_span = (is_leap(sy) && start < serial_of(sy, 3, 1)?)
             || (is_leap(ey) && end >= serial_of(ey, 3, 1)?)
-            || (em == 2 && ed == 29);
+            || (em == 2 && ed == 29 && is_leap(ey));
         let year_length = if (sy == ey && is_leap(sy)) || feb29_in_span {
             366.0
         } else {
