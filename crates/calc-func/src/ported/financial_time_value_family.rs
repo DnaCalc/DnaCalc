@@ -4,7 +4,8 @@
 // financial substrate to the x87 primitives (`fyl2xp1`/`f2xm1`) is tracked as
 // W108 Phase C and requires its own live-Excel re-validation.
 use crate::ported::excel_numeric::{
-    excel_expm1, excel_expm1_internal, excel_log1p, excel_pow_chain, excel_pow_x87_direct,
+    excel_expm1, excel_expm1_internal, excel_log1p, excel_log1p_atanh, excel_pow_chain,
+    excel_pow_x87_direct,
     excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_recip, excel_x87_sub, exp_portable,
 };
 use crate::ported::power_fn::power_kernel;
@@ -250,12 +251,22 @@ pub fn pmt(
     // the x87 chain (Excel's PMT `exp` is the x87 exponential `excel_exp`, matched 234/234; `expm1` is the internal
     // x87 double-rounded Kahan), and the combine is the live-Excel-pinned **quotient-first,
     // ·rate LAST** graph; the timing division stores RN53(RN64((num/em)/tf)) — NOT the former
-    // reciprocal-multiply product order. `log1p` stays correctly-rounded (proven CR via the
-    // confound-free |tau|≥1 oracle: FYL2XP1 == CR bit-for-bit on the PMT domain). These
-    // three corrections lift heldout 46%→56%, combsweep 62%→100%, po2 61%→87%, genrate
-    // 47%→73%. Residual = the expm1 |tau|<1 non-CR Kahan double-rounding (≤165/234 ceiling,
-    // a tracked Excel imprecision — see docs/function-lane/W109_G6...20260720.md).
-    let neg_log = -(periods * excel_log1p(periodic_rate));
+    // reciprocal-multiply product order.
+    //
+    // dc-j9k.12: the logarithm is not a correctly rounded log1p but the atanh series of
+    // `excel_log1p_atanh`. Holding pv varied at fixed (rate, nper) pins Excel's binary64 em in
+    // 4,720 recorded groups (fv 0, type 0, rate > 0). For each of the 1,184 rates among them
+    // one binary64 L reproduces em = expm1(-(nper * L)) through the x87 Kahan expm1 below at
+    // every nper; the series gives that L for 1,181 rates, a correctly rounded log1p for 667.
+    // The series is used where its twelve terms have converged (-1/3 <= rate <= 1/2, so
+    // |s| <= 1/5); outside that range Excel's logarithm is not yet identified and the
+    // correctly rounded one stays.
+    let log_growth = if (-1.0 / 3.0..=0.5).contains(&periodic_rate) {
+        excel_log1p_atanh(periodic_rate)
+    } else {
+        excel_log1p(periodic_rate)
+    };
+    let neg_log = -(periods * log_growth);
     let em = crate::ported::excel_numeric::excel_expm1_spilled(neg_log); // (1+r)^-n − 1  (x87 Kahan; negative for r>0)
     if em == 0.0 {
         return Err(FinancialError::Num);
@@ -284,13 +295,11 @@ pub fn pmt(
         return if result.is_finite() { Ok(result) } else { Err(FinancialError::Num) };
     }
     let numerator = present_value + future_value * inv_factor;
-    // The growth arm also stores the initial quotient from PC64. The discount
-    // arm keeps binary64 division; recorded PMT oc72460 distinguishes the store.
-    let quotient = if neg_log < 0.0 {
-        numerator / em
-    } else {
-        excel_x87_div(numerator, em)
-    };
+    // Both arms store the quotient from PC64 (dc-j9k.12). With pv varied at fixed (rate, nper),
+    // fv 0 and type 0, q = RN53(RN64(pv / em)) followed by RN53(RN64(q * rate)) admits one
+    // binary64 em in every one of 4,802 recorded groups; a binary64 quotient leaves 59 groups
+    // with no em at all.
+    let quotient = excel_x87_div(numerator, em);
     let quotient = excel_x87_div(quotient, tf);
     // The recorded discount arm stores the final product from PC64; the growth arm
     // retains the native product, which the negative-rate control distinguishes.
@@ -1823,9 +1832,11 @@ mod tests {
         // publication value -129.50457496545667 (0xc06030257a65e089). This row is
         // NOT in the live-Excel corpus (no bit-oracle), so pin the NEW core bits;
         // the ±1-ULP delta from the doc value is a tracked W108 note.
+        // dc-j9k.12: with Excel's series logarithm the calculation is 0xc06030257a65e089 again,
+        // the publication value. Still no Excel reading of this row: a local pin.
         assert_bits(
             pmt(0.05, 10.0, 1000.0, 0.0, PaymentTiming::EndOfPeriod).expect("pmt publication row"),
-            f64::from_bits(0xc06030257a65e08a),
+            f64::from_bits(0xc06030257a65e089),
         );
     }
 
