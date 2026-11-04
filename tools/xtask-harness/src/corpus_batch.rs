@@ -280,6 +280,7 @@ pub(crate) fn merge_summaries(paths: &[PathBuf], out: &Path) -> Result<(), Strin
                 .as_str()
                 .ok_or("summary has no executable identity")?
                 .to_owned(),
+            report["run"]["saved_excel_provenance_sha256"].clone(),
         );
         if let Some(held) = &identity {
             if held != &id {
@@ -386,7 +387,7 @@ pub(crate) fn merge_summaries(paths: &[PathBuf], out: &Path) -> Result<(), Strin
         }
         reports.push(json!(path));
     }
-    let (inventory, executable) = identity.ok_or("no shard summaries")?;
+    let (inventory, executable, saved_provenance) = identity.ok_or("no shard summaries")?;
     let count = shard_count.ok_or("no shard count")?;
     let missing: Vec<_> = (0..count).filter(|n| !shard_ids.contains(n)).collect();
     let cells = totals["counts"]["formula_cells"].as_u64().unwrap_or(0);
@@ -418,7 +419,7 @@ pub(crate) fn merge_summaries(paths: &[PathBuf], out: &Path) -> Result<(), Strin
     let summary = json!({"format":"dnacalc-corpus-summary","version":2,
         "rule":"pass requires a calculated value equal to live Excel; all other inventoried formulas fail; unknown inventories are explicit",
         "run":{"merged_summaries":reports,"finished_utc":crate::accept::utc_now(),"corpus_inventory_sha256":inventory,
-            "executable_sha256":executable,"shards_complete":missing.is_empty(),"missing_shards":missing},
+            "executable_sha256":executable,"saved_excel_provenance_sha256":saved_provenance,"shards_complete":missing.is_empty(),"missing_shards":missing},
         "totals":totals,"workbooks":workbooks,"root_causes":root_causes,"file_failures":file_failures});
     fs::create_dir_all(out).map_err(|e| e.to_string())?;
     fs::write(
@@ -477,6 +478,7 @@ const OUTPUTS: &[&str] = &[
     "source-caches.json",
     "summary.json",
 ];
+const SAVED_OUTPUTS: &[&str] = &["saved-excel.json", "saved-excel.record.json", "saved-excel.report.json"];
 
 pub(crate) fn completed(out: &Path, key: &Value) -> Option<Value> {
     let marker: Value = serde_json::from_slice(&fs::read(out.join("complete.json")).ok()?).ok()?;
@@ -490,6 +492,7 @@ pub(crate) fn completed(out: &Path, key: &Value) -> Option<Value> {
     if key["capture"].is_null() && !payloads.contains_key("inventory.record.json") {
         return None;
     }
+    if !key["saved_excel"].is_null() && !SAVED_OUTPUTS.iter().all(|name|payloads.contains_key(*name)) { return None; }
     for (name, hash) in payloads {
         // Completion files contain only relative file paths below this result directory.
         let path = Path::new(name);
@@ -543,6 +546,11 @@ pub(crate) fn finish(out: &Path, key: &Value) -> Result<(), String> {
     if key["capture"].is_null() {
         let digest = file_digest(&out.join("inventory.record.json")).map_err(|e| e.to_string())?;
         hashes.insert("inventory.record.json".into(), json!(digest));
+    }
+    if !key["saved_excel"].is_null() {
+        for name in SAVED_OUTPUTS {
+            hashes.insert((*name).into(),json!(file_digest(&out.join(name)).map_err(|e|format!("missing supplemental {name}: {e}"))?));
+        }
     }
     if key["minimize"] == true {
         output_hashes(out, &out.join("cases"), &mut hashes)?;
@@ -612,6 +620,12 @@ pub(crate) fn publish(attempt: &Path, out: &Path) -> Result<(), String> {
     for name in OUTPUTS {
         if !attempt.join(name).is_file() {
             return Err(format!("new comparison did not write {name}"));
+        }
+    }
+    let triage:Value = serde_json::from_slice(&fs::read(attempt.join("triage.json")).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
+    if triage["saved_excel_counts"].is_object() {
+        for name in SAVED_OUTPUTS {
+            if !attempt.join(name).is_file() { return Err(format!("new comparison did not write {name}")); }
         }
     }
     fn copy(source: &Path, destination: &Path) -> Result<(), String> {
@@ -715,6 +729,18 @@ mod tests {
             b"old valid output"
         );
         assert!(!out.join("complete.json").exists());
+    }
+    #[test]
+    fn supplemental_publication_requires_every_fresh_saved_output() {
+        let out = scratch("fresh-saved-output");
+        let attempt = out.join("attempt");
+        fs::create_dir_all(&attempt).unwrap();
+        for name in OUTPUTS { fs::write(attempt.join(name),b"new output").unwrap(); }
+        fs::write(attempt.join("triage.json"),br#"{"cells":[],"saved_excel_counts":{}}"#).unwrap();
+        for name in SAVED_OUTPUTS { fs::write(out.join(name),b"old saved output").unwrap(); }
+        fs::write(attempt.join("saved-excel.json"),b"new counts").unwrap();
+        assert!(publish(&attempt,&out).unwrap_err().contains("saved-excel.record.json"));
+        assert_eq!(fs::read(out.join("saved-excel.report.json")).unwrap(),b"old saved output");
     }
     #[test]
     fn merged_shards_keep_failures_and_reject_overlap_or_changed_code() {

@@ -75,7 +75,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::time::{Duration, Instant};
 
-pub const USAGE: &str = "usage: cargo xtask corpus [<dir>] [--recursive] [--oracle] [--out <dir>] [--cache <dir>] [--import <capture.json>]... [--no-capture] [--dna-only] [--timeout <s>] [--shard <index/count>] [--resume] [--minimize] | cargo xtask corpus --merge <summary.json>... --out <dir>";
+pub const USAGE: &str = "usage: cargo xtask corpus [<dir>] [--recursive] [--oracle] [--out <dir>] [--cache <dir>] [--import <capture.json>]... [--no-capture] [--dna-only] [--saved-excel <provenance.json>] [--timeout <s>] [--shard <index/count>] [--resume] [--minimize] | cargo xtask corpus --merge <summary.json>... --out <dir>";
 
 const EXIT_FAILED: u8 = 1;
 const EXIT_USAGE: u8 = 2;
@@ -102,6 +102,7 @@ pub(crate) struct Args {
     pub(crate) resume: bool,
     pub(crate) minimize: bool,
     pub(crate) dna_only: bool,
+    pub(crate) saved_excel: Option<PathBuf>,
     pub(crate) merges: Vec<PathBuf>,
 }
 
@@ -119,6 +120,7 @@ pub(crate) fn parse_args(args: &[String]) -> Result<Args, String> {
         resume: false,
         minimize: false,
         dna_only: false,
+        saved_excel: None,
         merges: Vec::new(),
     };
     let (mut out, mut cache, mut timeout) = (None, None, None);
@@ -142,6 +144,10 @@ pub(crate) fn parse_args(args: &[String]) -> Result<Args, String> {
             "--recursive" => parsed.recursive = true,
             "--resume" => parsed.resume = true,
             "--minimize" => parsed.minimize = true,
+            "--saved-excel" => {
+                if parsed.saved_excel.is_some() { return Err("--saved-excel is given twice".into()); }
+                parsed.saved_excel = Some(PathBuf::from(value("--saved-excel")?));
+            }
             "--dna-only" => {
                 parsed.dna_only = true;
                 parsed.no_capture = true;
@@ -622,6 +628,7 @@ struct Run<'a> {
     cache: Cache,
     build: Option<Result<String, String>>,
     program_digest: String,
+    saved_excel_digest: Option<String>,
 }
 
 impl Run<'_> {
@@ -753,6 +760,7 @@ fn compare_one(
     args: &Args,
     program_digest: &str,
     snapshot: &str,
+    saved_excel_digest: Option<&str>,
 ) -> (Result<Value, NotCompared>, f64) {
     let not = |reason: String| NotCompared {
         stage: "compare".to_owned(),
@@ -776,6 +784,10 @@ fn compare_one(
         };
         key["input_identity"] = json!(input_identity);
         key["comparison_source"] = json!(comparison_source);
+        key["saved_excel"] = json!(saved_excel_digest);
+        if args.saved_excel.as_ref().map(|path|crate::corpus_batch::file_digest(path)).transpose().map_err(|e|e.to_string())?.as_deref() != saved_excel_digest {
+            return Err("Excel-save provenance changed after corpus admission".into());
+        }
         if args.resume
             && let Some(triage) = crate::corpus_batch::completed(out, &key)
         {
@@ -813,6 +825,7 @@ fn compare_one(
         if args.minimize {
             command.arg("--minimize");
         }
+        if let Some(path) = &args.saved_excel { command.arg("--saved-excel").arg(path); }
         let result = crate::corpus_batch::bounded(&mut command, &log, args.timeout);
         let outcome = match &result {
             Ok(status) if status.success() => "completed".to_owned(),
@@ -849,6 +862,9 @@ fn compare_one(
         if triage["source"] != format!("sha256:{comparison_source}") {
             return Err("comparison source differs from the admitted inputs".into());
         }
+        if triage["saved_excel_provenance_sha256"] != key["saved_excel"] {
+            return Err("comparison used different Excel-save provenance than the admitted manifest".into());
+        }
         read_triage(&triage)?;
         crate::corpus_batch::publish(&payload, out)?;
         crate::corpus_batch::finish(out, &key)?;
@@ -870,6 +886,10 @@ fn run_corpus(args: &Args) -> u8 {
     }
     let started = Instant::now();
     let repository = repository_revision();
+    let saved_excel_digest = match args.saved_excel.as_ref().map(|path|crate::corpus_batch::file_digest(path)).transpose() {
+        Ok(digest) => digest,
+        Err(error) => { eprintln!("xtask corpus: cannot hash Excel-save provenance: {error}"); return EXIT_FAILED; }
+    };
     let cache = Cache {
         root: args.cache.clone(),
     };
@@ -945,6 +965,7 @@ fn run_corpus(args: &Args) -> u8 {
         }
     };
     let mut run = Run {
+        saved_excel_digest,
         args,
         cache,
         build: None,
@@ -1007,6 +1028,7 @@ fn run_corpus(args: &Args) -> u8 {
             "corpus_inventory_sha256": inventory["content_key"],
             "resume": args.resume,
             "dna_only_fallback": args.dna_only,
+            "saved_excel_provenance_sha256": run.saved_excel_digest,
             "comparison_timeout_s": args.timeout.as_secs(),
             "resumed_stage_times": "from the verified original comparison",
             "executable_sha256": run.program_digest,
@@ -1192,6 +1214,7 @@ fn one_workbook(run: &mut Run<'_>, program: &Path, entry: &Entry, out: &Path) ->
                 out,
                 run.args,
                 &run.program_digest,
+                run.saved_excel_digest.as_deref(),
             );
             return workbook;
         }
@@ -1291,6 +1314,7 @@ fn one_workbook(run: &mut Run<'_>, program: &Path, entry: &Entry, out: &Path) ->
         &bounded_args,
         &run.program_digest,
         &sha256,
+        run.saved_excel_digest.as_deref(),
     );
     if workbook.inventory_formula_cells.is_none() {
         workbook.inventory_formula_cells = fs::read(dir.join("inventory.record.json"))
@@ -1352,6 +1376,7 @@ fn sectioned_workbook(
     out: &Path,
     args: &Args,
     program_digest: &str,
+    saved_excel_digest: Option<&str>,
 ) {
     let file_started = Instant::now();
     let states = match section_states(case, bytes) {
@@ -1441,6 +1466,7 @@ fn sectioned_workbook(
             &bounded_args,
             program_digest,
             sha256,
+            saved_excel_digest,
         );
         compare_seconds += seconds;
         match triage.and_then(|triage| {

@@ -124,6 +124,8 @@ mod compare;
 #[cfg(not(target_arch = "wasm32"))]
 mod compare_inventory;
 #[cfg(not(target_arch = "wasm32"))]
+mod compare_saved;
+#[cfg(not(target_arch = "wasm32"))]
 mod compare_minimize;
 #[cfg(not(target_arch = "wasm32"))]
 mod compare_triage;

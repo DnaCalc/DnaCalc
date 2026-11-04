@@ -89,6 +89,8 @@ impl CauseCount {
 /// The cell counts of a compared workbook.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Counts {
+    /// A disjoint supplemental reference; these matches never enter `pass`.
+    pub(crate) saved_excel: BTreeMap<String, u64>,
     pub(crate) formula_cells: u64,
     pub(crate) pass: u64,
     pub(crate) source_cache_classes: BTreeMap<String, u64>,
@@ -115,6 +117,7 @@ impl Counts {
             "mismatched":self.mismatched,"refused":self.refused,"failed_or_missing":self.failed_or_missing,
             "failed_or_missing_by_verdict":self.failed_or_missing_by_verdict,"source_cache_classes":self.source_cache_classes,
             "pass_rate":rate_json(self.pass,self.formula_cells),
+            "saved_excel_oracle":self.saved_excel,
         })
     }
     pub(crate) fn fail(&self) -> u64 {
@@ -127,6 +130,7 @@ impl Counts {
     }
 
     pub(crate) fn add(&mut self, other: &Counts) {
+        for (key,count) in &other.saved_excel { *self.saved_excel.entry(key.clone()).or_default() += count; }
         self.formula_cells += other.formula_cells;
         self.pass += other.pass;
         for (class, count) in &other.source_cache_classes {
@@ -315,6 +319,11 @@ pub(crate) fn read_triage(triage: &Value) -> Result<Compared, String> {
 
     let mut compared = Compared::default();
     let counts = &mut compared.counts;
+    if let Some(saved) = triage["saved_excel_counts"].as_object() {
+        for (key,count) in saved {
+            counts.saved_excel.insert(key.clone(),count.as_u64().ok_or("invalid saved-Excel count")?);
+        }
+    }
     for cell in cells {
         let verdict = text(cell, "verdict")?;
         counts.formula_cells += 1;

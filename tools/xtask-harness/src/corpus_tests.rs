@@ -4,6 +4,22 @@
 use super::*;
 
 #[test]
+fn changed_saved_provenance_is_refused_before_comparison_starts() {
+    let root = scratch("changed-saved-provenance");
+    let path = root.join("case.xlsx");
+    fs::write(&path,b"fixture").unwrap();
+    let (entries,_) = crate::corpus_batch::select(folder_workbooks(&root).unwrap(),None);
+    let provenance = root.join("provenance.json");
+    fs::write(&provenance,b"admitted").unwrap();
+    let digest = crate::corpus_batch::file_digest(&provenance).unwrap();
+    let args = parse_args(&[root.to_string_lossy().into_owned(),"--dna-only".into(),"--saved-excel".into(),provenance.to_string_lossy().into_owned()]).unwrap();
+    fs::write(&provenance,b"changed").unwrap();
+    let (result,_) = compare_one(&root.join("no-executable"),&entries[0],None,&root.join("out"),&args,"binary",&calc_verdict::sha256_hex(b"fixture"),Some(&digest));
+    assert!(result.unwrap_err().reason.contains("provenance changed after corpus admission"));
+    assert!(!root.join("out/attempt-1.log").exists());
+}
+
+#[test]
 fn a_changed_batch_source_is_refused_before_a_child_is_started() {
     let root = scratch("changed-after-inventory");
     let path = root.join("case.xlsx");
@@ -11,6 +27,7 @@ fn a_changed_batch_source_is_refused_before_a_child_is_started() {
     let (entries, _) = crate::corpus_batch::select(folder_workbooks(&root).unwrap(), None);
     let args = parse_args(&[root.to_string_lossy().into_owned(), "--dna-only".into()]).unwrap();
     let mut run = Run {
+        saved_excel_digest: None,
         args: &args,
         cache: Cache {
             root: root.join("cache"),
@@ -154,6 +171,7 @@ fn arguments_have_their_defaults_and_refusals() {
     assert_eq!(
         parsed,
         Args {
+            saved_excel: None,
             dir: Some(PathBuf::from("corpus-dir")),
             oracle: false,
             out: PathBuf::from(DEFAULT_OUT),
