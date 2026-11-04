@@ -95,7 +95,7 @@ pub use result::{
 pub use spill::Spill;
 pub use state::{CalculationInputVersion, EngineState, FormulaNode, PrerequisiteError};
 pub use structural::{
-    ReferenceRewriter, move_name, move_references, relocate_formula, shift_formula,
+    ReferenceRewriter, move_name, move_references, relocate_formula, relocate_formula_losslessly, shift_formula,
 };
 
 pub use contract::{

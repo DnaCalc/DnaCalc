@@ -353,6 +353,7 @@ pub enum Intent {
     },
     Table {revision:u64,change:TableChange},
     AutoFilter { sheet:Sheet, revision:u64, table:Option<String>, change:FilterChange },
+    SortRowsWithOptions {area:Area,keys:Vec<(u32,bool)>,header:bool,revision:u64,case_sensitive:bool,custom_order:Vec<String>},
     SortRows {
         area: Area,
         keys: Vec<(u32, bool)>,

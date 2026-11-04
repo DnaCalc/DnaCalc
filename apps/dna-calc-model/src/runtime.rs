@@ -85,6 +85,8 @@ impl Default for TableTools{fn default()->Self{Self{name:"Table1".into(),rows:St
 pub struct ToolState {
     pub table:TableTools,
     pub filter: FilterTools,
+    pub sort_case_sensitive:bool,
+    pub sort_custom_order:String,
     pub sort_header: bool,
     pub sort_column: String,
     pub sort_levels: Vec<(String, bool)>,
@@ -111,6 +113,7 @@ impl Default for ToolState {
         Self {
             table:TableTools::default(),
             filter: FilterTools::default(),
+            sort_case_sensitive:false,sort_custom_order:String::new(),
             sort_header: true,
             sort_column: "1".into(),
             sort_levels: Vec::new(),
@@ -374,6 +377,7 @@ mod tool_tests {
         ToolState {
             table:TableTools::default(),
             filter: FilterTools {loaded:true, sheet:Some(wire::Sheet(0,0)), revision:7, epoch:3, values:vec![("old choice".into(),true)],..Default::default()},
+            sort_case_sensitive:true,sort_custom_order:"High\nMedium\nLow".into(),
             sort_header: false,
             sort_column: "3".into(),
             sort_levels: vec![("2".into(),true)],
@@ -434,6 +438,7 @@ mod tool_tests {
         assert!(state.found.is_none() && state.anchor.is_none() && state.areas.is_empty());
         assert!(state.permission.is_none() && state.selection_stats.is_none());
         assert!(state.message.is_empty());
+        assert_eq!((state.sort_case_sensitive,state.sort_custom_order.as_str()),(true,"High\nMedium\nLow"));
         assert_eq!((state.selected, state.found_revision), (0, 0));
         assert_eq!(
             (
