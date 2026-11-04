@@ -446,10 +446,11 @@ pub fn sort_controls(controller: Controller) -> AnyView {
     let header=controller.tool_field(|s| &s.sort_header,|s| &mut s.sort_header);
     let column=controller.tool_field(|s| &s.sort_column,|s| &mut s.sort_column);
     let levels=controller.tool_field(|s| &s.sort_levels,|s| &mut s.sort_levels);
+    let case_sensitive=controller.tool_field(|s|&s.sort_case_sensitive,|s|&mut s.sort_case_sensitive);
+    let custom=controller.tool_field(|s|&s.sort_custom_order,|s|&mut s.sort_custom_order);
     view! {
         <details class="dc-clipboard-tools" data-dnacalc="sort-tools" name="worksheet-tools">
             <summary>"Sort rows"</summary>
-            <p class="dc-note">"Select the complete rectangle. Exclude table totals and check Header only when included. Text uses case-insensitive en-ZA order; blanks stay last and equal keys keep their order."</p>
             <div class="dc-command-row">
                 <label>"Column within selection "<input data-dnacalc="sort-column" type="number" min="1" step="1" inputmode="numeric" prop:value=move ||column.get() on:input=move |ev|column.set(event_target_value(&ev))/></label>
                 <label><input data-dnacalc="sort-header" type="checkbox" prop:checked=move ||header.get() on:change=move |ev|header.set(event_target_checked(&ev))/><span>"First row is a header"</span></label>
@@ -472,7 +473,13 @@ pub fn sort_controls(controller: Controller) -> AnyView {
             }}/>
             <button data-dnacalc="sort-add-key" disabled={move ||levels.get().len()>=31}
                 on:click=move |_|levels.update(|all|{if all.len()<31 {all.push(((all.len()+2).to_string(),false));}})>"Add sort key"</button>
-            <p class="dc-muted">"Keys apply top to bottom; one Undo restores the range. Unsupported records refuse sorting before cells change."</p>
+            <details data-dnacalc="sort-options"><summary>"Case and custom order"</summary>
+            <p class="dc-note">"Select the complete rectangle. Exclude table totals and check Header only when included. By default text uses case-insensitive en-ZA order; blanks stay last and equal keys keep their order."</p>
+                <label><input data-dnacalc="sort-case-sensitive" type="checkbox" prop:checked=move ||case_sensitive.get() on:change=move |ev|case_sensitive.set(event_target_checked(&ev))/><span>"Case-sensitive ASCII labels"</span></label>
+                <p class="dc-muted">"Letters and digits, up to 52 characters. Lowercase precedes uppercase. Other text refuses this option."</p>
+                <label>"Custom order for first key"<textarea data-dnacalc="sort-custom-order" rows="4" placeholder={"High\nMedium\nLow"} prop:value=move ||custom.get() on:input=move |ev|custom.set(event_target_value(&ev))/></label>
+                <p class="dc-muted">"One entry per line; include every nonblank first-key text. Up to 32 entries, 255 characters. Use ascending; reverse the entries for the opposite order. Clear the list for ordinary sorting."</p>
+            </details>
         </details>
     }.into_any()
 }

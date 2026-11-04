@@ -244,3 +244,42 @@ pub fn shift_formula(
         transform_formula(text, at, &edit, &catalog)
     })
 }
+
+/// Relocate through the ordinary copy route only when every grid reference binds and its
+/// canonical relative spelling survives. This refuses off-grid rebases that would collapse
+/// a relative reference to a literal #REF! for subsequent conditional-format areas.
+pub fn relocate_formula_losslessly(
+    root: &ModelRoot,
+    formula: &FormulaText,
+    from: CellKey,
+    to: CellKey,
+) -> Option<FormulaText> {
+    use calc_fml::reference::{FormulaAnchor, bind_references};
+    let catalog = SnapshotCatalog::new(root);
+    let relative = |formula: &FormulaText, at: CellKey| {
+        let text = String::from_utf16(formula.text().utf16_code_units()).ok()?;
+        let tree = calc_fml::parse_formula(&format!("={text}"));
+        if !tree.diagnostics().is_empty()
+            || bind_references(
+                &tree,
+                ReferenceNotation::A1,
+                FormulaAnchor::new(at),
+                &catalog,
+            )
+            .iter()
+            .any(|site| site.binding.is_err())
+        {
+            return None;
+        }
+        convert_notation(
+            &text,
+            at,
+            ReferenceNotation::A1,
+            ReferenceNotation::R1C1,
+            &catalog,
+        )
+    };
+    let before = relative(formula, from)?;
+    let placed = relocate_formula(root, formula, from, to)?;
+    (relative(&placed, to)? == before).then_some(placed)
+}

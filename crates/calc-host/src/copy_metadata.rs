@@ -759,6 +759,7 @@ pub(crate) fn permute_rows(
             .map_err(|_| refusal("The original note boxes cannot follow this sort (dc-971p.38)"))?;
         edits.push(CellEdit::ReviewNotes { sheet, notes });
     }
+    permute_conditional_rows(host,data,rows,edits)?;
     let mut rules = Vec::new();
     let mut fragments = 0usize;
     for original in host.model().definitions().validations(sheet) {
@@ -818,6 +819,200 @@ pub(crate) fn permute_rows(
     }
     if rules != host.model().definitions().validations(sheet) {
         edits.push(CellEdit::Validations { sheet, rules });
+    }
+    Ok(())
+}
+
+/// Pointwise standard conditions can follow one row permutation. Population rules and unread
+/// records retain their sort refusal rather than changing their statistical scope.
+pub(crate) fn conditional_sort_supported(host: &HostState, sheet: calc_value::SheetId) -> bool {
+    let rules = host.model().definitions().conditional_rules(sheet);
+    if rules.len() > 1024 {
+        return false;
+    }
+    let mut priorities = std::collections::BTreeSet::new();
+    for rule in rules {
+        if rule.priority < 1
+            || !priorities.insert(rule.priority)
+            || !rule.threshold_formulas.is_empty()
+            || rule.areas.iter().any(|a| a.sheet() != sheet)
+        {
+            return false;
+        }
+        let Ok(parsed) = calc_doc::conditional_rule(rule) else {
+            return false;
+        };
+        if parsed.unread
+            || parsed.extension_id.is_some()
+            || parsed.color_scale.is_some()
+            || parsed.data_bar.is_some()
+            || parsed.icon_set.is_some()
+            || parsed.text.is_some()
+            || parsed.rank.is_some()
+            || parsed.percent
+            || parsed.bottom
+            || !parsed.above_average
+            || parsed.equal_average
+            || parsed.std_dev.is_some()
+            || parsed.time_period.is_some()
+            || parsed.dxf.is_some_and(|id| {
+                id as usize
+                    >= host
+                        .model()
+                        .definitions()
+                        .styles()
+                        .differential_formats
+                        .len()
+            })
+        {
+            return false;
+        }
+        let count = match parsed.kind.as_str() {
+            "expression" if parsed.operator.is_none() => 1,
+            "cellIs" => match parsed.operator.as_deref() {
+                Some("between" | "notBetween") => 2,
+                Some(
+                    "equal" | "notEqual" | "lessThan" | "lessThanOrEqual" | "greaterThan"
+                    | "greaterThanOrEqual",
+                ) => 1,
+                _ => return false,
+            },
+            _ => return false,
+        };
+        if rule.formulas.len() != count {
+            return false;
+        }
+        let Some(origin) = rule.origin() else {
+            return false;
+        };
+        for text in &rule.formulas {
+            let Ok(formula) = FormulaText::new(ExcelText::from_utf16_code_units(
+                text.encode_utf16().collect(),
+            )) else {
+                return false;
+            };
+            if !crate::actions::sort_formula_references_supported(host, &formula, origin)
+                || calc_engine::relocate_formula_losslessly(host.model(), &formula, origin, origin)
+                    .is_none()
+            {
+                return false;
+            }
+        }
+    }
+    true
+}
+fn permute_conditional_rows(
+    host: &HostState,
+    data: GridArea,
+    rows: &BTreeMap<u32, u32>,
+    edits: &mut Vec<CellEdit>,
+) -> Result<(), CopyRefusal> {
+    let original = host.model().definitions().conditional_rules(data.sheet());
+    if original.is_empty()
+        || !original
+            .iter()
+            .any(|r| r.areas.iter().any(|a| a.intersection(data).is_some()))
+    {
+        return Ok(());
+    }
+    if !conditional_sort_supported(host, data.sheet()) {
+        return Err(refusal(
+            "Sorting unread or statistical conditional rules is unavailable (dc-971p.38)",
+        ));
+    }
+    let mut ordered: Vec<_> = original.iter().collect();
+    ordered.sort_by_key(|r| r.priority);
+    let mut rules = Vec::new();
+    let mut fragments = 0usize;
+    for rule in ordered {
+        let origin = rule.origin().unwrap();
+        let mut outside = Vec::new();
+        for area in &rule.areas {
+            let pieces = subtract(*area, data);
+            fragments = fragments.saturating_add(pieces.len());
+            if fragments > crate::COPY_LIMIT as usize {
+                return Err(refusal(
+                    "This sort would produce too many conditional-format fragments (dc-971p.38)",
+                ));
+            }
+            outside.extend(pieces);
+        }
+        let outside = merge(outside);
+        let mut target = Vec::new();
+        if !outside.is_empty() {
+            target.push((outside, false));
+        }
+        for area in &rule.areas {
+            if let Some(intersection) = area.intersection(data) {
+                fragments = fragments.saturating_add(intersection.row_count() as usize);
+                if fragments > crate::COPY_LIMIT as usize {
+                    return Err(refusal(
+                        "This sort would produce too many conditional-format fragments (dc-971p.38)",
+                    ));
+                }
+                for source in intersection.first().row()..=intersection.last().row() {
+                    let row = *rows.get(&source).ok_or_else(|| {
+                        refusal("The sort permutation omits a conditional-format row")
+                    })?;
+                    target.push((
+                        vec![
+                            GridArea::new(
+                                CellKey::new(data.sheet(), row, intersection.first().column())
+                                    .unwrap(),
+                                CellKey::new(data.sheet(), row, intersection.last().column())
+                                    .unwrap(),
+                            )
+                            .unwrap(),
+                        ],
+                        true,
+                    ));
+                    if rules.len() + target.len() > 1024 {
+                        return Err(refusal(
+                            "This sort would exceed 1,024 conditional rules (dc-971p.38)",
+                        ));
+                    }
+                }
+            }
+        }
+        if fragments > crate::COPY_LIMIT as usize || rules.len() + target.len() > 1024 {
+            return Err(refusal(
+                "This sort would exceed the conditional-format fragment limit (dc-971p.38)",
+            ));
+        }
+        for (areas, copied) in target {
+            let mut next = rule.clone();
+            next.areas = areas;
+            let at = next.origin().unwrap();
+            rule_texts(&mut next, |text| {
+                let formula = FormulaText::new(ExcelText::from_utf16_code_units(
+                    text.encode_utf16().collect(),
+                ))
+                .map_err(|_| CopyRefusal::Unrelocatable { at: origin })?;
+                calc_engine::relocate_formula_losslessly(host.model(), &formula, origin, at)
+                    .map(|f| f.text().to_string_lossy())
+                    .ok_or_else(|| {
+                        refusal(
+                            "A conditional-format reference would be lost by sorting (dc-971p.38)",
+                        )
+                    })
+            })?;
+            if copied {
+                next = calc_doc::copied_conditional_source(&next).map_err(|_| {
+                    refusal("The conditional source cannot follow this sort (dc-971p.38)")
+                })?;
+            }
+            next.authored = true;
+            rules.push(next);
+        }
+    }
+    for (index, rule) in rules.iter_mut().enumerate() {
+        rule.priority = index as i64 + 1;
+    }
+    if rules != original {
+        edits.push(CellEdit::ConditionalRules {
+            sheet: data.sheet(),
+            rules,
+        });
     }
     Ok(())
 }
