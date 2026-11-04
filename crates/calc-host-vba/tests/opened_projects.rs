@@ -156,6 +156,83 @@ fn file_project_sources_compile_with_their_exported_attributes() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn unsupported_private_entries_refuse_only_their_calls_without_running_a_prefix() {
+    for signature in [
+        "ParamArray x() As Variant",
+        "ByRef x() As Double",
+        "ByVal x As Object",
+    ] {
+        let source = format!(
+            "Public Entries As Long\nPublic Function Good(ByVal x As Double) As Double\n Good = x + 7\nEnd Function\nPublic Function Probe() As Long\n Probe = Entries\nEnd Function\nPrivate Function Hidden({signature}) As Double\n Entries = Entries + 1\n Hidden = 23\nEnd Function\n"
+        );
+        let bytes = vba_project::replace_sources(
+            LOCAL,
+            &[
+                ("Module1", source.as_str()),
+                ("PrivateModule", "Option Private Module\n"),
+                ("Sheet1", ""),
+                ("ThisWorkbook", ""),
+            ],
+        );
+        for backend in backends() {
+            let mut session = opened(&bytes, "unsupported-private.xlsm");
+            assert!(
+                session
+                    .dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual))
+                    .accepted()
+            );
+            calc_host_vba::activate_file_project(
+                &mut session,
+                "unsupported-private.xlsm",
+                100_000,
+                Some(backend),
+            )
+            .unwrap();
+            enter(&mut session, 1, 4, "=Good(2)");
+            enter(&mut session, 2, 4, "=IFERROR(Module1.Hidden(1,2),999)");
+            enter(&mut session, 3, 4, "=Probe()");
+            full(&mut session);
+            assert_eq!(value(&session, 1, 4).as_number(), Some(9.));
+            // Demand Probe again after the unsupported invocation has completed,
+            // so a cached earlier Probe result cannot hide a procedure prefix.
+            let probe =
+                calc_host::value::CellKey::new(session.host().sheets()[0].id(), 3, 4).unwrap();
+            assert!(
+                session
+                    .dispatch(SkinIntent::CalculateRange {
+                        areas: vec![calc_host::value::GridArea::new(probe, probe).unwrap()]
+                    })
+                    .accepted()
+            );
+            drain(&mut session);
+            assert_eq!(
+                value(&session, 3, 4).as_number(),
+                Some(0.),
+                "an unsupported entry cannot execute its prefix"
+            );
+            let at = calc_host::value::CellKey::new(session.host().sheets()[0].id(), 2, 4).unwrap();
+            let page = calc_host::project(
+                session.host(),
+                &calc_host::ProjectionRequest { cells: vec![at] },
+            )
+            .unwrap();
+            let calc_host::ProjectedValue::NotModeled {
+                refusal: calc_host::NotModeled::Evaluation(fault),
+                ..
+            } = page.cells()[0].value()
+            else {
+                panic!(
+                    "a known unsupported signature cannot become a calculated #VALUE! or an IFERROR fallback: {:?}",
+                    page.cells()[0].value()
+                );
+            };
+            assert!(format!("{fault:?}").contains("dc-snz.15"), "{fault:?}");
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn file_project_events_share_state_and_reopen_starts_a_new_session() {
     let bytes = vba_project::replace_sources(
         LOCAL,

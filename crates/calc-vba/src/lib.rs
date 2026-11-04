@@ -68,6 +68,10 @@ fn load_module_selected(
 
 fn prepare_project(module: Module, max_steps: u64, backend: Option<Backend>) -> Result<events::LoadedProject, String> {
     let metadata = module.functions().cloned().collect::<Vec<_>>();
+    let refusals = module
+        .worksheet_refusals()
+        .map(|(name, qualified, reason)| (name.to_owned(), qualified.to_owned(), reason))
+        .collect::<Vec<_>>();
     let session = if let Some(backend) = backend {
         prepare_module(module, backend).map_err(|e| e.to_string())?
     } else {
@@ -102,7 +106,47 @@ fn prepare_project(module: Module, max_steps: u64, backend: Option<Backend>) -> 
         functions.register(&metadata.name, function.clone())?;
         functions.register(&metadata.qualified_name, function)?;
     }
+    for (name, qualified, reason) in refusals {
+        let function = Rc::new(RefusedVbaFunction {
+            session: session.clone(),
+            name: qualified.clone(),
+            reason,
+        });
+        functions.register(&name, function.clone())?;
+        functions.register(&qualified, function)?;
+    }
     Ok(events::LoadedProject { session, functions })
+}
+
+struct RefusedVbaFunction {
+    session: Rc<OwnedSession>,
+    name: String,
+    reason: &'static str,
+}
+impl fmt::Debug for RefusedVbaFunction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RefusedVbaFunction")
+            .field("name", &self.name)
+            .field("reason", &self.reason)
+            .finish()
+    }
+}
+impl UserFunction for RefusedVbaFunction {
+    fn state_lane(&self) -> Option<u64> {
+        Some(Rc::as_ptr(&self.session) as usize as u64)
+    }
+    fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+        Err(format!("{}: {} (dc-snz.15)", self.name, self.reason))
+    }
+    fn call_with_context(
+        &self,
+        _: &[CalcValue],
+        context: &mut dyn UserFunctionContext,
+    ) -> Result<CalcValue, String> {
+        // A plain Err would become calculated #VALUE! and could be hidden by
+        // IFERROR. The existing context refusal retains the owning work package.
+        Err(context.refuse_by(self.reason, "dc-snz.15"))
+    }
 }
 
 struct VbaFunction {
