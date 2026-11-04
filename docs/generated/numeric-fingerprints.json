@@ -11,10 +11,10 @@
       "service-refused": 2
     }
   },
-  "generator_sha256": "551149f2fb8d9bbdf73166da584042945d71b9525f8d9707bd4fd582dff3a554",
+  "generator_sha256": "a263a4abad93695314b7e04b3a85e2d68ad9072b3109da684f2bed1f1f884418",
   "problem_list_sha256": "c3028b7f7dc386259222ce4a9b17bfc03c5c9cae885a126896c4c478a17e090b",
   "source_bindings": {
-    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/racer/fingerprint.py": "551149f2fb8d9bbdf73166da584042945d71b9525f8d9707bd4fd582dff3a554",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/racer/fingerprint.py": "a263a4abad93695314b7e04b3a85e2d68ad9072b3109da684f2bed1f1f884418",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/checker/reference.py": "b34fb31455348e7cf56a58f6fdafd8d9fc7f20afc5d2b85b7a409fac7aee4bdd",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/checker/exact.py": "842363e00ad65c464623594822d566a2af9a0415e0b574557613092c993af80f",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/docs/generated/problem-functions.json": "c3028b7f7dc386259222ce4a9b17bfc03c5c9cae885a126896c4c478a17e090b",
@@ -22,8 +22,9 @@
     "/home/ubuntu/projects/DnaCalc/DnaCalc/tools/excel-service/policy.py": "7b4605191b314e1e655dc155d90ae70e6459fe945eda22973a29993c55ca1ae4"
   },
   "auxiliary_bindings": {
-    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round26/edges.json": "cf0fcd43de4d178604464c84d9c1fbaa61b0d196eff0ba2ae0ab8041ad3a1ddb",
-    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round26/bessel-bands.json": "a2459b428bb70b5150445081122e955ba6eb912dd03b948062e54db5bbd0dcb8"
+    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round26/edges.json": "7208465272ba89629ed056488a60015deac87f728e661f9f4c25c7df3864050d",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round26/bessel-bands.json": "793728ead196adaba5d8bd0ec38e6f6e0621a73355e1f6d71b51df5dcc82f830",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round26/log-consumers.json": "b82f7bea2c37a662e9127ba50ed8359f9e484ecf62bff17b287e6840eb3431ad"
   },
   "refused_requests": [
     {
@@ -17064,7 +17065,7 @@
     {
       "function": "LOG",
       "problem_list_member": false,
-      "rounding": "ideal single/double leaf rejected on this window",
+      "rounding": "double division in the public-LN quotient model; ideal leaf rejected",
       "stored_stages": null,
       "band_edges": [],
       "windows": [
@@ -17295,7 +17296,700 @@
         ],
         "limitation": "Ideal real-function publication only. Agreement does not identify the inner algorithm or its stores; any neither result refutes this complete leaf model."
       },
-      "observed_approximation_boundaries": []
+      "observed_approximation_boundaries": [],
+      "conditional_consumer_study": {
+        "format": "dnacalc-log-change-of-base-consumers/1",
+        "complete": true,
+        "records": [
+          {
+            "base": "4024000000000000",
+            "denominator": {
+              "type": "number",
+              "bits": "40026bb1bbb55516"
+            },
+            "profiles": [
+              {
+                "shape": "divide",
+                "model": "binary64",
+                "counts": {
+                  "matched": 8191,
+                  "mismatched": 1
+                },
+                "first_contradiction": {
+                  "input": "3ff4cccccccccd97",
+                  "excel": {
+                    "type": "number",
+                    "bits": "3fbd2b643bc1292c"
+                  },
+                  "candidate": "3fbd2b643bc1292b"
+                },
+                "consistent": false
+              },
+              {
+                "shape": "divide",
+                "model": "stored_pc64",
+                "counts": {
+                  "matched": 8192
+                },
+                "first_contradiction": null,
+                "consistent": true
+              },
+              {
+                "shape": "divide",
+                "model": "resident_pc64",
+                "counts": {
+                  "matched": 8192
+                },
+                "first_contradiction": null,
+                "consistent": true
+              },
+              {
+                "shape": "reciprocal_then_multiply",
+                "model": "binary64",
+                "counts": {
+                  "matched": 4384,
+                  "mismatched": 3808
+                },
+                "first_contradiction": {
+                  "input": "3ff4ccccccccc4d0",
+                  "excel": {
+                    "type": "number",
+                    "bits": "3fbd2b643bc0fa41"
+                  },
+                  "candidate": "3fbd2b643bc0fa40"
+                },
+                "consistent": false
+              },
+              {
+                "shape": "reciprocal_then_multiply",
+                "model": "stored_pc64",
+                "counts": {
+                  "matched": 4384,
+                  "mismatched": 3808
+                },
+                "first_contradiction": {
+                  "input": "3ff4ccccccccc4d0",
+                  "excel": {
+                    "type": "number",
+                    "bits": "3fbd2b643bc0fa41"
+                  },
+                  "candidate": "3fbd2b643bc0fa40"
+                },
+                "consistent": false
+              },
+              {
+                "shape": "reciprocal_then_multiply",
+                "model": "resident_pc64",
+                "counts": {
+                  "matched": 8190,
+                  "mismatched": 2
+                },
+                "first_contradiction": {
+                  "input": "3ff4ccccccccd2f6",
+                  "excel": {
+                    "type": "number",
+                    "bits": "3fbd2b643bc145e1"
+                  },
+                  "candidate": "3fbd2b643bc145e2"
+                },
+                "consistent": false
+              }
+            ],
+            "division_rounding": {
+              "indistinguishable": 8191,
+              "double_only": 1
+            },
+            "log10_alias": {
+              "shape": "public LOG10(x)",
+              "counts": {
+                "mismatched": 5671,
+                "matched": 2521
+              }
+            },
+            "ideal_leaf": {
+              "label": "ideal single/double leaf rejected on this window",
+              "counts": {
+                "neither": 5668,
+                "indistinguishable_match": 2522,
+                "double_only": 1,
+                "single_only": 1
+              },
+              "discriminants": [
+                {
+                  "arguments": [
+                    {
+                      "type": "number",
+                      "bits": "3ff4cccccccccfdb"
+                    },
+                    {
+                      "type": "number",
+                      "bits": "4024000000000000"
+                    }
+                  ],
+                  "answer": {
+                    "type": "number",
+                    "bits": "3fbd2b643bc13548"
+                  },
+                  "single": "3fbd2b643bc13549",
+                  "double": "3fbd2b643bc13548"
+                },
+                {
+                  "arguments": [
+                    {
+                      "type": "number",
+                      "bits": "3ff9ffffffffffc2"
+                    },
+                    {
+                      "type": "number",
+                      "bits": "4024000000000000"
+                    }
+                  ],
+                  "answer": {
+                    "type": "number",
+                    "bits": "3fcafd3e3a23b5fb"
+                  },
+                  "single": "3fcafd3e3a23b5fb",
+                  "double": "3fcafd3e3a23b5fc"
+                },
+                {
+                  "arguments": [
+                    {
+                      "type": "number",
+                      "bits": "3ffa0000000007cb"
+                    },
+                    {
+                      "type": "number",
+                      "bits": "4024000000000000"
+                    }
+                  ],
+                  "answer": {
+                    "type": "number",
+                    "bits": "3fcafd3e3a23c728"
+                  },
+                  "single": "3fcafd3e3a23c729",
+                  "double": "3fcafd3e3a23c72a"
+                }
+              ],
+              "limitation": "Ideal real-function publication only. Agreement does not identify the inner algorithm or its stores; any neither result refutes this complete leaf model."
+            }
+          },
+          {
+            "base": "4000000000000000",
+            "denominator": {
+              "type": "number",
+              "bits": "3fe62e42fefa39ef"
+            },
+            "profiles": [
+              {
+                "shape": "divide",
+                "model": "binary64",
+                "counts": {
+                  "matched": 8188,
+                  "mismatched": 4
+                },
+                "first_contradiction": {
+                  "input": "3ff4ccccccccc807",
+                  "excel": {
+                    "type": "number",
+                    "bits": "3fd83988d0c1e0dc"
+                  },
+                  "candidate": "3fd83988d0c1e0dd"
+                },
+                "consistent": false
+              },
+              {
+                "shape": "divide",
+                "model": "stored_pc64",
+                "counts": {
+                  "matched": 8192
+                },
+                "first_contradiction": null,
+                "consistent": true
+              },
+              {
+                "shape": "divide",
+                "model": "resident_pc64",
+                "counts": {
+                  "matched": 8192
+                },
+                "first_contradiction": null,
+                "consistent": true
+              },
+              {
+                "shape": "reciprocal_then_multiply",
+                "model": "binary64",
+                "counts": {
+                  "mismatched": 2557,
+                  "matched": 5635
+                },
+                "first_contradiction": {
+                  "input": "3ff4ccccccccc4cd",
+                  "excel": {
+                    "type": "number",
+                    "bits": "3fd83988d0c1d28b"
+                  },
+                  "candidate": "3fd83988d0c1d28a"
+                },
+                "consistent": false
+              },
+              {
+                "shape": "reciprocal_then_multiply",
+                "model": "stored_pc64",
+                "counts": {
+                  "mismatched": 2556,
+                  "matched": 5636
+                },
+                "first_contradiction": {
+                  "input": "3ff4ccccccccc4cd",
+                  "excel": {
+                    "type": "number",
+                    "bits": "3fd83988d0c1d28b"
+                  },
+                  "candidate": "3fd83988d0c1d28a"
+                },
+                "consistent": false
+              },
+              {
+                "shape": "reciprocal_then_multiply",
+                "model": "resident_pc64",
+                "counts": {
+                  "matched": 8191,
+                  "mismatched": 1
+                },
+                "first_contradiction": {
+                  "input": "3ffa00000000006a",
+                  "excel": {
+                    "type": "number",
+                    "bits": "3fe66a008e478988"
+                  },
+                  "candidate": "3fe66a008e478989"
+                },
+                "consistent": false
+              }
+            ],
+            "division_rounding": {
+              "indistinguishable": 8188,
+              "double_only": 4
+            },
+            "log10_alias": null,
+            "ideal_leaf": {
+              "label": "ideal single/double leaf rejected on this window",
+              "counts": {
+                "neither": 2560,
+                "indistinguishable_match": 5629,
+                "single_only": 1,
+                "double_only": 2
+              },
+              "discriminants": [
+                {
+                  "arguments": [
+                    {
+                      "type": "number",
+                      "bits": "3ff4cccccccccf9f"
+                    },
+                    {
+                      "type": "number",
+                      "bits": "4000000000000000"
+                    }
+                  ],
+                  "answer": {
+                    "type": "number",
+                    "bits": "3fd83988d0c20293"
+                  },
+                  "single": "3fd83988d0c20293",
+                  "double": "3fd83988d0c20292"
+                },
+                {
+                  "arguments": [
+                    {
+                      "type": "number",
+                      "bits": "3ff9fffffffff9e5"
+                    },
+                    {
+                      "type": "number",
+                      "bits": "4000000000000000"
+                    }
+                  ],
+                  "answer": {
+                    "type": "number",
+                    "bits": "3fe66a008e477df4"
+                  },
+                  "single": "3fe66a008e477df5",
+                  "double": "3fe66a008e477df4"
+                },
+                {
+                  "arguments": [
+                    {
+                      "type": "number",
+                      "bits": "3ffa00000000018e"
+                    },
+                    {
+                      "type": "number",
+                      "bits": "4000000000000000"
+                    }
+                  ],
+                  "answer": {
+                    "type": "number",
+                    "bits": "3fe66a008e478b8e"
+                  },
+                  "single": "3fe66a008e478b8f",
+                  "double": "3fe66a008e478b8e"
+                }
+              ],
+              "limitation": "Ideal real-function publication only. Agreement does not identify the inner algorithm or its stores; any neither result refutes this complete leaf model."
+            }
+          },
+          {
+            "base": "4008000000000000",
+            "denominator": {
+              "type": "number",
+              "bits": "3ff193ea7aad030b"
+            },
+            "profiles": [
+              {
+                "shape": "divide",
+                "model": "binary64",
+                "counts": {
+                  "matched": 8189,
+                  "mismatched": 3
+                },
+                "first_contradiction": {
+                  "input": "3ff4ccccccccc87a",
+                  "excel": {
+                    "type": "number",
+                    "bits": "3fce91771670c21e"
+                  },
+                  "candidate": "3fce91771670c21f"
+                },
+                "consistent": false
+              },
+              {
+                "shape": "divide",
+                "model": "stored_pc64",
+                "counts": {
+                  "matched": 8192
+                },
+                "first_contradiction": null,
+                "consistent": true
+              },
+              {
+                "shape": "divide",
+                "model": "resident_pc64",
+                "counts": {
+                  "matched": 8192
+                },
+                "first_contradiction": null,
+                "consistent": true
+              },
+              {
+                "shape": "reciprocal_then_multiply",
+                "model": "binary64",
+                "counts": {
+                  "matched": 8069,
+                  "mismatched": 123
+                },
+                "first_contradiction": {
+                  "input": "3ff4ccccccccc51e",
+                  "excel": {
+                    "type": "number",
+                    "bits": "3fce91771670af4e"
+                  },
+                  "candidate": "3fce91771670af4d"
+                },
+                "consistent": false
+              },
+              {
+                "shape": "reciprocal_then_multiply",
+                "model": "stored_pc64",
+                "counts": {
+                  "matched": 8070,
+                  "mismatched": 122
+                },
+                "first_contradiction": {
+                  "input": "3ff4ccccccccc51e",
+                  "excel": {
+                    "type": "number",
+                    "bits": "3fce91771670af4e"
+                  },
+                  "candidate": "3fce91771670af4d"
+                },
+                "consistent": false
+              },
+              {
+                "shape": "reciprocal_then_multiply",
+                "model": "resident_pc64",
+                "counts": {
+                  "matched": 8191,
+                  "mismatched": 1
+                },
+                "first_contradiction": {
+                  "input": "3ffa0000000001ad",
+                  "excel": {
+                    "type": "number",
+                    "bits": "3fdc488d76a2ef8a"
+                  },
+                  "candidate": "3fdc488d76a2ef89"
+                },
+                "consistent": false
+              }
+            ],
+            "division_rounding": {
+              "indistinguishable": 8189,
+              "double_only": 3
+            },
+            "log10_alias": null,
+            "ideal_leaf": {
+              "label": "ideal single/double leaf rejected on this window",
+              "counts": {
+                "neither": 5324,
+                "indistinguishable_match": 2865,
+                "double_only": 2,
+                "single_only": 1
+              },
+              "discriminants": [
+                {
+                  "arguments": [
+                    {
+                      "type": "number",
+                      "bits": "3ff4ccccccccc614"
+                    },
+                    {
+                      "type": "number",
+                      "bits": "4008000000000000"
+                    }
+                  ],
+                  "answer": {
+                    "type": "number",
+                    "bits": "3fce91771670b4b0"
+                  },
+                  "single": "3fce91771670b4b1",
+                  "double": "3fce91771670b4b0"
+                },
+                {
+                  "arguments": [
+                    {
+                      "type": "number",
+                      "bits": "3ff4cccccccccd82"
+                    },
+                    {
+                      "type": "number",
+                      "bits": "4008000000000000"
+                    }
+                  ],
+                  "answer": {
+                    "type": "number",
+                    "bits": "3fce91771670de4d"
+                  },
+                  "single": "3fce91771670de4f",
+                  "double": "3fce91771670de4e"
+                },
+                {
+                  "arguments": [
+                    {
+                      "type": "number",
+                      "bits": "3ffa00000000020b"
+                    },
+                    {
+                      "type": "number",
+                      "bits": "4008000000000000"
+                    }
+                  ],
+                  "answer": {
+                    "type": "number",
+                    "bits": "3fdc488d76a2f05c"
+                  },
+                  "single": "3fdc488d76a2f05d",
+                  "double": "3fdc488d76a2f05c"
+                },
+                {
+                  "arguments": [
+                    {
+                      "type": "number",
+                      "bits": "3ffa00000000046e"
+                    },
+                    {
+                      "type": "number",
+                      "bits": "4008000000000000"
+                    }
+                  ],
+                  "answer": {
+                    "type": "number",
+                    "bits": "3fdc488d76a2f5b5"
+                  },
+                  "single": "3fdc488d76a2f5b5",
+                  "double": "3fdc488d76a2f5b6"
+                }
+              ],
+              "limitation": "Ideal real-function publication only. Agreement does not identify the inner algorithm or its stores; any neither result refutes this complete leaf model."
+            }
+          },
+          {
+            "base": "4005bf0a8b145769",
+            "denominator": {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            "profiles": [
+              {
+                "shape": "divide",
+                "model": "binary64",
+                "counts": {
+                  "matched": 8192
+                },
+                "first_contradiction": null,
+                "consistent": true
+              },
+              {
+                "shape": "divide",
+                "model": "stored_pc64",
+                "counts": {
+                  "matched": 8192
+                },
+                "first_contradiction": null,
+                "consistent": true
+              },
+              {
+                "shape": "divide",
+                "model": "resident_pc64",
+                "counts": {
+                  "matched": 8192
+                },
+                "first_contradiction": null,
+                "consistent": true
+              },
+              {
+                "shape": "reciprocal_then_multiply",
+                "model": "binary64",
+                "counts": {
+                  "matched": 8192
+                },
+                "first_contradiction": null,
+                "consistent": true
+              },
+              {
+                "shape": "reciprocal_then_multiply",
+                "model": "stored_pc64",
+                "counts": {
+                  "matched": 8192
+                },
+                "first_contradiction": null,
+                "consistent": true
+              },
+              {
+                "shape": "reciprocal_then_multiply",
+                "model": "resident_pc64",
+                "counts": {
+                  "matched": 8192
+                },
+                "first_contradiction": null,
+                "consistent": true
+              }
+            ],
+            "division_rounding": {
+              "indistinguishable": 8192
+            },
+            "log10_alias": null,
+            "ideal_leaf": {
+              "label": "ideal single/double leaf rejected on this window",
+              "counts": {
+                "indistinguishable_match": 5041,
+                "neither": 3151
+              },
+              "discriminants": [],
+              "limitation": "Ideal real-function publication only. Agreement does not identify the inner algorithm or its stores; any neither result refutes this complete leaf model."
+            }
+          }
+        ],
+        "receipts": [
+          {
+            "function": "LN",
+            "file": "38a7aa26fc7e4eacc181a821b0a437112186924e3addc555c17102f007e7a0c6.json.gz",
+            "sha256": "070ef8e2791c86bce1cd6d1a799ed4aa525069c2c9e4294bee3ec57e9132cb6f",
+            "calls": 8192,
+            "excel_build": "20527",
+            "machine": "GOVERT-OMEN",
+            "timestamp": "2026-11-04T19:36:21.205849+00:00",
+            "request_sha256": "6ab756b0d64259ec00c37230ee19b0c915a6a4cfae94b60993faf3ffc37eee95"
+          },
+          {
+            "function": "LN",
+            "file": "12c47d886945419ee1fbbbf05e05fdf80f208b0c598e295030199b17b828796b.json.gz",
+            "sha256": "f132e86d6b0b0ad5732f1265823ae107be1a24f71f7b2a1ba64380e422a889b6",
+            "calls": 4,
+            "excel_build": "20527",
+            "machine": "GOVERT-OMEN",
+            "timestamp": "2026-11-04T21:04:14.296205+00:00",
+            "request_sha256": "6922958e7f083e912d75563501f85bc1498846f9ea9f7a86bfcd30f7fa21c1a1"
+          },
+          {
+            "function": "LOG",
+            "file": "484fd8f408dc4aa196b3949ed94a2b8a25eae65246026f1fe5dd62cd267893a0.json.gz",
+            "sha256": "3d24d129d3ab09e90595a96a1884c3366af95a6a288aa9392f96be408bb524c6",
+            "calls": 8192,
+            "excel_build": "20527",
+            "machine": "GOVERT-OMEN",
+            "timestamp": "2026-11-04T19:36:49.410434+00:00",
+            "request_sha256": "ddf2b0f35e43eabadaa6b1e64b7d581ab436c26d789e89043e2e09f3dba3dfc3"
+          },
+          {
+            "function": "LOG10",
+            "file": "727fb6010e9e873f2074a27a44fb73c04c6a7789ab24fc427286d2c01cea1a22.json.gz",
+            "sha256": "8a69380d3dd2d15dd17ee581ef301714ea369bd922c360979154ae035cf65571",
+            "calls": 8192,
+            "excel_build": "20527",
+            "machine": "GOVERT-OMEN",
+            "timestamp": "2026-11-04T19:37:32.745164+00:00",
+            "request_sha256": "6370dc1d72f4b7ee3299a4b40e9147aa223800008fc1e2460322fd51a5e1eccb"
+          },
+          {
+            "function": "LOG",
+            "file": "ea1227d93ae26694cac1aa762b817a848b675a2e0f0bfa21daa6a8c853e9dede.json.gz",
+            "sha256": "a6fdbd0609a4d305f37ec33bcf9db83b81a75b75b39fa0fb8399b312724e2d4d",
+            "calls": 8192,
+            "excel_build": "20527",
+            "machine": "GOVERT-OMEN",
+            "timestamp": "2026-11-04T21:05:16.273488+00:00",
+            "request_sha256": "50d7b6470f2934fd5e6271f44def90fd4f6f6a5da310c191681d8fe64822041c"
+          },
+          {
+            "function": "LOG",
+            "file": "32952debfa129317f0351f71413b47991917aca800eec47ba265b0c0ce2d5227.json.gz",
+            "sha256": "7261dd431efc40039868a1e778c147b9e11fec7b9234355fbd0fc5c36f111249",
+            "calls": 8192,
+            "excel_build": "20527",
+            "machine": "GOVERT-OMEN",
+            "timestamp": "2026-11-04T21:06:10.318083+00:00",
+            "request_sha256": "c3ddedb3c85902f9f29d39729c4f6349ac76d4fba886a6a16e9687561f4e838c"
+          },
+          {
+            "function": "LOG",
+            "file": "748132f3f155538c9bcb9a61e2ad227ac8b61fef6167e3168474bb0f2414bf15.json.gz",
+            "sha256": "da83457c795fba0aaf9d1be16887bd6efa77c423b8d2d22eb35e53b32e06b1c7",
+            "calls": 8192,
+            "excel_build": "20527",
+            "machine": "GOVERT-OMEN",
+            "timestamp": "2026-11-04T21:06:44.540986+00:00",
+            "request_sha256": "6fd3cd2f94c76ff2df5f6c32eff4dcd4d0c1f1266f5a8fe06aefc7385e46676d"
+          }
+        ],
+        "centers": [
+          1.3,
+          1.625
+        ],
+        "consecutive_inputs_per_center": 4096,
+        "limitations": "Public LN outputs are measured binary64 leaves. Agreement identifies only the stated consumer on these windows and bases; private extended leaves and general store counts remain open. Equivalent arithmetic labels are not independent rounding evidence. No coefficient, threshold or selector is fit, and no candidate ranked by matches.",
+        "producer_bindings": {
+          "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/racer/fingerprint.py": "a263a4abad93695314b7e04b3a85e2d68ad9072b3109da684f2bed1f1f884418",
+          "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/checker/reference.py": "b34fb31455348e7cf56a58f6fdafd8d9fc7f20afc5d2b85b7a409fac7aee4bdd",
+          "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/checker/exact.py": "842363e00ad65c464623594822d566a2af9a0415e0b574557613092c993af80f"
+        },
+        "analysis_model": "gpt-6.1-sol (session launcher)",
+        "sources": "Tier1 original Excel scalar outputs and IEEE754; original MIT arithmetic/DFT and installed MPFR interface. No tier3/4 implementation source read."
+      },
+      "consumer_division_rounding": {
+        "indistinguishable": 32760,
+        "double_only": 8
+      }
     },
     {
       "function": "LOG10",
@@ -17519,7 +18213,7 @@
     }
   ],
   "producer_bindings": {
-    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/racer/fingerprint.py": "551149f2fb8d9bbdf73166da584042945d71b9525f8d9707bd4fd582dff3a554",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/racer/fingerprint.py": "a263a4abad93695314b7e04b3a85e2d68ad9072b3109da684f2bed1f1f884418",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/checker/reference.py": "b34fb31455348e7cf56a58f6fdafd8d9fc7f20afc5d2b85b7a409fac7aee4bdd",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/checker/exact.py": "842363e00ad65c464623594822d566a2af9a0415e0b574557613092c993af80f"
   },
