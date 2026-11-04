@@ -1,0 +1,282 @@
+{
+  "function": "DISC",
+  "witnesses": [
+    {
+      "id": "fn7-DISC-fictitious-leap-day-1",
+      "args": [
+        "0x404d800000000000",
+        "0x404e000000000000",
+        "0x4058c00000000000",
+        "0x4059000000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x400d33333333333a"
+    },
+    {
+      "id": "fn7-DISC-fictitious-leap-day-2",
+      "args": [
+        "0x4097c00000000000",
+        "0x4097c40000000000",
+        "0x4058c00000000000",
+        "0x4059000000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x400d47ae147ae14f"
+    },
+    {
+      "id": "fn7-DISC-fictitious-leap-day-3",
+      "args": [
+        "0x407a900000000000",
+        "0x407aa00000000000",
+        "0x4058c00000000000",
+        "0x4059000000000000",
+        "0x3ff0000000000000"
+      ],
+      "expected_bits": "0x400d33333333333a"
+    }
+  ],
+  "service_questions": [
+    [
+      {
+        "type": "number",
+        "bits": "404d800000000000"
+      },
+      {
+        "type": "number",
+        "bits": "404e000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4058c00000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4059000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4097c00000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4097c40000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4058c00000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4059000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "407a900000000000"
+      },
+      {
+        "type": "number",
+        "bits": "407aa00000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4058c00000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4059000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "3ff0000000000000"
+      }
+    ]
+  ],
+  "service_response": [
+    {
+      "cohort": "fictitious-leap-day",
+      "response": {
+        "version": 1,
+        "id": "a2cc74e1c9d74d6da2fd93bde42f1710",
+        "ok": true,
+        "rows": [
+          {
+            "type": "number",
+            "bits": "400d33333333333a"
+          },
+          {
+            "type": "number",
+            "bits": "400d47ae147ae14f"
+          },
+          {
+            "type": "number",
+            "bits": "400d33333333333a"
+          }
+        ],
+        "inputs": [
+          [
+            {
+              "type": "number",
+              "bits": "404d800000000000"
+            },
+            {
+              "type": "number",
+              "bits": "404e000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4058c00000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4059000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4097c00000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4097c40000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4058c00000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4059000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "407a900000000000"
+            },
+            {
+              "type": "number",
+              "bits": "407aa00000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4058c00000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4059000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ]
+        ],
+        "excel_version": "16.0",
+        "excel_build": "20527",
+        "excel_file_version": "16.0.20527.20088",
+        "excel_pid": 52324,
+        "automation_security_before": 1,
+        "automation_security_after": 1,
+        "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261104T1749049006995-de123e196fa44b0ba67b172742710b82\\receipt.json",
+        "session_receipt_sha256": "f5ab9ff634348ade4450f4b1913b3147b654ac8701cee7e15315c6892039caaa",
+        "machine": "GOVERT-OMEN",
+        "timestamp": "2026-11-04T17:49:08.854016+00:00",
+        "service_seconds": 4.890999999828637,
+        "request_sha256": "624afa42bde6c09b8c2ced6b232a2167f9d58a2d0772b4735c018a8468f794bb",
+        "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\a2cc74e1c9d74d6da2fd93bde42f1710"
+      },
+      "questions": [
+        [
+          {
+            "type": "number",
+            "bits": "404d800000000000"
+          },
+          {
+            "type": "number",
+            "bits": "404e000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4058c00000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4059000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4097c00000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4097c40000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4058c00000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4059000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "407a900000000000"
+          },
+          {
+            "type": "number",
+            "bits": "407aa00000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4058c00000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4059000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "3ff0000000000000"
+          }
+        ]
+      ]
+    }
+  ],
+  "retained_wrapper_sha256": {
+    "live-disc-fictitious-leap-day.json": "c0642b96557074f1c3161d7b5325b215e1e9dae80cd2721243a4f6de74430776"
+  }
+}

@@ -575,14 +575,6 @@ pub(crate) fn networkdays(
 
 // --- YEARFRAC (discount_bill_yearfrac_family.rs, day_count_common.rs) --------------------------
 
-fn real_days_in_year(year: i64) -> f64 {
-    if is_leap(year) {
-        366.0
-    } else {
-        365.0
-    }
-}
-
 /// NASD US (30/360) day count between two 1900 serials.
 fn us_30_360(start: i64, end: i64) -> f64 {
     let (sy, sm, mut sd) = ymd_1900(start);
@@ -618,33 +610,6 @@ fn eu_30_360(start: i64, end: i64) -> f64 {
     ((ey - sy) * 360 + (em - sm) * 30 + (ed - sd)) as f64
 }
 
-/// Excel's actual/actual year fraction (YEARFRAC basis 1) for `start <= end`.
-fn actual_actual(start: i64, end: i64) -> Result<f64, W> {
-    let serial_of = |y: i64, m: i64, d: i64| {
-        excel_serial_from_ymd(DateSystem::System1900, y, m, d)
-            .map(|v| v as i64)
-            .ok_or(W::Value)
-    };
-    let (sy, sm, sd) = ymd_1900(start);
-    let (ey, em, ed) = ymd_1900(end);
-    let days = (end - start) as f64;
-    let within_a_year = sy == ey || (ey == sy + 1 && (sm > em || (sm == em && sd >= ed)));
-    if within_a_year {
-        let feb29_in_span = (is_leap(sy) && start < serial_of(sy, 3, 1)?)
-            || (is_leap(ey) && end >= serial_of(ey, 3, 1)?)
-            || (em == 2 && ed == 29);
-        let year_length = if (sy == ey && is_leap(sy)) || feb29_in_span {
-            366.0
-        } else {
-            365.0
-        };
-        return Ok(days / year_length);
-    }
-    let years = (ey - sy + 1) as f64;
-    let days_in_years: f64 = (sy..=ey).map(real_days_in_year).sum();
-    Ok(days / (days_in_years / years))
-}
-
 pub(crate) fn yearfrac(start_date: f64, end_date: f64, basis: f64) -> Result<f64, W> {
     if start_date.trunc() < 0.0 || end_date.trunc() < 0.0 {
         return Err(W::Num);
@@ -654,7 +619,7 @@ pub(crate) fn yearfrac(start_date: f64, end_date: f64, basis: f64) -> Result<f64
             return Err(W::Value);
         }
         let serial = value.trunc() as i64;
-        if !(1..=MAX_SERIAL_1900).contains(&serial) {
+        if !(0..=MAX_SERIAL_1900).contains(&serial) {
             return Err(W::Value);
         }
         Ok(serial)
@@ -668,7 +633,7 @@ pub(crate) fn yearfrac(start_date: f64, end_date: f64, basis: f64) -> Result<f64
     }
     match basis.trunc() as i64 {
         0 => Ok(us_30_360(start, end) / 360.0),
-        1 => actual_actual(start, end),
+        1 => super::day_count_common::excel_actual_actual_fraction(start, end),
         2 => Ok((end - start) as f64 / 360.0),
         3 => Ok((end - start) as f64 / 365.0),
         4 => Ok(eu_30_360(start, end) / 360.0),
