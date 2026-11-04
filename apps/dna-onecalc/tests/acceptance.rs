@@ -77,8 +77,17 @@ fn check_captured_questions(
         session.set_formula_cell(&entry.cell.a1()).unwrap();
         session.set_formula(formula);
         let calculated = session.calculate();
+        // A dynamic formula's one-cell array publishes its sole primitive at the anchor.
+        // Use the same exact projection as the witness verdict; larger arrays keep their shape.
+        let published = calculated.result.as_ref().and_then(|value| {
+            if entry.dynamic_array {
+                calc_verdict::select_result(value, None)
+            } else {
+                Some(value.clone())
+            }
+        });
         compared += 1;
-        if calculated.result.as_ref() != Some(expected) || !calculated.diagnostics.is_empty() {
+        if published.as_ref() != Some(expected) || !calculated.diagnostics.is_empty() {
             failures.push(format!("{} {formula}: expected {expected:?}, actual {:?}; {:?}",
                 entry.cell.sheet(), calculated.result, calculated.diagnostics));
         }
@@ -92,7 +101,7 @@ fn check_captured_questions(
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn delivered_scalar_readings_follow_the_application_route() {
-    let readings: [&[u8]; 8] = [
+    let readings: [&[u8]; 10] = [
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/LOWER.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/PROPER.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/REGEXTEST.reading.json"),
@@ -101,6 +110,8 @@ fn delivered_scalar_readings_follow_the_application_route() {
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/COUPNUM.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/COUPDAYSNC.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/COUPDAYBS.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/MODE.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/MODE.SNGL.reading.json"),
     ];
     let mut failures = Vec::new();
     let mut count = 0;
@@ -119,17 +130,29 @@ fn delivered_scalar_readings_follow_the_application_route() {
             let mut arguments = Vec::new();
             for (index, value) in witness["args"].as_array().unwrap().iter().enumerate() {
                 let text = value.as_str().unwrap();
-                let input = if let Some(bits) = text.strip_prefix("0x") {
+                let question = &reading["service_questions"][witness_index][index];
+                let input = if question["type"].as_str() == Some("boolean") {
+                    InputValue::logical(question["value"].as_bool().unwrap())
+                } else if question["type"].as_str() == Some("error") {
+                    let value = calc_verdict::decode_result(text).unwrap();
+                    let calc_func::value::CoreRef::Error(code) = value.core_ref() else {
+                        panic!("a retained error input must decode as an error");
+                    };
+                    InputValue::error(code)
+                } else if let Some(bits) = text.strip_prefix("0x") {
                     InputValue::number(f64::from_bits(u64::from_str_radix(bits, 16).unwrap())).unwrap()
                 } else {
                     InputValue::text(text).unwrap()
                 };
                 let at = format!("{}1", (b'A' + index as u8) as char);
                 session.set_input(&at, input).unwrap();
-                let literal = reading["service_questions"][witness_index][index]["mode"]
-                    .as_str() == Some("literal");
+                let literal = question["mode"].as_str() == Some("literal");
                 arguments.push(if literal {
-                    format!("\"{}\"", text.replace('"', "\"\""))
+                    if question["type"].as_str() == Some("boolean") {
+                        text.to_owned()
+                    } else {
+                        format!("\"{}\"", text.replace('"', "\"\""))
+                    }
                 } else { at });
             }
             let formula = format!("={}({})", reading["function"].as_str().unwrap(), arguments.join(","));
@@ -142,7 +165,7 @@ fn delivered_scalar_readings_follow_the_application_route() {
             }
         }
     }
-    assert_eq!(count, 1320);
+    assert_eq!(count, 1362);
     assert!(failures.is_empty(), "{} of{count} readings differ:\n{}", failures.len(), failures.join("\n"));
 }
 
@@ -199,6 +222,18 @@ fn delivered_fn4_digit_scripts_and_numeric_date_widths() {
     check_captured_questions(include_bytes!(
         "../../../crates/calc-func/tests/captures/fn4_questions/functions-fn4-list-controls.capture.json"
     ), &mut session, |entry| primary(entry, 41, 85), 45);
+}
+
+/// Fn4 ql104..ql133 distinguish MODE's ignored direct text/logicals from numbers.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn delivered_fn4_mode_ignores_text_and_logicals() {
+    let mut session = Session::new("Sheet1").unwrap();
+    check_captured_questions(include_bytes!(
+        "../../../crates/calc-func/tests/captures/fn4_questions/functions-fn4-list-controls.capture.json"
+    ), &mut session, |entry| entry.cell.row() == 20 && entry.cell.column() == 10
+        && entry.cell.sheet().strip_prefix("ql").and_then(|s| s.parse::<usize>().ok())
+            .is_some_and(|n| (104..=133).contains(&n)), 30);
 }
 
 /// Fn4 q093..q096 read a genuine typed #BUSY! input and retain Excel's four results.

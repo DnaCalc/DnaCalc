@@ -4922,6 +4922,8 @@
   {"path": "crates/calc-func/tests/captures/fn4_questions/COUPNUM.reading.json", "class": "own-work", "reason": "Live fn7 Excel scalar coupon-calendar measurements; exact input readbacks and full service responses retained, projected through the existing witness result codec."},
   {"path": "crates/calc-func/tests/captures/fn4_questions/COUPDAYSNC.reading.json", "class": "own-work", "reason": "Live fn7 Excel scalar coupon-calendar measurements; exact input readbacks and full service responses retained, projected through the existing witness result codec."},
   {"path": "crates/calc-func/tests/captures/fn4_questions/functions-fn4-date-domain.capture.json", "class": "own-work", "reason": "Unchanged live Excel fn4 date-domain capture; original typed observations, package and session provenance retained."},
-  {"path": "crates/calc-func/tests/captures/fn4_questions/COUPDAYBS.reading.json", "class": "own-work", "reason": "Live fn7 Excel scalar coupon-calendar measurements; exact input readbacks and full service responses retained, projected through the existing witness result codec."}
+  {"path": "crates/calc-func/tests/captures/fn4_questions/COUPDAYBS.reading.json", "class": "own-work", "reason": "Live fn7 Excel scalar coupon-calendar measurements; exact input readbacks and full service responses retained, projected through the existing witness result codec."},
+  {"path": "crates/calc-func/tests/captures/fn4_questions/MODE.reading.json", "class": "own-work", "reason": "Live Excel MODE input-admission measurements with exact typed input readbacks and full service response retained; original results projected through the existing witness codec."},
+  {"path": "crates/calc-func/tests/captures/fn4_questions/MODE.SNGL.reading.json", "class": "own-work", "reason": "Live Excel MODE input-admission measurements with exact typed input readbacks and full service response retained; original results projected through the existing witness codec."}
  ]
 }
