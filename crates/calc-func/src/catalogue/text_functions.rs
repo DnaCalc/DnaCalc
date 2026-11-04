@@ -258,7 +258,7 @@ ported_family! {
     5 len_fn "LEN" (1, 1) [V "text"] |s, a, sv| {
         let text = text_arg(s, a, 0)?;
         let count = if count_surrogate_pairs(s)? {
-            k::slice_character_count(&text)
+            k::len_character_count(&text)
         } else {
             text.len_utf16_code_units()
         };
