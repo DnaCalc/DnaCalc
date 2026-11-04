@@ -196,7 +196,7 @@ fn delivered_scalar_readings_follow_the_application_route() {
             }
         }
     }
-    assert_eq!(count, 3343);
+    assert_eq!(count, 3589);
     assert!(failures.is_empty(), "{} of{count} readings differ:\n{}", failures.len(), failures.join("\n"));
 }
 

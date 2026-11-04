@@ -365,7 +365,33 @@ fn numbervalue(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     };
     let decimal = separator(1, decimal_default)?;
     let group = separator(2, group_default)?;
-    out_number(site, k::numbervalue(&text, decimal, group))
+    let host_profile = site.environment().and_then(|environment| environment.profile.as_ref())
+        .filter(|profile| value_text::measured_host_reader(profile)
+            && decimal == Some('.') && group == Some(' '));
+    if host_profile.is_some_and(|profile| text.to_string_lossy().chars()
+        .any(|ch| value_text::measured_space(ch, profile))) {
+        return fail(WorksheetErrorCode::Value);
+    }
+    let result = k::numbervalue(&text, decimal, group);
+    if result.is_ok() || host_profile.is_none() || !matches!(a[0].core_ref(), CoreRef::Text(_)) {
+        return out_number(site, result);
+    }
+    // The measured host admits the same currency, digit and date grammar as
+    // VALUE after ASCII spaces and trailing percents are removed. Keep the
+    // existing numeric parser and its percent arithmetic for its prior forms.
+    let compact: String = text.to_string_lossy().chars().filter(|&ch| ch != ' ').collect();
+    // Slash/colon forms have no new service evidence; keep their prior route.
+    if compact.contains(['/', ':']) {
+        return out_number(site, result);
+    }
+    let base = compact.trim_end_matches('%');
+    let percent_count = (compact.len() - base.len()) as u32;
+    let value = super::kit::text_value(base);
+    match read_value(site, &[value], 0) {
+        Ok(reading) => site.number(k::numbervalue_percent(reading.value(), percent_count)),
+        Err(Exit::Error(WorksheetErrorCode::Value)) => out_number(site, result),
+        Err(other) => Err(other),
+    }
 }
 
 fn out_number(site: &Site<'_>, result: Result<f64, WorksheetErrorCode>) -> Step<CalcValue> {
