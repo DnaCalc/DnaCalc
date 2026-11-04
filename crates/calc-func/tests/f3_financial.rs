@@ -17,6 +17,24 @@ fn dated(spelling: &str, args: Vec<calc_func::value::CalcValue>) -> Result<calc_
     call_in(&CalcEnvironment::dates(System1900), None, None, spelling, args)
 }
 
+/// Original Excel20430 Value2 readings, cache/oracle-20430/COUPDAYS.jsonl.
+/// All expectations below are retained observations; the full bank supplies
+/// coverage of the other calendar intervals and domain cases.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn coupdays_actual_actual_uses_its_recorded_calendar_interval() {
+    for (settlement, maturity, frequency, days) in [
+        (35748.0, 35976.0, 2.0, 183.0), // oc2841: June maturity.
+        (36452.0, 36891.0, 4.0, 91.0),  // oc2523: December maturity.
+        (36812.0, 47907.0, 4.0, 92.0),  // oc1269: February maturity.
+        (37015.0, 38137.0, 4.0, 89.0),  // oc2222: short February.
+        (38044.0, 38411.0, 2.0, 184.0), // oc1015: leap February.
+        (34911.0, 35216.0, 2.0, 183.0), // original preserved month-end control.
+    ] {
+        exact(dated("COUPDAYS", vec![n(settlement), n(maturity), n(frequency), n(1.0)]), days);
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn time_value_of_money() {
