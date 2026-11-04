@@ -105,7 +105,7 @@
     {"args":["0xaca3d30d15b9e340","0x0000000000000000","0x3ff0000000000000","0x3ff0000000000000"],"expected_bits":"0x3fe0000000000000","id":"w111pub-heldout-NORM.DIST-000351","reading":"r5"},
     {"args":["0xb8ae5f7f40230ad3","0x0000000000000000","0x3ff0000000000000","0x3ff0000000000000"],"expected_bits":"0x3fe0000000000000","id":"w111pub-heldout-NORM.DIST-001675","reading":"r5"},
     {"args":["0xc00bc47474329240","0x0000000000000000","0x3ff0000000000000","0x0000000000000000"],"expected_bits":"0x3f4fa558c78afec9","id":"w111pub-heldout-NORM.DIST-005012","reading":"r5"},
-    {"args":["0xc02a670e8927e332","0x0000000000000000","0x3ff0000000000000","0x3ff0000000000000"],"calc_func":"0x37c2c8ccc34c44ec","expected_bits":"0x37c2c8ccc34c44d6","id":"w111pub-heldout-NORM.DIST-005257","reading":"r5"},
+    {"args":["0xc02a670e8927e332","0x0000000000000000","0x3ff0000000000000","0x3ff0000000000000"],"calc_func":"0x37c2c8ccc34c44d3","expected_bits":"0x37c2c8ccc34c44d6","id":"w111pub-heldout-NORM.DIST-005257","reading":"r5"},
     {"args":["0xc035c10b3ba0087c","0x0000000000000000","0x3ff0000000000000","0x0000000000000000"],"expected_bits":"0x2a83c029f4f96a4c","id":"w111pub-heldout-NORM.DIST-005168","reading":"r5"},
     {"args":["0xc03f66f56d301c58","0x4018491813b13698","0x0f55c8c001f3ac88","0x3ff0000000000000"],"expected_bits":"0x0000000000000000","id":"w111pub-heldout-NORM.DIST-010318","reading":"r5"},
     {"args":["0xc042cecf41f211c2","0x0000000000000000","0x3ff0000000000000","0x3ff0000000000000"],"expected_bits":"0x0000000000000000","id":"w111pub-heldout-NORM.DIST-007249","reading":"r5"},
