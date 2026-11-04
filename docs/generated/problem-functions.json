@@ -1,0 +1,2670 @@
+{
+  "format": "dnacalc-problem-functions/1",
+  "complete": true,
+  "application": {
+    "revision": "7b5a71e69ed8256348b0d5d67992d452cfe6b391",
+    "source_diff_sha256": "2819607baf5bc637a50443579150154f18f7494d018f54a96eb012be10b9d1c4"
+  },
+  "executable_sha256": "ad192cc938530dbc7e774a0b6c5691bbe28640794351b47d57a9fd926b9e91a2",
+  "bank_source": {
+    "revision": "a22dcd0f7520a3630f7eb860fef1c20a0bee38ec",
+    "status": "",
+    "readings_sha256": {
+      "readings/excel-20527/BESSELI.json": "279d398e7c77059b362b7be6dff8cd7289dfcd59909d8edb1c43537cbf99f7f6",
+      "readings/excel-20527/BESSELJ.json": "22ae36f25f9d87cc3ae08ffa2c38583ea66d4011465736d72f47d1dec165d450",
+      "readings/excel-20527/BINOM.DIST-calcvba4.json": "06f27c1c677c02c749cad215f4576929cb0e7ce45f431067a169f0f085926f68",
+      "readings/excel-20527/CONCAT.json": "e7394f2007af322e83adcc4d8bf1576e57264ffa1b2969b880f9f2106e301e2a",
+      "readings/excel-20527/CONCATENATE.json": "28745c625864f9ef41529d6ac42ed095379e503e2054a5fbb0e6fcc83a18cce3",
+      "readings/excel-20527/COS.json": "175f3af85a4643a73b2809b89cc67f26a66b2f6fd53bf82467f60283b5f0ea5e",
+      "readings/excel-20527/CUMIPMT.json": "d6ba5b6b1bf7ebde3030b983793fab6aff944661a66f6940576eb6019dc3ea40",
+      "readings/excel-20527/CUMPRINC.json": "3fcf2e347e11a55e69e5135e4cd0ba1f3828344e7ef927b22b2cb58e91370d35",
+      "readings/excel-20527/ERF.PRECISE.json": "b0f4385e432f51e018197a84a2f3b0aacec90fb1680ffdc5f1abfc72975ad990",
+      "readings/excel-20527/EXP.json": "97ae6667246affa065d33e36c610dc9dc0bfccef313e3918bbc165aa5d8060e2",
+      "readings/excel-20527/GAMMA.DIST-calcvba4.json": "1838d59f8696d0e5a581d2c4d65b0899b0ea319f8cbd4ce439aa47c8b52f0800",
+      "readings/excel-20527/GAMMA.json": "969fdb3a5bd26d1e2476d92277bf524c1a5b7ea922410c5ee003ad6655120770",
+      "readings/excel-20527/LN.json": "12c708fe145363aa6a472983e1ff0e8e27dd9cf5343993921663fc29b26c8154",
+      "readings/excel-20527/NORM.S.DIST.json": "ee9910466ca33666ab9a7eee0fc718ca39dff24129bce031d86af2b6ff17d3c8",
+      "readings/excel-20527/PMT-2.json": "839b347d11f147d7daef3b8686eb5585d2e920f50123168fab5009adb60902d8",
+      "readings/excel-20527/PMT-calcvba4.json": "54a2bb57cfa77c644e0b1c459349e73806bb72eb27e108470a5e26d168e3498b",
+      "readings/excel-20527/PMT.json": "38a6b13e7923a30c1db14bd87643e35b0fa166a69676ceea2c18f143de29264c",
+      "readings/excel-20527/POISSON.DIST-calcvba4.json": "637fbdda781ad9a16057819b3da0bba93e0131889b3be6f7424cd34633401be1",
+      "readings/excel-20527/POISSON.DIST-calcvba7.json": "1b0bb56c20044a0b6a37faff8617807e26cb2da6c5f96dec40305f9743ba0a73",
+      "readings/excel-20527/PPMT.json": "06d24cb530d8a0648b040df33603ab8b84365fddef0df8ceb5b8390c19a10a17",
+      "readings/excel-20527/r13-BESSELI.json": "98a5759480a18205832a12387ee581f2480a669e8b10cffd003184fe0abbcbd7",
+      "readings/excel-20527/r13-BESSELJ.json": "9c6329161277f0513dc977ef6da20c8c126236f1ddfb1870a403d21345ea689c",
+      "readings/excel-20527/r13-CONCAT.json": "bd8b8d534075005e835083ad017188ae26f087e75526d444de56d3b3e8131e9f",
+      "readings/excel-20527/r13-CONCATENATE.json": "dfea6f57d3c7eef200530ac26a84713251f66b7697cfbdd7ddfa7aeb29690bad",
+      "readings/excel-20527/r13-CUMIPMT.json": "778c903c10ddd7e5bdade262b3c72ba8aaddd25f41ace083bcb3e01019ea856d",
+      "readings/excel-20527/r13-CUMPRINC.json": "3cc15249cbabf20aa51f4224c6812183d069fc333b7ca0af2914d27036116650",
+      "readings/excel-20527/r13-EXP.json": "f591e4ebabb1dee5949e53bfd3f56f7379a32f74ee8e5151d413b1ad84df89c9",
+      "readings/excel-20527/r13-LN.json": "cb97e4fe48dccad69ff609266079e496211a81d32376b8e1e6f3ec885fc05972",
+      "readings/excel-20527/r13-PMT-2.json": "f0aabeb57b4c3ef8887cbd8914b35cedcabc613886ed7df300e0a8b51c3f0e7a",
+      "readings/excel-20527/r13-PMT-3.json": "d183b8a9008818113bfa9d39d1b57633551a1ebca51c9026b61f21c96ddc0484",
+      "readings/excel-20527/r13-PMT.json": "4b675fcc3864dfe1efae42ebf84833827ef5dab5c3f22a0136cbeca69b2ec13a",
+      "readings/excel-20527/r13-POWER.json": "75eeb5beb6f19298ea1f0bcf6e3af2af560689e01248f70b802ac775dfd9bf14",
+      "readings/excel-20527/r13-PPMT.json": "6512058d55bfb6ca10500ef382948f537f3c9456b32bee62d92b362e75a72caa",
+      "readings/excel-20527/r14-AVERAGE.json": "4666343a3403685b4e1b232cf410f24246d1d2edf1f4c23c924b23e0ec5fd519",
+      "readings/excel-20527/r14-DEVSQ.json": "3e7e58a726fcd676c6654f5cd9c4cdf6338d67421669b774b8966bb0a3516284",
+      "readings/excel-20527/r14-STDEV.P.json": "8cddb6e497339f2698dd8e6749fbcf2a0344af8610c2d4609d77a1e4fe40f5c5",
+      "readings/excel-20527/r14-STDEV.S.json": "ff2167754f20ce231c1c2e5b9aa7714757175b66af028f4f79173094fb865a53",
+      "readings/excel-20527/r14-VAR.P.json": "c1632dd4c26804556003d6c5ed6dd5be6d7b131efb9fc3c0fbb9790afff3ee4f",
+      "readings/excel-20527/r14-VAR.S.json": "6c0894d032adac645fe3711a489f8725c443a44ab2c9905ee98224dd41d75739",
+      "readings/excel-20527/r15-CUMIPMT.json": "34ed9e9eb5c4808bc06a0c34ed04ca1fb95177429141998ab4be3e01172fe61e",
+      "readings/excel-20527/r15-CUMPRINC.json": "6b60706419ecbb8b8b059ed024bad0f21c2a8a669b6c22a6090bbda96d6cdeef",
+      "readings/excel-20527/r15-FV.json": "1f6436f4287df2b4b374169a7fe824a1ce437f20b07c5a46b1168f018d8e53de",
+      "readings/excel-20527/r15-IPMT.json": "e605e239c3267899d7f68d0bc0ef281cfcf503cfaba5cf33918f8a9491839c8e",
+      "readings/excel-20527/r15-NPER.json": "56ca9f0fd73ee61590bd637245de624a1aad49a539d4595ca05a404bc84e2037",
+      "readings/excel-20527/r15-PMT.json": "e1735edeba4abefd498cc2a9cd82ef889c87b82d0d6814996af606f5ac8aabae",
+      "readings/excel-20527/r15-PPMT.json": "6c323e45dff90559c99b3b9ebc9fb153399a53603c6d17cec59162b584a93d78",
+      "readings/excel-20527/r15-PV.json": "7bb8b30c441f571c6fbe35b5d66947737bf17b5683955f980e0e2ca07c28045b",
+      "readings/excel-20527/r15-RATE.json": "28eca5305e4112b5e929be424518aaa2b7d4a7b4d8267a1858fe58a5350b7063",
+      "readings/excel-20527/r16-AVERAGE.json": "20d068877713771a6b15fd386d796a30e81327f63fcb0b989db3634ac382e44d",
+      "readings/excel-20527/r16-BESSELI-2.json": "d77df2349f54232bbb0d7307a9e2553e8d4434d4c7e8beec390b51cce81ea0a5",
+      "readings/excel-20527/r16-BESSELJ-2.json": "0d2ec00591a6393bbec02e742af5df57d7b149444a9bb94e100387d326299c1f",
+      "readings/excel-20527/r16-BESSELY.json": "a92d222b60d62108e23c5121802931a16a4ff29467dd9bc31bce9676f21508fc",
+      "readings/excel-20527/r16-COS-2.json": "8bc39cbbbac37b67f8629e8d683604dc4282d53aabf19b031aaaeddcab035bc4",
+      "readings/excel-20527/r16-DEVSQ.json": "f231ff24165e90ccf9998d78377160a0470742540df64457f0ec7a168a1b546b",
+      "readings/excel-20527/r16-EXP-2.json": "3b0ff70baa35c87a6466ceb00d5cb22787955f37d5c3204fa44464a3a214d1c8",
+      "readings/excel-20527/r16-GEOMEAN.json": "cc0567e0bc9e1d6a9fd180aad825fd65fe9e62dc741e176a08eb809e0dde566b",
+      "readings/excel-20527/r16-SIN.json": "70338713fd69a8c02ad575b7a892bc09f47f5bcc165f1788a478b94fcb064ce2",
+      "readings/excel-20527/r16-STDEV.P.json": "75edddfced662c6cd3c42ef0d5cf04fbef3f0139058afc6783071c507c691748",
+      "readings/excel-20527/r16-STDEV.S.json": "48c2b129e12922f027c27456bd6b23513c5d327076c1bcdf660492515af4c3ba",
+      "readings/excel-20527/r16-VAR.P.json": "7409dcf10150fcb07d9329d1a9c206042c4aaa7e34646bea3fbea5621398a89c",
+      "readings/excel-20527/r16-VAR.S.json": "e86d9bd27af46111c920b89549b19ff1692090cb693309a1ca5f9ef65e44de2d",
+      "readings/excel-20527/r18-CONCAT-2.json": "63cda9557b7fc4acd889522ec1a4ddf1ee37d77dd897df727c2b7f74c4544822",
+      "readings/excel-20527/r18-YIELD.json": "3a7d34dd8af5acab365bcc9122d87bf4c0646536c3a229852a36744944a1a6c4",
+      "readings/excel-20527/r19-BESSELI-3.json": "99f160c5d93158205eea881977bdd11d2c130e3f799c5332a63c7d699e97130b",
+      "readings/excel-20527/r19-BESSELJ-3.json": "5449fdbeb1992f9c7c39ee2fb2c86e06bcea5366ca712e399061ad7f5ba0a309",
+      "readings/excel-20527/r19-BESSELJ-4.json": "3d6aa84166aafb6bd081e41fa07218c6a8e37ca3fc9dea557e930b45f173e582",
+      "readings/excel-20527/r19-BESSELY-2.json": "0cd05133b5d10775792c31f949e424f94585b848f7bd1ac4e00bf7a817557cf3",
+      "readings/excel-20527/r19-BESSELY-3.json": "a02ef6e080caf6f900ee2be7a7c13371a5df6610e385c704111ebfd03679556e"
+    }
+  },
+  "corpus": {
+    "formula_cells": 22339,
+    "matched": 19973,
+    "inclusive_failed": 2366,
+    "awaiting_capture": 1265,
+    "other_failed_verdicts": {
+      "not_modeled": 55,
+      "not_run": 1
+    },
+    "mismatches": 958,
+    "counts": {
+      "larger_numeric": 196,
+      "last_bit": 747,
+      "other_mismatch": 15
+    }
+  },
+  "bank": {
+    "rows": 3875673,
+    "matched": 3232943,
+    "failed": 642730,
+    "counts": {
+      "matched": 3232943,
+      "refused": 1375,
+      "larger_numeric": 65704,
+      "other_mismatch": 7832,
+      "last_bit": 567703,
+      "unread": 116
+    },
+    "canonical_trace_sha256": "be98d485626ee6485fe2633e83fbc66038277b658211ec7c99b5ed7dd2cfb58e"
+  },
+  "functions": [
+    {
+      "function": "BINOM.DIST",
+      "corpus": {
+        "larger_numeric": 10,
+        "last_bit": 61,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 10587,
+        "last_bit": 27723,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "GAMMA.DIST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 4,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 6428,
+        "last_bit": 48335,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "TRUNC",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 1
+      },
+      "bank": {
+        "larger_numeric": 5969,
+        "last_bit": 340,
+        "other_mismatch": 95,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "ROUNDUP",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 5900,
+        "last_bit": 2173,
+        "other_mismatch": 3362,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "ROUNDDOWN",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 5734,
+        "last_bit": 338,
+        "other_mismatch": 97,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "MROUND",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 5704,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "GAMMA",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 5078,
+        "last_bit": 6992,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "ROUND",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 2
+      },
+      "bank": {
+        "larger_numeric": 4849,
+        "last_bit": 186,
+        "other_mismatch": 424,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "NORM.S.DIST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 3999,
+        "last_bit": 9724,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "MOD",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 2596,
+        "last_bit": 772,
+        "other_mismatch": 1606,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "POISSON.DIST",
+      "corpus": {
+        "larger_numeric": 1,
+        "last_bit": 11,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 2240,
+        "last_bit": 8064,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 4
+      }
+    },
+    {
+      "function": "LOGNORM.DIST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 1229,
+        "last_bit": 2635,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "BESSELJ",
+      "corpus": {
+        "larger_numeric": 29,
+        "last_bit": 0,
+        "other_mismatch": 1
+      },
+      "bank": {
+        "larger_numeric": 832,
+        "last_bit": 0,
+        "other_mismatch": 72,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "LOGNORMDIST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 753,
+        "last_bit": 1880,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "BETA.DIST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 574,
+        "last_bit": 1363,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "YIELD",
+      "corpus": {
+        "larger_numeric": 2,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 423,
+        "last_bit": 95,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "ERFC.PRECISE",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 373,
+        "last_bit": 756,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "NEGBINOMDIST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 356,
+        "last_bit": 1281,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "RATE",
+      "corpus": {
+        "larger_numeric": 3,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 339,
+        "last_bit": 20,
+        "other_mismatch": 13,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "IRR",
+      "corpus": {
+        "larger_numeric": 2,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 299,
+        "last_bit": 95,
+        "other_mismatch": 17,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "ERFC",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 268,
+        "last_bit": 151,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "PMT",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 232,
+        "last_bit": 68866,
+        "other_mismatch": 4,
+        "refused": 7,
+        "unread": 0
+      }
+    },
+    {
+      "function": "NORM.DIST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 217,
+        "last_bit": 116,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "BINOM.DIST.RANGE",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 163,
+        "last_bit": 321,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "NORMDIST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 120,
+        "last_bit": 182,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "KURT",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 92,
+        "last_bit": 765,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "VAR.S",
+      "corpus": {
+        "larger_numeric": 44,
+        "last_bit": 32,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 16,
+        "last_bit": 395,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "VAR.P",
+      "corpus": {
+        "larger_numeric": 40,
+        "last_bit": 23,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 13,
+        "last_bit": 438,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "NEGBINOM.DIST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 5,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 50,
+        "last_bit": 104,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "COUPDAYS",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 49,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "VARP",
+      "corpus": {
+        "larger_numeric": 14,
+        "last_bit": 2,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 12,
+        "last_bit": 407,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "BETADIST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 17,
+        "last_bit": 137,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "CUMIPMT",
+      "corpus": {
+        "larger_numeric": 1,
+        "last_bit": 66,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 15,
+        "last_bit": 11,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "FV",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 15,
+        "last_bit": 281,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "PV",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 15,
+        "last_bit": 147,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "VAR",
+      "corpus": {
+        "larger_numeric": 5,
+        "last_bit": 5,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 9,
+        "last_bit": 403,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "FDIST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 13,
+        "last_bit": 3743,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "VARPA",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 14,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 13,
+        "last_bit": 433,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "F.TEST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 13,
+        "last_bit": 48,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "STDEV.P",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 10,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 12,
+        "last_bit": 289,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "STDEV",
+      "corpus": {
+        "larger_numeric": 12,
+        "last_bit": 5,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 268,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "PPMT",
+      "corpus": {
+        "larger_numeric": 12,
+        "last_bit": 92,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 24,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "STDEVPA",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 9,
+        "last_bit": 277,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "COUPDAYSNC",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 9,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "VARA",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 8,
+        "last_bit": 411,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "STDEV.S",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 13,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 8,
+        "last_bit": 262,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "GAMMA.INV",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 7,
+        "last_bit": 148,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "LINEST",
+      "corpus": {
+        "larger_numeric": 7,
+        "last_bit": 8,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "STDEVP",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 5,
+        "last_bit": 271,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "HYPGEOM.DIST",
+      "corpus": {
+        "larger_numeric": 2,
+        "last_bit": 4,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 3,
+        "last_bit": 190,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "LOGEST",
+      "corpus": {
+        "larger_numeric": 5,
+        "last_bit": 4,
+        "other_mismatch": 2
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 2,
+        "unread": 0
+      }
+    },
+    {
+      "function": "CUMPRINC",
+      "corpus": {
+        "larger_numeric": 4,
+        "last_bit": 153,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 350,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "TINV",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 4,
+        "last_bit": 13,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "CHIINV",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 3,
+        "last_bit": 66,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "FINV",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 3,
+        "last_bit": 27,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "ASINH",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 3,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 2,
+        "unread": 0
+      }
+    },
+    {
+      "function": "BINOM.INV",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 3,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "STDEVA",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 13,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 2,
+        "last_bit": 259,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "CHIDIST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 2,
+        "last_bit": 152,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "TDIST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 2,
+        "last_bit": 66,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "CEILING",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 2,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 10,
+        "unread": 0
+      }
+    },
+    {
+      "function": "CEILING.PRECISE",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 2,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 10,
+        "unread": 0
+      }
+    },
+    {
+      "function": "FLOOR.PRECISE",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 2,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 10,
+        "unread": 0
+      }
+    },
+    {
+      "function": "ISO.CEILING",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 2,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 10,
+        "unread": 0
+      }
+    },
+    {
+      "function": "ODDFYIELD",
+      "corpus": {
+        "larger_numeric": 2,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "SWITCH",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 2,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 2,
+        "unread": 0
+      }
+    },
+    {
+      "function": "IPMT",
+      "corpus": {
+        "larger_numeric": 1,
+        "last_bit": 79,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 27,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "CHISQ.INV",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 1,
+        "last_bit": 27,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "T.DIST.RT",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 1,
+        "last_bit": 4,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "PRICEMAT",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 1,
+        "last_bit": 4,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "SKEW",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 1,
+        "last_bit": 3,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "CRITBINOM",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 1,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "FLOOR",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 1,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 10,
+        "unread": 0
+      }
+    },
+    {
+      "function": "TBILLEQ",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 1,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "ERF.PRECISE",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 365857,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "GAMMALN.PRECISE",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 4085,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "GAMMALN",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 2526,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "GAUSS",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 1159,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "DURATION",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 333,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "F.DIST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 197,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "MDURATION",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 157,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "GEOMEAN",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 84,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 57,
+        "other_mismatch": 0,
+        "refused": 1,
+        "unread": 0
+      }
+    },
+    {
+      "function": "SINH",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 130,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "NPV",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 94,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "TANH",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 58,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "COTH",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 56,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "PRICE",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 50,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "BETAINV",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 44,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "CSCH",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 6,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "GROWTH",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 6,
+        "other_mismatch": 0,
+        "refused": 7,
+        "unread": 0
+      }
+    },
+    {
+      "function": "HYPGEOMDIST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 3,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "GAMMADIST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "PERMUTATIONA",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 4,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "BINOMDIST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "CHISQ.DIST.RT",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "CHISQ.TEST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "CONFIDENCE",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "DISC",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "F.DIST.RT",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "GAMMAINV",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "INT",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0,
+        "refused": 2,
+        "unread": 0
+      }
+    },
+    {
+      "function": "LOGINV",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "POISSON",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "POWER",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 36,
+        "refused": 5,
+        "unread": 0
+      }
+    },
+    {
+      "function": "TREND",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "TTEST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "WEIBULL.DIST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "Z.TEST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "ZTEST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 2,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "BESSELK",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "BESSELY",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 21,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "BETA.INV",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "CONFIDENCE.NORM",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "CONFIDENCE.T",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "EXPON.DIST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "F.INV",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "F.INV.RT",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "INTRATE",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "LOGNORM.INV",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "PRICEDISC",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "RECEIVED",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "SECH",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "T.DIST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "T.DIST.2T",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "T.INV.2T",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "T.TEST",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "TBILLYIELD",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "ABS",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 2,
+        "unread": 0
+      }
+    },
+    {
+      "function": "CEILING.MATH",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 12,
+        "unread": 0
+      }
+    },
+    {
+      "function": "COMPLEX",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 40,
+        "refused": 10,
+        "unread": 0
+      }
+    },
+    {
+      "function": "CONCAT",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 5,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "CONCATENATE",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 5,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "COUPNUM",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 1,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "DEGREES",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 2,
+        "unread": 0
+      }
+    },
+    {
+      "function": "DELTA",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 4,
+        "unread": 0
+      }
+    },
+    {
+      "function": "EVEN",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 2,
+        "unread": 0
+      }
+    },
+    {
+      "function": "EXP",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 12,
+        "unread": 0
+      }
+    },
+    {
+      "function": "FIXED",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 989,
+        "unread": 0
+      }
+    },
+    {
+      "function": "FLOOR.MATH",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 12,
+        "unread": 0
+      }
+    },
+    {
+      "function": "GESTEP",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 4,
+        "unread": 0
+      }
+    },
+    {
+      "function": "IMCOSH",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 7,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "IMCOT",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 124,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "IMCSCH",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 9,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "IMDIV",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 1,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "IMLOG10",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 11,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "IMLOG2",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 54,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "IMSECH",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 5,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "IMSINH",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 9,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "IMTAN",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 144,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "ISEVEN",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 2,
+        "unread": 0
+      }
+    },
+    {
+      "function": "ISODD",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 2,
+        "unread": 0
+      }
+    },
+    {
+      "function": "ISREF",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 1227,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "Infix &",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 9
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "MEDIAN",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 167,
+        "unread": 0
+      }
+    },
+    {
+      "function": "MINVERSE",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 112
+      }
+    },
+    {
+      "function": "N",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 2,
+        "unread": 0
+      }
+    },
+    {
+      "function": "NOT",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 2,
+        "unread": 0
+      }
+    },
+    {
+      "function": "ODD",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 2,
+        "unread": 0
+      }
+    },
+    {
+      "function": "QUOTIENT",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 12,
+        "unread": 0
+      }
+    },
+    {
+      "function": "RADIANS",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 2,
+        "unread": 0
+      }
+    },
+    {
+      "function": "RRI",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 45,
+        "unread": 0
+      }
+    },
+    {
+      "function": "SIGN",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 2,
+        "unread": 0
+      }
+    },
+    {
+      "function": "SQRT",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 2,
+        "unread": 0
+      }
+    },
+    {
+      "function": "STANDARDIZE",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 8,
+        "unread": 0
+      }
+    },
+    {
+      "function": "WEEKNUM",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 443,
+        "refused": 0,
+        "unread": 0
+      }
+    }
+  ],
+  "corpus_inputs_sha256": {
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/summary.json": "dc7783d03c3ecf508f06592ee10c5c5ee378142fc554c4513cb27c2fb87a1ca9",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-engine/tests/captures/dc_10y/oracle.capture.json": "9431eac30d0e8b2e779356fecd1a57217a94f29c390f111f07f05d9f33697b03",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-engine_dc_10y_oracle.xlsx/evaluations.json": "260791d7bd8e1b420f5ce6f25a06769bd150a8a3fcbe371684fa069285ac218c",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-engine_dc_10y_oracle.xlsx/triage.json": "ddbeb218273989cf5772fb83c885feece0741670ea8942fd05927f00e3936263",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-engine/tests/captures/dc_10y_iteration/oracle.capture.json": "3c32c4b1436186295b6db03e2e6362b311ef4ad9b78b8de769a196b4de638fbe",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-engine_dc_10y_iteration_oracle.xlsx/evaluations.json": "7b61ab1fd6191bd8b711591465913eba631fcf166f28c7d5bf40cdfd66515b48",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-engine_dc_10y_iteration_oracle.xlsx/triage.json": "886e51628009ed3aba429d7097d2299b95317fd4f62072fffeb1c4f9f909d27f",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-engine/tests/captures/dc_86f/oracle.capture.json": "2b9a0af9c8af9d2a1b92d48b364120b8c28c1cb8654ad3a2b2a88a0c7e2c8ee8",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-engine_dc_86f_oracle.xlsx/evaluations.json": "033ec0ea448c28176de15214412e81e05e002e7378a40a785483ce7f6a85994f",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-engine_dc_86f_oracle.xlsx/triage.json": "ec614167770a47ab0693578fd86c7be5f1548074a8917bc6384a2266ad2dd160",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-engine/tests/captures/dc_y2o/oracle.capture.json": "b7933c0c8dca059c77c2409d0b78497e1cbe85c7257248e8718a06cbb2e7bae9",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-engine_dc_y2o_oracle.xlsx/evaluations.json": "f43f8a2cdcc8256d4921e703e0c670e7fa068b016b23b4b96a27538597630ea9",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-engine_dc_y2o_oracle.xlsx/triage.json": "bc9100cfaf2ae2b7a9296c18a77139b16ddbc925e6bad4185c800cd7d9954c5a",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-engine/tests/captures/l3/oracle.capture.json": "89db0e6557207f3f70463d0a765df4b8c3684830c4428dfb00f7cd0af35d0749",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-engine_l3_oracle.xlsx/evaluations.json": "6989737aab4e0206ed2dfffcaf6ff82f3df002af2eafba87cc86b7b4b0911598",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-engine_l3_oracle.xlsx/triage.json": "8497de3f11fd40dd5bc80839596a9444438af903162c1f62d4e4b766b14cf067",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-fml/tests/captures/dc_51ka/oracle.capture.json": "29855d38aad3adbcbecfd48adc9ecf5ea9591d40ccd43300b5911e66c343bcd0",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-fml_dc_51ka_oracle.xlsx/evaluations.json": "bfc695363600b20462806854aead22b1e792fb16f9c34b01b1058dbb73a96b04",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-fml_dc_51ka_oracle.xlsx/triage.json": "323db38e0e41aba7e2dbc39e4bd7b91ff1084ae0f3010cd0edfb21e7ae7cd7cc",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-fml/tests/captures/dc_ibp2/oracle.capture.json": "86820e9865002f37365900d62255f2457e6559bb35648d21c7961e3074251570",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-fml_dc_ibp2_oracle.xlsx/evaluations.json": "b70153a4c8a6d2925b9dfb3cd11dddc8baeab73d22b11ff1b7a55e9cf425c218",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-fml_dc_ibp2_oracle.xlsx/triage.json": "2de86c225aa118a58b1c24927eba8b4a9c6f9194fb88f026ea94c40228cda809",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-fml/tests/captures/dc_l10u/oracle.capture.json": "cd49400b593455c995cbab364301654f5b71abff75d8cf3b9136ab265cb54f33",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-fml_dc_l10u_oracle.xlsx/evaluations.json": "dd154932723312d9706fbd5c75cf7afacd3e7edf17f098e5db0d11f3f88d6e1f",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-fml_dc_l10u_oracle.xlsx/triage.json": "6291ea7807c3c00cadbc4b9f50a46d2a14667321a0ac46852c57de39739dd946",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_catalogue_oracle.xlsx/session-1.capture.json": "5ce32a05b28d63da006a842a98c78ade8b526050b15bc9c1fd351d27bfd1087b",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_catalogue_oracle.xlsx/session-1/evaluations.json": "c42fea08f8737c64c89b1a61b224f47950b2699a5988527c8a66dced4b0a40cc",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_catalogue_oracle.xlsx/session-1/triage.json": "b74fe938216b18cedd5cdfd4bb58cac6dd7034b098081848536e425ed457221f",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_catalogue_oracle.xlsx/session-2.capture.json": "59a567927936be915693e2bc58ae047e8aad14512773abf9a3f83d0eebff4c54",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_catalogue_oracle.xlsx/session-2/evaluations.json": "b6bc92d36060d86be413e7322eaaaac8e18f0f08e271e6c2183b4bdb4c5f0cc0",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_catalogue_oracle.xlsx/session-2/triage.json": "9a9b47ef667f719c914dc04410f3441337db0def00a51dca8d2fe1a4dccb1af3",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_catalogue_oracle.xlsx/session-3.capture.json": "a2e07ca8bb7175326f1c4caec6ff9b1ceffbe73024ea0f2beda91c681deec079",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_catalogue_oracle.xlsx/session-3/evaluations.json": "29087a281002270f99ecec5fc2d5050135a5da2f0550dc956b7acfc96f1ea705",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_catalogue_oracle.xlsx/session-3/triage.json": "ee7db224bd1e77260654b2581114af1aced25fa6558b4e17d4057b9c52218366",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_catalogue_oracle.xlsx/session-4.capture.json": "25ff7e1febf24a2b006d8edad6ca2a8cd066cc28cf51d0f23b091dc7f6dff5ab",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_catalogue_oracle.xlsx/session-4/evaluations.json": "b80f046e263821a6ac97c7b04dd6bce12d216740a563ca86911f6fa737f2fa14",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_catalogue_oracle.xlsx/session-4/triage.json": "2028c4b1ad49f1f2c96d09ef098ca06271765dc88ba524bac8436927d8b4572e",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_catalogue_oracle.xlsx/session-5.capture.json": "17cdfb5723921f8adb5d381086c0b3f3979cbd2e0e8b3260cdc599b49062182f",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_catalogue_oracle.xlsx/session-5/evaluations.json": "d5a785eac41bf231a6524f238cf5e42765c3e316f4189f3e972f999c37b1c74e",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_catalogue_oracle.xlsx/session-5/triage.json": "af51e2671f0258d904ad098581da9f917733aa0e07860a48c4328ac4b8abc0d4",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/cdoc_jpha/oracle.capture.json": "0715f78c10c025d3ddd5ae94c00638603bf4b83b6cef3d68ece9d1492a21e66d",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_cdoc_jpha_oracle.xlsx/evaluations.json": "e80822bf51f3909882c3e18d349765be29ac60d1fdb350773ffa2cebecc874cd",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_cdoc_jpha_oracle.xlsx/triage.json": "fd1dea7d23a7310d8080f4d8b66c22792c37263fac3a3e91951963cfc502ff2e",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/cfunc_m1_2/oracle.capture.json": "90e9682f9167a21bc2f09b98bf591d741c32bb4836e4c4d15964a3e35435a2f5",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_cfunc_m1_2_oracle.xlsx/evaluations.json": "f61ca3d65f7686038a79b99600d3c843858bdf75e1ee72597493ea62efa7ebb8",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_cfunc_m1_2_oracle.xlsx/triage.json": "404e43c48fb87eee42f0f41de27bb6e05637a94dc3267f5adf6047c174c41b77",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/cfunc_m3_2/oracle.capture.json": "7979d864021b393e3ed8878bf054081347a819e9b6268b9a45076cde2a37512c",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_cfunc_m3_2_oracle.xlsx/evaluations.json": "c82d9946d6e1cc8faf1264abcb07e4930316e326df04068b8a098c7d0b3bd7ee",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_cfunc_m3_2_oracle.xlsx/triage.json": "ce0ac8fe96b73c30c7e8b8fa479e9196daa0c6c1e2023f903932629c9ee2d2f7",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/cfunc_m3_4/oracle.capture.json": "4f95169adf07860a0733f3fbeb112bd89c6e6f7c6c5b9b720a1948a0a6c52e84",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_cfunc_m3_4_oracle.xlsx/evaluations.json": "ea1a3b6b81b2055fdf89ab53229a4c96437cedbd872ff414d5526e085a195a8f",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_cfunc_m3_4_oracle.xlsx/triage.json": "f5c032d9f7d457697187f602dc03d39b9cae3adc7a2b809ca87e3b8ca568db6d",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/cfunc_m3_5/oracle.capture.json": "a081c92bc67686fb02dee651fd192041c519bf37324319c41a8a3bf3bcd86a44",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_cfunc_m3_5_oracle.xlsx/evaluations.json": "8ece82e9512dec40a1e64639409b27597f286a90979d825cb483e3c268be55c4",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_cfunc_m3_5_oracle.xlsx/triage.json": "09df79fd477ed74cbd8cedc4882f4e1e7efb981730de0c37898fdabf3b91ece7",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/cfunc_m3_6/oracle.capture.json": "5c4fed308a0637f2fe8968a377945aa203b1f2f3f9f0c580f91a0586ac15b482",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_cfunc_m3_6_oracle.xlsx/evaluations.json": "55abaabcb36a1aaf3bfd71253b5d646d92e1d1b9f416874813f5f5f001ad2212",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_cfunc_m3_6_oracle.xlsx/triage.json": "764f10796feaaa381cc2b272673be11eb5478cb9eee9acab3155aca4d6140e8b",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/dc_e00t/oracle.capture.json": "c1d6bab21e84382c38687ce52291f2df34a2745add2d2bd26ec73376c60b7dc1",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_dc_e00t_oracle.xlsx/evaluations.json": "0225c8790f638eb1dcd62eb31846bc38e24808b69d2fca7c49fcaff3c344d24a",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_dc_e00t_oracle.xlsx/triage.json": "2196a11077ce2819672dd189bb3d4a879e2024eaad87f86d486ddb85489df82f",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/dc_fwpz/oracle.capture.json": "cd43e5aa173f292a67935ee01a2fde3f70066b308c1c0cdaded5dc09f47f4eb3",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_dc_fwpz_oracle.xlsx/evaluations.json": "b59a8bb4cd021367c3075599508bfceaaf0d1e2c077bef90e977ad639cfb6492",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_dc_fwpz_oracle.xlsx/triage.json": "8aeda1ca61ff9b53151e5e263fd48487d405b0612102acb4392391841e5d43cd",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/dc_nzpw/oracle.capture.json": "350617950d36906deedf6caa9e9d2f093f6c30b053bfb6770125f5f0af4231ab",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_dc_nzpw_oracle.xlsx/evaluations.json": "9ecf726b00e5abafecd6f9c59c3724f6bee2b9f8b809499c0ca2d6bc0ef5aaa7",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_dc_nzpw_oracle.xlsx/triage.json": "a3161313e1dd7ea861f9d6e6d6e77b4ebe13d858acd77886b983f4812ad79b79",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/dc_q9rb/oracle.capture.json": "bf204ead52b4691069c69b5595bd6041c23e7fb954287837fd09324ee88bd779",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_dc_q9rb_oracle.xlsx/evaluations.json": "30b4b00b733dd130aecf5ebf7bdb6258b4a6c0de01affaa95453ffef46be3897",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_dc_q9rb_oracle.xlsx/triage.json": "954318c76e30b6b4d1f77a1f169f3490046da2d66a4a01293af7f7440ae54fb8",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/dc_xrxb/oracle.capture.json": "0e4814baa16e714e350e4180fe54edd21dc563e953fd5a42f1a6ad76edb7296a",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_dc_xrxb_oracle.xlsx/evaluations.json": "48a568ea8fc909821f7cdebd3c39cc7301cadbaaf7a5ee3cb23dbddedd1e190b",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-func_dc_xrxb_oracle.xlsx/triage.json": "e67c815d99280b87b8dbfaf2ffe47f22854313f601b748813973951d1f639a04",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-host/tests/captures/dc_ylr/oracle.capture.json": "fbb227e14cc2f4f14fef5feb07f6353831d875417604a4f3720e40ef6a3245cc",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-host_dc_ylr_oracle.xlsx/evaluations.json": "0d4f14707c6b3bd3f2303619780c493e61ed9f21d56639ff20c775f9e4766614",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/target/corpus-r23-before/workbooks/calc-host_dc_ylr_oracle.xlsx/triage.json": "ec46b876568bbbdd64c07975450c5b678015c034dad679714de4bc26b084b49b"
+  },
+  "generator_sha256": "b04c1a517b316cf937cc451cdf44342f01a89c331e8b04c73b1104a49bae5507",
+  "rule": "Last-bit: finite numeric mismatches <=16 ULP; larger numeric: >16 ULP. This split is triage, not a relaxed verdict. Every mismatch, refusal, unread, missing, pending, external and circular-policy cell remains an inclusive failure. Corpus functions are inferred from formula spelling, unwrapping INDEX selections; bank functions use canonical judge identities. Counts are observations per source; corpus and bank may overlap and must not be added as unique calls. Bank reference/locale context gaps remain failures, not proven numerical defects."
+}

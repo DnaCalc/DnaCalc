@@ -38,7 +38,9 @@
 # but this script. The script is ASCII and runs under Windows PowerShell 5.1.
 
 param(
-    [Parameter(Mandatory = $true)][string]$OutDir
+    [Parameter(Mandatory = $true)][string]$OutDir,
+    [string]$QuestionSectionFile = '',
+    [string]$QuestionCase = ''
 )
 
 Set-StrictMode -Version 2.0
@@ -268,6 +270,23 @@ function Write-Workbook([string]$Path, $Sheets, [switch]$DynamicArrays) {
     if ($DynamicArrays) { [void]$all.Add(@('xl/metadata.xml', $Metadata)) }
     foreach ($part in $parts) { [void]$all.Add($part) }
     Write-Package $Path $all
+}
+
+# Corpus-seeded questions use the same package writer in a separate new workbook.
+# This mode returns before reading or writing any of the existing oracle cases.
+if ($QuestionSectionFile -ne '' -or $QuestionCase -ne '') {
+    if ($QuestionSectionFile -eq '' -or $QuestionCase -cnotmatch '^[a-z][a-z0-9_]{0,30}$') {
+        throw 'Questions require -QuestionSectionFile and a lowercase -QuestionCase (at most 31 characters).'
+    }
+    $questionPath = Join-Path $OutDir ($QuestionCase + '/oracle.xlsx')
+    if (Test-Path -LiteralPath $questionPath) { throw ('Question workbook already exists: ' + $questionPath) }
+    $questionFormulas = @([System.IO.File]::ReadAllLines($QuestionSectionFile) | Where-Object {
+        $_.Trim() -ne '' -and -not $_.TrimStart().StartsWith('#')
+    })
+    if ($questionFormulas.Count -eq 0) { throw 'Question section contains no formulas.' }
+    $questionSheets = @(, @($QuestionCase, (New-OracleSheet @() $questionFormulas)))
+    Write-Workbook $questionPath $questionSheets
+    return
 }
 
 # --- cfunc_m1_2/oracle.xlsx ---------------------------------------------------------------------
