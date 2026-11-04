@@ -60,12 +60,23 @@ fn iteration_prefix_and_measured_han_repeat_order() {
     .expect("the strict primary prefix decides this comparison");
     assert_eq!(result.as_logical(), Some(expected));
     // Fn1 D2 now measures the Han repeat order separately from the earlier prefix reading.
-    // Iteration after a special still retains its typed refusal.
+    // Fn3 now records the exact bare-prefix comparison too; its unknown primary weight
+    // still cannot decide different prefixes with the same completed primary.
     let order = |a: &str, b: &str| calc_func::text_order(
         &a.encode_utf16().collect::<Vec<_>>(), &b.encode_utf16().collect::<Vec<_>>()
     );
     assert_eq!(order("時々", "時時"), Some(std::cmp::Ordering::Less));
-    assert_eq!(order("カ-ゝ", "カ-"), None);
+    let fn3 = CaptureRecord::decode(include_bytes!(
+        "captures/fn3_questions/oracle.capture.json"
+    )).expect("the retained fn3 Excel capture");
+    let relation = fn3.formulas.iter().find(|f|
+        f.formula.as_deref() == Some("=\"カ-\"<\"カ-ゝ\"")
+    ).expect("the same prefix has a measured reverse relation");
+    let observed = fn3.observations.iter().find(|o| o.cell == relation.cell).unwrap();
+    let Observation::ExcelRaw(value) = &observed.observation else { panic!("a raw reading"); };
+    assert_eq!(value.as_logical(), Some(true));
+    assert_eq!(order("カ-ゝ", "カ-"), Some(std::cmp::Ordering::Greater));
+    assert_eq!(order("カ-ゝ", "カゝ"), None, "a different prefix remains unmodelled");
 }
 
 

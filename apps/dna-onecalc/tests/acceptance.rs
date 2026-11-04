@@ -58,6 +58,8 @@ fn caller_comes_from_the_formula_instance() {
 
 /// Evaluate retained raw Excel readings through the public application route. The canonical
 /// capture codec supplies typed expected values, including their original UTF-16 code units.
+/// Callers supply matching form/environment/qualified inputs. Selected formulas must not depend
+/// on the source sheet's name; the session supplies their captured row and column.
 fn check_captured_questions(
     bytes: &[u8], session: &mut Session,
     include: impl Fn(&calc_verdict::FormulaCell) -> bool, expected_count: usize,
@@ -118,6 +120,51 @@ fn scalar_errors_keep_their_array_argument_origins() {
         f.cell.sheet().strip_prefix("fn2_q").and_then(|n| n.parse::<u32>().ok())
             .is_some_and(|n| matches!(n, 1..=10 | 232..=239))
     }, 18);
+}
+
+/// Fn3 records all three directions for seven exact prefixes, three punctuation units and
+/// three iteration/prolonged-sound marks, plus eight shorter-prefix controls.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn measured_iteration_suffixes_follow_their_exact_prefixes() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_form(calc_fml::FormulaForm::Dynamic);
+    session.set_environment(Some(CalcEnvironment {
+        profile: Some(format_profile(LocaleId::EnZa).with_separators(".", " ").unwrap()),
+        ..CalcEnvironment::dates(DateSystem::System1900)
+    }));
+    check_captured_questions(include_bytes!(
+        "../../../crates/calc-func/tests/captures/fn3_questions/oracle.capture.json"
+    ), &mut session, |f| f.cell.sheet() == "fn3_collation"
+        && matches!(f.cell.row(), 1 | 2 | 15 | 16 | 31 | 32 | 47 | 48 | 101..=289), 197);
+}
+
+/// The observed strict-prefix order gives no primary slot or ordering for these contexts.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn unmeasured_iteration_contexts_remain_refused() {
+    let mut session = Session::new("Sheet1").unwrap();
+    for formula in [
+        "=\"á-ゝ\"<\"a-\"",       // Accent-equivalent primary, different raw prefix.
+        "=\"ａ-ゝ\"<\"a-\"",       // Width-equivalent primary, different raw prefix.
+        "=\"時A-ゝ\"<\"時a-\"",   // Case-equivalent primary, different raw prefix.
+        "=\"時-ゝx\"<\"時-\"",    // A tail beyond the measured mark.
+        "=\"時-́ゝ\"<\"時-\"",     // A combining mark between punctuation and iteration.
+        "=\"時‐́ゝ\"<\"時‐\"",
+        "=\"時–ゝ\"<\"時–\"",     // An unmeasured punctuation unit.
+        "=\"時-ゞ\"<\"時-\"",     // An unmeasured iteration mark.
+        "=\"時-ゝ\"<\"時ゝ\"",    // Equal primary prefix without a raw prefix relation.
+        "=\"가-ゝ\"<\"가-\"",    // Globally refused conjoining jamo.
+        "=\"時-'ゝ\"<\"時\"",      // More than the measured terminal suffix.
+    ] {
+        session.set_formula(formula);
+        let calculated = session.calculate();
+        assert!(calculated.result.is_none(), "{formula}: {:?}", calculated.result);
+        assert!(calculated.diagnostics.iter().any(|diagnostic| matches!(diagnostic,
+            Diagnostic::Eval(EvalFault::Function(FunctionFault::NotImplemented { .. }))
+        )), "{formula}: {:?}", calculated.diagnostics);
+    }
 }
 
 /// Recorded POISSON branch/control answers from OxFunc-Evidence's
