@@ -57,7 +57,8 @@ pub fn gamma(z: f64) -> f64 {
 //
 // Live-Excel identification (W109) proved this is Excel's actual algorithm for
 // the incomplete-gamma family (CHIDIST / GAMMA.DIST / GAMMADIST / CHISQ.*),
-// executed in plain SSE2 double with std log/exp. This kernel replaces the
+// Most of its body stores binary64 arithmetic; measured final-series and Temme
+// corrections use the shared x87 arithmetic. This kernel replaces the
 // previous Newton-Raphson-style series/continued-fraction pair, collapsing the
 // catastrophic ULP drift (up to ~6224 ULP) those exhibited versus Excel.
 //
@@ -72,8 +73,8 @@ pub fn gamma(z: f64) -> f64 {
 //   3. Consequently erf_nswc / erfc1 are not ported. The Temme a >= big branch's
 //      single scaled-erfc need (erfc1(1, sqrt(y)) == exp(y)*Q(0.5, y)) is likewise
 //      wired through the recursion, keeping the structure complete without an
-//      erf implementation. (No witness in the identification corpus reaches the
-//      Temme branch; it is ported for structural fidelity.)
+//      erf implementation. R24's current corpus reaches the Temme branch; its
+//      final correction retains PC64 arithmetic through the final product.
 // ---------------------------------------------------------------------------
 
 const GRATIO_ALOG10: f64 = 2.30258509299405;
@@ -854,12 +855,13 @@ fn gratio_temme_330(a: f64, l: f64, y: f64, z: f64, e: f64, _s: f64, iop: usize)
 
 fn gratio_temme_finish(l: f64, c: f64, w: f64, t: f64, a: f64) -> (f64, f64) {
     let rta = a.sqrt();
+    let (answer, complement) = crate::ported::excel_numeric::excel_x87_temme_finish(
+        c, w, GRATIO_RT2PIN, t, rta, l < 1.0,
+    );
     if l >= 1.0 {
-        let qans = c * (w + GRATIO_RT2PIN * t / rta);
-        (0.5 + (0.5 - qans), qans)
+        (complement, answer)
     } else {
-        let ans = c * (w - GRATIO_RT2PIN * t / rta);
-        (ans, 0.5 + (0.5 - ans))
+        (answer, complement)
     }
 }
 

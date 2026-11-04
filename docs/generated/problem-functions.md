@@ -8,7 +8,7 @@ python3 racer/corpus_cases.py problem-functions ../DnaCalc ../DnaCalc/docs/gener
 
 Last-bit: finite numeric mismatches <=16 ULP; larger numeric: >16 ULP. This split is triage, not a relaxed verdict. Every mismatch, refusal, unread, missing, pending, external and circular-policy cell remains an inclusive failure. Corpus labels follow exact single-cell aliases, infer calls from formula spelling and unwrap INDEX selections; unresolved references and infix operators remain explicit. Bank functions use canonical judge identities. Counts are observations per source; corpus and bank may overlap and must not be added as unique calls. Bank reference/locale context gaps remain failures, not proven numerical defects.
 
-Corpus: 21,480/22,830 matched (94.08673%); 1,350 inclusive failures, including 0 pending.
+Corpus: 21,481/22,830 matched (94.09111%); 1,349 inclusive failures, including 0 pending.
 Bank: 3,267,249/3,910,050 matched (83.56029%); 642,801 failures, including 116 unread.
 
 Larger numeric and last-bit columns count numeric mismatches; other columns count remaining mismatches. Bank refusals and unread rows are separate. Corpus refusals/missing are recorded in the JSON, outside the mismatch table.
@@ -25,7 +25,7 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | ROUND | 0 | 0 | 2 | 4,849 | 186 | 430 | 0 | 0 |
 | NORM.S.DIST | 0 | 1 | 0 | 3,999 | 9,727 | 0 | 0 | 0 |
 | MOD | 0 | 0 | 0 | 2,596 | 772 | 1,606 | 0 | 0 |
-| POISSON.DIST | 1 | 11 | 0 | 2,240 | 8,065 | 0 | 0 | 4 |
+| POISSON.DIST | 1 | 10 | 0 | 2,240 | 8,065 | 0 | 0 | 4 |
 | LOGNORM.DIST | 0 | 0 | 0 | 1,466 | 3,008 | 0 | 0 | 0 |
 | BESSELJ | 29 | 0 | 0 | 840 | 0 | 0 | 0 | 0 |
 | LOGNORMDIST | 0 | 0 | 0 | 753 | 1,880 | 0 | 0 | 0 |
