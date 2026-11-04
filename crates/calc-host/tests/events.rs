@@ -265,3 +265,104 @@ fn failed_event_is_counted_once_without_rejecting_or_replaying_the_committed_edi
     );
     assert!(book.take_workbook_event_failures().failures.is_empty());
 }
+
+/// P22 ordinary COM writes: entry order and observed values, separately from UI
+/// edits. Each scenario has ten fresh-required Excel trials; no UI ordering is
+/// inferred. Nested object writes remain outside the admitted handler surface.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn p22_recorded_com_change_observes_completed_automatic_values() {
+    use calc_host::CommandIngress;
+    let traces: [(&str, &[&str]); 3] = [
+        ("manual-basic", &[
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/01.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/02.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/03.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/04.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/05.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/06.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/07.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/08.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/09.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/manual-basic/10.tsv"),
+        ]),
+        ("automatic-basic", &[
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/01.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/02.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/03.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/04.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/05.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/06.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/07.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/08.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/09.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-basic/10.tsv"),
+        ]),
+        ("automatic-events-disabled", &[
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/01.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/02.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/03.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/04.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/05.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/06.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/07.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/08.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/09.tsv"),
+            include_str!("../../calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/traces/automatic-events-disabled/10.tsv"),
+        ]),
+    ];
+    for (name, trials) in traces {
+        let mut expected_trials = Vec::new();
+        for raw in trials {
+            let rows: Vec<_> = raw.lines().map(|line| line.split('\t').collect::<Vec<_>>()).collect();
+            let mut expected = Vec::new();
+            for (i, row) in rows.iter().enumerate() {
+                let [_, operation, event, ..] = row.as_slice() else { continue };
+                if !matches!(*operation, "COM write A1=5" | "COM same-value rewrite" | "COM ClearContents A1") {
+                    continue;
+                }
+                if !matches!(*event, "Worksheet_Change entry" | "Worksheet_Calculate entry") { continue; }
+                let values: Vec<Option<f64>> = rows[i+1..].iter().take(3).map(|cell| {
+                    assert_eq!(cell[2], "cell");
+                    if let Some((_, bits)) = cell[3].split_once("bits=") {
+                        Some(f64::from_bits(u64::from_str_radix(bits, 16).unwrap()))
+                    } else {
+                        assert!(cell[3].contains("type=Empty"));
+                        None
+                    }
+                }).collect();
+                expected.push(if *event == "Worksheet_Change entry" {
+                    format!("change {:?}/{:?}/{:?}", values[0],values[1],values[2])
+                } else {
+                    format!("calculate {:?}/{:?}", values[1],values[2])
+                });
+            }
+            expected_trials.push(expected);
+        }
+        for expected in &expected_trials { assert_eq!(expected, &expected_trials[0], "{name}: Excel trial disagreement"); }
+        for budget in [usize::MAX, 1, 0] {
+            let mut book = book();
+            enter(&mut book, 1, "1");
+            enter(&mut book, 2, "=A1+1");
+            enter(&mut book, 3, "=B1*2");
+            assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+            if name.starts_with("automatic") {
+                assert!(book.dispatch(SkinIntent::SetCalcMode(CalcMode::Automatic)).accepted());
+            }
+            book.set_calculation_budget(WorkBudget::evaluations(budget));
+            let probe = Probe::new(&book);
+            book.set_workbook_event_handler(Some(probe.clone()));
+            book.set_workbook_events_enabled(name != "automatic-events-disabled");
+            for text in ["5", "5", "", "5"] {
+                let receipt = book.dispatch_from(CommandIngress::Automation, SkinIntent::EnterCell {
+                    at: probe.a, text: text.into(),
+                });
+                assert!(receipt.accepted(), "{receipt:?}");
+                assert!(!book.has_pending_calculation());
+                assert_eq!(book.intent_log().last().unwrap().ingress, CommandIngress::Automation);
+            }
+            assert_eq!(*probe.log.borrow(), expected_trials[0], "{name}, budget {budget}");
+            assert!(book.workbook_event_failures().failures.is_empty());
+        }
+    }
+}

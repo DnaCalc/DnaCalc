@@ -153,6 +153,19 @@ impl HostSession {
             }
         }
     }
+    pub(crate) fn refuse_automation_change(&mut self, receipt: &CommandReceipt) {
+        if self.event_owner().is_none() { return; }
+        let mut targets: BTreeMap<SheetId, Vec<GridArea>> = BTreeMap::new();
+        for area in receipt.input_writes().iter().copied() {
+            targets.entry(area.sheet()).or_default().push(area);
+        }
+        for (sheet, target) in targets {
+            self.record_event_failure(
+                WorkbookEvent::WorksheetChange { sheet, target },
+                "Automation Change after a waiting provider is not modelled (dc-hsa5.12)".into(),
+            );
+        }
+    }
     pub(crate) fn notify_workbook_calculation(&mut self, progress: &HostProgress) {
         let HostProgress::Published(delta) = progress else {
             if matches!(progress, HostProgress::Failed(_) | HostProgress::Cancelled) {

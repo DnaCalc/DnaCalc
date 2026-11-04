@@ -1,0 +1,9 @@
+{
+  "delivery_manifest_sha256": "72a721b4ffbbcb48a1231615cf9590ea71cd4a4eb139a21b89480dae489317d3",
+  "verified_files": 8161,
+  "verified_trials": 746,
+  "pure_trials": 692,
+  "pure_conditions": 86,
+  "additional_pure_trials": 282,
+  "p06_trials": 54
+}
