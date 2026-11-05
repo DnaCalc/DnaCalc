@@ -452,6 +452,33 @@ pub fn app_with_transport(
         }
     };
 
+    let (sheet_controls, request_sheet_rename) = crate::sheets::controls(controller);
+    // Changing sheets can move the tab strip between the two clicks. Keep the browser's
+    // native multi-click gesture attached to that tab before a press reaches a new control.
+    let tab_click = StoredValue::new(None);
+    let tab_gesture = move |ev: leptos::ev::MouseEvent| {
+        let kind = ev.type_();
+        if (kind == "mousedown" || kind == "click") && ev.detail() != 2 {
+            tab_click.set_value(None);
+        }
+        if ev.detail() != 2 || ev.button() != 0 || ev.ctrl_key() || ev.meta_key()
+            || ev.shift_key() || ev.alt_key()
+        {
+            return;
+        }
+        let Some((generation, sheet)) = tab_click.get_value() else { return; };
+        if controller.generation.get_untracked() != generation {
+            tab_click.set_value(None);
+            return;
+        }
+        ev.prevent_default();
+        ev.stop_propagation();
+        if kind == "click" {
+            request_sheet_rename(sheet);
+        } else if kind == "dblclick" {
+            tab_click.set_value(None);
+        }
+    };
     let tabs = move || {
         let current = controller.sheet.get();
         controller
@@ -471,7 +498,12 @@ pub fn app_with_transport(
                         title=name.clone()
                         data-sheet=name
                         aria-selected=if selected { "true" } else { "false" }
-                        on:click=move |_| controller.show_sheet(id)
+                        on:click=move |ev| {
+                            if ev.detail()==1 && ev.button()==0 && !ev.ctrl_key() && !ev.meta_key() && !ev.shift_key() && !ev.alt_key() {
+                                tab_click.set_value(Some((controller.generation.get_untracked(),id)));
+                            }
+                            controller.show_sheet(id);
+                        }
                         on:keydown=move |ev: leptos::ev::KeyboardEvent| {
                             let tabs = controller.sheets();
                             let index = tabs.iter().position(|tab| tab.id == id).unwrap_or(0);
@@ -564,7 +596,8 @@ pub fn app_with_transport(
     };
 
     view! {
-        <div class="dc-app" data-dnacalc="app" inert=move || controller.replacing.get().then_some("") on:keydown=on_app_key>
+        <div class="dc-app" data-dnacalc="app" inert=move || controller.replacing.get().then_some("") on:keydown=on_app_key
+            on:mousedown:capture=tab_gesture on:click:capture=tab_gesture on:dblclick:capture=tab_gesture>
             <header class="dc-mast">
                 <strong>"DNA Calc"</strong>
                 <span class="dc-doc" data-dnacalc="document" data-unsaved=move ||controller.summary.with(|s|s.unsaved.to_string()) data-template=move ||controller.summary.with(|s|s.template.to_string()) data-changed=move ||controller.summary.with(|s|s.changed.to_string()) title=document_line aria-label=document_line tabindex="0">{document_line}</span>
@@ -782,7 +815,7 @@ pub fn app_with_transport(
             })}
             <main id="dc-workspace" class="dc-main" tabindex="-1" aria-label="Workbook workspace">{skin_view}</main>
             {crate::commands::summary(controller)}
-            <div class="dc-sheet-strip"><nav class="dc-tabs" role="tablist" aria-label="Worksheets" data-dnacalc="sheet-tabs">{tabs}</nav>{crate::sheets::controls(controller)}</div>
+            <div class="dc-sheet-strip"><nav class="dc-tabs" role="tablist" aria-label="Worksheets" data-dnacalc="sheet-tabs">{tabs}</nav>{sheet_controls}</div>
             <footer class="dc-status">
                 <span data-dnacalc="worker-status" role="status" aria-live="polite" aria-atomic="true">{move || {
                     let health = controller.transport.get();
