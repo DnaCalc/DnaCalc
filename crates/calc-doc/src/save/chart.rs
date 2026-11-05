@@ -61,13 +61,17 @@ fn source_with_xml(
         ));
     }
     if before.plots.len()!=after.plots.len() {return Err(invalid("Adding or removing chart plots is not modelled (dc-971p.46)"));}
+    if before.plots.len()!=1 && before.plots.iter().zip(&after.plots).any(|(a,b)|plot_type_changed(a,b)){return Err(invalid("Changing combination chart types is not modelled (dc-971p.46)"));}
+    let old_total=before.plots.iter().map(|p|p.series.len()).sum::<usize>();let new_total=after.plots.iter().map(|p|p.series.len()).sum::<usize>();
+    if new_total>255 && new_total>old_total{return Err(invalid("A chart can have at most 255 series (dc-971p.46)"));}
     for (old,new) in before.plots.iter().zip(&after.plots) {
-        let mut retained=new.clone();retained.series=old.series.clone();
-        if retained!=*old {return Err(invalid("Changing this plot's properties is not modelled (dc-971p.46)"));}
+        let mut retained=new.clone();retained.series=old.series.clone();retained.kind=old.kind.clone();retained.bar_direction=old.bar_direction.clone();retained.grouping=old.grouping.clone();
+        if retained!=*old || !valid_plot_type(old,new) {return Err(invalid("Changing these plot properties is not modelled (dc-971p.46)"));}
         if old.series==new.series {continue;}
+        if pie_kind(&old.kind) && new.series.len()>old.series.len(){return Err(invalid("Adding pie or doughnut series is not modelled (dc-971p.46)"));}
         if !matches!(old.kind.as_str(),"barChart"|"lineChart"|"areaChart"|"pieChart"|"doughnutChart"|"scatterChart") {return Err(invalid("Editing this plot's series is not modelled (dc-971p.46)"));}
         let mut indices=std::collections::BTreeSet::new();
-        if new.series.is_empty() || new.series.len()>256 || !new.series.iter().all(|s|indices.insert(s.index)) {return Err(invalid("Use 1 to 256 series with distinct indices (dc-971p.46)"));}
+        if new.series.is_empty() || !new.series.iter().all(|s|indices.insert(s.index)) {return Err(invalid("Use 1 to 255 series with distinct indices (dc-971p.46)"));}
         let existing=new.series.iter().filter(|s|old.series.iter().any(|o|o.index==s.index)).map(|s|s.index).collect::<Vec<_>>();
         let retained=old.series.iter().filter(|s|new.series.iter().any(|n|n.index==s.index)).map(|s|s.index).collect::<Vec<_>>();
         if existing!=retained {return Err(invalid("Reordering chart series is not modelled (dc-971p.46)"));}
@@ -79,9 +83,13 @@ fn source_with_xml(
         }
     }
     if before.axes.len()!=after.axes.len(){return Err(invalid("Creating or removing chart axes is not modelled (dc-971p.46)"));}
+    let swap=before.plots.first().zip(after.plots.first()).is_some_and(|(a,b)|category_kind(&a.kind)&&category_kind(&b.kind) && (a.kind=="barChart" && a.bar_direction.as_deref()==Some("bar"))!=(b.kind=="barChart" && b.bar_direction.as_deref()==Some("bar")));
     for (old,new) in before.axes.iter().zip(&after.axes) {
-        let mut retained=new.clone();retained.minimum=old.minimum.clone();retained.maximum=old.maximum.clone();retained.major_unit=old.major_unit.clone();retained.reversed=old.reversed;
-        if retained!=*old || (old!=new && (old.kind!="valAx" || old.log_base.is_some())) {return Err(invalid("Only retained linear value-axis bounds, units and direction can be edited (dc-971p.46)"));}
+        let expected=old.position.as_deref().map(|p|(if swap{match p{"b"=>"l","t"=>"r","l"=>"b","r"=>"t",other=>other}}else{p}).to_owned());
+        if new.position!=expected{return Err(invalid("Only a type conversion can transpose chart axis positions (dc-971p.46)"));}
+        let settings=old.minimum!=new.minimum || old.maximum!=new.maximum || old.major_unit!=new.major_unit || old.reversed!=new.reversed;
+        let mut retained=new.clone();retained.position=old.position.clone();retained.minimum=old.minimum.clone();retained.maximum=old.maximum.clone();retained.major_unit=old.major_unit.clone();retained.reversed=old.reversed;
+        if retained!=*old || (settings && (old.kind!="valAx" || old.log_base.is_some())) {return Err(invalid("Only retained linear value-axis bounds, units and direction can be edited (dc-971p.46)"));}
         if old==new {continue;}
         for text in [new.minimum.as_deref(),new.maximum.as_deref(),new.major_unit.as_deref()].into_iter().flatten() {
             if text.parse::<f64>().ok().is_none_or(|n|!n.is_finite()){return Err(invalid("Use finite numeric axis settings (dc-971p.46)"));}
@@ -532,10 +540,10 @@ fn literal_title(
 fn plot_area(xml:&XmlPart, reader:&mut Reader<'_>, before:&Chart, after:&Chart, patches:&mut Vec<Patch>)->Result<usize,SaveRefusal>{
     let mut i=0;let mut a=0;
     loop {match reader.expect()? {
-        (XmlEvent::Start(e),_) if e.name.namespace.as_deref()==Some(C) && e.name.local.ends_with("Chart")=>{
+        (XmlEvent::Start(e),span) if e.name.namespace.as_deref()==Some(C) && e.name.local.ends_with("Chart")=>{
             let old=before.plots.get(i).ok_or_else(||reader.invalid("Unexpected chart plot (dc-971p.46)"))?;
             let new=&after.plots[i]; i+=1;
-            if old==new {reader.element_end()?;} else {plot_series(xml,reader,old,new,patches)?;}
+            if old==new {reader.element_end()?;} else {plot_series(xml,reader,span,old,new,patches)?;}
         },
         (XmlEvent::Start(e),span) if ["valAx","catAx","dateAx","serAx"].iter().any(|n|e.name.is(C,n))=>{
             let old=before.axes.get(a).ok_or_else(||reader.invalid("Unexpected chart axis (dc-971p.46)"))?;let new=&after.axes[a];a+=1;
@@ -547,27 +555,48 @@ fn plot_area(xml:&XmlPart, reader:&mut Reader<'_>, before:&Chart, after:&Chart, 
         },_=>{}
     }}
 }
-fn plot_series(xml:&XmlPart,reader:&mut Reader<'_>,before:&ChartPlot,after:&ChartPlot,patches:&mut Vec<Patch>)->Result<(),SaveRefusal>{
-    let mut i=0;let mut insert=None;
-    loop {match reader.expect()? {
+fn plot_series(xml:&XmlPart,reader:&mut Reader<'_>,root:(usize,usize),before:&ChartPlot,after:&ChartPlot,patches:&mut Vec<Patch>)->Result<(),SaveRefusal>{
+    let changed=plot_type_changed(before,after);let converted=before.kind!=after.kind;
+    if converted{patches.push((root,renamed_tag(xml,root,&after.kind)));}
+    if changed {
+        let mut header=Vec::new();
+        if let Some(direction)=after.bar_direction.as_deref(){header.extend(fresh_number("barDir",direction));}
+        if let Some(group)=after.grouping.as_deref(){header.extend(fresh_number("grouping",group));}
+        if !header.is_empty(){patches.push(((root.1,root.1),header));}
+    }
+    let set_overlap=after.kind=="barChart" && (before.kind!=after.kind || before.grouping!=after.grouping);
+    let mut i=0;let mut insert=None;let mut overlap=false;let mut late=None;let mut extension=None;
+    let close=loop {match reader.expect()? {
         (XmlEvent::Start(e),span) if e.name.is(C,"ser")=>{
             let old=before.series.get(i).ok_or_else(||reader.invalid("Unexpected chart series (dc-971p.46)"))?;i+=1;
             let end=if let Some((order,new))=after.series.iter().enumerate().find(|(_,s)|s.index==old.index) {
-                if old==new && order==i-1 {reader.element_end()?}else{series_source(xml,reader,span,old,new,&before.kind,(before.series.iter().map(|s|s.index).ne(after.series.iter().map(|s|s.index))).then_some(order),patches)?}
+                if old==new && order==i-1 && !converted {reader.element_end()?}else{series_source(xml,reader,span,old,new,&before.kind,&after.kind,(before.series.iter().map(|s|s.index).ne(after.series.iter().map(|s|s.index))).then_some(order),patches)?}
             }else{let end=reader.element_end()?;patches.push(((span.0,end),Vec::new()));end};
             insert=Some(end);
         },
-        (XmlEvent::Start(_),_)=>{reader.element_end()?;},
-        (XmlEvent::End(_),_)=>break,_=>{}
-    }}
+        (XmlEvent::Start(e),span)=>{
+            let end=reader.element_end()?;
+            if ["serLines","axId","extLst"].iter().any(|n|e.name.is(C,n)){late.get_or_insert(span.0);}
+            if e.name.is(C,"extLst"){extension.get_or_insert(span.0);}
+            if changed && ["barDir","grouping"].iter().any(|n|e.name.is(C,n)){patches.push(((span.0,end),Vec::new()));}
+            else if e.name.is(C,"overlap") && set_overlap {overlap=true;numeric_field(xml,span,end,"overlap",Some(if after.grouping.as_deref()==Some("stacked"){"100"}else{"0"}),patches);}
+            else if converted && e.name.namespace.as_deref()==Some(C) {
+                if !plot_child(&before.kind,&e.name.local){return Err(reader.invalid("This plot has unsupported type-specific records (dc-971p.46)"));}
+                if !plot_child(&after.kind,&e.name.local){patches.push(((span.0,end),Vec::new()));}
+            }
+        },
+        (XmlEvent::End(_),span)=>{if converted{patches.push((span,renamed_tag(xml,span,&after.kind)));}break span.0;},_=>{}
+    }};
     if i!=before.series.len(){return Err(reader.invalid("Chart series count changed (dc-971p.46)"));}
     let mut added=Vec::new();
     for (order,s) in after.series.iter().enumerate().filter(|(_,s)|!before.series.iter().any(|o|o.index==s.index)) {
         added.extend_from_slice(format!("<c:ser xmlns:c=\"{C}\"><c:idx val=\"{}\"/><c:order val=\"{order}\"/>",s.index).as_bytes());
-        for (slot,data) in [("tx",s.name.as_ref()),(if before.kind=="scatterChart"{"xVal"}else{"cat"},s.categories.as_ref()),(if before.kind=="scatterChart"{"yVal"}else{"val"},s.values.as_ref())] {added.extend_from_slice(&data_xml(slot,data));}
+        for (slot,data) in [("tx",s.name.as_ref()),(if after.kind=="scatterChart"{"xVal"}else{"cat"},s.categories.as_ref()),(if after.kind=="scatterChart"{"yVal"}else{"val"},s.values.as_ref())] {added.extend_from_slice(&data_xml(slot,data));}
         added.extend_from_slice(b"</c:ser>");
     }
     if !added.is_empty(){let at=insert.ok_or_else(||reader.invalid("This plot has no series insertion point (dc-971p.46)"))?;patches.push(((at,at),added));}
+    if set_overlap && !overlap{let at=late.unwrap_or(close);patches.push(((at,at),fresh_number("overlap",if after.grouping.as_deref()==Some("stacked"){"100"}else{"0"})));}
+    if before.kind=="pieChart" && after.kind=="doughnutChart"{let at=extension.unwrap_or(close);patches.push(((at,at),fresh_number("holeSize","50")));}
     Ok(())
 }
 fn data_xml(slot:&str,data:Option<&ChartData>)->Vec<u8>{
@@ -584,7 +613,7 @@ fn data_xml(slot:&str,data:Option<&ChartData>)->Vec<u8>{
     };
     format!("<c:{slot} xmlns:c=\"{C}\">{body}</c:{slot}>").into_bytes()
 }
-fn series_source(xml:&XmlPart,reader:&mut Reader<'_>,span:(usize,usize),before:&ChartSeries,after:&ChartSeries,kind:&str,order:Option<usize>,patches:&mut Vec<Patch>)->Result<usize,SaveRefusal>{
+fn series_source(xml:&XmlPart,reader:&mut Reader<'_>,span:(usize,usize),before:&ChartSeries,after:&ChartSeries,kind:&str,next_kind:&str,order:Option<usize>,patches:&mut Vec<Patch>)->Result<usize,SaveRefusal>{
     let mut children=Vec::new();
     let (close,end)=loop {match reader.expect()? {
         (XmlEvent::Start(e),span)=>{let end=reader.element_end()?;children.push((e.name,(span.0,end)));},
@@ -607,6 +636,10 @@ fn series_source(xml:&XmlPart,reader:&mut Reader<'_>,span:(usize,usize),before:&
             patches.push(((at,at),bytes));
         }
     }
+    if kind!=next_kind {for (name,span) in &children {if name.namespace.as_deref()==Some(C){
+        if !series_child(kind,&name.local){return Err(reader.invalid("This series has unsupported type-specific records (dc-971p.46)"));}
+        if !series_child(next_kind,&name.local){patches.push((*span,Vec::new()));}
+    }}}
     Ok(end)
 }
 
@@ -649,6 +682,7 @@ fn axis_settings(xml:&XmlPart,reader:&mut Reader<'_>,_span:(usize,usize),before:
             if scale{return Err(reader.invalid("Duplicate axis scaling records (dc-971p.46)"));}scale=true;
             if before.minimum!=after.minimum || before.maximum!=after.maximum || before.reversed!=after.reversed {axis_scaling(xml,reader,child,before,after,patches)?;}else{reader.element_end()?;}
         },
+        (XmlEvent::Start(e),child) if e.name.is(C,"axPos")=>{let end=reader.element_end()?;if before.position!=after.position{numeric_field(xml,child,end,"axPos",after.position.as_deref(),patches);}},
         (XmlEvent::Start(e),child) if e.name.is(C,"majorUnit")=>{
             if unit{return Err(reader.invalid("Duplicate major units (dc-971p.46)"));}unit=true;
             let end=reader.element_end()?;
@@ -705,4 +739,40 @@ fn axis_scaling(xml:&XmlPart,reader:&mut Reader<'_>,span:(usize,usize),before:&c
         else if let Some(value)=value{let at=children.iter().find(|(n,_)|n.namespace.as_deref()==Some(C) && rank(&n.local)>rank(name)).map_or(close,|(_,s)|s.0);patches.push(((at,at),fresh_number(name,value)));}
     }
     Ok(())
+}
+
+fn category_kind(kind:&str)->bool{matches!(kind,"barChart"|"lineChart"|"areaChart")}
+fn pie_kind(kind:&str)->bool{matches!(kind,"pieChart"|"doughnutChart")}
+fn plot_type_changed(old:&ChartPlot,new:&ChartPlot)->bool{old.kind!=new.kind || old.bar_direction!=new.bar_direction || old.grouping!=new.grouping}
+fn valid_plot_type(old:&ChartPlot,new:&ChartPlot)->bool {
+    if !plot_type_changed(old,new){return true;}
+    if category_kind(&old.kind)&&category_kind(&new.kind) {
+        let direction=if new.kind=="barChart"{matches!(new.bar_direction.as_deref(),Some("col"|"bar"))}else{new.bar_direction.is_none()};
+        let grouping=new.grouping.as_deref()==Some("stacked") || new.grouping.as_deref()==Some(if new.kind=="barChart"{"clustered"}else{"standard"});
+        direction&&grouping
+    }else{pie_kind(&old.kind)&&pie_kind(&new.kind)&&new.bar_direction.is_none()&&new.grouping.is_none()}
+}
+/// Rename only the XML QName; retain source attributes and namespace declarations byte for byte.
+fn renamed_tag(xml:&XmlPart,span:(usize,usize),local:&str)->Vec<u8>{
+    let bytes=&xml.bytes()[span.0..span.1];let start=if bytes.get(1)==Some(&b'/'){2}else{1};
+    let end=(start..bytes.len()).find(|i|matches!(bytes[*i],b' '|b'\t'|b'\r'|b'\n'|b'/'|b'>')).unwrap_or(bytes.len());
+    let prefix=bytes[start..end].iter().rposition(|b|*b==b':').map_or(start,|i|start+i+1);
+    let mut out=bytes[..prefix].to_vec();out.extend_from_slice(local.as_bytes());out.extend_from_slice(&bytes[end..]);out
+}
+fn plot_child(kind:&str,local:&str)->bool{
+    matches!(local,"varyColors"|"ser"|"dLbls"|"axId"|"extLst") || match kind {
+        "barChart"=>matches!(local,"barDir"|"grouping"|"gapWidth"|"overlap"|"serLines"),
+        "lineChart"=>matches!(local,"grouping"|"dropLines"|"hiLowLines"|"upDownBars"|"marker"|"smooth"),
+        "areaChart"=>matches!(local,"grouping"|"dropLines"),
+        "pieChart"=>local=="firstSliceAng",
+        "doughnutChart"=>matches!(local,"firstSliceAng"|"holeSize"),_=>false,
+    }
+}
+fn series_child(kind:&str,local:&str)->bool{
+    matches!(local,"idx"|"order"|"tx"|"spPr"|"dPt"|"dLbls"|"cat"|"val"|"extLst") || match kind {
+        "barChart"=>matches!(local,"invertIfNegative"|"pictureOptions"|"trendline"|"errBars"|"shape"),
+        "lineChart"=>matches!(local,"marker"|"trendline"|"errBars"|"smooth"),
+        "areaChart"=>matches!(local,"pictureOptions"|"trendline"|"errBars"),
+        "pieChart"|"doughnutChart"=>local=="explosion",_=>false,
+    }
 }
