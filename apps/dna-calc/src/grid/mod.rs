@@ -2244,6 +2244,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             {crate::clipboard::controls(controller)}
             {axis::controls(controller)}
             {crate::tables::controls(controller)}
+            <Show when=move ||!charts.get().is_empty()>{crate::charts::controls(controller)}</Show>
             {crate::commands::sort_controls(controller)}
             {crate::commands::filter_controls(controller)}
             {structure::controls(controller)}

@@ -690,6 +690,29 @@ fn binomial_mass_uses_the_internal_normalization_logarithm() {
     }
 }
 
+/// Original Excel build20527 R27 scalar readings distinguish strict from stored PC64 n*LN(p).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn binomial_all_success_stores_the_x87_log_product() {
+    for (trials, probability, expected) in [
+        (1_048_573.0, 0x3fef_ffdf_ffff_ff90, 0x3e7e_34c4_aa8e_1c9c),
+        (1_048_579.0, 0x3fef_ffdf_ffff_ff90, 0x3e7e_340f_6fb7_3015),
+        (16_777_215.0, 0x3fef_fffd_ffff_fc10, 0x3e7e_354a_cc09_8faf),
+        (16_777_217.0, 0x3fef_fffd_ffff_fc10, 0x3e7e_3547_0560_4d12),
+        (16_777_213.0, 0x3fef_fffe_0000_0030, 0x3e7e_3552_7792_df08),
+        (16_777_219.0, 0x3fef_fffe_0000_0030, 0x3e7e_3547_2395_b87f),
+        (268_435_453.0, 0x3fef_ffff_dfff_fc00, 0x3e7e_351e_b969_add5),
+        (268_435_459.0, 0x3fef_ffff_dfff_fc00, 0x3e7e_351e_042a_e0b8),
+        (268_435_455.0, 0x3fef_ffff_dfff_fc20, 0x3e7e_3520_6051_61a3),
+        (268_435_457.0, 0x3fef_ffff_dfff_fc20, 0x3e7e_3520_23e7_19ce),
+    ] {
+        for function in ["BINOM.DIST", "BINOMDIST"] {
+            exact(call(function, vec![n(trials), n(trials), n(f64::from_bits(probability)), b(false)]),
+                f64::from_bits(expected));
+        }
+    }
+}
+
 /// Recorded tiny ERF answers: the stored-product route below 2^-27 (dc-j9k.6) reproduces them.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

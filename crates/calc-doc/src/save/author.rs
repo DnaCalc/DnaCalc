@@ -413,6 +413,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
     // A defined name's formula an edit changed (rows or columns inserted or deleted, cells moved).
     let names_changed = base.definitions().names() != model.definitions().names();
     let validation_changed = base.definitions().all_validations().ne(model.definitions().all_validations());
+    let charts_changed=base.definitions().all_charts().ne(model.definitions().all_charts());
     let links_changed=base.definitions().all_review_links().ne(model.definitions().all_review_links());
     let review_changed = base
         .definitions()
@@ -437,6 +438,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
         && !names_changed
         && !conditional_changed
         && !review_changed
+        && !charts_changed
         && !links_changed
         && !validation_changed
         && views.is_none()
@@ -1158,6 +1160,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
             out.rewritten.insert(sheet.part().name().to_owned(),bytes);
         }
     }
+    if charts_changed {super::chart::finish(package,base,model,&mut out)?;}
     if review_changed {super::review::finish(package,workbook_part,&sheets,base,model,&moves,&mut out)?;}
     if sheets_changed {
         super::sheets::finish(package, workbook_part, base, model, sheets, &mut out)?;

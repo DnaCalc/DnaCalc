@@ -238,12 +238,12 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
     },
     // dc-snz.3: the shipped page uses the same registry and bounded interpreter as the controller.
     Case {
-        name: "load a VBA module and evaluate Add2(A1,2)",
+        name: "load a VBA module and evaluate Module1.Add2(A1,2)",
         actions: &[
             Action::Click("vba-tools"),
             Action::Grid("A1", "40"),
             Action::Click("[data-onecalc=\"vba-load\"]"),
-            Action::Formula("=Add2(A1,2)"),
+            Action::Formula("=Module1.Add2(A1,2)"),
         ],
         checks: &[
             Check::Text("result", "number 42"),

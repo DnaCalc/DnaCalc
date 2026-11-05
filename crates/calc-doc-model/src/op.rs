@@ -37,6 +37,7 @@ pub enum WorkbookOp {
     SetAutoFilter { sheet: SheetId, filter: Option<crate::AutoFilter>,
     },
     SetTables(Vec<crate::Table>),
+    SetCharts {sheet:SheetId,charts:Vec<crate::Chart>},
     SetValidations { sheet: SheetId, rules: Vec<crate::Validation> },
     SetReviewLinks { sheet:SheetId, links:Vec<crate::ReviewLink> },
     SetReviewNotes {

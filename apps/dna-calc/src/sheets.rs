@@ -14,13 +14,14 @@ pub fn next_name(names: &[String]) -> String {
         .expect("an unused sheet name")
 }
 
-pub fn controls(controller: Controller) -> impl IntoView {
+pub fn controls(controller: Controller) -> (impl IntoView, impl Fn(calc_value::SheetId) + Copy) {
     let rename = RwSignal::new(String::new());
     let add = RwSignal::new(String::new());
     let position = RwSignal::new(String::new());
     let delete = RwSignal::new(false);
     let dialog = NodeRef::<leptos::html::Dialog>::new();
     let tools = NodeRef::<leptos::html::Details>::new();
+    let rename_input = NodeRef::<leptos::html::Input>::new();
     Effect::new(move |_| {
         controller.generation.track();
         if let Some(tools) = tools.get() {
@@ -93,7 +94,42 @@ pub fn controls(controller: Controller) -> impl IntoView {
         if let Some((_,bytes))=crate::files::default_template("Sheet") {controller.insert_template(bytes,Some(name),done);}
         else {controller.sheet_command(None, SheetChange::Add{name},done);}
     };
-    view! {
+    let request_rename = move |sheet| {
+        let generation = controller.generation.get_untracked();
+        controller.after_input(move || {
+            if controller.generation.get_untracked() != generation
+                || controller.sheet.get_untracked() != Some(sheet)
+            {
+                return;
+            }
+            if controller.editing.get_untracked().is_some() {
+                controller.say("Enter or cancel the current edit before renaming a worksheet", true);
+                controller.focus_editor();
+                return;
+            }
+            let Some(name) = controller.summary.with_untracked(|summary| {
+                summary.sheets.iter().find(|(id, _)| id.id() == sheet).map(|(_, name)| name.clone())
+            }) else { return; };
+            rename.set(name);
+            if let Some(details) = tools.get_untracked() {
+                details.set_open(true);
+            }
+            set_timeout(move || {
+                if controller.generation.try_get_untracked() != Some(generation)
+                    || controller.sheet.try_get_untracked().flatten() != Some(sheet)
+                    || controller.editing.try_get_untracked().flatten().is_some()
+                    || !tools.get_untracked().is_some_and(|details| details.open())
+                {
+                    return;
+                }
+                if let Some(input) = rename_input.get_untracked() {
+                    let _ = input.focus();
+                    input.select();
+                }
+            }, std::time::Duration::ZERO);
+        });
+    };
+    let rendered = view! {
         <details class="dc-sheet-tools" data-dnacalc="sheet-tools" node_ref=tools on:keydown=move |ev:leptos::ev::KeyboardEvent| {
             if ev.key()=="Escape" {ev.prevent_default();if let Some(tools)=tools.get_untracked(){tools.set_open(false);}crate::grid::focus_grid();}
         }>
@@ -106,7 +142,7 @@ pub fn controls(controller: Controller) -> impl IntoView {
                 </select></label>
                 <label>"New sheet name"<input data-dnacalc="sheet-new-name" placeholder="Automatic name" prop:value=move ||add.get() on:input=move |ev|add.set(event_target_value(&ev)) on:keydown=move |ev:leptos::ev::KeyboardEvent|{if ev.key()=="Enter" {ev.prevent_default();add_sheet();}}/></label>
                 <button data-dnacalc="sheet-add" on:click=move |_|add_sheet()>"Add worksheet"</button>
-                <label>"Current sheet name"<input data-dnacalc="sheet-rename-name" prop:value=move ||rename.get() on:input=move |ev|rename.set(event_target_value(&ev)) on:keydown=move |ev:leptos::ev::KeyboardEvent|{if ev.key()=="Enter" {ev.prevent_default();rename_sheet();}}/></label>
+                <label>"Current sheet name"<input data-dnacalc="sheet-rename-name" node_ref=rename_input prop:value=move ||rename.get() on:input=move |ev|rename.set(event_target_value(&ev)) on:keydown=move |ev:leptos::ev::KeyboardEvent|{if ev.key()=="Enter" {ev.prevent_default();rename_sheet();}}/></label>
                 <button data-dnacalc="sheet-rename" on:click=move |_|rename_sheet()>"Rename worksheet"</button>
                 <label>"Position in workbook"<input data-dnacalc="sheet-position" inputmode="numeric" prop:value=move ||position.get() on:input=move |ev|position.set(event_target_value(&ev))/></label>
                 <button data-dnacalc="sheet-move" on:click=move |_| { match position.get_untracked().parse::<u32>() { Ok(position) => controller.sheet_command(current(),SheetChange::Move { position },|_|{}), Err(_) => controller.say("Type a worksheet position",true) } }>"Move worksheet"</button>
@@ -130,7 +166,8 @@ pub fn controls(controller: Controller) -> impl IntoView {
             <p>{move ||format!("Delete {} and its contents? References to it become #REF!. You can Undo this change.",controller.summary.get().sheets.iter().find(|(s,_)|Some(s.id())==controller.sheet.get()).map(|(_,n)|n.as_str()).unwrap_or("this worksheet"))}</p>
             <div class="dc-dialog-actions"><button data-dnacalc="sheet-delete-cancel" on:click=move |_|cancel()>"Keep worksheet"</button><button data-dnacalc="sheet-delete-confirm" on:click=move |_|controller.sheet_command(current(),SheetChange::Remove,move |ok|{if ok {cancel();}})>"Delete worksheet"</button></div>
         </dialog>
-    }
+    };
+    (rendered, request_rename)
 }
 
 #[cfg(test)]

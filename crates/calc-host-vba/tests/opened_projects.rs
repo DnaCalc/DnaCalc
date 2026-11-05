@@ -452,13 +452,19 @@ fn original_probe_families_compile_as_complete_events_off_projects() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn remaining_original_source_compiler_gaps_stay_typed() {
-    for source in [
-        include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P01/cold-app-01.xlsm")
+    for (source, diagnostic) in [
+        (
+            include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P01/cold-app-01.xlsm")
+                .as_slice(),
+            "invalid assignment: `Split` is not an assignable variable",
+        ),
+        (
+            include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P10/close-owner-01.xlsm"
+            )
             .as_slice(),
-        include_bytes!(
-            "../../calc-engine/tests/fixtures/excel-calc-probes/P10/close-owner-01.xlsm"
-        )
-        .as_slice(),
+            "Sub or Function not defined",
+        ),
     ] {
         let session = opened(source, "probe.xlsm");
         let error = calc_host_vba::prepare_file_project_with_events(
@@ -475,6 +481,62 @@ fn remaining_original_source_compiler_gaps_stay_typed() {
             calc_host_vba::FileProjectError::Preparation(_)
         ));
         assert!(error.to_string().contains("compile:"), "{error}");
+        assert!(error.to_string().contains(diagnostic), "{error}");
+    }
+}
+
+/// The saved value reflects RunCase's initialized logger state; a fresh project
+/// cannot restore those runtime globals. Exercise the uninitialized original source.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn original_p02_fresh_logger_raises_error_nine_and_keeps_its_source() {
+    use calc_value::{CalcValue, WorksheetErrorCode};
+    struct Context(calc_value::CellKey);
+    impl calc_func::UserFunctionContext for Context {
+        fn caller(&self) -> Option<calc_value::CellKey> { Some(self.0) }
+        fn reference_qualifier(&mut self, _: calc_value::SheetId) -> Result<String, String> {
+            Ok("'[probe.xlsm]S'".into())
+        }
+        fn refuse(&mut self, reason: &'static str) -> String {
+            panic!("an ordinary logger error must not require a host capability: {reason}");
+        }
+        fn values_of(&mut self, _: &calc_value::ReferenceLike) -> Result<CalcValue, String> {
+            panic!("the logger must fail before any formula value read");
+        }
+        fn worksheet_function(&mut self, _: &str, _: &[CalcValue]) -> Result<CalcValue, String> {
+            panic!("the logger makes no worksheet callback");
+        }
+    }
+    let bytes = include_bytes!(
+        "../../calc-engine/tests/fixtures/excel-calc-probes/P02/auto-app-01.xlsm"
+    );
+    for backend in [None, Some(calc_vba::Backend::Interpreter)] {
+        let mut session = opened(bytes, "probe.xlsm");
+        session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
+        session.set_workbook_events_enabled(false);
+        let original = session.host().loaded()
+            .read_vba_project(&Default::default()).unwrap().unwrap();
+        let owner = calc_host_vba::prepare_file_project_with_events(
+            session.host(), "probe.xlsm", 100_000, backend, false,
+        ).unwrap().unwrap();
+        let functions = owner.functions();
+        let caller = calc_value::CellKey::new(session.host().sheets()[0].id(), 1, 11).unwrap();
+        let error = functions.call_with_context("PlainProbe",
+            &[CalcValue::number(34.), CalcValue::number(1.)], &mut Context(caller))
+            .expect_err("the original unallocated logger must fail after its caller-address read");
+        assert!(error.contains("VBA error 9:"), "{backend:?}: {error}");
+        owner.install(&mut session);
+        enter(&mut session, 1, 11, "=PlainProbe(34,1)");
+        enter(&mut session, 2, 11, "=IFERROR(PlainProbe(34,1),777)");
+        full(&mut session);
+        assert_eq!(value(&session, 1, 11), CalcValue::error(WorksheetErrorCode::Value));
+        assert_eq!(value(&session, 2, 11), CalcValue::number(777.));
+        assert!(session.take_workbook_event_failures().failures.is_empty());
+        let mut saved = Vec::new();
+        session.save(&Default::default(), &mut saved).unwrap();
+        let reopened = opened(&saved, "probe.xlsm");
+        assert_eq!(original, reopened.host().loaded()
+            .read_vba_project(&Default::default()).unwrap().unwrap());
     }
 }
 
@@ -534,6 +596,9 @@ fn file_project_sources_compile_with_their_exported_attributes() {
                 (2, 102.),
                 (3, 102.),
                 (4, 102.),
+                (22, 702.),
+                (24, 802.),
+                (26, 902.),
                 (30, 1202.),
                 (31, 1202.),
                 (32, 1302.),
@@ -542,6 +607,15 @@ fn file_project_sources_compile_with_their_exported_attributes() {
                     value(&session, row, 2).as_number(),
                     Some(expected),
                     "{backend:?}"
+                );
+            }
+            // The retained Excel observations give #REF! for bare grid-cell
+            // callees; the same VBA procedures remain callable by module name.
+            for row in [21, 23, 25] {
+                assert_eq!(
+                    value(&session, row, 2).as_error(),
+                    Some(calc_value::WorksheetErrorCode::Ref),
+                    "{name} {backend:?} B{row}"
                 );
             }
             enter(&mut session, 1, 4, "=PrivateModule.HiddenFunc(3)");
@@ -576,6 +650,13 @@ fn file_project_sources_compile_with_their_exported_attributes() {
             drain(&mut reopened);
             assert_eq!(value(&reopened, 30, 2).as_number(), Some(1202.));
             assert_eq!(value(&reopened, 31, 2).as_number(), Some(1202.));
+            for row in [21, 23, 25] {
+                assert_eq!(value(&reopened, row, 2).as_error(),
+                    Some(calc_value::WorksheetErrorCode::Ref));
+            }
+            for (row, expected) in [(22, 702.), (24, 802.), (26, 902.)] {
+                assert_eq!(value(&reopened, row, 2).as_number(), Some(expected));
+            }
         }
     }
 }

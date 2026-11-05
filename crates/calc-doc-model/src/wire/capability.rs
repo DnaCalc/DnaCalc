@@ -571,6 +571,7 @@ impl WireOp {
             WorkbookOp::SetIteration(_) => {
                 unreachable!("encode_batch refuses the iteration settings before it reaches here")
             }
+            WorkbookOp::SetCharts {..}=>unreachable!("chart changes are refused before encoding"),
             WorkbookOp::SetTables(_) => unreachable!("Tables are refused before encoding"),
             WorkbookOp::SetAutoFilter { .. } => unreachable!("AutoFilter is refused before encoding"),
             WorkbookOp::SetAxisFormat(_) => {

@@ -3,22 +3,21 @@
   "complete": true,
   "inventory_complete": true,
   "coverage": {
-    "problem_functions": 149,
-    "reported": 152,
+    "problem_functions": 146,
+    "reported": 149,
     "statuses": {
       "observed": 117,
-      "workbook-only": 32,
-      "service-refused": 2,
-      "non-numeric-coordinate": 1
+      "workbook-only": 31,
+      "service-refused": 1
     }
   },
-  "generator_sha256": "2f7dfd19f69e00e2ce53dcbe5e3b68499f6c6a9d7404f997cfa2d418a9968e30",
-  "problem_list_sha256": "73d495e0b7ef812eb32abcb3d49d57eb3fb7519c6cfdbccca6f79c24a3589142",
+  "generator_sha256": "3468429d463f14eb3c6110cc7da35ae5dbf3d86621995525c5abb898c914fc5d",
+  "problem_list_sha256": "74f454c0ed18a18ca4d91e0a3168e497b681b5bd55f2169ca521f2f114661b2e",
   "source_bindings": {
-    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/racer/fingerprint.py": "2f7dfd19f69e00e2ce53dcbe5e3b68499f6c6a9d7404f997cfa2d418a9968e30",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/racer/fingerprint.py": "3468429d463f14eb3c6110cc7da35ae5dbf3d86621995525c5abb898c914fc5d",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/checker/reference.py": "b34fb31455348e7cf56a58f6fdafd8d9fc7f20afc5d2b85b7a409fac7aee4bdd",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/checker/exact.py": "842363e00ad65c464623594822d566a2af9a0415e0b574557613092c993af80f",
-    "/home/ubuntu/projects/DnaCalc/DnaCalc/docs/generated/problem-functions.json": "73d495e0b7ef812eb32abcb3d49d57eb3fb7519c6cfdbccca6f79c24a3589142",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/docs/generated/problem-functions.json": "74f454c0ed18a18ca4d91e0a3168e497b681b5bd55f2169ca521f2f114661b2e",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/tools/excel-service/client.py": "4cd9f8df4dbe06917ae4c4d12d181e169b8d0bee68fe99e59d3f4d289226b89e",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/tools/excel-service/policy.py": "7b4605191b314e1e655dc155d90ae70e6459fe945eda22973a29993c55ca1ae4"
   },
@@ -33,12 +32,6 @@
       "function": "FIXED",
       "file": "ce997d41f2f405d7037f4f8fd67c624702b8f82f5677277e386a99dfe51fd345.refusal-70ebb8dd1cef4344a0dd37c16b61a48a.json.gz",
       "sha256": "b02b6732f1e979639e94a1b97418f13fa18288a980316d7c2f93070a606478c5",
-      "calls_requested": 1024
-    },
-    {
-      "function": "TEXT",
-      "file": "ff74d79278691113fe0b4c40ee22822b213e111ac682749ada034d24e2ebe5ef.refusal-3c35768439804d66b3aa6fe6bc84c9b4.json.gz",
-      "sha256": "5f8241f3b678c22669688754a9a6848b79b97849cf948c8e1239b3a5b19784ec",
       "calls_requested": 1024
     }
   ],
@@ -414,16 +407,6 @@
       "request_sha256": "4a3e1ae0bf8a7bf7bd9133d4133e51d86f95ba2dfa82e6bd75f3295454a4bad2"
     },
     {
-      "function": "BESSELY",
-      "file": "76d582eb3055057b9148741142c24b61ddf38f6501f7bda685295fd7af18d3bd.json.gz",
-      "sha256": "24d387ee8b22f5f632271f8f8138e97ccaf649902afca6971f8df038039e4e70",
-      "calls": 1024,
-      "excel_build": "20527",
-      "machine": "GOVERT-OMEN",
-      "timestamp": "2026-11-04T18:18:42.587331+00:00",
-      "request_sha256": "514eb36e40189da644524db34177743d20a7a177c7e577298246c410a4b21997"
-    },
-    {
       "function": "SKEW",
       "file": "c03a8f6527a4bb2201b0435524c47a2a5fd09fd1e43dc4a87782d53ae4d1a752.json.gz",
       "sha256": "5dd206841995a2cfcb9af0c309ea804d04a1e3838b0ba291c3f78c78f8b04b65",
@@ -442,6 +425,16 @@
       "machine": "GOVERT-OMEN",
       "timestamp": "2026-11-04T19:01:25.751962+00:00",
       "request_sha256": "1abec76a0f3acb87cad636779d568394ec9f7dc1e6f694629bf8175bf843266b"
+    },
+    {
+      "function": "BESSELY",
+      "file": "76d582eb3055057b9148741142c24b61ddf38f6501f7bda685295fd7af18d3bd.json.gz",
+      "sha256": "24d387ee8b22f5f632271f8f8138e97ccaf649902afca6971f8df038039e4e70",
+      "calls": 1024,
+      "excel_build": "20527",
+      "machine": "GOVERT-OMEN",
+      "timestamp": "2026-11-04T18:18:42.587331+00:00",
+      "request_sha256": "514eb36e40189da644524db34177743d20a7a177c7e577298246c410a4b21997"
     },
     {
       "function": "CRITBINOM",
@@ -644,16 +637,6 @@
       "request_sha256": "c8f88631f38f54460e4f49ebacfbf4d9e3b7951dc93749d34419445344f0b597"
     },
     {
-      "function": "BESSELJ",
-      "file": "8458c648444a2f56dca431e8ebd7a8263b1ae744bba69c1ae1adda1d2423d36a.json.gz",
-      "sha256": "f2cd965236a2a948043f24d6f9f3d507db2c3828fb9deb02cf7a4cccf9dc5006",
-      "calls": 1024,
-      "excel_build": "20527",
-      "machine": "GOVERT-OMEN",
-      "timestamp": "2026-11-04T18:18:21.581326+00:00",
-      "request_sha256": "ebee0c40b7f6690354188568e87fbf413d9a872c920d294b851852ca46651aea"
-    },
-    {
       "function": "ERF.PRECISE",
       "file": "7edd229b1e3deddde6223d0404e0cc0057551e837ede156feb7d751f262df8aa.json.gz",
       "sha256": "46e1601525ae29673bb2fcdd47da7c67d5baae24e3ec0430bde8712486ac8f60",
@@ -822,6 +805,16 @@
       "machine": "GOVERT-OMEN",
       "timestamp": "2026-11-04T19:11:21.232559+00:00",
       "request_sha256": "b5dd513a5fe74304408b30c63e49c920233703fd5adf5dbc20558cc1d9d90765"
+    },
+    {
+      "function": "BESSELJ",
+      "file": "8458c648444a2f56dca431e8ebd7a8263b1ae744bba69c1ae1adda1d2423d36a.json.gz",
+      "sha256": "f2cd965236a2a948043f24d6f9f3d507db2c3828fb9deb02cf7a4cccf9dc5006",
+      "calls": 1024,
+      "excel_build": "20527",
+      "machine": "GOVERT-OMEN",
+      "timestamp": "2026-11-04T18:18:21.581326+00:00",
+      "request_sha256": "ebee0c40b7f6690354188568e87fbf413d9a872c920d294b851852ca46651aea"
     },
     {
       "function": "BETA.INV",
@@ -6053,6 +6046,316 @@
       "broader_primitive_windows": []
     },
     {
+      "function": "SKEW",
+      "problem_list_member": true,
+      "rounding": "unresolved: no complete scalar mathematical reference",
+      "stored_stages": null,
+      "band_edges": [],
+      "windows": [
+        {
+          "start": "3ff4cccccccccbcd",
+          "end": "3ff4cccccccccdcc",
+          "count": 512,
+          "answer_types": {
+            "number": 512
+          },
+          "distinct_answers": 181,
+          "spectrum": {
+            "status": "measured",
+            "rms_ulp": 32.08850834427231,
+            "slope_ulp": 1.9730149521205984,
+            "median_power": 5233.566413964521,
+            "lines": [
+              {
+                "bin": 16,
+                "cycles_per_input": 0.03125,
+                "period_inputs": 32.0,
+                "power_fraction": 0.283265766542524
+              },
+              {
+                "bin": 32,
+                "cycles_per_input": 0.0625,
+                "period_inputs": 16.0,
+                "power_fraction": 0.0638393318786399
+              },
+              {
+                "bin": 6,
+                "cycles_per_input": 0.01171875,
+                "period_inputs": 85.33333333333333,
+                "power_fraction": 0.056872079849245236
+              },
+              {
+                "bin": 48,
+                "cycles_per_input": 0.09375,
+                "period_inputs": 10.666666666666666,
+                "power_fraction": 0.03380229789610536
+              },
+              {
+                "bin": 10,
+                "cycles_per_input": 0.01953125,
+                "period_inputs": 51.2,
+                "power_fraction": 0.026275420504293587
+              },
+              {
+                "bin": 64,
+                "cycles_per_input": 0.125,
+                "period_inputs": 8.0,
+                "power_fraction": 0.023758881367009228
+              },
+              {
+                "bin": 128,
+                "cycles_per_input": 0.25,
+                "period_inputs": 4.0,
+                "power_fraction": 0.023448943009245948
+              },
+              {
+                "bin": 3,
+                "cycles_per_input": 0.005859375,
+                "period_inputs": 170.66666666666666,
+                "power_fraction": 0.022840804044974936
+              }
+            ],
+            "detected_lines": 25,
+            "resolved_stored_stages": null,
+            "limitation": "Harmonics, aliasing and unobserved/redundant stores prevent converting peak count into store count."
+          }
+        },
+        {
+          "start": "3ff9ffffffffff00",
+          "end": "3ffa0000000000ff",
+          "count": 512,
+          "answer_types": {
+            "number": 512
+          },
+          "distinct_answers": 169,
+          "spectrum": {
+            "status": "measured",
+            "rms_ulp": 32.184752806578274,
+            "slope_ulp": 1.7115952248629565,
+            "median_power": 6052.075463349928,
+            "lines": [
+              {
+                "bin": 16,
+                "cycles_per_input": 0.03125,
+                "period_inputs": 32.0,
+                "power_fraction": 0.3059939251427882
+              },
+              {
+                "bin": 32,
+                "cycles_per_input": 0.0625,
+                "period_inputs": 16.0,
+                "power_fraction": 0.06112890104790197
+              },
+              {
+                "bin": 6,
+                "cycles_per_input": 0.01171875,
+                "period_inputs": 85.33333333333333,
+                "power_fraction": 0.044518591519645934
+              },
+              {
+                "bin": 48,
+                "cycles_per_input": 0.09375,
+                "period_inputs": 10.666666666666666,
+                "power_fraction": 0.04000324911594126
+              },
+              {
+                "bin": 3,
+                "cycles_per_input": 0.005859375,
+                "period_inputs": 170.66666666666666,
+                "power_fraction": 0.032854404098242196
+              },
+              {
+                "bin": 10,
+                "cycles_per_input": 0.01953125,
+                "period_inputs": 51.2,
+                "power_fraction": 0.024569088666294682
+              },
+              {
+                "bin": 128,
+                "cycles_per_input": 0.25,
+                "period_inputs": 4.0,
+                "power_fraction": 0.02245414031575277
+              },
+              {
+                "bin": 64,
+                "cycles_per_input": 0.125,
+                "period_inputs": 8.0,
+                "power_fraction": 0.01875584652484136
+              }
+            ],
+            "detected_lines": 21,
+            "resolved_stored_stages": null,
+            "limitation": "Harmonics, aliasing and unobserved/redundant stores prevent converting peak count into store count."
+          }
+        }
+      ],
+      "seed_origin": "fixed textbook example",
+      "arguments": [
+        {
+          "type": "number",
+          "bits": "3ff4cccccccccccd"
+        },
+        {
+          "type": "number",
+          "bits": "4000cccccccccccd"
+        },
+        {
+          "type": "number",
+          "bits": "4012cccccccccccd"
+        },
+        {
+          "type": "number",
+          "bits": "4018cccccccccccd"
+        },
+        {
+          "type": "number",
+          "bits": "4020333333333333"
+        }
+      ],
+      "varying_argument": 0,
+      "requested_calls": 1024,
+      "requested_windows": [
+        {
+          "start": "3ff4cccccccccbcd",
+          "count": 512
+        },
+        {
+          "start": "3ff9ffffffffff00",
+          "count": 512
+        }
+      ],
+      "status": "observed",
+      "rounding_evidence": {
+        "label": "unresolved: no complete scalar mathematical reference",
+        "counts": {
+          "no_reference": 1024
+        },
+        "discriminants": [],
+        "limitation": "Ideal real-function publication only. Agreement does not identify the inner algorithm or its stores; any neither result refutes this complete leaf model."
+      },
+      "observed_approximation_boundaries": [],
+      "broader_primitive_windows": []
+    },
+    {
+      "function": "T.DIST.RT",
+      "problem_list_member": true,
+      "rounding": "unresolved: no complete scalar mathematical reference",
+      "stored_stages": null,
+      "band_edges": [],
+      "windows": [
+        {
+          "start": "3fefffffffffff00",
+          "end": "3ff00000000000ff",
+          "count": 512,
+          "answer_types": {
+            "number": 512
+          },
+          "distinct_answers": 243,
+          "spectrum": {
+            "status": "measured",
+            "rms_ulp": 11.773877092277795,
+            "slope_ulp": -0.47661236692616243,
+            "median_power": 15.985842541943242,
+            "lines": [
+              {
+                "bin": 150,
+                "cycles_per_input": 0.29296875,
+                "period_inputs": 3.4133333333333336,
+                "power_fraction": 0.00015874288915875703
+              },
+              {
+                "bin": 12,
+                "cycles_per_input": 0.0234375,
+                "period_inputs": 42.666666666666664,
+                "power_fraction": 0.000106501433510916
+              },
+              {
+                "bin": 128,
+                "cycles_per_input": 0.25,
+                "period_inputs": 4.0,
+                "power_fraction": 5.874375844374166e-05
+              }
+            ],
+            "detected_lines": 3,
+            "resolved_stored_stages": null,
+            "limitation": "Harmonics, aliasing and unobserved/redundant stores prevent converting peak count into store count."
+          }
+        },
+        {
+          "start": "3ff3ffffffffff00",
+          "end": "3ff40000000000ff",
+          "count": 512,
+          "answer_types": {
+            "number": 512
+          },
+          "distinct_answers": 275,
+          "spectrum": {
+            "status": "measured",
+            "rms_ulp": 0.8507185207904995,
+            "slope_ulp": -0.9940473061220403,
+            "median_power": 57.7066572415532,
+            "lines": [
+              {
+                "bin": 31,
+                "cycles_per_input": 0.060546875,
+                "period_inputs": 16.516129032258064,
+                "power_fraction": 0.04780955555004796
+              },
+              {
+                "bin": 140,
+                "cycles_per_input": 0.2734375,
+                "period_inputs": 3.657142857142857,
+                "power_fraction": 0.04147989859860079
+              },
+              {
+                "bin": 78,
+                "cycles_per_input": 0.15234375,
+                "period_inputs": 6.564102564102564,
+                "power_fraction": 0.026274684665361234
+              }
+            ],
+            "detected_lines": 3,
+            "resolved_stored_stages": null,
+            "limitation": "Harmonics, aliasing and unobserved/redundant stores prevent converting peak count into store count."
+          }
+        }
+      ],
+      "seed_origin": "first ordinary numeric pin: oc1",
+      "arguments": [
+        {
+          "type": "number",
+          "bits": "3ff0000000000000"
+        },
+        {
+          "type": "number",
+          "bits": "3ff0000000000000"
+        }
+      ],
+      "varying_argument": 0,
+      "requested_calls": 1024,
+      "requested_windows": [
+        {
+          "start": "3fefffffffffff00",
+          "count": 512
+        },
+        {
+          "start": "3ff3ffffffffff00",
+          "count": 512
+        }
+      ],
+      "status": "observed",
+      "rounding_evidence": {
+        "label": "unresolved: no complete scalar mathematical reference",
+        "counts": {
+          "no_reference": 1024
+        },
+        "discriminants": [],
+        "limitation": "Ideal real-function publication only. Agreement does not identify the inner algorithm or its stores; any neither result refutes this complete leaf model."
+      },
+      "observed_approximation_boundaries": [],
+      "broader_primitive_windows": []
+    },
+    {
       "function": "BESSELY",
       "problem_list_member": true,
       "rounding": "ideal single/double leaf rejected on this window",
@@ -6639,316 +6942,6 @@
           "inference": "A large residual discontinuity supports a change of approximation at8; output readings alone do not identify the internal source branch."
         }
       ],
-      "broader_primitive_windows": []
-    },
-    {
-      "function": "SKEW",
-      "problem_list_member": true,
-      "rounding": "unresolved: no complete scalar mathematical reference",
-      "stored_stages": null,
-      "band_edges": [],
-      "windows": [
-        {
-          "start": "3ff4cccccccccbcd",
-          "end": "3ff4cccccccccdcc",
-          "count": 512,
-          "answer_types": {
-            "number": 512
-          },
-          "distinct_answers": 181,
-          "spectrum": {
-            "status": "measured",
-            "rms_ulp": 32.08850834427231,
-            "slope_ulp": 1.9730149521205984,
-            "median_power": 5233.566413964521,
-            "lines": [
-              {
-                "bin": 16,
-                "cycles_per_input": 0.03125,
-                "period_inputs": 32.0,
-                "power_fraction": 0.283265766542524
-              },
-              {
-                "bin": 32,
-                "cycles_per_input": 0.0625,
-                "period_inputs": 16.0,
-                "power_fraction": 0.0638393318786399
-              },
-              {
-                "bin": 6,
-                "cycles_per_input": 0.01171875,
-                "period_inputs": 85.33333333333333,
-                "power_fraction": 0.056872079849245236
-              },
-              {
-                "bin": 48,
-                "cycles_per_input": 0.09375,
-                "period_inputs": 10.666666666666666,
-                "power_fraction": 0.03380229789610536
-              },
-              {
-                "bin": 10,
-                "cycles_per_input": 0.01953125,
-                "period_inputs": 51.2,
-                "power_fraction": 0.026275420504293587
-              },
-              {
-                "bin": 64,
-                "cycles_per_input": 0.125,
-                "period_inputs": 8.0,
-                "power_fraction": 0.023758881367009228
-              },
-              {
-                "bin": 128,
-                "cycles_per_input": 0.25,
-                "period_inputs": 4.0,
-                "power_fraction": 0.023448943009245948
-              },
-              {
-                "bin": 3,
-                "cycles_per_input": 0.005859375,
-                "period_inputs": 170.66666666666666,
-                "power_fraction": 0.022840804044974936
-              }
-            ],
-            "detected_lines": 25,
-            "resolved_stored_stages": null,
-            "limitation": "Harmonics, aliasing and unobserved/redundant stores prevent converting peak count into store count."
-          }
-        },
-        {
-          "start": "3ff9ffffffffff00",
-          "end": "3ffa0000000000ff",
-          "count": 512,
-          "answer_types": {
-            "number": 512
-          },
-          "distinct_answers": 169,
-          "spectrum": {
-            "status": "measured",
-            "rms_ulp": 32.184752806578274,
-            "slope_ulp": 1.7115952248629565,
-            "median_power": 6052.075463349928,
-            "lines": [
-              {
-                "bin": 16,
-                "cycles_per_input": 0.03125,
-                "period_inputs": 32.0,
-                "power_fraction": 0.3059939251427882
-              },
-              {
-                "bin": 32,
-                "cycles_per_input": 0.0625,
-                "period_inputs": 16.0,
-                "power_fraction": 0.06112890104790197
-              },
-              {
-                "bin": 6,
-                "cycles_per_input": 0.01171875,
-                "period_inputs": 85.33333333333333,
-                "power_fraction": 0.044518591519645934
-              },
-              {
-                "bin": 48,
-                "cycles_per_input": 0.09375,
-                "period_inputs": 10.666666666666666,
-                "power_fraction": 0.04000324911594126
-              },
-              {
-                "bin": 3,
-                "cycles_per_input": 0.005859375,
-                "period_inputs": 170.66666666666666,
-                "power_fraction": 0.032854404098242196
-              },
-              {
-                "bin": 10,
-                "cycles_per_input": 0.01953125,
-                "period_inputs": 51.2,
-                "power_fraction": 0.024569088666294682
-              },
-              {
-                "bin": 128,
-                "cycles_per_input": 0.25,
-                "period_inputs": 4.0,
-                "power_fraction": 0.02245414031575277
-              },
-              {
-                "bin": 64,
-                "cycles_per_input": 0.125,
-                "period_inputs": 8.0,
-                "power_fraction": 0.01875584652484136
-              }
-            ],
-            "detected_lines": 21,
-            "resolved_stored_stages": null,
-            "limitation": "Harmonics, aliasing and unobserved/redundant stores prevent converting peak count into store count."
-          }
-        }
-      ],
-      "seed_origin": "fixed textbook example",
-      "arguments": [
-        {
-          "type": "number",
-          "bits": "3ff4cccccccccccd"
-        },
-        {
-          "type": "number",
-          "bits": "4000cccccccccccd"
-        },
-        {
-          "type": "number",
-          "bits": "4012cccccccccccd"
-        },
-        {
-          "type": "number",
-          "bits": "4018cccccccccccd"
-        },
-        {
-          "type": "number",
-          "bits": "4020333333333333"
-        }
-      ],
-      "varying_argument": 0,
-      "requested_calls": 1024,
-      "requested_windows": [
-        {
-          "start": "3ff4cccccccccbcd",
-          "count": 512
-        },
-        {
-          "start": "3ff9ffffffffff00",
-          "count": 512
-        }
-      ],
-      "status": "observed",
-      "rounding_evidence": {
-        "label": "unresolved: no complete scalar mathematical reference",
-        "counts": {
-          "no_reference": 1024
-        },
-        "discriminants": [],
-        "limitation": "Ideal real-function publication only. Agreement does not identify the inner algorithm or its stores; any neither result refutes this complete leaf model."
-      },
-      "observed_approximation_boundaries": [],
-      "broader_primitive_windows": []
-    },
-    {
-      "function": "T.DIST.RT",
-      "problem_list_member": true,
-      "rounding": "unresolved: no complete scalar mathematical reference",
-      "stored_stages": null,
-      "band_edges": [],
-      "windows": [
-        {
-          "start": "3fefffffffffff00",
-          "end": "3ff00000000000ff",
-          "count": 512,
-          "answer_types": {
-            "number": 512
-          },
-          "distinct_answers": 243,
-          "spectrum": {
-            "status": "measured",
-            "rms_ulp": 11.773877092277795,
-            "slope_ulp": -0.47661236692616243,
-            "median_power": 15.985842541943242,
-            "lines": [
-              {
-                "bin": 150,
-                "cycles_per_input": 0.29296875,
-                "period_inputs": 3.4133333333333336,
-                "power_fraction": 0.00015874288915875703
-              },
-              {
-                "bin": 12,
-                "cycles_per_input": 0.0234375,
-                "period_inputs": 42.666666666666664,
-                "power_fraction": 0.000106501433510916
-              },
-              {
-                "bin": 128,
-                "cycles_per_input": 0.25,
-                "period_inputs": 4.0,
-                "power_fraction": 5.874375844374166e-05
-              }
-            ],
-            "detected_lines": 3,
-            "resolved_stored_stages": null,
-            "limitation": "Harmonics, aliasing and unobserved/redundant stores prevent converting peak count into store count."
-          }
-        },
-        {
-          "start": "3ff3ffffffffff00",
-          "end": "3ff40000000000ff",
-          "count": 512,
-          "answer_types": {
-            "number": 512
-          },
-          "distinct_answers": 275,
-          "spectrum": {
-            "status": "measured",
-            "rms_ulp": 0.8507185207904995,
-            "slope_ulp": -0.9940473061220403,
-            "median_power": 57.7066572415532,
-            "lines": [
-              {
-                "bin": 31,
-                "cycles_per_input": 0.060546875,
-                "period_inputs": 16.516129032258064,
-                "power_fraction": 0.04780955555004796
-              },
-              {
-                "bin": 140,
-                "cycles_per_input": 0.2734375,
-                "period_inputs": 3.657142857142857,
-                "power_fraction": 0.04147989859860079
-              },
-              {
-                "bin": 78,
-                "cycles_per_input": 0.15234375,
-                "period_inputs": 6.564102564102564,
-                "power_fraction": 0.026274684665361234
-              }
-            ],
-            "detected_lines": 3,
-            "resolved_stored_stages": null,
-            "limitation": "Harmonics, aliasing and unobserved/redundant stores prevent converting peak count into store count."
-          }
-        }
-      ],
-      "seed_origin": "first ordinary numeric pin: oc1",
-      "arguments": [
-        {
-          "type": "number",
-          "bits": "3ff0000000000000"
-        },
-        {
-          "type": "number",
-          "bits": "3ff0000000000000"
-        }
-      ],
-      "varying_argument": 0,
-      "requested_calls": 1024,
-      "requested_windows": [
-        {
-          "start": "3fefffffffffff00",
-          "count": 512
-        },
-        {
-          "start": "3ff3ffffffffff00",
-          "count": 512
-        }
-      ],
-      "status": "observed",
-      "rounding_evidence": {
-        "label": "unresolved: no complete scalar mathematical reference",
-        "counts": {
-          "no_reference": 1024
-        },
-        "discriminants": [],
-        "limitation": "Ideal real-function publication only. Agreement does not identify the inner algorithm or its stores; any neither result refutes this complete leaf model."
-      },
-      "observed_approximation_boundaries": [],
       "broader_primitive_windows": []
     },
     {
@@ -9611,619 +9604,6 @@
       "broader_primitive_windows": []
     },
     {
-      "function": "BESSELJ",
-      "problem_list_member": true,
-      "rounding": "ideal single/double leaf rejected on this window",
-      "stored_stages": null,
-      "band_edges": [
-        {
-          "function": "BESSELJ",
-          "low": 134217726.0,
-          "high": 134217732.0,
-          "arguments": [
-            {
-              "type": "number",
-              "bits": "0000000000000000"
-            }
-          ],
-          "index": 0,
-          "status": "adjacent observed edge",
-          "edge": {
-            "low": "419fffffff243f6b",
-            "high": "419fffffff243f6c",
-            "low_answer": {
-              "type": "number",
-              "bits": "bef52ffa727d724f"
-            },
-            "high_answer": {
-              "type": "error",
-              "code": "#NUM!"
-            },
-            "questions": 30
-          },
-          "neighbors": [
-            {
-              "type": "number",
-              "bits": "bef52ffa9502584e"
-            },
-            {
-              "type": "number",
-              "bits": "bef52ffa83bfe550"
-            },
-            {
-              "type": "number",
-              "bits": "bef52ffa727d724f"
-            },
-            {
-              "type": "error",
-              "code": "#NUM!"
-            },
-            {
-              "type": "error",
-              "code": "#NUM!"
-            },
-            {
-              "type": "error",
-              "code": "#NUM!"
-            }
-          ]
-        },
-        {
-          "function": "BESSELJ",
-          "low": 134217726.0,
-          "high": 134217732.0,
-          "arguments": [
-            {
-              "type": "number",
-              "bits": "3ff0000000000000"
-            }
-          ],
-          "index": 0,
-          "status": "adjacent observed edge",
-          "edge": {
-            "low": "41a0000002b65f20",
-            "high": "41a0000002b65f21",
-            "low_answer": {
-              "type": "number",
-              "bits": "bef52ffa6c185620"
-            },
-            "high_answer": {
-              "type": "error",
-              "code": "#NUM!"
-            },
-            "questions": 30
-          },
-          "neighbors": [
-            {
-              "type": "number",
-              "bits": "bef52ffab1222213"
-            },
-            {
-              "type": "number",
-              "bits": "bef52ffa8e9d3c1b"
-            },
-            {
-              "type": "number",
-              "bits": "bef52ffa6c185620"
-            },
-            {
-              "type": "error",
-              "code": "#NUM!"
-            },
-            {
-              "type": "error",
-              "code": "#NUM!"
-            },
-            {
-              "type": "error",
-              "code": "#NUM!"
-            }
-          ]
-        },
-        {
-          "function": "BESSELJ",
-          "low": 134217726.0,
-          "high": 134217732.0,
-          "arguments": [
-            {
-              "type": "number",
-              "bits": "4000000000000000"
-            }
-          ],
-          "index": 0,
-          "status": "adjacent observed edge",
-          "edge": {
-            "low": "419fffffff243f6b",
-            "high": "419fffffff243f6c",
-            "low_answer": {
-              "type": "number",
-              "bits": "3ef52ffa613aff4d"
-            },
-            "high_answer": {
-              "type": "error",
-              "code": "#NUM!"
-            },
-            "questions": 30
-          },
-          "neighbors": [
-            {
-              "type": "number",
-              "bits": "3ef52ffa83bfe54f"
-            },
-            {
-              "type": "number",
-              "bits": "3ef52ffa727d7250"
-            },
-            {
-              "type": "number",
-              "bits": "3ef52ffa613aff4d"
-            },
-            {
-              "type": "error",
-              "code": "#NUM!"
-            },
-            {
-              "type": "error",
-              "code": "#NUM!"
-            },
-            {
-              "type": "error",
-              "code": "#NUM!"
-            }
-          ]
-        },
-        {
-          "function": "BESSELJ",
-          "low": 134217726.0,
-          "high": 134217732.0,
-          "arguments": [
-            {
-              "type": "number",
-              "bits": "4008000000000000"
-            }
-          ],
-          "index": 0,
-          "status": "adjacent observed edge",
-          "edge": {
-            "low": "419fffffff243f6b",
-            "high": "419fffffff243f6c",
-            "low_answer": {
-              "type": "number",
-              "bits": "3f11427303be3099"
-            },
-            "high_answer": {
-              "type": "error",
-              "code": "#NUM!"
-            },
-            "questions": 30
-          },
-          "neighbors": [
-            {
-              "type": "number",
-              "bits": "3f11427301183150"
-            },
-            {
-              "type": "number",
-              "bits": "3f114273026b30f4"
-            },
-            {
-              "type": "number",
-              "bits": "3f11427303be3099"
-            },
-            {
-              "type": "error",
-              "code": "#NUM!"
-            },
-            {
-              "type": "error",
-              "code": "#NUM!"
-            },
-            {
-              "type": "error",
-              "code": "#NUM!"
-            }
-          ]
-        },
-        {
-          "function": "BESSELJ",
-          "low": 134217726.0,
-          "high": 134217732.0,
-          "arguments": [
-            {
-              "type": "number",
-              "bits": "4024000000000000"
-            }
-          ],
-          "index": 0,
-          "status": "adjacent observed edge",
-          "edge": {
-            "low": "419fffffff243f6b",
-            "high": "419fffffff243f6c",
-            "low_answer": {
-              "type": "number",
-              "bits": "3ef52ff8c300359a"
-            },
-            "high_answer": {
-              "type": "error",
-              "code": "#NUM!"
-            },
-            "questions": 30
-          },
-          "neighbors": [
-            {
-              "type": "number",
-              "bits": "3ef52ff8e5851bdb"
-            },
-            {
-              "type": "number",
-              "bits": "3ef52ff8d442a8bd"
-            },
-            {
-              "type": "number",
-              "bits": "3ef52ff8c300359a"
-            },
-            {
-              "type": "error",
-              "code": "#NUM!"
-            },
-            {
-              "type": "error",
-              "code": "#NUM!"
-            },
-            {
-              "type": "error",
-              "code": "#NUM!"
-            }
-          ]
-        }
-      ],
-      "windows": [
-        {
-          "start": "4002666666666566",
-          "end": "4002666666666765",
-          "count": 512,
-          "answer_types": {
-            "number": 512
-          },
-          "distinct_answers": 511,
-          "spectrum": {
-            "status": "measured",
-            "rms_ulp": 10.00592907577981,
-            "slope_ulp": -34.55074794577769,
-            "median_power": 5724.2685834055055,
-            "lines": [
-              {
-                "bin": 148,
-                "cycles_per_input": 0.2890625,
-                "period_inputs": 3.4594594594594597,
-                "power_fraction": 0.08973742462099789
-              },
-              {
-                "bin": 154,
-                "cycles_per_input": 0.30078125,
-                "period_inputs": 3.324675324675325,
-                "power_fraction": 0.07207584928509843
-              },
-              {
-                "bin": 128,
-                "cycles_per_input": 0.25,
-                "period_inputs": 4.0,
-                "power_fraction": 0.05700266794738263
-              },
-              {
-                "bin": 216,
-                "cycles_per_input": 0.421875,
-                "period_inputs": 2.3703703703703702,
-                "power_fraction": 0.05341054981691499
-              },
-              {
-                "bin": 205,
-                "cycles_per_input": 0.400390625,
-                "period_inputs": 2.497560975609756,
-                "power_fraction": 0.02607263081527502
-              },
-              {
-                "bin": 68,
-                "cycles_per_input": 0.1328125,
-                "period_inputs": 7.529411764705882,
-                "power_fraction": 0.019419712952177336
-              }
-            ],
-            "detected_lines": 6,
-            "resolved_stored_stages": null,
-            "limitation": "Harmonics, aliasing and unobserved/redundant stores prevent converting peak count into store count."
-          }
-        },
-        {
-          "start": "4006ffffffffff00",
-          "end": "40070000000000ff",
-          "count": 512,
-          "answer_types": {
-            "number": 512
-          },
-          "distinct_answers": 398,
-          "spectrum": {
-            "status": "measured",
-            "rms_ulp": 4.348480551290403,
-            "slope_ulp": -6.148946540509378,
-            "median_power": 866.6826611663954,
-            "lines": [
-              {
-                "bin": 1,
-                "cycles_per_input": 0.001953125,
-                "period_inputs": 512.0,
-                "power_fraction": 0.12218373207169501
-              },
-              {
-                "bin": 165,
-                "cycles_per_input": 0.322265625,
-                "period_inputs": 3.103030303030303,
-                "power_fraction": 0.12030368226428263
-              },
-              {
-                "bin": 224,
-                "cycles_per_input": 0.4375,
-                "period_inputs": 2.2857142857142856,
-                "power_fraction": 0.03006750552187179
-              },
-              {
-                "bin": 33,
-                "cycles_per_input": 0.064453125,
-                "period_inputs": 15.515151515151516,
-                "power_fraction": 0.028254693707577164
-              },
-              {
-                "bin": 109,
-                "cycles_per_input": 0.212890625,
-                "period_inputs": 4.697247706422019,
-                "power_fraction": 0.020583170643454288
-              },
-              {
-                "bin": 238,
-                "cycles_per_input": 0.46484375,
-                "period_inputs": 2.1512605042016806,
-                "power_fraction": 0.01750917208625384
-              },
-              {
-                "bin": 132,
-                "cycles_per_input": 0.2578125,
-                "period_inputs": 3.878787878787879,
-                "power_fraction": 0.017266949695870375
-              }
-            ],
-            "detected_lines": 7,
-            "resolved_stored_stages": null,
-            "limitation": "Harmonics, aliasing and unobserved/redundant stores prevent converting peak count into store count."
-          }
-        }
-      ],
-      "seed_origin": "fixed textbook example",
-      "arguments": [
-        {
-          "type": "number",
-          "bits": "4002666666666666"
-        },
-        {
-          "type": "number",
-          "bits": "0000000000000000"
-        }
-      ],
-      "varying_argument": 0,
-      "requested_calls": 1024,
-      "requested_windows": [
-        {
-          "start": "4002666666666566",
-          "count": 512
-        },
-        {
-          "start": "4006ffffffffff00",
-          "count": 512
-        }
-      ],
-      "status": "observed",
-      "rounding_evidence": {
-        "label": "ideal single/double leaf rejected on this window",
-        "counts": {
-          "neither": 1024
-        },
-        "discriminants": [],
-        "limitation": "Ideal real-function publication only. Agreement does not identify the inner algorithm or its stores; any neither result refutes this complete leaf model."
-      },
-      "observed_approximation_boundaries": [
-        {
-          "function": "BESSELJ",
-          "order": 0,
-          "low": "401fffffffffffff",
-          "high": "4020000000000000",
-          "low_answer": {
-            "type": "number",
-            "bits": "3fc5f8a754204c00"
-          },
-          "high_answer": {
-            "type": "number",
-            "bits": "3fc5f8a755e1788c"
-          },
-          "adjacent_residual_jump_ulp": 29437075.508363098,
-          "left_spectrum": {
-            "status": "measured",
-            "rms_ulp": 21.38773444030626,
-            "slope_ulp": -7.533216268024719,
-            "median_power": 6113.418894246855,
-            "lines": [
-              {
-                "bin": 84,
-                "cycles_per_input": 0.328125,
-                "period_inputs": 3.0476190476190474,
-                "power_fraction": 0.15058129919728214
-              },
-              {
-                "bin": 46,
-                "cycles_per_input": 0.1796875,
-                "period_inputs": 5.565217391304348,
-                "power_fraction": 0.13210155614600858
-              },
-              {
-                "bin": 126,
-                "cycles_per_input": 0.4921875,
-                "period_inputs": 2.0317460317460316,
-                "power_fraction": 0.047448038630586366
-              },
-              {
-                "bin": 89,
-                "cycles_per_input": 0.34765625,
-                "period_inputs": 2.8764044943820224,
-                "power_fraction": 0.041195324662009446
-              },
-              {
-                "bin": 94,
-                "cycles_per_input": 0.3671875,
-                "period_inputs": 2.723404255319149,
-                "power_fraction": 0.04035987532094623
-              },
-              {
-                "bin": 23,
-                "cycles_per_input": 0.08984375,
-                "period_inputs": 11.130434782608695,
-                "power_fraction": 0.0266427164378149
-              },
-              {
-                "bin": 69,
-                "cycles_per_input": 0.26953125,
-                "period_inputs": 3.710144927536232,
-                "power_fraction": 0.022998535711003524
-              }
-            ],
-            "detected_lines": 7,
-            "resolved_stored_stages": null,
-            "limitation": "Harmonics, aliasing and unobserved/redundant stores prevent converting peak count into store count."
-          },
-          "right_spectrum": {
-            "status": "measured",
-            "rms_ulp": 0.7483940922095782,
-            "slope_ulp": -15.017021200503548,
-            "median_power": 13.805645507353475,
-            "lines": [
-              {
-                "bin": 41,
-                "cycles_per_input": 0.16015625,
-                "period_inputs": 6.2439024390243905,
-                "power_fraction": 0.1227148390102881
-              },
-              {
-                "bin": 32,
-                "cycles_per_input": 0.125,
-                "period_inputs": 8.0,
-                "power_fraction": 0.0751707946278964
-              },
-              {
-                "bin": 63,
-                "cycles_per_input": 0.24609375,
-                "period_inputs": 4.063492063492063,
-                "power_fraction": 0.0516546685127365
-              },
-              {
-                "bin": 3,
-                "cycles_per_input": 0.01171875,
-                "period_inputs": 85.33333333333333,
-                "power_fraction": 0.04890776200861148
-              },
-              {
-                "bin": 111,
-                "cycles_per_input": 0.43359375,
-                "period_inputs": 2.3063063063063063,
-                "power_fraction": 0.04053357051499941
-              }
-            ],
-            "detected_lines": 5,
-            "resolved_stored_stages": null,
-            "limitation": "Harmonics, aliasing and unobserved/redundant stores prevent converting peak count into store count."
-          },
-          "inference": "A large residual discontinuity supports a change of approximation at8; output readings alone do not identify the internal source branch."
-        },
-        {
-          "function": "BESSELJ",
-          "order": 1,
-          "low": "401fffffffffffff",
-          "high": "4020000000000000",
-          "low_answer": {
-            "type": "number",
-            "bits": "3fce08904b4fed86"
-          },
-          "high_answer": {
-            "type": "number",
-            "bits": "3fce084d8f616cc8"
-          },
-          "adjacent_residual_jump_ulp": -286620811458.55426,
-          "left_spectrum": {
-            "status": "measured",
-            "rms_ulp": 25.594130943030805,
-            "slope_ulp": 4.540785934996567,
-            "median_power": 10975.647762132288,
-            "lines": [
-              {
-                "bin": 93,
-                "cycles_per_input": 0.36328125,
-                "period_inputs": 2.752688172043011,
-                "power_fraction": 0.15194848155331805
-              },
-              {
-                "bin": 1,
-                "cycles_per_input": 0.00390625,
-                "period_inputs": 256.0,
-                "power_fraction": 0.11961028269619965
-              },
-              {
-                "bin": 98,
-                "cycles_per_input": 0.3828125,
-                "period_inputs": 2.6122448979591835,
-                "power_fraction": 0.10504805532836047
-              },
-              {
-                "bin": 60,
-                "cycles_per_input": 0.234375,
-                "period_inputs": 4.266666666666667,
-                "power_fraction": 0.05146422124461741
-              }
-            ],
-            "detected_lines": 4,
-            "resolved_stored_stages": null,
-            "limitation": "Harmonics, aliasing and unobserved/redundant stores prevent converting peak count into store count."
-          },
-          "right_spectrum": {
-            "status": "measured",
-            "rms_ulp": 0.8856038578447215,
-            "slope_ulp": 9.103586704623483,
-            "median_power": 25.414153761317532,
-            "lines": [
-              {
-                "bin": 2,
-                "cycles_per_input": 0.0078125,
-                "period_inputs": 128.0,
-                "power_fraction": 0.14502879391385415
-              },
-              {
-                "bin": 112,
-                "cycles_per_input": 0.4375,
-                "period_inputs": 2.2857142857142856,
-                "power_fraction": 0.06753707092537473
-              },
-              {
-                "bin": 116,
-                "cycles_per_input": 0.453125,
-                "period_inputs": 2.206896551724138,
-                "power_fraction": 0.03924430892065688
-              }
-            ],
-            "detected_lines": 3,
-            "resolved_stored_stages": null,
-            "limitation": "Harmonics, aliasing and unobserved/redundant stores prevent converting peak count into store count."
-          },
-          "inference": "A large residual discontinuity supports a change of approximation at8; output readings alone do not identify the internal source branch."
-        }
-      ],
-      "broader_primitive_windows": []
-    },
-    {
       "function": "ERF.PRECISE",
       "problem_list_member": true,
       "rounding": "unresolved: no complete scalar mathematical reference",
@@ -12468,6 +11848,619 @@
         "limitation": "Ideal real-function publication only. Agreement does not identify the inner algorithm or its stores; any neither result refutes this complete leaf model."
       },
       "observed_approximation_boundaries": [],
+      "broader_primitive_windows": []
+    },
+    {
+      "function": "BESSELJ",
+      "problem_list_member": true,
+      "rounding": "ideal single/double leaf rejected on this window",
+      "stored_stages": null,
+      "band_edges": [
+        {
+          "function": "BESSELJ",
+          "low": 134217726.0,
+          "high": 134217732.0,
+          "arguments": [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          "index": 0,
+          "status": "adjacent observed edge",
+          "edge": {
+            "low": "419fffffff243f6b",
+            "high": "419fffffff243f6c",
+            "low_answer": {
+              "type": "number",
+              "bits": "bef52ffa727d724f"
+            },
+            "high_answer": {
+              "type": "error",
+              "code": "#NUM!"
+            },
+            "questions": 30
+          },
+          "neighbors": [
+            {
+              "type": "number",
+              "bits": "bef52ffa9502584e"
+            },
+            {
+              "type": "number",
+              "bits": "bef52ffa83bfe550"
+            },
+            {
+              "type": "number",
+              "bits": "bef52ffa727d724f"
+            },
+            {
+              "type": "error",
+              "code": "#NUM!"
+            },
+            {
+              "type": "error",
+              "code": "#NUM!"
+            },
+            {
+              "type": "error",
+              "code": "#NUM!"
+            }
+          ]
+        },
+        {
+          "function": "BESSELJ",
+          "low": 134217726.0,
+          "high": 134217732.0,
+          "arguments": [
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          "index": 0,
+          "status": "adjacent observed edge",
+          "edge": {
+            "low": "41a0000002b65f20",
+            "high": "41a0000002b65f21",
+            "low_answer": {
+              "type": "number",
+              "bits": "bef52ffa6c185620"
+            },
+            "high_answer": {
+              "type": "error",
+              "code": "#NUM!"
+            },
+            "questions": 30
+          },
+          "neighbors": [
+            {
+              "type": "number",
+              "bits": "bef52ffab1222213"
+            },
+            {
+              "type": "number",
+              "bits": "bef52ffa8e9d3c1b"
+            },
+            {
+              "type": "number",
+              "bits": "bef52ffa6c185620"
+            },
+            {
+              "type": "error",
+              "code": "#NUM!"
+            },
+            {
+              "type": "error",
+              "code": "#NUM!"
+            },
+            {
+              "type": "error",
+              "code": "#NUM!"
+            }
+          ]
+        },
+        {
+          "function": "BESSELJ",
+          "low": 134217726.0,
+          "high": 134217732.0,
+          "arguments": [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            }
+          ],
+          "index": 0,
+          "status": "adjacent observed edge",
+          "edge": {
+            "low": "419fffffff243f6b",
+            "high": "419fffffff243f6c",
+            "low_answer": {
+              "type": "number",
+              "bits": "3ef52ffa613aff4d"
+            },
+            "high_answer": {
+              "type": "error",
+              "code": "#NUM!"
+            },
+            "questions": 30
+          },
+          "neighbors": [
+            {
+              "type": "number",
+              "bits": "3ef52ffa83bfe54f"
+            },
+            {
+              "type": "number",
+              "bits": "3ef52ffa727d7250"
+            },
+            {
+              "type": "number",
+              "bits": "3ef52ffa613aff4d"
+            },
+            {
+              "type": "error",
+              "code": "#NUM!"
+            },
+            {
+              "type": "error",
+              "code": "#NUM!"
+            },
+            {
+              "type": "error",
+              "code": "#NUM!"
+            }
+          ]
+        },
+        {
+          "function": "BESSELJ",
+          "low": 134217726.0,
+          "high": 134217732.0,
+          "arguments": [
+            {
+              "type": "number",
+              "bits": "4008000000000000"
+            }
+          ],
+          "index": 0,
+          "status": "adjacent observed edge",
+          "edge": {
+            "low": "419fffffff243f6b",
+            "high": "419fffffff243f6c",
+            "low_answer": {
+              "type": "number",
+              "bits": "3f11427303be3099"
+            },
+            "high_answer": {
+              "type": "error",
+              "code": "#NUM!"
+            },
+            "questions": 30
+          },
+          "neighbors": [
+            {
+              "type": "number",
+              "bits": "3f11427301183150"
+            },
+            {
+              "type": "number",
+              "bits": "3f114273026b30f4"
+            },
+            {
+              "type": "number",
+              "bits": "3f11427303be3099"
+            },
+            {
+              "type": "error",
+              "code": "#NUM!"
+            },
+            {
+              "type": "error",
+              "code": "#NUM!"
+            },
+            {
+              "type": "error",
+              "code": "#NUM!"
+            }
+          ]
+        },
+        {
+          "function": "BESSELJ",
+          "low": 134217726.0,
+          "high": 134217732.0,
+          "arguments": [
+            {
+              "type": "number",
+              "bits": "4024000000000000"
+            }
+          ],
+          "index": 0,
+          "status": "adjacent observed edge",
+          "edge": {
+            "low": "419fffffff243f6b",
+            "high": "419fffffff243f6c",
+            "low_answer": {
+              "type": "number",
+              "bits": "3ef52ff8c300359a"
+            },
+            "high_answer": {
+              "type": "error",
+              "code": "#NUM!"
+            },
+            "questions": 30
+          },
+          "neighbors": [
+            {
+              "type": "number",
+              "bits": "3ef52ff8e5851bdb"
+            },
+            {
+              "type": "number",
+              "bits": "3ef52ff8d442a8bd"
+            },
+            {
+              "type": "number",
+              "bits": "3ef52ff8c300359a"
+            },
+            {
+              "type": "error",
+              "code": "#NUM!"
+            },
+            {
+              "type": "error",
+              "code": "#NUM!"
+            },
+            {
+              "type": "error",
+              "code": "#NUM!"
+            }
+          ]
+        }
+      ],
+      "windows": [
+        {
+          "start": "4002666666666566",
+          "end": "4002666666666765",
+          "count": 512,
+          "answer_types": {
+            "number": 512
+          },
+          "distinct_answers": 511,
+          "spectrum": {
+            "status": "measured",
+            "rms_ulp": 10.00592907577981,
+            "slope_ulp": -34.55074794577769,
+            "median_power": 5724.2685834055055,
+            "lines": [
+              {
+                "bin": 148,
+                "cycles_per_input": 0.2890625,
+                "period_inputs": 3.4594594594594597,
+                "power_fraction": 0.08973742462099789
+              },
+              {
+                "bin": 154,
+                "cycles_per_input": 0.30078125,
+                "period_inputs": 3.324675324675325,
+                "power_fraction": 0.07207584928509843
+              },
+              {
+                "bin": 128,
+                "cycles_per_input": 0.25,
+                "period_inputs": 4.0,
+                "power_fraction": 0.05700266794738263
+              },
+              {
+                "bin": 216,
+                "cycles_per_input": 0.421875,
+                "period_inputs": 2.3703703703703702,
+                "power_fraction": 0.05341054981691499
+              },
+              {
+                "bin": 205,
+                "cycles_per_input": 0.400390625,
+                "period_inputs": 2.497560975609756,
+                "power_fraction": 0.02607263081527502
+              },
+              {
+                "bin": 68,
+                "cycles_per_input": 0.1328125,
+                "period_inputs": 7.529411764705882,
+                "power_fraction": 0.019419712952177336
+              }
+            ],
+            "detected_lines": 6,
+            "resolved_stored_stages": null,
+            "limitation": "Harmonics, aliasing and unobserved/redundant stores prevent converting peak count into store count."
+          }
+        },
+        {
+          "start": "4006ffffffffff00",
+          "end": "40070000000000ff",
+          "count": 512,
+          "answer_types": {
+            "number": 512
+          },
+          "distinct_answers": 398,
+          "spectrum": {
+            "status": "measured",
+            "rms_ulp": 4.348480551290403,
+            "slope_ulp": -6.148946540509378,
+            "median_power": 866.6826611663954,
+            "lines": [
+              {
+                "bin": 1,
+                "cycles_per_input": 0.001953125,
+                "period_inputs": 512.0,
+                "power_fraction": 0.12218373207169501
+              },
+              {
+                "bin": 165,
+                "cycles_per_input": 0.322265625,
+                "period_inputs": 3.103030303030303,
+                "power_fraction": 0.12030368226428263
+              },
+              {
+                "bin": 224,
+                "cycles_per_input": 0.4375,
+                "period_inputs": 2.2857142857142856,
+                "power_fraction": 0.03006750552187179
+              },
+              {
+                "bin": 33,
+                "cycles_per_input": 0.064453125,
+                "period_inputs": 15.515151515151516,
+                "power_fraction": 0.028254693707577164
+              },
+              {
+                "bin": 109,
+                "cycles_per_input": 0.212890625,
+                "period_inputs": 4.697247706422019,
+                "power_fraction": 0.020583170643454288
+              },
+              {
+                "bin": 238,
+                "cycles_per_input": 0.46484375,
+                "period_inputs": 2.1512605042016806,
+                "power_fraction": 0.01750917208625384
+              },
+              {
+                "bin": 132,
+                "cycles_per_input": 0.2578125,
+                "period_inputs": 3.878787878787879,
+                "power_fraction": 0.017266949695870375
+              }
+            ],
+            "detected_lines": 7,
+            "resolved_stored_stages": null,
+            "limitation": "Harmonics, aliasing and unobserved/redundant stores prevent converting peak count into store count."
+          }
+        }
+      ],
+      "seed_origin": "fixed textbook example",
+      "arguments": [
+        {
+          "type": "number",
+          "bits": "4002666666666666"
+        },
+        {
+          "type": "number",
+          "bits": "0000000000000000"
+        }
+      ],
+      "varying_argument": 0,
+      "requested_calls": 1024,
+      "requested_windows": [
+        {
+          "start": "4002666666666566",
+          "count": 512
+        },
+        {
+          "start": "4006ffffffffff00",
+          "count": 512
+        }
+      ],
+      "status": "observed",
+      "rounding_evidence": {
+        "label": "ideal single/double leaf rejected on this window",
+        "counts": {
+          "neither": 1024
+        },
+        "discriminants": [],
+        "limitation": "Ideal real-function publication only. Agreement does not identify the inner algorithm or its stores; any neither result refutes this complete leaf model."
+      },
+      "observed_approximation_boundaries": [
+        {
+          "function": "BESSELJ",
+          "order": 0,
+          "low": "401fffffffffffff",
+          "high": "4020000000000000",
+          "low_answer": {
+            "type": "number",
+            "bits": "3fc5f8a754204c00"
+          },
+          "high_answer": {
+            "type": "number",
+            "bits": "3fc5f8a755e1788c"
+          },
+          "adjacent_residual_jump_ulp": 29437075.508363098,
+          "left_spectrum": {
+            "status": "measured",
+            "rms_ulp": 21.38773444030626,
+            "slope_ulp": -7.533216268024719,
+            "median_power": 6113.418894246855,
+            "lines": [
+              {
+                "bin": 84,
+                "cycles_per_input": 0.328125,
+                "period_inputs": 3.0476190476190474,
+                "power_fraction": 0.15058129919728214
+              },
+              {
+                "bin": 46,
+                "cycles_per_input": 0.1796875,
+                "period_inputs": 5.565217391304348,
+                "power_fraction": 0.13210155614600858
+              },
+              {
+                "bin": 126,
+                "cycles_per_input": 0.4921875,
+                "period_inputs": 2.0317460317460316,
+                "power_fraction": 0.047448038630586366
+              },
+              {
+                "bin": 89,
+                "cycles_per_input": 0.34765625,
+                "period_inputs": 2.8764044943820224,
+                "power_fraction": 0.041195324662009446
+              },
+              {
+                "bin": 94,
+                "cycles_per_input": 0.3671875,
+                "period_inputs": 2.723404255319149,
+                "power_fraction": 0.04035987532094623
+              },
+              {
+                "bin": 23,
+                "cycles_per_input": 0.08984375,
+                "period_inputs": 11.130434782608695,
+                "power_fraction": 0.0266427164378149
+              },
+              {
+                "bin": 69,
+                "cycles_per_input": 0.26953125,
+                "period_inputs": 3.710144927536232,
+                "power_fraction": 0.022998535711003524
+              }
+            ],
+            "detected_lines": 7,
+            "resolved_stored_stages": null,
+            "limitation": "Harmonics, aliasing and unobserved/redundant stores prevent converting peak count into store count."
+          },
+          "right_spectrum": {
+            "status": "measured",
+            "rms_ulp": 0.7483940922095782,
+            "slope_ulp": -15.017021200503548,
+            "median_power": 13.805645507353475,
+            "lines": [
+              {
+                "bin": 41,
+                "cycles_per_input": 0.16015625,
+                "period_inputs": 6.2439024390243905,
+                "power_fraction": 0.1227148390102881
+              },
+              {
+                "bin": 32,
+                "cycles_per_input": 0.125,
+                "period_inputs": 8.0,
+                "power_fraction": 0.0751707946278964
+              },
+              {
+                "bin": 63,
+                "cycles_per_input": 0.24609375,
+                "period_inputs": 4.063492063492063,
+                "power_fraction": 0.0516546685127365
+              },
+              {
+                "bin": 3,
+                "cycles_per_input": 0.01171875,
+                "period_inputs": 85.33333333333333,
+                "power_fraction": 0.04890776200861148
+              },
+              {
+                "bin": 111,
+                "cycles_per_input": 0.43359375,
+                "period_inputs": 2.3063063063063063,
+                "power_fraction": 0.04053357051499941
+              }
+            ],
+            "detected_lines": 5,
+            "resolved_stored_stages": null,
+            "limitation": "Harmonics, aliasing and unobserved/redundant stores prevent converting peak count into store count."
+          },
+          "inference": "A large residual discontinuity supports a change of approximation at8; output readings alone do not identify the internal source branch."
+        },
+        {
+          "function": "BESSELJ",
+          "order": 1,
+          "low": "401fffffffffffff",
+          "high": "4020000000000000",
+          "low_answer": {
+            "type": "number",
+            "bits": "3fce08904b4fed86"
+          },
+          "high_answer": {
+            "type": "number",
+            "bits": "3fce084d8f616cc8"
+          },
+          "adjacent_residual_jump_ulp": -286620811458.55426,
+          "left_spectrum": {
+            "status": "measured",
+            "rms_ulp": 25.594130943030805,
+            "slope_ulp": 4.540785934996567,
+            "median_power": 10975.647762132288,
+            "lines": [
+              {
+                "bin": 93,
+                "cycles_per_input": 0.36328125,
+                "period_inputs": 2.752688172043011,
+                "power_fraction": 0.15194848155331805
+              },
+              {
+                "bin": 1,
+                "cycles_per_input": 0.00390625,
+                "period_inputs": 256.0,
+                "power_fraction": 0.11961028269619965
+              },
+              {
+                "bin": 98,
+                "cycles_per_input": 0.3828125,
+                "period_inputs": 2.6122448979591835,
+                "power_fraction": 0.10504805532836047
+              },
+              {
+                "bin": 60,
+                "cycles_per_input": 0.234375,
+                "period_inputs": 4.266666666666667,
+                "power_fraction": 0.05146422124461741
+              }
+            ],
+            "detected_lines": 4,
+            "resolved_stored_stages": null,
+            "limitation": "Harmonics, aliasing and unobserved/redundant stores prevent converting peak count into store count."
+          },
+          "right_spectrum": {
+            "status": "measured",
+            "rms_ulp": 0.8856038578447215,
+            "slope_ulp": 9.103586704623483,
+            "median_power": 25.414153761317532,
+            "lines": [
+              {
+                "bin": 2,
+                "cycles_per_input": 0.0078125,
+                "period_inputs": 128.0,
+                "power_fraction": 0.14502879391385415
+              },
+              {
+                "bin": 112,
+                "cycles_per_input": 0.4375,
+                "period_inputs": 2.2857142857142856,
+                "power_fraction": 0.06753707092537473
+              },
+              {
+                "bin": 116,
+                "cycles_per_input": 0.453125,
+                "period_inputs": 2.206896551724138,
+                "power_fraction": 0.03924430892065688
+              }
+            ],
+            "detected_lines": 3,
+            "resolved_stored_stages": null,
+            "limitation": "Harmonics, aliasing and unobserved/redundant stores prevent converting peak count into store count."
+          },
+          "inference": "A large residual discontinuity supports a change of approximation at8; output readings alone do not identify the internal source branch."
+        }
+      ],
       "broader_primitive_windows": []
     },
     {
@@ -15988,18 +15981,6 @@
       "broader_primitive_windows": []
     },
     {
-      "function": "INDEX",
-      "problem_list_member": true,
-      "rounding": "unresolved",
-      "stored_stages": null,
-      "band_edges": [],
-      "windows": [],
-      "status": "workbook-only",
-      "reason": "outside the scalar service catalogue; no service restriction changed",
-      "observed_approximation_boundaries": [],
-      "broader_primitive_windows": []
-    },
-    {
       "function": "ISEVEN",
       "problem_list_member": true,
       "rounding": "unresolved",
@@ -16551,19 +16532,6 @@
       "broader_primitive_windows": []
     },
     {
-      "function": "SEARCH",
-      "problem_list_member": true,
-      "rounding": "unresolved",
-      "stored_stages": null,
-      "band_edges": [],
-      "windows": [],
-      "seed_origin": "no scalar seed in the existing pin inventory",
-      "status": "non-numeric-coordinate",
-      "reason": "no scalar seed in the existing pin inventory",
-      "observed_approximation_boundaries": [],
-      "broader_primitive_windows": []
-    },
-    {
       "function": "SIGN",
       "problem_list_member": true,
       "rounding": "unresolved",
@@ -16978,54 +16946,6 @@
         },
         "discriminants": [],
         "limitation": "Ideal real-function publication only. Agreement does not identify the inner algorithm or its stores; any neither result refutes this complete leaf model."
-      },
-      "observed_approximation_boundaries": [],
-      "broader_primitive_windows": []
-    },
-    {
-      "function": "TEXT",
-      "problem_list_member": true,
-      "rounding": "unresolved",
-      "stored_stages": null,
-      "band_edges": [],
-      "windows": [],
-      "seed_origin": "fixed textbook example",
-      "arguments": [
-        {
-          "type": "number",
-          "bits": "3ff4cccccccccccd"
-        },
-        {
-          "type": "text",
-          "value": "0.0000000000000000",
-          "mode": "cell"
-        }
-      ],
-      "varying_argument": 0,
-      "requested_calls": 1024,
-      "requested_windows": [
-        {
-          "start": "3ff4cccccccccbcd",
-          "count": 512
-        },
-        {
-          "start": "3ff9ffffffffff00",
-          "count": 512
-        }
-      ],
-      "status": "service-refused",
-      "refusal": {
-        "version": 1,
-        "id": "3c35768439804d66b3aa6fe6bc84c9b4",
-        "ok": false,
-        "error": "function is outside the service's safe catalogue subset",
-        "rows": [],
-        "excel_build": null,
-        "machine": "GOVERT-OMEN",
-        "timestamp": "2026-11-04T19:39:31.690110+00:00",
-        "service_seconds": 0.01600000006146729,
-        "request_sha256": "c442a068eac917326b02733eb48841166129945d36095bfb8bfe24f88e50b8cd",
-        "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-firehorse\\3c35768439804d66b3aa6fe6bc84c9b4"
       },
       "observed_approximation_boundaries": [],
       "broader_primitive_windows": []
@@ -18455,7 +18375,7 @@
     }
   ],
   "producer_bindings": {
-    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/racer/fingerprint.py": "2f7dfd19f69e00e2ce53dcbe5e3b68499f6c6a9d7404f997cfa2d418a9968e30",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/racer/fingerprint.py": "3468429d463f14eb3c6110cc7da35ae5dbf3d86621995525c5abb898c914fc5d",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/checker/reference.py": "b34fb31455348e7cf56a58f6fdafd8d9fc7f20afc5d2b85b7a409fac7aee4bdd",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/checker/exact.py": "842363e00ad65c464623594822d566a2af9a0415e0b574557613092c993af80f"
   },

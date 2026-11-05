@@ -7,12 +7,15 @@ browser builds omit JIT and use the interpreter. A native admission decline can 
 the interpreter before any code runs. Runtime errors and exhausted budgets never retry.
 The OxVba/CalcVba rename is deferred; OneCalc stays free of calc-engine/calc-doc/calc-host.
 
-Load a standard module in **VBA functions**, enter 40 in A1 and `=Add2(A1,2)` in the
+Load a standard module in **VBA functions**, enter 40 in A1 and `=Module1.Add2(A1,2)` in the
 formula field to obtain 42. Load again to replace registrations and start fresh module
 state; a compile failure leaves the prior module active. Unload removes registrations.
 Nothing is persisted to a workbook. Public Functions register bare and qualified names
 with the shared workbook-name comparison (dc-snz.11; measured Café/Ångström case pairs);
 Private functions and Subs stay private, and Main never runs.
+Bare names that spell grid cells keep reference precedence, as the original A1/XFD1
+controls show. The example uses the default module's qualified name; a module loaded
+under another name uses that qualifier instead. The VBA source is unchanged.
 
 CalcFml owns the callable table and resolver; CalcFunc owns the neutral callable traits.
 Built-ins, locals and known defined names keep precedence. Plans retain table, slot and

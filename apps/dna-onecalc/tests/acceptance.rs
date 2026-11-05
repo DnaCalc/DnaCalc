@@ -2421,7 +2421,7 @@ mod browser {
             .unwrap()
             .unwrap();
         type_text(&a1, "40");
-        page.type_into("formula", "=Add2(A1,2)");
+        page.type_into("formula", "=Module1.Add2(A1,2)");
         page.click("vba-load");
         settle().await;
         assert!(page.text("vba-status").starts_with("Loaded:"));
@@ -2759,7 +2759,7 @@ fn vba_controller_part() {
     session
         .load_vba_module("Math", calc_vba::EXAMPLE_MODULE, 1000)
         .unwrap();
-    session.set_formula("=Add2(A1,2)");
+    session.set_formula("=Math.Add2(A1,2)");
     assert_eq!(session.calculate().result, Some(CalcValue::number(42.0)));
 }
 
@@ -2767,7 +2767,7 @@ fn vba_controller_part() {
 #[test]
 fn dc_snz_3__vba() {
     vba_controller_part();
-    note!("ACCEPT-NOTE: dc_snz_3__vba: Add2(A1,2) through native OneCalc Session");
+    note!("ACCEPT-NOTE: dc_snz_3__vba: Math.Add2(A1,2) through native OneCalc Session");
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -2776,7 +2776,7 @@ async fn dc_snz_3__vba() {
     vba_controller_part();
     browser::vba_part().await;
     note!(
-        "ACCEPT-NOTE: dc_snz_3__vba: Add2(A1,2) through OneCalc Session; browser additionally drives load, reload, failed load, budget and unload through the mounted surface"
+        "ACCEPT-NOTE: dc_snz_3__vba: qualified Add2(A1,2) through OneCalc Session; browser additionally drives load, reload, failed load, budget and unload through the mounted surface"
     );
 }
 

@@ -25,13 +25,15 @@ fn vba_add2_reads_the_grid_and_reload_uses_new_code() {
     let mut s = session();
     s.load_vba_module("Math", calc_vba::EXAMPLE_MODULE, 1000)
         .unwrap();
-    assert_eq!(result(&mut s, "=Add2(A1,2)"), CalcValue::number(42.0));
+    // ADD2 is a grid address; qualifying the procedure selects the module.
+    assert_eq!(result(&mut s, "=Add2(A1,2)"), CalcValue::error(WorksheetErrorCode::Ref));
+    assert_eq!(result(&mut s, "=Math.Add2(A1,2)"), CalcValue::number(42.0));
     let calculation = s.calculate();
     assert_eq!(calculation.reads.len(), 1);
     assert!(calculation.diagnostics.is_empty());
     assert_eq!(result(&mut s, "=mAtH.aDd2(A1,2)"), CalcValue::number(42.0));
     assert_eq!(
-        result(&mut s, "=SUM(Add2(A1,2),1)"),
+        result(&mut s, "=SUM(Math.Add2(A1,2),1)"),
         CalcValue::number(43.0)
     );
 
@@ -41,15 +43,15 @@ fn vba_add2_reads_the_grid_and_reload_uses_new_code() {
         1000,
     )
     .unwrap();
-    assert_eq!(result(&mut s, "=Add2(A1,2)"), CalcValue::number(52.0));
+    assert_eq!(result(&mut s, "=Math.Add2(A1,2)"), CalcValue::number(52.0));
     assert!(
         s.load_vba_module("Math", "Function Broken(\n", 1000)
             .is_err()
     );
-    assert_eq!(result(&mut s, "=Add2(A1,2)"), CalcValue::number(52.0));
+    assert_eq!(result(&mut s, "=Math.Add2(A1,2)"), CalcValue::number(52.0));
     s.clear_user_functions();
     assert_eq!(
-        result(&mut s, "=Add2(A1,2)"),
+        result(&mut s, "=Math.Add2(A1,2)"),
         CalcValue::error(WorksheetErrorCode::Name)
     );
 }
@@ -64,13 +66,13 @@ fn vba_errors_and_runaway_code_return_worksheet_errors() {
     );
     s.load_vba_module("Math", &source, 1000).unwrap();
     assert_eq!(
-        result(&mut s, "=IF(FALSE,Spin(),Add2(A1,2))"),
+        result(&mut s, "=IF(FALSE,Spin(),Math.Add2(A1,2))"),
         CalcValue::number(42.0)
     );
     for (formula, diagnostic) in [
         ("=Spin()", "budget"),
         ("=Fail()", "VBA error 5"),
-        ("=Add2(1)", "arguments"),
+        ("=Math.Add2(1)", "arguments"),
     ] {
         assert_eq!(
             result(&mut s, formula),
@@ -85,7 +87,7 @@ fn vba_errors_and_runaway_code_return_worksheet_errors() {
     assert!(s.calculate().diagnostics.is_empty());
     assert_eq!(result(&mut s, "=IFERROR(Spin(),7)"), CalcValue::number(7.0));
     // The budget starts again for the next call, even after an exhausted call.
-    assert_eq!(result(&mut s, "=Add2(A1,2)"), CalcValue::number(42.0));
+    assert_eq!(result(&mut s, "=Math.Add2(A1,2)"), CalcValue::number(42.0));
     // A later evaluation fault does not erase an earlier UDF failure's diagnostic.
     s.set_formula("=LET(t,Fail(),Z9)");
     let failed = s.calculate();
@@ -99,7 +101,7 @@ fn vba_errors_and_runaway_code_return_worksheet_errors() {
     s.load_vba_module("Math", calc_vba::EXAMPLE_MODULE, 0)
         .unwrap();
     assert_eq!(
-        result(&mut s, "=Add2(A1,2)"),
+        result(&mut s, "=Math.Add2(A1,2)"),
         CalcValue::error(WorksheetErrorCode::Value)
     );
 }

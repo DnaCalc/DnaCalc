@@ -65,9 +65,9 @@ All problem-list entries are reported, including workbook-only, text/discrete an
 | SWITCH | workbook-only | unresolved | unresolved | — | unmeasured |
 | CHIDIST | observed | unresolved: flat quantized windows | unresolved | 0, 0 | unmeasured |
 | CHISQ.INV | observed | unresolved: no complete scalar mathematical reference | unresolved | 1, 1 | unmeasured |
-| BESSELY | observed | ideal single/double leaf rejected on this window | unresolved | 3, 3 | 5 |
 | SKEW | observed | unresolved: no complete scalar mathematical reference | unresolved | 8, 8 | unmeasured |
 | T.DIST.RT | observed | unresolved: no complete scalar mathematical reference | unresolved | 3, 3 | unmeasured |
+| BESSELY | observed | ideal single/double leaf rejected on this window | unresolved | 3, 3 | 5 |
 | CRITBINOM | observed | unresolved: flat quantized windows | unresolved | 0, 0 | unmeasured |
 | FLOOR | workbook-only | unresolved | unresolved | — | unmeasured |
 | NORM.S.DIST | observed | unresolved: no complete scalar mathematical reference | unresolved | 5, 2 | unmeasured |
@@ -90,7 +90,6 @@ All problem-list entries are reported, including workbook-only, text/discrete an
 | COTH | observed | ideal single/double leaf rejected on this window | unresolved | 5, 8 | unmeasured |
 | PRICE | observed | not identifiable on non-numeric/error output | unresolved | 1, 0 | unmeasured |
 | BETAINV | observed | unresolved: no complete scalar mathematical reference | unresolved | 3, 1 | unmeasured |
-| BESSELJ | observed | ideal single/double leaf rejected on this window | unresolved | 6, 7 | 5 |
 | ERF.PRECISE | observed | unresolved: no complete scalar mathematical reference | unresolved | 2, 3 | unmeasured |
 | CSCH | observed | ideal single/double leaf rejected on this window | unresolved | 8, 8 | unmeasured |
 | GROWTH | workbook-only | unresolved | unresolved | — | unmeasured |
@@ -111,6 +110,7 @@ All problem-list entries are reported, including workbook-only, text/discrete an
 | TREND | workbook-only | unresolved | unresolved | — | unmeasured |
 | TTEST | observed | not identifiable on non-numeric/error output | unresolved | 0, 0 | unmeasured |
 | WEIBULL.DIST | observed | unresolved: no complete scalar mathematical reference | unresolved | 8, 8 | unmeasured |
+| BESSELJ | observed | ideal single/double leaf rejected on this window | unresolved | 6, 7 | 5 |
 | BETA.INV | observed | unresolved: no complete scalar mathematical reference | unresolved | 3, 1 | unmeasured |
 | CHISQ.DIST.RT | observed | unresolved: no complete scalar mathematical reference | unresolved | 5, 8 | unmeasured |
 | CONFIDENCE.NORM | observed | unresolved: no complete scalar mathematical reference | unresolved | 8, 8 | unmeasured |
@@ -148,7 +148,6 @@ All problem-list entries are reported, including workbook-only, text/discrete an
 | IMSECH | observed | not identifiable on non-numeric/error output | unresolved | 0, 0 | unmeasured |
 | IMSINH | observed | not identifiable on non-numeric/error output | unresolved | 0, 0 | unmeasured |
 | IMTAN | observed | not identifiable on non-numeric/error output | unresolved | 0, 0 | unmeasured |
-| INDEX | workbook-only | unresolved | unresolved | — | unmeasured |
 | ISEVEN | workbook-only | unresolved | unresolved | — | unmeasured |
 | ISODD | workbook-only | unresolved | unresolved | — | unmeasured |
 | Infix & | workbook-only | unresolved | unresolved | — | unmeasured |
@@ -164,11 +163,9 @@ All problem-list entries are reported, including workbook-only, text/discrete an
 | RADIANS | observed | unresolved: no complete scalar mathematical reference | unresolved | 8, 8 | unmeasured |
 | ROWS | workbook-only | unresolved | unresolved | — | unmeasured |
 | RRI | observed | unresolved: no complete scalar mathematical reference | unresolved | 6, 5 | unmeasured |
-| SEARCH | non-numeric-coordinate | unresolved | unresolved | — | unmeasured |
 | SIGN | workbook-only | unresolved | unresolved | — | unmeasured |
 | SQRT | observed | double-round mathematical leaf consistent | unresolved | 8, 8 | unmeasured |
 | STANDARDIZE | observed | single/double indistinguishable | unresolved | 8, 8 | unmeasured |
-| TEXT | service-refused | unresolved | unresolved | — | unmeasured |
 | TEXTSPLIT | workbook-only | unresolved | unresolved | — | unmeasured |
 | WEEKNUM | observed | unresolved: flat quantized windows | unresolved | 0, 0 | unmeasured |
 | LN | observed | single/double indistinguishable | unresolved | 7, 7 | unmeasured |

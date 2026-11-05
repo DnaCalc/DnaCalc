@@ -7,8 +7,9 @@
 //! not in A1 notation, where `3` is a number and `B` a name, and `$3` and `$B`, which can be
 //! neither, are refused. Everything else is left to the formula's own operators and to later
 //! binding: a `:` between other operands, or between endpoints of different forms or sheets, is
-//! the range operator over separately bound references; names, tables and calls are not
-//! references here.
+//! the range operator over separately bound references. A bare cell callee has a site for its
+//! token, so transforms preserve it; the call's arguments are bound separately. Built-in calls,
+//! names and tables are not references here.
 //!
 //! A qualifier belongs to its whole operand. A qualified operand is bound with its qualifier or
 //! refused; the walk never enters it, so nothing inside it can bind as an unqualified reference.
@@ -23,6 +24,24 @@ use super::{
 };
 use crate::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, SyntaxTree, TextSpan, Token, TokenKind};
 use calc_func::value::{CellKey, SheetId, WorksheetErrorCode};
+
+/// Whether an unqualified call token spells a cell after built-in precedence.
+/// Binding, plan templates and shared-formula movement use this same classification.
+pub fn is_cell_callee(
+    text: &str,
+    notation: ReferenceNotation,
+) -> bool {
+    if crate::eval::is_builtin(text)
+        || calc_func::catalogue().resolve_surface(calc_func::Notation::Call, text).is_ok()
+    {
+        return false;
+    }
+    let spelled = match notation {
+        ReferenceNotation::A1 => notation::a1(text, 1, 1),
+        ReferenceNotation::R1C1 => notation::r1c1(text),
+    };
+    matches!(spelled, Some(Spelled::Cell(_)))
+}
 
 /// The workbook identities a formula's references are bound against. Binding asks it only for
 /// sheets, by the name a qualifier spells, never for reference text.
@@ -431,6 +450,27 @@ impl Binder<'_> {
                 SyntaxKind::IdentifierExpr if self.structured(node) => continue,
                 SyntaxKind::IdentifierExpr | SyntaxKind::NumberLiteralExpr => {
                     only_token(node).and_then(|token| self.alone(&Qualifier::Unqualified, token))
+                }
+                SyntaxKind::CallExpr => {
+                    // Excel's retained VBA-name controls give A1(2), XFD1(2)
+                    // and $A$1(2) #REF!, while Module1.A1(2) calls the procedure.
+                    // Bind only the callee token, not the whole call. LOG10 is
+                    // also a cell spelling: built-in precedence must survive.
+                    if let Some(SyntaxChild::Token(name)) = node.children().first()
+                        && is_cell_callee(name.text(), self.notation)
+                        && let Some(Spelled::Cell(cell)) = self.spell(name)
+                    {
+                        self.push(name.span(), if self.in_array_constant {
+                            Err(BindError::InArrayConstant)
+                        } else {
+                            Ok(ReferenceOperand {
+                                sheet: SheetTarget::Anchor,
+                                shape: ReferenceShape::Cell(cell),
+                            })
+                        });
+                    }
+                    visit_children(node, &mut pending);
+                    continue;
                 }
                 SyntaxKind::RangeExpr | SyntaxKind::TrimRangeExpr => {
                     if !self.range(node) {

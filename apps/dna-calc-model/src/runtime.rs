@@ -80,10 +80,15 @@ impl Default for FilterTools {
 pub struct TableTools {pub name:String,pub rows:String,pub columns:String,pub total_column:String,pub total_function:String,pub column:String,pub column_name:String,pub formula:String}
 impl Default for TableTools{fn default()->Self{Self{name:"Table1".into(),rows:String::new(),columns:String::new(),total_column:"1".into(),total_function:"sum".into(),column:"1".into(),column_name:String::new(),formula:String::new()}}}
 
+/// A chart property draft uses the same portable tool state as tables and filters.
+#[derive(Clone,Debug,Default,PartialEq,Eq)]
+pub struct ChartTools {pub part:String,pub title:String,pub legend:bool}
+
 /// Shared Find/Replace/Go To inputs and workbook-relative query results.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ToolState {
     pub table:TableTools,
+    pub chart:ChartTools,
     pub filter: FilterTools,
     pub sort_case_sensitive:bool,
     pub sort_custom_order:String,
@@ -112,6 +117,7 @@ impl Default for ToolState {
     fn default() -> Self {
         Self {
             table:TableTools::default(),
+            chart:ChartTools::default(),
             filter: FilterTools::default(),
             sort_case_sensitive:false,sort_custom_order:String::new(),
             sort_header: true,
@@ -148,6 +154,7 @@ impl ToolState {
     pub fn reset_workbook(&mut self) {
         self.invalidate_search();
         self.table=TableTools::default();
+        self.chart=ChartTools::default();
         self.filter=FilterTools {epoch:self.filter.epoch+1,..Default::default()};
         self.selected = 0;
         self.found_revision = 0;
@@ -378,6 +385,7 @@ mod tool_tests {
     fn populated() -> ToolState {
         ToolState {
             table:TableTools::default(),
+            chart:ChartTools {part:"old chart".into(),title:"old draft".into(),legend:true},
             filter: FilterTools {loaded:true, sheet:Some(wire::Sheet(0,0)), revision:7, epoch:3, values:vec![("old choice".into(),true)],..Default::default()},
             sort_case_sensitive:true,sort_custom_order:"High\nMedium\nLow".into(),
             sort_header: false,
@@ -435,6 +443,7 @@ mod tool_tests {
         model.reset_workbook();
         let state = &model.runtime.tools;
         assert_ne!(state.epoch, before.epoch);
+        assert_eq!(state.chart,ChartTools::default());
         assert!(!state.filter.loaded && state.filter.sheet.is_none() && state.filter.values.is_empty());
         assert!(state.filter.epoch>before.filter.epoch);
         assert!(state.found.is_none() && state.anchor.is_none() && state.areas.is_empty());

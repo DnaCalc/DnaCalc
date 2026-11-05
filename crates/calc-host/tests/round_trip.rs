@@ -15658,3 +15658,266 @@ fn check_pointwise_colour_filter_history_and_reopen(book:&mut HostSession,clock:
     let revision=reopened.host().revision().get();let receipt=reopened.dispatch(SkinIntent::Command(W::AutoFilter{sheet:r,revision,change:F::Reapply}));assert!(receipt.accepted(),"{receipt:?}");assert_eq!(rows(&reopened),[2]);assert_eq!(session_calculated(&reopened,at(r,"C1")).unwrap().as_number(),Some(2.));
     assert!(command(book,F::Clear).accepted());assert!(rows(book).is_empty());assert!(command(book,F::Color{column:2,cell_color:true,color:String::new()}).accepted());assert_eq!(rows(book),[3]);assert_eq!(session_calculated(book,at(s,"C1")).unwrap().as_number(),Some(1.));
 }
+
+/// Retained title XML keeps run properties and links; shared/protected frames refuse atomically.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_e5z5__chart_properties_preserve_rich_and_linked_titles_and_refuse_shared_or_protected_sources()
+ {
+    const CHARTS: &[u8] = include_bytes!("fixtures/dc_6yw/charts.xlsx");
+    let rich = package_with_part_from(CHARTS, "xl/charts/chart1.xml", |xml| {
+        xml.replace("<a:rPr lang=\"en-ZA\"/>", "<a:rPr lang=\"en-ZA\" b=\"1\"/>")
+            .replace(
+                "<a:t>Column</a:t></a:r>",
+                "<a:t>Column</a:t></a:r><a:r><a:rPr i=\"1\"/><a:t> suffix</a:t></a:r>",
+            )
+    });
+    let linked = package_with_part_from(CHARTS, "xl/charts/chart1.xml", |xml| {
+        let start = xml.find("<c:tx>").unwrap();
+        let end = xml.find("</c:tx>").unwrap() + 7;
+        format!(
+            "{}<c:tx><c:strRef><c:f>Sheet1!$A$1</c:f><c:strCache><c:ptCount val=\"1\"/><c:pt idx=\"0\"><c:v>Linked title</c:v></c:pt></c:strCache></c:strRef></c:tx>{}",
+            &xml[..start],
+            &xml[end..]
+        )
+    });
+    for (bytes, is_linked) in [(rich, false), (linked, true)] {
+        let mut book = session(&bytes);
+        let sheet = book.host().sheets()[0].id();
+        let part = "xl/charts/chart1.xml";
+        let original = part_text(&bytes, part);
+        let current = book.host().model().definitions().charts(sheet)[0].clone();
+        assert_eq!(current.title_formula.is_some(), is_linked);
+        let revision = book.host().revision().get();
+        assert!(
+            book.dispatch(SkinIntent::Command(
+                calc_host::WorkbookCommand::ChartProperties {
+                    sheet,
+                    revision,
+                    part: part.into(),
+                    title: None,
+                    set_title: false,
+                    legend: Some(false)
+                }
+            ))
+            .accepted()
+        );
+        let mut saved = Vec::new();
+        book.save(&calc_host::SavePolicy::default(), &mut saved)
+            .unwrap();
+        let xml = part_text(&saved, part);
+        let title = |xml: &str| {
+            let a = xml.find("<c:title").unwrap();
+            let b = xml.find("</c:title>").unwrap() + 10;
+            xml[a..b].to_owned()
+        };
+        assert_eq!(
+            title(&original),
+            title(&xml),
+            "legend-only edits preserve literal or linked title bytes"
+        );
+        let revision = book.host().revision().get();
+        assert!(
+            book.dispatch(SkinIntent::Command(
+                calc_host::WorkbookCommand::ChartProperties {
+                    sheet,
+                    revision,
+                    part: part.into(),
+                    title: Some("Replacement".into()),
+                    set_title: true,
+                    legend: None
+                }
+            ))
+            .accepted()
+        );
+        saved.clear();
+        book.save(&calc_host::SavePolicy::default(), &mut saved)
+            .unwrap();
+        let xml = part_text(&saved, part);
+        assert_eq!(
+            book.host().charts(sheet).0[0].title.as_deref(),
+            Some("Replacement")
+        );
+        assert!(!title(&xml).contains("<c:strRef>"));
+        if !is_linked {
+            assert!(title(&xml).contains("b=\"1\""));
+            assert!(title(&xml).contains("i=\"1\""));
+            assert!(!title(&xml).contains("suffix"));
+        }
+    }
+    let shared = package_with_part_from(CHARTS, "xl/drawings/_rels/drawing1.xml.rels", |xml| {
+        xml.replace("../charts/chart2.xml", "../charts/chart1.xml")
+    });
+    let protected = package_with_part_from(CHARTS, "xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("</sheetData>", "</sheetData><sheetProtection sheet=\"1\"/>")
+    });
+    let broken = package_with_part_from(CHARTS, "xl/charts/chart1.xml", |xml| {
+        xml.replace(
+            "</a:r></a:p>",
+            "</a:r><a:br/><a:r><a:t>Suffix</a:t></a:r></a:p>",
+        )
+    });
+    let paragraphs = package_with_part_from(CHARTS, "xl/charts/chart1.xml", |xml| {
+        xml.replace(
+            "</a:p></c:rich>",
+            "</a:p><a:p><a:r><a:t>Second</a:t></a:r></a:p></c:rich>",
+        )
+    });
+    for bytes in [shared, protected, broken, paragraphs] {
+        let mut book = session(&bytes);
+        let sheet = book.host().sheets()[0].id();
+        let revision = book.host().revision();
+        let history = book.history_depth();
+        let before = book.host().charts(sheet).0;
+        assert!(
+            !book
+                .dispatch(SkinIntent::Command(
+                    calc_host::WorkbookCommand::ChartProperties {
+                        sheet,
+                        revision: revision.get(),
+                        part: "xl/charts/chart1.xml".into(),
+                        title: Some("Refuse".into()),
+                        set_title: true,
+                        legend: None
+                    }
+                ))
+                .accepted()
+        );
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(book.history_depth(), history);
+        assert_eq!(book.host().charts(sheet).0, before);
+    }
+}
+
+/// Title properties precede retained 3-D settings even when the source omits the automatic flag.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_e5z5__title_insertion_precedes_retained_view3d() {
+    const CHARTS: &[u8] = include_bytes!("fixtures/dc_6yw/charts.xlsx");
+    const VIEW: &str = "<c:view3D><c:rotX val=\"15\"/><c:rotY val=\"20\"/></c:view3D>";
+    for retain_title in [true, false] {
+        let bytes = package_with_part_from(CHARTS, "xl/charts/chart1.xml", |xml| {
+            let mut xml = xml.replace("<c:autoTitleDeleted val=\"0\"/>", "");
+            assert!(!xml.contains("<c:autoTitleDeleted"));
+            if !retain_title {
+                let a = xml.find("<c:title>").unwrap();
+                let b = xml.find("</c:title>").unwrap() + 10;
+                xml.replace_range(a..b, "");
+            }
+            xml.replace("<c:plotArea>", &format!("{VIEW}<c:plotArea>"))
+        });
+        let mut book = session(&bytes);
+        let sheet = book.host().sheets()[0].id();
+        let revision = book.host().revision().get();
+        assert!(
+            book.dispatch(SkinIntent::Command(
+                calc_host::WorkbookCommand::ChartProperties {
+                    sheet,
+                    revision,
+                    part: "xl/charts/chart1.xml".into(),
+                    title: Some("Ordered title".into()),
+                    set_title: true,
+                    legend: None
+                }
+            ))
+            .accepted()
+        );
+        let mut saved = Vec::new();
+        book.save(&calc_host::SavePolicy::default(), &mut saved)
+            .unwrap();
+        let xml = part_text(&saved, "xl/charts/chart1.xml");
+        let title = xml.find("<c:title").unwrap();
+        let automatic = xml.find("<c:autoTitleDeleted").unwrap();
+        let view = xml.find(VIEW).unwrap();
+        let plot = xml.find("<c:plotArea").unwrap();
+        assert!(
+            title < automatic && automatic < view && view < plot,
+            "DrawingML chart property order"
+        );
+        let reopened = session(&saved);
+        assert_eq!(
+            reopened.host().charts(sheet).0[0].title.as_deref(),
+            Some("Ordered title")
+        );
+    }
+}
+
+/// An unused earlier relationship must not hide another worksheet's ownership of a drawing.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_e5z5__shared_drawing_owner_refuses_before_revision_or_history() {
+    let mut book = session(include_bytes!("fixtures/dc_6yw/charts.xlsx"));
+    assert!(
+        book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::Sheet {
+            sheet: None,
+            change: calc_host::SheetChange::Add {
+                name: "Second".into()
+            }
+        }))
+        .accepted()
+    );
+    let mut bytes = Vec::new();
+    book.save(&calc_host::SavePolicy::default(), &mut bytes)
+        .unwrap();
+    let reloaded = session(&bytes);
+    let second = reloaded.host().sheets()[1].id();
+    let part = reloaded
+        .host()
+        .loaded()
+        .sheet(second)
+        .unwrap()
+        .part()
+        .name()
+        .to_owned();
+    let (directory, file) = part.rsplit_once('/').unwrap();
+    let relpart = format!("{directory}/_rels/{file}.rels");
+    let rels=b"<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"unused\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing\" Target=\"../drawings/unused-owner.xml\"/><Relationship Id=\"shared\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing\" Target=\"../drawings/drawing1.xml\"/></Relationships>";
+    let empty=b"<xdr:wsDr xmlns:xdr=\"http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing\"/>";
+    let bytes = package_with_parts_from(
+        &bytes,
+        &part,
+        |xml| {
+            xml.replace("</worksheet>","<drawing xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" r:id=\"shared\"/></worksheet>")
+        },
+        &[(&relpart, rels), ("xl/drawings/unused-owner.xml", empty)],
+    );
+    let bytes = package_with_part_from(&bytes, "[Content_Types].xml", |xml| {
+        xml.replace("</Types>","<Override PartName=\"/xl/drawings/unused-owner.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.drawing+xml\"/></Types>")
+    });
+    let mut book = session(&bytes);
+    let sheet = book.host().sheets()[0].id();
+    assert_eq!(
+        book.host()
+            .model()
+            .definitions()
+            .charts(sheet)
+            .iter()
+            .filter(|chart| chart.part == "xl/charts/chart1.xml")
+            .count(),
+        1
+    );
+    assert!(
+        book.host().model().definitions().charts(second).is_empty(),
+        "the first unused drawing relationship hides the other owner from loaded chart counts"
+    );
+    let revision = book.host().revision();
+    let history = book.history_depth();
+    let before = book.host().charts(sheet).0;
+    assert!(
+        !book
+            .dispatch(SkinIntent::Command(
+                calc_host::WorkbookCommand::ChartProperties {
+                    sheet,
+                    revision: revision.get(),
+                    part: "xl/charts/chart1.xml".into(),
+                    title: Some("Refuse shared owner".into()),
+                    set_title: true,
+                    legend: None
+                }
+            ))
+            .accepted()
+    );
+    assert_eq!(book.host().revision(), revision);
+    assert_eq!(book.history_depth(), history);
+    assert_eq!(book.host().charts(sheet).0, before);
+}

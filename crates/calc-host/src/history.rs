@@ -111,6 +111,7 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
             CellEdit::AutoFilter { .. }
             | CellEdit::Tables(_)
             | CellEdit::Styles(_)
+            | CellEdit::Charts {..}
             | CellEdit::Layout(_)
             | CellEdit::ReviewLinks { .. } | CellEdit::ReviewNotes { .. }
             | CellEdit::Validations { .. }
@@ -237,6 +238,8 @@ pub(crate) fn inverse(
             inverse.push(CellEdit::Validations { sheet: *sheet, rules: definitions.validations(*sheet).to_vec() });
         }
     }
+    let mut chart_sheets=BTreeSet::new();
+    for edit in edits {if let CellEdit::Charts {sheet,..}=edit && chart_sheets.insert(*sheet){inverse.push(CellEdit::Charts {sheet:*sheet,charts:definitions.charts(*sheet).to_vec()});}}
     let mut link_sheets = BTreeSet::new();
     for edit in edits {
         if let CellEdit::ReviewLinks{sheet,..}=edit && link_sheets.insert(*sheet){

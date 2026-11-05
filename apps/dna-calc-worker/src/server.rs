@@ -1415,6 +1415,7 @@ impl Server {
                 direction,
             } => return self.notebook_order(placement, direction),
 
+            Intent::ChartProperties {sheet,revision,part,title,set_title,legend}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartProperties {sheet:sheet.id(),revision,part,title,set_title,legend}),
             Intent::Table{revision,change}=>{
                 use wire::TableChange as W;use calc_host::TableChange as H;
                 let change=match change{W::Create{area:a,name}=>H::Create{area:area(a)?,name},W::Resize{part,area:a}=>H::Resize{part,area:area(a)?},W::Options{part,headers,totals,style,row_stripes,column_stripes,first_column,last_column}=>H::Options{part,headers,totals,style,row_stripes,column_stripes,first_column,last_column},W::Total{part,column,function}=>H::Total{part,column,function},W::RenameColumn{part,column,name}=>H::RenameColumn{part,column,name},W::CalculatedColumn{part,column,formula}=>H::CalculatedColumn{part,column,formula}};
@@ -2893,6 +2894,8 @@ impl Server {
                     .map(|plot| format!("{:?}", plot.kind).to_lowercase())
                     .unwrap_or_default();
                 Chart {
+                    part:view.part.clone(),title:view.title.clone(),legend:view.legend.clone(),
+                    title_linked:host.model().definitions().charts(sheet.id()).iter().any(|chart|chart.part==view.part && chart.title_formula.is_some()),
                     name: view.name.clone(),
                     kind,
                     place,

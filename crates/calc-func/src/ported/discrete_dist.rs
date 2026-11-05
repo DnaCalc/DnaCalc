@@ -27,7 +27,7 @@
 //! exponential, `lf = ln(2 pi x (n - x) / n)`, and `n ln p` at x = n. Excel's masses agree with these to within a few
 //! units in the last place; about half are bit-identical (the rest are dc-j9k's to find).
 
-use crate::ported::excel_numeric::{crt_log, excel_binom_pmf_exp, excel_exp, excel_expm1_spilled, excel_log};
+use crate::ported::excel_numeric::{crt_log, excel_binom_pmf_exp, excel_exp, excel_expm1_spilled, excel_log, excel_x87_mul};
 use crate::value::WorksheetErrorCode;
 
 type R = Result<f64, WorksheetErrorCode>;
@@ -136,9 +136,11 @@ fn binom_mass(x: f64, n: f64, p: f64, q: f64) -> f64 {
         return excel_exp(lc);
     }
     if x == n {
-        // Measured: Excel takes n ln p here for every p (2,809 of 2,811 oracle rows with p > 0.9),
-        // where Loader's deviance form is used only at x = 0.
-        return excel_exp(n * excel_log(p));
+        // With measured binary64 LN/EXP leaves, the R27 large-count readings
+        // distinguish the stored PC64 product: all 300 numeric discriminants
+        // and 256 controls match that program. Private leaf boundaries stay open;
+        // 576 separately recorded #NUM domain answers remain unresolved.
+        return excel_exp(excel_x87_mul(n, excel_log(p)));
     }
     if x < 0.0 || x > n {
         return 0.0;

@@ -1831,6 +1831,24 @@ mod tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    /// Internal consistency of the shared reference sites, not an Excel edit observation.
+    /// The captured cell-call results are exercised by calc-host-vba; broader call edits
+    /// and notation-entry behavior remain eng17 questions.
+    fn cell_call_sites_preserve_qualifiers_and_builtin_precedence() {
+        use ReferenceNotation::{A1, R1C1};
+        let (catalog, one, _) = fixture();
+        let at = CellKey::new(one, 5, 3).unwrap();
+        let text = "A1(2)+Module1.A1(2)+LOG10(100)";
+        let converted = convert_notation(text, at, A1, R1C1, &catalog).unwrap();
+        assert_eq!(converted, "R[-4]C[-2](2)+Module1.A1(2)+LOG10(100)");
+        assert_eq!(convert_notation(&converted, at, R1C1, A1, &catalog).as_deref(), Some(text));
+        let edit = axis(one, EditAxis::Rows, true, 1);
+        assert_eq!(transform_formula(text, at, &edit, &catalog).as_deref(),
+            Some("A2(2)+Module1.A1(2)+LOG10(100)"));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     /// Measured: Excel 16.0 through COM on 2026-10-23, each formula set in Sheet1!C5 through
     /// `Range.Formula` and read back through `Range.FormulaR1C1`, and the reverse.
     fn formulas_convert_between_a1_and_r1c1() {

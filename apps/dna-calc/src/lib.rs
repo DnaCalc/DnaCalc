@@ -9,6 +9,7 @@ pub mod atlas;
 pub mod canvas;
 pub mod cells;
 pub mod clipboard;
+mod charts;
 mod commands;
 pub mod controller;
 mod format;

@@ -1005,12 +1005,14 @@ impl Run<'_, '_> {
                         first_block,
                         argc,
                         admission,
+                        lifted_admission,
                     } => {
                         if !self.lazy_call_slice(
                             *target,
                             *first_block,
                             *argc,
                             *admission,
+                            *lifted_admission,
                             &mut cursor.lazy,
                             remaining,
                         )? {
@@ -1682,6 +1684,7 @@ impl Run<'_, '_> {
         first_block: usize,
         argc: usize,
         admission: Admission,
+        lifted_admission: Admission,
         pending: &mut Option<Box<PendingLazy>>,
         remaining: &mut usize,
     ) -> Result<bool, EvalFault> {
@@ -1747,7 +1750,7 @@ impl Run<'_, '_> {
                         if i == 0 {
                             Ok(value)
                         } else {
-                            self.lift_operand(value, admission)
+                            self.lift_operand(value, lifted_admission)
                         }
                     })
                     .collect::<Result<Vec<_>, EvalFault>>()?;

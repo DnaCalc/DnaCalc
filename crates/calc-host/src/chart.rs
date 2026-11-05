@@ -97,6 +97,7 @@ pub struct PlotView {
 pub struct ChartView {
     /// The frame's name (`Chart 1`).
     pub name: String,
+    pub part:String,
     pub place: ChartPlace,
     pub title: Option<String>,
     /// The legend's position (`r`, `l`, `t`, `b`, `tr`), `None` without a legend.
@@ -144,7 +145,7 @@ impl HostState {
         let origin = CellKey::new(sheet, 1, 1).expect("A1 is a cell");
         let mut views = Vec::new();
         let mut unread = read.unread;
-        for chart in &read.charts {
+        for chart in self.model().definitions().charts(sheet) {
             let Some(place) = self.chart_place(sheet, &chart.anchor) else {
                 // Its cells were deleted: Excel deletes the chart with them.
                 continue;
@@ -223,6 +224,7 @@ impl HostState {
             });
             views.push(ChartView {
                 name: chart.name.clone(),
+                part:chart.part.clone(),
                 place,
                 title,
                 legend: chart.legend.clone(),
@@ -283,7 +285,14 @@ impl HostState {
         if let Some(values) = data
             .formula
             .as_deref()
-            .and_then(|formula| self.formula_values(formula, origin, origin))
+             .and_then(|formula| {
+                use calc_doc_model::{FormulaRewriter,NameScope,StructuralChange};
+                let mut current=formula.to_owned();
+                for edit in &self.axis_edits {
+                    if let Some(next)=calc_engine::ReferenceRewriter.name(self.loaded.model(),&current,NameScope::Sheet(origin.sheet()),&StructuralChange::Axis(*edit)) {current=next;}
+                }
+                self.formula_values(&current, origin, origin)
+            })
         {
             return (values, false);
         }
@@ -334,4 +343,61 @@ pub fn text_of(value: &CalcValue) -> String {
         CoreRef::Logical(b) => if b { "TRUE" } else { "FALSE" }.to_owned(),
         _ => String::new(),
     }
+}
+
+/// Title and legend visibility use the authored document command and its ordinary history.
+pub(crate) fn prepare_properties(
+    host: &HostState,
+    sheet: SheetId,
+    revision: u64,
+    part: &str,
+    title: Option<String>,
+    set_title: bool,
+    legend: Option<bool>,
+) -> Result<Vec<crate::CellEdit>, String> {
+    if revision != host.revision().get() {
+        return Err("The workbook changed; reopen the chart controls (dc-e5z5)".into());
+    }
+    let source = host
+        .loaded()
+        .sheet(sheet)
+        .ok_or("The chart worksheet no longer exists")?;
+    if source.protected() || source.is_macro_sheet() {
+        return Err(
+            "Editing charts on this protected or macro worksheet is not modelled (dc-e5z5)"
+                .into(),
+        );
+    }
+    if host.loaded().workbook_part().ends_with(".bin") {
+        return Err(
+            "Save as XLSX and reopen before editing charts in an XLSB workbook (dc-e5z5)".into(),
+        );
+    }
+    let mut charts = host.model().definitions().charts(sheet).to_vec();
+    let index = charts
+        .iter()
+        .position(|c| c.part == part)
+        .ok_or("The chart no longer belongs to this worksheet; reopen its controls")?;
+    let original = charts[index].clone();
+    let mut changed = original.clone();
+    if set_title {
+        changed.title = title;
+        changed.title_formula = None;
+        changed.auto_title_deleted = changed.title.is_none();
+    }
+    if let Some(show) = legend {
+        changed.legend = if show {
+            changed.legend.or_else(|| Some("r".into()))
+        } else {
+            None
+        };
+    }
+    if changed == original {
+        return Ok(Vec::new());
+    }
+    host.loaded()
+        .check_chart_properties(sheet, &changed)
+        .map_err(|e| e.to_string())?;
+    charts[index] = changed;
+    Ok(vec![crate::CellEdit::Charts { sheet, charts }])
 }

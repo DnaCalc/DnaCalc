@@ -274,6 +274,29 @@ is still rendered as empty text instead of zero. These are separate measured
 implementation gaps, not new gains. The ten ISFORMULA controls return #NAME?
 on both sides; they do not establish Boolean formula identity.
 
+Nested regression predictors (engine17, dc-b1l): the unchanged R25 Legacy
+captures select full `CHOOSE({1,2},range1,range2)` predictor arrays in the
+second argument of LINEST and LOGEST, including through INDEX. The existing
+lazy-call instruction now carries the enclosing argument admission separately
+from its selector's admission, so materializing branch references keeps both
+predictor columns. All 494 formerly refused cells now have actual evaluated
+results without imported or boundary caches: 288 match Excel and 206 remain
+numeric mismatches (LINEST 105, LOGEST 101). Those failures remain counted and
+belong to dc-j9k.14; this establishes neither the numeric algorithms nor wider
+unmeasured Legacy array contexts. No source workbook or captured answer changes.
+
+Bare cell callees (engine17, dc-b1l): the existing original VBA-name observations
+give #REF! for A1(2), XFD1(2) and the persisted $A$1(2), while module-qualified
+A1/XFD1/R1C1 calls reach their VBA procedures. Reference binding now records the
+bare callee token and uses the existing reference invocation route, including
+the ordinary argument lowering. Builtins such as LOG10 keep precedence; the
+same sites support notation and structural transforms. Original XLSM/XLSB files
+and their saved/reopened projects exercise actual calculation. The corpus has
+no registered live observation for these cells, so this creates no claimed
+corpus pass. Self/cyclic/errored or callable-valued callees and argument effects
+remain eng17 questions; the graph's conservative reference prerequisites are
+unchanged.
+
 ### 3.3 Invocation
 
 ```rust
@@ -759,6 +782,25 @@ argument, with source unchanged on save/reopen. Missing names, external-workbook
 and multi-area qualifiers, relative coordinates, R1C1 and RelativeTo remain typed
 refusals through VBA handlers and IFERROR. The namespace-edit control is a fresh
 synthetic package retaining its exact VBA binary, not a changed Excel observation.
+
+Original-source diagnostics (engine17, dc-snz.15): the 250 P01 preparations stop
+in the pinned CalcVBA binder because UBound/LBound require an array l-value;
+`UBound(Split(...))` supplies a temporary expression. A separate direct
+`Split(...)(1)` control compiles but raises ordinary VBA error 424 in both VM
+and JIT. The 108 P10 preparations stop because the expression functions Input
+and Input$ are unresolved; the Input statement has a separate symbol route.
+No helper is removed, temporary introduced, or input state invented to admit
+these original projects. The pin remains 7eb4fdd9.
+
+The 350 P02 saved-reference mismatches are a different source-history case.
+Their original Note calls UBound on an unallocated trace array, which RunCase
+initializes only in the capture session. Calling the complete fresh project with
+caller metadata now directly records ordinary VBA error 9. The application
+route calculates #VALUE!; IFERROR can catch this ordinary error. Saving and
+reopening preserves every original module. The separate initialized logger
+control succeeds, but no initialization is added to the opened project. These
+350 saved mismatches remain failures; this is runtime evidence without a new
+Excel observation.
 
 Workbook_Open runs once after file-project installation and before automatic
 calculation; replacement does not replay it. Open, Change, Calculate and BeforeSave

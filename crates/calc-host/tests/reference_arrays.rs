@@ -16,6 +16,64 @@ use calc_host::{
 };
 use std::sync::Arc;
 
+/// R25's unchanged captures prove that known_x admits both CHOOSE columns below
+/// INDEX in these Legacy formulas. This checks execution/provenance admission;
+/// corpus comparison still counts every differing numeric value as a failure.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_b1l__nested_regression_predictors_use_the_full_array() {
+    for (bytes, captured, expected_count) in [
+        (include_bytes!("../../calc-func/tests/fixtures/dcj9k_r25_regression/oracle.xlsx").as_slice(),
+         include_bytes!("../../calc-func/tests/captures/dcj9k_r25_regression/oracle.capture.json").as_slice(), 456),
+        (include_bytes!("../../calc-func/tests/fixtures/dcj9k_r25_qr_stores/oracle.xlsx").as_slice(),
+         include_bytes!("../../calc-func/tests/captures/dcj9k_r25_qr_stores/oracle.capture.json").as_slice(), 38),
+    ] {
+        let capture = calc_verdict::CaptureRecord::decode(captured).unwrap();
+        for budget in [usize::MAX, 1] {
+            let mut book = HostSession::open(
+                Arc::new(MemorySource::new(bytes.to_vec())), &OpenPolicy::default(),
+                HostOptions { calc_mode: Some(CalcMode::Manual), ..HostOptions::default() },
+            ).unwrap();
+            book.set_calculation_budget(calc_host::WorkBudget::evaluations(budget));
+            assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+            for _ in 0..10_000 {
+                if !book.has_pending_calculation() { break; }
+                book.advance_calculation();
+            }
+            assert!(!book.has_pending_calculation());
+            let mut checked = 0;
+            for observed in &capture.observations {
+                let sheet = book.host().sheets().iter()
+                    .find(|sheet| sheet.name().text().to_string_lossy() == observed.cell.sheet()).unwrap().id();
+                let at = CellKey::new(sheet, observed.cell.row(), observed.cell.column()).unwrap();
+                let Some(calc_host::CellInput::Formula(formula)) = book.host().model().cell(at) else { continue; };
+                let text = formula.text().to_string_lossy();
+                if !(text.contains("INDEX(LINEST(") || text.contains("INDEX(LOGEST("))
+                    || !text.contains("CHOOSE({1,2},") { continue; }
+                assert_eq!(formula.form(), calc_host::FormulaForm::Legacy);
+                let page = project(book.host(), &ProjectionRequest { cells: vec![at] }).unwrap();
+                let ProjectedValue::Calculated { value, calculation } = page.cells()[0].value() else {
+                    panic!("nested known_x must calculate at {at:?}: {:?}", page.cells()[0].value());
+                };
+                assert!(value.as_number().is_some() || value.as_error().is_some());
+                // These six independently reviewed 4x2 predictor controls have
+                // finite captured coefficients. A scalar-intersection error
+                // cannot satisfy their admission check. Ill-conditioned numeric
+                // roots elsewhere retain the corpus's complete value comparison.
+                if expected_count == 38 && [63, 64, 67, 68, 88, 89].contains(&at.row()) {
+                    assert!(observed.observation.expected().as_number().is_some());
+                    assert!(value.as_number().is_some(), "two predictor columns at {at:?}: {value:?}");
+                }
+                let stamp = calculation.stamp().expect("ordinary execution needs its result certificate");
+                assert!(!stamp.reads.uses_imported_cache && !stamp.reads.uses_boundary_cache);
+                assert!(matches!(stamp.computed_by, calc_engine::contract::ComputationOrigin::Evaluated { .. }));
+                checked += 1;
+            }
+            assert_eq!(checked, expected_count);
+        }
+    }
+}
+
 /// Excel 16.0.20527, eng13's unchanged Legacy capture. The workbook keeps true
 /// second-argument references beside unary-plus controls, and computed Empty
 /// beside raw blank references and empty text. All 50 roots and observers run

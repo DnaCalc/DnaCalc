@@ -158,3 +158,205 @@ fn dc_6yw__chart_colours_follow_the_theme() {
         "the Office 2023 theme's accent1"
     );
 }
+
+/// Authored title/legend edits retain plot records and use ordinary history and Save.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_e5z5__properties_save_undo_and_preserve_other_parts() {
+    let mut book = session();
+    let sheet = book.host().sheets()[0].id();
+    let before = book.host().charts(sheet).0;
+    let source = book.host().loaded().snapshot(book.host().model());
+    let history = book.history_depth();
+    let title = "Quarterly & Ω <2026>";
+    let command = calc_host::WorkbookCommand::ChartProperties {
+        sheet,
+        revision: book.host().revision().get(),
+        part: before[0].part.clone(),
+        title: Some(title.into()),
+        set_title: true,
+        legend: Some(false),
+    };
+    assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    let batch = calc_doc_model::OpBatch {
+        base: book.host().revision(),
+        operations: vec![calc_doc_model::WorkbookOp::SetCharts {
+            sheet,
+            charts: book.host().model().definitions().charts(sheet).to_vec(),
+        }],
+    };
+    assert!(
+        matches!(
+            calc_doc_model::encode_batch(&batch, book.host().model()),
+            Err(calc_doc_model::EncodeError::Charts { operation: 0 })
+        ),
+        "wire version 1 must explicitly refuse chart authoring"
+    );
+    let after = book.host().charts(sheet).0;
+    assert_eq!(after[0].title.as_deref(), Some(title));
+    assert_eq!(after[0].legend, None);
+    assert_eq!(after[0].plots, before[0].plots);
+    assert_eq!(after[1..], before[1..]);
+    assert_eq!(book.history_depth(), (history.0 + 1, 0));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(book.host().charts(sheet).0, before);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert_eq!(book.host().charts(sheet).0, after);
+    let mut bytes = Vec::new();
+    book.save(&calc_host::SavePolicy::default(), &mut bytes)
+        .unwrap();
+    let mut reopened = HostSession::open(
+        Arc::new(MemorySource::new(bytes)),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    )
+    .unwrap();
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    assert_eq!(reopened.host().charts(sheet).0, after);
+    let saved = reopened.host().loaded().snapshot(reopened.host().model());
+    let read = |package: &calc_doc::Package, part: &str| {
+        String::from_utf8(package.read_xml(part).unwrap().bytes().to_vec()).unwrap()
+    };
+    let original = read(source.package(), &before[0].part);
+    let edited = read(saved.package(), &before[0].part);
+    let plot = |xml: &str| {
+        let start = xml.find("<c:plotArea").unwrap();
+        let end = xml.find("</c:plotArea>").unwrap() + "</c:plotArea>".len();
+        xml[start..end].to_owned()
+    };
+    assert_eq!(plot(&original), plot(&edited));
+    let title_xml = &edited[edited.find("<c:title").unwrap()..edited.find("</c:title>").unwrap()];
+    assert!(title_xml.contains("<a:rPr lang=\"en-ZA\"/>"));
+    assert!(title_xml.contains("<a:pPr><a:defRPr/></a:pPr>"));
+    assert!(title_xml.contains("<c:overlay val=\"0\"/>"));
+    for chart in &before[1..] {
+        assert_eq!(
+            read(source.package(), &chart.part),
+            read(saved.package(), &chart.part)
+        );
+    }
+    assert!(
+        reopened
+            .dispatch(SkinIntent::EnterCell {
+                at: at(sheet, "B2"),
+                text: "40".into()
+            })
+            .accepted()
+    );
+    assert_eq!(
+        reopened.host().charts(sheet).0[0].plots[0].series[0].values[0],
+        Some(40.)
+    );
+    assert!(
+        reopened
+            .dispatch(SkinIntent::EditAxis(
+                calc_host::AxisEdit::new(
+                    sheet,
+                    calc_host::Axis::Rows,
+                    calc_host::AxisChange::Insert,
+                    2,
+                    1
+                )
+                .unwrap()
+            ))
+            .accepted()
+    );
+    let shifted = reopened.host().charts(sheet).0;
+    assert_eq!(shifted[0].title.as_deref(), Some(title));
+    assert_eq!(shifted[0].plots[0].series[0].values[0], Some(40.));
+    let mut bytes = Vec::new();
+    reopened
+        .save(&calc_host::SavePolicy::default(), &mut bytes)
+        .unwrap();
+    let mut final_book = HostSession::open(
+        Arc::new(MemorySource::new(bytes)),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    )
+    .unwrap();
+    assert!(final_book.dispatch(SkinIntent::Recalculate).accepted());
+    assert_eq!(
+        final_book.host().charts(sheet).0,
+        shifted,
+        "chart metadata composes with the structural writer"
+    );
+}
+
+/// Clearing a one-series title disables the automatic fallback; adding it after reopen persists.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_e5z5__deleted_title_and_legend_can_be_added_after_reopen() {
+    let mut book = session();
+    let sheet = book.host().sheets()[0].id();
+    let part = book.host().charts(sheet).0[4].part.clone();
+    for (title, legend) in [
+        (None, false),
+        (Some("Restored title"), true),
+        (Some("Revised title"), true),
+    ] {
+        let command = calc_host::WorkbookCommand::ChartProperties {
+            sheet,
+            revision: book.host().revision().get(),
+            part: part.clone(),
+            title: title.map(str::to_owned),
+            set_title: true,
+            legend: Some(legend),
+        };
+        assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+        let mut bytes = Vec::new();
+        book.save(&calc_host::SavePolicy::default(), &mut bytes)
+            .unwrap();
+        book = HostSession::open(
+            Arc::new(MemorySource::new(bytes)),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap();
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        let chart = &book.host().charts(sheet).0[4];
+        assert_eq!(chart.title.as_deref(), title);
+        assert_eq!(chart.legend.is_some(), legend);
+    }
+}
+
+/// Invalid or stale edits refuse before revision, history or the authored chart changes.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_e5z5__stale_and_invalid_properties_do_not_mutate() {
+    let mut book = session();
+    let sheet = book.host().sheets()[0].id();
+    let before = book.host().charts(sheet).0;
+    let revision = book.host().revision();
+    let history = book.history_depth();
+    for (expected, part, title) in [
+        (revision.get() + 1, before[0].part.clone(), "Stale".into()),
+        (
+            revision.get(),
+            "xl/charts/missing.xml".into(),
+            "Missing".into(),
+        ),
+        (
+            revision.get(),
+            before[0].part.clone(),
+            "Invalid\u{1}title".into(),
+        ),
+    ] {
+        assert!(
+            !book
+                .dispatch(SkinIntent::Command(
+                    calc_host::WorkbookCommand::ChartProperties {
+                        sheet,
+                        revision: expected,
+                        part,
+                        title: Some(title),
+                        set_title: true,
+                        legend: Some(false)
+                    }
+                ))
+                .accepted()
+        );
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(book.history_depth(), history);
+        assert_eq!(book.host().charts(sheet).0, before);
+    }
+}
