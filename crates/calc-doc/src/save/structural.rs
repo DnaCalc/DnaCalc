@@ -1640,6 +1640,11 @@ fn part_pass(
     Ok(applied(xml.bytes(), pass.edits))
 }
 
+/// Move newly authored frames through the same anchor pass as imported drawing parts.
+pub(super) fn drawing_pass(xml:&XmlPart,edit:AxisEdit,rewrite:&Rewrite<'_>)->Result<Option<Vec<u8>>,SaveRefusal>{
+    part_pass(xml,edit,rewrite,PartPass::Drawing)
+}
+
 /// A chart part's series formulas (`c:f`) rewritten for `edit`; `None` when none changes.
 pub(super) fn chart_pass(
     xml: &XmlPart,

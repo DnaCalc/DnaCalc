@@ -110,5 +110,6 @@
 .dc-chart-series{min-width:0;border:1px solid var(--dna-line);border-radius:var(--dna-radius-chip);margin:8px 0;padding:8px 12px}
 .dc-chart-series .dc-command-row label{flex-wrap:wrap;min-width:0}
 .dc-chart-series input{min-width:0;max-width:100%;width:28ch}
+.dc-chart-series input[type=checkbox]{width:auto;flex:none}
 
 [data-dnacalc=paste-samples]{overflow-wrap:anywhere;white-space:pre-wrap}

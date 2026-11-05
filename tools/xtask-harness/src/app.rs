@@ -2303,6 +2303,7 @@ fn run_case(ws: &Workspace, app: &App, session: &Session, case: &Case) -> Vec<St
                     failures.push(format!("keyboard page state: {state}"));
                 }
             }
+            record_input_trace(session,&mut failures);
             return failures;
         }
     }
@@ -2327,7 +2328,16 @@ fn run_case(ws: &Workspace, app: &App, session: &Session, case: &Case) -> Vec<St
         Ok(list) => failures.extend(list.into_iter().map(|f| format!("page fault: {f}"))),
         Err(e) => failures.push(format!("cannot read the fault record: {e}")),
     }
+    record_input_trace(session,&mut failures);
     failures
+}
+
+/// Optional diagnostics from a locally instrumented bundle; ordinary pages have no trace.
+fn record_input_trace(session:&Session,failures:&mut Vec<String>){
+    if failures.is_empty(){return;}
+    if let Ok(state)=session.script(&format!(r#"if(!window.__dcInputTrace)return null;{READ_PLANS}return {{trace:window.__dcInputTrace.slice(-3000),focus:document.activeElement?.getAttribute('data-dnacalc'),active:document.querySelector('[data-dnacalc=name-box]')?.value,grids:Array.from(document.querySelectorAll('[data-dnacalc=grid]')).map(g=>({{rect:g.getBoundingClientRect().toJSON(),scroll:[g.scrollLeft,g.scrollTop]}})),plans:plans.map(p=>({{pane:p.pane,pending:p.pending,viewport:p.plan.viewport,publication:p.plan.publication,range:[p.plan.cells[0]?.address,p.plan.cells.at(-1)?.address],cells:p.plan.cells.filter(c=>c.shown.text||c.shown.formula).slice(0,24).map(c=>[c.address,c.shown.text,c.shown.formula])}}))}};"#)){
+        if !state.is_null(){failures.push(format!("input trace: {state}"));}
+    }
 }
 
 /// The text of the element `name` selects, or why it could not be read.
@@ -3086,8 +3096,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 363,
-            "the two applications have 363 core cases including eight Find and hidden-name cases and all 355 inherited core cases"
+            total, 373,
+            "the two applications have 373 core cases including ten chart creation/log cases and all 363 inherited core cases"
         );
     }
 

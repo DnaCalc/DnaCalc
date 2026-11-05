@@ -13,6 +13,11 @@ use crate::{
 use calc_doc_model::{Chart, ChartPlot, ChartSeries, ChartData, ModelRoot};
 const C: &str = "http://schemas.openxmlformats.org/drawingml/2006/chart";
 const A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
+mod create;
+pub(crate) fn check_new_frames(package:&Package,source:&crate::load::LoadedSheet,charts:&[Chart])->Result<(),SaveRefusal>{
+    create::add(package,source,charts,&mut Changes::default(),None)
+}
+pub(crate) use create::render as render_new;
 type Patch = ((usize, usize), Vec<u8>);
 
 pub(crate) fn source(
@@ -87,10 +92,11 @@ fn source_with_xml(
     for (old,new) in before.axes.iter().zip(&after.axes) {
         let expected=old.position.as_deref().map(|p|(if swap{match p{"b"=>"l","t"=>"r","l"=>"b","r"=>"t",other=>other}}else{p}).to_owned());
         if new.position!=expected{return Err(invalid("Only a type conversion can transpose chart axis positions (dc-971p.46)"));}
-        let settings=old.minimum!=new.minimum || old.maximum!=new.maximum || old.major_unit!=new.major_unit || old.reversed!=new.reversed;
-        let mut retained=new.clone();retained.position=old.position.clone();retained.minimum=old.minimum.clone();retained.maximum=old.maximum.clone();retained.major_unit=old.major_unit.clone();retained.reversed=old.reversed;
-        if retained!=*old || (settings && (old.kind!="valAx" || old.log_base.is_some())) {return Err(invalid("Only retained linear value-axis bounds, units and direction can be edited (dc-971p.46)"));}
+        let settings=old.log_base!=new.log_base || old.minimum!=new.minimum || old.maximum!=new.maximum || old.major_unit!=new.major_unit || old.reversed!=new.reversed;
+        let mut retained=new.clone();retained.position=old.position.clone();retained.minimum=old.minimum.clone();retained.maximum=old.maximum.clone();retained.major_unit=old.major_unit.clone();retained.reversed=old.reversed;retained.log_base=old.log_base.clone();
+        if retained!=*old || (settings && old.kind!="valAx") {return Err(invalid("Only retained value-axis scale, bounds, units and direction can be edited (dc-971p.46)"));}
         if old==new {continue;}
+        valid_log_axis(new).map_err(invalid)?;
         for text in [new.minimum.as_deref(),new.maximum.as_deref(),new.major_unit.as_deref()].into_iter().flatten() {
             if text.parse::<f64>().ok().is_none_or(|n|!n.is_finite()){return Err(invalid("Use finite numeric axis settings (dc-971p.46)"));}
         }
@@ -408,6 +414,7 @@ pub(super) fn finish(
     before: &ModelRoot,
     after: &ModelRoot,
     out: &mut Changes,
+    sheets: &[std::borrow::Cow<'_,crate::load::LoadedSheet>],
     structural: Option<&super::structural::StructuralEdits>,
 ) -> Result<(), SaveRefusal> {
     for (sheet, charts) in before.definitions().all_charts() {
@@ -418,7 +425,7 @@ pub(super) fn finish(
         if charts == next {
             continue;
         }
-        if charts.len() != next.len() {
+        if charts.len() > next.len() || charts.iter().zip(next).any(|(a,b)|a.part!=b.part) {
             return Err(SaveRefusal::ChartNotModelled {
                 part: "charts".into(),
                 detail: "Adding and removing charts is not modelled".into(),
@@ -442,15 +449,7 @@ pub(super) fn finish(
             }
         }
     }
-    for (sheet, charts) in after.definitions().all_charts() {
-        if !charts.is_empty() && before.definitions().charts(sheet).is_empty() {
-            return Err(SaveRefusal::ChartNotModelled {
-                part: "charts".into(),
-                detail: "Creating charts is not modelled".into(),
-                owner: "dc-e5z5",
-            });
-        }
-    }
+    create::finish(package,sheets,before,after,out,structural)?;
     Ok(())
 }
 
@@ -680,7 +679,7 @@ fn axis_settings(xml:&XmlPart,reader:&mut Reader<'_>,_span:(usize,usize),before:
         (XmlEvent::Start(e),_) if e.name.is(C,"axId")=>{scale_at=Some(reader.element_end()?);},
         (XmlEvent::Start(e),child) if e.name.is(C,"scaling")=>{
             if scale{return Err(reader.invalid("Duplicate axis scaling records (dc-971p.46)"));}scale=true;
-            if before.minimum!=after.minimum || before.maximum!=after.maximum || before.reversed!=after.reversed {axis_scaling(xml,reader,child,before,after,patches)?;}else{reader.element_end()?;}
+            if before.log_base!=after.log_base || before.minimum!=after.minimum || before.maximum!=after.maximum || before.reversed!=after.reversed {axis_scaling(xml,reader,child,before,after,patches)?;}else{reader.element_end()?;}
         },
         (XmlEvent::Start(e),child) if e.name.is(C,"axPos")=>{let end=reader.element_end()?;if before.position!=after.position{numeric_field(xml,child,end,"axPos",after.position.as_deref(),patches);}},
         (XmlEvent::Start(e),child) if e.name.is(C,"majorUnit")=>{
@@ -693,7 +692,7 @@ fn axis_settings(xml:&XmlPart,reader:&mut Reader<'_>,_span:(usize,usize),before:
             reader.element_end()?;
         },(XmlEvent::End(_),(close,_))=>break close,_=>{}
     }};
-    if !scale && (before.minimum!=after.minimum || before.maximum!=after.maximum || before.reversed!=after.reversed) {
+    if !scale && (before.log_base!=after.log_base || before.minimum!=after.minimum || before.maximum!=after.maximum || before.reversed!=after.reversed) {
         let at=scale_at.ok_or_else(||reader.invalid("The axis has no identity before scaling (dc-971p.46)"))?;
         patches.push(((at,at),fresh_scaling(after)));
     }
@@ -708,6 +707,7 @@ fn numeric_field(xml:&XmlPart,span:(usize,usize),end:usize,_name:&str,value:Opti
 }
 fn fresh_scaling(axis:&calc_doc_model::ChartAxis)->Vec<u8>{
     let mut bytes=format!("<c:scaling xmlns:c=\"{C}\">").into_bytes();
+    if let Some(base)=axis.log_base.as_deref(){bytes.extend(fresh_number("logBase",base));}
     bytes.extend(fresh_number("orientation",if axis.reversed{"maxMin"}else{"minMax"}));
     if let Some(value)=axis.maximum.as_deref(){bytes.extend(fresh_number("max",value));}
     if let Some(value)=axis.minimum.as_deref(){bytes.extend(fresh_number("min",value));}
@@ -721,6 +721,7 @@ fn axis_scaling(xml:&XmlPart,reader:&mut Reader<'_>,span:(usize,usize),before:&c
     }};
     if RawTag::parse(&xml.bytes()[span.0..span.1]).is_empty(){
         let tag=RawTag::parse(&xml.bytes()[span.0..span.1]);let mut bytes=tag.rebuilt(&[],false);
+        if let Some(base)=after.log_base.as_deref(){bytes.extend(fresh_number("logBase",base));}
         bytes.extend(fresh_number("orientation",if after.reversed{"maxMin"}else{"minMax"}));
         if let Some(value)=after.maximum.as_deref(){bytes.extend(fresh_number("max",value));}
         if let Some(value)=after.minimum.as_deref(){bytes.extend(fresh_number("min",value));}
@@ -728,6 +729,7 @@ fn axis_scaling(xml:&XmlPart,reader:&mut Reader<'_>,span:(usize,usize),before:&c
     }
     let rank=|name:&str|match name{"logBase"=>0,"orientation"=>1,"max"=>2,"min"=>3,_=>4};
     for (name,changed,value) in [
+        ("logBase",before.log_base!=after.log_base,after.log_base.as_deref()),
         ("orientation",before.reversed!=after.reversed,Some(if after.reversed{"maxMin"}else{"minMax"})),
         ("max",before.maximum!=after.maximum,after.maximum.as_deref()),
         ("min",before.minimum!=after.minimum,after.minimum.as_deref()),
@@ -775,4 +777,11 @@ fn series_child(kind:&str,local:&str)->bool{
         "areaChart"=>matches!(local,"pictureOptions"|"trendline"|"errBars"),
         "pieChart"|"doughnutChart"=>local=="explosion",_=>false,
     }
+}
+
+fn valid_log_axis(axis:&calc_doc_model::ChartAxis)->Result<(),&'static str>{
+    if let Some(base)=axis.log_base.as_deref(){
+        if axis.kind!="valAx"||base.parse::<f64>().ok().is_none_or(|n|!n.is_finite()||!(2. ..=1000.).contains(&n)){return Err("Use a value axis and a logarithmic base from 2 to 1,000 (dc-971p.50)");}
+        if [&axis.minimum,&axis.maximum].into_iter().flatten().any(|v|v.parse::<f64>().ok().is_none_or(|n|!n.is_finite()||n<=0.)){return Err("Logarithmic bounds must be positive finite numbers (dc-971p.50)");}
+    }Ok(())
 }

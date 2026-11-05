@@ -197,7 +197,15 @@ ported_family! {
     43 imlog10 "IMLOG10" (1, 1) [V "inumber"] |s, a, sv| {
         unary_complex(s, a, |z| {
             let ln = z.ln()?;
-            Ok(ParsedComplex::new(ln.re / crt_log(10.0), ln.im / crt_log(10.0), None))
+            let re = if z.im == 0.0 {
+                crate::ported::excel_numeric::excel_x87_mul(
+                    crate::ported::excel_numeric::excel_log(z.re.abs()),
+                    std::f64::consts::LOG10_E,
+                )
+            } else {
+                ln.re / crt_log(10.0)
+            };
+            Ok(ParsedComplex::new(re, ln.im / crt_log(10.0), None))
         })
     }
     44 imlog2 "IMLOG2" (1, 1) [V "inumber"] |s, a, sv| {

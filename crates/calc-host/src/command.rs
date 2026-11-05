@@ -419,11 +419,14 @@ pub fn dispatch(
     }
     for op in &batch.operations {
         if let WorkbookOp::SetCharts {sheet,charts}=op {
-            let old=host.model.definitions().charts(*sheet);
-            if old.len()!=charts.len() || old.iter().zip(charts).any(|(a,b)|a.part!=b.part) || host.loaded.sheet(*sheet).is_none_or(|s|s.protected()||s.is_macro_sheet()) {
-                return Err(CommandError::Document(EditError::SheetOperation("Chart editing requires the original charts on an editable worksheet (dc-e5z5)".into())));
+            if host.loaded.sheet(*sheet).is_none_or(|s|s.protected()||s.is_macro_sheet()) {
+                return Err(CommandError::Document(EditError::SheetOperation("Chart editing requires an editable worksheet (dc-971p.49)".into())));
             }
-            for (_,chart) in old.iter().zip(charts).filter(|(before,chart)|before!=chart) {host.loaded.check_chart_properties(*sheet,chart).map_err(|e|CommandError::Document(EditError::SheetOperation(e.to_string())))?;}
+            let mut parts=std::collections::BTreeSet::new();
+            for chart in charts.iter().chain(host.model.definitions().all_charts().filter(|(s,_)|s!=sheet).flat_map(|(_,cs)|cs)) {
+                if !parts.insert(chart.part.as_str()){return Err(CommandError::Document(EditError::SheetOperation("Chart frames need distinct part identities (dc-971p.49)".into())));}
+            }
+            host.loaded.check_chart_set(*sheet,charts).map_err(|e|CommandError::Document(EditError::SheetOperation(e.to_string())))?;
         }
         if let WorkbookOp::SetReviewLinks{sheet,links}=op {
             if host.loaded.sheet(*sheet).is_some_and(|s|s.protected()||s.is_macro_sheet()){
@@ -500,6 +503,7 @@ pub fn dispatch(
                 || !host.loaded.sheet_reference_metadata_supported()
                 || host.model.layout().blocks().iter().any(|b| b.anchor().is_some_and(|a| a.sheet() == *sheet))
                 || !host.model.definitions().tables().is_empty()
+                || host.model.definitions().all_charts().any(|(_,charts)|!charts.is_empty())
                 || host.loaded.sheets().iter().any(|s| !host.loaded.cell_shift_metadata_supported(s.id())
                     || !s.conditional_formats().is_empty()
                     || !s.charts().charts.is_empty() || s.charts().unread != 0 || s.is_macro_sheet())
