@@ -1,0 +1,153 @@
+{
+  "delivery": "~/codex-runs/excel-results-eng14",
+  "source_key_kind": "Composite authored-entry key, not materialized XLSX hash",
+  "source_key": "dd3543d02e58d0e840f7887e49b6335393b336b29fa969338421ed3fd82dd611",
+  "workbook_sha256": "240bd72aba9f1471a99d4de4208a75015a53f0d627019b7a15aef08cff055ac3",
+  "entry_file_sha256": "43dd96a1104555af8c8c230fa6c0dee9181fcb42f05bc3beff59c41eb2ae5a5a",
+  "entry_authority_sha256": "b931ee00a1b958f4c55554a8ba5ab086e899e1d24eef53ca3834947a94960d47",
+  "key_algorithm": "sha256(b\"dnacalc-authored-entry-source/1\\0\" + workbook_sha256_ascii + b\"\\0\" + entry_authority_sha256_ascii); authority is compact JSON of ordered [question_id,source_sheet,source_cell,formula_form,formula_text,stored_formula_text] rows",
+  "blank_preentry_workbook_sha256": "7f613dfca723dfc70b15ce18bb1b08a536fd20385ac45504204e65a43dfad035",
+  "excel_saved_workbook_sha256": "b30c2ff64d5be13015c33063899bfb54f91eb0e6f6c586189f015eecbcfbbb1a",
+  "correct_import_pair": {
+    "input": "nonfinite-input-v2/oracle.xlsx",
+    "adjacent_entries": "nonfinite-input-v2/oracle.entries.json",
+    "capture": "eng14-raw-nonfinite.capture.json",
+    "suggested_fixture": "crates/calc-engine/tests/fixtures/eng14-raw-nonfinite/oracle.xlsx + oracle.entries.json",
+    "suggested_capture": "crates/calc-engine/tests/captures/eng14-raw-nonfinite/oracle.capture.json"
+  },
+  "verified_formula_cells": 21,
+  "verified_constants": {
+    "q01!A1": "ffefffffffffffff",
+    "q02!A1": "7fefffffffffffff",
+    "q03!A1": "7fefffffffffffff"
+  },
+  "exact_original_source_formula_xml_no_caches": true,
+  "blank_input_contains_only_constants": true,
+  "all_21_actual_formula_and_legacy_readbacks_match": true,
+  "all_21_immediate_raw_values_match_capture": true,
+  "all_21_saved_caches_match_output_package": true,
+  "saved_reopen_differences": [
+    {
+      "sheet": "q01",
+      "cell": "D1",
+      "immediate": {
+        "number": "fff000000000000a"
+      },
+      "saved": {
+        "t": "e",
+        "v": "#NUM!"
+      },
+      "reopened": {
+        "error": "num"
+      }
+    },
+    {
+      "sheet": "q01",
+      "cell": "D5",
+      "immediate": {
+        "number": "fff000000000000a"
+      },
+      "saved": {
+        "t": "e",
+        "v": "#NUM!"
+      },
+      "reopened": {
+        "error": "num"
+      }
+    },
+    {
+      "sheet": "q02",
+      "cell": "D1",
+      "immediate": {
+        "number": "7ff000000000000a"
+      },
+      "saved": {
+        "t": "e",
+        "v": "#NUM!"
+      },
+      "reopened": {
+        "error": "num"
+      }
+    },
+    {
+      "sheet": "q02",
+      "cell": "D5",
+      "immediate": {
+        "number": "7ff000000000000a"
+      },
+      "saved": {
+        "t": "e",
+        "v": "#NUM!"
+      },
+      "reopened": {
+        "error": "num"
+      }
+    },
+    {
+      "sheet": "q03",
+      "cell": "D1",
+      "immediate": {
+        "number": "7ff1ccf385ebc8a0"
+      },
+      "saved": {
+        "t": "e",
+        "v": "#NUM!"
+      },
+      "reopened": {
+        "error": "num"
+      }
+    },
+    {
+      "sheet": "q03",
+      "cell": "D5",
+      "immediate": {
+        "number": "7ff1ccf385ebc8a0"
+      },
+      "saved": {
+        "t": "e",
+        "v": "#NUM!"
+      },
+      "reopened": {
+        "error": "num"
+      }
+    }
+  ],
+  "session": {
+    "receipt_sha256": "38f1419734eac08c3f6b764d5688dd61703de21700d47b9813cd3f91584b99f1",
+    "result_sha256": "2c4d63593c477b67413a4de24118735b1ab767d8783c67479e95f3ea1212120c",
+    "success": true,
+    "leakage": null,
+    "baselines_equal": true,
+    "excel": {
+      "pid": 54564,
+      "start_ticks": 639294144941962184,
+      "command_line": "\"C:\\Program Files\\Microsoft Office\\Root\\Office16\\EXCEL.EXE\" /automation -Embedding",
+      "launch": 38
+    },
+    "fresh_required": false,
+    "launches_before": 38,
+    "launches_after": 38,
+    "scope": "One existing supervisor Excel process, not a fresh-required or MTC-off trial; baseline MTC=true/16. Automatic calculation, iteration/events off, macros absent, VS15ExcelAdaptor connected. Six reopen differences are retained capture failures; no inventory/isolation/environment/entry failure."
+  },
+  "files": {
+    "eng14-raw-nonfinite.capture.json": "d10b3affe03422b0174701be24ce39b32bd018153369057442b22a40b476b706",
+    "worker/eng14-raw-nonfinite/capture.json": "d10b3affe03422b0174701be24ce39b32bd018153369057442b22a40b476b706",
+    "worker/eng14-raw-nonfinite/result.json": "2c4d63593c477b67413a4de24118735b1ab767d8783c67479e95f3ea1212120c",
+    "worker/eng14-raw-nonfinite/request.json": "448ac5411110790999b1dd28c49ee0a910e36e75a19c509821860bdf7e69ee9f",
+    "worker/eng14-raw-nonfinite/session-receipt.json": "38f1419734eac08c3f6b764d5688dd61703de21700d47b9813cd3f91584b99f1",
+    "worker/eng14-raw-nonfinite/entries.json": "43dd96a1104555af8c8c230fa6c0dee9181fcb42f05bc3beff59c41eb2ae5a5a",
+    "worker/eng14-raw-nonfinite/capture-worker.ps1": "2fe478f77bbb71db12c4533a8c41560ed89467e05ab1ee1af4ae60cb8eb9ffab",
+    "worker/eng14-raw-nonfinite/in/oracle.xlsx": "240bd72aba9f1471a99d4de4208a75015a53f0d627019b7a15aef08cff055ac3",
+    "worker/eng14-raw-nonfinite/in/entry-input.xlsx": "7f613dfca723dfc70b15ce18bb1b08a536fd20385ac45504204e65a43dfad035",
+    "worker/eng14-raw-nonfinite/out/oracle.xlsx": "b30c2ff64d5be13015c33063899bfb54f91eb0e6f6c586189f015eecbcfbbb1a",
+    "nonfinite-input-v2/oracle.xlsx": "240bd72aba9f1471a99d4de4208a75015a53f0d627019b7a15aef08cff055ac3",
+    "nonfinite-input-v2/oracle.entries.json": "43dd96a1104555af8c8c230fa6c0dee9181fcb42f05bc3beff59c41eb2ae5a5a"
+  },
+  "verdict_source_review": {
+    "raw_nan_representation": "Capture decode/value canonical codec accepts every binary64 bit pattern; representable excludes Missing/Reference/nested arrays, not NaN.",
+    "value_proof": "judge::unproven and raw comparison use calc_verdict::compare, which compares numeric to_bits and ignores ExcelOverflow qualification metadata. Qualified DNA NaN values can match exact raw observed NaN bits when publication/evaluation proof is present.",
+    "partial_eq_caveat": "Generic CalcValue/derived record PartialEq is not reflexive for ordinary unqualified NaN; do not use assert_eq(record,decoded_record) as a NaN roundtrip test or replace canonical bit comparison with generic equality.",
+    "no_new_execution": "No cargo/current compare was run. Frozen delivered0/21 comes from old Result:number not finite refusal, not a NaN capture validation prohibition.",
+    "certainty": "Connected COM add-in prevents StrictBits certainty, while genuine calculated matches can still be counted as matches. Reopen failures remain separately counted and must not be removed."
+  }
+}

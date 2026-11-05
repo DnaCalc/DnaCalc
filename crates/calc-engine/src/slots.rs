@@ -40,6 +40,12 @@ impl<T> Slots<T> {
             Self::Dense(entries) => entries.get_mut(slot as usize)?.as_mut(),
         }
     }
+    pub fn remove(&mut self, slot: u32) -> Option<T> {
+        match self {
+            Self::Sparse { entries, .. } => entries.remove(&slot),
+            Self::Dense(entries) => entries.get_mut(slot as usize)?.take(),
+        }
+    }
     pub fn insert(&mut self, slot: u32, value: T) {
         match self {
             Self::Sparse { entries, slots } => {

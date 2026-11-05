@@ -173,9 +173,17 @@ mod mixed_range_tests {
                     _ => None,
                 })
                 .unwrap();
-            assert!(events.iter().any(|event| matches!(event, Event::Calculation {
-                receipt: wire::CalculationEvent::TargetsRefused { command: id, targets, owner, .. }, ..
-            } if *id == command && owner == "dc-hsa5.11" && targets == &(1..=3).map(|c| Key::of(at(c))).collect::<Vec<_>>())));
+            let mut refused = Vec::new();
+            for event in &events {
+                if let Event::Calculation { receipt: wire::CalculationEvent::TargetsRefused {
+                    command: id, targets, owner, .. }, .. } = event
+                    && *id == command {
+                    assert_eq!(owner, "dc-hsa5.11");
+                    for target in targets { assert!(!refused.contains(target)); refused.push(*target); }
+                }
+            }
+            assert_eq!(refused.len(), 3);
+            assert!((1..=3).all(|c| refused.contains(&Key::of(at(c)))));
             assert!(
                 events
                     .iter()

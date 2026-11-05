@@ -193,7 +193,9 @@ same Tarjan analysis and cyclic read seeds as static ordering. Text/error output
 do not drive another scalar sweep; a numeric value after such a seed compares
 with zero. This reproduces the recorded B6 outputs without measuring individual
 SCC execution counts. All ten cyclic Range conditions retain their seeds in
-Excel. DNA keeps its typed dc-hsa5.11 scope refusal before evaluation: 80 distinct
+Excel. DNA retains typed dc-hsa5.11 refusals: a scope containing only known
+cyclic producers refuses at admission; pure readers can be admitted and then
+refused by their executed value reads, as described below. The 80 distinct
 command/value observations remain nonpasses (160 slots at two budgets), and
 retained caches are never counted as calculated. Mixed/dynamic range variants,
 other threshold commands, observer counts, mid-cycle caches, mixed topology and
@@ -207,11 +209,12 @@ retain cyclic targets and their readers while independent D1=2+2 calculates 4,
 for zero/asymmetric seeds and limits 1, 2 and 5. The exact input/result packet is
 under P14/eng10-20261104. DNA admits this partial command with StillRequired,
 emits TargetsRefused naming dc-hsa5.11, and completes Incomplete. Cyclic targets
-and the conservative graph-reader closure keep their old results and unmet
-requirements; those retained values never count as calculated. Independent
-results name this command's producing invocation. Warm value/shape reads cannot
-consume an unresolved selected cyclic target. Cancellation and supersession
-retain the refusal counts, and a narrow completion preserves known cycle demand
+keep their old results and unmet requirements; those retained values never
+count as calculated. The eng17 extension below replaces conservative reader
+closure with executed-path refusal. Independent results name this command's
+producing invocation. Value reads cannot consume an unresolved selected cyclic
+target. Cancellation and supersession retain the discovered refusal counts,
+and a narrow completion preserves known cycle demand
 outside its scope. Automatic mixed requests, callbacks, tables, multi-cell
 arrays/spills and newly discovered cyclic Range dependencies remain refused.
 These final-value observations do not settle SCC execution counts or mid-cycle
@@ -232,6 +235,53 @@ The latter retains the strict threshold rule. Fifteen unchanged authored inputs
 give 180 HostSession final-value comparisons at two budgets. These observations
 do not settle general SCC execution counts or intermediate cache visibility;
 iterative results retain their existing uncertified publication boundary.
+
+Eng14 pure observations and eng17 implementation (2026-11-05): the unchanged
+P14/eng14-20261104 import verifies 3,450 delivered files and 150 successful fresh
+owned-process trials over 15 conditions, ten each. Manual, iteration on, MTC off
+and events off were checked with exact seeds/formulas before each pair of
+commands. The 300 commands give 580 cell observations. Seven optional-argument
+failures, 143 deferred first attempts and ten shape-form preparation refusals
+remain recorded; successful v3 alone supplies the shape condition.
+
+For the measured pure scalar Manual Range profile, only known SCC members are
+initially refused. A reader that actually requests a refused value leaves the
+schedule without a staged result or a change to its historical value, identity,
+dynamic edges or unmet requirement. It is not declared cyclic merely for reading
+one. Its waiters resume and meet the same value-read refusal. TargetsRefused may
+arrive in several batches, with each target named once; required coverage stays
+constant as discovered readers move from scheduled to refused. Sparse/dense
+scratch, cancellation before/after discovery, warm identities and topology are
+tested through HostSession and the worker.
+
+The original untaken IF(TRUE,7,A1) reader now evaluates 7; a dynamic value reader
+retains its seed while independent D1 evaluates 4. ROWS(A1#) can use the known
+selected scalar's actual admission-time cache image to evaluate 1. That shape
+read retains the pinned view, dirty/imported SourcePart ancestry and external
+flag. Value reads, including SUM/INDEX and a value read after ROWS, remain refused
+through IFERROR. A missing or array image grants no scalar shape. Manual
+StillRequired and cache-qualified projections remain stale; display equality
+is not a fresh pass. Pure hidden-self readers retain their seeds, so a later
+Rebuild still starts from the original values. A newly discovered dynamic cyclic
+Range still fails as a whole: its independent D1 remains 0 instead of Excel's 4.
+
+The seven supported stopping conditions and the Rebuild hidden-self control
+reproduce recorded final values, while iterative sessions keep their existing
+uncertified invocation boundary. Two logical-TRUE baseline command results
+still differ: numeric 1 is returned where Excel ends logical TRUE. Prior TRUE
+therefore cannot be treated as numeric +1 for stopping; these answers do not
+distinguish zero from -1 or establish a general replacement rule. Eight new
+eng17 discriminators remain unanswered. Eng14 supplies no SCC execution counts,
+mid-cycle cache observations or Full conditions; the instrumented Full/Rebuild
+questions remain pending, and excel-results-eng15 has not arrived.
+
+Eng14's separate unchanged authored-entry nonfinite capture has 21 immediate
+bit matches through the existing compare route. Its source is the workbook plus
+oracle.entries.json composite key, not the physical XLSX digest. Six saved/reopen
+NaN-to-#NUM! differences remain capture failures; the host tests retain that
+distinction and recalculate the original formulas after reopen. The capture
+reused an Excel process with an add-in connected; it is not a fresh-process or
+MTC-off claim, and the current comparison has no strict-target certification.
 
 Eng13 instrumented Range observations (2026-11-04): the delivered packet at
 `~/codex-runs/excel-results-eng13` contains 80 valid trials, ten for each of eight
@@ -254,7 +304,7 @@ producer snapshots in these instrumented Range trials. The pair conditions use
 unprobed arithmetic producers, so attempted or discarded internal producer work
 is not measured. This is
 not evidence of fresh producer calculation or an observed mid-cycle sweep.
-The conservative reader refusal in the current partial Range route remains an
+The observer-reader refusal in the current partial Range route remains an
 implementation gap (dc-hsa5.11): qualifying the selected cyclic read boundary and its effects
 must be implemented before those observer commands can claim parity. Retained
 producer caches remain nonpasses. Full/Rebuild scheduling, uninstrumented SCC

@@ -872,6 +872,66 @@ fn enter(session: &mut HostSession, at: CellKey, text: &str) -> IntentReceipt {
 /// saved caches are #NUM!, and a full calculation restores the live encodings.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_j9k_19__eng14_original_immediate_bits_and_reopen_failures() {
+    let capture = calc_verdict::CaptureRecord::decode(include_bytes!(
+        "../../calc-engine/tests/captures/eng14-raw-nonfinite/oracle.capture.json"
+    )).unwrap();
+    assert_eq!(capture.observations.len(), 21);
+    let check = |book: &HostSession| {
+        for observed in &capture.observations {
+            let s = sheet(book.host(), observed.cell.sheet());
+            let key = CellKey::new(s, observed.cell.row(), observed.cell.column()).unwrap();
+            let page = project(book.host(), &ProjectionRequest { cells: vec![key] }).unwrap();
+            let ProjectedValue::Calculated { value, calculation } = page.cells()[0].value() else {
+                panic!("actual calculation required at {key:?}: {:?}", page.cells()[0]);
+            };
+            // The canonical verdict compares number bits, including raw observed NaNs.
+            assert_eq!(calc_verdict::compare(observed.observation.expected(), value), None,
+                "{}!{}", observed.cell.sheet(), observed.cell.a1());
+            let stamp = calculation.stamp().unwrap();
+            assert!(matches!(stamp.computed_by, calc_engine::contract::ComputationOrigin::Evaluated { .. }));
+            assert!(!stamp.reads.uses_imported_cache && !stamp.reads.uses_boundary_cache);
+            assert!(!calculation.held_by_circular_rule());
+        }
+    };
+    for budget in [usize::MAX, 1] {
+        let open = |bytes: Vec<u8>| HostSession::open(
+            Arc::new(MemorySource::new(bytes)), &OpenPolicy::default(),
+            HostOptions { calc_mode: Some(CalcMode::Manual), ..HostOptions::default() },
+        ).unwrap();
+        let mut book = open(include_bytes!(
+            "../../calc-engine/tests/fixtures/eng14-raw-nonfinite/oracle.xlsx"
+        ).to_vec());
+        book.set_calculation_budget(WorkBudget::evaluations(budget));
+        assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+        while book.has_pending_calculation() { book.advance_calculation(); }
+        check(&book);
+        let mut saved = Vec::new();
+        save(book.host(), &SavePolicy::default(), &mut saved).unwrap();
+        let mut reopened = open(saved);
+        let mut changed = 0;
+        for observed in &capture.observations {
+            if !observed.observation.expected().as_number().is_some_and(|n| !n.is_finite()) { continue; }
+            let s = sheet(reopened.host(), observed.cell.sheet());
+            let key = CellKey::new(s, observed.cell.row(), observed.cell.column()).unwrap();
+            let page = project(reopened.host(), &ProjectionRequest { cells: vec![key] }).unwrap();
+            let ProjectedValue::FileCached(cache) = page.cells()[0].value() else {
+                panic!("saved cache must not be called calculated: {:?}", page.cells()[0]);
+            };
+            assert_eq!(cache.value().to_value().as_error(), Some(calc_value::WorksheetErrorCode::Num));
+            changed += 1;
+        }
+        assert_eq!(changed, 6, "the six captured reopen differences remain distinct");
+        reopened.set_calculation_budget(WorkBudget::evaluations(budget));
+        assert!(reopened.dispatch(SkinIntent::Rebuild).accepted());
+        while reopened.has_pending_calculation() { reopened.advance_calculation(); }
+        check(&reopened);
+    }
+}
+
+/// Original DNA overflow controls, retained beside the later eng14 raw capture.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_j9k_19__overflow_bits_survive_cells_and_save_as_num_errors() {
     use calc_value::WorksheetErrorCode as W;
     let mut book = session(&calc_host::blank_package());
