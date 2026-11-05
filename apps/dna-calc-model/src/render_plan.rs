@@ -22,6 +22,11 @@ use crate::geometry::{
 use crate::projection::CellShown;
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Two zoomed text margins; the trailing margin also reserves the unscaled gridline.
+pub fn text_insets(scale: f64) -> (f64, f64) {
+    (2. * scale, 2. * scale + 1.)
+}
+
 /// Layout facts from the committed root, plus an optional browser font measurement provider.
 /// Pure callers retain the explicit estimate when no browser is available.
 #[derive(Default)]
@@ -218,7 +223,10 @@ pub fn build_render_plan_with<'a>(
                 col_span: merged.map_or(1, |a| a.column_count()),
                 editability: Editability::from_geometry(options.geometry),
                 text_advance: measured
-                    .unwrap_or_else(|| text_width(&shown.text, m) - 5.0 * m.scale),
+                    .unwrap_or_else(|| {
+                        let (left, right) = text_insets(m.scale);
+                        text_width(&shown.text, m) - left - right
+                    }),
                 text_measured: measured.is_some(),
                 paint_pixels: shown.style.pixels,
                 clip: None,
@@ -282,7 +290,8 @@ pub fn build_render_plan_with<'a>(
 /// digit width (7 pixels at 100%, scaled with the grid) and the cell's padding (dc-09v).
 pub fn text_width(text: &str, m: &GridMetrics) -> f64 {
     let scale = m.scale;
-    (text.chars().count() as f64 * 7.0 + 5.0) * scale
+    let (left, right) = text_insets(scale);
+    text.chars().count() as f64 * 7.0 * scale + left + right
 }
 
 /// Fits a planned cell's text to its column, as Excel's grid does: a number shown under a
@@ -366,7 +375,8 @@ fn fit(
                 .unwrap_or(0.0)
                 * f64::from(cell.shown.style.indent)
         };
-        8.0 * scale
+        let (left, right) = text_insets(scale);
+        left + right
             + indent
             + if cell
                 .shown
@@ -379,7 +389,8 @@ fn fit(
                 0.0
             }
     } else {
-        5.0 * scale
+        let (left, right) = text_insets(scale);
+        left + right
     };
     let needed = if cell.text_measured {
         cell.text_advance + insets
@@ -1331,7 +1342,7 @@ mod layout_tests {
         assert_eq!(cell.rect, cell.anchor);
         assert_eq!(cell.rect.w, 64.);
         assert!(cell.paint_pixels > 0. && cell.paint_pixels < source.style.pixels);
-        assert!(12. * cell.paint_pixels / 2. + 8. <= cell.rect.w + 0.001);
+        assert!(12. * cell.paint_pixels / 2. + 5. <= cell.rect.w + 0.001);
         assert_eq!(cell.shown, source);
         assert_eq!(cell.text_advance, 144.);
         let wide = build_render_plan_with(

@@ -322,10 +322,12 @@ pub fn measure(rows: bool, cells: &[wire::Cell]) -> Result<Vec<(u32, u64)>, Stri
         } else {
             0.
         };
+        let (left, right) = super::render_plan::text_insets(1.);
+        let padding = left + right;
         let width = if rows && cell.style.wrap {
             format!(
                 ";width:{}px;white-space:pre-wrap;overflow-wrap:anywhere",
-                (cell.style.width - 8. - indent - icon).max(1.)
+                (cell.style.width - padding - indent - icon).max(1.)
             )
         } else {
             ";width:auto;white-space:pre".into()
@@ -354,7 +356,7 @@ pub fn measure(rows: bool, cells: &[wire::Cell]) -> Result<Vec<(u32, u64)>, Stri
         let r = probe.get_bounding_client_rect();
         let (w, h) = if cell.style.rotation==255 { (r.width(),r.height()) }
             else { rotated_size(r.width(), r.height(), cell.style.rotation) };
-        let pixels = if rows { h + 4. } else { w + 8. + indent + icon };
+        let pixels = if rows { h + 4. } else { w + padding + indent + icon };
         samples.push((if rows { cell.at.2 } else { cell.at.3 }, pixels));
     }
     probe.remove();
