@@ -74,6 +74,8 @@ pub struct Server {
     pending_save: Option<(u64, PendingSave)>,
     save_as_target: Option<(String, calc_host::SpreadsheetFormat)>,
     next_save: u64,
+    /// Successful creations, per template stem, across workbook replacements in this session.
+    template_counters: BTreeMap<String,u64>,
 }
 
 impl Default for Server {
@@ -247,6 +249,7 @@ impl Server {
             pending_save: None,
             save_as_target: None,
             next_save: 1,
+            template_counters: BTreeMap::new(),
         }
     }
 
@@ -595,8 +598,11 @@ impl Server {
                         if !host.loaded().spreadsheet_format().is_template(){return Err("The stored default is not an actual template package; remove it and add an .xltx or .xltm template (dc-bctq)".into());}
                     }
                     crate::workbook::reserve_for_open(bytes.len());
-                    match Workbook::open_with_template_mode(&name, bytes, self.calculation_budget, crate::workbook::VbaOpenPolicy::Run, edit_template) {
+                    let counter_key=calc_value::fold_workbook_name(crate::workbook::template_basename(&name));
+                    let counter=self.template_counters.get(&counter_key).copied().unwrap_or(0).checked_add(1).ok_or("The template workbook name counter is exhausted (dc-bctq)")?;
+                    match Workbook::open_with_template_counter(&name, bytes, self.calculation_budget, crate::workbook::VbaOpenPolicy::Run, edit_template, counter) {
                         Ok(book) => {
+                            if book.unsaved() {self.template_counters.insert(counter_key,counter);}
                             let elapsed = crate::services::now_ms() - started;
                             let calculated = book.calculated_on_open();
                             self.install(book);
@@ -1510,14 +1516,14 @@ impl Server {
                 rows,
                 columns,
             }),
-            Intent::ApplyPaste { id } => {
+            Intent::ApplyPaste { id, select_target } => {
                 let Some((held, plan)) = self.paste_plan.take() else {
                     return Err("The paste preview expired; paste again".into());
                 };
                 if held != id {
                     return Err("The workbook changed after the preview; paste again".into());
                 }
-                SkinIntent::Command(calc_host::WorkbookCommand::Paste(plan))
+                SkinIntent::Command(calc_host::WorkbookCommand::Paste(if select_target {plan.with_target_selection()} else {plan}))
             }
             Intent::Navigate {
                 nav,
@@ -5123,7 +5129,7 @@ mod friendly_formula_tests {
             other => panic!("{other:?}"),
         };
         server
-            .execute_current(Request::Intent(Intent::ApplyPaste { id: preview.id }), None)
+            .execute_current(Request::Intent(Intent::ApplyPaste { id: preview.id, select_target: false }), None)
             .reply
             .unwrap();
         assert_eq!(
@@ -5400,6 +5406,43 @@ mod window_tests {
 #[cfg(test)]
 mod template_save_tests {
     use super::*;
+    #[cfg_attr(not(target_arch="wasm32"),test)]
+    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_bctq__template_basename_counters_survive_replacement_without_counting_edits_or_failures() {
+        let mut source=Server::new();let sheet=source.book().sheets()[0].id;
+        for (column,text) in [(1,"6"),(2,"=A1*3")] {
+            source.execute_current(Request::Intent(Intent::EnterCell{at:Key::of(CellKey::new(sheet,1,column).unwrap()),text:text.into()}),None).reply.unwrap();
+        }
+        let plain=source.execute_current(Request::SaveAs{name:"Budget.xltx".into(),format:wire::FileFormat::Xltx,views:None},None).bytes.unwrap();
+        let macros=source.execute_current(Request::SaveAs{name:"Budget.xltm".into(),format:wire::FileFormat::Xltm,views:None},None).bytes.unwrap();
+        let mut server=Server::new();
+        let open=|server:&mut Server,request:Request,bytes:Vec<u8>,expected:&str,unsaved:bool| {
+            let answer=server.execute_current(request,Some(bytes));
+            assert!(matches!(answer.reply,Ok(Reply::Done{outcome:Outcome{accepted:true,..},..})),"{:?}",answer.reply);
+            assert_eq!(server.book().name(),expected);assert_eq!(server.book().save_name(),expected);
+            assert_eq!(server.book().host().model().definitions().workbook_name(),Some(expected));
+            assert_eq!(server.book().unsaved(),unsaved);
+            let at=CellKey::new(server.book().sheets()[0].id,1,2).unwrap();
+            assert_eq!(server.book().shown(&server.book().cell(at).unwrap()).text,"18");
+        };
+        open(&mut server,Request::Open{name:"Budget.xltx".into()},plain.clone(),"Budget1.xlsx",true);
+        let before=server.summary();
+        let failed=server.execute_current(Request::Open{name:"Budget.xltx".into()},Some(vec![0,1,2]));
+        assert!(matches!(failed.reply,Ok(Reply::Done{outcome:Outcome{accepted:false,..},..})));
+        assert_eq!(server.summary(),before);
+        open(&mut server,Request::OpenForEditing{name:"Budget.xltx".into()},plain.clone(),"Budget.xltx",false);
+        server.execute_current(Request::InspectTemplate,Some(plain.clone())).reply.unwrap();
+        open(&mut server,Request::OpenTemplate{name:"C:\\Templates\\budget.XLTX".into()},plain.clone(),"budget2.xlsx",true);
+        open(&mut server,Request::Open{name:"Forecast.xltx".into()},plain.clone(),"Forecast1.xlsx",true);
+        server.execute_current(Request::New,None).reply.unwrap();
+        open(&mut server,Request::Open{name:"/templates/Budget.xltm".into()},macros,"Budget3.xlsm",true);
+        server.execute_current(Request::SaveAs{name:"Chosen.xlsm".into(),format:wire::FileFormat::Xlsm,views:None},None).reply.unwrap();
+        assert_eq!(server.book().name(),"Chosen.xlsm");assert!(!server.book().unsaved());
+        open(&mut server,Request::Open{name:"Budget.xltx".into()},plain.clone(),"Budget4.xlsx",true);
+        let mut other=Server::new();
+        open(&mut other,Request::Open{name:"Budget.xltx".into()},plain,"Budget1.xlsx",true);
+    }
+
     #[cfg_attr(not(target_arch="wasm32"),test)]
     #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_bctq__inspection_is_read_only_and_insertion_keeps_the_worker_session() {

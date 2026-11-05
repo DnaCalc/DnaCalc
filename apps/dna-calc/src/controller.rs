@@ -1527,6 +1527,51 @@ impl Controller {
         }
     }
 
+    /// Move or copy a rectangle through the same captured, revision-bound paste as the clipboard.
+    /// A drag owns no system clipboard data and leaves an existing copied snapshot available.
+    pub fn drag_range(&self, from: GridArea, to: GridArea, copy: bool, generation: u64, revision: u64) {
+        let controller = *self;
+        self.after_input(move || {
+            if generation != controller.generation.get_untracked()
+                || revision != controller.summary.get_untracked().revision
+                || controller.selected_area_untracked() != Some(from)
+                || controller.editing.get_untracked().is_some()
+            {
+                controller.say("The workbook or selection changed during the drag; drag again", true);
+                return;
+            }
+            if from == to { return; }
+            controller.pending_actions.update(|n| *n += 1);
+            controller.pending_changes.update(|n| *n += 1);
+            let keep = controller.copied.get_untracked().map(|c| c.token);
+            let epoch = controller.selection_epoch.get_value();
+            controller.call(Request::Capture { area: Area::of(from), keep }, None, move |reply, _| {
+                controller.pending_actions.update(|n| *n = n.saturating_sub(1));
+                controller.pending_changes.update(|n| *n = n.saturating_sub(1));
+                if generation != controller.generation.get_untracked() { return; }
+                if epoch != controller.selection_epoch.get_value() || controller.editing.get_untracked().is_some() {
+                    controller.say("The selection changed during the drag; drag again", true);
+                    return;
+                }
+                if revision != controller.summary.get_untracked().revision {
+                    controller.say("The workbook changed during the drag; drag again", true);
+                    return;
+                }
+                match reply {
+                    Ok(Reply::Clipboard(payload)) if payload.revision == revision => {
+                        controller.prepare_paste_at_mode(
+                            wire::PasteSource::Internal { token: payload.token, cut: !copy },
+                            to, false, wire::PasteMode::All, false, true,
+                        );
+                    }
+                    Ok(Reply::Clipboard(_)) => controller.say("The drag source changed; drag again", true),
+                    Err(reason) => controller.say(reason, true),
+                    _ => controller.say("The drag snapshot did not answer", true),
+                }
+            });
+        });
+    }
+
     /// Paste the captured workbook snapshot explicitly; system paste reads the native event instead.
     pub fn paste(&self) {
         let controller = *self;
@@ -1565,7 +1610,7 @@ impl Controller {
                 if generation!=controller.generation.get_untracked() {return;}
                 match result {
                     Ok((text,html))=>match controller.clipboard_source(&text,&html) {
-                        Ok(source)=>controller.prepare_paste_at_mode(source,to,false,mode,transpose),
+                        Ok(source)=>controller.prepare_paste_at_mode(source,to,false,mode,transpose,false),
                         Err(reason)=>controller.say(reason,true),
                     },
                     Err(_)=>{controller.clipboard_fallback.set(Some(false));controller.say("Browser clipboard access was denied. Paste table text in the dialog, or use Paste copied cells.",true);}
@@ -1628,7 +1673,7 @@ impl Controller {
     }
 
     pub fn prepare_paste_at(&self, source: wire::PasteSource, to: GridArea, force_preview: bool) {
-        self.prepare_paste_at_mode(source, to, force_preview, self.chosen_paste_mode(), self.model.with_untracked(|m| m.runtime.paste_transpose));
+        self.prepare_paste_at_mode(source, to, force_preview, self.chosen_paste_mode(), self.model.with_untracked(|m| m.runtime.paste_transpose), false);
     }
 
     fn prepare_paste_at_mode(
@@ -1638,9 +1683,11 @@ impl Controller {
         force_preview: bool,
         chosen_mode: wire::PasteMode,
         transpose: bool,
+        drag: bool,
     ) {
         let controller = *self;
         let generation = self.generation.get_untracked();
+        let selection_epoch = self.selection_epoch.get_value();
         let cut = matches!(source, wire::PasteSource::Internal { cut: true, .. });
         let mode = if matches!(source, wire::PasteSource::Fill { .. }) {
             wire::PasteMode::All
@@ -1667,9 +1714,14 @@ impl Controller {
                 if generation != controller.generation.get_untracked() {
                     return;
                 }
+                if drag && (selection_epoch != controller.selection_epoch.get_value() || controller.editing.get_untracked().is_some()) {
+                    controller.say("The selection changed during the drag; drag again", true);
+                    return;
+                }
                 match reply {
                     Ok(Reply::PastePreview(preview)) => {
-                        controller.paste_cut.set_value(cut);
+                        controller.paste_cut.set_value(cut && !drag);
+                        controller.model.update(|m| m.runtime.paste_drag = drag);
                         controller.paste_preview.set(Some(preview.clone()));
                         if preview.replaces == 0 && !force_preview {
                             controller.apply_paste(preview.id);
@@ -1683,10 +1735,11 @@ impl Controller {
     }
 
     pub fn apply_paste(&self, id: u64) {
+        let select_target = self.model.with_untracked(|m| m.runtime.paste_drag);
         self.paste_preview.set(None);
         let controller = *self;
         let cut = self.paste_cut.get_value();
-        self.dispatch(Intent::ApplyPaste { id }, move |outcome| {
+        self.dispatch(Intent::ApplyPaste { id, select_target }, move |outcome| {
             if outcome.accepted && cut {
                 controller.clipboard.set(None);
                 controller.copied.set(None);
@@ -3972,13 +4025,81 @@ mod template_lifecycle_tests {
     struct HeldTransport {
         inner:dna_calc_worker::transport::InProcessTransport,
         hold:std::cell::Cell<bool>,
+        hold_paste:std::cell::Cell<bool>,
+        hold_drag_query:std::cell::Cell<u8>,
         pending:std::cell::RefCell<Vec<(Request,Option<Vec<u8>>,dna_calc_model::TransportAnswer)>>,
     }
     impl dna_calc_model::WorkbookTransport for HeldTransport {
         fn start(&self){self.inner.start();}
         fn set_events(&self,h:std::rc::Rc<dyn Fn(Event)>){self.inner.set_events(h);}
         fn set_health(&self,h:std::rc::Rc<dyn Fn(port::Health)>){self.inner.set_health(h);}
-        fn call(&self,r:Request,b:Option<Vec<u8>>,a:dna_calc_model::TransportAnswer){if self.hold.get(){self.pending.borrow_mut().push((r,b,a));}else{self.inner.call(r,b,a);}}
+        fn call(&self,r:Request,b:Option<Vec<u8>>,a:dna_calc_model::TransportAnswer){
+            let inner=match &r {Request::Command(envelope)=>envelope.request.as_ref(),_=>&r};
+            let query=matches!((self.hold_drag_query.get(),inner),(1,Request::Capture {..})|(2,Request::PreparePaste {..}));
+            if self.hold.get() || query || (self.hold_paste.get() && matches!(inner,Request::Intent(Intent::ApplyPaste { .. }))){self.pending.borrow_mut().push((r,b,a));}else{self.inner.call(r,b,a);}
+        }
+    }
+    #[cfg_attr(not(target_arch="wasm32"),test)]
+    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_q327__navigation_during_drag_preparation_cancels_the_stale_drag() {
+        use std::rc::Rc;
+        for stage in [1,2] {
+            let root=Owner::new();root.with(|| {
+                let transport=Rc::new(HeldTransport::default());
+                let controller=Controller::with_transport(transport.clone());
+                let source=controller.active_key_untracked().unwrap();
+                let destination=CellKey::new(source.sheet(),3,4).unwrap();
+                controller.dispatch(Intent::EnterCell {at:Key::of(source),text:"5".into()},|outcome|assert!(outcome.accepted));
+                let revision=controller.summary.get_untracked().revision;
+                transport.hold_drag_query.set(stage);
+                controller.drag_range(GridArea::cell(source),GridArea::cell(destination),false,controller.generation.get_untracked(),revision);
+                assert_eq!(transport.pending.borrow().len(),1);
+                controller.navigate(crate::grid::selection::Navigation::Step(NavAction::Right),false,20);
+                transport.hold_drag_query.set(0);
+                let pending=std::mem::take(&mut *transport.pending.borrow_mut());
+                for(r,b,a)in pending{transport.inner.call(r,b,a);}
+                while let Some(action)=controller.deferred.try_update_value(|q|q.pop_front()).flatten(){controller.perform(action);}
+                assert_eq!(controller.active_key_untracked(),Some(CellKey::new(source.sheet(),1,2).unwrap()));
+                assert_eq!(controller.summary.get_untracked().revision,revision);
+                assert!(controller.paste_preview.get_untracked().is_none());
+                assert!(controller.status.get_untracked().refused);
+                assert_eq!(controller.pending_actions.get_untracked(),0);
+                assert_eq!(controller.pending_changes.get_untracked(),0);
+            });
+        }
+    }
+    #[cfg_attr(not(target_arch="wasm32"),test)]
+    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_q327__drag_selection_is_undoable_and_a_late_paste_preserves_newer_navigation() {
+        use std::rc::Rc;
+        for delayed in [false, true] {
+            let root=Owner::new();root.with(|| {
+                let transport=Rc::new(HeldTransport::default());
+                let controller=Controller::with_transport(transport.clone());
+                let source=controller.active_key_untracked().unwrap();
+                let destination=CellKey::new(source.sheet(),3,4).unwrap();
+                controller.dispatch(Intent::EnterCell {at:Key::of(source),text:"5".into()},|outcome|assert!(outcome.accepted));
+                transport.hold_paste.set(delayed);
+                controller.drag_range(GridArea::cell(source),GridArea::cell(destination),false,controller.generation.get_untracked(),controller.summary.get_untracked().revision);
+                if delayed {
+                    assert_eq!(transport.pending.borrow().len(),1);
+                    controller.navigate(crate::grid::selection::Navigation::Step(NavAction::Right),false,20);
+                    transport.hold_paste.set(false);
+                    let pending=std::mem::take(&mut *transport.pending.borrow_mut());
+                    for(r,b,a)in pending{transport.inner.call(r,b,a);}
+                    while let Some(action)=controller.deferred.try_update_value(|q|q.pop_front()).flatten(){controller.perform(action);}
+                    assert_eq!(controller.active_key_untracked(),Some(CellKey::new(source.sheet(),3,5).unwrap()));
+                } else {
+                    assert_eq!(controller.selected_area_untracked(),Some(GridArea::cell(destination)));
+                    controller.dispatch(Intent::Undo,|outcome|assert!(outcome.accepted));
+                    assert_eq!(controller.selected_area_untracked(),Some(GridArea::cell(source)));
+                    controller.dispatch(Intent::Redo,|outcome|assert!(outcome.accepted));
+                    assert_eq!(controller.selected_area_untracked(),Some(GridArea::cell(destination)));
+                }
+                assert_eq!(controller.pending_actions.get_untracked(),0);
+                assert_eq!(controller.pending_changes.get_untracked(),0);
+            });
+        }
     }
     #[cfg_attr(not(target_arch="wasm32"),test)]
     #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]

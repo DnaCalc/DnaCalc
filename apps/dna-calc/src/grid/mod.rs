@@ -411,6 +411,10 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
     let drag_timer = StoredValue::new(None::<IntervalHandle>);
     let resizing = RwSignal::new(None::<axis::ResizeDrag>);
     let resize_cursor = RwSignal::new("default");
+    let range_drag = RwSignal::new(None::<(GridArea, (u32, u32), u64, u64)>);
+    let range_target = RwSignal::new(None::<GridArea>);
+    let range_hover = RwSignal::new(false);
+    let range_copy = RwSignal::new(false);
     let fill_from = RwSignal::new(None::<GridArea>);
     let fill_target = RwSignal::new(None::<(GridArea, bool)>);
 
@@ -939,6 +943,17 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             }
             return;
         }
+        if ev.key() == "Escape" && range_drag.get_untracked().is_some() {
+            ev.prevent_default();
+            range_drag.set(None);
+            range_target.set(None);
+            range_hover.set(false);
+            pointer_down.set_value(false);
+            drag_pointer.set_value(None);
+            drag_timer.update_value(|timer| {if let Some(timer) = timer.take() {timer.clear();}});
+            note.set("Drag cancelled".to_owned());
+            return;
+        }
         if ev.key() == "Escape" {
             fill_from.set(None);
             fill_target.set(None);
@@ -1107,7 +1122,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         });
     };
     let drag_tick = move || {
-        if (!dragging.get_value() && !point_drag.get_value() && fill_from.get_untracked().is_none())
+        if (!dragging.get_value() && !point_drag.get_value() && fill_from.get_untracked().is_none() && range_drag.get_untracked().is_none())
             || document().hidden()
         {
             return;
@@ -1150,7 +1165,9 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             x.clamp(m.header_w + 1.0, (v.width - 1.0).max(m.header_w + 1.0)),
             y.clamp(m.header_h + 1.0, (v.height - 1.0).max(m.header_h + 1.0)),
         ) {
-            if let Some(from) = fill_from.get_untracked() {
+            if let Some((from, grip, _, _)) = range_drag.get_untracked() {
+                range_target.set(dna_calc_model::clipboard::drag_destination(from, grip, row, col));
+            } else if let Some(from) = fill_from.get_untracked() {
                 fill_target.set(crate::clipboard::fill_extension(from, row, col));
             } else if point_drag.get_value() {
                 controller.point_at(row, col, true);
@@ -1254,6 +1271,27 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             controller.context_menu.set(Some((x, y)));
         });
     };
+    // Hit only the existing selection's border; its rectangles come from the common pane map.
+    let selection_edge = move |ev: &leptos::ev::MouseEvent| {
+        if controller.editing.get_untracked().is_some() || controller.areas.get_untracked().len() != 1 {
+            return None;
+        }
+        let area = controller.selected_area_untracked()?;
+        if area.cell_count() > calc_value::COPY_LIMIT { return None; }
+        let layer = layer.get_untracked()?;
+        let bounds = layer.get_bounding_client_rect();
+        let x = f64::from(ev.client_x()) - bounds.left();
+        let y = f64::from(ev.client_y()) - bounds.top();
+        let m = metrics.get_untracked();
+        let tolerance = (m.row_height.min(m.col_width) / 4.0).clamp(0.25, 3.0);
+        let near = panes.get_untracked().area_rects(area, &m, &viewport.get_untracked()).iter().any(|r| {
+            x >= r.x - tolerance && x <= r.x + r.w + tolerance && y >= r.y - tolerance && y <= r.y + r.h + tolerance
+                && ((x-r.x).abs() <= tolerance || (x-r.x-r.w).abs() <= tolerance || (y-r.y).abs() <= tolerance || (y-r.y-r.h).abs() <= tolerance)
+        });
+        if !near { return None; }
+        let HitTarget::Cell { row, col } = point(ev)? else { return None; };
+        Some((area, (row.clamp(area.first().row(),area.last().row()), col.clamp(area.first().column(),area.last().column()))))
+    };
     let on_mousedown = move |ev: leptos::ev::MouseEvent| {
         if ev.button() != 0 {
             return;
@@ -1292,6 +1330,20 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 }
             }
         }
+        if !ev.shift_key() && !ev.alt_key() {
+            if let Some((area, grip)) = selection_edge(&ev) {
+                ev.prevent_default();
+                focus_grid();
+                range_drag.set(Some((area, grip, controller.generation.get_untracked(), controller.summary.get_untracked().revision)));
+                range_target.set(None);
+                range_copy.set(ev.ctrl_key() || ev.meta_key());
+                range_hover.set(true);
+                drag_pointer.set_value(Some((f64::from(ev.client_x()), f64::from(ev.client_y()))));
+                pointer_down.set_value(true);
+                start_drag();
+                return;
+            }
+        }
         let target = point(&ev);
         let Some(target) = target else {
             return;
@@ -1312,6 +1364,19 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
     };
 
     let on_mousemove = move |ev: leptos::ev::MouseEvent| {
+        range_copy.set(ev.ctrl_key() || ev.meta_key());
+        range_hover.set(selection_edge(&ev).is_some());
+        if let Some((from, grip, _, _)) = range_drag.get_untracked() {
+            drag_pointer.set_value(Some((f64::from(ev.client_x()), f64::from(ev.client_y()))));
+            if ev.buttons() & 1 == 0 {
+                range_drag.set(None);
+                range_target.set(None);
+                stop_drag();
+            } else if let Some(HitTarget::Cell { row, col }) = point(&ev) {
+                range_target.set(dna_calc_model::clipboard::drag_destination(from, grip, row, col));
+            }
+            return;
+        }
         if let Some(mut drag) = resizing.get_untracked() {
             if ev.buttons() & 1 == 0 {
                 resizing.set(None);
@@ -1374,6 +1439,14 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
     };
     let drag_move = window_event_listener(leptos::ev::mousemove, on_mousemove);
     let drag_up = window_event_listener(leptos::ev::mouseup, move |ev| {
+        if ev.button() == 0 {
+            if let Some((from, _, generation, revision)) = range_drag.get_untracked() {
+                let to = range_target.get_untracked();
+                range_drag.set(None); range_target.set(None); range_hover.set(false); stop_drag();
+                if let Some(to) = to { controller.drag_range(from, to, ev.ctrl_key() || ev.meta_key(), generation, revision); }
+                return;
+            }
+        }
         if let Some(mut drag) = resizing.get_untracked() {
             resizing.set(None);
             drag.current = if drag.band.rows {
@@ -1404,6 +1477,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         }
     });
     let drag_blur = window_event_listener(leptos::ev::blur, move |_| {
+        range_drag.set(None); range_target.set(None); range_hover.set(false);
         resizing.set(None);
         fill_from.set(None);
         fill_target.set(None);
@@ -1712,6 +1786,12 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         controller.clipboard.get().filter(|area|Some(area.sheet())==controller.sheet.get()).map(|area|panes.get().area_rects(area,&metrics.get(),&viewport.get()).into_iter().map(|rect|view!{
             <div class="dc-copy-outline" data-dnacalc="copy-outline" data-cut=move ||controller.cut.get().to_string() use:css=rect_style(&rect)></div>
         }).collect_view())
+    };
+    let move_preview = move || {
+        range_target.get().map(|area| {
+            let label = format!("{}:{}", cells::address(area.first().row(),area.first().column()),cells::address(area.last().row(),area.last().column()));
+            panes.get().area_rects(area,&metrics.get(),&viewport.get()).into_iter().map(move |rect|view!{<div class="dc-fill-preview" data-dnacalc="move-preview" data-area=label.clone() use:css=rect_style(&rect)></div>}).collect_view()
+        })
     };
     let fill_preview = move || {
         fill_target.get().map(|(area,_)|panes.get().area_rects(area,&metrics.get(),&viewport.get()).into_iter().map(|rect|view!{<div class="dc-fill-preview" data-dnacalc="fill-preview" use:css=rect_style(&rect)></div>}).collect_view())
@@ -2096,7 +2176,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 }
                 tabindex="0"
                 node_ref=scroller
-                style:cursor=move ||resize_cursor.get()
+                style:cursor=move ||if range_hover.get() || range_drag.get().is_some() {if range_copy.get() {"copy"} else {"move"}} else {resize_cursor.get()}
                 on:scroll=move |_| measure()
                 on:wheel=move |ev: leptos::ev::WheelEvent| {
                     let (sx,sy) = scales();
@@ -2139,6 +2219,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                         {copy_outline}
                         {filter_headers}
                         {fill_preview}
+                        {move_preview}
                         {fill_handle}
                         {point_view}
                         {dropdown_view}
