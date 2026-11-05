@@ -407,6 +407,12 @@ the high-argument Y0/Y1 polynomial seeds, and the published adaptive J backward
 recurrence into Rust. Retained the published coefficients and recurrence
 constants, used existing worksheet elementary functions, and grouped Y0's
 logarithm term as J0 * (W * log(x)).
+R27 additionally adapts the high-J polynomial reconstruction: J0's first
+amplitude correction exchanges adjacent decimal digits (-0.1098628627e-2
+to -0.1098628267e-2), and J1 repeats its second amplitude correction before
+the remaining terms. These fixed transcription hypotheses follow recorded
+Excel phase windows; all other coefficients remain published literals.
+The J0 phase table stays distinct from Y0's, and J uses worksheet SIN/COS.
 Product file: crates/calc-func/src/ported/bessel_rational.rs.
 ==============================================================================
 

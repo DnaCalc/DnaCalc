@@ -5,9 +5,11 @@
 //!
 //! - Abramowitz and Stegun, *Handbook of Mathematical Functions* (1964), 9.8.1 to 9.8.8: the
 //!   polynomial approximations of I0, I1, K0 and K1 used here, with their published coefficients.
-//! - J0, J1, Y0 and Y1 below argument magnitude 8, and Y1 from 8, call the licensed
-//!   fixed helpers in `bessel_rational`. Other seed arguments retain the existing `libm`
-//!   fdlibm methods. Agreement outside the recorded measurements remains open.
+//! - J0, J1, Y0 and Y1 call the licensed fixed helpers in `bessel_rational`.
+//!   High J uses the R27 literal-transcription hypotheses with worksheet
+//!   SIN/COS. Its full bank has one remaining last-bit mismatch; the separate
+//!   R25 phase windows retain twenty mismatches. These are measured discovery
+//!   results, not proof of Excel's source or agreement outside those readings.
 //! - The three-term recurrence `C(n+1) = (2n/x) C(n) - C(n-1)` (A&S 9.1.27, 9.6.26), run forward
 //!   for Y and K and for J above its order. J below its order calls the separately
 //!   licensed published adaptive backward program in `bessel_rational`.
@@ -180,14 +182,18 @@ fn j0(x: D) -> R {
         let value = super::bessel_rational::j0(x.0);
         return if value.is_finite() { Ok(D::new(value)) } else { Err(WorksheetErrorCode::Num) };
     }
- Ok(D::new(libm::j0(x.0))) }
+    let value = super::bessel_rational::j0_large(x.0);
+    if value.is_finite() { Ok(D::new(value)) } else { Err(WorksheetErrorCode::Num) }
+}
 fn j1(x: D) -> R {
     admit_phase(x, 2.356194491)?;
     if x.0.abs() < 8.0 {
         let value = super::bessel_rational::j1(x.0);
         return if value.is_finite() { Ok(D::new(value)) } else { Err(WorksheetErrorCode::Num) };
     }
- Ok(D::new(libm::j1(x.0))) }
+    let value = super::bessel_rational::j1_large(x.0);
+    if value.is_finite() { Ok(D::new(value)) } else { Err(WorksheetErrorCode::Num) }
+}
 fn y0(x: D) -> R {
     admit_phase(x, 0.785398164)?;
     if x.0 >= 8.0 {
@@ -422,7 +428,8 @@ mod tests {
         assert_eq!(bessely_kernel(0.0, 1.0), Err(Num));
         assert_eq!(besselk_kernel(-1.0, 1.0), Err(Num));
         assert_eq!(besselj_kernel(134217728.0, 0.0), Err(Num), "original recorded Excel NUM");
-        assert_eq!(besselj_kernel(134217727.5, 0.0).unwrap().to_bits(), 0xbf03e23975421ed4, "unchanged fdlibm value at an admitted input; Excel's numeric bits remain open");
+        assert_eq!(besselj_kernel(134217727.5, 0.0).unwrap().to_bits(), 0xbf03e23978ae0497,
+            "original Excel20527 reading r16-besselj-015 at the admitted phase boundary");
         assert_eq!(besseli_kernel(709.78, 0.0), Err(Num));
         // Original Excel NUM reading; the published backward program agrees.
         assert_eq!(besselj_kernel(1e-300, 2.0), Err(Num));
