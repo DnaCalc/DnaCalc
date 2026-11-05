@@ -202,6 +202,33 @@ fn delivered_scalar_readings_follow_the_application_route() {
     assert!(failures.is_empty(), "{} of{count} readings differ:\n{}", failures.len(), failures.join("\n"));
 }
 
+/// Fn7 preserves Excel's ASCII-prefix pass beside non-ASCII contexts, iteration
+/// after punctuation, reversed relations and trailing characters. Native NLS
+/// observations remain separate from these unchanged Excel answers.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zsn2__fn7_iteration_context_comparisons() {
+    let mut session = Session::new("Sheet1").unwrap();
+    check_captured_questions(include_bytes!(
+        "../../../crates/calc-func/tests/captures/fn7_collation_context/oracle.capture.json"
+    ), &mut session, |entry| {
+        entry.cell.row() == 20 && entry.cell.column() == 10
+            && !entry.formula.as_ref().unwrap().contains("SORT(")
+    }, 210);
+}
+
+/// Fn6 distinguishes a trailing ignorable, a combining accent and an ordinary
+/// primary after the same complete Jamo prefix. Different Jamo prefixes and
+/// further Jamo/iteration units keep their typed refusal.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zsn2__identical_jamo_prefix_suffixes() {
+    let mut session = Session::new("Sheet1").unwrap();
+    check_captured_questions(include_bytes!(
+        "../../../crates/calc-func/tests/captures/fn6_jamo_suffix/oracle.capture.json"
+    ), &mut session, |entry| entry.cell.row() == 20 && entry.cell.column() == 10, 24);
+}
+
 /// Original fn6 Version-1/2 captures distinguish a lone high surrogate from a low
 /// surrogate and an empty needle. All original primary questions remain intact,
 /// including the two Version-2 SEARCH roots explained by valid-Unicode wildcard controls.
@@ -430,23 +457,35 @@ fn measured_iteration_suffixes_follow_their_exact_prefixes() {
         && matches!(f.cell.row(), 1 | 2 | 15 | 16 | 31 | 32 | 47 | 48 | 101..=289), 197);
 }
 
-/// The observed strict-prefix order gives no primary slot or ordering for these contexts.
+/// Consequences of fn7's measured positive punctuation primary: an exact
+/// primary prefix is smaller than its extension, and the punctuation primary
+/// follows the measured Han repeat primary in group05. These were refusal
+/// controls before that measurement; the consequences are not new Excel readings.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn unmeasured_iteration_contexts_remain_refused() {
+fn measured_iteration_primary_and_unmeasured_contexts() {
     let mut session = Session::new("Sheet1").unwrap();
+    for (formula, expected) in [
+        ("=\"á-ゝ\"<\"a-\"", false),
+        ("=\"ａ-ゝ\"<\"a-\"", false),
+        ("=\"時A-ゝ\"<\"時a-\"", false),
+        ("=\"時-ゝx\"<\"時-\"", false),
+        ("=\"時-ゝ\"<\"時ゝ\"", false),
+        ("=\"時-'ゝ\"<\"時\"", false),
+    ] {
+        session.set_formula(formula);
+        let calculated = session.calculate();
+        assert_eq!(calculated.result, Some(CalcValue::logical(expected)), "{formula}");
+        assert!(calculated.diagnostics.is_empty(), "{formula}: {:?}", calculated.diagnostics);
+    }
     for formula in [
-        "=\"á-ゝ\"<\"a-\"",       // Accent-equivalent primary, different raw prefix.
-        "=\"ａ-ゝ\"<\"a-\"",       // Width-equivalent primary, different raw prefix.
-        "=\"時A-ゝ\"<\"時a-\"",   // Case-equivalent primary, different raw prefix.
-        "=\"時-ゝx\"<\"時-\"",    // A tail beyond the measured mark.
-        "=\"時-́ゝ\"<\"時-\"",     // A combining mark between punctuation and iteration.
+        "=\"時-́ゝ\"<\"時-\"",     // A mark separates punctuation and iteration.
         "=\"時‐́ゝ\"<\"時‐\"",
-        "=\"時–ゝ\"<\"時–\"",     // An unmeasured punctuation unit.
-        "=\"時-ゞ\"<\"時-\"",     // An unmeasured iteration mark.
-        "=\"時-ゝ\"<\"時ゝ\"",    // Equal primary prefix without a raw prefix relation.
-        "=\"가-ゝ\"<\"가-\"",    // Globally refused conjoining jamo.
-        "=\"時-'ゝ\"<\"時\"",      // More than the measured terminal suffix.
+        "=\"時–ゝ\"<\"時–\"",     // Unmeasured punctuation.
+        "=\"時-ゞ\"<\"時-\"",     // Unmeasured iteration after punctuation.
+        "=\"가-ゝ\"<\"가-\"",    // Jamo suffix depends on its preceding primary.
+        "=\"時-­ゝ\"<\"時-\"",     // An ignorable separates the two units.
+        "=\"時-ゝゝ\"<\"時-\"",    // Two iterations after punctuation.
     ] {
         session.set_formula(formula);
         let calculated = session.calculate();
