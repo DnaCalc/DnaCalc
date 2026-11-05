@@ -96,6 +96,16 @@ fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     if a[0].is_excel_overflow() {
         return fail(WorksheetErrorCode::Value);
     }
+    if let (Some(environment), CoreRef::Number(_), CoreRef::Text(code)) =
+        (site.environment(), a[0].core_ref(), a[1].core_ref())
+    {
+        if environment.profile.is_none() {
+            let number = site.number_argument(0, &a[0])?;
+            return rendered(site, format::text_declared_date_locale(
+                environment.date_system, number, &code.to_string_lossy(),
+            ));
+        }
+    }
     let (environment, profile) = profile(site)?;
     let code = text_arg(site, a, 1)?.to_string_lossy();
     let number = match a[0].core_ref() {
