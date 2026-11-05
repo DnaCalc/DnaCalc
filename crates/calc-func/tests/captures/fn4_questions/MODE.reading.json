@@ -168,6 +168,158 @@
         "0x4000000000000000"
       ],
       "expected_bits": "error:NA"
+    },
+    {
+      "id": "fn7-MODE-blank-alone",
+      "args": [
+        "empty"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-MODE-blank-coercion-pair",
+      "args": [
+        "empty",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn7-MODE-blank-numeric-mode",
+      "args": [
+        "empty",
+        "0x4000000000000000",
+        "0x4000000000000000"
+      ],
+      "expected_bits": "error:Value"
+    },
+    {
+      "id": "fn9-MODE-scalar-admission-01",
+      "args": [
+        "empty"
+      ],
+      "expected_bits": "error:Value",
+      "compatibility_version": 2
+    },
+    {
+      "id": "fn9-MODE-scalar-admission-02",
+      "args": [
+        "empty",
+        "0x4000000000000000",
+        "0x4000000000000000"
+      ],
+      "expected_bits": "error:Value",
+      "compatibility_version": 2
+    },
+    {
+      "id": "fn9-MODE-scalar-admission-03",
+      "args": [
+        "0x4000000000000000",
+        "empty",
+        "0x4000000000000000"
+      ],
+      "expected_bits": "error:Value",
+      "compatibility_version": 2
+    },
+    {
+      "id": "fn9-MODE-scalar-admission-04",
+      "args": [
+        "0x4000000000000000",
+        "0x4000000000000000",
+        "empty"
+      ],
+      "expected_bits": "error:Value",
+      "compatibility_version": 2
+    },
+    {
+      "id": "fn9-MODE-scalar-admission-05",
+      "args": [
+        ""
+      ],
+      "expected_bits": "error:NA",
+      "compatibility_version": 2
+    },
+    {
+      "id": "fn9-MODE-scalar-admission-06",
+      "args": [
+        "",
+        "0x4000000000000000",
+        "0x4000000000000000"
+      ],
+      "expected_bits": "0x4000000000000000",
+      "compatibility_version": 2
+    },
+    {
+      "id": "fn9-MODE-scalar-admission-07",
+      "args": [
+        "2"
+      ],
+      "expected_bits": "error:NA",
+      "compatibility_version": 2
+    },
+    {
+      "id": "fn9-MODE-scalar-admission-08",
+      "args": [
+        "TRUE",
+        "0x4000000000000000",
+        "0x4000000000000000"
+      ],
+      "expected_bits": "0x4000000000000000",
+      "compatibility_version": 2
+    },
+    {
+      "id": "fn9-MODE-scalar-admission-09",
+      "args": [
+        "empty",
+        "error:Div0"
+      ],
+      "expected_bits": "error:Value",
+      "compatibility_version": 2
+    },
+    {
+      "id": "fn9-MODE-scalar-admission-10",
+      "args": [
+        "error:Div0",
+        "empty"
+      ],
+      "expected_bits": "error:Div0",
+      "compatibility_version": 2
+    },
+    {
+      "id": "fn9-MODE-scalar-admission-11",
+      "args": [
+        "x",
+        "error:Div0"
+      ],
+      "expected_bits": "error:Div0",
+      "compatibility_version": 2
+    },
+    {
+      "id": "fn9-MODE-scalar-admission-12",
+      "args": [
+        "error:Div0",
+        "x"
+      ],
+      "expected_bits": "error:Div0",
+      "compatibility_version": 2
+    },
+    {
+      "id": "fn9-MODE-scalar-admission-13",
+      "args": [
+        "empty",
+        "x"
+      ],
+      "expected_bits": "error:Value",
+      "compatibility_version": 2
+    },
+    {
+      "id": "fn9-MODE-scalar-admission-14",
+      "args": [
+        "x",
+        "empty"
+      ],
+      "expected_bits": "error:Value",
+      "compatibility_version": 2
     }
   ],
   "service_questions": [
@@ -396,6 +548,181 @@
       {
         "type": "number",
         "bits": "4000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "blank"
+      }
+    ],
+    [
+      {
+        "type": "blank"
+      },
+      {
+        "type": "number",
+        "bits": "0000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "blank"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "blank"
+      }
+    ],
+    [
+      {
+        "type": "blank"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "blank"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "blank"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "",
+        "mode": "cell"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "",
+        "mode": "cell"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "2",
+        "mode": "cell"
+      }
+    ],
+    [
+      {
+        "type": "boolean",
+        "value": true,
+        "mode": "cell"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      },
+      {
+        "type": "number",
+        "bits": "4000000000000000"
+      }
+    ],
+    [
+      {
+        "type": "blank"
+      },
+      {
+        "type": "error",
+        "code": "#DIV/0!"
+      }
+    ],
+    [
+      {
+        "type": "error",
+        "code": "#DIV/0!"
+      },
+      {
+        "type": "blank"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "cell"
+      },
+      {
+        "type": "error",
+        "code": "#DIV/0!"
+      }
+    ],
+    [
+      {
+        "type": "error",
+        "code": "#DIV/0!"
+      },
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "cell"
+      }
+    ],
+    [
+      {
+        "type": "blank"
+      },
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "cell"
+      }
+    ],
+    [
+      {
+        "type": "text",
+        "value": "x",
+        "mode": "cell"
+      },
+      {
+        "type": "blank"
       }
     ]
   ],
@@ -755,7 +1082,239 @@
     "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\03db1095f47f4d4dba4c908583f0b497"
   },
   "retained_wrapper_sha256": {
-    "live-mode-scalar-kinds.json": "cee75be2e76b72559e6aecba097f3f9ad378bafda92be9fe72d94829a9af8b5e"
+    "live-mode-scalar-kinds.json": "cee75be2e76b72559e6aecba097f3f9ad378bafda92be9fe72d94829a9af8b5e",
+    "live-MODE-admission.json": "7eb4e71f983d2ea0af699ceb35ea12590492327189770b7961492a00275024a8"
   },
-  "unselected_questions": "Three blank-cell questions remain in the full service response. Their separate blank-reference admission question is not established by the retained direct text/logical capture."
+  "unselected_questions": "All24 original questions are selected unchanged. Fn9 adds14 independent scalar blank/error-order controls with complete replies and measured settings.",
+  "service_responses_fn9": [
+    {
+      "version": 1,
+      "id": "e1819df4a39a4ae49e51c46578c85943",
+      "ok": true,
+      "rows": [
+        {
+          "type": "error",
+          "code": "#VALUE!"
+        },
+        {
+          "type": "error",
+          "code": "#VALUE!"
+        },
+        {
+          "type": "error",
+          "code": "#VALUE!"
+        },
+        {
+          "type": "error",
+          "code": "#VALUE!"
+        },
+        {
+          "type": "error",
+          "code": "#N/A"
+        },
+        {
+          "type": "number",
+          "bits": "4000000000000000"
+        },
+        {
+          "type": "error",
+          "code": "#N/A"
+        },
+        {
+          "type": "number",
+          "bits": "4000000000000000"
+        },
+        {
+          "type": "error",
+          "code": "#VALUE!"
+        },
+        {
+          "type": "error",
+          "code": "#DIV/0!"
+        },
+        {
+          "type": "error",
+          "code": "#DIV/0!"
+        },
+        {
+          "type": "error",
+          "code": "#DIV/0!"
+        },
+        {
+          "type": "error",
+          "code": "#VALUE!"
+        },
+        {
+          "type": "error",
+          "code": "#VALUE!"
+        }
+      ],
+      "inputs": [
+        [
+          {
+            "type": "blank"
+          }
+        ],
+        [
+          {
+            "type": "blank"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "blank"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "blank"
+          }
+        ],
+        [
+          {
+            "type": "text",
+            "value": ""
+          }
+        ],
+        [
+          {
+            "type": "text",
+            "value": ""
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "text",
+            "value": "2"
+          }
+        ],
+        [
+          {
+            "type": "boolean",
+            "value": true
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "blank"
+          },
+          {
+            "type": "error",
+            "code": "#DIV/0!"
+          }
+        ],
+        [
+          {
+            "type": "error",
+            "code": "#DIV/0!"
+          },
+          {
+            "type": "blank"
+          }
+        ],
+        [
+          {
+            "type": "text",
+            "value": "x"
+          },
+          {
+            "type": "error",
+            "code": "#DIV/0!"
+          }
+        ],
+        [
+          {
+            "type": "error",
+            "code": "#DIV/0!"
+          },
+          {
+            "type": "text",
+            "value": "x"
+          }
+        ],
+        [
+          {
+            "type": "blank"
+          },
+          {
+            "type": "text",
+            "value": "x"
+          }
+        ],
+        [
+          {
+            "type": "text",
+            "value": "x"
+          },
+          {
+            "type": "blank"
+          }
+        ]
+      ],
+      "excel_version": "16.0",
+      "excel_build": "20527",
+      "excel_file_version": "16.0.20527.20150",
+      "excel_pid": 14936,
+      "calculation_settings": {
+        "calculation": -4135,
+        "compatibility_version": null,
+        "unavailable": [],
+        "PrecisionAsDisplayed": false,
+        "Date1904": false,
+        "CompatibilityVersion": 2,
+        "UseSystemSeparators": true,
+        "DecimalSeparator": ".",
+        "ThousandsSeparator": " "
+      },
+      "automation_security_before": 1,
+      "automation_security_after": 1,
+      "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261105T0316437567320-fe16b8568695434f9ec090d3498a903c\\receipt.json",
+      "session_receipt_sha256": "943d2779160aa5a849b4f750b89f9e4d9d1292d3748644b5ef4f06f764ce914c",
+      "machine": "GOVERT-OMEN",
+      "timestamp": "2026-11-05T03:16:57.545716+00:00",
+      "service_seconds": 17.04700000002049,
+      "request_sha256": "5d627f98701853e5fcad77e298817395dae5f68047178dbf2f087fc8684a825a",
+      "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\e1819df4a39a4ae49e51c46578c85943"
+    }
+  ]
 }
