@@ -16063,3 +16063,30 @@ fn dc_971p_46__unassociated_chart_axes_refuse_before_history_changes() {
         assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,charts);
     }
 }
+
+/// Series additions precede type-specific records even when both use the same XML offset.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_46__type_and_added_series_keep_minimal_plot_schema_order() {
+    let part="xl/charts/chart1.xml";
+    let bytes=package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"),part,|xml|{
+        let end=xml.find("</c:barChart>").unwrap();let series=xml[..end].rfind("</c:ser>").unwrap()+8;
+        let axes=series+xml[series..end].find("<c:axId ").unwrap();format!("{}{}",&xml[..series],&xml[axes..])
+    });
+    let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();
+    let command=calc_host::WorkbookCommand::ChartSeries{sheet,revision:book.host().revision().get(),part:part.into(),plot:0,series:None,name:Some("Extra".into()),categories:Some("Data!A2:A7".into()),values:Some("Data!B2:B7".into()),remove:false};
+    assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    let command=calc_host::WorkbookCommand::ChartType{sheet,revision:book.host().revision().get(),part:part.into(),plot:0,kind:"bar".into(),stacked:true};
+    assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
+    let reopened=session(&saved);let charts=reopened.host().charts(sheet).0;
+    assert_eq!(charts[0].plots[0].kind,calc_host::ChartKind::Bar);assert!(charts[0].plots[0].stacked);
+    assert_eq!(charts[0].plots[0].series.len(),3);assert_eq!(charts[0].plots[0].series[2].values[0],Some(12.));
+    let snapshot=reopened.host().loaded().snapshot(reopened.host().model());let xml=snapshot.package().read_xml(part).unwrap();
+    let mut reader=xml.reader();let mut path=Vec::<String>::new();let mut children=Vec::new();
+    while let Some(event)=reader.next_event().unwrap(){match event{
+        calc_doc::XmlEvent::Start(e)=>{if path.last().is_some_and(|p|p=="barChart"){children.push(e.name.local.to_string());}path.push(e.name.local.to_string());},
+        calc_doc::XmlEvent::End(_)=>{path.pop();},_=>{}
+    }}
+    assert_eq!(children,["barDir","grouping","varyColors","ser","ser","ser","overlap","axId","axId"]);
+}
