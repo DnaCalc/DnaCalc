@@ -180,6 +180,7 @@ fn compare(
 #[derive(Clone, Copy)]
 enum Operand<'a> {
     Number(f64),
+    Overflow(f64),
     Text(&'a [u16]),
     Logical(bool),
     Blank,
@@ -189,7 +190,7 @@ impl Operand<'_> {
     /// The order of kinds: numbers, then text, then logicals.
     fn kind(self) -> u8 {
         match self {
-            Operand::Number(_) | Operand::Blank => 0,
+            Operand::Number(_) | Operand::Overflow(_) | Operand::Blank => 0,
             Operand::Text(_) => 1,
             Operand::Logical(_) => 2,
         }
@@ -198,7 +199,7 @@ impl Operand<'_> {
     /// The empty value of this operand's kind, which a blank compares as.
     fn blank(self) -> Self {
         match self {
-            Operand::Number(_) => Operand::Number(0.0),
+            Operand::Number(_) | Operand::Overflow(_) => Operand::Number(0.0),
             Operand::Text(_) => Operand::Text(&[]),
             Operand::Logical(_) => Operand::Logical(false),
             Operand::Blank => Operand::Blank,
@@ -211,7 +212,7 @@ pub(super) fn order(site: &Site<'_>, arguments: &[CalcValue], want: Want) -> Ste
     let mut operands = [Operand::Blank; 2];
     for (index, argument) in arguments.iter().enumerate() {
         operands[index] = match argument.core_ref() {
-            CoreRef::Number(n) if argument.is_excel_overflow() => Operand::Number(n),
+            CoreRef::Number(n) if argument.is_excel_overflow() => Operand::Overflow(n),
             CoreRef::Number(n) => Operand::Number(site.argument(index, coerce::operand(n))?),
             CoreRef::Text(text) => Operand::Text(text.utf16_code_units()),
             CoreRef::Logical(b) => Operand::Logical(b),
@@ -230,6 +231,9 @@ pub(super) fn order(site: &Site<'_>, arguments: &[CalcValue], want: Want) -> Ste
     };
     match (left, right) {
         (Operand::Number(a), Operand::Number(b)) => numbers(site, a, b),
+        (Operand::Overflow(a), Operand::Number(b))
+        | (Operand::Number(a), Operand::Overflow(b))
+        | (Operand::Overflow(a), Operand::Overflow(b)) => overflow_numbers(site, a, b),
         (Operand::Text(a), Operand::Text(b)) => {
             texts(a, b, want).map_err(|beyond| site.not_modelled(Some(beyond.operand)))
         }
@@ -238,25 +242,36 @@ pub(super) fn order(site: &Site<'_>, arguments: &[CalcValue], want: Want) -> Ste
     }
 }
 
-/// The order of two finite numbers. Equal numbers need no rounding. For different numbers the
+/// The order of qualified overflow encodings and already-validated numeric operands.
+/// Callers must retain the CalcValue qualification; arbitrary NaNs are not admitted.
+pub(super) fn overflow_numbers(site: &Site<'_>, a: f64, b: f64) -> Step<Ordering> {
+    if !(a.is_nan() || b.is_nan()) {
+        return numbers(site, a, b);
+    }
+    if a.to_bits() == b.to_bits() {
+        return Ok(Ordering::Equal);
+    }
+    if a.is_sign_negative() != b.is_sign_negative() {
+        return Ok(a.total_cmp(&b));
+    }
+    let half = |number: f64| {
+        if number.is_nan() {
+            f64::from_bits(number.to_bits() - (1_u64 << 52))
+        } else {
+            number * 0.5
+        }
+    };
+    numbers(site, half(a), half(b))
+}
+
+/// The order of two ordinary finite numbers. Equal numbers need no rounding. For different numbers the
 /// nearness test computes their difference and [`APART`] of the larger magnitude at the call's
 /// arithmetic sites, which round under its numeric mode. Numbers farther apart order by value;
 /// nearer ones by their 15-digit roundings, refused ([`in_band`]) where Excel's rounding may
 /// depart from the exact one and the departure could decide the comparison.
 pub(super) fn numbers(site: &Site<'_>, a: f64, b: f64) -> Step<Ordering> {
-    if a.is_nan() || b.is_nan() {
-        // Equality and positive overflow against a finite number have retained
-        // controls. Distinct encodings and negative ordering still await eng15.
-        if a.to_bits() == b.to_bits() {
-            return Ok(Ordering::Equal);
-        }
-        if (a.is_nan() && a.is_sign_negative())
-            || (b.is_nan() && b.is_sign_negative())
-            || (a.is_nan() && b.is_nan())
-        {
-            return Err(site.not_modelled(None));
-        }
-        return Ok(if a.is_nan() { Ordering::Greater } else { Ordering::Less });
+    if !a.is_finite() || !b.is_finite() {
+        return Err(site.not_modelled(None));
     }
     if a == b {
         return Ok(Ordering::Equal);

@@ -873,10 +873,22 @@ fn enter(session: &mut HostSession, at: CellKey, text: &str) -> IntentReceipt {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_j9k_19__eng14_original_immediate_bits_and_reopen_failures() {
-    let capture = calc_verdict::CaptureRecord::decode(include_bytes!(
+    recorded_overflow_round_trip(include_bytes!(
         "../../calc-engine/tests/captures/eng14-raw-nonfinite/oracle.capture.json"
-    )).unwrap();
-    assert_eq!(capture.observations.len(), 21);
+    ), include_bytes!("../../calc-engine/tests/fixtures/eng14-raw-nonfinite/oracle.xlsx"), 21, 6);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_j9k_19__eng15_order_extrema_sign_and_text_match_original_readings() {
+    recorded_overflow_round_trip(include_bytes!(
+        "../../calc-engine/tests/captures/eng15-overflow/oracle.capture.json"
+    ), include_bytes!("../../calc-engine/tests/fixtures/eng15-overflow/oracle.xlsx"), 94, 30);
+}
+
+fn recorded_overflow_round_trip(capture_bytes: &[u8], fixture: &[u8], observations: usize, reopen_differences: usize) {
+    let capture = calc_verdict::CaptureRecord::decode(capture_bytes).unwrap();
+    assert_eq!(capture.observations.len(), observations);
     let check = |book: &HostSession| {
         for observed in &capture.observations {
             let s = sheet(book.host(), observed.cell.sheet());
@@ -899,9 +911,7 @@ fn dc_j9k_19__eng14_original_immediate_bits_and_reopen_failures() {
             Arc::new(MemorySource::new(bytes)), &OpenPolicy::default(),
             HostOptions { calc_mode: Some(CalcMode::Manual), ..HostOptions::default() },
         ).unwrap();
-        let mut book = open(include_bytes!(
-            "../../calc-engine/tests/fixtures/eng14-raw-nonfinite/oracle.xlsx"
-        ).to_vec());
+        let mut book = open(fixture.to_vec());
         book.set_calculation_budget(WorkBudget::evaluations(budget));
         assert!(book.dispatch(SkinIntent::Rebuild).accepted());
         while book.has_pending_calculation() { book.advance_calculation(); }
@@ -921,7 +931,7 @@ fn dc_j9k_19__eng14_original_immediate_bits_and_reopen_failures() {
             assert_eq!(cache.value().to_value().as_error(), Some(calc_value::WorksheetErrorCode::Num));
             changed += 1;
         }
-        assert_eq!(changed, 6, "the six captured reopen differences remain distinct");
+        assert_eq!(changed, reopen_differences, "captured reopen differences remain distinct");
         reopened.set_calculation_budget(WorkBudget::evaluations(budget));
         assert!(reopened.dispatch(SkinIntent::Rebuild).accepted());
         while reopened.has_pending_calculation() { reopened.advance_calculation(); }
@@ -1006,7 +1016,10 @@ fn dc_j9k_19__overflow_bits_survive_cells_and_save_as_num_errors() {
                 let value = session_calculated(book, at(s, &cell))
                     .unwrap_or_else(|| panic!("{cell}: {:?}", session_value(book, at(s, &cell))));
                 assert!(value.is_excel_overflow(), "{cell}: {value:?}");
-                assert_eq!(value.as_number().unwrap().to_bits(), *bits, "{cell}");
+                // Eng15 D63 measures ABS of the negative encoding. The earlier
+                // synthetic control's shared sign-preservation assumption was wrong.
+                let expected_bits = if column == "E" { bits & !(1_u64 << 63) } else { *bits };
+                assert_eq!(value.as_number().unwrap().to_bits(), expected_bits, "{cell}");
                 assert_eq!(
                     calc_func::general_format(
                         &calc_func::locale::format_profile(calc_func::locale::LocaleId::EnUs),
@@ -1148,6 +1161,23 @@ fn dc_j9k_19__other_kernel_nan_is_refused_in_scalar_and_spill_positions() {
             !xml.contains("NaN") && !xml.contains("#NUM!"),
             "a refused kernel supplies no cache: {xml}"
         );
+    }
+    for bits in [bits, bits | (1_u64 << 63)] {
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        let returned = CalcValue::array(calc_value::CalcArray::from_rows(vec![
+            vec![CalcValue::number(f64::from_bits(bits))], vec![CalcValue::number(1.0)],
+        ]).unwrap());
+        let mut functions = calc_fml::CallableTable::new();
+        functions.register("OtherKernel", Rc::new(OtherKernel(returned))).unwrap();
+        book.set_user_functions(functions);
+        // INDEX selects the finite element that sorting would otherwise leave
+        // after/before the invalid NaN. A valid scalar result must not hide it.
+        let selected = if bits >> 63 == 0 { 1 } else { 2 };
+        enter(&mut book, at(s, "A1"), &format!("=INDEX(SORT(OtherKernel()),{selected})"));
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        assert!(matches!(session_value(&book, at(s, "A1")), ProjectedValue::NotModeled { .. }),
+            "a nested ordinary NaN must not disappear inside SORT/INDEX: {bits:016x}");
     }
 }
 

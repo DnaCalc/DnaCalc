@@ -94,6 +94,14 @@ fn rendered(site: &Site<'_>, result: Result<String, Failure>) -> Step<CalcValue>
 /// code's text section.
 fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     if a[0].is_excel_overflow() {
+        let code = text_arg(site, a, 1)?.to_string_lossy();
+        if code.eq_ignore_ascii_case("general") || code == "@" {
+            let default = crate::locale::format_profile(LocaleId::EnZa);
+            let profile = site.environment().and_then(|e| e.profile.as_ref()).unwrap_or(&default);
+            return Ok(crate::catalogue::kit::text_value(&format::general(
+                profile, a[0].as_number().expect("qualified overflow number"),
+            )));
+        }
         return fail(WorksheetErrorCode::Value);
     }
     if let (Some(environment), CoreRef::Number(_), CoreRef::Text(code)) =

@@ -481,17 +481,21 @@ Rounding past DBL_MAX (dc-j9k.19, 2026-11-04): ROUND, ROUNDDOWN and TRUNC explic
 qualify their measured exponent-field-2047 encodings in CalcValue. A copied value retains
 that qualification; an ordinary NaN, even with identical bits, never receives it.
 Publication validates every displayed spill or fixed-array member before installing the image.
-N, ABS, unary minus and single-number extrema preserve the bits. Arithmetic returns #NUM!,
-TEXT returns #VALUE!, and type/error predicates see a number. The recorded positive comparison
-and reflexive equality work; distinct encodings, negative ordering and extrema choosing among
-multiple numbers remain typed refusals. Eng15 now records those cases; the
-implementation has not yet adopted a general ordering or selection rule.
-Its unchanged 94-cell capture currently gives 76 matches, 15 typed refusals and
-three mismatches. The negative-overflow ABS result retains the wrong sign, and
-TEXT with General or @ returns #VALUE! instead of the recorded 2E+308. The
-preceding bit-preservation and TEXT descriptions are current implementation
-behavior, not general Excel rules. All 18 nonpasses and 30 capture save/reopen
-differences remain failures; no ordering or formatting kernel was guessed.
+N, unary minus and single-number extrema preserve the bits. ABS removes the
+sign while retaining the qualification. Arithmetic returns #NUM!, and type/error
+predicates see a number. Eng15's unchanged readings establish separated overflow
+encodings in both signs and mixed finite/overflow extrema. Comparison scales the
+exponent-carry representation and the finite operand together by one half, then
+uses the existing number comparison. Near ties in the top binade still refuse;
+these observations do not establish their rounding rule. Extrema retain the
+selected value's qualification and use the same comparison for an overflow pair.
+Generic array sorting, grouping and criteria comparisons still refuse nonfinite
+inputs; they cannot infer the qualification from a bare f64. Nested SORT/INDEX
+controls cover both ordinary NaN signs so a finite selection cannot hide one.
+Concatenation and TEXT with General or @ reuse the existing General renderer;
+TEXT with the recorded numeric code 0 remains #VALUE!. The 94 immediate captured
+readings now match, with no typed refusal; the 30 capture save/reopen differences
+remain separate failures. No custom-format or unmeasured near-tie parity is claimed.
 General rendering covers the four recorded .Text readings; custom cell formats remain explicitly
 unmodelled. Eng15 retains unchanged Value2 readings at widths 8.43, 20 and 40;
 this does not establish rendering parity. Save writes #NUM! caches,
