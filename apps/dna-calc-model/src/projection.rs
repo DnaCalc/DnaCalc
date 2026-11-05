@@ -362,6 +362,8 @@ pub enum Intent {
     },
     ApplyPaste {
         id: u64,
+        #[serde(default)]
+        select_target: bool,
     },
     EnterCell {
         at: Key,

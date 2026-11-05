@@ -148,7 +148,6 @@ All problem-list entries are reported, including workbook-only, text/discrete an
 | IMSECH | observed | not identifiable on non-numeric/error output | unresolved | 0, 0 | unmeasured |
 | IMSINH | observed | not identifiable on non-numeric/error output | unresolved | 0, 0 | unmeasured |
 | IMTAN | observed | not identifiable on non-numeric/error output | unresolved | 0, 0 | unmeasured |
-| INDEX | workbook-only | unresolved | unresolved | — | unmeasured |
 | ISEVEN | workbook-only | unresolved | unresolved | — | unmeasured |
 | ISODD | workbook-only | unresolved | unresolved | — | unmeasured |
 | Infix & | workbook-only | unresolved | unresolved | — | unmeasured |
@@ -164,11 +163,9 @@ All problem-list entries are reported, including workbook-only, text/discrete an
 | RADIANS | observed | unresolved: no complete scalar mathematical reference | unresolved | 8, 8 | unmeasured |
 | ROWS | workbook-only | unresolved | unresolved | — | unmeasured |
 | RRI | observed | unresolved: no complete scalar mathematical reference | unresolved | 6, 5 | unmeasured |
-| SEARCH | non-numeric-coordinate | unresolved | unresolved | — | unmeasured |
 | SIGN | workbook-only | unresolved | unresolved | — | unmeasured |
 | SQRT | observed | double-round mathematical leaf consistent | unresolved | 8, 8 | unmeasured |
 | STANDARDIZE | observed | single/double indistinguishable | unresolved | 8, 8 | unmeasured |
-| TEXT | service-refused | unresolved | unresolved | — | unmeasured |
 | TEXTSPLIT | workbook-only | unresolved | unresolved | — | unmeasured |
 | WEEKNUM | observed | unresolved: flat quantized windows | unresolved | 0, 0 | unmeasured |
 | LN | observed | single/double indistinguishable | unresolved | 7, 7 | unmeasured |

@@ -8214,11 +8214,11 @@ Case {
     Case {
         name:"templates: ordinary Open creates an unsaved workbook with calculated formulas",
         actions:&[Action::UploadDownload("Budget.xltx"),Action::DiscardReplacement],
-        checks:&[Check::Text("document","Book1.xlsx"),Check::Attr("document","data-unsaved","true"),Check::Attr("document","data-template","false"),Check::Text(cell!("A1"),"6"),Check::Text(cell!("B1"),"18"),Check::PlanCell("B1","provenance","calculated")],
+        checks:&[Check::Text("document","Budget1.xlsx"),Check::Attr("document","data-unsaved","true"),Check::Attr("document","data-template","false"),Check::Text(cell!("A1"),"6"),Check::Text(cell!("B1"),"18"),Check::PlanCell("B1","provenance","calculated")],
     },
     Case {
         name:"templates: Save of the unsaved workbook prompts Save As and cancellation keeps it",
-        actions:&[Action::Click("save"),Action::Wait(Check::Rendered("save-as-dialog",true)),Action::Wait(Check::Value("save-as-format","xlsx")),Action::Click("save-as-cancel")],
+        actions:&[Action::Click("save"),Action::Wait(Check::Rendered("save-as-dialog",true)),Action::Wait(Check::Value("save-as-format","xlsx")),Action::Wait(Check::Value("save-as-name","Budget1")),Action::Click("save-as-cancel")],
         checks:&[Check::Attr("document","data-unsaved","true"),Check::Text(cell!("B1"),"18"),Check::Absent("[data-dnacalc=save-as-dialog][open]")],
     },
     Case {
@@ -8230,13 +8230,13 @@ Case {
     Case {
         name:"templates: personal templates create independent workbooks and can be removed",
         actions:&[Action::OpenDetails("file-menu"),Action::UploadDownloadTo("Budget.xltx","template-file"),Action::Wait(Check::Value("template-list","Budget.xltx")),Action::Click("template-new"),Action::DiscardReplacement,
-            Action::Wait(Check::Text("document","Book1.xlsx")),Action::OpenDetails("file-menu"),Action::Choose("template-list","Budget.xltx"),Action::Click("template-remove")],
+            Action::Wait(Check::Text("document","Budget2.xlsx")),Action::OpenDetails("file-menu"),Action::Choose("template-list","Budget.xltx"),Action::Click("template-new"),Action::DiscardReplacement,Action::Wait(Check::Text("document","Budget3.xlsx")),Action::OpenDetails("file-menu"),Action::Choose("template-list","Budget.xltx"),Action::Click("template-remove")],
         checks:&[Check::Value("template-list",""),Check::Text(cell!("B1"),"18"),Check::Attr("document","data-unsaved","true")],
     },
     Case {
         name:"templates: a macro-enabled choice writes a template and opens it as an xlsm workbook",
         actions:&[Action::OpenDetails("file-menu"),Action::Click("save-as"),Action::Into("save-as-name","MacroBudget"),Action::Choose("save-as-format","xltm"),Action::Click("save-as-confirm"),Action::Wait(Check::Text("document","MacroBudget.xltm")),Action::UploadDownload("MacroBudget.xltm"),Action::DiscardReplacement],
-        checks:&[Check::Text("document","Book1.xlsm"),Check::Attr("document","data-unsaved","true"),Check::Text(cell!("B1"),"18")],
+        checks:&[Check::Text("document","MacroBudget1.xlsm"),Check::Attr("document","data-unsaved","true"),Check::Text(cell!("B1"),"18")],
     },
     Case {
         name:"templates: VBA loss is warned and the macro-free download is refused atomically",
@@ -8452,6 +8452,41 @@ Case {
         ],
         checks: &[Check::PlanCell("B1", "text", "9"), Check::PlanCell("B1", "provenance", "calculated"), Check::Fits],
     },
+
+    Case { name: "range drag: formatted formulas move and outside references follow", actions: &[
+        Action::ExternalClipboard("5\t=A1+1\n10\t=A2+1",false), Action::Keys("grid","\u{E009}v\u{E000}"), Action::Wait(Check::PlanCell("B2","text","11")),
+        Action::Into("name-box","C1\u{E007}"), Action::Into(BAR,"=SUM(A1:B2)\u{E007}"), Action::Into("name-box","C2\u{E007}"), Action::Into(BAR,"=A1+100\u{E007}"),
+        Action::Into("name-box","A1:B2\u{E007}"), Action::Keys("grid","\u{E009}1\u{E000}"), Action::Wait(Check::Focused("format-number")), Action::Choose("format-preset","#,##0.00"), Action::Click("format-tab-font"), Action::Choose("format-bold","true"), Action::Click("format-apply"),
+        Action::Wait(Check::PlanCell("A1","text","5.00")), Action::DragSelectionToCell(3,"D",false,false),
+    ], checks: &[Check::PlanCell("D3","text","5.00"),Check::PlanCell("E3","text","6.00"),Check::PlanCell("D4","text","10.00"),Check::PlanCell("E4","text","11.00"),Check::PlanCell("D3","style.bold","true"),Check::PlanAbsent("A1"),Check::PlanAbsent("B2"),Check::PlanCell("C1","text","32"),Check::PlanCell("C2","text","105"),Check::Attr("selection","data-area","D3:E4")] },
+    Case { name: "range drag: one Undo and Redo restore values formats and outside references", actions: &[
+        Action::Click("undo"),Action::Wait(Check::PlanCell("A1","text","5.00")),Action::Wait(Check::PlanAbsent("D3")),Action::Wait(Check::Attr("selection","data-area","A1:B2")),Action::Wait(Check::PlanCell("C1","text","32")),Action::Click("redo"),Action::Wait(Check::Attr("selection","data-area","D3:E4")),
+    ], checks: &[Check::PlanAbsent("A1"),Check::PlanCell("D3","text","5.00"),Check::PlanCell("D3","style.bold","true"),Check::PlanCell("C1","text","32"),Check::PlanCell("C2","text","105")] },
+    Case { name: "range drag: Ctrl copies all cells independently of Paste Special and transpose choices", actions: &[
+        Action::OpenDetails("clipboard-tools"),Action::Choose("paste-mode","values"),Action::Click("paste-transpose"),Action::Click("[data-dnacalc=clipboard-tools]>summary"),Action::Into("name-box","D3:E4\u{E007}"),Action::DragSelectionToCell(3,"G",true,false),
+    ], checks: &[Check::PlanCell("G3","text","5.00"),Check::PlanCell("H3","text","6.00"),Check::PlanCell("G4","text","10.00"),Check::PlanCell("H4","text","11.00"),Check::PlanCell("G3","style.bold","true"),Check::PlanCell("D3","text","5.00"),Check::PlanCell("C1","text","32"),Check::Attr("selection","data-area","G3:H4")] },
+    Case { name: "range drag: overlapping movement reads one original snapshot", actions: &[
+        Action::Into("name-box","D3:E4\u{E007}"),Action::DragSelectionToCell(4,"D",false,false),Action::Wait(Check::Rendered("paste-preview",true)),Action::Click("paste-confirm"),
+    ], checks: &[Check::PlanAbsent("D3"),Check::PlanAbsent("E3"),Check::PlanCell("D4","text","5.00"),Check::PlanCell("E4","text","6.00"),Check::PlanCell("D5","text","10.00"),Check::PlanCell("E5","text","11.00"),Check::PlanCell("C1","text","32"),Check::PlanCell("C2","text","105")] },
+    Case { name: "range drag: cancelling an overwrite preserves both rectangles and dependencies", actions: &[
+        Action::DragSelectionToCell(3,"G",false,false),Action::Wait(Check::Rendered("paste-preview",true)),Action::Click("paste-cancel"),
+    ], checks: &[Check::PlanCell("D4","text","5.00"),Check::PlanCell("G3","text","5.00"),Check::PlanCell("H4","text","11.00"),Check::PlanCell("C1","text","32"),Check::Attr("selection","data-area","D4:E5")] },
+    Case { name: "range drag: Escape cancels the gesture and preserves an existing copied snapshot", actions: &[
+        Action::Into("name-box","G3\u{E007}"),Action::Keys("grid","\u{E009}c\u{E000}"),Action::Wait(Check::Starts("status","Copied")),Action::Into("name-box","D4:E5\u{E007}"),Action::DragSelectionToCell(3,"J",false,true),
+        Action::OpenDetails("clipboard-tools"),Action::Choose("paste-mode","all"),Action::Click("paste-transpose"),Action::Into("name-box","J1\u{E007}"),Action::Click("paste-snapshot"),Action::Click("[data-dnacalc=clipboard-tools]>summary"),
+    ], checks: &[Check::PlanCell("J1","text","5.00"),Check::PlanCell("J1","style.bold","true"),Check::PlanAbsent("J3"),Check::PlanCell("D4","text","5.00"),Check::PlanCell("C1","text","32")] },
+    Case { name: "range drag: an accepted move also leaves a previous copied snapshot available", actions: &[
+        Action::Into("name-box","D4:E5\u{E007}"),Action::DragSelectionToCell(4,"A",false,false),Action::Wait(Check::PlanCell("A4","text","5.00")),Action::Into("name-box","J2\u{E007}"),Action::OpenDetails("clipboard-tools"),Action::Click("paste-snapshot"),Action::Click("[data-dnacalc=clipboard-tools]>summary"),
+    ], checks: &[Check::PlanAbsent("D4"),Check::PlanCell("J2","text","5.00"),Check::PlanCell("C1","text","32"),Check::PlanCell("C2","text","105")] },
+    Case { name: "range drag: actual XLSX reopen retains moved formats and rewritten formula text", actions: &[
+        Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::Window(390,844),Action::Into("name-box","C1\u{E007}"),
+    ], checks: &[Check::Value(BAR,"=SUM(A4:B5)"),Check::PlanCell("A4","style.bold","true"),Check::PlanCell("A4","text","5.00"),Check::PlanCell("B5","text","11.00"),Check::PlanCell("C1","text","32"),Check::Fits] },
+    Case { name: "range drag: frozen panes use the same selection and pointer maps", actions: &[
+        Action::Window(1440,1000),Action::OpenDetails("pane-tools"),Action::Click("freeze-row"),Action::Click("[data-dnacalc=pane-tools]>summary"),Action::Into("name-box","A4:B5\u{E007}"),Action::DragSelectionToCell(4,"D",false,false),
+    ], checks: &[Check::PlanAbsent("A4"),Check::PlanCell("D4","text","5.00"),Check::PlanCell("E5","text","11.00"),Check::PlanCell("C1","text","32"),Check::Attr("selection","data-area","D4:E5")] },
+    Case { name: "range drag: ordinary interior clicks still enter and commit a formula", actions: &[
+        Action::DoubleClick(cell!("D4")),Action::Into("cell-editor","=1+2"),Action::Keys("cell-editor",ENTER),
+    ], checks: &[Check::PlanCell("D4","text","3.00"),Check::PlanCell("E4","text","4.00"),Check::PlanCell("E4","formula","true"),Check::PlanCell("C1","text","28"),Check::PlanCell("C2","text","103"),Check::Absent("cell-editor"),Check::Focused("grid")] },
 
 ];
 
@@ -9301,4 +9336,5 @@ CaseGroup {
     CaseGroup {name:"calendar-sorting",start:701,end:705,core:4,setup:&[]},
     CaseGroup {name:"typed-colour-filters",start:705,end:709,core:4,setup:&[]},
     CaseGroup { name: "completion-repair", start: 709, end: 714, core: 5, setup: &[] },
+    CaseGroup {name:"range-drag",start:714,end:724,core:10,setup:&[]},
 ];

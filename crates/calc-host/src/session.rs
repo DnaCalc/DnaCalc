@@ -820,6 +820,10 @@ impl HostSession {
                     crate::WorkbookCommand::Paste(plan) => plan.coordinates(),
                     _ => None,
                 };
+                let after_selection = match &command {
+                    crate::WorkbookCommand::Paste(plan) => plan.selection(),
+                    _ => None,
+                };
                 crate::actions::prepare(&self.host, &mut self.sheet_keys, command)
                     .map_err(IntentError::Workbook)
                     .and_then(|edits| {
@@ -827,7 +831,7 @@ impl HostSession {
                             return Ok(());
                         }
                         let edits = self.authored_edits(edits);
-                        self.edit_coordinates(edits, coordinates, &mut receipt)
+                        self.edit_coordinates(edits, coordinates, after_selection, &mut receipt)
                     })
             }
             SkinIntent::EnterCell { at, text } => self
@@ -856,7 +860,7 @@ impl HostSession {
                         let edits = self.authored_edits(edits);
                         let coordinates = cut
                             .then(|| crate::copy::move_coordinates(&self.host, from, to.first()));
-                        self.edit_coordinates(edits, coordinates, &mut receipt)
+                        self.edit_coordinates(edits, coordinates, None, &mut receipt)
                     }
                     Err(refusal) => Err(IntentError::Copy(refusal)),
                 }
@@ -1214,23 +1218,28 @@ impl HostSession {
         edits: Vec<CellEdit>,
         receipt: &mut IntentReceipt,
     ) -> Result<(), IntentError> {
-        self.edit_coordinates(edits, None, receipt)
+        self.edit_coordinates(edits, None, None, receipt)
     }
 
     fn edit_coordinates(
         &mut self,
         edits: Vec<CellEdit>,
         coordinates: Option<calc_fml::reference::StructuralEdit>,
+        after_selection: Option<Selection>,
         receipt: &mut IntentReceipt,
     ) -> Result<(), IntentError> {
+        let before = self.selection.clone();
         let inverse = inverse(&self.host.model, &self.host.axis_edits, &edits);
         self.commit_coordinates(edits.clone(), coordinates.as_ref(), receipt)?;
+        if let Some(selection) = after_selection {
+            self.select_quietly(selection, receipt);
+        }
         self.history.record(Step {
             forward: edits,
             imported: None,
             coordinates,
             inverse,
-            before: self.selection.clone(),
+            before,
             after: self.selection.clone(),
         });
         self.after_commit(receipt);

@@ -3,22 +3,21 @@
   "complete": true,
   "inventory_complete": true,
   "coverage": {
-    "problem_functions": 149,
-    "reported": 152,
+    "problem_functions": 146,
+    "reported": 149,
     "statuses": {
       "observed": 117,
-      "workbook-only": 32,
-      "service-refused": 2,
-      "non-numeric-coordinate": 1
+      "workbook-only": 31,
+      "service-refused": 1
     }
   },
-  "generator_sha256": "77e57432ab0f5d448ac5dff0cfb0477c3f654ad941a5d1e31dd2ba25704166fc",
-  "problem_list_sha256": "fb835120308598d5ff2eba331303d33698d0d2ec45fc927bec8edd58435c896c",
+  "generator_sha256": "3468429d463f14eb3c6110cc7da35ae5dbf3d86621995525c5abb898c914fc5d",
+  "problem_list_sha256": "74f454c0ed18a18ca4d91e0a3168e497b681b5bd55f2169ca521f2f114661b2e",
   "source_bindings": {
-    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/racer/fingerprint.py": "77e57432ab0f5d448ac5dff0cfb0477c3f654ad941a5d1e31dd2ba25704166fc",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/racer/fingerprint.py": "3468429d463f14eb3c6110cc7da35ae5dbf3d86621995525c5abb898c914fc5d",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/checker/reference.py": "b34fb31455348e7cf56a58f6fdafd8d9fc7f20afc5d2b85b7a409fac7aee4bdd",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/checker/exact.py": "842363e00ad65c464623594822d566a2af9a0415e0b574557613092c993af80f",
-    "/home/ubuntu/projects/DnaCalc/DnaCalc/docs/generated/problem-functions.json": "fb835120308598d5ff2eba331303d33698d0d2ec45fc927bec8edd58435c896c",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/docs/generated/problem-functions.json": "74f454c0ed18a18ca4d91e0a3168e497b681b5bd55f2169ca521f2f114661b2e",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/tools/excel-service/client.py": "4cd9f8df4dbe06917ae4c4d12d181e169b8d0bee68fe99e59d3f4d289226b89e",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/tools/excel-service/policy.py": "7b4605191b314e1e655dc155d90ae70e6459fe945eda22973a29993c55ca1ae4"
   },
@@ -33,12 +32,6 @@
       "function": "FIXED",
       "file": "ce997d41f2f405d7037f4f8fd67c624702b8f82f5677277e386a99dfe51fd345.refusal-70ebb8dd1cef4344a0dd37c16b61a48a.json.gz",
       "sha256": "b02b6732f1e979639e94a1b97418f13fa18288a980316d7c2f93070a606478c5",
-      "calls_requested": 1024
-    },
-    {
-      "function": "TEXT",
-      "file": "ff74d79278691113fe0b4c40ee22822b213e111ac682749ada034d24e2ebe5ef.refusal-3c35768439804d66b3aa6fe6bc84c9b4.json.gz",
-      "sha256": "5f8241f3b678c22669688754a9a6848b79b97849cf948c8e1239b3a5b19784ec",
       "calls_requested": 1024
     }
   ],
@@ -15988,18 +15981,6 @@
       "broader_primitive_windows": []
     },
     {
-      "function": "INDEX",
-      "problem_list_member": true,
-      "rounding": "unresolved",
-      "stored_stages": null,
-      "band_edges": [],
-      "windows": [],
-      "status": "workbook-only",
-      "reason": "outside the scalar service catalogue; no service restriction changed",
-      "observed_approximation_boundaries": [],
-      "broader_primitive_windows": []
-    },
-    {
       "function": "ISEVEN",
       "problem_list_member": true,
       "rounding": "unresolved",
@@ -16551,19 +16532,6 @@
       "broader_primitive_windows": []
     },
     {
-      "function": "SEARCH",
-      "problem_list_member": true,
-      "rounding": "unresolved",
-      "stored_stages": null,
-      "band_edges": [],
-      "windows": [],
-      "seed_origin": "no scalar seed in the existing pin inventory",
-      "status": "non-numeric-coordinate",
-      "reason": "no scalar seed in the existing pin inventory",
-      "observed_approximation_boundaries": [],
-      "broader_primitive_windows": []
-    },
-    {
       "function": "SIGN",
       "problem_list_member": true,
       "rounding": "unresolved",
@@ -16978,54 +16946,6 @@
         },
         "discriminants": [],
         "limitation": "Ideal real-function publication only. Agreement does not identify the inner algorithm or its stores; any neither result refutes this complete leaf model."
-      },
-      "observed_approximation_boundaries": [],
-      "broader_primitive_windows": []
-    },
-    {
-      "function": "TEXT",
-      "problem_list_member": true,
-      "rounding": "unresolved",
-      "stored_stages": null,
-      "band_edges": [],
-      "windows": [],
-      "seed_origin": "fixed textbook example",
-      "arguments": [
-        {
-          "type": "number",
-          "bits": "3ff4cccccccccccd"
-        },
-        {
-          "type": "text",
-          "value": "0.0000000000000000",
-          "mode": "cell"
-        }
-      ],
-      "varying_argument": 0,
-      "requested_calls": 1024,
-      "requested_windows": [
-        {
-          "start": "3ff4cccccccccbcd",
-          "count": 512
-        },
-        {
-          "start": "3ff9ffffffffff00",
-          "count": 512
-        }
-      ],
-      "status": "service-refused",
-      "refusal": {
-        "version": 1,
-        "id": "3c35768439804d66b3aa6fe6bc84c9b4",
-        "ok": false,
-        "error": "function is outside the service's safe catalogue subset",
-        "rows": [],
-        "excel_build": null,
-        "machine": "GOVERT-OMEN",
-        "timestamp": "2026-11-04T19:39:31.690110+00:00",
-        "service_seconds": 0.01600000006146729,
-        "request_sha256": "c442a068eac917326b02733eb48841166129945d36095bfb8bfe24f88e50b8cd",
-        "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-firehorse\\3c35768439804d66b3aa6fe6bc84c9b4"
       },
       "observed_approximation_boundaries": [],
       "broader_primitive_windows": []
@@ -18455,7 +18375,7 @@
     }
   ],
   "producer_bindings": {
-    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/racer/fingerprint.py": "77e57432ab0f5d448ac5dff0cfb0477c3f654ad941a5d1e31dd2ba25704166fc",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/racer/fingerprint.py": "3468429d463f14eb3c6110cc7da35ae5dbf3d86621995525c5abb898c914fc5d",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/checker/reference.py": "b34fb31455348e7cf56a58f6fdafd8d9fc7f20afc5d2b85b7a409fac7aee4bdd",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/checker/exact.py": "842363e00ad65c464623594822d566a2af9a0415e0b574557613092c993af80f"
   },
