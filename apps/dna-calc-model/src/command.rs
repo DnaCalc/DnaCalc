@@ -5,6 +5,8 @@ use calc_value::{CellKey, GridArea, NameId, SheetId};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CommandId {
+    PasteSpecial,
+    FlashFill,
     FormatCells,
     NameManager,
     Undo,
@@ -17,7 +19,9 @@ pub enum CommandId {
     SwitchSkin,
 }
 impl CommandId {
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 12] = [
+        Self::PasteSpecial,
+        Self::FlashFill,
         Self::FormatCells,
         Self::NameManager,
         Self::Undo,
@@ -31,6 +35,8 @@ impl CommandId {
     ];
     pub const fn stable_id(self) -> &'static str {
         match self {
+            Self::PasteSpecial => "edit.paste-special",
+            Self::FlashFill => "edit.flash-fill",
             Self::FormatCells => "format.cells",
             Self::NameManager => "name.manager",
             Self::Undo => "edit.undo",
@@ -45,6 +51,8 @@ impl CommandId {
     }
     pub const fn label(self) -> &'static str {
         match self {
+            Self::PasteSpecial => "Paste Special",
+            Self::FlashFill => "Flash Fill",
             Self::FormatCells => "Format Cells",
             Self::NameManager => "Name Manager",
             Self::Undo => "Undo",
@@ -73,6 +81,8 @@ pub enum RevealTarget {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Command {
+    PasteSpecial,
+    FlashFill,
     FormatCells,
     NameManager,
     Undo,
@@ -87,6 +97,8 @@ pub enum Command {
 impl Command {
     pub const fn id(&self) -> CommandId {
         match self {
+            Self::PasteSpecial => CommandId::PasteSpecial,
+            Self::FlashFill => CommandId::FlashFill,
             Self::FormatCells => CommandId::FormatCells,
             Self::NameManager => CommandId::NameManager,
             Self::Undo => CommandId::Undo,
@@ -101,6 +113,8 @@ impl Command {
     }
     pub fn simple(id: CommandId) -> Option<Self> {
         Some(match id {
+            CommandId::PasteSpecial => Self::PasteSpecial,
+            CommandId::FlashFill => Self::FlashFill,
             CommandId::FormatCells => Self::FormatCells,
             CommandId::NameManager => Self::NameManager,
             CommandId::Undo => Self::Undo,
@@ -150,6 +164,8 @@ pub struct CommandRequest {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Effect {
+    PasteSpecial,
+    FlashFill,
     FormatCells,
     NameManager,
     Undo {
@@ -187,7 +203,7 @@ impl Model {
         if self.edit.surface.is_some()
             && matches!(
                 id,
-                CommandId::FormatCells
+                CommandId::PasteSpecial | CommandId::FlashFill | CommandId::FormatCells
                     | CommandId::NameManager
                     | CommandId::Find
                     | CommandId::Replace
@@ -228,6 +244,8 @@ impl Model {
         let CommandRequest { command, focus } = request;
         self.availability(command.id(), context)?;
         Ok(match command {
+            Command::PasteSpecial => Effect::PasteSpecial,
+            Command::FlashFill => Effect::FlashFill,
             Command::NameManager => {
                 if !self.names.open {
                     self.names = crate::names::NameState {
@@ -287,6 +305,8 @@ pub struct CommandBinding {
     pub command: CommandId,
 }
 pub const SHELL_KEYMAP: &[CommandBinding] = &[
+    CommandBinding {key:"v",ctrl:true,shift:false,alt:true,command:CommandId::PasteSpecial},
+    CommandBinding {key:"e",ctrl:true,shift:false,alt:false,command:CommandId::FlashFill},
     CommandBinding {
         key: "F3",
         ctrl: true,

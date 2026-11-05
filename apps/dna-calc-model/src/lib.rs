@@ -190,6 +190,7 @@ mod tests {
                 ("Z", true, CommandId::Undo, Effect::Undo { editor: false }),
                 ("Y", true, CommandId::Redo, Effect::Redo { editor: false }),
                 ("f", true, CommandId::Find, Effect::Dialog),
+                ("e", true, CommandId::FlashFill, Effect::FlashFill),
                 ("F9", false, CommandId::Recalculate, Effect::Recalculate),
             ] {
                 assert_eq!(
@@ -201,6 +202,8 @@ mod tests {
                     Ok(expected)
                 );
             }
+            assert_eq!(resolve_shell_key(&selection::KeyChord::new("V",false,true,true)),Some(CommandId::PasteSpecial));
+            assert_eq!(model.dispatch(Command::PasteSpecial,context()),Ok(Effect::PasteSpecial));
             let before = model.active_skin.clone();
             assert_eq!(
                 model.availability(
@@ -262,6 +265,9 @@ mod tests {
             Err(Unavailable::EditInProgress)
         );
         assert_eq!(model.edit, session);
+        assert_eq!(model.dispatch(Command::FlashFill, context()),Err(Unavailable::EditInProgress));
+        assert_eq!(model.dispatch(Command::PasteSpecial, context()),Err(Unavailable::EditInProgress));
+        assert_eq!(model.edit,session);
         model
             .dispatch(Command::SwitchSkin(SkinId::new("new-skin")), context())
             .unwrap();

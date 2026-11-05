@@ -116,7 +116,7 @@ impl fmt::Display for CopyRefusal {
                 anchor.column()
             ),
             Self::Series => f.write_str(
-                "this series needs one date or evenly spaced numeric seeds in each row or column",
+                "this series needs one date, numbered text or evenly spaced numeric seeds in each row or column",
             ),
             CopyRefusal::UnknownSheet => {
                 f.write_str("the copy names a sheet the workbook does not hold")
@@ -856,6 +856,18 @@ fn copy_edits_from(
                         continue;
                     }
                 }
+                if let Some((prefix,suffix,width,first))=numbered_text(source_model.cell(seed_at(0))) {
+                    let step=if n>1 {numbered_text(source_model.cell(seed_at(1))).and_then(|(_,_,_,v)|v.checked_sub(first)).ok_or(CopyRefusal::Series)?}else{1};
+                    for i in 0..n {
+                        let (p,s,_,v)=numbered_text(source_model.cell(seed_at(i))).ok_or(CopyRefusal::Series)?;
+                        if p!=prefix || s!=suffix || Some(v)!=step.checked_mul(i128::from(i)).and_then(|v|first.checked_add(v)){return Err(CopyRefusal::Series);}
+                    }
+                    let index=if down {i128::from(row)-i128::from(from.first().row())}else{i128::from(column)-i128::from(from.first().column())};
+                    let value=step.checked_mul(index).and_then(|v|first.checked_add(v)).filter(|v|*v>=0).ok_or(CopyRefusal::Series)?;
+                    let mut units=prefix;units.extend(format!("{value:0width$}").encode_utf16());units.extend(suffix);
+                    let input=CellText::new(calc_doc_model::value::ExcelText::from_utf16_code_units(units)).ok_or(CopyRefusal::Series)?;
+                    edits.push(CellEdit::Set{at:target,input:CellInput::Text(input)});continue;
+                }
             }
             if let Some(array) = legacy.iter().find(|array| array.area().contains(source)) {
                 // A legacy array is written once, from its anchor, over its shape.
@@ -1033,4 +1045,16 @@ fn uses_name(text: &str, name: &str) -> bool {
         let after = text[at + name.len()..].chars().next();
         !before.is_some_and(word) && !after.is_some_and(word)
     })
+}
+
+/// The last ASCII digit run, retaining all other UTF-16 units and any leading zero width.
+fn numbered_text(input:Option<&CellInput>)->Option<(Vec<u16>,Vec<u16>,usize,i128)>{
+    let CellInput::Text(text)=input? else{return None;};let units=text.text().utf16_code_units();
+    let digit=|u:&u16|(u16::from(b'0')..=u16::from(b'9')).contains(u);
+    let end=units.iter().rposition(digit)?+1;
+    let start=units[..end].iter().rposition(|u|!digit(u)).map_or(0,|i|i+1);
+    let mut number=0i128;
+    for &unit in &units[start..end] {number=number.checked_mul(10)?.checked_add(i128::from(unit-u16::from(b'0')))?;}
+    let width=if end-start>1 && units[start]==u16::from(b'0'){end-start}else{0};
+    Some((units[..start].to_vec(),units[end..].to_vec(),width,number))
 }

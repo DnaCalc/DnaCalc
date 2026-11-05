@@ -8590,6 +8590,30 @@ Case {
     Case {name:"chart types: source edits and a type change share the retained save route",actions:&[
         Action::Window(1600,1800),Action::Upload("open-file","crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools"),Action::Wait(Check::Value("chart-type","column")),Action::Into("chart-series-values","Data!C2:C7"),Action::Click("chart-series-apply"),Action::Wait(Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","data-value","8")),Action::Choose("chart-type","line"),Action::Click("chart-type-apply"),Action::Wait(Check::Attr("[data-chart=\"Chart 1\"]","data-kind","line")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools")],checks:&[
         Check::Value("chart-series-values","'Data'!$C$2:$C$7"),Check::Value("chart-type","line"),Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","data-value","8"),Check::Attr("[data-chart=\"Chart 2\"] [data-series=\"0\"][data-point=\"0\"]","data-value","12")]},
+    Case{name:"numbered fill: padded text extends through the normal preview",actions:&[
+        Action::Window(1440,1400),Action::Click("new"),Action::DiscardReplacement,Action::Click("skin-grid"),Action::Into(BAR,"Part 007 Ω\u{E007}"),Action::Into(BAR,"Part 009 Ω\u{E007}"),Action::Into("name-box","A1:A2\u{E007}"),Action::OpenDetails("clipboard-tools"),Action::Into("fill-through","A5\u{E007}"),Action::Wait(Check::TextContains("paste-preview","3 cells")),Action::Click("paste-confirm")],checks:&[
+        Check::Text(cell!("A3"),"Part 011 Ω"),Check::Text(cell!("A5"),"Part 015 Ω")]},
+    Case{name:"Flash Fill: generated text is previewed and cancellation preserves blanks",actions:&[
+        Action::Into("name-box","C1\u{E007}"),Action::Into(BAR,"Ada Lovelace\u{E007}"),Action::Into(BAR,"Grace Hopper\u{E007}"),Action::Into(BAR,"Katherine Johnson\u{E007}"),Action::Into(BAR,"Alan Turing\u{E007}"),Action::Into("name-box","D1\u{E007}"),Action::Into(BAR,"ADA\u{E007}"),Action::Into(BAR,"GRACE\u{E007}"),Action::Into("name-box","D1:D4\u{E007}"),Action::Click("flash-fill"),Action::Wait(Check::TextContains("paste-samples","D3 → KATHERINE")),Action::Wait(Check::TextContains("paste-preview","0 existing inputs")),Action::Click("paste-cancel")],checks:&[
+        Check::Absent(cell!("D3")),Check::Absent(cell!("D4")),Check::Text(cell!("D1"),"ADA")]},
+    Case{name:"Flash Fill: Ctrl+E uses the same preview and enters literal text",actions:&[
+        Action::Keys("grid","\u{E009}e\u{E000}"),Action::Wait(Check::TextContains("paste-samples","D4 → ALAN")),Action::Click("paste-confirm")],checks:&[
+        Check::Text(cell!("D3"),"KATHERINE"),Check::Text(cell!("D4"),"ALAN"),Check::PlanCell("D3","provenance","literal"),Check::Text(cell!("D2"),"GRACE")]},
+    Case{name:"Flash Fill: one Undo removes generated values and Redo restores them",actions:&[
+        Action::Click("undo"),Action::Wait(Check::Absent(cell!("D3"))),Action::Wait(Check::Text(cell!("D1"),"ADA")),Action::Click("redo")],checks:&[
+        Check::Text(cell!("D3"),"KATHERINE"),Check::Text(cell!("D4"),"ALAN")]},
+    Case{name:"Flash Fill: text and numbered series survive phone saved reopening",actions:&[
+        Action::Window(390,844),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::Into("name-box","D3\u{E007}"),Action::OpenDetails("clipboard-tools")],checks:&[
+        Check::Value(BAR,"KATHERINE"),Check::Text("selected-value","KATHERINE"),Check::Reachable("flash-fill"),Check::Fits]},
+    Case{name:"Flash Fill: ambiguous examples refuse without writing blank outputs",actions:&[
+        Action::Window(1440,1400),Action::Click("new"),Action::DiscardReplacement,Action::Into(BAR,"Ada\u{E007}"),Action::Into(BAR,"Grace\u{E007}"),Action::Into(BAR,"Alan Turing\u{E007}"),Action::Into("name-box","B1\u{E007}"),Action::Into(BAR,"Ada\u{E007}"),Action::Into(BAR,"Grace\u{E007}"),Action::Into("name-box","B1:B3\u{E007}"),Action::OpenDetails("clipboard-tools"),Action::Click("flash-fill")],checks:&[
+        Check::TextContains("status","different results"),Check::Absent(cell!("B3")),Check::Rendered("paste-preview",false),Check::Text(cell!("B1"),"Ada")]},
+    Case{name:"Paste Special: Ctrl+Alt+V opens the existing controls with keyboard focus",actions:&[
+        Action::Into("name-box","C1\u{E007}"),Action::Into(BAR,"=3+4\u{E007}"),Action::Into("name-box","C1\u{E007}"),Action::Keys("grid","\u{E009}c\u{E000}"),Action::Into("name-box","E1\u{E007}"),Action::Click("[data-dnacalc=clipboard-tools] > summary"),Action::Wait(Check::Rendered("paste-mode",false)),Action::Keys("grid","\u{E009}\u{E00A}v\u{E000}")],checks:&[
+        Check::Focused("paste-mode"),Check::Reachable("paste-mode"),Check::PlanCell("C1","formula","true")]},
+    Case{name:"Paste Special: the keyboard-selected Values mode uses the existing calculated snapshot",actions:&[
+        Action::Choose("paste-mode","values"),Action::Click("paste-snapshot")],checks:&[
+        Check::Text(cell!("E1"),"7"),Check::PlanCell("E1","formula","false"),Check::PlanCell("E1","provenance","literal"),Check::Text(cell!("C1"),"7")]},
 ];
 
 /// The script that reads what one check looks at.
@@ -9444,4 +9468,5 @@ CaseGroup {
     CaseGroup {name:"chart-series",start:734,end:742,core:8,setup:&[]},
     CaseGroup {name:"chart-axes",start:742,end:750,core:8,setup:&[]},
     CaseGroup {name:"chart-types",start:750,end:756,core:6,setup:&[]},
+    CaseGroup {name:"fill-text",start:756,end:764,core:8,setup:&[]},
 ];
