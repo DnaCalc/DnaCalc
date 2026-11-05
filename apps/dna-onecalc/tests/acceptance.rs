@@ -230,6 +230,30 @@ fn dc_zsn2__identical_jamo_prefix_suffixes() {
     ), &mut session, |entry| entry.cell.row() == 20 && entry.cell.column() == 10, 24);
 }
 
+/// The measured first primary group settles fn6's bare-Jamo boundaries while
+/// incomplete same-group and contextual comparisons remain refused.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zsn25__fn6_iteration_primary_boundaries() {
+    let mut session = Session::new("Sheet1").unwrap();
+    check_captured_questions(include_bytes!(
+        "../../../crates/calc-func/tests/captures/fn6_iteration_primary/oracle.capture.json"
+    ), &mut session, |entry| entry.cell.row() == 20 && entry.cell.column() == 10, 60);
+    for formula in [
+        "=\"ᄀ\"=\"ㄱ\"",
+        "=\"ᄃ\"<\"a\"",
+        "=\"αᄀ\"<\"αa\"",
+        "=\"ᄀー\"<\"a\"",
+    ] {
+        session.set_formula(formula);
+        let calculated = session.calculate();
+        assert!(calculated.result.is_none(), "{formula} remains outside the measured rule");
+        assert!(calculated.diagnostics.iter().any(|diagnostic| matches!(diagnostic,
+            Diagnostic::Eval(EvalFault::Function(FunctionFault::NotImplemented { .. }))
+        )), "{formula}: {:?}", calculated.diagnostics);
+    }
+}
+
 /// Original fn6 Version-1/2 captures distinguish a lone high surrogate from a low
 /// surrogate and an empty needle. All original primary questions remain intact,
 /// including the two Version-2 SEARCH roots explained by valid-Unicode wildcard controls.
