@@ -8,6 +8,7 @@ pub(super) const STACKED_LINE_CSS: &str = "display:block;flex:none;height:1em;li
 pub struct TextLine {
     pub text: String,
     pub segments: Option<Vec<String>>,
+    pub advances: Option<Vec<f64>>,
     pub css: String,
 }
 impl TextLine {
@@ -15,6 +16,7 @@ impl TextLine {
         Self {
             text,
             segments: None,
+            advances: None,
             css: String::new(),
         }
     }
@@ -76,9 +78,14 @@ pub fn layout(
         "center" => "center",
         _ => "flex-end",
     };
+    let inset = if style.rotation == 0 && !style.wrap && !style.shrink
+        && !matches!(horizontal, "justify" | "distributed") && !cell.shown.text.contains('\n')
+    { zoom } else { 0. };
+    let top = if vertical == "top" { inset } else { 0. };
+    let bottom = if vertical == "bottom" { inset + cell.baseline_inset } else { 0. };
     let mut out = TextLayout {
         container: format!(
-            ";padding-left:{left}px;padding-right:{right}px;justify-content:{justify};align-items:{align}"
+            ";padding-left:{left}px;padding-right:{right}px;padding-top:{top}px;padding-bottom:{bottom}px;justify-content:{justify};align-items:{align}"
         ),
         span: "display:block;flex-shrink:0;white-space:pre".into(),
         icon: format!(
@@ -99,7 +106,7 @@ pub fn layout(
     let font = autofit::font_css(style, Some(conditional), italic, zoom);
     if style.rotation == 255 {
         out.lines = graphemes(&out.lines[0].text).into_iter().map(|text|TextLine {
-            text, segments: None,
+            text, segments: None, advances: None,
             css: STACKED_LINE_CSS.into(),
         }).collect();
         out.span.push_str(";display:flex;flex-direction:column;align-items:center");
@@ -215,6 +222,11 @@ pub fn layout(
         let extra = (ascent + descent - style.pixels * zoom) / 2.;
         let shift = if vertical == "top" { extra } else { -extra };
         out.span.push_str(&format!(";position:relative;top:{shift}px"));
+    }
+    if let Some(advances) = autofit::number_advances(&cell.shown, &out.lines[0].text, zoom) {
+        out.lines[0].segments = Some(graphemes(&out.lines[0].text));
+        out.lines[0].advances = Some(advances);
+        out.lines[0].css.push_str(";display:inline-flex;align-items:baseline");
     }
     out
 }

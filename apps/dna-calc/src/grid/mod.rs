@@ -509,6 +509,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             extent.cols,
             &options,
         );
+        autofit::align_row_baselines(&mut plan, &shown, published.as_ref(), presentation.metrics.scale);
         plan.presentation = presentation.stamp;
         if let Some(sheet) = sheet {
             mirror.with(|mirror| {
@@ -1548,16 +1549,18 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 cell.shown.style.fill.is_some() || cell.shown.style.brush.is_some() || cell.shown.conditional.as_ref().is_some_and(|c|c.fill.is_some()||c.bar.is_some()) || cell.row_span>1 || cell.col_span>1
             }
         }).map(|cell| {
-            let mut style=rect_style(&cell.anchor);
+            let expanded = borders && cell.row_span == 1 && cell.col_span == 1;
+            let rect = if borders {decoration::border_rect(cell,plan.scale)} else {cell.anchor};
+            let mut style=rect_style(&rect);
             style.push_str(";position:absolute;box-sizing:border-box;pointer-events:none");
-            style.push_str(&panes.get().anchor_clip_style(cell,&metrics.get(),&viewport.get()));
+            style.push_str(&if expanded {panes.get().clip_style(rect,&metrics.get(),&viewport.get(),Some(cell.row),Some(cell.col))} else {panes.get().anchor_clip_style(cell,&metrics.get(),&viewport.get())});
             if borders {
                 style.push_str(&decoration::css(&cell.borders,plan.scale));
             } else if let Some(fill)=cell.shown.conditional.as_ref().and_then(|c|c.fill.as_ref()).or(cell.shown.style.fill.as_ref()) {
                 style.push_str(&format!(";background-color:{fill}"));
             } else if let Some(brush)=&cell.shown.style.brush {
                 if let Some((_,url))=decoration::texture(brush,cell.anchor.w,cell.anchor.h,plan.scale) {
-                    let (size,repeat)=if matches!(brush,dna_calc_model::projection::FillShown::Pattern {..}) {(format!("{}px {}px",8.*plan.scale,8.*plan.scale),"repeat")}else {("100% 100%".into(),"no-repeat")};
+                    let (size,repeat)=if matches!(brush,dna_calc_model::projection::FillShown::Pattern {..}) {("8px 8px".to_owned(),"repeat")}else {("100% 100%".into(),"no-repeat")};
                     style.push_str(&format!(";background-image:url({url});background-size:{size};background-repeat:{repeat}"));
                 }
             } else if cell.row_span>1 || cell.col_span>1 {
@@ -1567,7 +1570,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 let end=if *gradient {"#ffffff"}else {color.as_str()};
                 let under=cell.shown.conditional.as_ref().filter(|c|c.fill.is_none()).and(cell.shown.style.brush.as_ref()).and_then(|brush|decoration::texture(brush,cell.anchor.w,cell.anchor.h,plan.scale)).map(|(_,url)|url);
                 if let Some(url)=under {
-                    let (size,repeat)=if matches!(cell.shown.style.brush,Some(dna_calc_model::projection::FillShown::Pattern {..})) {(format!("{}px {}px",8.*plan.scale,8.*plan.scale),"repeat")}else {("100% 100%".into(),"no-repeat")};
+                    let (size,repeat)=if matches!(cell.shown.style.brush,Some(dna_calc_model::projection::FillShown::Pattern {..})) {("8px 8px".to_owned(),"repeat")}else {("100% 100%".into(),"no-repeat")};
                     style.push_str(&format!(";background-image:linear-gradient(to right,{color},{end}),url({url});background-size:{:.1}% 72%,{size};background-position:left center,0 0;background-repeat:no-repeat,{repeat}",share*100.));
                 }
                 else {style.push_str(&format!(";background-image:linear-gradient(to right,{color},{end});background-size:{:.1}% 72%;background-position:left center;background-repeat:no-repeat",share*100.));}
@@ -1576,7 +1579,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             let lines=(!strokes.is_empty()).then(|| {
                 let left=cell.borders[0].as_ref().map_or(0.,|e|decoration::line(e,plan.scale).width);
                 let top=cell.borders[2].as_ref().map_or(0.,|e|decoration::line(e,plan.scale).width);
-                let svg_style=format!("position:absolute;left:{}px;top:{}px;width:{}px;height:{}px;overflow:visible",-left,-top,cell.anchor.w,cell.anchor.h);
+                let svg_style=format!("position:absolute;left:{}px;top:{}px;width:{}px;height:{}px;overflow:visible",if expanded {0.}else{-left},if expanded {0.}else{-top},cell.anchor.w,cell.anchor.h);
                 view! {<svg data-dnacalc="cell-lines" viewBox=format!("0 0 {} {}",cell.anchor.w,cell.anchor.h) use:css=svg_style>
                     {strokes.into_iter().map(|line| {
                         let dash=line.dash.iter().map(|n|n.to_string()).collect::<Vec<_>>().join(" ");
@@ -1645,7 +1648,10 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                         >
                             {icon.map(|(_, markup)| view! { <span class="dc-icon" use:css=layout.icon inner_html=markup></span> })}
                             <span class="dc-cell-text" use:css=layout.span>{layout.lines.into_iter().map(|line| {
-                                let contents=match line.segments { Some(parts)=>parts.into_iter().map(|part| view!{<span>{part}</span>}.into_any()).collect_view().into_any(), None=>line.text.into_any() };
+                                let contents=match line.segments { Some(parts)=>parts.into_iter().enumerate().map(|(index,part)| {
+                                    let style=line.advances.as_ref().and_then(|a|a.get(index)).map(|w|format!("display:inline-block;flex:none;width:{w}px")).unwrap_or_default();
+                                    view!{<span use:css=style>{part}</span>}.into_any()
+                                }).collect_view().into_any(), None=>line.text.into_any() };
                                 view! { <span use:css=line.css>{contents}</span> }
                             }).collect_view()}</span>
                         </div>
