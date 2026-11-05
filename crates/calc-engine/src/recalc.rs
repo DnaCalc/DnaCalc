@@ -1376,14 +1376,7 @@ fn begin_with_scope(
         }
         // Only the measured pure scalar Manual profile can admit independent work.
         // A reader is refused only if its executed path requests a refused value.
-        if order.iter().any(|node| {
-            let at = live_anchor(state, *node);
-            matches!(state.bindings.get(node), Some(Binding::DataTable(_)))
-                || matches!(state.bindings.get(node), Some(Binding::Placed(instance, _)) if instance.plan().has_user_calls())
-                || inputs.definitions().array(at).is_some_and(|array| array.area().cell_count() > 1)
-                || state.spills.get(at).is_some_and(|spill| spill.area().cell_count() > 1)
-                || state.cached_arrays.get(node).is_some_and(|spill| spill.area().cell_count() > 1)
-        }) {
+        if order.iter().any(|node| !pure_range_scalar(state, inputs, *node)) {
             return Err(iterative_range_refusal());
         }
         range_refused.extend(cyclic.iter().copied());
@@ -2097,6 +2090,11 @@ fn apply(
 /// Retains an executed reader's historical result and releases its pure waiters.
 /// Refusal does not establish SCC membership or satisfy a target requirement.
 fn exclude_range_reader(state: &EngineState, work: &mut RecalcWork, node: NodeId) {
+    exclude_range_target(state, work, node,
+        "an executed reader of a refused cyclic value in a Manual range calculation");
+}
+
+fn exclude_range_target(state: &EngineState, work: &mut RecalcWork, node: NodeId, construct: &'static str) {
     if !work.range_refused.insert(node) { return; }
     work.progress.exclude(node);
     work.local = EvalLocal::default();
@@ -2126,7 +2124,7 @@ fn exclude_range_reader(state: &EngineState, work: &mut RecalcWork, node: NodeId
     work.events.push(CalcEvent::TargetsRefused {
         command: work.admission.command,
         targets: vec![at],
-        construct: "an executed reader of a refused cyclic value in a Manual range calculation",
+        construct,
         owner: "dc-hsa5.11",
     });
 }
@@ -4482,6 +4480,9 @@ fn defer(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: N
                     None => break,
                 };
             }
+            if refuse_closed_range_chain(state, inputs, work, &chain) {
+                return;
+            }
             resume_cycle(state, inputs, work, chain);
             return;
         }
@@ -4498,6 +4499,68 @@ fn defer(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: N
     }
     work.waits_on.insert(node, on);
     work.waiting.entry(on).or_default().push(node);
+}
+
+/// Existing scalar Range admission, shared by static and closed-wait discovery.
+fn pure_range_scalar(state: &EngineState, inputs: &ModelRoot, node: NodeId) -> bool {
+    let at = live_anchor(state, node);
+    !matches!(state.bindings.get(&node), Some(Binding::DataTable(_)))
+        && !matches!(state.bindings.get(&node), Some(Binding::Placed(instance, _)) if instance.plan().has_user_calls())
+        && !inputs.definitions().array(at).is_some_and(|array| array.area().cell_count() > 1)
+        && !state.spills.get(at).is_some_and(|spill| spill.area().cell_count() > 1)
+        && !state.cached_arrays.get(&node).is_some_and(|spill| spill.area().cell_count() > 1)
+}
+
+/// An actual closed wait chain proves these producers cyclic. For the measured
+/// pure first-wave Manual Range profile, retain them and let independent work
+/// continue. Graph-based guesses and later repair waves keep their typed refusal.
+fn refuse_closed_range_chain(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, chain: &[NodeId]) -> bool {
+    if !work.iterative_range()
+        || work.admission.range_post_state != RangePostState::StillRequired
+        || work.waves != 0 || work.passes != 0
+        || work.has_fences || !work.early_published.is_empty()
+        || !work.async_waits.is_empty() || !work.semantic_waits.is_empty()
+        || chain.is_empty()
+        || chain.iter().copied().collect::<BTreeSet<_>>().len() != chain.len()
+        || chain.iter().any(|node| state.node(*node).is_none()
+            || !work.admission.scope.contains(live_anchor(state, *node))
+            || !work.progress.is_scheduled(*node) || work.progress.is_evaluated(*node)
+            || work.range_refused.contains(node)) {
+        return false;
+    }
+    let safe_local = |local: &EvalLocal| !local.external_cache
+        && local.effects == calc_fml::UserFunctionEffects::default()
+        && local.placement.is_none() && local.invocation.is_none() && local.observation.is_none()
+        && local.observation_reads.is_empty() && local.semantic_prerequisite.is_none();
+    if !safe_local(&work.local) || work.suspended.values().any(|local| !safe_local(local)) {
+        return false;
+    }
+    let participants = work.order.iter().chain(work.range_refused.iter())
+        .chain(work.suspended.keys()).copied()
+        .chain(work.progress.staged_results().map(|(node, _)| node));
+    if participants.into_iter().any(|node| !pure_range_scalar(state, inputs, node)
+        || !matches!(state.bindings.get(&node), Some(Binding::Placed(instance, _)) if instance.plan().external_references().is_empty())) {
+        return false;
+    }
+    if work.progress.staged_results().any(|(node, result)| {
+        let at = live_anchor(state, node);
+        work.spills.get(at).is_some_and(|spill| spill.area().cell_count() > 1)
+            || work.blocked_spills.get(&at).is_some_and(|area| area.cell_count() > 1)
+            || !matches!(result, FormulaResult::Calculated { value, calculation }
+                if value.as_array().is_none() && !calculation.held_by_circular_rule() && !calculation.reads_external_links()
+                    && calculation.stamp().is_some_and(|stamp|
+                        matches!(stamp.computed_by, ComputationOrigin::Evaluated { .. })
+                        && !stamp.reads.uses_imported_cache && !stamp.reads.uses_boundary_cache
+                        && !stamp.reads.external_cache && !stamp.reads.legacy_boundary))
+    }) {
+        return false;
+    }
+    work.add_cyclic(state, chain.iter().copied());
+    for node in chain {
+        exclude_range_target(state, work, *node,
+            "a dynamically proven cyclic value in a Manual range calculation");
+    }
+    true
 }
 
 /// Resume a discovered component in the same cell order as a statically found
