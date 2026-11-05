@@ -496,3 +496,7 @@ if ($Fn2IndexShapes) { Write-Workbook (Join-Path $OutDir 'fn2_questions_index/or
 $fn3Sheets = @(, @('fn3_collation', (New-OracleSheet @() (Get-SectionLines 'sheet-fn3_collation.txt' 'fn3_questions'))))
 $fn3Sheets += , @('fn3_text', (New-OracleSheet @() (Get-SectionLines 'sheet-fn3_text.txt' 'fn3_questions')))
 Write-Workbook (Join-Path $OutDir 'fn3_questions/oracle.xlsx') $fn3Sheets
+
+# dc-zsn.2.4: separate unanswered SORT questions preserve all captured sheet lists.
+$fn10SortSheets = @(, @('fn10_sort_cycle', (New-OracleSheet @() (Get-SectionLines 'sheet-fn10_sort_cycle.txt' 'fn10_sort_cycle'))))
+Write-Workbook (Join-Path $OutDir 'fn10_sort_cycle/oracle.xlsx') $fn10SortSheets

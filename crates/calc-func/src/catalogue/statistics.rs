@@ -216,6 +216,11 @@ ported_family! {
         if values.is_empty() || values.iter().any(|v| *v <= 0.0) {
             return fail(WorksheetErrorCode::Num);
         }
+        // The equal-positive identity also avoids product underflow followed
+        // by a log/exp round trip across the minimum-normal boundary.
+        if values.iter().all(|value| *value == values[0]) {
+            return s.number(values[0]);
+        }
         // R26: each product assignment stores from x87 PC64. Independent
         // GEOMEAN(product,1,1) readings distinguish this loop from plain
         // binary64 without assuming the private root implementation.
