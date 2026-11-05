@@ -13,6 +13,11 @@ use crate::{
 use calc_doc_model::{Chart, ChartPlot, ChartSeries, ChartData, ModelRoot};
 const C: &str = "http://schemas.openxmlformats.org/drawingml/2006/chart";
 const A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
+mod create;
+pub(crate) fn check_new_frames(package:&Package,source:&crate::load::LoadedSheet,charts:&[Chart])->Result<(),SaveRefusal>{
+    create::add(package,source,charts,&mut Changes::default(),None)
+}
+pub(crate) use create::render as render_new;
 type Patch = ((usize, usize), Vec<u8>);
 
 pub(crate) fn source(
@@ -408,6 +413,7 @@ pub(super) fn finish(
     before: &ModelRoot,
     after: &ModelRoot,
     out: &mut Changes,
+    sheets: &[std::borrow::Cow<'_,crate::load::LoadedSheet>],
     structural: Option<&super::structural::StructuralEdits>,
 ) -> Result<(), SaveRefusal> {
     for (sheet, charts) in before.definitions().all_charts() {
@@ -418,7 +424,7 @@ pub(super) fn finish(
         if charts == next {
             continue;
         }
-        if charts.len() != next.len() {
+        if charts.len() > next.len() || charts.iter().zip(next).any(|(a,b)|a.part!=b.part) {
             return Err(SaveRefusal::ChartNotModelled {
                 part: "charts".into(),
                 detail: "Adding and removing charts is not modelled".into(),
@@ -442,15 +448,7 @@ pub(super) fn finish(
             }
         }
     }
-    for (sheet, charts) in after.definitions().all_charts() {
-        if !charts.is_empty() && before.definitions().charts(sheet).is_empty() {
-            return Err(SaveRefusal::ChartNotModelled {
-                part: "charts".into(),
-                detail: "Creating charts is not modelled".into(),
-                owner: "dc-e5z5",
-            });
-        }
-    }
+    create::finish(package,sheets,before,after,out,structural)?;
     Ok(())
 }
 

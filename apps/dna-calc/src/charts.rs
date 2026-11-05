@@ -4,6 +4,10 @@ use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 
 pub fn controls(controller: Controller) -> AnyView {
+    let create_type=controller.tool_field(|s|&s.chart.create_type,|s|&mut s.chart.create_type);
+    let create_rows=controller.tool_field(|s|&s.chart.create_rows,|s|&mut s.chart.create_rows);
+    let create_headers=controller.tool_field(|s|&s.chart.create_headers,|s|&mut s.chart.create_headers);
+    let create_categories=controller.tool_field(|s|&s.chart.create_categories,|s|&mut s.chart.create_categories);
     let open = RwSignal::new(false);
     let charts = RwSignal::new(Vec::<wire::Chart>::new());
     let chosen = controller.tool_field(|s| &s.chart.part, |s| &mut s.chart.part);
@@ -65,6 +69,29 @@ pub fn controls(controller: Controller) -> AnyView {
             },
         );
     });
+    let create=move |_| {
+        let areas=controller.areas.get_untracked();
+        let [area]=areas.as_slice() else{controller.say("Select one rectangular chart data range",true);return;};
+        let area=*area;let generation=controller.generation.get_untracked();let revision=controller.summary.get_untracked().revision;
+        let kind=create_type.get_untracked();let kind=if kind.is_empty(){"column".into()}else{kind};
+        let rows=create_rows.get_untracked();let headers=create_headers.get_untracked();let categories=create_categories.get_untracked();
+        controller.after_input(move || {
+            if controller.generation.get_untracked()!=generation || controller.summary.get_untracked().revision!=revision || controller.sheet.get_untracked()!=Some(area.sheet()) || controller.editing.get_untracked().is_some(){controller.say("The workbook changed; select the chart data again",true);return;}
+            controller.dispatch(wire::Intent::ChartCreate{revision,area:wire::Area::of(area),kind,rows,headers,categories},move |outcome| {
+                if outcome.accepted {
+                    controller.say("Chart created",false);
+                    let accepted_revision=outcome.summary.revision;let active=controller.active_key_untracked();
+                    controller.ask(wire::Request::Charts(wire::Sheet::of(area.sheet())),move |reply| {
+                        if controller.generation.get_untracked()!=generation || controller.summary.get_untracked().revision!=accepted_revision || controller.sheet.get_untracked()!=Some(area.sheet()) || controller.active_key_untracked()!=active || controller.editing.get_untracked().is_some(){return;}
+                        if let wire::Reply::Charts(values)=reply {if let Some(chart)=values.last(){
+                            chosen.set(chart.part.clone());
+                            if let wire::ChartPlace::Sized{from,..}=chart.place {if let Some(at)=from.0.cell(){controller.go_to(at);}}
+                        }}
+                    });
+                }
+            });
+        });
+    };
     let current = Memo::new(move |_| {
         let part = chosen.get();
         charts.get().into_iter().find(|chart| chart.part == part)
@@ -229,7 +256,17 @@ pub fn controls(controller: Controller) -> AnyView {
                 }
             }>
             <summary data-dnacalc="chart-tools-toggle">"Charts"</summary>
-            <Show when=move ||charts.get().is_empty()><p class="dc-note">"This worksheet has no readable charts. Open a workbook containing a chart to edit it."</p></Show>
+            <fieldset class="dc-chart-series"><legend>"Create from selection"</legend>
+                <p class="dc-note" data-dnacalc="chart-create-range">{move ||controller.areas.get().first().map(|a|controller.area_label(*a)).unwrap_or_else(||"Select a rectangular data range".into())}</p>
+                <div class="dc-command-row"><label>"Type "<select data-dnacalc="chart-create-type" prop:value=move ||{let v=create_type.get();if v.is_empty(){"column".into()}else{v}} on:change=move |ev|create_type.set(event_target_value(&ev))>
+                    <option value="column">"Column"</option><option value="bar">"Bar"</option><option value="line">"Line"</option><option value="area">"Area"</option><option value="pie">"Pie"</option><option value="doughnut">"Doughnut"</option><option value="scatter">"Scatter (XY)"</option>
+                </select></label></div>
+                <div class="dc-command-row"><label><input data-dnacalc="chart-create-rows" type="checkbox" prop:checked=move ||create_rows.get() on:change=move |ev|create_rows.set(event_target_checked(&ev))/>"Series in rows"</label>
+                    <label><input data-dnacalc="chart-create-headers" type="checkbox" prop:checked=move ||create_headers.get() on:change=move |ev|create_headers.set(event_target_checked(&ev))/>"First row contains series names (first column for rows)"</label>
+                    <label><input data-dnacalc="chart-create-categories" type="checkbox" prop:checked=move ||create_categories.get() on:change=move |ev|create_categories.set(event_target_checked(&ev))/>"First column contains categories / X values (first row for rows)"</label></div>
+                <button type="button" data-dnacalc="chart-create" disabled=move ||controller.assist.readonly.get() || controller.editing.get().is_some() || controller.areas.get().len()!=1 on:click=create>"Create chart"</button>
+            </fieldset>
+            <Show when=move ||charts.get().is_empty()><p class="dc-note">"This worksheet has no readable charts. Select data above to create one."</p></Show>
             <Show when=move ||!charts.get().is_empty()>
                 <div class="dc-command-row"><label>"Chart "<select data-dnacalc="chart-choice" prop:value=move ||chosen.get() on:change=move |ev| {
                     let part=event_target_value(&ev);

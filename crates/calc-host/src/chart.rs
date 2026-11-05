@@ -440,21 +440,7 @@ pub(crate) fn prepare_series(
         if position.is_none() && matches!(p.kind.as_str(),"pieChart"|"doughnutChart"){return Err("Adding pie or doughnut series is not modelled; edit the existing series (dc-971p.46)".into());}
         let mut changed=position.map(|i|p.series[i].clone()).unwrap_or_else(||calc_doc_model::ChartSeries{index:next,..Default::default()});
         let origin=CellKey::new(sheet,1,1).unwrap();
-        let range=|text:&str,numeric:bool,single:bool|->Result<ChartData,String>{
-            let text=text.trim().trim_start_matches('=').trim();
-            let crate::ReferenceTarget::Area(area)=host.resolve_reference_text(origin,text) else {
-                return Err("Use a single worksheet cell or a one-row or one-column A1 range (dc-971p.46)".into());
-            };
-            let count=u64::from(area.row_count())*u64::from(area.column_count());
-            if count>crate::validation::LIST_LIMIT as u64 || (area.row_count()>1 && area.column_count()>1) || (single && count!=1) {
-                return Err("Chart ranges must be one row or column with at most 32,767 cells; a name reference must be one cell (dc-971p.46)".into());
-            }
-            // Canonical absolute references keep edits independent of the selected cell.
-            let sheet_name=host.model().sheet_by_id(area.sheet()).ok_or("The source worksheet is unavailable")?.name().text().to_string_lossy().replace('\'',"''");
-            let a1=|at:CellKey|{let mut n=at.column();let mut letters=String::new();while n>0 {n-=1;letters.insert(0,(b'A'+(n%26) as u8)as char);n/=26;}format!("${letters}${}",at.row())};
-            let first=a1(area.first());let last=a1(area.last());
-            Ok(ChartData{formula:Some(format!("'{sheet_name}'!{first}{}",if first==last {String::new()}else{format!(":{last}")})),cache:Vec::new(),numeric})
-        };
+        let range=|text:&str,numeric:bool,single:bool|range_data(host,origin,text,numeric,single);
         if let Some(text)=name {
             if text.encode_utf16().count()>32767 || text.chars().any(|c|(c<' ' && !matches!(c,'\t'|'\n'|'\r')) || matches!(c,'\u{fffe}'|'\u{ffff}')) {return Err("The series name contains unsupported text or exceeds 32,767 UTF-16 units (dc-971p.46)".into());}
             changed.name=if text.is_empty(){None}else if text.starts_with('='){Some(range(&text,false,true)?)}else{Some(ChartData{cache:vec![Some(text)],..Default::default()})};
@@ -626,5 +612,64 @@ pub(crate) fn prepare_type(host:&HostState,sheet:SheetId,revision:u64,part:&str,
     p.grouping=category(next).then(||if stacked{"stacked"}else if next=="barChart"{"clustered"}else{"standard"}.into());
     host.loaded().check_chart_properties(sheet,chart).map_err(|e|e.to_string())?;
     if charts==host.model().definitions().charts(sheet){return Ok(Vec::new());}
+    Ok(vec![crate::CellEdit::Charts{sheet,charts}])
+}
+
+fn cell_a1(at:CellKey)->String {
+    let mut n=at.column();let mut letters=String::new();while n>0{n-=1;letters.insert(0,(b'A'+(n%26) as u8)as char);n/=26;}format!("{letters}{}",at.row())
+}
+fn range_data(host:&HostState,origin:CellKey,text:&str,numeric:bool,single:bool)->Result<ChartData,String>{
+            let text=text.trim().trim_start_matches('=').trim();
+            let crate::ReferenceTarget::Area(area)=host.resolve_reference_text(origin,text) else {
+                return Err("Use a single worksheet cell or a one-row or one-column A1 range (dc-971p.46)".into());
+            };
+            let count=u64::from(area.row_count())*u64::from(area.column_count());
+            if count>crate::validation::LIST_LIMIT as u64 || (area.row_count()>1 && area.column_count()>1) || (single && count!=1) {
+                return Err("Chart ranges must be one row or column with at most 32,767 cells; a name reference must be one cell (dc-971p.46)".into());
+            }
+            // Canonical absolute references keep edits independent of the selected cell.
+            let sheet_name=host.model().sheet_by_id(area.sheet()).ok_or("The source worksheet is unavailable")?.name().text().to_string_lossy().replace('\'',"''");
+            let a1=|at:CellKey|{let mut n=at.column();let mut letters=String::new();while n>0 {n-=1;letters.insert(0,(b'A'+(n%26) as u8)as char);n/=26;}format!("${letters}${}",at.row())};
+            let first=a1(area.first());let last=a1(area.last());
+            Ok(ChartData{formula:Some(format!("'{sheet_name}'!{first}{}",if first==last {String::new()}else{format!(":{last}")})),cache:Vec::new(),numeric})
+}
+/// Build column- or row-oriented series from one selection, with explicit header/category choices.
+pub(crate) fn prepare_create(host:&HostState,revision:u64,area:calc_value::GridArea,kind:&str,rows:bool,headers:bool,categories:bool)->Result<Vec<crate::CellEdit>,String>{
+    use calc_doc_model::{Chart,ChartAxis,ChartPlot,ChartSeries};
+    let fail=|s:&str|format!("{s} (dc-971p.49)");
+    if revision!=host.revision().get(){return Err(fail("The workbook changed; select the chart data again"));}
+    let sheet=area.sheet();
+    let source=host.loaded().sheet(sheet).ok_or_else(||fail("Save and reopen the new worksheet before creating a chart"))?;
+    if source.protected() || source.is_macro_sheet(){return Err(fail("Creating charts requires an editable worksheet"));}
+    if host.loaded().workbook_part().ends_with(".bin"){return Err(fail("Save as XLSX and reopen before creating charts"));}
+    if !host.axis_edits.is_empty(){return Err(fail("Save and reopen before creating charts after row or column insertion or deletion"));}
+    let (length,width)=if rows{(area.column_count(),area.row_count())}else{(area.row_count(),area.column_count())};
+    let points=length.checked_sub(u32::from(headers)).filter(|n|*n>0).ok_or_else(||fail("Select at least one data point after the series names"))?;
+    let count=width.checked_sub(u32::from(categories)).filter(|n|*n>0).ok_or_else(||fail("Select at least one values series after the categories"))?;
+    if count>255 || points>32767 || u64::from(points)*u64::from(count)>262144 {return Err(fail("Use at most 255 series, 32,767 points per series and 262,144 points in total"));}
+    let (plot_kind,dir)=match kind{"column"=>("barChart",Some("col")),"bar"=>("barChart",Some("bar")),"line"=>("lineChart",None),"area"=>("areaChart",None),"pie"=>("pieChart",None),"doughnut"=>("doughnutChart",None),"scatter"=>("scatterChart",None),_=>return Err(fail("Choose a supported two-dimensional chart type"))};
+    let pie=matches!(kind,"pie"|"doughnut");
+    if pie && count!=1{return Err(fail("Select one values series for a pie or doughnut"));}
+    if kind=="scatter" && !categories{return Err(fail("Use the first column or row as X values for a scatter chart"));}
+    let cell=|major:u32,minor:u32|CellKey::new(sheet,area.first().row()+if rows{minor}else{major},area.first().column()+if rows{major}else{minor}).unwrap();
+    let data=|first:CellKey,last:CellKey,numeric:bool|range_data(host,area.first(),&format!("{}:{}",cell_a1(first),cell_a1(last)),numeric,false);
+    let cats=if categories{Some(data(cell(u32::from(headers),0),cell(length-1,0),kind=="scatter")?)}else{None};
+    let mut series=Vec::new();
+    for i in 0..count {
+        let minor=i+u32::from(categories);
+        let name=if headers{Some(data(cell(0,minor),cell(0,minor),false)?)}else{None};
+        series.push(ChartSeries{index:i,name,categories:cats.clone(),values:Some(data(cell(u32::from(headers),minor),cell(length-1,minor),true)?),fill:None});
+    }
+    let axes=if pie{Vec::new()}else{vec![
+        ChartAxis{id:1,cross_axis:Some(2),kind:if kind=="scatter"{"valAx"}else{"catAx"}.into(),position:Some(if kind=="bar"{"l"}else{"b"}.into()),..Default::default()},
+        ChartAxis{id:2,cross_axis:Some(1),kind:"valAx".into(),position:Some(if kind=="bar"{"b"}else{"l"}.into()),..Default::default()},
+    ]};
+    let mut charts=host.model().definitions().charts(sheet).to_vec();
+    let reserved=host.model().definitions().all_charts().flat_map(|(_,cs)|cs.iter().map(|c|c.part.clone())).collect::<Vec<_>>();
+    let part=host.loaded().available_part_name("charts/dnaChart","xml",&reserved);
+    let names=charts.iter().map(|c|c.name.as_str()).collect::<std::collections::BTreeSet<_>>();
+    let name=(1u32..).map(|i|format!("Chart {i}")).find(|n|!names.contains(n.as_str())).unwrap();
+    charts.push(Chart{part,name,anchor:ChartAnchor::OneCell{from:DrawingPoint{column:area.last().column().saturating_add(1).min(16383),row:area.first().row()-1,..Default::default()},width:640*9525,height:360*9525},title:None,title_formula:None,auto_title_deleted:true,legend:Some("r".into()),plots:vec![ChartPlot{kind:plot_kind.into(),bar_direction:dir.map(str::to_owned),grouping:(!pie && kind!="scatter").then(||if kind=="column"||kind=="bar"{"clustered"}else{"standard"}.into()),vary_colors:pie,series,axis_ids:if pie{Vec::new()}else{vec![1,2]}}],axes});
+    host.loaded().check_chart_set(sheet,&charts).map_err(|e|e.to_string())?;
     Ok(vec![crate::CellEdit::Charts{sheet,charts}])
 }

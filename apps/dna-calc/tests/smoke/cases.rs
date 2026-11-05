@@ -8638,6 +8638,22 @@ Case {
     Case{name:"Name Manager: phone saved reopening preserves hidden scopes without showing their sheets",actions:&[
         Action::Click("names-close"),Action::Window(390,844),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::Click("name-manager"),Action::Wait(Check::Count("[data-name=Secret][data-name-scope=Hidden]",1)),Action::Click("[data-name=Secret] [data-dnacalc=name-select]"),Action::Keys("name-evaluation-sheet","\u{E010}\u{E007}"),Action::Into("name-anchor","A1"),Action::Click("name-evaluate")],checks:&[
         Check::Text("name-value","14"),Check::Count("[data-name=HiddenConstant][data-name-scope=Hidden]",1),Check::Count("[data-dnacalc=sheet-tab][data-sheet=Hidden]",0),Check::Fits]},
+    Case{name:"chart creation: selected columns with headers and categories create live series",actions:&[
+        Action::Window(1600,1800),Action::Upload("open-file","crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx"),Action::DiscardReplacement,Action::Click("skin-grid"),Action::Into("name-box","A1:C7\u{E007}"),Action::OpenDetails("chart-tools"),Action::Click("chart-create-headers"),Action::Click("chart-create-categories"),Action::Click("chart-create"),Action::Wait(Check::Count("[data-dnacalc=chart]",7))],checks:&[
+        Check::Count("[data-chart=\"Chart 7\"] [data-dnacalc=chart-mark]",12),Check::TextContains("chart-series","North"),Check::Value("chart-series-values","'Data'!$B$2:$B$7"),Check::Attr("[data-chart=\"Chart 7\"] [data-series=\"1\"][data-point=\"0\"]","data-value","8")]},
+    Case{name:"chart creation: Undo removes the new frame and Redo restores it",actions:&[
+        Action::Click("undo"),Action::Wait(Check::Count("[data-dnacalc=chart]",6)),Action::Click("redo")],checks:&[
+        Check::Count("[data-dnacalc=chart]",7),Check::Attr("[data-chart=\"Chart 7\"] [data-series=\"0\"][data-point=\"0\"]","data-value","12")]},
+    Case{name:"chart creation: saved package reopening retains imported and new charts",actions:&[
+        Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools"),Action::Choose("chart-choice","xl/charts/dnaChart.xml")],checks:&[
+        Check::Count("[data-dnacalc=chart]",7),Check::Value("chart-series-values","'Data'!$B$2:$B$7"),Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","data-value","12"),Check::Absent("[data-chart=\"Chart 7\"] [data-dnacalc=chart-cache]")]},
+    Case{name:"chart creation: pie selection with two values series refuses without changing charts",actions:&[
+        Action::Into("name-box","A1:C7\u{E007}"),Action::OpenDetails("chart-tools"),Action::Choose("chart-create-type","pie"),Action::Click("chart-create-headers"),Action::Click("chart-create-categories"),Action::Click("chart-create")],checks:&[
+        Check::TextContains("status","one values series"),Check::Count("[data-dnacalc=chart]",7)]},
+    Case{name:"chart creation: a phone can create the first chart in a new workbook and save it",actions:&[
+        Action::Window(390,844),Action::Click("new"),Action::DiscardReplacement,Action::Into("name-box","A1\u{E007}"),Action::Into(BAR,"2\u{E007}"),Action::Into(BAR,"5\u{E007}"),Action::Wait(Check::Text(cell!("A2"),"5")),Action::Into("name-box","A1:A2\u{E007}"),Action::OpenDetails("chart-tools"),Action::Choose("chart-create-type","line"),Action::Click("chart-create"),Action::Wait(Check::Count("[data-dnacalc=chart]",1)),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools")],checks:&[
+        Check::Count("[data-dnacalc=chart]",1),Check::Value("chart-type","line"),Check::Count("[data-chart=\"Chart 1\"] [data-dnacalc=chart-mark]",2),Check::Reachable("chart-create"),Check::Fits]},
+
 ];
 
 /// The script that reads what one check looks at.
@@ -9494,4 +9510,5 @@ CaseGroup {
     CaseGroup {name:"chart-types",start:750,end:756,core:6,setup:&[]},
     CaseGroup {name:"fill-text",start:756,end:764,core:8,setup:&[]},
     CaseGroup {name:"find-name",start:764,end:772,core:8,setup:&[]},
+    CaseGroup {name:"chart-creation",start:772,end:777,core:5,setup:&[]},
 ];

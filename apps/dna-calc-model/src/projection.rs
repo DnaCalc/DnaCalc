@@ -275,6 +275,7 @@ pub enum Interest {
 /// What the page asks the session to do: calc-host's skin intents as the page sends them.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Intent {
+    ChartCreate {revision:u64,area:Area,kind:String,rows:bool,headers:bool,categories:bool},
     ChartType {sheet:Sheet,revision:u64,part:String,plot:u32,kind:String,stacked:bool},
     ChartAxis {sheet:Sheet,revision:u64,part:String,axis:u32,minimum:Option<String>,maximum:Option<String>,major_unit:Option<String>,reversed:bool},
     ChartSeries {sheet:Sheet,revision:u64,part:String,plot:u32,series:Option<u32>,name:Option<String>,categories:Option<String>,values:Option<String>,remove:bool},

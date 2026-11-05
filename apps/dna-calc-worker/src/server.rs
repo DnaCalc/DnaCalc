@@ -1427,6 +1427,7 @@ impl Server {
                 direction,
             } => return self.notebook_order(placement, direction),
 
+            Intent::ChartCreate{revision,area,kind,rows,headers,categories}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartCreate{revision,area:area.area().ok_or("Invalid chart selection")?,kind,rows,headers,categories}),
             Intent::ChartType{sheet,revision,part,plot,kind,stacked}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartType{sheet:sheet.id(),revision,part,plot,kind,stacked}),
             Intent::ChartAxis{sheet,revision,part,axis,minimum,maximum,major_unit,reversed}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartAxis{sheet:sheet.id(),revision,part,axis,minimum,maximum,major_unit,reversed}),
             Intent::ChartSeries {sheet,revision,part,plot,series,name,categories,values,remove}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartSeries {sheet:sheet.id(),revision,part,plot,series,name,categories,values,remove}),

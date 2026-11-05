@@ -56,6 +56,7 @@ pub enum ConditionalChange {
 /// Authored workbook commands. The session is the sole dispatch route for all clients.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WorkbookCommand {
+    ChartCreate {revision:u64,area:GridArea,kind:String,rows:bool,headers:bool,categories:bool},
     ChartType {sheet:SheetId,revision:u64,part:String,plot:u32,kind:String,stacked:bool},
     ChartAxis {sheet:SheetId,revision:u64,part:String,axis:u32,minimum:Option<String>,maximum:Option<String>,major_unit:Option<String>,reversed:bool},
     ChartSeries {sheet:SheetId,revision:u64,part:String,plot:u32,series:Option<u32>,name:Option<String>,categories:Option<String>,values:Option<String>,remove:bool},
@@ -135,6 +136,7 @@ pub(crate) fn prepare(
     command: WorkbookCommand,
 ) -> Result<Vec<CellEdit>, String> {
     match command {
+        WorkbookCommand::ChartCreate{revision,area,kind,rows,headers,categories}=>crate::chart::prepare_create(host,revision,area,&kind,rows,headers,categories),
         WorkbookCommand::ChartType{sheet,revision,part,plot,kind,stacked}=>crate::chart::prepare_type(host,sheet,revision,&part,plot,&kind,stacked),
         WorkbookCommand::ChartAxis{sheet,revision,part,axis,minimum,maximum,major_unit,reversed}=>crate::chart::prepare_axis(host,sheet,revision,&part,axis,minimum,maximum,major_unit,reversed),
         WorkbookCommand::ChartSeries {sheet,revision,part,plot,series,name,categories,values,remove}=>crate::chart::prepare_series(host,sheet,revision,&part,plot,series,name,categories,values,remove),
