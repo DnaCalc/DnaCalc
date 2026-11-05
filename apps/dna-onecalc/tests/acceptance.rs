@@ -264,12 +264,28 @@ fn locale_tagged_date_names_follow_the_retained_fn3_readings() {
     use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
     let profile = format_profile(LocaleId::EnZa).with_separators(".", " ").unwrap();
     let mut session = Session::new("Sheet1").unwrap();
-    session.set_environment(Some(CalcEnvironment {
-        profile: Some(profile), ..CalcEnvironment::dates(DateSystem::System1900)
-    }));
-    check_captured_questions(include_bytes!(
-        "../../../crates/calc-func/tests/captures/fn3_questions/oracle.capture.json"
-    ), &mut session, |f| f.cell.sheet() == "fn3_text", 170);
+    // The tag supplies the names in all170 original readings. Their date-only
+    // fields and spaces never read a host separator or AM/PM designator.
+    for profile in [Some(profile), None] {
+        session.set_environment(Some(CalcEnvironment {
+            profile, ..CalcEnvironment::dates(DateSystem::System1900)
+        }));
+        check_captured_questions(include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn3_questions/oracle.capture.json"
+        ), &mut session, |f| f.cell.sheet() == "fn3_text", 170);
+    }
+    for formula in [
+        "=TEXT(45000,\"0.00\")",
+        "=TEXT(45000,\"[$-ffff]mmmm\")",
+        "=TEXT(45000,\"[$-407]m/d\")",
+        "=TEXT(0.5,\"[$-407]hh:mm AM/PM\")",
+        "=TEXT(45000,\"[>1.5][$-407]mmmm;[$-407]dddd\")",
+        "=TEXT(45000,\"[$-407]   \")",
+        "=FIXED(1.25,2,TRUE)",
+    ] {
+        session.set_formula(formula);
+        assert!(session.calculate().result.is_none(), "{formula} still needs host context");
+    }
 }
 
 /// Fn4 text-controls qt031..qt096 and list-controls ql041..ql085, unchanged live
