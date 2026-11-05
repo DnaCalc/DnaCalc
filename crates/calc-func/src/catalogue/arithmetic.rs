@@ -105,9 +105,10 @@ fn operands(site: &Site<'_>, arguments: &[CalcValue]) -> Step<(f64, f64)> {
 }
 
 /// `x ^ y`. The cases decided without a power algorithm keep their measured rule: 0 to a
-/// negative power is #DIV/0! and 0 to the power 0 is #NUM!; the exponents 0, 1, 2 and -1 and the
-/// bases 0, 1 and -1 give their exact or singly rounded result. Every other power, a negative
-/// base with a fractional exponent included, is OxFunc's Excel power kernel
+/// negative power is #DIV/0! and 0 to the power 0 is #NUM!; the exponents 0, 1 and 2 and the
+/// bases 0 and 1 give their exact or singly rounded result. The negative unit base retains the
+/// kernel's exponent admission, with exact unit results. Every other power, a reciprocal or a
+/// negative base with a fractional exponent included, is OxFunc's Excel power kernel
 /// (ported/power_fn.rs, OxFunc 6fca3518): binary exponentiation with x87-staged products for an
 /// integer exponent, a decimal scale for a base of 10, `exp(y ln x)` on the x87 backend for a
 /// fractional one, and Excel's real-root rule for a negative base (accepted when `1/y`, read to
@@ -130,14 +131,13 @@ pub(super) fn raise(site: &Site<'_>, x: f64, y: f64) -> Step<f64> {
     } else if y == 1.0 {
         Ok(x)
     } else if x == -1.0 {
-        Ok(if y % 2.0 == 0.0 { 1.0 } else { -1.0 })
+        // Unit results are exact, but the kernel still owns integer-width admission.
+        crate::ported::power_fn::power_kernel(x, y).map_err(Exit::Error)
     } else if y == 2.0 {
         // A square below the normal range is +0, as Excel gives it (1E-160^2 in the catalogue
         // oracle's sheet f1_power), and as the power kernel flushes it.
         let square = site.multiply(x, x)?;
         Ok(if square.is_subnormal() { 0.0 } else { square })
-    } else if y == -1.0 {
-        site.divide(1.0, x)
     } else {
         power_algorithm(site, x, y)
     }
