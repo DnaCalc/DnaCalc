@@ -224,6 +224,7 @@ pub(super) fn core_observation(
             (*n, json!({"op":"text"}))
         }
         Check::FitsText(n) => (*n, json!({"op":"fits"})),
+        Check::TextBounds(n) => (*n, json!({"op":"bounds"})),
         Check::Absent(n) => (*n, json!({"op":"absent"})),
         Check::Count(n, _) => (*n, json!({"op":"count"})),
         Check::Attr(n, field, _) => (*n, json!({"op":"attribute","field":field})),
@@ -238,7 +239,8 @@ pub(super) fn core_observation(
             .chars()
             .filter(|c| *c != char::from(34) && *c != char::from(39))
             .collect::<String>();
-        let cell = paint.contains("[data-dnacalc=cell]");
+        let cell = paint.contains("[data-dnacalc=cell]")
+            || (matches!(check, Check::Style(..) | Check::Computed(..)) && paint.ends_with(" .dc-cell-text"));
         let decoration = paint.contains("[data-dnacalc=cell-decoration]")
             || paint.contains("[data-dnacalc=cell-borders]");
         if !cell && !decoration {

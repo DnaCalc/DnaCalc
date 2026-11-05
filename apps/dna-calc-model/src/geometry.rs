@@ -225,6 +225,32 @@ impl GridMetrics {
         }
     }
 
+    /// Display zoom resolves each band to device pixels before adding its position. Excel's
+    /// 30-pixel row occupies 23 pixels at 75%, so multiplying the cumulative offset drifts.
+    /// Both painters, selection and hit testing consume these same resolved metrics.
+    #[must_use]
+    pub fn scaled_for_display(&self, factor: f64, device_scale: f64) -> Self {
+        if !factor.is_finite() || factor <= 0.0 {
+            return self.clone();
+        }
+        let mut out = self.scaled(factor);
+        if !device_scale.is_finite() || device_scale <= 0.0 {
+            return out;
+        }
+        let snap = |size: f64| {
+            if size == 0.0 { 0.0 } else { (size * device_scale).round().max(1.0) / device_scale }
+        };
+        let row_height = snap(out.row_height);
+        let col_width = snap(out.col_width);
+        out.rows = Sizes::new(row_height, out.rows.sized.iter().map(|&(i, size)| (i, snap(size))));
+        out.cols = Sizes::new(col_width, out.cols.sized.iter().map(|&(i, size)| (i, snap(size))));
+        out.row_height = row_height;
+        out.col_width = col_width;
+        out.header_h = snap(out.header_h);
+        out.header_w = snap(out.header_w);
+        out
+    }
+
     /// Row `row`'s height (0 when hidden).
     pub fn height(&self, row: u32) -> f64 {
         self.rows.size(self.row_height, row)
@@ -951,9 +977,60 @@ mod tests {
 }
 
 const DIGIT_PX: f64 = 7.0;
+
+#[cfg(test)]
+mod paint_metric_tests {
+    use super::*;
+    /// Observed in the authored paint inputs in Excel at 96 DPI with Calibri 11.
+    /// The capture command retains original screenshots and measured grid boundaries.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn excel_column_units_and_row_points_use_whole_base_pixels() {
+        let widths = [0.5, 1., 2., 8.43, 8.7109375, 12., 20.];
+        let geometry = crate::projection::Geometry {
+            columns: widths.iter().enumerate().map(|(i, &w)| ((i + 1) as u32, (i + 1) as u32, Some(w), false)).collect(),
+            rows: vec![(1, Some(23.), false), (2, Some(32.), false), (3, Some(20.), false)],
+            ..Default::default()
+        };
+        let metrics = sheet_metrics(Some(&geometry));
+        assert_eq!((1..=7).map(|c| metrics.width(c)).collect::<Vec<_>>(), [3., 7., 14., 59., 61., 84., 140.]);
+        assert_eq!((1..=3).map(|r| metrics.height(r)).collect::<Vec<_>>(), [30., 42., 26.]);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn display_zoom_retains_pixel_bands_and_cell_hit_targets() {
+        let mut base = GridMetrics { row_height: 30., col_width: 77., ..Default::default() };
+        base.rows = Sizes::new(30., [(2, 26.), (3, 0.)]);
+        for (zoom, row, col) in [(0.75, 23., 58.), (1., 30., 77.), (1.5, 45., 116.)] {
+            let m = base.scaled_for_display(zoom, 1.);
+            assert_eq!((m.height(1), m.width(1), m.height(3)), (row, col, 0.));
+            assert_eq!(m.row_start(18), row * 15. + m.height(2));
+            assert_eq!(m.col_start(10), col * 9.);
+        }
+        for zoom in [0.1, 0.75, 1., 1.5] {
+            for dpr in [1., 1.25, 2.] {
+                let m = base.scaled_for_display(zoom, dpr);
+                let v = Viewport { width: 2000., height: 2000., ..Default::default() };
+                for row in [1, 2, 4, 18] {
+                    let rect = cell_rect(&m, &v, row, 10);
+                    for edge in [rect.x, rect.y, rect.w, rect.h] {
+                        assert!((edge * dpr - (edge * dpr).round()).abs() < 1e-9);
+                    }
+                    assert_eq!(hit_test(&m, &v, 100, 100, rect.x + rect.w / 2., rect.y + rect.h / 2.), HitTarget::Cell { row, col: 10 });
+                }
+            }
+        }
+    }
+}
+
 pub fn sheet_metrics(geometry: Option<&crate::projection::Geometry>) -> GridMetrics {
-    let column_px = |chars: f64| (chars * DIGIT_PX).round();
-    let row_px = |points: f64| (points * 96.0 / 72.0).round();
+    // Stored OOXML widths already include the cell margins. Keep the existing Calibri-11
+    // digit-width assumption; use the standard's truncation, including half-pixel cases.
+    // https://learn.microsoft.com/dotnet/api/documentformat.openxml.spreadsheet.column
+    let column_px = |chars: f64| (((256. * chars + (128. / DIGIT_PX).floor()) / 256.) * DIGIT_PX).floor();
+    // Excel's captured 23/32/20-point rows occupy 30/42/26 pixels at 96 DPI.
+    let row_px = |points: f64| (points * 96.0 / 72.0).floor();
     let col_width = geometry
         .and_then(|g| g.default_column_width)
         .map_or(64.0, column_px);

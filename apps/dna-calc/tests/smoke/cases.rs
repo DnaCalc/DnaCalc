@@ -5736,6 +5736,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
     Case {
         name: "axis: unavailable explicit fonts refuse AutoFit without changing geometry",
         actions: &[
+            Action::Window(1440, 1800),
             Action::StyledFixture,
             Action::UploadDownload("styled.xlsx"),
             Action::DiscardReplacement,
@@ -6747,7 +6748,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
     Case {
         name: "format cells: physical fill and borders remain visible across a merged cell after save and reopen",
         actions: &[
-            Action::ClearDownloads,Action::AlignmentFixture,Action::UploadDownload("alignment.xlsx"),Action::DiscardReplacement,
+            Action::Window(1600,1800),Action::ClearDownloads,Action::AlignmentFixture,Action::UploadDownload("alignment.xlsx"),Action::DiscardReplacement,
             Action::Into("name-box","L1:N2\u{E007}"),Action::Click("format-cells"),Action::Wait(Check::Focused("format-number")),
             Action::Click("format-tab-fill"),Action::Into("format-fill","#ffeecc"),Action::Click("format-tab-borders"),Action::Click("format-border-replace"),
             Action::Click("format-border-left"),Action::Click("format-border-right"),Action::Click("format-border-top"),Action::Click("format-border-bottom"),
@@ -8012,7 +8013,7 @@ Case {
     },
 
     Case {name:"tables: create a banded ListObject with real header buttons",actions:&[
-        Action::Window(1440,1000),Action::Click("skin-grid"),Action::ExternalClipboard("Item\tAmount\nFirst\t5\nSecond\t9\nThird\t2",false),Action::Into("name-box","A1\u{E007}"),Action::Keys("grid","\u{E009}v\u{E000}"),Action::Wait(Check::Text(cell!("B4"),"2")),Action::Into("name-box","A1:B3\u{E007}"),Action::OpenDetails("table-tools"),Action::Into("table-name","Sales"),Action::Click("table-create")],checks:&[Check::TextContains("table-summary","Sales"),Check::Count("filter-header",2),Check::Value("table-headers","true"),Check::Value("table-bands","true"),Check::Computed(cell!("A1"),"font-weight:700")]},
+        Action::Window(1440,1800),Action::Click("skin-grid"),Action::ExternalClipboard("Item\tAmount\nFirst\t5\nSecond\t9\nThird\t2",false),Action::Into("name-box","A1\u{E007}"),Action::Keys("grid","\u{E009}v\u{E000}"),Action::Wait(Check::Text(cell!("B4"),"2")),Action::Into("name-box","A1:B3\u{E007}"),Action::OpenDetails("table-tools"),Action::Into("table-name","Sales"),Action::Click("table-create")],checks:&[Check::TextContains("table-summary","Sales"),Check::Count("filter-header",2),Check::Value("table-headers","true"),Check::Value("table-bands","true"),Check::Computed(cell!("A1"),"font-weight:700")]},
     Case {name:"tables: resize rebinds structured references through Undo and Redo",actions:&[
         Action::Into("name-box","D1\u{E007}"),Action::Into(BAR,"=SUM(Sales[Amount])\u{E007}"),Action::Wait(Check::Text(cell!("D1"),"14")),Action::Into("name-box","A1\u{E007}"),Action::OpenDetails("table-tools"),Action::Into("table-rows","4"),Action::Click("table-resize"),Action::Wait(Check::Text(cell!("D1"),"16")),Action::Click("undo"),Action::Wait(Check::Text(cell!("D1"),"14")),Action::Click("redo")],checks:&[Check::Text(cell!("D1"),"16"),Check::TextContains("table-summary","A1:B4")]},
     Case {name:"tables: total rows and their functions use ordinary calculated formulas",actions:&[
@@ -8024,7 +8025,7 @@ Case {
     Case {name:"tables: clearing a table filter restores rows and phone controls stay reachable",actions:&[
         Action::Click("filter-clear"),Action::Wait(Check::Text(cell!("B2"),"5")),Action::Wait(Check::Text(cell!("B4"),"2")),Action::Into("name-box","A1\u{E007}"),Action::OpenDetails("table-tools"),Action::Window(390,844),Action::Click("table-name"),Action::Keys("table-name",TAB)],checks:&[Check::Fits,Check::Focused("table-create"),Check::Reachable("table-create"),Check::Name("table-create","Create from selection")]},
     Case {name:"tables: author a calculated column with current-row structured selectors",actions:&[
-        Action::Window(1440,1400),Action::OpenDetails("table-tools"),Action::Into("table-columns","3"),Action::Click("table-resize"),Action::Wait(Check::Count("filter-header",3)),Action::Choose("table-column","3"),Action::Into("table-column-name","Double"),Action::Click("table-column-rename"),Action::Wait(Check::Text(cell!("C1"),"Double")),Action::Into("table-formula","=[@Amount]*2"),Action::Click("table-formula-apply")],checks:&[Check::Text(cell!("C2"),"10"),Check::Text(cell!("C3"),"18"),Check::Text(cell!("C4"),"4")]},
+        Action::Window(1440,1800),Action::OpenDetails("table-tools"),Action::Into("table-columns","3"),Action::Click("table-resize"),Action::Wait(Check::Count("filter-header",3)),Action::Choose("table-column","3"),Action::Into("table-column-name","Double"),Action::Click("table-column-rename"),Action::Wait(Check::Text(cell!("C1"),"Double")),Action::Into("table-formula","=[@Amount]*2"),Action::Click("table-formula-apply")],checks:&[Check::Text(cell!("C2"),"10"),Check::Text(cell!("C3"),"18"),Check::Text(cell!("C4"),"4")]},
     Case {name:"tables: column rename updates dependent formulas and calculated rules through history",actions:&[
         Action::Choose("table-column","2"),Action::Into("table-column-name","Revenue"),Action::Click("table-column-rename"),Action::Wait(Check::Text(cell!("B1"),"Revenue")),Action::Wait(Check::Text(cell!("D1"),"16")),Action::Click("undo"),Action::Wait(Check::Text(cell!("B1"),"Amount")),Action::Click("redo"),Action::Wait(Check::Text(cell!("B1"),"Revenue")),Action::Choose("table-column","3")],checks:&[Check::Text(cell!("C3"),"18"),Check::Text(cell!("D1"),"16"),Check::Value("table-formula","=[[#This Row],[Revenue]]*2")]},
     Case {name:"tables: calculated authoring copies relative A1 rows and retains absolute anchors",actions:&[
@@ -8048,7 +8049,7 @@ Case {
         Check::Attr("[data-dnacalc=chart][data-chart=\"Chart 2\"]","data-kind","bar"),Check::Attr("[data-dnacalc=chart][data-chart=\"Chart 3\"]","data-kind","line"),Check::Attr("[data-dnacalc=chart][data-chart=\"Chart 5\"]","data-kind","pie"),Check::Attr("[data-dnacalc=chart][data-chart=\"Chart 6\"]","data-kind","scatter"),Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","data-value","40")]},
 
     Case {name:"font variants: imported double underline and stacked graphemes paint from stored styles",actions:&[
-        Action::Window(1440,1400),Action::SetPainter("dom"),Action::ClearDownloads,Action::AlignmentFixture,Action::UploadDownload("alignment.xlsx"),Action::DiscardReplacement,Action::Into("name-box","B20\u{E007}")],checks:&[
+        Action::Window(1440,1400),Action::SetPainter("dom"),Action::ClearDownloads,Action::AlignmentFixture,Action::UploadDownload("alignment.xlsx"),Action::DiscardReplacement,Action::Into("name-box","D21\u{E007}"),Action::Wait(Check::ActiveSemantic("D21"))],checks:&[
         Check::Text(cell!("B20"),"Double"),Check::PlanCell("B20","style.underline_style","double"),Check::Computed("[data-cell=B20] .dc-cell-text","text-decoration-style:double"),Check::PlanCell("D20","style.rotation","255"),Check::Count("[data-cell=D20] .dc-cell-text > span",3),Check::Count("[data-cell=D21] .dc-cell-text > span",3)]},
     Case {name:"font variants: Canvas paints the same stacked text without a workbook command",actions:&[
         Action::Into("name-box","D21\u{E007}"),Action::Wait(Check::TextBounds(cell!("D21"))),Action::RememberPresentation,Action::SetPainter("canvas")],checks:&[Check::PainterStable,Check::CanvasInk("B20"),Check::CanvasInk("D20"),Check::CanvasInk("D21")]},
@@ -8057,7 +8058,7 @@ Case {
     Case {name:"font variants: author stacked orientation through the ordinary format transaction and history",actions:&[
         Action::Into("name-box","B20\u{E007}"),Action::Click("format-cells"),Action::Wait(Check::Focused("format-number")),Action::Click("format-tab-alignment"),Action::Choose("format-orientation","stacked"),Action::Click("format-apply"),Action::Wait(Check::PlanCell("B20","style.rotation","255")),Action::Click("undo"),Action::Wait(Check::PlanCell("B20","style.rotation","0")),Action::Click("redo")],checks:&[Check::PlanCell("B20","style.rotation","255"),Check::Count("[data-cell=B20] .dc-cell-text > span",6),Check::PlanCell("B20","style.underline_style","double")]},
     Case {name:"font variants: real XLSX reopening retains double underline strike and stacked orientation",actions:&[
-        Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("alignment.xlsx"),Action::DiscardReplacement,Action::Into("name-box","B20\u{E007}")],checks:&[Check::PlanCell("B20","style.rotation","255"),Check::PlanCell("D21","style.underline_style","double"),Check::PlanCell("D21","style.strike","true"),Check::Count("[data-cell=D21] .dc-cell-text > span",3),Check::Text(cell!("D21"),"é👩‍🔬Z")]},
+        Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("alignment.xlsx"),Action::DiscardReplacement,Action::Into("name-box","D21\u{E007}"),Action::Wait(Check::ActiveSemantic("D21"))],checks:&[Check::PlanCell("B20","style.rotation","255"),Check::PlanCell("D21","style.underline_style","double"),Check::PlanCell("D21","style.strike","true"),Check::Count("[data-cell=D21] .dc-cell-text > span",3),Check::Text(cell!("D21"),"é👩‍🔬Z")]},
     Case {name:"font variants: unsupported accounting effects stay labelled and controls fit three widths",actions:&[
         Action::Into("name-box","F20\u{E007}"),Action::Wait(Check::TextContains("style-note","underline variants")),Action::Window(390,844),Action::Click("format-cells"),Action::Wait(Check::Focused("format-number")),Action::Click("format-tab-font"),Action::Wait(Check::Fits),Action::Wait(Check::Reachable("format-underline-style")),Action::Click("format-cancel"),Action::Window(900,900),Action::Wait(Check::Fits),Action::Window(1440,1400)],checks:&[Check::Fits,Check::PlanCell("F20","style.underline_style","singleAccounting"),Check::PlanCell("F20","style.underline","false"),Check::TextContains("style-note","preserved but not painted")]},
 

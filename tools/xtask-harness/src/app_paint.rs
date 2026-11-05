@@ -1,0 +1,272 @@
+//! Excel pixels are a separate observation from calculation verdicts. Reuse the app server,
+//! WebDriver session, upload route and committed RenderPlan; never synthesize painted values.
+use super::*;
+
+const HELP: &str = "cargo xtask app paint-compare calc --out DIR [--bundle DIR] [--workbook FILE] [--reference DIR] [--zooms 75,100,150] [--excel EXE]";
+
+pub(super) fn run(ws: &Workspace, app: &App, raw: &[String]) -> ExitCode {
+    match execute(ws, app, raw) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("PAINT failed: {error}\n{HELP}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
+    if !cfg!(windows) {
+        return Err("Excel paint capture requires Windows".into());
+    }
+    let mut out = None;
+    let mut bundle_dir = None;
+    let mut workbook = None;
+    let mut reference = None;
+    let mut excel_path = None;
+    let mut zooms = vec![100, 75, 150];
+    let mut args = raw.iter();
+    while let Some(flag) = args.next() {
+        let value = args.next().ok_or_else(|| format!("{flag} needs a value"))?;
+        match flag.as_str() {
+            "--out" => out = Some(PathBuf::from(value)),
+            "--bundle" => bundle_dir = Some(PathBuf::from(value)),
+            "--workbook" => workbook = Some(PathBuf::from(value)),
+            "--reference" => reference = Some(PathBuf::from(value)),
+            "--excel" => excel_path = Some(PathBuf::from(value)),
+            "--zooms" => {
+                zooms = value
+                    .split(',')
+                    .map(|s| s.parse::<u32>().map_err(|e| e.to_string()))
+                    .collect::<Result<_, _>>()?;
+                if zooms.is_empty() || zooms.iter().any(|z| !(25..=200).contains(z)) {
+                    return Err("zooms must be 25..200".into());
+                }
+            }
+            _ => return Err(format!("unknown option {flag}")),
+        }
+    }
+    let out = out.ok_or("--out is required")?;
+    fs::create_dir_all(&out).map_err(|e| e.to_string())?;
+    let out = out.canonicalize().map_err(|e| e.to_string())?;
+    let mut built_source = json!({"status":"unrecorded","reason":"prebuilt bundle; exact served asset hashes retained"});
+    let bundle_dir = if let Some(dir) = bundle_dir {
+        dir
+    } else {
+        let dir = ws.root.join(app.default_out);
+        let before = runtime_source(ws)?;
+        bundle(ws, app, &dir)?;
+        if runtime_source(ws)? != before {
+            return Err("runtime source changed while bundling; rebuild before capturing".into());
+        }
+        built_source = before;
+        dir
+    };
+    let books = if let Some(path) = workbook {
+        vec![path.canonicalize().map_err(|e| e.to_string())?]
+    } else {
+        let mut books = Vec::new();
+        for kind in ["geometry", "text", "borders", "panes"] {
+            let path = out.join(format!("paint-{kind}.xlsx"));
+            fs::write(&path, calc_cases::fixtures::paint(kind)?).map_err(|e| e.to_string())?;
+            books.push(path);
+        }
+        books
+    };
+    let inputs: Vec<_> = books.iter().map(|p| Ok(json!({"path":p,"sha256":calc_verdict::sha256_hex(&fs::read(p).map_err(|e|e.to_string())?)}))).collect::<Result<_,String>>()?;
+    let bootstrap = out.join("paint-bootstrap.xlsx");
+    let bootstrap_bytes = calc_doc::blank_package();
+    fs::write(&bootstrap, &bootstrap_bytes).map_err(|e| e.to_string())?;
+    let request = json!({"books":inputs,"zooms":zooms,"out":out,"rows":18,"columns":10,"bootstrap":{"path":bootstrap,"sha256":calc_verdict::sha256_hex(&bootstrap_bytes)}});
+    fs::write(out.join("request.json"), request.to_string()).map_err(|e| e.to_string())?;
+    let source = ws.root.join("tools/xtask-harness/src/paint");
+    let reference_dir = reference
+        .as_ref()
+        .unwrap_or(&out)
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
+    if reference.is_some() && reference_dir == out {
+        return Err(
+            "--reference must differ from --out so the earlier browser captures remain intact"
+                .into(),
+        );
+    }
+    if reference.is_none() {
+        let mut command = Command::new("powershell.exe");
+        command
+            .args(["-NoProfile", "-File"])
+            .arg(source.join("excel.ps1"))
+            .arg("-Request")
+            .arg(out.join("request.json"));
+        if let Some(path) = &excel_path {
+            command.arg("-ExcelPath").arg(path);
+        }
+        let status = command
+            .status()
+            .map_err(|e| format!("Excel capture worker: {e}"))?;
+        if !status.success() {
+            return Err(format!("Excel capture worker exited {status}"));
+        }
+    }
+    let refs: Value = serde_json::from_slice(
+        &fs::read(reference_dir.join("excel.json")).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
+    let refs = refs.as_array().ok_or("Excel metadata is not an array")?;
+    for (i, input) in inputs.iter().enumerate() {
+        for zoom in &zooms {
+            if !refs
+                .iter()
+                .any(|r| r["sha256"] == input["sha256"] && r["zoom"] == *zoom)
+            {
+                return Err(format!(
+                    "no reference with the exact input hash and zoom for book {i}, {zoom}%"
+                ));
+            }
+        }
+    }
+    let port = serve(bundle_dir.clone(), None)?;
+    let url = format!("http://127.0.0.1:{port}/index.html");
+    let mut captures = Vec::new();
+    for mode in ["dom", "canvas"] {
+        let (_driver, session) = open(&BROWSERS[0], &out.join("downloads"))?;
+        let result = (|| {
+            for (book, input) in books.iter().zip(&inputs) {
+                start_group(app, &session, &renderer::page(&url, Some(mode)))?;
+                let reference = refs
+                    .iter()
+                    .find(|r| r["sha256"] == input["sha256"])
+                    .ok_or("missing reference")?;
+                let dpr = reference["dpi"].as_f64().ok_or("missing DPI")? / 96.;
+                session.post("/goog/cdp/execute",json!({"cmd":"Emulation.setDeviceMetricsOverride","params":{"width":1760,"height":1200,"deviceScaleFactor":dpr,"mobile":false}}))?;
+                upload(app, &session, "open-file", book)?;
+                settled(
+                    &session,
+                    "return document.querySelector('[data-dnacalc=status]').textContent.startsWith('Opened ')",
+                )?;
+                let visible = session.script("return [...document.querySelectorAll('[data-dnacalc=sheet-tab]')].map(t=>t.dataset.sheet);")?;
+                let sheets = visible
+                    .as_array()
+                    .ok_or("visible sheet tabs were not returned")?;
+                if sheets.is_empty() {
+                    return Err("workbook has no visible sheet tabs".into());
+                }
+                for sheet in sheets {
+                    for zoom in &zooms {
+                        if !refs.iter().any(|r| {
+                            r["sha256"] == input["sha256"]
+                                && r["sheet"] == *sheet
+                                && r["zoom"] == *zoom
+                        }) {
+                            return Err(format!(
+                                "reference is incomplete: sheet {sheet}, zoom {zoom}%"
+                            ));
+                        }
+                    }
+                }
+                for sheet in sheets {
+                    session.script(&format!("const tabs=[...document.querySelectorAll('[data-dnacalc=sheet-tab]')].filter(t=>t.dataset.sheet==={sheet});if(tabs.length!==1)throw Error('worksheet tab is absent or ambiguous');tabs[0].click();return true;"))?;
+                    settled(
+                        &session,
+                        &format!(
+                            "return document.querySelector('[data-dnacalc=sheet-tab][aria-selected=true]')?.dataset.sheet==={sheet};"
+                        ),
+                    )?;
+                    for zoom in &zooms {
+                        session.script(&format!("const e=document.querySelector('[data-dnacalc=zoom-percent]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'{zoom}');e.dispatchEvent(new Event('input',{{bubbles:true}}));e.dispatchEvent(new Event('change',{{bubbles:true}}));return true;"))?;
+                        settled(
+                            &session,
+                            &format!(
+                                "const p=Object.values(window.__dnacalcRenderPlans||{{}}).map(f=>JSON.parse(f())).find(p=>p.active);return p&&p.pending===0&&!p.plan.interrupted&&Math.abs(p.plan.scale-{zoom}/100)<1e-9;"
+                            ),
+                        )?;
+                        session.script("const g=document.querySelector('[data-dnacalc=grid][data-grid-active=true]');g.scrollTop=0;g.scrollLeft=0;g.dispatchEvent(new Event('scroll'));return true;")?;
+                        settled(
+                            &session,
+                            "const p=Object.values(window.__dnacalcRenderPlans).map(f=>JSON.parse(f())).find(p=>p.active);return p&&p.plan.viewport.scroll_x===0&&p.plan.viewport.scroll_y===0;",
+                        )?;
+                        // Two animation frames after the committed plan; read-only inspection.
+                        session.post("/execute/async",json!({"script":"const done=arguments[arguments.length-1];document.fonts.ready.then(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>done(true))));","args":[]}))?;
+                        let mut plan=session.script("const p=Object.values(window.__dnacalcRenderPlans).map(f=>JSON.parse(f())).find(p=>p.active);p.layer_rect=document.querySelector('[data-dnacalc=grid][data-grid-active=true] .dc-layer').getBoundingClientRect().toJSON();p.dpr=devicePixelRatio;p.fonts=[...new Set(p.plan.cells.map(c=>c.shown.style.family))].map(f=>({family:f,loaded:!f||document.fonts.check('11px '+JSON.stringify(f))}));return p;")?;
+                        plan["browser"] = session.post(
+                            "/goog/cdp/execute",
+                            json!({"cmd":"Browser.getVersion","params":{}}),
+                        )?;
+                        let prefix = format!(
+                            "{}-{}-{}-{}",
+                            book.file_stem().unwrap().to_string_lossy(),
+                            sheet.as_str().unwrap_or("sheet"),
+                            mode,
+                            zoom
+                        );
+                        let screenshot = webdriver(
+                            session.port,
+                            "GET",
+                            &format!("/session/{}/screenshot", session.id),
+                            None,
+                        )?;
+                        fs::write(
+                            out.join(format!("{prefix}.png.base64")),
+                            screenshot.as_str().ok_or("no screenshot")?,
+                        )
+                        .map_err(|e| e.to_string())?;
+                        plan["sha256"] = input["sha256"].clone();
+                        plan["sheet"] = sheet.clone();
+                        plan["zoom"] = json!(zoom);
+                        plan["painter"] = json!(mode);
+                        plan["prefix"] = json!(prefix);
+                        fs::write(out.join(format!("{prefix}.json")), plan.to_string())
+                            .map_err(|e| e.to_string())?;
+                        captures.push(plan);
+                        println!("PAINT captured {prefix}");
+                    }
+                }
+            }
+            Ok::<_, String>(())
+        })();
+        session.end();
+        result?;
+    }
+    let bundle_hashes: Vec<_>=fs::read_dir(&bundle_dir).map_err(|e|e.to_string())?.filter_map(Result::ok).filter(|e|e.path().is_file()).map(|e|Ok(json!({"name":e.file_name().to_string_lossy(),"sha256":calc_verdict::sha256_hex(&fs::read(e.path()).map_err(|e|e.to_string())?)}))).collect::<Result<_,String>>()?;
+    let record = json!({"schema":"dnacalc-paint/1","captures":captures,"reference":reference_dir,"bundle_source":built_source,"workspace_head_at_capture":cargo::git(&ws.root,&["rev-parse","HEAD"])? .trim(),"workspace_diff_sha256":calc_verdict::sha256_hex(cargo::git(&ws.root,&["diff","HEAD"] )?.as_bytes()),"bundle":bundle_hashes,"desktop":{"status":"not_run","reason":"dna-calc-desktop currently hosts XLL/COM; it has no worksheet painter"}});
+    fs::write(out.join("browser.json"), record.to_string()).map_err(|e| e.to_string())?;
+    let status = Command::new("py")
+        .arg(source.join("compare.py"))
+        .arg(&out)
+        .status()
+        .map_err(|e| format!("pixel comparison needs Python with Pillow: {e}"))?;
+    if !status.success() {
+        return Err(format!("pixel comparison exited {status}"));
+    }
+    Ok(())
+}
+
+fn runtime_source(ws: &Workspace) -> Result<Value, String> {
+    let diff = cargo::git(
+        &ws.root,
+        &[
+            "diff",
+            "HEAD",
+            "--",
+            "apps",
+            "crates",
+            "Cargo.toml",
+            "Cargo.lock",
+        ],
+    )?;
+    Ok(
+        json!({"status":"built_by_this_command","head":cargo::git(&ws.root,&["rev-parse","HEAD"] )?.trim(),"diff_sha256":calc_verdict::sha256_hex(diff.as_bytes())}),
+    )
+}
+
+fn settled(session: &Session, script: &str) -> Result<(), String> {
+    let start = Instant::now();
+    loop {
+        if session.script(script)?.as_bool() == Some(true) {
+            return Ok(());
+        }
+        if start.elapsed() > Duration::from_secs(30) {
+            return Err(format!("paint did not settle: {script}"));
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+}
