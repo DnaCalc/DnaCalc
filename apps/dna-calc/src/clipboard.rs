@@ -468,7 +468,7 @@ pub fn controls(controller: Controller) -> AnyView {
         </details>
         <dialog class="dc-clipboard-dialog" data-dnacalc="clipboard-dialog" node_ref=dialog on:cancel=move |ev: web_sys::Event|{ev.prevent_default();cancel();}>
             {move ||controller.paste_preview.get().map(|p|view! {
-                <h2>"Review paste or fill"</h2>
+                <h2>"Review paste, move or fill"</h2>
                 <p data-dnacalc="paste-preview">{format!("{} cells at {}. {} existing inputs will be replaced. One Undo restores the operation.",p.area.area().unwrap().cell_count(),controller.area_label(p.area.area().unwrap()),p.replaces)}</p>
                 <button data-dnacalc="paste-confirm" on:click=move |_|controller.apply_paste(p.id)>"Apply"</button>
             })}

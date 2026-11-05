@@ -76,6 +76,14 @@ pub fn reserve_for_open(bytes: usize) {
     }
 }
 
+/// A template creates an unpathed workbook from its file stem, even when the supplied name
+/// contains a desktop path. The server owns the session counter for that stem.
+pub(crate) fn template_basename(name: &str) -> &str {
+    let file = name.rsplit(['/', '\\']).next().unwrap_or(name);
+    let stem = file.rsplit_once('.').map_or(file, |(stem, _)| stem);
+    if stem.is_empty() { "Book" } else { stem }
+}
+
 /// Why a workbook did not open.
 #[derive(Debug)]
 pub enum OpenRefused {
@@ -158,6 +166,10 @@ impl Workbook {
     }
 
     pub fn open_with_template_mode(name:&str, bytes:Vec<u8>, budget:calc_host::WorkBudget, vba:VbaOpenPolicy, edit_template:bool) -> Result<Workbook,OpenRefused> {
+        Self::open_with_template_counter(name,bytes,budget,vba,edit_template,1)
+    }
+
+    pub(crate) fn open_with_template_counter(name:&str, bytes:Vec<u8>, budget:calc_host::WorkBudget, vba:VbaOpenPolicy, edit_template:bool, template_counter:u64) -> Result<Workbook,OpenRefused> {
         let memory=MemorySource::new(bytes);
         let source: Arc<dyn PackageRead> = Arc::new(memory.clone().named(name));
         let mut session = HostSession::open(source, &OpenPolicy::default(), host_options())
@@ -165,7 +177,7 @@ impl Workbook {
         let input_format=session.host().loaded().spreadsheet_format();
         let unsaved=input_format.is_template() && !edit_template;
         let output_format=if unsaved {if input_format.macro_enabled(){calc_host::SpreadsheetFormat::Xlsm}else{calc_host::SpreadsheetFormat::Xlsx}}else{input_format};
-        let name=if unsaved {format!("Book1.{}",output_format.extension())}else{name.to_owned()};
+        let name=if unsaved {format!("{}{template_counter}.{}",template_basename(name),output_format.extension())}else{name.to_owned()};
         if unsaved {
             session=HostSession::open(Arc::new(memory.named(name.as_str())), &OpenPolicy::default(), host_options()).map_err(OpenRefused::Package)?;
         }
@@ -763,11 +775,11 @@ mod template_tests {
         use calc_host::SpreadsheetFormat as F;
         let template=convert(include_bytes!("../../../crates/calc-doc/tests/fixtures/dc_5sr/features.xlsx"),F::Xltx);
         let mut created=Workbook::open("personal.xltx",template.clone()).unwrap();
-        assert_eq!(created.name(),"Book1.xlsx");assert!(created.unsaved());assert_eq!(created.save_name(),"Book1.xlsx");
-        assert_eq!(created.host().model().definitions().workbook_name(),Some("Book1.xlsx"));
+        assert_eq!(created.name(),"personal1.xlsx");assert!(created.unsaved());assert_eq!(created.save_name(),"personal1.xlsx");
+        assert_eq!(created.host().model().definitions().workbook_name(),Some("personal1.xlsx"));
         assert!(created.calculated_on_open().is_some());
         let (output,_)=created.save().unwrap();assert!(!created.unsaved());
-        let reopened=Workbook::open("Book1.xlsx",output).unwrap();assert_eq!(reopened.host().loaded().spreadsheet_format(),F::Xlsx);
+        let reopened=Workbook::open("personal1.xlsx",output).unwrap();assert_eq!(reopened.host().loaded().spreadsheet_format(),F::Xlsx);
         assert_eq!(reopened.sheets().len(),created.sheets().len());
         let mut editing=Workbook::open_with_template_mode("personal.xltx",template,calc_host::WorkBudget::UNLIMITED,VbaOpenPolicy::Preserve,true).unwrap();
         assert_eq!(editing.name(),"personal.xltx");assert!(!editing.unsaved());assert_eq!(editing.output_format(),F::Xltx);
@@ -780,7 +792,7 @@ mod template_tests {
         let original=include_bytes!("../../../crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm");
         let template=convert(original,F::Xltm);
         let mut book=Workbook::open("macro.xltm",template).unwrap();
-        assert_eq!(book.name(),"Book1.xlsm");assert!(book.unsaved());
+        assert_eq!(book.name(),"macro1.xlsm");assert!(book.unsaved());
         let source=calc_doc::open(Arc::new(MemorySource::new(original.to_vec())),&Default::default()).unwrap();
         let (saved,_)=book.save().unwrap();
         let output=calc_doc::open(Arc::new(MemorySource::new(saved)),&Default::default()).unwrap();
