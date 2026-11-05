@@ -2,6 +2,74 @@
 #[path = "../../../../crates/calc-engine/tests/fixtures/seven_cell.rs"]
 mod seven_cell;
 
+/// Authored paint inputs, sharing the existing package writer and fixture generator.
+/// These contain no reference pixels or cached formula results.
+pub(crate) fn paint(kind: &str) -> Result<Vec<u8>, String> {
+    use std::collections::BTreeMap;
+    let mut fonts=vec![r#"<font><sz val="11"/><name val="Calibri"/><color rgb="FF000000"/></font>"#.to_owned()];
+    for (size,effect) in [(8,""),(16,""),(24,""),(11,"<b/>"),(11,"<i/>"),(11,"<u/>"),(11,"<u val=\"double\"/>"),(11,"<strike/>")] {
+        fonts.push(format!("<font><sz val=\"{size}\"/><name val=\"Calibri\"/><color rgb=\"FF000000\"/>{effect}</font>"));
+    }
+    let mut borders=vec!["<border/>".to_owned()];
+    for style in ["thin","medium","thick","dotted","dashed","double","hair","dashDot","dashDotDot","mediumDashed","mediumDashDot","mediumDashDotDot","slantDashDot"] {
+        borders.push(format!("<border>{}</border>",["left","right","top","bottom"].iter().map(|side|format!("<{side} style=\"{style}\"><color rgb=\"FF154C94\"/></{side}>")).collect::<String>()));
+    }
+    let xf=|font,fill,border,number,alignment:&str|format!("<xf fontId=\"{font}\" fillId=\"{fill}\" borderId=\"{border}\" numFmtId=\"{number}\" xfId=\"0\" applyAlignment=\"1\"><alignment {alignment}/></xf>");
+    let mut formats=vec![xf(0,0,0,0,"")];
+    for font in 1..fonts.len(){formats.push(xf(font,0,0,0,""));}
+    let alignment_first=formats.len();
+    for alignment in ["horizontal=\"left\"", "horizontal=\"center\"", "horizontal=\"right\"", "vertical=\"top\"", "vertical=\"center\"", "wrapText=\"1\"", "indent=\"1\"", "textRotation=\"45\"", "textRotation=\"135\"", "shrinkToFit=\"1\"", "horizontal=\"distributed\"", "textRotation=\"255\""] {formats.push(xf(0,0,0,0,alignment));}
+    let number_first=formats.len();
+    for number in [1,2,9,10,14,20,37,49,164]{formats.push(xf(0,0,0,number,""));}
+    let border_first=formats.len();
+    for border in 1..borders.len(){formats.push(xf(0,0,border,0,""));}
+    let fill_first=formats.len();
+    for fill in 2..5{formats.push(xf(0,fill,0,0,""));}
+    let styles=format!(r#"<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="0.00;[Red](0.00);&quot;zero&quot;"/></numFmts><fonts count="{}">{}</fonts><fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFCC33"/></patternFill></fill><fill><patternFill patternType="lightGrid"><fgColor rgb="FF154C94"/><bgColor rgb="FFFFF0CC"/></patternFill></fill><fill><gradientFill degree="0"><stop position="0"><color rgb="FFFFFFFF"/></stop><stop position="1"><color rgb="FF154C94"/></stop></gradientFill></fill></fills><borders count="{}">{}</borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="{}">{}</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles><dxfs count="1"><dxf><font><b/><color rgb="FF9C0006"/></font><fill><patternFill patternType="solid"><fgColor rgb="FFFFC7CE"/></patternFill></fill></dxf></dxfs></styleSheet>"#,fonts.len(),fonts.join(""),borders.len(),borders.join(""),formats.len(),formats.join(""));
+    let text=|address:&str,style:usize,value:&str|format!("<c r=\"{address}\" s=\"{style}\" t=\"inlineStr\"><is><t xml:space=\"preserve\">{value}</t></is></c>");
+    let number=|address:&str,style:usize,value:f64|format!("<c r=\"{address}\" s=\"{style}\"><v>{value}</v></c>");
+    let mut rows=BTreeMap::<usize,(Option<f64>,String)>::new();
+    let mut add=|row:usize,height:Option<f64>,value:String|{let entry=rows.entry(row).or_insert((height,String::new()));entry.1.push_str(&value);};
+    let mut columns=String::new();
+    let mut tail=String::new();
+    let mut view=String::from(r#"<selection activeCell="J18" sqref="J18"/>"#);
+    match kind {
+        "geometry" => {
+            for (index,width) in [0.5,1.,2.,8.43,8.7109375,12.,20.,8.43,8.43,8.43].iter().enumerate(){columns.push_str(&format!("<col min=\"{0}\" max=\"{0}\" width=\"{width}\" customWidth=\"1\"/>",index+1));}
+            for row in 1..=18 {
+                let height=match row {3=>Some(10.),5=>Some(15.75),7=>Some(22.5),9=>Some(30.),11=>Some(42.),_=>None};
+                for col in 3..=10 {add(row,height,text(&format!("{}{row}",char::from(b'A'+col-1)),0,"0123456789"));}
+            }
+        }
+        "text" => {
+            columns.push_str(r#"<col min="1" max="10" width="12" customWidth="1"/>"#);
+            for i in 0..fonts.len(){add(i+1,Some(if i==3{32.}else{23.}),text(&format!("A{}",i+1),i,"Ag 0123"));}
+            for i in 0..12 {add(i+1,Some(if i==3{32.}else{23.}),text(&format!("D{}",i+1),alignment_first+i,if i==5{"wrap words wrap words"}else if i==9{"shrink this text to fit"}else{"Align Ag"}));}
+            for i in 0..9{add(i+1,Some(if i==3{32.}else{23.}),number(&format!("G{}",i+1),number_first+i,if i==8{-1234.567}else{45234.567}));}
+            add(14,Some(25.),text("A14",0,"Text overflowing into blank neighbours"));
+            add(15,Some(25.),text("A15",0,"Text clipped by occupied neighbour"));add(15,None,text("B15",0,"STOP"));
+            add(16,Some(25.),text("A16",0,"Text clipped by filled neighbour"));add(16,None,text("B16",fill_first,""));
+            add(17,Some(25.),number("G17",number_first+4,1e10));
+        }
+        "borders" => {
+            columns.push_str(r#"<col min="1" max="10" width="11" customWidth="1"/>"#);
+            for i in 0..13{let row=i+1;add(row,Some(23.),text(&format!("B{row}"),border_first+i,"Ag border"));add(row,None,text(&format!("C{row}"),border_first+(i+1)%13,"join"));}
+            for i in 0..3{add(2+i*3,Some(23.),text(&format!("F{}",2+i*3),fill_first+i,"Fill Ag"));}
+            for row in 14..=16{add(row,Some(23.),number(&format!("B{row}"),0,(row-14)as f64));}
+            tail.push_str(r#"<conditionalFormatting sqref="B14:B16"><cfRule type="cellIs" dxfId="0" priority="1" operator="greaterThan"><formula>0</formula></cfRule></conditionalFormatting>"#);
+        }
+        "panes" => {
+            columns.push_str(r#"<col min="1" max="10" width="10" customWidth="1"/>"#);
+            view=String::from(r#"<pane xSplit="2" ySplit="2" topLeftCell="C3" activePane="bottomRight" state="frozen"/><selection pane="bottomRight" activeCell="D4" sqref="D4:F6"/>"#);
+            for row in 1..=18{for col in 1..=10{add(row,Some(20.),text(&format!("{}{row}",char::from(b'A'+col-1)),0,&format!("R{row}C{col}")));}}
+        }
+        _ => return Err(format!("unknown paint input {kind}")),
+    }
+    let rows=rows.into_iter().map(|(row,(height,cells))|format!("<row r=\"{row}\"{}>{cells}</row>",height.map_or(String::new(),|h|format!(" ht=\"{h}\" customHeight=\"1\"")))).collect::<String>();
+    let sheet=format!(r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:J18"/><sheetViews><sheetView workbookViewId="0" zoomScale="100">{view}</sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/ ><cols>{columns}</cols><sheetData>{rows}</sheetData>{tail}</worksheet>"#).replace("/ >","/>");
+    crate::oracle_cases::replace_package_parts(&calc_doc::blank_package(),&BTreeMap::from([("xl/styles.xml".into(),styles.into_bytes()),("xl/worksheets/sheet1.xml".into(),sheet.into_bytes())]))
+}
+
 pub(crate) fn calculation_script() -> String {
     include_str!("recalc-worker.js")
         .replace(

@@ -4041,7 +4041,7 @@ mod template_lifecycle_tests {
     }
     #[cfg_attr(not(target_arch="wasm32"),test)]
     #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-    fn dc_971p_43__navigation_during_drag_preparation_cancels_the_stale_drag() {
+    fn dc_q327__navigation_during_drag_preparation_cancels_the_stale_drag() {
         use std::rc::Rc;
         for stage in [1,2] {
             let root=Owner::new();root.with(|| {
@@ -4070,7 +4070,7 @@ mod template_lifecycle_tests {
     }
     #[cfg_attr(not(target_arch="wasm32"),test)]
     #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
-    fn dc_971p_43__drag_selection_is_undoable_and_a_late_paste_preserves_newer_navigation() {
+    fn dc_q327__drag_selection_is_undoable_and_a_late_paste_preserves_newer_navigation() {
         use std::rc::Rc;
         for delayed in [false, true] {
             let root=Owner::new();root.with(|| {

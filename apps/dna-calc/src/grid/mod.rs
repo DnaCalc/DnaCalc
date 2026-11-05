@@ -215,7 +215,7 @@ fn grid_workspace(controller: Controller) -> impl IntoView {
                     }
                     if first || panes::split_slots(&layout.get_untracked()) != slots {
                         let initial_zoom=controller.grid_view_for(sheet,selected).map_or_else(||g.zoom.map_or(1.,|z|viewport::clamp_zoom(f64::from(z)/100.)),|v|v.zoom);
-                        let m = sheet_metrics(Some(&g.geometry())).scaled(initial_zoom);
+                        let m = sheet_metrics(Some(&g.geometry())).scaled_for_display(initial_zoom, window().device_pixel_ratio());
                         let a = g.top_left.unwrap_or((1, 1));
                         let b = g.pane_top_left.unwrap_or(a);
                         let mut initial = SplitAxes {
@@ -369,7 +369,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             geometry.with(|g| sheet_metrics(g.as_ref()))
         }
     });
-    let metrics = Memo::new(move |_| sheet_metrics.with(|m| m.scaled(zoom.get())));
+    let metrics = Memo::new(move |_| sheet_metrics.with(|m| m.scaled_for_display(zoom.get(), window().device_pixel_ratio())));
     let presentation = Memo::new(
         move |previous: Option<&dna_calc_model::presentation::Presentation>| {
             dna_calc_model::presentation::Presentation::update(

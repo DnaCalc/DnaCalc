@@ -568,10 +568,15 @@ pub(crate) fn numbervalue(
         .parse::<f64>()
         .map_err(|_| WorksheetErrorCode::Value)?;
     value *= sign;
+    Ok(numbervalue_percent(value, percent_count))
+}
+
+/// The existing NUMBERVALUE percent arithmetic, shared with its host reader.
+pub(crate) fn numbervalue_percent(mut value: f64, percent_count: u32) -> f64 {
     for _ in 0..percent_count {
         value /= 100.0;
     }
-    Ok(value)
+    value
 }
 
 // --- TEXTBEFORE and TEXTAFTER (text_delim_family.rs) -------------------------------------------
