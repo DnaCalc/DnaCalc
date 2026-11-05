@@ -6,9 +6,9 @@
 //!
 //! Nothing is staged, published or filed in the graph: the evaluation reads the state and the
 //! snapshot only. A read of a formula cell that has no published calculated value (a file cache,
-//! a refusal) is refused as CalcFml refuses a missing input. Explicit name diagnostics also
-//! refuse stale formula values. Existing rendering consumers retain their published-value
-//! policy until they share a freshness snapshot across their whole projection context.
+//! a refusal) is refused as CalcFml refuses a missing input. Explicit name diagnostics,
+//! validation audits and filter decisions also refuse stale or qualified cached inputs
+//! through a shared current-value context. Rendering keeps its published-value policy.
 
 #[path = "detached_name.rs"]
 mod name_inspection;
@@ -27,13 +27,170 @@ use calc_value::{CalcValue, CellKey, NumericMode};
 use std::cell::Cell;
 use std::sync::Arc;
 
+/// Which published values a detached consumer is allowed to consume. Neither policy
+/// admits calculation, effects, graph edges or publication.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DetachedReadPolicy {
+    /// A display may inspect historical published values. The outcome makes no
+    /// claim that its inputs are current.
+    PublishedValues,
+    /// A diagnostic or authoring decision refuses stale and external-cache inputs.
+    CurrentValues,
+}
+
+/// One immutable workbook borrow for a batch of detached evaluations. The dirty
+/// closure is computed once for CurrentValues, including possible spill expansion.
+/// Its borrow prevents edits, publication and input changes while it is used.
+pub struct DetachedEvaluationContext<'a> {
+    state: &'a EngineState,
+    inputs: &'a ModelRoot,
+    policy: DetachedReadPolicy,
+    stale: Vec<CellKey>,
+    all_values_current: bool,
+    progress: Progress,
+    spills: SpillIndex,
+}
+
+impl<'a> DetachedEvaluationContext<'a> {
+    /// As with the other engine entry points, `state` and `inputs` must belong to
+    /// the same workbook. A revision mismatch is refused before any reads.
+    pub fn new(
+        state: &'a EngineState,
+        inputs: &'a ModelRoot,
+        policy: DetachedReadPolicy,
+    ) -> Result<Self, NotModeled> {
+        if state.revision() != inputs.revision() {
+            return Err(NotModeled::Evaluation(EvalFault::NotModelled {
+                construct: "a diagnostic snapshot from another authored revision",
+                owner: "dc-hsa5.6",
+            }));
+        }
+        let stale = match policy {
+            DetachedReadPolicy::CurrentValues => state.stale(inputs).expect("revision checked"),
+            DetachedReadPolicy::PublishedValues => Vec::new(),
+        };
+        let mut progress = Progress::new(state.nodes.len());
+        for &at in &stale {
+            if let Some(node) = state.node_at(at) {
+                progress.schedule(node);
+            }
+        }
+        let mut all_values_current = stale.is_empty();
+        if policy == DetachedReadPolicy::CurrentValues {
+            for node in state.nodes() {
+                let calculation = state
+                    .result(node.anchor())
+                    .and_then(crate::FormulaResult::calculated)
+                    .map(|(_, c)| c);
+                let qualified = calculation.is_some_and(|calculation| {
+                    calculation.held_by_circular_rule()
+                        || calculation.stamp().is_some_and(|stamp| {
+                            stamp.reads.uses_boundary_cache
+                                || stamp.reads.uses_imported_cache
+                                || stamp.reads.legacy_boundary
+                        })
+                });
+                if qualified {
+                    progress.schedule(node.id());
+                }
+                all_values_current &= calculation
+                    .is_some_and(|calculation| !qualified && !calculation.reads_external_links());
+            }
+        }
+        Ok(Self {
+            state,
+            inputs,
+            policy,
+            stale,
+            all_values_current,
+            progress,
+            spills: SpillIndex::default(),
+        })
+    }
+
+    /// Available only for a current-value context; a historical display context has
+    /// deliberately not computed freshness.
+    pub fn stale_cells(&self) -> Option<&[CellKey]> {
+        (self.policy == DetachedReadPolicy::CurrentValues).then_some(&self.stale)
+    }
+
+    /// Conservative admission for an aggregate consumer without its own executed
+    /// read certificate. Refusals, file/held/qualified caches and stale results fail.
+    pub fn all_formula_values_current(&self) -> Option<bool> {
+        (self.policy == DetachedReadPolicy::CurrentValues).then_some(self.all_values_current)
+    }
+
+    fn view(&self) -> RecalcView<'_> {
+        RecalcView {
+            linked_workbooks: &self.state.linked_workbooks,
+            cached_observation: false,
+            caller: None,
+            scope: None,
+            range_refused: None,
+            boundary: None,
+            boundary_caches: None,
+            boundary_used: None,
+            inputs: self.inputs,
+            state: self.state,
+            workbook_facts: self.state.workbook_facts.as_ref(),
+            progress: &self.progress,
+            spills: &self.spills,
+            iterates: None,
+            kept: None,
+        }
+    }
+
+    /// Read a returned reference through the same freshness and occupancy policy as
+    /// the expression that produced it, without falling back to display caches.
+    pub fn read_cell(&self, at: CellKey) -> Result<CalcValue, NotModeled> {
+        use calc_fml::reference::{CellRead, ReferenceReader};
+        if self.inputs.sheet_by_id(at.sheet()).is_none()
+            && self
+                .inputs
+                .definitions()
+                .external_sheet(at.sheet())
+                .is_none()
+        {
+            return Err(NotModeled::Evaluation(EvalFault::MissingInput { cell: at }));
+        }
+        let uncomputed = Cell::new(None);
+        let mut reader = WorkbookReader::new(self.view(), &uncomputed);
+        let value = reader
+            .read_cell(calc_fml::ReadRequest::DIAGNOSTIC, at)
+            .map_err(|error| NotModeled::Evaluation(EvalFault::ReadContract(error)))?;
+        if uncomputed.get().is_some()
+            || (self.policy == DetachedReadPolicy::CurrentValues && reader.read_external_links())
+        {
+            return Err(NotModeled::Evaluation(EvalFault::MissingInput { cell: at }));
+        }
+        match value {
+            CellRead::Value(value) => Ok(value),
+            CellRead::Blank => Ok(CalcValue::empty()),
+            CellRead::Missing => Err(NotModeled::Evaluation(EvalFault::MissingInput { cell: at })),
+        }
+    }
+}
+
 /// A formula compiled for detached evaluation: its text read in A1 notation for a formula at
 /// `origin` (a conditional format's formula is relative to the top-left cell of its range), to be
 /// placed at any cell.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct DetachedFormula {
     reference_result: bool,
     plan: Arc<CompiledPlan>,
+    compiled_inputs: Arc<ModelRoot>,
+    caller_sheet: calc_value::SheetId,
+}
+
+impl std::fmt::Debug for DetachedFormula {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DetachedFormula")
+            .field("reference_result", &self.reference_result)
+            .field("plan", &self.plan)
+            .field("compiled_revision", &self.compiled_inputs.revision())
+            .field("caller_sheet", &self.caller_sheet)
+            .finish()
+    }
 }
 
 /// Evidence from an explicit diagnostic; it installs no cell or shared name result.
@@ -83,6 +240,8 @@ impl DetachedFormula {
         Ok(DetachedFormula {
             plan,
             reference_result: false,
+            compiled_inputs: inputs.pin(),
+            caller_sheet: origin.sheet(),
         })
     }
 
@@ -96,7 +255,20 @@ impl DetachedFormula {
         inputs: &ModelRoot,
         at: CellKey,
     ) -> Result<CalcValue, NotModeled> {
-        self.evaluate_recording(state, inputs, at, None, false)
+        let context =
+            DetachedEvaluationContext::new(state, inputs, DetachedReadPolicy::PublishedValues)?;
+        self.evaluate_in(&context, at)
+    }
+
+    /// Evaluate using an explicitly selected, reusable published-input context.
+    /// CurrentValues requires the compilation model and caller worksheet to remain
+    /// valid; compile again after a structural, namespace or file-identity change.
+    pub fn evaluate_in(
+        &self,
+        context: &DetachedEvaluationContext<'_>,
+        at: CellKey,
+    ) -> Result<CalcValue, NotModeled> {
+        self.evaluate_recording(context, at, None)
     }
 
     /// Execute through the same diagnostic reader and evaluator while retaining bounded
@@ -108,7 +280,9 @@ impl DetachedFormula {
         at: CellKey,
     ) -> DetachedNameEvaluation {
         let mut effects = calc_fml::UserFunctionEffects::default();
-        let outcome = self.evaluate_recording(state, inputs, at, Some(&mut effects), true);
+        let outcome =
+            DetachedEvaluationContext::new(state, inputs, DetachedReadPolicy::CurrentValues)
+                .and_then(|context| self.evaluate_recording(&context, at, Some(&mut effects)));
         DetachedNameEvaluation {
             outcome,
             numeric: state.published_mode.clone().unwrap_or(NumericMode::Fast),
@@ -119,47 +293,27 @@ impl DetachedFormula {
 
     fn evaluate_recording(
         &self,
-        state: &EngineState,
-        inputs: &ModelRoot,
+        context: &DetachedEvaluationContext<'_>,
         at: CellKey,
         effects: Option<&mut calc_fml::UserFunctionEffects>,
-        fresh_snapshot: bool,
     ) -> Result<CalcValue, NotModeled> {
-        let instance = instantiate(&self.plan, FormulaAnchor::new(at));
-        let mut progress = Progress::new(usize::MAX);
-        if fresh_snapshot {
-            // One dirty closure per explicit name diagnostic. Rendering loops need
-            // a shared context before adopting this stricter snapshot policy.
-            let stale = state.stale(inputs).ok_or(NotModeled::Evaluation(
-                EvalFault::NotModelled {
-                    construct: "a diagnostic snapshot from another authored revision",
-                    owner: "dc-hsa5.6",
-                },
-            ))?;
-            for at in stale {
-                if let Some(node) = state.node_at(at) {
-                    progress.schedule(node);
-                }
-            }
+        let (state, inputs) = (context.state, context.inputs);
+        if !inputs.same_lineage(&self.compiled_inputs)
+            || inputs.sheet_by_id(at.sheet()).is_none()
+            || (at.sheet() != self.caller_sheet && !self.plan.name_bindings().is_empty())
+            || (context.policy == DetachedReadPolicy::CurrentValues
+                && (inputs.revision() != self.compiled_inputs.revision()
+                    || at.sheet() != self.caller_sheet
+                    || !Arc::ptr_eq(inputs.definitions(), self.compiled_inputs.definitions())))
+            || !crate::contract::name_bindings_valid(inputs, self.plan.name_bindings())
+        {
+            return Err(NotModeled::Evaluation(EvalFault::NotModelled {
+                construct: "a detached formula with expired model, caller or name bindings",
+                owner: "dc-hsa5.6",
+            }));
         }
-        let spills = SpillIndex::default();
-        let view = RecalcView {
-            linked_workbooks: &state.linked_workbooks,
-            cached_observation: false,
-            caller: None,
-            scope: None,
-            range_refused: None,
-            boundary: None,
-            boundary_caches: None,
-            boundary_used: None,
-            inputs,
-            state,
-            workbook_facts: state.workbook_facts.as_ref(),
-            progress: &progress,
-            spills: &spills,
-            iterates: None,
-            kept: None,
-        };
+        let instance = instantiate(&self.plan, FormulaAnchor::new(at));
+        let view = context.view();
         let uncomputed = Cell::new(None);
         let mut reader = WorkbookReader::new(view, &uncomputed);
         let mut host = WorkbookReader::new(view, &uncomputed);
@@ -189,9 +343,11 @@ impl DetachedFormula {
                 owner: "dc-6yw",
             }));
         }
-        if fresh_snapshot && (reader.read_external_links() || host.read_external_links()) {
+        if context.policy == DetachedReadPolicy::CurrentValues
+            && (reader.read_external_links() || host.read_external_links())
+        {
             return Err(NotModeled::Evaluation(EvalFault::NotModelled {
-                construct: "a name diagnostic that consumes unresolved external-link cache values",
+                construct: "a detached current-value evaluation that consumes unresolved external-link cache values",
                 owner: "dc-hsa5.6",
             }));
         }

@@ -13656,6 +13656,41 @@ fn dc_971p_40__validation_audit_keeps_file_caches_and_stale_results_unavailable(
     );
 }
 
+/// Current literal entries must not make stale formula criteria look available.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_6__validation_criteria_share_current_snapshot() {
+    use calc_host::ValidationStatus;
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("<sheetData/>", r#"<sheetData><row r="1"><c r="A1"><v>1</v></c><c r="B1"><f>A1*2</f><v>2</v></c><c r="C1"><v>2</v></c><c r="D1"><v>2</v></c><c r="E1"><v>2</v></c></row></sheetData>"#)
+            .replace("</worksheet>", r#"<dataValidations count="3"><dataValidation type="custom" allowBlank="0" showErrorMessage="0" sqref="C1"><formula1>$B$1=2</formula1></dataValidation><dataValidation type="decimal" operator="between" allowBlank="0" showErrorMessage="0" sqref="D1"><formula1>$B$1</formula1><formula2>$B$1</formula2></dataValidation><dataValidation type="list" allowBlank="0" showErrorMessage="0" sqref="E1"><formula1>$B$1</formula1></dataValidation></dataValidations></worksheet>"#)
+    });
+    let bytes = package_with_part_from(&bytes, "xl/workbook.xml", |xml| {
+        xml.replace("<calcPr ", "<calcPr calcMode=\"manual\" ")
+    });
+    let mut book = session(&bytes);
+    let s = sheet(book.host(), "Sheet1");
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    assert_eq!(book.host().scan_validation(s).valid, 3);
+    enter(&mut book, at(s, "A1"), "2");
+    let revision = book.host().revision();
+    let history = book.history_depth();
+    for address in ["C1", "D1", "E1"] {
+        assert!(matches!(book.host().validation_status(at(s, address)),
+            Some(ValidationStatus::Unavailable { .. })), "{address}");
+    }
+    let report = book.host().scan_validation(s);
+    assert_eq!((report.checked, report.valid, report.unavailable), (3, 0, 3));
+    assert!(report.invalid.is_empty());
+    assert_eq!(book.host().revision(), revision);
+    assert_eq!(book.history_depth(), history);
+    assert!(matches!(value(book.host(), at(s, "B1")), ProjectedValue::Stale(_)));
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    let report = book.host().scan_validation(s);
+    assert_eq!((report.checked, report.valid, report.unavailable), (3, 0, 0));
+    assert_eq!(report.invalid, ["C1", "D1", "E1"].map(|address| at(s, address)));
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_40__raw_review_text_survives_save_after_the_cell_moves() {
