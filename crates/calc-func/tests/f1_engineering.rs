@@ -505,3 +505,56 @@ fn bessel_high_j_matches_recorded_seeds_and_forward_results() {
         assert_eq!(actual.to_bits(), expected, "BESSELJ x={x:016x}, order={order:016x}");
     }
 }
+
+/// Original R25 exact-operand phase-window captures, with unchanged Excel bits.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn bessel_high_correction_multiplies_ratio_before_polynomial() {
+    for (function, x, order, expected) in [
+        ("BESSELJ", 0x40278fdb9f06da55, 0x0000000000000000, 0xbf641f37ffc90c13), // r25-bessel-00052
+        ("BESSELJ", 0x402ab41b098d9cef, 0x3ff0000000000000, 0x3f79150d1d69965a), // r25-bessel-00058
+        ("BESSELJ", 0x402ab41b098f5ff6, 0x3ff0000000000000, 0x3f79150d207b8262), // r25-bessel-00073
+        ("BESSELJ", 0x402ab41b098f5ff7, 0x3ff0000000000000, 0x3f79150d207b8420), // r25-bessel-00078
+        ("BESSELJ", 0x402dd85a74162294, 0x0000000000000000, 0x3f5c45f4c3bbd9ed), // r25-bessel-00097
+        ("BESSELJ", 0x402dd85a7417e599, 0x0000000000000000, 0x3f5c45f4b815478d), // r25-bessel-00102
+        ("BESSELJ", 0x402dd85a7417e59b, 0x0000000000000000, 0x3f5c45f4b8153a54), // r25-bessel-00112
+        ("BESSELJ", 0x4036c6cbc4605f61, 0x3ff0000000000000, 0xbf66898bb67bbd3d), // r25-bessel-00138
+        ("BESSELJ", 0x403858eb79a4a232, 0x0000000000000000, 0xbf4b2d36b9cba3de), // r25-bessel-00152
+        ("BESSELJ", 0x403858eb79a4a233, 0x0000000000000000, 0xbf4b2d36b9cb8f2a), // r25-bessel-00157
+        ("BESSELJ", 0x403858eb79a583b6, 0x0000000000000000, 0xbf4b2d36a78f0a97), // r25-bessel-00167
+        ("BESSELJ", 0x403858eb79a583b7, 0x0000000000000000, 0xbf4b2d36a78ef5e4), // r25-bessel-00172
+        ("BESSELJ", 0x4039eb0b2ee9c688, 0x3ff0000000000000, 0x3f62919085f01638), // r25-bessel-00188
+        ("BESSELJ", 0x404986834196890f, 0x3ff0000000000000, 0x3f4ae05ad9cd0f5d), // r25-bessel-00203
+        ("BESSELJ", 0x404a4f931c391b38, 0x0000000000000000, 0x3f311e97b4d1eee0), // r25-bessel-00227
+        ("BESSELJ", 0x404b18a2f6db3ca3, 0x3ff0000000000000, 0xbf4892e4e0532714), // r25-bessel-00248
+        ("BESSELJ", 0x40693b1d4f98c414, 0x3ff0000000000000, 0x3f1b59dd7eb7db96), // r25-bessel-00253
+        ("BESSELJ", 0x40693b1d4f98c416, 0x3ff0000000000000, 0x3f1b59dd7ebb73b6), // r25-bessel-00263
+        ("BESSELJ", 0x40696d614641689f, 0x0000000000000000, 0x3f0205e929ce7b06), // r25-bessel-00282
+        ("BESSELJ", 0x40699fa53ce9f0f9, 0x3ff0000000000000, 0xbf1ab985f37a8fee), // r25-bessel-00298
+        ("BESSELY", 0x40278fdb9f06da53, 0x3ff0000000000000, 0xbf7e3fe308f58e41), // r25-bessel-00045
+        ("BESSELY", 0x40278fdb9f06da55, 0x3ff0000000000000, 0xbf7e3fe308f591f9), // r25-bessel-00055
+        ("BESSELY", 0x402ab41b098d9cef, 0x0000000000000000, 0xbf60b15329482f2b), // r25-bessel-00059
+        ("BESSELY", 0x402dd85a74162292, 0x3ff0000000000000, 0x3f753bfd9a7f34ed), // r25-bessel-00090
+        ("BESSELY", 0x402dd85a74162293, 0x3ff0000000000000, 0x3f753bfd9a7f3694), // r25-bessel-00095
+        ("BESSELY", 0x402dd85a7417e599, 0x3ff0000000000000, 0x3f753bfd9d66fc3f), // r25-bessel-00105
+        ("BESSELY", 0x4036c6cbc4605f60, 0x0000000000000000, 0x3f4e081f27555146), // r25-bessel-00134
+        ("BESSELY", 0x4036c6cbc4605f61, 0x0000000000000000, 0x3f4e081f27553bde), // r25-bessel-00139
+        ("BESSELY", 0x4036c6cbc4605f62, 0x0000000000000000, 0x3f4e081f27552677), // r25-bessel-00144
+        ("BESSELY", 0x403858eb79a4a233, 0x3ff0000000000000, 0xbf6464a5daaf15ee), // r25-bessel-00160
+        ("BESSELY", 0x4039eb0b2ee9c687, 0x0000000000000000, 0xbf48bf26abd555dc), // r25-bessel-00184
+        ("BESSELY", 0x404986834196890f, 0x0000000000000000, 0xbf31ea5aa30f373d), // r25-bessel-00204
+        ("BESSELY", 0x404a4f931c391b38, 0x3ff0000000000000, 0x3f49aea16f73e30b), // r25-bessel-00230
+        ("BESSELY", 0x404b18a2f6db3ca1, 0x0000000000000000, 0x3f30617bb35c54da), // r25-bessel-00239
+        ("BESSELY", 0x404b18a2f6db3ca2, 0x0000000000000000, 0x3f30617bb35c1d5a), // r25-bessel-00244
+        ("BESSELY", 0x40696d6146414c6e, 0x3ff0000000000000, 0x3f1b08eb85ac3cf4), // r25-bessel-00270
+        ("BESSELY", 0x40696d614641689f, 0x3ff0000000000000, 0x3f1b08ebb823c8b1), // r25-bessel-00285
+        ("BESSELY", 0x40696d61464168a1, 0x3ff0000000000000, 0x3f1b08ebb8275d40), // r25-bessel-00295
+        ("BESSELY", 0x40699fa53ce9f0fa, 0x0000000000000000, 0x3f01d0fae3bcaccd), // r25-bessel-00304
+    ] {
+        let actual = call(function, vec![n(f64::from_bits(x)), n(f64::from_bits(order))]).unwrap();
+        let calc_func::value::CoreValue::Number(actual) = actual.core() else {
+            panic!("{function} returned {actual:?}");
+        };
+        assert_eq!(actual.to_bits(), expected, "{function} x={x:016x}, order={order:016x}");
+    }
+}

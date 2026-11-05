@@ -413,6 +413,9 @@ to -0.1098628267e-2), and J1 repeats its second amplitude correction before
 the remaining terms. These fixed transcription hypotheses follow recorded
 Excel phase windows; all other coefficients remain published literals.
 The J0 phase table stays distinct from Y0's, and J uses worksheet SIN/COS.
+The subsequent R27 high J/Y correction is grouped as ((8/x)*trig)*polynomial,
+using the recorded paired phase windows. This is an algebraic regrouping
+of the published quotient-last expression; the 64/(x*x) reduction is retained.
 Product file: crates/calc-func/src/ported/bessel_rational.rs.
 ==============================================================================
 
