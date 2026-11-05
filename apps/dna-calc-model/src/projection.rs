@@ -275,6 +275,7 @@ pub enum Interest {
 /// What the page asks the session to do: calc-host's skin intents as the page sends them.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Intent {
+    ChartSeries {sheet:Sheet,revision:u64,part:String,plot:u32,series:Option<u32>,name:Option<String>,categories:Option<String>,values:Option<String>,remove:bool},
     ChartProperties {sheet:Sheet,revision:u64,part:String,title:Option<String>,set_title:bool,legend:Option<bool>},
     CreateReview {at:Key,revision:u64,parent:Option<u32>,threaded:bool,author:String,text:String,timestamp:String},
     FormatReview {at:Key,revision:u64,index:u32,text:String,start:u32,end:u32,patch:ReviewFormat},
@@ -901,6 +902,7 @@ impl Geometry {
 /// its position and size, and its drawing.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Chart {
+    #[serde(default)] pub plots:Vec<ChartPlotSource>,
     #[serde(default)] pub part:String,
     #[serde(default)] pub title:Option<String>,
     #[serde(default)] pub legend:Option<String>,
@@ -910,6 +912,21 @@ pub struct Chart {
     pub place: ChartPlace,
     /// The chart's SVG, for a frame of the size `place` gives at 100%.
     pub svg: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChartPlotSource {
+    pub kind:String,
+    pub series:Vec<ChartSeriesSource>,
+}
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChartSeriesSource {
+    pub index:u32,
+    pub label:String,
+    /// A literal name, or a cell reference prefixed by '='.
+    pub name:String,
+    pub categories:Option<String>,
+    pub values:Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
