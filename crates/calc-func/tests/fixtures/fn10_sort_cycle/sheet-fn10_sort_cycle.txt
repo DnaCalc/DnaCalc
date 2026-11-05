@@ -1,0 +1,203 @@
+# dc-zsn.2.4: unanswered SORT cycle permutation, size and stable-tie questions.
+# Each row sorts a two-column literal; the second column retains input positions.
+# TEXTJOIN records the full row-major result in one scalar cell; no expected result is invented.
+# fn10-sort-permutation-00-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"a-a",1;"aー",2;"aa",3},1,1))
+# fn10-sort-permutation-00--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"a-a",1;"aー",2;"aa",3},1,-1))
+# fn10-sort-permutation-01-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"a-a",1;"aa",2;"aー",3},1,1))
+# fn10-sort-permutation-01--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"a-a",1;"aa",2;"aー",3},1,-1))
+# fn10-sort-permutation-02-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"aー",1;"a-a",2;"aa",3},1,1))
+# fn10-sort-permutation-02--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"aー",1;"a-a",2;"aa",3},1,-1))
+# fn10-sort-permutation-03-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"aー",1;"aa",2;"a-a",3},1,1))
+# fn10-sort-permutation-03--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"aー",1;"aa",2;"a-a",3},1,-1))
+# fn10-sort-permutation-04-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"aa",1;"a-a",2;"aー",3},1,1))
+# fn10-sort-permutation-04--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"aa",1;"a-a",2;"aー",3},1,-1))
+# fn10-sort-permutation-05-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"aa",1;"aー",2;"a-a",3},1,1))
+# fn10-sort-permutation-05--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"aa",1;"aー",2;"a-a",3},1,-1))
+# fn10-sort-permutation-06-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-a",0;"a-ー",1;"aー",2;"aa",3},1,1))
+# fn10-sort-permutation-06--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-a",0;"a-ー",1;"aー",2;"aa",3},1,-1))
+# fn10-sort-permutation-07-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-a",0;"a-ー",1;"aa",2;"aー",3},1,1))
+# fn10-sort-permutation-07--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-a",0;"a-ー",1;"aa",2;"aー",3},1,-1))
+# fn10-sort-permutation-08-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-a",0;"aー",1;"a-ー",2;"aa",3},1,1))
+# fn10-sort-permutation-08--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-a",0;"aー",1;"a-ー",2;"aa",3},1,-1))
+# fn10-sort-permutation-09-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-a",0;"aー",1;"aa",2;"a-ー",3},1,1))
+# fn10-sort-permutation-09--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-a",0;"aー",1;"aa",2;"a-ー",3},1,-1))
+# fn10-sort-permutation-10-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-a",0;"aa",1;"a-ー",2;"aー",3},1,1))
+# fn10-sort-permutation-10--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-a",0;"aa",1;"a-ー",2;"aー",3},1,-1))
+# fn10-sort-permutation-11-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-a",0;"aa",1;"aー",2;"a-ー",3},1,1))
+# fn10-sort-permutation-11--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-a",0;"aa",1;"aー",2;"a-ー",3},1,-1))
+# fn10-sort-permutation-12-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aー",0;"a-ー",1;"a-a",2;"aa",3},1,1))
+# fn10-sort-permutation-12--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aー",0;"a-ー",1;"a-a",2;"aa",3},1,-1))
+# fn10-sort-permutation-13-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aー",0;"a-ー",1;"aa",2;"a-a",3},1,1))
+# fn10-sort-permutation-13--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aー",0;"a-ー",1;"aa",2;"a-a",3},1,-1))
+# fn10-sort-permutation-14-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aー",0;"a-a",1;"a-ー",2;"aa",3},1,1))
+# fn10-sort-permutation-14--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aー",0;"a-a",1;"a-ー",2;"aa",3},1,-1))
+# fn10-sort-permutation-15-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aー",0;"a-a",1;"aa",2;"a-ー",3},1,1))
+# fn10-sort-permutation-15--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aー",0;"a-a",1;"aa",2;"a-ー",3},1,-1))
+# fn10-sort-permutation-16-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aー",0;"aa",1;"a-ー",2;"a-a",3},1,1))
+# fn10-sort-permutation-16--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aー",0;"aa",1;"a-ー",2;"a-a",3},1,-1))
+# fn10-sort-permutation-17-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aー",0;"aa",1;"a-a",2;"a-ー",3},1,1))
+# fn10-sort-permutation-17--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aー",0;"aa",1;"a-a",2;"a-ー",3},1,-1))
+# fn10-sort-permutation-18-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aa",0;"a-ー",1;"a-a",2;"aー",3},1,1))
+# fn10-sort-permutation-18--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aa",0;"a-ー",1;"a-a",2;"aー",3},1,-1))
+# fn10-sort-permutation-19-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aa",0;"a-ー",1;"aー",2;"a-a",3},1,1))
+# fn10-sort-permutation-19--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aa",0;"a-ー",1;"aー",2;"a-a",3},1,-1))
+# fn10-sort-permutation-20-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aa",0;"a-a",1;"a-ー",2;"aー",3},1,1))
+# fn10-sort-permutation-20--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aa",0;"a-a",1;"a-ー",2;"aー",3},1,-1))
+# fn10-sort-permutation-21-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aa",0;"a-a",1;"aー",2;"a-ー",3},1,1))
+# fn10-sort-permutation-21--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aa",0;"a-a",1;"aー",2;"a-ー",3},1,-1))
+# fn10-sort-permutation-22-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aa",0;"aー",1;"a-ー",2;"a-a",3},1,1))
+# fn10-sort-permutation-22--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aa",0;"aー",1;"a-ー",2;"a-a",3},1,-1))
+# fn10-sort-permutation-23-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aa",0;"aー",1;"a-a",2;"a-ー",3},1,1))
+# fn10-sort-permutation-23--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aa",0;"aー",1;"a-a",2;"a-ー",3},1,-1))
+# fn10-sort-threshold-05-0-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"a-a",1;"aー",2;"aa",3;"a-ー",4},1,1))
+# fn10-sort-threshold-05-0--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"a-a",1;"aー",2;"aa",3;"a-ー",4},1,-1))
+# fn10-sort-threshold-05-1-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",4;"aa",3;"aー",2;"a-a",1;"a-ー",0},1,1))
+# fn10-sort-threshold-05-1--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",4;"aa",3;"aー",2;"a-a",1;"a-ー",0},1,-1))
+# fn10-sort-threshold-07-0-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"a-a",1;"aー",2;"aa",3;"a-ー",4;"a-a",5;"aー",6},1,1))
+# fn10-sort-threshold-07-0--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"a-a",1;"aー",2;"aa",3;"a-ー",4;"a-a",5;"aー",6},1,-1))
+# fn10-sort-threshold-07-1-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aー",6;"a-a",5;"a-ー",4;"aa",3;"aー",2;"a-a",1;"a-ー",0},1,1))
+# fn10-sort-threshold-07-1--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aー",6;"a-a",5;"a-ー",4;"aa",3;"aー",2;"a-a",1;"a-ー",0},1,-1))
+# fn10-sort-threshold-08-0-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"a-a",1;"aー",2;"aa",3;"a-ー",4;"a-a",5;"aー",6;"aa",7},1,1))
+# fn10-sort-threshold-08-0--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"a-a",1;"aー",2;"aa",3;"a-ー",4;"a-a",5;"aー",6;"aa",7},1,-1))
+# fn10-sort-threshold-08-1-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aa",7;"aー",6;"a-a",5;"a-ー",4;"aa",3;"aー",2;"a-a",1;"a-ー",0},1,1))
+# fn10-sort-threshold-08-1--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aa",7;"aー",6;"a-a",5;"a-ー",4;"aa",3;"aー",2;"a-a",1;"a-ー",0},1,-1))
+# fn10-sort-threshold-15-0-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"a-a",1;"aー",2;"aa",3;"a-ー",4;"a-a",5;"aー",6;"aa",7;"a-ー",8;"a-a",9;"aー",10;"aa",11;"a-ー",12;"a-a",13;"aー",14},1,1))
+# fn10-sort-threshold-15-0--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"a-a",1;"aー",2;"aa",3;"a-ー",4;"a-a",5;"aー",6;"aa",7;"a-ー",8;"a-a",9;"aー",10;"aa",11;"a-ー",12;"a-a",13;"aー",14},1,-1))
+# fn10-sort-threshold-15-1-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aー",14;"a-a",13;"a-ー",12;"aa",11;"aー",10;"a-a",9;"a-ー",8;"aa",7;"aー",6;"a-a",5;"a-ー",4;"aa",3;"aー",2;"a-a",1;"a-ー",0},1,1))
+# fn10-sort-threshold-15-1--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aー",14;"a-a",13;"a-ー",12;"aa",11;"aー",10;"a-a",9;"a-ー",8;"aa",7;"aー",6;"a-a",5;"a-ー",4;"aa",3;"aー",2;"a-a",1;"a-ー",0},1,-1))
+# fn10-sort-threshold-16-0-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"a-a",1;"aー",2;"aa",3;"a-ー",4;"a-a",5;"aー",6;"aa",7;"a-ー",8;"a-a",9;"aー",10;"aa",11;"a-ー",12;"a-a",13;"aー",14;"aa",15},1,1))
+# fn10-sort-threshold-16-0--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"a-a",1;"aー",2;"aa",3;"a-ー",4;"a-a",5;"aー",6;"aa",7;"a-ー",8;"a-a",9;"aー",10;"aa",11;"a-ー",12;"a-a",13;"aー",14;"aa",15},1,-1))
+# fn10-sort-threshold-16-1-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aa",15;"aー",14;"a-a",13;"a-ー",12;"aa",11;"aー",10;"a-a",9;"a-ー",8;"aa",7;"aー",6;"a-a",5;"a-ー",4;"aa",3;"aー",2;"a-a",1;"a-ー",0},1,1))
+# fn10-sort-threshold-16-1--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aa",15;"aー",14;"a-a",13;"a-ー",12;"aa",11;"aー",10;"a-a",9;"a-ー",8;"aa",7;"aー",6;"a-a",5;"a-ー",4;"aa",3;"aー",2;"a-a",1;"a-ー",0},1,-1))
+# fn10-sort-threshold-17-0-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"a-a",1;"aー",2;"aa",3;"a-ー",4;"a-a",5;"aー",6;"aa",7;"a-ー",8;"a-a",9;"aー",10;"aa",11;"a-ー",12;"a-a",13;"aー",14;"aa",15;"a-ー",16},1,1))
+# fn10-sort-threshold-17-0--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"a-a",1;"aー",2;"aa",3;"a-ー",4;"a-a",5;"aー",6;"aa",7;"a-ー",8;"a-a",9;"aー",10;"aa",11;"a-ー",12;"a-a",13;"aー",14;"aa",15;"a-ー",16},1,-1))
+# fn10-sort-threshold-17-1-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",16;"aa",15;"aー",14;"a-a",13;"a-ー",12;"aa",11;"aー",10;"a-a",9;"a-ー",8;"aa",7;"aー",6;"a-a",5;"a-ー",4;"aa",3;"aー",2;"a-a",1;"a-ー",0},1,1))
+# fn10-sort-threshold-17-1--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",16;"aa",15;"aー",14;"a-a",13;"a-ー",12;"aa",11;"aー",10;"a-a",9;"a-ー",8;"aa",7;"aー",6;"a-a",5;"a-ー",4;"aa",3;"aー",2;"a-a",1;"a-ー",0},1,-1))
+# fn10-sort-threshold-31-0-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"a-a",1;"aー",2;"aa",3;"a-ー",4;"a-a",5;"aー",6;"aa",7;"a-ー",8;"a-a",9;"aー",10;"aa",11;"a-ー",12;"a-a",13;"aー",14;"aa",15;"a-ー",16;"a-a",17;"aー",18;"aa",19;"a-ー",20;"a-a",21;"aー",22;"aa",23;"a-ー",24;"a-a",25;"aー",26;"aa",27;"a-ー",28;"a-a",29;"aー",30},1,1))
+# fn10-sort-threshold-31-0--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"a-a",1;"aー",2;"aa",3;"a-ー",4;"a-a",5;"aー",6;"aa",7;"a-ー",8;"a-a",9;"aー",10;"aa",11;"a-ー",12;"a-a",13;"aー",14;"aa",15;"a-ー",16;"a-a",17;"aー",18;"aa",19;"a-ー",20;"a-a",21;"aー",22;"aa",23;"a-ー",24;"a-a",25;"aー",26;"aa",27;"a-ー",28;"a-a",29;"aー",30},1,-1))
+# fn10-sort-threshold-31-1-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aー",30;"a-a",29;"a-ー",28;"aa",27;"aー",26;"a-a",25;"a-ー",24;"aa",23;"aー",22;"a-a",21;"a-ー",20;"aa",19;"aー",18;"a-a",17;"a-ー",16;"aa",15;"aー",14;"a-a",13;"a-ー",12;"aa",11;"aー",10;"a-a",9;"a-ー",8;"aa",7;"aー",6;"a-a",5;"a-ー",4;"aa",3;"aー",2;"a-a",1;"a-ー",0},1,1))
+# fn10-sort-threshold-31-1--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aー",30;"a-a",29;"a-ー",28;"aa",27;"aー",26;"a-a",25;"a-ー",24;"aa",23;"aー",22;"a-a",21;"a-ー",20;"aa",19;"aー",18;"a-a",17;"a-ー",16;"aa",15;"aー",14;"a-a",13;"a-ー",12;"aa",11;"aー",10;"a-a",9;"a-ー",8;"aa",7;"aー",6;"a-a",5;"a-ー",4;"aa",3;"aー",2;"a-a",1;"a-ー",0},1,-1))
+# fn10-sort-threshold-32-0-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"a-a",1;"aー",2;"aa",3;"a-ー",4;"a-a",5;"aー",6;"aa",7;"a-ー",8;"a-a",9;"aー",10;"aa",11;"a-ー",12;"a-a",13;"aー",14;"aa",15;"a-ー",16;"a-a",17;"aー",18;"aa",19;"a-ー",20;"a-a",21;"aー",22;"aa",23;"a-ー",24;"a-a",25;"aー",26;"aa",27;"a-ー",28;"a-a",29;"aー",30;"aa",31},1,1))
+# fn10-sort-threshold-32-0--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"a-a",1;"aー",2;"aa",3;"a-ー",4;"a-a",5;"aー",6;"aa",7;"a-ー",8;"a-a",9;"aー",10;"aa",11;"a-ー",12;"a-a",13;"aー",14;"aa",15;"a-ー",16;"a-a",17;"aー",18;"aa",19;"a-ー",20;"a-a",21;"aー",22;"aa",23;"a-ー",24;"a-a",25;"aー",26;"aa",27;"a-ー",28;"a-a",29;"aー",30;"aa",31},1,-1))
+# fn10-sort-threshold-32-1-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aa",31;"aー",30;"a-a",29;"a-ー",28;"aa",27;"aー",26;"a-a",25;"a-ー",24;"aa",23;"aー",22;"a-a",21;"a-ー",20;"aa",19;"aー",18;"a-a",17;"a-ー",16;"aa",15;"aー",14;"a-a",13;"a-ー",12;"aa",11;"aー",10;"a-a",9;"a-ー",8;"aa",7;"aー",6;"a-a",5;"a-ー",4;"aa",3;"aー",2;"a-a",1;"a-ー",0},1,1))
+# fn10-sort-threshold-32-1--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aa",31;"aー",30;"a-a",29;"a-ー",28;"aa",27;"aー",26;"a-a",25;"a-ー",24;"aa",23;"aー",22;"a-a",21;"a-ー",20;"aa",19;"aー",18;"a-a",17;"a-ー",16;"aa",15;"aー",14;"a-a",13;"a-ー",12;"aa",11;"aー",10;"a-a",9;"a-ー",8;"aa",7;"aー",6;"a-a",5;"a-ー",4;"aa",3;"aー",2;"a-a",1;"a-ー",0},1,-1))
+# fn10-sort-threshold-33-0-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"a-a",1;"aー",2;"aa",3;"a-ー",4;"a-a",5;"aー",6;"aa",7;"a-ー",8;"a-a",9;"aー",10;"aa",11;"a-ー",12;"a-a",13;"aー",14;"aa",15;"a-ー",16;"a-a",17;"aー",18;"aa",19;"a-ー",20;"a-a",21;"aー",22;"aa",23;"a-ー",24;"a-a",25;"aー",26;"aa",27;"a-ー",28;"a-a",29;"aー",30;"aa",31;"a-ー",32},1,1))
+# fn10-sort-threshold-33-0--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"a-a",1;"aー",2;"aa",3;"a-ー",4;"a-a",5;"aー",6;"aa",7;"a-ー",8;"a-a",9;"aー",10;"aa",11;"a-ー",12;"a-a",13;"aー",14;"aa",15;"a-ー",16;"a-a",17;"aー",18;"aa",19;"a-ー",20;"a-a",21;"aー",22;"aa",23;"a-ー",24;"a-a",25;"aー",26;"aa",27;"a-ー",28;"a-a",29;"aー",30;"aa",31;"a-ー",32},1,-1))
+# fn10-sort-threshold-33-1-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",32;"aa",31;"aー",30;"a-a",29;"a-ー",28;"aa",27;"aー",26;"a-a",25;"a-ー",24;"aa",23;"aー",22;"a-a",21;"a-ー",20;"aa",19;"aー",18;"a-a",17;"a-ー",16;"aa",15;"aー",14;"a-a",13;"a-ー",12;"aa",11;"aー",10;"a-a",9;"a-ー",8;"aa",7;"aー",6;"a-a",5;"a-ー",4;"aa",3;"aー",2;"a-a",1;"a-ー",0},1,1))
+# fn10-sort-threshold-33-1--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",32;"aa",31;"aー",30;"a-a",29;"a-ー",28;"aa",27;"aー",26;"a-a",25;"a-ー",24;"aa",23;"aー",22;"a-a",21;"a-ー",20;"aa",19;"aー",18;"a-a",17;"a-ー",16;"aa",15;"aー",14;"a-a",13;"a-ー",12;"aa",11;"aー",10;"a-a",9;"a-ー",8;"aa",7;"aー",6;"a-a",5;"a-ー",4;"aa",3;"aー",2;"a-a",1;"a-ー",0},1,-1))
+# fn10-sort-threshold-64-0-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"a-a",1;"aー",2;"aa",3;"a-ー",4;"a-a",5;"aー",6;"aa",7;"a-ー",8;"a-a",9;"aー",10;"aa",11;"a-ー",12;"a-a",13;"aー",14;"aa",15;"a-ー",16;"a-a",17;"aー",18;"aa",19;"a-ー",20;"a-a",21;"aー",22;"aa",23;"a-ー",24;"a-a",25;"aー",26;"aa",27;"a-ー",28;"a-a",29;"aー",30;"aa",31;"a-ー",32;"a-a",33;"aー",34;"aa",35;"a-ー",36;"a-a",37;"aー",38;"aa",39;"a-ー",40;"a-a",41;"aー",42;"aa",43;"a-ー",44;"a-a",45;"aー",46;"aa",47;"a-ー",48;"a-a",49;"aー",50;"aa",51;"a-ー",52;"a-a",53;"aー",54;"aa",55;"a-ー",56;"a-a",57;"aー",58;"aa",59;"a-ー",60;"a-a",61;"aー",62;"aa",63},1,1))
+# fn10-sort-threshold-64-0--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"a-ー",0;"a-a",1;"aー",2;"aa",3;"a-ー",4;"a-a",5;"aー",6;"aa",7;"a-ー",8;"a-a",9;"aー",10;"aa",11;"a-ー",12;"a-a",13;"aー",14;"aa",15;"a-ー",16;"a-a",17;"aー",18;"aa",19;"a-ー",20;"a-a",21;"aー",22;"aa",23;"a-ー",24;"a-a",25;"aー",26;"aa",27;"a-ー",28;"a-a",29;"aー",30;"aa",31;"a-ー",32;"a-a",33;"aー",34;"aa",35;"a-ー",36;"a-a",37;"aー",38;"aa",39;"a-ー",40;"a-a",41;"aー",42;"aa",43;"a-ー",44;"a-a",45;"aー",46;"aa",47;"a-ー",48;"a-a",49;"aー",50;"aa",51;"a-ー",52;"a-a",53;"aー",54;"aa",55;"a-ー",56;"a-a",57;"aー",58;"aa",59;"a-ー",60;"a-a",61;"aー",62;"aa",63},1,-1))
+# fn10-sort-threshold-64-1-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aa",63;"aー",62;"a-a",61;"a-ー",60;"aa",59;"aー",58;"a-a",57;"a-ー",56;"aa",55;"aー",54;"a-a",53;"a-ー",52;"aa",51;"aー",50;"a-a",49;"a-ー",48;"aa",47;"aー",46;"a-a",45;"a-ー",44;"aa",43;"aー",42;"a-a",41;"a-ー",40;"aa",39;"aー",38;"a-a",37;"a-ー",36;"aa",35;"aー",34;"a-a",33;"a-ー",32;"aa",31;"aー",30;"a-a",29;"a-ー",28;"aa",27;"aー",26;"a-a",25;"a-ー",24;"aa",23;"aー",22;"a-a",21;"a-ー",20;"aa",19;"aー",18;"a-a",17;"a-ー",16;"aa",15;"aー",14;"a-a",13;"a-ー",12;"aa",11;"aー",10;"a-a",9;"a-ー",8;"aa",7;"aー",6;"a-a",5;"a-ー",4;"aa",3;"aー",2;"a-a",1;"a-ー",0},1,1))
+# fn10-sort-threshold-64-1--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aa",63;"aー",62;"a-a",61;"a-ー",60;"aa",59;"aー",58;"a-a",57;"a-ー",56;"aa",55;"aー",54;"a-a",53;"a-ー",52;"aa",51;"aー",50;"a-a",49;"a-ー",48;"aa",47;"aー",46;"a-a",45;"a-ー",44;"aa",43;"aー",42;"a-a",41;"a-ー",40;"aa",39;"aー",38;"a-a",37;"a-ー",36;"aa",35;"aー",34;"a-a",33;"a-ー",32;"aa",31;"aー",30;"a-a",29;"a-ー",28;"aa",27;"aー",26;"a-a",25;"a-ー",24;"aa",23;"aー",22;"a-a",21;"a-ー",20;"aa",19;"aー",18;"a-a",17;"a-ー",16;"aa",15;"aー",14;"a-a",13;"a-ー",12;"aa",11;"aー",10;"a-a",9;"a-ー",8;"aa",7;"aー",6;"a-a",5;"a-ー",4;"aa",3;"aー",2;"a-a",1;"a-ー",0},1,-1))
+# fn10-sort-equal-0-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aa",0;"aa",1;"aa",2;"aa",3;"aa",4;"aa",5;"aa",6;"aa",7},1,1))
+# fn10-sort-equal-0--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aa",0;"aa",1;"aa",2;"aa",3;"aa",4;"aa",5;"aa",6;"aa",7},1,-1))
+# fn10-sort-equal-1-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aa",7;"aa",6;"aa",5;"aa",4;"aa",3;"aa",2;"aa",1;"aa",0},1,1))
+# fn10-sort-equal-1--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"aa",7;"aa",6;"aa",5;"aa",4;"aa",3;"aa",2;"aa",1;"aa",0},1,-1))
+# fn10-sort-ascii-0-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"z",0;"b",1;"a",2;"b",3;"0",4;"c",5;"a",6;"y",7},1,1))
+# fn10-sort-ascii-0--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"z",0;"b",1;"a",2;"b",3;"0",4;"c",5;"a",6;"y",7},1,-1))
+# fn10-sort-ascii-1-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"y",7;"a",6;"c",5;"0",4;"b",3;"a",2;"b",1;"z",0},1,1))
+# fn10-sort-ascii-1--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"y",7;"a",6;"c",5;"0",4;"b",3;"a",2;"b",1;"z",0},1,-1))
+# fn10-sort-padded-0-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"0",0;"a-ー",1;"a-a",2;"aー",3;"aa",4;"zz",5},1,1))
+# fn10-sort-padded-0--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"0",0;"a-ー",1;"a-a",2;"aー",3;"aa",4;"zz",5},1,-1))
+# fn10-sort-padded-1-1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"zz",5;"aa",4;"aー",3;"a-a",2;"a-ー",1;"0",0},1,1))
+# fn10-sort-padded-1--1
+_xlfn.TEXTJOIN("|",FALSE,_xlfn._xlws.SORT({"zz",5;"aa",4;"aー",3;"a-a",2;"a-ー",1;"0",0},1,-1))
