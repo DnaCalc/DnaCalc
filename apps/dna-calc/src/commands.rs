@@ -151,6 +151,10 @@ pub fn controls(controller: Controller) -> AnyView {
             controller.navigate_to(at, |_| {});
         }
     };
+    let step_match=move |backwards:bool|{
+        if stale(){return;}
+        if let Some(found)=found.get_untracked(){if let Some(index)=dna_calc_model::find_match_index(&found.rows,selected.get_untracked(),backwards){navigate(index);}}
+    };
     let replace = move |all: bool| {
         let (Some(options), Some(found)) = (options(), found.get_untracked()) else {
             return;
@@ -306,9 +310,10 @@ pub fn controls(controller: Controller) -> AnyView {
                 <button data-dnacalc="goto-apply" on:click=move |_|controller.go_to_text(target.get_untracked(),move |ok|{if ok{close();}})>"Go"</button><p role="status">{move ||controller.status.get().text}</p>
             })}
             <div hidden=move ||controller.find_open.get()==Some(FindMode::GoTo)>
-                <label>"Find"<input node_ref=query_field data-dnacalc="find-query" prop:value=move ||query.get() on:input=move |ev|{query.set(event_target_value(&ev));invalidate();} on:keydown=move |ev:leptos::ev::KeyboardEvent|{if ev.key()=="Enter"{ev.prevent_default();run();}}/></label>
+                <label>"Find"<input node_ref=query_field data-dnacalc="find-query" title="Enter searches, then advances; Shift+Enter moves to the previous match" aria-describedby="dc-find-keyboard-help" prop:value=move ||query.get() on:input=move |ev|{query.set(event_target_value(&ev));invalidate();} on:keydown=move |ev:leptos::ev::KeyboardEvent|{if ev.key()=="Enter"{ev.prevent_default();if !stale() && found.get_untracked().is_some_and(|f|!f.rows.is_empty()){step_match(ev.shift_key());}else{run();}}}/></label>
                 {find_options(controller)}
-                <div class="dc-dialog-actions"><button data-dnacalc="find-all" on:click=move |_|run()>"Find all"</button><button data-dnacalc="find-next" disabled=move ||stale()||found.get().is_none_or(|f|f.rows.is_empty()) on:click=move |_|{if let Some(found)=found.get_untracked(){let len=found.rows.len();for step in 1..=len{let next=(selected.get_untracked()+step)%len;if !found.rows[next].hidden{navigate(next);break;}}}}>"Next match"</button><button data-dnacalc="find-replace-mode" on:click=move |_|controller.command(Command::Replace)>"Replace…"</button></div>
+                <p class="dc-sr-only" id="dc-find-keyboard-help">"Enter searches, then moves to the next match. Shift+Enter moves to the previous match."</p>
+                <div class="dc-dialog-actions"><button data-dnacalc="find-all" on:click=move |_|run()>"Find all"</button><button data-dnacalc="find-next" disabled=move ||stale()||found.get().is_none_or(|f|f.rows.is_empty()) on:click=move |_|step_match(false)>"Next match"</button><button data-dnacalc="find-previous" disabled=move ||stale()||found.get().is_none_or(|f|f.rows.is_empty()) on:click=move |_|step_match(true)>"Previous match"</button><button data-dnacalc="find-replace-mode" on:click=move |_|controller.command(Command::Replace)>"Replace…"</button></div>
                 {move ||(controller.find_open.get()==Some(FindMode::Replace)).then(||view!{
                     <label>"Replace with"<input data-dnacalc="replace-text" prop:value=move ||replacement.get() on:input=move |ev|replacement.set(event_target_value(&ev))/></label>
                     <p class="dc-muted">"Replacement changes literal formulas and entries. Choose Formulas & entries and turn off wildcards. Validation failures stop the whole command."</p>

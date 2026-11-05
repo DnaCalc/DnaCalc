@@ -3086,8 +3086,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 355,
-            "the two applications have 355 core cases including eight text fill and clipboard cases and all 347 inherited core cases"
+            total, 363,
+            "the two applications have 363 core cases including eight Find and hidden-name cases and all 355 inherited core cases"
         );
     }
 

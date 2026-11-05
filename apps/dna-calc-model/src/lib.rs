@@ -23,6 +23,7 @@ mod view;
 pub mod viewport;
 pub use calc_value::{CellKey, GridArea, Selection, SheetId};
 pub use command::{
+    find_match_index,
     Command, CommandContext, CommandId, CommandRequest, Effect, RevealTarget, SHELL_KEYMAP, Target,
     Unavailable, resolve_shell_key,
 };
@@ -329,6 +330,24 @@ mod tests {
         assert!(model.views.pending_reason().is_none());
         assert_eq!(model.active_skin.as_deref(), Some("grid"));
     }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_971p_48_find_steps_wrap_and_skip_hidden_worksheets(){
+        use crate::projection::{FoundRow,Key,Provenance};
+        let mut rows=vec![false,true,false,true].into_iter().enumerate().map(|(i,hidden)|FoundRow{at:Key::of(calc_value::CellKey::new(calc_value::SheetId::from_parts(0,0),i as u32+1,1).unwrap()),label:String::new(),source:String::new(),display:String::new(),provenance:Provenance::Literal,hidden}).collect::<Vec<_>>();
+        assert_eq!(find_match_index(&rows,0,false),Some(2));assert_eq!(find_match_index(&rows,2,false),Some(0));assert_eq!(find_match_index(&rows,0,true),Some(2));assert_eq!(find_match_index(&rows,2,true),Some(0));
+        rows.iter_mut().for_each(|r|r.hidden=true);assert_eq!(find_match_index(&rows,0,false),None);assert_eq!(find_match_index(&rows,0,true),None);assert_eq!(find_match_index(&[],0,true),None);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_971p_48_hidden_name_scopes_keep_their_names_and_workbook_order(){
+        use crate::projection::{Summary,Sheet};
+        let mut summary=Summary{sheets:vec![(Sheet(0,0),"Visible".into())],hidden_sheets:vec![(Sheet(1,0),"Hidden".into(),false),(Sheet(2,0),"Very hidden".into(),true)],sheet_order:vec![Sheet(1,0),Sheet(0,0),Sheet(2,0),Sheet(99,0)],..Default::default()};
+        assert_eq!(summary.all_sheets().into_iter().map(|s|s.name).collect::<Vec<_>>(),["Hidden","Visible","Very hidden"]);assert_eq!(summary.sheets.len(),1);assert_eq!(summary.hidden_sheets.len(),2);
+        summary.sheet_order.clear();assert_eq!(summary.all_sheets().into_iter().map(|s|s.name).collect::<Vec<_>>(),["Visible","Hidden","Very hidden"]);
+    }
+
 }
 
 pub mod canvas;

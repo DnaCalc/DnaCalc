@@ -73,6 +73,23 @@ fn value(session: &HostSession, row: u32, column: u32) -> calc_value::CalcValue 
     }
 }
 
+struct CallerOnlyContext(calc_value::CellKey);
+impl calc_func::UserFunctionContext for CallerOnlyContext {
+    fn caller(&self) -> Option<calc_value::CellKey> { Some(self.0) }
+    fn reference_qualifier(&mut self, _: calc_value::SheetId) -> Result<String, String> {
+        Ok("'[probe.xlsm]S'".into())
+    }
+    fn refuse(&mut self, reason: &'static str) -> String {
+        panic!("an ordinary fresh-project source error needs no host capability: {reason}");
+    }
+    fn values_of(&mut self, _: &calc_value::ReferenceLike) -> Result<calc_value::CalcValue, String> {
+        panic!("the original source must fail before a formula value read");
+    }
+    fn worksheet_function(&mut self, _: &str, _: &[calc_value::CalcValue]) -> Result<calc_value::CalcValue, String> {
+        panic!("the original source makes no worksheet callback before its error");
+    }
+}
+
 fn opened(bytes: &[u8], name: &str) -> HostSession {
     HostSession::open(
         Arc::new(MemorySource::new(bytes.to_vec()).named(name)),
@@ -766,22 +783,6 @@ fn remaining_original_source_compiler_gaps_stay_typed() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn original_p02_fresh_logger_raises_error_nine_and_keeps_its_source() {
     use calc_value::{CalcValue, WorksheetErrorCode};
-    struct Context(calc_value::CellKey);
-    impl calc_func::UserFunctionContext for Context {
-        fn caller(&self) -> Option<calc_value::CellKey> { Some(self.0) }
-        fn reference_qualifier(&mut self, _: calc_value::SheetId) -> Result<String, String> {
-            Ok("'[probe.xlsm]S'".into())
-        }
-        fn refuse(&mut self, reason: &'static str) -> String {
-            panic!("an ordinary logger error must not require a host capability: {reason}");
-        }
-        fn values_of(&mut self, _: &calc_value::ReferenceLike) -> Result<CalcValue, String> {
-            panic!("the logger must fail before any formula value read");
-        }
-        fn worksheet_function(&mut self, _: &str, _: &[CalcValue]) -> Result<CalcValue, String> {
-            panic!("the logger makes no worksheet callback");
-        }
-    }
     let bytes = include_bytes!(
         "../../calc-engine/tests/fixtures/excel-calc-probes/P02/auto-app-01.xlsm"
     );
@@ -797,7 +798,7 @@ fn original_p02_fresh_logger_raises_error_nine_and_keeps_its_source() {
         let functions = owner.functions();
         let caller = calc_value::CellKey::new(session.host().sheets()[0].id(), 1, 11).unwrap();
         let error = functions.call_with_context("PlainProbe",
-            &[CalcValue::number(34.), CalcValue::number(1.)], &mut Context(caller))
+            &[CalcValue::number(34.), CalcValue::number(1.)], &mut CallerOnlyContext(caller))
             .expect_err("the original unallocated logger must fail after its caller-address read");
         assert!(error.contains("VBA error 9:"), "{backend:?}: {error}");
         owner.install(&mut session);
@@ -812,6 +813,46 @@ fn original_p02_fresh_logger_raises_error_nine_and_keeps_its_source() {
         let reopened = opened(&saved, "probe.xlsm");
         assert_eq!(original, reopened.host().loaded()
             .read_vba_project(&Default::default()).unwrap().unwrap());
+    }
+}
+
+/// The saved P08 readings follow RunCase's assignment of observedSheet. Opening
+/// the original project starts a new VBA session with that object set to Nothing.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn original_p08_fresh_observers_raise_error_ninety_one_without_invented_setup() {
+    use calc_value::{CalcValue, WorksheetErrorCode};
+    let bytes = include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P08/observer-cold-lower-chain-01.xlsm");
+    for backend in [None, Some(calc_vba::Backend::Interpreter)] {
+        let mut session = opened(bytes, "probe.xlsm");
+        session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
+        session.set_workbook_events_enabled(false);
+        let original = session.host().loaded().read_vba_project(&Default::default()).unwrap().unwrap();
+        let source = &original.modules.iter().find(|m| m.name == "OracleProbe").unwrap().source;
+        assert!(source.contains("Private observedSheet As Worksheet"));
+        assert!(source.contains("Set observedSheet = ThisWorkbook.Worksheets(1)"));
+        let owner = calc_host_vba::prepare_file_project_with_events(
+            session.host(), "probe.xlsm", 1_000_000, backend, false,
+        ).unwrap().unwrap();
+        let functions = owner.functions();
+        let caller = calc_value::CellKey::new(session.host().sheets()[0].id(), 1, 3).unwrap();
+        for name in ["PeekB1", "PeekSeveral"] {
+            let error = functions.call_with_context(name, &[], &mut CallerOnlyContext(caller)).unwrap_err();
+            assert!(error.contains("VBA error 91:"), "{backend:?}: {name}: {error}");
+        }
+        owner.install(&mut session);
+        enter(&mut session, 1, 3, "=PeekB1()");
+        enter(&mut session, 1, 6, "=PeekSeveral()");
+        enter(&mut session, 2, 6, "=IFERROR(PeekSeveral(),777)");
+        full(&mut session);
+        assert_eq!(value(&session, 1, 3), CalcValue::error(WorksheetErrorCode::Value));
+        assert_eq!(value(&session, 1, 6), CalcValue::error(WorksheetErrorCode::Value));
+        assert_eq!(value(&session, 2, 6), CalcValue::number(777.));
+        assert!(session.workbook_event_failures().failures.is_empty());
+        let mut saved = Vec::new();
+        session.save(&Default::default(), &mut saved).unwrap();
+        let reopened = opened(&saved, "probe.xlsm");
+        assert_eq!(original, reopened.host().loaded().read_vba_project(&Default::default()).unwrap().unwrap());
     }
 }
 
