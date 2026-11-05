@@ -425,6 +425,7 @@ pub(crate) fn prepare_series(
     let next=chart.plots.iter().flat_map(|p|&p.series).map(|s|s.index)
         .chain(host.loaded().model().definitions().charts(sheet).iter().filter(|c|c.part==part).flat_map(|c|&c.plots).flat_map(|p|&p.series).map(|s|s.index))
         .max().unwrap_or(0).checked_add(1).ok_or("The series index limit was reached")?;
+    let total=chart.plots.iter().map(|p|p.series.len()).sum::<usize>();
     let p=chart.plots.get_mut(plot as usize).ok_or("The chart plot is unavailable")?;
     if !matches!(p.kind.as_str(),"barChart"|"lineChart"|"areaChart"|"pieChart"|"doughnutChart"|"scatterChart") {
         return Err("Editing series of this chart type is not modelled (dc-971p.46)".into());
@@ -435,7 +436,8 @@ pub(crate) fn prepare_series(
         if p.series.len()==1 {return Err("Keep at least one series in a chart plot (dc-971p.46)".into());}
         p.series.remove(i);
     } else {
-        if position.is_none() && p.series.len()>=256 {return Err("A chart plot can have at most 256 series here (dc-971p.46)".into());}
+        if position.is_none() && total>=255 {return Err("A chart can have at most 255 series (dc-971p.46)".into());}
+        if position.is_none() && matches!(p.kind.as_str(),"pieChart"|"doughnutChart"){return Err("Adding pie or doughnut series is not modelled; edit the existing series (dc-971p.46)".into());}
         let mut changed=position.map(|i|p.series[i].clone()).unwrap_or_else(||calc_doc_model::ChartSeries{index:next,..Default::default()});
         let origin=CellKey::new(sheet,1,1).unwrap();
         let range=|text:&str,numeric:bool,single:bool|->Result<ChartData,String>{
@@ -601,4 +603,28 @@ pub fn scatter_ranges(plot:&PlotView)->((f64,f64),(f64,f64)) {
     let (mut xl,mut xh,mut yl,mut yh)=(0f64,0f64,0f64,0f64);
     for series in &plot.series {for (x,y) in scatter_x_values(series).iter().zip(&series.values) {if let (Some(x),Some(y))=(x,y){xl=xl.min(*x);xh=xh.max(*x);yl=yl.min(*y);yh=yh.max(*y);}}}
     ((xl,xh),(yl,yh))
+}
+
+/// Convert supported 2-D plots without replacing their series identities or source references.
+pub(crate) fn prepare_type(host:&HostState,sheet:SheetId,revision:u64,part:&str,plot:u32,kind:&str,stacked:bool)->Result<Vec<crate::CellEdit>,String>{
+    prepare_properties(host,sheet,revision,part,None,false,None)?;
+    let mut charts=host.model().definitions().charts(sheet).to_vec();
+    let chart=charts.iter_mut().find(|c|c.part==part).ok_or("The chart is unavailable")?;
+    if chart.plots.len()!=1 || plot!=0 {return Err("Changing combination chart types is not modelled (dc-971p.46)".into());}
+    let p=&mut chart.plots[0];
+    let category=|kind:&str|matches!(kind,"barChart"|"lineChart"|"areaChart");
+    let pie=|kind:&str|matches!(kind,"pieChart"|"doughnutChart");
+    let (next,direction)=match kind {"column"=>("barChart",Some("col")),"bar"=>("barChart",Some("bar")),"line"=>("lineChart",None),"area"=>("areaChart",None),"pie"=>("pieChart",None),"doughnut"=>("doughnutChart",None),_=>return Err("Choose a supported two-dimensional chart type (dc-971p.46)".into())};
+    if category(&p.kind)&&category(next) {
+        value_axes(&chart.axes,&p.axis_ids,false).map_err(|e|format!("{e} (dc-971p.46)"))?;
+        let horizontal=p.kind=="barChart" && p.bar_direction.as_deref()==Some("bar");
+        if horizontal!=(kind=="bar") {for axis in &mut chart.axes {axis.position=axis.position.as_deref().map(|pos|match pos {"b"=>"l","t"=>"r","l"=>"b","r"=>"t",other=>other}.to_owned());}}
+    }else if !(pie(&p.kind)&&pie(next)) {return Err("Convert within column/bar/line/area, or between pie and doughnut; scatter and cross-family conversions are not modelled (dc-971p.46)".into());}
+    if pie(next)&&p.series.len()!=1{return Err("Changing multi-series pie or doughnut charts is not modelled (dc-971p.46)".into());}
+    if pie(next)&&stacked{return Err("Pie and doughnut charts do not have stacked grouping".into());}
+    p.kind=next.into();p.bar_direction=direction.map(str::to_owned);
+    p.grouping=category(next).then(||if stacked{"stacked"}else if next=="barChart"{"clustered"}else{"standard"}.into());
+    host.loaded().check_chart_properties(sheet,chart).map_err(|e|e.to_string())?;
+    if charts==host.model().definitions().charts(sheet){return Ok(Vec::new());}
+    Ok(vec![crate::CellEdit::Charts{sheet,charts}])
 }

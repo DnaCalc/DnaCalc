@@ -14,6 +14,8 @@ pub fn controls(controller: Controller) -> AnyView {
     let series_name = controller.tool_field(|s| &s.chart.series_name, |s| &mut s.chart.series_name);
     let categories = controller.tool_field(|s| &s.chart.categories, |s| &mut s.chart.categories);
     let values = controller.tool_field(|s| &s.chart.values, |s| &mut s.chart.values);
+    let chart_type = controller.tool_field(|s| &s.chart.chart_type, |s| &mut s.chart.chart_type);
+    let chart_grouping = controller.tool_field(|s| &s.chart.chart_grouping, |s| &mut s.chart.chart_grouping);
     let axis = controller.tool_field(|s| &s.chart.axis, |s| &mut s.chart.axis);
     let axis_minimum = controller.tool_field(|s| &s.chart.axis_minimum, |s| &mut s.chart.axis_minimum);
     let axis_maximum = controller.tool_field(|s| &s.chart.axis_maximum, |s| &mut s.chart.axis_maximum);
@@ -83,6 +85,23 @@ pub fn controls(controller: Controller) -> AnyView {
         open.track();current_part.track();plot.set("0".into());
     });
     let current_plot=Memo::new(move |_| current.get().and_then(|c|c.plots.get(plot.get().parse::<usize>().unwrap_or(0)).cloned()));
+    Effect::new(move |_| {
+        open.track();current_part.track();let p=current_plot.get();
+        chart_type.set(p.as_ref().map(edit_type).unwrap_or_default().into());
+        chart_grouping.set(p.as_ref().map(edit_grouping).unwrap_or("normal").into());
+    });
+    let apply_type=move |_| {
+        let Some((generation,revision,sheet))=ready.get_untracked()else{return;};
+        let Some(chart)=current.get_untracked()else{return;};let Some(old)=current_plot.get_untracked()else{return;};
+        let kind=chart_type.get_untracked();let grouping=chart_grouping.get_untracked();
+        if kind==edit_type(&old) && grouping==edit_grouping(&old){return;}
+        if grouping=="percent"{controller.say("Choose Normal or Stacked grouping before applying this type",true);return;}
+        let plot=plot.get_untracked().parse::<u32>().unwrap_or(0);
+        controller.after_input(move || {
+            if controller.generation.get_untracked()!=generation || controller.summary.get_untracked().revision!=revision || controller.sheet.get_untracked()!=Some(sheet) || controller.editing.get_untracked().is_some(){controller.say("The workbook changed; reopen the chart controls",true);return;}
+            controller.dispatch(wire::Intent::ChartType{sheet:wire::Sheet::of(sheet),revision,part:chart.part,plot,kind,stacked:grouping=="stacked"},move |outcome|{if outcome.accepted{controller.say("Chart type updated",false);}});
+        });
+    };
     Effect::new(move |_| {
         let p=current_plot.get();
         let chosen=series.get_untracked().parse::<u32>().ok();
@@ -225,6 +244,24 @@ pub fn controls(controller: Controller) -> AnyView {
                 </div>
                 <Show when=move ||current.get().is_some_and(|chart|chart.title_linked)><p class="dc-note">"Changing this title replaces its link to a cell with the text you enter."</p></Show>
                 <p class="dc-note">"Leave the title empty to hide it. Undo restores the previous chart settings."</p>
+                <Show when=move ||current_plot.get().is_some_and(|p|edit_type(&p)!="unsupported")>
+                    <fieldset class="dc-chart-series"><legend>"Chart type"</legend>
+                        <div class="dc-command-row"><label>"Type "<select data-dnacalc="chart-type" prop:value=move ||chart_type.get() on:change=move |ev|chart_type.set(event_target_value(&ev))>
+                            {move ||current_plot.get().map(|p|{
+                                let options=if matches!(p.kind.as_str(),"barChart"|"lineChart"|"areaChart"){vec![("column","Column"),("bar","Bar"),("line","Line"),("area","Area")]}else{vec![("pie","Pie"),("doughnut","Doughnut")]};
+                                options.into_iter().map(|(value,label)|view!{<option value=value>{label}</option>}).collect_view()
+                            })}
+                        </select></label>
+                        <Show when=move ||current_plot.get().is_some_and(|p|matches!(p.kind.as_str(),"barChart"|"lineChart"|"areaChart"))>
+                            <label>"Grouping "<select data-dnacalc="chart-grouping" prop:value=move ||chart_grouping.get() on:change=move |ev|chart_grouping.set(event_target_value(&ev))>
+                                <option value="normal">"Normal"</option><option value="stacked">"Stacked"</option>
+                                <Show when=move ||current_plot.get().is_some_and(|p|p.grouping.as_deref()==Some("percentStacked"))><option value="percent" disabled>"Percent stacked"</option></Show>
+                            </select></label>
+                        </Show>
+                        <button type="button" data-dnacalc="chart-type-apply" disabled=move ||ready.get().is_none() || chart_grouping.get()=="percent" || controller.assist.readonly.get() || controller.editing.get().is_some() on:click=apply_type>"Apply type"</button></div>
+                        <p class="dc-note">"Type changes use defaults for type-specific options. Series data and shared formatting are kept."</p>
+                    </fieldset>
+                </Show>
                 <fieldset class="dc-chart-series"><legend>"Series data"</legend>
                     <div class="dc-command-row">
                         <label>"Plot "<select data-dnacalc="chart-plot" prop:value=move ||plot.get() on:change=move |ev|plot.set(event_target_value(&ev))>
@@ -232,7 +269,7 @@ pub fn controls(controller: Controller) -> AnyView {
                         </select></label>
                         <label>"Series "<select data-dnacalc="chart-series" prop:value=move ||series.get() on:change=move |ev|series.set(event_target_value(&ev))>
                             {move ||current_plot.get().map(|p|p.series.into_iter().map(|s|view!{<option value=s.index.to_string()>{s.label}</option>}).collect_view())}
-                            <option value="new">"New series…"</option>
+                            <option value="new" disabled=move ||current_plot.get().is_some_and(|p|matches!(p.kind.as_str(),"pieChart"|"doughnutChart"))>"New series…"</option>
                         </select></label>
                     </div>
                     <div class="dc-command-row"><label>"Name "<input data-dnacalc="chart-series-name" prop:value=move ||series_name.get() on:input=move |ev|series_name.set(event_target_value(&ev))/></label></div>
@@ -270,3 +307,6 @@ pub fn controls(controller: Controller) -> AnyView {
 
 fn plot_name(kind:&str)->&str{match kind{"barChart"=>"Column / bar","lineChart"=>"Line","areaChart"=>"Area","pieChart"=>"Pie","doughnutChart"=>"Doughnut","scatterChart"=>"Scatter",_=>"Other plot"}}
 fn axis_name(position:&str)->&str{match position{"b"=>"Bottom (X)","t"=>"Top (X)","l"=>"Left (Y)","r"=>"Right (Y)",_=>"Value axis"}}
+
+fn edit_type(plot:&wire::ChartPlotSource)->&'static str{match plot.kind.as_str(){"barChart" if plot.bar_direction.as_deref()==Some("bar")=>"bar","barChart"=>"column","lineChart"=>"line","areaChart"=>"area","pieChart"=>"pie","doughnutChart"=>"doughnut",_=>"unsupported"}}
+fn edit_grouping(plot:&wire::ChartPlotSource)->&'static str{match plot.grouping.as_deref(){Some("percentStacked")=>"percent",Some("stacked")=>"stacked",_=>"normal"}}

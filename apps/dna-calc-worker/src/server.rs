@@ -1423,6 +1423,7 @@ impl Server {
                 direction,
             } => return self.notebook_order(placement, direction),
 
+            Intent::ChartType{sheet,revision,part,plot,kind,stacked}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartType{sheet:sheet.id(),revision,part,plot,kind,stacked}),
             Intent::ChartAxis{sheet,revision,part,axis,minimum,maximum,major_unit,reversed}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartAxis{sheet:sheet.id(),revision,part,axis,minimum,maximum,major_unit,reversed}),
             Intent::ChartSeries {sheet,revision,part,plot,series,name,categories,values,remove}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartSeries {sheet:sheet.id(),revision,part,plot,series,name,categories,values,remove}),
             Intent::ChartProperties {sheet,revision,part,title,set_title,legend}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartProperties {sheet:sheet.id(),revision,part,title,set_title,legend}),
@@ -2905,7 +2906,7 @@ impl Server {
                     .unwrap_or_default();
                 let source=host.model().definitions().charts(sheet.id()).iter().find(|chart|chart.part==view.part);
                 let plots=source.map(|chart|chart.plots.iter().enumerate().map(|(p,plot)|wire::ChartPlotSource {
-                    kind:plot.kind.clone(),
+                    kind:plot.kind.clone(),bar_direction:plot.bar_direction.clone(),grouping:plot.grouping.clone(),
                     series:plot.series.iter().enumerate().map(|(i,s)|wire::ChartSeriesSource {
                         index:s.index,
                         label:view.plots.get(p).and_then(|p|p.series.get(i)).map(|s|s.name.clone()).unwrap_or_default(),

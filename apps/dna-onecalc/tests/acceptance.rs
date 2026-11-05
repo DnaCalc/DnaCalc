@@ -242,8 +242,13 @@ fn dc_zsn25__fn6_iteration_primary_boundaries() {
     for formula in [
         "=\"ᄀ\"=\"ㄱ\"",
         "=\"ᄃ\"<\"a\"",
-        "=\"αᄀ\"<\"αa\"",
+        "=\"αᄀ\"<\"αㄱ\"",
         "=\"ᄀー\"<\"a\"",
+        "=\"ά가z\"=\"ά가a\"",
+        "=\"æ가z\"=\"æ가a\"",
+        "=\"가ᅡz\"=\"가a\"",
+        "=\"ㄱᅡz\"=\"ㄱa\"",
+        "=\"α\u{e0100}가z\"=\"α\u{e0100}가a\"",
     ] {
         session.set_formula(formula);
         let calculated = session.calculate();
@@ -252,6 +257,21 @@ fn dc_zsn25__fn6_iteration_primary_boundaries() {
             Diagnostic::Eval(EvalFault::Function(FunctionFault::NotImplemented { .. }))
         )), "{formula}: {:?}", calculated.diagnostics);
     }
+}
+
+/// Fn7 pairs the same complete Jamo prefix and bare primary-group boundaries
+/// with an ordinary Greek prefix, which the Windows suffix comparison retains.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zsn26__ordinary_prefix_before_jamo() {
+    let mut session = Session::new("Sheet1").unwrap();
+    check_captured_questions(include_bytes!(
+        "../../../crates/calc-func/tests/captures/fn7_collation_contractions/oracle.capture.json"
+    ), &mut session, |entry| {
+        entry.cell.row() == 20 && entry.cell.column() == 10
+            && matches!(entry.cell.sheet(), "q035" | "q036" | "q039" | "q040"
+                | "q043" | "q044" | "q047" | "q048" | "q055" | "q056")
+    }, 10);
 }
 
 /// Original fn6 Version-1/2 captures distinguish a lone high surrogate from a low
