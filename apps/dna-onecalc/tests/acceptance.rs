@@ -2954,3 +2954,40 @@ fn recorded_power_unit_boundaries_use_the_kernel() {
     assert!(failures.is_empty(), "{} of {} application checks differ:\n{}",
         failures.len(), 2 * (rows + subnormal_rows), failures.join("\n"));
 }
+
+/// Original W111 MEDIAN cancellation results from normal inputs, including every
+/// retained subnormal result. The same Session route handles cells and held arrays.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_median_subnormal_results_use_the_kernel() {
+    let set = calc_verdict::WitnessSet::decode(include_bytes!(
+        "../../../crates/calc-func/tests/witnesses/MEDIAN.json"
+    )).unwrap();
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J20").unwrap();
+    let mut rows = 0;
+    let mut failures = Vec::new();
+    for row in &set.witnesses {
+        let expected = calc_verdict::decode_result(&row.expected).unwrap();
+        if !expected.as_number().is_some_and(|n| n.is_subnormal()) { continue; }
+        assert_eq!(row.args.len(), 2);
+        for (cell, argument) in ["A1", "B1"].into_iter().zip(&row.args) {
+            let number = calc_verdict::decode_argument(argument, "MEDIAN")
+                .unwrap().as_number().unwrap();
+            assert!(number.is_normal(), "{}: normal inputs distinguish publication", row.id);
+            session.set_input(cell, InputValue::number(number).unwrap()).unwrap();
+        }
+        rows += 1;
+        for formula in ["=MEDIAN(A1,B1)", "=MEDIAN(A1:B1)", "=MEDIAN(HSTACK(A1,B1))"] {
+            session.set_formula(formula);
+            let result = session.calculate();
+            if result.result.as_ref() != Some(&expected) || !result.diagnostics.is_empty() {
+                failures.push(format!("{} {formula}: expected {expected:?}, calculated {:?}; {:?}",
+                    row.id, result.result, result.diagnostics));
+            }
+        }
+    }
+    assert_eq!(rows, 167, "every original subnormal observation must run");
+    assert!(failures.is_empty(), "{} of {} application checks differ:\n{}",
+        failures.len(), 3 * rows, failures.join("\n"));
+}
