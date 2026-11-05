@@ -539,3 +539,60 @@ fn dc_971p_46__scatter_fallback_extents_validate_the_actual_display() {
     assert!(book.dispatch(SkinIntent::Command(command)).accepted());
     let view=book.host().charts(sheet).0;assert_eq!(reopened(&mut book).host().charts(sheet).0,view);
 }
+
+fn type_command(book:&HostSession,chart:usize,kind:&str,stacked:bool)->calc_host::WorkbookCommand {
+    let sheet=book.host().sheets()[0].id();calc_host::WorkbookCommand::ChartType{sheet,revision:book.host().revision().get(),part:book.host().charts(sheet).0[chart].part.clone(),plot:0,kind:kind.into(),stacked}
+}
+/// Category conversions preserve sources, use one history step and save the requested type and axes.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_46__category_types_history_and_saved_reopening() {
+    let mut book=session();let sheet=book.host().sheets()[0].id();
+    for (kind,stacked,expected) in [("line",false,ChartKind::Line),("area",true,ChartKind::Area),("bar",true,ChartKind::Bar),("column",false,ChartKind::Column)] {
+        let before=book.host().charts(sheet).0;let history=book.history_depth();let command=type_command(&book,0,kind,stacked);
+        let outcome=book.dispatch(SkinIntent::Command(command));assert!(outcome.accepted(),"{outcome:?}");
+        let after=book.host().charts(sheet).0;assert_eq!(after[0].plots[0].kind,expected);assert_eq!(after[0].plots[0].stacked,stacked);assert_eq!(after[0].plots[0].series,before[0].plots[0].series);assert_eq!(after[1..],before[1..]);
+        assert_eq!(after[0].axes.iter().find(|a|a.kind=="valAx").unwrap().position.as_deref(),Some(if kind=="bar"{"b"}else{"l"}));
+        assert_eq!(book.history_depth(),(history.0+1,0));assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().charts(sheet).0,before);assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(book.host().charts(sheet).0,after);
+        book=reopened(&mut book);assert_eq!(book.host().charts(sheet).0,after);
+    }
+}
+/// Pie/doughnut conversion writes valid type-specific records without disturbing data or other charts.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_46__pie_doughnut_defaults_and_line_specific_options() {
+    let mut book=session();let sheet=book.host().sheets()[0].id();let original=book.host().charts(sheet).0;
+    for (kind,expected) in [("doughnut",ChartKind::Doughnut),("pie",ChartKind::Pie)] {
+        let command=type_command(&book,4,kind,false);assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+        let after=book.host().charts(sheet).0;assert_eq!(after[4].plots[0].kind,expected);assert_eq!(after[4].plots[0].series,original[4].plots[0].series);
+        book=reopened(&mut book);assert_eq!(book.host().charts(sheet).0,after);
+        let snapshot=book.host().loaded().snapshot(book.host().model());let xml=snapshot.package().read_xml(&after[4].part).unwrap();let xml=String::from_utf8(xml.bytes().to_vec()).unwrap();
+        assert_eq!(xml.contains("holeSize"),kind=="doughnut");assert!(xml.contains(if kind=="doughnut"{"<c:doughnutChart"}else{"<c:pieChart"}));
+    }
+    let command=type_command(&book,2,"bar",false);assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    book=reopened(&mut book);let snapshot=book.host().loaded().snapshot(book.host().model());let xml=snapshot.package().read_xml(&original[2].part).unwrap();let xml=String::from_utf8(xml.bytes().to_vec()).unwrap();
+    assert!(xml.contains("<c:barChart"));assert!(!xml.contains("<c:smooth"));assert!(!xml.contains("<c:marker"));
+}
+/// A type change composes with new sources, added series and the existing structural save pass.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_46__types_sources_and_unsaved_row_insertion_compose() {
+    let mut book=session();let sheet=book.host().sheets()[0].id();
+    for series in [Some(0),None]{let command=series_command(&book,0,series,Some("Typed & linked data"),Some("Data!A2:A7"),Some("Data!C2:C7"),false);assert!(book.dispatch(SkinIntent::Command(command)).accepted());}
+    let command=type_command(&book,0,"line",false);assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    assert!(book.dispatch(SkinIntent::EditAxis(calc_host::AxisEdit::new(sheet,calc_host::Axis::Rows,calc_host::AxisChange::Insert,2,1).unwrap())).accepted());
+    let after=book.host().charts(sheet).0;assert_eq!(after[0].plots[0].series.len(),3);assert_eq!(after[0].plots[0].series[0].values[0],Some(8.));assert_eq!(after[0].plots[0].kind,ChartKind::Line);
+    assert_eq!(reopened(&mut book).host().charts(sheet).0,after);
+}
+/// Unsupported families and stale targets refuse before any source or history mutation.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_46__unsupported_type_changes_refuse_atomically() {
+    let mut book=session();let sheet=book.host().sheets()[0].id();let before=book.host().charts(sheet).0;let revision=book.host().revision();let history=book.history_depth();
+    for (chart,kind,stacked) in [(0,"scatter",false),(0,"pie",false),(5,"line",false),(4,"column",false),(4,"pie",true),(0,"radar",false)] {
+        let command=type_command(&book,chart,kind,stacked);assert!(!book.dispatch(SkinIntent::Command(command)).accepted());assert_eq!(book.host().charts(sheet).0,before);assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);
+    }
+    let mut command=type_command(&book,0,"line",false);if let calc_host::WorkbookCommand::ChartType{revision,..}=&mut command{*revision+=1;}assert!(!book.dispatch(SkinIntent::Command(command)).accepted());
+    let command=calc_host::WorkbookCommand::ChartSeries{sheet,revision:revision.get(),part:before[4].part.clone(),plot:0,series:None,name:Some("Not added".into()),categories:Some("Data!A2:A7".into()),values:Some("Data!B2:B7".into()),remove:false};assert!(!book.dispatch(SkinIntent::Command(command)).accepted());
+    assert_eq!(book.host().charts(sheet).0,before);assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);
+}
