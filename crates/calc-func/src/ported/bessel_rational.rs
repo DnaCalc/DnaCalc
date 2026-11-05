@@ -2,7 +2,9 @@
 //! Copyright (C) 2013-present SheetJS; Apache-2.0.
 //! Reference: bessel.js at 2e2331329891dc5c16bda3461db0b9fe590ff2e9.
 //! Changed for DNA Calc: Rust scalar helpers, existing worksheet elementary
-//! functions, and a fixed grouping of the Y0 logarithm term.
+//! functions, and a fixed grouping of the Y0 logarithm term. R27's high-J
+//! amplitudes adapt one decimal digit transposition and one repeated term
+//! from the published tables, inferred from recorded phase-window outputs.
 //! The fixed backward program and Y high-region tables retain the published
 //! constants and operation rules. See deploy/notices/ported.txt.
 //! The I0 and higher-I helpers also adapt ITK's Apache-2.0 GaussianOperator,
@@ -202,6 +204,48 @@ const PHASE_Y0: &[f64] = &[
     0.7621095161e-6,
     -0.934945152e-7,
 ];
+
+// Keep J's tables separate from Y's published amplitudes. These are fixed
+// transcription hypotheses: exchange the adjacent 6/2 digits in J0's first
+// correction and repeat J1's existing second correction. No new coefficient
+// or argument-specific choice is fit. Complete R27 replay retains the one
+// bank mismatch and twenty R25 seed mismatches; Excel's source is unknown.
+const AMP_J0: &[f64] = &[
+    1.0,
+    -0.1098628267e-2,
+    0.2734510407e-4,
+    -0.2073370639e-5,
+    0.2093887211e-6,
+];
+const AMP_J1: &[f64] = &[AMP1[0], AMP1[1], AMP1[2], AMP1[2], AMP1[3], AMP1[4]];
+const PHASE_J0: &[f64] = &[
+    -0.1562499995e-1,
+    0.1430488765e-3,
+    -0.6911147651e-5,
+    0.7621095161e-6,
+    -0.934935152e-7,
+];
+
+fn j_large(x: f64, offset: f64, amplitude: &[f64], correction: &[f64]) -> f64 {
+    let square = x * x;
+    let phase = x - offset;
+    let reduction = 64.0 / square;
+    let amplitude = polynomial(reduction, amplitude);
+    let correction = polynomial(reduction, correction);
+    let leading = excel_cos(phase) * amplitude;
+    let trailing = ((excel_sin(phase) * correction) * 8.0) / x;
+    let scale = (W / x).sqrt();
+    scale * (leading - trailing)
+}
+
+pub(super) fn j0_large(x: f64) -> f64 {
+    j_large(x.abs(), 0.785398164, AMP_J0, PHASE_J0)
+}
+
+pub(super) fn j1_large(x: f64) -> f64 {
+    let value = j_large(x.abs(), 2.356194491, AMP_J1, PHASE1);
+    if x < 0.0 { -value } else { value }
+}
 
 pub(super) fn y0_large(x: f64) -> f64 {
     let square = x * x;

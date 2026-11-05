@@ -8,25 +8,24 @@ python3 racer/corpus_cases.py problem-functions ../DnaCalc ../DnaCalc/docs/gener
 
 Last-bit: finite numeric mismatches <=16 ULP; larger numeric: >16 ULP. This split is triage, not a relaxed verdict. Every mismatch, refusal, unread, missing, pending, external and circular-policy cell remains an inclusive failure. Corpus labels follow exact single-cell aliases, infer calls from formula spelling and unwrap INDEX selections; unresolved references and infix operators remain explicit. Bank functions use canonical judge identities. Counts are observations per source; corpus and bank may overlap and must not be added as unique calls. Bank reference/locale context gaps remain failures, not proven numerical defects.
 
-Corpus: 26,365/27,845 matched (94.68486%); 1,480 inclusive failures, including 0 pending.
-Bank: 3,768,224/3,910,007 matched (96.37384%); 141,783 failures, including 116 unread.
+Corpus: 33,006/35,048 matched (94.17370%); 2,042 inclusive failures, including 0 pending.
+Bank: 3,769,055/3,910,007 matched (96.39510%); 140,952 failures, including 116 unread.
 
 Larger numeric and last-bit columns count numeric mismatches; other columns count remaining mismatches. Bank refusals and unread rows are separate. Corpus refusals/missing are recorded in the JSON, outside the mismatch table.
 
 | Function | Corpus larger | Corpus last-bit | Corpus other | Bank larger | Bank last-bit | Bank other | Bank refused | Bank unread |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| BINOM.DIST | 13 | 72 | 0 | 10,606 | 27,729 | 0 | 0 | 0 |
-| POISSON.DIST | 2 | 20 | 0 | 2,240 | 8,065 | 0 | 0 | 4 |
-| BESSELJ | 45 | 0 | 12 | 832 | 0 | 0 | 0 | 0 |
+| BINOM.DIST | 30 | 106 | 0 | 10,606 | 27,729 | 0 | 0 | 0 |
+| POISSON.DIST | 12 | 67 | 0 | 2,240 | 8,065 | 0 | 0 | 4 |
 | BETA.DIST | 0 | 1 | 0 | 574 | 1,363 | 0 | 0 | 0 |
 | LOGNORM.DIST | 0 | 1 | 0 | 559 | 3,331 | 0 | 0 | 0 |
 | ROUNDDOWN | 0 | 0 | 0 | 492 | 321 | 0 | 0 | 0 |
 | TRUNC | 0 | 0 | 0 | 492 | 321 | 0 | 0 | 0 |
-| YIELD | 31 | 5 | 21 | 424 | 95 | 0 | 0 | 0 |
+| YIELD | 31 | 5 | 6 | 424 | 95 | 0 | 0 | 0 |
 | ROUNDUP | 0 | 0 | 0 | 451 | 327 | 41 | 0 | 0 |
 | RATE | 35 | 0 | 9 | 339 | 20 | 13 | 0 | 0 |
 | NEGBINOMDIST | 0 | 18 | 0 | 356 | 1,281 | 0 | 0 | 0 |
-| IRR | 9 | 1 | 8 | 299 | 95 | 17 | 0 | 0 |
+| IRR | 9 | 1 | 3 | 299 | 95 | 17 | 0 | 0 |
 | PMT | 0 | 0 | 0 | 215 | 11,865 | 4 | 7 | 0 |
 | GAMMA.DIST | 0 | 13 | 0 | 166 | 30,162 | 0 | 0 | 0 |
 | BINOM.DIST.RANGE | 0 | 2 | 0 | 163 | 321 | 0 | 0 | 0 |
@@ -34,15 +33,15 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | LINEST | 73 | 10 | 26 | 0 | 0 | 0 | 0 | 0 |
 | LOGEST | 60 | 7 | 36 | 0 | 0 | 0 | 2 | 0 |
 | NEGBINOM.DIST | 0 | 17 | 0 | 50 | 104 | 0 | 0 | 0 |
-| ODDFYIELD | 30 | 0 | 29 | 0 | 0 | 0 | 0 | 0 |
+| ODDFYIELD | 30 | 0 | 14 | 0 | 0 | 0 | 0 | 0 |
 | GAMMA | 0 | 0 | 0 | 26 | 6,171 | 0 | 0 | 0 |
-| CUMIPMT | 9 | 66 | 6 | 15 | 11 | 0 | 0 | 0 |
+| CUMIPMT | 9 | 66 | 0 | 15 | 11 | 0 | 0 | 0 |
 | BETADIST | 0 | 12 | 0 | 17 | 137 | 0 | 0 | 0 |
 | PPMT | 17 | 52 | 0 | 0 | 7 | 0 | 0 | 0 |
 | FV | 0 | 0 | 0 | 15 | 281 | 0 | 0 | 0 |
 | PV | 0 | 0 | 0 | 15 | 147 | 0 | 0 | 0 |
 | FDIST | 0 | 2 | 0 | 13 | 3,745 | 0 | 0 | 0 |
-| CUMPRINC | 13 | 150 | 6 | 0 | 401 | 0 | 0 | 0 |
+| CUMPRINC | 13 | 150 | 0 | 0 | 401 | 0 | 0 | 0 |
 | F.TEST | 0 | 0 | 0 | 13 | 48 | 0 | 0 | 0 |
 | IPMT | 11 | 59 | 2 | 0 | 9 | 0 | 0 | 0 |
 | GAMMA.INV | 0 | 1 | 0 | 7 | 147 | 0 | 0 | 0 |
@@ -59,6 +58,7 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | SWITCH | 0 | 0 | 0 | 2 | 0 | 0 | 2 | 0 |
 | CHIDIST | 0 | 2 | 0 | 1 | 137 | 0 | 0 | 0 |
 | CHISQ.INV | 0 | 1 | 0 | 1 | 27 | 0 | 0 | 0 |
+| BESSELY | 1 | 20 | 0 | 0 | 0 | 0 | 0 | 0 |
 | SKEW | 0 | 0 | 0 | 1 | 6 | 0 | 0 | 0 |
 | T.DIST.RT | 0 | 1 | 0 | 1 | 4 | 0 | 0 | 0 |
 | CRITBINOM | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
@@ -75,7 +75,7 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | NORM.DIST | 0 | 0 | 0 | 0 | 244 | 0 | 0 | 0 |
 | F.DIST | 0 | 0 | 0 | 0 | 197 | 0 | 0 | 0 |
 | MDURATION | 0 | 0 | 0 | 0 | 157 | 0 | 0 | 0 |
-| GEOMEAN | 0 | 84 | 0 | 0 | 57 | 0 | 1 | 0 |
+| GEOMEAN | 0 | 90 | 0 | 0 | 57 | 0 | 1 | 0 |
 | SINH | 0 | 0 | 0 | 0 | 130 | 0 | 0 | 0 |
 | ROUND | 0 | 0 | 0 | 0 | 124 | 0 | 0 | 0 |
 | NPV | 0 | 0 | 0 | 0 | 94 | 0 | 0 | 0 |
@@ -83,6 +83,7 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | COTH | 0 | 0 | 0 | 0 | 56 | 0 | 0 | 0 |
 | PRICE | 0 | 0 | 0 | 0 | 50 | 0 | 0 | 0 |
 | BETAINV | 0 | 2 | 0 | 0 | 44 | 0 | 0 | 0 |
+| BESSELJ | 0 | 20 | 12 | 0 | 1 | 0 | 0 | 0 |
 | ERF.PRECISE | 0 | 0 | 0 | 0 | 18 | 0 | 0 | 0 |
 | CSCH | 0 | 0 | 0 | 0 | 6 | 0 | 0 | 0 |
 | GROWTH | 0 | 0 | 0 | 0 | 6 | 0 | 7 | 0 |
@@ -103,7 +104,6 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | TREND | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 0 |
 | TTEST | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | WEIBULL.DIST | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 0 |
-| BESSELY | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | BETA.INV | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | CHISQ.DIST.RT | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | CONFIDENCE.NORM | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -119,11 +119,11 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | T.TEST | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | ABS | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | CEILING.MATH | 0 | 0 | 0 | 0 | 0 | 0 | 12 | 0 |
-| COLUMNS | 0 | 0 | 4 | 0 | 0 | 0 | 0 | 0 |
+| COLUMNS | 0 | 0 | 6 | 0 | 0 | 0 | 0 | 0 |
 | COMPLEX | 0 | 0 | 0 | 0 | 0 | 40 | 10 | 0 |
 | CONCAT | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 0 |
 | CONCATENATE | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 0 |
-| Cell reference (unresolved) | 0 | 0 | 4 | 0 | 0 | 0 | 0 | 0 |
+| Cell reference (unresolved) | 0 | 0 | 6 | 0 | 0 | 0 | 0 | 0 |
 | DEGREES | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | DELTA | 0 | 0 | 0 | 0 | 0 | 0 | 4 | 0 |
 | EUROCONVERT | 0 | 0 | 0 | 0 | 0 | 0 | 13 | 0 |
@@ -141,6 +141,7 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | IMSECH | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 0 |
 | IMSINH | 0 | 0 | 0 | 0 | 0 | 9 | 0 | 0 |
 | IMTAN | 0 | 0 | 0 | 0 | 0 | 144 | 0 | 0 |
+| INDEX | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | ISEVEN | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | ISODD | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | Infix & | 0 | 0 | 5 | 0 | 0 | 0 | 0 | 0 |
@@ -154,8 +155,9 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | ODD | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | QUOTIENT | 0 | 0 | 0 | 0 | 0 | 0 | 12 | 0 |
 | RADIANS | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
-| ROWS | 0 | 0 | 4 | 0 | 0 | 0 | 0 | 0 |
+| ROWS | 0 | 0 | 6 | 0 | 0 | 0 | 0 | 0 |
 | RRI | 0 | 0 | 0 | 0 | 0 | 0 | 45 | 0 |
+| SEARCH | 0 | 0 | 4 | 0 | 0 | 0 | 0 | 0 |
 | SIGN | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | SQRT | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | STANDARDIZE | 0 | 0 | 0 | 0 | 0 | 0 | 8 | 0 |

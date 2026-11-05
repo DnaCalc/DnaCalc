@@ -14,6 +14,8 @@ Detected spectral lines are not identified stores. Absence of a line cannot excl
 
 Two local windows do not establish global route boundaries. Each unmeasured edge remains empty.
 
+The EXP double-rounding label applies to its listed local discriminants. R27 broader windows contain74 ideal-leaf contradictions among2048 inputs; the registered x87 chain matches every measured input. An ideal mathematical EXP leaf is not a global identification.
+
 Separate-cell scalar observations do not establish range, array, reference or workbook behavior.
 
 All problem-list entries are reported, including workbook-only, text/discrete and unidentifiable cases.
@@ -22,7 +24,6 @@ All problem-list entries are reported, including workbook-only, text/discrete an
 |---|---|---|---|---|---|
 | BINOM.DIST | observed | ideal single/double leaf rejected on this window | unresolved | 8, 8 | unmeasured |
 | POISSON.DIST | observed | ideal single/double leaf rejected on this window | unresolved | 6, 3 | unmeasured |
-| BESSELJ | observed | ideal single/double leaf rejected on this window | unresolved | 6, 7 | 5 |
 | BETA.DIST | observed | unresolved: no complete scalar mathematical reference | unresolved | 8, 5 | unmeasured |
 | LOGNORM.DIST | observed | unresolved: no complete scalar mathematical reference | unresolved | 1, 4 | unmeasured |
 | ROUNDDOWN | workbook-only | unresolved | unresolved | — | unmeasured |
@@ -64,6 +65,7 @@ All problem-list entries are reported, including workbook-only, text/discrete an
 | SWITCH | workbook-only | unresolved | unresolved | — | unmeasured |
 | CHIDIST | observed | unresolved: flat quantized windows | unresolved | 0, 0 | unmeasured |
 | CHISQ.INV | observed | unresolved: no complete scalar mathematical reference | unresolved | 1, 1 | unmeasured |
+| BESSELY | observed | ideal single/double leaf rejected on this window | unresolved | 3, 3 | 5 |
 | SKEW | observed | unresolved: no complete scalar mathematical reference | unresolved | 8, 8 | unmeasured |
 | T.DIST.RT | observed | unresolved: no complete scalar mathematical reference | unresolved | 3, 3 | unmeasured |
 | CRITBINOM | observed | unresolved: flat quantized windows | unresolved | 0, 0 | unmeasured |
@@ -88,6 +90,7 @@ All problem-list entries are reported, including workbook-only, text/discrete an
 | COTH | observed | ideal single/double leaf rejected on this window | unresolved | 5, 8 | unmeasured |
 | PRICE | observed | not identifiable on non-numeric/error output | unresolved | 1, 0 | unmeasured |
 | BETAINV | observed | unresolved: no complete scalar mathematical reference | unresolved | 3, 1 | unmeasured |
+| BESSELJ | observed | ideal single/double leaf rejected on this window | unresolved | 6, 7 | 5 |
 | ERF.PRECISE | observed | unresolved: no complete scalar mathematical reference | unresolved | 2, 3 | unmeasured |
 | CSCH | observed | ideal single/double leaf rejected on this window | unresolved | 8, 8 | unmeasured |
 | GROWTH | workbook-only | unresolved | unresolved | — | unmeasured |
@@ -108,7 +111,6 @@ All problem-list entries are reported, including workbook-only, text/discrete an
 | TREND | workbook-only | unresolved | unresolved | — | unmeasured |
 | TTEST | observed | not identifiable on non-numeric/error output | unresolved | 0, 0 | unmeasured |
 | WEIBULL.DIST | observed | unresolved: no complete scalar mathematical reference | unresolved | 8, 8 | unmeasured |
-| BESSELY | observed | ideal single/double leaf rejected on this window | unresolved | 3, 3 | 5 |
 | BETA.INV | observed | unresolved: no complete scalar mathematical reference | unresolved | 3, 1 | unmeasured |
 | CHISQ.DIST.RT | observed | unresolved: no complete scalar mathematical reference | unresolved | 5, 8 | unmeasured |
 | CONFIDENCE.NORM | observed | unresolved: no complete scalar mathematical reference | unresolved | 8, 8 | unmeasured |
@@ -146,6 +148,7 @@ All problem-list entries are reported, including workbook-only, text/discrete an
 | IMSECH | observed | not identifiable on non-numeric/error output | unresolved | 0, 0 | unmeasured |
 | IMSINH | observed | not identifiable on non-numeric/error output | unresolved | 0, 0 | unmeasured |
 | IMTAN | observed | not identifiable on non-numeric/error output | unresolved | 0, 0 | unmeasured |
+| INDEX | workbook-only | unresolved | unresolved | — | unmeasured |
 | ISEVEN | workbook-only | unresolved | unresolved | — | unmeasured |
 | ISODD | workbook-only | unresolved | unresolved | — | unmeasured |
 | Infix & | workbook-only | unresolved | unresolved | — | unmeasured |
@@ -161,6 +164,7 @@ All problem-list entries are reported, including workbook-only, text/discrete an
 | RADIANS | observed | unresolved: no complete scalar mathematical reference | unresolved | 8, 8 | unmeasured |
 | ROWS | workbook-only | unresolved | unresolved | — | unmeasured |
 | RRI | observed | unresolved: no complete scalar mathematical reference | unresolved | 6, 5 | unmeasured |
+| SEARCH | non-numeric-coordinate | unresolved | unresolved | — | unmeasured |
 | SIGN | workbook-only | unresolved | unresolved | — | unmeasured |
 | SQRT | observed | double-round mathematical leaf consistent | unresolved | 8, 8 | unmeasured |
 | STANDARDIZE | observed | single/double indistinguishable | unresolved | 8, 8 | unmeasured |

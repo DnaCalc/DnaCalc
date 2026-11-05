@@ -617,8 +617,12 @@ fn least_squares(
             observations: n,
         });
     }
-    let squares_from =
-        |values: &[f64], from: usize| values[from..].iter().fold(0.0, |sum, v| sum + v * v);
+    // R25 full-rank orthogonal probes require PC64 square-product arithmetic.
+    // Use the shared stored product; the exact accumulator/store layout stays
+    // unresolved, so keep the existing addition.
+    let squares_from = |values: &[f64], from: usize| {
+        values[from..].iter().fold(0.0, |sum, v| sum + excel_numeric::excel_x87_mul(*v, *v))
+    };
     // Each column's sum of squares before the steps, the scale its remainder is judged against.
     let initial: Vec<f64> = matrix.iter().map(|(_, column)| squares_from(column, 0)).collect();
     let mut scale: Vec<(Option<usize>, f64)> =
