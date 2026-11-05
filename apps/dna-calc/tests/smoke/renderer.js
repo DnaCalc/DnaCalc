@@ -100,7 +100,7 @@
 })();
 // Core observations, independent of measurements.
 // Read-only core assertions against the committed plan and the real Canvas2D raster.
-// Scratch canvases measure fonts and normalize colours; no product nodes or values are added.
+// Scratch font probes do not change product state or Canvas pixels.
 (() => {
   window.__rendererCoreCheck = spec => {
     const pane=spec.selector?.match(/data-pane\s*=\s*["']?([0-3])/ )?.[1];
@@ -117,6 +117,13 @@
     if(spec.op==='absent')return {handled:true,seen:!target};
     if(!target)return {handled:true,seen:null};
     if(canvas.dataset.drawRevision!==String(plan.publication.next)||canvas.dataset.drawPresentation!==String(plan.presentation.epoch))return {handled:true,seen:null};
+    if(spec.op==='rect'||spec.op==='visible'){
+      const r=cell.anchor,c=cell.clip||r,b=canvas.getBoundingClientRect();
+      const x=Math.max(r.x,c.x,0),y=Math.max(r.y,c.y,0),right=Math.min(r.x+r.w,c.x+c.w,plan.viewport.width),bottom=Math.min(r.y+r.h,c.y+c.h,plan.viewport.height);
+      const point=[b.left+(x+right)/2,b.top+(y+bottom)/2],hit=right>x&&bottom>y&&document.elementFromPoint(...point)?.closest('[data-dnacalc=grid]')===grid;
+      const rect={left:b.left+r.x,top:b.top+r.y,right:b.left+r.x+r.w,bottom:b.top+r.y+r.h,width:r.w,height:r.h,visible_point:point,reachable:hit};
+      return {handled:true,seen:spec.op==='rect'?rect:hit&&rect.left>=0&&rect.top>=0&&rect.right<=innerWidth&&rect.bottom<=innerHeight};
+    }
     const s={...cell.shown.style,pixels:cell.paint_pixels??cell.shown.style.pixels}, cf=cell.shown.conditional||{}, scale=plan.scale, rect=cell.rect, anchor=cell.anchor;
     const css=getComputedStyle(grid), token=n=>css.getPropertyValue(n).trim();
     const scratch=document.createElement('canvas'), context=scratch.getContext('2d');scratch.width=4;scratch.height=4;
@@ -159,13 +166,27 @@
     // Canvas has no text span. Check the complete measured line box and its actual glyph
     // raster instead. Unsupported multi-line cases must fail, never imply that clipped ink fits.
     const textBounds=()=>{
-      if(!painted||!ink||s.rotation===255||s.wrap||['justify','distributed'].includes(horizontal)||unit.includes('\n'))return false;
+      if(!painted||!ink||s.rotation===255||['justify','distributed'].includes(horizontal)||(unit.includes('\n')&&!s.wrap))return false;
+      if(s.wrap){
+        if(s.rotation!==0||capacity<=0)return false;
+        // Independently measure the browser's wrapped line boxes, then require an actual
+        // ink band in each box. Comparing clipped ink alone would incorrectly report a fit.
+        const probe=document.createElement('span');
+        probe.style.cssText=`position:fixed;left:0;top:-10000px;visibility:hidden;pointer-events:none;display:block;padding:0;margin:0;border:0;box-sizing:content-box;font:${font};line-height:1;width:${capacity}px;white-space:pre-wrap;overflow-wrap:anywhere`;
+        probe.textContent=unit;document.body.append(probe);
+        let count;
+        try{const range=document.createRange();range.selectNodeContents(probe);count=new Set([...range.getClientRects()].map(r=>r.top.toFixed(3))).size}finally{probe.remove()}
+        const lh=s.pixels*scale,height=count*lh,x=rect.x+left,y=vertical==='top'?rect.y:vertical==='center'?rect.y+(rect.h-height)/2:rect.y+rect.h-height,c=cell.clip||rect;
+        if(!count||ink.bands.length!==count||x<anchor.x-1||x+capacity>anchor.x+anchor.w+1||y<anchor.y-1||y+height>anchor.y+anchor.h+1||x<c.x-1||x+capacity>c.x+c.w+1||y<c.y-1||y+height>c.y+c.h+1)return false;
+        return ink.left>=x-1&&ink.right<=x+capacity+1&&ink.bands.every((b,i)=>b.top>=y+i*lh-1&&b.bottom<=y+(i+1)*lh+1);
+      }
       const metrics=measure(unit),lh=s.pixels*scale,box=measure('Mg');
       const baseline=(lh-box.fontBoundingBoxAscent-box.fontBoundingBoxDescent)/2+box.fontBoundingBoxAscent;
       const angle=s.rotation*Math.PI/180,cos=Math.cos(angle),sin=Math.sin(angle);
       const rw=Math.abs(cos)*metrics.width+Math.abs(sin)*lh,rh=Math.abs(sin)*metrics.width+Math.abs(cos)*lh;
       const x=horizontal==='right'?rect.x+rect.w-right-rw:horizontal==='center'||horizontal==='centerContinuous'?anchor.x+(anchor.w-rw)/2:rect.x+left;
-      const y=vertical==='top'?rect.y:vertical==='center'?rect.y+(rect.h-rh)/2:rect.y+rect.h-rh;
+      const shift=s.rotation===0?((box.fontBoundingBoxAscent+box.fontBoundingBoxDescent-lh)/2)*(vertical==='top'?1:vertical==='bottom'?-1:0):0;
+      const y=(vertical==='top'?rect.y:vertical==='center'?rect.y+(rect.h-rh)/2:rect.y+rect.h-rh)+shift;
       const clip=cell.clip||rect;
       if(x<rect.x-1||x+rw>rect.x+rect.w+1||y<rect.y-1||y+rh>rect.y+rect.h+1||x<clip.x-1||x+rw>clip.x+clip.w+1||y<clip.y-1||y+rh>clip.y+clip.h+1)return false;
       if(x<anchor.x-1||x+rw>anchor.x+anchor.w+1||y<anchor.y-1||y+rh>anchor.y+anchor.h+1)return false;
@@ -204,7 +225,8 @@
       else if(h==='right')ok=ok&&Math.abs(ink.right-expectedRight)<4;
       else ok=ok&&Math.abs(ink.left-expectedLeft)<4&&Math.abs(ink.right-expectedRight)<4;
       const box=measure('Mg'),lh=s.pixels*scale,baseline=(lh-box.fontBoundingBoxAscent-box.fontBoundingBoxDescent)/2+box.fontBoundingBoxAscent;
-      const topAt=y=>y+baseline-metrics.actualBoundingBoxAscent,bottomAt=y=>y+baseline+metrics.actualBoundingBoxDescent;
+      const shift=!s.wrap&&!['justify','distributed'].includes(horizontal)&&s.rotation===0&&!unit.includes('\n')?((box.fontBoundingBoxAscent+box.fontBoundingBoxDescent-lh)/2)*(v==='top'?1:v==='bottom'?-1:0):0;
+      const topAt=y=>y+shift+baseline-metrics.actualBoundingBoxAscent,bottomAt=y=>y+shift+baseline+metrics.actualBoundingBoxDescent;
       const visibleTop=raster.y/d,visibleBottom=(raster.y+raster.h)/d;
       if(v==='top')ok=ok&&Math.abs(ink.top-Math.max(visibleTop,topAt(rect.y)))<3;
       if(v==='bottom')ok=ok&&Math.abs(ink.bottom-Math.min(visibleBottom,bottomAt(rect.y+rect.h-lh)))<3;

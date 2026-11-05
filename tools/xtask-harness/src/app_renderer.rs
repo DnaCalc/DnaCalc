@@ -225,6 +225,7 @@ pub(super) fn core_observation(
         }
         Check::FitsText(n) => (*n, json!({"op":"fits"})),
         Check::TextBounds(n) => (*n, json!({"op":"bounds"})),
+        Check::Reachable(n) => (*n, json!({"op":"visible"})),
         Check::Absent(n) => (*n, json!({"op":"absent"})),
         Check::Count(n, _) => (*n, json!({"op":"count"})),
         Check::Attr(n, field, _) => (*n, json!({"op":"attribute","field":field})),
@@ -261,6 +262,10 @@ pub(super) fn core_observation(
         }
         spec["selector"] = json!(selector);
     }
+    inspect(session, &spec)
+}
+
+fn inspect(session: &Session, spec: &Value) -> Result<Option<Value>, String> {
     let (_, js) = include_str!("../../../apps/dna-calc/tests/smoke/renderer.js")
         .split_once("// Core observations, independent of measurements.")
         .expect("core observation script");
@@ -269,4 +274,28 @@ pub(super) fn core_observation(
         .as_bool()
         .unwrap_or(false)
         .then(|| value["seen"].clone()))
+}
+
+/// A Canvas cell has no painted DOM element. Use its committed, drawn anchor and clip,
+/// then send ordinary WebDriver pointer input through the application's real hit test.
+pub(super) fn cell_rect(app: &App, session: &Session, name: &str) -> Result<Option<Value>, String> {
+    let selector = select(app, name);
+    let plain = selector.replace(['\'', '"'], "");
+    if !plain.contains("[data-dnacalc=cell]") || !plain.contains("data-cell=") { return Ok(None); }
+    let value = inspect(session, &json!({"op":"rect","selector":selector}))?;
+    if value.as_ref().is_some_and(|v| !v["width"].is_number() || !v["height"].is_number()) {
+        return Err(format!("Canvas cell {name} has no current drawn rectangle: {value:?}"));
+    }
+    Ok(value)
+}
+
+pub(super) fn click_cell(app: &App, session: &Session, name: &str, double: bool) -> Result<bool, String> {
+    let Some(rect) = cell_rect(app, session, name)? else { return Ok(false); };
+    if rect["reachable"] != true { return Err(format!("Canvas cell {name} is obscured or clipped: {rect}")); }
+    let x=rect["visible_point"][0].as_f64().ok_or("missing cell x")?.round() as i64;
+    let y=rect["visible_point"][1].as_f64().ok_or("missing cell y")?.round() as i64;
+    let mut actions=vec![json!({"type":"pointerMove","duration":0,"origin":"viewport","x":x,"y":y}),json!({"type":"pointerDown","button":0}),json!({"type":"pointerUp","button":0})];
+    if double { actions.extend([json!({"type":"pointerDown","button":0}),json!({"type":"pointerUp","button":0})]); }
+    session.post("/actions",json!({"actions":[{"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":actions}]}))?;
+    Ok(true)
 }

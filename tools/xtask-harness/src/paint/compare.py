@@ -149,6 +149,56 @@ def calibrate(reference, image):
     return ref
 
 
+def write_report(out, data):
+    # Embed the same observations as comparison.json; workbook strings remain text, not HTML.
+    encoded = json.dumps(data).replace("<", "\\u003c").replace("&", "\\u0026")
+    page = r'''<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Excel and DNA Calc painting</title>
+<style>
+body{font:14px system-ui;margin:24px;color:#18262c;background:#fff}h1{font-size:24px}label{display:inline-block;margin:8px 16px 8px 0}select,input{font:inherit;padding:5px}p{max-width:100ch;line-height:1.5}#images{display:flex;gap:16px;overflow:auto}figure{margin:0}figcaption{font-weight:600;margin:8px 0}img{display:block;max-width:none;image-rendering:pixelated;border:1px solid #ddd}table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}th,td{padding:7px;border-bottom:1px solid #ddd;text-align:left;vertical-align:top}th{position:sticky;top:0;background:#eef2f3}td:nth-child(2){white-space:pre-wrap;max-width:30em;overflow-wrap:anywhere}caption{text-align:left;margin:16px 0}pre{white-space:pre-wrap}a{color:#005c77}
+</style></head><body>
+<h1>Excel and DNA Calc painting</h1>
+<p>Original sheet crops aligned at A1. Images display at their original pixel size; scroll to see the full area. Differences are observations, not a pixel-equivalence score. A lower percentage alone does not establish improvement.</p>
+<p id="desktop"></p><p><a href="browser.json">Source and browser metadata</a> · <a href="comparison.json">Full cell observations</a></p>
+<label>Capture <select id="capture"></select></label>
+<label>Images <select id="view"><option value="pair">Excel and DNA Calc</option><option value="overlay">Overlay</option><option value="difference">Difference</option></select></label>
+<p id="summary"></p><div id="images"></div>
+<label>Find cell or Excel text <input id="find" type="search"></label>
+<label>Sort <select id="sort"><option value="cell">Cell address</option><option value="difference">Largest difference above 16</option></select></label>
+<label><input id="changed" type="checkbox" checked> Show changed cells only</label>
+<table><caption id="caption"></caption><thead><tr><th>Cell</th><th>Excel text</th><th>Exact difference %</th><th>Above 16 %</th><th>Δ x, y, width, height (px)</th><th>Missing dark ink</th></tr></thead><tbody id="cells"></tbody></table>
+<details><summary>Cells excluded from comparison</summary><pre id="excluded"></pre></details>
+<p>Above 16 means a difference greater than 16 in at least one colour channel. It is not a pass threshold. Dark-ink bounds may include borders, fills or Excel indicators; they do not prove complete glyph identity. Hidden or clipped cells remain excluded.</p>
+<script type="application/json" id="observations">__PAINT_DATA__</script>
+<script>
+const data=JSON.parse(document.getElementById('observations').textContent),get=id=>document.getElementById(id);
+const address=c=>{let n=c.col,s='';while(n){n--;s=String.fromCharCode(65+n%26)+s;n=Math.floor(n/26)}return s+c.row};
+get('desktop').textContent='Desktop: '+data.desktop.status+'. '+data.desktop.reason;
+data.results.forEach((r,i)=>{const o=document.createElement('option');o.value=i;o.textContent=r.prefix;get('capture').append(o)});
+let pictureKey='';
+function draw(){
+  const r=data.results[Number(get('capture').value)];if(!r)return;
+  get('summary').textContent=`${r.cells.length} cells compared; ${r.not_compared.length} excluded. Exact changed pixels: ${r.global_exact.changed}/${r.global_exact.pixels} (${r.global_exact.percent.toFixed(2)}%). Above 16: ${r.global_over16.percent.toFixed(2)}%. Translation: ${r.translation_px.x}, ${r.translation_px.y} px. Missing-dark-ink flags: ${r.missing_text_ink_cells}.`;
+  const key=get('capture').value+':'+get('view').value;
+  if(key!==pictureKey){pictureKey=key;get('images').replaceChildren();
+  const views=get('view').value==='pair'?[['reference-sheet','Excel'],['dna-sheet','DNA Calc']]:[[get('view').value,get('view').value==='overlay'?'Overlay':'Difference']];
+  for(const[suffix,label]of views){const f=document.createElement('figure'),c=document.createElement('figcaption'),img=document.createElement('img');c.textContent=label;img.alt=label+' sheet area aligned at A1';img.src=encodeURIComponent(r.prefix)+'-'+suffix+'.png';f.append(c,img);get('images').append(f)}
+  }
+  const q=get('find').value.toLowerCase();
+  let cells=r.cells.filter(c=>(!get('changed').checked||c.exact.changed>0||Object.values(c.geometry_delta_px).some(v=>v!==0))&&(!q||address(c).toLowerCase().includes(q)||c.excel_text.toLowerCase().includes(q)));
+  cells.sort(get('sort').value==='difference'?(a,b)=>b.over16.percent-a.over16.percent:(a,b)=>a.row-b.row||a.col-b.col);
+  get('cells').replaceChildren();
+  for(const c of cells){const tr=document.createElement('tr');tr.style.background=`rgba(210,45,35,${c.over16.percent/600})`;for(const v of[address(c),c.excel_text,c.exact.percent.toFixed(2),c.over16.percent.toFixed(2),['x','y','w','h'].map(k=>c.geometry_delta_px[k]).join(', '),c.missing_text_ink?'Yes':'No']){const td=document.createElement('td');td.textContent=v;tr.append(td)}get('cells').append(tr)}
+  get('caption').textContent=`${cells.length} displayed of ${r.cells.length} compared cells. No tolerance is counted as a pass.`;
+  get('excluded').textContent=r.not_compared.length?JSON.stringify(r.not_compared,null,2):'None';
+}
+for(const id of['capture','view','find','sort','changed'])get(id).addEventListener('input',draw);
+draw();
+</script></body></html>'''
+    (out / "comparison.html").write_text(page.replace("__PAINT_DATA__", encoded), encoding="utf-8")
+
+
 def compare(out):
     browser = json.loads((out / "browser.json").read_text(encoding="utf-8"))
     # canonical Windows paths may carry the Win32 extended path prefix.
@@ -259,8 +309,10 @@ def compare(out):
         print(f"PAINT {prefix}: {len(comparisons)} cells; {len(skipped)} not compared; "
               f"{result['global_over16']['percent']:.2f}% pixels differ by >16; "
               f"{result['missing_text_ink_cells']} cells missing dark text ink")
-    (out / "comparison.json").write_text(json.dumps({"schema": "dnacalc-paint/1", "results": results,
-        "desktop": browser["desktop"], "method": "A1 translation only; original raster; local common cell extent plus geometry deltas; all unmatched extents reported"}, indent=2), encoding="utf-8")
+    data = {"schema": "dnacalc-paint/1", "results": results,
+        "desktop": browser["desktop"], "method": "A1 translation only; original raster; local common cell extent plus geometry deltas; all unmatched extents reported"}
+    (out / "comparison.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
+    write_report(out, data)
 
 
 if __name__ == "__main__":
