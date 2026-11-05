@@ -8572,6 +8572,24 @@ Case {
         Action::Choose("chart-choice","xl/charts/chart6.xml"),Action::Into("chart-series-categories",""),Action::Click("chart-series-apply"),Action::Wait(Check::Attr("[data-chart=\"Chart 6\"] [data-series=\"0\"][data-point=\"0\"]","data-x","1")),Action::Choose("chart-axis","1264949584"),Action::Into("chart-axis-minimum","10"),Action::Into("chart-axis-maximum",""),Action::Into("chart-axis-unit","0.005"),Action::Click("chart-axis-apply"),Action::Wait(Check::TextContains("status","1,000 intervals"))],checks:&[
         Check::Count("[data-chart=\"Chart 6\"] [data-dnacalc=chart-plot]",1),Check::Absent("[data-chart=\"Chart 6\"] [data-dnacalc=chart-notice]"),Check::Attr("[data-chart=\"Chart 6\"] [data-series=\"0\"][data-point=\"0\"]","data-x","1"),Check::Attr("[data-chart=\"Chart 6\"] [data-dnacalc=chart-plot]","data-x-max","7")]},
 
+    Case {name:"chart types: column to line uses the existing marks and one Undo",actions:&[
+        Action::Window(1600,1800),Action::Upload("open-file","crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx"),Action::DiscardReplacement,Action::Click("skin-grid"),Action::OpenDetails("chart-tools"),Action::Wait(Check::Value("chart-type","column")),Action::Choose("chart-type","line"),Action::Click("chart-type-apply"),Action::Wait(Check::Attr("[data-chart=\"Chart 1\"]","data-kind","line")),Action::Click("undo"),Action::Wait(Check::Attr("[data-chart=\"Chart 1\"]","data-kind","column")),Action::Click("redo")],checks:&[
+        Check::Attr("[data-chart=\"Chart 1\"]","data-kind","line"),Check::Count("[data-chart=\"Chart 1\"] circle[data-dnacalc=chart-mark]",12),Check::Count("[data-chart=\"Chart 1\"] rect[data-dnacalc=chart-mark]",0),Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","data-value","12")]},
+    Case {name:"chart types: stacked area survives actual saved reopening",actions:&[
+        Action::Choose("chart-type","area"),Action::Choose("chart-grouping","stacked"),Action::Click("chart-type-apply"),Action::Wait(Check::Attr("[data-chart=\"Chart 1\"]","data-kind","area")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools")],checks:&[
+        Check::Value("chart-type","area"),Check::Value("chart-grouping","stacked"),Check::Count("[data-chart=\"Chart 1\"] path[data-series]",2),Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"1\"][data-point=\"0\"]","data-value","8")]},
+    Case {name:"chart types: horizontal bars transpose the retained axis roles",actions:&[
+        Action::Choose("chart-type","bar"),Action::Click("chart-type-apply")],checks:&[
+        Check::Attr("[data-chart=\"Chart 1\"]","data-kind","bar"),Check::Count("[data-chart=\"Chart 1\"] rect[data-dnacalc=chart-mark]",12),Check::TextContains("chart-axis","Bottom (X)"),Check::Value("chart-grouping","stacked")]},
+    Case {name:"chart types: normal columns restore vertical values without changing other charts",actions:&[
+        Action::Choose("chart-type","column"),Action::Choose("chart-grouping","normal"),Action::Click("chart-type-apply"),Action::Wait(Check::Attr("[data-chart=\"Chart 1\"]","data-kind","column")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools")],checks:&[
+        Check::Value("chart-type","column"),Check::Value("chart-grouping","normal"),Check::TextContains("chart-axis","Left (Y)"),Check::Count("[data-dnacalc=chart]",6),Check::Attr("[data-chart=\"Chart 2\"]","data-kind","bar"),Check::Attr("[data-chart=\"Chart 6\"] [data-series=\"0\"][data-point=\"0\"]","data-x","12")]},
+    Case {name:"chart types: a phone can convert pie to doughnut and reopen it",actions:&[
+        Action::Window(390,844),Action::Choose("chart-choice","xl/charts/chart5.xml"),Action::Wait(Check::Value("chart-type","pie")),Action::Choose("chart-type","doughnut"),Action::Click("chart-type-apply"),Action::Wait(Check::Attr("[data-chart=\"Chart 5\"]","data-kind","doughnut")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools"),Action::Choose("chart-choice","xl/charts/chart5.xml")],checks:&[
+        Check::Value("chart-type","doughnut"),Check::Count("[data-dnacalc=chart][data-chart=\"Chart 5\"]",1),Check::Count("[data-chart=\"Chart 5\"] path[data-dnacalc=chart-mark]",6),Check::Attr("[data-chart=\"Chart 5\"] [data-series=\"0\"][data-point=\"0\"]","data-value","12"),Check::Fits]},
+    Case {name:"chart types: source edits and a type change share the retained save route",actions:&[
+        Action::Window(1600,1800),Action::Upload("open-file","crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools"),Action::Wait(Check::Value("chart-type","column")),Action::Into("chart-series-values","Data!C2:C7"),Action::Click("chart-series-apply"),Action::Wait(Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","data-value","8")),Action::Choose("chart-type","line"),Action::Click("chart-type-apply"),Action::Wait(Check::Attr("[data-chart=\"Chart 1\"]","data-kind","line")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools")],checks:&[
+        Check::Value("chart-series-values","'Data'!$C$2:$C$7"),Check::Value("chart-type","line"),Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","data-value","8"),Check::Attr("[data-chart=\"Chart 2\"] [data-series=\"0\"][data-point=\"0\"]","data-value","12")]},
 ];
 
 /// The script that reads what one check looks at.
@@ -9425,4 +9443,5 @@ CaseGroup {
     CaseGroup {name:"sheet-tab-rename",start:730,end:734,core:4,setup:&[]},
     CaseGroup {name:"chart-series",start:734,end:742,core:8,setup:&[]},
     CaseGroup {name:"chart-axes",start:742,end:750,core:8,setup:&[]},
+    CaseGroup {name:"chart-types",start:750,end:756,core:6,setup:&[]},
 ];
