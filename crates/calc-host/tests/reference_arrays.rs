@@ -198,6 +198,29 @@ fn dc_b1l35_dc_b1l36_dc_b1l30_dc_zmk10__fn5_captured_boundaries() {
     }
 }
 
+/// Fn7 keeps scalar blanks, explicit omissions, larger ranges and arrays distinct.
+/// Run all unchanged roots, observers and spill shapes through the application host.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_b1l43_dc_b1l44__fn7_argument_origins() {
+    let books: [(&[u8], &[u8]); 2] = [
+        (
+            include_bytes!("../../calc-func/tests/fixtures/fn7_argument_origins/oracle.xlsx"),
+            include_bytes!("../../calc-func/tests/captures/fn7_argument_origins/oracle.capture.json"),
+        ),
+        (
+            include_bytes!("../../calc-func/tests/fixtures/fn7_date_argument_origins/oracle.xlsx"),
+            include_bytes!("../../calc-func/tests/captures/fn7_date_argument_origins/oracle.capture.json"),
+        ),
+    ];
+    for (bytes, captured) in books {
+        let profile = calc_func::locale::format_profile(calc_func::locale::LocaleId::EnZa)
+            .with_separators(".", " ")
+            .unwrap();
+        check_captured_book(bytes, captured, &[], 480, Some(profile));
+    }
+}
+
 fn check_captured_book(
     bytes: &[u8],
     captured: &[u8],
