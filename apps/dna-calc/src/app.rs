@@ -383,7 +383,7 @@ pub fn app_with_transport(
             if !native_text
                 || !matches!(
                     id,
-                    dna_calc_model::CommandId::Undo | dna_calc_model::CommandId::Redo
+                    dna_calc_model::CommandId::Undo | dna_calc_model::CommandId::Redo | dna_calc_model::CommandId::FlashFill | dna_calc_model::CommandId::PasteSpecial
                 )
             {
                 ev.prevent_default();

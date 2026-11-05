@@ -103,7 +103,10 @@
 
 .dc-invalid-circle{position:absolute;box-sizing:border-box;border:2px solid var(--dna-red-ink);border-radius:50%;pointer-events:none;z-index:3}
 /* Keep chart controls usable beside the worksheet on narrow screens. */
+[data-dnacalc=clipboard-tools][open],
 [data-dnacalc=chart-tools][open]{max-height:min(40dvh,320px);overflow:auto}
 .dc-chart-series{min-width:0;border:1px solid var(--dna-line);border-radius:var(--dna-radius-chip);margin:8px 0;padding:8px 12px}
 .dc-chart-series .dc-command-row label{flex-wrap:wrap;min-width:0}
 .dc-chart-series input{min-width:0;max-width:100%;width:28ch}
+
+[data-dnacalc=paste-samples]{overflow-wrap:anywhere;white-space:pre-wrap}
