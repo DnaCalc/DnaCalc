@@ -72,7 +72,7 @@ mod spill;
 mod state;
 mod structural;
 
-pub use detached::{DetachedFormula, DetachedNameEvaluation};
+pub use detached::{DetachedEvaluationContext, DetachedFormula, DetachedNameEvaluation, DetachedReadPolicy};
 pub use edit::{
     CommitReceipt, InputSeed, NodeChange, PrepareError, PreparedEngineChange, commit_edit,
     prepare_edit,

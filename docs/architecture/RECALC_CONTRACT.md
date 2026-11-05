@@ -1214,6 +1214,31 @@ Host and worker controls cover selected bindings, snapshot refusals, worksheet e
 serialization and command retries. P12 Excel parity and non-cell calculation-pass
 envelopes remain open.
 
+Detached current-value contexts (dc-hsa5.6, engine20): validation audits and filter
+decisions can borrow one `DetachedEvaluationContext` for their whole batch. Its
+explicit policy selects historical published values or current values. The current
+policy computes the existing dirty closure once, refuses consumed stale, held,
+external-cache and imported/boundary-qualified values, and uses the ordinary reader
+for both expressions and returned references. A reference identity alone consumes
+no values. The borrow admits no producer work, effects, graph edits or publication.
+As with other engine entry points, the caller supplies the matching engine/model pair.
+
+Detached plans retain their compilation model pin. Current evaluation requires the
+same model lineage, revision, definitions allocation and caller worksheet; changing
+file identity can replace definitions without advancing the authored revision.
+Names also retain their binding proofs. Expired plans refuse before their bodies
+run; consumers compile again for the requested context. The pin shares authored
+pages and definitions rather than copying cells. Historical painting retains its
+published-value policy and makes no current-input claim.
+
+Validation scans apply that policy to the entry and its criteria, including custom
+formulas, numeric bounds and list references. Candidate validation uses the same
+reader after its disposable ordinary calculation. Color filters still lack per-rule
+read certificates, so their conditional-format decisions conservatively require
+every formula value in the borrowed workbook view to be current and unqualified.
+An unrelated unavailable formula can therefore refuse color filtering. This is a
+DNA admission policy; no new Excel observation or shared name-value memo is claimed.
+
 The native desktop engine runner accepts `--early-execution XPure` as an explicit grant, resolved
 to active registration IDs and checked by the native adapter. It records those IDs and accepts
 `"calculation":"full"` or `"rebuild"` in its existing cases; dirty calculation remains the default.
