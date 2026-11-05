@@ -1510,14 +1510,14 @@ impl Server {
                 rows,
                 columns,
             }),
-            Intent::ApplyPaste { id } => {
+            Intent::ApplyPaste { id, select_target } => {
                 let Some((held, plan)) = self.paste_plan.take() else {
                     return Err("The paste preview expired; paste again".into());
                 };
                 if held != id {
                     return Err("The workbook changed after the preview; paste again".into());
                 }
-                SkinIntent::Command(calc_host::WorkbookCommand::Paste(plan))
+                SkinIntent::Command(calc_host::WorkbookCommand::Paste(if select_target {plan.with_target_selection()} else {plan}))
             }
             Intent::Navigate {
                 nav,
@@ -5123,7 +5123,7 @@ mod friendly_formula_tests {
             other => panic!("{other:?}"),
         };
         server
-            .execute_current(Request::Intent(Intent::ApplyPaste { id: preview.id }), None)
+            .execute_current(Request::Intent(Intent::ApplyPaste { id: preview.id, select_target: false }), None)
             .reply
             .unwrap();
         assert_eq!(

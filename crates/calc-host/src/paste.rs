@@ -23,9 +23,21 @@ pub struct PastePlan {
     revision: u64,
     target: GridArea,
     replaces: u64,
+    select_target: bool,
     edits: Vec<CellEdit>,
 }
 impl PastePlan {
+    /// Select the destination as part of this paste's undoable transaction.
+    pub fn with_target_selection(mut self) -> Self {
+        self.select_target = true;
+        self
+    }
+    pub(crate) fn selection(&self) -> Option<crate::Selection> {
+        self.select_target.then(|| crate::Selection {
+            active: Some(self.target.first()),
+            areas: vec![self.target],
+        })
+    }
     pub fn target(&self) -> GridArea {
         self.target
     }
@@ -195,6 +207,7 @@ pub fn prepare_paste_oriented(
         revision: host.revision().get(),
         target,
         replaces,
+        select_target: false,
         edits,
     })
 }

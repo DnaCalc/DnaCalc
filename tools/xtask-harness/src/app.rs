@@ -1076,6 +1076,8 @@ pub enum Action {
     /// A real pointer drag between two rendered elements.
     Drag(&'static str, &'static str),
     DragToCell(&'static str, u32, &'static str),
+    /// Drag the existing selection border, with optional Ctrl-copy or Escape cancellation.
+    DragSelectionToCell(u32, &'static str, bool, bool),
     /// Drag a visible trailing header edge, optionally cancelling before release.
     ResizeHeader(&'static str, bool, i32, bool),
     SetPainter(&'static str),
@@ -2067,6 +2069,30 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             println!("{} RESIZE {}: {}",app.label,name,session.script("return window.__dcResizeTrace;")?);
             Ok(())
         }
+        Action::DragSelectionToCell(row, col, copy, cancel) => {
+            let xy = session.script(&format!("var s=document.querySelector('[data-dnacalc=selection]').getBoundingClientRect();var c=document.querySelector('[data-dnacalc=column-header][data-column=\"{col}\"]').getBoundingClientRect();var r=document.querySelector('[data-dnacalc=row-header][data-row=\"{row}\"]').getBoundingClientRect();return [Math.round(s.left+4),Math.round(s.top+1),Math.round(c.left+c.width/2),Math.round(r.top+r.height/2)];"))?;
+            let modifier = if *copy {json!({"type":"keyDown","value":"\u{E009}"})} else {json!({"type":"pause","duration":0})};
+            let result = (|| -> Result<(), String> {
+                session.post("/actions",json!({"actions":[
+                    {"type":"key","id":"range-modifier","actions":[modifier,{"type":"pause","duration":0},{"type":"pause","duration":0}]},
+                    {"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":[
+                        {"type":"pointerMove","duration":0,"origin":"viewport","x":xy[0],"y":xy[1]},
+                        {"type":"pointerDown","button":0},
+                        {"type":"pointerMove","duration":200,"origin":"viewport","x":xy[2],"y":xy[3]}
+                    ]}
+                ]}))?;
+                if *cancel {
+                    if let Some(reason)=wait_for(app,session,&Check::Rendered("move-preview",true),Duration::from_secs(5)) {return Err(reason);}
+                    session.post("/actions",json!({"actions":[{"type":"key","id":"range-cancel","actions":[{"type":"keyDown","value":"\u{E00C}"},{"type":"keyUp","value":"\u{E00C}"}]}]}))?;
+                }
+                Ok(())
+            })();
+            let release = session.post("/actions",json!({"actions":[{"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":[{"type":"pointerUp","button":0}]}]}));
+            if *copy {session.post("/actions",json!({"actions":[{"type":"key","id":"range-modifier","actions":[{"type":"keyUp","value":"\u{E009}"}]}]}))?;}
+            result?;
+            release?;
+            Ok(())
+        }
         Action::DragToCell(from, row, col) => {
             let from = session.element(&select(app, from))?;
             let xy=session.script(&format!("var c=document.querySelector('[data-dnacalc=column-header][data-column=\"{col}\"]').getBoundingClientRect();var r=document.querySelector('[data-dnacalc=row-header][data-row=\"{row}\"]').getBoundingClientRect();return [Math.round(c.left+c.width/2),Math.round(r.top+r.height/2)];"))?;
@@ -3031,8 +3057,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 305,
-            "the two applications have 305 core cases including seven completion repair cases and all 298 inherited core cases"
+            total, 315,
+            "the two applications have 315 core cases including ten range drag cases and all 305 inherited core cases"
         );
     }
 
