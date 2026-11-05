@@ -133,6 +133,10 @@ pub(crate) fn excel_root_x87(product: f64, count: usize) -> f64 {
 }
 
 fn root<F: Fpu>(product: f64, count: usize) -> f64 {
+    // Original singleton controls return the stored product unchanged.
+    if count == 1 {
+        return product;
+    }
     // R28 normalized-product controls distinguish this exact exponent step
     // independently of the private root. Adjust frexp to a significand in
     // [1, 2), then divide its integer exponent toward zero (not floor).
@@ -141,11 +145,13 @@ fn root<F: Fpu>(product: f64, count: usize) -> f64 {
     let n = count as i64;
     let scale = exponent / n;
     let reduced = libm::scalbn(product, -(scale * n) as i32);
-    let log2 = F::fyl2x(&ext_one(), &load(reduced), CW);
-    let t = F::div(&log2, &load(count as f64), CW);
-    // The bounded private root remains unresolved. This normal rescaling is
-    // exact; observed losses stay attributed to that independently measured core.
-    libm::scalbn(F::store(&pow2::<F>(&t), CW), scale as i32)
+    // Paired original LN/EXP controls isolate these assignments. Removing any
+    // one publication contradicts the observed reduced roots. The reciprocal
+    // is assigned before the multiply; direct division is distinguished too.
+    let log = log_with::<F>(reduced, &ext_ln2());
+    let reciprocal = F::store(&F::div(&ext_one(), &load(count as f64), CW), CW);
+    let mean = F::store(&F::mul(&load(log), &load(reciprocal), CW), CW);
+    libm::scalbn(F::store(&exp_ext::<F>(&load(mean)), CW), scale as i32)
 }
 
 /// BINOM.DIST's mass exponential: `e^(lc - lf/2)` with the difference extended.

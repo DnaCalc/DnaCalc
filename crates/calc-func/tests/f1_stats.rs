@@ -87,21 +87,21 @@ fn geomean_reduces_the_binary_exponent_before_the_private_root() {
     }
 }
 
-/// These six original answers still fail in the bounded private root after normalization.
+/// Independent public leaf calls account for the six normalization losses.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn geomean_normalization_keeps_private_root_gaps_explicit() {
-    for (count, input, excel, calculated) in [
-        (2, 0x430f_4000_0000_0030, 0x417f_9f6e_4990_f240, 0x417f_9f6e_4990_f23f),
-        (3, 0x43dc_0000_0000_0039, 0x413e_9b5d_ba58_18b2, 0x413e_9b5d_ba58_18b3),
-        (7, 0x375b_ffff_ffff_ffdd, 0x3eb5_20a4_5ca7_c7c3, 0x3eb5_20a4_5ca7_c7c2),
-        (10, 0x4d0f_4000_0000_0001, 0x413f_ec98_2d5b_b8b0, 0x413f_ec98_2d5b_b8af),
-        (11, 0x4e4f_3fff_ffff_ffc4, 0x413d_fb27_fa5d_c3fc, 0x413d_fb27_fa5d_c3fb),
-        (16, 0x541b_ffff_ffff_fff8, 0x4132_11b6_3ba0_196e, 0x4132_11b6_3ba0_196d),
+fn geomean_publishes_the_reduced_log_and_exp_argument() {
+    for (count, input, expected) in [
+        (2, 0x430f_4000_0000_0030, 0x417f_9f6e_4990_f240),
+        (3, 0x43dc_0000_0000_0039, 0x413e_9b5d_ba58_18b2),
+        (7, 0x375b_ffff_ffff_ffdd, 0x3eb5_20a4_5ca7_c7c3),
+        (10, 0x4d0f_4000_0000_0001, 0x413f_ec98_2d5b_b8b0),
+        (11, 0x4e4f_3fff_ffff_ffc4, 0x413d_fb27_fa5d_c3fc),
+        (16, 0x541b_ffff_ffff_fff8, 0x4132_11b6_3ba0_196e),
     ] {
         let mut args = vec![n(1.0); count];
         args[0] = n(f64::from_bits(input));
-        recorded_calculation(call("GEOMEAN", args), f64::from_bits(excel), f64::from_bits(calculated));
+        exact(call("GEOMEAN", args), f64::from_bits(expected));
     }
 }
 

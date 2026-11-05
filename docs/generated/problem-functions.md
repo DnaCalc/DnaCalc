@@ -8,8 +8,8 @@ python3 racer/corpus_cases.py problem-functions ../DnaCalc ../DnaCalc/docs/gener
 
 Last-bit: finite numeric mismatches <=16 ULP; larger numeric: >16 ULP. This split is triage, not a relaxed verdict. Every mismatch, refusal, unread, missing, pending, external and circular-policy cell remains an inclusive failure. Corpus labels follow exact single-cell aliases, infer calls from formula spelling and unwrap INDEX selections; unresolved references and infix operators remain explicit. Bank functions use canonical judge identities. Counts are observations per source; corpus and bank may overlap and must not be added as unique calls. Bank reference/locale context gaps remain failures, not proven numerical defects.
 
-Corpus: 33,051/35,048 matched (94.30210%); 1,997 inclusive failures, including 0 pending.
-Bank: 3,769,062/3,910,007 matched (96.39527%); 140,945 failures, including 116 unread.
+Corpus: 51,831/54,600 matched (94.92857%); 2,769 inclusive failures, including 0 pending.
+Bank: 3,769,119/3,910,007 matched (96.39673%); 140,888 failures, including 116 unread.
 
 Larger numeric and last-bit columns count numeric mismatches; other columns count remaining mismatches. Bank refusals and unread rows are separate. Corpus refusals/missing are recorded in the JSON, outside the mismatch table.
 
@@ -27,11 +27,11 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | NEGBINOMDIST | 0 | 18 | 0 | 356 | 1,281 | 0 | 0 | 0 |
 | IRR | 9 | 1 | 3 | 299 | 95 | 17 | 0 | 0 |
 | PMT | 0 | 0 | 0 | 215 | 11,865 | 4 | 7 | 0 |
+| LINEST | 208 | 19 | 26 | 0 | 0 | 0 | 0 | 0 |
 | GAMMA.DIST | 0 | 13 | 0 | 166 | 30,162 | 0 | 0 | 0 |
 | BINOM.DIST.RANGE | 0 | 2 | 0 | 163 | 321 | 0 | 0 | 0 |
+| LOGEST | 150 | 12 | 81 | 0 | 0 | 0 | 2 | 0 |
 | KURT | 0 | 0 | 0 | 145 | 1,154 | 0 | 0 | 0 |
-| LINEST | 73 | 10 | 26 | 0 | 0 | 0 | 0 | 0 |
-| LOGEST | 60 | 7 | 36 | 0 | 0 | 0 | 2 | 0 |
 | NEGBINOM.DIST | 0 | 17 | 0 | 50 | 104 | 0 | 0 | 0 |
 | ODDFYIELD | 30 | 0 | 14 | 0 | 0 | 0 | 0 | 0 |
 | GAMMA | 0 | 0 | 0 | 26 | 6,171 | 0 | 0 | 0 |
@@ -75,7 +75,6 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | NORM.DIST | 0 | 0 | 0 | 0 | 244 | 0 | 0 | 0 |
 | F.DIST | 0 | 0 | 0 | 0 | 197 | 0 | 0 | 0 |
 | MDURATION | 0 | 0 | 0 | 0 | 157 | 0 | 0 | 0 |
-| GEOMEAN | 0 | 90 | 0 | 0 | 57 | 0 | 1 | 0 |
 | SINH | 0 | 0 | 0 | 0 | 130 | 0 | 0 | 0 |
 | ROUND | 0 | 0 | 0 | 0 | 124 | 0 | 0 | 0 |
 | NPV | 0 | 0 | 0 | 0 | 94 | 0 | 0 | 0 |
@@ -131,7 +130,9 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | EXP | 0 | 0 | 0 | 0 | 0 | 0 | 12 | 0 |
 | FIXED | 0 | 0 | 0 | 0 | 0 | 0 | 788 | 0 |
 | FLOOR.MATH | 0 | 0 | 0 | 0 | 0 | 0 | 12 | 0 |
+| GEOMEAN | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 |
 | GESTEP | 0 | 0 | 0 | 0 | 0 | 0 | 4 | 0 |
+| HSTACK | 0 | 0 | 5 | 0 | 0 | 0 | 0 | 0 |
 | IMCOSH | 0 | 0 | 0 | 0 | 0 | 7 | 0 | 0 |
 | IMCOT | 0 | 0 | 0 | 0 | 0 | 124 | 0 | 0 |
 | IMCSCH | 0 | 0 | 0 | 0 | 0 | 9 | 0 | 0 |
@@ -141,6 +142,7 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | IMSECH | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 0 |
 | IMSINH | 0 | 0 | 0 | 0 | 0 | 9 | 0 | 0 |
 | IMTAN | 0 | 0 | 0 | 0 | 0 | 144 | 0 | 0 |
+| INDEX | 0 | 0 | 24 | 0 | 0 | 0 | 0 | 0 |
 | ISEVEN | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | ISODD | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | Infix & | 0 | 0 | 5 | 0 | 0 | 0 | 0 | 0 |
@@ -157,6 +159,7 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | ROWS | 0 | 0 | 6 | 0 | 0 | 0 | 0 | 0 |
 | RRI | 0 | 0 | 0 | 0 | 0 | 0 | 45 | 0 |
 | SIGN | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
+| SORT | 0 | 0 | 4 | 0 | 0 | 0 | 0 | 0 |
 | SQRT | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | STANDARDIZE | 0 | 0 | 0 | 0 | 0 | 0 | 8 | 0 |
 | TEXTSPLIT | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |

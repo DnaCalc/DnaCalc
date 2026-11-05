@@ -3,21 +3,20 @@
   "complete": true,
   "inventory_complete": true,
   "coverage": {
-    "problem_functions": 146,
-    "reported": 149,
+    "problem_functions": 149,
+    "reported": 152,
     "statuses": {
-      "observed": 117,
-      "workbook-only": 31,
-      "service-refused": 1
+      "observed": 118,
+      "workbook-only": 34
     }
   },
-  "generator_sha256": "3468429d463f14eb3c6110cc7da35ae5dbf3d86621995525c5abb898c914fc5d",
-  "problem_list_sha256": "74f454c0ed18a18ca4d91e0a3168e497b681b5bd55f2169ca521f2f114661b2e",
+  "generator_sha256": "c87645223f2d68363c205e325e2ef7f43ce54553093662deb694e822f29256e2",
+  "problem_list_sha256": "2b5e808f7819aae933d95915b5ca1f6f5d2ab6b2adbcbab4231fdece6b587c02",
   "source_bindings": {
-    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/racer/fingerprint.py": "3468429d463f14eb3c6110cc7da35ae5dbf3d86621995525c5abb898c914fc5d",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/racer/fingerprint.py": "c87645223f2d68363c205e325e2ef7f43ce54553093662deb694e822f29256e2",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/checker/reference.py": "b34fb31455348e7cf56a58f6fdafd8d9fc7f20afc5d2b85b7a409fac7aee4bdd",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/checker/exact.py": "842363e00ad65c464623594822d566a2af9a0415e0b574557613092c993af80f",
-    "/home/ubuntu/projects/DnaCalc/DnaCalc/docs/generated/problem-functions.json": "74f454c0ed18a18ca4d91e0a3168e497b681b5bd55f2169ca521f2f114661b2e",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/docs/generated/problem-functions.json": "2b5e808f7819aae933d95915b5ca1f6f5d2ab6b2adbcbab4231fdece6b587c02",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/tools/excel-service/client.py": "4cd9f8df4dbe06917ae4c4d12d181e169b8d0bee68fe99e59d3f4d289226b89e",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/tools/excel-service/policy.py": "7b4605191b314e1e655dc155d90ae70e6459fe945eda22973a29993c55ca1ae4"
   },
@@ -25,16 +24,17 @@
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round26/edges.json": "7208465272ba89629ed056488a60015deac87f728e661f9f4c25c7df3864050d",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round26/bessel-bands.json": "793728ead196adaba5d8bd0ec38e6f6e0621a73355e1f6d71b51df5dcc82f830",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round26/log-consumers.json": "b82f7bea2c37a662e9127ba50ed8359f9e484ecf62bff17b287e6840eb3431ad",
-    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round27/primitives.json": "e8a43ab6ef335c677118c37de8871c5b6b3d8c2999a739212d4592fd6c51822a"
+    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round27/primitives.json": "e8a43ab6ef335c677118c37de8871c5b6b3d8c2999a739212d4592fd6c51822a",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round28/primitives-final-independent.json": "4649338e9a46da8a84a7146685d59fd4868d5d61b540faeed741e032f4a5c979",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round28/root-normalization-independent.json": "765d8b7cf8ab779ce3ea7db5a573269ec09fcdbc5a623c8cc7c916d590410d74",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round28/hypergeom-returns-independent.json": "769e166f15ead13896e0217d09ce780f4c87f22765aaee7f5e2d3dba6d66f548",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round28/poisson-seeds-independent.json": "954a2ccb83a3049c1eef1ba36cb51d1cbf561f7c48ac0a9c546e5975fdee3439",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round28/root-public-stages-independent.json": "72067750ed9e09f7bdcd1c35b04a00078ae66182254f7148be08425f11a20900",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round28/root-store-contrasts-public-exp.json.gz": "7915f47edd05170d4085556796bfdc9c609e1a29ee10a7564f4ce7e3955cfb55",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round28/poisson-exp-arguments.json.gz": "f01757bc3fc443f7015603a270a19935b3fa9636c7b526278e675975ce50623e",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round28/poisson-log-difference.json.gz": "2a13d5a96aecdb97b5a39bdf2a860b93cbc2857506a8366245b62bdab6118a4d"
   },
-  "refused_requests": [
-    {
-      "function": "FIXED",
-      "file": "ce997d41f2f405d7037f4f8fd67c624702b8f82f5677277e386a99dfe51fd345.refusal-70ebb8dd1cef4344a0dd37c16b61a48a.json.gz",
-      "sha256": "b02b6732f1e979639e94a1b97418f13fa18288a980316d7c2f93070a606478c5",
-      "calls_requested": 1024
-    }
-  ],
+  "refused_requests": [],
   "sources": "Tier1 original Excel scalar outputs and IEEE754; original MIT arithmetic/DFT and installed MPFR interface. No tier3/4 implementation source read.",
   "candidate_order": "Textbook product loops, Horner, plain recurrences, raw-moment variance, atanh series, one guard; fixed structural order, never accuracy rank.",
   "limitations": [
@@ -567,16 +567,6 @@
       "request_sha256": "4190aeabfd0980cc263334d9d18beba4fb75ebcbd5fff7c42675333abdb91ae2"
     },
     {
-      "function": "GEOMEAN",
-      "file": "4f0fee8e29451591d79990cd5e1b6b84a6b565f13ccbe8774336ffc4154a263c.json.gz",
-      "sha256": "2826232f1ee39d0e89ab467ab98daf73ebbd1c2c809a65e78eeb435a7edbca4f",
-      "calls": 1024,
-      "excel_build": "20527",
-      "machine": "GOVERT-OMEN",
-      "timestamp": "2026-11-04T18:18:28.779625+00:00",
-      "request_sha256": "ac2bf6f52b8a2173c7a35432172d96229c870d8b3f7d0032f1fe2cdf652fb483"
-    },
-    {
       "function": "SINH",
       "file": "5d44c2aef9ba81d1fbf50d5b11877dd7549a42fd0eef551a10b3f06bebc8ae3d.json.gz",
       "sha256": "96dfd9836941f38934440037f84d46fbc45fe6271b5ac2f82330ef06d56b2a5e",
@@ -1017,6 +1007,16 @@
       "request_sha256": "a0accf9fec951349d32a6e1a236db38dd1a6ce5fc0759a1f9b696a9b4863792b"
     },
     {
+      "function": "FIXED",
+      "file": "ce997d41f2f405d7037f4f8fd67c624702b8f82f5677277e386a99dfe51fd345.json.gz",
+      "sha256": "eca19b9440e9956091dccee7190f51e3df256472d911fc6b37326be55dd164cd",
+      "calls": 1024,
+      "excel_build": "20527",
+      "machine": "GOVERT-OMEN",
+      "timestamp": "2026-11-05T05:22:23.881411+00:00",
+      "request_sha256": "1ac6eff93186441c8c0a79efae3081f3c981985d522e14b329e12fda8e3ed447"
+    },
+    {
       "function": "FLOOR.MATH",
       "file": "311bb6d333ff7ffdd242a7a93cf1e7cc1767f1e1b47050d42ae67022f41d2935.json.gz",
       "sha256": "faeb947825f0dd31ccaa0f60af3cb95db0b377a669994229fc0e2cc5bdfd2547",
@@ -1025,6 +1025,16 @@
       "machine": "GOVERT-OMEN",
       "timestamp": "2026-11-04T19:24:18.460769+00:00",
       "request_sha256": "c45edf079a4cdc32899560bb874094dcf55c0ff0e612da27a488cb16fd36b2ea"
+    },
+    {
+      "function": "GEOMEAN",
+      "file": "4f0fee8e29451591d79990cd5e1b6b84a6b565f13ccbe8774336ffc4154a263c.json.gz",
+      "sha256": "2826232f1ee39d0e89ab467ab98daf73ebbd1c2c809a65e78eeb435a7edbca4f",
+      "calls": 1024,
+      "excel_build": "20527",
+      "machine": "GOVERT-OMEN",
+      "timestamp": "2026-11-04T18:18:28.779625+00:00",
+      "request_sha256": "ac2bf6f52b8a2173c7a35432172d96229c870d8b3f7d0032f1fe2cdf652fb483"
     },
     {
       "function": "GESTEP",
@@ -1548,7 +1558,32 @@
         "limitation": "Ideal real-function publication only. Agreement does not identify the inner algorithm or its stores; any neither result refutes this complete leaf model."
       },
       "observed_approximation_boundaries": [],
-      "broader_primitive_windows": []
+      "broader_primitive_windows": [],
+      "isolated_stage": {
+        "counts": {
+          "zero_equals_EXP": 1024,
+          "zero_to_one_impossible": 182,
+          "one_to_two_possible": 587,
+          "zero_to_one_possible": 842,
+          "one_to_two_impossible": 437,
+          "exact_mode_step_equal": 31,
+          "exact_mode_step_different": 37
+        },
+        "exp_argument_counts": {
+          "no binary64 argument": 682,
+          "binary64 argument possible": 1366,
+          "public bracket verified": 682
+        },
+        "log_difference_counts": {
+          "public_LN_possible": 784,
+          "resident_LN_excluded": 373,
+          "binary64_log_possible": 858,
+          "public_LN_excluded": 240,
+          "binary64_log_impossible": 166,
+          "resident_LN_possible": 651
+        },
+        "scope": "Conditional public EXP preimages and one subtraction isolate necessary stage constraints. Confirmed adjacent public EXP gaps exclude a stored binary64 exponential input within that primitive. Neither the private PMF nor its log/exp implementation is identified."
+      }
     },
     {
       "function": "BETA.DIST",
@@ -2465,6 +2500,18 @@
       "broader_primitive_windows": []
     },
     {
+      "function": "LINEST",
+      "problem_list_member": true,
+      "rounding": "unresolved",
+      "stored_stages": null,
+      "band_edges": [],
+      "windows": [],
+      "status": "workbook-only",
+      "reason": "outside the scalar service catalogue; no service restriction changed",
+      "observed_approximation_boundaries": [],
+      "broader_primitive_windows": []
+    },
+    {
       "function": "GAMMA.DIST",
       "problem_list_member": true,
       "rounding": "unresolved: no complete scalar mathematical reference",
@@ -2822,6 +2869,18 @@
       "broader_primitive_windows": []
     },
     {
+      "function": "LOGEST",
+      "problem_list_member": true,
+      "rounding": "unresolved",
+      "stored_stages": null,
+      "band_edges": [],
+      "windows": [],
+      "status": "workbook-only",
+      "reason": "outside the scalar service catalogue; no service restriction changed",
+      "observed_approximation_boundaries": [],
+      "broader_primitive_windows": []
+    },
+    {
       "function": "KURT",
       "problem_list_member": true,
       "rounding": "unresolved: no complete scalar mathematical reference",
@@ -2979,30 +3038,6 @@
         "discriminants": [],
         "limitation": "Ideal real-function publication only. Agreement does not identify the inner algorithm or its stores; any neither result refutes this complete leaf model."
       },
-      "observed_approximation_boundaries": [],
-      "broader_primitive_windows": []
-    },
-    {
-      "function": "LINEST",
-      "problem_list_member": true,
-      "rounding": "unresolved",
-      "stored_stages": null,
-      "band_edges": [],
-      "windows": [],
-      "status": "workbook-only",
-      "reason": "outside the scalar service catalogue; no service restriction changed",
-      "observed_approximation_boundaries": [],
-      "broader_primitive_windows": []
-    },
-    {
-      "function": "LOGEST",
-      "problem_list_member": true,
-      "rounding": "unresolved",
-      "stored_stages": null,
-      "band_edges": [],
-      "windows": [],
-      "status": "workbook-only",
-      "reason": "outside the scalar service catalogue; no service restriction changed",
       "observed_approximation_boundaries": [],
       "broader_primitive_windows": []
     },
@@ -4879,7 +4914,22 @@
         "limitation": "Ideal real-function publication only. Agreement does not identify the inner algorithm or its stores; any neither result refutes this complete leaf model."
       },
       "observed_approximation_boundaries": [],
-      "broader_primitive_windows": []
+      "broader_primitive_windows": [],
+      "isolated_stage": {
+        "counts": {
+          "pmf_differs_from_one": 7,
+          "cdf_differs_from_one": 7,
+          "resident_over_stored_impossible": 1,
+          "stored_over_resident_impossible": 1,
+          "pmf_mathematical_one": 71,
+          "cdf_mathematical_one": 71,
+          "resident_over_stored_possible": 77,
+          "stored_over_resident_possible": 77,
+          "zero_all_differ": 7,
+          "zero_all_same": 32
+        },
+        "scope": "Independent rational inversion of one stored-PC64 node using the complete original scalar-worker readings. Every question and alias observation accounted for. Conditional seed intervals do not identify a private seed or authorize a correction."
+      }
     },
     {
       "function": "TINV",
@@ -8506,160 +8556,6 @@
       "broader_primitive_windows": []
     },
     {
-      "function": "GEOMEAN",
-      "problem_list_member": true,
-      "rounding": "ideal single/double leaf rejected on this window",
-      "stored_stages": null,
-      "band_edges": [],
-      "windows": [
-        {
-          "start": "3ff4cccccccccbcd",
-          "end": "3ff4cccccccccdcc",
-          "count": 512,
-          "answer_types": {
-            "number": 512
-          },
-          "distinct_answers": 142,
-          "spectrum": {
-            "status": "measured",
-            "rms_ulp": 0.30845838296809003,
-            "slope_ulp": 0.2771059265601218,
-            "median_power": 6.1015593861645625,
-            "lines": [
-              {
-                "bin": 142,
-                "cycles_per_input": 0.27734375,
-                "period_inputs": 3.6056338028169015,
-                "power_fraction": 0.19364565190208413
-              },
-              {
-                "bin": 40,
-                "cycles_per_input": 0.078125,
-                "period_inputs": 12.8,
-                "power_fraction": 0.03132882710179512
-              },
-              {
-                "bin": 182,
-                "cycles_per_input": 0.35546875,
-                "period_inputs": 2.8131868131868134,
-                "power_fraction": 0.03009836928078905
-              },
-              {
-                "bin": 116,
-                "cycles_per_input": 0.2265625,
-                "period_inputs": 4.413793103448276,
-                "power_fraction": 0.025337974392376353
-              },
-              {
-                "bin": 72,
-                "cycles_per_input": 0.140625,
-                "period_inputs": 7.111111111111111,
-                "power_fraction": 0.02156283514636912
-              },
-              {
-                "bin": 26,
-                "cycles_per_input": 0.05078125,
-                "period_inputs": 19.692307692307693,
-                "power_fraction": 0.021341241767686977
-              }
-            ],
-            "detected_lines": 6,
-            "resolved_stored_stages": null,
-            "limitation": "Harmonics, aliasing and unobserved/redundant stores prevent converting peak count into store count."
-          }
-        },
-        {
-          "start": "3ff9ffffffffff00",
-          "end": "3ffa0000000000ff",
-          "count": 512,
-          "answer_types": {
-            "number": 512
-          },
-          "distinct_answers": 123,
-          "spectrum": {
-            "status": "measured",
-            "rms_ulp": 0.3096508528427999,
-            "slope_ulp": 0.2387975772049988,
-            "median_power": 5.880291946384167,
-            "lines": [
-              {
-                "bin": 122,
-                "cycles_per_input": 0.23828125,
-                "period_inputs": 4.19672131147541,
-                "power_fraction": 0.1775859702348007
-              },
-              {
-                "bin": 40,
-                "cycles_per_input": 0.078125,
-                "period_inputs": 12.8,
-                "power_fraction": 0.02695371045424797
-              },
-              {
-                "bin": 97,
-                "cycles_per_input": 0.189453125,
-                "period_inputs": 5.278350515463917,
-                "power_fraction": 0.025057802510033384
-              },
-              {
-                "bin": 163,
-                "cycles_per_input": 0.318359375,
-                "period_inputs": 3.1411042944785277,
-                "power_fraction": 0.023761617835319247
-              },
-              {
-                "bin": 25,
-                "cycles_per_input": 0.048828125,
-                "period_inputs": 20.48,
-                "power_fraction": 0.021817311200650186
-              }
-            ],
-            "detected_lines": 5,
-            "resolved_stored_stages": null,
-            "limitation": "Harmonics, aliasing and unobserved/redundant stores prevent converting peak count into store count."
-          }
-        }
-      ],
-      "seed_origin": "fixed textbook example",
-      "arguments": [
-        {
-          "type": "number",
-          "bits": "3ff4cccccccccccd"
-        },
-        {
-          "type": "number",
-          "bits": "4000cccccccccccd"
-        },
-        {
-          "type": "number",
-          "bits": "400d99999999999a"
-        }
-      ],
-      "varying_argument": 0,
-      "requested_calls": 1024,
-      "requested_windows": [
-        {
-          "start": "3ff4cccccccccbcd",
-          "count": 512
-        },
-        {
-          "start": "3ff9ffffffffff00",
-          "count": 512
-        }
-      ],
-      "status": "observed",
-      "rounding_evidence": {
-        "label": "ideal single/double leaf rejected on this window",
-        "counts": {
-          "neither": 97,
-          "indistinguishable_match": 927
-        },
-        "discriminants": [],
-        "limitation": "Ideal real-function publication only. Agreement does not identify the inner algorithm or its stores; any neither result refutes this complete leaf model."
-      },
-      "observed_approximation_boundaries": [],
-      "broader_primitive_windows": []
-    },
-    {
       "function": "SINH",
       "problem_list_member": true,
       "rounding": "ideal single/double leaf rejected on this window",
@@ -9991,7 +9887,22 @@
         "limitation": "Ideal real-function publication only. Agreement does not identify the inner algorithm or its stores; any neither result refutes this complete leaf model."
       },
       "observed_approximation_boundaries": [],
-      "broader_primitive_windows": []
+      "broader_primitive_windows": [],
+      "isolated_stage": {
+        "counts": {
+          "pmf_differs_from_one": 7,
+          "cdf_differs_from_one": 7,
+          "resident_over_stored_impossible": 1,
+          "stored_over_resident_impossible": 1,
+          "pmf_mathematical_one": 71,
+          "cdf_mathematical_one": 71,
+          "resident_over_stored_possible": 77,
+          "stored_over_resident_possible": 77,
+          "zero_all_differ": 7,
+          "zero_all_same": 32
+        },
+        "scope": "Independent rational inversion of one stored-PC64 node using the complete original scalar-worker readings. Every question and alias observation accounted for. Conditional seed intervals do not identify a private seed or authorize a correction."
+      }
     },
     {
       "function": "PERMUTATIONA",
@@ -11370,7 +11281,32 @@
         "limitation": "Ideal real-function publication only. Agreement does not identify the inner algorithm or its stores; any neither result refutes this complete leaf model."
       },
       "observed_approximation_boundaries": [],
-      "broader_primitive_windows": []
+      "broader_primitive_windows": [],
+      "isolated_stage": {
+        "counts": {
+          "zero_equals_EXP": 1024,
+          "zero_to_one_impossible": 182,
+          "one_to_two_possible": 587,
+          "zero_to_one_possible": 842,
+          "one_to_two_impossible": 437,
+          "exact_mode_step_equal": 31,
+          "exact_mode_step_different": 37
+        },
+        "exp_argument_counts": {
+          "no binary64 argument": 682,
+          "binary64 argument possible": 1366,
+          "public bracket verified": 682
+        },
+        "log_difference_counts": {
+          "public_LN_possible": 784,
+          "resident_LN_excluded": 373,
+          "binary64_log_possible": 858,
+          "public_LN_excluded": 240,
+          "binary64_log_impossible": 166,
+          "resident_LN_possible": 651
+        },
+        "scope": "Conditional public EXP preimages and one subtraction isolate necessary stage constraints. Confirmed adjacent public EXP gaps exclude a stored binary64 exponential input within that primitive. Neither the private PMF nor its log/exp implementation is identified."
+      }
     },
     {
       "function": "POWER",
@@ -15159,15 +15095,51 @@
             "limitation": "Ideal real-function publication only. Agreement does not identify the inner algorithm or its stores; any neither result refutes this complete leaf model."
           }
         }
-      ]
+      ],
+      "isolated_stage": {
+        "constant_pc64_little_endian": [
+          "bcf0175c293baab8ff3f"
+        ],
+        "model": "resident multiply by log2(e), F2XM1 reduction and FSCALE",
+        "scope": "Unique coefficient within the declared native instruction model on the measured windows; no private helper identification."
+      }
     },
     {
       "function": "FIXED",
       "problem_list_member": true,
-      "rounding": "unresolved",
+      "rounding": "not identifiable on non-numeric/error output",
       "stored_stages": null,
       "band_edges": [],
-      "windows": [],
+      "windows": [
+        {
+          "start": "3ff4cccccccccbcd",
+          "end": "3ff4cccccccccdcc",
+          "count": 512,
+          "answer_types": {
+            "text": 512
+          },
+          "distinct_answers": 13,
+          "spectrum": {
+            "status": "non-numeric window",
+            "lines": [],
+            "resolved_stored_stages": null
+          }
+        },
+        {
+          "start": "3ff9ffffffffff00",
+          "end": "3ffa0000000000ff",
+          "count": 512,
+          "answer_types": {
+            "text": 512
+          },
+          "distinct_answers": 13,
+          "spectrum": {
+            "status": "non-numeric window",
+            "lines": [],
+            "resolved_stored_stages": null
+          }
+        }
+      ],
       "seed_origin": "fixed textbook example",
       "arguments": [
         {
@@ -15196,19 +15168,14 @@
           "count": 512
         }
       ],
-      "status": "service-refused",
-      "refusal": {
-        "version": 1,
-        "id": "70ebb8dd1cef4344a0dd37c16b61a48a",
-        "ok": false,
-        "error": "function is outside the service's safe catalogue subset",
-        "rows": [],
-        "excel_build": null,
-        "machine": "GOVERT-OMEN",
-        "timestamp": "2026-11-04T19:39:24.016921+00:00",
-        "service_seconds": 0.01600000006146729,
-        "request_sha256": "87d3c246444d0a4f522f7c842451244d831e79f4eefb7430a31d70cc0d7a1d43",
-        "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-firehorse\\70ebb8dd1cef4344a0dd37c16b61a48a"
+      "status": "observed",
+      "rounding_evidence": {
+        "label": "unresolved: no complete scalar mathematical reference",
+        "counts": {
+          "non_numeric": 1024
+        },
+        "discriminants": [],
+        "limitation": "Ideal real-function publication only. Agreement does not identify the inner algorithm or its stores; any neither result refutes this complete leaf model."
       },
       "observed_approximation_boundaries": [],
       "broader_primitive_windows": []
@@ -15299,6 +15266,203 @@
       "broader_primitive_windows": []
     },
     {
+      "function": "GEOMEAN",
+      "problem_list_member": true,
+      "rounding": "ideal single/double leaf rejected on this window",
+      "stored_stages": null,
+      "band_edges": [],
+      "windows": [
+        {
+          "start": "3ff4cccccccccbcd",
+          "end": "3ff4cccccccccdcc",
+          "count": 512,
+          "answer_types": {
+            "number": 512
+          },
+          "distinct_answers": 142,
+          "spectrum": {
+            "status": "measured",
+            "rms_ulp": 0.30845838296809003,
+            "slope_ulp": 0.2771059265601218,
+            "median_power": 6.1015593861645625,
+            "lines": [
+              {
+                "bin": 142,
+                "cycles_per_input": 0.27734375,
+                "period_inputs": 3.6056338028169015,
+                "power_fraction": 0.19364565190208413
+              },
+              {
+                "bin": 40,
+                "cycles_per_input": 0.078125,
+                "period_inputs": 12.8,
+                "power_fraction": 0.03132882710179512
+              },
+              {
+                "bin": 182,
+                "cycles_per_input": 0.35546875,
+                "period_inputs": 2.8131868131868134,
+                "power_fraction": 0.03009836928078905
+              },
+              {
+                "bin": 116,
+                "cycles_per_input": 0.2265625,
+                "period_inputs": 4.413793103448276,
+                "power_fraction": 0.025337974392376353
+              },
+              {
+                "bin": 72,
+                "cycles_per_input": 0.140625,
+                "period_inputs": 7.111111111111111,
+                "power_fraction": 0.02156283514636912
+              },
+              {
+                "bin": 26,
+                "cycles_per_input": 0.05078125,
+                "period_inputs": 19.692307692307693,
+                "power_fraction": 0.021341241767686977
+              }
+            ],
+            "detected_lines": 6,
+            "resolved_stored_stages": null,
+            "limitation": "Harmonics, aliasing and unobserved/redundant stores prevent converting peak count into store count."
+          }
+        },
+        {
+          "start": "3ff9ffffffffff00",
+          "end": "3ffa0000000000ff",
+          "count": 512,
+          "answer_types": {
+            "number": 512
+          },
+          "distinct_answers": 123,
+          "spectrum": {
+            "status": "measured",
+            "rms_ulp": 0.3096508528427999,
+            "slope_ulp": 0.2387975772049988,
+            "median_power": 5.880291946384167,
+            "lines": [
+              {
+                "bin": 122,
+                "cycles_per_input": 0.23828125,
+                "period_inputs": 4.19672131147541,
+                "power_fraction": 0.1775859702348007
+              },
+              {
+                "bin": 40,
+                "cycles_per_input": 0.078125,
+                "period_inputs": 12.8,
+                "power_fraction": 0.02695371045424797
+              },
+              {
+                "bin": 97,
+                "cycles_per_input": 0.189453125,
+                "period_inputs": 5.278350515463917,
+                "power_fraction": 0.025057802510033384
+              },
+              {
+                "bin": 163,
+                "cycles_per_input": 0.318359375,
+                "period_inputs": 3.1411042944785277,
+                "power_fraction": 0.023761617835319247
+              },
+              {
+                "bin": 25,
+                "cycles_per_input": 0.048828125,
+                "period_inputs": 20.48,
+                "power_fraction": 0.021817311200650186
+              }
+            ],
+            "detected_lines": 5,
+            "resolved_stored_stages": null,
+            "limitation": "Harmonics, aliasing and unobserved/redundant stores prevent converting peak count into store count."
+          }
+        }
+      ],
+      "seed_origin": "fixed textbook example",
+      "arguments": [
+        {
+          "type": "number",
+          "bits": "3ff4cccccccccccd"
+        },
+        {
+          "type": "number",
+          "bits": "4000cccccccccccd"
+        },
+        {
+          "type": "number",
+          "bits": "400d99999999999a"
+        }
+      ],
+      "varying_argument": 0,
+      "requested_calls": 1024,
+      "requested_windows": [
+        {
+          "start": "3ff4cccccccccbcd",
+          "count": 512
+        },
+        {
+          "start": "3ff9ffffffffff00",
+          "count": 512
+        }
+      ],
+      "status": "observed",
+      "rounding_evidence": {
+        "label": "ideal single/double leaf rejected on this window",
+        "counts": {
+          "neither": 97,
+          "indistinguishable_match": 927
+        },
+        "discriminants": [],
+        "limitation": "Ideal real-function publication only. Agreement does not identify the inner algorithm or its stores; any neither result refutes this complete leaf model."
+      },
+      "observed_approximation_boundaries": [],
+      "broader_primitive_windows": [],
+      "isolated_stage": {
+        "normalization": "e=ilogb(P); q=trunc(e/n); M=P*2^(-q*n); root(M,n)*2^q",
+        "original_calls": 19200,
+        "normalized_controls": 7680,
+        "convention_counts": {
+          "frexp_truncation": {
+            "matched": 18521,
+            "mismatched": 679
+          },
+          "adjusted_frexp_truncation": {
+            "matched": 19200
+          },
+          "adjusted_frexp_floor": {
+            "matched": 18251,
+            "mismatched": 949
+          }
+        },
+        "bounded_core": "Store LN(M), store 1/n from PC64, store their product from PC64, call the measured public EXP; singleton identity.",
+        "paired_counts": {
+          "matched": 6016
+        },
+        "singleton_counts": {
+          "identity": 2944
+        },
+        "store_contrasts": {
+          "stored": {
+            "matched": 6016
+          },
+          "resident_log": {
+            "matched": 5774,
+            "mismatched": 242
+          },
+          "resident_reciprocal": {
+            "matched": 5670,
+            "mismatched": 346
+          },
+          "resident_argument": {
+            "matched": 5767,
+            "mismatched": 249
+          }
+        },
+        "scope": "Measured positive normal stored products and unit factors. The sampled normalized functional composition is identified; literal private implementation internals and the product underflow/overflow fallback remain open. Earlier shared-log contradictions concern the unreduced direct factorization only."
+      }
+    },
+    {
       "function": "GESTEP",
       "problem_list_member": true,
       "rounding": "unresolved: flat quantized windows",
@@ -15370,6 +15534,18 @@
         "discriminants": [],
         "limitation": "Ideal real-function publication only. Agreement does not identify the inner algorithm or its stores; any neither result refutes this complete leaf model."
       },
+      "observed_approximation_boundaries": [],
+      "broader_primitive_windows": []
+    },
+    {
+      "function": "HSTACK",
+      "problem_list_member": true,
+      "rounding": "unresolved",
+      "stored_stages": null,
+      "band_edges": [],
+      "windows": [],
+      "status": "workbook-only",
+      "reason": "outside the scalar service catalogue; no service restriction changed",
       "observed_approximation_boundaries": [],
       "broader_primitive_windows": []
     },
@@ -15981,6 +16157,18 @@
       "broader_primitive_windows": []
     },
     {
+      "function": "INDEX",
+      "problem_list_member": true,
+      "rounding": "unresolved",
+      "stored_stages": null,
+      "band_edges": [],
+      "windows": [],
+      "status": "workbook-only",
+      "reason": "outside the scalar service catalogue; no service restriction changed",
+      "observed_approximation_boundaries": [],
+      "broader_primitive_windows": []
+    },
+    {
       "function": "ISEVEN",
       "problem_list_member": true,
       "rounding": "unresolved",
@@ -16533,6 +16721,18 @@
     },
     {
       "function": "SIGN",
+      "problem_list_member": true,
+      "rounding": "unresolved",
+      "stored_stages": null,
+      "band_edges": [],
+      "windows": [],
+      "status": "workbook-only",
+      "reason": "outside the scalar service catalogue; no service restriction changed",
+      "observed_approximation_boundaries": [],
+      "broader_primitive_windows": []
+    },
+    {
+      "function": "SORT",
       "problem_list_member": true,
       "rounding": "unresolved",
       "stored_stages": null,
@@ -17220,7 +17420,14 @@
             "limitation": "Ideal real-function publication only. Agreement does not identify the inner algorithm or its stores; any neither result refutes this complete leaf model."
           }
         }
-      ]
+      ],
+      "isolated_stage": {
+        "constant_pc64_little_endian": [
+          "ac79cfd1f71772b1fe3f"
+        ],
+        "model": "FYL2X with resident ln(2)",
+        "scope": "Unique coefficient within the declared native instruction model on the measured windows; no private helper identification."
+      }
     },
     {
       "function": "LOG",
@@ -18375,7 +18582,7 @@
     }
   ],
   "producer_bindings": {
-    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/racer/fingerprint.py": "3468429d463f14eb3c6110cc7da35ae5dbf3d86621995525c5abb898c914fc5d",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/racer/fingerprint.py": "c87645223f2d68363c205e325e2ef7f43ce54553093662deb694e822f29256e2",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/checker/reference.py": "b34fb31455348e7cf56a58f6fdafd8d9fc7f20afc5d2b85b7a409fac7aee4bdd",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/checker/exact.py": "842363e00ad65c464623594822d566a2af9a0415e0b574557613092c993af80f"
   },
