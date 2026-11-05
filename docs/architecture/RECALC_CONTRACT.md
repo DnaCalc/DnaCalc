@@ -262,8 +262,17 @@ flag. Value reads, including SUM/INDEX and a value read after ROWS, remain refus
 through IFERROR. A missing or array image grants no scalar shape. Manual
 StillRequired and cache-qualified projections remain stale; display equality
 is not a fresh pass. Pure hidden-self readers retain their seeds, so a later
-Rebuild still starts from the original values. A newly discovered dynamic cyclic
-Range still fails as a whole: its independent D1 remains 0 instead of Excel's 4.
+Rebuild still starts from the original values. A closed chain of actual value
+waits can now establish a newly discovered scalar cycle in the same first-wave
+Manual profile: its producers retain their seeds, executed readers are excluded,
+and independent D1 evaluates Excel's recorded 4. Only the proven producers join
+the cyclic set. The shared exclusion releases waiters without changing prior
+identities or dynamic topology. Sparse/dense scratch and cancellation before
+discovery, after producer discovery and after reader exclusion are checked.
+This path excludes callback effects, pending placements, external/legacy cache
+reads, unsupported bindings, multi-cell outputs and later repair waves. It grants
+no new shape pin for a dynamically discovered cycle. Broader dynamic profiles
+keep their typed whole-command refusal; ordinary worksheet errors remain values.
 
 The seven supported stopping conditions and the Rebuild hidden-self control
 reproduce recorded final values, while iterative sessions keep their existing
@@ -273,7 +282,7 @@ therefore cannot be treated as numeric +1 for stopping; these answers do not
 distinguish zero from -1 or establish a general replacement rule. Eight new
 eng17 discriminators remain unanswered. Eng14 supplies no SCC execution counts,
 mid-cycle cache observations or Full conditions; the instrumented Full/Rebuild
-questions remain pending, and excel-results-eng15 has not arrived.
+questions remain pending. The late eng15 observer delivery is described below.
 
 Eng14's separate unchanged authored-entry nonfinite capture has 21 immediate
 bit matches through the existing compare route. Its source is the workbook plus
@@ -282,6 +291,23 @@ NaN-to-#NUM! differences remain capture failures; the host tests retain that
 distinction and recalculate the original formulas after reopen. The capture
 reused an Excel process with an add-in connected; it is not a fresh-process or
 MTC-off claim, and the current comparison has no strict-target certification.
+
+Eng15 asymmetric observer observations (imported 2026-11-05): the unchanged
+P14/eng15-20261104 inputs, source, cumulative traces and trial1 result objects
+retain two conditions with ten fresh owned-process trials each. All 425 delivery
+hashes and 20 request/input/result/receipt/source chains were checked. Manual,
+iteration on, MTC off, events off and zero startup entries/counters were verified.
+Each of the 40 A1:D1 Range commands enters the selected observer once. Outside
+A/B/C snapshots retain 2/5/7, while D displays its authored and seeded zero.
+The explicit observer's formal Double arguments log +0/+0; their pre-coercion
+types remain unknown. The hidden observer's two Value2 reads log Empty/Empty.
+Thus held numeric seeds cannot supply these observed arguments or hidden reads.
+The arithmetic producers have no counters, so their attempted work and SCC
+execution counts remain unmeasured. Range returns DBNull/null; it is not a
+Boolean success assertion. Callback-bearing cyclic Range remains a typed
+implementation gap, with no held-cache pass. Full/Rebuild and general mid-cycle
+visibility remain pending. Two failed overflow-display preparations elsewhere
+in the delivery remain recorded; neither is a successful Range trial.
 
 Eng13 instrumented Range observations (2026-11-04): the delivered packet at
 `~/codex-runs/excel-results-eng13` contains 80 valid trials, ten for each of eight
@@ -458,9 +484,17 @@ Publication validates every displayed spill or fixed-array member before install
 N, ABS, unary minus and single-number extrema preserve the bits. Arithmetic returns #NUM!,
 TEXT returns #VALUE!, and type/error predicates see a number. The recorded positive comparison
 and reflexive equality work; distinct encodings, negative ordering and extrema choosing among
-multiple numbers remain typed refusals pending eng15 questions.
+multiple numbers remain typed refusals. Eng15 now records those cases; the
+implementation has not yet adopted a general ordering or selection rule.
+Its unchanged 94-cell capture currently gives 76 matches, 15 typed refusals and
+three mismatches. The negative-overflow ABS result retains the wrong sign, and
+TEXT with General or @ returns #VALUE! instead of the recorded 2E+308. The
+preceding bit-preservation and TEXT descriptions are current implementation
+behavior, not general Excel rules. All 18 nonpasses and 30 capture save/reopen
+differences remain failures; no ordering or formatting kernel was guessed.
 General rendering covers the four recorded .Text readings; custom cell formats remain explicitly
-unmodelled, and width-dependent parity still needs measurements. Save writes #NUM! caches,
+unmodelled. Eng15 retains unchanged Value2 readings at widths 8.43, 20 and 40;
+this does not establish rendering parity. Save writes #NUM! caches,
 Manual reopen retains their file-cache provenance, and full recalculation restores the encodings.
 The saved-cache reader continues to require finite numeric XML because these caches have error
 type. New oracle capture and additional formatting/order measurements remain open.

@@ -14,6 +14,11 @@ pub fn controls(controller: Controller) -> AnyView {
     let series_name = controller.tool_field(|s| &s.chart.series_name, |s| &mut s.chart.series_name);
     let categories = controller.tool_field(|s| &s.chart.categories, |s| &mut s.chart.categories);
     let values = controller.tool_field(|s| &s.chart.values, |s| &mut s.chart.values);
+    let axis = controller.tool_field(|s| &s.chart.axis, |s| &mut s.chart.axis);
+    let axis_minimum = controller.tool_field(|s| &s.chart.axis_minimum, |s| &mut s.chart.axis_minimum);
+    let axis_maximum = controller.tool_field(|s| &s.chart.axis_maximum, |s| &mut s.chart.axis_maximum);
+    let axis_unit = controller.tool_field(|s| &s.chart.axis_unit, |s| &mut s.chart.axis_unit);
+    let axis_reverse = controller.tool_field(|s| &s.chart.axis_reverse, |s| &mut s.chart.axis_reverse);
     let ready = RwSignal::new(None);
     let target = Memo::new(move |_| {
         (
@@ -90,7 +95,7 @@ pub fn controls(controller: Controller) -> AnyView {
         current_plot.get()?.series.into_iter().find(|s|s.index==index)
     });
     Effect::new(move |_| {
-        open.track();let s=current_series.get();
+        open.track();current_part.track();let s=current_series.get();
         series_name.set(s.as_ref().map(|s|s.name.clone()).unwrap_or_default());
         categories.set(s.as_ref().and_then(|s|s.categories.clone()).unwrap_or_default());
         values.set(s.as_ref().and_then(|s|s.values.clone()).unwrap_or_default());
@@ -112,6 +117,33 @@ pub fn controls(controller: Controller) -> AnyView {
             controller.dispatch(wire::Intent::ChartSeries{sheet:wire::Sheet::of(sheet),revision,part:chart.part,plot,series:old.map(|s|s.index),name,categories,values,remove},move |outcome|{
                 if outcome.accepted{controller.say(if remove{"Series removed"}else{"Chart series updated"},false);}
             });
+        });
+    };
+    Effect::new(move |_| {
+        let chart=current.get();let chosen=axis.get_untracked().parse::<u32>().ok();
+        if !chart.as_ref().is_some_and(|c|c.axes.iter().any(|a|Some(a.id)==chosen)) {
+            axis.set(chart.and_then(|c|c.axes.first().map(|a|a.id.to_string())).unwrap_or_default());
+        }
+    });
+    let current_axis=Memo::new(move |_|{let id=axis.get().parse::<u32>().ok()?;current.get()?.axes.into_iter().find(|a|a.id==id)});
+    Effect::new(move |_| {
+        open.track();current_part.track();let a=current_axis.get();
+        axis_minimum.set(a.as_ref().and_then(|a|a.minimum.clone()).unwrap_or_default());
+        axis_maximum.set(a.as_ref().and_then(|a|a.maximum.clone()).unwrap_or_default());
+        axis_unit.set(a.as_ref().and_then(|a|a.major_unit.clone()).unwrap_or_default());
+        axis_reverse.set(a.as_ref().is_some_and(|a|a.reversed));
+    });
+    let apply_axis=move |_| {
+        let Some((generation,revision,sheet))=ready.get_untracked() else{return;};
+        let (Some(chart),Some(axis))=(current.get_untracked(),current_axis.get_untracked()) else{return;};
+        let nonempty=|s:String|(!s.trim().is_empty()).then_some(s);
+        let minimum=nonempty(axis_minimum.get_untracked());let maximum=nonempty(axis_maximum.get_untracked());let major_unit=nonempty(axis_unit.get_untracked());let reversed=axis_reverse.get_untracked();
+        if minimum==axis.minimum && maximum==axis.maximum && major_unit==axis.major_unit && reversed==axis.reversed{return;}
+        controller.after_input(move ||{
+            if controller.generation.get_untracked()!=generation || controller.summary.get_untracked().revision!=revision || controller.sheet.get_untracked()!=Some(sheet) || controller.editing.get_untracked().is_some() {
+                controller.say("The workbook changed; reopen the chart controls",true);return;
+            }
+            controller.dispatch(wire::Intent::ChartAxis{sheet:wire::Sheet::of(sheet),revision,part:chart.part,axis:axis.id,minimum,maximum,major_unit,reversed},move |outcome|{if outcome.accepted{controller.say("Chart axis updated",false);}});
         });
     };
     let apply = move |_| {
@@ -154,6 +186,20 @@ pub fn controls(controller: Controller) -> AnyView {
             );
         });
     };
+    let reveal_chart=move |part:String| {
+                    let at=charts.get_untracked().into_iter().find(|chart|chart.part==part).and_then(|chart|match chart.place {
+                        wire::ChartPlace::Cells{from,..}|wire::ChartPlace::Sized{from,..}=>from.0.cell(),
+                        wire::ChartPlace::Absolute{..}=>None,
+                    });
+                    if let (Some(at),Some((generation,revision,sheet)))=(at,ready.get_untracked()) {
+                        controller.after_input(move || {
+                            if controller.generation.get_untracked()==generation && controller.summary.get_untracked().revision==revision && controller.sheet.get_untracked()==Some(sheet) && at.sheet()==sheet && controller.editing.get_untracked().is_none() {
+                                controller.go_to(at);
+                            }
+                        });
+                    }
+                    if at.is_none(){controller.say("Revealing an absolute chart frame is not modelled (dc-971p)",true);}
+    };
     view! {
         <details class="dc-clipboard-tools" name="worksheet-tools" data-dnacalc="chart-tools"
             on:toggle=move |ev| {if let Some(details)=ev.target().and_then(|target|target.dyn_into::<web_sys::HtmlDetailsElement>().ok()) {open.set(details.open());}}
@@ -169,20 +215,10 @@ pub fn controls(controller: Controller) -> AnyView {
                 <div class="dc-command-row"><label>"Chart "<select data-dnacalc="chart-choice" prop:value=move ||chosen.get() on:change=move |ev| {
                     let part=event_target_value(&ev);
                     chosen.set(part.clone());
-                    let at=charts.get_untracked().into_iter().find(|chart|chart.part==part).and_then(|chart|match chart.place {
-                        wire::ChartPlace::Cells{from,..}|wire::ChartPlace::Sized{from,..}=>from.0.cell(),
-                        wire::ChartPlace::Absolute{..}=>None,
-                    });
-                    if let (Some(at),Some((generation,revision,sheet)))=(at,ready.get_untracked()) {
-                        controller.after_input(move || {
-                            if controller.generation.get_untracked()==generation && controller.summary.get_untracked().revision==revision && controller.sheet.get_untracked()==Some(sheet) && at.sheet()==sheet && controller.editing.get_untracked().is_none() {
-                                controller.go_to(at);
-                            }
-                        });
-                    }
+                    reveal_chart(part);
                 }>
                     {move ||charts.get().into_iter().map(|chart|view! {<option value=chart.part>{chart.name}</option>}).collect_view()}
-                </select></label></div>
+                </select></label><button type="button" data-dnacalc="chart-show" disabled=move ||ready.get().is_none() on:click=move |_|reveal_chart(chosen.get_untracked())>"Show chart"</button></div>
                 <div class="dc-command-row"><label>"Title "<input data-dnacalc="chart-edit-title" maxlength="32767" prop:value=move ||title.get() on:input=move |ev|title.set(event_target_value(&ev))/></label>
                     <label><input data-dnacalc="chart-edit-legend" type="checkbox" prop:checked=move ||legend.get() on:change=move |ev|legend.set(event_target_checked(&ev))/>"Show legend"</label>
                     <button type="button" data-dnacalc="chart-edit-apply" disabled=move ||ready.get().is_none() || controller.assist.readonly.get() || controller.editing.get().is_some() on:click=apply>"Apply"</button>
@@ -192,7 +228,7 @@ pub fn controls(controller: Controller) -> AnyView {
                 <fieldset class="dc-chart-series"><legend>"Series data"</legend>
                     <div class="dc-command-row">
                         <label>"Plot "<select data-dnacalc="chart-plot" prop:value=move ||plot.get() on:change=move |ev|plot.set(event_target_value(&ev))>
-                            {move ||current.get().map(|c|c.plots.into_iter().enumerate().map(|(i,p)|view!{<option value=i.to_string()>{format!("{}: {}",i+1,p.kind)}</option>}).collect_view())}
+                            {move ||current.get().map(|c|c.plots.into_iter().enumerate().map(|(i,p)|view!{<option value=i.to_string()>{format!("{}: {}",i+1,plot_name(&p.kind))}</option>}).collect_view())}
                         </select></label>
                         <label>"Series "<select data-dnacalc="chart-series" prop:value=move ||series.get() on:change=move |ev|series.set(event_target_value(&ev))>
                             {move ||current_plot.get().map(|p|p.series.into_iter().map(|s|view!{<option value=s.index.to_string()>{s.label}</option>}).collect_view())}
@@ -208,7 +244,29 @@ pub fn controls(controller: Controller) -> AnyView {
                     </div>
                     <p class="dc-note">"Use a one-row or one-column worksheet range. Names can be text or =Sheet1!$B$1. Empty categories use point numbers; unchanged literal data stays as stored."</p>
                 </fieldset>
+                <Show when=move ||current.get().is_some_and(|c|!c.axes.is_empty())>
+                    <fieldset class="dc-chart-series"><legend>"Value axes"</legend>
+                        <div class="dc-command-row"><label>"Axis "<select data-dnacalc="chart-axis" prop:value=move ||axis.get() on:change=move |ev|axis.set(event_target_value(&ev))>
+                            {move ||current.get().map(|c|c.axes.into_iter().map(|a|view!{<option value=a.id.to_string()>{axis_name(&a.position).to_owned()}</option>}).collect_view())}
+                        </select></label></div>
+                        <div class="dc-command-row">
+                            <label>"Minimum "<input data-dnacalc="chart-axis-minimum" inputmode="decimal" maxlength="128" placeholder="Automatic" prop:value=move ||axis_minimum.get() on:input=move |ev|axis_minimum.set(event_target_value(&ev))/></label>
+                            <label>"Maximum "<input data-dnacalc="chart-axis-maximum" inputmode="decimal" maxlength="128" placeholder="Automatic" prop:value=move ||axis_maximum.get() on:input=move |ev|axis_maximum.set(event_target_value(&ev))/></label>
+                            <label>"Major unit "<input data-dnacalc="chart-axis-unit" inputmode="decimal" maxlength="128" placeholder="Automatic" prop:value=move ||axis_unit.get() on:input=move |ev|axis_unit.set(event_target_value(&ev))/></label>
+                        </div>
+                        <div class="dc-command-row">
+                            <label><input type="checkbox" data-dnacalc="chart-axis-reverse" prop:checked=move ||axis_reverse.get() on:change=move |ev|axis_reverse.set(event_target_checked(&ev))/>"Reverse direction"</label>
+                            <button type="button" data-dnacalc="chart-axis-apply" disabled=move ||ready.get().is_none() || current_axis.get().is_none_or(|a|a.logarithmic) || controller.assist.readonly.get() || controller.editing.get().is_some() on:click=apply_axis>"Apply axis"</button>
+                        </div>
+                        <p class="dc-note">"Leave bounds and units empty for automatic scaling. Undo restores the previous axis settings."</p>
+                        <Show when=move ||current_axis.get().is_some_and(|a|a.logarithmic)><p class="dc-note">"This logarithmic axis is preserved; its scaling cannot be edited here."</p></Show>
+                    </fieldset>
+                </Show>
+
             </Show>
         </details>
     }.into_any()
 }
+
+fn plot_name(kind:&str)->&str{match kind{"barChart"=>"Column / bar","lineChart"=>"Line","areaChart"=>"Area","pieChart"=>"Pie","doughnutChart"=>"Doughnut","scatterChart"=>"Scatter",_=>"Other plot"}}
+fn axis_name(position:&str)->&str{match position{"b"=>"Bottom (X)","t"=>"Top (X)","l"=>"Left (Y)","r"=>"Right (Y)",_=>"Value axis"}}

@@ -56,6 +56,7 @@ pub enum ConditionalChange {
 /// Authored workbook commands. The session is the sole dispatch route for all clients.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WorkbookCommand {
+    ChartAxis {sheet:SheetId,revision:u64,part:String,axis:u32,minimum:Option<String>,maximum:Option<String>,major_unit:Option<String>,reversed:bool},
     ChartSeries {sheet:SheetId,revision:u64,part:String,plot:u32,series:Option<u32>,name:Option<String>,categories:Option<String>,values:Option<String>,remove:bool},
     ChartProperties {sheet:SheetId,revision:u64,part:String,title:Option<String>,set_title:bool,legend:Option<bool>},
     /// Append the worksheets of an OOXML template as one undoable transaction.
@@ -133,6 +134,7 @@ pub(crate) fn prepare(
     command: WorkbookCommand,
 ) -> Result<Vec<CellEdit>, String> {
     match command {
+        WorkbookCommand::ChartAxis{sheet,revision,part,axis,minimum,maximum,major_unit,reversed}=>crate::chart::prepare_axis(host,sheet,revision,&part,axis,minimum,maximum,major_unit,reversed),
         WorkbookCommand::ChartSeries {sheet,revision,part,plot,series,name,categories,values,remove}=>crate::chart::prepare_series(host,sheet,revision,&part,plot,series,name,categories,values,remove),
         WorkbookCommand::ChartProperties {sheet,revision,part,title,set_title,legend}=>crate::chart::prepare_properties(host,sheet,revision,&part,title,set_title,legend),
         WorkbookCommand::InsertTemplate{..}=>Err("Template insertion must use the session transaction (dc-bctq)".into()),
