@@ -206,6 +206,7 @@ fn read_chart(
         auto_title_deleted: false,
         legend: None,
         plots: Vec::new(),
+        axes: Vec::new(),
     };
     // The path of local names below chartSpace, and where in a series the reading is.
     let mut path: Vec<String> = Vec::new();
@@ -237,6 +238,22 @@ fn read_chart(
         let val = element.attribute("val").map(str::to_owned);
         let plot = chart.plots.last_mut();
         match (parent, local.as_str()) {
+            (Some("plotArea"), "valAx"|"catAx"|"dateAx"|"serAx") if element.name.namespace.as_deref()==Some(CHART_NAMESPACE) => {
+                chart.axes.push(calc_doc_model::ChartAxis{kind:local.clone(),..Default::default()});
+            }
+            (Some("valAx"|"catAx"|"dateAx"|"serAx"), "axId"|"crossAx"|"axPos"|"majorUnit") if element.name.namespace.as_deref()==Some(CHART_NAMESPACE) => {
+                if let Some(axis)=chart.axes.last_mut(){match local.as_str(){
+                    "axId"=>axis.id=val.and_then(|s|s.parse().ok()).unwrap_or(0),
+                    "axPos"=>axis.position=val,
+                    "crossAx"=>axis.cross_axis=val.and_then(|s|s.parse().ok()),
+                    _=>axis.major_unit=val,
+                }}
+            }
+            (Some("scaling"), "min"|"max"|"orientation"|"logBase") if element.name.namespace.as_deref()==Some(CHART_NAMESPACE) && path.len()==4 && path[0]=="chart" && path[1]=="plotArea" && path[2].ends_with("Ax") => {
+                if let Some(axis)=chart.axes.last_mut(){match local.as_str(){
+                    "min"=>axis.minimum=val,"max"=>axis.maximum=val,"orientation"=>axis.reversed=val.as_deref()==Some("maxMin"),_=>axis.log_base=val,
+                }}
+            }
             (Some("chart"), "autoTitleDeleted") => {
                 chart.auto_title_deleted = matches!(val.as_deref(), Some("1" | "true"));
             }
@@ -247,6 +264,9 @@ fn read_chart(
                     kind: kind.to_owned(),
                     ..ChartPlot::default()
                 });
+            }
+            (Some(p), "axId") if p.ends_with("Chart") && element.name.namespace.as_deref()==Some(CHART_NAMESPACE) => {
+                if let (Some(plot),Some(id))=(plot,val.and_then(|s|s.parse().ok())) {plot.axis_ids.push(id);}
             }
             (Some(p), "barDir") if p.ends_with("Chart") => {
                 if let Some(plot) = plot {

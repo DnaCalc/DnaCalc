@@ -16012,3 +16012,24 @@ fn dc_971p_46__custom_series_order_is_preserved_or_refused() {
         assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,before);
     }
 }
+
+
+/// Imported axis identities must prove plot ownership before an axis edit can enter history.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_46__unassociated_chart_axes_refuse_before_history_changes() {
+    let original=include_bytes!("fixtures/dc_6yw/charts.xlsx");
+    for (from,to) in [
+        ("<c:axId val=\"1264925584\"/>","<c:axId val=\"4294967295\"/>"),
+        ("<c:crossAx val=\"1264926064\"/>","<c:crossAx val=\"4294967295\"/>"),
+        ("<c:valAx><c:axId val=\"1264926064\"/>","<c:valAx><c:axId val=\"1264925584\"/>"),
+    ] {
+        let bytes=package_with_part_from(original,"xl/charts/chart1.xml",|xml|{assert!(xml.contains(from));xml.replacen(from,to,1)});
+        let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();let charts=book.host().charts(sheet).0;
+        let id=charts[0].axes.iter().find(|a|a.kind=="valAx").unwrap().id;
+        let revision=book.host().revision();let history=book.history_depth();
+        let command=calc_host::WorkbookCommand::ChartAxis{sheet,revision:revision.get(),part:charts[0].part.clone(),axis:id,minimum:Some("0".into()),maximum:Some("20".into()),major_unit:Some("5".into()),reversed:false};
+        assert!(!book.dispatch(SkinIntent::Command(command)).accepted());
+        assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,charts);
+    }
+}

@@ -1,4 +1,4 @@
-//! Charts drawn read-only as SVG (dc-6yw): calc-host's [`ChartView`] (its series as the workbook
+//! Authored charts drawn as SVG (dc-6yw): calc-host's [`ChartView`] (its series as the workbook
 //! holds them now) laid out in the chart's frame as Excel's default style lays it out: the title
 //! at the top, the legend at the right, a value axis from a rounded range with gridlines, and the
 //! plot's marks — clustered or stacked columns and bars, lines, areas, pie and doughnut slices,
@@ -31,47 +31,17 @@ pub fn escape(text: &str) -> String {
     out
 }
 
-/// A number as an axis label shows it, to the precision of the axis' step.
+/// General numeric labels retain fractional bounds and units without binary arithmetic tails.
 fn label(value: f64, step: f64) -> String {
-    let decimals = if step >= 1.0 || step <= 0.0 {
-        0
-    } else {
-        (-step.log10().floor()) as usize
-    };
-    let text = format!("{value:.decimals$}");
-    if text == "-0" { "0".to_owned() } else { text }
+    let _=step;
+    calc_func::general_format(&calc_host::FormatProfile::for_culture("en-US").expect("en-US format profile"),value)
 }
 
 /// An axis over `low..=high`: steps of 1, 2 or 5 times a power of ten, at most about eight over
 /// the values, from zero when the values allow it, and a twentieth of the range of room past the
 /// highest value (as Excel's 0 to 45 for values up to 40). Excel also fits the step to the axis'
 /// length on screen, which is not modelled.
-pub fn axis(low: f64, high: f64) -> (f64, f64, f64) {
-    let (mut low, mut high) = (low.min(0.0), high.max(0.0));
-    if !(low.is_finite() && high.is_finite()) || high - low <= 0.0 {
-        low = low.min(0.0);
-        high = low + 1.0;
-    }
-    let raw = (high - low) / 8.0;
-    let power = 10f64.powf(raw.log10().floor());
-    let step = [1.0, 2.0, 5.0, 10.0]
-        .iter()
-        .map(|m| m * power)
-        .find(|s| *s >= raw)
-        .unwrap_or(10.0 * power);
-    let room = (high - low) / 20.0;
-    let min = if low < 0.0 {
-        ((low - room) / step).floor() * step
-    } else {
-        0.0
-    };
-    let max = if high > 0.0 {
-        ((high + room) / step).ceil() * step
-    } else {
-        0.0
-    };
-    (min, max, step)
-}
+pub use calc_host::chart::axis;
 
 /// The chart's markup, `width` by `height` pixels.
 pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
@@ -152,9 +122,9 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
         ChartKind::Pie | ChartKind::Doughnut => {
             pie_marks(&mut svg, chart, plot, &area);
         }
-        ChartKind::Scatter => scatter_marks(&mut svg, plot, area),
+        ChartKind::Scatter => scatter_marks(&mut svg, chart, plot, area),
         ChartKind::Column | ChartKind::Bar | ChartKind::Line | ChartKind::Area => {
-            category_marks(&mut svg, plot, area);
+            category_marks(&mut svg, chart, plot, area);
         }
         ChartKind::Other(kind) => {
             let _ = write!(
@@ -186,7 +156,7 @@ fn mark(svg: &mut String, series: usize, point: usize, value: f64) {
 }
 
 /// Columns, bars, lines and areas over categories.
-fn category_marks(svg: &mut String, plot: &PlotView, area: Area) {
+fn category_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Area) {
     let horizontal = plot.kind == ChartKind::Bar;
     let count = plot
         .series
@@ -195,25 +165,12 @@ fn category_marks(svg: &mut String, plot: &PlotView, area: Area) {
         .max()
         .unwrap_or(0)
         .max(1);
-    // The range: stacked plots stack the series' positive and negative values apart.
-    let (mut low, mut high) = (0.0f64, 0.0f64);
-    if plot.stacked {
-        for j in 0..count {
-            let (mut up, mut down) = (0.0, 0.0);
-            for series in &plot.series {
-                let v = series.values.get(j).copied().flatten().unwrap_or(0.0);
-                if v >= 0.0 { up += v } else { down += v }
-            }
-            high = high.max(up);
-            low = low.min(down);
-        }
-    } else {
-        for v in plot.series.iter().flat_map(|s| s.values.iter().flatten()) {
-            high = high.max(*v);
-            low = low.min(*v);
-        }
-    }
-    let (min, max, step) = axis(low, high);
+    let (low,high)=calc_host::chart::plot_value_range(plot);
+    let axes=match calc_host::chart::value_axes(&chart.axes,&plot.axis_ids,false){Ok(axes)=>axes,Err(message)=>{axis_notice(svg,&area,&message);return;}};
+    let scale=match calc_host::chart::chart_scale(low,high,axes.first().copied()) {
+        Ok(scale)=>scale,Err(message)=>{axis_notice(svg,&area,&message);return;}
+    };
+    let (min,max,step)=(scale.minimum,scale.maximum,scale.step);
     // Room for the value labels and the category labels.
     let widest = [min, max]
         .iter()
@@ -229,6 +186,7 @@ fn category_marks(svg: &mut String, plot: &PlotView, area: Area) {
     // Where a value is along the value axis, and where a category's band starts.
     let value_at = |v: f64| {
         let t = (v - min) / (max - min);
+        let t=if scale.reversed{1.-t}else{t};
         if horizontal {
             x0 + t * (x1 - x0)
         } else {
@@ -249,21 +207,21 @@ fn category_marks(svg: &mut String, plot: &PlotView, area: Area) {
         }
     };
     // Gridlines and value labels.
-    let steps = ((max - min) / step).round() as usize;
+    let steps = ((max - min) / step+1e-9).floor() as usize;
     for k in 0..=steps {
         let v = min + k as f64 * step;
         let p = value_at(v);
         if horizontal {
             let _ = write!(
                 svg,
-                "<line x1=\"{p:.1}\" y1=\"{y0:.1}\" x2=\"{p:.1}\" y2=\"{y1:.1}\" stroke=\"{GRID}\"/><text x=\"{p:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">{}</text>",
+                "<line x1=\"{p:.1}\" y1=\"{y0:.1}\" x2=\"{p:.1}\" y2=\"{y1:.1}\" stroke=\"{GRID}\"/><text data-dnacalc=\"chart-axis-tick\" x=\"{p:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">{}</text>",
                 y1 + 13.0,
                 label(v, step)
             );
         } else {
             let _ = write!(
                 svg,
-                "<line x1=\"{x0:.1}\" y1=\"{p:.1}\" x2=\"{x1:.1}\" y2=\"{p:.1}\" stroke=\"{GRID}\"/><text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" fill=\"{AXIS}\">{}</text>",
+                "<line x1=\"{x0:.1}\" y1=\"{p:.1}\" x2=\"{x1:.1}\" y2=\"{p:.1}\" stroke=\"{GRID}\"/><text data-dnacalc=\"chart-axis-tick\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" fill=\"{AXIS}\">{}</text>",
                 x0 - 4.0,
                 p + 4.0,
                 label(v, step)
@@ -312,6 +270,7 @@ fn category_marks(svg: &mut String, plot: &PlotView, area: Area) {
             );
         }
     }
+    let _=write!(svg,"<svg data-dnacalc=\"chart-plot\" data-axis-min=\"{min}\" data-axis-max=\"{max}\" data-axis-unit=\"{step}\" data-axis-reversed=\"{}\" x=\"{x0}\" y=\"{y0}\" width=\"{}\" height=\"{}\" viewBox=\"{x0} {y0} {} {}\" overflow=\"hidden\">",scale.reversed,x1-x0,y1-y0,x1-x0,y1-y0);
     let zero = value_at(0.0_f64.clamp(min, max));
     match plot.kind {
         ChartKind::Column | ChartKind::Bar => {
@@ -438,6 +397,7 @@ fn category_marks(svg: &mut String, plot: &PlotView, area: Area) {
             "<line x1=\"{x0:.1}\" y1=\"{zero:.1}\" x2=\"{x1:.1}\" y2=\"{zero:.1}\" stroke=\"{AXIS}\"/>"
         );
     }
+    svg.push_str("</svg>");
 }
 
 /// A pie's or doughnut's slices: the first series' positive values, clockwise from twelve.
@@ -510,46 +470,15 @@ fn pie_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: &Area) 
 }
 
 /// A scatter plot's markers, on value axes for X and Y.
-fn scatter_marks(svg: &mut String, plot: &PlotView, area: Area) {
-    let numbers = |values: &[Option<calc_host::value::CalcValue>]| -> Vec<Option<f64>> {
-        values
-            .iter()
-            .map(|v| match v.as_ref().map(|v| v.core_ref()) {
-                Some(calc_host::value::CoreRef::Number(n)) => Some(n),
-                _ => None,
-            })
-            .collect()
-    };
-    let series: Vec<(Vec<Option<f64>>, &calc_host::SeriesView)> = plot
-        .series
-        .iter()
-        .map(|s| {
-            let xs = numbers(&s.categories);
-            // X values that are not all numbers are counted 1, 2, 3, as Excel counts them.
-            let xs = if xs.iter().any(Option::is_none) || xs.is_empty() {
-                (1..=s.values.len()).map(|n| Some(n as f64)).collect()
-            } else {
-                xs
-            };
-            (xs, s)
-        })
-        .collect();
-    let (mut xl, mut xh, mut yl, mut yh) = (f64::MAX, f64::MIN, 0.0f64, 0.0f64);
-    for (xs, s) in &series {
-        for (x, y) in xs.iter().zip(&s.values) {
-            if let (Some(x), Some(y)) = (x, y) {
-                xl = xl.min(*x);
-                xh = xh.max(*x);
-                yl = yl.min(*y);
-                yh = yh.max(*y);
-            }
-        }
-    }
-    if xl > xh {
-        return;
-    }
-    let (xmin, xmax, xstep) = axis(xl.min(0.0), xh);
-    let (ymin, ymax, ystep) = axis(yl, yh);
+fn scatter_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Area) {
+    let axes=match calc_host::chart::value_axes(&chart.axes,&plot.axis_ids,true){Ok(axes)=>axes,Err(message)=>{axis_notice(svg,&area,&message);return;}};
+    let series=plot.series.iter().map(|s|(calc_host::chart::scatter_x_values(s),s)).collect::<Vec<_>>();
+    if !series.iter().any(|(xs,s)|xs.iter().zip(&s.values).any(|(x,y)|x.is_some()&&y.is_some())){return;}
+    let ((xl,xh),(yl,yh))=calc_host::chart::scatter_ranges(plot);
+    let xscale=calc_host::chart::chart_scale(xl,xh,Some(axes[0]));
+    let yscale=calc_host::chart::chart_scale(yl,yh,Some(axes[1]));
+    let (xscale,yscale)=match (xscale,yscale){(Ok(x),Ok(y))=>(x,y),(Err(message),_)|(_,Err(message))=>{axis_notice(svg,&area,&message);return;}};
+    let (xmin,xmax,xstep)=(xscale.minimum,xscale.maximum,xscale.step);let (ymin,ymax,ystep)=(yscale.minimum,yscale.maximum,yscale.step);
     let widest = label(ymax, ystep).len().max(label(ymin, ystep).len()) as f64;
     let (x0, x1, y0, y1) = (
         area.left + widest * 6.5 + 8.0,
@@ -557,9 +486,9 @@ fn scatter_marks(svg: &mut String, plot: &PlotView, area: Area) {
         area.top,
         area.bottom - 18.0,
     );
-    let px = |x: f64| x0 + (x - xmin) / (xmax - xmin) * (x1 - x0);
-    let py = |y: f64| y1 - (y - ymin) / (ymax - ymin) * (y1 - y0);
-    for k in 0..=((ymax - ymin) / ystep).round() as usize {
+    let px = |x: f64| {let t=(x-xmin)/(xmax-xmin);x0+(if xscale.reversed{1.-t}else{t})*(x1-x0)};
+    let py = |y: f64| {let t=(y-ymin)/(ymax-ymin);y1-(if yscale.reversed{1.-t}else{t})*(y1-y0)};
+    for k in 0..=((ymax - ymin) / ystep+1e-9).floor() as usize {
         let v = ymin + k as f64 * ystep;
         let _ = write!(
             svg,
@@ -571,7 +500,7 @@ fn scatter_marks(svg: &mut String, plot: &PlotView, area: Area) {
             label(v, ystep)
         );
     }
-    for k in 0..=((xmax - xmin) / xstep).round() as usize {
+    for k in 0..=((xmax - xmin) / xstep+1e-9).floor() as usize {
         let v = xmin + k as f64 * xstep;
         let _ = write!(
             svg,
@@ -583,6 +512,7 @@ fn scatter_marks(svg: &mut String, plot: &PlotView, area: Area) {
             label(v, xstep)
         );
     }
+    let _=write!(svg,"<svg data-dnacalc=\"chart-plot\" data-x-min=\"{xmin}\" data-x-max=\"{xmax}\" data-y-min=\"{ymin}\" data-y-max=\"{ymax}\" x=\"{x0}\" y=\"{y0}\" width=\"{}\" height=\"{}\" viewBox=\"{x0} {y0} {} {}\" overflow=\"hidden\">",x1-x0,y1-y0,x1-x0,y1-y0);
     for (i, (xs, s)) in series.iter().enumerate() {
         for (j, (x, y)) in xs.iter().zip(&s.values).enumerate() {
             if let (Some(x), Some(y)) = (x, y) {
@@ -600,6 +530,7 @@ fn scatter_marks(svg: &mut String, plot: &PlotView, area: Area) {
             }
         }
     }
+    svg.push_str("</svg>");
 }
 
 #[cfg(test)]
@@ -625,3 +556,5 @@ mod tests {
         assert_eq!(escape("a<b & \"c\""), "a&lt;b &amp; &quot;c&quot;");
     }
 }
+
+fn axis_notice(svg:&mut String,area:&Area,message:&str){let _=write!(svg,"<text data-dnacalc=\"chart-notice\" x=\"{}\" y=\"{}\" text-anchor=\"middle\" fill=\"{AXIS}\">{}</text>",(area.left+area.right)/2.,(area.top+area.bottom)/2.,escape(message));}

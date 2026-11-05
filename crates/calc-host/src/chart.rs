@@ -11,8 +11,9 @@
 //! index (accent1 to accent6 in turn); a plot that varies its colours by point (a pie) takes them
 //! by point in the same order.
 //!
-//! Not modelled (drawn as the plain form of their kind): 3-D, a secondary axis, axis scaling and
-//! number formats the chart states, trendlines, error bars, data labels, and the darker and
+//! Linear primary value-axis bounds, units and direction are retained and editable. Secondary
+//! and logarithmic axes are preserved with a drawing notice. Not modelled: 3-D, chart number
+//! formats, trendlines, error bars, data labels, and the darker and
 //! lighter accents Excel uses past the sixth series.
 
 use crate::state::HostState;
@@ -90,6 +91,7 @@ pub struct PlotView {
     /// Each point its own colour (a pie's slices).
     pub vary_colors: bool,
     pub series: Vec<SeriesView>,
+    pub axis_ids: Vec<u32>,
 }
 
 /// One chart as a skin draws it.
@@ -103,6 +105,7 @@ pub struct ChartView {
     /// The legend's position (`r`, `l`, `t`, `b`, `tr`), `None` without a legend.
     pub legend: Option<String>,
     pub plots: Vec<PlotView>,
+    pub axes:Vec<calc_doc_model::ChartAxis>,
     /// The theme's accent colours, accent1 to accent6, `RRGGBB`: a varied plot's point colours.
     pub palette: Vec<String>,
 }
@@ -170,6 +173,7 @@ impl HostState {
                     };
                     let grouping = plot.grouping.as_deref().unwrap_or_default();
                     PlotView {
+                        axis_ids:plot.axis_ids.clone(),
                         kind,
                         stacked: matches!(grouping, "stacked" | "percentStacked"),
                         percent: grouping == "percentStacked",
@@ -230,6 +234,7 @@ impl HostState {
                 legend: chart.legend.clone(),
                 plots,
                 palette: palette.clone(),
+                axes:chart.axes.clone(),
             });
         }
         (views, unread)
@@ -460,4 +465,140 @@ pub(crate) fn prepare_series(
     host.loaded().check_chart_properties(sheet,chart).map_err(|e|e.to_string())?;
     if charts==host.model().definitions().charts(sheet){return Ok(Vec::new());}
     Ok(vec![crate::CellEdit::Charts{sheet,charts}])
+}
+
+pub fn axis(low: f64, high: f64) -> (f64, f64, f64) {
+    let (mut low, mut high) = (low.min(0.0), high.max(0.0));
+    if !(low.is_finite() && high.is_finite()) || high - low <= 0.0 {
+        low = low.min(0.0);
+        high = low + 1.0;
+    }
+    let raw = (high - low) / 8.0;
+    let power = 10f64.powf(raw.log10().floor());
+    let step = [1.0, 2.0, 5.0, 10.0]
+        .iter()
+        .map(|m| m * power)
+        .find(|s| *s >= raw)
+        .unwrap_or(10.0 * power);
+    let room = (high - low) / 20.0;
+    let min = if low < 0.0 {
+        ((low - room) / step).floor() * step
+    } else {
+        0.0
+    };
+    let max = if high > 0.0 {
+        ((high + room) / step).ceil() * step
+    } else {
+        0.0
+    };
+    (min, max, step)
+}
+
+
+/// A validated linear scale shared by command validation and chart drawing.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ChartScale {
+    pub minimum:f64,
+    pub maximum:f64,
+    pub step:f64,
+    pub reversed:bool,
+}
+
+pub fn chart_scale(low:f64,high:f64,properties:Option<&calc_doc_model::ChartAxis>)->Result<ChartScale,String> {
+    if !low.is_finite() || !high.is_finite() || !(high.max(0.)-low.min(0.)).is_finite() {
+        return Err("This chart's values exceed the supported linear axis range".into());
+    }
+    let (automatic_min,automatic_max,automatic_step)=axis(low,high);
+    let read=|value:Option<&str>|->Result<Option<f64>,String>{
+        value.map(|s|s.parse::<f64>().ok().filter(|n|n.is_finite()).ok_or_else(||"Use finite numbers for axis bounds and units".into())).transpose()
+    };
+    let minimum=read(properties.and_then(|a|a.minimum.as_deref()))?;
+    let maximum=read(properties.and_then(|a|a.maximum.as_deref()))?;
+    let unit=read(properties.and_then(|a|a.major_unit.as_deref()))?;
+    if properties.is_some_and(|a|a.log_base.is_some()) {return Err("Logarithmic axes are preserved but their scaling is not drawn here".into());}
+    let mut min=minimum.unwrap_or(automatic_min);let mut max=maximum.unwrap_or(automatic_max);
+    let automatic_span=automatic_max-automatic_min;
+    if minimum.is_none() && min>=max {min=max-automatic_span;}
+    if maximum.is_none() && max<=min {max=min+automatic_span;}
+    let span=max-min;
+    if !span.is_finite() || span<=0. {return Err("The axis maximum must be greater than its minimum".into());}
+    if [low,high,0.].into_iter().any(|v|!(((v-min)/span)*1_000_000.).is_finite()){return Err("The fixed bounds are too narrow for this chart's values".into());}
+    let step=if let Some(unit)=unit {unit} else if minimum.is_none() && maximum.is_none(){automatic_step}else{
+        let raw=span/8.;let power=10f64.powf(raw.log10().floor());
+        [1.,2.,5.,10.].into_iter().map(|m|m*power).find(|s|*s>=raw).unwrap_or(10.*power)
+    };
+    if !step.is_finite() || step<=0. || span/step>1000. {return Err("Use a positive major unit that produces at most 1,000 intervals".into());}
+    Ok(ChartScale{minimum:min,maximum:max,step,reversed:properties.is_some_and(|a|a.reversed)})
+}
+
+/// The value extent of a category plot, including separate positive/negative stacks.
+pub fn plot_value_range(plot:&PlotView)->(f64,f64) {
+    let (mut low,mut high)=(0f64,0f64);
+    if plot.stacked {
+        let count=plot.series.iter().map(|s|s.values.len()).max().unwrap_or(0);
+        for j in 0..count {
+            let (mut up,mut down)=(0.,0.);
+            for s in &plot.series {let v=s.values.get(j).copied().flatten().unwrap_or(0.);if v>=0.{up+=v}else{down+=v}}
+            low=low.min(down);high=high.max(up);
+        }
+    }else{for v in plot.series.iter().flat_map(|s|s.values.iter().flatten()){low=low.min(*v);high=high.max(*v);}}
+    (low,high)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prepare_axis(host:&HostState,sheet:SheetId,revision:u64,part:&str,id:u32,minimum:Option<String>,maximum:Option<String>,major_unit:Option<String>,reversed:bool)->Result<Vec<crate::CellEdit>,String>{
+    prepare_properties(host,sheet,revision,part,None,false,None)?;
+    let mut charts=host.model().definitions().charts(sheet).to_vec();
+    let chart=charts.iter_mut().find(|c|c.part==part).ok_or("The chart is unavailable")?;
+    if chart.plots.len()!=1 {return Err("Editing axes of combination charts is not modelled (dc-971p.46)".into());}
+    if chart.axes.iter().filter(|a|a.id==id).count()!=1 {return Err("The axis identity changed; reopen its controls (dc-971p.46)".into());}
+    value_axes(&chart.axes,&chart.plots[0].axis_ids,chart.plots[0].kind=="scatterChart").map_err(|e|format!("{e} (dc-971p.46)"))?;
+    let axis=chart.axes.iter_mut().find(|a|a.id==id && a.kind=="valAx").ok_or("Choose a value axis (dc-971p.46)")?;
+    if axis.log_base.is_some(){return Err("Editing logarithmic axes is not modelled (dc-971p.46)".into());}
+    let canonical=|value:Option<String>|->Result<Option<String>,String>{
+        value.filter(|s|!s.trim().is_empty()).map(|s|s.trim().parse::<f64>().ok().filter(|n|n.is_finite()).map(|n|n.to_string()).ok_or_else(||"Use finite numeric axis bounds and units (dc-971p.46)".into())).transpose()
+    };
+    axis.minimum=canonical(minimum)?;axis.maximum=canonical(maximum)?;axis.major_unit=canonical(major_unit)?;axis.reversed=reversed;
+    let view=host.charts(sheet).0.into_iter().find(|v|v.part==part).ok_or("The chart cannot be read")?;
+    let plot=view.plots.first().ok_or("The chart has no plot")?;
+    let (low,high)=if plot.kind==ChartKind::Scatter {
+        let (x,y)=scatter_ranges(plot);
+        if matches!(axis.position.as_deref(),Some("b"|"t")){x}else{y}
+    }else if matches!(plot.kind,ChartKind::Column|ChartKind::Bar|ChartKind::Line|ChartKind::Area) {plot_value_range(plot)}else{
+        return Err("This plot has no editable linear value axis (dc-971p.46)".into());
+    };
+    chart_scale(low,high,Some(axis)).map_err(|e|format!("{e} (dc-971p.46)"))?;
+    host.loaded().check_chart_properties(sheet,chart).map_err(|e|e.to_string())?;
+    if charts==host.model().definitions().charts(sheet){return Ok(Vec::new());}
+    Ok(vec![crate::CellEdit::Charts{sheet,charts}])
+}
+
+/// Primary axis pairs must belong to this plot and cross each other. Scatter returns X then Y.
+pub fn value_axes<'a>(axes:&'a [calc_doc_model::ChartAxis],ids:&[u32],scatter:bool)->Result<Vec<&'a calc_doc_model::ChartAxis>,String>{
+    let invalid=||"Secondary or unassociated chart axes are preserved but not drawn or edited here".to_owned();
+    if axes.len()!=2 || ids.len()!=2 || ids[0]==ids[1] || axes[0].id==axes[1].id {return Err(invalid());}
+    let a=axes.iter().find(|a|a.id==ids[0]).ok_or_else(invalid)?;
+    let b=axes.iter().find(|a|a.id==ids[1]).ok_or_else(invalid)?;
+    if a.cross_axis!=Some(b.id) || b.cross_axis!=Some(a.id){return Err(invalid());}
+    let horizontal=|a:&calc_doc_model::ChartAxis|matches!(a.position.as_deref(),Some("b"|"t"));
+    let vertical=|a:&calc_doc_model::ChartAxis|matches!(a.position.as_deref(),Some("l"|"r"));
+    if !((horizontal(a)&&vertical(b))||(horizontal(b)&&vertical(a))){return Err(invalid());}
+    if scatter {
+        if a.kind!="valAx" || b.kind!="valAx" {return Err(invalid());}
+        Ok(if horizontal(a){vec![a,b]}else{vec![b,a]})
+    }else{
+        let (value,category)=if a.kind=="valAx"{(a,b)}else{(b,a)};
+        if value.kind!="valAx" || !matches!(category.kind.as_str(),"catAx"|"dateAx"){return Err(invalid());}
+        Ok(vec![value])
+    }
+}
+/// Scatter X fallback is shared by drawing and axis-command validation.
+pub fn scatter_x_values(series:&SeriesView)->Vec<Option<f64>> {
+    let xs=series.categories.iter().map(|v|v.as_ref().and_then(|v|v.as_number())).collect::<Vec<_>>();
+    if xs.is_empty() || xs.iter().any(Option::is_none){(1..=series.values.len()).map(|n|Some(n as f64)).collect()}else{xs}
+}
+pub fn scatter_ranges(plot:&PlotView)->((f64,f64),(f64,f64)) {
+    let (mut xl,mut xh,mut yl,mut yh)=(0f64,0f64,0f64,0f64);
+    for series in &plot.series {for (x,y) in scatter_x_values(series).iter().zip(&series.values) {if let (Some(x),Some(y))=(x,y){xl=xl.min(*x);xh=xh.max(*x);yl=yl.min(*y);yh=yh.max(*y);}}}
+    ((xl,xh),(yl,yh))
 }
