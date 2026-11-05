@@ -14,6 +14,7 @@ pub enum PasteSource<'a> {
         series: bool,
     },
     External(Vec<Vec<String>>),
+    FlashFill,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -38,6 +39,10 @@ impl PastePlan {
             areas: vec![self.target],
         })
     }
+    /// A bounded sample from the actual literal text edits prepared by this plan.
+    pub fn text_preview(&self)->Vec<(CellKey,String)>{self.edits.iter().filter_map(|e|match e{
+        CellEdit::Set{at,input:crate::CellInput::Text(t)}=>Some((*at,String::from_utf16_lossy(t.text().utf16_code_units()))),_=>None
+    }).take(8).collect()}
     pub fn target(&self) -> GridArea {
         self.target
     }
@@ -80,7 +85,9 @@ pub fn prepare_paste_oriented(
     mode: PasteMode,
     transpose: bool,
 ) -> Result<PastePlan, String> {
-    if transpose && matches!(&source, PasteSource::Fill { .. }) {
+    let flash=matches!(&source,PasteSource::FlashFill);
+    let mode=if flash{PasteMode::Values}else{mode};
+    if transpose && matches!(&source, PasteSource::Fill { .. }|PasteSource::FlashFill) {
         return Err(crate::CopyRefusal::TransposeFill.to_string());
     }
     // Excel entry alerts apply to direct/Values entry; whole-cell copy and fill can introduce
@@ -119,6 +126,7 @@ pub fn prepare_paste_oriented(
                 .map_err(|e| e.to_string())?;
             (edits, to)
         }
+        PasteSource::FlashFill=>(crate::flash_fill::prepare(host,to)?,to),
         PasteSource::External(rows) => {
             let rows = if transpose {
                 let (height, width) = matrix_shape(&rows)?;
@@ -196,7 +204,7 @@ pub fn prepare_paste_oriented(
             }
         }
     }
-    let replaces = if mode == PasteMode::Formats {
+    let replaces = if flash || mode == PasteMode::Formats {
         0
     } else {
         host.model().cells(target).into_iter().flatten().count() as u64

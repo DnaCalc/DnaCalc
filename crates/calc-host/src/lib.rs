@@ -73,6 +73,7 @@ mod events;
 pub use events::{WorkbookEvent, WorkbookEventFailure, WorkbookEventFailures, WorkbookEventHandler};
 pub use envelope::{CommandJournal, CommandRefusal, CommandStamp};
 mod paste;
+mod flash_fill;
 pub mod search;
 pub use actions::{ConditionalChange, SheetChange, SortKey, SortOptions, WorkbookCommand, stored_axis_size};
 pub use paste::{PastePlan, PasteSource, matrix_shape, prepare_paste, prepare_paste_oriented};
