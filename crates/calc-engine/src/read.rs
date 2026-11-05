@@ -2072,6 +2072,8 @@ impl CachedReadLease {
         spills: &SpillIndex,
         inputs_cut: u64,
         range_caller: Option<NodeId>,
+        iterates: Option<&BTreeMap<NodeId, Option<CalcValue>>>,
+        excluded: &BTreeSet<NodeId>,
     ) -> Self {
         static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
         let id = NEXT
@@ -2094,6 +2096,36 @@ impl CachedReadLease {
                 unsupported.then_some(at)
             })
             .collect();
+        // An iterative callback observes the current sweep's scalar values,
+        // including its own seed before its first evaluation.
+        for (&node, value) in iterates.into_iter().flatten() {
+            let Some(record) = state.node(node) else { continue; };
+            let at = record.anchor();
+            let nonscalar = value.as_ref().is_some_and(|value| value.as_array().is_some())
+                || inputs.definitions().array(at).is_some_and(|array| array.area().cell_count() > 1)
+                || state.spills.get(at).is_some_and(|spill| spill.area().cell_count() > 1)
+                || state.cached_arrays.get(&node).is_some_and(|spill| spill.area().cell_count() > 1);
+            if nonscalar {
+                cache.entries.remove(&at);
+                cache.spills.remove(at);
+                refused.insert(at);
+                continue;
+            }
+            let Some(value) = value else {
+                cache.entries.remove(&at);
+                refused.insert(at);
+                continue;
+            };
+            if let Some(entry) = cache.entries.get_mut(&at) {
+                entry.value = value.clone();
+                entry.dirty = false;
+            } else {
+                cache.entries.insert(at, BoundaryValue {
+                    node, value: value.clone(), dirty: false, imported: false,
+                    external: false, source: None, extent: None,
+                });
+            }
+        }
         for (node, result) in progress.staged_results() {
             let Some(record) = state.node(node) else {
                 continue;
@@ -2132,6 +2164,13 @@ impl CachedReadLease {
                     cache.entries.remove(&at);
                     refused.insert(at);
                 }
+            }
+        }
+        for node in excluded {
+            if let Some(record) = state.node(*node) {
+                cache.entries.remove(&record.anchor());
+                cache.spills.remove(record.anchor());
+                refused.remove(&record.anchor());
             }
         }
         cache.refused = refused.clone();

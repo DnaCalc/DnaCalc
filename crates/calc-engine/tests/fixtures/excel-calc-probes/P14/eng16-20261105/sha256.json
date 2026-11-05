@@ -1,0 +1,20 @@
+{
+  "delivery-audit.json": "14b930937181ff5737c2673f9eb1ec9a544ee0564ada19382e8cfbab13c22972",
+  "observations.jsonl": "8becd9c5035ae7c801bedd5beb3376664ef090887e2748951eda0ce9b854c668",
+  "inputs/eng16-coupled_pure-Rebuild.xlsm": "483f88dbdfa6ad631cb2b9ee4e8eb5dae54b25ca754ebb29e501b0b0ef146a9a",
+  "inputs/eng16-pair_variant-Range-A1-B1.xlsm": "1eac3578c216b5b75bb8a2dbd4104d2db7956a2008e9964c562bdc78af998c3e",
+  "inputs/eng16-pair_variant-Rebuild.xlsm": "1eac3578c216b5b75bb8a2dbd4104d2db7956a2008e9964c562bdc78af998c3e",
+  "inputs/eng16-coupled_observed-Rebuild.xlsm": "e5507be420180725a34eb47e5911697546b54b7e8fb95ee0215e9c0869d98a34",
+  "inputs/eng16-coupled_observed_peer-Full.xlsm": "6137c62f559824512fe400440d48f0540beaaf44096e096c3800555f78a6f5a7",
+  "inputs/eng16-coupled_pure_peer-Range-A1-B1.xlsm": "af5e66f86d1b91a1836400face4270042eef3fdf351d211e1333ad1f04120747",
+  "inputs/eng16-coupled_pure_peer-Range-A1-D1.xlsm": "eb7b9c4c46c6f4f6611bb21de574f0910d683bae343998e27dcfb7a414e53e28",
+  "inputs/eng16-coupled_observed_peer-Range-A1-D1.xlsm": "6137c62f559824512fe400440d48f0540beaaf44096e096c3800555f78a6f5a7",
+  "inputs/eng16-coupled_observed_peer-Rebuild.xlsm": "6137c62f559824512fe400440d48f0540beaaf44096e096c3800555f78a6f5a7",
+  "inputs/eng16-coupled_pure_peer-Full.xlsm": "af5e66f86d1b91a1836400face4270042eef3fdf351d211e1333ad1f04120747",
+  "inputs/eng16-pair_variant-Full.xlsm": "1eac3578c216b5b75bb8a2dbd4104d2db7956a2008e9964c562bdc78af998c3e",
+  "inputs/eng16-coupled_pure-Full.xlsm": "483f88dbdfa6ad631cb2b9ee4e8eb5dae54b25ca754ebb29e501b0b0ef146a9a",
+  "inputs/eng16-coupled_pure_peer-Rebuild.xlsm": "af5e66f86d1b91a1836400face4270042eef3fdf351d211e1333ad1f04120747",
+  "inputs/eng16-coupled_observed-Full.xlsm": "e5507be420180725a34eb47e5911697546b54b7e8fb95ee0215e9c0869d98a34",
+  "inputs/eng16-pair_variant-Range-A1-D1.xlsm": "1eac3578c216b5b75bb8a2dbd4104d2db7956a2008e9964c562bdc78af998c3e",
+  "inputs/eng16-coupled_observed_peer-Range-A1-B1.xlsm": "6137c62f559824512fe400440d48f0540beaaf44096e096c3800555f78a6f5a7"
+}

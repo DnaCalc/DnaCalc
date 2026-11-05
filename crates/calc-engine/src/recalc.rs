@@ -410,6 +410,8 @@ pub struct RecalcWork {
     async_waits: BTreeMap<NodeId, AsyncToken>,
     async_resumed: BTreeSet<NodeId>,
     evaluations: BTreeMap<NodeId, (u64, ReevaluationReason)>,
+    /// One provisional reference callback before the first iterative sweep.
+    preliminary: BTreeSet<NodeId>,
     semantic_waits: BTreeSet<NodeId>,
     functions: Option<calc_fml::CallableTable>,
     references: Option<ReferenceSource>,
@@ -563,6 +565,7 @@ pub(crate) struct EvalShared<'a> {
     pass: CalcPassId,
     root_reason: ReevaluationReason,
     evaluations: &'a BTreeMap<NodeId, (u64, ReevaluationReason)>,
+    preliminary: &'a BTreeSet<NodeId>,
     requirements: &'a RequirementCut,
     facts_version: u64,
     volatile_inputs: u64,
@@ -625,6 +628,7 @@ macro_rules! shared_of {
             pass: $work.pass,
             root_reason: $work.root_reason,
             evaluations: &$work.evaluations,
+            preliminary: &$work.preliminary,
             requirements: &$work.requirements,
             facts_version: $work.facts_version,
             volatile_inputs: $work.volatile_input_version,
@@ -1374,16 +1378,13 @@ fn begin_with_scope(
         if poststate != RangePostState::StillRequired {
             return Err(iterative_range_refusal());
         }
-        // Only the measured pure scalar Manual profile can admit independent work.
+        // The measured scalar Manual profile includes cached callback readers.
         // A reader is refused only if its executed path requests a refused value.
-        if order.iter().any(|node| !pure_range_scalar(state, inputs, *node)) {
+        if order.iter().any(|node| !measured_range_scalar(state, inputs, *node)) {
             return Err(iterative_range_refusal());
         }
         range_refused.extend(cyclic.iter().copied());
         order.retain(|node| !range_refused.contains(node));
-        if order.is_empty() {
-            return Err(iterative_range_refusal());
-        }
     }
     if cyclic.is_empty()
         && selection.forces_all()
@@ -1505,6 +1506,7 @@ fn begin_with_scope(
         async_waits: BTreeMap::new(),
         async_resumed: BTreeSet::new(),
         evaluations: BTreeMap::new(),
+        preliminary: BTreeSet::new(),
         semantic_waits: BTreeSet::new(),
         suspended: BTreeMap::new(),
         early_published: BTreeMap::new(),
@@ -1562,6 +1564,27 @@ fn begin_with_scope(
     })
     .map(|mut work| {
         work.add_cyclic(state, cyclic);
+        if work.iterating() && selection.forces_all()
+            && work.cyclic.iter().all(|node| measured_range_scalar(state, inputs, *node)) {
+            // P14 eng16: direct reference callbacks get a provisional entry before
+            // the scalar SCC sweeps, even when the file holds warm seed values.
+            for &node in &work.order {
+                if work.cyclic.contains(&node) { continue; }
+                let Some(Binding::Placed(instance, _)) = state.bindings.get(&node) else { continue; };
+                if !instance.plan().only_cached_user_calls(&state.callables)
+                    || instance.plan().name_bindings().iter().any(|proof| proof.resolved.is_some()) {
+                    continue;
+                }
+                let references = instance.plan().provisional_references(&state.callables);
+                if references.iter().any(|&index| instance.areas()[index].is_ok_and(|area|
+                    work.cyclic.iter().any(|producer| area.contains(live_anchor(state, *producer))))) {
+                    work.preliminary.insert(node);
+                }
+            }
+            let prefix: Vec<_> = work.order.iter().copied()
+                .filter(|node| work.preliminary.contains(node)).collect();
+            work.order.splice(0..0, prefix);
+        }
         if !work.range_refused.is_empty() {
             work.events.push(CalcEvent::TargetsRefused {
                 command: work.admission.command,
@@ -1937,6 +1960,35 @@ fn process(
     apply(state, inputs, work, node, attempt, observer);
 }
 
+/// Retain the finished invocation before admitting a semantic reevaluation.
+fn record_reevaluation(state: &EngineState, work: &mut RecalcWork, node: NodeId, reason: ReevaluationReason) {
+    let previous = root_invocation(state, &shared_of!(work), node);
+    let invocations = work.local.effects.invocations().iter().map(|record| {
+        let mut identity = previous.clone();
+        identity.call_site = record.call_site;
+        identity.occurrence = record.occurrence.clone();
+        CallInvocation {
+            identity, runtime: record.id, parent: record.parent,
+            callable: record.callable, completed: record.completed,
+            non_preemptible: record.non_preemptible,
+        }
+    }).collect();
+    work.evaluations.insert(node, (
+        previous.evaluation.checked_add(1).expect("evaluation ordinal exhausted"), reason,
+    ));
+    let next = root_invocation(state, &shared_of!(work), node);
+    work.events.push(CalcEvent::Reevaluated { previous, next, invocations });
+    work.local = EvalLocal::default();
+}
+
+fn finish_preliminary(work: &mut RecalcWork, node: NodeId) {
+    if !work.preliminary.remove(&node) { return; }
+    let position = work.order[..work.next].iter().position(|entry| *entry == node)
+        .expect("provisional prefix was selected");
+    work.order.remove(position);
+    work.next -= 1;
+}
+
 /// Stages what an evaluation of `node` gave.
 fn apply(
     state: &EngineState,
@@ -1992,6 +2044,18 @@ fn apply(
             work.async_waits.insert(node, token);
             work.suspended.insert(node, local);
         }
+        Ok(Attempt::Done(done)) if work.preliminary.contains(&node) => {
+            // The provisional entry ends without publishing its temporary value.
+            // Its ordinary position remains in the first sweep and has a new identity.
+            finish_preliminary(work, node);
+            record_reevaluation(state, work, node, ReevaluationReason::ProvisionalArguments);
+            if !matches!(done.result, FormulaResult::Calculated { .. }) || done.spill.is_some() {
+                work.failure = Some(RecalcFailure::NotModeledScope {
+                    construct: "an iterative provisional callback without a scalar result",
+                    owner: "dc-hsa5.11",
+                });
+            }
+        }
         Ok(Attempt::Done(done)) => {
             stage(state, inputs, work, node, done);
             if work.async_resumed.remove(&node) {
@@ -1999,43 +2063,8 @@ fn apply(
             }
         }
         Ok(Attempt::Reevaluate { on, cell, reason }) => {
-            let previous = root_invocation(state, &shared_of!(work), node);
-            let invocations = work
-                .local
-                .effects
-                .invocations()
-                .iter()
-                .map(|record| {
-                    let mut identity = previous.clone();
-                    identity.call_site = record.call_site;
-                    identity.occurrence = record.occurrence.clone();
-                    CallInvocation {
-                        identity,
-                        runtime: record.id,
-                        parent: record.parent,
-                        callable: record.callable,
-                        completed: record.completed,
-                        non_preemptible: record.non_preemptible,
-                    }
-                })
-                .collect();
-            work.evaluations.insert(
-                node,
-                (
-                    previous
-                        .evaluation
-                        .checked_add(1)
-                        .expect("evaluation ordinal exhausted"),
-                    reason,
-                ),
-            );
-            let next = root_invocation(state, &shared_of!(work), node);
-            work.events.push(CalcEvent::Reevaluated {
-                previous,
-                next,
-                invocations,
-            });
-            work.local = EvalLocal::default();
+            finish_preliminary(work, node);
+            record_reevaluation(state, work, node, reason);
             work.semantic_waits.insert(node);
             // The previous invocation has ended. Its next evaluation and known consumers
             // follow the unresolved producer and the surviving observation fences. Install
@@ -2065,6 +2094,9 @@ fn apply(
         Ok(Attempt::Kept) => keep(state, inputs, work, node),
         Ok(Attempt::RangeRefused) => exclude_range_reader(state, work, node),
         Ok(Attempt::Waits { on, cell }) => {
+            // A prerequisite before callback entry retires the provisional
+            // position too: dynamically discovered SCCs require unique members.
+            finish_preliminary(work, node);
             if work.parallel_scheduling && parallel_limit(state, node).is_some() {
                 // Static prerequisites were checked before entry. A callback's
                 // additional prerequisite cannot consume an unreserved worker,
@@ -4503,9 +4535,15 @@ fn defer(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: N
 
 /// Existing scalar Range admission, shared by static and closed-wait discovery.
 fn pure_range_scalar(state: &EngineState, inputs: &ModelRoot, node: NodeId) -> bool {
+    measured_range_scalar(state, inputs, node)
+        && !matches!(state.bindings.get(&node), Some(Binding::Placed(instance, _)) if instance.plan().has_user_calls())
+}
+
+fn measured_range_scalar(state: &EngineState, inputs: &ModelRoot, node: NodeId) -> bool {
     let at = live_anchor(state, node);
     !matches!(state.bindings.get(&node), Some(Binding::DataTable(_)))
-        && !matches!(state.bindings.get(&node), Some(Binding::Placed(instance, _)) if instance.plan().has_user_calls())
+        && !matches!(state.bindings.get(&node), Some(Binding::Placed(instance, _))
+            if instance.plan().has_user_calls() && !instance.plan().only_cached_user_calls(&state.callables))
         && !inputs.definitions().array(at).is_some_and(|array| array.area().cell_count() > 1)
         && !state.spills.get(at).is_some_and(|spill| spill.area().cell_count() > 1)
         && !state.cached_arrays.get(&node).is_some_and(|spill| spill.area().cell_count() > 1)
@@ -5589,6 +5627,11 @@ fn evaluate_unstamped(
         )));
     }
     if instance.plan().has_user_calls() && local.observation.is_none() {
+        let excluded = if shared.preliminary.contains(&node) {
+            shared.cyclic
+        } else {
+            shared.range_refused
+        };
         let pin = crate::CachedReadLease::capture(
             state,
             inputs,
@@ -5601,6 +5644,8 @@ fn evaluate_unstamped(
                 && functions
                     .is_some_and(|functions| instance.plan().has_provisional_calls(functions)))
             .then_some(node),
+            shared.iterates,
+            excluded,
         );
         local.invocation = Some(
             calc_fml::UserInvocationFrame::new(
@@ -5673,7 +5718,8 @@ fn evaluate_unstamped(
         let (outcome, cached_stopped) = {
             let mut observation_cells = observation_pin.as_ref().map(|pin| {
                 let mut view = pin.view(state, shared.workbook_facts);
-                view.caller = Some(node);
+                view.caller = (!shared.iterates.is_some_and(|values| values.contains_key(&node)))
+                    .then_some(node);
                 WorkbookReader::new(view, &observation_uncomputed)
             });
             let mut cached_observed = observation_cells.as_mut().map(|cells| Observed {

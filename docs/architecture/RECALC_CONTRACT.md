@@ -337,6 +337,41 @@ producer caches remain nonpasses. Full/Rebuild scheduling, uninstrumented SCC
 execution counts, general mid-cycle visibility, MTC-on and other histories remain
 open; the pending eng12 observer questions are not answered by this delivery.
 
+Eng19 implementation from eng16 (2026-11-05): the unchanged P14/eng16-20261105
+packet contains sixteen conditions, ten fresh processes each, with 2,634 delivery
+hashes checked. All trials agree on their two command snapshots and complete
+typed callback traces. HostSession replays the original formulas and seed caches
+with callbacks implementing the recorded bodies, at unlimited, one and three
+evaluation budgets: 384 final-value comparisons plus exact callback entry order
+and typed argument/read traces. Of those value checks, 246 are calculations and
+138 check retained displays (102 selected refused targets and 36 outside scope).
+Exit payloads, callback counters and Caller addresses are retained in the original
+events but are not independently reproduced by these registered callback bodies.
+This isolates the engine schedule; it does not claim that the original file-VBA
+setup project has run. No held cyclic target counts as a calculated match.
+
+Full and Rebuild use the same recorded scalar sweep profile. The converging
+instrumented pair enters four sweeps on the first command and one on the second.
+An independent diverging peer keeps every observed cycle member running for all
+100 sweeps in both commands. Cached callback reads see the current scalar sweep,
+including the executing member's seed/current value. A direct reference callback
+outside the cycle first enters with Range objects whose Value2 is Empty, then
+enters after each of five producer sweeps. The preliminary entry publishes no
+value and retains its completed invocation record before a distinct
+ProvisionalArguments evaluation. Physical yields retain that entry's continuation.
+
+Manual Range retains the cyclic producers and their unmet requirements. A scope
+containing only those producers now completes Incomplete with TargetsRefused.
+A selected cached observer can run once and sees Empty for those selected cyclic
+producers; it neither demands them nor creates value dependencies through its
+observations. Ordinary formula reads still refuse those values. Static scalar
+callback admission does not extend the closed-wait discovery profile to callbacks.
+Arrays, spills, tables, automatic cyclic Range and cross-workbook cycles retain
+their existing refusals. The broader iteration publication boundary remains
+uncertified; these trials do not establish MTC-on, arbitrary histories or array
+iteration semantics. Earlier text describing these scalar observer/count cases as
+open records the prior implementation state.
+
 The same delivery answers the ten Legacy denominator/blank-origin questions.
 In the recorded J2 controls, a multi-cell second argument to MROUND/QUOTIENT
 gives #VALUE!; unary plus gives
