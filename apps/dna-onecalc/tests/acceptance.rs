@@ -3079,3 +3079,49 @@ fn recorded_exp_subnormal_results_use_the_kernel() {
     assert!(failures.is_empty(), "{} of {rows} application checks differ:\n{}",
         failures.len(), failures.join("\n"));
 }
+
+/// Equal positive inputs retain their common value, including the original
+/// minimum-normal triple and independent controls across the normal range.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_geomean_equal_inputs_keep_their_value() {
+    let set = calc_verdict::WitnessSet::decode(include_bytes!(
+        "../../../crates/calc-func/tests/witnesses/GEOMEAN.json"
+    )).unwrap();
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J20").unwrap();
+    let mut rows = 0;
+    let mut failures = Vec::new();
+    for row in &set.witnesses {
+        if !row.reading.starts_with("fn10-equal-") { continue; }
+        let expected = calc_verdict::decode_result(&row.expected).unwrap();
+        let common = expected.as_number().unwrap();
+        assert!(common.is_normal() && common > 0.0);
+        let mut cells = Vec::new();
+        for (index, argument) in row.args.iter().enumerate() {
+            let number = calc_verdict::decode_argument(argument, "GEOMEAN")
+                .unwrap().as_number().unwrap();
+            assert_eq!(number.to_bits(), common.to_bits());
+            let cell = format!("A{}", index + 1);
+            session.set_input(&cell, InputValue::number(number).unwrap()).unwrap();
+            cells.push(cell);
+        }
+        let arguments = cells.join(",");
+        for formula in [
+            format!("=GEOMEAN({arguments})"),
+            format!("=GEOMEAN(A1:A{})", cells.len()),
+            format!("=GEOMEAN(HSTACK({arguments}))"),
+        ] {
+            session.set_formula(&formula);
+            let result = session.calculate();
+            if result.result.as_ref() != Some(&expected) || !result.diagnostics.is_empty() {
+                failures.push(format!("{} {formula}: expected {expected:?}, calculated {:?}; {:?}",
+                    row.id, result.result, result.diagnostics));
+            }
+        }
+        rows += 1;
+    }
+    assert_eq!(rows, 176, "every original equal-positive observation and fresh control must run");
+    assert!(failures.is_empty(), "{} of {} application checks differ:\n{}",
+        failures.len(), 3 * rows, failures.join("\n"));
+}
