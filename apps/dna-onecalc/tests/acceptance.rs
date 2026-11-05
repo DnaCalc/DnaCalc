@@ -3164,3 +3164,65 @@ fn recorded_complex_hyperbolics_keep_the_real_axis() {
     assert!(failures.is_empty(), "{} of {rows} application checks differ:\n{}",
         failures.len(), failures.join("\n"));
 }
+
+/// The original coefficient-publication arrays distinguish LOGEST's retained
+/// subnormal base from GROWTH's zero forecast and independent numeric errors.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_regression_publication_keeps_each_output_cell() {
+    use calc_func::value::CoreRef;
+    let sets: &[(&str, &[u8])] = &[
+        ("LOGEST", include_bytes!("../../../crates/calc-func/tests/witnesses/LOGEST.json")),
+        ("GROWTH", include_bytes!("../../../crates/calc-func/tests/witnesses/GROWTH.json")),
+    ];
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J20").unwrap();
+    let mut rows = 0;
+    let mut failures = Vec::new();
+    for &(function, bytes) in sets {
+        let set = calc_verdict::WitnessSet::decode(bytes).unwrap();
+        for row in &set.witnesses {
+            if row.reading != "fn10-coefficient-publication" { continue; }
+            let mut references = Vec::new();
+            for (index, argument) in row.args.iter().enumerate() {
+                let value = calc_verdict::decode_argument(argument, function).unwrap();
+                let column = b'A' + 4 * index as u8;
+                let first = format!("{}1", char::from(column));
+                match value.core_ref() {
+                    CoreRef::Number(n) => {
+                        assert!(n == 0.0 || n.is_normal());
+                        session.set_input(&first, InputValue::number(n).unwrap()).unwrap();
+                        references.push(first);
+                    }
+                    CoreRef::Array(array) => {
+                        assert!(array.shape().cols <= 4);
+                        for r in 0..array.shape().rows {
+                            for (c, cell) in array.row_slice(r).unwrap().iter().enumerate() {
+                                let n = cell.as_number().unwrap();
+                                assert!(n == 0.0 || n.is_normal());
+                                let address = format!("{}{}", char::from(column + c as u8), r + 1);
+                                session.set_input(&address, InputValue::number(n).unwrap()).unwrap();
+                            }
+                        }
+                        let last = format!("{}{}", char::from(column + array.shape().cols as u8 - 1), array.shape().rows);
+                        references.push(format!("{first}:{last}"));
+                    }
+                    other => panic!("unexpected source argument {other:?}"),
+                }
+            }
+            session.set_formula(&format!("={function}({})", references.join(",")));
+            let result = session.calculate();
+            let actual = result.result.as_ref()
+                .and_then(|value| calc_verdict::select_result(value, row.result_index));
+            let expected = calc_verdict::decode_result(&row.expected).unwrap();
+            rows += 1;
+            if actual.as_ref() != Some(&expected) || !result.diagnostics.is_empty() {
+                failures.push(format!("{}: expected {expected:?}, calculated {actual:?}; {:?}",
+                    row.id, result.diagnostics));
+            }
+        }
+    }
+    assert_eq!(rows, 9, "all original coefficient and forecast output cells must run");
+    assert!(failures.is_empty(), "{} of {rows} application checks differ:\n{}",
+        failures.len(), failures.join("\n"));
+}

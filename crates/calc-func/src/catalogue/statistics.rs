@@ -422,17 +422,24 @@ ported_family! {
         out_matrix(s, &frequency_counts(&data, &bins))
     }
     55 trend "TREND" (1, 4) [R "known_ys", R "known_xs", R "new_xs", V "const"] |s, a, sv| {
-        regression(s, a, sv, k::regression_forecast_family::eval_trend_surface)
+        regression(s, a, sv, k::regression_forecast_family::eval_trend_surface, RegressionNumbers::Standard)
     }
     56 growth "GROWTH" (1, 4) [R "known_ys", R "known_xs", R "new_xs", V "const"] |s, a, sv| {
-        regression(s, a, sv, k::regression_forecast_family::eval_growth_surface)
+        regression(s, a, sv, k::regression_forecast_family::eval_growth_surface, RegressionNumbers::Forecast)
     }
     57 linest "LINEST" (1, 4) [R "known_ys", R "known_xs", V "const", V "stats"] |s, a, sv| {
-        regression(s, a, sv, k::regression_forecast_family::eval_linest_surface)
+        regression(s, a, sv, k::regression_forecast_family::eval_linest_surface, RegressionNumbers::Standard)
     }
     58 logest "LOGEST" (1, 4) [R "known_ys", R "known_xs", V "const", V "stats"] |s, a, sv| {
-        regression(s, a, sv, k::regression_forecast_family::eval_logest_surface)
+        regression(s, a, sv, k::regression_forecast_family::eval_logest_surface, RegressionNumbers::Coefficients)
     }
+}
+
+#[derive(Clone, Copy)]
+enum RegressionNumbers {
+    Standard,
+    Forecast,
+    Coefficients,
 }
 
 /// LINEST, LOGEST, TREND and GROWTH: OxFunc's evaluation over the arguments with each reference
@@ -443,6 +450,7 @@ fn regression(
     a: &[CalcValue],
     sv: &mut EvalServices<'_>,
     evaluate: fn(&[CalcValue]) -> Result<CalcValue, WorksheetErrorCode>,
+    publication: RegressionNumbers,
 ) -> Step<CalcValue> {
     let mut read = Vec::with_capacity(a.len());
     for (index, argument) in a.iter().enumerate() {
@@ -459,15 +467,23 @@ fn regression(
         });
     }
     let result = evaluate(&read).map_err(Exit::Error)?;
+    // The retained coefficient-publication observations distinguish LOGEST's
+    // subnormal coefficient row from GROWTH's zero forecasts. Statistics rows
+    // keep the existing number rule; normal and nonfinite outputs do too.
+    let number = |n: f64, first_row: bool| match publication {
+        RegressionNumbers::Coefficients if first_row && n.is_subnormal() => out_with_subnormal(site, Ok(n)),
+        RegressionNumbers::Forecast if n.is_subnormal() => site.number(0.0),
+        _ => site.number(n),
+    };
     match result.core_ref() {
-        CoreRef::Number(n) => site.number(n),
+        CoreRef::Number(n) => number(n, true),
         CoreRef::Array(array) => {
             let mut rows = Vec::with_capacity(array.shape().rows);
             for r in 0..array.shape().rows {
                 let mut row = Vec::with_capacity(array.shape().cols);
                 for cell in array.row_slice(r).unwrap_or(&[]) {
                     row.push(match cell.core_ref() {
-                        CoreRef::Number(n) => match site.number(n) {
+                        CoreRef::Number(n) => match number(n, r == 0) {
                             Ok(v) => v,
                             Err(Exit::Error(code)) => CalcValue::error(code),
                             Err(fault) => return Err(fault),
