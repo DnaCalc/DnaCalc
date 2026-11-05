@@ -1,0 +1,173 @@
+{
+  "schema": "dnacalc-eng14-authored-entry-layout/1",
+  "questions": [
+    {
+      "source_cell": "D1",
+      "formula_form": "Legacy",
+      "formula_text": "=TRUNC(A1)",
+      "question_id": "eng14-raw-nan-trunc-negative-D1",
+      "stored_formula_text": "TRUNC(A1)",
+      "source_sheet": "q01"
+    },
+    {
+      "source_cell": "D2",
+      "formula_form": "Legacy",
+      "formula_text": "=TYPE(D1)",
+      "question_id": "eng14-raw-nan-trunc-negative-D2",
+      "stored_formula_text": "TYPE(D1)",
+      "source_sheet": "q01"
+    },
+    {
+      "source_cell": "D3",
+      "formula_form": "Legacy",
+      "formula_text": "=ISNUMBER(D1)",
+      "question_id": "eng14-raw-nan-trunc-negative-D3",
+      "stored_formula_text": "ISNUMBER(D1)",
+      "source_sheet": "q01"
+    },
+    {
+      "source_cell": "D4",
+      "formula_form": "Legacy",
+      "formula_text": "=ISERROR(D1)",
+      "question_id": "eng14-raw-nan-trunc-negative-D4",
+      "stored_formula_text": "ISERROR(D1)",
+      "source_sheet": "q01"
+    },
+    {
+      "source_cell": "D5",
+      "formula_form": "Legacy",
+      "formula_text": "=IFERROR(D1,\"caught\")",
+      "question_id": "eng14-raw-nan-trunc-negative-D5",
+      "stored_formula_text": "IFERROR(D1,\"caught\")",
+      "source_sheet": "q01"
+    },
+    {
+      "source_cell": "D6",
+      "formula_form": "Legacy",
+      "formula_text": "=ERROR.TYPE(D1)",
+      "question_id": "eng14-raw-nan-trunc-negative-D6",
+      "stored_formula_text": "ERROR.TYPE(D1)",
+      "source_sheet": "q01"
+    },
+    {
+      "source_cell": "D7",
+      "formula_form": "Legacy",
+      "formula_text": "=D1=D1",
+      "question_id": "eng14-raw-nan-trunc-negative-D7",
+      "stored_formula_text": "D1=D1",
+      "source_sheet": "q01"
+    },
+    {
+      "source_cell": "D1",
+      "formula_form": "Legacy",
+      "formula_text": "=ROUND(A1,0)",
+      "question_id": "eng14-raw-nan-round-positive-zero-D1",
+      "stored_formula_text": "ROUND(A1,0)",
+      "source_sheet": "q02"
+    },
+    {
+      "source_cell": "D2",
+      "formula_form": "Legacy",
+      "formula_text": "=TYPE(D1)",
+      "question_id": "eng14-raw-nan-round-positive-zero-D2",
+      "stored_formula_text": "TYPE(D1)",
+      "source_sheet": "q02"
+    },
+    {
+      "source_cell": "D3",
+      "formula_form": "Legacy",
+      "formula_text": "=ISNUMBER(D1)",
+      "question_id": "eng14-raw-nan-round-positive-zero-D3",
+      "stored_formula_text": "ISNUMBER(D1)",
+      "source_sheet": "q02"
+    },
+    {
+      "source_cell": "D4",
+      "formula_form": "Legacy",
+      "formula_text": "=ISERROR(D1)",
+      "question_id": "eng14-raw-nan-round-positive-zero-D4",
+      "stored_formula_text": "ISERROR(D1)",
+      "source_sheet": "q02"
+    },
+    {
+      "source_cell": "D5",
+      "formula_form": "Legacy",
+      "formula_text": "=IFERROR(D1,\"caught\")",
+      "question_id": "eng14-raw-nan-round-positive-zero-D5",
+      "stored_formula_text": "IFERROR(D1,\"caught\")",
+      "source_sheet": "q02"
+    },
+    {
+      "source_cell": "D6",
+      "formula_form": "Legacy",
+      "formula_text": "=ERROR.TYPE(D1)",
+      "question_id": "eng14-raw-nan-round-positive-zero-D6",
+      "stored_formula_text": "ERROR.TYPE(D1)",
+      "source_sheet": "q02"
+    },
+    {
+      "source_cell": "D7",
+      "formula_form": "Legacy",
+      "formula_text": "=D1=D1",
+      "question_id": "eng14-raw-nan-round-positive-zero-D7",
+      "stored_formula_text": "D1=D1",
+      "source_sheet": "q02"
+    },
+    {
+      "source_cell": "D1",
+      "formula_form": "Legacy",
+      "formula_text": "=ROUND(A1,-308)",
+      "question_id": "eng14-raw-nan-round-positive-large-digit-D1",
+      "stored_formula_text": "ROUND(A1,-308)",
+      "source_sheet": "q03"
+    },
+    {
+      "source_cell": "D2",
+      "formula_form": "Legacy",
+      "formula_text": "=TYPE(D1)",
+      "question_id": "eng14-raw-nan-round-positive-large-digit-D2",
+      "stored_formula_text": "TYPE(D1)",
+      "source_sheet": "q03"
+    },
+    {
+      "source_cell": "D3",
+      "formula_form": "Legacy",
+      "formula_text": "=ISNUMBER(D1)",
+      "question_id": "eng14-raw-nan-round-positive-large-digit-D3",
+      "stored_formula_text": "ISNUMBER(D1)",
+      "source_sheet": "q03"
+    },
+    {
+      "source_cell": "D4",
+      "formula_form": "Legacy",
+      "formula_text": "=ISERROR(D1)",
+      "question_id": "eng14-raw-nan-round-positive-large-digit-D4",
+      "stored_formula_text": "ISERROR(D1)",
+      "source_sheet": "q03"
+    },
+    {
+      "source_cell": "D5",
+      "formula_form": "Legacy",
+      "formula_text": "=IFERROR(D1,\"caught\")",
+      "question_id": "eng14-raw-nan-round-positive-large-digit-D5",
+      "stored_formula_text": "IFERROR(D1,\"caught\")",
+      "source_sheet": "q03"
+    },
+    {
+      "source_cell": "D6",
+      "formula_form": "Legacy",
+      "formula_text": "=ERROR.TYPE(D1)",
+      "question_id": "eng14-raw-nan-round-positive-large-digit-D6",
+      "stored_formula_text": "ERROR.TYPE(D1)",
+      "source_sheet": "q03"
+    },
+    {
+      "source_cell": "D7",
+      "formula_form": "Legacy",
+      "formula_text": "=D1=D1",
+      "question_id": "eng14-raw-nan-round-positive-large-digit-D7",
+      "stored_formula_text": "D1=D1",
+      "source_sheet": "q03"
+    }
+  ]
+}

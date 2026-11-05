@@ -1,0 +1,20 @@
+{
+  "delivery-audit.json": "73ef9bd73ad73234784a98ec5a3e55066c265e388eda6e8cd76f210b2fdc734a",
+  "inputs/eng14-logical-number-baseline-false.xlsx": "3227a8389492a93ed79bf012c514d5622053141eacea49a35a019201d0706fdf",
+  "inputs/eng14-logical-number-baseline-one.xlsx": "ac70506b319eb307145d180c7dc3c6e416a93667b4fbbf8b4daa24191246acf2",
+  "inputs/eng14-logical-number-baseline-true.xlsx": "fb642f7a750665537d249d671864c512e96998bc1c234e3d4c3239f21ab10a2a",
+  "inputs/eng14-logical-only-false-n2.xlsx": "638f251b67dbad891717d45ce7e7526960c2f66a9ec74a943d0315d1fbf66c6e",
+  "inputs/eng14-logical-only-false-n3.xlsx": "14446b8218568938d8b271102de3e4c13daa9e4f8d9d677f595b403d7d8a0ec8",
+  "inputs/eng14-logical-only-true-n2.xlsx": "16c894f2113dfaff5cafccab369851126ea9a95710265b90b8e2d16e51b92afe",
+  "inputs/eng14-logical-only-true-n3.xlsx": "fc246b33856f0040cd7098db05665b87f8257bddef65e8fed72bb8715590efed",
+  "inputs/eng14-range-cyclic-shape-reader.xlsx": "34e47934b5e5edcf570d045328fa0b551e167f16f66499b2525550609d08faf4",
+  "inputs/eng14-range-dynamic-cycle-reader.xlsx": "38dec59788371cdb512d0331f201030fef2d711da424e11fa0f496239c8d28a5",
+  "inputs/eng14-range-dynamic-cycle.xlsx": "ddcfa6e545ec783dbd5a81e5bec7b30318df1c09586a3fe7e11f549ccfccb103",
+  "inputs/eng14-range-hidden-self-reader.xlsx": "5a73bb846f1103c191e108fb7536b1fc824a69aecce9d3e73d766c2754140832",
+  "inputs/eng14-range-untaken-cycle-reader.xlsx": "23f9e96ad21734b7dd13b5a3ffc6c223c33b65514efaab542fe96a79bab5e253",
+  "inputs/eng14-rebuild-hidden-self-reader.xlsx": "a70a7bf2e9361b9b1a9119b4cc2d359dae6f3c15438700faee0641c418942904",
+  "inputs/eng14-text-error-only-n2.xlsx": "13cb0bb9441a9f03718182ce71e1e3022f2073f0f226ccd9b08bcc83d919d8a8",
+  "inputs/eng14-text-error-only-n5.xlsx": "bd38da67fd5d355bbfc235199db6e14d39fb51273e5f9ff0b49981c73735f31f",
+  "range-observations.jsonl": "7aabfa4be5c78b94bbf1c1b7fb8fbcdc2cffc9f7027b53eb51059713a698c4e8",
+  "stopping-observations.jsonl": "525ee1a47a58893d5caf3372e55d7b393eb0b58edba55c5bfe416889a98aba72"
+}
