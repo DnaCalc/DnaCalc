@@ -12,7 +12,7 @@
 //! holds no number, and lists of different sizes are #N/A.
 
 use super::aggregate::Held;
-use super::kit::{fail, given, grid, num, numbers, opt, out, out_matrix, pairs, PairScalars};
+use super::kit::{fail, given, grid, num, numbers, opt, out, out_matrix, out_with_subnormal, pairs, PairScalars};
 use crate::call::EvalServices;
 use crate::kernel::{Exit, Site, Step};
 use crate::ported::paired_stats_common::{self as paired, CovarianceDivisor};
@@ -265,7 +265,9 @@ ported_family! {
             let half = (values[mid] - values[mid - 1]) / 2.0;
             values[mid - 1] + if half < f64::MIN_POSITIVE { 0.0 } else { half }
         };
-        s.number(result)
+        // W111's cancellation pairs have normal inputs and retain subnormal
+        // results. Their input coercion and middle-value arithmetic stay the same.
+        out_with_subnormal(s, Ok(result))
     }
     6 mode "MODE" (1, 255) [R "number1", R "number2"] |s, a, sv| {
         match modes(&all(s, a, sv, Held::ModeNumbers)?).first() {
