@@ -1,9 +1,10 @@
 {
   "format": "dnacalc-witness-set/1",
   "function": "GAMMA.DIST",
-  "selection": "cargo xtask witness pin: of 77847 distinct readings in 1 bank files of OxFunc-Evidence, the first 4 rows of each bank and an evenly spaced sample of the rest, the budget of 120 rows shared by bank size; calc_func is the result calc-func calculated at pinning, on rows it did not match",
+  "selection": "cargo xtask witness pin: of 77975 distinct readings in 2 bank files of OxFunc-Evidence, the first 4 rows of each bank and an evenly spaced sample of the rest, the budget of 120 rows shared by bank size; calc_func is the result calc-func calculated at pinning, on rows it did not match",
   "readings": [
-    {"bitness":null,"cpu":"AMD Ryzen 7 4800H with Radeon Graphics","excel_build":"20131","id":"r0","platform":"Windows","source":"OxFunc-Evidence cache/oracle/build-20131/GAMMA.DIST.jsonl"}
+    {"bitness":null,"cpu":"AMD Ryzen 7 4800H with Radeon Graphics","excel_build":"20131","id":"r0","platform":"Windows","source":"OxFunc-Evidence cache/oracle/build-20131/GAMMA.DIST.jsonl"},
+    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r1","invocation":{"compatibility_version":"2","input_sheet_state":"visible-constant-inputs","input_transport":"cell_value2_bulk"},"platform":"Windows","source":"OxFunc-Evidence runs/w111-sinh-expm1-dependencies-20260929/answers-gamma.dist.json"}
   ],
   "witnesses": [
     {"args":["0x3d70000000000000","0x3fe0000000000000","0x3ff0000000000000","0x3ff0000000000000"],"expected_bits":"0x3eb20dd750429568","id":"oc129","reading":"r0"},
@@ -66,7 +67,6 @@
     {"args":["0x3fb0c5ac962be6ca","0x4008000000000000","0x3ff0000000000000","0x3ff0000000000000"],"calc_func":"0x3f0765a562583d79","expected_bits":"0x3f0765a562583d78","id":"oc38813","reading":"r0"},
     {"args":["0x3fb0d1ed5baf8091","0x4008000000000000","0x3ff0000000000000","0x3ff0000000000000"],"expected_bits":"0x3f07983a13bfecd3","id":"oc39481","reading":"r0"},
     {"args":["0x3fb0de3762db9248","0x4008000000000000","0x3ff0000000000000","0x3ff0000000000000"],"calc_func":"0x3f07cb3cc47f8d30","expected_bits":"0x3f07cb3cc47f8d31","id":"oc40149","reading":"r0"},
-    {"args":["0x3fb0ea813d24981a","0x4008000000000000","0x3ff0000000000000","0x3ff0000000000000"],"calc_func":"0x3f07fe86cd0274cd","expected_bits":"0x3f07fe86cd0274ce","id":"oc40815","reading":"r0"},
     {"args":["0x3fb0f6d459bdbd7b","0x4008000000000000","0x3ff0000000000000","0x3ff0000000000000"],"expected_bits":"0x3f0832400d3bef40","id":"oc41481","reading":"r0"},
     {"args":["0x3fb1031433616659","0x4008000000000000","0x3ff0000000000000","0x3ff0000000000000"],"calc_func":"0x3f0865f0aa510f35","expected_bits":"0x3f0865f0aa510f34","id":"oc42141","reading":"r0"},
     {"args":["0x3fb10f79d56d7048","0x4008000000000000","0x3ff0000000000000","0x3ff0000000000000"],"calc_func":"0x3f089a8a2f6efd5e","expected_bits":"0x3f089a8a2f6efd5f","id":"oc42807","reading":"r0"},
@@ -125,6 +125,7 @@
     {"args":["0x4010000000000000","0x4014000000000000","0x3ff0000000000000","0x3ff0000000000000"],"expected_bits":"0x3fd7c122ba38ad35","id":"oc107","reading":"r0"},
     {"args":["0x4021fe7eac2f1f87","0x4000000000000000","0x3fefd4e8e616e3f2","0x0000000000000000"],"calc_func":"0x3f5194f882ed8dc6","expected_bits":"0x3f5194f882ed8dc8","id":"oc74219","reading":"r0"},
     {"args":["0x403587c6c6ffd5ee","0x3ff0000000000000","0x3ff0000000000000","0x3ff0000000000000"],"expected_bits":"0x3fefffffffc2aeaa","id":"oc67691","reading":"r0"},
-    {"args":["0x4055eb3a18d05b61","0x3ff0000000000000","0x3ff0000000000000","0x3ff0000000000000"],"expected_bits":"0x3ff0000000000000","id":"oc68141","reading":"r0"}
+    {"args":["0x4055eb3a18d05b61","0x3ff0000000000000","0x3ff0000000000000","0x3ff0000000000000"],"expected_bits":"0x3ff0000000000000","id":"oc68141","reading":"r0"},
+    {"args":["0x3ca06c91e834ff0b","0x3ff0000000000000","0x3ff0000000000000","0x3ff0000000000000"],"expected_bits":"0x3ca06c91e834ff0b","id":"w111sinhem1-GAMMA.DIST-00000","reading":"r1"}
   ]
 }

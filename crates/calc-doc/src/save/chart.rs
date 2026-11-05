@@ -54,6 +54,7 @@ fn source_with_xml(
     retained.auto_title_deleted = before.auto_title_deleted;
     retained.legend = before.legend.clone();
     retained.plots = before.plots.clone();
+    retained.axes = before.axes.clone();
     if retained != *before {
         return Err(invalid(
             "Changes to the chart frame are not modelled",
@@ -76,6 +77,17 @@ fn source_with_xml(
                 if keep!=*original {return Err(invalid("Changing series formatting is not modelled (dc-971p.46)"));}
             } else if series.fill.is_some() {return Err(invalid("New series formatting is not modelled (dc-971p.46)"));}
         }
+    }
+    if before.axes.len()!=after.axes.len(){return Err(invalid("Creating or removing chart axes is not modelled (dc-971p.46)"));}
+    for (old,new) in before.axes.iter().zip(&after.axes) {
+        let mut retained=new.clone();retained.minimum=old.minimum.clone();retained.maximum=old.maximum.clone();retained.major_unit=old.major_unit.clone();retained.reversed=old.reversed;
+        if retained!=*old || (old!=new && (old.kind!="valAx" || old.log_base.is_some())) {return Err(invalid("Only retained linear value-axis bounds, units and direction can be edited (dc-971p.46)"));}
+        if old==new {continue;}
+        for text in [new.minimum.as_deref(),new.maximum.as_deref(),new.major_unit.as_deref()].into_iter().flatten() {
+            if text.parse::<f64>().ok().is_none_or(|n|!n.is_finite()){return Err(invalid("Use finite numeric axis settings (dc-971p.46)"));}
+        }
+        if new.major_unit.as_deref().and_then(|s|s.parse::<f64>().ok()).is_some_and(|n|n<=0.) {return Err(invalid("The major unit must be positive (dc-971p.46)"));}
+        if let (Some(min),Some(max))=(&new.minimum,&new.maximum) {if min.parse::<f64>().unwrap()>=max.parse::<f64>().unwrap(){return Err(invalid("The axis maximum must exceed its minimum (dc-971p.46)"));}}
     }
     if after.title_formula.is_some() && after.title_formula != before.title_formula {
         return Err(invalid("Authoring a linked chart title is not modelled"));
@@ -518,16 +530,20 @@ fn literal_title(
 
 
 fn plot_area(xml:&XmlPart, reader:&mut Reader<'_>, before:&Chart, after:&Chart, patches:&mut Vec<Patch>)->Result<usize,SaveRefusal>{
-    let mut i=0;
+    let mut i=0;let mut a=0;
     loop {match reader.expect()? {
         (XmlEvent::Start(e),_) if e.name.namespace.as_deref()==Some(C) && e.name.local.ends_with("Chart")=>{
             let old=before.plots.get(i).ok_or_else(||reader.invalid("Unexpected chart plot (dc-971p.46)"))?;
             let new=&after.plots[i]; i+=1;
             if old==new {reader.element_end()?;} else {plot_series(xml,reader,old,new,patches)?;}
         },
+        (XmlEvent::Start(e),span) if ["valAx","catAx","dateAx","serAx"].iter().any(|n|e.name.is(C,n))=>{
+            let old=before.axes.get(a).ok_or_else(||reader.invalid("Unexpected chart axis (dc-971p.46)"))?;let new=&after.axes[a];a+=1;
+            if old==new{reader.element_end()?;}else{axis_settings(xml,reader,span,old,new,patches)?;}
+        },
         (XmlEvent::Start(_),_)=>{reader.element_end()?;},
         (XmlEvent::End(_),(_,end))=>{
-            if i!=before.plots.len(){return Err(reader.invalid("Chart plot count changed (dc-971p.46)"));}return Ok(end);
+            if i!=before.plots.len() || a!=before.axes.len(){return Err(reader.invalid("Chart plot or axis count changed (dc-971p.46)"));}return Ok(end);
         },_=>{}
     }}
 }
@@ -620,6 +636,73 @@ fn validate_series_orders(xml:&XmlPart,before:&Chart,after:&Chart)->Result<(),Sa
         if !orders.get(p).is_some_and(|o|o.len()==old.series.len() && o.iter().enumerate().all(|(i,v)|v.as_slice()==[i as u32])) {
             return Err(reader.invalid("Adding or removing series with a retained custom order is not modelled (dc-971p.46)"));
         }
+    }
+    Ok(())
+}
+
+
+fn axis_settings(xml:&XmlPart,reader:&mut Reader<'_>,_span:(usize,usize),before:&calc_doc_model::ChartAxis,after:&calc_doc_model::ChartAxis,patches:&mut Vec<Patch>)->Result<(),SaveRefusal>{
+    let mut scale=false;let mut unit=false;let mut scale_at=None;let mut unit_at=None;
+    let close=loop{match reader.expect()?{
+        (XmlEvent::Start(e),_) if e.name.is(C,"axId")=>{scale_at=Some(reader.element_end()?);},
+        (XmlEvent::Start(e),child) if e.name.is(C,"scaling")=>{
+            if scale{return Err(reader.invalid("Duplicate axis scaling records (dc-971p.46)"));}scale=true;
+            if before.minimum!=after.minimum || before.maximum!=after.maximum || before.reversed!=after.reversed {axis_scaling(xml,reader,child,before,after,patches)?;}else{reader.element_end()?;}
+        },
+        (XmlEvent::Start(e),child) if e.name.is(C,"majorUnit")=>{
+            if unit{return Err(reader.invalid("Duplicate major units (dc-971p.46)"));}unit=true;
+            let end=reader.element_end()?;
+            if before.major_unit!=after.major_unit {numeric_field(xml,child,end,"majorUnit",after.major_unit.as_deref(),patches);}
+        },
+        (XmlEvent::Start(e),child)=>{
+            if ["minorUnit","dispUnits","extLst"].iter().any(|n|e.name.is(C,n)){unit_at.get_or_insert(child.0);}
+            reader.element_end()?;
+        },(XmlEvent::End(_),(close,_))=>break close,_=>{}
+    }};
+    if !scale && (before.minimum!=after.minimum || before.maximum!=after.maximum || before.reversed!=after.reversed) {
+        let at=scale_at.ok_or_else(||reader.invalid("The axis has no identity before scaling (dc-971p.46)"))?;
+        patches.push(((at,at),fresh_scaling(after)));
+    }
+    if !unit && before.major_unit!=after.major_unit {
+        if let Some(value)=after.major_unit.as_deref(){let at=unit_at.unwrap_or(close);patches.push(((at,at),fresh_number("majorUnit",value)));}
+    }
+    Ok(())
+}
+fn fresh_number(name:&str,value:&str)->Vec<u8>{format!("<c:{name} xmlns:c=\"{C}\" val=\"{value}\"/>").into_bytes()}
+fn numeric_field(xml:&XmlPart,span:(usize,usize),end:usize,_name:&str,value:Option<&str>,patches:&mut Vec<Patch>){
+    if let Some(value)=value{let tag=RawTag::parse(&xml.bytes()[span.0..span.1]);patches.push((span,tag.rebuilt(&[("val",Some(value))],tag.is_empty())));}else{patches.push(((span.0,end),Vec::new()));}
+}
+fn fresh_scaling(axis:&calc_doc_model::ChartAxis)->Vec<u8>{
+    let mut bytes=format!("<c:scaling xmlns:c=\"{C}\">").into_bytes();
+    bytes.extend(fresh_number("orientation",if axis.reversed{"maxMin"}else{"minMax"}));
+    if let Some(value)=axis.maximum.as_deref(){bytes.extend(fresh_number("max",value));}
+    if let Some(value)=axis.minimum.as_deref(){bytes.extend(fresh_number("min",value));}
+    bytes.extend_from_slice(b"</c:scaling>");bytes
+}
+fn axis_scaling(xml:&XmlPart,reader:&mut Reader<'_>,span:(usize,usize),before:&calc_doc_model::ChartAxis,after:&calc_doc_model::ChartAxis,patches:&mut Vec<Patch>)->Result<(),SaveRefusal>{
+    let mut children=Vec::new();let mut opening=Vec::new();
+    let (close,end)=loop{match reader.expect()?{
+        (XmlEvent::Start(e),child)=>{let end=reader.element_end()?;children.push((e.name,(child.0,end)));opening.push(child);},
+        (XmlEvent::End(_),(close,end))=>break(close,end),_=>{}
+    }};
+    if RawTag::parse(&xml.bytes()[span.0..span.1]).is_empty(){
+        let tag=RawTag::parse(&xml.bytes()[span.0..span.1]);let mut bytes=tag.rebuilt(&[],false);
+        bytes.extend(fresh_number("orientation",if after.reversed{"maxMin"}else{"minMax"}));
+        if let Some(value)=after.maximum.as_deref(){bytes.extend(fresh_number("max",value));}
+        if let Some(value)=after.minimum.as_deref(){bytes.extend(fresh_number("min",value));}
+        bytes.extend_from_slice(b"</");bytes.extend_from_slice(tag.qualified_name());bytes.push(b'>');patches.push(((span.0,end),bytes));return Ok(());
+    }
+    let rank=|name:&str|match name{"logBase"=>0,"orientation"=>1,"max"=>2,"min"=>3,_=>4};
+    for (name,changed,value) in [
+        ("orientation",before.reversed!=after.reversed,Some(if after.reversed{"maxMin"}else{"minMax"})),
+        ("max",before.maximum!=after.maximum,after.maximum.as_deref()),
+        ("min",before.minimum!=after.minimum,after.minimum.as_deref()),
+    ]{
+        if !changed{continue;}
+        let matches=children.iter().enumerate().filter(|(_, (n,_))|n.is(C,name)).collect::<Vec<_>>();
+        if matches.len()>1{return Err(reader.invalid("Duplicate axis scaling fields (dc-971p.46)"));}
+        if let Some((i,(_,s)))=matches.first(){numeric_field(xml,opening[*i],s.1,name,value,patches);}
+        else if let Some(value)=value{let at=children.iter().find(|(n,_)|n.namespace.as_deref()==Some(C) && rank(&n.local)>rank(name)).map_or(close,|(_,s)|s.0);patches.push(((at,at),fresh_number(name,value)));}
     }
     Ok(())
 }
