@@ -360,3 +360,182 @@ fn dc_e5z5__stale_and_invalid_properties_do_not_mutate() {
         assert_eq!(book.host().charts(sheet).0, before);
     }
 }
+
+fn series_command(book:&HostSession, plot:u32, series:Option<u32>,name:Option<&str>,categories:Option<&str>,values:Option<&str>,remove:bool)->calc_host::WorkbookCommand {
+    let sheet=book.host().sheets()[0].id();
+    calc_host::WorkbookCommand::ChartSeries{sheet,revision:book.host().revision().get(),part:book.host().charts(sheet).0[0].part.clone(),plot,series,name:name.map(str::to_owned),categories:categories.map(str::to_owned),values:values.map(str::to_owned),remove}
+}
+fn reopened(book:&mut HostSession)->HostSession {
+    let mut bytes=Vec::new();book.save(&calc_host::SavePolicy::default(),&mut bytes).unwrap();
+    let mut next=HostSession::open(Arc::new(MemorySource::new(bytes)),&OpenPolicy::default(),HostOptions::default()).unwrap();
+    assert!(next.dispatch(SkinIntent::Recalculate).accepted());next
+}
+
+/// User edits use live references, one history entry, and the same retained writer as Save.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_46__series_sources_history_and_saved_reopening() {
+    let mut book=session();let sheet=book.host().sheets()[0].id();
+    let before=book.host().charts(sheet).0;let history=book.history_depth();
+    let command=series_command(&book,0,Some(0),Some("New & Ω <series>"),Some("Data!A2:A7"),Some("Data!C2:C7"),false);
+    assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    let after=book.host().charts(sheet).0;
+    assert_eq!(after[0].plots[0].series[0].name,"New & Ω <series>");
+    assert_eq!(after[0].plots[0].series[0].values,before[0].plots[0].series[1].values);
+    assert!(!after[0].plots[0].series[0].cached);
+    assert_eq!(after[0].plots[0].series[1],before[0].plots[0].series[1]);assert_eq!(after[1..],before[1..]);
+    assert_eq!(book.history_depth(),(history.0+1,0));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().charts(sheet).0,before);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(book.host().charts(sheet).0,after);
+    let mut next=reopened(&mut book);assert_eq!(next.host().charts(sheet).0,after);
+    assert!(next.dispatch(SkinIntent::EnterCell{at:at(sheet,"C2"),text:"99".into()}).accepted());
+    assert_eq!(next.host().charts(sheet).0[0].plots[0].series[0].values[0],Some(99.));
+    assert!(next.dispatch(SkinIntent::EditAxis(calc_host::AxisEdit::new(sheet,calc_host::Axis::Rows,calc_host::AxisChange::Insert,2,1).unwrap())).accepted());
+    let shifted=next.host().charts(sheet).0;
+    assert_eq!(reopened(&mut next).host().charts(sheet).0,shifted,"new sources compose with structural rewrites");
+    let original=book.host().loaded().snapshot(book.host().loaded().model());
+    let saved=next.host().loaded().snapshot(next.host().model());
+    for chart in &before[1..] {assert_eq!(original.package().read_xml(&chart.part).unwrap().bytes(),saved.package().read_xml(&chart.part).unwrap().bytes());}
+}
+
+/// Add/remove maintain stable series identities and valid order through repeated saves.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_46__add_remove_series_with_linked_name() {
+    let mut book=session();let sheet=book.host().sheets()[0].id();
+    let command=series_command(&book,0,None,Some("=Data!B1"),Some("Data!A2:A7"),Some("Data!B2:B7"),false);
+    assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    assert_eq!(book.host().charts(sheet).0[0].plots[0].series.len(),3);
+    let added=book.host().charts(sheet).0[0].plots[0].series[2].clone();
+    assert_eq!(added.name,book.host().charts(sheet).0[0].plots[0].series[0].name);
+    assert_eq!(added.values,book.host().charts(sheet).0[0].plots[0].series[0].values);
+    let command=series_command(&book,0,Some(0),None,None,None,true);
+    assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    let before=book.host().charts(sheet).0;
+    let mut next=reopened(&mut book);assert_eq!(next.host().charts(sheet).0,before);
+    let snapshot=next.host().loaded().snapshot(next.host().model());
+    let bytes=snapshot.package().read_xml(&before[0].part).unwrap();
+    let xml=String::from_utf8(bytes.bytes().to_vec()).unwrap();
+    assert_eq!(xml.matches("<c:order").count(),2);
+    let mut reader=bytes.reader();let mut ids=Vec::new();let mut index=None;
+    while let Some(event)=reader.next_event().unwrap() {
+        if let calc_doc::XmlEvent::Start(e)=event {
+            if e.name.local=="idx" {index=e.attribute("val").and_then(|v|v.parse::<u32>().ok());}
+            if e.name.local=="order" {ids.push((index.unwrap(),e.attribute("val").unwrap().parse::<u32>().unwrap()));}
+        }
+    }
+    assert_eq!(ids,vec![(1,0),(2,1)],"indices remain stable; ordering is contiguous after removal");
+    assert!(next.dispatch(SkinIntent::EnterCell{at:at(sheet,"B1"),text:"Linked series".into()}).accepted());
+    assert_eq!(next.host().charts(sheet).0[0].plots[0].series[1].name,"Linked series");
+    let command=series_command(&next,0,Some(1),None,None,None,true);assert!(next.dispatch(SkinIntent::Command(command)).accepted());
+    let last=next.host().model().definitions().charts(sheet)[0].plots[0].series[0].index;
+    let revision=next.host().revision();let history=next.history_depth();
+    let command=series_command(&next,0,Some(last),None,None,None,true);assert!(!next.dispatch(SkinIntent::Command(command)).accepted());
+    assert_eq!(next.host().revision(),revision);assert_eq!(next.history_depth(),history);
+    let mut next=reopened(&mut next);assert_eq!(next.host().charts(sheet).0[0].plots[0].series.len(),1);
+    assert_eq!(reopened(&mut next).host().charts(sheet).0[0].plots[0].series.len(),1);
+}
+
+/// Invalid, external, oversized, stale and two-dimensional sources refuse atomically.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_46__invalid_series_sources_do_not_mutate() {
+    let mut book=session();let sheet=book.host().sheets()[0].id();let before=book.host().charts(sheet).0;
+    let revision=book.host().revision();let history=book.history_depth();
+    for source in ["", "Missing!A1:A3","[other.xlsx]Data!A1:A3","Data!A1:B3","Data!A1:A32768","SUM(Data!A1:A3)"] {
+        let command=series_command(&book,0,Some(0),Some("Should not commit"),None,Some(source),false);
+        assert!(!book.dispatch(SkinIntent::Command(command)).accepted(),"{source}");
+        assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,before);
+    }
+    let mut command=series_command(&book,0,Some(0),Some("Stale"),None,None,false);
+    if let calc_host::WorkbookCommand::ChartSeries{revision,..}=&mut command {*revision+=1;}
+    assert!(!book.dispatch(SkinIntent::Command(command)).accepted());
+    let command=series_command(&book,0,Some(0),Some("=Data!B1:B2"),None,None,false);
+    assert!(!book.dispatch(SkinIntent::Command(command)).accepted());
+    assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);
+}
+
+/// A newly authored source is transformed once when structural edits happen before its first Save.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_46__new_series_and_ranges_compose_with_unsaved_axis_edits() {
+    let mut book=session();let sheet=book.host().sheets()[0].id();
+    for series in [Some(0),None] {
+        let command=series_command(&book,0,series,Some("Unsaved source"),Some("Data!A2:A7"),Some("Data!C2:C7"),false);
+        assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    }
+    for (change,position) in [(calc_host::AxisChange::Insert,2),(calc_host::AxisChange::Delete,4)] {
+        assert!(book.dispatch(SkinIntent::EditAxis(calc_host::AxisEdit::new(sheet,calc_host::Axis::Rows,change,position,1).unwrap())).accepted());
+    }
+    let shifted=book.host().charts(sheet).0;let revision=book.host().revision();let history=book.history_depth();
+    let command=series_command(&book,0,Some(0),Some("Refuse after structural edit"),None,Some("Data!B2:B7"),false);
+    assert!(!book.dispatch(SkinIntent::Command(command)).accepted());
+    assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,shifted);
+    assert_eq!(reopened(&mut book).host().charts(sheet).0,shifted);
+}
+
+fn axis_command(book:&HostSession,chart:usize,id:u32,min:Option<&str>,max:Option<&str>,unit:Option<&str>,reversed:bool)->calc_host::WorkbookCommand {
+    let sheet=book.host().sheets()[0].id();
+    calc_host::WorkbookCommand::ChartAxis{sheet,revision:book.host().revision().get(),part:book.host().charts(sheet).0[chart].part.clone(),axis:id,minimum:min.map(str::to_owned),maximum:max.map(str::to_owned),major_unit:unit.map(str::to_owned),reversed}
+}
+/// Bounds, unit and direction are one authored edit; other axes and chart records stay intact.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_46__axis_settings_history_and_saved_reopening() {
+    let mut book=session();let sheet=book.host().sheets()[0].id();let before=book.host().charts(sheet).0;let history=book.history_depth();
+    let id=before[0].axes.iter().find(|a|a.kind=="valAx").unwrap().id;
+    let command=axis_command(&book,0,id,Some("0"),Some("20"),Some("5"),true);
+    let outcome=book.dispatch(SkinIntent::Command(command));assert!(outcome.accepted(),"{outcome:?}");
+    let after=book.host().charts(sheet).0;let axis=after[0].axes.iter().find(|a|a.id==id).unwrap();
+    assert_eq!(axis.minimum.as_deref(),Some("0"));assert_eq!(axis.maximum.as_deref(),Some("20"));assert_eq!(axis.major_unit.as_deref(),Some("5"));assert!(axis.reversed);
+    assert_eq!(after[0].plots,before[0].plots);assert_eq!(after[1..],before[1..]);assert_eq!(book.history_depth(),(history.0+1,0));
+    let scale=calc_host::chart::chart_scale(0.,27.,Some(axis)).unwrap();assert_eq!((scale.minimum,scale.maximum,scale.step,scale.reversed),(0.,20.,5.,true));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().charts(sheet).0,before);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(book.host().charts(sheet).0,after);
+    let mut next=reopened(&mut book);assert_eq!(next.host().charts(sheet).0,after);
+    let command=axis_command(&next,0,id,None,None,None,false);assert!(next.dispatch(SkinIntent::Command(command)).accepted());
+    assert_eq!(reopened(&mut next).host().charts(sheet).0,before,"Automatic restores absent bounds and units after a saved reopen");
+}
+/// Scatter X and Y axes remain independent, and both settings compose with later source shifts.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_46__scatter_axes_and_unsaved_structural_edits_compose() {
+    let mut book=session();let sheet=book.host().sheets()[0].id();let view=book.host().charts(sheet).0[5].clone();
+    let x=view.axes.iter().find(|a|a.position.as_deref()==Some("b")).unwrap().id;let y=view.axes.iter().find(|a|a.position.as_deref()==Some("l")).unwrap().id;
+    for (id,max,unit) in [(x,"50","10"),(y,"20","5")] {let command=axis_command(&book,5,id,Some("0"),Some(max),Some(unit),false);let outcome=book.dispatch(SkinIntent::Command(command));assert!(outcome.accepted(),"{outcome:?}");}
+    assert!(book.dispatch(SkinIntent::EditAxis(calc_host::AxisEdit::new(sheet,calc_host::Axis::Rows,calc_host::AxisChange::Insert,2,1).unwrap())).accepted());
+    let after=book.host().charts(sheet).0;assert_eq!(reopened(&mut book).host().charts(sheet).0,after);
+    let axes=&after[5].axes;assert_eq!(axes.iter().find(|a|a.id==x).unwrap().maximum.as_deref(),Some("50"));assert_eq!(axes.iter().find(|a|a.id==y).unwrap().maximum.as_deref(),Some("20"));
+}
+/// Invalid scales and stale identities cannot change revision, history or persisted chart data.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_46__invalid_axis_settings_refuse_atomically() {
+    let mut book=session();let sheet=book.host().sheets()[0].id();let before=book.host().charts(sheet).0;let history=book.history_depth();let revision=book.host().revision();let id=before[0].axes.iter().find(|a|a.kind=="valAx").unwrap().id;
+    for (min,max,unit) in [("20","10","5"),("0","20","0"),("0","20","-1"),("NaN","20","5"),("0","inf","5"),("0","20","0.000001")] {
+        let command=axis_command(&book,0,id,Some(min),Some(max),Some(unit),true);assert!(!book.dispatch(SkinIntent::Command(command)).accepted());
+        assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,before);
+    }
+    let mut command=axis_command(&book,0,id,Some("0"),Some("20"),Some("5"),false);if let calc_host::WorkbookCommand::ChartAxis{revision,..}=&mut command{*revision+=1;}
+    assert!(!book.dispatch(SkinIntent::Command(command)).accepted());
+    let command=axis_command(&book,0,u32::MAX,None,None,None,false);assert!(!book.dispatch(SkinIntent::Command(command)).accepted());
+    assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);
+}
+
+/// Axis validation uses exactly the paired points and numbered-X fallback used for drawing.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_46__scatter_fallback_extents_validate_the_actual_display() {
+    let mut book=session();let sheet=book.host().sheets()[0].id();let chart=book.host().charts(sheet).0[5].clone();
+    let command=calc_host::WorkbookCommand::ChartSeries{sheet,revision:book.host().revision().get(),part:chart.part.clone(),plot:0,series:Some(0),name:None,categories:Some(String::new()),values:None,remove:false};
+    assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    let plot=&book.host().charts(sheet).0[5].plots[0];
+    assert_eq!(calc_host::chart::scatter_ranges(plot).0,(0.,6.));
+    let x=chart.axes.iter().find(|a|a.position.as_deref()==Some("b")).unwrap().id;
+    let revision=book.host().revision();let history=book.history_depth();
+    let command=axis_command(&book,5,x,Some("10"),None,Some("0.005"),false);
+    assert!(!book.dispatch(SkinIntent::Command(command)).accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);
+    let command=axis_command(&book,5,x,Some("0.5"),Some("10.5"),Some("2.5"),false);
+    assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    let view=book.host().charts(sheet).0;assert_eq!(reopened(&mut book).host().charts(sheet).0,view);
+}

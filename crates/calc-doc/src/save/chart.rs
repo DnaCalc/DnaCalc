@@ -10,7 +10,7 @@ use crate::{
     opc::Package,
     xml::{XmlEvent, XmlPart},
 };
-use calc_doc_model::{Chart, ModelRoot};
+use calc_doc_model::{Chart, ChartPlot, ChartSeries, ChartData, ModelRoot};
 const C: &str = "http://schemas.openxmlformats.org/drawingml/2006/chart";
 const A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
 type Patch = ((usize, usize), Vec<u8>);
@@ -53,10 +53,41 @@ fn source_with_xml(
     retained.title_formula = before.title_formula.clone();
     retained.auto_title_deleted = before.auto_title_deleted;
     retained.legend = before.legend.clone();
+    retained.plots = before.plots.clone();
+    retained.axes = before.axes.clone();
     if retained != *before {
         return Err(invalid(
-            "Chart creation, removal and changes outside title and legend are not modelled",
+            "Changes to the chart frame are not modelled",
         ));
+    }
+    if before.plots.len()!=after.plots.len() {return Err(invalid("Adding or removing chart plots is not modelled (dc-971p.46)"));}
+    for (old,new) in before.plots.iter().zip(&after.plots) {
+        let mut retained=new.clone();retained.series=old.series.clone();
+        if retained!=*old {return Err(invalid("Changing this plot's properties is not modelled (dc-971p.46)"));}
+        if old.series==new.series {continue;}
+        if !matches!(old.kind.as_str(),"barChart"|"lineChart"|"areaChart"|"pieChart"|"doughnutChart"|"scatterChart") {return Err(invalid("Editing this plot's series is not modelled (dc-971p.46)"));}
+        let mut indices=std::collections::BTreeSet::new();
+        if new.series.is_empty() || new.series.len()>256 || !new.series.iter().all(|s|indices.insert(s.index)) {return Err(invalid("Use 1 to 256 series with distinct indices (dc-971p.46)"));}
+        let existing=new.series.iter().filter(|s|old.series.iter().any(|o|o.index==s.index)).map(|s|s.index).collect::<Vec<_>>();
+        let retained=old.series.iter().filter(|s|new.series.iter().any(|n|n.index==s.index)).map(|s|s.index).collect::<Vec<_>>();
+        if existing!=retained {return Err(invalid("Reordering chart series is not modelled (dc-971p.46)"));}
+        for series in &new.series {
+            if let Some(original)=old.series.iter().find(|s|s.index==series.index) {
+                let mut keep=series.clone();keep.name=original.name.clone();keep.categories=original.categories.clone();keep.values=original.values.clone();
+                if keep!=*original {return Err(invalid("Changing series formatting is not modelled (dc-971p.46)"));}
+            } else if series.fill.is_some() {return Err(invalid("New series formatting is not modelled (dc-971p.46)"));}
+        }
+    }
+    if before.axes.len()!=after.axes.len(){return Err(invalid("Creating or removing chart axes is not modelled (dc-971p.46)"));}
+    for (old,new) in before.axes.iter().zip(&after.axes) {
+        let mut retained=new.clone();retained.minimum=old.minimum.clone();retained.maximum=old.maximum.clone();retained.major_unit=old.major_unit.clone();retained.reversed=old.reversed;
+        if retained!=*old || (old!=new && (old.kind!="valAx" || old.log_base.is_some())) {return Err(invalid("Only retained linear value-axis bounds, units and direction can be edited (dc-971p.46)"));}
+        if old==new {continue;}
+        for text in [new.minimum.as_deref(),new.maximum.as_deref(),new.major_unit.as_deref()].into_iter().flatten() {
+            if text.parse::<f64>().ok().is_none_or(|n|!n.is_finite()){return Err(invalid("Use finite numeric axis settings (dc-971p.46)"));}
+        }
+        if new.major_unit.as_deref().and_then(|s|s.parse::<f64>().ok()).is_some_and(|n|n<=0.) {return Err(invalid("The major unit must be positive (dc-971p.46)"));}
+        if let (Some(min),Some(max))=(&new.minimum,&new.maximum) {if min.parse::<f64>().unwrap()>=max.parse::<f64>().unwrap(){return Err(invalid("The axis maximum must exceed its minimum (dc-971p.46)"));}}
     }
     if after.title_formula.is_some() && after.title_formula != before.title_formula {
         return Err(invalid("Authoring a linked chart title is not modelled"));
@@ -119,6 +150,7 @@ fn source_with_xml(
     let xml = rewritten
         .map(|bytes| original.with_bytes(bytes.to_vec()))
         .unwrap_or(original);
+    validate_series_orders(&xml,before,after)?;
     let mut reader = Reader::new(&xml);
     let mut patches = Vec::new();
     let mut found = false;
@@ -317,7 +349,8 @@ fn chart(
                 if plot.is_some() {
                     return Err(reader.invalid("Duplicate chart plot areas (dc-e5z5)"));
                 }
-                plot = Some((span.0, reader.element_end()?));
+                let end=plot_area(xml,reader,before,after,patches)?;
+                plot = Some((span.0, end));
             }
             (XmlEvent::Start(_), _) => {
                 reader.element_end()?;
@@ -367,6 +400,7 @@ pub(super) fn finish(
     before: &ModelRoot,
     after: &ModelRoot,
     out: &mut Changes,
+    structural: Option<&super::structural::StructuralEdits>,
 ) -> Result<(), SaveRefusal> {
     for (sheet, charts) in before.definitions().all_charts() {
         if after.sheet_by_id(sheet).is_none() {
@@ -385,13 +419,17 @@ pub(super) fn finish(
         }
         for (old, new) in charts.iter().zip(next) {
             if old != new {
-                let bytes = source_with_xml(
-                    package,
-                    before,
-                    old,
-                    new,
-                    out.rewritten.get(&old.part).map(Vec::as_slice),
-                )?;
+                // Author in the source coordinate basis, then use the existing structural
+                // pass for every formula, including newly added series.
+                let mut bytes = source(package,before,old,new)?;
+                if let Some(structural)=structural {
+                    let original=read_part(package,&old.part)?;
+                    for &edit in structural.edits() {
+                        let xml=original.with_bytes(bytes);
+                        let rewrite=super::structural::Rewrite{root:before,rewriter:structural.rewriter.as_ref(),change:calc_doc_model::StructuralChange::Axis(edit)};
+                        bytes=super::structural::chart_pass(&xml,edit,&rewrite)?.unwrap_or_else(||xml.bytes().to_vec());
+                    }
+                }
                 out.rewritten.insert(old.part.clone(), bytes);
             }
         }
@@ -488,4 +526,183 @@ fn literal_title(
         return Err(reader.invalid("A chart title contains both literal and linked text (dc-e5z5)"));
     }
     Ok((end, rich && texts > 0))
+}
+
+
+fn plot_area(xml:&XmlPart, reader:&mut Reader<'_>, before:&Chart, after:&Chart, patches:&mut Vec<Patch>)->Result<usize,SaveRefusal>{
+    let mut i=0;let mut a=0;
+    loop {match reader.expect()? {
+        (XmlEvent::Start(e),_) if e.name.namespace.as_deref()==Some(C) && e.name.local.ends_with("Chart")=>{
+            let old=before.plots.get(i).ok_or_else(||reader.invalid("Unexpected chart plot (dc-971p.46)"))?;
+            let new=&after.plots[i]; i+=1;
+            if old==new {reader.element_end()?;} else {plot_series(xml,reader,old,new,patches)?;}
+        },
+        (XmlEvent::Start(e),span) if ["valAx","catAx","dateAx","serAx"].iter().any(|n|e.name.is(C,n))=>{
+            let old=before.axes.get(a).ok_or_else(||reader.invalid("Unexpected chart axis (dc-971p.46)"))?;let new=&after.axes[a];a+=1;
+            if old==new{reader.element_end()?;}else{axis_settings(xml,reader,span,old,new,patches)?;}
+        },
+        (XmlEvent::Start(_),_)=>{reader.element_end()?;},
+        (XmlEvent::End(_),(_,end))=>{
+            if i!=before.plots.len() || a!=before.axes.len(){return Err(reader.invalid("Chart plot or axis count changed (dc-971p.46)"));}return Ok(end);
+        },_=>{}
+    }}
+}
+fn plot_series(xml:&XmlPart,reader:&mut Reader<'_>,before:&ChartPlot,after:&ChartPlot,patches:&mut Vec<Patch>)->Result<(),SaveRefusal>{
+    let mut i=0;let mut insert=None;
+    loop {match reader.expect()? {
+        (XmlEvent::Start(e),span) if e.name.is(C,"ser")=>{
+            let old=before.series.get(i).ok_or_else(||reader.invalid("Unexpected chart series (dc-971p.46)"))?;i+=1;
+            let end=if let Some((order,new))=after.series.iter().enumerate().find(|(_,s)|s.index==old.index) {
+                if old==new && order==i-1 {reader.element_end()?}else{series_source(xml,reader,span,old,new,&before.kind,(before.series.iter().map(|s|s.index).ne(after.series.iter().map(|s|s.index))).then_some(order),patches)?}
+            }else{let end=reader.element_end()?;patches.push(((span.0,end),Vec::new()));end};
+            insert=Some(end);
+        },
+        (XmlEvent::Start(_),_)=>{reader.element_end()?;},
+        (XmlEvent::End(_),_)=>break,_=>{}
+    }}
+    if i!=before.series.len(){return Err(reader.invalid("Chart series count changed (dc-971p.46)"));}
+    let mut added=Vec::new();
+    for (order,s) in after.series.iter().enumerate().filter(|(_,s)|!before.series.iter().any(|o|o.index==s.index)) {
+        added.extend_from_slice(format!("<c:ser xmlns:c=\"{C}\"><c:idx val=\"{}\"/><c:order val=\"{order}\"/>",s.index).as_bytes());
+        for (slot,data) in [("tx",s.name.as_ref()),(if before.kind=="scatterChart"{"xVal"}else{"cat"},s.categories.as_ref()),(if before.kind=="scatterChart"{"yVal"}else{"val"},s.values.as_ref())] {added.extend_from_slice(&data_xml(slot,data));}
+        added.extend_from_slice(b"</c:ser>");
+    }
+    if !added.is_empty(){let at=insert.ok_or_else(||reader.invalid("This plot has no series insertion point (dc-971p.46)"))?;patches.push(((at,at),added));}
+    Ok(())
+}
+fn data_xml(slot:&str,data:Option<&ChartData>)->Vec<u8>{
+    let Some(data)=data else{return Vec::new();};
+    let body=if let Some(formula)=&data.formula {
+        let kind=if slot=="tx" || !data.numeric {"strRef"}else{"numRef"};
+        format!("<c:{kind}><c:f>{}</c:f></c:{kind}>",plain_text(formula))
+    }else if slot=="tx" {
+        format!("<c:v xml:space=\"preserve\">{}</c:v>",plain_text(data.cache.first().and_then(|s|s.as_deref()).unwrap_or_default()))
+    }else{
+        let kind=if data.numeric{"numLit"}else{"strLit"};
+        let points=data.cache.iter().enumerate().filter_map(|(i,p)|p.as_ref().map(|p|format!("<c:pt idx=\"{i}\"><c:v>{}</c:v></c:pt>",plain_text(p)))).collect::<String>();
+        format!("<c:{kind}><c:ptCount val=\"{}\"/>{points}</c:{kind}>",data.cache.len())
+    };
+    format!("<c:{slot} xmlns:c=\"{C}\">{body}</c:{slot}>").into_bytes()
+}
+fn series_source(xml:&XmlPart,reader:&mut Reader<'_>,span:(usize,usize),before:&ChartSeries,after:&ChartSeries,kind:&str,order:Option<usize>,patches:&mut Vec<Patch>)->Result<usize,SaveRefusal>{
+    let mut children=Vec::new();
+    let (close,end)=loop {match reader.expect()? {
+        (XmlEvent::Start(e),span)=>{let end=reader.element_end()?;children.push((e.name,(span.0,end)));},
+        (XmlEvent::End(_),(close,end))=>break (close,end),_=>{}
+    }};
+    if let Some(order)=order {
+        let order_span=children.iter().find(|(n,_)|n.is(C,"order")).ok_or_else(||reader.invalid("The chart series has no order (dc-971p.46)"))?.1;
+        patches.push((order_span,format!("<c:order xmlns:c=\"{C}\" val=\"{order}\"/>").into_bytes()));
+    }
+    let rank=|name:&str|match name {"idx"=>0,"order"=>1,"tx"=>2,"spPr"=>3,"cat"|"xVal"=>20,"val"|"yVal"=>21,"smooth"|"shape"|"extLst"=>30,_=>10};
+    for (slot,old,new) in [("tx",&before.name,&after.name),(if kind=="scatterChart"{"xVal"}else{"cat"},&before.categories,&after.categories),(if kind=="scatterChart"{"yVal"}else{"val"},&before.values,&after.values)] {
+        if old==new {continue;}
+        let found=children.iter().filter(|(n,_)|n.is(C,slot)).collect::<Vec<_>>();
+        if found.len()>1 {return Err(reader.invalid("Duplicate chart series source fields (dc-971p.46)"));}
+        let bytes=data_xml(slot,new.as_ref());
+        if let Some((_,span))=found.first(){patches.push((*span,bytes));}
+        else if !bytes.is_empty(){
+            if RawTag::parse(&xml.bytes()[span.0..span.1]).is_empty(){return Err(reader.invalid("Empty chart series cannot be edited (dc-971p.46)"));}
+            let at=children.iter().find(|(n,_)|n.namespace.as_deref()==Some(C) && rank(&n.local)>rank(slot)).map_or(close,|(_,s)|s.0);
+            patches.push(((at,at),bytes));
+        }
+    }
+    Ok(end)
+}
+
+
+/// Source edits preserve retained collection order. Membership edits currently require
+/// positional ordering, so an imported reordered collection cannot acquire duplicate orders.
+fn validate_series_orders(xml:&XmlPart,before:&Chart,after:&Chart)->Result<(),SaveRefusal>{
+    let mut reader=Reader::new(xml);let mut path=Vec::new();let mut orders=Vec::<Vec<Vec<u32>>>::new();
+    while let Some((event,_))=reader.next()? {match event {
+        XmlEvent::Start(e)=>{
+            if e.name.namespace.as_deref()==Some(C) {
+                if path.last().is_some_and(|n:&crate::xml::XmlName|n.is(C,"plotArea")) && e.name.local.ends_with("Chart") {orders.push(Vec::new());}
+                if e.name.is(C,"ser") && path.last().is_some_and(|n|n.namespace.as_deref()==Some(C) && n.local.ends_with("Chart")) {
+                    if let Some(plot)=orders.last_mut(){plot.push(Vec::new());}
+                }
+                if e.name.is(C,"order") && path.last().is_some_and(|n|n.is(C,"ser")) {
+                    if let Some(series)=orders.last_mut().and_then(|p|p.last_mut()) {
+                        series.push(e.attribute("val").and_then(|v|v.parse::<u32>().ok()).unwrap_or(u32::MAX));
+                    }
+                }
+            }
+            path.push(e.name);
+        },XmlEvent::End(_)=>{path.pop();},_=>{}
+    }}
+    for (p,(old,new)) in before.plots.iter().zip(&after.plots).enumerate() {
+        if old.series.iter().map(|s|s.index).eq(new.series.iter().map(|s|s.index)){continue;}
+        if !orders.get(p).is_some_and(|o|o.len()==old.series.len() && o.iter().enumerate().all(|(i,v)|v.as_slice()==[i as u32])) {
+            return Err(reader.invalid("Adding or removing series with a retained custom order is not modelled (dc-971p.46)"));
+        }
+    }
+    Ok(())
+}
+
+
+fn axis_settings(xml:&XmlPart,reader:&mut Reader<'_>,_span:(usize,usize),before:&calc_doc_model::ChartAxis,after:&calc_doc_model::ChartAxis,patches:&mut Vec<Patch>)->Result<(),SaveRefusal>{
+    let mut scale=false;let mut unit=false;let mut scale_at=None;let mut unit_at=None;
+    let close=loop{match reader.expect()?{
+        (XmlEvent::Start(e),_) if e.name.is(C,"axId")=>{scale_at=Some(reader.element_end()?);},
+        (XmlEvent::Start(e),child) if e.name.is(C,"scaling")=>{
+            if scale{return Err(reader.invalid("Duplicate axis scaling records (dc-971p.46)"));}scale=true;
+            if before.minimum!=after.minimum || before.maximum!=after.maximum || before.reversed!=after.reversed {axis_scaling(xml,reader,child,before,after,patches)?;}else{reader.element_end()?;}
+        },
+        (XmlEvent::Start(e),child) if e.name.is(C,"majorUnit")=>{
+            if unit{return Err(reader.invalid("Duplicate major units (dc-971p.46)"));}unit=true;
+            let end=reader.element_end()?;
+            if before.major_unit!=after.major_unit {numeric_field(xml,child,end,"majorUnit",after.major_unit.as_deref(),patches);}
+        },
+        (XmlEvent::Start(e),child)=>{
+            if ["minorUnit","dispUnits","extLst"].iter().any(|n|e.name.is(C,n)){unit_at.get_or_insert(child.0);}
+            reader.element_end()?;
+        },(XmlEvent::End(_),(close,_))=>break close,_=>{}
+    }};
+    if !scale && (before.minimum!=after.minimum || before.maximum!=after.maximum || before.reversed!=after.reversed) {
+        let at=scale_at.ok_or_else(||reader.invalid("The axis has no identity before scaling (dc-971p.46)"))?;
+        patches.push(((at,at),fresh_scaling(after)));
+    }
+    if !unit && before.major_unit!=after.major_unit {
+        if let Some(value)=after.major_unit.as_deref(){let at=unit_at.unwrap_or(close);patches.push(((at,at),fresh_number("majorUnit",value)));}
+    }
+    Ok(())
+}
+fn fresh_number(name:&str,value:&str)->Vec<u8>{format!("<c:{name} xmlns:c=\"{C}\" val=\"{value}\"/>").into_bytes()}
+fn numeric_field(xml:&XmlPart,span:(usize,usize),end:usize,_name:&str,value:Option<&str>,patches:&mut Vec<Patch>){
+    if let Some(value)=value{let tag=RawTag::parse(&xml.bytes()[span.0..span.1]);patches.push((span,tag.rebuilt(&[("val",Some(value))],tag.is_empty())));}else{patches.push(((span.0,end),Vec::new()));}
+}
+fn fresh_scaling(axis:&calc_doc_model::ChartAxis)->Vec<u8>{
+    let mut bytes=format!("<c:scaling xmlns:c=\"{C}\">").into_bytes();
+    bytes.extend(fresh_number("orientation",if axis.reversed{"maxMin"}else{"minMax"}));
+    if let Some(value)=axis.maximum.as_deref(){bytes.extend(fresh_number("max",value));}
+    if let Some(value)=axis.minimum.as_deref(){bytes.extend(fresh_number("min",value));}
+    bytes.extend_from_slice(b"</c:scaling>");bytes
+}
+fn axis_scaling(xml:&XmlPart,reader:&mut Reader<'_>,span:(usize,usize),before:&calc_doc_model::ChartAxis,after:&calc_doc_model::ChartAxis,patches:&mut Vec<Patch>)->Result<(),SaveRefusal>{
+    let mut children=Vec::new();let mut opening=Vec::new();
+    let (close,end)=loop{match reader.expect()?{
+        (XmlEvent::Start(e),child)=>{let end=reader.element_end()?;children.push((e.name,(child.0,end)));opening.push(child);},
+        (XmlEvent::End(_),(close,end))=>break(close,end),_=>{}
+    }};
+    if RawTag::parse(&xml.bytes()[span.0..span.1]).is_empty(){
+        let tag=RawTag::parse(&xml.bytes()[span.0..span.1]);let mut bytes=tag.rebuilt(&[],false);
+        bytes.extend(fresh_number("orientation",if after.reversed{"maxMin"}else{"minMax"}));
+        if let Some(value)=after.maximum.as_deref(){bytes.extend(fresh_number("max",value));}
+        if let Some(value)=after.minimum.as_deref(){bytes.extend(fresh_number("min",value));}
+        bytes.extend_from_slice(b"</");bytes.extend_from_slice(tag.qualified_name());bytes.push(b'>');patches.push(((span.0,end),bytes));return Ok(());
+    }
+    let rank=|name:&str|match name{"logBase"=>0,"orientation"=>1,"max"=>2,"min"=>3,_=>4};
+    for (name,changed,value) in [
+        ("orientation",before.reversed!=after.reversed,Some(if after.reversed{"maxMin"}else{"minMax"})),
+        ("max",before.maximum!=after.maximum,after.maximum.as_deref()),
+        ("min",before.minimum!=after.minimum,after.minimum.as_deref()),
+    ]{
+        if !changed{continue;}
+        let matches=children.iter().enumerate().filter(|(_, (n,_))|n.is(C,name)).collect::<Vec<_>>();
+        if matches.len()>1{return Err(reader.invalid("Duplicate axis scaling fields (dc-971p.46)"));}
+        if let Some((i,(_,s)))=matches.first(){numeric_field(xml,opening[*i],s.1,name,value,patches);}
+        else if let Some(value)=value{let at=children.iter().find(|(n,_)|n.namespace.as_deref()==Some(C) && rank(&n.local)>rank(name)).map_or(close,|(_,s)|s.0);patches.push(((at,at),fresh_number(name,value)));}
+    }
+    Ok(())
 }

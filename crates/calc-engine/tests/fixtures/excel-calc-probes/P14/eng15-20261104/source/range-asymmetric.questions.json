@@ -1,0 +1,62 @@
+{
+  "format": "dnacalc-authored-observer-questions",
+  "version": 1,
+  "purpose": "Constrain whether selected explicit and hidden observers see held nonzero values or another typed boundary under instrumented cyclic Range. Formal Double parameters cannot establish the pre-coercion type; attempted producer work remains unmeasured.",
+  "source": {
+    "observer_bas": "../excel-results-eng13/packet/observer-questions.bas",
+    "sha256": "3db30461369107feaaf1a0630de3b7f71a71a15599510586f42381a51744cf55"
+  },
+  "route": "Existing canonical observer preparation and Set-StoredValues on NEW closed copies, existing owned-process supervisor and raw Typed/Note traces; no new capture route.",
+  "settings": {
+    "mode": "Manual",
+    "iteration": true,
+    "iterations": 5,
+    "max_change_bits": "3f50624dd2f1a9fc",
+    "mtc": false,
+    "events": false
+  },
+  "conditions": [
+    {
+      "id": "eng15-asymmetric-pair_explicit",
+      "preparation": "prepare~pair_explicit~5~3f50624dd2f1a9fc~forward~off",
+      "new_workbook": true,
+      "stored_seeds": {
+        "S!A1": 2,
+        "S!B1": 5,
+        "S!C1": 7,
+        "S!D1": 0
+      },
+      "commands": [
+        "S.Range(\"A1:D1\").Calculate",
+        "S.Range(\"A1:D1\").Calculate"
+      ],
+      "fresh_process_trials": 10,
+      "expected": null
+    },
+    {
+      "id": "eng15-asymmetric-pair_hidden",
+      "preparation": "prepare~pair_hidden~5~3f50624dd2f1a9fc~forward~off",
+      "new_workbook": true,
+      "stored_seeds": {
+        "S!A1": 2,
+        "S!B1": 5,
+        "S!C1": 7,
+        "S!D1": 0
+      },
+      "commands": [
+        "S.Range(\"A1:D1\").Calculate",
+        "S.Range(\"A1:D1\").Calculate"
+      ],
+      "fresh_process_trials": 10,
+      "expected": null
+    }
+  ],
+  "required_evidence": [
+    "Exact input/source hashes, formula forms and seed XML/readbacks before PacketArm",
+    "Zero startup entries; any invalid setup retained as failure",
+    "All producer/observer entries, raw typed explicit arguments and both hidden reads",
+    "External A1:E1 typed snapshots before/after each command, actual returns and settings",
+    "Retain any producer entries during commands; do not filter them to preserve a zero-entry assumption"
+  ],
+  "limits": "No workbook generated or Excel executed by this Linux authoring step."
+}

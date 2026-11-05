@@ -28,14 +28,23 @@
 //! and marks past one byte ([`super::sort_key::diacritic_order`]).
 //!
 //! The weights cover every UTF-16 code unit but a few (dc-zsn.2). A text holding one of those is
-//! not decided ([`Beyond`]), whichever pass would decide it: U+0000, the Hangul conjoining jamo,
+//! not decided ([`Beyond`]) when the second pass needs its weights: U+0000, the Hangul conjoining jamo,
 //! U+30A0, the isolated and medial forms of Arabic marks, and an iteration mark after a
-//! special (see [`super::sort_key`]). Iteration after Han uses the measured repeat primary,
-//! confirmed by fn1's comparison and ordering controls. Fn3 also establishes a bounded strict
-//! prefix order for three marks after three specials; their weights remain unknown.
+//! special outside fn7's three adjacent iteration forms and four punctuation units
+//! (see [`super::sort_key`]).
+//! Identical complete modern Jamo prefixes with independent known suffixes cancel their common
+//! default entries; different Jamo prefixes remain refused. Fn7 matches the ASCII pass followed
+//! by CompareStringEx on all284 scalar pairs; suffix sort-key byte order differs on two Hangul
+//! pairs. These measured rules and the stored Unicode weights run unchanged on every platform.
+//! Bare U+1100/U+1161 at the start of an independent suffix have measured primary
+//! groups C0/EC. An unfinished key can decide a strict group difference; it still
+//! refuses a same-group comparison or an unmeasured Jamo continuation.
+//! Iteration after Han uses the measured repeat primary,
+//! confirmed by fn1's comparison and ordering controls. Fn3's previously measured strict
+//! prefixes also follow from fn7's positive punctuation primary.
 
 use super::Beyond;
-use super::sort_key::{diacritic_order, leading_order, parts, refused};
+use super::sort_key::{diacritic_order, leading_order, parts, refused, shared_jamo_tails};
 use std::cmp::Ordering;
 
 /// The last code unit the first pass reads itself.
@@ -44,11 +53,9 @@ const FIRST_PASS_LAST: u16 = 0x007A;
 /// The order of two texts as the comparison operators give it, or [`Beyond`] naming the first of
 /// them whose weights are not built here.
 pub(super) fn compare(a: &[u16], b: &[u16]) -> Result<Ordering, Beyond> {
-    // A text holding a unit the collation refuses is not decided, whichever pass would decide it.
-    if let Some(operand) = [a, b]
-        .iter()
-        .position(|text| text.iter().any(|&code| refused(code)))
-    {
+    // NUL is outside the measured comparison domain, including an ASCII
+    // prefix that the first pass would otherwise skip or decide by length.
+    if let Some(operand) = [a, b].iter().position(|text| text.contains(&0)) {
         return Err(Beyond { operand });
     }
     let fold = |code: u16| {
@@ -70,6 +77,16 @@ pub(super) fn compare(a: &[u16], b: &[u16]) -> Result<Ordering, Beyond> {
 /// The second pass: the two texts' primary weights, then their diacritics as `CompareStringEx`
 /// walks them ([`diacritic_order`]), then the rest of their sort keys (case, kana, specials).
 fn weighed(a: &[u16], b: &[u16]) -> Result<Ordering, Beyond> {
+    if let Some((a, b)) = shared_jamo_tails(a, b) {
+        // Keep one common default entry for marks at the suffix boundary.
+        // Calling this pass directly preserves NLS's treatment of ignorables;
+        // Excel's ASCII length shortcut has already finished on the originals.
+        let prefix = |tail: &[u16]| std::iter::once(0x0061).chain(tail.iter().copied()).collect::<Vec<_>>();
+        return weighed(&prefix(a), &prefix(b));
+    }
+    if let Some(operand) = [a, b].iter().position(|text| text.iter().any(|&code| refused(code))) {
+        return Err(Beyond { operand });
+    }
     let left = parts(a);
     let right = parts(b);
     if left.is_err() || right.is_err() {

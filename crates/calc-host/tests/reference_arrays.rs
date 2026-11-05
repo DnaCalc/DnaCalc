@@ -16,17 +16,19 @@ use calc_host::{
 };
 use std::sync::Arc;
 
-/// R25's unchanged captures prove that known_x admits both CHOOSE columns below
-/// INDEX in these Legacy formulas. This checks execution/provenance admission;
+/// R25/R26's unchanged captures admit both CHOOSE columns below INDEX in these
+/// Legacy regression and inverse formulas. This checks execution/provenance admission;
 /// corpus comparison still counts every differing numeric value as a failure.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_b1l__nested_regression_predictors_use_the_full_array() {
+fn dc_b1l__nested_matrix_arguments_use_the_full_array() {
     for (bytes, captured, expected_count) in [
         (include_bytes!("../../calc-func/tests/fixtures/dcj9k_r25_regression/oracle.xlsx").as_slice(),
          include_bytes!("../../calc-func/tests/captures/dcj9k_r25_regression/oracle.capture.json").as_slice(), 456),
         (include_bytes!("../../calc-func/tests/fixtures/dcj9k_r25_qr_stores/oracle.xlsx").as_slice(),
          include_bytes!("../../calc-func/tests/captures/dcj9k_r25_qr_stores/oracle.capture.json").as_slice(), 38),
+        (include_bytes!("../../calc-func/tests/fixtures/dcj9k_r26_regression/oracle.xlsx").as_slice(),
+         include_bytes!("../../calc-func/tests/captures/dcj9k_r26_regression/oracle.capture.json").as_slice(), 64),
     ] {
         let capture = calc_verdict::CaptureRecord::decode(captured).unwrap();
         for budget in [usize::MAX, 1] {
@@ -48,21 +50,27 @@ fn dc_b1l__nested_regression_predictors_use_the_full_array() {
                 let at = CellKey::new(sheet, observed.cell.row(), observed.cell.column()).unwrap();
                 let Some(calc_host::CellInput::Formula(formula)) = book.host().model().cell(at) else { continue; };
                 let text = formula.text().to_string_lossy();
-                if !(text.contains("INDEX(LINEST(") || text.contains("INDEX(LOGEST("))
+                if !(text.contains("INDEX(LINEST(") || text.contains("INDEX(LOGEST(") || text.contains("INDEX(MINVERSE("))
                     || !text.contains("CHOOSE({1,2},") { continue; }
+                if expected_count == 64 && !text.contains("INDEX(MINVERSE(") { continue; }
                 assert_eq!(formula.form(), calc_host::FormulaForm::Legacy);
                 let page = project(book.host(), &ProjectionRequest { cells: vec![at] }).unwrap();
                 let ProjectedValue::Calculated { value, calculation } = page.cells()[0].value() else {
-                    panic!("nested known_x must calculate at {at:?}: {:?}", page.cells()[0].value());
+                    panic!("nested matrix must calculate at {at:?}: {:?}", page.cells()[0].value());
                 };
                 assert!(value.as_number().is_some() || value.as_error().is_some());
-                // These six independently reviewed 4x2 predictor controls have
-                // finite captured coefficients. A scalar-intersection error
-                // cannot satisfy their admission check. Ill-conditioned numeric
-                // roots elsewhere retain the corpus's complete value comparison.
-                if expected_count == 38 && [63, 64, 67, 68, 88, 89].contains(&at.row()) {
+                // Six reviewed 4x2 predictor controls and all 64 R26 inverse
+                // roots have finite captured numbers. A scalar-intersection
+                // error cannot satisfy their admission check. Numeric roots
+                // retain the corpus's complete value comparison.
+                if expected_count == 64 || (expected_count == 38 && [63, 64, 67, 68, 88, 89].contains(&at.row())) {
                     assert!(observed.observation.expected().as_number().is_some());
                     assert!(value.as_number().is_some(), "two predictor columns at {at:?}: {value:?}");
+                }
+                if expected_count == 64 && at.row() == 3829 {
+                    // [[1.3,1],[1,2]] has the recorded top-left inverse 1.25;
+                    // intersecting to one value cannot satisfy this control.
+                    assert_eq!(calc_verdict::compare(observed.observation.expected(), value), None);
                 }
                 let stamp = calculation.stamp().expect("ordinary execution needs its result certificate");
                 assert!(!stamp.reads.uses_imported_cache && !stamp.reads.uses_boundary_cache);
@@ -195,6 +203,29 @@ fn dc_b1l35_dc_b1l36_dc_b1l30_dc_zmk10__fn5_captured_boundaries() {
             .with_separators(".", " ")
             .unwrap();
         check_captured_book(bytes, captured, &[], count, Some(profile));
+    }
+}
+
+/// Fn7 keeps scalar blanks, explicit omissions, larger ranges and arrays distinct.
+/// Run all unchanged roots, observers and spill shapes through the application host.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_b1l43_dc_b1l44__fn7_argument_origins() {
+    let books: [(&[u8], &[u8]); 2] = [
+        (
+            include_bytes!("../../calc-func/tests/fixtures/fn7_argument_origins/oracle.xlsx"),
+            include_bytes!("../../calc-func/tests/captures/fn7_argument_origins/oracle.capture.json"),
+        ),
+        (
+            include_bytes!("../../calc-func/tests/fixtures/fn7_date_argument_origins/oracle.xlsx"),
+            include_bytes!("../../calc-func/tests/captures/fn7_date_argument_origins/oracle.capture.json"),
+        ),
+    ];
+    for (bytes, captured) in books {
+        let profile = calc_func::locale::format_profile(calc_func::locale::LocaleId::EnZa)
+            .with_separators(".", " ")
+            .unwrap();
+        check_captured_book(bytes, captured, &[], 480, Some(profile));
     }
 }
 

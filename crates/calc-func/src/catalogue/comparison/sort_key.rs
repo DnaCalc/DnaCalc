@@ -38,7 +38,7 @@
 //! Hangul conjoining jamo (which Windows composes with each other), U+30A0 (which
 //! `CompareStringEx` orders otherwise than its key), an isolated or medial form of Arabic marks
 //! (U+FC5E to U+FC63, U+FE71 and the like, into which the walk's runs are not modelled), or an
-//! iteration mark after a special: its comparison is not yet measured sufficiently.
+//! iteration mark after a special outside fn7's three adjacent forms and four punctuation units.
 //! After Han, the measured REPEAT primary is used instead of the character's own primary;
 //! fn1 confirms this rule with 時, 人 and 漢, their suffixes and lookup/sort controls.
 //!
@@ -71,6 +71,9 @@ enum Weight {
     Ignorable,
     /// A unit the key is not built for here.
     Refused,
+    /// Only the first primary group is measured, at the start of an independent
+    /// suffix. This is insufficient for a complete key or a same-group order.
+    FirstPrimaryGroup(u8),
     /// A combining mark: its diacritic weight, added to the entry before it.
     Mark(u8),
     /// A special weight, placed by its position.
@@ -364,6 +367,10 @@ fn build() -> Table {
         let covered = code != 0 && (in_ranges(code, &COVERED) || special.contains_key(&code));
         let weight = if !covered {
             Weight::Refused
+        } else if matches!(code, 0x1100 | 0x1161) {
+            // Fn7's bare Giyeok/A native keys start C0/EC respectively.
+            // Their remaining primary bytes and contextual runs stay unknown.
+            Weight::FirstPrimaryGroup(if code == 0x1100 { 0xC0 } else { 0xEC })
         } else if let Some(exception) = exceptions.get(&code) {
             match exception {
                 Exception::Ignorable => Weight::Ignorable,
@@ -509,12 +516,41 @@ fn derive(root: &Root, secondary: &HashMap<u32, u8>) -> Option<Derived> {
     })
 }
 
-/// Whether the collation builds no sort key for a text holding the code unit `code`.
+/// Whether a unit has no measured comparison route. Partial Jamo groups reach
+/// `parts`, which still refuses a comparison needing their unknown bytes.
 pub(super) fn refused(code: u16) -> bool {
     match code {
         0x0001..=0x007F => false,
         _ => matches!(table().weights[usize::from(code)], Weight::Refused),
     }
+}
+
+/// Fn6's identical modern LV/LVT prefixes have default diacritic and case
+/// entries, as fn7's native keys confirm. Their common weights cancel when
+/// neither suffix can extend a Jamo sequence or repeat the preceding primary.
+/// This gives no ordering between different Jamo prefixes or between a Jamo
+/// sequence and a precomposed syllable.
+pub(super) fn shared_jamo_tails<'a>(a: &'a [u16], b: &'a [u16]) -> Option<(&'a [u16], &'a [u16])> {
+    if a.len() < 2 || b.len() < 2 || a[..2] != b[..2]
+        || !(0x1100..=0x1112).contains(&a[0]) || !(0x1161..=0x1175).contains(&a[1])
+    {
+        return None;
+    }
+    let at = if a.get(2) == b.get(2) && a.get(2).is_some_and(|c| (0x11A8..=0x11C2).contains(c)) {
+        3
+    } else {
+        2
+    };
+    let (a, b) = (&a[at..], &b[at..]);
+    (independent_jamo_suffix(a) && independent_jamo_suffix(b)).then_some((a, b))
+}
+
+/// These units cannot extend a Jamo run or repeat its preceding primary.
+fn independent_jamo_suffix(text: &[u16]) -> bool {
+    text.iter().all(|&code| matches!(
+        table().weights[usize::from(code)],
+        Weight::Ignorable | Weight::Mark(_) | Weight::Special(_) | Weight::Weighted { .. }
+    ))
 }
 
 /// One step of a text's diacritic walk ([`diacritics`]): what each unit gives the diacritic
@@ -544,8 +580,9 @@ pub(super) struct Parts {
     starts: Vec<u32>,
 }
 
-/// Primary weights before an unmodelled unit. A guaranteed further primary permits an earlier
-/// primary difference or completed prefix to decide an order without assigning an unknown weight.
+/// A known primary prefix, possibly ending at the measured group byte of an
+/// incomplete unit. A guaranteed further primary permits an earlier difference
+/// or completed prefix to decide without assigning the remaining unknown weight.
 pub(super) struct Unfinished {
     primary: Vec<u8>,
     continues: bool,
@@ -588,7 +625,16 @@ enum Before {
     Nothing,
     /// A unit of one primary: the unit, its primary and its kana weights.
     One(u16, Slot, Option<[u8; 3]>),
-    Special,
+    /// The punctuation unit, its special bytes, and whether it is immediately before us.
+    Special(u16, [u8; 2], bool),
+}
+
+impl Before {
+    fn separate_special(&mut self) {
+        if let Self::Special(_, _, adjacent) = self {
+            *adjacent = false;
+        }
+    }
 }
 
 /// The weights of a text as they are gathered.
@@ -618,8 +664,11 @@ impl Gathered {
 
     /// Adds one code unit; `None` when it is refused.
     fn unit(&mut self, table: &Table, code: u16, before: &mut Before) -> Option<()> {
+        if matches!(table.weights[usize::from(code)], Weight::Ignorable | Weight::Mark(_)) {
+            before.separate_special();
+        }
         match table.weights[usize::from(code)] {
-            Weight::Refused => return None,
+            Weight::Refused | Weight::FirstPrimaryGroup(_) => return None,
             Weight::Ignorable if self.expanding => {}
             Weight::Ignorable => self.steps.push(Step::Ignorable),
             Weight::Mark(added) => self.steps.push(Step::Mark(added)),
@@ -628,7 +677,7 @@ impl Gathered {
                 let position = 0xFFFF - (self.windows_length / 2) as u16;
                 self.special.extend_from_slice(&position.to_be_bytes());
                 self.special.extend_from_slice(&[w0, w1]);
-                *before = Before::Special;
+                *before = Before::Special(code, [w0, w1], true);
             }
             Weight::Expansion { at, len, whole } => {
                 let at = at as usize;
@@ -650,8 +699,22 @@ impl Gathered {
             Weight::Iteration(rule) => {
                 let ((bytes, length), kana) = match *before {
                     Before::Nothing => (table.no_repeat, None),
-                    // After a special, CompareStringEx departs from the key: not modelled.
-                    Before::Special => return None,
+                    Before::Special(punctuation, [weight, _], adjacent) => {
+                        // Fn7's native keys and Excel comparisons agree here: an
+                        // iteration after these punctuation units has primary
+                        // 06 followed by the punctuation's first special byte.
+                        // This is before every ordinary primary group. Keep the
+                        // position-dependent special itself in the final level.
+                        if !adjacent || !matches!(code, 0x3005 | 0x309D | 0x30FC)
+                            || !matches!(punctuation, 0x0027 | 0x002D | 0x2010 | 0x2212)
+                        {
+                            return None;
+                        }
+                        let mut bytes = [0; PRIMARY_BYTES];
+                        bytes[0] = 0x06;
+                        bytes[1] = weight;
+                        ((bytes, 2), None)
+                    }
                     Before::One(unit, own, kana) => {
                         let vowel = rule.vowel.then(|| table.vowel.get(&unit)).flatten();
                         let repeat = || {
@@ -679,6 +742,7 @@ impl Gathered {
                 if let Some([small, kind, width]) = kana {
                     self.kana([small, kind, rule.width.unwrap_or(width)], rule.iteration);
                 }
+                before.separate_special();
             }
             Weight::Weighted {
                 primary: start,
@@ -735,6 +799,7 @@ pub(super) fn parts(text: &[u16]) -> Result<Parts, Unfinished> {
             let point = 0x10000 + ((u32::from(code) - 0xD800) << 10) + (u32::from(low) - 0xDC00);
             if (0xE0100..=0xE01EF).contains(&point) {
                 gathered.steps.push(Step::Ignorable);
+                before.separate_special();
                 starts.push(gathered.steps.len() as u32);
                 at += 2;
                 continue;
@@ -743,6 +808,14 @@ pub(super) fn parts(text: &[u16]) -> Result<Parts, Unfinished> {
         let primaries = gathered.primary.len();
         if gathered.unit(table, code, &mut before).is_none() {
             gathered.primary.truncate(primaries);
+            if at == 0 && independent_jamo_suffix(&text[1..])
+                && let Weight::FirstPrimaryGroup(group) = table.weights[usize::from(code)]
+            {
+                // A strict difference in this measured byte decides before any
+                // unknown byte or later level. Keep the rest explicitly unfinished.
+                gathered.primary.push(group);
+                return Err(Unfinished { primary: gathered.primary, continues: true });
+            }
             return Err(Unfinished {
                 primary: gathered.primary,
                 // An iteration failure after One would still add a primary. After a special

@@ -1,0 +1,901 @@
+{
+  "scope": "Read-only full eng15 Range lineage audit; no Excel/cargo/repository mutation",
+  "delivery": "/home/ubuntu/codex-runs/excel-results-eng15",
+  "manifest_sha256": "6d6f835bda650305e2855d629ec2c4500a17bd81e8c6e23e9ffb0ee9d78452ce",
+  "delivery_files_verified": 425,
+  "packet_files_verified": 5,
+  "conditions": {
+    "eng15-asymmetric-pair_explicit": {
+      "id": "eng15-asymmetric-pair_explicit",
+      "priority": 0,
+      "kind": "pair_explicit",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=A1+B1",
+        "D1": "=PacketPairLog(A1,B1)"
+      },
+      "seeds": {
+        "A1": 2,
+        "B1": 5,
+        "C1": 7,
+        "D1": 0
+      },
+      "preparation": "prepare~pair_explicit~5~3f50624dd2f1a9fc~forward~off",
+      "iteration": true,
+      "iterations": 5,
+      "change_bits": "3f50624dd2f1a9fc",
+      "operation": "Range",
+      "commands": 2,
+      "range": "A1:D1",
+      "entry_order": "forward",
+      "mtc_enabled": false,
+      "events": false,
+      "trials": 10,
+      "process_scope": "one fresh owned process per observation trial",
+      "instrumented": true,
+      "question": "Constrain whether selected explicit and hidden observers see held nonzero values or another typed boundary under instrumented cyclic Range. Formal Double parameters cannot establish the pre-coercion type; attempted producer work remains unmeasured.",
+      "expected": null,
+      "comparison_policy": "trusted authored macros enabled, events disabled; never infer enabled behavior from disabled comparisons",
+      "seed_policy": "explicitly patch only a closed NEW preparation with existing Set-StoredValues; retain exact before/after hashes; do not score patched seeds as Excel-saved answers",
+      "source_question": {
+        "id": "eng15-asymmetric-pair_explicit",
+        "preparation": "prepare~pair_explicit~5~3f50624dd2f1a9fc~forward~off",
+        "new_workbook": true,
+        "stored_seeds": {
+          "S!A1": 2,
+          "S!B1": 5,
+          "S!C1": 7,
+          "S!D1": 0
+        },
+        "commands": [
+          "S.Range(\"A1:D1\").Calculate",
+          "S.Range(\"A1:D1\").Calculate"
+        ],
+        "fresh_process_trials": 10,
+        "expected": null
+      }
+    },
+    "eng15-asymmetric-pair_hidden": {
+      "id": "eng15-asymmetric-pair_hidden",
+      "priority": 0,
+      "kind": "pair_hidden",
+      "formulas": {
+        "A1": "=B1+1",
+        "B1": "=A1+1",
+        "C1": "=A1+B1",
+        "D1": "=PacketPeekPair()"
+      },
+      "seeds": {
+        "A1": 2,
+        "B1": 5,
+        "C1": 7,
+        "D1": 0
+      },
+      "preparation": "prepare~pair_hidden~5~3f50624dd2f1a9fc~forward~off",
+      "iteration": true,
+      "iterations": 5,
+      "change_bits": "3f50624dd2f1a9fc",
+      "operation": "Range",
+      "commands": 2,
+      "range": "A1:D1",
+      "entry_order": "forward",
+      "mtc_enabled": false,
+      "events": false,
+      "trials": 10,
+      "process_scope": "one fresh owned process per observation trial",
+      "instrumented": true,
+      "question": "Constrain whether selected explicit and hidden observers see held nonzero values or another typed boundary under instrumented cyclic Range. Formal Double parameters cannot establish the pre-coercion type; attempted producer work remains unmeasured.",
+      "expected": null,
+      "comparison_policy": "trusted authored macros enabled, events disabled; never infer enabled behavior from disabled comparisons",
+      "seed_policy": "explicitly patch only a closed NEW preparation with existing Set-StoredValues; retain exact before/after hashes; do not score patched seeds as Excel-saved answers",
+      "source_question": {
+        "id": "eng15-asymmetric-pair_hidden",
+        "preparation": "prepare~pair_hidden~5~3f50624dd2f1a9fc~forward~off",
+        "new_workbook": true,
+        "stored_seeds": {
+          "S!A1": 2,
+          "S!B1": 5,
+          "S!C1": 7,
+          "S!D1": 0
+        },
+        "commands": [
+          "S.Range(\"A1:D1\").Calculate",
+          "S.Range(\"A1:D1\").Calculate"
+        ],
+        "fresh_process_trials": 10,
+        "expected": null
+      }
+    }
+  },
+  "trials": 20,
+  "fresh_process_identities": 20,
+  "launches": [
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25
+  ],
+  "all_ten_repetitions_agree": true,
+  "counts": {
+    "explicit_formal_double_arguments": 40,
+    "observer_entries": 40,
+    "commands": 40,
+    "formula_command_snapshots": 160,
+    "held_abc_snapshots": 120,
+    "hidden_read_records": 40,
+    "hidden_value2_values": 80
+  },
+  "preparation": {
+    "receipt": "session/20261104T2346222932465-3cb7c7b89d374abd9817e49c7b76a348/receipt.json",
+    "receipt_sha256": "5a5cf92cd268c8b3d3538507a87d5c73a4818d78b45e38698a74db7d196c2ca8",
+    "fresh_required": false,
+    "source_sha256": "3db30461369107feaaf1a0630de3b7f71a71a15599510586f42381a51744cf55",
+    "injected_sha256": "eb6ef1411a8c26e1d814ed06f038fe51a59a72a819d7c94238635c4257bad2dc",
+    "readback_sha256": "7c63a55c16f6b02427435378b1214d3a448fd2e7fdd770f036e02e53fe6af877",
+    "readback_difference": "Identifier case/line endings only; exact quoted strings preserved",
+    "inputs": [
+      {
+        "condition": "eng15-asymmetric-pair_explicit",
+        "template": "observer-preparation/eng13-observer-prepare~pair_explicit~5~3f50624dd2f1a9fc~forward~off-01.xlsm",
+        "template_sha256": "188b968818629bd0078e5fda720a65edd85dad75c431fc923c644b82714f3059",
+        "input": "observer-inputs/eng15-asymmetric-pair_explicit.xlsm",
+        "input_sha256": "ae355aaf3d04ebf55304219a0e1b3d31c8653c83adacab504bd64ea6caaa0aac",
+        "vba_project_sha256": "c190f9e217cec20bc14177fe42fcf94967ddc7cecd74bc8c3e5bcce53c466ff5",
+        "changed_parts": [
+          "xl/worksheets/sheet1.xml"
+        ],
+        "preparation_trace": "observer-preparation/preparation-1-trace.tsv",
+        "trace_sha256": "677fa530f5907872823af029cf936679f22f63fa7fd5b765ce7e96ff8c8eb506",
+        "preparation_observer_entries": 1
+      },
+      {
+        "condition": "eng15-asymmetric-pair_hidden",
+        "template": "observer-preparation/eng13-observer-prepare~pair_hidden~5~3f50624dd2f1a9fc~forward~off-01.xlsm",
+        "template_sha256": "bcfd70bd724f657cc2149ca9755dac3b6e0a466756d26ff68308769643aa8b61",
+        "input": "observer-inputs/eng15-asymmetric-pair_hidden.xlsm",
+        "input_sha256": "c61d6b44f48c5288f9f9a2e422bd4d8a2a89250a13623df274a3e4c4965442f1",
+        "vba_project_sha256": "bcb052cd6fcb8de7c7338c5e43a476a40f2951f1803a14daac8fca91d6654f6b",
+        "changed_parts": [
+          "xl/worksheets/sheet1.xml"
+        ],
+        "preparation_trace": "observer-preparation/preparation-2-trace.tsv",
+        "trace_sha256": "f90cee8216d9163366dc8d99e0651551f4e397207b1715094cec535cb08c07fe",
+        "preparation_observer_entries": 1
+      }
+    ],
+    "generator_source": "/home/ubuntu/codex-runs/excel-results-eng14/iteration-v2/source/crates/calc-engine/tests/fixtures/make-dc-y2o-oracles.ps1",
+    "generator_sha256": "e5552757ee09e32611b5e99a2f1ab8dc5a9ae31ee6f72b6e93640db4be4bd8aa"
+  },
+  "trial_chains": [
+    {
+      "condition": "eng15-asymmetric-pair_explicit",
+      "trial": 1,
+      "input": "observer-inputs/eng15-asymmetric-pair_explicit.xlsm",
+      "input_sha256": "ae355aaf3d04ebf55304219a0e1b3d31c8653c83adacab504bd64ea6caaa0aac",
+      "trial_input_sha256": "ae355aaf3d04ebf55304219a0e1b3d31c8653c83adacab504bd64ea6caaa0aac",
+      "request": "trials/eng15-asymmetric-pair_explicit/1/request.json",
+      "request_sha256": "599c63dc30c1a5255e0a2971a82d9f8f827c23eb5faf2e853735f7c1960691df",
+      "result": "trials/eng15-asymmetric-pair_explicit/1/result.json",
+      "result_sha256": "dd490baeb238630f85eae4d499a8381a95a98e2023f60183f0f8a4f7ee9b54c8",
+      "receipt": "session/20261104T2346275512742-497cf4b8a52047f4ac9184513789b57a/receipt.json",
+      "receipt_sha256": "96a9fe422b13610c30878b160524d0113483e3c95b0b8d51510ae43f15e12760",
+      "launch_record": "session-launches/6.json",
+      "launch_sha256": "3ad336172e6f816890508a23a7ecf65c84d42f89f2e90b3a2aa0731dedb65c0c",
+      "excel": {
+        "pid": 16472,
+        "start_ticks": 639294327928459786,
+        "command_line": "\"C:\\Program Files\\Microsoft Office\\Root\\Office16\\EXCEL.EXE\" /automation -Embedding",
+        "launch": 6
+      },
+      "host_source_sha256": "0bb39b3d7fb081453ed883b97aa45403ba379818580ec65b5a6dd3f3c96d6140",
+      "worker_sha256": "1e134fb14bdb502ea063a3583e0c743128df87e309d221d4651cca23053bb981",
+      "trace_sha256": {
+        "startup-trace.tsv": "6a17f693722ad3d61fde18a2e3d1d978d206c8ae50fb88dec3c6f749c1ca0936",
+        "command-1-trace.tsv": "2148badbc46400e2d0c8d69c2b698a2530433cd6fb7b997f83b7e200e48919f9",
+        "command-2-trace.tsv": "19208629f6dbbe28aaa5a86aedc4ea78c3305117879f10fd8264b78f1d8d95d9"
+      },
+      "saved_sha256": "ca641a9cd825bf40d5852f84ed14cbcb715bf079c862a8e506395bad5e8d2ac5",
+      "observer_entries": [
+        "PacketPairLog;n=1;left=vt=5;type=Double;value=0;bits=0000000000000000;right=vt=5;type=Double;value=0;bits=0000000000000000;caller=[input.xlsm]S!$D$1",
+        "PacketPairLog;n=2;left=vt=5;type=Double;value=0;bits=0000000000000000;right=vt=5;type=Double;value=0;bits=0000000000000000;caller=[input.xlsm]S!$D$1"
+      ],
+      "excel_file_version": "16.0.20527.20150"
+    },
+    {
+      "condition": "eng15-asymmetric-pair_hidden",
+      "trial": 1,
+      "input": "observer-inputs/eng15-asymmetric-pair_hidden.xlsm",
+      "input_sha256": "c61d6b44f48c5288f9f9a2e422bd4d8a2a89250a13623df274a3e4c4965442f1",
+      "trial_input_sha256": "c61d6b44f48c5288f9f9a2e422bd4d8a2a89250a13623df274a3e4c4965442f1",
+      "request": "trials/eng15-asymmetric-pair_hidden/1/request.json",
+      "request_sha256": "c02b57de5a6dcbb857c87de345cc63b97bc33eb8f3fb5ebb3b1f70b487953991",
+      "result": "trials/eng15-asymmetric-pair_hidden/1/result.json",
+      "result_sha256": "7b1e1f3f63dbc67ca0064c7fd3b71c5aa84d6ff108a1d869dde3c60016b5f5a2",
+      "receipt": "session/20261104T2346404260399-039d8e3b3ed545c092887131b79d716a/receipt.json",
+      "receipt_sha256": "739b2bb5cc133c7730125e1f665b78c8f99cf2042cdc9e747450197896bbacb0",
+      "launch_record": "session-launches/7.json",
+      "launch_sha256": "648ddc2245a3e9ddab68bc6d2fe1dd4cf5f14094b52a79b59e2464132bf143f0",
+      "excel": {
+        "pid": 64008,
+        "start_ticks": 639294328057710632,
+        "command_line": "\"C:\\Program Files\\Microsoft Office\\Root\\Office16\\EXCEL.EXE\" /automation -Embedding",
+        "launch": 7
+      },
+      "host_source_sha256": "0bb39b3d7fb081453ed883b97aa45403ba379818580ec65b5a6dd3f3c96d6140",
+      "worker_sha256": "1e134fb14bdb502ea063a3583e0c743128df87e309d221d4651cca23053bb981",
+      "trace_sha256": {
+        "startup-trace.tsv": "6a17f693722ad3d61fde18a2e3d1d978d206c8ae50fb88dec3c6f749c1ca0936",
+        "command-1-trace.tsv": "b190744d11d9a3dc10450f1c6eecbebd63a62e32c27f3ef2884958cb0a8cf8ab",
+        "command-2-trace.tsv": "5feee051ea6e0281fdc96dfa47a317113aa8bc347a34147450a84105a0188d60"
+      },
+      "saved_sha256": "4bdaa0b3493b3f547f390992f96e284c4402f8807109e6450acb342d6e136659",
+      "observer_entries": [
+        "PacketPeekPair;n=1;caller=[input.xlsm]S!$D$1",
+        "PacketPeekPair;n=2;caller=[input.xlsm]S!$D$1"
+      ],
+      "excel_file_version": "16.0.20527.20150"
+    },
+    {
+      "condition": "eng15-asymmetric-pair_explicit",
+      "trial": 2,
+      "input": "observer-inputs/eng15-asymmetric-pair_explicit.xlsm",
+      "input_sha256": "ae355aaf3d04ebf55304219a0e1b3d31c8653c83adacab504bd64ea6caaa0aac",
+      "trial_input_sha256": "ae355aaf3d04ebf55304219a0e1b3d31c8653c83adacab504bd64ea6caaa0aac",
+      "request": "trials/eng15-asymmetric-pair_explicit/2/request.json",
+      "request_sha256": "5939bae4b748dd30b9ee86bb086e0d53ff988ba277b61594db62c15dd2ff73f6",
+      "result": "trials/eng15-asymmetric-pair_explicit/2/result.json",
+      "result_sha256": "fbc824034cf1e788d89ee07d711d39eb8139d9733c920b6dc65fa6f76d016d81",
+      "receipt": "session/20261104T2346534448331-edb118cccf4d4d2f84bd939e7b015931/receipt.json",
+      "receipt_sha256": "1b9e0c1b588d89d0b7efc1187ff9a4528a4cd50fdd8e2627040370946baa1fe9",
+      "launch_record": "session-launches/8.json",
+      "launch_sha256": "78ffd51948eb6738b3ea5ad36507d1873cee68ca528704a399058b9b736cc009",
+      "excel": {
+        "pid": 35324,
+        "start_ticks": 639294328187677930,
+        "command_line": "\"C:\\Program Files\\Microsoft Office\\Root\\Office16\\EXCEL.EXE\" /automation -Embedding",
+        "launch": 8
+      },
+      "host_source_sha256": "0bb39b3d7fb081453ed883b97aa45403ba379818580ec65b5a6dd3f3c96d6140",
+      "worker_sha256": "1e134fb14bdb502ea063a3583e0c743128df87e309d221d4651cca23053bb981",
+      "trace_sha256": {
+        "startup-trace.tsv": "6a17f693722ad3d61fde18a2e3d1d978d206c8ae50fb88dec3c6f749c1ca0936",
+        "command-1-trace.tsv": "d37cae5ed811bda7d9c57af7cf690c51d90500ad05498a11b84229bd0dbebfb1",
+        "command-2-trace.tsv": "c27c22d2783288feec242bbbf89615e9b9e716cdb5cbf24a34cfced9a39c8e84"
+      },
+      "saved_sha256": "81d1a51e80ded2ef0fe1b759829d9e17a78b59d2ac7de6545dc74d5ff5d6171e",
+      "observer_entries": [
+        "PacketPairLog;n=1;left=vt=5;type=Double;value=0;bits=0000000000000000;right=vt=5;type=Double;value=0;bits=0000000000000000;caller=[input.xlsm]S!$D$1",
+        "PacketPairLog;n=2;left=vt=5;type=Double;value=0;bits=0000000000000000;right=vt=5;type=Double;value=0;bits=0000000000000000;caller=[input.xlsm]S!$D$1"
+      ],
+      "excel_file_version": "16.0.20527.20150"
+    },
+    {
+      "condition": "eng15-asymmetric-pair_hidden",
+      "trial": 2,
+      "input": "observer-inputs/eng15-asymmetric-pair_hidden.xlsm",
+      "input_sha256": "c61d6b44f48c5288f9f9a2e422bd4d8a2a89250a13623df274a3e4c4965442f1",
+      "trial_input_sha256": "c61d6b44f48c5288f9f9a2e422bd4d8a2a89250a13623df274a3e4c4965442f1",
+      "request": "trials/eng15-asymmetric-pair_hidden/2/request.json",
+      "request_sha256": "4d4b6159e7a6974dbff4fd2033f062e38d9d4929852c9aeb0fe2f5690792ceac",
+      "result": "trials/eng15-asymmetric-pair_hidden/2/result.json",
+      "result_sha256": "6244f537451d232778fd2c87e970fa8b1a441f23727a14423d106e3bda9d001b",
+      "receipt": "session/20261104T2347062143850-e9d41246378048fc95ec19bfce21a281/receipt.json",
+      "receipt_sha256": "29245ab53179695ab6cdf74e016166dc04a8218abed4a81ae7602560c6ecae9c",
+      "launch_record": "session-launches/9.json",
+      "launch_sha256": "228575129e2e71d726a1302fdaf443a666b6ec8b53b3648e6ca668d2f110ec81",
+      "excel": {
+        "pid": 14972,
+        "start_ticks": 639294328315441562,
+        "command_line": "\"C:\\Program Files\\Microsoft Office\\Root\\Office16\\EXCEL.EXE\" /automation -Embedding",
+        "launch": 9
+      },
+      "host_source_sha256": "0bb39b3d7fb081453ed883b97aa45403ba379818580ec65b5a6dd3f3c96d6140",
+      "worker_sha256": "1e134fb14bdb502ea063a3583e0c743128df87e309d221d4651cca23053bb981",
+      "trace_sha256": {
+        "startup-trace.tsv": "6a17f693722ad3d61fde18a2e3d1d978d206c8ae50fb88dec3c6f749c1ca0936",
+        "command-1-trace.tsv": "b024698626bfa7efdb56dc789c9a793ae8a688947254b5ace1ae57cfdf358287",
+        "command-2-trace.tsv": "fd84523b2ea05d6c2055a4f344075a59548ab5882233b98148e97aece7319059"
+      },
+      "saved_sha256": "79dc37451c014783aed18c5a942b0a637960c7864560e22adffd84e0db8a2e8e",
+      "observer_entries": [
+        "PacketPeekPair;n=1;caller=[input.xlsm]S!$D$1",
+        "PacketPeekPair;n=2;caller=[input.xlsm]S!$D$1"
+      ],
+      "excel_file_version": "16.0.20527.20150"
+    },
+    {
+      "condition": "eng15-asymmetric-pair_explicit",
+      "trial": 3,
+      "input": "observer-inputs/eng15-asymmetric-pair_explicit.xlsm",
+      "input_sha256": "ae355aaf3d04ebf55304219a0e1b3d31c8653c83adacab504bd64ea6caaa0aac",
+      "trial_input_sha256": "ae355aaf3d04ebf55304219a0e1b3d31c8653c83adacab504bd64ea6caaa0aac",
+      "request": "trials/eng15-asymmetric-pair_explicit/3/request.json",
+      "request_sha256": "2d3e7f819ccaed714fb17b58f451bb90e64610d3a6d99a575ea219cc78a73422",
+      "result": "trials/eng15-asymmetric-pair_explicit/3/result.json",
+      "result_sha256": "8967794fc4249d30ad82b469e8e4666da184655fbd84ed056c8c0a04ced54fa1",
+      "receipt": "session/20261104T2347194186319-74c6863ac69647e0bd8d59584df2ec5a/receipt.json",
+      "receipt_sha256": "698f0306cdf8afb5581d0d523fc53156d85fa66427adee0414663a5fb572eed7",
+      "launch_record": "session-launches/10.json",
+      "launch_sha256": "53a4ef1ac6d6fcc5e4f0393a108d6ad32a767208d3e809e3d7c51acc744c72a9",
+      "excel": {
+        "pid": 19548,
+        "start_ticks": 639294328448329361,
+        "command_line": "\"C:\\Program Files\\Microsoft Office\\Root\\Office16\\EXCEL.EXE\" /automation -Embedding",
+        "launch": 10
+      },
+      "host_source_sha256": "0bb39b3d7fb081453ed883b97aa45403ba379818580ec65b5a6dd3f3c96d6140",
+      "worker_sha256": "1e134fb14bdb502ea063a3583e0c743128df87e309d221d4651cca23053bb981",
+      "trace_sha256": {
+        "startup-trace.tsv": "6a17f693722ad3d61fde18a2e3d1d978d206c8ae50fb88dec3c6f749c1ca0936",
+        "command-1-trace.tsv": "e28a03beb402c3c5de47e84a5e01af3094f0615dc1fc04efbf465b2ee6446bf2",
+        "command-2-trace.tsv": "cedb8ee9bf27bf9c1d3704a1f492263c4934dde0fec3723b7db3c5fefdf3777f"
+      },
+      "saved_sha256": "f664777e4ff5ff52c2481670613d487e45e519a604537aeebdfc7efd3026e85c",
+      "observer_entries": [
+        "PacketPairLog;n=1;left=vt=5;type=Double;value=0;bits=0000000000000000;right=vt=5;type=Double;value=0;bits=0000000000000000;caller=[input.xlsm]S!$D$1",
+        "PacketPairLog;n=2;left=vt=5;type=Double;value=0;bits=0000000000000000;right=vt=5;type=Double;value=0;bits=0000000000000000;caller=[input.xlsm]S!$D$1"
+      ],
+      "excel_file_version": "16.0.20527.20150"
+    },
+    {
+      "condition": "eng15-asymmetric-pair_hidden",
+      "trial": 3,
+      "input": "observer-inputs/eng15-asymmetric-pair_hidden.xlsm",
+      "input_sha256": "c61d6b44f48c5288f9f9a2e422bd4d8a2a89250a13623df274a3e4c4965442f1",
+      "trial_input_sha256": "c61d6b44f48c5288f9f9a2e422bd4d8a2a89250a13623df274a3e4c4965442f1",
+      "request": "trials/eng15-asymmetric-pair_hidden/3/request.json",
+      "request_sha256": "ef6477e1893b3d792466cf54093e556b0fbb88a6b9aff0ac12e149e4ea06506a",
+      "result": "trials/eng15-asymmetric-pair_hidden/3/result.json",
+      "result_sha256": "3bf2f5073a1a8a573e42c6c8defcda41c69324adc436f046bad85fd5f0be4202",
+      "receipt": "session/20261104T2347366140655-6d92bd48a5e74e5a819ccd899f1c0c76/receipt.json",
+      "receipt_sha256": "f4c96a62727dccd342675bf6661f2ecad3e16f852c74e2854a1b8d6ee1cce7b1",
+      "launch_record": "session-launches/11.json",
+      "launch_sha256": "fcdf629fc8c6e18d9206f4314522489535c6b406673855dc52295a1078ce64c9",
+      "excel": {
+        "pid": 33484,
+        "start_ticks": 639294328620352279,
+        "command_line": "\"C:\\Program Files\\Microsoft Office\\Root\\Office16\\EXCEL.EXE\" /automation -Embedding",
+        "launch": 11
+      },
+      "host_source_sha256": "0bb39b3d7fb081453ed883b97aa45403ba379818580ec65b5a6dd3f3c96d6140",
+      "worker_sha256": "1e134fb14bdb502ea063a3583e0c743128df87e309d221d4651cca23053bb981",
+      "trace_sha256": {
+        "startup-trace.tsv": "6a17f693722ad3d61fde18a2e3d1d978d206c8ae50fb88dec3c6f749c1ca0936",
+        "command-1-trace.tsv": "fb9f3f463bb143f339c38be6c1125180af10b2cb18bb878d72bc64f7d754150d",
+        "command-2-trace.tsv": "09066ad99ced2fae728c74eef9101155fdeaabfe1d4bb1732d2b9c50d8a7ff32"
+      },
+      "saved_sha256": "ba696ec3d3f6e84f23f66d75ee4ab1587a454837fb5b6b3b22471aa6d40d3aae",
+      "observer_entries": [
+        "PacketPeekPair;n=1;caller=[input.xlsm]S!$D$1",
+        "PacketPeekPair;n=2;caller=[input.xlsm]S!$D$1"
+      ],
+      "excel_file_version": "16.0.20527.20150"
+    },
+    {
+      "condition": "eng15-asymmetric-pair_explicit",
+      "trial": 4,
+      "input": "observer-inputs/eng15-asymmetric-pair_explicit.xlsm",
+      "input_sha256": "ae355aaf3d04ebf55304219a0e1b3d31c8653c83adacab504bd64ea6caaa0aac",
+      "trial_input_sha256": "ae355aaf3d04ebf55304219a0e1b3d31c8653c83adacab504bd64ea6caaa0aac",
+      "request": "trials/eng15-asymmetric-pair_explicit/4/request.json",
+      "request_sha256": "1c0c4ff911d17365717a891abf4362d05c37732e64b92e55c894790f141cc153",
+      "result": "trials/eng15-asymmetric-pair_explicit/4/result.json",
+      "result_sha256": "396439a6a344c985e55e880dc5352232b0628e7ace6d8f529f76a708be35e620",
+      "receipt": "session/20261104T2347517337087-7e1be1fe72da41f3b76adc1218b8599c/receipt.json",
+      "receipt_sha256": "c313f6824db3f379e9636ab73d1b880aee3a8a76cca54834e2fbc3dd9c41adec",
+      "launch_record": "session-launches/12.json",
+      "launch_sha256": "21874201978942069c4b814dcbfbbaa769a96d76c893a38c9a161384d6568310",
+      "excel": {
+        "pid": 45368,
+        "start_ticks": 639294328770928128,
+        "command_line": "\"C:\\Program Files\\Microsoft Office\\Root\\Office16\\EXCEL.EXE\" /automation -Embedding",
+        "launch": 12
+      },
+      "host_source_sha256": "0bb39b3d7fb081453ed883b97aa45403ba379818580ec65b5a6dd3f3c96d6140",
+      "worker_sha256": "1e134fb14bdb502ea063a3583e0c743128df87e309d221d4651cca23053bb981",
+      "trace_sha256": {
+        "startup-trace.tsv": "6a17f693722ad3d61fde18a2e3d1d978d206c8ae50fb88dec3c6f749c1ca0936",
+        "command-1-trace.tsv": "3dfd019616607f19f7dd4aac2dd1d5af2472197d9b2f07feab04196256a3fa1c",
+        "command-2-trace.tsv": "6aa5591cc6365bc348842def2d0c9fa5b76a30a5b750be7c382ad39b95862760"
+      },
+      "saved_sha256": "1b7eb64a2ef8816737e8bc65986cc95d91ab541ef5e1733985a9e7127ca0ff66",
+      "observer_entries": [
+        "PacketPairLog;n=1;left=vt=5;type=Double;value=0;bits=0000000000000000;right=vt=5;type=Double;value=0;bits=0000000000000000;caller=[input.xlsm]S!$D$1",
+        "PacketPairLog;n=2;left=vt=5;type=Double;value=0;bits=0000000000000000;right=vt=5;type=Double;value=0;bits=0000000000000000;caller=[input.xlsm]S!$D$1"
+      ],
+      "excel_file_version": "16.0.20527.20150"
+    },
+    {
+      "condition": "eng15-asymmetric-pair_hidden",
+      "trial": 4,
+      "input": "observer-inputs/eng15-asymmetric-pair_hidden.xlsm",
+      "input_sha256": "c61d6b44f48c5288f9f9a2e422bd4d8a2a89250a13623df274a3e4c4965442f1",
+      "trial_input_sha256": "c61d6b44f48c5288f9f9a2e422bd4d8a2a89250a13623df274a3e4c4965442f1",
+      "request": "trials/eng15-asymmetric-pair_hidden/4/request.json",
+      "request_sha256": "e8708205cd6200eee5e6ff6a1c1efda571045ea2f9f21639dacbae3df7a6e35d",
+      "result": "trials/eng15-asymmetric-pair_hidden/4/result.json",
+      "result_sha256": "6434b41723cbfbb2376a19a33b10aee346179f9de7fde567f81dbb63604c2a0c",
+      "receipt": "session/20261104T2348083783649-8c434fb657a04364a56b6e1d7c263161/receipt.json",
+      "receipt_sha256": "331ab33685f546b09c3a778edd03d133d53285340d5c7c354b14bd6bfb1e92e1",
+      "launch_record": "session-launches/13.json",
+      "launch_sha256": "221a600a37251b6df119f60ba6673e5bdbd5171981f6a131c55ddd0a4a8c1582",
+      "excel": {
+        "pid": 38160,
+        "start_ticks": 639294328937502433,
+        "command_line": "\"C:\\Program Files\\Microsoft Office\\Root\\Office16\\EXCEL.EXE\" /automation -Embedding",
+        "launch": 13
+      },
+      "host_source_sha256": "0bb39b3d7fb081453ed883b97aa45403ba379818580ec65b5a6dd3f3c96d6140",
+      "worker_sha256": "1e134fb14bdb502ea063a3583e0c743128df87e309d221d4651cca23053bb981",
+      "trace_sha256": {
+        "startup-trace.tsv": "6a17f693722ad3d61fde18a2e3d1d978d206c8ae50fb88dec3c6f749c1ca0936",
+        "command-1-trace.tsv": "c82b96a9bc1dff63c914d325320c9729244a8cc43cb7d289a03cfca5f0949008",
+        "command-2-trace.tsv": "15c9782cde02379e75e29c00df3e4b3dc6a2bddfd67dde867c0730e770367050"
+      },
+      "saved_sha256": "f0d1cb89dcd93c0cda2aef46b440b3df72d52eaea3791060714bf97225a04955",
+      "observer_entries": [
+        "PacketPeekPair;n=1;caller=[input.xlsm]S!$D$1",
+        "PacketPeekPair;n=2;caller=[input.xlsm]S!$D$1"
+      ],
+      "excel_file_version": "16.0.20527.20150"
+    },
+    {
+      "condition": "eng15-asymmetric-pair_explicit",
+      "trial": 5,
+      "input": "observer-inputs/eng15-asymmetric-pair_explicit.xlsm",
+      "input_sha256": "ae355aaf3d04ebf55304219a0e1b3d31c8653c83adacab504bd64ea6caaa0aac",
+      "trial_input_sha256": "ae355aaf3d04ebf55304219a0e1b3d31c8653c83adacab504bd64ea6caaa0aac",
+      "request": "trials/eng15-asymmetric-pair_explicit/5/request.json",
+      "request_sha256": "71859a272446270f627e71742f219b4b064c9d5b6e578191ce6fa50be93b9e15",
+      "result": "trials/eng15-asymmetric-pair_explicit/5/result.json",
+      "result_sha256": "ec2ac1e0294c2aa594cacef87bf4a5f16b076f1b54551220429648b2ca3581f2",
+      "receipt": "session/20261104T2348227723042-359671fe58274d58ad7829f0dbfa1074/receipt.json",
+      "receipt_sha256": "bd9501fed9a005fe5340bd2fc65515084b5a77575f3fd05b40935c07f0a06560",
+      "launch_record": "session-launches/14.json",
+      "launch_sha256": "65ab8e9909ade3a014a962f6f7fa0cf14dbbf88a8c23ab8b8f0705a128f27003",
+      "excel": {
+        "pid": 56940,
+        "start_ticks": 639294329081718880,
+        "command_line": "\"C:\\Program Files\\Microsoft Office\\Root\\Office16\\EXCEL.EXE\" /automation -Embedding",
+        "launch": 14
+      },
+      "host_source_sha256": "0bb39b3d7fb081453ed883b97aa45403ba379818580ec65b5a6dd3f3c96d6140",
+      "worker_sha256": "1e134fb14bdb502ea063a3583e0c743128df87e309d221d4651cca23053bb981",
+      "trace_sha256": {
+        "startup-trace.tsv": "6a17f693722ad3d61fde18a2e3d1d978d206c8ae50fb88dec3c6f749c1ca0936",
+        "command-1-trace.tsv": "236ac6c7a9531bb773cbad1bb54ed13a32603cad0cf8a610d489f8b2c1e24f19",
+        "command-2-trace.tsv": "157ac37843f8c78e8fa8bebd4b663b3e79d94383c9f4977ccf754553ac8be18f"
+      },
+      "saved_sha256": "1309d544fb68b6a447151ea9ce55bd9eef5c68ff61e8dbe8c4f465573d938c61",
+      "observer_entries": [
+        "PacketPairLog;n=1;left=vt=5;type=Double;value=0;bits=0000000000000000;right=vt=5;type=Double;value=0;bits=0000000000000000;caller=[input.xlsm]S!$D$1",
+        "PacketPairLog;n=2;left=vt=5;type=Double;value=0;bits=0000000000000000;right=vt=5;type=Double;value=0;bits=0000000000000000;caller=[input.xlsm]S!$D$1"
+      ],
+      "excel_file_version": "16.0.20527.20150"
+    },
+    {
+      "condition": "eng15-asymmetric-pair_hidden",
+      "trial": 5,
+      "input": "observer-inputs/eng15-asymmetric-pair_hidden.xlsm",
+      "input_sha256": "c61d6b44f48c5288f9f9a2e422bd4d8a2a89250a13623df274a3e4c4965442f1",
+      "trial_input_sha256": "c61d6b44f48c5288f9f9a2e422bd4d8a2a89250a13623df274a3e4c4965442f1",
+      "request": "trials/eng15-asymmetric-pair_hidden/5/request.json",
+      "request_sha256": "3e2b270054aae7ea0c2098141e28aa8d8568eb0a97b8232cb91d1faa9aaf043a",
+      "result": "trials/eng15-asymmetric-pair_hidden/5/result.json",
+      "result_sha256": "8512798fd28c8bc81b82b0a78657be4f29a6c3c741c8aba6763876b1c6442d03",
+      "receipt": "session/20261104T2348383955669-10f0a4ce126044658c4fc5cd010dc679/receipt.json",
+      "receipt_sha256": "e57870572ea148bb16f03d328ae548ce745bbba9660c2ac71550df65b38df67c",
+      "launch_record": "session-launches/15.json",
+      "launch_sha256": "047f279c15c9b03890759b04fe2ebee222b785345dbf95cf64ed7722449072b7",
+      "excel": {
+        "pid": 33916,
+        "start_ticks": 639294329237424786,
+        "command_line": "\"C:\\Program Files\\Microsoft Office\\Root\\Office16\\EXCEL.EXE\" /automation -Embedding",
+        "launch": 15
+      },
+      "host_source_sha256": "0bb39b3d7fb081453ed883b97aa45403ba379818580ec65b5a6dd3f3c96d6140",
+      "worker_sha256": "1e134fb14bdb502ea063a3583e0c743128df87e309d221d4651cca23053bb981",
+      "trace_sha256": {
+        "startup-trace.tsv": "6a17f693722ad3d61fde18a2e3d1d978d206c8ae50fb88dec3c6f749c1ca0936",
+        "command-1-trace.tsv": "7893ceb827ad877a5e2b7e3acebae6232665fb041de4c2802777c6f83b858572",
+        "command-2-trace.tsv": "9c732611188702634d31a5f0ca902e6f96fb68a12f09a757123672ae6ed6ca9b"
+      },
+      "saved_sha256": "6ee7e2e33c6b444cf7b47e05c49c7f0229e141aac380d4873a60805d8bd0935a",
+      "observer_entries": [
+        "PacketPeekPair;n=1;caller=[input.xlsm]S!$D$1",
+        "PacketPeekPair;n=2;caller=[input.xlsm]S!$D$1"
+      ],
+      "excel_file_version": "16.0.20527.20150"
+    },
+    {
+      "condition": "eng15-asymmetric-pair_explicit",
+      "trial": 6,
+      "input": "observer-inputs/eng15-asymmetric-pair_explicit.xlsm",
+      "input_sha256": "ae355aaf3d04ebf55304219a0e1b3d31c8653c83adacab504bd64ea6caaa0aac",
+      "trial_input_sha256": "ae355aaf3d04ebf55304219a0e1b3d31c8653c83adacab504bd64ea6caaa0aac",
+      "request": "trials/eng15-asymmetric-pair_explicit/6/request.json",
+      "request_sha256": "483f7d8ec5e6bf62b7c9c6cdfef2087e82fdb7600325fcc4e7766c29aaa68772",
+      "result": "trials/eng15-asymmetric-pair_explicit/6/result.json",
+      "result_sha256": "6611f46f4d9ad17a261700fa88d07fd1453cae37cb64a60a496ab0b60cde44a9",
+      "receipt": "session/20261104T2348516851504-0618f2e1da794dfda86eb467dc9e9185/receipt.json",
+      "receipt_sha256": "5aa1ca20cabc5cc702e2a11282eb35121f46149be92ea2ed22e7a5d7d7e62d0a",
+      "launch_record": "session-launches/16.json",
+      "launch_sha256": "74a2d7918a5eeecacbbb10e50b131a040b6779d1c5e1841137048f6e869baadb",
+      "excel": {
+        "pid": 61640,
+        "start_ticks": 639294329370630262,
+        "command_line": "\"C:\\Program Files\\Microsoft Office\\Root\\Office16\\EXCEL.EXE\" /automation -Embedding",
+        "launch": 16
+      },
+      "host_source_sha256": "0bb39b3d7fb081453ed883b97aa45403ba379818580ec65b5a6dd3f3c96d6140",
+      "worker_sha256": "1e134fb14bdb502ea063a3583e0c743128df87e309d221d4651cca23053bb981",
+      "trace_sha256": {
+        "startup-trace.tsv": "6a17f693722ad3d61fde18a2e3d1d978d206c8ae50fb88dec3c6f749c1ca0936",
+        "command-1-trace.tsv": "650ea94e3be986cb208c352a782fef861c6ff28fd74f1ab75ce3e17ed1a78831",
+        "command-2-trace.tsv": "295596ea63e9e55b3aa62e4d8abb90662f60b44403b8255258011f3d283c0a8f"
+      },
+      "saved_sha256": "eda7ab73e5a8b5a900cc5ec24cdc93b0ec377dd21ee62a4befe1736608b72b47",
+      "observer_entries": [
+        "PacketPairLog;n=1;left=vt=5;type=Double;value=0;bits=0000000000000000;right=vt=5;type=Double;value=0;bits=0000000000000000;caller=[input.xlsm]S!$D$1",
+        "PacketPairLog;n=2;left=vt=5;type=Double;value=0;bits=0000000000000000;right=vt=5;type=Double;value=0;bits=0000000000000000;caller=[input.xlsm]S!$D$1"
+      ],
+      "excel_file_version": "16.0.20527.20150"
+    },
+    {
+      "condition": "eng15-asymmetric-pair_hidden",
+      "trial": 6,
+      "input": "observer-inputs/eng15-asymmetric-pair_hidden.xlsm",
+      "input_sha256": "c61d6b44f48c5288f9f9a2e422bd4d8a2a89250a13623df274a3e4c4965442f1",
+      "trial_input_sha256": "c61d6b44f48c5288f9f9a2e422bd4d8a2a89250a13623df274a3e4c4965442f1",
+      "request": "trials/eng15-asymmetric-pair_hidden/6/request.json",
+      "request_sha256": "404d6b66ccb4ace8b4100347d493b04e88fce1daf6355551422aa4e529d48ccb",
+      "result": "trials/eng15-asymmetric-pair_hidden/6/result.json",
+      "result_sha256": "4b1ed37775a00eb31453e8c5f1ba2f899c9d505c7dbedbb05c7508ad808db7e4",
+      "receipt": "session/20261104T2349049184849-a4bf76135c7047ada160810392c8c4bd/receipt.json",
+      "receipt_sha256": "2c90e2c638dda452df7b1893d54414e4dab4e414d41cfc738d712b6623af8945",
+      "launch_record": "session-launches/17.json",
+      "launch_sha256": "c61cc6914ae768a9af282e9a6749c3e57e71b0565bc12abc8e2fe5587ca02260",
+      "excel": {
+        "pid": 57572,
+        "start_ticks": 639294329502102896,
+        "command_line": "\"C:\\Program Files\\Microsoft Office\\Root\\Office16\\EXCEL.EXE\" /automation -Embedding",
+        "launch": 17
+      },
+      "host_source_sha256": "0bb39b3d7fb081453ed883b97aa45403ba379818580ec65b5a6dd3f3c96d6140",
+      "worker_sha256": "1e134fb14bdb502ea063a3583e0c743128df87e309d221d4651cca23053bb981",
+      "trace_sha256": {
+        "startup-trace.tsv": "6a17f693722ad3d61fde18a2e3d1d978d206c8ae50fb88dec3c6f749c1ca0936",
+        "command-1-trace.tsv": "5042acd87e3423d93270dbb02bb3126256160c6ea273968b529aa03cde99ca89",
+        "command-2-trace.tsv": "287d6f710c95e90de807ea5927d7dc7a87f35529e8728c1266f059354aa15477"
+      },
+      "saved_sha256": "ddee4db280ad5f66e804851cd91b38f651a463a3a6d388158340086a7d818b0b",
+      "observer_entries": [
+        "PacketPeekPair;n=1;caller=[input.xlsm]S!$D$1",
+        "PacketPeekPair;n=2;caller=[input.xlsm]S!$D$1"
+      ],
+      "excel_file_version": "16.0.20527.20150"
+    },
+    {
+      "condition": "eng15-asymmetric-pair_explicit",
+      "trial": 7,
+      "input": "observer-inputs/eng15-asymmetric-pair_explicit.xlsm",
+      "input_sha256": "ae355aaf3d04ebf55304219a0e1b3d31c8653c83adacab504bd64ea6caaa0aac",
+      "trial_input_sha256": "ae355aaf3d04ebf55304219a0e1b3d31c8653c83adacab504bd64ea6caaa0aac",
+      "request": "trials/eng15-asymmetric-pair_explicit/7/request.json",
+      "request_sha256": "0bf39054c24a5a2ba2e4d2226be2de879705221e61ffe53e744d4896b5c27f39",
+      "result": "trials/eng15-asymmetric-pair_explicit/7/result.json",
+      "result_sha256": "455dca8faa7c4ad3bbee29ee86e038ee27b4c08de794894eaaa499ce1444017c",
+      "receipt": "session/20261104T2349179113154-f57f9d6a63744260a88364dc0d239f4e/receipt.json",
+      "receipt_sha256": "c2239a30985695b1b20ecbfded1578a4947927a0c3ff74a6d06b40ce104a0741",
+      "launch_record": "session-launches/18.json",
+      "launch_sha256": "f66de6d23e539a5ab422e1cab8b4f6ef78574c69f78d9d12f18764ca5b136ac6",
+      "excel": {
+        "pid": 49656,
+        "start_ticks": 639294329632839979,
+        "command_line": "\"C:\\Program Files\\Microsoft Office\\Root\\Office16\\EXCEL.EXE\" /automation -Embedding",
+        "launch": 18
+      },
+      "host_source_sha256": "0bb39b3d7fb081453ed883b97aa45403ba379818580ec65b5a6dd3f3c96d6140",
+      "worker_sha256": "1e134fb14bdb502ea063a3583e0c743128df87e309d221d4651cca23053bb981",
+      "trace_sha256": {
+        "startup-trace.tsv": "6a17f693722ad3d61fde18a2e3d1d978d206c8ae50fb88dec3c6f749c1ca0936",
+        "command-1-trace.tsv": "6a3a7bcc8a32b2201a3b6f763f8784af86bead9f5a6ab3e0fdd387474819b3c8",
+        "command-2-trace.tsv": "6f769bc1477b579d3cc2331f34ee6ad40ed2f6d7f9efe1b8bfc59d5cda1e9cb9"
+      },
+      "saved_sha256": "2646f5c2be0e1f25ee78af7bd49f6cc3c1915e5b94ef302baa5d4316cd921a5d",
+      "observer_entries": [
+        "PacketPairLog;n=1;left=vt=5;type=Double;value=0;bits=0000000000000000;right=vt=5;type=Double;value=0;bits=0000000000000000;caller=[input.xlsm]S!$D$1",
+        "PacketPairLog;n=2;left=vt=5;type=Double;value=0;bits=0000000000000000;right=vt=5;type=Double;value=0;bits=0000000000000000;caller=[input.xlsm]S!$D$1"
+      ],
+      "excel_file_version": "16.0.20527.20150"
+    },
+    {
+      "condition": "eng15-asymmetric-pair_hidden",
+      "trial": 7,
+      "input": "observer-inputs/eng15-asymmetric-pair_hidden.xlsm",
+      "input_sha256": "c61d6b44f48c5288f9f9a2e422bd4d8a2a89250a13623df274a3e4c4965442f1",
+      "trial_input_sha256": "c61d6b44f48c5288f9f9a2e422bd4d8a2a89250a13623df274a3e4c4965442f1",
+      "request": "trials/eng15-asymmetric-pair_hidden/7/request.json",
+      "request_sha256": "977deb615dacf00aaf0502263b58d149a417c368872ec75d05d51243ab7120b4",
+      "result": "trials/eng15-asymmetric-pair_hidden/7/result.json",
+      "result_sha256": "2d503f8d47a22dc28b923ed385543f0f6516e71ff5a32e212573fd46de42bd96",
+      "receipt": "session/20261104T2349330842844-d0a780c3b99e43d090dadd73e1247f8d/receipt.json",
+      "receipt_sha256": "937126fbca5c72b162fa7b554f300488f4e699d5c3d01d81729706f2d7c0d374",
+      "launch_record": "session-launches/19.json",
+      "launch_sha256": "fccc11746b560221939a94b28caa15550c62931f515ddde64ee91a19c448f543",
+      "excel": {
+        "pid": 22372,
+        "start_ticks": 639294329785246319,
+        "command_line": "\"C:\\Program Files\\Microsoft Office\\Root\\Office16\\EXCEL.EXE\" /automation -Embedding",
+        "launch": 19
+      },
+      "host_source_sha256": "0bb39b3d7fb081453ed883b97aa45403ba379818580ec65b5a6dd3f3c96d6140",
+      "worker_sha256": "1e134fb14bdb502ea063a3583e0c743128df87e309d221d4651cca23053bb981",
+      "trace_sha256": {
+        "startup-trace.tsv": "6a17f693722ad3d61fde18a2e3d1d978d206c8ae50fb88dec3c6f749c1ca0936",
+        "command-1-trace.tsv": "9cd3895f473d4bb909af41b926836ddb20e39dda0376f56fb74908bf4e4b99b3",
+        "command-2-trace.tsv": "533733bf537039ae76da6c9f102a1668f3a6502415b12b0b5f9bfcb600f07b9e"
+      },
+      "saved_sha256": "66d79efe441b5732699fa121e6e67a065f55e4774f7057bb6807184628736df4",
+      "observer_entries": [
+        "PacketPeekPair;n=1;caller=[input.xlsm]S!$D$1",
+        "PacketPeekPair;n=2;caller=[input.xlsm]S!$D$1"
+      ],
+      "excel_file_version": "16.0.20527.20150"
+    },
+    {
+      "condition": "eng15-asymmetric-pair_explicit",
+      "trial": 8,
+      "input": "observer-inputs/eng15-asymmetric-pair_explicit.xlsm",
+      "input_sha256": "ae355aaf3d04ebf55304219a0e1b3d31c8653c83adacab504bd64ea6caaa0aac",
+      "trial_input_sha256": "ae355aaf3d04ebf55304219a0e1b3d31c8653c83adacab504bd64ea6caaa0aac",
+      "request": "trials/eng15-asymmetric-pair_explicit/8/request.json",
+      "request_sha256": "76cdc755c8dd44c59511ffbec18dedb7e2c014c1f806d111b3dfd6731cf22080",
+      "result": "trials/eng15-asymmetric-pair_explicit/8/result.json",
+      "result_sha256": "e0533179ce6e18573f40ce12526fb63b8efe152ebd56146791e74e00c88d6109",
+      "receipt": "session/20261104T2349476452171-8e5f18576801439e9bbefa5557270b40/receipt.json",
+      "receipt_sha256": "5d325db2c74c9408231e924a7371c12f882aaa63f59cff78f7cb057ae4539b83",
+      "launch_record": "session-launches/20.json",
+      "launch_sha256": "27f1c8c22844bebc20ef5cedf439c8cebc4a2d96a8351277fae335082123e882",
+      "excel": {
+        "pid": 51412,
+        "start_ticks": 639294329930368315,
+        "command_line": "\"C:\\Program Files\\Microsoft Office\\Root\\Office16\\EXCEL.EXE\" /automation -Embedding",
+        "launch": 20
+      },
+      "host_source_sha256": "0bb39b3d7fb081453ed883b97aa45403ba379818580ec65b5a6dd3f3c96d6140",
+      "worker_sha256": "1e134fb14bdb502ea063a3583e0c743128df87e309d221d4651cca23053bb981",
+      "trace_sha256": {
+        "startup-trace.tsv": "6a17f693722ad3d61fde18a2e3d1d978d206c8ae50fb88dec3c6f749c1ca0936",
+        "command-1-trace.tsv": "1680af25d86fb7624462320a5fe8aca74df3630b2c8064dffa00700f3b08c9b9",
+        "command-2-trace.tsv": "05a525d70a400b0cfb4c5b25c1652eb6f31333ed87b37c3297054de04c9499a4"
+      },
+      "saved_sha256": "c13346363e6a2789f9735e275b9764d58e78969a6454d0c8b86768b5598c0dd8",
+      "observer_entries": [
+        "PacketPairLog;n=1;left=vt=5;type=Double;value=0;bits=0000000000000000;right=vt=5;type=Double;value=0;bits=0000000000000000;caller=[input.xlsm]S!$D$1",
+        "PacketPairLog;n=2;left=vt=5;type=Double;value=0;bits=0000000000000000;right=vt=5;type=Double;value=0;bits=0000000000000000;caller=[input.xlsm]S!$D$1"
+      ],
+      "excel_file_version": "16.0.20527.20150"
+    },
+    {
+      "condition": "eng15-asymmetric-pair_hidden",
+      "trial": 8,
+      "input": "observer-inputs/eng15-asymmetric-pair_hidden.xlsm",
+      "input_sha256": "c61d6b44f48c5288f9f9a2e422bd4d8a2a89250a13623df274a3e4c4965442f1",
+      "trial_input_sha256": "c61d6b44f48c5288f9f9a2e422bd4d8a2a89250a13623df274a3e4c4965442f1",
+      "request": "trials/eng15-asymmetric-pair_hidden/8/request.json",
+      "request_sha256": "d11ce9834bcdbb55d74e7bcd7eea6eb8f4ef4d617e0059dfc9b56d2b0e7f2520",
+      "result": "trials/eng15-asymmetric-pair_hidden/8/result.json",
+      "result_sha256": "e83edfe3fc6e49cd69efc5fb37cd6e1203f32291fd56ba438b5c752b25e67639",
+      "receipt": "session/20261104T2350021203257-c38386af218145efbbb686b7970ed944/receipt.json",
+      "receipt_sha256": "a84cc7e6bac4002d55f66b745d2bee98962698e305cd8b120e9cca8296ed4450",
+      "launch_record": "session-launches/21.json",
+      "launch_sha256": "90021d34c989f8561f8414f7401abc8fb5198942ac8a71b4a7cab8143ca9d5ed",
+      "excel": {
+        "pid": 63880,
+        "start_ticks": 639294330074873011,
+        "command_line": "\"C:\\Program Files\\Microsoft Office\\Root\\Office16\\EXCEL.EXE\" /automation -Embedding",
+        "launch": 21
+      },
+      "host_source_sha256": "0bb39b3d7fb081453ed883b97aa45403ba379818580ec65b5a6dd3f3c96d6140",
+      "worker_sha256": "1e134fb14bdb502ea063a3583e0c743128df87e309d221d4651cca23053bb981",
+      "trace_sha256": {
+        "startup-trace.tsv": "6a17f693722ad3d61fde18a2e3d1d978d206c8ae50fb88dec3c6f749c1ca0936",
+        "command-1-trace.tsv": "2dfb304ab6bc404681811112603dc6e787c8bc53de45de62e0bd44db67a4375c",
+        "command-2-trace.tsv": "99369776cc1381e1ff2aac1f9f274adc659768ccb742c22f62f22996c9375f1f"
+      },
+      "saved_sha256": "95e89cc116061b6f16f666a35f06b106b7ae939cb0dde43e6b9867d9bab4f332",
+      "observer_entries": [
+        "PacketPeekPair;n=1;caller=[input.xlsm]S!$D$1",
+        "PacketPeekPair;n=2;caller=[input.xlsm]S!$D$1"
+      ],
+      "excel_file_version": "16.0.20527.20150"
+    },
+    {
+      "condition": "eng15-asymmetric-pair_explicit",
+      "trial": 9,
+      "input": "observer-inputs/eng15-asymmetric-pair_explicit.xlsm",
+      "input_sha256": "ae355aaf3d04ebf55304219a0e1b3d31c8653c83adacab504bd64ea6caaa0aac",
+      "trial_input_sha256": "ae355aaf3d04ebf55304219a0e1b3d31c8653c83adacab504bd64ea6caaa0aac",
+      "request": "trials/eng15-asymmetric-pair_explicit/9/request.json",
+      "request_sha256": "72d0c4abac3c0096bfb305607ee170f122f75598d1daa8baafb8c81f2b90e747",
+      "result": "trials/eng15-asymmetric-pair_explicit/9/result.json",
+      "result_sha256": "8d729e985b191b49630de727e73937c6882b66051025b6e1ee9336eb33858f0c",
+      "receipt": "session/20261104T2350156485147-82e787e4a2e140f6b02cf7a6079908d5/receipt.json",
+      "receipt_sha256": "6f6e23835dab258c39ea51802b3b9dfaa4db2fa20aa7892904d3247952628694",
+      "launch_record": "session-launches/22.json",
+      "launch_sha256": "5a51da5578788660af8283c48e119833335055e9d46320a0c9a1c307c94a2312",
+      "excel": {
+        "pid": 26308,
+        "start_ticks": 639294330209691661,
+        "command_line": "\"C:\\Program Files\\Microsoft Office\\Root\\Office16\\EXCEL.EXE\" /automation -Embedding",
+        "launch": 22
+      },
+      "host_source_sha256": "0bb39b3d7fb081453ed883b97aa45403ba379818580ec65b5a6dd3f3c96d6140",
+      "worker_sha256": "1e134fb14bdb502ea063a3583e0c743128df87e309d221d4651cca23053bb981",
+      "trace_sha256": {
+        "startup-trace.tsv": "6a17f693722ad3d61fde18a2e3d1d978d206c8ae50fb88dec3c6f749c1ca0936",
+        "command-1-trace.tsv": "b20a8cc6f75c792aff73fcdedcacc5c6d583cf576b8bd496d74d03acf9cce209",
+        "command-2-trace.tsv": "eff514cb401cc4a5cfce21f164403690624b1bac38881a822735351fea2e0cbb"
+      },
+      "saved_sha256": "d22d946ac31ed49f4a6508c60cf11b8bc98434684a50f1f75595ab9e09d9d9fd",
+      "observer_entries": [
+        "PacketPairLog;n=1;left=vt=5;type=Double;value=0;bits=0000000000000000;right=vt=5;type=Double;value=0;bits=0000000000000000;caller=[input.xlsm]S!$D$1",
+        "PacketPairLog;n=2;left=vt=5;type=Double;value=0;bits=0000000000000000;right=vt=5;type=Double;value=0;bits=0000000000000000;caller=[input.xlsm]S!$D$1"
+      ],
+      "excel_file_version": "16.0.20527.20150"
+    },
+    {
+      "condition": "eng15-asymmetric-pair_hidden",
+      "trial": 9,
+      "input": "observer-inputs/eng15-asymmetric-pair_hidden.xlsm",
+      "input_sha256": "c61d6b44f48c5288f9f9a2e422bd4d8a2a89250a13623df274a3e4c4965442f1",
+      "trial_input_sha256": "c61d6b44f48c5288f9f9a2e422bd4d8a2a89250a13623df274a3e4c4965442f1",
+      "request": "trials/eng15-asymmetric-pair_hidden/9/request.json",
+      "request_sha256": "5858dd8a57748b27b5ab3bc54d5210e3edbe93cb2dfa0ffa80139e268bfe5555",
+      "result": "trials/eng15-asymmetric-pair_hidden/9/result.json",
+      "result_sha256": "9d17fae9b1e7454abf636aab6dde8d3a58ec11d28f1452b6524a6588ed6b1411",
+      "receipt": "session/20261104T2350289274114-97fa1118f5d9445c912b7d09a2570108/receipt.json",
+      "receipt_sha256": "f3db3a5bb8ff457cf5ae0b2c0504671b378f6bc818fd0a0d2b088c4c60050ddb",
+      "launch_record": "session-launches/23.json",
+      "launch_sha256": "e1cd3bd469f8bec71b5f78ee003567030f3cfc3ad84477177645d73e8505a4b2",
+      "excel": {
+        "pid": 19724,
+        "start_ticks": 639294330343437329,
+        "command_line": "\"C:\\Program Files\\Microsoft Office\\Root\\Office16\\EXCEL.EXE\" /automation -Embedding",
+        "launch": 23
+      },
+      "host_source_sha256": "0bb39b3d7fb081453ed883b97aa45403ba379818580ec65b5a6dd3f3c96d6140",
+      "worker_sha256": "1e134fb14bdb502ea063a3583e0c743128df87e309d221d4651cca23053bb981",
+      "trace_sha256": {
+        "startup-trace.tsv": "6a17f693722ad3d61fde18a2e3d1d978d206c8ae50fb88dec3c6f749c1ca0936",
+        "command-1-trace.tsv": "08cb3a23399c22b3c3c8e5cf2a3368e5e21c3d41cb09288433ace68826ee1779",
+        "command-2-trace.tsv": "4a903ba08a907f9438eee02d811c2e443d287d5db1a35e3849b4ad3b3ed156d6"
+      },
+      "saved_sha256": "f74dcb518ee30c816407e61bf3d55425a5d549e3469a6a50ad98c2b352d2d27f",
+      "observer_entries": [
+        "PacketPeekPair;n=1;caller=[input.xlsm]S!$D$1",
+        "PacketPeekPair;n=2;caller=[input.xlsm]S!$D$1"
+      ],
+      "excel_file_version": "16.0.20527.20150"
+    },
+    {
+      "condition": "eng15-asymmetric-pair_explicit",
+      "trial": 10,
+      "input": "observer-inputs/eng15-asymmetric-pair_explicit.xlsm",
+      "input_sha256": "ae355aaf3d04ebf55304219a0e1b3d31c8653c83adacab504bd64ea6caaa0aac",
+      "trial_input_sha256": "ae355aaf3d04ebf55304219a0e1b3d31c8653c83adacab504bd64ea6caaa0aac",
+      "request": "trials/eng15-asymmetric-pair_explicit/10/request.json",
+      "request_sha256": "debbf5df9809bf1cd2eb0ec645b7ff1e08fc274393b56484b26cdc9493e5d4e5",
+      "result": "trials/eng15-asymmetric-pair_explicit/10/result.json",
+      "result_sha256": "4d4313806a881f5a596e629e3af4c58d731c12a7d4e0326bd40a2a8f86be6d12",
+      "receipt": "session/20261104T2350483618228-2116e1c3ce7943d5852b37fdf02b1fa3/receipt.json",
+      "receipt_sha256": "34ed5dd37840036f6124f86cf0fe1cfb57f98dad4389612d9cc2276067be835e",
+      "launch_record": "session-launches/24.json",
+      "launch_sha256": "8fce3b0beada38c65a21012ef385a80440c6761fd9be7c323581e0b7a9869bcc",
+      "excel": {
+        "pid": 28640,
+        "start_ticks": 639294330543119321,
+        "command_line": "\"C:\\Program Files\\Microsoft Office\\Root\\Office16\\EXCEL.EXE\" /automation -Embedding",
+        "launch": 24
+      },
+      "host_source_sha256": "0bb39b3d7fb081453ed883b97aa45403ba379818580ec65b5a6dd3f3c96d6140",
+      "worker_sha256": "1e134fb14bdb502ea063a3583e0c743128df87e309d221d4651cca23053bb981",
+      "trace_sha256": {
+        "startup-trace.tsv": "6a17f693722ad3d61fde18a2e3d1d978d206c8ae50fb88dec3c6f749c1ca0936",
+        "command-1-trace.tsv": "59721dc8496a6bfbbce33cddf59ef91c75210744c907d53004b5807d6d14b363",
+        "command-2-trace.tsv": "f3c287d62a7c80023d3df6429454afcbf539a32c1129e36fdf4eb440995388ef"
+      },
+      "saved_sha256": "815e798b54608ba61a81c87b89b2e7f4900a075e3ab826b721f80920484796e8",
+      "observer_entries": [
+        "PacketPairLog;n=1;left=vt=5;type=Double;value=0;bits=0000000000000000;right=vt=5;type=Double;value=0;bits=0000000000000000;caller=[input.xlsm]S!$D$1",
+        "PacketPairLog;n=2;left=vt=5;type=Double;value=0;bits=0000000000000000;right=vt=5;type=Double;value=0;bits=0000000000000000;caller=[input.xlsm]S!$D$1"
+      ],
+      "excel_file_version": "16.0.20527.20150"
+    },
+    {
+      "condition": "eng15-asymmetric-pair_hidden",
+      "trial": 10,
+      "input": "observer-inputs/eng15-asymmetric-pair_hidden.xlsm",
+      "input_sha256": "c61d6b44f48c5288f9f9a2e422bd4d8a2a89250a13623df274a3e4c4965442f1",
+      "trial_input_sha256": "c61d6b44f48c5288f9f9a2e422bd4d8a2a89250a13623df274a3e4c4965442f1",
+      "request": "trials/eng15-asymmetric-pair_hidden/10/request.json",
+      "request_sha256": "0c91040db1020c8f117c3825856921ad4d3d79d4a22e14b3aa1e35b96f92c16a",
+      "result": "trials/eng15-asymmetric-pair_hidden/10/result.json",
+      "result_sha256": "a8ba39f1601c9774290ce28b13ddfa612e8d8eae8a48255ec5e26e76c04462c8",
+      "receipt": "session/20261104T2351027253279-40bfa96525784f0e97df0dcadaf24415/receipt.json",
+      "receipt_sha256": "af8f631eb5fb0283994aaf2cb5b85b74942f976f6119932f52793f3e19a518b6",
+      "launch_record": "session-launches/25.json",
+      "launch_sha256": "dfbf26adb93ec29f8b9e356ff840edc0112364947e7ff6fb9b64466ed765f2cf",
+      "excel": {
+        "pid": 5784,
+        "start_ticks": 639294330681197320,
+        "command_line": "\"C:\\Program Files\\Microsoft Office\\Root\\Office16\\EXCEL.EXE\" /automation -Embedding",
+        "launch": 25
+      },
+      "host_source_sha256": "0bb39b3d7fb081453ed883b97aa45403ba379818580ec65b5a6dd3f3c96d6140",
+      "worker_sha256": "1e134fb14bdb502ea063a3583e0c743128df87e309d221d4651cca23053bb981",
+      "trace_sha256": {
+        "startup-trace.tsv": "6a17f693722ad3d61fde18a2e3d1d978d206c8ae50fb88dec3c6f749c1ca0936",
+        "command-1-trace.tsv": "1196ed73c674b30d12be5d5a5f9534bdc6a5dab941832400c9ee530ea44dccf3",
+        "command-2-trace.tsv": "9409637a5e80140105d8814458091cc67b9a37c5829492a647cc2d9b80df2ae0"
+      },
+      "saved_sha256": "0273a40d4a1260b6033dca5bcca0de7d18bedb708b3302fedcb8bd82307eb302",
+      "observer_entries": [
+        "PacketPeekPair;n=1;caller=[input.xlsm]S!$D$1",
+        "PacketPeekPair;n=2;caller=[input.xlsm]S!$D$1"
+      ],
+      "excel_file_version": "16.0.20527.20150"
+    }
+  ],
+  "failed_attempts_retained": [
+    {
+      "receipt": "session/20261104T2344470640121-aa203a55371644f091c4bf2a83dc06db/receipt.json",
+      "sha256": "cc641ca28847d4c3556649f094f7d5314e26a4c16162a4a7e7ee747b606fea34",
+      "request": "overflow-display/initial-v2/request.json",
+      "error": "System.Management.Automation.RuntimeException: System.InvalidCastException: Unable to cast object of type 'System.Int32' to type 'System.Double'.\r\n   at CallSite.Target(Closure, CallSite, ComObject, Object)\r\n   at System.Dynamic.UpdateDelegates.UpdateAndExecute2[T0,T1,TRet](CallSite site, T0 arg0, T1 arg1)\r\n   at System.Dynamic.UpdateDelegates.UpdateAndExecute2[T0,T1,TRet](CallSite site, T0 arg0, T1 arg1)\r\n   at System.Management.Automation.Interpreter.DynamicInstruction`3.Run(InterpretedFrame frame)\r\n   at System.Management.Automation.Interpreter.EnterTryCatchFinallyInstruction.Run(InterpretedFrame frame)",
+      "range_trial": false
+    },
+    {
+      "receipt": "session/20261104T2342474606799-fa0ca4fdafe84ef48c22e87358f56506/receipt.json",
+      "sha256": "5201b8e88f5cd930c52a48d5eca811ac0ceba466dcfd4ee8257ea0599a451ef8",
+      "request": "overflow-display/initial/request.json",
+      "error": "System.Management.Automation.ParameterBindingValidationException: Cannot bind argument to parameter 'Path' because it is an empty string.\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at lambda_method699(Closure, Object[], StrongBox`1[], InterpretedFrame)",
+      "range_trial": false
+    }
+  ],
+  "findings": {
+    "external_values": "A/B/C=2/5/7,D0,E1 Empty in every external before/after command and saved/reopen snapshot. A/B/C120 command-cell snapshots are retained displays, not calculated proof.",
+    "explicit": "20 PacketPairLog invocations, one per command; both formal ByVal Double arguments +0, exact0000000000000000 bits (40 formal argument observations). Pre-coercion type remains unknown; held2/5 were not supplied as those Double values.",
+    "hidden": "20 PacketPeekPair invocations, two reads per invocation. All40 read records/80 Value2 values are VarType0 Empty for both A/B, both reads, despite external held2/5.",
+    "observer_outputs": "Both authored functions return0 and D is already seeded0. Traces/counters prove observer execution; D0 display alone does not.",
+    "trace_counting": "Cumulative command2 trace includes earlier n1 entry plus new n2 entry.40 total invocations, not60 cumulative rows. ReadAfterOpen sets currentCase=reopened before command2.",
+    "command_returns": "All40 Range.Calculate calls return System.DBNull/null without command error.",
+    "preparation": "Each preparation executes observer once during formula entry, expressly not measured. Closed NEW copies patch only sheet1.xml seed values; VBA/all other parts remain byte-identical to prepared template. All20 measured trials have zero startup entries/counters before PacketArm.",
+    "settings": "Excel16.0.20527.20150, Manual/iteration on/max5/change0.001 exact3f50624dd2f1a9fc, events off/MTC off1worker, AutomationSecurity1. Fresh receipts restore baseline exactly. VS15ExcelAdaptor connected; McpExcel and TestCrashGuard XLLs installed; no clean-addin/StrictBits claim.",
+    "scope_limit": "A/B/C are pure formulas without producer counters. No extra UDF entries are logged, but attempted producer work/SCC counts are unmeasured. No Full/Rebuild/Automatic/MTC-on/general mid-cycle sweep claim. Instrumented cyclic Range callback execution remains outside pure-scalar engine admission.",
+    "failures": "No failed Range trials. Two separate overflow-display preparation jobs failed and remain retained; preparation source/setup entries are not measured command passes."
+  },
+  "import_plan": {
+    "destination": "crates/calc-engine/tests/fixtures/excel-calc-probes/P14/eng15-20261104",
+    "content": "2 exact original observer-input XLSMs,2 trial1 original result objects, original observer/injected/readback source and trial1 traces, all20 audit chains with failed-attempt references",
+    "route": "Extend existing P14 instrumented observer fixture/test route; do not regenerate source, execute macros, add harness or call held cyclic values calculated."
+  }
+}

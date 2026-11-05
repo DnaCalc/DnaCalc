@@ -82,7 +82,7 @@ impl Default for TableTools{fn default()->Self{Self{name:"Table1".into(),rows:St
 
 /// A chart property draft uses the same portable tool state as tables and filters.
 #[derive(Clone,Debug,Default,PartialEq,Eq)]
-pub struct ChartTools {pub part:String,pub title:String,pub legend:bool}
+pub struct ChartTools {pub part:String,pub title:String,pub legend:bool,pub plot:String,pub series:String,pub series_name:String,pub categories:String,pub values:String,pub axis:String,pub axis_minimum:String,pub axis_maximum:String,pub axis_unit:String,pub axis_reverse:bool}
 
 /// Shared Find/Replace/Go To inputs and workbook-relative query results.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -385,7 +385,7 @@ mod tool_tests {
     fn populated() -> ToolState {
         ToolState {
             table:TableTools::default(),
-            chart:ChartTools {part:"old chart".into(),title:"old draft".into(),legend:true},
+            chart:ChartTools {part:"old chart".into(),title:"old draft".into(),legend:true,axis:"old axis".into(),axis_minimum:"-5".into(),axis_maximum:"10".into(),axis_unit:"2.5".into(),axis_reverse:true,..ChartTools::default()},
             filter: FilterTools {loaded:true, sheet:Some(wire::Sheet(0,0)), revision:7, epoch:3, values:vec![("old choice".into(),true)],..Default::default()},
             sort_case_sensitive:true,sort_custom_order:"High\nMedium\nLow".into(),
             sort_header: false,
