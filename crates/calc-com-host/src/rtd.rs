@@ -41,6 +41,31 @@ fn wide(text: &str) -> Result<Vec<u16>, String> {
     }
     Ok(text.encode_utf16().chain(Some(0)).collect())
 }
+// Worksheet numeric equality folds signed zero. Native operands must retain it,
+// including inside arrays, when identifying a previous native call.
+fn same_argument(left: &CalcValue, right: &CalcValue) -> bool {
+    use calc_value::CoreRef;
+    if left.is_excel_overflow() != right.is_excel_overflow() {
+        return false;
+    }
+    match (left.core_ref(), right.core_ref()) {
+        (CoreRef::Number(a), CoreRef::Number(b)) => a.to_bits() == b.to_bits(),
+        (CoreRef::Array(a), CoreRef::Array(b)) => {
+            a.shape() == b.shape()
+                && a.is_boxed() == b.is_boxed()
+                && a.iter_row_major()
+                    .zip(b.iter_row_major())
+                    .all(|(a, b)| same_argument(a, b))
+        }
+        _ => left == right,
+    }
+}
+fn has_reference(value: &CalcValue) -> bool {
+    value.as_reference().is_some()
+        || value
+            .as_array()
+            .is_some_and(|array| array.iter_row_major().any(has_reference))
+}
 unsafe fn decode(value: &Value) -> Result<CalcValue, String> {
     Ok(match value.kind {
         // An empty value is also an RTD input. Its advancing sequence makes
@@ -86,22 +111,28 @@ struct Topic {
     connected: bool,
     transport: i32,
     sequence: u64,
+    last_value: CalcValue,
 }
 struct Declaration {
     provider: RtdProvider,
     caller: CellKey,
+    arguments: Vec<CalcValue>,
     subscriptions: BTreeSet<u64>,
+    inputs: BTreeSet<u64>,
 }
 struct PendingDisconnect {
     provider: RtdProvider,
     caller: CellKey,
-    transport: i32,
+    subscription: u64,
+    topic: Topic,
 }
 struct State {
     pointer: *mut c_void,
     topics: BTreeMap<u64, Topic>,
     pending_disconnects: Vec<PendingDisconnect>,
     declarations: BTreeMap<u64, Declaration>,
+    replacement_calls: Vec<Declaration>,
+    renewed_inputs: BTreeMap<u64, u64>,
     next: u64,
     next_transport: i32,
     transports: BTreeMap<i32, u64>,
@@ -127,6 +158,8 @@ impl RtdClient {
                 topics: BTreeMap::new(),
                 pending_disconnects: Vec::new(),
                 declarations: BTreeMap::new(),
+                replacement_calls: Vec::new(),
+                renewed_inputs: BTreeMap::new(),
                 next: 1,
                 next_transport: 1,
                 transports: BTreeMap::new(),
@@ -144,6 +177,10 @@ impl RtdClient {
             .state
             .try_borrow_mut()
             .map_err(|_| "dc-snz.23: reentrant RTD poll")?;
+        // Retire unused native transports at the next owner turn. An immediate
+        // formula replacement can first connect its next topic. An idle owner
+        // still disconnects completed generators before polling their servers.
+        Self::disconnect_inactive(&mut state)?;
         checked(
             unsafe { dna_rtd_poll(state.pointer, publish, (&mut *state as *mut State).cast()) },
             "refresh",
@@ -177,7 +214,7 @@ impl RtdClient {
         while index < state.pending_disconnects.len() {
             let pending = &state.pending_disconnects[index];
             if pending.caller == caller && providers.contains(&pending.provider) {
-                let transport = pending.transport;
+                let transport = pending.topic.transport;
                 checked(
                     unsafe { dna_rtd_disconnect(state.pointer, transport) },
                     "replacement disconnect",
@@ -187,7 +224,16 @@ impl RtdClient {
                 index += 1;
             }
         }
-        Self::disconnect_inactive(&mut state)
+        state
+            .replacement_calls
+            .retain(|call| call.caller != caller || !providers.contains(&call.provider));
+        let retained: BTreeSet<_> = state
+            .replacement_calls
+            .iter()
+            .flat_map(|call| call.inputs.iter().copied())
+            .collect();
+        state.renewed_inputs.retain(|old, _| retained.contains(old));
+        Ok(())
     }
     /// Retire logical inputs after the edit commits. Finish the replacement after its
     /// evaluation attempt ends, so a new native topic can connect before the old one leaves.
@@ -201,8 +247,19 @@ impl RtdClient {
             .try_borrow_mut()
             .map_err(|_| "dc-snz.23: reentrant RTD disconnect")?;
         state
+            .replacement_calls
+            .retain(|call| call.caller != caller || !providers.contains(&call.provider));
+        let calls = state
             .declarations
-            .retain(|_, call| call.caller != caller || !providers.contains(&call.provider));
+            .iter()
+            .filter_map(|(&id, call)| {
+                (call.caller == caller && providers.contains(&call.provider)).then_some(id)
+            })
+            .collect::<Vec<_>>();
+        for id in calls {
+            let call = state.declarations.remove(&id).unwrap();
+            state.replacement_calls.push(call);
+        }
         let ids = state
             .topics
             .iter_mut()
@@ -217,16 +274,18 @@ impl RtdClient {
         let mut retired = Vec::new();
         for id in ids {
             let topic = state.topics.remove(&id).unwrap();
+            let provider = topic.provider;
             state.transports.remove(&topic.transport);
             if topic.connected {
                 state.pending_disconnects.push(PendingDisconnect {
                     provider: topic.provider,
                     caller,
-                    transport: topic.transport,
+                    subscription: id,
+                    topic,
                 });
             }
             state.updates.retain(|value| value.subscription != id);
-            retired.push((topic.provider, id));
+            retired.push((provider, id));
         }
         Ok(retired)
     }
@@ -257,17 +316,24 @@ impl RtdClient {
                 topic.active_callers.remove(&caller);
             }
         }
-        Self::disconnect_inactive(&mut state)
+        Ok(())
     }
     pub fn subscriptions(&self) -> usize {
         self.state.borrow().topics.len()
     }
     fn disconnect_inactive(state: &mut State) -> Result<(), String> {
+        let retained: BTreeSet<_> = state
+            .replacement_calls
+            .iter()
+            .flat_map(|call| call.inputs.iter().copied())
+            .map(|id| state.renewed_inputs.get(&id).copied().unwrap_or(id))
+            .collect();
         let ids: Vec<_> = state
             .topics
             .iter()
             .filter_map(|(&id, topic)| {
-                (topic.connected && topic.active_callers.is_empty()).then_some(id)
+                (topic.connected && topic.active_callers.is_empty() && !retained.contains(&id))
+                    .then_some(id)
             })
             .collect();
         for id in ids {
@@ -303,7 +369,9 @@ impl RtdService for RtdClient {
         provider: RtdProvider,
         caller: CellKey,
         invocation: u64,
+        arguments: &[CalcValue],
         declared: &[u64],
+        inputs: &[u64],
     ) -> Result<(), String> {
         let mut state = self
             .state
@@ -314,10 +382,98 @@ impl RtdService for RtdClient {
             Declaration {
                 provider,
                 caller,
+                arguments: arguments.to_vec(),
                 subscriptions: declared.iter().copied().collect(),
+                inputs: inputs.iter().copied().collect(),
             },
         );
         Ok(())
+    }
+
+    fn cached_call_inputs(
+        &self,
+        provider: RtdProvider,
+        caller: CellKey,
+        arguments: &[CalcValue],
+    ) -> Result<Vec<u64>, String> {
+        let mut state = self
+            .state
+            .try_borrow_mut()
+            .map_err(|_| "dc-snz.23: reentrant cached RTD input renewal")?;
+        if state.closed {
+            return Err("dc-snz.23: RTD client is closed".into());
+        }
+        let previous: BTreeSet<_> = state
+            .declarations
+            .values()
+            .chain(state.replacement_calls.iter())
+            .filter(|call| {
+                call.provider == provider
+                    && call.caller == caller
+                    && call.arguments.len() == arguments.len()
+                    && call
+                        .arguments
+                        .iter()
+                        .zip(arguments)
+                        .all(|(a, b)| same_argument(a, b))
+            })
+            .flat_map(|call| call.inputs.iter().copied())
+            .collect();
+        if !previous.is_empty() && arguments.iter().any(has_reference) {
+            return Err(
+                "dc-snz.23: cached RTD reference-argument dependencies are not modelled".into(),
+            );
+        }
+        let mut inputs = BTreeSet::new();
+        for old in previous {
+            let current = state.renewed_inputs.get(&old).copied().unwrap_or(old);
+            if let Some(topic) = state.topics.get_mut(&current) {
+                if topic.provider != provider {
+                    return Err("dc-snz.23: cached RTD input belongs to another provider".into());
+                }
+                // Disconnection does not retire an admitted logical input.
+                topic.callers.insert(caller);
+                inputs.insert(current);
+                continue;
+            }
+            let Some(index) = state
+                .pending_disconnects
+                .iter()
+                .position(|pending| pending.subscription == old && pending.provider == provider)
+            else {
+                return Err(
+                    "dc-snz.23: retired cached RTD input has no live replacement lease".into(),
+                );
+            };
+            let id = state.next;
+            state.next = state
+                .next
+                .checked_add(1)
+                .filter(|n| *n <= i32::MAX as u64)
+                .ok_or("dc-snz.23: RTD subscription identity exhausted")?;
+            // This is a new logical key, whose first admitted cut is1. The old
+            // key stays retired; reconnecting the same live key still advances.
+            let sequence = 1;
+            let mut topic = state.pending_disconnects.remove(index).topic;
+            topic.callers.insert(caller);
+            topic.sequence = sequence;
+            let value = topic.last_value.clone();
+            // Transfer the still-live native connection, never a retired native
+            // transport. Queued old logical inputs were removed by the edit.
+            // Its last observed signal gets a fresh logical lease and must pass
+            // the same owner admission as ConnectData and RefreshData inputs.
+            state.transports.insert(topic.transport, id);
+            state.topics.insert(id, topic);
+            state.renewed_inputs.insert(old, id);
+            state.updates.push(RtdInput {
+                provider,
+                subscription: id,
+                sequence,
+                value,
+            });
+            inputs.insert(id);
+        }
+        Ok(inputs.into_iter().collect())
     }
 
     fn subscribe(
@@ -417,12 +573,14 @@ impl RtdService for RtdClient {
             connected: false,
             transport,
             sequence: 0,
+            last_value: CalcValue::empty(),
         });
         topic.callers.insert(caller);
         topic.active_callers.insert(caller);
         topic.connected = true;
         topic.transport = transport;
         topic.sequence = sequence;
+        topic.last_value = value.clone();
         state.transports.insert(transport, id);
         state.updates.push(RtdInput {
             provider,
@@ -449,6 +607,8 @@ impl RtdService for RtdClient {
         state.topics.clear();
         state.transports.clear();
         state.declarations.clear();
+        state.replacement_calls.clear();
+        state.renewed_inputs.clear();
         state.pending_disconnects.clear();
         state.updates.clear();
         checked(result, "terminate")
@@ -456,10 +616,17 @@ impl RtdService for RtdClient {
 }
 unsafe extern "system" fn publish(context: *mut c_void, id: i32, value: *const Value) -> i32 {
     let state = unsafe { &mut *context.cast::<State>() };
-    let Some(&subscription) = state.transports.get(&id) else {
-        return 0;
+    let subscription = state.transports.get(&id).copied();
+    let pending = state
+        .pending_disconnects
+        .iter()
+        .position(|pending| pending.topic.transport == id);
+    let topic = if let Some(subscription) = subscription {
+        state.topics.get_mut(&subscription)
+    } else {
+        pending.map(|index| &mut state.pending_disconnects[index].topic)
     };
-    let Some(topic) = state.topics.get_mut(&subscription) else {
+    let Some(topic) = topic else {
         return 0;
     };
     let value = match unsafe { decode(&*value) } {
@@ -474,6 +641,12 @@ unsafe extern "system" fn publish(context: *mut c_void, id: i32, value: *const V
         return 0x80004005u32 as i32;
     };
     topic.sequence = sequence;
+    topic.last_value = value.clone();
+    // A live connection held for replacement can still deliver a signal. Keep
+    // the observation, but never publish it to the retired logical subscription.
+    let Some(subscription) = subscription else {
+        return 0;
+    };
     state.updates.push(RtdInput {
         provider: topic.provider,
         subscription,
@@ -608,5 +781,253 @@ fn replacement_preserves_another_callers_topic_lease() {
         vec![(provider, old)]
     );
     assert_eq!(queued_events(&client), vec![(1, 1), (1, 2), (2, 1)]);
+    client.close().unwrap();
+}
+
+/// Native-only: observes real COM calls across a completed call and its replacement.
+#[test]
+fn completed_call_defers_disconnect_until_replacement_can_connect() {
+    let client = RtdClient::new().unwrap();
+    assert_eq!(
+        unsafe { dna_rtd_test_attach_queued(client.state.borrow().pointer) },
+        0
+    );
+    let provider = RtdProvider {
+        table: 1,
+        slot: 0,
+        generation: 1,
+    };
+    let providers = BTreeSet::from([provider]);
+    let caller = CellKey::new(calc_value::SheetId::from_parts(0, 0), 1, 1).unwrap();
+    let old = client
+        .subscribe(provider, caller, "fixture", &["old".into()])
+        .unwrap();
+    client
+        .finish_call(provider, caller, 100, &[], &[], &[])
+        .unwrap();
+    client
+        .reconcile_evaluation(&providers, caller, &BTreeSet::from([100]))
+        .unwrap();
+    assert_eq!(queued_events(&client), vec![(1, 1)]);
+    assert_eq!(
+        client.begin_replacement(&providers, caller).unwrap(),
+        vec![(provider, old)]
+    );
+    client
+        .subscribe(provider, caller, "fixture", &["next".into()])
+        .unwrap();
+    client.finish_replacement(&providers, caller).unwrap();
+    assert_eq!(queued_events(&client), vec![(1, 1), (1, 2), (2, 1)]);
+    client.close().unwrap();
+}
+
+/// Native-only: renews one completed call's live COM signal after both logical callers retire.
+#[test]
+fn cached_replacement_renews_one_signal_for_main_and_dependent_reads() {
+    let client = RtdClient::new().unwrap();
+    assert_eq!(
+        unsafe { dna_rtd_test_attach_queued(client.state.borrow().pointer) },
+        0
+    );
+    let provider = RtdProvider {
+        table: 1,
+        slot: 0,
+        generation: 1,
+    };
+    let providers = BTreeSet::from([provider]);
+    let sheet = calc_value::SheetId::from_parts(0, 0);
+    let main = CellKey::new(sheet, 1, 1).unwrap();
+    let dependent = CellKey::new(sheet, 1, 2).unwrap();
+    let arguments = [CalcValue::text(ExcelText::from_utf16_code_units(
+        "shared".encode_utf16().collect(),
+    ))];
+    let old = client
+        .subscribe(provider, main, "fixture", &["shared".into()])
+        .unwrap();
+    assert_eq!(
+        client
+            .subscribe(provider, dependent, "fixture", &["shared".into()])
+            .unwrap(),
+        old
+    );
+    client
+        .finish_call(provider, main, 100, &arguments, &[], &[old])
+        .unwrap();
+    client
+        .finish_call(provider, dependent, 101, &arguments, &[], &[old])
+        .unwrap();
+    client
+        .reconcile_evaluation(&providers, main, &BTreeSet::from([100]))
+        .unwrap();
+    client
+        .reconcile_evaluation(&providers, dependent, &BTreeSet::from([101]))
+        .unwrap();
+    assert!(
+        client
+            .begin_replacement(&providers, dependent)
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        client.begin_replacement(&providers, main).unwrap(),
+        vec![(provider, old)]
+    );
+    assert!(
+        client
+            .cached_call_inputs(
+                provider,
+                main,
+                &[CalcValue::text(ExcelText::from_utf16_code_units(
+                    "different".encode_utf16().collect()
+                ))]
+            )
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(client.subscriptions(), 0);
+    // A signal arriving during the handoff must not enter the old logical queue.
+    let native_value = Value {
+        kind: 1,
+        number: 42.,
+        text: std::ptr::null(),
+        length: 0,
+    };
+    {
+        let mut state = client.state.borrow_mut();
+        assert_eq!(
+            unsafe { publish((&mut *state as *mut State).cast(), 1, &native_value) },
+            0
+        );
+        assert!(state.updates.is_empty());
+    }
+    let renewed = client
+        .cached_call_inputs(provider, main, &arguments)
+        .unwrap();
+    assert_eq!(renewed.len(), 1);
+    assert_ne!(renewed[0], old);
+    assert_eq!(
+        client
+            .cached_call_inputs(provider, dependent, &arguments)
+            .unwrap(),
+        renewed
+    );
+    assert_eq!(queued_events(&client), vec![(1, 1)]);
+    {
+        let state = client.state.borrow();
+        let queued = &state.updates;
+        assert_eq!(queued.len(), 1);
+        assert_eq!(queued[0].subscription, renewed[0]);
+        assert_eq!(queued[0].sequence, 1);
+        assert_eq!(queued[0].value, CalcValue::number(42.));
+    }
+    // Only these successful replacement calls can be used by the next edit.
+    client
+        .finish_call(provider, main, 102, &arguments, &[], &renewed)
+        .unwrap();
+    client
+        .finish_call(provider, dependent, 103, &arguments, &[], &renewed)
+        .unwrap();
+    client.finish_replacement(&providers, main).unwrap();
+    client.finish_replacement(&providers, dependent).unwrap();
+    client
+        .reconcile_evaluation(&providers, main, &BTreeSet::new())
+        .unwrap();
+    assert!(
+        client
+            .cached_call_inputs(provider, main, &arguments)
+            .unwrap()
+            .is_empty()
+    );
+    // Completed generators do not remain connected throughout an idle owner turn.
+    client.poll().unwrap();
+    assert!(!client.state.borrow().topics[&renewed[0]].connected);
+    client.close().unwrap();
+}
+
+/// Native-only: keeps admitted inputs after native disconnect and refuses an expired handoff.
+#[test]
+fn cached_reads_survive_disconnect_but_not_unrenewable_retirement() {
+    let client = RtdClient::new().unwrap();
+    assert_eq!(
+        unsafe { dna_rtd_test_attach_queued(client.state.borrow().pointer) },
+        0
+    );
+    let provider = RtdProvider {
+        table: 1,
+        slot: 0,
+        generation: 1,
+    };
+    let providers = BTreeSet::from([provider]);
+    let caller = CellKey::new(calc_value::SheetId::from_parts(0, 0), 1, 1).unwrap();
+    let arguments = [CalcValue::number(0.)];
+    let topic = client
+        .subscribe(provider, caller, "fixture", &["cached".into()])
+        .unwrap();
+    client
+        .finish_call(provider, caller, 100, &arguments, &[], &[topic])
+        .unwrap();
+    client
+        .reconcile_evaluation(&providers, caller, &BTreeSet::from([100]))
+        .unwrap();
+    client.poll().unwrap();
+    assert!(!client.state.borrow().topics[&topic].connected);
+    assert_eq!(
+        client
+            .cached_call_inputs(provider, caller, &arguments)
+            .unwrap(),
+        vec![topic]
+    );
+    assert!(
+        client
+            .cached_call_inputs(provider, caller, &[CalcValue::number(-0.)])
+            .unwrap()
+            .is_empty()
+    );
+    client.begin_replacement(&providers, caller).unwrap();
+    assert!(
+        client
+            .cached_call_inputs(provider, caller, &arguments)
+            .unwrap_err()
+            .starts_with("dc-snz.23:")
+    );
+    client.finish_replacement(&providers, caller).unwrap();
+    client.close().unwrap();
+}
+
+/// Native-only: checks call keys and typed refusal without creating any COM registration.
+#[test]
+fn cached_call_keys_preserve_number_bits_and_refuse_reference_recovery() {
+    let positive = CalcValue::number(0.);
+    let negative = CalcValue::number(-0.);
+    assert!(!same_argument(&positive, &negative));
+    let array = |value| CalcValue::array(calc_value::CalcArray::from_scalar(value));
+    assert!(!same_argument(&array(positive.clone()), &array(negative)));
+    assert!(same_argument(&array(positive.clone()), &array(positive)));
+    let client = RtdClient::new().unwrap();
+    assert_eq!(
+        unsafe { dna_rtd_test_attach_queued(client.state.borrow().pointer) },
+        0
+    );
+    let provider = RtdProvider {
+        table: 1,
+        slot: 0,
+        generation: 1,
+    };
+    let caller = CellKey::new(calc_value::SheetId::from_parts(0, 0), 1, 1).unwrap();
+    let arguments = [CalcValue::reference(calc_value::ReferenceLike::cell(
+        caller,
+    ))];
+    let topic = client
+        .subscribe(provider, caller, "fixture", &["cached".into()])
+        .unwrap();
+    client
+        .finish_call(provider, caller, 100, &arguments, &[topic], &[topic])
+        .unwrap();
+    assert!(
+        client
+            .cached_call_inputs(provider, caller, &arguments)
+            .unwrap_err()
+            .starts_with("dc-snz.23:")
+    );
     client.close().unwrap();
 }

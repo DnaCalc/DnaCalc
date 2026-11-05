@@ -126,18 +126,6 @@ impl XllFunction {
         if self.state.borrow().thread != unsafe { GetCurrentThreadId() } {
             return Err("dc-snz.2: XLL calls require the owning main lane in X1".into());
         }
-        if self.bound
-            && let Some(context) = context.as_mut()
-            && let Some(provider) = context.callable_identity()
-            && let Some(caller) = context.caller()
-        {
-            let service = self.state.borrow().rtd.clone();
-            if let Some(service) = service {
-                for subscription in service.subscriptions(provider, caller) {
-                    context.rtd_value(subscription)?;
-                }
-            }
-        }
         if signature.volatile {
             if let Some(context) = &mut context {
                 context.set_volatile(true);
@@ -228,6 +216,9 @@ impl XllFunction {
                     }
                 };
             }
+            // Match cached calls by the values actually passed to native code,
+            // after reference reads, missing-argument padding and ABI coercion.
+            values[argument - 1] = value.clone();
             let slot = marshal(
                 *kind,
                 &value,
@@ -271,7 +262,7 @@ impl XllFunction {
             }
             cif.call_return_into(CodePtr(r.info.address as *mut _), &ffi_arguments, output);
         }
-        let result = if let Some(pending) = pending {
+        let mut result = if let Some(pending) = pending {
             Ok(NativeReturn::Pending(pending))
         } else {
             let kind = match signature.result {
@@ -292,6 +283,22 @@ impl XllFunction {
         {
             let service = frame.state.borrow().rtd.clone();
             if let Some(service) = service {
+                let mut inputs = frame.rtd_subscriptions.clone();
+                if inputs.is_empty() {
+                    let context = frame.context.as_mut().unwrap();
+                    for subscription in service.cached_call_inputs(provider, caller, &values)? {
+                        // The old formula's input may have retired. A recovered
+                        // native signal is queued for normal P07 admission; its
+                        // cached UDF output cannot publish ahead of that input.
+                        if context.rtd_value(subscription)?.is_none() {
+                            result = Ok(NativeReturn::Value(
+                                CalcValue::error(WorksheetErrorCode::NA),
+                                XL_ERR,
+                            ));
+                        }
+                        inputs.insert(subscription);
+                    }
+                }
                 service.finish_call(
                     provider,
                     caller,
@@ -301,7 +308,9 @@ impl XllFunction {
                         .and_then(|context| context.invocation())
                         .ok_or("dc-snz.23: RTD declaration needs an invocation identity")?
                         .id,
+                    &values,
                     &frame.rtd_subscriptions.iter().copied().collect::<Vec<_>>(),
+                    &inputs.iter().copied().collect::<Vec<_>>(),
                 )?;
             }
         }
