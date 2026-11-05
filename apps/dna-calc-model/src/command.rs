@@ -389,3 +389,9 @@ pub fn resolve_shell_key(chord: &crate::selection::KeyChord) -> Option<CommandId
         })
         .map(|binding| binding.command)
 }
+
+/// Step through navigable search results with wrapping; hidden worksheets stay in the result list.
+pub fn find_match_index(rows:&[crate::projection::FoundRow],current:usize,backwards:bool)->Option<usize>{
+    let n=rows.len();if n==0{return None;}let current=current.min(n-1);
+    (1..=n).map(|step|if backwards{(current+n-step)%n}else{(current+step)%n}).find(|i|!rows[*i].hidden)
+}

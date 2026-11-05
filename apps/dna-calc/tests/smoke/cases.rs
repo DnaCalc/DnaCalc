@@ -8614,6 +8614,30 @@ Case {
     Case{name:"Paste Special: the keyboard-selected Values mode uses the existing calculated snapshot",actions:&[
         Action::Choose("paste-mode","values"),Action::Click("paste-snapshot")],checks:&[
         Check::Text(cell!("E1"),"7"),Check::PlanCell("E1","formula","false"),Check::PlanCell("E1","provenance","literal"),Check::Text(cell!("C1"),"7")]},
+    Case{name:"Find navigation: Find all retains every literal match",actions:&[
+        Action::Window(1440,1400),Action::Click("new"),Action::DiscardReplacement,Action::Click("skin-grid"),Action::Into("name-box","A1\u{E007}"),Action::Into(BAR,"term\u{E007}"),Action::Wait(Check::Text(cell!("A1"),"term")),Action::Into("name-box","A2\u{E007}"),Action::Into(BAR,"term\u{E007}"),Action::Wait(Check::Text(cell!("A2"),"term")),Action::Into("name-box","A3\u{E007}"),Action::Into(BAR,"term\u{E007}"),Action::Wait(Check::Text(cell!("A3"),"term")),Action::Wait(Check::Focused("grid")),Action::Keys("grid","\u{E009}f\u{E000}"),Action::Wait(Check::Rendered("find-dialog",true)),Action::Into("find-query","term\u{E007}")],checks:&[
+        Check::Count("[data-dnacalc=find-hit]",3),Check::Reachable("find-previous")]},
+    Case{name:"Find navigation: Previous returns from the next result to the first",actions:&[
+        Action::Click("find-next"),Action::Wait(Check::Value("name-box","A2")),Action::Click("find-previous")],checks:&[
+        Check::Value("name-box","A1"),Check::Attr("[data-dnacalc=find-results] li:first-child [data-dnacalc=find-hit]","aria-pressed","true")]},
+    Case{name:"Find navigation: Shift+Enter wraps backwards and Enter advances without rerunning",actions:&[
+        Action::Keys("find-query","\u{E008}\u{E007}\u{E000}"),Action::Wait(Check::Value("name-box","A3")),Action::Keys("find-query","\u{E007}")],checks:&[
+        Check::Value("name-box","A1"),Check::Count("[data-dnacalc=find-hit]",3)]},
+    Case{name:"Find navigation: replacement uses the match selected by Previous",actions:&[
+        Action::Click("find-replace-mode"),Action::Choose("find-look","formulas"),Action::Into("replace-text","changed"),Action::Click("find-all"),Action::Wait(Check::Count("[data-dnacalc=find-hit]",3)),Action::Click("find-previous"),Action::Wait(Check::Value("name-box","A3")),Action::Click("replace-one"),Action::Wait(Check::Count("[data-dnacalc=find-hit]",2)),Action::Click("find-close")],checks:&[
+        Check::Text(cell!("A1"),"term"),Check::Text(cell!("A2"),"term"),Check::Text(cell!("A3"),"changed")]},
+    Case{name:"Name Manager: a name on a hidden worksheet keeps its actual scope label",actions:&[
+        Action::Click("new"),Action::DiscardReplacement,Action::Into(BAR,"5\u{E007}"),Action::OpenDetails("sheet-tools"),Action::Into("sheet-new-name","Hidden"),Action::Click("sheet-add"),Action::Wait(Check::Value("name-box","A1")),Action::Into(BAR,"7\u{E007}"),Action::Click("name-manager"),Action::Click("name-new"),Action::Into("name-name","Secret"),Action::Keys("name-scope","\u{E010}\u{E007}"),Action::Into("name-formula","='Hidden'!$A$1"),Action::Click("name-save"),Action::Wait(Check::Count("[data-name=Secret][data-name-scope=Hidden]",1)),Action::Click("names-close"),Action::OpenDetails("sheet-tools"),Action::Click("sheet-hide"),Action::Wait(Check::Count("[data-dnacalc=sheet-tab][data-sheet=Hidden]",0)),Action::Click("name-manager")],checks:&[
+        Check::Count("[data-name=Secret][data-name-scope=Hidden]",1),Check::Count("[data-name=Secret][data-name-scope='Unavailable worksheet']",0)]},
+    Case{name:"Name Manager: hidden worksheet scopes remain selectable for explicit evaluation",actions:&[
+        Action::Click("[data-name=Secret] [data-dnacalc=name-select]"),Action::Keys("name-evaluation-sheet","\u{E010}\u{E007}"),Action::Into("name-anchor","A1"),Action::Click("name-evaluate")],checks:&[
+        Check::TextContains("name-scope","Hidden"),Check::Text("name-value","Reference Hidden!A1 → literal 7"),Check::TextContains("name-evaluation-context","Hidden!A1"),Check::Count("[data-dnacalc=sheet-tab][data-sheet=Hidden]",0)]},
+    Case{name:"Name Manager: create and edit hidden-scoped names through ordinary history",actions:&[
+        Action::Click("name-new"),Action::Into("name-name","HiddenConstant"),Action::Keys("name-scope","\u{E010}\u{E007}"),Action::Into("name-formula","=11"),Action::Click("name-save"),Action::Wait(Check::Count("[data-name=HiddenConstant][data-name-scope=Hidden]",1)),Action::Click("[data-name=Secret] [data-dnacalc=name-select]"),Action::Into("name-formula","='Hidden'!$A$1*2"),Action::Click("name-save"),Action::Wait(Check::TextContains("[data-name=Secret]","*2")),Action::Click("names-undo"),Action::Wait(Check::Text("[data-name=Secret] .dc-name-formula","='Hidden'!$A$1")),Action::Click("names-redo")],checks:&[
+        Check::TextContains("[data-name=Secret]","*2"),Check::Count("[data-name=HiddenConstant][data-name-scope=Hidden]",1)]},
+    Case{name:"Name Manager: phone saved reopening preserves hidden scopes without showing their sheets",actions:&[
+        Action::Click("names-close"),Action::Window(390,844),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::Click("name-manager"),Action::Wait(Check::Count("[data-name=Secret][data-name-scope=Hidden]",1)),Action::Click("[data-name=Secret] [data-dnacalc=name-select]"),Action::Keys("name-evaluation-sheet","\u{E010}\u{E007}"),Action::Into("name-anchor","A1"),Action::Click("name-evaluate")],checks:&[
+        Check::Text("name-value","14"),Check::Count("[data-name=HiddenConstant][data-name-scope=Hidden]",1),Check::Count("[data-dnacalc=sheet-tab][data-sheet=Hidden]",0),Check::Fits]},
 ];
 
 /// The script that reads what one check looks at.
@@ -9469,4 +9493,5 @@ CaseGroup {
     CaseGroup {name:"chart-axes",start:742,end:750,core:8,setup:&[]},
     CaseGroup {name:"chart-types",start:750,end:756,core:6,setup:&[]},
     CaseGroup {name:"fill-text",start:756,end:764,core:8,setup:&[]},
+    CaseGroup {name:"find-name",start:764,end:772,core:8,setup:&[]},
 ];
