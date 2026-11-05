@@ -3001,6 +3001,7 @@ fn recorded_complex_real_axes_use_the_scalar_primitives() {
     let sets: &[(&str, &[u8])] = &[
         ("IMTAN", include_bytes!("../../../crates/calc-func/tests/witnesses/IMTAN.json")),
         ("IMCOT", include_bytes!("../../../crates/calc-func/tests/witnesses/IMCOT.json")),
+        ("IMLOG10", include_bytes!("../../../crates/calc-func/tests/witnesses/IMLOG10.json")),
     ];
     let mut session = Session::new("Sheet1").unwrap();
     session.set_formula_cell("J20").unwrap();
@@ -3027,7 +3028,7 @@ fn recorded_complex_real_axes_use_the_scalar_primitives() {
             }
         }
     }
-    assert_eq!(rows, 2550, "every unchanged source observation and new control must run");
+    assert_eq!(rows, 3873, "every unchanged source observation and new control must run");
     assert!(failures.is_empty(), "{} of {rows} application checks differ:\n{}",
         failures.len(), failures.join("\n"));
 }
