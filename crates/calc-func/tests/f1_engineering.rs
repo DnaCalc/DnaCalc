@@ -479,3 +479,29 @@ fn bessel_k_original_answer_uses_stored_pc64() {
                               n(f64::from_bits(0x3fc35a781fcf7430))]),
           f64::from_bits(0x3fc1aa1445c5bb34));
 }
+
+/// Original Excel20228 held-out Bessel bank and R16 Value2 captures.
+/// R27 retains the complete remaining mismatch lists in its research evidence.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn bessel_high_j_matches_recorded_seeds_and_forward_results() {
+    for (x, order, expected) in [
+        (0x4020000000000000, 0x0000000000000000, 0x3fc5f8a755e1788c), // besj-ho-0004
+        (0x4020000000000000, 0x3ff0000000000000, 0x3fce084d8f616cc8), // besj-ho-0005
+        (0x4020000000000000, 0x4000000000000000, 0xbfbced27e4123ab4), // besj-ho-0006
+        (0x4020000000000000, 0x401c000000000000, 0x3fd4845b9401abc6), // besj-ho-0009
+        (0x4059000000000000, 0x0000000000000000, 0x3f94772bb4df490f), // besj-ho-0184
+        (0x4059000000000000, 0x3ff0000000000000, 0xbfb3bfcc3be6ce4c), // besj-ho-0185
+        (0x4059000000000000, 0x401c000000000000, 0x3fb1f6d664e0f46c), // besj-ho-0189
+        (0xc19ffffffc000000, 0x0000000000000000, 0xbf0fe64bfb1961f0), // r16-besselj-065
+        (0xc19ffffffc000000, 0x3ff0000000000000, 0x3f00eaf7037cd4d4), // r16-besselj-066
+        (0xc19ffffffc000000, 0x4000000000000000, 0x3f0fe64bf6dea42f), // r16-besselj-067
+    ] {
+        let args = vec![n(f64::from_bits(x)), n(f64::from_bits(order))];
+        let actual = call("BESSELJ", args).unwrap();
+        let calc_func::value::CoreValue::Number(actual) = actual.core() else {
+            panic!("BESSELJ returned {actual:?}");
+        };
+        assert_eq!(actual.to_bits(), expected, "BESSELJ x={x:016x}, order={order:016x}");
+    }
+}

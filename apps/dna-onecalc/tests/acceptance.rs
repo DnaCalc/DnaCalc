@@ -200,6 +200,30 @@ fn delivered_scalar_readings_follow_the_application_route() {
     assert!(failures.is_empty(), "{} of{count} readings differ:\n{}", failures.len(), failures.join("\n"));
 }
 
+/// Original fn6 Version-1/2 captures distinguish a lone high surrogate from a low
+/// surrogate and an empty needle. Two Version-2 SEARCH wildcard roots remain open;
+/// every other primary question is retained here, and the full captures stay intact.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_b1l40__len_and_find_use_measured_surrogate_length() {
+    use calc_func::locale::{CalcEnvironment, DateSystem};
+    let captures: [(&[u8], u32); 3] = [
+        (include_bytes!("../../../crates/calc-func/tests/captures/fn6_utf16_needles/oracle.capture.json"), 1),
+        (include_bytes!("../../../crates/calc-func/tests/captures/fn6_utf16_needles_compat1/oracle.capture.json"), 1),
+        (include_bytes!("../../../crates/calc-func/tests/captures/fn6_utf16_needles_compat2/oracle.capture.json"), 2),
+    ];
+    let mut session = Session::new("Sheet1").unwrap();
+    for (capture, version) in captures {
+        let mut environment = CalcEnvironment::dates(DateSystem::System1900);
+        environment.compatibility_version = version;
+        session.set_environment(Some(environment));
+        check_captured_questions(capture, &mut session, |entry| {
+            entry.cell.row() == 20 && entry.cell.column() == 10
+                && !(version == 2 && matches!(entry.cell.sheet(), "q014" | "q016"))
+        }, if version == 1 { 16 } else { 14 });
+    }
+}
+
 /// R24 retains logical literals beside explicit Missing slots for these four
 /// financial entries. Empty references remain separate controls in the source.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

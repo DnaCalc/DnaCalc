@@ -101,9 +101,9 @@ fn character_scan_end(text: &ExcelText) -> usize {
         )
 }
 
-/// The characters LEFT counts: a surrogate pair once, and a trailing unmatched high surrogate not
-/// at all.
-fn len_character_count(text: &ExcelText) -> usize {
+/// The characters LEFT and Version2 LEN count: a pair once, and a trailing unmatched high
+/// surrogate not at all (the fn6 LEN control retains the isolated-high case).
+pub(crate) fn len_character_count(text: &ExcelText) -> usize {
     slice_character_count(text)
         - usize::from(character_scan_end(text) < text.len_utf16_code_units())
 }
@@ -261,7 +261,9 @@ pub(crate) fn find(
 ) -> Result<f64, WorksheetErrorCode> {
     let needle = find_text.utf16_code_units();
     let hay = within_text.utf16_code_units();
-    if needle.is_empty() {
+    // Fn6 distinguishes a lone high surrogate from a lone low surrogate: in
+    // Version2 FIND the high has the same admitted starts as an empty needle.
+    if needle.is_empty() || (pairs && len_character_count(find_text) == 0) {
         let length = if pairs { slice_character_count(within_text) } else { hay.len() };
         if start_num <= length + 1 {
             return Ok(start_num as f64);
