@@ -1626,10 +1626,13 @@ impl<'c> Lowering<'c> {
         self.blocks.push(Vec::new());
         let target = NameTarget {
             block,
-            id: bound.map(|name| name.id),
+            binding: bound,
+            definition_sheet,
         };
         self.names.insert(key, target);
-        let child_context = self.name_context.child(target.id, definition_sheet);
+        let child_context = self
+            .name_context
+            .child(target.binding.map(|name| name.id), definition_sheet);
         let name_context = std::mem::replace(&mut self.name_context, child_context);
         let floor = std::mem::replace(&mut self.floor, self.scope.len());
         let in_name = std::mem::replace(&mut self.in_name, true);

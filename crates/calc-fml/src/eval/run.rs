@@ -41,6 +41,7 @@ use calc_func::{
     invoke, invoke_slice,
 };
 use std::cell::RefCell;
+use std::sync::Arc;
 
 /// The caller's random source, shared by every kernel call of one evaluation. A lazy call's
 /// arguments run while its kernel holds the services, so each call reaches the source through
@@ -182,6 +183,16 @@ struct PendingBlock {
     frame: usize,
     cost: usize,
     cursor: BlockCursor,
+    name: Option<Arc<ActiveName>>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct ActiveName {
+    ordinal: u64,
+    parent: Option<u64>,
+    definition: crate::reference::BoundName,
+    context: crate::reference::NameEvaluationContext,
+    body: usize,
 }
 
 #[derive(Debug)]
@@ -442,6 +453,7 @@ fn evaluate_slice(
         )
     });
     let mut run = Run {
+        current_name: None,
         random: random.as_ref(),
         instance,
         stack: &mut scratch.stack,
@@ -526,6 +538,7 @@ fn evaluate_slice(
 }
 
 struct Run<'a, 'r> {
+    current_name: Option<Arc<ActiveName>>,
     external_inputs: Option<&'a dyn calc_func::UserExternalInputs>,
     read_policy: crate::ReadPolicy,
     invocation: Option<calc_func::UserInvocationFrame>,
@@ -1118,11 +1131,13 @@ impl Run<'_, '_> {
                     Instruction::Name(target) => {
                         if cursor.child.is_none() {
                             self.check_depth()?;
+                            let name = self.start_name(target);
                             cursor.child = Some(Box::new(PendingBlock {
                                 block: target.block,
                                 frame: self.locals.len(),
                                 cost: 0,
                                 cursor: BlockCursor::default(),
+                                name,
                             }));
                         }
                         if !self.child_slice(&mut cursor.child, remaining, false)? {
@@ -1903,6 +1918,62 @@ impl Run<'_, '_> {
         }
     }
 
+    // Keep evidence allocation and completion out of the recursive lazy-call frame.
+    // Ordinary deeply nested formulas retain their existing small-stack contract.
+    fn start_name(&mut self, target: &super::NameTarget) -> Option<Arc<ActiveName>> {
+        let definition = target.binding?;
+        let effects = self.user_function_effects.as_deref_mut()?;
+        let ordinal = effects.next_name;
+        effects.next_name = ordinal.checked_add(1).expect("name invocation ordinal exhausted");
+        Some(Arc::new(ActiveName {
+            ordinal,
+            parent: self.current_name.as_ref().map(|name| name.ordinal),
+            definition,
+            context: crate::reference::NameEvaluationContext::for_formula(self.instance.anchor)
+                .child(Some(definition.id), target.definition_sheet),
+            body: target.block,
+        }))
+    }
+
+    fn complete_name(&mut self, name: &ActiveName, result: &Result<Option<CalcValue>, EvalFault>) {
+        if let Some(effects) = self.user_function_effects.as_deref_mut() {
+            if effects.name_invocations.len() >= super::MAX_RECORDED_NAME_INVOCATIONS {
+                effects.omitted_name_invocations = effects
+                    .omitted_name_invocations
+                    .checked_add(1)
+                    .expect("omitted name count exhausted");
+            } else {
+                use super::NameResultKind as K;
+                let kind = match result.as_ref() {
+                    Ok(Some(value)) if value.callable_value().is_some() => K::Callable,
+                    Ok(Some(value)) => match value.core_ref() {
+                        CoreRef::Empty => K::Empty,
+                        CoreRef::Missing => K::Missing,
+                        CoreRef::Number(_) => K::Number,
+                        CoreRef::Text(_) => K::Text,
+                        CoreRef::Logical(_) => K::Logical,
+                        CoreRef::Error(code) => K::Error(code),
+                        CoreRef::Reference(reference) => K::Reference {
+                            areas: reference.areas().iter().take(16).copied().collect(),
+                            omitted_areas: reference.area_count().saturating_sub(16),
+                        },
+                        CoreRef::Array(array) => K::Array(array.shape()),
+                    },
+                    Err(_) => K::Refused,
+                    Ok(None) => unreachable!("suspended body retains its name frame"),
+                };
+                effects.name_invocations.push(super::NameInvocation {
+                    ordinal: name.ordinal,
+                    parent: name.parent,
+                    definition: name.definition,
+                    context: name.context,
+                    body: name.body,
+                    result: kind,
+                });
+            }
+        }
+    }
+
     fn child_slice(
         &mut self,
         pending: &mut Option<Box<PendingBlock>>,
@@ -1910,6 +1981,10 @@ impl Run<'_, '_> {
         value_result: bool,
     ) -> Result<bool, EvalFault> {
         let call = pending.as_mut().expect("retained block frame");
+        let previous_name = self.current_name.clone();
+        if call.name.is_some() {
+            self.current_name = call.name.clone();
+        }
         let caller = std::mem::replace(&mut self.base, call.frame);
         self.depth += 1;
         self.budget += call.cost;
@@ -1933,8 +2008,12 @@ impl Run<'_, '_> {
         self.budget -= call.cost;
         self.depth -= 1;
         self.base = caller;
+        self.current_name = previous_name;
         if matches!(result, Ok(None)) {
             return Ok(false);
+        }
+        if let Some(name) = call.name.as_deref() {
+            self.complete_name(name, &result);
         }
         self.locals.truncate(call.frame);
         *pending = None;
@@ -2031,6 +2110,7 @@ impl Run<'_, '_> {
             frame,
             cost,
             cursor: BlockCursor::default(),
+            name: None,
         })))
     }
 
@@ -3902,6 +3982,7 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
         let instance = super::instantiate(&plan, anchor);
         let mut scratch = super::EvalScratch::new();
         let mut child = Run {
+            current_name: self.run.current_name.clone(),
             instance: &instance,
             stack: &mut scratch.stack,
             calls: &mut scratch.calls,

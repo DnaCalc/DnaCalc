@@ -4552,7 +4552,12 @@ fn measured_range_scalar(state: &EngineState, inputs: &ModelRoot, node: NodeId) 
 /// An actual closed wait chain proves these producers cyclic. For the measured
 /// pure first-wave Manual Range profile, retain them and let independent work
 /// continue. Graph-based guesses and later repair waves keep their typed refusal.
-fn refuse_closed_range_chain(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, chain: &[NodeId]) -> bool {
+fn refuse_closed_range_chain(
+    state: &EngineState,
+    inputs: &ModelRoot,
+    work: &mut RecalcWork,
+    chain: &[NodeId],
+) -> bool {
     if !work.iterative_range()
         || work.admission.range_post_state != RangePostState::StillRequired
         || work.waves != 0 || work.passes != 0
@@ -4566,10 +4571,15 @@ fn refuse_closed_range_chain(state: &EngineState, inputs: &ModelRoot, work: &mut
             || work.range_refused.contains(node)) {
         return false;
     }
-    let safe_local = |local: &EvalLocal| !local.external_cache
-        && local.effects == calc_fml::UserFunctionEffects::default()
-        && local.placement.is_none() && local.invocation.is_none() && local.observation.is_none()
-        && local.observation_reads.is_empty() && local.semantic_prerequisite.is_none();
+    let safe_local = |local: &EvalLocal| {
+        !local.external_cache
+            && !local.effects.has_observable_effects()
+            && local.placement.is_none()
+            && local.invocation.is_none()
+            && local.observation.is_none()
+            && local.observation_reads.is_empty()
+            && local.semantic_prerequisite.is_none()
+    };
     if !safe_local(&work.local) || work.suspended.values().any(|local| !safe_local(local)) {
         return false;
     }
@@ -5313,6 +5323,12 @@ fn evaluate_with(
         .collect();
     if !invocations.is_empty() {
         reads.invocations = invocations;
+    }
+    if !local.effects.name_invocations().is_empty() {
+        reads.name_invocations = local.effects.name_invocations().to_vec();
+    }
+    if local.effects.omitted_name_invocations() != 0 {
+        reads.omitted_name_invocations = local.effects.omitted_name_invocations();
     }
     if matches!(state.bindings.get(&node),Some(Binding::Placed(instance,_)) if instance.plan().has_user_calls())
     {

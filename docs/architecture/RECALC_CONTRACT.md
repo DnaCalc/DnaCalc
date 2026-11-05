@@ -1110,15 +1110,17 @@ Recreated rows receive fresh live identifiers and retain qualified source-record
 an earlier edit Undo target the recreated record and lets the existing XML writer retain raw attributes
 without confusing equal duplicate formulas. Ordinary update inverses use indexed lookup; deletion
 order capture and restoration scan the name order. Scoped consumers rebind without rebuilding
-unrelated formulas. NameView commands, P12 cross-scope Excel measurement, memo eligibility and
-plan eviction remain open.
+unrelated formulas. Definition pages and explicit, versioned diagnostic name evaluations
+use the existing host/worker route. P12 cross-scope Excel measurement and shared value
+memoization remain open; the later retention update describes plan eviction.
 
 A definition node has no synthetic cell or shared cached value. Its existing evaluator block
 returns a reference or value per caller; unused names do not evaluate, and repeated volatile uses
 remain separate. Local definitions select their sheet for unqualified references and nested names;
 workbook aliases inherit the current use context. Static and INDIRECT routes test the same policy;
-new Excel parity for nested cross-scope aliases awaits P12. Per-name invocation identities,
-`NameView` evaluation commands and transitive eligibility for any shared memo remain open.
+new Excel parity for nested cross-scope aliases awaits P12. Invocation identity
+for detached diagnostic evaluation and transitive eligibility for any shared
+memo remain open. Published formula-body execution evidence is described below.
 
 Name operations (dc-hsa5.6 / dc-971p.34, 2026-11-03): the canonical compiler now carries
 `NameEvaluationContext` with the caller, current definition identity and definition worksheet.
@@ -1155,7 +1157,32 @@ and catalogue calls without a complete facility classification are ineligible. U
 calls are conservatively ineligible even when a branch is not selected. A candidate still requires
 caller/definition-sheet/workbook/scenario and numeric/semantic context, valid binding and absence
 proofs and an executed read certificate. No shared name-value cache is introduced. Unused names
-remain passive; P12 Excel measurement and invocation views remain open.
+remain passive; P12 Excel measurement and detached diagnostic invocation evidence remain open.
+
+Name-body invocation evidence (dc-hsa5.6, engine19): the existing evaluator's retained
+child frames now carry the selected NameId/version, original caller, definition worksheet,
+body index and a formula-local ordinal with its active definition parent. Completion
+records the actual scalar kind, worksheet error, reference summary, array shape, callable
+or refusal. A returned closure can execute after its defining body ends, so the parent
+denotes active execution rather than lexical ownership or complete LAMBDA ancestry.
+Body indices are local to the producing formula; they are not independent reuse keys.
+
+The ordinary result certificate retains these records under its producing root invocation.
+`HostState::name_invocation_view` returns that root, model/result frontier and the ordinary
+cell projection. Current refusals and stale calculations retain their existing qualifications;
+literals, cleared cells and imported caches do not acquire a formula's orphaned evidence.
+The query neither binds nor evaluates names. Repeated body evaluations remain separate,
+and no shared name-value cache is introduced. Passive records do not make a pure dynamic
+Range calculation effectful. Physical yields retain the same name/callback frames;
+cancellation installs no unfinished name records.
+
+Evidence is bounded to 1,024 completed bodies per formula invocation and sixteen reference
+areas per retained body, with explicit omitted counts. Calculation continues over every
+body and the full reference. Host controls cover nested scoped aliases, untaken names,
+closures, definition edits/staleness, typed refusals, cancellation and both limits.
+This is execution evidence for stamped formula results, not a new P12 Excel measurement.
+Detached diagnostic Evaluate, legacy iteration/table stamps and shared memo reuse remain
+outside this invocation view.
 
 The native desktop engine runner accepts `--early-execution XPure` as an explicit grant, resolved
 to active registration IDs and checked by the native adapter. It records those IDs and accepts

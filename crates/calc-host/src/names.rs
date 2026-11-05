@@ -3,6 +3,18 @@ use crate::{CellEdit, HostState};
 use calc_doc_model::{NameNode, NameScope};
 use calc_value::{CellKey, NameId};
 
+/// Existing execution evidence with the ordinary cell projection's current/stale
+/// qualifications. This query neither binds a definition nor evaluates its body.
+#[derive(Clone, Debug, PartialEq)]
+pub struct NameInvocationView {
+    pub revision: calc_doc_model::AuthoredRevision,
+    pub results: calc_engine::contract::ReadViewId,
+    pub result: crate::ProjectedCell,
+    pub root: calc_engine::contract::InvocationId,
+    pub invocations: Vec<calc_fml::NameInvocation>,
+    pub omitted: u64,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NameEdit {
     pub id: Option<NameId>,
@@ -164,6 +176,36 @@ pub(crate) fn prepare(host: &HostState, edit: NameEdit) -> Result<Vec<CellEdit>,
     Ok(vec![CellEdit::RestoreNames(snapshots)])
 }
 impl HostState {
+    pub fn name_invocation_view(&self, caller: CellKey) -> Option<NameInvocationView> {
+        let page = crate::project(
+            self,
+            &crate::ProjectionRequest {
+                cells: vec![caller],
+            },
+        )
+        .ok()?;
+        let result = page.cells().first()?;
+        let calculation = match result.value() {
+            crate::ProjectedValue::Calculated { calculation, .. }
+            | crate::ProjectedValue::NotModeled { calculation, .. } => calculation,
+            crate::ProjectedValue::Stale(stale) => stale.last_calculation()?,
+            _ => return None,
+        };
+        let stamp = calculation.stamp()?;
+        let calc_engine::contract::ComputationOrigin::Evaluated { root } = &stamp.computed_by
+        else {
+            return None;
+        };
+        Some(NameInvocationView {
+            revision: self.revision(),
+            results: self.engine.result_view(),
+            result: result.clone(),
+            root: root.clone(),
+            invocations: stamp.reads.name_invocations.clone(),
+            omitted: stamp.reads.omitted_name_invocations,
+        })
+    }
+
     pub fn name_node(&self, id: NameId) -> Option<&NameNode> {
         self.engine.name_node(&self.model, id)
     }

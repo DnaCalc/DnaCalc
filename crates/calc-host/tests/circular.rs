@@ -1222,62 +1222,104 @@ fn dc_hsa5_11__mixed_range_preserves_warm_cycles_and_read_guards() {
 fn dc_hsa5_11__dynamic_range_refusal_keeps_warm_seed() {
     use calc_host::WorkBudget;
     use calc_host::value::GridArea;
-    let mut authored = session_without_recalc(&calc_host::blank_package());
-    assert!(
-        authored
-            .dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
-            .accepted()
-    );
-    set_iteration(&mut authored, IterationSettings::new(true, 1, 0.001));
-    p14_enter(&mut authored, 1, 1, "=INDIRECT(\"A1\")+1");
-    p14_enter(&mut authored, 1, 4, "=2+2");
-    assert!(authored.dispatch(SkinIntent::Rebuild).accepted());
-    p14_advance(&mut authored);
-    let held = p14_visible(&authored, 1, 1).0;
-    let mut bytes = Vec::new();
-    save(authored.host(), &SavePolicy::default(), &mut bytes).unwrap();
-    for budget in [usize::MAX, 1] {
-        let mut book = session_without_recalc(&bytes);
+    for through_name in [false, true] {
+        let mut authored = session_without_recalc(&calc_host::blank_package());
         assert!(
-            book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+            authored
+                .dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
                 .accepted()
         );
-        book.set_calculation_budget(WorkBudget::evaluations(budget));
-        assert_eq!(p14_visible(&book, 1, 1).0, held);
-        let sheet = book.host().sheets()[0].id();
-        let at = |column| CellKey::new(sheet, 1, column).unwrap();
-        assert!(
-            book.dispatch(SkinIntent::CalculateRange {
-                areas: vec![GridArea::new(at(1), at(4)).unwrap()]
-            })
-            .accepted()
+        set_iteration(&mut authored, IterationSettings::new(true, 1, 0.001));
+        if through_name {
+            assert!(
+                authored
+                    .dispatch(SkinIntent::Edit {
+                        edits: vec![CellEdit::SetName {
+                            name: "DynamicSelf".into(),
+                            scope: calc_host::value::NameScope::Workbook,
+                            formula: Some("=INDIRECT(\"A1\")".into()),
+                        }]
+                    })
+                    .accepted()
+            );
+        }
+        p14_enter(
+            &mut authored,
+            1,
+            1,
+            if through_name {
+                "=DynamicSelf+1"
+            } else {
+                "=INDIRECT(\"A1\")+1"
+            },
         );
-        p14_advance(&mut book);
-        let page = project(book.host(), &ProjectionRequest { cells: vec![at(1)] }).unwrap();
-        assert!(page.recalc_failure().is_none(), "{:?}", page.recalc_failure());
-        let independent = p14_visible(&book, 1, 4);
-        assert_eq!(independent.0, CalcValue::number(4.0));
-        let stamp = independent.1.unwrap().stamp().unwrap().clone();
-        assert!(matches!(stamp.computed_by, calc_engine::contract::ComputationOrigin::Evaluated { .. }));
-        assert!(!stamp.reads.uses_imported_cache && !stamp.reads.uses_boundary_cache);
-        let events = book.take_calculation_events();
-        let completed = events.iter().find_map(|event| match event {
-            calc_host::CalcEvent::Completed(receipt) => Some(receipt), _ => None,
-        }).unwrap();
-        assert_eq!(completed.outcome, calc_host::CompletionOutcome::Incomplete);
-        assert_eq!((completed.coverage.required, completed.coverage.calculated, completed.coverage.refused), (2, 1, 1));
-        assert_eq!(stamp.certification.command, completed.command);
-        assert_eq!(p14_visible(&book, 1, 1).0, held);
-        assert!(
-            p14_visible(&book, 1, 1).1.is_none(),
-            "refusal cannot create a producing calculation"
-        );
-        assert!(book.dispatch(SkinIntent::Rebuild).accepted());
-        p14_advance(&mut book);
-        assert_eq!(
-            p14_visible(&book, 1, 1).0,
-            CalcValue::number(held.as_number().unwrap() + 1.0)
-        );
+        p14_enter(&mut authored, 1, 4, "=2+2");
+        assert!(authored.dispatch(SkinIntent::Rebuild).accepted());
+        p14_advance(&mut authored);
+        let held = p14_visible(&authored, 1, 1).0;
+        let mut bytes = Vec::new();
+        save(authored.host(), &SavePolicy::default(), &mut bytes).unwrap();
+        for budget in [usize::MAX, 1] {
+            let mut book = session_without_recalc(&bytes);
+            assert!(
+                book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+                    .accepted()
+            );
+            book.set_calculation_budget(WorkBudget::evaluations(budget));
+            assert_eq!(p14_visible(&book, 1, 1).0, held);
+            let sheet = book.host().sheets()[0].id();
+            let at = |column| CellKey::new(sheet, 1, column).unwrap();
+            assert!(
+                book.dispatch(SkinIntent::CalculateRange {
+                    areas: vec![GridArea::new(at(1), at(4)).unwrap()]
+                })
+                .accepted()
+            );
+            p14_advance(&mut book);
+            let page = project(book.host(), &ProjectionRequest { cells: vec![at(1)] }).unwrap();
+            assert!(
+                page.recalc_failure().is_none(),
+                "{:?}",
+                page.recalc_failure()
+            );
+            let independent = p14_visible(&book, 1, 4);
+            assert_eq!(independent.0, CalcValue::number(4.0));
+            let stamp = independent.1.unwrap().stamp().unwrap().clone();
+            assert!(matches!(
+                stamp.computed_by,
+                calc_engine::contract::ComputationOrigin::Evaluated { .. }
+            ));
+            assert!(!stamp.reads.uses_imported_cache && !stamp.reads.uses_boundary_cache);
+            let events = book.take_calculation_events();
+            let completed = events
+                .iter()
+                .find_map(|event| match event {
+                    calc_host::CalcEvent::Completed(receipt) => Some(receipt),
+                    _ => None,
+                })
+                .unwrap();
+            assert_eq!(completed.outcome, calc_host::CompletionOutcome::Incomplete);
+            assert_eq!(
+                (
+                    completed.coverage.required,
+                    completed.coverage.calculated,
+                    completed.coverage.refused
+                ),
+                (2, 1, 1)
+            );
+            assert_eq!(stamp.certification.command, completed.command);
+            assert_eq!(p14_visible(&book, 1, 1).0, held);
+            assert!(
+                p14_visible(&book, 1, 1).1.is_none(),
+                "refusal cannot create a producing calculation"
+            );
+            assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+            p14_advance(&mut book);
+            assert_eq!(
+                p14_visible(&book, 1, 1).0,
+                CalcValue::number(held.as_number().unwrap() + 1.0)
+            );
+        }
     }
 }
 

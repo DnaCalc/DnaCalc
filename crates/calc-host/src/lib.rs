@@ -63,7 +63,7 @@ pub use filter::{AutoFilter,FilterCriteria,FilterOperator,FilterPredicate,Filter
 mod names;
 pub use facts::alignment as style_alignment;
 pub use format::{BorderPatch, FormatPatch, format_regions, format_samples, patched_style};
-pub use names::NameEdit;
+pub use names::{NameEdit, NameInvocationView};
 pub mod chart;
 mod command;
 mod domain;
