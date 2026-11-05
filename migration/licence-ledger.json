@@ -5031,6 +5031,8 @@
  {"path": "crates/calc-func/tests/captures/fn6_iteration_primary/oracle.capture.json", "class": "own-work", "reason": "Original fn6 collation research questions and unchanged Excel20527 observations; package hashes, typed results and captured settings retained."},
  {"path": "crates/calc-func/tests/fixtures/fn6_jamo_suffix/oracle.xlsx", "class": "own-work", "reason": "Original fn6 collation research questions and unchanged Excel20527 observations; package hashes, typed results and captured settings retained."},
  {"path": "crates/calc-func/tests/fixtures/fn6_jamo_suffix/questions.json", "class": "own-work", "reason": "Original fn6 collation research questions and unchanged Excel20527 observations; package hashes, typed results and captured settings retained."},
- {"path": "crates/calc-func/tests/captures/fn6_jamo_suffix/oracle.capture.json", "class": "own-work", "reason": "Original fn6 collation research questions and unchanged Excel20527 observations; package hashes, typed results and captured settings retained."}
+ {"path": "crates/calc-func/tests/captures/fn6_jamo_suffix/oracle.capture.json", "class": "own-work", "reason": "Original fn6 collation research questions and unchanged Excel20527 observations; package hashes, typed results and captured settings retained."},
+ {"path": "crates/calc-func/tests/captures/fn10_complex_axes/scalar-observations.json", "class": "own-work", "reason": "Original scalar questions and complete qualified Excel20527 service replies, exact typed input readbacks and calculation settings. Existing public-interface witness capture route; no implementation source copied."},
+ {"path": "crates/calc-func/tests/captures/fn10_exp_subnormal/scalar-observations.json", "class": "own-work", "reason": "Original DNA Calc scalar-service observations and typed readbacks; no external source code."}
  ]
 }

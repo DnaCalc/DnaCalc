@@ -231,6 +231,10 @@ impl ParsedComplex {
         )
     }
     pub(crate) fn tan(self) -> Result<Self, WorksheetErrorCode> {
+        if self.im == 0.0 {
+            crate::ported::real_policy::ExcelRealPolicy::CIRCULAR_TRIG.check_arg(self.re)?;
+            return Ok(Self::new(crate::ported::excel_numeric::excel_tan(self.re), 0.0, None));
+        }
         let denom = crt_cos(2.0 * self.re) + crt_cosh(2.0 * self.im);
         if denom == 0.0 {
             return Err(WorksheetErrorCode::Num);
@@ -256,6 +260,20 @@ impl ParsedComplex {
         )
     }
     pub(crate) fn cot(self) -> Result<Self, WorksheetErrorCode> {
+        if self.im == 0.0 {
+            // The real-axis cotangent uses the scalar tangent and one reciprocal.
+            // At the scalar domain boundary IMCOT publishes zero, while IMTAN is #NUM!.
+            if self.re.is_finite()
+                && crate::ported::real_policy::ExcelRealPolicy::CIRCULAR_TRIG.check_arg(self.re).is_err()
+            {
+                return Ok(Self::new(0.0, 0.0, None));
+            }
+            let tangent = crate::ported::excel_numeric::excel_tan(self.re);
+            if tangent == 0.0 {
+                return Err(WorksheetErrorCode::Num);
+            }
+            return Ok(Self::new(crate::ported::excel_numeric::excel_x87_recip(tangent), 0.0, None));
+        }
         let denom = crt_cosh(2.0 * self.im) - crt_cos(2.0 * self.re);
         if denom == 0.0 {
             return Err(WorksheetErrorCode::Num);

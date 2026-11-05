@@ -6,7 +6,7 @@
 //!
 //! POWER is the `^` operator's rule ([`super::arithmetic::raise`]).
 
-use super::kit::{Grid, fail, given, grid, num, num_with_subnormal, out, out_matrix, out_text, reject_logical, text, values};
+use super::kit::{Grid, fail, given, grid, num, num_with_subnormal, out, out_matrix, out_text, out_with_subnormal, reject_logical, text, values};
 use crate::kernel::{Exit, Site, Step};
 use crate::ported::real_policy::ExcelRealPolicy;
 use crate::ported::{self as k};
@@ -89,7 +89,8 @@ ported_family! {
     }
     24 pi "PI" (0, 0) [] |s, a, sv| { s.number(std::f64::consts::PI) }
     25 exp "EXP" (1, 1) [V "number"] |s, a, sv| {
-        raw(s, a, ExcelRealPolicy::FINITE, k::exp_fn::exp_kernel)
+        let x = num(s, a, 0)?;
+        out_with_subnormal(s, ExcelRealPolicy::FINITE.publish(x, k::exp_fn::exp_kernel(x)))
     }
     26 ln "LN" (1, 1) [V "number"] |s, a, sv| { unary(s, a, k::ln_fn::ln_kernel) }
     27 log "LOG" (1, 2) [V "number", V "base"] |s, a, sv| {
