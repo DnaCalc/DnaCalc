@@ -8488,6 +8488,25 @@ Case {
         Action::DoubleClick(cell!("D4")),Action::Into("cell-editor","=1+2"),Action::Keys("cell-editor",ENTER),
     ], checks: &[Check::PlanCell("D4","text","3.00"),Check::PlanCell("E4","text","4.00"),Check::PlanCell("E4","formula","true"),Check::PlanCell("C1","text","28"),Check::PlanCell("C2","text","103"),Check::Absent("cell-editor"),Check::Focused("grid")] },
 
+    Case {name:"chart editing: title and legend use the authored workbook command",actions:&[
+        Action::Window(1600,1800),Action::Upload("open-file","crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx"),Action::DiscardReplacement,Action::Click("skin-grid"),Action::OpenDetails("chart-tools"),Action::Wait(Check::Value("chart-choice","xl/charts/chart1.xml")),Action::Wait(Check::Count("[data-dnacalc=chart-edit-apply]:not(:disabled)",1)),Action::Into("chart-edit-title","Quarterly & Ω <2026>"),Action::Click("chart-edit-legend"),Action::Click("chart-edit-apply")],checks:&[
+        Check::Text("[data-chart=\"Chart 1\"] [data-dnacalc=chart-title]","Quarterly & Ω <2026>"),Check::Absent("[data-chart=\"Chart 1\"] [data-dnacalc=chart-legend]"),Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","data-value","12"),Check::Count("[data-dnacalc=chart]",6),Check::Value("chart-edit-legend","false")]},
+    Case {name:"chart editing: Undo and Redo restore title and legend together",actions:&[
+        Action::Click("undo"),Action::Wait(Check::Text("[data-chart=\"Chart 1\"] [data-dnacalc=chart-title]","Column")),Action::Wait(Check::Count("[data-chart=\"Chart 1\"] [data-dnacalc=chart-legend]",2)),Action::Click("redo")],checks:&[
+        Check::Text("[data-chart=\"Chart 1\"] [data-dnacalc=chart-title]","Quarterly & Ω <2026>"),Check::Absent("[data-chart=\"Chart 1\"] [data-dnacalc=chart-legend]"),Check::Value("chart-edit-title","Quarterly & Ω <2026>")]},
+    Case {name:"chart editing: XLSX reopening retains properties and live series",actions:&[
+        Action::Into("name-box","B2\u{E007}"),Action::Into(BAR,"40\u{E007}"),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools"),Action::Choose("chart-choice","xl/charts/chart1.xml")],checks:&[
+        Check::Value("chart-edit-title","Quarterly & Ω <2026>"),Check::Value("chart-edit-legend","false"),Check::Text("[data-chart=\"Chart 1\"] [data-dnacalc=chart-title]","Quarterly & Ω <2026>"),Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","data-value","40"),Check::Attr("[data-chart=\"Chart 6\"] [data-series=\"0\"][data-point=\"0\"]","data-x","40")]},
+    Case {name:"chart editing: phone controls can delete a one-series title and legend",actions:&[
+        Action::Window(390,844),Action::OpenDetails("chart-tools"),Action::Choose("chart-choice","xl/charts/chart5.xml"),Action::Wait(Check::Value("chart-edit-title","Pie")),Action::Wait(Check::Text("[data-chart=\"Chart 5\"] [data-dnacalc=chart-title]","Pie")),Action::Wait(Check::Count("[data-dnacalc=chart-edit-apply]:not(:disabled)",1)),Action::Into("chart-edit-title",""),Action::Click("chart-edit-legend"),Action::Wait(Check::Reachable("chart-edit-apply")),Action::Click("chart-edit-apply"),Action::Wait(Check::Absent("[data-chart=\"Chart 5\"] [data-dnacalc=chart-title]")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools"),Action::Choose("chart-choice","xl/charts/chart5.xml")],checks:&[
+        Check::Fits,Check::Count("[data-dnacalc=chart][data-chart=\"Chart 5\"]",1),Check::Value("chart-edit-title",""),Check::Value("chart-edit-legend","false"),Check::Absent("[data-chart=\"Chart 5\"] [data-dnacalc=chart-title]"),Check::Absent("[data-chart=\"Chart 5\"] [data-dnacalc=chart-legend]")]},
+    Case {name:"chart editing: missing title and legend can be restored after reopening",actions:&[
+        Action::Wait(Check::Count("[data-dnacalc=chart-edit-apply]:not(:disabled)",1)),Action::Into("chart-edit-title","Phone pie"),Action::Click("chart-edit-legend"),Action::Click("chart-edit-apply"),Action::Wait(Check::Text("[data-chart=\"Chart 5\"] [data-dnacalc=chart-title]","Phone pie")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools"),Action::Choose("chart-choice","xl/charts/chart5.xml")],checks:&[
+        Check::Value("chart-edit-title","Phone pie"),Check::Value("chart-edit-legend","true"),Check::Text("[data-chart=\"Chart 5\"] [data-dnacalc=chart-title]","Phone pie"),Check::Count("[data-chart=\"Chart 5\"] [data-dnacalc=chart-legend]",6),Check::Fits]},
+    Case {name:"chart editing: Escape discards a draft and returns keyboard focus",actions:&[
+        Action::Wait(Check::Count("[data-dnacalc=chart-edit-apply]:not(:disabled)",1)),Action::Into("chart-edit-title","Discard this draft"),Action::Keys("chart-edit-title","\u{E00C}"),Action::Wait(Check::Focused("chart-tools-toggle")),Action::Wait(Check::Rendered("chart-edit-title",false)),Action::OpenDetails("chart-tools")],checks:&[
+        Check::Value("chart-edit-title","Phone pie"),Check::Text("[data-chart=\"Chart 5\"] [data-dnacalc=chart-title]","Phone pie"),Check::Fits]},
+
 ];
 
 /// The script that reads what one check looks at.
@@ -9337,4 +9356,5 @@ CaseGroup {
     CaseGroup {name:"typed-colour-filters",start:705,end:709,core:4,setup:&[]},
     CaseGroup { name: "completion-repair", start: 709, end: 714, core: 5, setup: &[] },
     CaseGroup {name:"range-drag",start:714,end:724,core:10,setup:&[]},
+    CaseGroup {name:"chart-editing",start:724,end:730,core:6,setup:&[]},
 ];

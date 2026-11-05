@@ -19,6 +19,7 @@ pub enum CellEdit {
     /// Authored style table, in the same transaction as its cell assignments.
     Tables(Vec<calc_doc_model::Table>),
     Styles(Arc<calc_doc_model::StyleTable>),
+    Charts {sheet:calc_value::SheetId,charts:Vec<calc_doc_model::Chart>},
     AutoFilter { sheet: calc_doc_model::value::SheetId, filter: Option<calc_doc_model::AutoFilter> },
     /// Document layout metadata, independent of cell contents.
     Layout(calc_doc_model::SkinLayoutEdit),
@@ -85,6 +86,7 @@ impl CellEdit {
     fn operation(self) -> WorkbookOp {
         match self {
             CellEdit::Tables(tables)=>WorkbookOp::SetTables(tables),
+            CellEdit::Charts {sheet,charts}=>WorkbookOp::SetCharts {sheet,charts},
             CellEdit::Styles(styles) => WorkbookOp::SetStyles(styles),
             CellEdit::AutoFilter { sheet, filter } => WorkbookOp::SetAutoFilter { sheet, filter },
             CellEdit::Layout(edit) => WorkbookOp::EditSkinLayout(edit),
@@ -416,6 +418,13 @@ pub fn dispatch(
         }
     }
     for op in &batch.operations {
+        if let WorkbookOp::SetCharts {sheet,charts}=op {
+            let old=host.model.definitions().charts(*sheet);
+            if old.len()!=charts.len() || old.iter().zip(charts).any(|(a,b)|a.part!=b.part) || host.loaded.sheet(*sheet).is_none_or(|s|s.protected()||s.is_macro_sheet()) {
+                return Err(CommandError::Document(EditError::SheetOperation("Chart editing requires the original charts on an editable worksheet (dc-e5z5)".into())));
+            }
+            for (_,chart) in old.iter().zip(charts).filter(|(before,chart)|before!=chart) {host.loaded.check_chart_properties(*sheet,chart).map_err(|e|CommandError::Document(EditError::SheetOperation(e.to_string())))?;}
+        }
         if let WorkbookOp::SetReviewLinks{sheet,links}=op {
             if host.loaded.sheet(*sheet).is_some_and(|s|s.protected()||s.is_macro_sheet()){
                 return Err(CommandError::Document(EditError::SheetOperation("Hyperlinks require an editable worksheet (dc-971p.38)".into())));

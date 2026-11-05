@@ -389,6 +389,12 @@ pub struct LoadedWorkbook {
 }
 
 impl LoadedWorkbook {
+    /// Preflight the retained chart writer used by authored Save.
+    pub fn check_chart_properties(&self,sheet:SheetId,chart:&calc_doc_model::Chart)->Result<(),crate::SaveRefusal> {
+        let original=self.model.definitions().charts(sheet).iter().find(|old|old.part==chart.part).ok_or_else(||crate::SaveRefusal::ChartNotModelled{part:chart.part.clone(),detail:"This chart has no original frame on this worksheet".into(),owner:"dc-e5z5"})?;
+        crate::save::chart::source(&self.package,&self.model,original,chart).map(|_|())
+    }
+
     /// Preflight the same retained-element rewrite used by a sorted hyperlink save.
     pub fn check_sorted_links(&self,sheet:SheetId,links:&[calc_doc_model::ReviewLink])->Result<(),crate::SaveRefusal>{
         let Some(source)=self.sheet(sheet)else{
@@ -1673,7 +1679,7 @@ pub fn load_preserving_sheet_ids(
     definitions=definitions.with_axis_formats(outline_edits);
     for sheet in &sheets {
         definitions = definitions.with_review_links(sheet.id,sheet.review.links.clone()).with_review_notes(sheet.id, sheet.review.notes.clone())
-            .with_validations(sheet.id, sheet.validations.to_vec());
+            .with_validations(sheet.id, sheet.validations.to_vec()).with_charts(sheet.id,sheet.charts.charts.clone());
     }
     for (sheet, rules) in conditional_sources {
         definitions = definitions.with_conditional_rules(sheet, rules);

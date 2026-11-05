@@ -320,6 +320,7 @@ pub struct Definitions {
     validations: BTreeMap<SheetId, Vec<crate::Validation>>,
     review: BTreeMap<SheetId, Vec<crate::ReviewNote>>,
     links: BTreeMap<SheetId, Vec<crate::ReviewLink>>,
+    charts: BTreeMap<SheetId,std::sync::Arc<[crate::Chart]>>,
     axis_layouts: crate::AxisLayouts,
     panes: BTreeMap<SheetId, crate::PaneLayout>,
     filters: BTreeMap<SheetId, crate::AutoFilter>,
@@ -343,6 +344,10 @@ pub struct Definitions {
 }
 
 impl Definitions {
+    pub fn charts(&self,sheet:SheetId)->&[crate::Chart] {self.charts.get(&sheet).map(|charts|charts.as_ref()).unwrap_or(&[])}
+    pub fn all_charts(&self)->impl Iterator<Item=(SheetId,&[crate::Chart])> {self.charts.iter().map(|(sheet,charts)|(*sheet,charts.as_ref()))}
+    pub fn with_charts(mut self,sheet:SheetId,charts:Vec<crate::Chart>)->Self {if charts.is_empty(){self.charts.remove(&sheet);}else{self.charts.insert(sheet,charts.into());}self}
+
     pub fn styles(&self) -> &std::sync::Arc<crate::StyleTable> {
         &self.styles
     }
@@ -512,6 +517,7 @@ impl Definitions {
             conditional: BTreeMap::new(),
             review: BTreeMap::new(),
             links: BTreeMap::new(),
+            charts: BTreeMap::new(),
             validations: BTreeMap::new(),
             axis_layouts: crate::AxisLayouts::default(),
             panes: BTreeMap::new(),
@@ -719,6 +725,7 @@ impl Definitions {
         self.conditional.remove(&sheet);
         self.review.remove(&sheet);
         self.links.remove(&sheet);
+        self.charts.remove(&sheet);
         if self.styles.runs.iter().any(|r| r.area.sheet() == sheet) {
             let mut styles = (*self.styles).clone();
             styles.runs = styles.runs.without_sheet(sheet);
@@ -754,6 +761,7 @@ impl Definitions {
     pub fn is_empty(&self) -> bool {
         self.review.is_empty()
             && self.links.is_empty()
+            && self.charts.is_empty()
             && self.validations.is_empty()
             && self.conditional.is_empty()
             && self.axis_layouts.sheets().next().is_none()
@@ -858,6 +866,7 @@ impl Definitions {
             .chain(self.panes.keys().copied())
             .chain(self.filters.keys().copied())
             .chain(self.links.keys().copied())
+            .chain(self.charts.keys().copied())
             .chain(self.axis_layouts.sheets())
             .chain(self.data_tables.iter().map(|table| table.area.sheet()))
             .chain(

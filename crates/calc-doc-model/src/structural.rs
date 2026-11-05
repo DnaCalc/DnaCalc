@@ -381,6 +381,9 @@ impl ModelRoot {
                     .filter_map(|(at, format)| Some((moved_cell(edit, at)?, format)))
                     .collect::<Vec<_>>(),
             );
+        // Chart anchors and references keep their source coordinate basis; the host and save
+        // apply the existing structural transforms when they project or write them.
+        for (sheet,charts) in definitions.all_charts() {next=next.with_charts(sheet,charts.to_vec());}
         for (sheet,filter) in definitions.auto_filters() {
             let mut filter=filter.clone();
             if sheet==edit.sheet() {

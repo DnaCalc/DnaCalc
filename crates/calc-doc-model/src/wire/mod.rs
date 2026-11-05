@@ -219,6 +219,7 @@ impl std::error::Error for DecodeError {}
 /// Why [`encode_batch`] refused a batch.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EncodeError {
+    Charts {operation:usize},
     ReviewNotes {
         operation: usize,
     },
@@ -267,6 +268,7 @@ pub enum EncodeError {
 impl fmt::Display for EncodeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            EncodeError::Charts {operation}=>write!(f,"chart changes in operation {operation} are not modelled by this wire version (dc-e5z5)"),
             EncodeError::ReviewNotes { operation } => write!(
                 f,
                 "operation {operation} changes review notes, which wire version 1 does not encode"
@@ -341,6 +343,7 @@ pub fn encode_batch(batch: &OpBatch, root: &ModelRoot) -> Result<Vec<u8>, Encode
         if matches!(operation, WorkbookOp::SetIteration(_)) {
             return Err(EncodeError::Iteration { operation: index });
         }
+        if matches!(operation, WorkbookOp::SetCharts {..}) {return Err(EncodeError::Charts {operation:index});}
         if matches!(operation, WorkbookOp::SetTables(_)) {return Err(EncodeError::Tables{operation:index});}
         if matches!(operation, WorkbookOp::SetAutoFilter { .. }) { return Err(EncodeError::AutoFilter { operation:index }); }
         if matches!(operation, WorkbookOp::SetAxisFormat(_)) {

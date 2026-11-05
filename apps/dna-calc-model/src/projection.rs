@@ -275,6 +275,7 @@ pub enum Interest {
 /// What the page asks the session to do: calc-host's skin intents as the page sends them.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Intent {
+    ChartProperties {sheet:Sheet,revision:u64,part:String,title:Option<String>,set_title:bool,legend:Option<bool>},
     CreateReview {at:Key,revision:u64,parent:Option<u32>,threaded:bool,author:String,text:String,timestamp:String},
     FormatReview {at:Key,revision:u64,index:u32,text:String,start:u32,end:u32,patch:ReviewFormat},
     ResolveReview {at:Key,revision:u64,index:u32,resolved:bool},
@@ -900,6 +901,10 @@ impl Geometry {
 /// its position and size, and its drawing.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Chart {
+    #[serde(default)] pub part:String,
+    #[serde(default)] pub title:Option<String>,
+    #[serde(default)] pub legend:Option<String>,
+    #[serde(default)] pub title_linked:bool,
     pub name: String,
     pub kind: String,
     pub place: ChartPlace,
