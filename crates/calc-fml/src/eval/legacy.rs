@@ -273,6 +273,9 @@ const NESTED_ARRAY: &[(&str, &[usize])] = &[
     // captures retain both predictor columns, including callers below x1/x2.
     ("LINEST", &[1]),
     ("LOGEST", &[1]),
+    // R26's Legacy INDEX(MINVERSE(CHOOSE({1,2},x1,x2)),1,1)
+    // captures likewise retain the complete two-column matrix below INDEX.
+    ("MINVERSE", &[0]),
 ];
 
 /// The reference parameters at which OFFSET or INDIRECT lifts over an array wherever the call is,

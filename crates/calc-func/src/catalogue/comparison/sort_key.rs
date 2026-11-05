@@ -71,8 +71,8 @@ enum Weight {
     Ignorable,
     /// A unit the key is not built for here.
     Refused,
-    /// Only the first primary group is measured, at the start of an independent
-    /// suffix. This is insufficient for a complete key or a same-group order.
+    /// Only the first primary group is measured, after a simple ordinary prefix
+    /// and before an independent suffix. This cannot give a same-group order.
     FirstPrimaryGroup(u8),
     /// A combining mark: its diacritic weight, added to the entry before it.
     Mark(u8),
@@ -526,11 +526,16 @@ pub(super) fn refused(code: u16) -> bool {
 }
 
 /// Fn6's identical modern LV/LVT prefixes have default diacritic and case
-/// entries, as fn7's native keys confirm. Their common weights cancel when
+/// entries, as fn7's native keys confirm, including after an identical ordinary
+/// prefix. Their common weights cancel when
 /// neither suffix can extend a Jamo sequence or repeat the preceding primary.
 /// This gives no ordering between different Jamo prefixes or between a Jamo
 /// sequence and a precomposed syllable.
-pub(super) fn shared_jamo_tails<'a>(a: &'a [u16], b: &'a [u16]) -> Option<(&'a [u16], &'a [u16])> {
+pub(super) fn shared_jamo_tails<'a>(a: &'a [u16], b: &'a [u16]) -> Option<(usize, &'a [u16], &'a [u16])> {
+    let prefix = a.iter().zip(b).take_while(|(x, y)| {
+        x == y && ordinary_jamo_prefix(std::slice::from_ref(*x))
+    }).count();
+    let (a, b) = (&a[prefix..], &b[prefix..]);
     if a.len() < 2 || b.len() < 2 || a[..2] != b[..2]
         || !(0x1100..=0x1112).contains(&a[0]) || !(0x1161..=0x1175).contains(&a[1])
     {
@@ -542,7 +547,20 @@ pub(super) fn shared_jamo_tails<'a>(a: &'a [u16], b: &'a [u16]) -> Option<(&'a [
         2
     };
     let (a, b) = (&a[at..], &b[at..]);
-    (independent_jamo_suffix(a) && independent_jamo_suffix(b)).then_some((a, b))
+    (independent_jamo_suffix(a) && independent_jamo_suffix(b)).then_some((prefix, a, b))
+}
+
+/// Simple known entries neither join a Jamo run nor alter its boundary.
+/// Keep marks, expansions, specials and ignorables outside this prefix rule.
+fn ordinary_jamo_prefix(text: &[u16]) -> bool {
+    text.iter().all(|&code| {
+        // Paired surrogates can be variation selectors. Hangul syllables and
+        // compatibility forms have unmeasured boundaries with conjoining Jamo.
+        !matches!(code, 0x1100..=0x11FF | 0x3130..=0x318F | 0xA960..=0xA97F
+            | 0xAC00..=0xDFFF | 0xFFA0..=0xFFDC)
+            && matches!(table().weights[usize::from(code)],
+                Weight::Weighted { primaries: 1, diacritics: 1, cases: 1, .. })
+    })
 }
 
 /// These units cannot extend a Jamo run or repeat its preceding primary.
@@ -808,7 +826,7 @@ pub(super) fn parts(text: &[u16]) -> Result<Parts, Unfinished> {
         let primaries = gathered.primary.len();
         if gathered.unit(table, code, &mut before).is_none() {
             gathered.primary.truncate(primaries);
-            if at == 0 && independent_jamo_suffix(&text[1..])
+            if ordinary_jamo_prefix(&text[..at]) && independent_jamo_suffix(&text[at + 1..])
                 && let Weight::FirstPrimaryGroup(group) = table.weights[usize::from(code)]
             {
                 // A strict difference in this measured byte decides before any

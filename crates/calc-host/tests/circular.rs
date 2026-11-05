@@ -974,8 +974,9 @@ fn p14_visible(
 fn dc_hsa5_11__range_exclusion_wakes_waiters_and_cancel_counts_only_discovered_refusals() {
     use calc_host::{CalcEvent, CompletionOutcome, WorkBudget};
     use calc_host::value::GridArea;
-    for sparse in [false, true] {
-        let mut authored = HostSession::open(Arc::new(MemorySource::new(eng14_input("eng14-range-dynamic-cycle-reader").to_vec())),
+    for (sparse, dynamic_cycle) in [(false, false), (true, false), (false, true), (true, true)] {
+        let source = if dynamic_cycle { "eng14-range-dynamic-cycle" } else { "eng14-range-dynamic-cycle-reader" };
+        let mut authored = HostSession::open(Arc::new(MemorySource::new(eng14_input(source).to_vec())),
             &OpenPolicy::default(), HostOptions { calc_mode: Some(CalcMode::Manual), ..HostOptions::default() }).unwrap();
         p14_enter(&mut authored, 1, 3, "=INDIRECT(\"E1\")+1");
         p14_enter(&mut authored, 1, 5, "=INDIRECT(\"A1\")+1");
@@ -993,7 +994,8 @@ fn dc_hsa5_11__range_exclusion_wakes_waiters_and_cancel_counts_only_discovered_r
             assert_eq!(p14_visible(&authored, 1, column), before.0, "warm identity survives exclusion");
             assert_eq!(authored.host().precedents(key(column)), before.1, "dynamic topology survives exclusion");
         }
-        for cancel_after in [None, Some(2), Some(3)] {
+        let cancellations = if dynamic_cycle { vec![None, Some(0), Some(2), Some(3)] } else { vec![None, Some(2), Some(3)] };
+        for cancel_after in cancellations {
             let mut book = HostSession::open(Arc::new(MemorySource::new(bytes.clone())), &OpenPolicy::default(),
                 HostOptions { calc_mode: Some(CalcMode::Manual), ..HostOptions::default() }).unwrap();
             book.set_calculation_budget(WorkBudget::evaluations(1));
@@ -1004,7 +1006,8 @@ fn dc_hsa5_11__range_exclusion_wakes_waiters_and_cancel_counts_only_discovered_r
             assert!(book.dispatch(SkinIntent::CalculateRange { areas: vec![GridArea::new(at(1), at(5)).unwrap()] }).accepted());
             let mut events = book.take_calculation_events();
             let command = events.iter().find_map(|e| match e { CalcEvent::Admitted(r) => Some(r.command), _ => None }).unwrap();
-            assert_eq!(p14_refused(&events, command), [at(1), at(2)].into_iter().collect(), "the first reader awaits E1 before reaching a refused value");
+            let initial = if dynamic_cycle { std::collections::BTreeSet::new() } else { [at(1), at(2)].into_iter().collect() };
+            assert_eq!(p14_refused(&events, command), initial, "dynamic cycles are refused only after their actual closed wait chain");
             let mut steps = 0;
             while book.has_pending_calculation() {
                 if cancel_after.is_some_and(|count| p14_refused(&events, command).len() == count) {
@@ -1251,19 +1254,19 @@ fn dc_hsa5_11__dynamic_range_refusal_keeps_warm_seed() {
         );
         p14_advance(&mut book);
         let page = project(book.host(), &ProjectionRequest { cells: vec![at(1)] }).unwrap();
-        assert!(
-            matches!(
-                page.recalc_failure(),
-                Some(calc_host::RecalcFailed::Failed(
-                    calc_engine::RecalcFailure::NotModeledScope {
-                        owner: "dc-hsa5.11",
-                        ..
-                    }
-                ))
-            ),
-            "{:?}",
-            page.recalc_failure()
-        );
+        assert!(page.recalc_failure().is_none(), "{:?}", page.recalc_failure());
+        let independent = p14_visible(&book, 1, 4);
+        assert_eq!(independent.0, CalcValue::number(4.0));
+        let stamp = independent.1.unwrap().stamp().unwrap().clone();
+        assert!(matches!(stamp.computed_by, calc_engine::contract::ComputationOrigin::Evaluated { .. }));
+        assert!(!stamp.reads.uses_imported_cache && !stamp.reads.uses_boundary_cache);
+        let events = book.take_calculation_events();
+        let completed = events.iter().find_map(|event| match event {
+            calc_host::CalcEvent::Completed(receipt) => Some(receipt), _ => None,
+        }).unwrap();
+        assert_eq!(completed.outcome, calc_host::CompletionOutcome::Incomplete);
+        assert_eq!((completed.coverage.required, completed.coverage.calculated, completed.coverage.refused), (2, 1, 1));
+        assert_eq!(stamp.certification.command, completed.command);
         assert_eq!(p14_visible(&book, 1, 1).0, held);
         assert!(
             p14_visible(&book, 1, 1).1.is_none(),
@@ -1275,6 +1278,72 @@ fn dc_hsa5_11__dynamic_range_refusal_keeps_warm_seed() {
             p14_visible(&book, 1, 1).0,
             CalcValue::number(held.as_number().unwrap() + 1.0)
         );
+    }
+}
+
+/// DNA scope control: unsupported providers/spills keep a whole-command refusal,
+/// while a normal worksheet #NAME? remains a calculated scalar error.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_11__dynamic_range_neighbors_keep_scope_and_value_errors_distinct() {
+    use calc_host::WorkBudget;
+    use calc_host::value::GridArea;
+    for neighbor in ["=SEQUENCE(2,1)", "=MissingPacketFunction()", "='missing-provider.xlsm'!NoSuch(1)"] {
+        for budget in [usize::MAX, 1] {
+            let mut book = HostSession::open(Arc::new(MemorySource::new(
+                eng14_input("eng14-range-dynamic-cycle").to_vec())), &OpenPolicy::default(),
+                HostOptions { calc_mode: Some(CalcMode::Manual), ..HostOptions::default() }).unwrap();
+            p14_enter(&mut book, 1, 3, neighbor);
+            book.set_calculation_budget(WorkBudget::evaluations(budget));
+            let sheet = book.host().sheets()[0].id();
+            let at = |column| CellKey::new(sheet, 1, column).unwrap();
+            // Bind the original static references without evaluating A/B/C.
+            // Cold None versus newly bound Some([]) is not a topology change.
+            assert!(book.dispatch(SkinIntent::CalculateRange {
+                areas: vec![GridArea::cell(at(4))]
+            }).accepted());
+            p14_advance(&mut book);
+            book.take_calculation_events();
+            let before = [1, 2, 4].map(|column|
+                (p14_visible(&book, 1, column), book.host().precedents(at(column))));
+            assert!(book.dispatch(SkinIntent::CalculateRange {
+                areas: vec![GridArea::new(at(1), at(4)).unwrap()]
+            }).accepted());
+            p14_advance(&mut book);
+            let page = project(book.host(), &ProjectionRequest { cells: vec![at(4)] }).unwrap();
+            if neighbor == "=MissingPacketFunction()" {
+                assert!(page.recalc_failure().is_none());
+                let ordinary = p14_visible(&book, 1, 3);
+                assert_eq!(ordinary.0.as_error(), Some(calc_host::value::WorksheetErrorCode::Name));
+                let events = book.take_calculation_events();
+                let completed = events.iter().find_map(|event| match event {
+                    calc_host::CalcEvent::Completed(receipt) => Some(receipt), _ => None,
+                }).unwrap();
+                assert_eq!((completed.coverage.required, completed.coverage.calculated, completed.coverage.refused), (4, 2, 2));
+                assert_eq!(completed.outcome, calc_host::CompletionOutcome::Incomplete);
+                for column in [3, 4] {
+                    assert_eq!(p14_visible(&book, 1, column).1.unwrap().stamp().unwrap().certification.command, completed.command);
+                }
+                for (column, original) in [1, 2].into_iter().zip(&before) {
+                    assert_eq!(p14_visible(&book, 1, column), original.0);
+                    assert_eq!(book.host().precedents(at(column)), original.1);
+                }
+                continue;
+            }
+            assert!(matches!(page.recalc_failure(), Some(calc_host::RecalcFailed::Failed(
+                calc_engine::RecalcFailure::NotModeledScope { owner: "dc-hsa5.11", .. }
+            ))), "{neighbor}: {:?}", page.recalc_failure());
+            let events = book.take_calculation_events();
+            assert!(!events.iter().any(|event| matches!(event, calc_host::CalcEvent::Published(_))));
+            if neighbor.starts_with("='missing-provider") {
+                assert!(!events.iter().any(|event| matches!(event, calc_host::CalcEvent::TargetsRefused { .. })),
+                    "the unsupported participant must reject partial admission before producer exclusion");
+            }
+            for (column, original) in [1, 2, 4].into_iter().zip(before) {
+                assert_eq!(p14_visible(&book, 1, column), original.0);
+                assert_eq!(book.host().precedents(at(column)), original.1);
+            }
+        }
     }
 }
 
@@ -1825,22 +1894,20 @@ fn dc_hsa5_11__eng14_range_paths_and_retained_seeds() {
                 p14_advance(&mut book);
                 let page = project(book.host(), &request).unwrap();
                 let dynamic_cycle = name == "eng14-range-dynamic-cycle";
+                assert!(page.recalc_failure().is_none(), "{name}: {:?}", page.recalc_failure());
                 if dynamic_cycle {
-                    assert!(matches!(page.recalc_failure(), Some(calc_host::RecalcFailed::Failed(
-                        calc_engine::RecalcFailure::NotModeledScope { owner: "dc-hsa5.11", .. }
-                    ))), "{name}: {:?}", page.recalc_failure());
-                } else {
-                    assert!(page.recalc_failure().is_none(), "{name}: {:?}", page.recalc_failure());
+                    assert_eq!(book.host().circular_cells(), vec![at(1), at(2)],
+                        "an excluded reader is not a proven cyclic producer");
                 }
                 let expected = stage(&format!("after-command-{command}"))["cells"].as_array().unwrap();
                 let events = book.take_calculation_events();
                 let producing_command = events.iter().find_map(|e| match e {
                     CalcEvent::Completed(receipt) => Some(receipt.command), _ => None,
                 });
-                if !dynamic_cycle {
+                {
                     let done = events.iter().find_map(|e| match e { CalcEvent::Completed(r) => Some(r), _ => None }).unwrap();
                     assert_eq!(done.coverage.required, seeds.len());
-                    let calculated = if rebuild || name.ends_with("untaken-cycle-reader") || name.ends_with("cyclic-shape-reader") { 2 } else if name.ends_with("dynamic-cycle-reader") { 1 } else { 0 };
+                    let calculated = if rebuild || name.ends_with("untaken-cycle-reader") || name.ends_with("cyclic-shape-reader") { 2 } else if dynamic_cycle || name.ends_with("dynamic-cycle-reader") { 1 } else { 0 };
                     assert_eq!(done.coverage.calculated, calculated);
                     assert_eq!(done.coverage.refused, seeds.len() - calculated);
                     assert_eq!(done.outcome, CompletionOutcome::Incomplete);
@@ -1859,7 +1926,7 @@ fn dc_hsa5_11__eng14_range_paths_and_retained_seeds() {
                 for (index, (cell, expected)) in page.cells().iter().zip(expected).enumerate() {
                     let column = cell.at().column();
                     let wanted = p14_value(&expected["value"]);
-                    let fresh = rebuild || (!dynamic_cycle && column == 4 && name != "eng14-range-hidden-self-reader")
+                    let fresh = rebuild || (column == 4 && name != "eng14-range-hidden-self-reader")
                         || (column == 3 && name == "eng14-range-untaken-cycle-reader");
                     if fresh {
                         // Manual Range retains demand: its new result may project stale.
@@ -1899,14 +1966,14 @@ fn dc_hsa5_11__eng14_range_paths_and_retained_seeds() {
                         let shown = p14_visible(&book, 1, column);
                         assert_eq!(shown.0, p14_value(&seeds[index]["value"]), "{name}: retain seed");
                         assert!(shown.1.is_none(), "retained imported seed must not acquire calculation identity");
-                        if dynamic_cycle && column == 4 { assert_ne!(shown.0, wanted); } else { assert_eq!(shown.0, wanted); }
+                        assert_eq!(shown.0, wanted);
                         retained += 1;
                     }
                 }
             }
         }
     }
-    assert_eq!((evaluated, legacy_values, stale_evaluated, retained), (16, 8, 4, 52));
+    assert_eq!((evaluated, legacy_values, stale_evaluated, retained), (20, 8, 4, 48));
 }
 
 /// Seven supported stopping controls; the two logical-TRUE baseline conditions
