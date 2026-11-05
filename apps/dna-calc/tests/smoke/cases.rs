@@ -8638,6 +8638,38 @@ Case {
     Case{name:"Name Manager: phone saved reopening preserves hidden scopes without showing their sheets",actions:&[
         Action::Click("names-close"),Action::Window(390,844),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::Click("name-manager"),Action::Wait(Check::Count("[data-name=Secret][data-name-scope=Hidden]",1)),Action::Click("[data-name=Secret] [data-dnacalc=name-select]"),Action::Keys("name-evaluation-sheet","\u{E010}\u{E007}"),Action::Into("name-anchor","A1"),Action::Click("name-evaluate")],checks:&[
         Check::Text("name-value","14"),Check::Count("[data-name=HiddenConstant][data-name-scope=Hidden]",1),Check::Count("[data-dnacalc=sheet-tab][data-sheet=Hidden]",0),Check::Fits]},
+    Case{name:"chart creation: selected columns with headers and categories create live series",actions:&[
+        Action::Window(1600,1800),Action::Upload("open-file","crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx"),Action::DiscardReplacement,Action::Click("skin-grid"),Action::Into("name-box","A1:C7\u{E007}"),Action::OpenDetails("chart-tools"),Action::Click("chart-create-headers"),Action::Click("chart-create-categories"),Action::Click("chart-create"),Action::Wait(Check::Count("[data-dnacalc=chart]",7))],checks:&[
+        Check::Count("[data-chart=\"Chart 7\"] [data-dnacalc=chart-mark]",12),Check::TextContains("chart-series","North"),Check::Value("chart-series-values","'Data'!$B$2:$B$7"),Check::Attr("[data-chart=\"Chart 7\"] [data-series=\"1\"][data-point=\"0\"]","data-value","8")]},
+    Case{name:"chart creation: Undo removes the new frame and Redo restores it",actions:&[
+        Action::Click("undo"),Action::Wait(Check::Count("[data-dnacalc=chart]",6)),Action::Click("redo")],checks:&[
+        Check::Count("[data-dnacalc=chart]",7),Check::Attr("[data-chart=\"Chart 7\"] [data-series=\"0\"][data-point=\"0\"]","data-value","12")]},
+    Case{name:"chart creation: saved package reopening retains imported and new charts",actions:&[
+        Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools"),Action::Choose("chart-choice","xl/charts/dnaChart.xml")],checks:&[
+        Check::Count("[data-dnacalc=chart]",7),Check::Value("chart-series-values","'Data'!$B$2:$B$7"),Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","data-value","12"),Check::Absent("[data-chart=\"Chart 7\"] [data-dnacalc=chart-cache]")]},
+    Case{name:"chart creation: pie selection with two values series refuses without changing charts",actions:&[
+        Action::Into("name-box","A1:C7\u{E007}"),Action::OpenDetails("chart-tools"),Action::Choose("chart-create-type","pie"),Action::Click("chart-create-headers"),Action::Click("chart-create-categories"),Action::Click("chart-create")],checks:&[
+        Check::TextContains("status","one values series"),Check::Count("[data-dnacalc=chart]",7)]},
+    Case{name:"chart creation: a phone can create the first chart in a new workbook and save it",actions:&[
+        Action::Window(390,844),Action::Click("new"),Action::DiscardReplacement,Action::Into("name-box","A1\u{E007}"),Action::Into(BAR,"2\u{E007}"),Action::Into(BAR,"5\u{E007}"),Action::Wait(Check::Text(cell!("A2"),"5")),Action::Into("name-box","A1:A2\u{E007}"),Action::OpenDetails("chart-tools"),Action::Choose("chart-create-type","line"),Action::Click("chart-create"),Action::Wait(Check::Count("[data-dnacalc=chart]",1)),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools")],checks:&[
+        Check::Count("[data-dnacalc=chart]",1),Check::Value("chart-type","line"),Check::Count("[data-chart=\"Chart 1\"] [data-dnacalc=chart-mark]",2),Check::Reachable("chart-create"),Check::Fits]},
+
+    Case{name:"log charts: positive live values use logarithmic ticks",actions:&[
+        Action::Window(1600,1800),Action::Upload("open-file","crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools"),Action::Choose("chart-choice","xl/charts/chart1.xml"),Action::Wait(Check::Count("[data-dnacalc=chart-axis-scale-apply]:not(:disabled)",1)),Action::Click("chart-axis-log"),Action::Click("chart-axis-scale-apply")],checks:&[
+        Check::TextContains("status","Chart scale updated"),Check::Count("[data-chart=\"Chart 1\"] [data-dnacalc=chart-axis-tick]",3),Check::Count("[data-chart=\"Chart 1\"] [data-dnacalc=chart-mark]",12),Check::Absent("[data-chart=\"Chart 1\"] [data-dnacalc=chart-notice]")]},
+    Case{name:"log charts: invalid base keeps the existing scale",actions:&[
+        Action::Into("chart-axis-base","1"),Action::Click("chart-axis-scale-apply")],checks:&[
+        Check::TextContains("status","logarithmic base from 2"),Check::Count("[data-chart=\"Chart 1\"] [data-dnacalc=chart-axis-tick]",3)]},
+    Case{name:"log charts: base edits Undo Redo and actual saved reopening",actions:&[
+        Action::Into("chart-axis-base","2"),Action::Click("chart-axis-scale-apply"),Action::Wait(Check::TextContains("status","Chart scale updated")),Action::Click("undo"),Action::Wait(Check::Value("chart-axis-base","10")),Action::Click("redo"),Action::Wait(Check::Value("chart-axis-base","2")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools")],checks:&[
+        Check::Value("chart-axis-base","2"),Check::Count("[data-dnacalc=chart-axis-log]:checked",1),Check::Absent("[data-chart=\"Chart 1\"] [data-dnacalc=chart-notice]")]},
+    Case{name:"log charts: phone bounds and direction remain editable",actions:&[
+        Action::Window(390,844),Action::Click("chart-show"),Action::Wait(Check::Count("[data-chart=\"Chart 1\"] [data-dnacalc=chart-plot]",1)),Action::Into("chart-axis-minimum","1"),Action::Into("chart-axis-maximum","64"),Action::Click("chart-axis-reverse"),Action::Click("chart-axis-apply"),Action::Wait(Check::Attr("[data-chart=\"Chart 1\"] [data-dnacalc=chart-plot]","data-axis-max","64")),Action::Wait(Check::Count("[data-dnacalc=chart-axis-scale-apply]:not(:disabled)",1)),Action::Into("chart-axis-base","10"),Action::Click("chart-axis-scale-apply")],checks:&[
+        Check::Attr("[data-chart=\"Chart 1\"] [data-dnacalc=chart-plot]","data-axis-min","1"),Check::Attr("[data-chart=\"Chart 1\"] [data-dnacalc=chart-plot]","data-axis-max","64"),Check::Attr("[data-chart=\"Chart 1\"] [data-dnacalc=chart-plot]","data-axis-reversed","true"),Check::Value("chart-axis-base","10"),Check::Reachable("chart-axis-scale-apply"),Check::Fits]},
+    Case{name:"log charts: a newly created line omits zero and negative points",actions:&[
+        Action::Window(1600,1800),Action::Click("new"),Action::DiscardReplacement,Action::Into("name-box","A1\u{E007}"),Action::Into(BAR,"1\u{E007}"),Action::Into(BAR,"10\u{E007}"),Action::Into(BAR,"100\u{E007}"),Action::Into(BAR,"0\u{E007}"),Action::Into(BAR,"-5\u{E007}"),Action::Wait(Check::Text(cell!("A5"),"-5")),Action::Into("name-box","A1:A5\u{E007}"),Action::OpenDetails("chart-tools"),Action::Choose("chart-create-type","line"),Action::Click("chart-create"),Action::Wait(Check::Count("[data-dnacalc=chart]",1)),Action::Click("chart-axis-log"),Action::Click("chart-axis-scale-apply"),Action::Wait(Check::Count("[data-chart=\"Chart 1\"] [data-dnacalc=chart-mark]",3)),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement],checks:&[
+        Check::Count("[data-chart=\"Chart 1\"] [data-dnacalc=chart-mark]",3),Check::Absent("[data-chart=\"Chart 1\"] [data-point=\"3\"]"),Check::Absent("[data-chart=\"Chart 1\"] [data-point=\"4\"]"),Check::Absent("[data-chart=\"Chart 1\"] [data-dnacalc=chart-notice]")]},
+
 ];
 
 /// The script that reads what one check looks at.
@@ -9494,4 +9526,6 @@ CaseGroup {
     CaseGroup {name:"chart-types",start:750,end:756,core:6,setup:&[]},
     CaseGroup {name:"fill-text",start:756,end:764,core:8,setup:&[]},
     CaseGroup {name:"find-name",start:764,end:772,core:8,setup:&[]},
+    CaseGroup {name:"chart-creation",start:772,end:777,core:5,setup:&[]},
+    CaseGroup {name:"chart-log",start:777,end:782,core:5,setup:&[]},
 ];

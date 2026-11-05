@@ -2244,7 +2244,6 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             {crate::clipboard::controls(controller)}
             {axis::controls(controller)}
             {crate::tables::controls(controller)}
-            <Show when=move ||!charts.get().is_empty()>{crate::charts::controls(controller)}</Show>
             {crate::commands::sort_controls(controller)}
             {crate::commands::filter_controls(controller)}
             {structure::controls(controller)}
@@ -2285,6 +2284,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                         on:click=move |_| zoom.update(|z| *z = viewport::clamp_zoom(*z * viewport::ZOOM_STEP))>"+"</button>
                 </span>
             </div>
+            {crate::charts::controls(controller)}
             </>})}
             <span class="dc-sr-only" data-dnacalc="grid-announcement" role="status" aria-live="polite" aria-atomic="true">{move || if ctx.active.get()==ctx.index { announcement.get() } else { String::new() }}</span>
         </div>
