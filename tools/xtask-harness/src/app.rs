@@ -54,6 +54,8 @@ use crate::cargo::{self, WASM_TARGET, Workspace};
 use crate::site::SiteHeaders;
 #[path = "app_renderer.rs"]
 mod renderer;
+#[path = "app_paint.rs"]
+mod paint;
 use serde_json::{Value, json};
 use std::fs;
 use std::io::{Read, Write};
@@ -64,7 +66,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-pub const USAGE: &str = "usage: cargo xtask app bundle onecalc|calc [--out <dir>]\n       cargo xtask app smoke onecalc|calc [--bundle <dir> | --url <page>] [--browser chromium|firefox] [--suite core|full] [--renderer dom|canvas] [--renderer-report <dir>] [--group <name>] [--case <substring>] [--list] [--workbook <file> [--edit <sheet>!<cell>=<text>] [--skins] [--profile <cpuprofile.json>]]\n       cargo xtask onecalc bundle|smoke ... (the same, for onecalc)";
+pub const USAGE: &str = "usage: cargo xtask app bundle onecalc|calc [--out <dir>]\n       cargo xtask app smoke onecalc|calc [--bundle <dir> | --url <page>] [--browser chromium|firefox] [--suite core|full] [--renderer dom|canvas] [--renderer-report <dir>] [--group <name>] [--case <substring>] [--list] [--workbook <file> [--edit <sheet>!<cell>=<text>] [--skins] [--profile <cpuprofile.json>]]\n       cargo xtask app paint-compare calc --out <dir> [--bundle <dir>] [--reference <dir>] [--workbook <file>] [--zooms 75,100,150]\n       cargo xtask onecalc bundle|smoke ... (the same, for onecalc)";
 
 /// Independent page scenario. `core` is a prefix, so it has no omitted prerequisites.
 pub struct CaseGroup {
@@ -258,6 +260,7 @@ pub fn run(raw: &[String]) -> ExitCode {
         _ => return usage(raw),
     };
     match command {
+        "paint-compare" if app.key == "calc" => paint::run(&ws, app, rest),
         "bundle" => {
             let out = match rest {
                 [] => ws.root.join(app.default_out),
@@ -948,6 +951,11 @@ fn open(browser: &Browser, download_root: &Path) -> Result<(DriverProcess, Sessi
     let downloads = download_root.join(format!("{}-{port}", std::process::id()));
     fs::create_dir_all(&downloads)
         .map_err(|error| format!("cannot create smoke download folder: {error}"))?;
+    let downloads = downloads.canonicalize().map_err(|e| e.to_string())?;
+    // Browser preferences require an absolute native path. Windows canonical paths carry a
+    // Win32 prefix which Chrome/Firefox preferences do not accept.
+    let download_text = downloads.to_string_lossy();
+    let downloads = PathBuf::from(download_text.strip_prefix(r"\\?\").unwrap_or(&download_text));
     let capabilities = match browser.name {
         "firefox" => json!({
             "browserName": "firefox",
@@ -1763,11 +1771,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 } else {
                     session.downloads.join(match action {Action::ViewDownloadFixtureFor(name,_)=>*name,_=>"Book1.xlsx"})
                 };
-                let started = Instant::now();
-                while !path.is_file() && started.elapsed() < SETTLE {
-                    thread::sleep(Duration::from_millis(50));
-                }
-                let bytes = fs::read(&path).map_err(|e| e.to_string())?;
+                let bytes = downloaded_bytes(&path)?;
                 if matches!(action, Action::AlignmentFixture) {
                     return fs::write(
                         session.downloads.join("alignment.xlsx"),
@@ -1923,10 +1927,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
         }
         Action::UploadDownload(name) | Action::UploadDownloadTo(name, _) => {
             let path = session.downloads.join(name);
-            let started = Instant::now();
-            while !path.is_file() && started.elapsed() < SETTLE {
-                thread::sleep(Duration::from_millis(50));
-            }
+            downloaded_bytes(&path)?;
             upload(
                 app,
                 session,
@@ -2199,6 +2200,30 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 session.post("/window/rect", json!({ "width": width, "height": height }))?;
             }
             Ok(())
+        }
+    }
+}
+
+/// A browser may create its final download name before finishing the file.
+/// Use the existing package reader to wait for complete workbook bytes.
+fn downloaded_bytes(path: &Path) -> Result<Vec<u8>, String> {
+    let started = Instant::now();
+    loop {
+        let result = fs::read(path).map_err(|e| e.to_string()).and_then(|bytes| {
+            let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+            if matches!(ext, "xlsx" | "xlsm" | "xltx" | "xltm" | "xlsb") {
+                crate::oracle_cases::package_parts(&bytes)?;
+            } else if ext == "json" {
+                serde_json::from_slice::<Value>(&bytes).map_err(|e| e.to_string())?;
+            } else if bytes.is_empty() {
+                return Err("download is empty".into());
+            }
+            Ok(bytes)
+        });
+        match result {
+            Ok(bytes) => return Ok(bytes),
+            Err(error) if started.elapsed() >= SETTLE => return Err(format!("download {} is incomplete: {error}", path.display())),
+            Err(_) => thread::sleep(Duration::from_millis(50)),
         }
     }
 }
