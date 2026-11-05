@@ -336,13 +336,13 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
     let indent = autofit::indent_pixels(s, Some(&c), italic, scale);
     let horizontal = alignment::horizontal(cell);
     let vertical = s.vertical.as_deref().unwrap_or("bottom");
-    let pad = 4. * scale;
+    let (left_pad, right_pad) = super::render_plan::text_insets(scale);
     let icon = if c.icon.is_some() { 20. * scale } else { 0. };
     let (left, right) = match horizontal {
-        "right" => (pad + icon, pad + indent),
-        "distributed" => (pad + icon + indent, pad + indent),
-        "left" => (pad + icon + indent, pad),
-        _ => (pad + icon, pad),
+        "right" => (left_pad + icon, right_pad + indent),
+        "distributed" => (left_pad + icon + indent, right_pad + indent),
+        "left" => (left_pad + icon + indent, right_pad),
+        _ => (left_pad + icon, right_pad),
     };
     let available = (cell.rect.w - left - right).max(1.);
     let mut shown = cell.shown.text.clone();

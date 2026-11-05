@@ -52,12 +52,12 @@ pub fn layout(
     let horizontal = horizontal(cell);
     let vertical = style.vertical.as_deref().unwrap_or("bottom");
     let indent = autofit::indent_pixels(style, Some(conditional), italic, zoom);
-    let pad = 4. * zoom;
+    let (left_pad, right_pad) = super::render_plan::text_insets(zoom);
     let (mut left, right) = match horizontal {
-        "right" => (pad, pad + indent),
-        "distributed" => (pad + indent, pad + indent),
-        "left" => (pad + indent, pad),
-        _ => (pad, pad),
+        "right" => (left_pad, right_pad + indent),
+        "distributed" => (left_pad + indent, right_pad + indent),
+        "left" => (left_pad + indent, right_pad),
+        _ => (left_pad, right_pad),
     };
     let icon = if conditional.icon.is_some() {
         20. * zoom
@@ -83,7 +83,7 @@ pub fn layout(
         span: "display:block;flex-shrink:0;white-space:pre".into(),
         icon: format!(
             "position:absolute;left:{}px;{};width:{icon}px;box-sizing:border-box",
-            cell.anchor.x - cell.rect.x + pad,
+            cell.anchor.x - cell.rect.x + left_pad,
             match vertical {
                 "top" | "justify" => "top:0",
                 "center" | "distributed" => "top:50%;transform:translateY(-50%)",

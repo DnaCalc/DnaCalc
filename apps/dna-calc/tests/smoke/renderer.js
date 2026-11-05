@@ -158,9 +158,9 @@
     const ink=mask();let painted=cell.shown.text===''||!!ink;
     const hasColour=(colour,r)=>{const data=crop(r);if(!data)return false;const want=rgb(colour);for(let i=0;i<data.pixels.length;i+=4)if(data.pixels[i+3]>127&&distance([data.pixels[i],data.pixels[i+1],data.pixels[i+2]],want)<36)return true;return false;};
     const horizontal=s.horizontal&&s.horizontal!=='general'?s.horizontal:cell.shown.kind==='number'?'right':cell.shown.kind==='logical'?'center':'left';
-    const vertical=s.vertical||'bottom', pad=4*scale, icon=cf.icon?20*scale:0;
+    const vertical=s.vertical||'bottom', leftPad=2*scale, rightPad=2*scale+1, icon=cf.icon?20*scale:0;
     context.font=`normal 400 ${13*scale}px system-ui`;const indent=context.measureText('   ').width*s.indent;context.font=font;
-    const left=pad+icon+(['left','distributed'].includes(horizontal)?indent:0),right=pad+(['right','distributed'].includes(horizontal)?indent:0), capacity=rect.w-left-right;
+    const left=leftPad+icon+(['left','distributed'].includes(horizontal)?indent:0),right=rightPad+(['right','distributed'].includes(horizontal)?indent:0), capacity=rect.w-left-right;
     const unit=cell.shown.text, repeat=horizontal==='fill'&&unit?Math.max(1,Math.floor(capacity/measure(unit).width)):1, text=unit.repeat(Math.min(repeat,16384/Math.max(1,unit.length)));
     if(horizontal==='fill'&&unit&&repeat>1)painted=painted&&!!ink&&Math.abs(ink.right-(rect.x+left+measure(text).actualBoundingBoxRight))<3;
     // Canvas has no text span. Check the complete measured line box and its actual glyph
