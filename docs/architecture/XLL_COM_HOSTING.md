@@ -1050,3 +1050,55 @@ DNA Calc uses Book1 names for ordinary Open; Excel uses the template base name
 plus a counter. Other macro-fixture cells, startup mode inheritance, volatile
 startup, default templates, insertion, dialogs, legacy .xlt and wider preservation
 remain unqualified by these observations. Every session preserved AutomationSecurity.
+
+## 27. Managed RTD replacement reads and ordering (dc-snz.23)
+
+Replacing a formula in the measured managed RTD cases now connects the next native
+topic before disconnecting the old one. Completed shared calls retain one admitted
+RTD read for each of the main cell and its dependent after an edit. The unchanged
+full verifier accepts all eight original and six delayed values, dependents and
+exact P07 producing cuts in the traced and untraced runs. The ordered
+ServerStart/ConnectData/DisconnectData/ServerTerminate method, server and topic
+identities agree in all 16 original and 12 delayed rows.
+
+The native adapter records the inputs of each completed call together with its
+provider, caller and coerced arguments. Numeric argument matching preserves bits,
+including signed zero inside arrays. When that call returns from its native cache
+without another xlfRtd callback, the adapter reads its specific input through the
+ordinary UserFunctionContext. An edit retires the old logical key and queued
+updates. A still-live native connection can transfer to a fresh logical key whose
+first sequence is 1. Its last observed native signal enters the ordinary owner
+admission queue; the cached output remains temporary #N/A until that read is
+admitted. The bridge stores signals and dependency identities, never UDF answers.
+
+Unused transport cleanup waits for an idle owner poll. Queued signals protect
+their sources until delivery, and polling during active calculation preserves
+the native cache until the consumer can execute. Ordinary application-command completion
+also waits for observed input queues to drain. A main-cell-only application
+control retains all 16 outcomes and the required positive P07 reads without a
+dependent supplying another evaluation turn. That control has no separate Excel
+reference and establishes application behavior, not standalone protocol parity.
+
+The complete strict comparison remains failed. Original client positions match 10
+and fail 16; native invocations match 0 and fail 26. The delayed client comparison
+matches all 20 calls, while native invocations match 0 and fail 22. Every payload
+and differing native call stays in the full summaries. These results qualify the
+tested sequential scalar replacement behavior; broader compatibility remains open.
+Cached reference recovery and expired handoffs return dc-snz.23 refusals. Mixed
+live/cached topics within one native call, nested handoffs, all ABI narrowing
+forms and RTD formula-entry settling remain unqualified.
+
+The source changes are 083178c0 and cb8b9503, integrated through 9604bc0f. Evidence is
+in C:/Work/DnaCalc/codex-runs/excel-results-rtd15. The first experimental captures
+remain unqualified: source provenance was refused, and fresh logical keys used
+an inherited sequence. Their raw records and failed verification remain unchanged.
+The numerical corpus before and after 083178c0 has the same 36 workbook identities,
+counts and all 80 cell-report payloads: 29,335 pass and 1,366 fail of 30,701 (95.55% pass). The later
+merged corpus includes 43 workbooks and 35,048 formulas: 33,085 pass and 1,963 fail
+(1,270 mismatched, 672 refused, 7 not run and 14 circular-held; 94.40% pass). Incoming function
+changes and seven new workbooks are separate from the native work; no numerical
+gain is attributed to RTD. The session scripts never assign AutomationSecurity.
+The 45 successful jobs verify 1 before/after; the two failed jobs lack after-baseline
+readings. Only private test RTD classes are registered; all captured private names
+and CLSIDs are removed, with five preexisting names unchanged. The ownership
+audit finds all 33 owned Excel identities gone.
