@@ -71,6 +71,8 @@ pub struct ChartPlot {
     /// `c:varyColors`: each point its own colour (a pie's slices).
     pub vary_colors: bool,
     pub series: Vec<ChartSeries>,
+    /// The axes this plot actually references, in stored order.
+    pub axis_ids: Vec<u32>,
 }
 
 /// One chart on a sheet.
@@ -90,6 +92,7 @@ pub struct Chart {
     /// The legend's position (`c:legendPos`: `r`, `l`, `t`, `b`, `tr`), `None` without a legend.
     pub legend: Option<String>,
     pub plots: Vec<ChartPlot>,
+    pub axes: Vec<ChartAxis>,
 }
 
 /// A sheet's charts and how many the reading left out.
@@ -97,4 +100,18 @@ pub struct Chart {
 pub struct SheetCharts {
     pub charts: Vec<Chart>,
     pub unread: usize,
+}
+
+/// Retained linear-axis settings. Numeric source text is preserved until explicitly edited.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct ChartAxis {
+    pub id:u32,
+    pub cross_axis:Option<u32>,
+    pub kind:String,
+    pub position:Option<String>,
+    pub minimum:Option<String>,
+    pub maximum:Option<String>,
+    pub major_unit:Option<String>,
+    pub reversed:bool,
+    pub log_base:Option<String>,
 }

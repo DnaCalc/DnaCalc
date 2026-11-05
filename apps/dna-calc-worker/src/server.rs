@@ -1423,6 +1423,7 @@ impl Server {
                 direction,
             } => return self.notebook_order(placement, direction),
 
+            Intent::ChartAxis{sheet,revision,part,axis,minimum,maximum,major_unit,reversed}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartAxis{sheet:sheet.id(),revision,part,axis,minimum,maximum,major_unit,reversed}),
             Intent::ChartSeries {sheet,revision,part,plot,series,name,categories,values,remove}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartSeries {sheet:sheet.id(),revision,part,plot,series,name,categories,values,remove}),
             Intent::ChartProperties {sheet,revision,part,title,set_title,legend}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartProperties {sheet:sheet.id(),revision,part,title,set_title,legend}),
             Intent::Table{revision,change}=>{
@@ -2914,6 +2915,7 @@ impl Server {
                     }).collect(),
                 }).collect()).unwrap_or_default();
                 Chart {
+                    axes:source.map(|c|c.axes.iter().filter(|a|a.kind=="valAx").map(|a|wire::ChartAxisSource{id:a.id,position:a.position.clone().unwrap_or_default(),minimum:a.minimum.clone(),maximum:a.maximum.clone(),major_unit:a.major_unit.clone(),reversed:a.reversed,logarithmic:a.log_base.is_some()}).collect()).unwrap_or_default(),
                     plots,
                     part:view.part.clone(),title:view.title.clone(),legend:view.legend.clone(),
                     title_linked:host.model().definitions().charts(sheet.id()).iter().any(|chart|chart.part==view.part && chart.title_formula.is_some()),

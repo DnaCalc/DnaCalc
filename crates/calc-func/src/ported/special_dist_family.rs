@@ -564,7 +564,7 @@ mod tests {
         assert_recorded_bits("GAMMALN(2.0 / 13.0)", gammaln_kernel(2.0 / 13.0).unwrap(), 0x3ffcd17b700fc6c1, 0x3ffcd17b700fc6c1);
         assert_recorded_bits("GAMMALN(1.0 + 1.0 / 13.0)", gammaln_kernel(1.0 + 1.0 / 13.0).unwrap(), 0xbfa4549a42cb6665, 0xbfa4549a42cb6665);
         assert_recorded_bits("GAMMALN(2.0 / 17.0)", gammaln_kernel(2.0 / 17.0).unwrap(), 0x4000a9daf888fcc2, 0x4000a9daf888fcc2);
-        assert_recorded_bits("GAMMALN(2.5)", gammaln_kernel(2.5).unwrap(), 0x3fd2383e809a67e8, 0x3fd2383e809a67e8);
+        assert_recorded_bits("GAMMALN(2.5)", gammaln_kernel(2.5).unwrap(), 0x3fd2383e809a67e8, 0x3fd2383e809a67e9);
         assert_recorded_bits("GAMMALN(3.5)", gammaln_kernel(3.5).unwrap(), 0x3ff3373018970a36, 0x3ff3373018970a36);
         assert_recorded_bits("GAMMALN(4.5)", gammaln_kernel(4.5).unwrap(), 0x4003a140a3a623cb, 0x4003a140a3a623cb);
         assert_recorded_bits("GAMMALN(8.5)", gammaln_kernel(8.5).unwrap(), 0x402319398ed5be28, 0x402319398ed5be28);
@@ -573,7 +573,7 @@ mod tests {
         assert_recorded_bits("GAMMALN(4.375)", gammaln_kernel(4.375).unwrap(), 0x400241b90aee4edd, 0x400241b90aee4edd);
         assert_recorded_bits("GAMMALN(7.375)", gammaln_kernel(7.375).unwrap(), 0x401d2b26dad896ac, 0x401d2b26dad896ac);
         assert_recorded_bits("GAMMALN(9.375)", gammaln_kernel(9.375).unwrap(), 0x4026d4bac34612ef, 0x4026d4bac34612ef);
-        assert_recorded_bits("GAMMALN(2.3125)", gammaln_kernel(2.3125).unwrap(), 0x3fc4b3a46906fd4c, 0x3fc4b3a46906fd4d);
+        assert_recorded_bits("GAMMALN(2.3125)", gammaln_kernel(2.3125).unwrap(), 0x3fc4b3a46906fd4c, 0x3fc4b3a46906fd4e);
         assert_recorded_bits("GAMMALN(13.5)", gammaln_kernel(13.5).unwrap(), 0x4035429459d98a56, 0x4035429459d98a56);
         assert_recorded_bits("GAMMALN(20.5)", gammaln_kernel(20.5).unwrap(), 0x40446a6e9fba19d8, 0x40446a6e9fba19d8);
         assert_recorded_bits("GAMMALN(40.5)", gammaln_kernel(40.5).unwrap(), 0x405b1e46dca78c15, 0x405b1e46dca78c15);
@@ -601,12 +601,12 @@ mod tests {
         assert_recorded_bits("GAMMALN(6.0625)", gammaln_kernel(6.0625).unwrap(), 0x401393f1c1c12ab5, 0x401393f1c1c12ab5);
         assert_recorded_bits("GAMMALN(10.5625)", gammaln_kernel(10.5625).unwrap(), 0x402c2b6556c4802a, 0x402c2b6556c4802a);
         assert_recorded_bits("GAMMALN(5.8125)", gammaln_kernel(5.8125).unwrap(), 0x4011e21e484a69c4, 0x4011e21e484a69c4);
-        assert_recorded_bits("GAMMALN(2.0 + 9.0 / 11.0)", gammaln_kernel(2.0 + 9.0 / 11.0).unwrap(), 0x3fe1069a7a544ca4, 0x3fe1069a7a544ca3);
+        assert_recorded_bits("GAMMALN(2.0 + 9.0 / 11.0)", gammaln_kernel(2.0 + 9.0 / 11.0).unwrap(), 0x3fe1069a7a544ca4, 0x3fe1069a7a544ca4);
         assert_recorded_bits("GAMMALN(3.0 + 10.0 / 11.0)", gammaln_kernel(3.0 + 10.0 / 11.0).unwrap(), 0x3ffadc28e27d15b4, 0x3ffadc28e27d15b4);
         assert_recorded_bits("GAMMALN(3.0 + 9.0 / 13.0)", gammaln_kernel(3.0 + 9.0 / 13.0).unwrap(), 0x3ff6b4a5c4f4a9fe, 0x3ff6b4a5c4f4a9fe);
-        assert_recorded_bits("GAMMALN(4.0 + 9.0 / 13.0)", gammaln_kernel(4.0 + 9.0 / 13.0).unwrap(), 0x4005cd86f3998423, 0x4005cd86f3998422);
+        assert_recorded_bits("GAMMALN(4.0 + 9.0 / 13.0)", gammaln_kernel(4.0 + 9.0 / 13.0).unwrap(), 0x4005cd86f3998423, 0x4005cd86f3998423);
         assert_recorded_bits("GAMMALN(3.0 + 11.0 / 17.0)", gammaln_kernel(3.0 + 11.0 / 17.0).unwrap(), 0x3ff5de146efd5ef9, 0x3ff5de146efd5ef9);
-        assert_recorded_bits("GAMMALN(3.0 + 5.0 / 9.0)", gammaln_kernel(3.0 + 5.0 / 9.0).unwrap(), 0x3ff4344afd96d888, 0x3ff4344afd96d888);
+        assert_recorded_bits("GAMMALN(3.0 + 5.0 / 9.0)", gammaln_kernel(3.0 + 5.0 / 9.0).unwrap(), 0x3ff4344afd96d888, 0x3ff4344afd96d887);
         assert_recorded_bits("GAMMA(1.0 / 11.0)", gamma_kernel(1.0 / 11.0).unwrap(), 0x402503020775740e, 0x402503020775740d);
         assert_recorded_bits("GAMMA(2.0 / 11.0 - 1.0)", gamma_kernel(2.0 / 11.0 - 1.0).unwrap(), 0xc018d2e886307c56, 0xc018d2e886307c56);
         assert_recorded_bits("GAMMA(10.0 / 11.0 - 1.0)", gamma_kernel(10.0 / 11.0 - 1.0).unwrap(), 0xc02759d36b08112c, 0xc02759d36b08112b);

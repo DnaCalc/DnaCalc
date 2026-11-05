@@ -1,0 +1,328 @@
+{
+  "delivery": "~/codex-runs/excel-results-eng15",
+  "delivery_manifest_sha256": "6d6f835bda650305e2855d629ec2c4500a17bd81e8c6e23e9ffb0ee9d78452ce",
+  "delivery_files_verified": 425,
+  "source_key": "sha256:603ce07db6e424a5bc457c8edc272440b283bf50d08f2ff6802046d69be3e149",
+  "formula_cells": 94,
+  "input_sha256": "603ce07db6e424a5bc457c8edc272440b283bf50d08f2ff6802046d69be3e149",
+  "capture_sha256": "e5eb08956a4ac0c4f8806f598ff0fec8fde7cfe2e25c7765f46e0c0cc71866d5",
+  "saved_reopen_failures_retained": 30,
+  "width_value_changes": 0,
+  "fresh_required": false,
+  "excel": {
+    "pid": 19412,
+    "start_ticks": 639294316436177157,
+    "command_line": "\"C:\\Program Files\\Microsoft Office\\Root\\Office16\\EXCEL.EXE\" /automation -Embedding",
+    "launch": 1
+  },
+  "baseline_mtc": true,
+  "baseline_mtc_count": 16,
+  "receipt_sha256": "c990dbbeafe73d5940891c5b8166a6e401671c8c8f5aec874e4b0a91c9bd25db",
+  "worker_result_sha256": "249d3e3202d88143331204969825f0d75f841ae931bfddba8352790880ad5f38",
+  "current_comparison": {
+    "denominator": 94,
+    "calculated": 79,
+    "matched": 76,
+    "mismatched": 3,
+    "not_run": 0,
+    "strict_certified": 0,
+    "uncertified": 79,
+    "unproven": 0,
+    "stale": 0,
+    "file_cached": 0,
+    "not_modeled": 15,
+    "failed": 0,
+    "missing": 0,
+    "not_calculated_equal_to_expectation": 0,
+    "outside_inventory": 0,
+    "evaluator_calls": 94,
+    "calculated_without_value_check": 0
+  },
+  "uncertified_by_reason": {
+    "no_exact_target": 79
+  },
+  "retained_nonpasses": [
+    {
+      "sheet": "dcj9k_eng15",
+      "row": 63,
+      "column": 4,
+      "cell": "D63",
+      "kind": "ordinary",
+      "sheet_visibility": "visible",
+      "observation": "excel_raw",
+      "verdict": "mismatched",
+      "certainty": "uncertified",
+      "uncertified": "no_exact_target",
+      "mismatch": {
+        "class": "number",
+        "ulp": null
+      },
+      "expected": {
+        "number": "7ff1ccf385ebc8a0"
+      },
+      "actual": {
+        "number": "fff1ccf385ebc8a0"
+      }
+    },
+    {
+      "sheet": "dcj9k_eng15",
+      "row": 67,
+      "column": 4,
+      "cell": "D67",
+      "kind": "ordinary",
+      "sheet_visibility": "visible",
+      "observation": "excel_raw",
+      "verdict": "not_modeled",
+      "feature": "Evaluation:Function:NotImplemented (>)",
+      "diagnostic": "CalcFml refused to evaluate it: Function(NotImplemented { id: FunctionId(2.5), argument: None })"
+    },
+    {
+      "sheet": "dcj9k_eng15",
+      "row": 79,
+      "column": 4,
+      "cell": "D79",
+      "kind": "ordinary",
+      "sheet_visibility": "visible",
+      "observation": "excel_raw",
+      "verdict": "not_modeled",
+      "feature": "Evaluation:Function:NotImplemented (=)",
+      "diagnostic": "CalcFml refused to evaluate it: Function(NotImplemented { id: FunctionId(2.1), argument: None })"
+    },
+    {
+      "sheet": "dcj9k_eng15",
+      "row": 80,
+      "column": 4,
+      "cell": "D80",
+      "kind": "ordinary",
+      "sheet_visibility": "visible",
+      "observation": "excel_raw",
+      "verdict": "not_modeled",
+      "feature": "Evaluation:Function:NotImplemented (=)",
+      "diagnostic": "CalcFml refused to evaluate it: Function(NotImplemented { id: FunctionId(2.1), argument: None })"
+    },
+    {
+      "sheet": "dcj9k_eng15",
+      "row": 81,
+      "column": 4,
+      "cell": "D81",
+      "kind": "ordinary",
+      "sheet_visibility": "visible",
+      "observation": "excel_raw",
+      "verdict": "not_modeled",
+      "feature": "Evaluation:Function:NotImplemented (>)",
+      "diagnostic": "CalcFml refused to evaluate it: Function(NotImplemented { id: FunctionId(2.5), argument: None })"
+    },
+    {
+      "sheet": "dcj9k_eng15",
+      "row": 82,
+      "column": 4,
+      "cell": "D82",
+      "kind": "ordinary",
+      "sheet_visibility": "visible",
+      "observation": "excel_raw",
+      "verdict": "not_modeled",
+      "feature": "Evaluation:Function:NotImplemented (>)",
+      "diagnostic": "CalcFml refused to evaluate it: Function(NotImplemented { id: FunctionId(2.5), argument: None })"
+    },
+    {
+      "sheet": "dcj9k_eng15",
+      "row": 83,
+      "column": 4,
+      "cell": "D83",
+      "kind": "ordinary",
+      "sheet_visibility": "visible",
+      "observation": "excel_raw",
+      "verdict": "not_modeled",
+      "feature": "Evaluation:Function:NotImplemented (>)",
+      "diagnostic": "CalcFml refused to evaluate it: Function(NotImplemented { id: FunctionId(2.5), argument: None })"
+    },
+    {
+      "sheet": "dcj9k_eng15",
+      "row": 84,
+      "column": 4,
+      "cell": "D84",
+      "kind": "ordinary",
+      "sheet_visibility": "visible",
+      "observation": "excel_raw",
+      "verdict": "not_modeled",
+      "feature": "Evaluation:Function:NotImplemented (=)",
+      "diagnostic": "CalcFml refused to evaluate it: Function(NotImplemented { id: FunctionId(2.1), argument: None })"
+    },
+    {
+      "sheet": "dcj9k_eng15",
+      "row": 85,
+      "column": 4,
+      "cell": "D85",
+      "kind": "ordinary",
+      "sheet_visibility": "visible",
+      "observation": "excel_raw",
+      "verdict": "not_modeled",
+      "feature": "Evaluation:Function:NotImplemented (<)",
+      "diagnostic": "CalcFml refused to evaluate it: Function(NotImplemented { id: FunctionId(2.3), argument: None })"
+    },
+    {
+      "sheet": "dcj9k_eng15",
+      "row": 86,
+      "column": 4,
+      "cell": "D86",
+      "kind": "ordinary",
+      "sheet_visibility": "visible",
+      "observation": "excel_raw",
+      "verdict": "not_modeled",
+      "feature": "Evaluation:Function:NotImplemented (MAX, argument 2)",
+      "diagnostic": "CalcFml refused to evaluate it: Function(NotImplemented { id: FunctionId(4.11), argument: Some(1) })"
+    },
+    {
+      "sheet": "dcj9k_eng15",
+      "row": 87,
+      "column": 4,
+      "cell": "D87",
+      "kind": "ordinary",
+      "sheet_visibility": "visible",
+      "observation": "excel_raw",
+      "verdict": "not_modeled",
+      "feature": "Evaluation:Function:NotImplemented (MAX, argument 2)",
+      "diagnostic": "CalcFml refused to evaluate it: Function(NotImplemented { id: FunctionId(4.11), argument: Some(1) })"
+    },
+    {
+      "sheet": "dcj9k_eng15",
+      "row": 88,
+      "column": 4,
+      "cell": "D88",
+      "kind": "ordinary",
+      "sheet_visibility": "visible",
+      "observation": "excel_raw",
+      "verdict": "not_modeled",
+      "feature": "Evaluation:Function:NotImplemented (MAX, argument 2)",
+      "diagnostic": "CalcFml refused to evaluate it: Function(NotImplemented { id: FunctionId(4.11), argument: Some(1) })"
+    },
+    {
+      "sheet": "dcj9k_eng15",
+      "row": 89,
+      "column": 4,
+      "cell": "D89",
+      "kind": "ordinary",
+      "sheet_visibility": "visible",
+      "observation": "excel_raw",
+      "verdict": "not_modeled",
+      "feature": "Evaluation:Function:NotImplemented (MAX, argument 2)",
+      "diagnostic": "CalcFml refused to evaluate it: Function(NotImplemented { id: FunctionId(4.11), argument: Some(1) })"
+    },
+    {
+      "sheet": "dcj9k_eng15",
+      "row": 90,
+      "column": 4,
+      "cell": "D90",
+      "kind": "ordinary",
+      "sheet_visibility": "visible",
+      "observation": "excel_raw",
+      "verdict": "not_modeled",
+      "feature": "Evaluation:Function:NotImplemented (MIN, argument 2)",
+      "diagnostic": "CalcFml refused to evaluate it: Function(NotImplemented { id: FunctionId(4.10), argument: Some(1) })"
+    },
+    {
+      "sheet": "dcj9k_eng15",
+      "row": 91,
+      "column": 4,
+      "cell": "D91",
+      "kind": "ordinary",
+      "sheet_visibility": "visible",
+      "observation": "excel_raw",
+      "verdict": "not_modeled",
+      "feature": "Evaluation:Function:NotImplemented (MIN, argument 2)",
+      "diagnostic": "CalcFml refused to evaluate it: Function(NotImplemented { id: FunctionId(4.10), argument: Some(1) })"
+    },
+    {
+      "sheet": "dcj9k_eng15",
+      "row": 92,
+      "column": 4,
+      "cell": "D92",
+      "kind": "ordinary",
+      "sheet_visibility": "visible",
+      "observation": "excel_raw",
+      "verdict": "not_modeled",
+      "feature": "Evaluation:Function:NotImplemented (&, argument 1)",
+      "diagnostic": "CalcFml refused to evaluate it: Function(NotImplemented { id: FunctionId(3.1), argument: Some(0) })"
+    },
+    {
+      "sheet": "dcj9k_eng15",
+      "row": 93,
+      "column": 4,
+      "cell": "D93",
+      "kind": "ordinary",
+      "sheet_visibility": "visible",
+      "observation": "excel_raw",
+      "verdict": "mismatched",
+      "certainty": "uncertified",
+      "uncertified": "no_exact_target",
+      "mismatch": {
+        "class": "kind",
+        "expected": "text",
+        "actual": "error"
+      },
+      "expected": {
+        "text": "00320045002b003300300038"
+      },
+      "actual": {
+        "error": "value"
+      }
+    },
+    {
+      "sheet": "dcj9k_eng15",
+      "row": 94,
+      "column": 4,
+      "cell": "D94",
+      "kind": "ordinary",
+      "sheet_visibility": "visible",
+      "observation": "excel_raw",
+      "verdict": "mismatched",
+      "certainty": "uncertified",
+      "uncertified": "no_exact_target",
+      "mismatch": {
+        "class": "kind",
+        "expected": "text",
+        "actual": "error"
+      },
+      "expected": {
+        "text": "00320045002b003300300038"
+      },
+      "actual": {
+        "error": "value"
+      }
+    }
+  ],
+  "limits": "Reused capture process, Automatic/iteration off, VS15ExcelAdaptor connected; no strict-target certification. The original 30 reopen failures and all 18 current nonpasses remain failures. Width stability concerns Value2 only, not rendering parity.",
+  "files": {
+    "eng15-overflow.capture.json": "e5eb08956a4ac0c4f8806f598ff0fec8fde7cfe2e25c7765f46e0c0cc71866d5",
+    "overflow-answers.jsonl": "08f4034aad93647124995be6311810e9363c21416ec19105fded5b8ccc1f3f17",
+    "overflow-display/initial/console.log": "ccd6c85a644f0e326a4924880a053499d445c790b675b514e236e7dfe29df5ca",
+    "overflow-display/initial/request.json": "a2a1f35c179d42e4214251dca8cbfdc2e3ddf6e17459655f9efb5ddc373ce35f",
+    "overflow-display/initial-v2/console.log": "6572193d483c5ef54c4c4b76a163462f44cdbaffb430d0aca83ce64e9e74e61d",
+    "overflow-display/initial-v2/request.json": "0ec7f1b547f84e027b4769ccee68c71956aabcc87e2a2b350093f396c097bb83",
+    "overflow-display/initial-v2/result.json": "a82983418bcb432fc37fca83175af077a0f5acf7a2842936569067e2e25dd937",
+    "overflow-display/initial-v2/stages.jsonl": "208642f16360cd3c8916a5632b45f96c570a77f24d75b4517e208ea1a3a29434",
+    "overflow-display/initial-v3/console.log": "3e04d94178bf863f34ffe662451d46565be016f5629555eef3e58b12bd814b68",
+    "overflow-display/initial-v3/request.json": "1d18936510201991438b83b4a13b729da98b721d04fd5d85e990ada04a99f87d",
+    "overflow-display/initial-v3/result.json": "ecb6eb8dae8c6db7363f924f900b4575303e87504be16cf7197b6305142e5a9b",
+    "overflow-display/initial-v3/saved.xlsx": "7b51852771318cab6e1564d6283ff655a382dd4c65bb1657baf94358252ba762",
+    "overflow-display/initial-v3/stages.jsonl": "79ff50c999e2e2d71d47b4e8d4b2aeb5f29fe46f09bb9ca976fc76094dab980e",
+    "overflow-display/reopen-v3/console.log": "720086ff61e9f64f6f8efef5fedbff687d45846e0693a092c6358ea3293a00fb",
+    "overflow-display/reopen-v3/request.json": "89548e58b5b3fe9f1565ccd2f3ab56c1ea80e62fae68dc45833df9977f0bec7c",
+    "overflow-display/reopen-v3/result.json": "3876470fac92df00e570de8d9342c74ca6afa96f7df2fd322a8e99de3c863443",
+    "overflow-display/reopen-v3/stages.jsonl": "9be0fa64a8f94249b2e1da92a04ff173d5e9fb6ba2d8dd508ff7785b40ae09a8",
+    "overflow-input/generator-input/dcj9k_eng15/oracle.xlsx": "9b854daad8045ffabb04331ebba55cdb0286184038f0016a6959c8f0b623048e",
+    "overflow-input/ready/dcj9k_eng15/oracle.xlsx": "603ce07db6e424a5bc457c8edc272440b283bf50d08f2ff6802046d69be3e149",
+    "overflow-root-and-width-validation.json": "e89e0aa212ac277987023ab40c661e1ef795c2ff59f90e65c367c1833d3f5cfc",
+    "saved-xml/0/xl/workbook.xml": "c7b7c4d1bd996c5559b26600cc62fafde9704564cf0e3fa6a71ff195daa77720",
+    "saved-xml/0/xl/worksheets/sheet1.xml": "d12636c59181f39de817fdab32f2d258c58d871ff7510ee5343f6ff923aa48eb",
+    "saved-xml/1/xl/workbook.xml": "a0c81921b43df0297a78ad2500757c298fafe20df5115d5d2ddb0519d5553eb6",
+    "saved-xml/1/xl/worksheets/sheet1.xml": "ac4a40ae49b977bea99ea3a8dfd602a3eab9ea650a405434fcfd05932424f721",
+    "worker/eng15-overflow/capture-worker.ps1": "2fe478f77bbb71db12c4533a8c41560ed89467e05ab1ee1af4ae60cb8eb9ffab",
+    "worker/eng15-overflow/capture.json": "e5eb08956a4ac0c4f8806f598ff0fec8fde7cfe2e25c7765f46e0c0cc71866d5",
+    "worker/eng15-overflow/in/oracle.xlsx": "603ce07db6e424a5bc457c8edc272440b283bf50d08f2ff6802046d69be3e149",
+    "worker/eng15-overflow/out/oracle.xlsx": "70c94246dae6433e79490d6c8dc3be3a939f6da5267b9a213f720fec58d9f155",
+    "worker/eng15-overflow/request.json": "4e01e8736b9d687b3b46cd9efa65958a1df9a1f477a98ee2e1df6a4d5ff3e285",
+    "worker/eng15-overflow/result.json": "249d3e3202d88143331204969825f0d75f841ae931bfddba8352790880ad5f38",
+    "worker/eng15-overflow/session-receipt.json": "c990dbbeafe73d5940891c5b8166a6e401671c8c8f5aec874e4b0a91c9bd25db"
+  }
+}

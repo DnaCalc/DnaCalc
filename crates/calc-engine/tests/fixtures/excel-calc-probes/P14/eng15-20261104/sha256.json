@@ -1,0 +1,18 @@
+{
+  "README.md": "f0128ad7e27dfa005beeea5695f116f17d8c1355ab89570bfe70b1ec868fc1ae",
+  "delivery-audit.json": "3c900dd5e083b8c830c068e6906c493da6a721bcbc63f573139e0240e8ca1983",
+  "inputs/eng15-asymmetric-pair_explicit.xlsm": "ae355aaf3d04ebf55304219a0e1b3d31c8653c83adacab504bd64ea6caaa0aac",
+  "inputs/eng15-asymmetric-pair_hidden.xlsm": "c61d6b44f48c5288f9f9a2e422bd4d8a2a89250a13623df274a3e4c4965442f1",
+  "observations.jsonl": "182c848c6aa9ab6d03543f07676454ba7f7ee80019da03a21d36425ece05355f",
+  "source/injected-readback-1.bas": "7c63a55c16f6b02427435378b1214d3a448fd2e7fdd770f036e02e53fe6af877",
+  "source/injected-readback-2.bas": "7c63a55c16f6b02427435378b1214d3a448fd2e7fdd770f036e02e53fe6af877",
+  "source/injected.bas": "eb6ef1411a8c26e1d814ed06f038fe51a59a72a819d7c94238635c4257bad2dc",
+  "source/observer-questions.bas": "3db30461369107feaaf1a0630de3b7f71a71a15599510586f42381a51744cf55",
+  "source/range-asymmetric.questions.json": "7a34264c55261aebbde29cd9040b63e530a17e8f3ad8667b1cd24d5b17d37fcf",
+  "traces/eng15-asymmetric-pair_explicit/command-1-trace.tsv": "2148badbc46400e2d0c8d69c2b698a2530433cd6fb7b997f83b7e200e48919f9",
+  "traces/eng15-asymmetric-pair_explicit/command-2-trace.tsv": "19208629f6dbbe28aaa5a86aedc4ea78c3305117879f10fd8264b78f1d8d95d9",
+  "traces/eng15-asymmetric-pair_explicit/startup-trace.tsv": "6a17f693722ad3d61fde18a2e3d1d978d206c8ae50fb88dec3c6f749c1ca0936",
+  "traces/eng15-asymmetric-pair_hidden/command-1-trace.tsv": "b190744d11d9a3dc10450f1c6eecbebd63a62e32c27f3ef2884958cb0a8cf8ab",
+  "traces/eng15-asymmetric-pair_hidden/command-2-trace.tsv": "5feee051ea6e0281fdc96dfa47a317113aa8bc347a34147450a84105a0188d60",
+  "traces/eng15-asymmetric-pair_hidden/startup-trace.tsv": "6a17f693722ad3d61fde18a2e3d1d978d206c8ae50fb88dec3c6f749c1ca0936"
+}
