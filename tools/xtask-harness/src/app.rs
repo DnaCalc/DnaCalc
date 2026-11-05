@@ -3082,8 +3082,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 321,
-            "the two applications have 321 core cases including six chart editing cases and all 315 inherited core cases"
+            total, 325,
+            "the two applications have 325 core cases including four sheet tab rename cases and all 321 inherited core cases"
         );
     }
 

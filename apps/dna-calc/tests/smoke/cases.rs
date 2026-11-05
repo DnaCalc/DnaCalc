@@ -8507,6 +8507,19 @@ Case {
         Action::Wait(Check::Count("[data-dnacalc=chart-edit-apply]:not(:disabled)",1)),Action::Into("chart-edit-title","Discard this draft"),Action::Keys("chart-edit-title","\u{E00C}"),Action::Wait(Check::Focused("chart-tools-toggle")),Action::Wait(Check::Rendered("chart-edit-title",false)),Action::OpenDetails("chart-tools")],checks:&[
         Check::Value("chart-edit-title","Phone pie"),Check::Text("[data-chart=\"Chart 5\"] [data-dnacalc=chart-title]","Phone pie"),Check::Fits]},
 
+    Case {name:"sheet tab rename: double-click opens the existing rename field on another sheet",actions:&[
+        Action::Window(1440,1000),Action::Click("new"),Action::DiscardReplacement,Action::Click("skin-grid"),Action::OpenDetails("sheet-tools"),Action::Into("sheet-rename-name","Data"),Action::Click("sheet-rename"),Action::Wait(Check::Text("[data-dnacalc=sheet-tab][aria-selected=true]","Data")),Action::Click("[data-dnacalc=sheet-tools] summary"),Action::Into("name-box","A50\u{E007}"),Action::Into(BAR,"1\u{E007}"),Action::OpenDetails("sheet-tools"),Action::Into("sheet-new-name","Other"),Action::Click("sheet-add"),Action::Wait(Check::Count("[data-dnacalc=sheet-tab]",2)),Action::Click("[data-dnacalc=sheet-tools] summary"),Action::OpenDetails("file-menu"),Action::Click("save-as"),Action::Into("save-as-name","Tabs"),Action::Click("save-as-confirm"),Action::Wait(Check::Text("document","Tabs.xlsx")),Action::Click("[data-dnacalc=sheet-tab][data-sheet=Data]"),Action::Wait(Check::Text("[data-dnacalc=sheet-tab][aria-selected=true]","Data")),Action::DoubleClick("[data-dnacalc=sheet-tab][data-sheet=Other]"),Action::Wait(Check::Focused("sheet-rename-name"))],checks:&[
+        Check::Value("sheet-rename-name","Other"),Check::Text("[data-dnacalc=sheet-tab][aria-selected=true]","Other"),Check::Attr("sheet-tools","open",""),Check::Absent("[data-dnacalc=selection-summary][open]")]},
+    Case {name:"sheet tab rename: typing replaces the selected name and uses ordinary history",actions:&[
+        Action::Keys("sheet-rename-name","Renamed inputs\u{E007}"),Action::Wait(Check::Text("[data-dnacalc=sheet-tab][aria-selected=true]","Renamed inputs")),Action::Click("undo"),Action::Wait(Check::Text("[data-dnacalc=sheet-tab][aria-selected=true]","Other")),Action::Click("redo")],checks:&[
+        Check::Text("[data-dnacalc=sheet-tab][aria-selected=true]","Renamed inputs"),Check::Count("[data-dnacalc=sheet-tab]",2)]},
+    Case {name:"sheet tab rename: a duplicate name remains typed and Escape returns focus at phone width",actions:&[
+        Action::Window(390,844),Action::DoubleClick("[data-dnacalc=sheet-tab][data-sheet=Data]"),Action::Wait(Check::Focused("sheet-rename-name")),Action::Wait(Check::Value("sheet-rename-name","Data")),Action::Keys("sheet-rename-name","Renamed inputs\u{E007}"),Action::Wait(Check::TextContains("status","already exists")),Action::Wait(Check::Value("sheet-rename-name","Renamed inputs")),Action::Keys("sheet-rename-name","\u{E00C}")],checks:&[
+        Check::Absent("[data-dnacalc=sheet-tools][open]"),Check::Focused("grid"),Check::Text("[data-dnacalc=sheet-tab][aria-selected=true]","Data"),Check::Fits]},
+    Case {name:"sheet tab rename: reopening restores the real name and saved edits survive",actions:&[
+        Action::DoubleClick("[data-dnacalc=sheet-tab][data-sheet=Data]"),Action::Wait(Check::Focused("sheet-rename-name")),Action::Wait(Check::Value("sheet-rename-name","Data")),Action::Keys("sheet-rename-name","New Data\u{E007}"),Action::Wait(Check::Text("[data-dnacalc=sheet-tab][aria-selected=true]","New Data")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Tabs.xlsx"),Action::DiscardReplacement,Action::DoubleClick("[data-dnacalc=sheet-tab][data-sheet='Renamed inputs']"),Action::Wait(Check::Focused("sheet-rename-name"))],checks:&[
+        Check::Value("sheet-rename-name","Renamed inputs"),Check::Count("[data-dnacalc=sheet-tab][data-sheet='New Data']",1),Check::Count("[data-dnacalc=sheet-tab][data-sheet='Renamed inputs']",1),Check::Fits]},
+
 ];
 
 /// The script that reads what one check looks at.
@@ -9357,4 +9370,5 @@ CaseGroup {
     CaseGroup { name: "completion-repair", start: 709, end: 714, core: 5, setup: &[] },
     CaseGroup {name:"range-drag",start:714,end:724,core:10,setup:&[]},
     CaseGroup {name:"chart-editing",start:724,end:730,core:6,setup:&[]},
+    CaseGroup {name:"sheet-tab-rename",start:730,end:734,core:4,setup:&[]},
 ];
