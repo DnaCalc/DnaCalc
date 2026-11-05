@@ -134,6 +134,8 @@ impl DetachedFormula {
         Ok(Self {
             plan,
             reference_result: true,
+            compiled_inputs: inputs.pin(),
+            caller_sheet: anchor.sheet(),
         })
     }
 }

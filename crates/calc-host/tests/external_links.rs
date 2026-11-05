@@ -851,3 +851,56 @@ fn dc_hsa5_6__name_diagnostics_never_promote_external_cache_values() {
         }
     }
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_6__validation_audits_refuse_cached_subjects_and_criteria() {
+    use calc_host::ValidationStatus;
+    let sheet_xml = SHEET.replace("</row>", r#"<c r="H1"><v>111</v></c><c r="I1"><v>111</v></c><c r="J1"><v>111</v></c></row>"#)
+        .replace("</worksheet>", r#"<dataValidations count="3"><dataValidation type="whole" operator="between" allowBlank="0" sqref="A1 B1 H1"><formula1>0</formula1><formula2>200</formula2></dataValidation><dataValidation type="custom" allowBlank="0" sqref="I1"><formula1>$A$1&gt;0</formula1></dataValidation><dataValidation type="list" allowBlank="0" sqref="J1"><formula1>[1]Sheet1!A1</formula1></dataValidation></dataValidations></worksheet>"#);
+    let host = recalculated(&package_with_sheet(&sheet_xml));
+    let sheet = host.sheets()[0].id();
+    for column in [1, 2, 9, 10] {
+        assert!(matches!(host.validation_status(CellKey::new(sheet, 1, column).unwrap()),
+            Some(ValidationStatus::Unavailable { .. })), "column {column}");
+    }
+    assert_eq!(host.validation_status(CellKey::new(sheet, 1, 8).unwrap()), Some(ValidationStatus::Valid));
+    let scan = host.scan_validation(sheet);
+    assert_eq!((scan.checked, scan.valid, scan.unavailable), (5, 1, 4));
+    assert!(scan.invalid.is_empty());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_6__conditional_colour_filter_refuses_external_cache_decisions_atomically() {
+    use calc_host::{ConditionalChange, FilterChange, HostSession, SkinIntent, WorkbookCommand};
+    use calc_host::value::GridArea;
+    let sheet_xml = format!(r#"<worksheet xmlns="{MAIN}"><sheetData><row r="1"><c r="A1"><f>[1]Sheet1!A1</f></c><c r="H1" t="inlineStr"><is><t>Key</t></is></c></row><row r="2"><c r="H2"><v>1</v></c></row><row r="3"><c r="H3"><v>2</v></c></row></sheetData></worksheet>"#);
+    let mut book = HostSession::open(Arc::new(MemorySource::new(package_with_sheet(&sheet_xml))),
+        &OpenPolicy::default(), HostOptions::default()).unwrap();
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    let sheet = book.host().sheets()[0].id();
+    let condition = WorkbookCommand::Conditional { sheet, revision: book.host().revision().get(), index: None,
+        change: ConditionalChange::Condition { kind: "expression".into(), applies: "H2:H3".into(),
+            color: "#ff0000".into(), formulas: vec!["$A$1>0".into()], operator: String::new(),
+            rank: 10, percent: false, stop: false } };
+    assert!(book.dispatch(SkinIntent::Command(condition)).accepted());
+    let first = CellKey::new(sheet, 1, 8).unwrap();
+    let last = CellKey::new(sheet, 3, 8).unwrap();
+    let enable = WorkbookCommand::AutoFilter { sheet, revision: book.host().revision().get(),
+        change: FilterChange::Enable { area: GridArea::new(first, last).unwrap() } };
+    assert!(book.dispatch(SkinIntent::Command(enable)).accepted());
+    assert!(book.host().conditional_formats(sheet).look(book.host(), last).is_some(),
+        "historical painting keeps its explicit display policy");
+    let revision = book.host().revision();
+    let history = book.history_depth();
+    let styles = book.host().styles().clone();
+    let filter = book.host().model().definitions().auto_filter(sheet).cloned();
+    let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::AutoFilter { sheet,
+        revision: revision.get(), change: FilterChange::Color { column: 8, cell_color: true, color: "#ff0000".into() } }));
+    assert!(!receipt.accepted(), "{receipt:?}");
+    assert_eq!(book.host().revision(), revision);
+    assert_eq!(book.history_depth(), history);
+    assert_eq!(book.host().styles(), &styles);
+    assert_eq!(book.host().model().definitions().auto_filter(sheet), filter.as_ref());
+}
