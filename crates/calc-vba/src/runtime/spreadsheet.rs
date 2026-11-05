@@ -55,6 +55,8 @@ impl From<&str> for ContextError {
 /// Borrowed for a synchronous invocation only. It may read live references and invoke
 /// the host's ordinary worksheet-function catalogue; neither backend implements one.
 pub trait SpreadsheetContext {
+    /// A reentered worksheet UDF cannot use a surrounding document event Target.
+    fn event_view(&self) -> bool { false }
     fn caller(&self) -> Option<Range>;
     /// Record a capability refusal in the owning evaluator, independently of VBA On Error.
     fn refuse(&self, reason: &'static str) -> String {
@@ -136,6 +138,10 @@ pub(crate) fn record_capability_refusal(reason: &'static str) {
     }
 }
 
+pub(crate) fn event_view_active() -> bool {
+    CONTEXT.is_set() && CONTEXT.with(|(context, _, available)| available && context.event_view())
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Axis {
     Cells,
@@ -154,6 +160,7 @@ enum Object {
 pub(crate) struct SpreadsheetHost {
     base: Arc<dyn HostServices>,
     objects: Mutex<ObjectTable>,
+    native_events: bool,
 }
 
 #[derive(Default)]
@@ -214,7 +221,11 @@ impl SpreadsheetHost {
         Self {
             base: HostBuilder::new().build(),
             objects: Mutex::new(ObjectTable::default()),
+            native_events: false,
         }
+    }
+    pub(crate) fn for_events() -> Self {
+        Self { native_events: true, ..Self::new() }
     }
 
     fn object(&self, object: Object) -> HalResult<Variant> {
@@ -642,12 +653,20 @@ impl HostServices for SpreadsheetHost {
 }
 
 impl ComHal for SpreadsheetHost {
+    fn prepare_dynamic_object(&self, object: ObjectRef) -> HalResult<calcvba_host_api::HostObject> {
+        calcvba_host_api::HostObject::from_object_ref(&object)
+            .filter(|object| object.header().iid == TYPED_RANGE_IID || crate::events::object_type(&object.object_ref()).is_some())
+            .ok_or_else(|| fault(429, "only an admitted DNA factory object can enter a typed activation"))
+    }
     fn invoke_early_bound(
         &self,
         object: ObjectRef,
         member: &TypeLibMemberMetadata,
         args: &[oxvba_com::DynamicCallArg],
     ) -> HalResult<oxvba_runtime::RuntimeCallResult> {
+        if crate::events::object_type(&object).is_some() {
+            return self.unsupported("a document member without its admitted typed slot");
+        }
         // Preserve only the existing portable projection until extraction to host
         // glue. Compiler-bound calls use its fixed tokens, never dynamic names.
         // This is not native COM/vtable compatibility evidence.
@@ -700,13 +719,17 @@ impl ComHal for SpreadsheetHost {
             .as_bstr()
             .is_some_and(|s| s.as_str().eq_ignore_ascii_case("DnaCalc.Application"))
         {
+            if self.native_events {
+                let object = crate::events::application_object().map_err(|e| fault(5, e))?;
+                return Ok(Variant::from_object_ref(object.object_ref()));
+            }
             self.object(Object::Application)
         } else {
             self.unsupported("only the injected spreadsheet Application is available")
         }
     }
     fn describe_object(&self, object: ObjectRef) -> HalResult<Option<ComObjectDescriptor>> {
-        if self.native_range(&object).is_none() {
+        if self.native_range(&object).is_none() && crate::events::object_type(&object).is_none() {
             self.lookup(&object)?;
         }
         Ok(Some(ComObjectDescriptor {
@@ -722,6 +745,9 @@ impl ComHal for SpreadsheetHost {
         }))
     }
     fn object_default_value(&self, object: ObjectRef) -> HalResult<Option<Variant>> {
+        if crate::events::object_type(&object).is_some() {
+            return self.unsupported("an implicit document-object value outside its typed interface");
+        }
         if let Some(native) = self.native_range(&object) {
             return self.native_value(&native).map(Some);
         }
@@ -731,6 +757,7 @@ impl ComHal for SpreadsheetHost {
         }
     }
     fn object_type_name(&self, object: ObjectRef) -> HalResult<Option<String>> {
+        if let Some(name) = crate::events::object_type(&object) { return Ok(Some(name.into())); }
         if self.native_range(&object).is_some() {
             return Ok(Some("Range".into()));
         }
@@ -744,6 +771,9 @@ impl ComHal for SpreadsheetHost {
         ))
     }
     fn dispatch_invoke_dynamic_variant(&self, request: &DynamicCallRequest) -> HalResult<Variant> {
+        if crate::events::object_type(&request.object).is_some() {
+            return self.unsupported("a late-bound document object outside its typed interface");
+        }
         if matches!(
             request.call_kind_hint,
             Some(DynamicCallKind::PropertyLet | DynamicCallKind::PropertySet)

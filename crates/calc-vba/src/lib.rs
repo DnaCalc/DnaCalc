@@ -229,6 +229,9 @@ impl UserFunction for VbaFunction {
         frame: calc_func::UserInvocationFrame,
         context: &mut dyn UserFunctionContext,
     ) -> Result<Option<Box<dyn calc_func::UserFunctionInvocation>>, String> {
+        // A macro-owned calculation is synchronous and borrows its active budget.
+        // It cannot create an owning activation with a different context pointer.
+        if events::callback_active() { return Ok(None); }
         let bridge = ContextBridge {
             context: RefCell::new(context),
             sheets: self.sheets.clone(),
