@@ -156,6 +156,26 @@
     const left=pad+icon+(['left','distributed'].includes(horizontal)?indent:0),right=pad+(['right','distributed'].includes(horizontal)?indent:0), capacity=rect.w-left-right;
     const unit=cell.shown.text, repeat=horizontal==='fill'&&unit?Math.max(1,Math.floor(capacity/measure(unit).width)):1, text=unit.repeat(Math.min(repeat,16384/Math.max(1,unit.length)));
     if(horizontal==='fill'&&unit&&repeat>1)painted=painted&&!!ink&&Math.abs(ink.right-(rect.x+left+measure(text).actualBoundingBoxRight))<3;
+    // Canvas has no text span. Check the complete measured line box and its actual glyph
+    // raster instead. Unsupported multi-line cases must fail, never imply that clipped ink fits.
+    const textBounds=()=>{
+      if(!painted||!ink||s.rotation===255||s.wrap||['justify','distributed'].includes(horizontal)||unit.includes('\n'))return false;
+      const metrics=measure(unit),lh=s.pixels*scale,box=measure('Mg');
+      const baseline=(lh-box.fontBoundingBoxAscent-box.fontBoundingBoxDescent)/2+box.fontBoundingBoxAscent;
+      const angle=s.rotation*Math.PI/180,cos=Math.cos(angle),sin=Math.sin(angle);
+      const rw=Math.abs(cos)*metrics.width+Math.abs(sin)*lh,rh=Math.abs(sin)*metrics.width+Math.abs(cos)*lh;
+      const x=horizontal==='right'?rect.x+rect.w-right-rw:horizontal==='center'||horizontal==='centerContinuous'?anchor.x+(anchor.w-rw)/2:rect.x+left;
+      const y=vertical==='top'?rect.y:vertical==='center'?rect.y+(rect.h-rh)/2:rect.y+rect.h-rh;
+      const clip=cell.clip||rect;
+      if(x<rect.x-1||x+rw>rect.x+rect.w+1||y<rect.y-1||y+rh>rect.y+rect.h+1||x<clip.x-1||x+rw>clip.x+clip.w+1||y<clip.y-1||y+rh>clip.y+clip.h+1)return false;
+      if(x<anchor.x-1||x+rw>anchor.x+anchor.w+1||y<anchor.y-1||y+rh>anchor.y+anchor.h+1)return false;
+      const xs=[-metrics.width/2-metrics.actualBoundingBoxLeft,-metrics.width/2+metrics.actualBoundingBoxRight];
+      const ys=[-lh/2+baseline-metrics.actualBoundingBoxAscent,-lh/2+baseline+metrics.actualBoundingBoxDescent];
+      const corners=xs.flatMap(a=>ys.map(b=>[x+rw/2+a*cos-b*sin,y+rh/2+a*sin+b*cos]));
+      const expected={left:Math.min(...corners.map(p=>p[0])),right:Math.max(...corners.map(p=>p[0])),top:Math.min(...corners.map(p=>p[1])),bottom:Math.max(...corners.map(p=>p[1]))};
+      return Object.keys(expected).every(k=>Math.abs(ink[k]-expected[k])<3);
+    };
+    if(spec.op==='bounds')return {handled:true,seen:textBounds()?true:{unfitted:true,address,anchor,rect,clip:cell.clip,ink,rotation:s.rotation,wrap:s.wrap,horizontal}};
     if(spec.op==='text')return {handled:true,seen:painted?text:{unpainted:true,address,rect,viewport:plan.viewport,clip:cell.clip,ink,foreground,background}};
     if(spec.op==='fits')return {handled:true,seen:painted?[measure(text).width,capacity]:null};
     if(spec.op==='hash')return {handled:true,seen:painted&&/^#+$/.test(unit)&&measure(unit).width<=capacity+.1&&measure(unit+'#').width>capacity+.1};
@@ -204,17 +224,20 @@
       const physical=(spec.selector.includes('cell-decoration')||spec.selector.includes('cell-borders')),r=physical?anchor:rect;
       const line=style=>style==='medium'?[2,'solid']:['mediumDashed','mediumDashDot','mediumDashDotDot'].includes(style)?[2,'dashed']:style==='thick'?[3,'solid']:style==='double'?[3,'double']:style==='hair'?[.5,'solid']:style==='dotted'?[1,'dotted']:style==='dashed'||style?.includes('ashDot')?[1,'dashed']:[1,'solid'];
       const values={left:r.x+'px',top:r.y+'px',width:r.w+'px',height:r.h+'px',color:foreground,'background-color':cf.fill||s.fill||'','font-family':family,'font-weight':bold?'700':'400','font-style':italic?'italic':'normal','font-size':s.pixels*scale+'px','text-align':horizontal==='justify'?'justify':horizontal==='distributed'?'justify':horizontal,'text-align-last':horizontal==='justify'?'left':horizontal==='distributed'?'justify':'auto'};
+      // Equivalent Canvas whitespace treatment additionally requires the full glyph raster.
+      values['white-space']=(s.wrap||['justify','distributed'].includes(horizontal))&&s.rotation===0?'pre-wrap':'pre';
       const norm=(k,v)=>{const e=document.createElement('span');e.style.setProperty(k,v);return e.style.getPropertyValue(k);};
       let rasterOK=painted;
       const pairs=spec.declarations.split(';').filter(Boolean).map(d=>{
         const i=d.indexOf(':'),key=d.slice(0,i).trim(),expected=d.slice(i+1).trim();let actual=values[key];
         if(key==='color')rasterOK=rasterOK&&hasColour(foreground,rect);
         if(key==='background-color')rasterOK=rasterOK&&!!actual&&hasColour(actual,anchor);
+        if(key==='white-space')rasterOK=rasterOK&&textBounds();
         const index=['border-left','border-right','border-top','border-bottom'].indexOf(key);
         if(index>=0){const edge=(cell.borders||s.borders)[index];if(edge){const [w,kind]=line(edge.style),colour=edge.color||'#000000';actual=`${w*scale}px ${kind} ${colour}`;const band=index<2?{x:index===0?anchor.x:anchor.x+anchor.w-w*scale,y:anchor.y,w:w*scale,h:anchor.h}:{x:anchor.x,y:index===2?anchor.y:anchor.y+anchor.h-w*scale,w:anchor.w,h:w*scale};rasterOK=rasterOK&&hasColour(colour,band);}}
         return [key,actual===undefined?'':norm(key,actual),norm(key,expected)];
       });
-      return {handled:true,seen:rasterOK?pairs:null};
+      return {handled:true,seen:rasterOK?pairs:{unpainted:true,address,anchor,rect,clip:cell.clip,ink,pairs}};
     }
     return {handled:false};
   };

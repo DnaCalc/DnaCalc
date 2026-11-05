@@ -8,6 +8,8 @@
 //! UTF-16 units and Version 2 counts valid surrogate pairs once. The B functions keep their
 //! separate policies: LENB/MIDB/FINDB/SEARCHB/REPLACEB count units, while LEFTB/RIGHTB count
 //! characters under a single-byte language.
+//! SEARCH's wildcard matcher consumes UTF-16 units in both versions; only its candidate
+//! starts and returned positions use the compatibility-dependent character count.
 //!
 //! A text result longer than a cell holds is #VALUE! for REPT, and #CALC! for CONCAT,
 //! CONCATENATE and TEXTJOIN (OxFunc's rule). The casing functions (UPPER, LOWER, PROPER) read
