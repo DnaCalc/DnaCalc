@@ -181,6 +181,7 @@ R28 isolates the public LN/EXP reduction constants within the declared native in
 | SORT | workbook-only | unresolved | unresolved | — | unmeasured |
 | SQRT | observed | double-round mathematical leaf consistent | unresolved | 8, 8 | unmeasured |
 | STANDARDIZE | observed | single/double indistinguishable | unresolved | 8, 8 | unmeasured |
+| TEXT | service-refused | unresolved | unresolved | — | unmeasured |
 | TEXTSPLIT | workbook-only | unresolved | unresolved | — | unmeasured |
 | WEEKNUM | observed | unresolved: flat quantized windows | unresolved | 0, 0 | unmeasured |
 | LN | observed | single/double indistinguishable | unresolved | 7, 7 | unmeasured |

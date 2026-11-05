@@ -3,20 +3,21 @@
   "complete": true,
   "inventory_complete": true,
   "coverage": {
-    "problem_functions": 149,
-    "reported": 152,
+    "problem_functions": 150,
+    "reported": 153,
     "statuses": {
       "observed": 118,
-      "workbook-only": 34
+      "workbook-only": 34,
+      "service-refused": 1
     }
   },
-  "generator_sha256": "c87645223f2d68363c205e325e2ef7f43ce54553093662deb694e822f29256e2",
-  "problem_list_sha256": "2b5e808f7819aae933d95915b5ca1f6f5d2ab6b2adbcbab4231fdece6b587c02",
+  "generator_sha256": "bbdf8b35ab9e9e711888c55d6ca1e99704d1cfff830c4743d84d4df1caeebe36",
+  "problem_list_sha256": "382ac737f0fa79b8c6957a02786f3125b4876d77a13d9ee6575dcaf90972cf7c",
   "source_bindings": {
-    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/racer/fingerprint.py": "c87645223f2d68363c205e325e2ef7f43ce54553093662deb694e822f29256e2",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/racer/fingerprint.py": "bbdf8b35ab9e9e711888c55d6ca1e99704d1cfff830c4743d84d4df1caeebe36",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/checker/reference.py": "b34fb31455348e7cf56a58f6fdafd8d9fc7f20afc5d2b85b7a409fac7aee4bdd",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/checker/exact.py": "842363e00ad65c464623594822d566a2af9a0415e0b574557613092c993af80f",
-    "/home/ubuntu/projects/DnaCalc/DnaCalc/docs/generated/problem-functions.json": "2b5e808f7819aae933d95915b5ca1f6f5d2ab6b2adbcbab4231fdece6b587c02",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc/docs/generated/problem-functions.json": "382ac737f0fa79b8c6957a02786f3125b4876d77a13d9ee6575dcaf90972cf7c",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/tools/excel-service/client.py": "4cd9f8df4dbe06917ae4c4d12d181e169b8d0bee68fe99e59d3f4d289226b89e",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/tools/excel-service/policy.py": "7b4605191b314e1e655dc155d90ae70e6459fe945eda22973a29993c55ca1ae4"
   },
@@ -27,14 +28,21 @@
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round27/primitives.json": "e8a43ab6ef335c677118c37de8871c5b6b3d8c2999a739212d4592fd6c51822a",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round28/primitives-final-independent.json": "4649338e9a46da8a84a7146685d59fd4868d5d61b540faeed741e032f4a5c979",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round28/root-normalization-independent.json": "765d8b7cf8ab779ce3ea7db5a573269ec09fcdbc5a623c8cc7c916d590410d74",
-    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round28/hypergeom-returns-independent.json": "769e166f15ead13896e0217d09ce780f4c87f22765aaee7f5e2d3dba6d66f548",
-    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round28/poisson-seeds-independent.json": "954a2ccb83a3049c1eef1ba36cb51d1cbf561f7c48ac0a9c546e5975fdee3439",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round28/hypergeom-final-independent.json": "2220de84c6c806b1e14299a3ab040043b83599d4cd17e4e1be7b12f656689921",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round28/poisson-final-independent.json": "9c2fbe3e6645adf6917eea89ca2ee36535a85544f615033c353174a3502180e7",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round28/root-public-stages-independent.json": "72067750ed9e09f7bdcd1c35b04a00078ae66182254f7148be08425f11a20900",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round28/root-store-contrasts-public-exp.json.gz": "7915f47edd05170d4085556796bfdc9c609e1a29ee10a7564f4ce7e3955cfb55",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round28/poisson-exp-arguments.json.gz": "f01757bc3fc443f7015603a270a19935b3fa9636c7b526278e675975ce50623e",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/evidence/round28/poisson-log-difference.json.gz": "2a13d5a96aecdb97b5a39bdf2a860b93cbc2857506a8366245b62bdab6118a4d"
   },
-  "refused_requests": [],
+  "refused_requests": [
+    {
+      "function": "TEXT",
+      "file": "ff74d79278691113fe0b4c40ee22822b213e111ac682749ada034d24e2ebe5ef.refusal-3c35768439804d66b3aa6fe6bc84c9b4.json.gz",
+      "sha256": "5f8241f3b678c22669688754a9a6848b79b97849cf948c8e1239b3a5b19784ec",
+      "calls_requested": 1024
+    }
+  ],
   "sources": "Tier1 original Excel scalar outputs and IEEE754; original MIT arithmetic/DFT and installed MPFR interface. No tier3/4 implementation source read.",
   "candidate_order": "Textbook product loops, Horner, plain recurrences, raw-moment variance, atanh series, one guard; fixed structural order, never accuracy rank.",
   "limitations": [
@@ -17151,6 +17159,54 @@
       "broader_primitive_windows": []
     },
     {
+      "function": "TEXT",
+      "problem_list_member": true,
+      "rounding": "unresolved",
+      "stored_stages": null,
+      "band_edges": [],
+      "windows": [],
+      "seed_origin": "fixed textbook example",
+      "arguments": [
+        {
+          "type": "number",
+          "bits": "3ff4cccccccccccd"
+        },
+        {
+          "type": "text",
+          "value": "0.0000000000000000",
+          "mode": "cell"
+        }
+      ],
+      "varying_argument": 0,
+      "requested_calls": 1024,
+      "requested_windows": [
+        {
+          "start": "3ff4cccccccccbcd",
+          "count": 512
+        },
+        {
+          "start": "3ff9ffffffffff00",
+          "count": 512
+        }
+      ],
+      "status": "service-refused",
+      "refusal": {
+        "version": 1,
+        "id": "3c35768439804d66b3aa6fe6bc84c9b4",
+        "ok": false,
+        "error": "function is outside the service's safe catalogue subset",
+        "rows": [],
+        "excel_build": null,
+        "machine": "GOVERT-OMEN",
+        "timestamp": "2026-11-04T19:39:31.690110+00:00",
+        "service_seconds": 0.01600000006146729,
+        "request_sha256": "c442a068eac917326b02733eb48841166129945d36095bfb8bfe24f88e50b8cd",
+        "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-firehorse\\3c35768439804d66b3aa6fe6bc84c9b4"
+      },
+      "observed_approximation_boundaries": [],
+      "broader_primitive_windows": []
+    },
+    {
       "function": "TEXTSPLIT",
       "problem_list_member": true,
       "rounding": "unresolved",
@@ -18582,7 +18638,7 @@
     }
   ],
   "producer_bindings": {
-    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/racer/fingerprint.py": "c87645223f2d68363c205e325e2ef7f43ce54553093662deb694e822f29256e2",
+    "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/racer/fingerprint.py": "bbdf8b35ab9e9e711888c55d6ca1e99704d1cfff830c4743d84d4df1caeebe36",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/checker/reference.py": "b34fb31455348e7cf56a58f6fdafd8d9fc7f20afc5d2b85b7a409fac7aee4bdd",
     "/home/ubuntu/projects/DnaCalc/DnaCalc-Research/checker/exact.py": "842363e00ad65c464623594822d566a2af9a0415e0b574557613092c993af80f"
   },
