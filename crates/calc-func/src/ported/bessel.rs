@@ -7,9 +7,10 @@
 //!   polynomial approximations of I0, I1, K0 and K1 used here, with their published coefficients.
 //! - J0, J1, Y0 and Y1 call the licensed fixed helpers in `bessel_rational`.
 //!   High J uses the R27 literal-transcription hypotheses with worksheet
-//!   SIN/COS. Its full bank has one remaining last-bit mismatch; the separate
-//!   R25 phase windows retain twenty mismatches. These are measured discovery
-//!   results, not proof of Excel's source or agreement outside those readings.
+//!   SIN/COS. High J/Y correction multiplies (8/x)*trig before its polynomial;
+//!   paired R25 phase observations distinguish this grouping. The separate
+//!   low-Y and forward discrepancies stay counted. These are discovery results,
+//!   not proof of Excel's source or agreement outside those readings.
 //! - The three-term recurrence `C(n+1) = (2n/x) C(n) - C(n-1)` (A&S 9.1.27, 9.6.26), run forward
 //!   for Y and K and for J above its order. J below its order calls the separately
 //!   licensed published adaptive backward program in `bessel_rational`.
