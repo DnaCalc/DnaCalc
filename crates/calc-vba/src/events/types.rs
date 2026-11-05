@@ -115,12 +115,48 @@ fn declaration(
     m
 }
 
+fn application_members(mut members: Vec<TypeLibMemberMetadata>) -> Vec<TypeLibMemberMetadata> {
+    let mut range = member("Range", 0, T::Object, APP, 6);
+    range.token = 400;
+    range.parameter_names = vec!["Cell1".into()];
+    range.parameter_types = vec![T::String];
+    range.parameter_optional = vec![false];
+    range.requires_argument = true;
+    members.push(range);
+    for m in &mut members {
+        let slot = match (m.name.as_str(), m.invoke_kind) {
+            ("Range", K::PropertyGet) => 0,
+            ("Calculate", K::Method) => 1,
+            ("CalculateFull", K::Method) => 2,
+            ("CalculateFullRebuild", K::Method) => 3,
+            ("EnableEvents", K::PropertyGet) => 4,
+            ("EnableEvents", K::PropertyPut) => 5,
+            _ => continue,
+        };
+        m.interface_iid = Some(iid(APP));
+        m.vtable_slot = Some(slot);
+        m.vtable_slot_bound = Some(6);
+        m.parameter_optional.fill(false);
+        if slot == 0 {
+            m.parameter_types = vec![T::String];
+            m.return_type = Some(T::Object);
+            m.return_wire_type = Some(oxvba_com::TypeLibWireType::InterfacePointer { name: "Excel.Range".into() });
+        } else if slot == 4 { m.return_type = Some(T::Boolean); }
+        else if slot == 5 { m.parameter_types = vec![T::Boolean]; }
+    }
+    members
+}
+
 impl TypeLibResolver for EventTypes {
     fn interface_iid(
         &self,
         request: &TypeLibResolveRequest,
         blob: &TypeLibMetadataBlob,
     ) -> Option<ComInterfaceIid> {
+        if self.automatic_events && request.reference_name.eq_ignore_ascii_case("DnaCalc")
+            && request.requested_coclass.as_deref().is_none_or(|name| name.eq_ignore_ascii_case("Application")) {
+            return Some(iid(APP));
+        }
         if request.reference_name.eq_ignore_ascii_case("Excel") {
             match request
                 .requested_coclass
@@ -144,7 +180,12 @@ impl TypeLibResolver for EventTypes {
     }
     fn resolve(&self, request: &TypeLibResolveRequest) -> Option<TypeLibMetadataBlob> {
         if !request.reference_name.eq_ignore_ascii_case("Excel") {
-            return crate::runtime::spreadsheet::SpreadsheetTypes.resolve(request);
+            let mut blob = crate::runtime::spreadsheet::SpreadsheetTypes.resolve(request)?;
+            if self.automatic_events && request.reference_name.eq_ignore_ascii_case("DnaCalc")
+                && request.requested_coclass.as_deref().is_none_or(|name| name.eq_ignore_ascii_case("Application")) {
+                blob.members = application_members(blob.members);
+            }
+            return Some(blob);
         }
         let class = request.requested_coclass.as_deref().unwrap_or("Range");
         let (mut members, mut events) = match class.to_ascii_lowercase().as_str() {
@@ -173,11 +214,11 @@ impl TypeLibResolver for EventTypes {
             ),
             "range" => (
                 vec![
-                    member("Value2", 0, T::Variant, RANGE, 5),
-                    member("Row", 1, T::Long, RANGE, 5),
-                    member("Column", 2, T::Long, RANGE, 5),
-                    member("Count", 3, T::Long, RANGE, 5),
-                    member("Address", 4, T::String, RANGE, 5),
+                    member("Value2", 0, T::Variant, RANGE, 7),
+                    member("Row", 1, T::Long, RANGE, 7),
+                    member("Column", 2, T::Long, RANGE, 7),
+                    member("Count", 3, T::Long, RANGE, 7),
+                    member("Address", 4, T::String, RANGE, 7),
                 ],
                 vec![],
             ),
@@ -208,11 +249,26 @@ impl TypeLibResolver for EventTypes {
             ),
             _ => return None,
         };
+        if self.automatic_events && class.eq_ignore_ascii_case("Application") {
+            members = application_members(members);
+        }
         if !self.automatic_events && !class.eq_ignore_ascii_case("Application") {
             events.clear();
         }
         match class.to_ascii_lowercase().as_str() {
             "range" => {
+                if self.automatic_events {
+                    let mut put = member("Value2", 5, T::Variant, RANGE, 7);
+                    put.invoke_kind = K::PropertyPut;
+                    put.parameter_names = vec!["value".into()];
+                    put.parameter_types = vec![T::Variant];
+                    put.parameter_optional = vec![false];
+                    put.requires_argument = true;
+                    members.push(put);
+                    let mut calculate = member("Calculate", 6, T::Variant, RANGE, 7);
+                    calculate.invoke_kind = K::Method;
+                    members.push(calculate);
+                }
                 for (name, kind, args, required) in [
                     (
                         "Address",
@@ -239,6 +295,7 @@ impl TypeLibResolver for EventTypes {
                     ("FormulaR1C1", K::PropertyPut, &["value"][..], 1),
                     ("Formula2R1C1", K::PropertyPut, &["value"][..], 1),
                     ("Formula2", K::PropertyPut, &["value"][..], 1),
+                    // Value2 has a typed put when events are active.
                     ("Value2", K::PropertyPut, &["value"][..], 1),
                     ("ClearContents", K::Method, &[][..], 0),
                     ("Clear", K::Method, &[][..], 0),
@@ -259,7 +316,9 @@ impl TypeLibResolver for EventTypes {
                     } else {
                         100 + members.len() as i32
                     };
-                    members.push(declaration(name, token, kind, args, required, T::Variant));
+                    if !(self.automatic_events && ((name == "Value2" && kind == K::PropertyPut) || (name == "Calculate" && kind == K::Method))) {
+                        members.push(declaration(name, token, kind, args, required, T::Variant));
+                    }
                 }
             }
             "worksheet" => {
