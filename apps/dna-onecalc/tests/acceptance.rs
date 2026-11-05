@@ -261,6 +261,7 @@ fn dc_zsn25__fn6_iteration_primary_boundaries() {
 
 /// Fn7 pairs the same complete Jamo prefix and bare primary-group boundaries
 /// with an ordinary Greek prefix, which the Windows suffix comparison retains.
+/// Its bare reversed vowel/consonant pair has a measured first group too.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_zsn26__ordinary_prefix_before_jamo() {
@@ -270,8 +271,22 @@ fn dc_zsn26__ordinary_prefix_before_jamo() {
     ), &mut session, |entry| {
         entry.cell.row() == 20 && entry.cell.column() == 10
             && matches!(entry.cell.sheet(), "q035" | "q036" | "q039" | "q040"
-                | "q043" | "q044" | "q047" | "q048" | "q055" | "q056")
-    }, 10);
+                | "q043" | "q044" | "q047" | "q048" | "q055" | "q056"
+                | "q096" | "q097" | "q098")
+    }, 13);
+    for formula in [
+        "=\"ᅡᄀ\"<\"ᅡ\"",
+        "=\"αᅡᄀ\"<\"α가\"",
+        "=\"ᅡᄀz\"<\"가\"",
+        "=\"ᅡ가\"<\"가\"",
+    ] {
+        session.set_formula(formula);
+        let calculated = session.calculate();
+        assert!(calculated.result.is_none(), "{formula} needs unmeasured weights");
+        assert!(calculated.diagnostics.iter().any(|diagnostic| matches!(diagnostic,
+            Diagnostic::Eval(EvalFault::Function(FunctionFault::NotImplemented { .. }))
+        )), "{formula}: {:?}", calculated.diagnostics);
+    }
 }
 
 /// Original fn6 Version-1/2 captures distinguish a lone high surrogate from a low

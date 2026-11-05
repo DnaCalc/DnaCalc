@@ -826,7 +826,11 @@ pub(super) fn parts(text: &[u16]) -> Result<Parts, Unfinished> {
         let primaries = gathered.primary.len();
         if gathered.unit(table, code, &mut before).is_none() {
             gathered.primary.truncate(primaries);
-            if ordinary_jamo_prefix(&text[..at]) && independent_jamo_suffix(&text[at + 1..])
+            // Fn7's exact bare reversed A/Giyeok pair keeps A's first EC byte.
+            // No later byte, ordinary-prefix context or continuation is assigned.
+            let bare_reversed_jamo = at == 0 && text == [0x1161, 0x1100];
+            if ordinary_jamo_prefix(&text[..at])
+                && (independent_jamo_suffix(&text[at + 1..]) || bare_reversed_jamo)
                 && let Weight::FirstPrimaryGroup(group) = table.weights[usize::from(code)]
             {
                 // A strict difference in this measured byte decides before any
