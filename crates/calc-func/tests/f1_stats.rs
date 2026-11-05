@@ -845,3 +845,38 @@ fn linest_stored_reflector_matches_original_excel_selections() {
         }
     }
 }
+
+/// Original R25 full-rank coefficient readings separate the squared-norm product
+/// from the reflector. Every selected input cell has its exact operand echo.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn linest_stores_squared_norm_products() {
+    let edge = f64::from_bits(0x401f9ff8b1ae9622);
+    for (response, predictors, column, expected) in [
+        // r25-qr-store-00009
+        (vec![f64::from_bits(0x3ff0000000000000),f64::from_bits(0x0000000000000000),f64::from_bits(0x0000000000000000),f64::from_bits(0x0000000000000000)],vec![vec![edge],vec![f64::from_bits(0x0000000000000000)],vec![f64::from_bits(0x0000000000000000)],vec![f64::from_bits(0x3fe0000000000000)]],1,0x3fc02012dd5f4df4_u64),
+        // r25-qr-store-00026
+        (vec![f64::from_bits(0x0000000000000000),f64::from_bits(0x0000000000000000),f64::from_bits(0x0000000000000000),f64::from_bits(0x3ff0000000000000)],vec![vec![edge],vec![f64::from_bits(0x0000000000000000)],vec![f64::from_bits(0x0000000000000000)],vec![f64::from_bits(0x3fe0000000000000)]],1,0x3f805109b424e6d5_u64),
+        // r25-qr-store-00032
+        (vec![f64::from_bits(0x3ff0000000000000),f64::from_bits(0x4000000000000000),f64::from_bits(0x4010000000000000),f64::from_bits(0x401c000000000000)],vec![vec![edge],vec![f64::from_bits(0x0000000000000000)],vec![f64::from_bits(0x0000000000000000)],vec![f64::from_bits(0x3fe0000000000000)]],1,0x3fc743871c2f72ef_u64),
+        // r25-qr-store-00063
+        (vec![f64::from_bits(0x3ff0000000000000),f64::from_bits(0x0000000000000000),f64::from_bits(0x0000000000000000),f64::from_bits(0x0000000000000000)],vec![vec![edge,f64::from_bits(0x0000000000000000)],vec![f64::from_bits(0x0000000000000000),edge],vec![f64::from_bits(0x0000000000000000),f64::from_bits(0x3fe0000000000000)],vec![f64::from_bits(0x3fe0000000000000),f64::from_bits(0x0000000000000000)]],2,0x3fc02012dd5f4df4_u64),
+        // r25-qr-store-00067
+        (vec![f64::from_bits(0x0000000000000000),f64::from_bits(0x3ff0000000000000),f64::from_bits(0x0000000000000000),f64::from_bits(0x0000000000000000)],vec![vec![edge,f64::from_bits(0x0000000000000000)],vec![f64::from_bits(0x0000000000000000),edge],vec![f64::from_bits(0x0000000000000000),f64::from_bits(0x3fe0000000000000)],vec![f64::from_bits(0x3fe0000000000000),f64::from_bits(0x0000000000000000)]],1,0x3fc02012dd5f4df4_u64),
+        // r25-qr-store-00070
+        (vec![f64::from_bits(0x0000000000000000),f64::from_bits(0x0000000000000000),f64::from_bits(0x3ff0000000000000),f64::from_bits(0x0000000000000000)],vec![vec![edge,f64::from_bits(0x0000000000000000)],vec![f64::from_bits(0x0000000000000000),edge],vec![f64::from_bits(0x0000000000000000),f64::from_bits(0x3fe0000000000000)],vec![f64::from_bits(0x3fe0000000000000),f64::from_bits(0x0000000000000000)]],1,0x3f805109b424e6d5_u64),
+        // r25-qr-store-00075
+        (vec![f64::from_bits(0x0000000000000000),f64::from_bits(0x0000000000000000),f64::from_bits(0x0000000000000000),f64::from_bits(0x3ff0000000000000)],vec![vec![edge,f64::from_bits(0x0000000000000000)],vec![f64::from_bits(0x0000000000000000),edge],vec![f64::from_bits(0x0000000000000000),f64::from_bits(0x3fe0000000000000)],vec![f64::from_bits(0x3fe0000000000000),f64::from_bits(0x0000000000000000)]],2,0x3f805109b424e6d5_u64),
+        // r25-qr-store-00082
+        (vec![f64::from_bits(0x3ff0000000000000),f64::from_bits(0x4000000000000000),f64::from_bits(0x4010000000000000),f64::from_bits(0x401c000000000000)],vec![vec![edge,f64::from_bits(0x0000000000000000)],vec![f64::from_bits(0x0000000000000000),edge],vec![f64::from_bits(0x0000000000000000),f64::from_bits(0x3fe0000000000000)],vec![f64::from_bits(0x3fe0000000000000),f64::from_bits(0x0000000000000000)]],1,0x3fd22a3413e3eace_u64),
+        // r25-qr-store-00083
+        (vec![f64::from_bits(0x3ff0000000000000),f64::from_bits(0x4000000000000000),f64::from_bits(0x4010000000000000),f64::from_bits(0x401c000000000000)],vec![vec![edge,f64::from_bits(0x0000000000000000)],vec![f64::from_bits(0x0000000000000000),edge],vec![f64::from_bits(0x0000000000000000),f64::from_bits(0x3fe0000000000000)],vec![f64::from_bits(0x3fe0000000000000),f64::from_bits(0x0000000000000000)]],2,0x3fc743871c2f72ef_u64),
+    ] {
+        let result = call("LINEST", vec![arr(response.into_iter().map(|x|vec![x]).collect()),
+            arr(predictors),b(false),b(true)]).expect("LINEST result");
+        let values = result.as_array().expect("LINEST array");
+        let selected = values.get(0,column-1).expect("recorded coefficient");
+        assert_eq!(calc_verdict::encode_result(selected).as_deref(),
+            Some(format!("0x{expected:016x}").as_str()));
+    }
+}
