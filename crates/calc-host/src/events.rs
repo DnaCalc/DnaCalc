@@ -1,7 +1,7 @@
 //! Workbook event positions. The runtime owns handler selection and project state;
 //! the host supplies committed authored inputs and completed calculation views.
 use crate::{
-    BeforeSaveOutcome, CommandReceipt, HostProgress, HostSession, HostState, SaveOperation,
+    BeforeSaveOutcome, CommandReceipt, HostProgress, HostSession, SaveOperation,
 };
 use calc_value::{GridArea, SheetId};
 use std::{
@@ -25,21 +25,22 @@ pub enum WorkbookEvent {
 }
 
 /// One registered owner. It supplies runtime-wired document sources, not handler names.
-/// Change and Calculate run synchronously with a read-only host view. BeforeSave can
-/// return the existing authored batch, which the host commits before the save pin.
+/// The session lends exclusive authority during each synchronous callback. A nested
+/// command completes its transaction, calculation and events before the caller resumes.
+/// BeforeSave may also return an authored batch for the existing pre-pin route.
 pub trait WorkbookEventHandler {
     fn file_identity_changed(&self, _name: &str) {}
-    fn workbook_open(&self, _host: &HostState) -> Result<(), String> { Ok(()) }
+    fn workbook_open(&self, _session: &mut HostSession) -> Result<(), String> { Ok(()) }
     fn worksheet_change(
         &self,
-        host: &HostState,
+        session: &mut HostSession,
         sheet: SheetId,
         target: &[GridArea],
     ) -> Result<(), String>;
-    fn worksheet_calculate(&self, host: &HostState, sheet: SheetId) -> Result<(), String>;
+    fn worksheet_calculate(&self, session: &mut HostSession, sheet: SheetId) -> Result<(), String>;
     fn before_save(
         &self,
-        host: &HostState,
+        session: &mut HostSession,
         operation: SaveOperation,
     ) -> Result<BeforeSaveOutcome, String>;
 }
@@ -93,7 +94,7 @@ impl HostSession {
     pub fn notify_workbook_open(&mut self) {
         if std::mem::replace(&mut self.workbook_events.open_delivered, true) { return; }
         if let Some(owner) = self.event_owner()
-            && let Err(reason) = owner.workbook_open(&self.host)
+            && let Err(reason) = owner.workbook_open(self)
         {
             self.record_event_failure(WorkbookEvent::Open, reason);
         }
@@ -126,6 +127,10 @@ impl HostSession {
             .then(|| self.workbook_events.owner.clone())
             .flatten()
     }
+    fn event_owner_still_active(&self, owner: &Rc<dyn WorkbookEventHandler>) -> bool {
+        self.workbook_events.enabled && self.workbook_events.owner.as_ref()
+            .is_some_and(|current| Rc::ptr_eq(current, owner))
+    }
     fn record_event_failure(&mut self, event: WorkbookEvent, reason: String) {
         let state = &mut self.workbook_events;
         let sequence = state.next;
@@ -150,12 +155,13 @@ impl HostSession {
             targets.entry(area.sheet()).or_default().push(area);
         }
         for (sheet, mut target) in targets {
+            if !self.event_owner_still_active(&owner) { break; }
             if self.host.model().sheet_by_id(sheet).is_none() {
                 continue;
             }
             target.sort_by_key(|area| (area.first(), area.last()));
             target.dedup();
-            if let Err(reason) = owner.worksheet_change(&self.host, sheet, &target) {
+            if let Err(reason) = owner.worksheet_change(self, sheet, &target) {
                 self.record_event_failure(WorkbookEvent::WorksheetChange { sheet, target }, reason);
             }
         }
@@ -169,7 +175,7 @@ impl HostSession {
         for (sheet, target) in targets {
             self.record_event_failure(
                 WorkbookEvent::WorksheetChange { sheet, target },
-                "Automation Change after a waiting provider is not modelled (dc-hsa5.12)".into(),
+                "Automation Change before terminal successful calculation is not modelled (dc-hsa5.12)".into(),
             );
         }
     }
@@ -202,7 +208,11 @@ impl HostSession {
             return;
         };
         for sheet in sheets {
-            if let Err(reason) = owner.worksheet_calculate(&self.host, sheet) {
+            if !self.event_owner_still_active(&owner) { break; }
+            if self.host.model().sheet_by_id(sheet).is_none() {
+                continue;
+            }
+            if let Err(reason) = owner.worksheet_calculate(self, sheet) {
                 self.record_event_failure(WorkbookEvent::WorksheetCalculate { sheet }, reason);
             }
         }
@@ -214,7 +224,7 @@ impl HostSession {
         let Some(owner) = self.event_owner() else {
             return Ok(BeforeSaveOutcome::default());
         };
-        let outcome = owner.before_save(&self.host, operation);
+        let outcome = owner.before_save(self, operation);
         if let Err(reason) = &outcome {
             self.record_event_failure(WorkbookEvent::BeforeSave { operation }, reason.clone());
         }

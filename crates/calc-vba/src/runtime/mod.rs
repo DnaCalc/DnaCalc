@@ -328,7 +328,7 @@ impl Module {
             return Err(Error::UnsupportedSignature("worksheet UDF signature outside the document project's owning value carriers (dc-hsa5.12)".into()));
         }
         let spreadsheet =
-            spreadsheet_objects.then(|| Arc::new(spreadsheet::SpreadsheetHost::new()));
+            spreadsheet_objects.then(|| Arc::new(if events && automatic_events { spreadsheet::SpreadsheetHost::for_events() } else { spreadsheet::SpreadsheetHost::new() }));
         let engine = if let Some(host) = &spreadsheet {
             engine.with_host(host.clone())
         } else {
@@ -716,7 +716,7 @@ pub(crate) fn to_variant(value: &Value) -> Result<Variant, Error> {
     })
 }
 
-fn from_variant(value: &Variant, inside_array: bool) -> Result<Value, Error> {
+pub(crate) fn from_variant(value: &Variant, inside_array: bool) -> Result<Value, Error> {
     Ok(match value.vtype() {
         VarType::Empty => Value::Empty,
         VarType::Boolean => Value::Boolean(value.as_bool().expect("Boolean carrier")),
