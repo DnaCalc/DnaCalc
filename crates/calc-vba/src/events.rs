@@ -7,6 +7,17 @@ mod source;
 mod tests;
 pub(crate) mod types;
 pub use source::{EventReadContext, EventSource};
+pub(crate) use source::{application_object, callback_active, object_type};
+
+/// Commands admitted by a mutable document-event owner. Ordinary worksheet UDFs
+/// have no authority to execute these operations.
+#[derive(Clone, Debug)]
+pub enum CalculationCommand {
+    Dirty,
+    Full,
+    Rebuild,
+    Range(calc_func::value::ReferenceLike),
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModuleKind {

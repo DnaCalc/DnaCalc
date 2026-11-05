@@ -16,11 +16,77 @@ use std::{
 /// Borrowed only while a synchronous handler runs. Reads never calculate or add graph edges.
 pub trait EventReadContext {
     fn read_reference(&self, reference: &ReferenceLike) -> Result<CalcValue, String>;
+    fn resolve_reference(&self, _text: &str) -> Result<ReferenceLike, String> {
+        Err("Range lookup without a mutable application owner is not modelled".into())
+    }
+    fn write_reference(&self, _reference: &ReferenceLike, _value: CalcValue) -> Result<(), String> {
+        Err("Range writes without a mutable application owner are not modelled".into())
+    }
+    fn calculate(&self, _command: super::CalculationCommand) -> Result<(), String> {
+        Err("calculation without a mutable application owner is not modelled".into())
+    }
+    fn events_enabled(&self) -> Result<bool, String> {
+        Err("EnableEvents without a mutable application owner is not modelled".into())
+    }
+    fn set_events_enabled(&self, _enabled: bool) -> Result<(), String> {
+        Err("EnableEvents without a mutable application owner is not modelled".into())
+    }
 }
 scoped_tls_hkt::scoped_thread_local!(static READ: for<'a> (&'a (dyn EventReadContext + 'a), u64, &'a RefCell<Option<String>>));
 
+pub(crate) fn callback_active() -> bool { READ.is_set() }
+
+pub(crate) fn object_type(object: &oxvba_runtime::ObjectRef) -> Option<&'static str> {
+    let object = api::HostObject::from_object_ref(object)?;
+    match object.header().iid {
+        types::APP => Some("Application"),
+        types::RANGE => Some("Range"),
+        _ => None,
+    }
+}
+
+fn event_operation<T>(call: impl FnOnce(&dyn EventReadContext) -> Result<T, String>) -> Result<T, i32> {
+    if !READ.is_set() || !crate::runtime::spreadsheet::event_view_active() {
+        crate::runtime::spreadsheet::record_capability_refusal("an application command outside its admitted document event");
+        return Err(1004);
+    }
+    READ.with(|(context, _, refused)| call(context).map_err(|reason| {
+        refused.borrow_mut().get_or_insert(reason);
+        1004
+    }))
+}
+
+/// Persistent identity only. Every slot resolves its authority from the current
+/// scoped event loan; no workbook borrow or budget is retained in an object.
+pub(crate) fn application_object() -> Result<api::HostObject, String> {
+    use api::{HostSlot, Value, ValueSlot, ValueType};
+    let mut slots = vec![HostSlot::typed(vec![ValueType::String], ValueType::Interface(types::RANGE), |_, args| {
+        let [ValueSlot::String(text)] = args else { return Err(13); };
+        let text = text.as_str();
+        let reference = event_operation(|context| context.resolve_reference(&text))?;
+        let lease = READ.with(|(_, lease, _)| lease);
+        Ok(Value::Object(Some(event_range(reference, lease).map_err(|_| 1004)?)))
+    }).map_err(|e| e.to_string())?];
+    for command in [super::CalculationCommand::Dirty, super::CalculationCommand::Full, super::CalculationCommand::Rebuild] {
+        slots.push(HostSlot::typed(vec![], ValueType::Variant, move |budget, _| {
+            api::with_native_call(budget, || event_operation(|context| context.calculate(command.clone())))?;
+            Ok(Value::Variant(api::Variant::empty()))
+        }).map_err(|e| e.to_string())?);
+    }
+    slots.push(HostSlot::typed(vec![], ValueType::Boolean, |_, _| {
+        event_operation(|context| context.events_enabled()).map(Value::Boolean)
+    }).map_err(|e| e.to_string())?);
+    slots.push(HostSlot::typed(vec![ValueType::Boolean], ValueType::Variant, |_, args| {
+        let [ValueSlot::Boolean(enabled)] = args else { return Err(13); };
+        event_operation(|context| context.set_events_enabled(*enabled))?;
+        Ok(Value::Variant(api::Variant::empty()))
+    }).map_err(|e| e.to_string())?);
+    Ok(api::HostObject::new(types::APP, slots))
+}
+
 struct EventSpreadsheet;
 impl crate::runtime::SpreadsheetContext for EventSpreadsheet {
+    fn event_view(&self) -> bool { true }
     fn refuse(&self, reason: &'static str) -> String {
         if READ.is_set() {
             READ.with(|(_, _, refused)| {
@@ -204,6 +270,23 @@ impl EventSource {
         max_steps: u64,
         lease: u64,
     ) -> Result<(), String> {
+        if callback_active() {
+            return api::with_native_callback_context(|budget| {
+                self.raise_in_context(name, arguments, context, budget, lease, true)
+            }).map_err(|e| format!("nested event context (dc-hsa5.12): {e}"))?;
+        }
+        let mut budget = api::TypedContext { remaining_blocks: max_steps };
+        self.raise_in_context(name, arguments, context, &mut budget, lease, false)
+    }
+    fn raise_in_context(
+        &self,
+        name: &str,
+        arguments: &mut [api::Value],
+        context: &dyn EventReadContext,
+        budget: &mut api::TypedContext,
+        lease: u64,
+        nested: bool,
+    ) -> Result<(), String> {
         let ids = self
             .hub
             .callbacks
@@ -213,13 +296,10 @@ impl EventSource {
                 descriptor.name.eq_ignore_ascii_case(name).then_some(*id)
             })
             .collect::<Vec<_>>();
-        let mut budget = api::TypedContext {
-            remaining_blocks: max_steps,
-        };
         let refused = RefCell::new(None);
         let result = crate::runtime::spreadsheet::with_context(&EventSpreadsheet, || {
             READ.set((context, lease, &refused), || {
-                api::with_native_call(&mut budget, || {
+                api::with_native_call(budget, || {
                     for id in ids {
                         // Release the source table before entering user code. A reset/drop can
                         // unsubscribe a later callback; a newly subscribed callback waits for a new event.
@@ -242,23 +322,25 @@ impl EventSource {
             })
         })
         .map_err(|e| format!("{e} (dc-hsa5.12)"));
-        // Faults are keyed to this exact native context. Always drain before any return,
-        // including a caught unsupported read, so a later event cannot inherit the fault.
-        let fault = api::take_unhandled_event_fault(&budget);
-        match (refused.into_inner(), fault) {
+        // Nested handlers leave the fatal fault on the shared context so the
+        // triggering VBA call cannot catch it and continue. Only the outer event
+        // boundary drains it before a later top-level event receives a new budget.
+        let fault = api::take_unhandled_event_fault(budget);
+        let fault_reason = fault.as_ref().map(|fault| format!(
+            "VBA {name} event failed ({}: {}{}, dc-hsa5.12)",
+            fault.number, fault.description,
+            fault.source.as_ref().map(|source| format!(" [{source}]")).unwrap_or_default(),
+        ));
+        if nested && let Some(fault) = fault {
+            api::publish_unhandled_event_fault(budget, fault);
+        }
+        match (refused.into_inner(), fault_reason) {
             (Some(reason), _) => Err(format!("{reason} (dc-hsa5.12)")),
-            (None, Some(fault)) => Err(format!(
-                "VBA {name} event failed ({}: {}{}, dc-hsa5.12)",
-                fault.number,
-                fault.description,
-                fault
-                    .source
-                    .map(|source| format!(" [{source}]"))
-                    .unwrap_or_default(),
-            )),
+            (None, Some(reason)) => Err(reason),
             (None, None) => result,
         }
     }
+
     pub fn change(
         &self,
         target: ReferenceLike,
@@ -302,7 +384,7 @@ fn in_lease<T>(
     lease: u64,
     call: impl FnOnce(&dyn EventReadContext) -> Result<T, i32>,
 ) -> Result<T, i32> {
-    if !READ.is_set() {
+    if !READ.is_set() || !crate::runtime::spreadsheet::event_view_active() {
         crate::runtime::spreadsheet::record_capability_refusal(
             "an event Target outside its admitted event view",
         );
@@ -321,6 +403,8 @@ fn in_lease<T>(
 }
 fn event_range(reference: ReferenceLike, lease: u64) -> Result<api::HostObject, String> {
     let info = crate::range_metadata(&reference);
+    let write_reference = reference.clone();
+    let calculation_reference = reference.clone();
     let mut slots = Vec::new();
     slots.push(
         api::HostSlot::typed(vec![], api::ValueType::Variant, move |_, _| {
@@ -375,5 +459,26 @@ fn event_range(reference: ReferenceLike, lease: u64) -> Result<api::HostObject, 
         })
         .map_err(|e| e.to_string())?,
     );
+    slots.push(api::HostSlot::typed(vec![api::ValueType::Variant], api::ValueType::Variant, move |budget, args| {
+        let [api::ValueSlot::Variant(value)] = args else { return Err(13); };
+        let value = event_operation(|_| crate::runtime::from_variant(value, false)
+            .map_err(|e| e.to_string()).and_then(crate::from_vba))?;
+        api::with_native_call(budget, || in_lease(lease, |context| {
+            context.write_reference(&write_reference, value).map_err(|reason| {
+                READ.with(|(_, _, refused)| { refused.borrow_mut().get_or_insert(reason); });
+                1004
+            })?;
+            Ok(api::Value::Variant(api::Variant::empty()))
+        }))
+    }).map_err(|e| e.to_string())?);
+    slots.push(api::HostSlot::typed(vec![], api::ValueType::Variant, move |budget, _| {
+        api::with_native_call(budget, || in_lease(lease, |context| {
+            context.calculate(super::CalculationCommand::Range(calculation_reference.clone())).map_err(|reason| {
+                READ.with(|(_, _, refused)| { refused.borrow_mut().get_or_insert(reason); });
+                1004
+            })?;
+            Ok(api::Value::Variant(api::Variant::empty()))
+        }))
+    }).map_err(|e| e.to_string())?);
     Ok(api::HostObject::new(types::RANGE, slots))
 }

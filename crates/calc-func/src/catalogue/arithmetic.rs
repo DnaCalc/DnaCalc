@@ -84,7 +84,14 @@ fn power(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
-    binary(POWER, arguments, services, raise)
+    let site = Site::new(POWER, services);
+    Site::finish(operands(&site, arguments).and_then(|(x, y)| power_value(&site, x, y)))
+}
+
+/// The kernel distinguishes flushed integer/reciprocal results from retained fractional
+/// subnormals. Both POWER and the operator publish that result through the same measured policy.
+pub(super) fn power_value(site: &Site<'_>, x: f64, y: f64) -> Step<CalcValue> {
+    super::kit::out_with_subnormal(site, Ok(raise(site, x, y)?))
 }
 
 fn binary<'m>(

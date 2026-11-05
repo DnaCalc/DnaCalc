@@ -2911,6 +2911,7 @@ fn workbook_compatibility_version_controls_only_the_five_text_counters() {
 /// Original W111 POWER width and reciprocal captures: every base-minus-one reading
 /// in r5/r6 and every exponent-minus-one reading in r1/r3. The same application
 /// evaluator handles the function and operator; the latter is a shared-kernel control.
+/// Also retain every original r3 subnormal result from normal positive inputs.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn recorded_power_unit_boundaries_use_the_kernel() {
@@ -2924,18 +2925,21 @@ fn recorded_power_unit_boundaries_use_the_kernel() {
     session.set_environment(Some(environment));
     session.set_formula_cell("J20").unwrap();
     let mut rows = 0;
+    let mut subnormal_rows = 0;
     let mut failures = Vec::new();
     for row in &set.witnesses {
         let args: Vec<_> = row.args.iter().map(|value|
             calc_verdict::decode_argument(value, "POWER").unwrap().as_number().unwrap()
         ).collect();
-        if args[0] != -1.0 && !(matches!(row.reading.as_str(), "r1" | "r3") && args[1] == -1.0) {
-            continue;
-        }
-        rows += 1;
+        let expected = calc_verdict::decode_result(&row.expected).unwrap();
+        let unit_boundary = args[0] == -1.0
+            || (matches!(row.reading.as_str(), "r1" | "r3") && args[1] == -1.0);
+        let subnormal_result = expected.as_number().is_some_and(|n| n.is_subnormal());
+        if !unit_boundary && !subnormal_result { continue; }
+        assert!(!(unit_boundary && subnormal_result));
+        if unit_boundary { rows += 1; } else { subnormal_rows += 1; }
         session.set_input("A1", InputValue::number(args[0]).unwrap()).unwrap();
         session.set_input("B1", InputValue::number(args[1]).unwrap()).unwrap();
-        let expected = calc_verdict::decode_result(&row.expected).unwrap();
         for formula in ["=POWER(A1,B1)", "=A1^B1"] {
             session.set_formula(formula);
             let result = session.calculate();
@@ -2946,6 +2950,7 @@ fn recorded_power_unit_boundaries_use_the_kernel() {
         }
     }
     assert_eq!(rows, 1098, "all unchanged source observations must run");
+    assert_eq!(subnormal_rows, 4, "all original r3 subnormal observations must run");
     assert!(failures.is_empty(), "{} of {} application checks differ:\n{}",
-        failures.len(), 2 * rows, failures.join("\n"));
+        failures.len(), 2 * (rows + subnormal_rows), failures.join("\n"));
 }

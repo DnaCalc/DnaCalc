@@ -1,7 +1,7 @@
 {
   "format": "dnacalc-witness-set/1",
   "function": "POWER",
-  "selection": "cargo xtask witness pin: of 62623 distinct readings in 7 bank files of OxFunc-Evidence, the first 4 rows of each bank and an evenly spaced sample of the rest, the budget of 120 rows shared by bank size; calc_func is the result calc-func calculated at pinning, on rows it did not match; fn9 additionally retains every original base-minus-one observation from the existing r5/r6 width captures and every exponent-minus-one observation from r1/r3, in source order, with unchanged inputs/ids/Excel answers; no new independent reading or replacement of prior pins",
+  "selection": "cargo xtask witness pin: of 62623 distinct readings in 7 bank files of OxFunc-Evidence, the first 4 rows of each bank and an evenly spaced sample of the rest, the budget of 120 rows shared by bank size; calc_func is the result calc-func calculated at pinning, on rows it did not match; fn9 additionally retains every original base-minus-one observation from the existing r5/r6 width captures and every exponent-minus-one observation from r1/r3, in source order, with unchanged inputs/ids/Excel answers; no new independent reading or replacement of prior pins; additionally every original r3 expected-subnormal observation, with normal positive inputs and unchanged answers",
   "readings": [
     {"bitness":null,"cpu":"AMD Ryzen 7 4800H with Radeon Graphics","excel_build":"20131","id":"r0","platform":"Windows","source":"OxFunc-Evidence cache/oracle/build-20131/POWER.jsonl"},
     {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r1","platform":"Windows","source":"OxFunc-Evidence runs/w111-extended-numeric-20260929/answers/answers-power.json"},
@@ -1229,6 +1229,10 @@
     {"id":"w111lpm-heldout-POWER-22968","args":["0x27695fbcd65fed2b","0xbff0000000000000"],"expected_bits":"0x58742d9b8e2c389d","reading":"r3"},
     {"id":"w111lpm-heldout-POWER-22969","args":["0x58f2bfc9b0667c18","0xbff0000000000000"],"expected_bits":"0x26eb4ed0ce62e347","reading":"r3"},
     {"id":"w111lpm-heldout-POWER-22983","args":["0x56073c0d60d53121","0xbff0000000000000"],"expected_bits":"0x29d6093f3bd2e892","reading":"r3"},
-    {"id":"w111lpm-heldout-POWER-22985","args":["0x2f4403babea623f8","0xbff0000000000000"],"expected_bits":"0x509994d46a915b11","reading":"r3"}
+    {"id":"w111lpm-heldout-POWER-22985","args":["0x2f4403babea623f8","0xbff0000000000000"],"expected_bits":"0x509994d46a915b11","reading":"r3"},
+    {"id":"w111lpm-heldout-POWER-18302","args":["0x367f86bc618bd8a9","0x401beb678951d472"],"expected_bits":"0x00000000000ecb11","reading":"r3"},
+    {"id":"w111lpm-heldout-POWER-19419","args":["0x00a56c0f18201817","0x3ff0b68405c53df0"],"expected_bits":"0x0000000000013b65","reading":"r3"},
+    {"id":"w111lpm-heldout-POWER-20299","args":["0x2047858559c4e7c6","0x4000dba91179fec0"],"expected_bits":"0x000000000000006f","reading":"r3"},
+    {"id":"w111lpm-heldout-POWER-20662","args":["0x234ed8a7e93ac94e","0x40020888ae91c0d0"],"expected_bits":"0x000002c638a93b4b","reading":"r3"}
   ]
 }
