@@ -9235,6 +9235,26 @@ pub(crate) const CALC_LATENCY_CASES: &[Case] = &[
 
 
 
+    Case{name:"worker latency: a delayed Enter preserves the focused name-box selection",actions:&[
+        Action::Window(1440,1000),Action::Wait(Check::PlanReady),Action::Wait(Check::Value("name-box","A1")),Action::PauseMillis(800),Action::Into(BAR,"7\u{E007}"),Action::Click("name-box"),Action::Keys("name-box","\u{E009}a\u{E000}"),Action::PauseMillis(1400)],checks:&[
+        Check::Focused("name-box"),Check::Value("name-box","A1"),Check::Text(cell!("A1"),"7")]},
+    Case{name:"worker latency: replacement after a delayed Enter reaches the typed address",actions:&[
+        Action::Keys("name-box","D5\u{E007}"),Action::Wait(Check::Focused("grid"))],checks:&[
+        Check::Value("name-box","D5"),Check::Value(BAR,""),Check::Text(cell!("A1"),"7")]},
+    Case{name:"worker latency: invalid name-box submission keeps its inherited address reset",actions:&[
+        Action::Into("name-box","XFE1\u{E007}"),Action::PauseMillis(1000)],checks:&[
+        Check::Value("name-box","D5"),Check::Starts("status","\"XFE1\" is not a valid")]},
+    Case{name:"worker latency: a reply to an older invalid address preserves newer native text",actions:&[
+        Action::Into("name-box","XFE1\u{E007}"),Action::Into("name-box","M4"),Action::PauseMillis(1000)],checks:&[
+        Check::Focused("name-box"),Check::Value("name-box","M4")]},
+    Case{name:"worker latency: an accepted address reply preserves a newer native select-all",actions:&[
+        Action::Keys("name-box","\u{E007}"),Action::Keys("name-box","\u{E009}a\u{E000}"),Action::PauseMillis(1000),Action::Wait(Check::Focused("name-box")),Action::Wait(Check::Value("name-box","M4")),Action::Keys("name-box","B1\u{E007}")],checks:&[
+        Check::Focused("grid"),Check::Value("name-box","B1"),Check::Text(cell!("A1"),"7")]},
+
+    Case{name:"worker latency: a pointer inside the focused address preserves newer native attention",actions:&[
+        Action::Into("name-box","m4\u{E007}"),Action::Click("name-box"),Action::PauseMillis(1000)],checks:&[
+        Check::Focused("name-box"),Check::Value("name-box","m4"),Check::Text(cell!("A1"),"7")]},
+
 ];
 
 pub(crate) const CALC_WORKER_FAULT_CASES: &[Case] = &[
