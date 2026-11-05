@@ -685,3 +685,40 @@ fn dc_971p_49__new_chart_blocks_unmodelled_sheet_rename_and_remove(){
     }
     assert_eq!(reopened(&mut book).host().charts(sheet).0,charts);
 }
+
+fn log_command(book:&HostSession,chart:usize,axis:u32,base:Option<&str>)->calc_host::WorkbookCommand{
+    let sheet=book.host().sheets()[0].id();calc_host::WorkbookCommand::ChartLogAxis{sheet,revision:book.host().revision().get(),part:book.host().charts(sheet).0[chart].part.clone(),axis,base:base.map(str::to_owned)}
+}
+/// Log scales, authored bounds, direction and automatic linear restoration use ordinary history.
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_50__logarithmic_scale_history_and_saved_reopening(){
+    let mut book=session();let sheet=book.host().sheets()[0].id();let before=book.host().charts(sheet).0;let id=before[0].axes.iter().find(|a|a.kind=="valAx").unwrap().id;
+    let command=log_command(&book,0,id,Some("10"));let outcome=book.dispatch(SkinIntent::Command(command));assert!(outcome.accepted(),"{outcome:?}");
+    let command=axis_command(&book,0,id,Some("1"),Some("1000"),None,true);assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    let after=book.host().charts(sheet).0;let axis=after[0].axes.iter().find(|a|a.id==id).unwrap();assert_eq!(axis.log_base.as_deref(),Some("10"));
+    let scale=calc_host::chart::chart_scale(12.,40.,Some(axis)).unwrap();assert_eq!(scale.ticks(),vec![1.,10.,100.,1000.]);assert!((scale.position(10.).unwrap()-2./3.).abs()<1e-12);assert!((scale.position(100.).unwrap()-1./3.).abs()<1e-12);assert_eq!(scale.position(0.),None);assert_eq!(scale.position(-5.),None);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(!book.host().charts(sheet).0[0].axes.iter().find(|a|a.id==id).unwrap().reversed);assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(book.host().charts(sheet).0,after);
+    let mut next=reopened(&mut book);assert_eq!(next.host().charts(sheet).0,after);let revision=next.host().revision();let history=next.history_depth();let command=type_command(&next,0,"column",true);assert!(!next.dispatch(SkinIntent::Command(command)).accepted());assert_eq!(next.host().revision(),revision);assert_eq!(next.history_depth(),history);assert_eq!(next.host().charts(sheet).0,after);let command=log_command(&next,0,id,None);assert!(next.dispatch(SkinIntent::Command(command)).accepted());let command=axis_command(&next,0,id,None,None,None,false);assert!(next.dispatch(SkinIntent::Command(command)).accepted());assert_eq!(reopened(&mut next).host().charts(sheet).0,before);
+}
+/// Invalid logarithmic settings refuse atomically; scatter X/Y keep their own scales.
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_50__logarithmic_invalid_and_scatter_axes(){
+    let mut book=session();let sheet=book.host().sheets()[0].id();let chart=book.host().charts(sheet).0[5].clone();let x=chart.axes.iter().find(|a|a.position.as_deref()==Some("b")).unwrap().id;let y=chart.axes.iter().find(|a|a.position.as_deref()==Some("l")).unwrap().id;let revision=book.host().revision();let history=book.history_depth();
+    for base in ["1","0","-10","1001","NaN","inf",""]{let command=log_command(&book,5,x,Some(base));assert!(!book.dispatch(SkinIntent::Command(command)).accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);}
+    let command=log_command(&book,5,x,Some("2"));assert!(book.dispatch(SkinIntent::Command(command)).accepted());let command=log_command(&book,5,y,Some("10"));assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    let after=book.host().charts(sheet).0;let revision=book.host().revision();let history=book.history_depth();
+    for min in ["0","-1"]{let command=axis_command(&book,5,x,Some(min),Some("100"),None,false);assert!(!book.dispatch(SkinIntent::Command(command)).accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,after);}
+    assert_eq!(reopened(&mut book).host().charts(sheet).0,after);
+}
+/// A newly created chart saves logarithmic scaling and filters only the impossible values.
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_50__new_log_chart_and_positive_extents(){
+    let mut book=HostSession::open(Arc::new(MemorySource::new(calc_host::blank_package())),&OpenPolicy::default(),HostOptions::default()).unwrap();let sheet=book.host().sheets()[0].id();
+    for (address,text) in [("A1","1"),("A2","10"),("A3","100"),("A4","0"),("A5","-5")]{assert!(book.dispatch(SkinIntent::EnterCell{at:at(sheet,address),text:text.into()}).accepted());}
+    let command=create_command(&book,"A1:A5","line",false,false,false);assert!(book.dispatch(SkinIntent::Command(command)).accepted());let command=log_command(&book,0,2,Some("10"));assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    let after=book.host().charts(sheet).0;assert_eq!(calc_host::chart::plot_scale_range(&after[0].plots[0],true).unwrap(),(1.,100.));assert_eq!(after[0].plots[0].series[0].values,vec![Some(1.),Some(10.),Some(100.),Some(0.),Some(-5.)]);assert_eq!(reopened(&mut book).host().charts(sheet).0,after);
+    let mut p=after[0].plots[0].clone();p.stacked=true;assert!(calc_host::chart::plot_scale_range(&p,true).is_err());
+}

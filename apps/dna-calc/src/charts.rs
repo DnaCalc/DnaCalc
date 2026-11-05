@@ -24,6 +24,8 @@ pub fn controls(controller: Controller) -> AnyView {
     let axis_minimum = controller.tool_field(|s| &s.chart.axis_minimum, |s| &mut s.chart.axis_minimum);
     let axis_maximum = controller.tool_field(|s| &s.chart.axis_maximum, |s| &mut s.chart.axis_maximum);
     let axis_unit = controller.tool_field(|s| &s.chart.axis_unit, |s| &mut s.chart.axis_unit);
+    let axis_log=controller.tool_field(|s|&s.chart.axis_log,|s|&mut s.chart.axis_log);
+    let axis_base=controller.tool_field(|s|&s.chart.axis_base,|s|&mut s.chart.axis_base);
     let axis_reverse = controller.tool_field(|s| &s.chart.axis_reverse, |s| &mut s.chart.axis_reverse);
     let ready = RwSignal::new(None);
     let target = Memo::new(move |_| {
@@ -178,7 +180,18 @@ pub fn controls(controller: Controller) -> AnyView {
         axis_maximum.set(a.as_ref().and_then(|a|a.maximum.clone()).unwrap_or_default());
         axis_unit.set(a.as_ref().and_then(|a|a.major_unit.clone()).unwrap_or_default());
         axis_reverse.set(a.as_ref().is_some_and(|a|a.reversed));
+        axis_log.set(a.as_ref().is_some_and(|a|a.logarithmic));
+        axis_base.set(a.as_ref().and_then(|a|a.log_base.clone()).unwrap_or("10".into()));
     });
+    let apply_log=move |_| {
+        let Some((generation,revision,sheet))=ready.get_untracked()else{return;};
+        let (Some(chart),Some(axis))=(current.get_untracked(),current_axis.get_untracked())else{return;};
+        let base=axis_log.get_untracked().then(||axis_base.get_untracked());
+        controller.after_input(move || {
+            if controller.generation.get_untracked()!=generation||controller.summary.get_untracked().revision!=revision||controller.sheet.get_untracked()!=Some(sheet)||controller.editing.get_untracked().is_some(){controller.say("The workbook changed; reopen the chart controls",true);return;}
+            controller.dispatch(wire::Intent::ChartLogAxis{sheet:wire::Sheet::of(sheet),revision,part:chart.part,axis:axis.id,base},move |outcome|{if outcome.accepted{controller.say("Chart scale updated",false);}});
+        });
+    };
     let apply_axis=move |_| {
         let Some((generation,revision,sheet))=ready.get_untracked() else{return;};
         let (Some(chart),Some(axis))=(current.get_untracked(),current_axis.get_untracked()) else{return;};
@@ -330,10 +343,15 @@ pub fn controls(controller: Controller) -> AnyView {
                         </div>
                         <div class="dc-command-row">
                             <label><input type="checkbox" data-dnacalc="chart-axis-reverse" prop:checked=move ||axis_reverse.get() on:change=move |ev|axis_reverse.set(event_target_checked(&ev))/>"Reverse direction"</label>
-                            <button type="button" data-dnacalc="chart-axis-apply" disabled=move ||ready.get().is_none() || current_axis.get().is_none_or(|a|a.logarithmic) || controller.assist.readonly.get() || controller.editing.get().is_some() on:click=apply_axis>"Apply axis"</button>
+                            <button type="button" data-dnacalc="chart-axis-apply" disabled=move ||ready.get().is_none() || current_axis.get().is_none() || controller.assist.readonly.get() || controller.editing.get().is_some() on:click=apply_axis>"Apply axis"</button>
                         </div>
                         <p class="dc-note">"Leave bounds and units empty for automatic scaling. Undo restores the previous axis settings."</p>
-                        <Show when=move ||current_axis.get().is_some_and(|a|a.logarithmic)><p class="dc-note">"This logarithmic axis is preserved; its scaling cannot be edited here."</p></Show>
+                        <div class="dc-command-row">
+                            <label><input type="checkbox" data-dnacalc="chart-axis-log" prop:checked=move ||axis_log.get() on:change=move |ev|axis_log.set(event_target_checked(&ev))/>"Logarithmic scale"</label>
+                            <label>"Base "<input data-dnacalc="chart-axis-base" inputmode="decimal" maxlength="128" prop:value=move ||axis_base.get() on:input=move |ev|axis_base.set(event_target_value(&ev))/></label>
+                            <button type="button" data-dnacalc="chart-axis-scale-apply" disabled=move ||ready.get().is_none()||current_axis.get().is_none()||controller.assist.readonly.get()||controller.editing.get().is_some() on:click=apply_log>"Apply scale"</button>
+                        </div>
+                        <p class="dc-note">"Logarithmic axes use positive values and bounds. Base 2–1,000; major units apply to linear scales. Stacked logarithmic plots are not drawn here."</p>
                     </fieldset>
                 </Show>
 

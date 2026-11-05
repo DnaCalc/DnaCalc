@@ -277,6 +277,7 @@ pub enum Interest {
 pub enum Intent {
     ChartCreate {revision:u64,area:Area,kind:String,rows:bool,headers:bool,categories:bool},
     ChartType {sheet:Sheet,revision:u64,part:String,plot:u32,kind:String,stacked:bool},
+    ChartLogAxis {sheet:Sheet,revision:u64,part:String,axis:u32,base:Option<String>},
     ChartAxis {sheet:Sheet,revision:u64,part:String,axis:u32,minimum:Option<String>,maximum:Option<String>,major_unit:Option<String>,reversed:bool},
     ChartSeries {sheet:Sheet,revision:u64,part:String,plot:u32,series:Option<u32>,name:Option<String>,categories:Option<String>,values:Option<String>,remove:bool},
     ChartProperties {sheet:Sheet,revision:u64,part:String,title:Option<String>,set_title:bool,legend:Option<bool>},
@@ -931,7 +932,7 @@ pub struct Chart {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChartAxisSource {
-    pub id:u32,pub position:String,pub minimum:Option<String>,pub maximum:Option<String>,pub major_unit:Option<String>,pub reversed:bool,pub logarithmic:bool,
+    pub id:u32,pub position:String,pub minimum:Option<String>,pub maximum:Option<String>,pub major_unit:Option<String>,pub reversed:bool,pub logarithmic:bool,#[serde(default)] pub log_base:Option<String>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChartPlotSource {

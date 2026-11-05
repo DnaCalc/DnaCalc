@@ -2,7 +2,7 @@
 use crate::value::{CellKey, CoreRef, GridArea, SheetId};
 use crate::{CellEdit, HostState, ProjectedValue, ProjectionRequest};
 pub use calc_doc_model::{AutoFilter, FilterCriteria, FilterOperator, FilterPredicate};
-use calc_engine::DetachedFormula;
+use calc_engine::{DetachedEvaluationContext, DetachedFormula, DetachedReadPolicy};
 use std::collections::{BTreeMap, BTreeSet};
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FilterChange {
@@ -238,7 +238,7 @@ pub(crate) fn apply(
             "criteria need more than 2000000 row comparisons; use fewer values or a smaller range",
         ));
     }
-    let cells = filter
+    let cells: Vec<_> = filter
         .columns
         .keys()
         .flat_map(|col| {
@@ -246,13 +246,9 @@ pub(crate) fn apply(
                 .map(move |row| CellKey::new(filter.area.sheet(), row, *col).unwrap())
         })
         .collect();
-    let page = crate::project(host, &ProjectionRequest { cells }).map_err(|e| refusal(e))?;
-    if page.cells().iter().any(|c| {
-        !matches!(
-            c.value(),
-            ProjectedValue::Empty | ProjectedValue::Literal(_) | ProjectedValue::Calculated { .. }
-        )
-    }) {
+    let context = DetachedEvaluationContext::new(&host.engine, host.model(), DetachedReadPolicy::CurrentValues)
+        .map_err(refusal)?;
+    if cells.into_iter().any(|at| context.read_cell(at).is_err()) {
         return Err(refusal(
             "needs current calculated values; calculate the range before applying criteria",
         ));
@@ -297,7 +293,7 @@ pub(crate) fn apply(
                 // visibility needs current values; until per-rule read certificates are exposed,
                 // require the workbook's published formula results to be current.
                 if !conditional_current {
-                    if host.engine.stale(host.model()).is_none_or(|cells| !cells.is_empty()) {
+                    if context.all_formula_values_current() != Some(true) {
                         return Err(refusal("needs current calculated conditional-format values; calculate the workbook first"));
                     }
                     conditional_current = true;
@@ -434,7 +430,7 @@ pub(crate) fn apply(
                 );
                 let cutoff_value = DetachedFormula::compile(host.model(), &cutoff, origin)
                     .map_err(|e| refusal(e))?
-                    .evaluate(&host.engine, host.model(), origin)
+                    .evaluate_in(&context, origin)
                     .map_err(|e| refusal(e))?;
                 let cutoff = cutoff_value
                     .as_number()
@@ -470,7 +466,7 @@ pub(crate) fn apply(
                 return Err(refusal("cannot read unloaded data"));
             }
             let result = plan
-                .evaluate(&host.engine, host.model(), at)
+                .evaluate_in(&context, at)
                 .map_err(|e| refusal(format!("requires calculated formula values: {e}")))?;
             match result.as_logical() {
                 Some(true) => {}

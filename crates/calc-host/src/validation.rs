@@ -24,7 +24,7 @@ use crate::{ProjectionRequest, project};
 use calc_doc::Validation;
 use calc_doc_model::CellInput;
 use calc_doc_model::value::{CalcValue, CellKey, CoreRef};
-use calc_engine::DetachedFormula;
+use calc_engine::{DetachedEvaluationContext, DetachedFormula, DetachedReadPolicy};
 use std::fmt;
 
 /// How Excel answers an entry a rule does not allow.
@@ -165,6 +165,10 @@ impl HostState {
     }
 
     fn validation_list_for(&self, at: CellKey, caches: bool) -> Option<Vec<CalcValue>> {
+        self.validation_list_in(at, caches, None)
+    }
+
+    fn validation_list_in(&self, at: CellKey, caches: bool, context: Option<&DetachedEvaluationContext<'_>>) -> Option<Vec<CalcValue>> {
         let (validation, origin) = self.validation_of(at)?;
         if validation.kind != "list" {
             return None;
@@ -183,7 +187,7 @@ impl HostState {
             );
         }
         Some(
-            self.formula_values_with_caches(formula, origin, at, caches)?
+            self.formula_values_in(formula, origin, at, caches, context)?
                 .into_iter()
                 .flatten()
                 .collect(),
@@ -211,18 +215,42 @@ impl HostState {
         at: CellKey,
         caches: bool,
     ) -> Option<Vec<Option<CalcValue>>> {
+        self.formula_values_in(formula, origin, at, caches, None)
+    }
+
+    fn formula_values_in(
+        &self,
+        formula: &str,
+        origin: CellKey,
+        at: CellKey,
+        caches: bool,
+        context: Option<&DetachedEvaluationContext<'_>>,
+    ) -> Option<Vec<Option<CalcValue>>> {
+        let owned;
+        let context = match context {
+            Some(context) => context,
+            None => {
+                owned = DetachedEvaluationContext::new(&self.engine, &self.model,
+                    if caches { DetachedReadPolicy::PublishedValues } else { DetachedReadPolicy::CurrentValues }).ok()?;
+                &owned
+            }
+        };
         let compiled =
             DetachedFormula::compile_dynamic(&self.model, formula.trim_start_matches('='), origin)
                 .ok()?;
-        let value = compiled.evaluate(&self.engine, &self.model, at).ok()?;
+        let value = compiled.evaluate_in(context, at).ok()?;
         match value.core_ref() {
             CoreRef::Reference(reference) => {
+                if !caches && reference.areas().iter().try_fold(LIST_LIMIT as u64,
+                    |remaining, area| remaining.checked_sub(area.cell_count())).is_none() {
+                    return None;
+                }
                 let mut cells = Vec::new();
-                for area in reference.areas() {
+                'areas: for area in reference.areas() {
                     for row in area.first().row()..=area.last().row() {
                         for column in area.first().column()..=area.last().column() {
                             if cells.len() >= LIST_LIMIT {
-                                break;
+                                break 'areas;
                             }
                             if let Ok(cell) = CellKey::new(area.sheet(), row, column) {
                                 cells.push(cell);
@@ -230,19 +258,14 @@ impl HostState {
                         }
                     }
                 }
-                let page = project(self, &ProjectionRequest { cells }).ok()?;
-                if !caches
-                    && page.cells().iter().any(|c| {
-                        !matches!(
-                            c.value(),
-                            crate::ProjectedValue::Empty
-                                | crate::ProjectedValue::Literal(_)
-                                | crate::ProjectedValue::Calculated { .. }
-                        )
-                    })
-                {
-                    return None;
+                if !caches {
+                    return cells.into_iter().map(|at| {
+                        context.read_cell(at).ok().map(|value| {
+                            (!matches!(value.core_ref(), CoreRef::Empty)).then_some(value)
+                        })
+                    }).collect();
                 }
+                let page = project(self, &ProjectionRequest { cells }).ok()?;
                 Some(
                     page.cells()
                         .iter()
@@ -262,7 +285,7 @@ impl HostState {
         at: CellKey,
         input: Option<&CellInput>,
     ) -> Result<(), ValidationFailure> {
-        self.check_entry_rule(at, input, true)
+        self.check_entry_rule(at, input, true, None)
     }
 
     fn check_entry_rule(
@@ -270,6 +293,7 @@ impl HostState {
         at: CellKey,
         input: Option<&CellInput>,
         alerts: bool,
+        context: Option<&DetachedEvaluationContext<'_>>,
     ) -> Result<(), ValidationFailure> {
         let Some((validation, origin)) = self.validation_of(at) else {
             return Ok(());
@@ -298,7 +322,7 @@ impl HostState {
             CellInput::Number(n) => Some(n.get()),
             _ => None,
         };
-        let bound = |text: &Option<String>| self.validation_bound(text , origin, at)
+        let bound = |text: &Option<String>| self.validation_bound(text , origin, at, context)
                 ;
         let meets = |value: f64| -> Option<bool> {
             let one = bound(&validation.formula1)?;
@@ -346,7 +370,7 @@ impl HostState {
                     .formula1
                     .as_deref()
                     .is_some_and(|f| f.trim().starts_with('"'));
-                match self.validation_list(at) {
+                match self.validation_list_in(at, context.is_none(), context) {
                     Some(items) => items.iter().any(|item| matches(item, input, literal)),
                     None => true,
                 }
@@ -390,7 +414,9 @@ impl HostState {
         }
         calc_engine::finish(&mut engine,&model,work).map_err(|_|unavailable("The candidate calculation did not finish."))?;
         if !engine.circular_cells().is_empty(){return Err(unavailable("Candidate validation of circular calculations is unavailable."));}
-        let values=CandidateValues{model:&model,engine:&engine};
+        let context=DetachedEvaluationContext::new(&engine,&model,DetachedReadPolicy::CurrentValues)
+            .map_err(|_|unavailable("The candidate snapshot is unavailable."))?;
+        let values=CandidateValues{model:&model,context};
         let value=values.cell(at).ok_or_else(||unavailable("The candidate has no calculated value."))?;
         if matches!(value.core_ref(),CoreRef::Empty) && rule.allow_blank {return Ok(());}
         let bound=|f:&Option<String>|->Option<f64>{match values.formula(f.as_deref()?,origin,at)?.first()?.as_ref()?.core_ref(){CoreRef::Number(n)=>Some(n),_=>None}};
@@ -412,14 +438,22 @@ impl HostState {
         if allowed {Ok(())}else{Err(failure_of(rule))}
     }
 
-    fn validation_bound(&self, text: &Option<String>, origin: CellKey, at: CellKey) -> Option<f64> {
+    fn validation_bound(&self, text: &Option<String>, origin: CellKey, at: CellKey, context: Option<&DetachedEvaluationContext<'_>>) -> Option<f64> {
         let text = text.as_deref()?.trim_start_matches('=');
         if let Ok(n) = text.trim().parse::<f64>() {
             return n.is_finite().then_some(n);
         }
         let formula = DetachedFormula::compile(&self.model, text, origin).ok()?;
+        let owned;
+        let context = match context {
+            Some(context) => context,
+            None => {
+                owned = DetachedEvaluationContext::new(&self.engine, &self.model, DetachedReadPolicy::CurrentValues).ok()?;
+                &owned
+            }
+        };
         match formula
-            .evaluate(&self.engine, &self.model, at)
+            .evaluate_in(context, at)
             .ok()?
             .core_ref()
         {
@@ -431,7 +465,11 @@ impl HostState {
     /// Inspect the current published cell, independent of whether its entry alert is enabled.
     /// File caches, stale or refused calculations and unavailable criteria remain counted apart.
     pub fn validation_status(&self, at: CellKey) -> Option<ValidationStatus> {
-        use crate::ProjectedValue;
+        let context = DetachedEvaluationContext::new(&self.engine, &self.model, DetachedReadPolicy::CurrentValues).ok()?;
+        self.validation_status_in(at, &context)
+    }
+
+    fn validation_status_in(&self, at: CellKey, context: &DetachedEvaluationContext<'_>) -> Option<ValidationStatus> {
         let (rule, origin) = self.validation_of(at)?;
         if rule.kind == "none" {
             return None;
@@ -442,18 +480,11 @@ impl HostState {
                 owner: "dc-971p.40",
             })
         };
-        let page = match project(self, &ProjectionRequest { cells: vec![at] }) {
-            Ok(p) => p,
-            Err(_) => return unavailable("The cell cannot be read"),
+        let current = match context.read_cell(at) {
+            Ok(value) => value,
+            Err(_) => return unavailable("The cell has no current calculated value"),
         };
-        let Some(cell) = page.cells().first() else {
-            return unavailable("The cell cannot be read");
-        };
-        let value = match cell.value() {
-            ProjectedValue::Empty => None,
-            ProjectedValue::Literal(v) | ProjectedValue::Calculated { value: v, .. } => Some(v),
-            _ => return unavailable("The cell has no current calculated value"),
-        };
+        let value = (!matches!(current.core_ref(), CoreRef::Empty)).then_some(&current);
         if self
             .merged_areas(at.sheet())
             .iter()
@@ -471,7 +502,7 @@ impl HostState {
             }) else {
                 return unavailable("The custom validation formula is unavailable");
             };
-            let Ok(value) = formula.evaluate(&self.engine, &self.model, at) else {
+            let Ok(value) = formula.evaluate_in(context, at) else {
                 return unavailable("The custom validation formula has no current value");
             };
             let allowed = match value.core_ref() {
@@ -500,15 +531,15 @@ impl HostState {
                 ) {
                     return unavailable("This validation comparison is unavailable");
                 }
-                if self.validation_bound(&rule.formula1, origin, at).is_none()
+                if self.validation_bound(&rule.formula1, origin, at, Some(context)).is_none()
                     || (matches!(rule.operator.as_str(), "between" | "notBetween" | "")
-                        && self.validation_bound(&rule.formula2, origin, at).is_none())
+                        && self.validation_bound(&rule.formula2, origin, at, Some(context)).is_none())
                 {
                     return unavailable("A validation bound has no current value");
                 }
             }
             "list" => {
-                if self.validation_list_for(at, false).is_none() {
+                if self.validation_list_in(at, false, Some(context)).is_none() {
                     return unavailable("The validation list has no current values");
                 }
             }
@@ -528,7 +559,7 @@ impl HostState {
             Some(CoreRef::Error(e)) => Some(CellInput::Error(e)),
             _ => return unavailable("This cell value cannot be checked"),
         };
-        Some(match self.check_entry_rule(at, input.as_ref(), false) {
+        Some(match self.check_entry_rule(at, input.as_ref(), false, Some(context)) {
             Ok(()) => ValidationStatus::Valid,
             Err(f) => ValidationStatus::Invalid(f),
         })
@@ -559,9 +590,11 @@ impl HostState {
             }
         }
         let mut reasons = std::collections::BTreeMap::<String, u32>::new();
+        let context = DetachedEvaluationContext::new(&self.engine, &self.model, DetachedReadPolicy::CurrentValues)
+            .expect("host model and engine share a revision");
         for at in keys {
             report.checked += 1;
-                match self.validation_status(at) {
+                match self.validation_status_in(at, &context) {
                     Some(ValidationStatus::Invalid(_ )) => report.invalid.push(at),
                 Some(ValidationStatus::Unavailable { reason, .. }) => {
                     report.unavailable += 1;
@@ -599,22 +632,14 @@ fn matches(item: &CalcValue, input: &CellInput, literal: bool) -> bool {
     }
 }
 
-struct CandidateValues<'a> { model:&'a calc_doc_model::ModelRoot,engine:&'a calc_engine::EngineState }
+struct CandidateValues<'a> { model:&'a calc_doc_model::ModelRoot,context:DetachedEvaluationContext<'a> }
 impl CandidateValues<'_> {
     fn cell(&self,at:CellKey)->Option<CalcValue> {
-        if let Some(spill)=self.engine.spill_covering(at) {return Some(spill.value_at(at).clone());}
-        match self.model.cell(at) {
-            Some(CellInput::Formula(_))=>self.engine.result(at)?.calculated().map(|(v,_)|v.clone()),
-            Some(CellInput::Number(n))=>Some(CalcValue::number(n.get())),
-            Some(CellInput::Text(t))=>Some(CalcValue::text(t.text().clone())),
-            Some(CellInput::Logical(b))=>Some(CalcValue::logical(*b)),
-            Some(CellInput::Error(e))=>Some(CalcValue::error(*e)),
-            None=>Some(CalcValue::empty()),
-        }
+        self.context.read_cell(at).ok()
     }
     fn formula(&self,text:&str,origin:CellKey,at:CellKey)->Option<Vec<Option<CalcValue>>> {
         let formula=DetachedFormula::compile_dynamic(self.model,text.trim_start_matches('='),origin).ok()?;
-        let value=formula.evaluate(self.engine,self.model,at).ok()?;
+        let value=formula.evaluate_in(&self.context,at).ok()?;
         match value.core_ref(){
             CoreRef::Reference(r)=>{let mut values=Vec::new();for area in r.areas(){if values.len() as u64+area.cell_count()>LIST_LIMIT as u64{return None;}for row in area.first().row()..=area.last().row(){for col in area.first().column()..=area.last().column(){values.push(Some(self.cell(CellKey::new(area.sheet(),row,col).ok()?)?));}}}Some(values)},
             CoreRef::Array(a)=>Some(a.iter_row_major().cloned().map(Some).collect()),

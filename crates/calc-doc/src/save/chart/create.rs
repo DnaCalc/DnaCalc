@@ -133,9 +133,7 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
             return Err(fail("Invalid chart axis positions"));
         }
         for axis in &chart.axes {
-            if axis.log_base.is_some() {
-                return Err(fail("New logarithmic axes are not modelled"));
-            }
+            valid_log_axis(axis).map_err(fail)?;
             for n in [&axis.minimum, &axis.maximum, &axis.major_unit]
                 .into_iter()
                 .flatten()

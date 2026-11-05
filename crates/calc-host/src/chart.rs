@@ -11,8 +11,8 @@
 //! index (accent1 to accent6 in turn); a plot that varies its colours by point (a pie) takes them
 //! by point in the same order.
 //!
-//! Linear primary value-axis bounds, units and direction are retained and editable. Secondary
-//! and logarithmic axes are preserved with a drawing notice. Not modelled: 3-D, chart number
+//! Linear and logarithmic primary value axes are retained, editable and drawn. Secondary
+//! axes and stacked logarithmic plots are preserved with a drawing notice. Not modelled: 3-D, chart number
 //! formats, trendlines, error bars, data labels, and the darker and
 //! lighter accents Excel uses past the sixth series.
 
@@ -483,16 +483,18 @@ pub fn axis(low: f64, high: f64) -> (f64, f64, f64) {
 }
 
 
-/// A validated linear scale shared by command validation and chart drawing.
+/// A validated value scale shared by command validation and chart drawing.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ChartScale {
     pub minimum:f64,
     pub maximum:f64,
     pub step:f64,
     pub reversed:bool,
+    pub log_base:Option<f64>,
 }
 
 pub fn chart_scale(low:f64,high:f64,properties:Option<&calc_doc_model::ChartAxis>)->Result<ChartScale,String> {
+    if let Some(axis)=properties.filter(|a|a.log_base.is_some()){return logarithmic_scale(low,high,axis);}
     if !low.is_finite() || !high.is_finite() || !(high.max(0.)-low.min(0.)).is_finite() {
         return Err("This chart's values exceed the supported linear axis range".into());
     }
@@ -503,7 +505,6 @@ pub fn chart_scale(low:f64,high:f64,properties:Option<&calc_doc_model::ChartAxis
     let minimum=read(properties.and_then(|a|a.minimum.as_deref()))?;
     let maximum=read(properties.and_then(|a|a.maximum.as_deref()))?;
     let unit=read(properties.and_then(|a|a.major_unit.as_deref()))?;
-    if properties.is_some_and(|a|a.log_base.is_some()) {return Err("Logarithmic axes are preserved but their scaling is not drawn here".into());}
     let mut min=minimum.unwrap_or(automatic_min);let mut max=maximum.unwrap_or(automatic_max);
     let automatic_span=automatic_max-automatic_min;
     if minimum.is_none() && min>=max {min=max-automatic_span;}
@@ -516,7 +517,43 @@ pub fn chart_scale(low:f64,high:f64,properties:Option<&calc_doc_model::ChartAxis
         [1.,2.,5.,10.].into_iter().map(|m|m*power).find(|s|*s>=raw).unwrap_or(10.*power)
     };
     if !step.is_finite() || step<=0. || span/step>1000. {return Err("Use a positive major unit that produces at most 1,000 intervals".into());}
-    Ok(ChartScale{minimum:min,maximum:max,step,reversed:properties.is_some_and(|a|a.reversed)})
+    Ok(ChartScale{minimum:min,maximum:max,step,reversed:properties.is_some_and(|a|a.reversed),log_base:None})
+}
+
+impl ChartScale {
+    /// Normalized axis coordinate, with nonpositive logarithmic values omitted.
+    pub fn position(self,value:f64)->Option<f64>{
+        let (v,min,max)=if self.log_base.is_some(){
+            if value<=0. || !value.is_finite(){return None;}
+            (value.ln(),self.minimum.ln(),self.maximum.ln())
+        }else{(value,self.minimum,self.maximum)};
+        let t=(v-min)/(max-min);
+        t.is_finite().then_some(if self.reversed{1.-t}else{t})
+    }
+    pub fn ticks(self)->Vec<f64>{
+        if let Some(base)=self.log_base {
+            let log=base.ln();let first=(self.minimum.ln()/log-1e-12).ceil() as i32;let last=(self.maximum.ln()/log+1e-12).floor() as i32;
+            let values=(first..=last).take(1001).map(|k|base.powi(k)).filter(|v|v.is_finite()&&*v>0.&&*v>=self.minimum*(1.-1e-12)&&*v<=self.maximum*(1.+1e-12)).collect::<Vec<_>>();
+            if values.is_empty(){vec![self.minimum,self.maximum]}else{values}
+        }else{
+            (0..=(((self.maximum-self.minimum)/self.step+1e-9).floor() as usize).min(1000)).map(|k|self.minimum+k as f64*self.step).collect()
+        }
+    }
+}
+
+fn logarithmic_scale(low:f64,high:f64,axis:&calc_doc_model::ChartAxis)->Result<ChartScale,String>{
+    let base=axis.log_base.as_deref().and_then(|v|v.parse::<f64>().ok()).filter(|v|v.is_finite()&&(2. ..=1000.).contains(v)).ok_or("Use a logarithmic base from 2 to 1,000")?;
+    if low<=0. || !low.is_finite() || !high.is_finite() || high<low{return Err("A logarithmic axis needs positive data values".into());}
+    let bound=|v:Option<&str>|->Result<Option<f64>,String>{v.map(|v|v.parse::<f64>().ok().filter(|v|v.is_finite()&&*v>0.).ok_or_else(||"Logarithmic bounds must be positive finite numbers".into())).transpose()};
+    let minimum=bound(axis.minimum.as_deref())?;let maximum=bound(axis.maximum.as_deref())?;
+    let log=base.ln();let auto_min=base.powf((low.ln()/log).floor());let auto_max=base.powf((high.ln()/log).ceil());
+    let mut min=minimum.unwrap_or(if auto_min>0.&&auto_min.is_finite(){auto_min}else{low});
+    let mut max=maximum.unwrap_or(if auto_max>0.&&auto_max.is_finite(){auto_max}else{high});
+    if maximum.is_none() && max<=min {max=(min*base).min(f64::MAX);}
+    if minimum.is_none() && min>=max {min=max/base;}
+    let intervals=(max.ln()-min.ln())/log;
+    if !min.is_finite() || min<=0. || !max.is_finite() || max<=min || !intervals.is_finite() || intervals<=0. || intervals>1000. {return Err("Use positive logarithmic bounds with at most 1,000 intervals".into());}
+    Ok(ChartScale{minimum:min,maximum:max,step:base,reversed:axis.reversed,log_base:Some(base)})
 }
 
 /// The value extent of a category plot, including separate positive/negative stacks.
@@ -542,23 +579,53 @@ pub(crate) fn prepare_axis(host:&HostState,sheet:SheetId,revision:u64,part:&str,
     if chart.axes.iter().filter(|a|a.id==id).count()!=1 {return Err("The axis identity changed; reopen its controls (dc-971p.46)".into());}
     value_axes(&chart.axes,&chart.plots[0].axis_ids,chart.plots[0].kind=="scatterChart").map_err(|e|format!("{e} (dc-971p.46)"))?;
     let axis=chart.axes.iter_mut().find(|a|a.id==id && a.kind=="valAx").ok_or("Choose a value axis (dc-971p.46)")?;
-    if axis.log_base.is_some(){return Err("Editing logarithmic axes is not modelled (dc-971p.46)".into());}
     let canonical=|value:Option<String>|->Result<Option<String>,String>{
         value.filter(|s|!s.trim().is_empty()).map(|s|s.trim().parse::<f64>().ok().filter(|n|n.is_finite()).map(|n|n.to_string()).ok_or_else(||"Use finite numeric axis bounds and units (dc-971p.46)".into())).transpose()
     };
     axis.minimum=canonical(minimum)?;axis.maximum=canonical(maximum)?;axis.major_unit=canonical(major_unit)?;axis.reversed=reversed;
-    let view=host.charts(sheet).0.into_iter().find(|v|v.part==part).ok_or("The chart cannot be read")?;
-    let plot=view.plots.first().ok_or("The chart has no plot")?;
-    let (low,high)=if plot.kind==ChartKind::Scatter {
-        let (x,y)=scatter_ranges(plot);
-        if matches!(axis.position.as_deref(),Some("b"|"t")){x}else{y}
-    }else if matches!(plot.kind,ChartKind::Column|ChartKind::Bar|ChartKind::Line|ChartKind::Area) {plot_value_range(plot)}else{
-        return Err("This plot has no editable linear value axis (dc-971p.46)".into());
-    };
-    chart_scale(low,high,Some(axis)).map_err(|e|format!("{e} (dc-971p.46)"))?;
+    validate_axis_view(host,sheet,part,axis).map_err(|e|format!("{e} (dc-971p.50)"))?;
     host.loaded().check_chart_properties(sheet,chart).map_err(|e|e.to_string())?;
     if charts==host.model().definitions().charts(sheet){return Ok(Vec::new());}
     Ok(vec![crate::CellEdit::Charts{sheet,charts}])
+}
+
+/// Positive extents exclude values that cannot be represented on a logarithmic axis.
+pub fn plot_scale_range(plot:&PlotView,log:bool)->Result<(f64,f64),String>{
+    if !log{return Ok(plot_value_range(plot));}
+    if plot.stacked{return Err("Logarithmic stacked plots are preserved but not drawn or edited here (dc-971p.50)".into());}
+    Ok(positive_range(plot.series.iter().flat_map(|s|s.values.iter().flatten().copied())))
+}
+fn positive_range(values:impl Iterator<Item=f64>)->(f64,f64){
+    let mut range:Option<(f64,f64)>=None;
+    for v in values.filter(|v|v.is_finite()&&*v>0.){range=Some(range.map_or((v,v),|(a,b)|(a.min(v),b.max(v))));}
+    range.unwrap_or((0.,0.))
+}
+pub fn scatter_scale_ranges(plot:&PlotView,xlog:bool,ylog:bool)->((f64,f64),(f64,f64)){
+    if !xlog&&!ylog{return scatter_ranges(plot);}
+    let points=plot.series.iter().flat_map(|s|scatter_x_values(s).into_iter().zip(&s.values).filter_map(|(x,y)|x.zip(*y))).filter(|(x,y)|(!xlog||*x>0.)&&(!ylog||*y>0.)).collect::<Vec<_>>();
+    let extent=|x:bool,log:bool|{let values=points.iter().map(|(a,b)|if x{*a}else{*b});if log{positive_range(values)}else{values.fold((0f64,0f64),|(a,b),v|(a.min(v),b.max(v)))}};
+    (extent(true,xlog),extent(false,ylog))
+}
+fn validate_axis_view(host:&HostState,sheet:SheetId,part:&str,axis:&calc_doc_model::ChartAxis)->Result<(),String>{
+    let view=host.charts(sheet).0.into_iter().find(|v|v.part==part).ok_or("The chart cannot be read")?;
+    let plot=view.plots.iter().find(|p|p.axis_ids.contains(&axis.id)).ok_or("The axis is not associated with a plot (dc-971p.50)")?;
+    let (low,high)=if plot.kind==ChartKind::Scatter{
+        let axes=value_axes(&view.axes,&plot.axis_ids,true)?;
+        let x=if axes[0].id==axis.id{axis}else{axes[0]};let y=if axes[1].id==axis.id{axis}else{axes[1]};
+        let (xr,yr)=scatter_scale_ranges(plot,x.log_base.is_some(),y.log_base.is_some());if x.id==axis.id{xr}else{yr}
+    }else if matches!(plot.kind,ChartKind::Column|ChartKind::Bar|ChartKind::Line|ChartKind::Area){plot_scale_range(plot,axis.log_base.is_some())?}else{return Err("This plot has no editable value axis (dc-971p.50)".into());};
+    chart_scale(low,high,Some(axis)).map(|_|())
+}
+pub(crate) fn prepare_log_axis(host:&HostState,sheet:SheetId,revision:u64,part:&str,id:u32,base:Option<String>)->Result<Vec<crate::CellEdit>,String>{
+    prepare_properties(host,sheet,revision,part,None,false,None)?;
+    let mut charts=host.model().definitions().charts(sheet).to_vec();let chart=charts.iter_mut().find(|c|c.part==part).ok_or("The chart is unavailable")?;
+    if chart.plots.len()!=1{return Err("Editing combination chart axes is not modelled (dc-971p.50)".into());}
+    value_axes(&chart.axes,&chart.plots[0].axis_ids,chart.plots[0].kind=="scatterChart")?;
+    let axis=chart.axes.iter_mut().find(|a|a.id==id&&a.kind=="valAx").ok_or("Choose a value axis (dc-971p.50)")?;
+    axis.log_base=base.map(|v|v.trim().parse::<f64>().ok().filter(|n|n.is_finite()&&(2. ..=1000.).contains(n)).map(|n|n.to_string()).ok_or_else(||"Use a logarithmic base from 2 to 1,000 (dc-971p.50)".to_string())).transpose()?;
+    validate_axis_view(host,sheet,part,axis).map_err(|e|format!("{e} (dc-971p.50)"))?;
+    host.loaded().check_chart_properties(sheet,chart).map_err(|e|e.to_string())?;
+    if charts==host.model().definitions().charts(sheet){return Ok(Vec::new());}Ok(vec![crate::CellEdit::Charts{sheet,charts}])
 }
 
 /// Primary axis pairs must belong to this plot and cross each other. Scatter returns X then Y.
@@ -597,6 +664,7 @@ pub(crate) fn prepare_type(host:&HostState,sheet:SheetId,revision:u64,part:&str,
     let mut charts=host.model().definitions().charts(sheet).to_vec();
     let chart=charts.iter_mut().find(|c|c.part==part).ok_or("The chart is unavailable")?;
     if chart.plots.len()!=1 || plot!=0 {return Err("Changing combination chart types is not modelled (dc-971p.46)".into());}
+    if stacked && chart.axes.iter().any(|a|a.log_base.is_some()){return Err("Stacked logarithmic plots are not modelled (dc-971p.50)".into());}
     let p=&mut chart.plots[0];
     let category=|kind:&str|matches!(kind,"barChart"|"lineChart"|"areaChart");
     let pie=|kind:&str|matches!(kind,"pieChart"|"doughnutChart");

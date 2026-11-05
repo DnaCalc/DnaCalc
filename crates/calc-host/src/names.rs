@@ -293,6 +293,98 @@ mod tests {
             .evaluate_name(id, node.binding_version(), at)
             .unwrap()
     }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_hsa5_6__detached_context_keeps_read_policy_and_reference_consumption_explicit() {
+        use calc_engine::{DetachedEvaluationContext as Context, DetachedFormula, DetachedReadPolicy as Policy};
+        let mut book = book();
+        let sheet = book.host().sheets()[0].id();
+        let at = |row, col| CellKey::new(sheet, row, col).unwrap();
+        for (at, text) in [(at(1,1), "1"), (at(1,2), "=A1+1"), (at(3,1), "=SEQUENCE(A1)")] {
+            assert!(book.dispatch(SkinIntent::EnterCell { at, text: text.into() }).accepted());
+        }
+        let name = add(&mut book, NameScope::Workbook, "SelectedReference", "=$B$1");
+        let scalar = DetachedFormula::compile(book.host().model(), "$B$1+1", at(8,5)).unwrap();
+        let old = book.host().model().pin();
+        assert!(book.dispatch(SkinIntent::SetCalcMode(crate::CalcMode::Manual)).accepted());
+        assert!(book.dispatch(SkinIntent::EnterCell { at: at(1,1), text: "2".into() }).accepted());
+        let revision = book.host().revision();
+        let history = book.history_depth();
+        let view = book.host().engine.result_view();
+        let host = book.host();
+        let reference = DetachedFormula::compile_name(host.model(), name, at(8,5)).unwrap();
+        let blank = DetachedFormula::compile(host.model(), "$A$4+1", at(8,5)).unwrap();
+        let display = Context::new(&host.engine, host.model(), Policy::PublishedValues).unwrap();
+        assert!(display.stale_cells().is_none());
+        assert_eq!(scalar.evaluate_in(&display, at(8,5)), Ok(CalcValue::number(3.)));
+        let current = Context::new(&host.engine, host.model(), Policy::CurrentValues).unwrap();
+        for row in 8..40 {
+            assert!(scalar.evaluate_in(&current, at(row,5)).is_err());
+            assert!(blank.evaluate_in(&current, at(row,5)).is_err());
+            assert!(current.read_cell(at(1,2)).is_err());
+            assert!(current.read_cell(at(4,1)).is_err());
+            assert_eq!(current.read_cell(at(1,1)), Ok(CalcValue::number(2.)));
+        }
+        let returned = reference.evaluate_in(&current, at(8,5)).unwrap();
+        assert!(matches!(returned.core_ref(), CoreRef::Reference(_)), "identity does not consume values");
+        assert!(Context::new(&host.engine, &old, Policy::CurrentValues).is_err());
+        assert_eq!(host.revision(), revision);
+        assert_eq!(host.engine.result_view(), view);
+        assert_eq!(book.history_depth(), history);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_hsa5_6__detached_plans_refuse_expired_name_bindings() {
+        use calc_engine::{DetachedEvaluationContext, DetachedFormula, DetachedReadPolicy};
+        let mut book = book();
+        let at = CellKey::new(book.host().sheets()[0].id(), 2, 3).unwrap();
+        let name = add(&mut book, NameScope::Workbook, "Choice", "=42");
+        let version = book.host().name_node(name).unwrap().binding_version();
+        let plan = DetachedFormula::compile_name(book.host().model(), name, at).unwrap();
+        let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::Name(NameEdit {
+            id: Some(name), version: Some(version), scope: NameScope::Workbook,
+            name: "Choice".into(), formula: Some("=99".into()),
+        })));
+        assert!(receipt.accepted(), "{:?}", receipt.error);
+        let host = book.host();
+        let context = DetachedEvaluationContext::new(&host.engine, host.model(), DetachedReadPolicy::CurrentValues).unwrap();
+        assert!(plan.evaluate_in(&context, at).is_err());
+        assert_eq!(value(&book, name, at), CalcValue::number(99.));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_hsa5_6__detached_context_refuses_changed_file_identity_and_caller_scope() {
+        use calc_engine::{DetachedEvaluationContext as Context, DetachedFormula, DetachedReadPolicy as Policy};
+        let mut book = book();
+        let one = book.host().sheets()[0].id();
+        let other = extra_sheet(&mut book, "Other");
+        add(&mut book, NameScope::Sheet(one), "Choice", "=42");
+        add(&mut book, NameScope::Sheet(other), "Choice", "=99");
+        let a = CellKey::new(one, 3, 4).unwrap();
+        let b = CellKey::new(other, 3, 4).unwrap();
+        let plan = DetachedFormula::compile(book.host().model(), "Choice", a).unwrap();
+        {
+            let host = book.host();
+            let context = Context::new(&host.engine, host.model(), Policy::CurrentValues).unwrap();
+            assert_eq!(plan.evaluate_in(&context, a), Ok(CalcValue::number(42.)));
+            assert!(plan.evaluate_in(&context, b).is_err());
+            let rebound = DetachedFormula::compile(host.model(), "Choice", b).unwrap();
+            assert_eq!(rebound.evaluate_in(&context, b), Ok(CalcValue::number(99.)));
+        }
+        let revision = book.host().revision();
+        let history = book.history_depth();
+        book.set_file_identity("Renamed.xlsx", false);
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(book.history_depth(), history);
+        let host = book.host();
+        let context = Context::new(&host.engine, host.model(), Policy::CurrentValues).unwrap();
+        assert!(plan.evaluate_in(&context, a).is_err(), "same revision does not preserve file bindings");
+        let rebound = DetachedFormula::compile(host.model(), "Choice", a).unwrap();
+        assert_eq!(rebound.evaluate_in(&context, a), Ok(CalcValue::number(42.)));
+    }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_hsa5_6__diagnostics_keep_selected_identity_and_refused_snapshot_evidence() {
