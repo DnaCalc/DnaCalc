@@ -760,6 +760,25 @@ and multi-area qualifiers, relative coordinates, R1C1 and RelativeTo remain type
 refusals through VBA handlers and IFERROR. The namespace-edit control is a fresh
 synthetic package retaining its exact VBA binary, not a changed Excel observation.
 
+Original-source diagnostics (engine17, dc-snz.15): the 250 P01 preparations stop
+in the pinned CalcVBA binder because UBound/LBound require an array l-value;
+`UBound(Split(...))` supplies a temporary expression. A separate direct
+`Split(...)(1)` control compiles but raises ordinary VBA error 424 in both VM
+and JIT. The 108 P10 preparations stop because the expression functions Input
+and Input$ are unresolved; the Input statement has a separate symbol route.
+No helper is removed, temporary introduced, or input state invented to admit
+these original projects. The pin remains 7eb4fdd9.
+
+The 350 P02 saved-reference mismatches are a different source-history case.
+Their original Note calls UBound on an unallocated trace array, which RunCase
+initializes only in the capture session. Calling the complete fresh project with
+caller metadata now directly records ordinary VBA error 9. The application
+route calculates #VALUE!; IFERROR can catch this ordinary error. Saving and
+reopening preserves every original module. The separate initialized logger
+control succeeds, but no initialization is added to the opened project. These
+350 saved mismatches remain failures; this is runtime evidence without a new
+Excel observation.
+
 Workbook_Open runs once after file-project installation and before automatic
 calculation; replacement does not replay it. Open, Change, Calculate and BeforeSave
 are the admitted event surface. The compiler's resolved document symbols and current
