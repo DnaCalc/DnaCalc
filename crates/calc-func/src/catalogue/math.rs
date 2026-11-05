@@ -111,7 +111,7 @@ ported_family! {
     31 power "POWER" (2, 2) [V "number", V "power"] |s, a, sv| {
         let x = num(s, a, 0)?;
         let y = num(s, a, 1)?;
-        s.number(super::arithmetic::raise(s, x, y)?)
+        super::arithmetic::power_value(s, x, y)
     }
     32 fact "FACT" (1, 1) [V "number"] |s, a, sv| { unary(s, a, k::fact::fact_kernel) }
     33 factdouble "FACTDOUBLE" (1, 1) [V "number"] |s, a, sv| {
