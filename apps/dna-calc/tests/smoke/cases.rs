@@ -8214,11 +8214,11 @@ Case {
     Case {
         name:"templates: ordinary Open creates an unsaved workbook with calculated formulas",
         actions:&[Action::UploadDownload("Budget.xltx"),Action::DiscardReplacement],
-        checks:&[Check::Text("document","Book1.xlsx"),Check::Attr("document","data-unsaved","true"),Check::Attr("document","data-template","false"),Check::Text(cell!("A1"),"6"),Check::Text(cell!("B1"),"18"),Check::PlanCell("B1","provenance","calculated")],
+        checks:&[Check::Text("document","Budget1.xlsx"),Check::Attr("document","data-unsaved","true"),Check::Attr("document","data-template","false"),Check::Text(cell!("A1"),"6"),Check::Text(cell!("B1"),"18"),Check::PlanCell("B1","provenance","calculated")],
     },
     Case {
         name:"templates: Save of the unsaved workbook prompts Save As and cancellation keeps it",
-        actions:&[Action::Click("save"),Action::Wait(Check::Rendered("save-as-dialog",true)),Action::Wait(Check::Value("save-as-format","xlsx")),Action::Click("save-as-cancel")],
+        actions:&[Action::Click("save"),Action::Wait(Check::Rendered("save-as-dialog",true)),Action::Wait(Check::Value("save-as-format","xlsx")),Action::Wait(Check::Value("save-as-name","Budget1")),Action::Click("save-as-cancel")],
         checks:&[Check::Attr("document","data-unsaved","true"),Check::Text(cell!("B1"),"18"),Check::Absent("[data-dnacalc=save-as-dialog][open]")],
     },
     Case {
@@ -8230,13 +8230,13 @@ Case {
     Case {
         name:"templates: personal templates create independent workbooks and can be removed",
         actions:&[Action::OpenDetails("file-menu"),Action::UploadDownloadTo("Budget.xltx","template-file"),Action::Wait(Check::Value("template-list","Budget.xltx")),Action::Click("template-new"),Action::DiscardReplacement,
-            Action::Wait(Check::Text("document","Book1.xlsx")),Action::OpenDetails("file-menu"),Action::Choose("template-list","Budget.xltx"),Action::Click("template-remove")],
+            Action::Wait(Check::Text("document","Budget2.xlsx")),Action::OpenDetails("file-menu"),Action::Choose("template-list","Budget.xltx"),Action::Click("template-new"),Action::DiscardReplacement,Action::Wait(Check::Text("document","Budget3.xlsx")),Action::OpenDetails("file-menu"),Action::Choose("template-list","Budget.xltx"),Action::Click("template-remove")],
         checks:&[Check::Value("template-list",""),Check::Text(cell!("B1"),"18"),Check::Attr("document","data-unsaved","true")],
     },
     Case {
         name:"templates: a macro-enabled choice writes a template and opens it as an xlsm workbook",
         actions:&[Action::OpenDetails("file-menu"),Action::Click("save-as"),Action::Into("save-as-name","MacroBudget"),Action::Choose("save-as-format","xltm"),Action::Click("save-as-confirm"),Action::Wait(Check::Text("document","MacroBudget.xltm")),Action::UploadDownload("MacroBudget.xltm"),Action::DiscardReplacement],
-        checks:&[Check::Text("document","Book1.xlsm"),Check::Attr("document","data-unsaved","true"),Check::Text(cell!("B1"),"18")],
+        checks:&[Check::Text("document","MacroBudget1.xlsm"),Check::Attr("document","data-unsaved","true"),Check::Text(cell!("B1"),"18")],
     },
     Case {
         name:"templates: VBA loss is warned and the macro-free download is refused atomically",

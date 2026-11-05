@@ -1223,6 +1223,24 @@ pub fn cell_color(code: &str, value: &crate::value::CalcValue) -> Option<FormatC
     None
 }
 
+/// A declared date-name locale supplies all profile fields used by these date-only
+/// sections. Host separators and designators remain unavailable; admit only fields
+/// that never read them, then use the same formatter with the locale the code names.
+pub(crate) fn text_declared_date_locale(system: DateSystem, value: f64, code: &str) -> Rendered {
+    let sections = sections(code);
+    if sections.iter().any(|section| condition_of(section).is_some()) {
+        return Err(Failure::NotModelled);
+    }
+    let (section, _) = choose(&sections, value).map_err(|_| Failure::NotModelled)?;
+    let (stripped, name_locale, _) = strip_tokens(&section).map_err(|_| Failure::NotModelled)?;
+    let locale = name_locale.ok_or(Failure::NotModelled)?;
+    if stripped.trim().is_empty() || !stripped.chars().all(|c| matches!(c,
+        'y' | 'Y' | 'm' | 'M' | 'd' | 'D' | 'g' | 'G' | 'e' | 'E' | ' ')) {
+        return Err(Failure::NotModelled);
+    }
+    text(&crate::locale::format_profile(locale), system, value, code)
+}
+
 /// TEXT of a number under `code`.
 pub(crate) fn text(profile: &FormatProfile, system: DateSystem, value: f64, code: &str) -> Rendered {
     if !value.is_finite() {

@@ -101,7 +101,7 @@ fn check_captured_questions(
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn delivered_scalar_readings_follow_the_application_route() {
-    let readings: [&[u8]; 37] = [
+    let readings: [&[u8]; 38] = [
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/LOWER.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/PROPER.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn3_questions/REGEXTEST.reading.json"),
@@ -139,6 +139,7 @@ fn delivered_scalar_readings_follow_the_application_route() {
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/FIXED.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/VALUE.reading.json"),
         include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/NUMBERVALUE.reading.json"),
+        include_bytes!("../../../crates/calc-func/tests/captures/fn4_questions/SEARCH.reading.json"),
 
 
     ];
@@ -153,6 +154,7 @@ fn delivered_scalar_readings_follow_the_application_route() {
                 use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
                 session.set_environment(Some(CalcEnvironment {
                     profile: Some(format_profile(LocaleId::EnZa).with_separators(".", " ").unwrap()),
+                    compatibility_version: reading["compatibility_version"].as_u64().unwrap_or(1) as u32,
                     ..CalcEnvironment::dates(DateSystem::System1900)
                 }));
             }
@@ -196,16 +198,16 @@ fn delivered_scalar_readings_follow_the_application_route() {
             }
         }
     }
-    assert_eq!(count, 3589);
+    assert_eq!(count, 3679);
     assert!(failures.is_empty(), "{} of{count} readings differ:\n{}", failures.len(), failures.join("\n"));
 }
 
 /// Original fn6 Version-1/2 captures distinguish a lone high surrogate from a low
-/// surrogate and an empty needle. Two Version-2 SEARCH wildcard roots remain open;
-/// every other primary question is retained here, and the full captures stay intact.
+/// surrogate and an empty needle. All original primary questions remain intact,
+/// including the two Version-2 SEARCH roots explained by valid-Unicode wildcard controls.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_b1l40__len_and_find_use_measured_surrogate_length() {
+fn dc_b1l40_and42__surrogate_length_and_wildcard_units() {
     use calc_func::locale::{CalcEnvironment, DateSystem};
     let captures: [(&[u8], u32); 3] = [
         (include_bytes!("../../../crates/calc-func/tests/captures/fn6_utf16_needles/oracle.capture.json"), 1),
@@ -219,8 +221,7 @@ fn dc_b1l40__len_and_find_use_measured_surrogate_length() {
         session.set_environment(Some(environment));
         check_captured_questions(capture, &mut session, |entry| {
             entry.cell.row() == 20 && entry.cell.column() == 10
-                && !(version == 2 && matches!(entry.cell.sheet(), "q014" | "q016"))
-        }, if version == 1 { 16 } else { 14 });
+        }, 16);
     }
 }
 
@@ -264,12 +265,28 @@ fn locale_tagged_date_names_follow_the_retained_fn3_readings() {
     use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
     let profile = format_profile(LocaleId::EnZa).with_separators(".", " ").unwrap();
     let mut session = Session::new("Sheet1").unwrap();
-    session.set_environment(Some(CalcEnvironment {
-        profile: Some(profile), ..CalcEnvironment::dates(DateSystem::System1900)
-    }));
-    check_captured_questions(include_bytes!(
-        "../../../crates/calc-func/tests/captures/fn3_questions/oracle.capture.json"
-    ), &mut session, |f| f.cell.sheet() == "fn3_text", 170);
+    // The tag supplies the names in all170 original readings. Their date-only
+    // fields and spaces never read a host separator or AM/PM designator.
+    for profile in [Some(profile), None] {
+        session.set_environment(Some(CalcEnvironment {
+            profile, ..CalcEnvironment::dates(DateSystem::System1900)
+        }));
+        check_captured_questions(include_bytes!(
+            "../../../crates/calc-func/tests/captures/fn3_questions/oracle.capture.json"
+        ), &mut session, |f| f.cell.sheet() == "fn3_text", 170);
+    }
+    for formula in [
+        "=TEXT(45000,\"0.00\")",
+        "=TEXT(45000,\"[$-ffff]mmmm\")",
+        "=TEXT(45000,\"[$-407]m/d\")",
+        "=TEXT(0.5,\"[$-407]hh:mm AM/PM\")",
+        "=TEXT(45000,\"[>1.5][$-407]mmmm;[$-407]dddd\")",
+        "=TEXT(45000,\"[$-407]   \")",
+        "=FIXED(1.25,2,TRUE)",
+    ] {
+        session.set_formula(formula);
+        assert!(session.calculate().result.is_none(), "{formula} still needs host context");
+    }
 }
 
 /// Fn4 text-controls qt031..qt096 and list-controls ql041..ql085, unchanged live
@@ -2766,6 +2783,7 @@ async fn dc_snz_3__vba() {
 /// W111's recorded Version2 LEN results and Microsoft's five-function Unicode contract.
 /// Version1 and B-function controls preserve the earlier UTF-16 behavior. LEFT/RIGHT retain
 /// their separately measured policy; no locale or formula-form guess selects a version.
+/// Fn8's exact SEARCH controls correct the earlier inferred wildcard-width assertion.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn workbook_compatibility_version_controls_only_the_five_text_counters() {
@@ -2786,7 +2804,8 @@ fn workbook_compatibility_version_controls_only_the_five_text_counters() {
             ("=MIDB(\"A😀B\",2,1)", units(&[0xD83D])),
             ("=FIND(\"B\",\"A😀B\")", CalcValue::number(if version == 1 { 4.0 } else { 3.0 })),
             ("=FINDB(\"B\",\"A😀B\")", CalcValue::number(4.0)),
-            ("=SEARCH(\"?B\",\"A😀B\",2)", CalcValue::number(if version == 1 { 3.0 } else { 2.0 })),
+            ("=SEARCH(\"?B\",\"A😀B\",2)", if version == 1 { CalcValue::number(3.0) } else { CalcValue::error(calc_func::value::WorksheetErrorCode::Value) }),
+            ("=SEARCH(\"??B\",\"A😀B\",2)", CalcValue::number(2.0)),
             ("=SEARCHB(\"?B\",\"A😀B\",2)", CalcValue::number(3.0)),
             ("=REPLACE(\"A😀B\",2,1,\"x\")", if version == 1 { units(&[65,120,0xDE00,66]) } else { units(&[65,120,66]) }),
             ("=REPLACEB(\"A😀B\",2,1,\"x\")", units(&[65,120,0xDE00,66])),
