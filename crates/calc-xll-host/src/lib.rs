@@ -35,6 +35,17 @@ pub trait RtdService {
     ) -> Result<u64, String>;
     fn close(&self) -> Result<(), String>;
     fn subscriptions(&self, provider: RtdProvider, caller: calc_value::CellKey) -> Vec<u64>;
+    /// Recover only the inputs of this completed call when native code returns
+    /// from its own cache without another xlfRtd callback. New logical leases
+    /// still need an ordinary admitted input read before publishing that result.
+    fn cached_call_inputs(
+        &self,
+        _provider: RtdProvider,
+        _caller: calc_value::CellKey,
+        _arguments: &[calc_value::CalcValue],
+    ) -> Result<Vec<u64>, String> {
+        Ok(Vec::new())
+    }
     /// Record one completed native call. The owner reconciles the union of calls
     /// in a committed producing certificate, after the whole evaluation finishes.
     fn finish_call(
@@ -42,7 +53,9 @@ pub trait RtdService {
         _provider: RtdProvider,
         _caller: calc_value::CellKey,
         _invocation: u64,
+        _arguments: &[calc_value::CalcValue],
         _declared: &[u64],
+        _inputs: &[u64],
     ) -> Result<(), String> {
         Ok(())
     }
