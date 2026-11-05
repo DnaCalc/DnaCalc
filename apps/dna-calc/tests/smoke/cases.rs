@@ -3530,6 +3530,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
     Case {
         name: "axis: typed dimensions resize every selected row and column through the worker",
         actions: &[
+            Action::Window(1440, 1800),
             Action::Upload(
                 "open-file",
                 "crates/calc-host/tests/fixtures/dc_09v/formats.xlsx",
@@ -3695,7 +3696,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
     Case {
         name: "axis: hidden rows and column widths recalculate SUBTOTAL and CELL through the app route",
         actions: &[
-            Action::Window(1440, 1000),
+            Action::Window(1440, 1800),
             Action::Click("new"),
             Action::DiscardReplacement,
             Action::Wait(Check::Text("document", "Book1.xlsx")),
