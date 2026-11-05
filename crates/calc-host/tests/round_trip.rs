@@ -15763,6 +15763,14 @@ fn dc_e5z5__chart_properties_preserve_rich_and_linked_titles_and_refuse_shared_o
             "</a:p><a:p><a:r><a:t>Second</a:t></a:r></a:p></c:rich>",
         )
     });
+    for bytes in [&shared,&protected] {
+        let mut book=session(bytes);let sheet=book.host().sheets()[0].id();
+        let revision=book.host().revision();let history=book.history_depth();let before=book.host().charts(sheet).0;
+        let outcome=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartSeries{
+            sheet,revision:revision.get(),part:"xl/charts/chart1.xml".into(),plot:0,series:Some(0),name:Some("Refuse source edit".into()),categories:None,values:Some("Data!C2:C7".into()),remove:false,
+        }));assert!(!outcome.accepted(),"{outcome:?}");
+        assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,before);
+    }
     for bytes in [shared, protected, broken, paragraphs] {
         let mut book = session(&bytes);
         let sheet = book.host().sheets()[0].id();
@@ -15917,7 +15925,30 @@ fn dc_e5z5__shared_drawing_owner_refuses_before_revision_or_history() {
             ))
             .accepted()
     );
+    let outcome=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartSeries{
+        sheet,revision:revision.get(),part:"xl/charts/chart1.xml".into(),plot:0,series:Some(0),name:Some("Refuse shared drawing source edit".into()),categories:None,values:None,remove:false,
+    }));assert!(!outcome.accepted(),"{outcome:?}");
     assert_eq!(book.host().revision(), revision);
     assert_eq!(book.history_depth(), history);
     assert_eq!(book.host().charts(sheet).0, before);
+}
+
+/// Source-only editing retains imported collection order; membership edits refuse ambiguous order.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_46__custom_series_order_is_preserved_or_refused() {
+    const CHARTS:&[u8]=include_bytes!("fixtures/dc_6yw/charts.xlsx");
+    let part="xl/charts/chart1.xml";
+    let bytes=package_with_part_from(CHARTS,part,|xml|xml.replace("<c:order val=\"0\"/>","<c:order val=\"9\"/>").replace("<c:order val=\"1\"/>","<c:order val=\"0\"/>").replace("<c:order val=\"9\"/>","<c:order val=\"1\"/>"));
+    let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();
+    let command=|revision,series,remove|calc_host::WorkbookCommand::ChartSeries{sheet,revision,part:part.into(),plot:0,series,name:Some("Retain order".into()),categories:None,values:Some("Data!C2:C7".into()),remove};
+    let outcome=book.dispatch(SkinIntent::Command(command(book.host().revision().get(),Some(0),false)));assert!(outcome.accepted(),"{outcome:?}");
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
+    let orders=|xml:String|xml.match_indices("<c:order ").map(|(i,_)|xml[i..].split("/>").next().unwrap().to_owned()).collect::<Vec<_>>();
+    assert_eq!(orders(part_text(&saved,part)),orders(part_text(&bytes,part)));
+    let mut book=session(&saved);let revision=book.host().revision();let history=book.history_depth();let before=book.host().charts(sheet).0;
+    for series in [None,Some(0)] {
+        let outcome=book.dispatch(SkinIntent::Command(command(revision.get(),series,series.is_some())));assert!(!outcome.accepted(),"{outcome:?}");
+        assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,before);
+    }
 }

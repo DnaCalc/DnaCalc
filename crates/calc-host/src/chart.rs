@@ -312,7 +312,8 @@ impl HostState {
                     })
             })
             .collect();
-        (cached, true)
+        // Literal points are the chart source itself; only a failed reference uses a cache.
+        (cached, data.formula.is_some())
     }
 
     fn series_values(&self, data: Option<&ChartData>, origin: CellKey) -> (Vec<Option<f64>>, bool) {
@@ -400,4 +401,63 @@ pub(crate) fn prepare_properties(
         .map_err(|e| e.to_string())?;
     charts[index] = changed;
     Ok(vec![crate::CellEdit::Charts { sheet, charts }])
+}
+
+/// Edit one series through the retained chart writer. A missing index adds a series.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prepare_series(
+    host: &HostState, sheet:SheetId, revision:u64, part:&str, plot:u32,
+    series:Option<u32>, name:Option<String>, categories:Option<String>,
+    values:Option<String>, remove:bool,
+) -> Result<Vec<crate::CellEdit>,String> {
+    // Reuse the chart target, protection, format and revision checks.
+    prepare_properties(host,sheet,revision,part,None,false,None)?;
+    if !host.axis_edits.is_empty() {
+        return Err("Save and reopen before editing chart sources after inserting or deleting rows or columns (dc-971p.46)".into());
+    }
+    let mut charts=host.model().definitions().charts(sheet).to_vec();
+    let chart=charts.iter_mut().find(|c|c.part==part).ok_or("The chart is unavailable")?;
+    let next=chart.plots.iter().flat_map(|p|&p.series).map(|s|s.index)
+        .chain(host.loaded().model().definitions().charts(sheet).iter().filter(|c|c.part==part).flat_map(|c|&c.plots).flat_map(|p|&p.series).map(|s|s.index))
+        .max().unwrap_or(0).checked_add(1).ok_or("The series index limit was reached")?;
+    let p=chart.plots.get_mut(plot as usize).ok_or("The chart plot is unavailable")?;
+    if !matches!(p.kind.as_str(),"barChart"|"lineChart"|"areaChart"|"pieChart"|"doughnutChart"|"scatterChart") {
+        return Err("Editing series of this chart type is not modelled (dc-971p.46)".into());
+    }
+    let position=series.map(|index|p.series.iter().position(|s|s.index==index).ok_or("The series changed; reopen its controls")).transpose()?;
+    if remove {
+        let i=position.ok_or("Select a series to remove")?;
+        if p.series.len()==1 {return Err("Keep at least one series in a chart plot (dc-971p.46)".into());}
+        p.series.remove(i);
+    } else {
+        if position.is_none() && p.series.len()>=256 {return Err("A chart plot can have at most 256 series here (dc-971p.46)".into());}
+        let mut changed=position.map(|i|p.series[i].clone()).unwrap_or_else(||calc_doc_model::ChartSeries{index:next,..Default::default()});
+        let origin=CellKey::new(sheet,1,1).unwrap();
+        let range=|text:&str,numeric:bool,single:bool|->Result<ChartData,String>{
+            let text=text.trim().trim_start_matches('=').trim();
+            let crate::ReferenceTarget::Area(area)=host.resolve_reference_text(origin,text) else {
+                return Err("Use a single worksheet cell or a one-row or one-column A1 range (dc-971p.46)".into());
+            };
+            let count=u64::from(area.row_count())*u64::from(area.column_count());
+            if count>crate::validation::LIST_LIMIT as u64 || (area.row_count()>1 && area.column_count()>1) || (single && count!=1) {
+                return Err("Chart ranges must be one row or column with at most 32,767 cells; a name reference must be one cell (dc-971p.46)".into());
+            }
+            // Canonical absolute references keep edits independent of the selected cell.
+            let sheet_name=host.model().sheet_by_id(area.sheet()).ok_or("The source worksheet is unavailable")?.name().text().to_string_lossy().replace('\'',"''");
+            let a1=|at:CellKey|{let mut n=at.column();let mut letters=String::new();while n>0 {n-=1;letters.insert(0,(b'A'+(n%26) as u8)as char);n/=26;}format!("${letters}${}",at.row())};
+            let first=a1(area.first());let last=a1(area.last());
+            Ok(ChartData{formula:Some(format!("'{sheet_name}'!{first}{}",if first==last {String::new()}else{format!(":{last}")})),cache:Vec::new(),numeric})
+        };
+        if let Some(text)=name {
+            if text.encode_utf16().count()>32767 || text.chars().any(|c|(c<' ' && !matches!(c,'\t'|'\n'|'\r')) || matches!(c,'\u{fffe}'|'\u{ffff}')) {return Err("The series name contains unsupported text or exceeds 32,767 UTF-16 units (dc-971p.46)".into());}
+            changed.name=if text.is_empty(){None}else if text.starts_with('='){Some(range(&text,false,true)?)}else{Some(ChartData{cache:vec![Some(text)],..Default::default()})};
+        }
+        if let Some(text)=categories {changed.categories=if text.trim().is_empty(){None}else{Some(range(&text,p.kind=="scatterChart",false)?)};}
+        if let Some(text)=values {changed.values=Some(range(&text,true,false)?);}
+        if changed.values.is_none(){return Err("Choose a values range for the new series (dc-971p.46)".into());}
+        if let Some(i)=position {p.series[i]=changed;} else {p.series.push(changed);}
+    }
+    host.loaded().check_chart_properties(sheet,chart).map_err(|e|e.to_string())?;
+    if charts==host.model().definitions().charts(sheet){return Ok(Vec::new());}
+    Ok(vec![crate::CellEdit::Charts{sheet,charts}])
 }
