@@ -20,6 +20,9 @@ For a changed painter, run the same command with a new `--out` and
 must match the exact workbook hash and zoom. The browser's device scale matches Excel's window DPI.
 `comparison.json` records translation-aligned sheet differences and per-cell raster differences
 over the common extent, beside each cell's position/size delta and all cells not compared.
+Open `comparison.html` locally to inspect the same observations beside the original crops,
+overlay or difference image. Choose a capture, find an address or text, or sort cells by
+their difference above 16. The viewer needs no server and does not change comparison values.
 Exact differences and differences above 16/64 channel levels are separate; no tolerance is a pass.
 Missing dark text ink is counted separately. A lower difference percentage alone is not an
 improvement: erasing displaced glyphs can reduce that percentage while losing the text.

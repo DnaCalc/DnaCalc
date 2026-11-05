@@ -1306,8 +1306,9 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
             if(h==='center')ok=Math.abs((b.left+b.right-a.left-a.right)/2)<1;
             if(h.startsWith('across:')){{var z=document.querySelector('[data-dnacalc=column-header][data-column='+h.slice(7)+']')?.getBoundingClientRect();ok=!!z&&Math.abs((b.left+b.right-a.left-z.right)/2)<1;}}
             if(h==='spread'){{var w=document.createTreeWalker(t,NodeFilter.SHOW_TEXT),nodes=[];while(w.nextNode())if(w.currentNode.textContent.length)nodes.push(w.currentNode);if(!nodes.length)return false;var f=document.createRange(),l=document.createRange(),n=nodes[0],m=nodes[nodes.length-1];f.setStart(n,0);f.setEnd(n,1);l.setStart(m,m.length-1);l.setEnd(m,m.length);ok=Math.abs(f.getBoundingClientRect().left-r.left-parseFloat(s.paddingLeft))<1&&Math.abs(l.getBoundingClientRect().right-r.right+parseFloat(s.paddingRight))<1;}}
-            if(v==='top')ok=ok&&Math.abs(b.top-r.top)<1;
-            if(v==='bottom')ok=ok&&Math.abs(b.bottom-r.bottom)<1;
+            var ts=getComputedStyle(t),fontProbe=document.createElement('canvas').getContext('2d');fontProbe.font=[s.fontStyle,s.fontWeight,s.fontSize,s.fontFamily].join(' ');var fm=fontProbe.measureText('Mg'),shift=ts.whiteSpace==='pre'&&ts.transform==='none'&&!t.textContent.includes('\n')?(fm.fontBoundingBoxAscent+fm.fontBoundingBoxDescent-parseFloat(s.fontSize))/2:0;
+            if(v==='top')ok=ok&&Math.abs(b.top-r.top-shift)<1;
+            if(v==='bottom')ok=ok&&Math.abs(b.bottom-r.bottom+shift)<1;
             if(v==='center')ok=ok&&Math.abs((b.top+b.bottom-r.top-r.bottom)/2)<1;
             if(v==='justify'||v==='distributed'){{var lines=[...t.children].map(x=>x.getBoundingClientRect());ok=ok&&lines.length>1;var gap=lines.length>1?lines[1].top-lines[0].bottom:0;ok=ok&&gap>1&&lines.slice(1).every((l,i)=>Math.abs(l.top-lines[i].bottom-gap)<1);if(v==='justify')ok=ok&&Math.abs(lines[0].top-r.top)<1&&Math.abs(lines.at(-1).bottom-r.bottom)<1;else ok=ok&&lines[0].top>r.top+1&&lines.at(-1).bottom<r.bottom-1&&Math.abs(lines[0].top-r.top-(r.bottom-lines.at(-1).bottom))<1;}}
             return ok;"#,q(name))
@@ -1322,7 +1323,7 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
 
         Check::PinnedCell | Check::ViewRetained => {
             let pinned=matches!(check,Check::PinnedCell);
-            format!(r#"var g=document.querySelector('[data-dnacalc=grid]'),key=document.querySelector('[data-dnacalc=sheet-tab][aria-selected=true]')?.dataset.sheet,h=(window.__dcViews||{{}})[key];if(!g||!h)return {{ok:false}};var e=document.querySelector(h.selector);if(!e)return {{ok:false,held:h}};var r=e.getBoundingClientRect(),b=g.getBoundingClientRect(),s={{x:r.left-b.left,y:r.top-b.top,w:r.width,h:r.height,left:g.scrollLeft,top:g.scrollTop,zoom:document.querySelector('[data-dnacalc=zoom]')?.textContent,address:document.querySelector('[data-dnacalc=name-box]')?.value}};var same=['x','y','w','h'].every(k=>Math.abs(s[k]-h[k])<2);return {{ok:same&&({}),held:h,seen:s}};"#,
+            format!(r#"var g=document.querySelector('[data-dnacalc=grid]'),key=document.querySelector('[data-dnacalc=sheet-tab][aria-selected=true]')?.dataset.sheet,h=(window.__dcViews||{{}})[key];if(!g||!h)return {{ok:false}};var e=document.querySelector(h.selector),r=e?.getBoundingClientRect()||window.__rendererCoreCheck?.({{op:'rect',selector:h.selector}}).seen;if(!r)return {{ok:false,held:h}};var b=g.getBoundingClientRect(),s={{x:r.left-b.left,y:r.top-b.top,w:r.width,h:r.height,left:g.scrollLeft,top:g.scrollTop,zoom:document.querySelector('[data-dnacalc=zoom]')?.textContent,address:document.querySelector('[data-dnacalc=name-box]')?.value}};var same=['x','y','w','h'].every(k=>Math.abs(s[k]-h[k])<2);return {{ok:same&&({}),held:h,seen:s}};"#,
                 if pinned {"s.left>h.left+1&&s.top>h.top+1"} else {"Math.abs(s.left-h.left)<2&&Math.abs(s.top-h.top)<2&&s.zoom===h.zoom&&s.address===h.address"})
         }
         Check::TextBounds(name)=>format!("var e={};if(!e)return false;var t=e.querySelector('.dc-cell-text');if(!t)return false;var a=e.getBoundingClientRect(),b=t.getBoundingClientRect();return b.left>=a.left-1&&b.right<=a.right+1&&b.top>=a.top-1&&b.bottom<=a.bottom+1;",q(name)),
@@ -1640,7 +1641,8 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 return Err(reason);
             }
             let selector = serde_json::to_string(&select(app, name)).unwrap();
-            session.script(&format!(r#"var g=document.querySelector('[data-dnacalc=grid]'),e=document.querySelector({selector}),r=e.getBoundingClientRect(),b=g.getBoundingClientRect(),key=document.querySelector('[data-dnacalc=sheet-tab][aria-selected=true]').dataset.sheet;window.__dcViews=window.__dcViews||{{}};window.__dcViews[key]={{selector:{selector},x:r.left-b.left,y:r.top-b.top,w:r.width,h:r.height,left:g.scrollLeft,top:g.scrollTop,zoom:document.querySelector('[data-dnacalc=zoom]').textContent,address:document.querySelector('[data-dnacalc=name-box]').value}};return null;"#))?;
+            let canvas_rect=renderer::cell_rect(app,session,name)?.unwrap_or(Value::Null);
+            session.script(&format!(r#"var g=document.querySelector('[data-dnacalc=grid]'),e=document.querySelector({selector}),r=e?e.getBoundingClientRect():{canvas_rect},b=g.getBoundingClientRect(),key=document.querySelector('[data-dnacalc=sheet-tab][aria-selected=true]').dataset.sheet;window.__dcViews=window.__dcViews||{{}};window.__dcViews[key]={{selector:{selector},x:r.left-b.left,y:r.top-b.top,w:r.width,h:r.height,left:g.scrollLeft,top:g.scrollTop,zoom:document.querySelector('[data-dnacalc=zoom]').textContent,address:document.querySelector('[data-dnacalc=name-box]').value}};return null;"#))?;
             Ok(())
         }
         Action::ScrollGrid(dx, dy) => {
@@ -2013,6 +2015,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             Ok(())
         }
         Action::DoubleClick(name) => {
+            if renderer::click_cell(app,session,name,true)? { return Ok(()); }
             let element = session.element(&select(app, name))?;
             session.post("/actions", json!({"actions":[{"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":[
                 {"type":"pointerMove","duration":0,"origin":{"element-6066-11e4-a52e-4f735466cecf":element},"x":0,"y":0},
@@ -2616,6 +2619,7 @@ fn measure_skins(
 }
 
 fn act_click(app: &App, session: &Session, name: &str) -> Result<(), String> {
+    if renderer::click_cell(app,session,name,false)? { return Ok(()); }
     let selector = select(app, name);
     if name.starts_with("skin-") || matches!(name, "save" | "new" | "name-manager") {
         // These buttons are disabled until earlier workbook input has answered. WebDriver

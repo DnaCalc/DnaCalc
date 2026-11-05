@@ -33,6 +33,22 @@ using System;
 using System.Runtime.InteropServices;
 public static class DnaSessionWindows {
  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
+ public delegate bool EnumProc(IntPtr hwnd, IntPtr state);
+ [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc callback, IntPtr state);
+ [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr hwnd, EnumProc callback, IntPtr state);
+ [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr hwnd,System.Text.StringBuilder name,int count);
+ [DllImport("oleacc.dll")] static extern int AccessibleObjectFromWindow(IntPtr hwnd,uint objectId,ref Guid iid,[MarshalAs(UnmanagedType.Interface)] out object result);
+ public static object NativeWindow(int processId) {
+  object result=null;
+  EnumWindows((root,state)=>{uint owner;GetWindowThreadProcessId(root,out owner);if(owner!=processId)return true;
+   EnumChildWindows(root,(child,unused)=>{uint childOwner;GetWindowThreadProcessId(child,out childOwner);
+    if(childOwner!=processId)return true;
+    var name=new System.Text.StringBuilder(128);GetClassName(child,name,128);
+    if(name.ToString()=="EXCEL7") {var iid=new Guid("00020400-0000-0000-C000-000000000046");object value;
+     if(AccessibleObjectFromWindow(child,0xFFFFFFF0,ref iid,out value)>=0 && value!=null){result=value;return false;}}
+    return true;},IntPtr.Zero);return result==null;},IntPtr.Zero);
+  return result;
+ }
 }
 public static class DnaSessionDeadline {
  static readonly object Sync = new object();
@@ -190,23 +206,51 @@ function Start-Owned([string]$Reason) {
     $script:launches++
     Event 'launch-attempt' @{launch=$script:launches;reason=$Reason;preexisting_pids=$before}
     Status
-    $a=New-Object -ComObject Excel.Application
-    [uint32]$newPid=0
-    [void][DnaSessionWindows]::GetWindowThreadProcessId([IntPtr]$a.Hwnd,[ref]$newPid)
-    $process=Get-Process -Id $newPid
-    $command=(Get-CimInstance Win32_Process -Filter "ProcessId=$newPid").CommandLine
-    if (-not $newPid -or $newPid -eq 3144 -or $newPid -in $before -or $process.ProcessName -ine 'EXCEL' -or $command -match '(?i)/restore') { throw "Excel activation is not owned ($newPid); it will not be quit or terminated." }
-    $script:app=$a
-    $global:DnaExcelSessionState.App=$a
+    # COM activation can return another agent's Excel. /x creates our process;
+    # native OM binding enumerates only windows belonging to that exact process.
+    $excelPath=@(
+        (Join-Path ${env:ProgramFiles} 'Microsoft Office/root/Office16/EXCEL.EXE'),
+        (Join-Path ${env:ProgramFiles(x86)} 'Microsoft Office/root/Office16/EXCEL.EXE'),
+        (Join-Path ${env:ProgramFiles} 'Microsoft Office/Office16/EXCEL.EXE')
+    ) | Where-Object {Test-Path -LiteralPath $_} | Select-Object -First 1
+    if(-not $excelPath){throw 'Excel executable not found.'}
+    # An empty CSV supplies the worksheet child needed for native OM binding.
+    # It contains no code or formulas and is closed before baseline recording.
+    $bootstrap=Join-Path $root ('launches/'+$script:launches+'-bootstrap.csv')
+    [IO.File]::WriteAllText($bootstrap,'',[Text.UTF8Encoding]::new($false))
+    $start=[Diagnostics.ProcessStartInfo]::new()
+    $start.FileName=$excelPath;$start.Arguments='/x /automation /r "'+$bootstrap+'"'
+    $start.UseShellExecute=$false;$start.CreateNoWindow=$true;$start.WindowStyle=[Diagnostics.ProcessWindowStyle]::Hidden
+    $process=[Diagnostics.Process]::Start($start);$newPid=$process.Id
+    if (-not $newPid -or $newPid -eq 3144 -or $newPid -in $before -or $process.ProcessName -ine 'EXCEL') { throw "Excel launch is not owned ($newPid); it will not be quit or terminated." }
+    $command=$start.FileName+' '+$start.Arguments
     $script:owned=[ordered]@{pid=[int]$newPid;start_ticks=$process.StartTime.ToUniversalTime().Ticks;command_line=$command;launch=$script:launches}
     [DnaSessionDeadline]::Own([int]$newPid,$script:owned.start_ticks)
-    # Publish ownership before any further COM calls, including baseline setup.
+    # Publish ownership before waiting for Excel, so startup timeouts are owned.
     Status
-    $script:baseline=Reset-Baseline
-    $global:DnaExcelSessionState.Baseline=$script:baseline
     $sourceName=$script:launches.ToString()+'-host.ps1'
     [IO.File]::WriteAllBytes((Join-Path $root ('launches/'+$sourceName)),$script:hostSource)
-    Write-Json (Join-Path $root ('launches/'+$script:launches+'.json')) @{excel=$script:owned;baseline=$script:baseline;reason=$Reason;version=[string]$a.Version;build=[string]$a.Build;host_script=$sourceName;host_script_sha256=$script:hostSha}
+    $launchPath=Join-Path $root ('launches/'+$script:launches+'.json')
+    $launchRecord=@{excel=$script:owned;baseline=$null;reason=$Reason;host_script=$sourceName;host_script_sha256=$script:hostSha;binding='pending native object model';preexisting_pids=$before}
+    Write-Json $launchPath $launchRecord
+    Event 'process-started' $script:owned
+    $startup=[DateTime]::UtcNow;$nativeWindow=$null
+    while($null -eq $nativeWindow){
+        if($process.HasExited){throw 'Owned Excel exited during startup.'}
+        if(([DateTime]::UtcNow-$startup).TotalSeconds -gt 45){throw 'Owned Excel did not expose its worksheet native object model.'}
+        $nativeWindow=[DnaSessionWindows]::NativeWindow($newPid)
+        if($null -eq $nativeWindow){Start-Sleep -Milliseconds 100}
+    }
+    $a=$nativeWindow.Application
+    [uint32]$boundPid=0
+    [void][DnaSessionWindows]::GetWindowThreadProcessId([IntPtr]$a.Hwnd,[ref]$boundPid)
+    if($boundPid -ne $newPid -or (Get-Process -Id $newPid).StartTime.ToUniversalTime().Ticks -ne $script:owned.start_ticks){throw 'Native object model belongs to another process; no application mutation attempted.'}
+    $script:app=$a;$global:DnaExcelSessionState.App=$a
+    $script:baseline=Reset-Baseline
+    $global:DnaExcelSessionState.Baseline=$script:baseline
+    $launchRecord.baseline=$script:baseline;$launchRecord.binding='verified PID and start time'
+    $launchRecord.version=[string]$a.Version;$launchRecord.build=[string]$a.Build
+    Write-Json $launchPath $launchRecord
     Event 'launched' $script:owned
     Status
 }

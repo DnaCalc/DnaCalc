@@ -119,7 +119,22 @@ struct FontMeasures {
     revision: Option<u64>,
     context: Option<web_sys::CanvasRenderingContext2d>,
     widths: BTreeMap<(String, String), f64>,
+    boxes: BTreeMap<String, (f64, f64)>,
     bytes: usize,
+}
+impl FontMeasures {
+    fn context(&mut self) -> Option<&web_sys::CanvasRenderingContext2d> {
+        use leptos::prelude::*;
+        use wasm_bindgen::JsCast;
+        if self.context.is_none() {
+            let canvas = document().create_element("canvas").ok()?
+                .dyn_into::<web_sys::HtmlCanvasElement>().ok()?;
+            canvas.set_width(0);
+            canvas.set_height(0);
+            self.context = canvas.get_context("2d").ok()??.dyn_into().ok();
+        }
+        self.context.as_ref()
+    }
 }
 thread_local! {
     static FONT_MEASURES: std::cell::RefCell<FontMeasures> = Default::default();
@@ -132,8 +147,6 @@ pub(super) fn plan_advance(
     zoom: f64,
     revision: u64,
 ) -> Option<f64> {
-    use leptos::prelude::*;
-    use wasm_bindgen::JsCast;
     let font = canvas_font(
         &shown.style,
         shown.conditional.as_ref(),
@@ -148,23 +161,14 @@ pub(super) fn plan_advance(
         if cache.revision != Some(revision) {
             cache.revision = Some(revision);
             cache.widths.clear();
+            cache.boxes.clear();
             cache.bytes = 0;
         }
         let key = (font.clone(), text.to_owned());
         if let Some(width) = cache.widths.get(&key) {
             return Some(*width);
         }
-        if cache.context.is_none() {
-            let canvas = document()
-                .create_element("canvas")
-                .ok()?
-                .dyn_into::<web_sys::HtmlCanvasElement>()
-                .ok()?;
-            canvas.set_width(0);
-            canvas.set_height(0);
-            cache.context = canvas.get_context("2d").ok()??.dyn_into().ok();
-        }
-        let context = cache.context.as_ref()?;
+        let context = cache.context()?;
         context.set_font(&font);
         let mut width: f64 = 0.0;
         for line in text.split('\n') {
@@ -184,6 +188,22 @@ pub(super) fn plan_advance(
             cache.widths.insert(key, width);
         }
         Some(width)
+    })
+}
+/// Reuse the advance probe and its font-load invalidation for baseline placement.
+pub(super) fn font_box(style: &TextStyle, conditional: Option<&crate::cells::ConditionalShown>, italic: bool, zoom: f64) -> Option<(f64, f64)> {
+    let font = canvas_font(style, conditional, italic, zoom);
+    FONT_MEASURES.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        if let Some(bounds) = cache.boxes.get(&font) { return Some(*bounds); }
+        let context = cache.context()?;
+        context.set_font(&font);
+        let metrics = context.measure_text("Mg").ok()?;
+        let bounds = (metrics.font_bounding_box_ascent(), metrics.font_bounding_box_descent());
+        if !bounds.0.is_finite() || !bounds.1.is_finite() || bounds.0 + bounds.1 <= 0. { return None; }
+        if cache.boxes.len() >= 256 { cache.boxes.clear(); }
+        cache.boxes.insert(font, bounds);
+        Some(bounds)
     })
 }
 /// A shared DOM font probe. Its inline declarations are assigned through CSSOM under the CSP.
