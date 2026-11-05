@@ -359,7 +359,18 @@ pub fn run(
         let mut idle_until = None;
         let mut replaced = false;
         loop {
-            for input in rtd.poll()? {
+            let evaluating = book.has_pending_calculation()
+                || !book.host().pending_async().is_empty()
+                || native.outstanding_native_calls() != 0
+                || concurrent.as_ref().is_some_and(|(peer, _)| {
+                    peer.has_pending_calculation() || !peer.host().pending_async().is_empty()
+                });
+            let inputs = if evaluating {
+                rtd.poll_during_evaluation()?
+            } else {
+                rtd.poll()?
+            };
+            for input in inputs {
                 let disposition = book.update_rtd(
                     input.provider,
                     input.subscription,
@@ -409,12 +420,14 @@ pub fn run(
             if !book.has_pending_calculation()
                 && book.host().pending_async().is_empty()
                 && native.outstanding_native_calls() == 0
+                && !rtd.has_pending_inputs()
             {
                 reconcile_rtd(&book, &rtd, &providers, &[b, c])?;
             }
             let complete = !book.has_pending_calculation()
                 && book.host().pending_async().is_empty()
                 && native.outstanding_native_calls() == 0
+                && !rtd.has_pending_inputs()
                 && case.get("rtd_wait_value").is_none_or(|expected| {
                     value(&book, b).is_ok_and(|(actual, _)| {
                         let actual = crate::value_json(&actual);

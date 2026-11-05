@@ -282,13 +282,14 @@ pub(crate) fn find(
     Err(WorksheetErrorCode::Value)
 }
 
-/// Whether the SEARCH pattern (`*` any run, `?` one counted position, `~` escaping the next) matches a prefix
-/// of `text`.
-fn search_pattern_matches_prefix(pattern: &[u16], text: &[u16], pairs: bool) -> bool {
+/// Whether the SEARCH pattern (`*` any run, `?` one UTF-16 unit, `~` escaping the next)
+/// matches a prefix of `text`. Fn8's Version2 readings retain unit-wide wildcard
+/// consumption even though candidate starts and returned positions count characters.
+fn search_pattern_matches_prefix(pattern: &[u16], text: &[u16]) -> bool {
     // memo[p * (t_len + 1) + t]: 0 unknown, 1 false, 2 true.
     let width = text.len() + 1;
     let mut memo = vec![0u8; (pattern.len() + 1) * width];
-    fn rec(pattern: &[u16], text: &[u16], p: usize, t: usize, memo: &mut [u8], width: usize, pairs: bool) -> bool {
+    fn rec(pattern: &[u16], text: &[u16], p: usize, t: usize, memo: &mut [u8], width: usize) -> bool {
         let slot = p * width + t;
         if memo[slot] != 0 {
             return memo[slot] == 2;
@@ -303,30 +304,29 @@ fn search_pattern_matches_prefix(pattern: &[u16], text: &[u16], pairs: bool) -> 
                     } else {
                         let mut next = t;
                         loop {
-                            if rec(pattern, text, p + 1, next, memo, width, pairs) { break true; }
+                            if rec(pattern, text, p + 1, next, memo, width) { break true; }
                             if next == text.len() { break false; }
-                            next += if pairs { unit_width(text, next) } else { 1 };
+                            next += 1;
                         }
                     }
                 }
-                63 => t < text.len() && rec(pattern, text, p + 1,
-                    t + if pairs { unit_width(text, t) } else { 1 }, memo, width, pairs),
+                63 => t < text.len() && rec(pattern, text, p + 1, t + 1, memo, width),
                 126 if p + 1 < pattern.len() => {
                     t < text.len()
                         && search_units_equal(pattern[p + 1], text[t])
-                        && rec(pattern, text, p + 2, t + 1, memo, width, pairs)
+                        && rec(pattern, text, p + 2, t + 1, memo, width)
                 }
                 ch => {
                     t < text.len()
                         && search_units_equal(ch, text[t])
-                        && rec(pattern, text, p + 1, t + 1, memo, width, pairs)
+                        && rec(pattern, text, p + 1, t + 1, memo, width)
                 }
             }
         };
         memo[slot] = if result { 2 } else { 1 };
         result
     }
-    rec(pattern, text, 0, 0, &mut memo, width, pairs)
+    rec(pattern, text, 0, 0, &mut memo, width)
 }
 
 pub(crate) fn search(
@@ -350,7 +350,7 @@ pub(crate) fn search(
     let mut index = if pairs { character_boundary(within_text, start_num - 1) } else { start_num - 1 };
     let mut position = start_num;
     while index < hay.len() {
-        if search_pattern_matches_prefix(pattern, &hay[index..], pairs) {
+        if search_pattern_matches_prefix(pattern, &hay[index..]) {
             return Ok(position as f64);
         }
         index += if pairs { unit_width(hay, index) } else { 1 };

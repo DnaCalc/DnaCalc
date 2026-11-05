@@ -173,6 +173,14 @@ impl RtdClient {
     }
     /// Owner polls between activations. Inputs still require CalcHost.update_rtd admission.
     pub fn poll(&self) -> Result<Vec<RtdInput>, String> {
+        self.poll_inputs(true)
+    }
+    /// A calculation can poll signals without destroying a completed native cache
+    /// before its consumer activation has read the newly admitted input.
+    pub fn poll_during_evaluation(&self) -> Result<Vec<RtdInput>, String> {
+        self.poll_inputs(false)
+    }
+    fn poll_inputs(&self, retire_unused: bool) -> Result<Vec<RtdInput>, String> {
         let mut state = self
             .state
             .try_borrow_mut()
@@ -180,7 +188,9 @@ impl RtdClient {
         // Retire unused native transports at the next owner turn. An immediate
         // formula replacement can first connect its next topic. An idle owner
         // still disconnects completed generators before polling their servers.
-        Self::disconnect_inactive(&mut state)?;
+        if retire_unused {
+            Self::disconnect_inactive(&mut state)?;
+        }
         checked(
             unsafe { dna_rtd_poll(state.pointer, publish, (&mut *state as *mut State).cast()) },
             "refresh",
@@ -321,12 +331,17 @@ impl RtdClient {
     pub fn subscriptions(&self) -> usize {
         self.state.borrow().topics.len()
     }
+    /// Observed native inputs the owner must admit before declaring calculation complete.
+    pub fn has_pending_inputs(&self) -> bool {
+        !self.state.borrow().updates.is_empty()
+    }
     fn disconnect_inactive(state: &mut State) -> Result<(), String> {
         let retained: BTreeSet<_> = state
             .replacement_calls
             .iter()
             .flat_map(|call| call.inputs.iter().copied())
             .map(|id| state.renewed_inputs.get(&id).copied().unwrap_or(id))
+            .chain(state.updates.iter().map(|input| input.subscription))
             .collect();
         let ids: Vec<_> = state
             .topics
@@ -939,6 +954,15 @@ fn cached_replacement_renews_one_signal_for_main_and_dependent_reads() {
             .is_empty()
     );
     // Completed generators do not remain connected throughout an idle owner turn.
+    assert!(client.has_pending_inputs());
+    let delivered = client.poll().unwrap();
+    assert_eq!(delivered.len(), 1);
+    assert_eq!(delivered[0].subscription, renewed[0]);
+    assert_eq!(delivered[0].sequence, 1);
+    assert!(!client.has_pending_inputs());
+    assert!(client.state.borrow().topics[&renewed[0]].connected);
+    client.poll_during_evaluation().unwrap();
+    assert!(client.state.borrow().topics[&renewed[0]].connected);
     client.poll().unwrap();
     assert!(!client.state.borrow().topics[&renewed[0]].connected);
     client.close().unwrap();
@@ -963,6 +987,7 @@ fn cached_reads_survive_disconnect_but_not_unrenewable_retirement() {
     let topic = client
         .subscribe(provider, caller, "fixture", &["cached".into()])
         .unwrap();
+    assert_eq!(client.poll().unwrap().len(), 1);
     client
         .finish_call(provider, caller, 100, &arguments, &[], &[topic])
         .unwrap();
