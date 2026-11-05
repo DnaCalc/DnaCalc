@@ -71,6 +71,9 @@ enum Weight {
     Ignorable,
     /// A unit the key is not built for here.
     Refused,
+    /// Only the first primary group is measured, at the start of an independent
+    /// suffix. This is insufficient for a complete key or a same-group order.
+    FirstPrimaryGroup(u8),
     /// A combining mark: its diacritic weight, added to the entry before it.
     Mark(u8),
     /// A special weight, placed by its position.
@@ -364,6 +367,10 @@ fn build() -> Table {
         let covered = code != 0 && (in_ranges(code, &COVERED) || special.contains_key(&code));
         let weight = if !covered {
             Weight::Refused
+        } else if matches!(code, 0x1100 | 0x1161) {
+            // Fn7's bare Giyeok/A native keys start C0/EC respectively.
+            // Their remaining primary bytes and contextual runs stay unknown.
+            Weight::FirstPrimaryGroup(if code == 0x1100 { 0xC0 } else { 0xEC })
         } else if let Some(exception) = exceptions.get(&code) {
             match exception {
                 Exception::Ignorable => Weight::Ignorable,
@@ -509,7 +516,8 @@ fn derive(root: &Root, secondary: &HashMap<u32, u8>) -> Option<Derived> {
     })
 }
 
-/// Whether the collation builds no sort key for a text holding the code unit `code`.
+/// Whether a unit has no measured comparison route. Partial Jamo groups reach
+/// `parts`, which still refuses a comparison needing their unknown bytes.
 pub(super) fn refused(code: u16) -> bool {
     match code {
         0x0001..=0x007F => false,
@@ -533,12 +541,16 @@ pub(super) fn shared_jamo_tails<'a>(a: &'a [u16], b: &'a [u16]) -> Option<(&'a [
     } else {
         2
     };
-    let independent = |text: &[u16]| text.iter().all(|&code| matches!(
+    let (a, b) = (&a[at..], &b[at..]);
+    (independent_jamo_suffix(a) && independent_jamo_suffix(b)).then_some((a, b))
+}
+
+/// These units cannot extend a Jamo run or repeat its preceding primary.
+fn independent_jamo_suffix(text: &[u16]) -> bool {
+    text.iter().all(|&code| matches!(
         table().weights[usize::from(code)],
         Weight::Ignorable | Weight::Mark(_) | Weight::Special(_) | Weight::Weighted { .. }
-    ));
-    let (a, b) = (&a[at..], &b[at..]);
-    (independent(a) && independent(b)).then_some((a, b))
+    ))
 }
 
 /// One step of a text's diacritic walk ([`diacritics`]): what each unit gives the diacritic
@@ -568,8 +580,9 @@ pub(super) struct Parts {
     starts: Vec<u32>,
 }
 
-/// Primary weights before an unmodelled unit. A guaranteed further primary permits an earlier
-/// primary difference or completed prefix to decide an order without assigning an unknown weight.
+/// A known primary prefix, possibly ending at the measured group byte of an
+/// incomplete unit. A guaranteed further primary permits an earlier difference
+/// or completed prefix to decide without assigning the remaining unknown weight.
 pub(super) struct Unfinished {
     primary: Vec<u8>,
     continues: bool,
@@ -655,7 +668,7 @@ impl Gathered {
             before.separate_special();
         }
         match table.weights[usize::from(code)] {
-            Weight::Refused => return None,
+            Weight::Refused | Weight::FirstPrimaryGroup(_) => return None,
             Weight::Ignorable if self.expanding => {}
             Weight::Ignorable => self.steps.push(Step::Ignorable),
             Weight::Mark(added) => self.steps.push(Step::Mark(added)),
@@ -795,6 +808,14 @@ pub(super) fn parts(text: &[u16]) -> Result<Parts, Unfinished> {
         let primaries = gathered.primary.len();
         if gathered.unit(table, code, &mut before).is_none() {
             gathered.primary.truncate(primaries);
+            if at == 0 && independent_jamo_suffix(&text[1..])
+                && let Weight::FirstPrimaryGroup(group) = table.weights[usize::from(code)]
+            {
+                // A strict difference in this measured byte decides before any
+                // unknown byte or later level. Keep the rest explicitly unfinished.
+                gathered.primary.push(group);
+                return Err(Unfinished { primary: gathered.primary, continues: true });
+            }
             return Err(Unfinished {
                 primary: gathered.primary,
                 // An iteration failure after One would still add a primary. After a special

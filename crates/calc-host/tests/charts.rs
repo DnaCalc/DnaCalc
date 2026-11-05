@@ -473,3 +473,69 @@ fn dc_971p_46__new_series_and_ranges_compose_with_unsaved_axis_edits() {
     assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,shifted);
     assert_eq!(reopened(&mut book).host().charts(sheet).0,shifted);
 }
+
+fn axis_command(book:&HostSession,chart:usize,id:u32,min:Option<&str>,max:Option<&str>,unit:Option<&str>,reversed:bool)->calc_host::WorkbookCommand {
+    let sheet=book.host().sheets()[0].id();
+    calc_host::WorkbookCommand::ChartAxis{sheet,revision:book.host().revision().get(),part:book.host().charts(sheet).0[chart].part.clone(),axis:id,minimum:min.map(str::to_owned),maximum:max.map(str::to_owned),major_unit:unit.map(str::to_owned),reversed}
+}
+/// Bounds, unit and direction are one authored edit; other axes and chart records stay intact.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_46__axis_settings_history_and_saved_reopening() {
+    let mut book=session();let sheet=book.host().sheets()[0].id();let before=book.host().charts(sheet).0;let history=book.history_depth();
+    let id=before[0].axes.iter().find(|a|a.kind=="valAx").unwrap().id;
+    let command=axis_command(&book,0,id,Some("0"),Some("20"),Some("5"),true);
+    let outcome=book.dispatch(SkinIntent::Command(command));assert!(outcome.accepted(),"{outcome:?}");
+    let after=book.host().charts(sheet).0;let axis=after[0].axes.iter().find(|a|a.id==id).unwrap();
+    assert_eq!(axis.minimum.as_deref(),Some("0"));assert_eq!(axis.maximum.as_deref(),Some("20"));assert_eq!(axis.major_unit.as_deref(),Some("5"));assert!(axis.reversed);
+    assert_eq!(after[0].plots,before[0].plots);assert_eq!(after[1..],before[1..]);assert_eq!(book.history_depth(),(history.0+1,0));
+    let scale=calc_host::chart::chart_scale(0.,27.,Some(axis)).unwrap();assert_eq!((scale.minimum,scale.maximum,scale.step,scale.reversed),(0.,20.,5.,true));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().charts(sheet).0,before);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(book.host().charts(sheet).0,after);
+    let mut next=reopened(&mut book);assert_eq!(next.host().charts(sheet).0,after);
+    let command=axis_command(&next,0,id,None,None,None,false);assert!(next.dispatch(SkinIntent::Command(command)).accepted());
+    assert_eq!(reopened(&mut next).host().charts(sheet).0,before,"Automatic restores absent bounds and units after a saved reopen");
+}
+/// Scatter X and Y axes remain independent, and both settings compose with later source shifts.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_46__scatter_axes_and_unsaved_structural_edits_compose() {
+    let mut book=session();let sheet=book.host().sheets()[0].id();let view=book.host().charts(sheet).0[5].clone();
+    let x=view.axes.iter().find(|a|a.position.as_deref()==Some("b")).unwrap().id;let y=view.axes.iter().find(|a|a.position.as_deref()==Some("l")).unwrap().id;
+    for (id,max,unit) in [(x,"50","10"),(y,"20","5")] {let command=axis_command(&book,5,id,Some("0"),Some(max),Some(unit),false);let outcome=book.dispatch(SkinIntent::Command(command));assert!(outcome.accepted(),"{outcome:?}");}
+    assert!(book.dispatch(SkinIntent::EditAxis(calc_host::AxisEdit::new(sheet,calc_host::Axis::Rows,calc_host::AxisChange::Insert,2,1).unwrap())).accepted());
+    let after=book.host().charts(sheet).0;assert_eq!(reopened(&mut book).host().charts(sheet).0,after);
+    let axes=&after[5].axes;assert_eq!(axes.iter().find(|a|a.id==x).unwrap().maximum.as_deref(),Some("50"));assert_eq!(axes.iter().find(|a|a.id==y).unwrap().maximum.as_deref(),Some("20"));
+}
+/// Invalid scales and stale identities cannot change revision, history or persisted chart data.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_46__invalid_axis_settings_refuse_atomically() {
+    let mut book=session();let sheet=book.host().sheets()[0].id();let before=book.host().charts(sheet).0;let history=book.history_depth();let revision=book.host().revision();let id=before[0].axes.iter().find(|a|a.kind=="valAx").unwrap().id;
+    for (min,max,unit) in [("20","10","5"),("0","20","0"),("0","20","-1"),("NaN","20","5"),("0","inf","5"),("0","20","0.000001")] {
+        let command=axis_command(&book,0,id,Some(min),Some(max),Some(unit),true);assert!(!book.dispatch(SkinIntent::Command(command)).accepted());
+        assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,before);
+    }
+    let mut command=axis_command(&book,0,id,Some("0"),Some("20"),Some("5"),false);if let calc_host::WorkbookCommand::ChartAxis{revision,..}=&mut command{*revision+=1;}
+    assert!(!book.dispatch(SkinIntent::Command(command)).accepted());
+    let command=axis_command(&book,0,u32::MAX,None,None,None,false);assert!(!book.dispatch(SkinIntent::Command(command)).accepted());
+    assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);
+}
+
+/// Axis validation uses exactly the paired points and numbered-X fallback used for drawing.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_46__scatter_fallback_extents_validate_the_actual_display() {
+    let mut book=session();let sheet=book.host().sheets()[0].id();let chart=book.host().charts(sheet).0[5].clone();
+    let command=calc_host::WorkbookCommand::ChartSeries{sheet,revision:book.host().revision().get(),part:chart.part.clone(),plot:0,series:Some(0),name:None,categories:Some(String::new()),values:None,remove:false};
+    assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    let plot=&book.host().charts(sheet).0[5].plots[0];
+    assert_eq!(calc_host::chart::scatter_ranges(plot).0,(0.,6.));
+    let x=chart.axes.iter().find(|a|a.position.as_deref()==Some("b")).unwrap().id;
+    let revision=book.host().revision();let history=book.history_depth();
+    let command=axis_command(&book,5,x,Some("10"),None,Some("0.005"),false);
+    assert!(!book.dispatch(SkinIntent::Command(command)).accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);
+    let command=axis_command(&book,5,x,Some("0.5"),Some("10.5"),Some("2.5"),false);
+    assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    let view=book.host().charts(sheet).0;assert_eq!(reopened(&mut book).host().charts(sheet).0,view);
+}

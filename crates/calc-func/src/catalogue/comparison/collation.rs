@@ -36,6 +36,9 @@
 //! default entries; different Jamo prefixes remain refused. Fn7 matches the ASCII pass followed
 //! by CompareStringEx on all284 scalar pairs; suffix sort-key byte order differs on two Hangul
 //! pairs. These measured rules and the stored Unicode weights run unchanged on every platform.
+//! Bare U+1100/U+1161 at the start of an independent suffix have measured primary
+//! groups C0/EC. An unfinished key can decide a strict group difference; it still
+//! refuses a same-group comparison or an unmeasured Jamo continuation.
 //! Iteration after Han uses the measured repeat primary,
 //! confirmed by fn1's comparison and ordering controls. Fn3's previously measured strict
 //! prefixes also follow from fn7's positive punctuation primary.

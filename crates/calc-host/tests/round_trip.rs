@@ -11791,7 +11791,9 @@ fn dc_971p__numeric_sort_refusals_preserve_inputs_styles_and_revision() {
     let r=refuse(&mut book,1,rev);assert!(r.error.unwrap().to_string().contains("qualified or unsupported formula references"));
     assert!(enter(&mut book,at(s,"B1"),"literal").accepted());
     let rev=book.host().revision().get();refuse(&mut book,3,rev);refuse(&mut book,1,rev-1);
-    assert!(enter(&mut book,at(s,"A2"),"\u{1100}").accepted());assert!(enter(&mut book,at(s,"A1"),"text").accepted());let rev=book.host().revision().get();
+    // U+1100's measured primary group now orders it against Latin (dc-zsn.2.5).
+    // U+1103 still has no measured comparison route; keep every refusal assertion.
+    assert!(enter(&mut book,at(s,"A2"),"\u{1103}").accepted());assert!(enter(&mut book,at(s,"A1"),"text").accepted());let rev=book.host().revision().get();
     let r=refuse(&mut book,1,rev);assert!(r.error.unwrap().to_string().contains("row order"));
     assert!(enter(&mut book,at(s,"A1"),"3").accepted());
     assert!(enter(&mut book,at(s,"A2"),"1").accepted());
@@ -11809,6 +11811,34 @@ fn dc_971p__numeric_sort_refusals_preserve_inputs_styles_and_revision() {
     let sorted=book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area:GridArea::new(at(dates,"A1"),at(dates,"A2")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:false,revision}));
     assert!(sorted.accepted(),"{sorted:?}");
     assert!(match (book.host().model().cell(at(dates,"A1")),book.host().model().cell(at(dates,"A2"))) {(Some(CellInput::Number(a)),Some(CellInput::Number(b)))=>a.get()<b.get(),_=>false});
+}
+
+/// A consequence of the measured C0 versus Latin primary groups. Same-group
+/// Jamo comparisons remain refused; this sort needs only the strict group order.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zsn25__numeric_sort_uses_measured_primary_group() {
+    use calc_host::WorkbookCommand;
+    let mut book = session(&calc_host::blank_package());
+    let sheet = book.host().sheets()[0].id();
+    for (cell, input) in [("A1", "ᄀ"), ("B1", "Jamo"), ("A2", "text"), ("B2", "Latin")] {
+        assert!(enter(&mut book, at(sheet, cell), input).accepted());
+    }
+    let revision = book.host().revision().get();
+    let sorted = book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows {
+        area: GridArea::new(at(sheet, "A1"), at(sheet, "B2")).unwrap(),
+        keys: vec![calc_host::SortKey { column: 1, descending: false }],
+        header: false,
+        revision,
+    }));
+    assert!(sorted.accepted(), "{sorted:?}");
+    assert_eq!(book.host().model().cell(at(sheet, "A1")), calc_host::interpret_entry("text").unwrap().as_ref());
+    assert_eq!(book.host().model().cell(at(sheet, "A2")), calc_host::interpret_entry("ᄀ").unwrap().as_ref());
+    assert_eq!(book.host().model().cell(at(sheet, "B1")), calc_host::interpret_entry("Latin").unwrap().as_ref());
+    assert_eq!(book.host().model().cell(at(sheet, "B2")), calc_host::interpret_entry("Jamo").unwrap().as_ref());
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(book.host().model().cell(at(sheet, "A1")), calc_host::interpret_entry("ᄀ").unwrap().as_ref());
+    assert_eq!(book.host().model().cell(at(sheet, "B1")), calc_host::interpret_entry("Jamo").unwrap().as_ref());
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -16010,5 +16040,26 @@ fn dc_971p_46__custom_series_order_is_preserved_or_refused() {
     for series in [None,Some(0)] {
         let outcome=book.dispatch(SkinIntent::Command(command(revision.get(),series,series.is_some())));assert!(!outcome.accepted(),"{outcome:?}");
         assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,before);
+    }
+}
+
+
+/// Imported axis identities must prove plot ownership before an axis edit can enter history.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_46__unassociated_chart_axes_refuse_before_history_changes() {
+    let original=include_bytes!("fixtures/dc_6yw/charts.xlsx");
+    for (from,to) in [
+        ("<c:axId val=\"1264925584\"/>","<c:axId val=\"4294967295\"/>"),
+        ("<c:crossAx val=\"1264926064\"/>","<c:crossAx val=\"4294967295\"/>"),
+        ("<c:valAx><c:axId val=\"1264926064\"/>","<c:valAx><c:axId val=\"1264925584\"/>"),
+    ] {
+        let bytes=package_with_part_from(original,"xl/charts/chart1.xml",|xml|{assert!(xml.contains(from));xml.replacen(from,to,1)});
+        let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();let charts=book.host().charts(sheet).0;
+        let id=charts[0].axes.iter().find(|a|a.kind=="valAx").unwrap().id;
+        let revision=book.host().revision();let history=book.history_depth();
+        let command=calc_host::WorkbookCommand::ChartAxis{sheet,revision:revision.get(),part:charts[0].part.clone(),axis:id,minimum:Some("0".into()),maximum:Some("20".into()),major_unit:Some("5".into()),reversed:false};
+        assert!(!book.dispatch(SkinIntent::Command(command)).accepted());
+        assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,charts);
     }
 }
