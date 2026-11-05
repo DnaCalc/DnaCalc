@@ -73,6 +73,23 @@ fn value(session: &HostSession, row: u32, column: u32) -> calc_value::CalcValue 
     }
 }
 
+struct CallerOnlyContext(calc_value::CellKey);
+impl calc_func::UserFunctionContext for CallerOnlyContext {
+    fn caller(&self) -> Option<calc_value::CellKey> { Some(self.0) }
+    fn reference_qualifier(&mut self, _: calc_value::SheetId) -> Result<String, String> {
+        Ok("'[probe.xlsm]S'".into())
+    }
+    fn refuse(&mut self, reason: &'static str) -> String {
+        panic!("an ordinary fresh-project source error needs no host capability: {reason}");
+    }
+    fn values_of(&mut self, _: &calc_value::ReferenceLike) -> Result<calc_value::CalcValue, String> {
+        panic!("the original source must fail before a formula value read");
+    }
+    fn worksheet_function(&mut self, _: &str, _: &[calc_value::CalcValue]) -> Result<calc_value::CalcValue, String> {
+        panic!("the original source makes no worksheet callback before its error");
+    }
+}
+
 fn opened(bytes: &[u8], name: &str) -> HostSession {
     HostSession::open(
         Arc::new(MemorySource::new(bytes.to_vec()).named(name)),
@@ -94,6 +111,29 @@ fn mutable_owner(session: &mut HostSession, sheet_source: &str, api_source: &str
 }
 
 const OWNER_STATE: &str = "Public History As String\nPublic Entries As Long\nPublic Function Trace() As String\n Trace = History\nEnd Function\nPublic Function EntryCount() As Long\n EntryCount = Entries\nEnd Function\nPublic Function Twice(ByVal x As Double) As Double\n Twice = x * 2\nEnd Function\n";
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn mutable_owner_bare_application_literal_members_and_cvar_use_the_real_owner() {
+    for backend in backends() {
+        let mut session = opened(&calc_host::blank_package(), "owner.xlsx");
+        session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
+        enter(&mut session, 1, 2, "=D1+1");
+        let project = mutable_owner(&mut session,
+            "Private Sub Worksheet_Change(ByVal Target As Excel.Range)\n If Target.Column <> 1 Then Exit Sub\n Application.EnableEvents = False\n Application.Range(\"D1\").Value2 = 9&\n Application.Range(\"E1\").Value2 = CVar(\"text\")\n Application.CalculateFull\n History = CStr(Application.Range(\"D1\").Value2) & \":\" & CStr(Application.Range(\"E1\").Value2)\n Application.EnableEvents = True\nEnd Sub\n",
+            OWNER_STATE, 10000, backend);
+        enter(&mut session, 1, 1, "7");
+        assert!(session.workbook_event_failures().failures.is_empty(), "{:?}", session.workbook_event_failures());
+        assert!(session.workbook_events_enabled());
+        assert_eq!(value(&session, 1, 2).as_number(), Some(10.0));
+        assert_eq!(project.functions().call("Trace", &[]).unwrap().as_text().unwrap().to_string_lossy(), "9:text");
+        let sheet = session.host().sheets()[0].id();
+        assert!(matches!(session.host().model().cell(calc_value::CellKey::new(sheet, 1, 4).unwrap()),
+            Some(calc_host::CellInput::Number(n)) if n.get() == 9.0));
+        assert!(matches!(session.host().model().cell(calc_value::CellKey::new(sheet, 1, 5).unwrap()),
+            Some(calc_host::CellInput::Text(text)) if text.text().to_string_lossy() == "text"));
+    }
+}
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -168,21 +208,138 @@ fn mutable_owner_reentered_udf_cannot_write_a_saved_event_target_through_iferror
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn mutable_owner_multicell_write_refusal_survives_vba_error_handling() {
+fn mutable_owner_multicell_scalar_write_is_one_nested_change() {
     for backend in backends() {
         let mut session = opened(&calc_host::blank_package(), "owner.xlsx");
         session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
         let project = mutable_owner(&mut session,
-            "Private Sub Worksheet_Change(ByVal Target As Excel.Range)\n Dim app As Excel.Application\n Set app = Application\n On Error Resume Next\n app.Range(\"D1:E1\").Value2 = Target.Value2\n Entries = Entries + 1\nEnd Sub\n", OWNER_STATE, 10000, backend);
+            "Private Sub Worksheet_Change(ByVal Target As Excel.Range)\n Dim app As Excel.Application\n Set app = Application\n If Target.Column = 1 Then\n History = \"outer>\"\n app.Range(\"D1:E2\").Value2 = Target.Value2\n History = History & \"returned;\"\n Else\n Entries = Entries + 1\n History = History & CStr(Target.Count) & \":\" & Target.Address & \";\"\n End If\nEnd Sub\n", OWNER_STATE, 10000, backend);
+        enter(&mut session, 1, 1, "9");
+        assert_eq!(project.functions().call("EntryCount", &[]).unwrap().as_number(), Some(1.0));
+        assert!(session.workbook_event_failures().failures.is_empty(), "{:?}", session.workbook_event_failures());
+        assert_eq!(project.functions().call("Trace", &[]).unwrap().as_text().unwrap().to_string_lossy(),
+            "outer>4:$D$1:$E$2;returned;");
+        for row in [1, 2] { for col in [4, 5] {
+            let at = calc_value::CellKey::new(session.host().sheets()[0].id(), row, col).unwrap();
+            assert!(matches!(session.host().model().cell(at), Some(calc_host::CellInput::Number(n)) if n.get() == 9.0));
+        }}
+        session.set_workbook_events_enabled(false);
+        assert!(session.dispatch(SkinIntent::Undo).accepted());
+        for row in [1, 2] { for col in [4, 5] {
+            let at = calc_value::CellKey::new(session.host().sheets()[0].id(), row, col).unwrap();
+            assert!(session.host().model().cell(at).is_none(), "one Undo restores the whole rectangle");
+        }}
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn mutable_owner_multicell_shape_refusal_is_atomic_and_survives_error_handling() {
+    for backend in backends() {
+        let mut session = opened(&calc_host::blank_package(), "owner.xlsx");
+        session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
+        enter(&mut session, 1, 10, "1");
+        enter(&mut session, 1, 11, "2");
+        let project = mutable_owner(&mut session,
+            "Private Sub Worksheet_Change(ByVal Target As Excel.Range)\n Dim app As Excel.Application\n Set app = Application\n On Error Resume Next\n app.Range(\"D1:E2\").Value2 = app.Range(\"J1:K1\").Value2\n Entries = Entries + 1\nEnd Sub\n", OWNER_STATE, 10000, backend);
         enter(&mut session, 1, 1, "9");
         assert_eq!(project.functions().call("EntryCount", &[]).unwrap().as_number(), Some(1.0));
         let failures = session.workbook_event_failures();
         assert_eq!(failures.failures.len(), 1);
-        assert!(failures.failures[0].reason.contains("dc-hsa5.12") && failures.failures[0].reason.contains("multi-cell"));
-        for col in [4, 5] {
-            let at = calc_value::CellKey::new(session.host().sheets()[0].id(), 1, col).unwrap();
+        assert!(failures.failures[0].reason.contains("dc-hsa5.12") && failures.failures[0].reason.contains("shape"));
+        for row in [1, 2] { for col in [4, 5] {
+            let at = calc_value::CellKey::new(session.host().sheets()[0].id(), row, col).unwrap();
             assert!(session.host().model().cell(at).is_none());
+        }}
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn mutable_owner_multicell_array_write_preserves_types_and_one_target() {
+    for backend in backends() {
+        let mut session = opened(&calc_host::blank_package(), "owner.xlsx");
+        session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
+        for (row, col, text) in [(1,10,"3"),(1,11,"'text"),(2,10,"TRUE"),(2,11,"#N/A")] {
+            enter(&mut session, row, col, text);
         }
+        let project = mutable_owner(&mut session,
+            "Private Sub Worksheet_Change(ByVal Target As Excel.Range)\n Dim app As Excel.Application\n Set app = Application\n If Target.Column = 1 Then\n app.Range(\"D1:E2\").Value2 = app.Range(\"J1:K2\").Value2\n Else\n Entries = Entries + 1\n History = CStr(Target.Count) & \":\" & Target.Address\n End If\nEnd Sub\n", OWNER_STATE, 10000, backend);
+        enter(&mut session, 1, 1, "9");
+        assert!(session.workbook_event_failures().failures.is_empty(), "{:?}", session.workbook_event_failures());
+        assert_eq!(project.functions().call("EntryCount", &[]).unwrap().as_number(), Some(1.0));
+        assert_eq!(project.functions().call("Trace", &[]).unwrap().as_text().unwrap().to_string_lossy(), "4:$D$1:$E$2");
+        let sheet = session.host().sheets()[0].id();
+        for row in [1, 2] { for col in [4, 5] {
+            let at = calc_value::CellKey::new(sheet, row, col).unwrap();
+            let source = calc_value::CellKey::new(sheet, row, col + 6).unwrap();
+            assert_eq!(session.host().model().cell(at), session.host().model().cell(source));
+        }
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn mutable_owner_multicell_empty_and_late_invalid_elements_keep_atomicity() {
+    for backend in backends() { for invalid in [false, true] {
+        let mut session = opened(&calc_host::blank_package(), "owner.xlsx");
+        session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
+        for row in [1, 2] { for col in [4, 5] { enter(&mut session, row, col, "31"); }}
+        let body = if invalid {
+            format!(" Dim text As String\n Dim i As Long\n text = \"{}\"\n For i = 1 To 7\n text = text & text\n Next i\n Payload(2,2) = text\n On Error Resume Next\n app.Range(\"D1:E2\").Value2 = Payload\n", "x".repeat(256))
+        } else {
+            " Dim emptyValue As Variant\n app.Range(\"D1:E2\").Value2 = emptyValue\n".into()
+        };
+        let source = format!("Private Sub Worksheet_Change(ByVal Target As Excel.Range)\n Dim app As Excel.Application\n Set app = Application\n If Target.Column = 1 Then\n{body} Entries = Entries + 1\n Else\n History = CStr(Target.Count)\n End If\nEnd Sub\n");
+        let api = format!("{OWNER_STATE}Public Payload As Variant\nPublic Function SetPayload(ByVal x As Variant) As Long\n Payload = x\n SetPayload = 1\nEnd Function\n");
+        let project = mutable_owner(&mut session, &source, &api, 10000, backend);
+        if invalid {
+            let result = project.functions().call("SetPayload", &[calc_value::CalcValue::array(
+                calc_value::CalcArray::from_rows(vec![
+                    vec![calc_value::CalcValue::number(1.0), calc_value::CalcValue::number(2.0)],
+                    vec![calc_value::CalcValue::number(3.0), calc_value::CalcValue::empty()],
+                ]).unwrap()
+            )]).unwrap();
+            assert_eq!(result.as_number(), Some(1.0));
+        }
+        let revision = session.host().revision().get();
+        enter(&mut session, 1, 1, "9");
+        assert_eq!(project.functions().call("EntryCount", &[]).unwrap().as_number(), Some(1.0));
+        if invalid {
+            let failures = session.workbook_event_failures();
+            assert_eq!(failures.failures.len(), 1);
+            assert!(failures.failures[0].reason.contains("text limit"), "{failures:?}");
+            assert_eq!(session.host().revision().get(), revision + 1, "no Automation transaction on invalid input");
+        } else {
+            assert!(session.workbook_event_failures().failures.is_empty());
+            assert_eq!(project.functions().call("Trace", &[]).unwrap().as_text().unwrap().to_string_lossy(), "4");
+            assert_eq!(session.host().revision().get(), revision + 2, "one Automation transaction for the rectangle");
+        }
+        for row in [1, 2] { for col in [4, 5] {
+            let at = calc_value::CellKey::new(session.host().sheets()[0].id(), row, col).unwrap();
+            if invalid { assert!(matches!(session.host().model().cell(at), Some(calc_host::CellInput::Number(n)) if n.get() == 31.0)); }
+            else { assert!(session.host().model().cell(at).is_none()); }
+        }}
+    }}
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn mutable_owner_multicell_auto_calculation_finishes_before_nested_change() {
+    for backend in backends() {
+        let mut session = opened(&calc_host::blank_package(), "owner.xlsx");
+        session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
+        enter(&mut session, 1, 7, "=SUM(D1:E2)");
+        session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Automatic));
+        drain(&mut session);
+        let project = mutable_owner(&mut session,
+            "Private Sub Worksheet_Change(ByVal Target As Excel.Range)\n Dim app As Excel.Application\n Set app = Application\n If Target.Column = 1 Then\n app.Range(\"D1:E2\").Value2 = Target.Value2\n Else\n History = CStr(Target.Count) & \":\" & CStr(app.Range(\"G1\").Value2)\n End If\nEnd Sub\n", OWNER_STATE, 10000, backend);
+        enter(&mut session, 1, 1, "9");
+        drain(&mut session);
+        assert!(session.workbook_event_failures().failures.is_empty(), "{:?}", session.workbook_event_failures());
+        assert_eq!(project.functions().call("Trace", &[]).unwrap().as_text().unwrap().to_string_lossy(), "4:36");
+        assert_eq!(value(&session, 1, 7).as_number(), Some(36.0));
     }
 }
 
@@ -766,22 +923,6 @@ fn remaining_original_source_compiler_gaps_stay_typed() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn original_p02_fresh_logger_raises_error_nine_and_keeps_its_source() {
     use calc_value::{CalcValue, WorksheetErrorCode};
-    struct Context(calc_value::CellKey);
-    impl calc_func::UserFunctionContext for Context {
-        fn caller(&self) -> Option<calc_value::CellKey> { Some(self.0) }
-        fn reference_qualifier(&mut self, _: calc_value::SheetId) -> Result<String, String> {
-            Ok("'[probe.xlsm]S'".into())
-        }
-        fn refuse(&mut self, reason: &'static str) -> String {
-            panic!("an ordinary logger error must not require a host capability: {reason}");
-        }
-        fn values_of(&mut self, _: &calc_value::ReferenceLike) -> Result<CalcValue, String> {
-            panic!("the logger must fail before any formula value read");
-        }
-        fn worksheet_function(&mut self, _: &str, _: &[CalcValue]) -> Result<CalcValue, String> {
-            panic!("the logger makes no worksheet callback");
-        }
-    }
     let bytes = include_bytes!(
         "../../calc-engine/tests/fixtures/excel-calc-probes/P02/auto-app-01.xlsm"
     );
@@ -797,7 +938,7 @@ fn original_p02_fresh_logger_raises_error_nine_and_keeps_its_source() {
         let functions = owner.functions();
         let caller = calc_value::CellKey::new(session.host().sheets()[0].id(), 1, 11).unwrap();
         let error = functions.call_with_context("PlainProbe",
-            &[CalcValue::number(34.), CalcValue::number(1.)], &mut Context(caller))
+            &[CalcValue::number(34.), CalcValue::number(1.)], &mut CallerOnlyContext(caller))
             .expect_err("the original unallocated logger must fail after its caller-address read");
         assert!(error.contains("VBA error 9:"), "{backend:?}: {error}");
         owner.install(&mut session);
@@ -812,6 +953,46 @@ fn original_p02_fresh_logger_raises_error_nine_and_keeps_its_source() {
         let reopened = opened(&saved, "probe.xlsm");
         assert_eq!(original, reopened.host().loaded()
             .read_vba_project(&Default::default()).unwrap().unwrap());
+    }
+}
+
+/// The saved P08 readings follow RunCase's assignment of observedSheet. Opening
+/// the original project starts a new VBA session with that object set to Nothing.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn original_p08_fresh_observers_raise_error_ninety_one_without_invented_setup() {
+    use calc_value::{CalcValue, WorksheetErrorCode};
+    let bytes = include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P08/observer-cold-lower-chain-01.xlsm");
+    for backend in [None, Some(calc_vba::Backend::Interpreter)] {
+        let mut session = opened(bytes, "probe.xlsm");
+        session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
+        session.set_workbook_events_enabled(false);
+        let original = session.host().loaded().read_vba_project(&Default::default()).unwrap().unwrap();
+        let source = &original.modules.iter().find(|m| m.name == "OracleProbe").unwrap().source;
+        assert!(source.contains("Private observedSheet As Worksheet"));
+        assert!(source.contains("Set observedSheet = ThisWorkbook.Worksheets(1)"));
+        let owner = calc_host_vba::prepare_file_project_with_events(
+            session.host(), "probe.xlsm", 1_000_000, backend, false,
+        ).unwrap().unwrap();
+        let functions = owner.functions();
+        let caller = calc_value::CellKey::new(session.host().sheets()[0].id(), 1, 3).unwrap();
+        for name in ["PeekB1", "PeekSeveral"] {
+            let error = functions.call_with_context(name, &[], &mut CallerOnlyContext(caller)).unwrap_err();
+            assert!(error.contains("VBA error 91:"), "{backend:?}: {name}: {error}");
+        }
+        owner.install(&mut session);
+        enter(&mut session, 1, 3, "=PeekB1()");
+        enter(&mut session, 1, 6, "=PeekSeveral()");
+        enter(&mut session, 2, 6, "=IFERROR(PeekSeveral(),777)");
+        full(&mut session);
+        assert_eq!(value(&session, 1, 3), CalcValue::error(WorksheetErrorCode::Value));
+        assert_eq!(value(&session, 1, 6), CalcValue::error(WorksheetErrorCode::Value));
+        assert_eq!(value(&session, 2, 6), CalcValue::number(777.));
+        assert!(session.workbook_event_failures().failures.is_empty());
+        let mut saved = Vec::new();
+        session.save(&Default::default(), &mut saved).unwrap();
+        let reopened = opened(&saved, "probe.xlsm");
+        assert_eq!(original, reopened.host().loaded().read_vba_project(&Default::default()).unwrap().unwrap());
     }
 }
 

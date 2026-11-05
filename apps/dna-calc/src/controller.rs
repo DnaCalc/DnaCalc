@@ -583,6 +583,8 @@ impl Controller {
     }
 
     /// The sheets, in workbook order.
+    pub fn all_sheets(&self)->Vec<SheetTab>{self.summary.with(|summary|summary.all_sheets())}
+
     pub fn sheets(&self) -> Vec<SheetTab> {
         self.summary.with(|summary| {
             summary

@@ -1653,7 +1653,7 @@ impl ReferenceReader for WorkbookReader<'_> {
 
     fn read_area(
         &mut self,
-        _request: calc_fml::ReadRequest,
+        request: calc_fml::ReadRequest,
         area: GridArea,
         sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
     ) {
@@ -1686,11 +1686,21 @@ impl ReferenceReader for WorkbookReader<'_> {
                     .state
                     .bindings
                     .spill_iter()
-                    .filter_map(|(&node, binding)| {
+                    .map(|(&node, binding)| (node, Some(binding)))
+                    .chain(
+                        self.view.state.nodes()
+                            .take(if request.policy == calc_fml::ReadPolicy::DiagnosticSnapshot
+                                && self.view.progress.scheduled() > 0 { usize::MAX } else { 0 })
+                            .filter(|record| self.view.progress.is_scheduled(record.id())
+                                && matches!(self.view.state.bindings.get(&record.id()),
+                                    None | Some(crate::state::Binding::Refused(_))))
+                            .map(|record| (record.id(), None)),
+                    )
+                    .filter_map(|(node, binding)| {
                         if Some(node) == self.view.caller
                             || !matches!(
                                 binding,
-                                crate::state::Binding::Placed(_, crate::state::ArrayRole::Spill)
+                                Some(crate::state::Binding::Placed(_, crate::state::ArrayRole::Spill)) | None
                             )
                         {
                             return None;
@@ -1711,7 +1721,10 @@ impl ReferenceReader for WorkbookReader<'_> {
                         // circular dependency from a merely possible southeast footprint.
                         // Excluded producers use the admission-time cached absence. The
                         // certificate records that qualification and their unmet requirements.
-                        let unresolved = unknown && !outside;
+                        let diagnostic_pending = request.policy == calc_fml::ReadPolicy::DiagnosticSnapshot
+                            && self.view.progress.is_scheduled(node)
+                            && !self.view.progress.is_evaluated(node);
+                        let unresolved = (unknown || diagnostic_pending) && !outside;
                         (unresolved
                             && anchor.sheet() == area.sheet()
                             && anchor.row() <= area.last().row()
@@ -2072,6 +2085,8 @@ impl CachedReadLease {
         spills: &SpillIndex,
         inputs_cut: u64,
         range_caller: Option<NodeId>,
+        iterates: Option<&BTreeMap<NodeId, Option<CalcValue>>>,
+        excluded: &BTreeSet<NodeId>,
     ) -> Self {
         static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
         let id = NEXT
@@ -2094,6 +2109,36 @@ impl CachedReadLease {
                 unsupported.then_some(at)
             })
             .collect();
+        // An iterative callback observes the current sweep's scalar values,
+        // including its own seed before its first evaluation.
+        for (&node, value) in iterates.into_iter().flatten() {
+            let Some(record) = state.node(node) else { continue; };
+            let at = record.anchor();
+            let nonscalar = value.as_ref().is_some_and(|value| value.as_array().is_some())
+                || inputs.definitions().array(at).is_some_and(|array| array.area().cell_count() > 1)
+                || state.spills.get(at).is_some_and(|spill| spill.area().cell_count() > 1)
+                || state.cached_arrays.get(&node).is_some_and(|spill| spill.area().cell_count() > 1);
+            if nonscalar {
+                cache.entries.remove(&at);
+                cache.spills.remove(at);
+                refused.insert(at);
+                continue;
+            }
+            let Some(value) = value else {
+                cache.entries.remove(&at);
+                refused.insert(at);
+                continue;
+            };
+            if let Some(entry) = cache.entries.get_mut(&at) {
+                entry.value = value.clone();
+                entry.dirty = false;
+            } else {
+                cache.entries.insert(at, BoundaryValue {
+                    node, value: value.clone(), dirty: false, imported: false,
+                    external: false, source: None, extent: None,
+                });
+            }
+        }
         for (node, result) in progress.staged_results() {
             let Some(record) = state.node(node) else {
                 continue;
@@ -2132,6 +2177,13 @@ impl CachedReadLease {
                     cache.entries.remove(&at);
                     refused.insert(at);
                 }
+            }
+        }
+        for node in excluded {
+            if let Some(record) = state.node(*node) {
+                cache.entries.remove(&record.anchor());
+                cache.spills.remove(record.anchor());
+                refused.remove(&record.anchor());
             }
         }
         cache.refused = refused.clone();

@@ -104,7 +104,7 @@ impl CompiledPlan {
                 let Instruction::Name(target) = instruction else {
                     return None;
                 };
-                let name = target.id?;
+                let name = target.binding?.id;
                 seen.insert((name, target.block))
                     .then(|| NameMemoCandidate {
                         plan: Arc::clone(self),
@@ -416,6 +416,41 @@ pub struct UserFunctionEffects {
     pub(crate) reevaluation: Option<calc_func::UserReevaluationReason>,
     pub(crate) callable_reads: Vec<crate::CallableBindingProof>,
     pub(crate) external_inputs: Vec<calc_func::UserInputRead>,
+    pub(crate) next_name: u64,
+    pub(crate) name_invocations: Vec<NameInvocation>,
+    pub(crate) omitted_name_invocations: u64,
+}
+
+pub const MAX_RECORDED_NAME_INVOCATIONS: usize = 1024;
+
+/// One executed definition body, scoped by its producing formula invocation.
+/// This records context and result kind, without introducing a name-value cache.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct NameInvocation {
+    pub ordinal: u64,
+    pub parent: Option<u64>,
+    pub definition: crate::reference::BoundName,
+    pub context: crate::reference::NameEvaluationContext,
+    /// Index in the producing formula's plan, not a standalone reuse key.
+    pub body: usize,
+    pub result: NameResultKind,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum NameResultKind {
+    Empty,
+    Missing,
+    Number,
+    Text,
+    Logical,
+    Error(WorksheetErrorCode),
+    Reference {
+        areas: Vec<GridArea>,
+        omitted_areas: usize,
+    },
+    Array(ArrayShape),
+    Callable,
+    Refused,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -431,6 +466,22 @@ pub struct UserCallRecord {
 }
 
 impl UserFunctionEffects {
+    /// Conservative callback/request evidence, excluding passive definition-body telemetry.
+    pub fn has_observable_effects(&self) -> bool {
+        self.calls != 0
+            || self.volatile
+            || !self.invocations.is_empty()
+            || self.reevaluation.is_some()
+            || !self.callable_reads.is_empty()
+            || !self.external_inputs.is_empty()
+    }
+
+    pub fn name_invocations(&self) -> &[NameInvocation] {
+        &self.name_invocations
+    }
+    pub fn omitted_name_invocations(&self) -> u64 {
+        self.omitted_name_invocations
+    }
     pub fn external_inputs(&self) -> &[calc_func::UserInputRead] {
         &self.external_inputs
     }
@@ -597,7 +648,8 @@ enum Instruction {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct NameTarget {
     block: usize,
-    id: Option<calc_func::value::NameId>,
+    binding: Option<crate::reference::BoundName>,
+    definition_sheet: Option<calc_func::value::SheetId>,
 }
 
 /// A literal operand. A number is held as its bits, so that a plan is hashed and compared by the

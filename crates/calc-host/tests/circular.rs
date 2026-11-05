@@ -1222,62 +1222,104 @@ fn dc_hsa5_11__mixed_range_preserves_warm_cycles_and_read_guards() {
 fn dc_hsa5_11__dynamic_range_refusal_keeps_warm_seed() {
     use calc_host::WorkBudget;
     use calc_host::value::GridArea;
-    let mut authored = session_without_recalc(&calc_host::blank_package());
-    assert!(
-        authored
-            .dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
-            .accepted()
-    );
-    set_iteration(&mut authored, IterationSettings::new(true, 1, 0.001));
-    p14_enter(&mut authored, 1, 1, "=INDIRECT(\"A1\")+1");
-    p14_enter(&mut authored, 1, 4, "=2+2");
-    assert!(authored.dispatch(SkinIntent::Rebuild).accepted());
-    p14_advance(&mut authored);
-    let held = p14_visible(&authored, 1, 1).0;
-    let mut bytes = Vec::new();
-    save(authored.host(), &SavePolicy::default(), &mut bytes).unwrap();
-    for budget in [usize::MAX, 1] {
-        let mut book = session_without_recalc(&bytes);
+    for through_name in [false, true] {
+        let mut authored = session_without_recalc(&calc_host::blank_package());
         assert!(
-            book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+            authored
+                .dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
                 .accepted()
         );
-        book.set_calculation_budget(WorkBudget::evaluations(budget));
-        assert_eq!(p14_visible(&book, 1, 1).0, held);
-        let sheet = book.host().sheets()[0].id();
-        let at = |column| CellKey::new(sheet, 1, column).unwrap();
-        assert!(
-            book.dispatch(SkinIntent::CalculateRange {
-                areas: vec![GridArea::new(at(1), at(4)).unwrap()]
-            })
-            .accepted()
+        set_iteration(&mut authored, IterationSettings::new(true, 1, 0.001));
+        if through_name {
+            assert!(
+                authored
+                    .dispatch(SkinIntent::Edit {
+                        edits: vec![CellEdit::SetName {
+                            name: "DynamicSelf".into(),
+                            scope: calc_host::value::NameScope::Workbook,
+                            formula: Some("=INDIRECT(\"A1\")".into()),
+                        }]
+                    })
+                    .accepted()
+            );
+        }
+        p14_enter(
+            &mut authored,
+            1,
+            1,
+            if through_name {
+                "=DynamicSelf+1"
+            } else {
+                "=INDIRECT(\"A1\")+1"
+            },
         );
-        p14_advance(&mut book);
-        let page = project(book.host(), &ProjectionRequest { cells: vec![at(1)] }).unwrap();
-        assert!(page.recalc_failure().is_none(), "{:?}", page.recalc_failure());
-        let independent = p14_visible(&book, 1, 4);
-        assert_eq!(independent.0, CalcValue::number(4.0));
-        let stamp = independent.1.unwrap().stamp().unwrap().clone();
-        assert!(matches!(stamp.computed_by, calc_engine::contract::ComputationOrigin::Evaluated { .. }));
-        assert!(!stamp.reads.uses_imported_cache && !stamp.reads.uses_boundary_cache);
-        let events = book.take_calculation_events();
-        let completed = events.iter().find_map(|event| match event {
-            calc_host::CalcEvent::Completed(receipt) => Some(receipt), _ => None,
-        }).unwrap();
-        assert_eq!(completed.outcome, calc_host::CompletionOutcome::Incomplete);
-        assert_eq!((completed.coverage.required, completed.coverage.calculated, completed.coverage.refused), (2, 1, 1));
-        assert_eq!(stamp.certification.command, completed.command);
-        assert_eq!(p14_visible(&book, 1, 1).0, held);
-        assert!(
-            p14_visible(&book, 1, 1).1.is_none(),
-            "refusal cannot create a producing calculation"
-        );
-        assert!(book.dispatch(SkinIntent::Rebuild).accepted());
-        p14_advance(&mut book);
-        assert_eq!(
-            p14_visible(&book, 1, 1).0,
-            CalcValue::number(held.as_number().unwrap() + 1.0)
-        );
+        p14_enter(&mut authored, 1, 4, "=2+2");
+        assert!(authored.dispatch(SkinIntent::Rebuild).accepted());
+        p14_advance(&mut authored);
+        let held = p14_visible(&authored, 1, 1).0;
+        let mut bytes = Vec::new();
+        save(authored.host(), &SavePolicy::default(), &mut bytes).unwrap();
+        for budget in [usize::MAX, 1] {
+            let mut book = session_without_recalc(&bytes);
+            assert!(
+                book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+                    .accepted()
+            );
+            book.set_calculation_budget(WorkBudget::evaluations(budget));
+            assert_eq!(p14_visible(&book, 1, 1).0, held);
+            let sheet = book.host().sheets()[0].id();
+            let at = |column| CellKey::new(sheet, 1, column).unwrap();
+            assert!(
+                book.dispatch(SkinIntent::CalculateRange {
+                    areas: vec![GridArea::new(at(1), at(4)).unwrap()]
+                })
+                .accepted()
+            );
+            p14_advance(&mut book);
+            let page = project(book.host(), &ProjectionRequest { cells: vec![at(1)] }).unwrap();
+            assert!(
+                page.recalc_failure().is_none(),
+                "{:?}",
+                page.recalc_failure()
+            );
+            let independent = p14_visible(&book, 1, 4);
+            assert_eq!(independent.0, CalcValue::number(4.0));
+            let stamp = independent.1.unwrap().stamp().unwrap().clone();
+            assert!(matches!(
+                stamp.computed_by,
+                calc_engine::contract::ComputationOrigin::Evaluated { .. }
+            ));
+            assert!(!stamp.reads.uses_imported_cache && !stamp.reads.uses_boundary_cache);
+            let events = book.take_calculation_events();
+            let completed = events
+                .iter()
+                .find_map(|event| match event {
+                    calc_host::CalcEvent::Completed(receipt) => Some(receipt),
+                    _ => None,
+                })
+                .unwrap();
+            assert_eq!(completed.outcome, calc_host::CompletionOutcome::Incomplete);
+            assert_eq!(
+                (
+                    completed.coverage.required,
+                    completed.coverage.calculated,
+                    completed.coverage.refused
+                ),
+                (2, 1, 1)
+            );
+            assert_eq!(stamp.certification.command, completed.command);
+            assert_eq!(p14_visible(&book, 1, 1).0, held);
+            assert!(
+                p14_visible(&book, 1, 1).1.is_none(),
+                "refusal cannot create a producing calculation"
+            );
+            assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+            p14_advance(&mut book);
+            assert_eq!(
+                p14_visible(&book, 1, 1).0,
+                CalcValue::number(held.as_number().unwrap() + 1.0)
+            );
+        }
     }
 }
 
@@ -2013,4 +2055,371 @@ fn dc_hsa5_11__eng14_supported_nonnumeric_stopping() {
         }
     }
     assert_eq!(checked, 28);
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct P14CallbackEntry {
+    ident: i32,
+    argument: Option<CalcValue>,
+    reads: Vec<CalcValue>,
+}
+
+#[derive(Debug)]
+struct P14Callback {
+    pair: bool,
+    sheet: SheetId,
+    entries: std::rc::Rc<std::cell::RefCell<Vec<P14CallbackEntry>>>,
+    pause: Option<std::rc::Rc<std::cell::Cell<bool>>>,
+    independent: Option<CellKey>,
+}
+impl calc_fml::UserFunction for P14Callback {
+    fn cached_reads(&self) -> bool { true }
+    fn state_lane(&self) -> Option<u64> {
+        Some(std::rc::Rc::as_ptr(&self.entries) as usize as u64)
+    }
+    fn reevaluation_policy(&self) -> Option<calc_fml::UserReevaluationReason> {
+        Some(calc_fml::UserReevaluationReason::ProvisionalArguments)
+    }
+    fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+        panic!("P14 callbacks require the application's admitted read context")
+    }
+    fn call_with_context(&self, args: &[CalcValue], context: &mut dyn calc_fml::UserFunctionContext)
+        -> Result<CalcValue, String>
+    {
+        assert_eq!(args.len(), 2);
+        let references = if self.pair {
+            args.iter().map(|arg| arg.as_reference().expect("recorded Variant formals retain Range objects").clone()).collect::<Vec<_>>()
+        } else {
+            [1, 2].map(|column| calc_value::ReferenceLike::cell(CellKey::new(self.sheet, 1, column).unwrap())).to_vec()
+        };
+        let mut reads = Vec::new();
+        for _ in 0..if self.pair { 2 } else { 1 } {
+            for reference in &references { reads.push(context.values_of(reference)?); }
+        }
+        if let Some(at) = self.independent {
+            reads.push(context.values_of(&calc_value::ReferenceLike::cell(at))?);
+        }
+        self.entries.borrow_mut().push(P14CallbackEntry {
+            ident: if self.pair { 0 } else { args[0].as_number().unwrap() as i32 },
+            argument: (!self.pair).then(|| args[1].clone()), reads,
+        });
+        // These are the recorded callback bodies: PacketStep returns nextValue;
+        // PacketPairVariant observes twice and returns its authored constant zero.
+        Ok(if self.pair { CalcValue::number(0.0) } else { args[1].clone() })
+    }
+    fn begin_call(&self, args: &[CalcValue], _: calc_fml::UserInvocationFrame,
+        context: &mut dyn calc_fml::UserFunctionContext)
+        -> Result<Option<Box<dyn calc_fml::UserFunctionInvocation>>, String>
+    {
+        let Some(release) = self.pause.as_ref() else { return Ok(None); };
+        assert!(self.pair);
+        let references = args.iter().map(|arg| arg.as_reference().unwrap().clone()).collect::<Vec<_>>();
+        let reads = references.iter().map(|reference| context.values_of(reference)).collect::<Result<Vec<_>, _>>()?;
+        let index = self.entries.borrow().len();
+        self.entries.borrow_mut().push(P14CallbackEntry { ident: 0, argument: None, reads });
+        Ok(Some(Box::new(P14PausedCallback {
+            release: release.clone(), entries: self.entries.clone(), index, references,
+        })))
+    }
+}
+
+#[derive(Debug)]
+struct P14PausedCallback {
+    release: std::rc::Rc<std::cell::Cell<bool>>,
+    entries: std::rc::Rc<std::cell::RefCell<Vec<P14CallbackEntry>>>,
+    index: usize,
+    references: Vec<calc_value::ReferenceLike>,
+}
+impl calc_fml::UserFunctionInvocation for P14PausedCallback {
+    fn resume(&mut self, context: &mut dyn calc_fml::UserFunctionContext, _: u64)
+        -> Result<calc_fml::UserFunctionStep, String>
+    {
+        if !self.release.get() { return Ok(calc_fml::UserFunctionStep::Suspended); }
+        for reference in &self.references {
+            self.entries.borrow_mut()[self.index].reads.push(context.values_of(reference)?);
+        }
+        Ok(calc_fml::UserFunctionStep::Complete(CalcValue::number(0.0)))
+    }
+}
+
+fn p14_trace_value(payload: &str, label: &str) -> CalcValue {
+    let text = payload.split_once(label).expect("recorded typed field").1;
+    if text.starts_with("vt=0;type=Empty;") { return CalcValue::empty(); }
+    assert!(text.starts_with("vt=5;type=Double;"), "{label}: {payload}");
+    let bits = text.split_once(";bits=").expect("recorded Double bits").1.split(';').next().unwrap();
+    CalcValue::number(f64::from_bits(u64::from_str_radix(bits, 16).unwrap()))
+}
+
+fn p14_callback_entries(events: &[serde_json::Value]) -> Vec<P14CallbackEntry> {
+    let mut entries: Vec<P14CallbackEntry> = Vec::new();
+    for event in events {
+        let payload = event["payload"].as_str().unwrap();
+        match event["kind"].as_str().unwrap() {
+            "entry" => {
+                let pair = payload.starts_with("PacketPairVariant;");
+                if pair {
+                    assert!(payload.contains("left-raw=vt=9;type=Range;"));
+                    assert!(payload.contains("right-raw=vt=9;type=Range;"));
+                }
+                entries.push(P14CallbackEntry {
+                    ident: if pair { 0 } else { payload.split_once(";id=").unwrap().1.split(';').next().unwrap().parse().unwrap() },
+                    argument: (!pair).then(|| p14_trace_value(payload, ";argument=")), reads: Vec::new(),
+                });
+            }
+            "read" => entries.last_mut().unwrap().reads.extend([
+                p14_trace_value(payload, ";left="), p14_trace_value(payload, ";right="),
+            ]),
+            "exit" => {},
+            other => panic!("unexpected measured UDF event {other}"),
+        }
+    }
+    entries
+}
+
+fn eng16_input(name: &str) -> &'static [u8] {
+    match name {
+        "eng16-pair_variant-Range-A1-B1" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng16-20261105/inputs/eng16-pair_variant-Range-A1-B1.xlsm"),
+        "eng16-pair_variant-Range-A1-D1" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng16-20261105/inputs/eng16-pair_variant-Range-A1-D1.xlsm"),
+        "eng16-pair_variant-Full" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng16-20261105/inputs/eng16-pair_variant-Full.xlsm"),
+        "eng16-pair_variant-Rebuild" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng16-20261105/inputs/eng16-pair_variant-Rebuild.xlsm"),
+        "eng16-coupled_observed-Full" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng16-20261105/inputs/eng16-coupled_observed-Full.xlsm"),
+        "eng16-coupled_observed-Rebuild" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng16-20261105/inputs/eng16-coupled_observed-Rebuild.xlsm"),
+        "eng16-coupled_observed_peer-Full" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng16-20261105/inputs/eng16-coupled_observed_peer-Full.xlsm"),
+        "eng16-coupled_observed_peer-Rebuild" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng16-20261105/inputs/eng16-coupled_observed_peer-Rebuild.xlsm"),
+        "eng16-coupled_pure-Full" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng16-20261105/inputs/eng16-coupled_pure-Full.xlsm"),
+        "eng16-coupled_pure-Rebuild" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng16-20261105/inputs/eng16-coupled_pure-Rebuild.xlsm"),
+        "eng16-coupled_pure_peer-Full" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng16-20261105/inputs/eng16-coupled_pure_peer-Full.xlsm"),
+        "eng16-coupled_pure_peer-Rebuild" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng16-20261105/inputs/eng16-coupled_pure_peer-Rebuild.xlsm"),
+        "eng16-coupled_observed_peer-Range-A1-B1" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng16-20261105/inputs/eng16-coupled_observed_peer-Range-A1-B1.xlsm"),
+        "eng16-coupled_observed_peer-Range-A1-D1" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng16-20261105/inputs/eng16-coupled_observed_peer-Range-A1-D1.xlsm"),
+        "eng16-coupled_pure_peer-Range-A1-B1" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng16-20261105/inputs/eng16-coupled_pure_peer-Range-A1-B1.xlsm"),
+        "eng16-coupled_pure_peer-Range-A1-D1" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng16-20261105/inputs/eng16-coupled_pure_peer-Range-A1-D1.xlsm"),
+        _ => panic!("unknown eng16 input {name}"),
+    }
+}
+
+/// Original formulas/seeds and recorded callback bodies through the shared host
+/// scheduler; this isolates engine behavior rather than claiming file-VBA setup.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_11__eng16_scc_counts_mid_cycle_reads_and_command_profiles() {
+    use calc_host::{CalcScope, EvalSelection, WorkBudget};
+    use std::{cell::RefCell, rc::Rc};
+    let records = std::str::from_utf8(include_bytes!(
+        "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng16-20261105/observations.jsonl"
+    )).unwrap().lines().map(|line| serde_json::from_str::<serde_json::Value>(line).unwrap()).collect::<Vec<_>>();
+    assert_eq!(records.len(), 16);
+    let mut differences = Vec::new();
+    let mut checked = 0;
+    for record in &records {
+        let name = record["condition"].as_str().unwrap();
+        let operation = record["specification"]["operation"].as_str().unwrap();
+        for budget in [usize::MAX, 1, 3] {
+            let mut book = HostSession::open(Arc::new(MemorySource::new(eng16_input(name).to_vec())), &OpenPolicy::default(),
+                HostOptions { calc_mode: Some(CalcMode::Manual), ..HostOptions::default() }).unwrap();
+            book.set_workbook_events_enabled(false);
+            book.set_calculation_budget(WorkBudget::evaluations(budget));
+            let sheet = book.host().sheets()[0].id();
+            let at = |column| CellKey::new(sheet, 1, column).unwrap();
+            let entries = Rc::new(RefCell::new(Vec::new()));
+            let mut functions = calc_fml::CallableTable::new();
+            for (function, pair) in [("PacketStep", false), ("PacketPairVariant", true)] {
+                functions.register(function, Rc::new(P14Callback {
+                    pair, sheet, entries: entries.clone(), pause: None, independent: None,
+                })).unwrap();
+            }
+            book.set_user_functions(functions);
+            book.take_calculation_events();
+            for command in record["commands"].as_array().unwrap() {
+                entries.borrow_mut().clear();
+                let number = command["command"].as_u64().unwrap();
+                let intent = match operation {
+                    "Full" => SkinIntent::Calculate { scope: CalcScope::Workbook, selection: EvalSelection::ForceAll },
+                    "Rebuild" => SkinIntent::Rebuild,
+                    "Range" => SkinIntent::CalculateRange { areas: vec![calc_value::GridArea::new(at(1), at(
+                        if record["specification"]["range"] == "A1:B1" { 2 } else { 4 }
+                    )).unwrap()] },
+                    other => panic!("unexpected recorded command {other}"),
+                };
+                let receipt = book.dispatch(intent);
+                if !receipt.accepted() { differences.push(format!("{name} budget{budget} command{number}: admission {:?}", receipt.error)); }
+                p14_advance(&mut book);
+                for cell in command["cells"].as_array().unwrap().iter().filter(|c| c["formula"].as_str().is_some_and(|f| !f.is_empty())) {
+                    let column = cell["column"].as_u64().unwrap() as u32;
+                    let actual = p14_visible(&book, 1, column).0;
+                    let expected = p14_value(&cell["value"]);
+                    if actual != expected { differences.push(format!("{name} budget{budget} command{number} column{column}: {actual:?} expected {expected:?}")); }
+                    checked += 1;
+                }
+                let wanted = p14_callback_entries(command["events"].as_array().unwrap());
+                if *entries.borrow() != wanted {
+                    differences.push(format!("{name} budget{budget} command{number}: {} entries expected {}; first {:?} expected {:?}",
+                        entries.borrow().len(), wanted.len(), entries.borrow().iter().take(2).collect::<Vec<_>>(), wanted.iter().take(2).collect::<Vec<_>>()));
+                }
+                let events = book.take_calculation_events();
+                let preliminary: Vec<_> = events.iter().filter_map(|event| {
+                    if let calc_host::CalcEvent::Reevaluated { previous, next, invocations } = event {
+                        Some((previous, next, invocations))
+                    } else { None }
+                }).collect();
+                if name.contains("pair_variant") && operation != "Range" {
+                    assert_eq!(preliminary.len(), 1, "{name} command{number}");
+                    let (previous, next, calls) = preliminary[0];
+                    assert_eq!(previous.evaluation, 0);
+                    assert_eq!(next.evaluation, 1);
+                    assert_eq!(next.reason, calc_engine::contract::ReevaluationReason::ProvisionalArguments);
+                    assert_eq!(calls.len(), 1);
+                    assert!(calls[0].completed);
+                } else { assert!(preliminary.is_empty(), "{name} command{number}"); }
+                if let Some(done) = events.iter().find_map(|event| if let calc_host::CalcEvent::Completed(done) = event { Some(done) } else { None }) {
+                    if operation == "Range" {
+                        let required = if record["specification"]["range"] == "A1:B1" { 2 } else { 4 };
+                        let calculated = usize::from(required == 4 && name.contains("pair_variant"));
+                        assert_eq!(done.coverage.required, required);
+                        if (done.coverage.calculated, done.coverage.refused) != (calculated, required - calculated) {
+                            differences.push(format!("{name} command{number}: coverage {done:?}"));
+                        }
+                        assert_eq!(done.outcome, calc_engine::contract::CompletionOutcome::Incomplete);
+                    } else {
+                        assert_eq!(done.coverage.calculated, 4);
+                        assert!(done.coverage.uncertified > 0, "iteration still has no SliceV1 invocation certificates");
+                    }
+                } else { differences.push(format!("{name} command{number}: no completion receipt")); }
+            }
+        }
+    }
+    assert_eq!(checked, 384);
+    assert!(differences.is_empty(), "{} differences; first:\n{}", differences.len(), differences.iter().take(24).cloned().collect::<Vec<_>>().join("\n"));
+}
+
+/// DNA lifecycle controls for the measured scalar prefix, rather than new Excel observations.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_11__iterative_provisional_prefix_survives_yields_and_cancellation() {
+    use std::{cell::{Cell, RefCell}, rc::Rc};
+    use calc_host::{CalcScope, EvalSelection, WorkBudget};
+    for budget in [1, 3] {
+        for cancel in [false, true] {
+            let mut book = session_without_recalc(eng16_input("eng16-pair_variant-Full"));
+            let sheet = book.host().sheets()[0].id();
+            let entries = Rc::new(RefCell::new(Vec::new()));
+            let release = Rc::new(Cell::new(false));
+            let mut functions = calc_fml::CallableTable::new();
+            functions.register("PacketPairVariant", Rc::new(P14Callback {
+                pair: true, sheet, entries: entries.clone(), pause: Some(release.clone()), independent: None,
+            })).unwrap();
+            book.set_user_functions(functions);
+            book.set_calculation_budget(WorkBudget::evaluations(budget));
+            book.take_calculation_events();
+            let before = p14_visible(&book, 1, 4);
+            assert!(book.dispatch(SkinIntent::Calculate { scope: CalcScope::Workbook, selection: EvalSelection::ForceAll }).accepted());
+            for _ in 0..20 {
+                if !entries.borrow().is_empty() { break; }
+                assert!(!matches!(book.advance_calculation(), calc_host::HostProgress::Failed(_)));
+            }
+            assert_eq!(entries.borrow().len(), 1);
+            assert_eq!(entries.borrow()[0].reads, vec![CalcValue::empty(); 2]);
+            for _ in 0..3 { book.advance_calculation(); }
+            assert_eq!(entries.borrow().len(), 1, "physical retries must retain one entry");
+            assert_eq!(p14_visible(&book, 1, 4), before, "no preliminary publication");
+            assert!(!book.take_calculation_events().iter().any(|event| matches!(event, calc_host::CalcEvent::Completed(_))));
+            if cancel {
+                book.cancel_calculation();
+                assert_eq!(entries.borrow().len(), 1);
+                assert_eq!(p14_visible(&book, 1, 4), before);
+                let events = book.take_calculation_events();
+                assert!(events.iter().any(|event| matches!(event,
+                    calc_host::CalcEvent::Completed(done) if done.outcome == calc_engine::contract::CompletionOutcome::Cancelled
+                        && done.coverage.calculated == 0)));
+            } else {
+                release.set(true);
+                p14_advance(&mut book);
+                assert_eq!(entries.borrow().len(), 6);
+                assert_eq!(entries.borrow()[0].reads, vec![CalcValue::empty(); 4]);
+                assert_eq!(p14_visible(&book, 1, 1).0.as_number(), Some(14.0));
+                assert_eq!(p14_visible(&book, 1, 2).0.as_number(), Some(15.0));
+            }
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_11__iterative_prefix_semantic_wait_stages_the_first_sweep() {
+    use std::{cell::RefCell, rc::Rc};
+    use calc_host::{CalcScope, EvalSelection, WorkBudget};
+    for budget in [1, 3] {
+        let mut book = session_without_recalc(eng16_input("eng16-pair_variant-Full"));
+        let sheet = book.host().sheets()[0].id();
+        let at = |column| CellKey::new(sheet, 1, column).unwrap();
+        set_iteration(&mut book, IterationSettings::new(true, 1, 0.001));
+        p14_enter(&mut book, 1, 5, "=40+2");
+        let entries = Rc::new(RefCell::new(Vec::new()));
+        let mut functions = calc_fml::CallableTable::new();
+        functions.register("PacketPairVariant", Rc::new(P14Callback {
+            pair: true, sheet, entries: entries.clone(), pause: None, independent: Some(at(5)),
+        })).unwrap();
+        book.set_user_functions(functions);
+        book.set_calculation_budget(WorkBudget::evaluations(budget));
+        book.take_calculation_events();
+        assert!(book.dispatch(SkinIntent::Calculate { scope: CalcScope::Workbook, selection: EvalSelection::ForceAll }).accepted());
+        p14_advance(&mut book);
+        assert_eq!(entries.borrow().len(), 2);
+        assert_eq!(entries.borrow()[0].reads, vec![CalcValue::empty(); 5]);
+        assert_eq!(entries.borrow()[1].reads, [6., 7., 6., 7., 42.].map(CalcValue::number));
+        assert_eq!(p14_visible(&book, 1, 4).0.as_number(), Some(0.0));
+        let events = book.take_calculation_events();
+        assert!(events.iter().any(|event| matches!(event, calc_host::CalcEvent::Completed(done)
+            if done.coverage.calculated == 5 && done.coverage.refused == 0)));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_11__cached_iterative_array_reads_refuse_unknown_shapes() {
+    use std::{cell::RefCell, rc::Rc};
+    for budget in [1, 3] {
+        let mut book = session_without_recalc(eng16_input("eng16-pair_variant-Full"));
+        let sheet = book.host().sheets()[0].id();
+        p14_enter(&mut book, 1, 1, "=IF(TRUE,SEQUENCE(2),B1)");
+        let mut functions = calc_fml::CallableTable::new();
+        functions.register("PacketPairVariant", Rc::new(P14Callback {
+            pair: true, sheet, entries: Rc::new(RefCell::new(Vec::new())), pause: None, independent: None,
+        })).unwrap();
+        book.set_user_functions(functions);
+        book.set_calculation_budget(calc_host::WorkBudget::evaluations(budget));
+        assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+        p14_advance(&mut book);
+        let page = project(book.host(), &ProjectionRequest { cells: vec![CellKey::new(sheet, 1, 4).unwrap()] }).unwrap();
+        assert!(matches!(page.recalc_failure(), Some(calc_host::RecalcFailed::Failed(
+            calc_engine::RecalcFailure::NotModeledScope { owner: "dc-hsa5.11", .. }
+        ))), "{:?}", page.recalc_failure());
+        assert!(matches!(page.cells()[0].value(), ProjectedValue::Stale(_)), "{:?}", page.cells()[0]);
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_11__a_pre_callback_wait_keeps_dynamic_scc_members_unique() {
+    use std::{cell::RefCell, rc::Rc};
+    for budget in [1, 3] {
+        let mut book = session_without_recalc(eng16_input("eng16-pair_variant-Full"));
+        let sheet = book.host().sheets()[0].id();
+        set_iteration(&mut book, IterationSettings::new(true, 1, 0.001));
+        let entries = Rc::new(RefCell::new(Vec::new()));
+        let mut functions = calc_fml::CallableTable::new();
+        functions.register("PacketPairVariant", Rc::new(P14Callback {
+            pair: true, sheet, entries: entries.clone(), pause: None, independent: None,
+        })).unwrap();
+        book.set_user_functions(functions);
+        p14_enter(&mut book, 1, 4, "=INDIRECT(\"E1\")+PacketPairVariant(A1,B1)");
+        p14_enter(&mut book, 1, 5, "=D1+1");
+        entries.borrow_mut().clear();
+        book.set_calculation_budget(calc_host::WorkBudget::evaluations(budget));
+        assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+        p14_advance(&mut book);
+        assert_eq!(entries.borrow().len(), 1);
+        assert_eq!(p14_visible(&book, 1, 4).0.as_number(), Some(0.0));
+        assert_eq!(p14_visible(&book, 1, 5).0.as_number(), Some(1.0));
+    }
 }

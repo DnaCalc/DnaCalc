@@ -69,7 +69,7 @@ fn trim(mut areas: Vec<GridArea>, from: GridArea, to: GridArea, cut: bool) -> Ve
     }
     areas
 }
-fn merge(mut areas: Vec<GridArea>) -> Vec<GridArea> {
+pub(crate) fn merge(mut areas: Vec<GridArea>) -> Vec<GridArea> {
     let key = |a: &GridArea| {
         (
             a.sheet(),

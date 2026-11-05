@@ -825,3 +825,29 @@ fn contract_p06_domain_save_refuses_a_changed_cut_without_reentering_a_live_asyn
     assert!(matches!(domain.complete_async(target,&token,calc_host::value::CalcValue::number(40.0)).unwrap(),calc_host::AsyncDisposition::Rejected(_)));
     assert_eq!((counts.borrow().prefix,counts.borrow().suffix),(1,0));
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_6__name_diagnostics_never_promote_external_cache_values() {
+    use calc_host::{CellEdit, HostCommand, dispatch};
+    use calc_host::value::NameScope;
+    let mut host = recalculated(&package());
+    let sheet = host.sheets()[0].id();
+    let anchor = CellKey::new(sheet, 4, 5).unwrap();
+    let names = [("CacheScalar", "SUM([1]Sheet1!A1)"),
+        ("CacheTransitive", "$A$1+1"), ("CacheReference", "[1]Sheet1!A1")];
+    let base = host.revision();
+    dispatch(&mut host, HostCommand { base, edits: names.iter().map(|(name, formula)| CellEdit::SetName {
+        name: (*name).into(), scope: NameScope::Workbook, formula: Some((*formula).into()),
+    }).collect() }).unwrap();
+    for (name, _) in names {
+        let node = host.model().definitions().name_table().lookup(NameScope::Workbook, name).unwrap();
+        let diagnostic = host.evaluate_name_with_evidence(node.id(), node.binding_version(), anchor).unwrap();
+        if name == "CacheReference" {
+            assert!(diagnostic.evaluation.outcome.unwrap().as_reference().is_some());
+            assert!(matches!(diagnostic.evaluation.invocations[0].result, calc_fml::NameResultKind::Reference { .. }));
+        } else {
+            assert!(diagnostic.evaluation.outcome.is_err(), "{name}: cache cannot become an unqualified diagnostic value");
+        }
+    }
+}

@@ -337,6 +337,41 @@ producer caches remain nonpasses. Full/Rebuild scheduling, uninstrumented SCC
 execution counts, general mid-cycle visibility, MTC-on and other histories remain
 open; the pending eng12 observer questions are not answered by this delivery.
 
+Eng19 implementation from eng16 (2026-11-05): the unchanged P14/eng16-20261105
+packet contains sixteen conditions, ten fresh processes each, with 2,634 delivery
+hashes checked. All trials agree on their two command snapshots and complete
+typed callback traces. HostSession replays the original formulas and seed caches
+with callbacks implementing the recorded bodies, at unlimited, one and three
+evaluation budgets: 384 final-value comparisons plus exact callback entry order
+and typed argument/read traces. Of those value checks, 246 are calculations and
+138 check retained displays (102 selected refused targets and 36 outside scope).
+Exit payloads, callback counters and Caller addresses are retained in the original
+events but are not independently reproduced by these registered callback bodies.
+This isolates the engine schedule; it does not claim that the original file-VBA
+setup project has run. No held cyclic target counts as a calculated match.
+
+Full and Rebuild use the same recorded scalar sweep profile. The converging
+instrumented pair enters four sweeps on the first command and one on the second.
+An independent diverging peer keeps every observed cycle member running for all
+100 sweeps in both commands. Cached callback reads see the current scalar sweep,
+including the executing member's seed/current value. A direct reference callback
+outside the cycle first enters with Range objects whose Value2 is Empty, then
+enters after each of five producer sweeps. The preliminary entry publishes no
+value and retains its completed invocation record before a distinct
+ProvisionalArguments evaluation. Physical yields retain that entry's continuation.
+
+Manual Range retains the cyclic producers and their unmet requirements. A scope
+containing only those producers now completes Incomplete with TargetsRefused.
+A selected cached observer can run once and sees Empty for those selected cyclic
+producers; it neither demands them nor creates value dependencies through its
+observations. Ordinary formula reads still refuse those values. Static scalar
+callback admission does not extend the closed-wait discovery profile to callbacks.
+Arrays, spills, tables, automatic cyclic Range and cross-workbook cycles retain
+their existing refusals. The broader iteration publication boundary remains
+uncertified; these trials do not establish MTC-on, arbitrary histories or array
+iteration semantics. Earlier text describing these scalar observer/count cases as
+open records the prior implementation state.
+
 The same delivery answers the ten Legacy denominator/blank-origin questions.
 In the recorded J2 controls, a multi-cell second argument to MROUND/QUOTIENT
 gives #VALUE!; unary plus gives
@@ -481,17 +516,21 @@ Rounding past DBL_MAX (dc-j9k.19, 2026-11-04): ROUND, ROUNDDOWN and TRUNC explic
 qualify their measured exponent-field-2047 encodings in CalcValue. A copied value retains
 that qualification; an ordinary NaN, even with identical bits, never receives it.
 Publication validates every displayed spill or fixed-array member before installing the image.
-N, ABS, unary minus and single-number extrema preserve the bits. Arithmetic returns #NUM!,
-TEXT returns #VALUE!, and type/error predicates see a number. The recorded positive comparison
-and reflexive equality work; distinct encodings, negative ordering and extrema choosing among
-multiple numbers remain typed refusals. Eng15 now records those cases; the
-implementation has not yet adopted a general ordering or selection rule.
-Its unchanged 94-cell capture currently gives 76 matches, 15 typed refusals and
-three mismatches. The negative-overflow ABS result retains the wrong sign, and
-TEXT with General or @ returns #VALUE! instead of the recorded 2E+308. The
-preceding bit-preservation and TEXT descriptions are current implementation
-behavior, not general Excel rules. All 18 nonpasses and 30 capture save/reopen
-differences remain failures; no ordering or formatting kernel was guessed.
+N, unary minus and single-number extrema preserve the bits. ABS removes the
+sign while retaining the qualification. Arithmetic returns #NUM!, and type/error
+predicates see a number. Eng15's unchanged readings establish separated overflow
+encodings in both signs and mixed finite/overflow extrema. Comparison scales the
+exponent-carry representation and the finite operand together by one half, then
+uses the existing number comparison. Near ties in the top binade still refuse;
+these observations do not establish their rounding rule. Extrema retain the
+selected value's qualification and use the same comparison for an overflow pair.
+Generic array sorting, grouping and criteria comparisons still refuse nonfinite
+inputs; they cannot infer the qualification from a bare f64. Nested SORT/INDEX
+controls cover both ordinary NaN signs so a finite selection cannot hide one.
+Concatenation and TEXT with General or @ reuse the existing General renderer;
+TEXT with the recorded numeric code 0 remains #VALUE!. The 94 immediate captured
+readings now match, with no typed refusal; the 30 capture save/reopen differences
+remain separate failures. No custom-format or unmeasured near-tie parity is claimed.
 General rendering covers the four recorded .Text readings; custom cell formats remain explicitly
 unmodelled. Eng15 retains unchanged Value2 readings at widths 8.43, 20 and 40;
 this does not establish rendering parity. Save writes #NUM! caches,
@@ -1021,14 +1060,38 @@ children from handlers and compares their normalized command/parent positions,
 ingress, intents and acceptance, detecting missing and unexpected children. This
 checks a command transcript, not arbitrary VBA state or Excel event parity.
 
+Rectangular event writes (dc-hsa5.12, engine19): the same Automation intent now
+accepts scalar broadcasts, Empty clears and exact-shape two-dimensional arrays
+over one local rectangle, bounded to 1,048,576 cells. Every element is converted
+before the transaction commits. The existing area merger forms one rectangular
+Change target; one Undo restores the entire assignment. Automatic calculation
+finishes before nested Change observes the new cells. Mixed number/text/logical/
+error arrays preserve their cell types, and a bad final element leaves all prior
+target values untouched. Multi-area, oversized and differing array/target shapes
+remain typed refusals. Calculation failure after a committed write retains the
+existing committed-prefix and event refusal behavior.
+
+This follows the documented [Range.Value array assignment](https://learn.microsoft.com/en-us/office/vba/api/excel.range.value)
+and [Value2 type distinction](https://learn.microsoft.com/en-us/office/vba/api/excel.range.value2).
+The owner controls establish DNA transaction/event behavior; they are not new
+Excel observations. Fresh scalar/array/shape-mismatch event questions remain
+unanswered under `~/codex-runs/excel-questions-eng19/rectangular-writes.questions.json`.
+
 Native interpreter/JIT controls exercise nested Change and Calculate return order,
 reentrant UDFs, Full/Rebuild entry counts, Range/F9 counts, shared-budget exhaustion,
 BeforeSave write-before-cancel, event-switch failure state and refusal propagation.
-At the pinned 7eb4fdd runtime, bare global Application receivers in typed handlers,
-literal-to-Variant member arguments and CVar linking still have frontend gaps.
-No original workbook source was rewritten to admit it. These controls do not settle
-SCC execution counts, general mid-cycle caches or callback-bearing cyclic Range;
-the existing instrumented Full/Rebuild Excel questions remain pending.
+Engine19 pins the owned CalcVBA 37651ac8 implementation. Bare global Application
+receivers, literal-to-Variant member arguments and CVar String/Variant linking
+now use their admitted owning carriers. Each ByVal Variant argument is boxed
+before later arguments can mutate its source; ByRef aliases retain their identity.
+Native library returns convert to the destination's physical carrier, including
+injected object temporaries. The earlier 7eb4fdd frontend gaps are reproduced by
+the retained before logs. The owner test exercises the original bare receiver
+syntax, numeric/String literals, CVar and calculation through both runtimes.
+No original workbook source was rewritten to admit it. The eng16 profile above
+separately establishes measured scalar SCC counts, current-sweep reads and cached
+Range observers with Full/Rebuild schedules. Broader topology, history and
+publication contexts remain open under dc-hsa5.14.
 
 
 Defined-name implementation update (dc-hsa5.5, 2026-11-01): the canonical `NameTable` stores
@@ -1047,15 +1110,17 @@ Recreated rows receive fresh live identifiers and retain qualified source-record
 an earlier edit Undo target the recreated record and lets the existing XML writer retain raw attributes
 without confusing equal duplicate formulas. Ordinary update inverses use indexed lookup; deletion
 order capture and restoration scan the name order. Scoped consumers rebind without rebuilding
-unrelated formulas. NameView commands, P12 cross-scope Excel measurement, memo eligibility and
-plan eviction remain open.
+unrelated formulas. Definition pages and explicit, versioned diagnostic name evaluations
+use the existing host/worker route. P12 cross-scope Excel measurement and shared value
+memoization remain open; the later retention update describes plan eviction.
 
 A definition node has no synthetic cell or shared cached value. Its existing evaluator block
 returns a reference or value per caller; unused names do not evaluate, and repeated volatile uses
 remain separate. Local definitions select their sheet for unqualified references and nested names;
 workbook aliases inherit the current use context. Static and INDIRECT routes test the same policy;
-new Excel parity for nested cross-scope aliases awaits P12. Per-name invocation identities,
-`NameView` evaluation commands and transitive eligibility for any shared memo remain open.
+new Excel parity for nested cross-scope aliases awaits P12. Calculation-pass identity
+for detached roots and transitive eligibility for any shared memo remain open.
+Published and explicit diagnostic body evidence is described below.
 
 Name operations (dc-hsa5.6 / dc-971p.34, 2026-11-03): the canonical compiler now carries
 `NameEvaluationContext` with the caller, current definition identity and definition worksheet.
@@ -1092,7 +1157,62 @@ and catalogue calls without a complete facility classification are ineligible. U
 calls are conservatively ineligible even when a branch is not selected. A candidate still requires
 caller/definition-sheet/workbook/scenario and numeric/semantic context, valid binding and absence
 proofs and an executed read certificate. No shared name-value cache is introduced. Unused names
-remain passive; P12 Excel measurement and invocation views remain open.
+remain passive; P12 Excel measurement and shared memo execution remain open.
+
+Name-body invocation evidence (dc-hsa5.6, engine19): the existing evaluator's retained
+child frames now carry the selected NameId/version, original caller, definition worksheet,
+body index and a formula-local ordinal with its active definition parent. Completion
+records the actual scalar kind, worksheet error, reference summary, array shape, callable
+or refusal. A returned closure can execute after its defining body ends, so the parent
+denotes active execution rather than lexical ownership or complete LAMBDA ancestry.
+Body indices are local to the producing formula; they are not independent reuse keys.
+
+The ordinary result certificate retains these records under its producing root invocation.
+`HostState::name_invocation_view` returns that root, model/result frontier and the ordinary
+cell projection. Current refusals and stale calculations retain their existing qualifications;
+literals, cleared cells and imported caches do not acquire a formula's orphaned evidence.
+The query neither binds nor evaluates names. Repeated body evaluations remain separate,
+and no shared name-value cache is introduced. Passive records do not make a pure dynamic
+Range calculation effectful. Physical yields retain the same name/callback frames;
+cancellation installs no unfinished name records.
+
+Evidence is bounded to 1,024 completed bodies per formula invocation and sixteen reference
+areas per retained body, with explicit omitted counts. Calculation continues over every
+body and the full reference. Host controls cover nested scoped aliases, untaken names,
+closures, definition edits/staleness, typed refusals, cancellation and both limits.
+This is execution evidence for stamped formula results, not a new P12 Excel measurement.
+Legacy iteration/table stamps and shared memo reuse remain outside this invocation view.
+
+Explicit diagnostic evidence (dc-hsa5.6, engine19): the existing detached evaluator can
+retain the same bounded name-body records. Host `evaluate_name_with_evidence` returns the
+authored revision, result view, workbook incarnation and actual numeric mode with its
+outcome. The existing worker `EvaluateName` command projects those records into its reply;
+the command journal retains the complete reply for retries, including retries after edits.
+The selected NameId/version and caller anchor remain the root identity, including a
+workbook definition shadowed on the caller sheet. The wire numeric label is bounded to
+Fast/Exact and is informational; full numeric-target identity remains in the Host record.
+Pre-execution version/compilation failures carry no body evidence. Runtime refusals
+retain their completed body records without acquiring a value or cell calculation stamp.
+
+Explicit name diagnostics reuse the engine's existing dirty closure to refuse consumed
+formula values that are stale or unpublished. Their local read state admits no producer
+work; a diagnostic missing input is terminal rather than a resumable calculation wait.
+Reference results can remain references without consuming their cells. This fixes a
+Manual-mode diagnostic that previously used a precedent's old calculation under a newer
+authored revision. Blank reads use the existing spill-absence corridor check for scheduled
+dynamic producers and pending formulas whose binding is unavailable; an unresolved possible
+expansion refuses. Authored occupants can still prove a corridor blocked. No result, graph
+edge or history entry is installed. Consumed unresolved external-link caches, including
+transitive cached inputs, refuse at the diagnostic boundary; reference-only results retain
+their reference identity. A completed body's numeric kind does not override that refusal.
+The dirty closure
+is computed per explicit name diagnostic; no additional index or shared name-value cache
+is added. Rendering/validation/filter consumers keep their existing published-value policy;
+a shared freshness context for those loops remains open to avoid a whole-workbook scan
+for every displayed cell.
+Host and worker controls cover selected bindings, snapshot refusals, worksheet errors,
+serialization and command retries. P12 Excel parity and non-cell calculation-pass
+envelopes remain open.
 
 The native desktop engine runner accepts `--early-execution XPure` as an explicit grant, resolved
 to active registration IDs and checked by the native adapter. It records those IDs and accepts

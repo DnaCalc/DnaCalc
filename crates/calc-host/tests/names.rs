@@ -2,12 +2,15 @@
 //! end to end through calc-host: a name defined through a command, a formula entered as the user
 //! types it, the workbook recalculated and the cell projected.
 //!
-//! Every expectation is a row of the Excel 16.0 measurement (build 20326, COM, 2026-09-15)
+//! The Unicode value expectations are rows of the Excel 16.0 measurement (build 20326, COM, 2026-09-15)
 //! recorded in calc-value's `name_case` module, ported from OxFml 15daac5
 //! (`crates/oxfml_core/tests/w079_unicode_name_case_tests.rs`): workbook names follow the full
 //! case fold (`Größe` = `GRÖSSE` = `GRÖßE` = `GRÖẞE`, final `ς` = `σ`), accents and width stay
 //! significant and `İ` / `ı` never equal `I`; LET parameters follow the simple fold, so
 //! `=LET(Größe,21,GRÖSSE*2)` reads `GRÖSSE` as the workbook name.
+//!
+//! The dc-hsa5.6 lifecycle, context and evidence-limit tests are DNA contract controls;
+//! they do not claim new Excel measurements.
 
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
@@ -77,6 +80,472 @@ fn shown(names: &[(&str, &str)], entry: &str) -> String {
 
 fn name_error() -> String {
     format!("{:?}", WorksheetErrorCode::Name)
+}
+
+/// Execution evidence, not a new Excel cross-scope measurement or a reusable name value.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_6__name_invocations_keep_context_versions_and_passive_views() {
+    use calc_doc_model::{NameScope, SheetEdit, SheetKey, SheetName};
+    use calc_fml::NameResultKind as K;
+    use calc_host::{HostSession, SkinIntent};
+    for budget in [usize::MAX, 1, 3] {
+        let mut book = HostSession::new(open());
+        assert!(
+            book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+                .accepted()
+        );
+        let one = book.host().sheets()[0].id();
+        assert!(
+            book.dispatch(SkinIntent::Edit {
+                edits: vec![CellEdit::Sheet(SheetEdit::Insert {
+                    key: SheetKey::new(2),
+                    name: SheetName::new(calc_host::value::ExcelText::from_interop_assignment(
+                        "Other"
+                    ))
+                    .unwrap(),
+                    position: std::num::NonZeroU32::new(2).unwrap(),
+                })]
+            })
+            .accepted()
+        );
+        let two = book.host().sheets()[1].id();
+        let caller = CellKey::new(two, 1, 4).unwrap();
+        let closure_caller = CellKey::new(two, 1, 5).unwrap();
+        let edits = vec![
+            define("Inner", "=$A$1"),
+            define("Unused", "=NA()"),
+            CellEdit::SetName {
+                name: "Outer".into(),
+                scope: NameScope::Sheet(one),
+                formula: Some("=Inner+1".into()),
+            },
+            CellEdit::SetName {
+                name: "Maker".into(),
+                scope: NameScope::Sheet(one),
+                formula: Some("=LAMBDA(x,Inner+x)".into()),
+            },
+            CellEdit::Set {
+                at: CellKey::new(one, 1, 1).unwrap(),
+                input: interpret_entry("2").unwrap().unwrap(),
+            },
+            CellEdit::Set {
+                at: CellKey::new(two, 1, 1).unwrap(),
+                input: interpret_entry("99").unwrap().unwrap(),
+            },
+            CellEdit::Set {
+                at: caller,
+                input: interpret_entry("=IF(FALSE,Unused,Sheet1!Outer+Sheet1!Outer)")
+                    .unwrap()
+                    .unwrap(),
+            },
+            CellEdit::Set {
+                at: closure_caller,
+                input: interpret_entry("=LET(fn,Sheet1!Maker,fn(3))")
+                    .unwrap()
+                    .unwrap(),
+            },
+        ];
+        assert!(book.dispatch(SkinIntent::Edit { edits }).accepted());
+        assert!(book.host().name_invocation_view(caller).is_none());
+        book.set_calculation_budget(WorkBudget::evaluations(budget));
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        while book.has_pending_calculation() {
+            assert!(!matches!(
+                book.advance_calculation(),
+                HostProgress::Failed(_)
+            ));
+        }
+        let table = book.host().model().definitions().name_table();
+        let inner = table.lookup(NameScope::Workbook, "Inner").unwrap().id();
+        let outer = table.lookup(NameScope::Sheet(one), "Outer").unwrap().id();
+        let unused = table.lookup(NameScope::Workbook, "Unused").unwrap().id();
+        let before_stats = book.host().plan_cache_stats();
+        let view = book.host().name_invocation_view(caller).unwrap();
+        assert_eq!(
+            book.host().plan_cache_stats(),
+            before_stats,
+            "inspection neither compiles nor evaluates"
+        );
+        assert_eq!(view.revision, book.host().revision());
+        assert!(
+            matches!(view.result.value(), ProjectedValue::Calculated { value, .. } if value.as_number() == Some(6.0))
+        );
+        assert_eq!(view.invocations.len(), 4);
+        assert_eq!(
+            view.invocations
+                .iter()
+                .map(|n| (n.definition.id, n.ordinal, n.parent))
+                .collect::<Vec<_>>(),
+            vec![
+                (inner, 1, Some(0)),
+                (outer, 0, None),
+                (inner, 3, Some(2)),
+                (outer, 2, None)
+            ]
+        );
+        assert!(
+            view.invocations
+                .iter()
+                .all(|n| n.context.caller.cell() == caller
+                    && n.context.definition_sheet == Some(one)
+                    && n.context.definition == Some(n.definition.id)
+                    && n.definition.id != unused)
+        );
+        assert_eq!(
+            view.invocations[0].result,
+            K::Reference {
+                areas: vec![calc_host::value::GridArea::cell(
+                    CellKey::new(one, 1, 1).unwrap()
+                )],
+                omitted_areas: 0,
+            }
+        );
+        assert_eq!(view.invocations[1].result, K::Number);
+        assert_eq!(view.invocations[0].body, view.invocations[2].body);
+        assert_eq!(view.invocations[1].body, view.invocations[3].body);
+        let closure = book
+            .host()
+            .name_invocation_view(closure_caller)
+            .unwrap_or_else(|| {
+                panic!(
+                    "closure projection: {:?}",
+                    project(
+                        book.host(),
+                        &ProjectionRequest {
+                            cells: vec![closure_caller]
+                        }
+                    )
+                    .unwrap()
+                )
+            });
+        assert_eq!(closure.invocations.len(), 2);
+        assert_eq!(closure.invocations[0].result, K::Callable);
+        assert_eq!(closure.invocations[1].definition.id, inner);
+        // Maker has returned before its closure runs. Parent means active execution,
+        // while the compiled definition worksheet remains explicit on Inner.
+        assert!(closure.invocations.iter().all(|n| n.parent.is_none()
+            && n.context.caller.cell() == closure_caller
+            && n.context.definition_sheet == Some(one)));
+        assert_ne!(closure.root.locus, view.root.locus);
+        assert!(
+            matches!(closure.result.value(), ProjectedValue::Calculated { value, .. } if value.as_number() == Some(5.0))
+        );
+        let old_version = view.invocations[0].definition.version;
+        assert!(
+            book.dispatch(SkinIntent::Edit {
+                edits: vec![define("Inner", "=$A$1*2")]
+            })
+            .accepted()
+        );
+        let stale = book.host().name_invocation_view(caller).unwrap();
+        assert!(matches!(stale.result.value(), ProjectedValue::Stale(_)));
+        assert_eq!(stale.root, view.root);
+        assert_eq!(stale.invocations[0].definition.version, old_version);
+        assert!(book.host().name_node(inner).unwrap().binding_version() > old_version);
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        while book.has_pending_calculation() {
+            book.advance_calculation();
+        }
+        let next = book.host().name_invocation_view(caller).unwrap();
+        assert_ne!(next.root.pass.command, view.root.pass.command);
+        assert!(
+            next.invocations
+                .iter()
+                .filter(|n| n.definition.id == inner)
+                .all(|n| n.definition.version > old_version)
+        );
+        assert!(
+            matches!(next.result.value(), ProjectedValue::Calculated { value, .. } if value.as_number() == Some(10.0))
+        );
+        assert!(
+            book.dispatch(SkinIntent::Edit {
+                edits: vec![CellEdit::Set {
+                    at: caller,
+                    input: interpret_entry("7").unwrap().unwrap(),
+                }]
+            })
+            .accepted()
+        );
+        assert!(
+            book.host().name_invocation_view(caller).is_none(),
+            "a literal must not borrow an orphaned formula's evidence"
+        );
+        assert!(
+            book.dispatch(SkinIntent::Edit {
+                edits: vec![CellEdit::Clear {
+                    area: calc_host::value::GridArea::cell(caller),
+                }]
+            })
+            .accepted()
+        );
+        assert!(book.host().name_invocation_view(caller).is_none());
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_6__name_frames_survive_callback_yields_and_cancel_without_publication() {
+    use calc_host::value::CalcValue;
+    use calc_host::{HostSession, SkinIntent};
+    use std::{cell::Cell, rc::Rc};
+    #[derive(Debug)]
+    struct Paused {
+        release: Rc<Cell<bool>>,
+        entries: Rc<Cell<usize>>,
+    }
+    #[derive(Debug)]
+    struct Activation {
+        release: Rc<Cell<bool>>,
+    }
+    impl calc_fml::UserFunction for Paused {
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            panic!("retained callback required");
+        }
+        fn begin_call(
+            &self,
+            _: &[CalcValue],
+            _: calc_fml::UserInvocationFrame,
+            _: &mut dyn calc_fml::UserFunctionContext,
+        ) -> Result<Option<Box<dyn calc_fml::UserFunctionInvocation>>, String> {
+            self.entries.set(self.entries.get() + 1);
+            Ok(Some(Box::new(Activation {
+                release: self.release.clone(),
+            })))
+        }
+    }
+    impl calc_fml::UserFunctionInvocation for Activation {
+        fn resume(
+            &mut self,
+            _: &mut dyn calc_fml::UserFunctionContext,
+            _: u64,
+        ) -> Result<calc_fml::UserFunctionStep, String> {
+            Ok(if self.release.get() {
+                calc_fml::UserFunctionStep::Complete(CalcValue::number(2.0))
+            } else {
+                calc_fml::UserFunctionStep::Suspended
+            })
+        }
+    }
+    for budget in [1, 3] {
+        for cancel in [false, true] {
+            let mut book = HostSession::new(open());
+            book.set_calculation_budget(WorkBudget::evaluations(budget));
+            let release = Rc::new(Cell::new(false));
+            let entries = Rc::new(Cell::new(0));
+            let mut functions = calc_fml::CallableTable::new();
+            functions
+                .register(
+                    "Paused",
+                    Rc::new(Paused {
+                        release: release.clone(),
+                        entries: entries.clone(),
+                    }),
+                )
+                .unwrap();
+            book.set_user_functions(functions);
+            let caller = CellKey::new(book.host().sheets()[0].id(), 1, 1).unwrap();
+            assert!(
+                book.dispatch(SkinIntent::Edit {
+                    edits: vec![
+                        define("Inner", "=Paused(2)"),
+                        define("Outer", "=Inner+1"),
+                        CellEdit::Set {
+                            at: caller,
+                            input: interpret_entry("=Outer+Outer").unwrap().unwrap()
+                        }
+                    ]
+                })
+                .accepted()
+            );
+            for _ in 0..20 {
+                if entries.get() != 0 {
+                    break;
+                }
+                book.advance_calculation();
+            }
+            assert_eq!(entries.get(), 1);
+            for _ in 0..3 {
+                book.advance_calculation();
+            }
+            assert_eq!(
+                entries.get(),
+                1,
+                "same retained name and callback activation"
+            );
+            assert!(
+                book.host().name_invocation_view(caller).is_none(),
+                "no incomplete name execution is installed"
+            );
+            let first_command = book
+                .take_calculation_events()
+                .into_iter()
+                .find_map(|event| {
+                    if let calc_host::CalcEvent::Admitted(admission) = event {
+                        Some(admission.command)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+            if cancel {
+                book.cancel_calculation();
+                assert!(book.host().name_invocation_view(caller).is_none());
+            }
+            release.set(true);
+            if cancel {
+                assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+            }
+            while book.has_pending_calculation() {
+                assert!(!matches!(
+                    book.advance_calculation(),
+                    HostProgress::Failed(_)
+                ));
+            }
+            assert_eq!(entries.get(), if cancel { 3 } else { 2 });
+            let view = book.host().name_invocation_view(caller).unwrap();
+            assert_eq!(
+                view.invocations
+                    .iter()
+                    .map(|n| (n.ordinal, n.parent))
+                    .collect::<Vec<_>>(),
+                vec![(1, Some(0)), (0, None), (3, Some(2)), (2, None)]
+            );
+            assert_eq!(view.root.pass.command != first_command, cancel);
+            assert!(
+                matches!(view.result.value(), ProjectedValue::Calculated { value, .. } if value.as_number() == Some(6.0))
+            );
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_6__refused_name_bodies_keep_fault_context_without_a_value() {
+    use calc_host::value::CalcValue;
+    use calc_host::{HostSession, SkinIntent};
+    #[derive(Debug)]
+    struct Refuses;
+    impl calc_fml::UserFunction for Refuses {
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            panic!("context required");
+        }
+        fn call_with_context(
+            &self,
+            _: &[CalcValue],
+            context: &mut dyn calc_fml::UserFunctionContext,
+        ) -> Result<CalcValue, String> {
+            Err(context.refuse_by("a refused named-body control", "dc-hsa5.6"))
+        }
+    }
+    let mut book = HostSession::new(open());
+    let mut functions = calc_fml::CallableTable::new();
+    functions
+        .register("Refuses", std::rc::Rc::new(Refuses))
+        .unwrap();
+    book.set_user_functions(functions);
+    let caller = CellKey::new(book.host().sheets()[0].id(), 1, 1).unwrap();
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![
+                define("Inner", "=Refuses()"),
+                define("Outer", "=Inner+1"),
+                CellEdit::Set {
+                    at: caller,
+                    input: interpret_entry("=Outer").unwrap().unwrap()
+                }
+            ]
+        })
+        .accepted()
+    );
+    while book.has_pending_calculation() {
+        book.advance_calculation();
+    }
+    let view = book.host().name_invocation_view(caller).unwrap();
+    assert!(
+        matches!(view.result.value(), ProjectedValue::NotModeled { refusal, .. } if refusal.to_string().contains("dc-hsa5.6"))
+    );
+    assert_eq!(
+        view.invocations
+            .iter()
+            .map(|n| (n.ordinal, n.parent, &n.result))
+            .collect::<Vec<_>>(),
+        vec![
+            (1, Some(0), &calc_fml::NameResultKind::Refused),
+            (0, None, &calc_fml::NameResultKind::Refused),
+        ]
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_6__bounded_name_evidence_counts_omissions_without_shortening_calculation() {
+    use calc_host::{HostSession, SkinIntent};
+    let count = calc_fml::MAX_RECORDED_NAME_INVOCATIONS + 7;
+    let union = [
+        "B", "D", "F", "H", "J", "L", "N", "P", "R", "T", "V", "X", "Z", "AB", "AD", "AF", "AH",
+        "AJ", "AL", "AN",
+    ]
+    .map(|column| format!("${column}$1"))
+    .join(",");
+    for budget in [1, usize::MAX] {
+        let mut book = HostSession::new(open());
+        book.set_calculation_budget(WorkBudget::evaluations(budget));
+        let sheet = book.host().sheets()[0].id();
+        let a1 = CellKey::new(sheet, 1, 1).unwrap();
+        let a2 = CellKey::new(sheet, 2, 1).unwrap();
+        assert!(
+            book.dispatch(SkinIntent::Edit {
+                edits: vec![
+                    define("Leaf", "=1+0"),
+                    define("Union", &format!("=({union})")),
+                    CellEdit::Set {
+                        at: a1,
+                        input: interpret_entry(&format!(
+                            "=SUM(MAP(SEQUENCE({count}),LAMBDA(x,Leaf)))"
+                        ))
+                        .unwrap()
+                        .unwrap()
+                    },
+                    CellEdit::Set {
+                        at: a2,
+                        input: interpret_entry("=AREAS(Union)").unwrap().unwrap()
+                    },
+                ]
+            })
+            .accepted()
+        );
+        while book.has_pending_calculation() {
+            assert!(!matches!(
+                book.advance_calculation(),
+                HostProgress::Failed(_)
+            ));
+        }
+        let many = book.host().name_invocation_view(a1).unwrap();
+        assert_eq!(
+            many.invocations.len(),
+            calc_fml::MAX_RECORDED_NAME_INVOCATIONS
+        );
+        assert_eq!(many.omitted, 7);
+        assert!(
+            matches!(many.result.value(), ProjectedValue::Calculated { value, .. } if value.as_number() == Some(count as f64))
+        );
+        let reference = book.host().name_invocation_view(a2).unwrap();
+        assert_eq!(reference.omitted, 0);
+        assert_eq!(reference.invocations.len(), 1);
+        let calc_fml::NameResultKind::Reference {
+            areas,
+            omitted_areas,
+        } = &reference.invocations[0].result
+        else {
+            panic!("reference body");
+        };
+        assert_eq!(areas.len(), 16);
+        assert_eq!(*omitted_areas, 4);
+        assert!(
+            matches!(reference.result.value(), ProjectedValue::Calculated { value, .. } if value.as_number() == Some(20.0))
+        );
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

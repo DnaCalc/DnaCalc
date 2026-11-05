@@ -267,6 +267,9 @@ pub struct ReadDetails {
     pub external_inputs: Vec<calc_fml::UserInputRead>,
     pub callables: Vec<calc_fml::CallableBindingProof>,
     pub invocations: Vec<CallInvocation>,
+    /// Actual executed definition bodies, scoped by this result's producing invocation.
+    pub name_invocations: Vec<calc_fml::NameInvocation>,
+    pub omitted_name_invocations: u64,
     pub udf_volatile: Option<bool>,
     pub boundary_caches: Vec<BoundaryReadSpan>,
     pub facts: Vec<FactStamp>,
@@ -280,6 +283,8 @@ static EMPTY_READ_DETAILS: ReadDetails = ReadDetails {
     external_inputs: Vec::new(),
     callables: Vec::new(),
     invocations: Vec::new(),
+    name_invocations: Vec::new(),
+    omitted_name_invocations: 0,
     udf_volatile: None,
     boundary_caches: Vec::new(),
     facts: Vec::new(),

@@ -310,15 +310,18 @@ fn extreme(
             number_of(&site, held, index, origin, value)?
         };
         let Some(n) = n else { return Ok(()); };
-        if best.as_ref().is_some_and(|best| best.is_excel_overflow() || value.is_excel_overflow()) {
-            // A single numeric value passes through. Choosing among overflow and
-            // other numbers is not established by the retained MAX(A1) reading.
-            return Err(site.not_modelled(Some(index)));
-        }
-        if best.as_ref().is_none_or(|best| {
+        let replace = if let Some(best) = &best
+            && (best.is_excel_overflow() || value.is_excel_overflow())
+        {
+            let order = super::comparison::overflow_numbers(&site, n, best.as_number().expect("selected number"))?;
+            if id == MIN || id == MINA { order.is_lt() } else { order.is_gt() }
+        } else {
+            best.as_ref().is_none_or(|best| {
             let prior = best.as_number().expect("selected number");
             replaces(n, prior)
-        }) {
+            })
+        };
+        if replace {
             best = Some(if value.is_excel_overflow() { value.clone() } else { CalcValue::number(n) });
         }
         Ok(())

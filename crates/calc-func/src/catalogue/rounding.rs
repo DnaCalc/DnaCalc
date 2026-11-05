@@ -170,7 +170,8 @@ fn abs(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     if arguments[0].is_excel_overflow() {
-        return Ok(arguments[0].clone());
+        let magnitude = arguments[0].as_number().expect("qualified overflow number").abs();
+        return Ok(CalcValue::excel_overflow_number(magnitude).expect("sign removal retains overflow encoding"));
     }
     numeric(ABS, arguments, services, |_, n| Ok(n[0].abs()))
 }

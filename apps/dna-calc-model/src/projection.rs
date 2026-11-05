@@ -778,6 +778,17 @@ pub struct Summary {
     pub circular_count: usize,
 }
 
+impl Summary {
+    /// Every known worksheet in workbook order, including Hidden and VeryHidden scopes.
+    pub fn all_sheets(&self)->Vec<SheetTab>{
+        let mut seen=std::collections::BTreeSet::new();let mut rows=Vec::new();
+        for id in self.sheet_order.iter().map(|s|s.id()).chain(self.sheets.iter().map(|(s,_)|s.id())).chain(self.hidden_sheets.iter().map(|(s,_,_)|s.id())){
+            if seen.insert(id){if let Some(name)=crate::address::SheetNames::sheet_name_of(self,id){rows.push(SheetTab{id,name});}}
+        }
+        rows
+    }
+}
+
 /// Supported authored SpreadsheetML file kinds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FileFormat { Xlsx, Xlsm, Xltx, Xltm }

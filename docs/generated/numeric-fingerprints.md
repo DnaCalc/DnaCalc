@@ -20,6 +20,18 @@ Separate-cell scalar observations do not establish range, array, reference or wo
 
 All problem-list entries are reported, including workbook-only, text/discrete and unidentifiable cases.
 
+R28 isolates the public LN/EXP reduction constants within the declared native instruction models, and GEOMEAN's exact integer exponent normalization followed by stored LN, reciprocal and EXP-argument stages. The sampled normalized composition is identified; private implementation internals and the product fallback remain open. The JSON binds the independent proofs and retains each stage's scope.
+
+| Function | Isolated stage |
+|---|---|
+| POISSON.DIST | Conditional return/seed constraints; no algorithm adopted |
+| HYPGEOM.DIST | Conditional return/seed constraints; no algorithm adopted |
+| HYPGEOMDIST | Conditional return/seed constraints; no algorithm adopted |
+| POISSON | Conditional return/seed constraints; no algorithm adopted |
+| EXP | resident multiply by log2(e), F2XM1 reduction and FSCALE |
+| GEOMEAN | e=ilogb(P); q=trunc(e/n); M=P*2^(-q*n); root(M,n)*2^q; Store LN(M), store 1/n from PC64, store their product from PC64, call the measured public EXP; singleton identity. |
+| LN | FYL2X with resident ln(2) |
+
 | Function | Status | Rounding | Stored stages | Window peaks | Route edges |
 |---|---|---|---|---|---|
 | BINOM.DIST | observed | ideal single/double leaf rejected on this window | unresolved | 8, 8 | unmeasured |
@@ -34,11 +46,11 @@ All problem-list entries are reported, including workbook-only, text/discrete an
 | NEGBINOMDIST | observed | unresolved: no complete scalar mathematical reference | unresolved | 8, 5 | unmeasured |
 | IRR | observed | not identifiable on non-numeric/error output | unresolved | 0, 0 | unmeasured |
 | PMT | observed | unresolved: no complete scalar mathematical reference | unresolved | 1, 8 | unmeasured |
+| LINEST | workbook-only | unresolved | unresolved | — | unmeasured |
 | GAMMA.DIST | observed | unresolved: no complete scalar mathematical reference | unresolved | 8, 8 | unmeasured |
 | BINOM.DIST.RANGE | observed | unresolved: no complete scalar mathematical reference | unresolved | 8, 5 | unmeasured |
-| KURT | observed | unresolved: no complete scalar mathematical reference | unresolved | 7, 4 | unmeasured |
-| LINEST | workbook-only | unresolved | unresolved | — | unmeasured |
 | LOGEST | workbook-only | unresolved | unresolved | — | unmeasured |
+| KURT | observed | unresolved: no complete scalar mathematical reference | unresolved | 7, 4 | unmeasured |
 | NEGBINOM.DIST | observed | unresolved: no complete scalar mathematical reference | unresolved | 8, 5 | unmeasured |
 | ODDFYIELD | observed | not identifiable on non-numeric/error output | unresolved | 0, 0 | unmeasured |
 | GAMMA | observed | unresolved: no complete scalar mathematical reference | unresolved | 7, 5 | unmeasured |
@@ -82,7 +94,6 @@ All problem-list entries are reported, including workbook-only, text/discrete an
 | NORM.DIST | observed | unresolved: no complete scalar mathematical reference | unresolved | 5, 2 | unmeasured |
 | F.DIST | observed | unresolved: no complete scalar mathematical reference | unresolved | 6, 8 | unmeasured |
 | MDURATION | observed | not identifiable on non-numeric/error output | unresolved | 0, 0 | unmeasured |
-| GEOMEAN | observed | ideal single/double leaf rejected on this window | unresolved | 6, 5 | unmeasured |
 | SINH | observed | ideal single/double leaf rejected on this window | unresolved | 8, 8 | unmeasured |
 | ROUND | workbook-only | unresolved | unresolved | — | unmeasured |
 | NPV | observed | unresolved: no complete scalar mathematical reference | unresolved | 8, 8 | unmeasured |
@@ -136,9 +147,11 @@ All problem-list entries are reported, including workbook-only, text/discrete an
 | EUROCONVERT | workbook-only | unresolved | unresolved | — | unmeasured |
 | EVEN | workbook-only | unresolved | unresolved | — | unmeasured |
 | EXP | observed | double-round mathematical leaf consistent | unresolved | 8, 8 | 1 |
-| FIXED | service-refused | unresolved | unresolved | — | unmeasured |
+| FIXED | observed | not identifiable on non-numeric/error output | unresolved | 0, 0 | unmeasured |
 | FLOOR.MATH | observed | unresolved: no complete scalar mathematical reference | unresolved | 1, 0 | unmeasured |
+| GEOMEAN | observed | ideal single/double leaf rejected on this window | unresolved | 6, 5 | unmeasured |
 | GESTEP | observed | unresolved: flat quantized windows | unresolved | 0, 0 | unmeasured |
+| HSTACK | workbook-only | unresolved | unresolved | — | unmeasured |
 | IMCOSH | observed | not identifiable on non-numeric/error output | unresolved | 0, 0 | unmeasured |
 | IMCOT | observed | not identifiable on non-numeric/error output | unresolved | 0, 0 | unmeasured |
 | IMCSCH | observed | not identifiable on non-numeric/error output | unresolved | 0, 0 | unmeasured |
@@ -148,6 +161,7 @@ All problem-list entries are reported, including workbook-only, text/discrete an
 | IMSECH | observed | not identifiable on non-numeric/error output | unresolved | 0, 0 | unmeasured |
 | IMSINH | observed | not identifiable on non-numeric/error output | unresolved | 0, 0 | unmeasured |
 | IMTAN | observed | not identifiable on non-numeric/error output | unresolved | 0, 0 | unmeasured |
+| INDEX | workbook-only | unresolved | unresolved | — | unmeasured |
 | ISEVEN | workbook-only | unresolved | unresolved | — | unmeasured |
 | ISODD | workbook-only | unresolved | unresolved | — | unmeasured |
 | Infix & | workbook-only | unresolved | unresolved | — | unmeasured |
@@ -164,8 +178,10 @@ All problem-list entries are reported, including workbook-only, text/discrete an
 | ROWS | workbook-only | unresolved | unresolved | — | unmeasured |
 | RRI | observed | unresolved: no complete scalar mathematical reference | unresolved | 6, 5 | unmeasured |
 | SIGN | workbook-only | unresolved | unresolved | — | unmeasured |
+| SORT | workbook-only | unresolved | unresolved | — | unmeasured |
 | SQRT | observed | double-round mathematical leaf consistent | unresolved | 8, 8 | unmeasured |
 | STANDARDIZE | observed | single/double indistinguishable | unresolved | 8, 8 | unmeasured |
+| TEXT | service-refused | unresolved | unresolved | — | unmeasured |
 | TEXTSPLIT | workbook-only | unresolved | unresolved | — | unmeasured |
 | WEEKNUM | observed | unresolved: flat quantized windows | unresolved | 0, 0 | unmeasured |
 | LN | observed | single/double indistinguishable | unresolved | 7, 7 | unmeasured |

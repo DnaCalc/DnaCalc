@@ -191,10 +191,15 @@ pub(crate) fn spelled_logical(text: &ExcelText) -> Option<bool> {
 /// ([`number_text`], Excel's text with `.` as the decimal separator and no column width), TRUE
 /// and FALSE as those words, Empty and Missing as empty text, an error as itself. Every finite
 /// number has text under that model, including its documented near-tie mismatches. A number
-/// that is not finite is no worksheet value and is refused as not modelled.
+/// qualified as Excel's exponent-carry rounding result uses its measured General
+/// rendering. Other nonfinite numbers are refused as not modelled.
 pub(crate) fn text(value: &CalcValue) -> Result<Cow<'_, [u16]>, Stop> {
     match value.core_ref() {
         CoreRef::Text(text) => Ok(Cow::Borrowed(text.utf16_code_units())),
+        CoreRef::Number(n) if value.is_excel_overflow() => {
+            let profile = crate::locale::format_profile(crate::locale::LocaleId::EnZa);
+            Ok(Cow::Owned(crate::format::general(&profile, n).encode_utf16().collect()))
+        }
         CoreRef::Number(n) if n.is_finite() => number_text::text(n)
             .map(|text| Cow::Owned(text.encode_utf16().collect()))
             .ok_or(Stop::NotModelled),
