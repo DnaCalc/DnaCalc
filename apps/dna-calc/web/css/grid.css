@@ -6,7 +6,7 @@
 .dc-layer{position:sticky;top:0;left:0;overflow:hidden;font:13px/1 system-ui,"Segoe UI",sans-serif;color:var(--dna-ink)}
 .dc-line{position:absolute;background:var(--dc-gridline)}
 .dc-cell[data-format=unshowable]{justify-content:flex-start}
-.dc-cell{position:absolute;box-sizing:border-box;padding:0 4px;white-space:nowrap;overflow:hidden;text-overflow:clip;display:flex;align-items:flex-end}
+.dc-cell{position:absolute;box-sizing:border-box;padding:0 3px 0 2px;white-space:nowrap;overflow:hidden;text-overflow:clip;display:flex;align-items:flex-end}
 .dc-cell[data-kind=number]{justify-content:flex-end}
 .dc-cell[data-kind=logical],.dc-cell[data-kind=error]{justify-content:center}
 .dc-cell[data-kind=error]{color:var(--dna-red-ink)}
