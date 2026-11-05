@@ -16090,3 +16090,112 @@ fn dc_971p_46__type_and_added_series_keep_minimal_plot_schema_order() {
     }}
     assert_eq!(children,["barDir","grouping","varyColors","ser","ser","ser","overlap","axId","axId"]);
 }
+
+/// Numbered text uses the ordinary fill plan, preserves zero widths and remains one history step.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_47__numbered_text_fill_steps_history_and_saved_reopening(){
+    use calc_host::{PasteSource as P,PasteMode as M,WorkbookCommand as W};
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    for(a,t)in[("A1","Part 007 Ω"),("A2","Part 009 Ω"),("C1","Item10"),("D1","Item8")]{assert!(enter(&mut book,at(s,a),t).accepted());}
+    let from=GridArea::new(at(s,"A1"),at(s,"A2")).unwrap();let to=GridArea::new(at(s,"A3"),at(s,"A5")).unwrap();
+    let plan=calc_host::prepare_paste(book.host(),P::Fill{from,down:true,series:true},to,M::All).unwrap();
+    assert!(book.host().model().cell(at(s,"A3")).is_none());let depth=book.history_depth();
+    assert!(book.dispatch(SkinIntent::Command(W::Paste(plan))).accepted());assert_eq!(book.history_depth(),(depth.0+1,0));
+    assert_eq!(book.host().model().cell(at(s,"A3")),Some(&CellInput::Text(calc_host::CellText::new(calc_host::value::ExcelText::from_utf16_code_units("Part 011 Ω".encode_utf16().collect())).unwrap())));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(book.host().model().cell(at(s,"A3")).is_none());assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let plan=calc_host::prepare_paste(book.host(),P::Fill{from:GridArea::new(at(s,"C1"),at(s,"D1")).unwrap(),down:false,series:true},GridArea::new(at(s,"E1"),at(s,"F1")).unwrap(),M::All).unwrap();assert!(book.dispatch(SkinIntent::Command(W::Paste(plan))).accepted());
+    assert_eq!(book.host().model().cell(at(s,"F1")),Some(&CellInput::Text(calc_host::CellText::new(calc_host::value::ExcelText::from_utf16_code_units("Item4".encode_utf16().collect())).unwrap())));
+    assert!(enter(&mut book,at(s,"H3"),"Item10").accepted());
+    let plan=calc_host::prepare_paste(book.host(),P::Fill{from:GridArea::cell(at(s,"H3")),down:true,series:true},GridArea::new(at(s,"H1"),at(s,"H2")).unwrap(),M::All).unwrap();assert!(book.dispatch(SkinIntent::Command(W::Paste(plan))).accepted());
+    assert_eq!(match book.host().model().cell(at(s,"H2")){Some(CellInput::Text(t))=>String::from_utf16(t.text().utf16_code_units()).unwrap(),_=>panic!("numbered text")},"Item9");
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let next=session(&saved);
+    for a in ["A1","A2","A3","A4","A5","C1","D1","E1","F1","H1","H2","H3"]{assert_eq!(next.host().model().cell(at(s,a)),book.host().model().cell(at(s,a)));}
+    assert!(enter(&mut book,at(s,"A2"),"Different009").accepted());let before=(book.host().revision(),book.history_depth());assert!(calc_host::prepare_paste(book.host(),P::Fill{from,down:true,series:true},to,M::All).is_err());assert_eq!((book.host().revision(),book.history_depth()),before);
+}
+
+/// Flash Fill previews generated literal text, preserves examples and uses ordinary save/history.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_47__flash_fill_preview_apply_undo_and_save(){
+    use calc_host::{PasteSource as P,PasteMode as M,WorkbookCommand as W};
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    for(a,t)in[("A1","Ada Lovelace"),("A2","Grace Hopper"),("A3","Katherine Johnson"),("A4","Alan Turing"),("B1","ADA"),("B2","GRACE")]{assert!(enter(&mut book,at(s,a),t).accepted());}
+    let area=GridArea::new(at(s,"B1"),at(s,"B4")).unwrap();let revision=book.host().revision();let depth=book.history_depth();
+    let plan=calc_host::prepare_paste(book.host(),P::FlashFill,area,M::Formats).unwrap();
+    assert_eq!(plan.replaces(),0);assert_eq!(plan.text_preview(),vec![(at(s,"B3"),"KATHERINE".into()),(at(s,"B4"),"ALAN".into())]);assert_eq!(book.host().revision(),revision);assert!(book.host().model().cell(at(s,"B3")).is_none());
+    assert!(book.dispatch(SkinIntent::Command(W::Paste(plan))).accepted());assert_eq!(book.history_depth(),(depth.0+1,0));
+    assert!(matches!(book.host().model().cell(at(s,"B3")),Some(CellInput::Text(_))));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(book.host().model().cell(at(s,"B3")).is_none());assert!(book.host().model().cell(at(s,"B1")).is_some());assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let next=session(&saved);for a in ["B1","B2","B3","B4"]{assert_eq!(next.host().model().cell(at(s,a)),book.host().model().cell(at(s,a)));}
+    let mut stale=book;assert!(stale.dispatch(SkinIntent::Undo).accepted());let plan=calc_host::prepare_paste(stale.host(),P::FlashFill,area,M::All).unwrap();assert!(enter(&mut stale,at(s,"A3"),"Changed Source").accepted());let before=(stale.host().revision(),stale.history_depth());assert!(!stale.dispatch(SkinIntent::Command(W::Paste(plan))).accepted());assert_eq!((stale.host().revision(),stale.history_depth()),before);assert!(stale.host().model().cell(at(s,"B3")).is_none());
+}
+
+/// Different plausible predictions, unavailable sources and invalid destinations refuse atomically.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_47__flash_fill_ambiguity_and_source_provenance_refuse(){
+    use calc_host::{PasteSource as P,PasteMode as M};
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    for(a,t)in[("A1","Ada"),("A2","Grace"),("A3","Alan Turing"),("B1","Ada"),("B2","Grace")]{assert!(enter(&mut book,at(s,a),t).accepted());}
+    let area=GridArea::new(at(s,"B1"),at(s,"B3")).unwrap();let before=(book.host().revision(),book.history_depth());
+    assert!(calc_host::prepare_paste(book.host(),P::FlashFill,area,M::All).unwrap_err().contains("different results"));assert_eq!((book.host().revision(),book.history_depth()),before);assert!(book.host().model().cell(at(s,"B3")).is_none());
+    assert!(enter(&mut book,at(s,"A1"),"Ada Lovelace").accepted());assert!(enter(&mut book,at(s,"A2"),"Grace Hopper").accepted());
+    assert!(book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual)).accepted());assert!(enter(&mut book,at(s,"A3"),"=\"Alan Turing\"").accepted());
+    assert!(calc_host::prepare_paste(book.host(),P::FlashFill,area,M::All).unwrap_err().contains("Calculate"));
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());while book.has_pending_calculation(){book.advance_calculation();}
+    assert!(calc_host::prepare_paste(book.host(),P::FlashFill,area,M::All).is_ok());
+    assert!(calc_host::prepare_paste_oriented(book.host(),P::FlashFill,area,M::All,true).is_err());
+    assert!(enter(&mut book,at(s,"B3"),"=1").accepted());assert!(calc_host::prepare_paste(book.host(),P::FlashFill,area,M::All).unwrap_err().contains("formulas and numeric"));
+}
+
+/// Delimiters, fixed affixes and Unicode extraction produce literal text even with an equals sign.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_47__flash_fill_delimiters_affixes_and_literal_equals(){
+    use calc_host::{PasteSource as P,PasteMode as M,WorkbookCommand as W};
+    for(sources,examples,expected)in[
+        (["ada@example.com","grace@example.net","alan@example.org"],["user:ada","user:grace"],"user:alan"),
+        (["'=1, alpha","'=2, beta","'=3, gamma"],["'=1","'=2"],"=3"),
+        (["Zoë Smith","李 Four","Éva Five"],["Zoë","李"],"Éva"),
+    ]{
+        let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+        for(row,source)in sources.into_iter().enumerate(){assert!(enter(&mut book,CellKey::new(s,row as u32+1,1).unwrap(),source).accepted());}
+        for(row,example)in examples.into_iter().enumerate(){assert!(enter(&mut book,CellKey::new(s,row as u32+1,2).unwrap(),example).accepted());}
+        let area=GridArea::new(at(s,"B1"),at(s,"B3")).unwrap();let plan=calc_host::prepare_paste(book.host(),P::FlashFill,area,M::All).unwrap();assert_eq!(plan.text_preview(),vec![(at(s,"B3"),expected.into())]);assert!(book.dispatch(SkinIntent::Command(W::Paste(plan))).accepted());
+        let Some(CellInput::Text(text))=book.host().model().cell(at(s,"B3"))else{panic!("generated text stays literal");};assert_eq!(String::from_utf16(text.text().utf16_code_units()).unwrap(),expected);
+        let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let next=session(&saved);assert_eq!(next.host().model().cell(at(s,"B3")),book.host().model().cell(at(s,"B3")));
+    }
+}
+
+/// Overlapping placements of the extracted core cannot silently choose one fixed affix.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_47__flash_fill_overlapping_core_placements_refuse(){
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    for(a,t)in[("A1","aba One"),("A2","aba Two"),("A3","xyz Three"),("B1","ababa"),("B2","ababa")]{assert!(enter(&mut book,at(s,a),t).accepted());}
+    let area=GridArea::new(at(s,"B1"),at(s,"B3")).unwrap();let before=(book.host().revision(),book.history_depth());
+    assert!(calc_host::prepare_paste(book.host(),calc_host::PasteSource::FlashFill,area,calc_host::PasteMode::All).unwrap_err().contains("pattern"));assert_eq!((book.host().revision(),book.history_depth()),before);assert!(book.host().model().cell(at(s,"B3")).is_none());
+}
+
+/// Invalid UTF-16 in either source or examples refuses without entering a history step.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_47__flash_fill_invalid_unicode_refuses_atomically(){
+    for address in ["A3","B2"]{
+        let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+        for(a,t)in[("A1","Ada Lovelace"),("A2","Grace Hopper"),("A3","Alan Turing"),("B1","Ada"),("B2","Grace")]{assert!(enter(&mut book,at(s,a),t).accepted());}
+        let input=CellInput::Text(calc_host::CellText::new(calc_host::value::ExcelText::from_utf16_code_units(vec![0xD800])).unwrap());assert!(book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::Set{at:at(s,address),input}]}).accepted());
+        let before=(book.host().revision(),book.history_depth());let area=GridArea::new(at(s,"B1"),at(s,"B3")).unwrap();assert!(calc_host::prepare_paste(book.host(),calc_host::PasteSource::FlashFill,area,calc_host::PasteMode::Values).unwrap_err().contains("Unicode"));assert_eq!((book.host().revision(),book.history_depth()),before);assert!(book.host().model().cell(at(s,"B3")).is_none());
+    }
+}
+
+/// Competing extraction kinds must retain all fitting placements before comparing predictions.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_47__flash_fill_ambiguous_placements_across_kinds_refuse(){
+    let mut book=session(&calc_host::blank_package());let s=book.host().sheets()[0].id();
+    for(a,t)in[("A1","aa b"),("A2","x b"),("A3","y z"),("B1","aaa b"),("B2","ax b")]{assert!(enter(&mut book,at(s,a),t).accepted());}
+    let area=GridArea::new(at(s,"B1"),at(s,"B3")).unwrap();let before=(book.host().revision(),book.history_depth());
+    assert!(calc_host::prepare_paste(book.host(),calc_host::PasteSource::FlashFill,area,calc_host::PasteMode::All).unwrap_err().contains("different results"));assert_eq!((book.host().revision(),book.history_depth()),before);assert!(book.host().model().cell(at(s,"B3")).is_none());
+}

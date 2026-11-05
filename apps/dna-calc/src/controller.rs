@@ -1692,13 +1692,13 @@ impl Controller {
         let mode = if matches!(source, wire::PasteSource::Fill { .. }) {
             wire::PasteMode::All
         } else {
-            chosen_mode
+            if matches!(source,wire::PasteSource::FlashFill){wire::PasteMode::Values}else{chosen_mode}
         };
         self.pending_actions.update(|n| *n += 1);
         self.pending_changes.update(|n| *n += 1);
         self.call(
             Request::PreparePaste {
-                transpose: transpose && !matches!(source, wire::PasteSource::Fill { .. }),
+                transpose: transpose && !matches!(source, wire::PasteSource::Fill { .. }|wire::PasteSource::FlashFill),
                 source,
                 to: Area::of(to),
                 mode,
@@ -1748,6 +1748,13 @@ impl Controller {
             controller.focus_active_skin();
         });
     }
+
+    /// Infer basic text extraction from examples, then use the ordinary paste preview.
+    pub fn flash_fill(&self){let controller=*self;self.after_input(move ||{
+        if controller.editing.get_untracked().is_some(){controller.say("Finish or cancel the current entry before Flash Fill",true);return;}
+        if controller.areas.with_untracked(|areas|areas.len()!=1){controller.say("Select one output column for Flash Fill",true);return;}
+        if let Some(to)=controller.selected_area_untracked(){controller.prepare_paste_at(wire::PasteSource::FlashFill,to,true);}
+    });}
 
     /// Keyboard equivalent of the handle: the end cell is resolved by the workbook catalogue.
     pub fn fill_through(&self, text: String) {
@@ -3650,6 +3657,8 @@ impl Controller {
                     self.dispatch(if redo { Intent::Redo } else { Intent::Undo }, |_| {});
                 }
             }
+            Ok(CommandEffect::PasteSpecial) => crate::clipboard::open_paste_special(),
+            Ok(CommandEffect::FlashFill) => self.flash_fill(),
             Ok(CommandEffect::Recalculate) => self.dispatch(Intent::Recalculate, |_| {}),
             Ok(CommandEffect::Dialog) => self.focus_command_dialog(),
             Ok(CommandEffect::FormatCells | CommandEffect::NameManager) => {}

@@ -1005,6 +1005,7 @@ pub enum PasteSource {
         cut: bool,
     },
     External(Vec<Vec<String>>),
+    FlashFill,
     Fill {
         from: Area,
         down: bool,
@@ -1024,6 +1025,7 @@ pub struct Clipboard {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PastePreview {
+    #[serde(default)] pub samples:Vec<String>,
     pub id: u64,
     pub area: Area,
     pub replaces: u64,

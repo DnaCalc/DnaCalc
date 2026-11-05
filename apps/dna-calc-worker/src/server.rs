@@ -1091,6 +1091,7 @@ impl Server {
     ) -> Result<Reply, String> {
         use wire::PasteSource;
         self.paste_plan = None;
+        let flash=matches!(source,PasteSource::FlashFill);
         let source = match source {
             PasteSource::Internal { token, cut } => calc_host::PasteSource::Snapshot {
                 snapshot: self
@@ -1105,6 +1106,7 @@ impl Server {
                 series,
             },
             PasteSource::External(rows) => calc_host::PasteSource::External(rows),
+            PasteSource::FlashFill => calc_host::PasteSource::FlashFill,
         };
         let plan = calc_host::prepare_paste_oriented(
             self.book.host(),
@@ -1113,12 +1115,14 @@ impl Server {
             wire::host_paste_mode(mode),
             transpose,
         )?;
+        let samples=if flash{plan.text_preview().into_iter().map(|(at,text)|format!("{} → {text}",cells::address(at.row(),at.column()))).collect()}else{Vec::new()};
         let target = plan.target();
         let replaces = plan.replaces();
         let id = self.next_clip;
         self.next_clip += 1;
         self.paste_plan = Some((id, plan));
         Ok(Reply::PastePreview(wire::PastePreview {
+            samples,
             id,
             area: Area::of(target),
             replaces,
