@@ -762,7 +762,8 @@ pub(super) enum Origin {
 pub(super) enum Held {
     /// Numbers only: text, logicals and blank cells are skipped.
     Numbers,
-    /// MODE also skips direct text and logical arguments.
+    /// MODE skips text/logicals, but a direct blank or omission is #VALUE!.
+    /// A single-cell reference follows that scalar rule; larger ranges skip blanks.
     ModeNumbers,
     /// The A-suffixed rule: in a reference, text is 0, TRUE is 1 and FALSE is 0; blank cells are
     /// skipped. In an array text and logicals are skipped (dc-bd5: Excel 16.0.20527 gives
@@ -789,6 +790,11 @@ pub(super) fn number_of(
         return Ok(None);
     }
     if origin == Origin::Direct {
+        if matches!(held, Held::ModeNumbers)
+            && matches!(value.core_ref(), CoreRef::Empty | CoreRef::Missing)
+        {
+            return Err(Exit::Error(WorksheetErrorCode::Value));
+        }
         return site.number_argument(index, value).map(Some);
     }
     match (held, value.core_ref()) {
@@ -815,10 +821,11 @@ pub(super) fn each_number(
     held: Held,
     take: &mut dyn FnMut(f64) -> Step<()>,
 ) -> Step<()> {
-    each_value(
+    read_values(
         site,
         arguments,
         services,
+        matches!(held, Held::ModeNumbers),
         &mut |index, origin, value| match number_of(site, held, index, origin, value)? {
             Some(n) => take(n),
             None => Ok(()),
@@ -835,13 +842,36 @@ pub(super) fn each_value(
     services: &mut EvalServices<'_>,
     visit: &mut dyn FnMut(usize, Origin, &CalcValue) -> Step<()>,
 ) -> Step<()> {
+    read_values(site, arguments, services, false, visit)
+}
+
+/// MODE's scalar-cell rule uses the same reader and argument order. A sparse
+/// reader need not visit a blank cell, so retain Empty until a value is visited.
+fn read_values(
+    site: &Site<'_>,
+    arguments: &[CalcValue],
+    services: &mut EvalServices<'_>,
+    scalar_references: bool,
+    visit: &mut dyn FnMut(usize, Origin, &CalcValue) -> Step<()>,
+) -> Step<()> {
     for (index, argument) in arguments.iter().enumerate() {
         match argument.core_ref() {
             CoreRef::Reference(reference) => {
                 let cells = reader(site, services, index)?;
-                read_reference(site, cells, reference, index, &mut |_, _, value| {
-                    visit(index, Origin::Held, value)
-                })?;
+                if scalar_references && matches!(reference.areas(), [area]
+                    if area.row_count() == 1 && area.column_count() == 1)
+                {
+                    let mut value = CalcValue::empty();
+                    read_reference(site, cells, reference, index, &mut |_, _, held| {
+                        value = held.clone();
+                        Ok(())
+                    })?;
+                    visit(index, Origin::Direct, &value)?;
+                } else {
+                    read_reference(site, cells, reference, index, &mut |_, _, value| {
+                        visit(index, Origin::Held, value)
+                    })?;
+                }
             }
             CoreRef::Array(array) => {
                 for element in array.iter_row_major() {

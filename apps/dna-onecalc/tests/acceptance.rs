@@ -154,7 +154,8 @@ fn delivered_scalar_readings_follow_the_application_route() {
                 use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
                 session.set_environment(Some(CalcEnvironment {
                     profile: Some(format_profile(LocaleId::EnZa).with_separators(".", " ").unwrap()),
-                    compatibility_version: reading["compatibility_version"].as_u64().unwrap_or(1) as u32,
+                    compatibility_version: witness["compatibility_version"].as_u64()
+                        .or_else(|| reading["compatibility_version"].as_u64()).unwrap_or(1) as u32,
                     ..CalcEnvironment::dates(DateSystem::System1900)
                 }));
             }
@@ -198,7 +199,7 @@ fn delivered_scalar_readings_follow_the_application_route() {
             }
         }
     }
-    assert_eq!(count, 3679);
+    assert_eq!(count, 3713);
     assert!(failures.is_empty(), "{} of{count} readings differ:\n{}", failures.len(), failures.join("\n"));
 }
 

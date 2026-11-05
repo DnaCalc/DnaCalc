@@ -12,7 +12,7 @@
 //! modelled.
 
 use super::financial::{OFFSET_1904, date_1900, required_num, required_number};
-use super::kit::{fail, given, num, num_without_logical, reject_logical};
+use super::kit::{fail, given, num, num_without_logical};
 use crate::call::EvalServices;
 use crate::kernel::{Site, Step};
 use crate::locale::DateSystem;
@@ -40,9 +40,9 @@ fn or(site: &Site<'_>, a: &[CalcValue], index: usize, default: f64) -> Step<f64>
 
 /// The bill functions admit and validate each date before reading the next scalar.
 fn bill_arguments(site: &Site<'_>, a: &[CalcValue], sv: &EvalServices<'_>) -> Step<[f64; 3]> {
-    reject_logical(&a[0])?;
+    required_number(&a[0])?;
     let settlement = super::kit::checked_date_serial(date_1900(site, a, 0, sv)?)?;
-    reject_logical(&a[1])?;
+    required_number(&a[1])?;
     let maturity = super::kit::checked_date_serial(date_1900(site, a, 1, sv)?)?;
     let rate = super::kit::num_without_logical(site, a, 2)?;
     Ok([settlement, maturity, rate])
