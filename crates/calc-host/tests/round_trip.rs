@@ -11791,7 +11791,9 @@ fn dc_971p__numeric_sort_refusals_preserve_inputs_styles_and_revision() {
     let r=refuse(&mut book,1,rev);assert!(r.error.unwrap().to_string().contains("qualified or unsupported formula references"));
     assert!(enter(&mut book,at(s,"B1"),"literal").accepted());
     let rev=book.host().revision().get();refuse(&mut book,3,rev);refuse(&mut book,1,rev-1);
-    assert!(enter(&mut book,at(s,"A2"),"\u{1100}").accepted());assert!(enter(&mut book,at(s,"A1"),"text").accepted());let rev=book.host().revision().get();
+    // U+1100's measured primary group now orders it against Latin (dc-zsn.2.5).
+    // U+1103 still has no measured comparison route; keep every refusal assertion.
+    assert!(enter(&mut book,at(s,"A2"),"\u{1103}").accepted());assert!(enter(&mut book,at(s,"A1"),"text").accepted());let rev=book.host().revision().get();
     let r=refuse(&mut book,1,rev);assert!(r.error.unwrap().to_string().contains("row order"));
     assert!(enter(&mut book,at(s,"A1"),"3").accepted());
     assert!(enter(&mut book,at(s,"A2"),"1").accepted());
@@ -11809,6 +11811,34 @@ fn dc_971p__numeric_sort_refusals_preserve_inputs_styles_and_revision() {
     let sorted=book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows{area:GridArea::new(at(dates,"A1"),at(dates,"A2")).unwrap(),keys:vec![calc_host::SortKey{column:1,descending:false}],header:false,revision}));
     assert!(sorted.accepted(),"{sorted:?}");
     assert!(match (book.host().model().cell(at(dates,"A1")),book.host().model().cell(at(dates,"A2"))) {(Some(CellInput::Number(a)),Some(CellInput::Number(b)))=>a.get()<b.get(),_=>false});
+}
+
+/// A consequence of the measured C0 versus Latin primary groups. Same-group
+/// Jamo comparisons remain refused; this sort needs only the strict group order.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zsn25__numeric_sort_uses_measured_primary_group() {
+    use calc_host::WorkbookCommand;
+    let mut book = session(&calc_host::blank_package());
+    let sheet = book.host().sheets()[0].id();
+    for (cell, input) in [("A1", "ᄀ"), ("B1", "Jamo"), ("A2", "text"), ("B2", "Latin")] {
+        assert!(enter(&mut book, at(sheet, cell), input).accepted());
+    }
+    let revision = book.host().revision().get();
+    let sorted = book.dispatch(SkinIntent::Command(WorkbookCommand::SortRows {
+        area: GridArea::new(at(sheet, "A1"), at(sheet, "B2")).unwrap(),
+        keys: vec![calc_host::SortKey { column: 1, descending: false }],
+        header: false,
+        revision,
+    }));
+    assert!(sorted.accepted(), "{sorted:?}");
+    assert_eq!(book.host().model().cell(at(sheet, "A1")), calc_host::interpret_entry("text").unwrap().as_ref());
+    assert_eq!(book.host().model().cell(at(sheet, "A2")), calc_host::interpret_entry("ᄀ").unwrap().as_ref());
+    assert_eq!(book.host().model().cell(at(sheet, "B1")), calc_host::interpret_entry("Latin").unwrap().as_ref());
+    assert_eq!(book.host().model().cell(at(sheet, "B2")), calc_host::interpret_entry("Jamo").unwrap().as_ref());
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(book.host().model().cell(at(sheet, "A1")), calc_host::interpret_entry("ᄀ").unwrap().as_ref());
+    assert_eq!(book.host().model().cell(at(sheet, "B1")), calc_host::interpret_entry("Jamo").unwrap().as_ref());
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
