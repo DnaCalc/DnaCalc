@@ -246,6 +246,11 @@ impl ParsedComplex {
         ))
     }
     pub(crate) fn sinh(self) -> Self {
+        // Preserve the finite real axis when the real primitive overflows:
+        // its imaginary component is zero, without forming infinity * sin(0).
+        if self.im == 0.0 && self.re.is_finite() {
+            return Self::new(crt_sinh(self.re), 0.0, None);
+        }
         Self::new(
             crt_sinh(self.re) * crt_cos(self.im),
             crt_cosh(self.re) * crt_sin(self.im),
@@ -253,6 +258,9 @@ impl ParsedComplex {
         )
     }
     pub(crate) fn cosh(self) -> Self {
+        if self.im == 0.0 && self.re.is_finite() {
+            return Self::new(crt_cosh(self.re), 0.0, None);
+        }
         Self::new(
             crt_cosh(self.re) * crt_cos(self.im),
             crt_sinh(self.re) * crt_sin(self.im),

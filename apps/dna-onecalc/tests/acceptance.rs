@@ -3125,3 +3125,42 @@ fn recorded_geomean_equal_inputs_keep_their_value() {
     assert!(failures.is_empty(), "{} of {} application checks differ:\n{}",
         failures.len(), 3 * rows, failures.join("\n"));
 }
+
+/// Original zero, signed-unit and overflowing finite-real controls distinguish
+/// the real-axis identity from an indeterminate imaginary zero times infinity.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_complex_hyperbolics_keep_the_real_axis() {
+    let sets: &[(&str, &[u8])] = &[
+        ("IMSINH", include_bytes!("../../../crates/calc-func/tests/witnesses/IMSINH.json")),
+        ("IMCOSH", include_bytes!("../../../crates/calc-func/tests/witnesses/IMCOSH.json")),
+        ("IMCSCH", include_bytes!("../../../crates/calc-func/tests/witnesses/IMCSCH.json")),
+        ("IMSECH", include_bytes!("../../../crates/calc-func/tests/witnesses/IMSECH.json")),
+    ];
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J20").unwrap();
+    let mut rows = 0;
+    let mut failures = Vec::new();
+    for &(function, bytes) in sets {
+        let set = calc_verdict::WitnessSet::decode(bytes).unwrap();
+        session.set_formula(&format!("={function}(A1)"));
+        for row in &set.witnesses {
+            if row.reading != "fn10-hyperbolic-original" { continue; }
+            let input = calc_verdict::decode_argument(&row.args[0], function)
+                .unwrap().as_number().unwrap();
+            if ![0.0_f64.to_bits(), 1.0_f64.to_bits(), (-1.0_f64).to_bits(), 1e100_f64.to_bits()]
+                .contains(&input.to_bits()) { continue; }
+            session.set_input("A1", InputValue::number(input).unwrap()).unwrap();
+            let expected = calc_verdict::decode_result(&row.expected).unwrap();
+            let result = session.calculate();
+            rows += 1;
+            if result.result.as_ref() != Some(&expected) || !result.diagnostics.is_empty() {
+                failures.push(format!("{}: expected {expected:?}, calculated {:?}; {:?}",
+                    row.id, result.result, result.diagnostics));
+            }
+        }
+    }
+    assert_eq!(rows, 16, "four original controls for each hyperbolic function must run");
+    assert!(failures.is_empty(), "{} of {rows} application checks differ:\n{}",
+        failures.len(), failures.join("\n"));
+}
