@@ -200,7 +200,10 @@ pub fn expon_dist_kernel(x: f64, lambda: f64, cumulative: bool) -> R {
 /// `BINOM.DIST(number_s, trials, probability_s, cumulative)`.
 pub fn binom_dist_kernel(number_s: f64, trials: f64, p: f64, cumulative: bool) -> R {
     let (k, n) = (number_s.trunc(), trials.trunc());
-    if n < 0.0 || k < 0.0 || k > n || !(0.0..=1.0).contains(&p) {
+    // R28: the adjacent count operands below/at signed32's positive sentinel
+    // distinguish admission before PMF/CDF and p=0/1 shortcuts. Fractional
+    // counts below the sentinel still truncate into the admitted range.
+    if n < 0.0 || n >= i32::MAX as f64 || k < 0.0 || k > n || !(0.0..=1.0).contains(&p) {
         return Err(NUM);
     }
     if p == 0.0 {
