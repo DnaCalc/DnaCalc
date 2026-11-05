@@ -29,6 +29,44 @@ use std::collections::{BTreeMap, BTreeSet};
 mod provider_tests {
     use super::*;
 
+    /// DNA provenance control: shape access keeps external ancestry without granting value access.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn refused_scalar_shape_keeps_external_provenance_and_denies_its_value() {
+        use calc_doc_model::{AuthoredRevision, CellInput, FormulaText, SheetEntry, SheetKey, SheetName, SheetVisibility};
+        use calc_value::ExcelText;
+        let sheet = SheetId::from_parts(0, 0);
+        let at = CellKey::new(sheet, 1, 1).unwrap();
+        let root = ModelRoot::with_cells(AuthoredRevision::new(0), vec![SheetEntry::new(
+            sheet, SheetKey::new(1), SheetName::new(ExcelText::from_utf16_code_units("Sheet1".encode_utf16().collect())).unwrap(), SheetVisibility::Visible,
+        )], [(at, CellInput::Formula(FormulaText::new(ExcelText::from_utf16_code_units("A1+1".encode_utf16().collect())).unwrap()))]).unwrap();
+        let state = EngineState::new(&root);
+        let node = state.node_at(at).unwrap();
+        let pin = BoundarySnapshot {
+            view: state.result_view(),
+            entries: BTreeMap::from([(at, BoundaryValue { node, value: CalcValue::number(77.), dirty: true,
+                imported: false, external: true, source: None, extent: None })]),
+            spills: SpillIndex::default(), empty: CalcValue::empty(), refused: BTreeSet::new(),
+        };
+        let progress = Progress::new(1);
+        let spills = SpillIndex::default();
+        let refused = BTreeSet::from([node]);
+        let scope = crate::CalcScope::Range(vec![GridArea::cell(at)]);
+        let denial = Cell::new(None);
+        let used = Cell::new(false);
+        let uncomputed = Cell::new(None);
+        let mut reader = WorkbookReader::new(RecalcView {
+            linked_workbooks: &state.linked_workbooks, cached_observation: false, caller: None,
+            scope: Some(&scope), range_refused: Some(&refused), boundary: Some(&denial),
+            boundary_caches: Some(&pin), boundary_used: Some(&used), workbook_facts: None,
+            inputs: &root, state: &state, progress: &progress, spills: &spills, iterates: None, kept: None,
+        }, &uncomputed);
+        assert!(matches!(reader.spill_extent(at), SpillExtent::Area(area) if area == GridArea::cell(at)));
+        assert!(used.get() && reader.read_external_links());
+        assert!(matches!(reader.formula_lookup(at), Ok(None)));
+        assert_eq!(denial.get(), Some(iterative_range_denial()));
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn provider_targets_are_not_rebound_by_ambiguous_file_name() {
@@ -520,6 +558,7 @@ impl BoundarySnapshot {
         state: &EngineState,
         inputs: &ModelRoot,
         scope: &crate::CalcScope,
+        selected_refused: &BTreeSet<NodeId>,
     ) -> Self {
         let mut entries = BTreeMap::new();
         let mut spills = SpillIndex::default();
@@ -528,7 +567,16 @@ impl BoundarySnapshot {
         let outside_limit = if matches!(scope, crate::CalcScope::Workbook) { 0 } else { usize::MAX };
         for node in state.nodes().take(outside_limit) {
             let at = node.anchor();
-            if scope.contains(at) || !matches!(inputs.cell(at), Some(CellInput::Formula(_))) {
+            let selected = scope.contains(at);
+            if (selected && !selected_refused.contains(&node.id()))
+                || !matches!(inputs.cell(at), Some(CellInput::Formula(_))) {
+                continue;
+            }
+            // Selected cyclic targets may lend only an actual scalar cache's
+            // shape, never its value. Fixed/held array images stay unmeasured.
+            if selected && (inputs.definitions().array(at).is_some()
+                || state.spills.get(at).is_some()
+                || state.cached_arrays.contains_key(&node.id())) {
                 continue;
             }
             let Some(result) = state.permitted_cache(at) else {
@@ -701,6 +749,15 @@ impl Progress {
     pub(crate) fn stage(&mut self, node: NodeId, result: FormulaResult) {
         self.staged.insert(node.slot(), (node, result));
         self.status.insert(node.slot(), EVALUATED);
+    }
+    /// Exclusion retains the published seed and its unmet requirement; it stages nothing.
+    pub(crate) fn exclude(&mut self, node: NodeId) {
+        if self.is_scheduled(node) {
+            self.scheduled -= 1;
+        }
+        self.status.remove(node.slot());
+        self.staged.remove(node.slot());
+        self.footprints.remove(&node);
     }
     pub(crate) fn staged(&self, node: NodeId) -> Option<&FormulaResult> {
         self.staged
@@ -1767,6 +1824,15 @@ impl ReferenceReader for WorkbookReader<'_> {
                     .is_some_and(|nodes| nodes.contains(&node))
             })
         {
+            if let Some(pin) = view.boundary_caches
+                && let Some(value) = pin.entries.get(&anchor)
+                && view.state.node_at(anchor) == Some(value.node)
+                && value.extent.is_none()
+            {
+                if let Some(used) = view.boundary_used { used.set(true); }
+                if value.external { self.external.set(true); }
+                return SpillExtent::Area(GridArea::cell(anchor));
+            }
             self.denial.set(Some(iterative_range_denial()));
             if let Some(boundary) = view.boundary {
                 boundary.set(Some(iterative_range_denial()));
@@ -2016,7 +2082,7 @@ impl CachedReadLease {
             )
             .expect("observation view identity exhausted");
         let mut cache =
-            BoundarySnapshot::capture(state, inputs, &crate::CalcScope::Range(Vec::new()));
+            BoundarySnapshot::capture(state, inputs, &crate::CalcScope::Range(Vec::new()), &BTreeSet::new());
         let mut refused: BTreeSet<_> = state
             .nodes()
             .filter_map(|node| {

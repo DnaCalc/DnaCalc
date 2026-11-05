@@ -389,6 +389,9 @@ impl<T> BySlot<T> {
     fn insert(&mut self, node: NodeId, value: T) {
         self.entries.insert(node.slot(), (node, value));
     }
+    fn remove(&mut self, node: NodeId) {
+        if self.get(node).is_some() { self.entries.remove(node.slot()); }
+    }
     fn into_entries(self) -> impl Iterator<Item = (NodeId, T)> {
         self.entries.into_values()
     }
@@ -1372,7 +1375,7 @@ fn begin_with_scope(
             return Err(iterative_range_refusal());
         }
         // Only the measured pure scalar Manual profile can admit independent work.
-        // Its conservative graph closure may retain additional unmeasured readers.
+        // A reader is refused only if its executed path requests a refused value.
         if order.iter().any(|node| {
             let at = live_anchor(state, *node);
             matches!(state.bindings.get(node), Some(Binding::DataTable(_)))
@@ -1383,15 +1386,7 @@ fn begin_with_scope(
         }) {
             return Err(iterative_range_refusal());
         }
-        range_refused.extend(
-            dirty_closure(state, inputs, cyclic.clone(), &|node| {
-                invalidation_areas(state, inputs, node)
-            })
-            .members()
-            .iter()
-            .copied()
-            .filter(|node| scope.contains(live_anchor(state, *node))),
-        );
+        range_refused.extend(cyclic.iter().copied());
         order.retain(|node| !range_refused.contains(node));
         if order.is_empty() {
             return Err(iterative_range_refusal());
@@ -1451,7 +1446,7 @@ fn begin_with_scope(
         },
         predecessor: None,
     };
-    let boundary_caches = crate::read::BoundarySnapshot::capture(state, inputs, &admission.scope);
+    let boundary_caches = crate::read::BoundarySnapshot::capture(state, inputs, &admission.scope, &range_refused);
     let mut reference_rank = BySlot::new(state.nodes.len(), order.len());
     let segment_scheduling = selection != EvalSelection::FormulaEntry
         && !iteration.enabled()
@@ -1582,7 +1577,7 @@ fn begin_with_scope(
                     .iter()
                     .map(|node| live_anchor(state, *node))
                     .collect(),
-                construct: "cyclic targets and their readers in a Manual range calculation",
+                construct: "cyclic targets in a Manual range calculation",
                 owner: "dc-hsa5.11",
             });
         }
@@ -2075,6 +2070,7 @@ fn apply(
             defer(state, inputs, work, node, on);
         }
         Ok(Attempt::Kept) => keep(state, inputs, work, node),
+        Ok(Attempt::RangeRefused) => exclude_range_reader(state, work, node),
         Ok(Attempt::Waits { on, cell }) => {
             if work.parallel_scheduling && parallel_limit(state, node).is_some() {
                 // Static prerequisites were checked before entry. A callback's
@@ -2096,6 +2092,43 @@ fn apply(
         }
         Err(failure) => work.failure = Some(failure),
     }
+}
+
+/// Retains an executed reader's historical result and releases its pure waiters.
+/// Refusal does not establish SCC membership or satisfy a target requirement.
+fn exclude_range_reader(state: &EngineState, work: &mut RecalcWork, node: NodeId) {
+    if !work.range_refused.insert(node) { return; }
+    work.progress.exclude(node);
+    work.local = EvalLocal::default();
+    work.suspended.remove(&node);
+    work.dynamic.remove(node);
+    work.filled.remove(node);
+    let at = live_anchor(state, node);
+    work.spills.remove(at);
+    work.blocked_spills.remove(&at);
+    work.sizing.remove(&node);
+    work.rewave.remove(&node);
+    work.semantic_waits.remove(&node);
+    work.ready.retain(|held| *held != node);
+    if let Some(on) = work.waits_on.remove(&node)
+        && let Some(waiters) = work.waiting.get_mut(&on) {
+        waiters.retain(|held| *held != node);
+    }
+    if let Some(waiters) = work.waiting.remove(&node) {
+        for waiter in waiters {
+            if work.waits_on.remove(&waiter) == Some(node)
+                && !work.range_refused.contains(&waiter)
+                && !work.ready.contains(&waiter) {
+                work.ready.push_back(waiter);
+            }
+        }
+    }
+    work.events.push(CalcEvent::TargetsRefused {
+        command: work.admission.command,
+        targets: vec![at],
+        construct: "an executed reader of a refused cyclic value in a Manual range calculation",
+        owner: "dc-hsa5.11",
+    });
 }
 
 /// Parallel evaluation of a recalculation's first wave on native platforms (dc-2m0).
@@ -3904,12 +3937,13 @@ fn next_node(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) -> 
             }
         }
         if let Some(node) = work.ready.pop_front() {
+            if work.range_refused.contains(&node) { continue; }
             return Some(node);
         }
         if work.next < work.order.len() {
             let node = work.order[work.next];
             work.next += 1;
-            if work.progress.is_evaluated(node) || work.waits_on.contains_key(&node) {
+            if work.range_refused.contains(&node) || work.progress.is_evaluated(node) || work.waits_on.contains_key(&node) {
                 continue;
             }
             return Some(node);
@@ -4905,6 +4939,9 @@ impl EvaluationObserver for Instrument<'_, '_> {
 
 /// What one evaluation of a node gives.
 enum Attempt {
+    /// An executed pure reader requested a refused selected cyclic value.
+    /// Retain its historical result without promoting it to a cyclic producer.
+    RangeRefused,
     /// The same semantic activation retains its stack, instruction pointer and kernel buffer.
     Suspended,
     AwaitExternal,
@@ -5658,13 +5695,7 @@ fn evaluate_unstamped(
         return Err(RecalcFailure::ReadFailed { formula, area });
     }
     if local.boundary_read.get() == Some(crate::read::iterative_range_denial()) {
-        // The denied reader may itself have a cycle hidden after this read.
-        // Preserve its previous result for a later authorized workbook seed.
-        let denial = crate::read::iterative_range_denial();
-        return Err(RecalcFailure::NotModeledScope {
-            construct: denial.construct,
-            owner: denial.owner,
-        });
+        return Ok(Attempt::RangeRefused);
     }
     // With iteration off, a formula that read one a circular reference left uncalculated is not
     // calculated either (dc-10y).

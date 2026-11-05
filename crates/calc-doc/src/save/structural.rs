@@ -1641,7 +1641,7 @@ fn part_pass(
 }
 
 /// A chart part's series formulas (`c:f`) rewritten for `edit`; `None` when none changes.
-fn chart_pass(
+pub(super) fn chart_pass(
     xml: &XmlPart,
     edit: AxisEdit,
     rewrite: &Rewrite<'_>,

@@ -4,3 +4,5 @@ deploy/host/** text eol=lf
 deploy/caddy/** text eol=lf
 # Keep the captured boundary bytes and their SHA-256 records exact across platforms.
 crates/calc-xll-reference/traces/** -text
+# Preserve eng14's original authored-entry manifest, including its recorded CRLF bytes.
+crates/calc-engine/tests/fixtures/eng14-raw-nonfinite/oracle.entries.json -text whitespace=cr-at-eol

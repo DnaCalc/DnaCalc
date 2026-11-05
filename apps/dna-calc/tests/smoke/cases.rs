@@ -8521,6 +8521,31 @@ Case {
         Action::DoubleClick("[data-dnacalc=sheet-tab][data-sheet=Data]"),Action::Wait(Check::Focused("sheet-rename-name")),Action::Wait(Check::Value("sheet-rename-name","Data")),Action::Keys("sheet-rename-name","New Data\u{E007}"),Action::Wait(Check::Text("[data-dnacalc=sheet-tab][aria-selected=true]","New Data")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Tabs.xlsx"),Action::DiscardReplacement,Action::DoubleClick("[data-dnacalc=sheet-tab][data-sheet='Renamed inputs']"),Action::Wait(Check::Focused("sheet-rename-name"))],checks:&[
         Check::Value("sheet-rename-name","Renamed inputs"),Check::Count("[data-dnacalc=sheet-tab][data-sheet='New Data']",1),Check::Count("[data-dnacalc=sheet-tab][data-sheet='Renamed inputs']",1),Check::Fits]},
 
+    Case {name:"chart series: names and ranges update live marks",actions:&[
+        Action::Window(1600,1800),Action::Upload("open-file","crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx"),Action::DiscardReplacement,Action::Click("skin-grid"),Action::OpenDetails("chart-tools"),Action::Wait(Check::Value("chart-series","0")),Action::Wait(Check::Value("chart-series-values","Data!$B$2:$B$7")),Action::Into("chart-series-name","Updated & Ω"),Action::Into("chart-series-values","Data!C2:C7"),Action::Click("chart-series-apply")],checks:&[
+        Check::Value("chart-series-name","Updated & Ω"),Check::Value("chart-series-values","'Data'!$C$2:$C$7"),Check::Text("[data-chart=\"Chart 1\"] [data-dnacalc=chart-legend]:first-of-type text","Updated & Ω"),Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","data-value","8"),Check::Attr("[data-chart=\"Chart 2\"] [data-series=\"0\"][data-point=\"0\"]","data-value","12")]},
+    Case {name:"chart series: Undo and Redo restore sources as one edit",actions:&[
+        Action::Click("undo"),Action::Wait(Check::Value("chart-series-name","=Data!$B$1")),Action::Wait(Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","data-value","12")),Action::Click("redo")],checks:&[
+        Check::Value("chart-series-name","Updated & Ω"),Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","data-value","8")]},
+    Case {name:"chart series: an invalid rectangle leaves the chart intact",actions:&[
+        Action::Into("chart-series-name","Rejected"),Action::Into("chart-series-values","Data!A1:B3"),Action::Click("chart-series-apply")],checks:&[
+        Check::TextContains("status","Chart ranges must be one row or column"),Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","data-value","8"),Check::Text("[data-chart=\"Chart 1\"] [data-dnacalc=chart-legend]:first-of-type text","Updated & Ω")]},
+    Case {name:"chart series: add a live series with its own name and ranges",actions:&[
+        Action::Choose("chart-series","new"),Action::Into("chart-series-name","=Data!B1"),Action::Into("chart-series-categories","Data!A2:A7"),Action::Into("chart-series-values","Data!B2:B7"),Action::Click("chart-series-apply")],checks:&[
+        Check::Count("[data-chart=\"Chart 1\"] [data-dnacalc=chart-legend]",3),Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"2\"][data-point=\"0\"]","data-value","12")]},
+    Case {name:"chart series: remove uses normal history",actions:&[
+        Action::Choose("chart-series","1"),Action::Click("chart-series-remove"),Action::Wait(Check::Count("[data-chart=\"Chart 1\"] [data-dnacalc=chart-legend]",2)),Action::Click("undo"),Action::Wait(Check::Count("[data-chart=\"Chart 1\"] [data-dnacalc=chart-legend]",3)),Action::Click("redo")],checks:&[
+        Check::Count("[data-chart=\"Chart 1\"] [data-dnacalc=chart-legend]",2),Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"1\"][data-point=\"0\"]","data-value","12")]},
+    Case {name:"chart series: saved XLSX reopens with authored and linked sources",actions:&[
+        Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools"),Action::Wait(Check::Value("chart-series-name","Updated & Ω")),Action::Into("name-box","B1\u{E007}"),Action::Into(BAR,"Linked series\u{E007}")],checks:&[
+        Check::Text("[data-chart=\"Chart 1\"] [data-dnacalc=chart-legend]:last-of-type text","Linked series"),Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"1\"][data-point=\"0\"]","data-value","12")]},
+    Case {name:"chart series: scatter X and Y ranges edit on a phone",actions:&[
+        Action::Window(390,844),Action::OpenDetails("chart-tools"),Action::Choose("chart-choice","xl/charts/chart6.xml"),Action::Wait(Check::Value("chart-series-values","Data!$C$2:$C$7")),Action::Into("chart-series-categories","Data!C2:C7"),Action::Into("chart-series-values","Data!B2:B7"),Action::Click("chart-series-apply")],checks:&[
+        Check::Count("[data-dnacalc=chart][data-chart=\"Chart 6\"]",1),Check::Attr("[data-chart=\"Chart 6\"] [data-series=\"0\"][data-point=\"0\"]","data-x","8"),Check::Attr("[data-chart=\"Chart 6\"] [data-series=\"0\"][data-point=\"0\"]","data-value","12"),Check::Attr("chart-series-remove","disabled",""),Check::Fits]},
+    Case {name:"chart series: Escape discards a source draft",actions:&[
+        Action::Into("chart-series-values","Data!A1:B4"),Action::Keys("chart-series-values","\u{E00C}"),Action::Wait(Check::Focused("chart-tools-toggle")),Action::OpenDetails("chart-tools")],checks:&[
+        Check::Value("chart-series-values","'Data'!$B$2:$B$7"),Check::Fits]},
+
 ];
 
 /// The script that reads what one check looks at.
@@ -9372,4 +9397,5 @@ CaseGroup {
     CaseGroup {name:"range-drag",start:714,end:724,core:10,setup:&[]},
     CaseGroup {name:"chart-editing",start:724,end:730,core:6,setup:&[]},
     CaseGroup {name:"sheet-tab-rename",start:730,end:734,core:4,setup:&[]},
+    CaseGroup {name:"chart-series",start:734,end:742,core:8,setup:&[]},
 ];

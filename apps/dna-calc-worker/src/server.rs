@@ -173,9 +173,17 @@ mod mixed_range_tests {
                     _ => None,
                 })
                 .unwrap();
-            assert!(events.iter().any(|event| matches!(event, Event::Calculation {
-                receipt: wire::CalculationEvent::TargetsRefused { command: id, targets, owner, .. }, ..
-            } if *id == command && owner == "dc-hsa5.11" && targets == &(1..=3).map(|c| Key::of(at(c))).collect::<Vec<_>>())));
+            let mut refused = Vec::new();
+            for event in &events {
+                if let Event::Calculation { receipt: wire::CalculationEvent::TargetsRefused {
+                    command: id, targets, owner, .. }, .. } = event
+                    && *id == command {
+                    assert_eq!(owner, "dc-hsa5.11");
+                    for target in targets { assert!(!refused.contains(target)); refused.push(*target); }
+                }
+            }
+            assert_eq!(refused.len(), 3);
+            assert!((1..=3).all(|c| refused.contains(&Key::of(at(c)))));
             assert!(
                 events
                     .iter()
@@ -1415,6 +1423,7 @@ impl Server {
                 direction,
             } => return self.notebook_order(placement, direction),
 
+            Intent::ChartSeries {sheet,revision,part,plot,series,name,categories,values,remove}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartSeries {sheet:sheet.id(),revision,part,plot,series,name,categories,values,remove}),
             Intent::ChartProperties {sheet,revision,part,title,set_title,legend}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartProperties {sheet:sheet.id(),revision,part,title,set_title,legend}),
             Intent::Table{revision,change}=>{
                 use wire::TableChange as W;use calc_host::TableChange as H;
@@ -2893,7 +2902,19 @@ impl Server {
                     .first()
                     .map(|plot| format!("{:?}", plot.kind).to_lowercase())
                     .unwrap_or_default();
+                let source=host.model().definitions().charts(sheet.id()).iter().find(|chart|chart.part==view.part);
+                let plots=source.map(|chart|chart.plots.iter().enumerate().map(|(p,plot)|wire::ChartPlotSource {
+                    kind:plot.kind.clone(),
+                    series:plot.series.iter().enumerate().map(|(i,s)|wire::ChartSeriesSource {
+                        index:s.index,
+                        label:view.plots.get(p).and_then(|p|p.series.get(i)).map(|s|s.name.clone()).unwrap_or_default(),
+                        name:s.name.as_ref().map(|d|d.formula.as_ref().map(|f|format!("={f}")).unwrap_or_else(||d.cache.first().cloned().flatten().unwrap_or_default())).unwrap_or_default(),
+                        categories:s.categories.as_ref().and_then(|d|d.formula.clone()),
+                        values:s.values.as_ref().and_then(|d|d.formula.clone()),
+                    }).collect(),
+                }).collect()).unwrap_or_default();
                 Chart {
+                    plots,
                     part:view.part.clone(),title:view.title.clone(),legend:view.legend.clone(),
                     title_linked:host.model().definitions().charts(sheet.id()).iter().any(|chart|chart.part==view.part && chart.title_formula.is_some()),
                     name: view.name.clone(),

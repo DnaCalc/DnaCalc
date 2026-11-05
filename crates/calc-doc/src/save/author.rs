@@ -1160,7 +1160,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
             out.rewritten.insert(sheet.part().name().to_owned(),bytes);
         }
     }
-    if charts_changed {super::chart::finish(package,base,model,&mut out)?;}
+    if charts_changed {super::chart::finish(package,base,model,&mut out,structural.as_ref())?;}
     if review_changed {super::review::finish(package,workbook_part,&sheets,base,model,&moves,&mut out)?;}
     if sheets_changed {
         super::sheets::finish(package, workbook_part, base, model, sheets, &mut out)?;

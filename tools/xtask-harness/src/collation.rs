@@ -4,8 +4,8 @@
 //!
 //! Excel compares two texts (the comparison operators, XMATCH, XLOOKUP, LOOKUP, an approximate
 //! MATCH, SORT, a criterion) in two passes: its own pass over the code units up to `z`, then the
-//! Windows comparison `CompareStringEx` under the user's locale with `NORM_IGNORECASE`, which is a
-//! comparison of the two texts' sort keys (`LCMapStringEx` with `LCMAP_SORTKEY`). Measured: every
+//! Windows comparison `CompareStringEx` under the user's locale with `NORM_IGNORECASE`, whose order
+//! usually agrees with the sort keys (`LCMapStringEx` with `LCMAP_SORTKEY`). Measured: every
 //! text row of the catalogue's comparison oracle (cdoc_jpha, 1,107 rows across ASCII, Latin, Greek,
 //! Cyrillic, CJK and combining marks) is that rule, under en-ZA.
 //!
@@ -40,7 +40,9 @@
 //! conjoining jamo (which Windows composes with each other), U+30A0 (which `CompareStringEx` orders
 //! before a repeated unit, against its key) and the units compared as marks alone (isolated and
 //! medial forms of Arabic marks, into which calc-func's diacritic walk is not modelled); calc-func
-//! also refuses an iteration mark after a special. The measured repeat primary after Han is
+//! also refuses iteration after specials beyond the four punctuation units measured in fn7.
+//! Fn7 agrees with the ASCII pass followed by CompareStringEx on all284 scalar pairs; suffix
+//! sort-key byte order differs on two Hangul pairs. The measured repeat primary after Han is
 //! used, as fn1's Excel comparison and ordering controls confirm.
 //! The diacritic level is not read from the keys: `CompareStringEx` walks it, and
 //! calc-func's walk was measured with `verify` (see sort_key.rs).
