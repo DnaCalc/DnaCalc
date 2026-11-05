@@ -376,16 +376,43 @@ impl EventReadContext for Application<'_> {
         }
     }
     fn write_reference(&self, reference: &ReferenceLike, value: CalcValue) -> Result<(), String> {
-        if reference.area_count() != 1 || reference.areas()[0].cell_count() != 1 {
-            return Err("multi-cell or multi-area Range.Value2 writes are not modelled (dc-hsa5.12)".into());
+        if reference.area_count() != 1 {
+            return Err("multi-area Range.Value2 writes are not modelled (dc-hsa5.12)".into());
         }
-        let at = reference.areas()[0].first();
-        let edit = match value_input(&value)? {
-            Some(input) => calc_host::CellEdit::Set { at, input },
-            None => calc_host::CellEdit::Clear { area: GridArea::cell(at) },
+        let area = reference.areas()[0];
+        if area.cell_count() > 1_048_576 {
+            return Err("Range.Value2 write exceeds its materialization limit (dc-hsa5.12)".into());
+        }
+        let array = value.as_array();
+        if let Some(array) = array
+            && (array.shape().rows != area.row_count() as usize
+                || array.shape().cols != area.column_count() as usize) {
+            return Err("Range.Value2 array/target shape differences are not modelled (dc-hsa5.12)".into());
+        }
+        // Validate every element before dispatch. One Automation edit owns the
+        // complete rectangle, its calculation and its nested Change event.
+        let scalar = array.is_none().then(|| value_input(&value)).transpose()?;
+        let edits = if scalar == Some(None) {
+            vec![calc_host::CellEdit::Clear { area }]
+        } else {
+            let mut edits = Vec::with_capacity(area.cell_count() as usize);
+            for row in 0..area.row_count() {
+                for column in 0..area.column_count() {
+                    let input = if let Some(array) = array {
+                        value_input(array.get(row as usize, column as usize).expect("validated rectangle"))?
+                    } else { scalar.as_ref().expect("scalar input").clone() };
+                    let at = calc_value::CellKey::new(area.sheet(), area.first().row() + row,
+                        area.first().column() + column).map_err(|e| e.to_string())?;
+                    edits.push(match input {
+                        Some(input) => calc_host::CellEdit::Set { at, input },
+                        None => calc_host::CellEdit::Clear { area: GridArea::cell(at) },
+                    });
+                }
+            }
+            edits
         };
         let receipt = self.session.borrow_mut().dispatch_from(calc_host::CommandIngress::Automation,
-            calc_host::SkinIntent::Edit { edits: vec![edit] });
+            calc_host::SkinIntent::Edit { edits });
         match receipt.recalc {
             Some(calc_host::HostProgress::Failed(error)) => return Err(format!("calculation after a macro write failed: {error:?} (dc-hsa5.12)")),
             Some(calc_host::HostProgress::Waiting { .. }) => return Err("calculation after a macro write is waiting for a provider (dc-hsa5.12)".into()),

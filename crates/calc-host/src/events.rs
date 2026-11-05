@@ -154,13 +154,12 @@ impl HostSession {
         for area in receipt.input_writes().iter().copied() {
             targets.entry(area.sheet()).or_default().push(area);
         }
-        for (sheet, mut target) in targets {
+        for (sheet, target) in targets {
             if !self.event_owner_still_active(&owner) { break; }
             if self.host.model().sheet_by_id(sheet).is_none() {
                 continue;
             }
-            target.sort_by_key(|area| (area.first(), area.last()));
-            target.dedup();
+            let target = crate::copy_metadata::merge(target);
             if let Err(reason) = owner.worksheet_change(self, sheet, &target) {
                 self.record_event_failure(WorkbookEvent::WorksheetChange { sheet, target }, reason);
             }
@@ -173,6 +172,7 @@ impl HostSession {
             targets.entry(area.sheet()).or_default().push(area);
         }
         for (sheet, target) in targets {
+            let target = crate::copy_metadata::merge(target);
             self.record_event_failure(
                 WorkbookEvent::WorksheetChange { sheet, target },
                 "Automation Change before terminal successful calculation is not modelled (dc-hsa5.12)".into(),

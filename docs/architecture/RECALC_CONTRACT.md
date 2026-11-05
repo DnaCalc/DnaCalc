@@ -1060,14 +1060,38 @@ children from handlers and compares their normalized command/parent positions,
 ingress, intents and acceptance, detecting missing and unexpected children. This
 checks a command transcript, not arbitrary VBA state or Excel event parity.
 
+Rectangular event writes (dc-hsa5.12, engine19): the same Automation intent now
+accepts scalar broadcasts, Empty clears and exact-shape two-dimensional arrays
+over one local rectangle, bounded to 1,048,576 cells. Every element is converted
+before the transaction commits. The existing area merger forms one rectangular
+Change target; one Undo restores the entire assignment. Automatic calculation
+finishes before nested Change observes the new cells. Mixed number/text/logical/
+error arrays preserve their cell types, and a bad final element leaves all prior
+target values untouched. Multi-area, oversized and differing array/target shapes
+remain typed refusals. Calculation failure after a committed write retains the
+existing committed-prefix and event refusal behavior.
+
+This follows the documented [Range.Value array assignment](https://learn.microsoft.com/en-us/office/vba/api/excel.range.value)
+and [Value2 type distinction](https://learn.microsoft.com/en-us/office/vba/api/excel.range.value2).
+The owner controls establish DNA transaction/event behavior; they are not new
+Excel observations. Fresh scalar/array/shape-mismatch event questions remain
+unanswered under `~/codex-runs/excel-questions-eng19/rectangular-writes.questions.json`.
+
 Native interpreter/JIT controls exercise nested Change and Calculate return order,
 reentrant UDFs, Full/Rebuild entry counts, Range/F9 counts, shared-budget exhaustion,
 BeforeSave write-before-cancel, event-switch failure state and refusal propagation.
-At the pinned 7eb4fdd runtime, bare global Application receivers in typed handlers,
-literal-to-Variant member arguments and CVar linking still have frontend gaps.
-No original workbook source was rewritten to admit it. These controls do not settle
-SCC execution counts, general mid-cycle caches or callback-bearing cyclic Range;
-the existing instrumented Full/Rebuild Excel questions remain pending.
+Engine19 pins the owned CalcVBA 37651ac8 implementation. Bare global Application
+receivers, literal-to-Variant member arguments and CVar String/Variant linking
+now use their admitted owning carriers. Each ByVal Variant argument is boxed
+before later arguments can mutate its source; ByRef aliases retain their identity.
+Native library returns convert to the destination's physical carrier, including
+injected object temporaries. The earlier 7eb4fdd frontend gaps are reproduced by
+the retained before logs. The owner test exercises the original bare receiver
+syntax, numeric/String literals, CVar and calculation through both runtimes.
+No original workbook source was rewritten to admit it. The eng16 profile above
+separately establishes measured scalar SCC counts, current-sweep reads and cached
+Range observers with Full/Rebuild schedules. Broader topology, history and
+publication contexts remain open under dc-hsa5.14.
 
 
 Defined-name implementation update (dc-hsa5.5, 2026-11-01): the canonical `NameTable` stores
