@@ -207,6 +207,15 @@ pub fn layout(
             }
         }
     }
+    // Excel's single-line top/bottom placement uses the font's measured line box.
+    // Keep centred and multi-line placement independent of this single-line correction.
+    if !wrap && !out.lines[0].text.contains('\n') && matches!(vertical, "top" | "bottom")
+        && let Some((ascent, descent)) = autofit::font_box(style, Some(conditional), italic, zoom)
+    {
+        let extra = (ascent + descent - style.pixels * zoom) / 2.;
+        let shift = if vertical == "top" { extra } else { -extra };
+        out.span.push_str(&format!(";position:relative;top:{shift}px"));
+    }
     out
 }
 

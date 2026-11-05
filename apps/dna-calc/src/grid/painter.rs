@@ -93,7 +93,7 @@ pub(super) fn paint(
     let paper = token(&style, "--dna-paper");
     ctx.set_fill_style_str(&paper);
     ctx.fill_rect(0., 0., plan.viewport.width, plan.viewport.height);
-    ctx.set_fill_style_str(&token(&style, "--dna-line-soft"));
+    ctx.set_fill_style_str(&token(&style, "--dc-gridline"));
     for col in &plan.col_headers {
         ctx.fill_rect(col.rect.x + col.rect.w - 1., 0., 1., plan.viewport.height)
     }
@@ -164,7 +164,7 @@ pub(super) fn paint(
             && cell.shown.style.fill.is_none()
             && cell.shown.style.brush.is_none()
         {
-            ctx.set_fill_style_str(&token(&style, "--dna-line-soft"));
+            ctx.set_fill_style_str(&token(&style, "--dc-gridline"));
             ctx.fill_rect(
                 cell.rect.x + cell.rect.w - 1.0,
                 cell.rect.y,
@@ -390,6 +390,12 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
     } else {
         line_height * 0.8
     };
+    let shift = if s.rotation == 0 && !wrap && !shown.contains('\n')
+        && ascent.is_finite() && descent.is_finite()
+    {
+        let extra = (ascent + descent - line_height) / 2.;
+        match vertical { "top" => extra, "bottom" => -extra, _ => 0. }
+    } else { 0. };
     let double = autofit::double_underline(s,Some(&c));
     let decorate = |x: f64, y: f64, advance: f64| {
         if c.underline || c.strike || s.underline || s.strike {
@@ -431,7 +437,7 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
             "center" | "centerContinuous" => cell.anchor.x + cell.anchor.w / 2. - w / 2.,
             _ => cell.rect.x + left,
         } };
-        let y = if stacked { top + i as f64 * line_height } else { match vertical {
+        let y = shift + if stacked { top + i as f64 * line_height } else { match vertical {
             "distributed" => {
                 cell.rect.y
                     + (cell.rect.h - height) / (lines.len() as f64 * 2.)

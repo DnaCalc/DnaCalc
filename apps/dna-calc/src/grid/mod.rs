@@ -1561,7 +1561,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                     style.push_str(&format!(";background-image:url({url});background-size:{size};background-repeat:{repeat}"));
                 }
             } else if cell.row_span>1 || cell.col_span>1 {
-                style.push_str(";background-color:var(--dna-paper);border-right:1px solid var(--dna-line-soft);border-bottom:1px solid var(--dna-line-soft)");
+                style.push_str(";background-color:var(--dna-paper);border-right:1px solid var(--dc-gridline);border-bottom:1px solid var(--dc-gridline)");
             }
             if !borders && let Some((share,color,gradient))=cell.shown.conditional.as_ref().and_then(|c|c.bar.as_ref()) {
                 let end=if *gradient {"#ffffff"}else {color.as_str()};
