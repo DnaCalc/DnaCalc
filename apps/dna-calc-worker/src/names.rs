@@ -1,7 +1,8 @@
 //! Bounded name projections and explicit, identity-qualified evaluations.
 use crate::{cells, wire, workbook::Workbook};
 use calc_host::value::{CellKey, CoreRef, NameId, NameScope};
-use dna_calc_model::names::{NameEvaluation, NamePage, NameRecord};
+use dna_calc_model::names::{NameBodyEvaluation, NameBodyResult, NameEvaluation,
+    NameEvaluationEvidence, NamePage, NameRecord};
 
 pub fn page(book: &Workbook, query: String, page: u64) -> NamePage {
     let host = book.host();
@@ -44,8 +45,48 @@ pub fn page(book: &Workbook, query: String, page: u64) -> NamePage {
 }
 pub fn evaluate(book: &Workbook, id: (u32, u32), version: u64, anchor: CellKey) -> NameEvaluation {
     let host = book.host();
+    let mut evidence = None;
     let text = host
-        .evaluate_name(NameId::from_parts(id.0, id.1), version, anchor)
+        .evaluate_name_with_evidence(NameId::from_parts(id.0, id.1), version, anchor)
+        .and_then(|diagnostic| {
+            evidence = Some(NameEvaluationEvidence {
+                results: diagnostic.results.0,
+                workbook: (diagnostic.workbook.document, diagnostic.workbook.incarnation),
+                numeric: if diagnostic.evaluation.numeric.target().is_some() { "Exact" } else { "Fast" }.into(),
+                bodies: diagnostic.evaluation.invocations.iter().map(|body| {
+                    use calc_host::NameResultKind as K;
+                    let result = match &body.result {
+                        K::Empty => NameBodyResult::Empty,
+                        K::Missing => NameBodyResult::Missing,
+                        K::Number => NameBodyResult::Number,
+                        K::Text => NameBodyResult::Text,
+                        K::Logical => NameBodyResult::Logical,
+                        K::Error(error) => NameBodyResult::Error(error.excel_spelling().to_owned()),
+                        K::Reference { areas, omitted_areas } => NameBodyResult::Reference {
+                            areas: areas.iter().copied().map(wire::Area::of).collect(),
+                            omitted_areas: *omitted_areas,
+                        },
+                        K::Array(shape) => NameBodyResult::Array { rows: shape.rows, columns: shape.cols },
+                        K::Callable => NameBodyResult::Callable,
+                        K::Refused => NameBodyResult::Refused,
+                    };
+                    NameBodyEvaluation {
+                        ordinal: body.ordinal, parent: body.parent,
+                        id: (body.definition.id.slot(), body.definition.id.generation()),
+                        version: body.definition.version,
+                        scope: match body.definition.scope {
+                            NameScope::Workbook => None,
+                            NameScope::Sheet(sheet) => Some(wire::Sheet::of(sheet)),
+                        },
+                        caller: wire::Key::of(body.context.caller.cell()),
+                        definition_sheet: body.context.definition_sheet.map(wire::Sheet::of),
+                        body: body.body, result,
+                    }
+                }).collect(),
+                omitted: diagnostic.evaluation.omitted,
+            });
+            diagnostic.evaluation.outcome.map_err(|e| e.to_string())
+        })
         .map(|value| match value.core_ref() {
             CoreRef::Reference(reference) => {
                 let areas = reference.areas();
@@ -115,6 +156,7 @@ pub fn evaluate(book: &Workbook, id: (u32, u32), version: u64, anchor: CellKey) 
         revision: host.revision().get(),
         command: 0,
         anchor: wire::Key::of(anchor),
+        evidence,
         text,
     }
 }
@@ -196,6 +238,18 @@ mod tests {
         assert_eq!(value.version, row.version);
         assert_eq!(value.text, Ok("42".into()));
         assert_eq!(value.anchor, wire::Key::of(anchor));
+        let evidence = value.evidence.as_ref().expect("actual diagnostic evidence");
+        assert_eq!(evidence.numeric, "Fast");
+        assert_eq!(evidence.omitted, 0);
+        assert_eq!(evidence.bodies.len(), 1);
+        let body = &evidence.bodies[0];
+        assert_eq!((body.id, body.version), (row.id, row.version));
+        assert_eq!((body.ordinal, body.parent), (0, None));
+        assert_eq!(body.caller, wire::Key::of(anchor));
+        assert_eq!(body.scope, None);
+        assert_eq!(body.result, NameBodyResult::Number);
+        let encoded = wire::encode(&Reply::NameEvaluation(value.clone()));
+        assert_eq!(wire::decode::<Reply>(&encoded).unwrap(), Reply::NameEvaluation(value.clone()));
         assert_eq!(server.book().host().revision(), revision);
         assert_eq!(server.book().session().history_depth().0, undo);
         server
@@ -230,6 +284,7 @@ mod tests {
         let Reply::NameEvaluation(value) = reply else {
             panic!("qualified refusal")
         };
+        assert!(value.evidence.is_none(), "stale definition never executes");
         assert!(value.text.unwrap_err().contains("changed"));
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]

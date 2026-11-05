@@ -1653,7 +1653,7 @@ impl ReferenceReader for WorkbookReader<'_> {
 
     fn read_area(
         &mut self,
-        _request: calc_fml::ReadRequest,
+        request: calc_fml::ReadRequest,
         area: GridArea,
         sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
     ) {
@@ -1686,11 +1686,21 @@ impl ReferenceReader for WorkbookReader<'_> {
                     .state
                     .bindings
                     .spill_iter()
-                    .filter_map(|(&node, binding)| {
+                    .map(|(&node, binding)| (node, Some(binding)))
+                    .chain(
+                        self.view.state.nodes()
+                            .take(if request.policy == calc_fml::ReadPolicy::DiagnosticSnapshot
+                                && self.view.progress.scheduled() > 0 { usize::MAX } else { 0 })
+                            .filter(|record| self.view.progress.is_scheduled(record.id())
+                                && matches!(self.view.state.bindings.get(&record.id()),
+                                    None | Some(crate::state::Binding::Refused(_))))
+                            .map(|record| (record.id(), None)),
+                    )
+                    .filter_map(|(node, binding)| {
                         if Some(node) == self.view.caller
                             || !matches!(
                                 binding,
-                                crate::state::Binding::Placed(_, crate::state::ArrayRole::Spill)
+                                Some(crate::state::Binding::Placed(_, crate::state::ArrayRole::Spill)) | None
                             )
                         {
                             return None;
@@ -1711,7 +1721,10 @@ impl ReferenceReader for WorkbookReader<'_> {
                         // circular dependency from a merely possible southeast footprint.
                         // Excluded producers use the admission-time cached absence. The
                         // certificate records that qualification and their unmet requirements.
-                        let unresolved = unknown && !outside;
+                        let diagnostic_pending = request.policy == calc_fml::ReadPolicy::DiagnosticSnapshot
+                            && self.view.progress.is_scheduled(node)
+                            && !self.view.progress.is_evaluated(node);
+                        let unresolved = (unknown || diagnostic_pending) && !outside;
                         (unresolved
                             && anchor.sheet() == area.sheet()
                             && anchor.row() <= area.last().row()

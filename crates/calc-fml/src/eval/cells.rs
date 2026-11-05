@@ -72,7 +72,10 @@ impl<'r> SharedReader<'r> {
     }
 
     pub(super) fn pending_producer(&self, at: CellKey) -> bool {
-        self.reader.borrow().pending_producer(at)
+        // A diagnostic snapshot admits no producer work or continuation. An
+        // unavailable value is a terminal refusal even if the workbook is dirty.
+        self.request.policy != crate::ReadPolicy::DiagnosticSnapshot
+            && self.reader.borrow().pending_producer(at)
     }
 
     pub(super) fn provisional_argument_pending(&self, reference: &ReferenceLike) -> bool {

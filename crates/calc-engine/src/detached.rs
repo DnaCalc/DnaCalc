@@ -6,8 +6,9 @@
 //!
 //! Nothing is staged, published or filed in the graph: the evaluation reads the state and the
 //! snapshot only. A read of a formula cell that has no published calculated value (a file cache,
-//! a refusal, a stale result) is refused as CalcFml refuses a missing input, so a detached value
-//! is never computed over a value nothing here calculated.
+//! a refusal) is refused as CalcFml refuses a missing input. Explicit name diagnostics also
+//! refuse stale formula values. Existing rendering consumers retain their published-value
+//! policy until they share a freshness snapshot across their whole projection context.
 
 #[path = "detached_name.rs"]
 mod name_inspection;
@@ -33,6 +34,15 @@ use std::sync::Arc;
 pub struct DetachedFormula {
     reference_result: bool,
     plan: Arc<CompiledPlan>,
+}
+
+/// Evidence from an explicit diagnostic; it installs no cell or shared name result.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DetachedNameEvaluation {
+    pub outcome: Result<CalcValue, NotModeled>,
+    pub numeric: NumericMode,
+    pub invocations: Vec<calc_fml::NameInvocation>,
+    pub omitted: u64,
 }
 
 impl DetachedFormula {
@@ -86,8 +96,52 @@ impl DetachedFormula {
         inputs: &ModelRoot,
         at: CellKey,
     ) -> Result<CalcValue, NotModeled> {
+        self.evaluate_recording(state, inputs, at, None, false)
+    }
+
+    /// Execute through the same diagnostic reader and evaluator while retaining bounded
+    /// name-body evidence, including refused completions. No publication occurs.
+    pub fn evaluate_with_name_evidence(
+        &self,
+        state: &EngineState,
+        inputs: &ModelRoot,
+        at: CellKey,
+    ) -> DetachedNameEvaluation {
+        let mut effects = calc_fml::UserFunctionEffects::default();
+        let outcome = self.evaluate_recording(state, inputs, at, Some(&mut effects), true);
+        DetachedNameEvaluation {
+            outcome,
+            numeric: state.published_mode.clone().unwrap_or(NumericMode::Fast),
+            invocations: effects.name_invocations().to_vec(),
+            omitted: effects.omitted_name_invocations(),
+        }
+    }
+
+    fn evaluate_recording(
+        &self,
+        state: &EngineState,
+        inputs: &ModelRoot,
+        at: CellKey,
+        effects: Option<&mut calc_fml::UserFunctionEffects>,
+        fresh_snapshot: bool,
+    ) -> Result<CalcValue, NotModeled> {
         let instance = instantiate(&self.plan, FormulaAnchor::new(at));
-        let progress = Progress::new(0);
+        let mut progress = Progress::new(usize::MAX);
+        if fresh_snapshot {
+            // One dirty closure per explicit name diagnostic. Rendering loops need
+            // a shared context before adopting this stricter snapshot policy.
+            let stale = state.stale(inputs).ok_or(NotModeled::Evaluation(
+                EvalFault::NotModelled {
+                    construct: "a diagnostic snapshot from another authored revision",
+                    owner: "dc-hsa5.6",
+                },
+            ))?;
+            for at in stale {
+                if let Some(node) = state.node_at(at) {
+                    progress.schedule(node);
+                }
+            }
+        }
         let spills = SpillIndex::default();
         let view = RecalcView {
             linked_workbooks: &state.linked_workbooks,
@@ -121,6 +175,9 @@ impl DetachedFormula {
                 calc_fml::ReadRequest::DIAGNOSTIC,
             )
             .with_catalog(&catalog);
+            if let Some(effects) = effects {
+                services = services.with_user_function_effects(effects);
+            }
             if self.reference_result {
                 services = services.with_reference_result();
             }
@@ -130,6 +187,12 @@ impl DetachedFormula {
             return Err(NotModeled::Evaluation(EvalFault::NotModelled {
                 construct: "a detached formula that reads a formula cell with no published value",
                 owner: "dc-6yw",
+            }));
+        }
+        if fresh_snapshot && (reader.read_external_links() || host.read_external_links()) {
+            return Err(NotModeled::Evaluation(EvalFault::NotModelled {
+                construct: "a name diagnostic that consumes unresolved external-link cache values",
+                owner: "dc-hsa5.6",
             }));
         }
         outcome.map_err(NotModeled::Evaluation)

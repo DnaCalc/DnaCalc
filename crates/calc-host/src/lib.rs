@@ -63,7 +63,7 @@ pub use filter::{AutoFilter,FilterCriteria,FilterOperator,FilterPredicate,Filter
 mod names;
 pub use facts::alignment as style_alignment;
 pub use format::{BorderPatch, FormatPatch, format_regions, format_samples, patched_style};
-pub use names::{NameEdit, NameInvocationView};
+pub use names::{NameDiagnosticEvaluation, NameEdit, NameInvocationView};
 pub mod chart;
 mod command;
 mod domain;
@@ -147,7 +147,7 @@ pub use calc_engine::{
     ValueDelta, WorkBudget,
 };
 pub use calc_fml::reference::CellRun;
-pub use calc_fml::{CallableHandle, CallableTable, FormatProfile};
+pub use calc_fml::{CallableHandle, CallableTable, FormatProfile, NameResultKind};
 
 /// The existing reference-text binder's typed result, exposed to host consumers.
 pub use calc_fml::reference::TextReference as ReferenceTarget;

@@ -1118,9 +1118,9 @@ A definition node has no synthetic cell or shared cached value. Its existing eva
 returns a reference or value per caller; unused names do not evaluate, and repeated volatile uses
 remain separate. Local definitions select their sheet for unqualified references and nested names;
 workbook aliases inherit the current use context. Static and INDIRECT routes test the same policy;
-new Excel parity for nested cross-scope aliases awaits P12. Invocation identity
-for detached diagnostic evaluation and transitive eligibility for any shared
-memo remain open. Published formula-body execution evidence is described below.
+new Excel parity for nested cross-scope aliases awaits P12. Calculation-pass identity
+for detached roots and transitive eligibility for any shared memo remain open.
+Published and explicit diagnostic body evidence is described below.
 
 Name operations (dc-hsa5.6 / dc-971p.34, 2026-11-03): the canonical compiler now carries
 `NameEvaluationContext` with the caller, current definition identity and definition worksheet.
@@ -1157,7 +1157,7 @@ and catalogue calls without a complete facility classification are ineligible. U
 calls are conservatively ineligible even when a branch is not selected. A candidate still requires
 caller/definition-sheet/workbook/scenario and numeric/semantic context, valid binding and absence
 proofs and an executed read certificate. No shared name-value cache is introduced. Unused names
-remain passive; P12 Excel measurement and detached diagnostic invocation evidence remain open.
+remain passive; P12 Excel measurement and shared memo execution remain open.
 
 Name-body invocation evidence (dc-hsa5.6, engine19): the existing evaluator's retained
 child frames now carry the selected NameId/version, original caller, definition worksheet,
@@ -1181,8 +1181,38 @@ areas per retained body, with explicit omitted counts. Calculation continues ove
 body and the full reference. Host controls cover nested scoped aliases, untaken names,
 closures, definition edits/staleness, typed refusals, cancellation and both limits.
 This is execution evidence for stamped formula results, not a new P12 Excel measurement.
-Detached diagnostic Evaluate, legacy iteration/table stamps and shared memo reuse remain
-outside this invocation view.
+Legacy iteration/table stamps and shared memo reuse remain outside this invocation view.
+
+Explicit diagnostic evidence (dc-hsa5.6, engine19): the existing detached evaluator can
+retain the same bounded name-body records. Host `evaluate_name_with_evidence` returns the
+authored revision, result view, workbook incarnation and actual numeric mode with its
+outcome. The existing worker `EvaluateName` command projects those records into its reply;
+the command journal retains the complete reply for retries, including retries after edits.
+The selected NameId/version and caller anchor remain the root identity, including a
+workbook definition shadowed on the caller sheet. The wire numeric label is bounded to
+Fast/Exact and is informational; full numeric-target identity remains in the Host record.
+Pre-execution version/compilation failures carry no body evidence. Runtime refusals
+retain their completed body records without acquiring a value or cell calculation stamp.
+
+Explicit name diagnostics reuse the engine's existing dirty closure to refuse consumed
+formula values that are stale or unpublished. Their local read state admits no producer
+work; a diagnostic missing input is terminal rather than a resumable calculation wait.
+Reference results can remain references without consuming their cells. This fixes a
+Manual-mode diagnostic that previously used a precedent's old calculation under a newer
+authored revision. Blank reads use the existing spill-absence corridor check for scheduled
+dynamic producers and pending formulas whose binding is unavailable; an unresolved possible
+expansion refuses. Authored occupants can still prove a corridor blocked. No result, graph
+edge or history entry is installed. Consumed unresolved external-link caches, including
+transitive cached inputs, refuse at the diagnostic boundary; reference-only results retain
+their reference identity. A completed body's numeric kind does not override that refusal.
+The dirty closure
+is computed per explicit name diagnostic; no additional index or shared name-value cache
+is added. Rendering/validation/filter consumers keep their existing published-value policy;
+a shared freshness context for those loops remains open to avoid a whole-workbook scan
+for every displayed cell.
+Host and worker controls cover selected bindings, snapshot refusals, worksheet errors,
+serialization and command retries. P12 Excel parity and non-cell calculation-pass
+envelopes remain open.
 
 The native desktop engine runner accepts `--early-execution XPure` as an explicit grant, resolved
 to active registration IDs and checked by the native adapter. It records those IDs and accepts
