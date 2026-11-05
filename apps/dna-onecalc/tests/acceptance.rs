@@ -3001,6 +3001,7 @@ fn recorded_complex_real_axes_use_the_scalar_primitives() {
     let sets: &[(&str, &[u8])] = &[
         ("IMTAN", include_bytes!("../../../crates/calc-func/tests/witnesses/IMTAN.json")),
         ("IMCOT", include_bytes!("../../../crates/calc-func/tests/witnesses/IMCOT.json")),
+        ("IMLOG10", include_bytes!("../../../crates/calc-func/tests/witnesses/IMLOG10.json")),
     ];
     let mut session = Session::new("Sheet1").unwrap();
     session.set_formula_cell("J20").unwrap();
@@ -3027,7 +3028,39 @@ fn recorded_complex_real_axes_use_the_scalar_primitives() {
             }
         }
     }
-    assert_eq!(rows, 2550, "every unchanged source observation and new control must run");
+    assert_eq!(rows, 3873, "every unchanged source observation and new control must run");
+    assert!(failures.is_empty(), "{} of {rows} application checks differ:\n{}",
+        failures.len(), failures.join("\n"));
+}
+
+/// Normal inputs distinguish EXP's measured output publication from input handling.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_exp_subnormal_results_use_the_kernel() {
+    let set = calc_verdict::WitnessSet::decode(include_bytes!(
+        "../../../crates/calc-func/tests/witnesses/EXP.json"
+    )).unwrap();
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J20").unwrap();
+    session.set_formula("=EXP(A1)");
+    let mut rows = 0;
+    let mut failures = Vec::new();
+    for row in &set.witnesses {
+        if !row.reading.starts_with("fn10-") { continue; }
+        assert_eq!(row.args.len(), 1);
+        let input = calc_verdict::decode_argument(&row.args[0], "EXP")
+            .unwrap().as_number().unwrap();
+        assert!(input == 0.0 || input.is_normal());
+        session.set_input("A1", InputValue::number(input).unwrap()).unwrap();
+        let expected = calc_verdict::decode_result(&row.expected).unwrap();
+        let result = session.calculate();
+        rows += 1;
+        if result.result.as_ref() != Some(&expected) || !result.diagnostics.is_empty() {
+            failures.push(format!("{}: expected {expected:?}, calculated {:?}; {:?}",
+                row.id, result.result, result.diagnostics));
+        }
+    }
+    assert_eq!(rows, 59, "all original outputs and fresh controls must run");
     assert!(failures.is_empty(), "{} of {rows} application checks differ:\n{}",
         failures.len(), failures.join("\n"));
 }
