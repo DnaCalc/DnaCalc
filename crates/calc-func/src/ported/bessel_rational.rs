@@ -6,7 +6,8 @@
 //! amplitudes adapt one decimal digit transposition and one repeated term
 //! from the published tables, inferred from recorded phase-window outputs.
 //! The fixed backward program and Y high-region tables retain the published
-//! constants and operation rules. See deploy/notices/ported.txt.
+//! constants. High J/Y correction multiplies the stored8/x ratio, trig leaf,
+//! then polynomial, following paired R25 phase readings. See deploy/notices/ported.txt.
 //! The I0 and higher-I helpers also adapt ITK's Apache-2.0 GaussianOperator,
 //! Copyright NumFOCUS, at 311b7060ef39e371f3cd209ec135284ff5fde735.
 //! Their scalar operations use the existing RN53(RN64(operation)) helpers.
@@ -184,7 +185,7 @@ pub(super) fn y1_large(x: f64) -> f64 {
     let amplitude = polynomial(reduction, AMP1);
     let correction = polynomial(reduction, PHASE1);
     let leading = excel_sin(phase) * amplitude;
-    let trailing = ((excel_cos(phase) * correction) * 8.0) / x;
+    let trailing = ((8.0 / x) * excel_cos(phase)) * correction;
     let combined = leading + trailing;
     let scale = (W / x).sqrt();
     scale * combined
@@ -208,8 +209,9 @@ const PHASE_Y0: &[f64] = &[
 // Keep J's tables separate from Y's published amplitudes. These are fixed
 // transcription hypotheses: exchange the adjacent 6/2 digits in J0's first
 // correction and repeat J1's existing second correction. No new coefficient
-// or argument-specific choice is fit. Complete R27 replay retains the one
-// bank mismatch and twenty R25 seed mismatches; Excel's source is unknown.
+// or argument-specific choice is fit. Paired R25 phase readings separately
+// distinguish the common high-region correction grouping below. Remaining
+// low-seed and forward discrepancies are counted; Excel's source is unknown.
 const AMP_J0: &[f64] = &[
     1.0,
     -0.1098628267e-2,
@@ -233,7 +235,7 @@ fn j_large(x: f64, offset: f64, amplitude: &[f64], correction: &[f64]) -> f64 {
     let amplitude = polynomial(reduction, amplitude);
     let correction = polynomial(reduction, correction);
     let leading = excel_cos(phase) * amplitude;
-    let trailing = ((excel_sin(phase) * correction) * 8.0) / x;
+    let trailing = ((8.0 / x) * excel_sin(phase)) * correction;
     let scale = (W / x).sqrt();
     scale * (leading - trailing)
 }
@@ -254,7 +256,7 @@ pub(super) fn y0_large(x: f64) -> f64 {
     let amplitude = polynomial(reduction, AMP0);
     let correction = polynomial(reduction, PHASE_Y0);
     let leading = excel_sin(phase) * amplitude;
-    let trailing = ((excel_cos(phase) * correction) * 8.0) / x;
+    let trailing = ((8.0 / x) * excel_cos(phase)) * correction;
     let scale = (W / x).sqrt();
     scale * (leading + trailing)
 }

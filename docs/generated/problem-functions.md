@@ -8,8 +8,8 @@ python3 racer/corpus_cases.py problem-functions ../DnaCalc ../DnaCalc/docs/gener
 
 Last-bit: finite numeric mismatches <=16 ULP; larger numeric: >16 ULP. This split is triage, not a relaxed verdict. Every mismatch, refusal, unread, missing, pending, external and circular-policy cell remains an inclusive failure. Corpus labels follow exact single-cell aliases, infer calls from formula spelling and unwrap INDEX selections; unresolved references and infix operators remain explicit. Bank functions use canonical judge identities. Counts are observations per source; corpus and bank may overlap and must not be added as unique calls. Bank reference/locale context gaps remain failures, not proven numerical defects.
 
-Corpus: 33,006/35,048 matched (94.17370%); 2,042 inclusive failures, including 0 pending.
-Bank: 3,769,055/3,910,007 matched (96.39510%); 140,952 failures, including 116 unread.
+Corpus: 33,051/35,048 matched (94.30210%); 1,997 inclusive failures, including 0 pending.
+Bank: 3,769,062/3,910,007 matched (96.39527%); 140,945 failures, including 116 unread.
 
 Larger numeric and last-bit columns count numeric mismatches; other columns count remaining mismatches. Bank refusals and unread rows are separate. Corpus refusals/missing are recorded in the JSON, outside the mismatch table.
 
@@ -58,9 +58,9 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | SWITCH | 0 | 0 | 0 | 2 | 0 | 0 | 2 | 0 |
 | CHIDIST | 0 | 2 | 0 | 1 | 137 | 0 | 0 | 0 |
 | CHISQ.INV | 0 | 1 | 0 | 1 | 27 | 0 | 0 | 0 |
-| BESSELY | 1 | 20 | 0 | 0 | 0 | 0 | 0 | 0 |
 | SKEW | 0 | 0 | 0 | 1 | 6 | 0 | 0 | 0 |
 | T.DIST.RT | 0 | 1 | 0 | 1 | 4 | 0 | 0 | 0 |
+| BESSELY | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | CRITBINOM | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | FLOOR | 0 | 0 | 0 | 1 | 0 | 0 | 10 | 0 |
 | NORM.S.DIST | 0 | 1 | 0 | 0 | 11,075 | 0 | 0 | 0 |
@@ -83,7 +83,6 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | COTH | 0 | 0 | 0 | 0 | 56 | 0 | 0 | 0 |
 | PRICE | 0 | 0 | 0 | 0 | 50 | 0 | 0 | 0 |
 | BETAINV | 0 | 2 | 0 | 0 | 44 | 0 | 0 | 0 |
-| BESSELJ | 0 | 20 | 12 | 0 | 1 | 0 | 0 | 0 |
 | ERF.PRECISE | 0 | 0 | 0 | 0 | 18 | 0 | 0 | 0 |
 | CSCH | 0 | 0 | 0 | 0 | 6 | 0 | 0 | 0 |
 | GROWTH | 0 | 0 | 0 | 0 | 6 | 0 | 7 | 0 |
@@ -104,6 +103,7 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | TREND | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 0 |
 | TTEST | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | WEIBULL.DIST | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 0 |
+| BESSELJ | 0 | 0 | 12 | 0 | 1 | 0 | 0 | 0 |
 | BETA.INV | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | CHISQ.DIST.RT | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | CONFIDENCE.NORM | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -141,7 +141,6 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | IMSECH | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 0 |
 | IMSINH | 0 | 0 | 0 | 0 | 0 | 9 | 0 | 0 |
 | IMTAN | 0 | 0 | 0 | 0 | 0 | 144 | 0 | 0 |
-| INDEX | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | ISEVEN | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | ISODD | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | Infix & | 0 | 0 | 5 | 0 | 0 | 0 | 0 | 0 |
@@ -157,10 +156,8 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | RADIANS | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | ROWS | 0 | 0 | 6 | 0 | 0 | 0 | 0 | 0 |
 | RRI | 0 | 0 | 0 | 0 | 0 | 0 | 45 | 0 |
-| SEARCH | 0 | 0 | 4 | 0 | 0 | 0 | 0 | 0 |
 | SIGN | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | SQRT | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | STANDARDIZE | 0 | 0 | 0 | 0 | 0 | 0 | 8 | 0 |
-| TEXT | 0 | 0 | 0 | 0 | 0 | 0 | 7 | 0 |
 | TEXTSPLIT | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | WEEKNUM | 0 | 0 | 0 | 0 | 0 | 443 | 0 | 0 |
