@@ -52,22 +52,29 @@ pub fn template_key_of_chars(chars: &[char], anchor: FormulaAnchor) -> Option<St
         // A cell's spelling is a reference wherever it stands (no name looks like a cell), a
         // row's or a column's only as an end of a range: alone, `A` is a name.
         let spelled = match kind {
-            // A function's name and a sheet's (`A1!B2` names sheet A1) are kept as written.
+            // A sheet's name (`A1!B2` names sheet A1) is kept as written.
             TokenKind::Identifier
-                if !matches!(
-                    significant(index, 1),
-                    Some(TokenKind::LParen | TokenKind::Bang)
-                ) =>
+                if significant(index, 1) != Some(TokenKind::Bang) =>
             {
                 word.clear();
                 word.extend(&chars[start..end]);
-                match notation::a1(&word, at.row(), at.column()) {
+                if significant(index, 1) == Some(TokenKind::LParen) {
+                    // A workbook qualifier selects a procedure, as binding does.
+                    // Other bare cell callees carry relative operands too and
+                    // must not share a plan at different relative coordinates.
+                    if significant(index, -1) == Some(TokenKind::Bang)
+                        || !super::is_cell_callee(&word, super::ReferenceNotation::A1) {
+                        None
+                    } else {
+                        notation::a1(&word, at.row(), at.column())
+                    }
+                } else { match notation::a1(&word, at.row(), at.column()) {
                     Some(spelled @ Spelled::Cell(_)) => Some(spelled),
                     Some(spelled @ (Spelled::Row(_) | Spelled::Column(_))) if beside_colon => {
                         Some(spelled)
                     }
                     _ => None,
-                }
+                } }
             }
             TokenKind::Number if beside_colon => return None,
             _ => None,
@@ -169,8 +176,13 @@ mod tests {
         assert_eq!(key("=SUM(A1:B2)", 3, 3), key("=SUM(B2:C3)", 4, 4));
         assert_ne!(key("=A1*2", 1, 3), key("=A1*2", 2, 3));
         assert_ne!(key("=$A$1", 1, 1), key("=$A$2", 2, 1));
-        // Function names are kept as written, though LOG10 and LOG11 spell cells.
+        // LOG10 is a builtin; LOG11 is a bare cell callee.
         assert_ne!(key("=LOG10(4)", 1, 1), key("=LOG11(4)", 1, 2));
+        assert_eq!(key("=LOG10(4)", 1, 1), key("=LOG10(4)", 2, 2));
+        assert_ne!(key("=A1(2)", 1, 2), key("=A1(2)", 1, 3));
+        assert_eq!(key("=A1(2)", 1, 2), key("=B1(2)", 1, 3));
+        assert_eq!(key("=Module1.A1(2)", 1, 2), key("=Module1.A1(2)", 1, 3));
+        assert_eq!(key("='Book.xlsm'!A1(2)", 1, 2), key("='Book.xlsm'!A1(2)", 1, 3));
         assert_eq!(key("=SUM(1:3)", 1, 1), None);
         assert_ne!(key("=\"A1\"", 1, 1), key("=\"A2\"", 2, 1));
         // A lone column's letters are a name: A in column 1 and B in column 2 differ.

@@ -1284,6 +1284,26 @@ mod origin_tests {
     use super::*;
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn shared_cell_callee_text_and_template_operands_move_together() {
+        use calc_fml::reference::{FormulaAnchor, template_key};
+        use calc_doc_model::value::{IdAllocator, SheetId};
+        let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+        let sheet = ids.issue().unwrap();
+        let master = CellKey::new(sheet, 1, 2).unwrap();
+        let member = CellKey::new(sheet, 1, 3).unwrap();
+        let text = "A1(2)+Module1.A1(2)+LOG10(100)";
+        let source = SharedSource::from_source(master,
+            ExcelText::from_utf16_code_units(text.encode_utf16().collect())).unwrap();
+        let moved = source.try_render(member).unwrap().to_string_lossy();
+        assert_eq!(moved, "B1(2)+Module1.A1(2)+LOG10(100)");
+        assert_eq!(template_key(text, FormulaAnchor::new(master)),
+            template_key(&moved, FormulaAnchor::new(member)));
+        assert_ne!(template_key(text, FormulaAnchor::new(master)),
+            template_key(text, FormulaAnchor::new(member)));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn first_window_origins_and_fractional_twip_splits_remain_distinct() {
         let xml=crate::xml::XmlPart::new("views.xml".into(),br#"<sheetViews xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetView workbookViewId="0" topLeftCell="C5"><pane xSplit="2400.5" ySplit="1800" topLeftCell="H100" activePane="bottomRight" state="split"/><selection pane="topLeft" activeCell="C5"/><selection pane="bottomRight" activeCell="J101"/></sheetView></sheetViews>"#.to_vec(),Default::default());
         let mut events = Events::new(&xml);

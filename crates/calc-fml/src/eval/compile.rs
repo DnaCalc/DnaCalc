@@ -1095,6 +1095,7 @@ impl<'c> Lowering<'c> {
                 first_block,
                 argc,
                 admission,
+                lifted_admission: self.admission(place),
             },
         });
         for (index, argument) in arguments.into_iter().enumerate().rev() {
@@ -1143,7 +1144,16 @@ impl<'c> Lowering<'c> {
         if is_builtin(spelling) || spelling.len() != name.text().len() {
             return Err(unknown);
         }
-        if let Some(slot) = self.local(&parameter_key(name.text())) {
+        if let Some((operand, this_row)) = self.sites.remove(&name.span()) {
+            // Use the existing reference invocation route: it produces #REF!
+            // without looking up a same-spelled VBA procedure or dereferencing
+            // a cell to seek a closure. Keep the ordinary argument lowering.
+            let operand = operand.map_err(|error| CompileError::Reference {
+                span: name.span(),
+                error,
+            })?;
+            self.push_reference(operand, this_row, block);
+        } else if let Some(slot) = self.local(&parameter_key(name.text())) {
             self.blocks[block].push(Instruction::Local(slot));
         } else {
             let scope = NameScope::Formula(self.name_context.lookup_sheet());

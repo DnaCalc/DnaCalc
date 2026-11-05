@@ -266,7 +266,14 @@ const SINGLE: &[(&str, &[usize])] = &[("FIELDVALUE", ALL)];
 /// `=SUMPRODUCT(GROUPBY(E101:E103,A101:A103*1,SUM,,0))` (6) or
 /// `=ROWS(PIVOTBY(E101:E103&"",D101:D103&"",A101:A103*1,SUM,,,,,,A101:A103>1))` (4), and the
 /// catalogue oracle's `=ROWS(GROUPBY(...,{1;2;3;4;5;6}>2))` rows give the filtered groups.
-const NESTED_ARRAY: &[(&str, &[usize])] = &[("GROUPBY", &[0, 1, 6]), ("PIVOTBY", &[0, 1, 2, 9])];
+const NESTED_ARRAY: &[(&str, &[usize])] = &[
+    ("GROUPBY", &[0, 1, 6]),
+    ("PIVOTBY", &[0, 1, 2, 9]),
+    // R25's Legacy INDEX(LINEST/LOGEST(...,CHOOSE({1,2},x1,x2),...))
+    // captures retain both predictor columns, including callers below x1/x2.
+    ("LINEST", &[1]),
+    ("LOGEST", &[1]),
+];
 
 /// The reference parameters at which OFFSET or INDIRECT lifts over an array wherever the call is,
 /// giving an array of references the function runs once per reference of (dc-b1l, the

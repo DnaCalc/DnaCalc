@@ -274,6 +274,29 @@ is still rendered as empty text instead of zero. These are separate measured
 implementation gaps, not new gains. The ten ISFORMULA controls return #NAME?
 on both sides; they do not establish Boolean formula identity.
 
+Nested regression predictors (engine17, dc-b1l): the unchanged R25 Legacy
+captures select full `CHOOSE({1,2},range1,range2)` predictor arrays in the
+second argument of LINEST and LOGEST, including through INDEX. The existing
+lazy-call instruction now carries the enclosing argument admission separately
+from its selector's admission, so materializing branch references keeps both
+predictor columns. All 494 formerly refused cells now have actual evaluated
+results without imported or boundary caches: 288 match Excel and 206 remain
+numeric mismatches (LINEST 105, LOGEST 101). Those failures remain counted and
+belong to dc-j9k.14; this establishes neither the numeric algorithms nor wider
+unmeasured Legacy array contexts. No source workbook or captured answer changes.
+
+Bare cell callees (engine17, dc-b1l): the existing original VBA-name observations
+give #REF! for A1(2), XFD1(2) and the persisted $A$1(2), while module-qualified
+A1/XFD1/R1C1 calls reach their VBA procedures. Reference binding now records the
+bare callee token and uses the existing reference invocation route, including
+the ordinary argument lowering. Builtins such as LOG10 keep precedence; the
+same sites support notation and structural transforms. Original XLSM/XLSB files
+and their saved/reopened projects exercise actual calculation. The corpus has
+no registered live observation for these cells, so this creates no claimed
+corpus pass. Self/cyclic/errored or callable-valued callees and argument effects
+remain eng17 questions; the graph's conservative reference prerequisites are
+unchanged.
+
 ### 3.3 Invocation
 
 ```rust

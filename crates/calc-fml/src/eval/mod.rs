@@ -34,6 +34,7 @@
 //! refuses the call as not modelled.
 
 mod builtins;
+pub(crate) use builtins::is_builtin;
 mod cells;
 mod closure;
 mod compile;
@@ -534,6 +535,9 @@ enum Instruction {
         first_block: usize,
         argc: usize,
         admission: Admission,
+        /// Selected range arguments of a lifted call retain its enclosing array
+        /// context independently of scalar selector admission.
+        lifted_admission: Admission,
     },
     /// Pops two references and pushes the reference from the top-left of the two to their
     /// bottom-right (the range operator `:` between references that are not one written range).

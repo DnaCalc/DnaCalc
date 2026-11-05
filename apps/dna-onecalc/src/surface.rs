@@ -1029,7 +1029,7 @@ fn surface() -> impl IntoView {
                         " "
                         <button data-onecalc="vba-clear" type="button" on:click=clear_vba>"Unload module"</button>
                         <p data-onecalc="vba-status">{move || vba_status.get()}</p>
-                        <p class="oc-prov">"Load the example, enter 40 in A1, then try =Add2(A1,2). Each call starts fresh and stops at its execution budget. References supply values or arrays; Excel Range objects are not supported yet."</p>
+                        <p class="oc-prov">"Load the example, enter 40 in A1, then try =Module1.Add2(A1,2). Module state lasts until reload or unload. Each call stops at its execution budget. References can supply values, arrays or read-only Excel Range arguments; writes and calculation commands remain unsupported."</p>
                     </details>
                     <div class="oc-panel">
                         <h2>"Sheets"</h2>

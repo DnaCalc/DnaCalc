@@ -596,6 +596,9 @@ fn file_project_sources_compile_with_their_exported_attributes() {
                 (2, 102.),
                 (3, 102.),
                 (4, 102.),
+                (22, 702.),
+                (24, 802.),
+                (26, 902.),
                 (30, 1202.),
                 (31, 1202.),
                 (32, 1302.),
@@ -604,6 +607,15 @@ fn file_project_sources_compile_with_their_exported_attributes() {
                     value(&session, row, 2).as_number(),
                     Some(expected),
                     "{backend:?}"
+                );
+            }
+            // The retained Excel observations give #REF! for bare grid-cell
+            // callees; the same VBA procedures remain callable by module name.
+            for row in [21, 23, 25] {
+                assert_eq!(
+                    value(&session, row, 2).as_error(),
+                    Some(calc_value::WorksheetErrorCode::Ref),
+                    "{name} {backend:?} B{row}"
                 );
             }
             enter(&mut session, 1, 4, "=PrivateModule.HiddenFunc(3)");
@@ -638,6 +650,13 @@ fn file_project_sources_compile_with_their_exported_attributes() {
             drain(&mut reopened);
             assert_eq!(value(&reopened, 30, 2).as_number(), Some(1202.));
             assert_eq!(value(&reopened, 31, 2).as_number(), Some(1202.));
+            for row in [21, 23, 25] {
+                assert_eq!(value(&reopened, row, 2).as_error(),
+                    Some(calc_value::WorksheetErrorCode::Ref));
+            }
+            for (row, expected) in [(22, 702.), (24, 802.), (26, 902.)] {
+                assert_eq!(value(&reopened, row, 2).as_number(), Some(expected));
+            }
         }
     }
 }

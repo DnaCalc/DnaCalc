@@ -533,7 +533,7 @@ const NAMES: [&str; 517] = [
 ];
 
 /// Whether `name` (any ASCII case, without a file prefix) is an Excel built-in function.
-pub(super) fn is_builtin(name: &str) -> bool {
+pub(crate) fn is_builtin(name: &str) -> bool {
     let upper = name.to_ascii_uppercase();
     NAMES.binary_search(&upper.as_str()).is_ok()
 }

@@ -5,7 +5,7 @@
 //! The text is split by [`calc_fml::syntax::lex`], the formula language's one lexer, and each
 //! token is read the way CalcFml's parser and A1 reference binding read it:
 //!
-//! - An identifier that names a function (a `(` follows it directly), qualifies a reference (a `!`
+//! - An identifier that names a function (a `(` follows it directly, except a bare cell callee), qualifies a reference (a `!`
 //!   follows it directly) or is the first or last sheet of a sheet span (`S1:S3!A1`) is a name.
 //! - Any other identifier or number that spells a cell of the grid (`B7`, `$B7`, `b$7`) is a cell
 //!   reference, qualified or not.
@@ -275,7 +275,12 @@ impl Moves {
             if kind(at) == Some(TokenKind::Identifier)
                 && matches!(kind(at + 1), Some(TokenKind::Bang | TokenKind::LParen))
             {
-                *named = true;
+                let cell_call = kind(at + 1) == Some(TokenKind::LParen)
+                    && !qualifier_target(at)
+                    && calc_fml::reference::is_cell_callee(
+                        tokens[at].text(), calc_fml::reference::ReferenceNotation::A1,
+                    );
+                *named = !cell_call;
             }
         }
         // An identifier or number that can be a reference: not a name by position, and not a
@@ -475,6 +480,11 @@ mod tests {
             ("A1:B2:C3", 1, 1, "B2:C3:D4"),
             ("\"say \"\"A1\"\"\"&A1", 1, 0, "\"say \"\"A1\"\"\"&A2"),
             ("LOG10(A1)+LOG10", 1, 0, "LOG10(A2)+LOG11"),
+            // Shared-source consistency with the binder's callee token sites;
+            // broader Excel call-copy observations remain eng17 questions.
+            ("A1(2)+$A$1(2)+Module1.A1(2)+LOG10(100)", 1, 0,
+                "A2(2)+$A$1(2)+Module1.A1(2)+LOG10(100)"),
+            ("'Book.xlsm'!A1(2)", 1, 0, "'Book.xlsm'!A1(2)"),
             (
                 "_xlfn.XLOOKUP(A1,B:B,C:C)",
                 1,
