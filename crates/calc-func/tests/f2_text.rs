@@ -60,8 +60,8 @@ fn iteration_prefix_and_measured_han_repeat_order() {
     .expect("the strict primary prefix decides this comparison");
     assert_eq!(result.as_logical(), Some(expected));
     // Fn1 D2 now measures the Han repeat order separately from the earlier prefix reading.
-    // Fn3 now records the exact bare-prefix comparison too; its unknown primary weight
-    // still cannot decide different prefixes with the same completed primary.
+    // Fn3 records the exact bare-prefix comparison too. Fn7 later measures the
+    // punctuation primary that decides different prefixes with completed primaries.
     let order = |a: &str, b: &str| calc_func::text_order(
         &a.encode_utf16().collect::<Vec<_>>(), &b.encode_utf16().collect::<Vec<_>>()
     );
@@ -76,7 +76,8 @@ fn iteration_prefix_and_measured_han_repeat_order() {
     let Observation::ExcelRaw(value) = &observed.observation else { panic!("a raw reading"); };
     assert_eq!(value.as_logical(), Some(true));
     assert_eq!(order("カ-ゝ", "カ-"), Some(std::cmp::Ordering::Greater));
-    assert_eq!(order("カ-ゝ", "カゝ"), None, "a different prefix remains unmodelled");
+    assert_eq!(order("カ-ゝ", "カゝ"), Some(std::cmp::Ordering::Less),
+        "fn7 measures the punctuation primary before the repeated kana");
 }
 
 

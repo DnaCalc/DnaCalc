@@ -9,10 +9,9 @@
 //! are NOW and TODAY when the environment holds no clock. A date given as text is read as VALUE
 //! reads it ([`crate::value_text`]), which needs the environment's locale profile.
 //!
-//! OxFunc's argument rules are kept: EDATE, EOMONTH and WEEKNUM's date give #VALUE! for a
-//! logical and #N/A for an omitted argument; the WORKDAY and NETWORKDAYS dates give #VALUE! for
-//! an omitted argument, while a blank reference supplies serial zero; a holiday list reads the
-//! numbers its cells hold.
+//! EDATE, EOMONTH and WEEKNUM's date give #VALUE! for a logical and #N/A for an omitted
+//! argument. Fn7 measures #N/A for omitted required WORKDAY and NETWORKDAYS arguments too;
+//! a blank reference supplies serial zero. A holiday list reads the numbers its cells hold.
 
 use super::kit::{fail, num, out, reject_logical, text_arg, values};
 use crate::call::EvalServices;
@@ -78,10 +77,10 @@ fn strict_num(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<f64> {
     }
 }
 
-/// A WORKDAY or NETWORKDAYS argument: omitted is #VALUE!; a genuine blank reads as zero.
+/// Fn7's required WORKDAY/NETWORKDAYS slots: omitted is #N/A; a blank reads as zero.
 fn present_num(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<f64> {
     match a[index].core_ref() {
-        CoreRef::Missing => fail(W::Value),
+        CoreRef::Missing => fail(W::NA),
         _ => num(site, a, index),
     }
 }
@@ -330,10 +329,8 @@ ported_family! {
         networkdays(s, a, sv, true)
     }
     23 yearfrac_fn "YEARFRAC" (2, 3) [V "start_date", V "end_date", V "basis"] |s, a, sv| {
-        reject_logical(&a[0])?;
-        let start = super::kit::checked_date_serial(date_arg(s, a, 0)?)?;
-        reject_logical(&a[1])?;
-        let end = super::kit::checked_date_serial(date_arg(s, a, 1)?)?;
+        let start = super::kit::checked_date_serial(strict_date_arg(s, a, 0)?)?;
+        let end = super::kit::checked_date_serial(strict_date_arg(s, a, 1)?)?;
         let basis = if a.len() > 2 && !a[2].is_missing() { super::kit::num_without_logical(s, a, 2)? } else { 0.0 };
         out(s, k::yearfrac(start, end, basis))
     }
