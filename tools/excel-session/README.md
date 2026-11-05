@@ -39,6 +39,12 @@ paths and hashes; a modified cached copy refuses execution. Every workbook still
 same baseline checks and its own unchanged request, raw result and saved package.
 
 Ownership requires a new Excel PID absent from the prelaunch list, its start time and Excel image.
+The host starts Excel explicitly with `/x /automation` and a hidden window, then records that
+process before waiting for its native object model. It binds through an EXCEL7 child belonging
+to that PID and verifies the application's PID and start time before changing any setting.
+An empty, code-free CSV supplies the initial worksheet window and closes before baseline recording.
+No input, focus change, COM activation or registration is needed. A failed startup retains its
+launch record even when no application object was obtained.
 PID 3144 and `/restore` processes are refused. Cleanup checks that exact tuple. Only the host's
 serialized deadline may stop an active job and its owned Excel. A client can cancel its own
 still-queued request; it never terminates a process based on a stale status read. No process-wide
