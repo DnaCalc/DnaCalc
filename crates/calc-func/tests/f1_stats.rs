@@ -713,6 +713,29 @@ fn binomial_all_success_stores_the_x87_log_product() {
     }
 }
 
+/// Original R28 Excel b20527 count edges, including both probability endpoints.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn binomial_rejects_the_signed_count_sentinel_before_probability_shortcuts() {
+    let first_rejected = f64::from_bits(0x41df_ffff_ffc0_0000);
+    let last_accepted = f64::from_bits(0x41df_ffff_ffbf_ffff);
+    for function in ["BINOM.DIST", "BINOMDIST"] {
+        for probability in [0.0, 1.0, 1.0 - 2.0_f64.powi(-24)] {
+            for cumulative in [false, true] {
+                for trials in [first_rejected, first_rejected + 0.5, 1_099_511_627_776.0] {
+                    error(call(function, vec![n(trials), n(trials), n(probability), b(cumulative)]), Num);
+                    error(call(function, vec![n(0.0), n(trials), n(probability), b(cumulative)]), Num);
+                }
+            }
+        }
+        // The immediately preceding binary64 count truncates to 2^31-2.
+        exact(call(function, vec![n(last_accepted), n(last_accepted), n(1.0), b(false)]), 1.0);
+        exact(call(function, vec![n(last_accepted), n(last_accepted), n(0.0), b(false)]), 0.0);
+        exact(call(function, vec![n(last_accepted), n(last_accepted), n(1.0 - 2.0_f64.powi(-24)), b(false)]),
+            f64::from_bits(0x3464_2eb5_104a_866b));
+    }
+}
+
 /// Recorded tiny ERF answers: the stored-product route below 2^-27 (dc-j9k.6) reproduces them.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
