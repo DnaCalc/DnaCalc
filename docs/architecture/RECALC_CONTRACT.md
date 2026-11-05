@@ -892,8 +892,8 @@ are the admitted event surface. The compiler's resolved document symbols and cur
 event descriptors reject other reserved event-prefixed procedures, including active
 conditional declarations; inactive declarations do not create handlers. Event faults
 remain recorded once through the host/worker route. This establishes the DNA lifecycle
-and shared state, without new Excel Open/P22 ordering evidence. Events still have the
-read-only object surface described below; general macro writes remain open.
+and shared state, without new Excel Open/P22 ordering evidence. The bounded synchronous event command surface is described below; broader
+macro object-model operations remain open.
 
 The corpus runner uses this owner only under a capture's recorded enabled macro
 policy and recorded event switch. Disabled captures preserve source without compiling
@@ -957,13 +957,14 @@ carriers for the real
 The runtime selects the private handler, shares its state with UDFs, and writes
 Cancel back before the host can pin a save image. Programmatic worker saves pass
 SaveAsUI=false. Handler errors fail the save; each invocation drains its native
-event fault before a later event can enter. The automatic VBA event view remains
-read-only, so workbook writes through that view still require object-model work.
+event fault before a later top-level event can enter. A handler may commit the
+single-cell Value2 writes described below before cancellation; these edits stand.
 The existing P22 family retains 70 fresh-required COM trials and 54 P06 replay
 trials; its metadata omissions remain recorded. Host tests replay write-event
 order and entry values from all 30 basic Manual/Automatic/events-disabled COM
-traces. Nested COM event edits are observed in Excel but remain outside the DNA
-read-only handler surface; UI-dialog behavior remains unmeasured.
+traces. Nested COM event edits are observed in Excel; the bounded DNA owner below
+now supports synchronous nesting. The complete original P22 event source still
+requires unsupported workbook/application events; UI-dialog behavior remains unmeasured.
 
 The portable document projection resolves Me.Name from its attached document and
 supports explicit Target.Value2, Row, Column,
@@ -973,8 +974,8 @@ requires. It uses DNA nominal
 interface identities, not Excel COM IIDs. Reads use the host's existing projected
 caches and add no graph demand. Target handles expire with that view; catching
 their refusal in VBA cannot turn it into a calculated result. General object
-UDF signatures, stored event Targets, Me members, event writes and WorksheetFunction
-callbacks remain unavailable in this profile. Document-project UDF entries use
+UDF signatures, stored event Targets, additional Me members and WorksheetFunction
+callbacks remain unavailable in this profile. Single-cell event writes are described below. Document-project UDF entries use
 the runtime's owning value calls so an older Variant entry cannot swallow these
 capability refusals. Long, Double, Boolean, String and Variant signatures are
 admitted explicitly within the runtime's four-argument and owning-slot limits;
@@ -988,6 +989,46 @@ synchronous and budgeted. A runtime busy/error/budget refusal is recorded once,
 without retrying effects or undoing the authored edit. The bounded failure queue
 counts omitted older failures, and the worker reports them through the ordinary
 wire route. P22's Excel traces and the broader macro object model remain open.
+
+
+Synchronous mutable event owner (dc-hsa5.12, engine18): each registered callback
+receives an exclusive loan of the existing HostSession. The VBA adapter borrows it
+only for a read or an existing Automation intent. A nested write commits, calculates
+in Automatic mode and delivers its nested events before its setter returns; no
+post-handler edit queue or second evaluator is introduced. The tested form uses
+`Dim app As Excel.Application: Set app = Application`. Its typed Application slots
+support one-address local Range lookup, Calculate, CalculateFull, CalculateFullRebuild
+and the session's EnableEvents switch. Typed Target and Range support scalar
+single-cell Value2 puts, clears and Range.Calculate. Multi-cell/multi-area writes,
+array coercions, late-bound object members and provider waits remain typed gaps.
+Manual Range keeps the existing scope and StillRequired policy, verified by actual
+UDF entry counts before and after F9, rather than by display equality alone.
+
+Nested handlers and same-project UDFs borrow the exact active TypedContext and its
+remaining budget. Macro-owned UDF calls run synchronously through the existing
+owning-value entry; they cannot retain a new suspended activation. A UDF's read view
+cannot use or mutate a surrounding event Target, including through VBA On Error or
+worksheet IFERROR. File-project cached/stale-read qualifications remain refused.
+Nested unhandled event faults remain on the shared context so the triggering VBA
+call aborts even under On Error Resume Next; only the outer boundary drains them.
+Committed prefix writes remain. Later top-level events receive a clean scope.
+
+The event switch or retiring owner stops the remaining sheets in a delivery batch.
+Waiting, failed or cancelled automatic work does not admit Automation Change.
+Parked provider work is unfinished even when the worker schedules no further task.
+Intent records retain synchronous parent command identities. Replay regenerates
+children from handlers and compares their normalized command/parent positions,
+ingress, intents and acceptance, detecting missing and unexpected children. This
+checks a command transcript, not arbitrary VBA state or Excel event parity.
+
+Native interpreter/JIT controls exercise nested Change and Calculate return order,
+reentrant UDFs, Full/Rebuild entry counts, Range/F9 counts, shared-budget exhaustion,
+BeforeSave write-before-cancel, event-switch failure state and refusal propagation.
+At the pinned 7eb4fdd runtime, bare global Application receivers in typed handlers,
+literal-to-Variant member arguments and CVar linking still have frontend gaps.
+No original workbook source was rewritten to admit it. These controls do not settle
+SCC execution counts, general mid-cycle caches or callback-bearing cyclic Range;
+the existing instrumented Full/Rebuild Excel questions remain pending.
 
 
 Defined-name implementation update (dc-hsa5.5, 2026-11-01): the canonical `NameTable` stores

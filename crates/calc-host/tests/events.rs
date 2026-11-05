@@ -12,6 +12,8 @@ use std::{
     rc::Rc,
     sync::Arc,
 };
+#[path = "../../calc-engine/tests/fixtures/seven_cell_async.rs"]
+mod async_provider;
 
 fn book() -> HostSession {
     HostSession::open(
@@ -55,6 +57,93 @@ struct Probe {
     cancel: Cell<bool>,
     save_edit: Cell<bool>,
 }
+
+struct StopDelivery {
+    calculation: bool,
+    retire: bool,
+    delivered: RefCell<Vec<SheetId>>,
+}
+impl StopDelivery {
+    fn stop(&self, session: &mut HostSession, sheet: SheetId) {
+        self.delivered.borrow_mut().push(sheet);
+        if self.retire { session.set_workbook_event_handler(None); }
+        else { session.set_workbook_events_enabled(false); }
+    }
+}
+impl WorkbookEventHandler for StopDelivery {
+    fn worksheet_change(&self, session: &mut HostSession, sheet: SheetId, _: &[GridArea]) -> Result<(), String> {
+        if !self.calculation { self.stop(session, sheet); }
+        Ok(())
+    }
+    fn worksheet_calculate(&self, session: &mut HostSession, sheet: SheetId) -> Result<(), String> {
+        if self.calculation { self.stop(session, sheet); }
+        Ok(())
+    }
+    fn before_save(&self, _: &mut HostSession, _: SaveOperation) -> Result<BeforeSaveOutcome, String> {
+        Ok(BeforeSaveOutcome::default())
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn mutable_owner_stops_a_multi_sheet_batch_when_disabled_or_replaced() {
+    for calculation in [false, true] {
+        for retire in [false, true] {
+            let mut session = book();
+            assert!(session.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::Sheet {
+                sheet: None, change: calc_host::SheetChange::Add { name: "Other".into() },
+            })).accepted());
+            let edits = session.host().model().sheets().iter().map(|sheet| CellEdit::Set {
+                at: CellKey::new(sheet.id(), 1, 1).unwrap(),
+                input: calc_host::interpret_entry(if calculation { "=1" } else { "1" }).unwrap().unwrap(),
+            }).collect();
+            let owner = Rc::new(StopDelivery { calculation, retire, delivered: RefCell::default() });
+            if calculation {
+                assert!(session.dispatch(SkinIntent::Edit { edits }).accepted());
+                session.set_workbook_event_handler(Some(owner.clone()));
+                assert!(session.dispatch(SkinIntent::Calculate {
+                    scope: calc_host::CalcScope::Workbook, selection: calc_host::EvalSelection::ForceAll,
+                }).accepted());
+                while session.has_pending_calculation() { session.advance_calculation(); }
+            } else {
+                session.set_workbook_event_handler(Some(owner.clone()));
+                assert!(session.dispatch(SkinIntent::Edit { edits }).accepted());
+            }
+            assert_eq!(owner.delivered.borrow().len(), 1, "calculation={calculation}, retire={retire}");
+            assert!(session.workbook_event_failures().failures.is_empty());
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn mutable_owner_automation_change_does_not_follow_a_parked_provider() {
+    let mut session = book();
+    let counts = Rc::new(RefCell::new(async_provider::Counts::default()));
+    let mut functions = calc_host::CallableTable::new();
+    functions.register("AsyncEcho", Rc::new(async_provider::Echo(counts.clone()))).unwrap();
+    session.set_user_functions(functions);
+    enter(&mut session, 1, "1");
+    enter(&mut session, 2, "=AsyncEcho(A1)+2");
+    session.set_workbook_events_enabled(false);
+    session.dispatch(SkinIntent::SetCalcMode(CalcMode::Automatic));
+    while session.has_pending_calculation() { session.advance_calculation(); }
+    assert!(session.has_unfinished_calculation());
+    let probe = Probe::new(&session);
+    session.set_workbook_event_handler(Some(probe.clone()));
+    session.set_workbook_events_enabled(true);
+    let at = cell(&session, 1);
+    let receipt = session.dispatch_from(calc_host::CommandIngress::Automation, SkinIntent::EnterCell { at, text: "9".into() });
+    assert!(receipt.accepted()); // The authored edit stands even though calculation cannot finish.
+    assert!(!session.has_pending_calculation());
+    assert!(session.has_unfinished_calculation());
+    assert!(probe.log.borrow().iter().all(|entry| !entry.starts_with("change")));
+    let failures = session.workbook_event_failures();
+    assert_eq!(failures.failures.len(), 1);
+    assert!(failures.failures[0].reason.contains("terminal successful calculation"));
+    assert_eq!(counts.borrow().prefix, 2); // One invocation before, one after the authored edit.
+    assert_eq!(counts.borrow().suffix, 0);
+}
 impl Probe {
     fn new(book: &HostSession) -> Rc<Self> {
         Rc::new(Self {
@@ -71,10 +160,11 @@ impl Probe {
 impl WorkbookEventHandler for Probe {
     fn worksheet_change(
         &self,
-        host: &HostState,
+        session: &mut HostSession,
         sheet: SheetId,
         target: &[GridArea],
     ) -> Result<(), String> {
+        let host = session.host();
         assert_eq!(sheet, self.a.sheet());
         assert!(target.iter().all(|area| area.sheet() == sheet));
         self.log.borrow_mut().push(format!(
@@ -89,7 +179,8 @@ impl WorkbookEventHandler for Probe {
             Ok(())
         }
     }
-    fn worksheet_calculate(&self, host: &HostState, _: SheetId) -> Result<(), String> {
+    fn worksheet_calculate(&self, session: &mut HostSession, _: SheetId) -> Result<(), String> {
+        let host = session.host();
         self.log.borrow_mut().push(format!(
             "calculate {:?}/{:?}",
             number(host, self.b),
@@ -99,7 +190,7 @@ impl WorkbookEventHandler for Probe {
     }
     fn before_save(
         &self,
-        _: &HostState,
+        _: &mut HostSession,
         operation: SaveOperation,
     ) -> Result<BeforeSaveOutcome, String> {
         self.log.borrow_mut().push(format!("save {operation:?}"));
