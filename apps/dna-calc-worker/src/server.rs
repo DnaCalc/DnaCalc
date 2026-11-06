@@ -947,6 +947,7 @@ impl Server {
                         self.charts(sheet),
                     )))
                 }
+                Request::PivotTables(sheet)=>{let (tables,issues)=self.pivots(sheet);Ok(Reply::PivotTables{tables,issues})},
                 Request::Charts(sheet) => Ok(Reply::Charts(self.charts(sheet))),
                 Request::AtlasRefusals { reason, page } => Ok(Reply::AtlasRefusals(
                     self.book
@@ -2873,6 +2874,26 @@ impl Server {
     }
 
     /// The sheet's charts, laid out with its sizes at 100% and drawn.
+    /// Describe saved definitions; cache contents never stand in for a refresh.
+    fn pivots(&self,sheet:Sheet)->(Vec<wire::SavedPivot>,Vec<String>){
+        let loaded=self.book.host().loaded();let caches=loaded.pivot_caches();
+        let mut issues=caches.issues.iter().map(|e|format!("{}: {} ({})",e.part,e.detail,e.owner)).collect::<Vec<_>>();
+        let Some(source)=loaded.sheet(sheet.id())else{return (Vec::new(),vec!["The worksheet is unavailable".into()]);};
+        issues.extend(source.pivots().issues.iter().map(|e|format!("{}: {} ({})",e.part,e.detail,e.owner)));
+        let tables=source.pivots().tables.iter().map(|p|{
+            let (source,fields,cache)=match caches.caches.get(&p.cache_id){
+                Some(c)=>{
+                    let field=|index:i32|if index==-2{"Values".to_owned()}else{usize::try_from(index).ok().and_then(|i|c.fields.get(i)).map(|f|f.name.clone()).unwrap_or_else(||format!("Field {index} (unread)"))};
+                    let mut fields=Vec::new();if !p.row_fields.is_empty(){fields.push(format!("Rows: {}",p.row_fields.iter().map(|i|field(*i)).collect::<Vec<_>>().join(", ")));}if !p.column_fields.is_empty(){fields.push(format!("Columns: {}",p.column_fields.iter().map(|i|field(*i)).collect::<Vec<_>>().join(", ")));}if !p.page_fields.is_empty(){fields.push(format!("Filters: {}",p.page_fields.iter().map(|i|field(*i as i32)).collect::<Vec<_>>().join(", ")));}if !p.data_fields.is_empty(){fields.push(format!("Values: {}",p.data_fields.iter().map(|v|format!("{} ({})",v.name.clone().unwrap_or_else(||field(v.field as i32)),v.subtotal)).collect::<Vec<_>>().join(", ")));}
+                    let source=if let Some(name)=&c.source_name{format!("Source name: {name}")}else if let (Some(sheet),Some(range))=(&c.source_sheet,&c.source_range){format!("Source: {sheet}!{range}")}else{format!("Saved {} source",c.source_type)};
+                    (source,fields.join(" · "),format!("Saved cache {} · {} fields · {} records declared",c.id,c.fields.len(),c.record_count.map(|n|n.to_string()).unwrap_or_else(||"unknown".into())))
+                },None=>{issues.push(format!("{}: cache {} was not read (dc-8wp)",p.name,p.cache_id));("Source unavailable".into(),"Fields unavailable".into(),format!("Saved cache {} is unread",p.cache_id))},
+            };
+            let address=|cell:CellKey|format!("{}{}",dna_calc_model::address::column_letters(cell.column()),cell.row());
+            wire::SavedPivot{name:p.name.clone(),part:p.part.clone(),area:Area::of(p.area),location:format!("{}:{}",address(p.area.first()),address(p.area.last())),source,fields,cache}
+        }).collect();(tables,issues)
+    }
+
     fn charts(&self, sheet: Sheet) -> Vec<Chart> {
         let host = self.book.host();
         let geometry = host.sheet_geometry(sheet.id());

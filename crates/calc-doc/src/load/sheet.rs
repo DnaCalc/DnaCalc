@@ -31,6 +31,7 @@ pub(super) struct Context<'a> {
 
 /// One sheet's cells as read: the inputs for the model and the records kept beside it.
 pub(super) struct SheetLoad {
+    pub(super) pivots:super::pivot::SheetPivots,
     pub(super) page_setup: calc_doc_model::PageSetup,
     pub(super) conditional_sources: Vec<calc_doc_model::ConditionalRuleSource>,
     pub(super) review: super::SheetReview,
@@ -969,6 +970,7 @@ pub(super) fn load_sheet(
         id,
         part: Arc::clone(&source),
         load: SheetLoad {
+            pivots:Default::default(),
             page_setup: super::page_setup::read(&xml)?,
             conditional_sources: Vec::new(),
             review: super::review::read(package, part, id),
@@ -1040,6 +1042,7 @@ pub(super) fn load_sheet(
                 let read = super::validation::read_validations(&mut events)?;
                 sheet.load.validations.extend(read);
             }
+            Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "pivotParts") => {super::pivot::read_parts(package,part,id,&mut events,&mut sheet.load.pivots)?;}
             Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "sheetData") => {
                 if sheet_data {
                     return Err(events.invalid("a worksheet with two sheetData elements"));

@@ -27,6 +27,7 @@
 
 pub(crate) mod address;
 mod chart;
+pub mod pivot;
 pub(crate) mod page_setup;
 pub(crate) mod conditional;
 mod error;
@@ -122,6 +123,7 @@ pub struct LoadedSheet {
     merged_areas: Vec<GridArea>,
     validations: Arc<[Validation]>,
     charts: Arc<SheetCharts>,
+    pivots:Arc<pivot::SheetPivots>,
     page_setup: calc_doc_model::PageSetup,
     review: Arc<SheetReview>,
 }
@@ -146,6 +148,7 @@ impl LoadedSheet {
             merged_areas: Vec::new(),
             validations: Arc::from([]),
             charts: Arc::new(SheetCharts::default()),
+            pivots:Arc::new(pivot::SheetPivots::default()),
             page_setup: Default::default(),
             review: Arc::new(SheetReview::default()),
         }
@@ -176,6 +179,9 @@ impl LoadedSheet {
     pub fn review(&self) -> &SheetReview {
         &self.review
     }
+
+    /// Saved source definitions; they do not represent a refresh.
+    pub fn pivots(&self)->&pivot::SheetPivots{&self.pivots}
 
     pub fn charts(&self) -> &SheetCharts {
         &self.charts
@@ -376,6 +382,7 @@ pub struct LoadedWorkbook {
     model: Arc<ModelRoot>,
     workbook_part: String,
     sheets: Arc<[LoadedSheet]>,
+    pivot_caches:Arc<pivot::PivotCaches>,
     cell_formats: u32,
     styles: Arc<StyleTable>,
     theme_colors: Arc<[String]>,
@@ -392,6 +399,13 @@ pub struct LoadedWorkbook {
 }
 
 impl LoadedWorkbook {
+    pub fn pivot_caches(&self)->&pivot::PivotCaches{&self.pivot_caches}
+    /// Inspect at most 100,000 saved records and 1,000,000 items, never calculated results.
+    pub fn pivot_records(&self,id:u32,max_records:usize)->Result<pivot::PivotRecords,pivot::PivotIssue>{
+        let cache=self.pivot_caches.caches.get(&id).ok_or_else(||pivot::PivotIssue{part:self.workbook_part.clone(),detail:format!("Pivot cache {id} was not read"),owner:"dc-8wp"})?;
+        pivot::read_records(&self.package,cache,max_records)
+    }
+
     /// Preflight the same print-element writer used by Save.
     pub fn check_page_setup(&self, sheet: SheetId, old:&calc_doc_model::PageSetup, new:&calc_doc_model::PageSetup)->Result<(),crate::SaveRefusal> {
         let name=self.sheet(sheet).map(|s|s.part().name()).unwrap_or("new-worksheet.xml");
@@ -1600,6 +1614,7 @@ pub fn load_preserving_sheet_ids(
                     merged_areas: loaded.merged_areas,
                     validations: loaded.validations.into(),
                     charts: Arc::new(chart::read_charts(package, &declared.part)),
+                    pivots:Arc::new(loaded.pivots),
                     page_setup: loaded.page_setup,
                     review: Arc::new(loaded.review),
                 });
@@ -1731,11 +1746,13 @@ pub fn load_preserving_sheet_ids(
     .expect(
         "the IDs are distinct, the keys were checked, each cell, anchor and definition lies on a sheet of the load, and each array anchor holds its formula",
     );
+    let pivot_caches=Arc::new(pivot::read_caches(package,&workbook));
     Ok(LoadedWorkbook {
         package: Arc::clone(document.package_arc()),
         model,
         workbook_part: workbook,
         sheets: sheets.into(),
+        pivot_caches,
         cell_formats,
         styles,
         theme_colors: theme_colors.into(),

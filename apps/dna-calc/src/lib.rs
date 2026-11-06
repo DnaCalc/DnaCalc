@@ -10,6 +10,7 @@ pub mod canvas;
 pub mod cells;
 pub mod clipboard;
 mod charts;
+mod pivots;
 mod commands;
 pub mod controller;
 mod format;
