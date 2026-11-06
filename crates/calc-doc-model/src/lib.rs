@@ -54,7 +54,7 @@
 mod axis_layout;
 mod cache;
 mod chart;
-pub use chart::{DrawingPoint,ChartAnchor,ChartData,ChartSeries,ChartPlot,ChartAxis,Chart,SheetCharts};
+pub use chart::{DrawingPoint,ChartAnchor,ChartData,ChartSeries,ChartPlot,ChartAxis,Chart,SheetCharts,ChartTextStyle};
 mod cells;
 mod validation;
 pub use validation::Validation;

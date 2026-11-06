@@ -8987,6 +8987,31 @@ Case {
         Action::Choose("chart-legend-position","t"),Action::Click("chart-legend-apply"),Action::Wait(Check::Attr("[data-dnacalc=chart-legend]","data-position","t")),Action::Wait(Check::Contained("[data-dnacalc=chart-legend][aria-label=\"Very long region label 26\"] rect","[data-dnacalc=chart]")),
         Action::Choose("chart-legend-position","b"),Action::Click("chart-legend-apply"),Action::Wait(Check::Attr("[data-dnacalc=chart-legend]","data-position","b"))
     ],checks:&[Check::Count("[data-dnacalc=chart-legend]",26),Check::Count("[data-dnacalc=chart-mark]",26),Check::Contained("[data-dnacalc=chart-legend][aria-label=\"Very long region label 26\"] rect","[data-dnacalc=chart]"),Check::Attr("[data-dnacalc=chart-legend] svg","overflow","hidden"),Check::TextContains("[data-dnacalc=chart-legend-description]","Very long region label 26"),Check::Absent("[data-dnacalc=chart-legend-overflow]")]},
+    Case{name:"chart text defaults: apply font points colour bold and italic",actions:&[
+        Action::Window(1600,1800),Action::Upload("open-file","crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools"),Action::Wait(Check::Value("chart-series-name","=Data!$B$1")),Action::Into("chart-font-family","Arial"),Action::Into("chart-font-size","13.5"),Action::Into("chart-font-color","#234567"),Action::Click("chart-font-bold"),Action::Click("chart-font-italic"),Action::Click("chart-font-apply"),Action::Wait(Check::Attr("[data-chart=\"Chart 1\"]>svg","font-size","18.00"))
+    ],checks:&[Check::Attr("[data-chart=\"Chart 1\"]>svg","font-weight","700"),Check::Attr("[data-chart=\"Chart 1\"]>svg","font-style","italic"),Check::Attr("[data-chart=\"Chart 1\"] [data-dnacalc=chart-legend] text","fill","#234567"),Check::Value("chart-font-family","Arial"),Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","data-value","12")]},
+    Case{name:"chart text defaults: Undo and Redo own one font edit",actions:&[
+        Action::Click("undo"),Action::Wait(Check::Value("chart-font-family","")),Action::Click("redo"),Action::Wait(Check::Value("chart-font-family","Arial"))
+    ],checks:&[Check::Attr("[data-chart=\"Chart 1\"]>svg","font-size","18.00")]},
+    Case{name:"chart text defaults: invalid size leaves chart unchanged",actions:&[
+        Action::Into("chart-font-size","0"),Action::Click("chart-font-apply"),Action::Wait(Check::TextContains("status","1 to 409"))
+    ],checks:&[Check::Attr("[data-chart=\"Chart 1\"]>svg","font-size","18.00")]},
+    Case{name:"chart text defaults: actual save and reopen retains authored font",actions:&[
+        Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools"),Action::Wait(Check::Value("chart-font-family","Arial"))
+    ],checks:&[Check::Value("chart-font-size","13.5"),Check::Value("chart-font-color","#234567"),Check::Attr("[data-chart=\"Chart 1\"]>svg","font-size","18.00"),Check::Attr("[data-chart=\"Chart 1\"]>svg","font-weight","700")]},
+    Case{name:"chart text defaults: Automatic restores inheritance and phone controls fit",actions:&[
+        Action::Click("chart-font-reset"),Action::Wait(Check::Value("chart-font-family","")),Action::Window(390,844),Action::Click("chart-show"),Action::Keys("chart-font-color","\u{E004}\u{E004}\u{E004}")
+    ],checks:&[Check::Fits,Check::Value("chart-font-size",""),Check::Value("chart-font-color",""),Check::Attr("[data-chart=\"Chart 1\"]>svg","font-size","11.00"),Check::Reachable("chart-font-apply"),Check::Focused("chart-font-apply"),Check::HitTarget("chart-font-apply")]},
+    Case{name:"category combinations: create area plus line from live selection",actions:&[
+        Action::Window(1600,1800),Action::Upload("open-file","crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx"),Action::DiscardReplacement,Action::Into("name-box","A1:C7\u{E007}"),Action::OpenDetails("chart-tools"),Action::Choose("chart-create-type","combo-area-line"),Action::Click("chart-create-headers"),Action::Click("chart-create-categories"),Action::Click("chart-create"),Action::Wait(Check::Count("[data-dnacalc=chart]",7)),Action::Wait(Check::Value("chart-type","area"))
+    ],checks:&[Check::Count("[data-chart=\"Chart 7\"] [data-dnacalc=chart-plot]",2),Check::Count("[data-chart=\"Chart 7\"] [data-dnacalc=chart-mark]",12),Check::Absent("[data-chart=\"Chart 7\"] [data-dnacalc=chart-notice]")]},
+    Case{name:"category combinations: convert either selected plot while retaining axes",actions:&[
+        Action::Choose("chart-type","column"),Action::Click("chart-type-apply"),Action::Wait(Check::Value("chart-type","column")),Action::Choose("chart-plot","1"),Action::Wait(Check::Value("chart-type","line")),Action::Choose("chart-type","area"),Action::Click("chart-type-apply"),Action::Wait(Check::Value("chart-type","area"))
+    ],checks:&[Check::Absent("[data-chart=\"Chart 7\"] [data-dnacalc=chart-notice]"),Check::Count("[data-chart=\"Chart 7\"] [data-dnacalc=chart-mark]",12)]},
+    Case{name:"category combinations: actual XLSX reopening keeps both changed plot types",actions:&[
+        Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools"),Action::Choose("chart-choice","xl/charts/dnaChart.xml"),Action::Wait(Check::Value("chart-type","column")),Action::Choose("chart-plot","1"),Action::Wait(Check::Value("chart-type","area"))
+    ],checks:&[Check::Count("[data-dnacalc=chart]",7),Check::Absent("[data-chart=\"Chart 7\"] [data-dnacalc=chart-notice]")]},
+
 ];
 
 /// The script that reads what one check looks at.
@@ -9875,4 +9900,6 @@ CaseGroup {
         setup: &[],
     },
     CaseGroup {name:"chart-formatting",start:802,end:808,core:6,setup:&[]},
+    CaseGroup{name:"chart-text",start:808,end:813,core:5,setup:&[]},
+    CaseGroup{name:"chart-category-combos",start:813,end:816,core:3,setup:&[]},
 ];

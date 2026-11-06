@@ -3313,3 +3313,47 @@ fn recorded_directed_initial_underflow_uses_the_kernel() {
     assert!(failures.is_empty(), "{} of {rows} application checks differ:\n{}",
         failures.len(), failures.join("\n"));
 }
+
+/// Qualified Excel answers cover the reciprocal payment pole, first-period interest,
+/// invalid periods and nearby timing controls through the application evaluator.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_financial_ordering_uses_the_kernel() {
+    use calc_func::locale::{CalcEnvironment, DateSystem};
+    let mut session = Session::new("Sheet1").unwrap();
+    let mut environment = CalcEnvironment::dates(DateSystem::System1900);
+    environment.compatibility_version = 2;
+    session.set_environment(Some(environment));
+    session.set_formula_cell("J20").unwrap();
+    let mut rows = 0;
+    let mut failures = Vec::new();
+    for (function, bytes) in [
+        ("PMT", include_bytes!("../../../crates/calc-func/tests/witnesses/PMT.json").as_slice()),
+        ("IPMT", include_bytes!("../../../crates/calc-func/tests/witnesses/IPMT.json").as_slice()),
+        ("PPMT", include_bytes!("../../../crates/calc-func/tests/witnesses/PPMT.json").as_slice()),
+    ] {
+        let set = calc_verdict::WitnessSet::decode(bytes).unwrap();
+        let count = if function == "PMT" { 5 } else { 6 };
+        let cells = ["A1", "B1", "C1", "D1", "E1", "F1"];
+        session.set_formula(&format!("={function}({})", cells[..count].join(",")));
+        for row in set.witnesses.iter().filter(|r| r.reading.starts_with("fn12-financial-ordering-")) {
+            assert_eq!(row.args.len(), count);
+            for (cell, argument) in cells.into_iter().zip(&row.args) {
+                let number = calc_verdict::decode_argument(argument, function)
+                    .unwrap().as_number().unwrap();
+                assert!(number == 0.0 || number.is_normal());
+                session.set_input(cell, InputValue::number(number).unwrap()).unwrap();
+            }
+            let expected = calc_verdict::decode_result(&row.expected).unwrap();
+            let result = session.calculate();
+            rows += 1;
+            if result.result.as_ref() != Some(&expected) || !result.diagnostics.is_empty() {
+                failures.push(format!("{}: expected {expected:?}, calculated {:?}; {:?}",
+                    row.id, result.result, result.diagnostics));
+            }
+        }
+    }
+    assert_eq!(rows, 198, "every selected financial service answer must run");
+    assert!(failures.is_empty(), "{} of {rows} application checks differ:\n{}",
+        failures.len(), failures.join("\n"));
+}

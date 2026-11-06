@@ -1,9 +1,10 @@
 {
   "format": "dnacalc-witness-set/1",
   "function": "PPMT",
-  "selection": "cargo xtask witness pin: of 7 distinct readings in 1 bank files of OxFunc-Evidence, the first 4 rows of each bank and an evenly spaced sample of the rest, the budget of 120 rows shared by bank size; calc_func is the result calc-func calculated at pinning, on rows it did not match",
+  "selection": "cargo xtask witness pin: of 7 distinct readings in 1 bank files of OxFunc-Evidence, the first 4 rows of each bank and an evenly spaced sample of the rest, the budget of 120 rows shared by bank size; calc_func is the result calc-func calculated at pinning, on rows it did not match; fn12 appends every retained reciprocal-pole beginning-payment question and every new IPMT first-period/invalid-period/timing control, selected by inputs; full nearby controls remain in fn12_financial_ordering capture; original sample and all original answers unchanged",
   "readings": [
-    {"bitness":null,"cpu":"AMD Ryzen 7 4800H with Radeon Graphics","excel_build":"20131","id":"r0","platform":"Windows","source":"OxFunc-Evidence cache/oracle/build-20131/PPMT.jsonl"}
+    {"bitness":null,"cpu":"AMD Ryzen 7 4800H with Radeon Graphics","excel_build":"20131","id":"r0","platform":"Windows","source":"OxFunc-Evidence cache/oracle/build-20131/PPMT.jsonl"},
+    {"id":"fn12-financial-ordering-0","source":"Original scalar-service reply 121da08c434d409c8e298dd1e133a8e8; complete reply and settings retained in crates/calc-func/tests/captures/fn12_financial_ordering/scalar-observations.json; sha256 73159b429c7327eb304b1079a27813dd5fb39af2a3c5c5c90a1de6acee9537a9","excel_build":"20527","platform":"Windows","bitness":"64-bit","cpu":null,"invocation":{"input_transport":"cell_value2_bulk","input_sheet_state":"visible-constant-inputs","compatibility_version":"2"}}
   ],
   "witnesses": [
     {"args":["0x3f7eb851eb851eb8","0x3ff0000000000000","0x4076800000000000","0x40fe848000000000","0x0000000000000000","0x0000000000000000"],"expected_bits":"0xc05111cf31ed6e2c","id":"oc1","reading":"r0"},
@@ -12,6 +13,15 @@
     {"args":["0x3f7eb851eb851eb8","0x404e000000000000","0x4076800000000000","0x40fe848000000000","0x0000000000000000","0x0000000000000000"],"expected_bits":"0xc05a86cbef98b312","id":"oc4","reading":"r0"},
     {"args":["0x3f7eb851eb851eb8","0x4066800000000000","0x4076800000000000","0x40fe848000000000","0x0000000000000000","0x0000000000000000"],"expected_bits":"0xc07041aab639575b","id":"oc5","reading":"r0"},
     {"args":["0x3f7eb851eb851eb8","0x4076700000000000","0x4076800000000000","0x40fe848000000000","0x0000000000000000","0x0000000000000000"],"expected_bits":"0xc08ef6e08b4fb98e","id":"oc6","reading":"r0"},
-    {"args":["0x3f7eb851eb851eb8","0x4076800000000000","0x4076800000000000","0x40fe848000000000","0x0000000000000000","0x0000000000000000"],"expected_bits":"0xc08f325425f4cd82","id":"oc7","reading":"r0"}
+    {"args":["0x3f7eb851eb851eb8","0x4076800000000000","0x4076800000000000","0x40fe848000000000","0x0000000000000000","0x0000000000000000"],"expected_bits":"0xc08f325425f4cd82","id":"oc7","reading":"r0"},
+    {"id":"fn11-negative-pole-PPMT-001","args":["0xbfefffffffffffff","0x3ff0000000000000","0x4010000000000000","0x3ff0000000000000","0xbff0000000000000","0x3ff0000000000000"],"expected_bits":"error:Num","reading":"fn12-financial-ordering-0"},
+    {"id":"fn11-negative-pole-PPMT-003","args":["0xbfefffffffffffff","0x3ff0000000000000","0x4010000000000000","0x3ff0000000000000","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"error:Num","reading":"fn12-financial-ordering-0"},
+    {"id":"fn11-negative-pole-PPMT-005","args":["0xbfefffffffffffff","0x3ff0000000000000","0x4010000000000000","0x0000000000000000","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"error:Num","reading":"fn12-financial-ordering-0"},
+    {"id":"fn11-negative-pole-PPMT-007","args":["0xbfefffffffffffff","0x4000000000000000","0x4010000000000000","0x3ff0000000000000","0xbff0000000000000","0x3ff0000000000000"],"expected_bits":"error:Num","reading":"fn12-financial-ordering-0"},
+    {"id":"fn11-negative-pole-PPMT-009","args":["0xbfefffffffffffff","0x4000000000000000","0x4010000000000000","0x3ff0000000000000","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"error:Num","reading":"fn12-financial-ordering-0"},
+    {"id":"fn11-negative-pole-PPMT-011","args":["0xbfefffffffffffff","0x4000000000000000","0x4010000000000000","0x0000000000000000","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"error:Num","reading":"fn12-financial-ordering-0"},
+    {"id":"fn11-negative-pole-PPMT-013","args":["0xbfefffffffffffff","0x4010000000000000","0x4010000000000000","0x3ff0000000000000","0xbff0000000000000","0x3ff0000000000000"],"expected_bits":"error:Num","reading":"fn12-financial-ordering-0"},
+    {"id":"fn11-negative-pole-PPMT-015","args":["0xbfefffffffffffff","0x4010000000000000","0x4010000000000000","0x3ff0000000000000","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"error:Num","reading":"fn12-financial-ordering-0"},
+    {"id":"fn11-negative-pole-PPMT-017","args":["0xbfefffffffffffff","0x4010000000000000","0x4010000000000000","0x0000000000000000","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"error:Num","reading":"fn12-financial-ordering-0"}
   ]
 }
