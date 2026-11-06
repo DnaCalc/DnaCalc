@@ -8670,6 +8670,31 @@ Case {
         Action::Window(1600,1800),Action::Click("new"),Action::DiscardReplacement,Action::Into("name-box","A1\u{E007}"),Action::Into(BAR,"1\u{E007}"),Action::Into(BAR,"10\u{E007}"),Action::Into(BAR,"100\u{E007}"),Action::Into(BAR,"0\u{E007}"),Action::Into(BAR,"-5\u{E007}"),Action::Wait(Check::Text(cell!("A5"),"-5")),Action::Into("name-box","A1:A5\u{E007}"),Action::OpenDetails("chart-tools"),Action::Choose("chart-create-type","line"),Action::Click("chart-create"),Action::Wait(Check::Count("[data-dnacalc=chart]",1)),Action::Click("chart-axis-log"),Action::Click("chart-axis-scale-apply"),Action::Wait(Check::Count("[data-chart=\"Chart 1\"] [data-dnacalc=chart-mark]",3)),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement],checks:&[
         Check::Count("[data-chart=\"Chart 1\"] [data-dnacalc=chart-mark]",3),Check::Absent("[data-chart=\"Chart 1\"] [data-point=\"3\"]"),Check::Absent("[data-chart=\"Chart 1\"] [data-point=\"4\"]"),Check::Absent("[data-chart=\"Chart 1\"] [data-dnacalc=chart-notice]")]},
 
+    Case{name:"combo charts: selected columns create columns and a secondary line",actions:&[
+        Action::Window(1600,1800),Action::Upload("open-file","crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx"),Action::DiscardReplacement,Action::Into("name-box","A1:C7\u{E007}"),Action::OpenDetails("chart-tools"),Action::Choose("chart-create-type","combo"),Action::Click("chart-create-headers"),Action::Click("chart-create-categories"),Action::Click("chart-create"),Action::Wait(Check::Count("[data-dnacalc=chart]",7))],checks:&[
+        Check::Count("[data-chart=\"Chart 7\"] rect[data-dnacalc=chart-mark]",6),Check::Count("[data-chart=\"Chart 7\"] circle[data-dnacalc=chart-mark]",6),Check::Count("[data-dnacalc=chart-axis] option",2),Check::Count("[data-chart=\"Chart 7\"] [data-dnacalc=chart-legend]",2),Check::Absent("[data-chart=\"Chart 7\"] [data-dnacalc=chart-notice]")]},
+    Case{name:"combo charts: left and right bounds remain independent",actions:&[
+        Action::Choose("chart-axis","4"),Action::Into("chart-axis-maximum","200"),Action::Into("chart-axis-unit","50"),Action::Click("chart-axis-apply"),Action::Wait(Check::Attr("[data-chart=\"Chart 7\"] [data-plot=\"1\"] [data-dnacalc=chart-plot]","data-axis-max","200")),Action::Choose("chart-axis","2"),Action::Into("chart-axis-maximum","50"),Action::Into("chart-axis-unit","10"),Action::Click("chart-axis-apply")],checks:&[
+        Check::Attr("[data-chart=\"Chart 7\"] [data-plot=\"0\"] [data-dnacalc=chart-plot]","data-axis-max","50"),Check::Attr("[data-chart=\"Chart 7\"] [data-plot=\"1\"] [data-dnacalc=chart-plot]","data-axis-max","200")]},
+    Case{name:"combo charts: a secondary logarithmic scale uses history and saved reopening",actions:&[
+        Action::Choose("chart-axis","4"),Action::Click("chart-axis-log"),Action::Click("chart-axis-scale-apply"),Action::Wait(Check::Attr("[data-chart=\"Chart 7\"] [data-plot=\"1\"] [data-dnacalc=chart-plot]","data-axis-min","1")),Action::Click("undo"),Action::Wait(Check::Attr("[data-chart=\"Chart 7\"] [data-plot=\"1\"] [data-dnacalc=chart-plot]","data-axis-min","0")),Action::Click("redo"),Action::Wait(Check::Attr("[data-chart=\"Chart 7\"] [data-plot=\"1\"] [data-dnacalc=chart-plot]","data-axis-min","1")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools"),Action::Choose("chart-choice","xl/charts/dnaChart.xml"),Action::Choose("chart-plot","1"),Action::Choose("chart-axis","4")],checks:&[
+        Check::Value("chart-series-values","'Data'!$C$2:$C$7"),Check::Value("chart-axis-base","10"),Check::Attr("[data-chart=\"Chart 7\"] [data-plot=\"0\"] [data-dnacalc=chart-plot]","data-axis-max","50"),Check::Attr("[data-chart=\"Chart 7\"] [data-plot=\"1\"] [data-dnacalc=chart-plot]","data-axis-max","200")]},
+    Case{name:"combo charts: phone controls edit the right scale without moving left values",actions:&[
+        Action::Window(390,844),Action::Click("chart-show"),Action::Wait(Check::Count("[data-chart=\"Chart 7\"] [data-dnacalc=chart-plot]",2)),Action::Into("chart-axis-maximum","1000"),Action::Click("chart-axis-apply"),Action::Wait(Check::Attr("[data-chart=\"Chart 7\"] [data-plot=\"1\"] [data-dnacalc=chart-plot]","data-axis-max","1000")),Action::Wait(Check::Count("[data-dnacalc=chart-axis-scale-apply]:not(:disabled)",1)),Action::Into("chart-axis-base","2"),Action::Click("chart-axis-scale-apply")],checks:&[
+        Check::Attr("[data-chart=\"Chart 7\"] [data-plot=\"0\"] [data-dnacalc=chart-plot]","data-axis-max","50"),Check::Attr("[data-chart=\"Chart 7\"] [data-plot=\"1\"] [data-dnacalc=chart-plot]","data-axis-max","1000"),Check::Value("chart-axis-base","2"),Check::Reachable("chart-axis-scale-apply"),Check::Fits]},
+    Case{name:"combo charts: a one-value-series selection refuses atomically",actions:&[
+        Action::Window(1600,1800),Action::Into("name-box","A1:B7\u{E007}"),Action::Choose("chart-create-type","combo"),Action::Click("chart-create-headers"),Action::Click("chart-create-categories"),Action::Click("chart-create")],checks:&[
+        Check::TextContains("status","at least two values series"),Check::Count("[data-dnacalc=chart]",7)]},
+
+    Case{name:"chart legends: placement uses the retained chart and history",actions:&[
+        Action::Window(1600,1800),Action::Upload("open-file","crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools"),Action::Choose("chart-legend-position","l"),Action::Click("chart-legend-apply"),Action::Wait(Check::Count("[data-chart=\"Chart 1\"] [data-dnacalc=chart-legend][data-position=l]",2)),Action::Click("undo"),Action::Wait(Check::Count("[data-chart=\"Chart 1\"] [data-dnacalc=chart-legend][data-position=r]",2)),Action::Click("redo")],checks:&[
+        Check::Count("[data-chart=\"Chart 1\"] [data-dnacalc=chart-legend][data-position=l]",2),Check::Value("chart-legend-position","l")]},
+    Case{name:"chart legends: top placement survives actual saved reopening",actions:&[
+        Action::Choose("chart-legend-position","t"),Action::Click("chart-legend-apply"),Action::Wait(Check::Count("[data-chart=\"Chart 1\"] [data-dnacalc=chart-legend][data-position=t]",2)),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools")],checks:&[
+        Check::Value("chart-legend-position","t"),Check::Count("[data-chart=\"Chart 1\"] [data-dnacalc=chart-legend][data-position=t]",2),Check::Count("[data-chart=\"Chart 1\"] [data-dnacalc=chart-mark]",12)]},
+    Case{name:"chart legends: phone placement remains reachable",actions:&[
+        Action::Window(390,844),Action::Click("chart-show"),Action::Choose("chart-legend-position","b"),Action::Click("chart-legend-apply"),Action::Wait(Check::Count("[data-chart=\"Chart 1\"] [data-dnacalc=chart-legend][data-position=b]",2)),Action::Choose("chart-legend-position","tr"),Action::Click("chart-legend-apply")],checks:&[
+        Check::Count("[data-chart=\"Chart 1\"] [data-dnacalc=chart-legend][data-position=tr]",2),Check::Reachable("chart-legend-apply"),Check::Fits]},
 ];
 
 /// The script that reads what one check looks at.
@@ -9210,6 +9235,26 @@ pub(crate) const CALC_LATENCY_CASES: &[Case] = &[
 
 
 
+    Case{name:"worker latency: a delayed Enter preserves the focused name-box selection",actions:&[
+        Action::Window(1440,1000),Action::Wait(Check::PlanReady),Action::Wait(Check::Value("name-box","A1")),Action::PauseMillis(800),Action::Into(BAR,"7\u{E007}"),Action::Click("name-box"),Action::Keys("name-box","\u{E009}a\u{E000}"),Action::PauseMillis(1400)],checks:&[
+        Check::Focused("name-box"),Check::Value("name-box","A1"),Check::Text(cell!("A1"),"7")]},
+    Case{name:"worker latency: replacement after a delayed Enter reaches the typed address",actions:&[
+        Action::Keys("name-box","D5\u{E007}"),Action::Wait(Check::Focused("grid"))],checks:&[
+        Check::Value("name-box","D5"),Check::Value(BAR,""),Check::Text(cell!("A1"),"7")]},
+    Case{name:"worker latency: invalid name-box submission keeps its inherited address reset",actions:&[
+        Action::Into("name-box","XFE1\u{E007}"),Action::PauseMillis(1000)],checks:&[
+        Check::Value("name-box","D5"),Check::Starts("status","\"XFE1\" is not a valid")]},
+    Case{name:"worker latency: a reply to an older invalid address preserves newer native text",actions:&[
+        Action::Into("name-box","XFE1\u{E007}"),Action::Into("name-box","M4"),Action::PauseMillis(1000)],checks:&[
+        Check::Focused("name-box"),Check::Value("name-box","M4")]},
+    Case{name:"worker latency: an accepted address reply preserves a newer native select-all",actions:&[
+        Action::Keys("name-box","\u{E007}"),Action::Keys("name-box","\u{E009}a\u{E000}"),Action::PauseMillis(1000),Action::Wait(Check::Focused("name-box")),Action::Wait(Check::Value("name-box","M4")),Action::Keys("name-box","B1\u{E007}")],checks:&[
+        Check::Focused("grid"),Check::Value("name-box","B1"),Check::Text(cell!("A1"),"7")]},
+
+    Case{name:"worker latency: a pointer inside the focused address preserves newer native attention",actions:&[
+        Action::Into("name-box","m4\u{E007}"),Action::Click("name-box"),Action::PauseMillis(1000)],checks:&[
+        Check::Focused("name-box"),Check::Value("name-box","m4"),Check::Text(cell!("A1"),"7")]},
+
 ];
 
 pub(crate) const CALC_WORKER_FAULT_CASES: &[Case] = &[
@@ -9528,4 +9573,6 @@ CaseGroup {
     CaseGroup {name:"find-name",start:764,end:772,core:8,setup:&[]},
     CaseGroup {name:"chart-creation",start:772,end:777,core:5,setup:&[]},
     CaseGroup {name:"chart-log",start:777,end:782,core:5,setup:&[]},
+    CaseGroup {name:"chart-combo",start:782,end:787,core:5,setup:&[]},
+    CaseGroup {name:"chart-legend",start:787,end:790,core:3,setup:&[]},
 ];

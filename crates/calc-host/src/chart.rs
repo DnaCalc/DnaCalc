@@ -11,8 +11,9 @@
 //! index (accent1 to accent6 in turn); a plot that varies its colours by point (a pie) takes them
 //! by point in the same order.
 //!
-//! Linear and logarithmic primary value axes are retained, editable and drawn. Secondary
-//! axes and stacked logarithmic plots are preserved with a drawing notice. Not modelled: 3-D, chart number
+//! Linear and logarithmic value axes are retained, editable and drawn, including column/line
+//! combinations with primary or secondary pairs. Stacked logarithmic plots are preserved
+//! with a drawing notice. Not modelled: 3-D, chart number
 //! formats, trendlines, error bars, data labels, and the darker and
 //! lighter accents Excel uses past the sixth series.
 
@@ -575,7 +576,7 @@ pub(crate) fn prepare_axis(host:&HostState,sheet:SheetId,revision:u64,part:&str,
     prepare_properties(host,sheet,revision,part,None,false,None)?;
     let mut charts=host.model().definitions().charts(sheet).to_vec();
     let chart=charts.iter_mut().find(|c|c.part==part).ok_or("The chart is unavailable")?;
-    if chart.plots.len()!=1 {return Err("Editing axes of combination charts is not modelled (dc-971p.46)".into());}
+    check_axes_for_edit(host,sheet,part)?;
     if chart.axes.iter().filter(|a|a.id==id).count()!=1 {return Err("The axis identity changed; reopen its controls (dc-971p.46)".into());}
     value_axes(&chart.axes,&chart.plots[0].axis_ids,chart.plots[0].kind=="scatterChart").map_err(|e|format!("{e} (dc-971p.46)"))?;
     let axis=chart.axes.iter_mut().find(|a|a.id==id && a.kind=="valAx").ok_or("Choose a value axis (dc-971p.46)")?;
@@ -587,6 +588,37 @@ pub(crate) fn prepare_axis(host:&HostState,sheet:SheetId,revision:u64,part:&str,
     host.loaded().check_chart_properties(sheet,chart).map_err(|e|e.to_string())?;
     if charts==host.model().definitions().charts(sheet){return Ok(Vec::new());}
     Ok(vec![crate::CellEdit::Charts{sheet,charts}])
+}
+
+/// The supported combination has columns then lines and one shared or two independent pairs.
+pub fn axes_associated(chart:&ChartView)->bool{
+    let actual=chart.axes.iter().map(|a|a.id).collect::<std::collections::BTreeSet<_>>();
+    let used=chart.plots.iter().flat_map(|p|p.axis_ids.iter().copied()).collect::<std::collections::BTreeSet<_>>();
+    actual.len()==chart.axes.len()&&actual==used
+}
+fn check_axes_for_edit(host:&HostState,sheet:SheetId,part:&str)->Result<(),String>{
+    let view=host.charts(sheet).0.into_iter().find(|c|c.part==part).ok_or("The chart is unavailable")?;
+    if !axes_associated(&view)||(view.plots.len()!=1&&!combination_supported(&view)){return Err("Editing unassociated axes or this combination is not modelled (dc-971p.51)".into());}Ok(())
+}
+pub fn combination_supported(chart:&ChartView)->bool{
+    if !axes_associated(chart){return false;}
+    if chart.plots.len()!=2||chart.plots[0].kind!=ChartKind::Column||chart.plots[1].kind!=ChartKind::Line||chart.plots.iter().any(|p|p.stacked||p.percent||p.series.is_empty()){return false;}
+    let ids=chart.plots.iter().flat_map(|p|p.axis_ids.iter().copied()).collect::<std::collections::BTreeSet<_>>();
+    if ids.len()!=chart.axes.len(){return false;}
+    let pairs=chart.plots.iter().map(|p|value_axes(&chart.axes,&p.axis_ids,false)).collect::<Result<Vec<_>,_>>();
+    let Ok(pairs)=pairs else{return false;};
+    if chart.axes.len()==2{pairs[0][0].id==pairs[1][0].id&&pairs[0][0].position.as_deref()==Some("l")}else{pairs[0][0].position.as_deref()==Some("l")&&pairs[1][0].position.as_deref()==Some("r")}
+}
+/// Plots sharing a value axis share its data extent as well as its authored properties.
+pub fn category_scale(chart:&ChartView,plot:&PlotView)->Result<ChartScale,String>{
+    if !axes_associated(chart){return Err("Unassociated chart axes are preserved but not drawn here (dc-971p.51)".into());}
+    let axes=value_axes(&chart.axes,&plot.axis_ids,false)?;let axis=axes[0];let log=axis.log_base.is_some();let mut extent:Option<(f64,f64)>=None;
+    for p in chart.plots.iter().filter(|p|p.axis_ids.contains(&axis.id)){
+        let (low,high)=plot_scale_range(p,log)?;
+        if log&&low<=0.{continue;}
+        extent=Some(extent.map_or((low,high),|(a,b)|(a.min(low),b.max(high))));
+    }
+    let (low,high)=extent.unwrap_or((0.,0.));chart_scale(low,high,Some(axis))
 }
 
 /// Positive extents exclude values that cannot be represented on a logarithmic axis.
@@ -607,19 +639,20 @@ pub fn scatter_scale_ranges(plot:&PlotView,xlog:bool,ylog:bool)->((f64,f64),(f64
     (extent(true,xlog),extent(false,ylog))
 }
 fn validate_axis_view(host:&HostState,sheet:SheetId,part:&str,axis:&calc_doc_model::ChartAxis)->Result<(),String>{
-    let view=host.charts(sheet).0.into_iter().find(|v|v.part==part).ok_or("The chart cannot be read")?;
+    let mut view=host.charts(sheet).0.into_iter().find(|v|v.part==part).ok_or("The chart cannot be read")?;
+    *view.axes.iter_mut().find(|a|a.id==axis.id).ok_or("The axis is unavailable")?=axis.clone();
     let plot=view.plots.iter().find(|p|p.axis_ids.contains(&axis.id)).ok_or("The axis is not associated with a plot (dc-971p.50)")?;
     let (low,high)=if plot.kind==ChartKind::Scatter{
         let axes=value_axes(&view.axes,&plot.axis_ids,true)?;
         let x=if axes[0].id==axis.id{axis}else{axes[0]};let y=if axes[1].id==axis.id{axis}else{axes[1]};
         let (xr,yr)=scatter_scale_ranges(plot,x.log_base.is_some(),y.log_base.is_some());if x.id==axis.id{xr}else{yr}
-    }else if matches!(plot.kind,ChartKind::Column|ChartKind::Bar|ChartKind::Line|ChartKind::Area){plot_scale_range(plot,axis.log_base.is_some())?}else{return Err("This plot has no editable value axis (dc-971p.50)".into());};
+    }else if matches!(plot.kind,ChartKind::Column|ChartKind::Bar|ChartKind::Line|ChartKind::Area){return category_scale(&view,plot).map(|_|());}else{return Err("This plot has no editable value axis (dc-971p.50)".into());};
     chart_scale(low,high,Some(axis)).map(|_|())
 }
 pub(crate) fn prepare_log_axis(host:&HostState,sheet:SheetId,revision:u64,part:&str,id:u32,base:Option<String>)->Result<Vec<crate::CellEdit>,String>{
     prepare_properties(host,sheet,revision,part,None,false,None)?;
     let mut charts=host.model().definitions().charts(sheet).to_vec();let chart=charts.iter_mut().find(|c|c.part==part).ok_or("The chart is unavailable")?;
-    if chart.plots.len()!=1{return Err("Editing combination chart axes is not modelled (dc-971p.50)".into());}
+    check_axes_for_edit(host,sheet,part)?;
     value_axes(&chart.axes,&chart.plots[0].axis_ids,chart.plots[0].kind=="scatterChart")?;
     let axis=chart.axes.iter_mut().find(|a|a.id==id&&a.kind=="valAx").ok_or("Choose a value axis (dc-971p.50)")?;
     axis.log_base=base.map(|v|v.trim().parse::<f64>().ok().filter(|n|n.is_finite()&&(2. ..=1000.).contains(n)).map(|n|n.to_string()).ok_or_else(||"Use a logarithmic base from 2 to 1,000 (dc-971p.50)".to_string())).transpose()?;
@@ -628,10 +661,10 @@ pub(crate) fn prepare_log_axis(host:&HostState,sheet:SheetId,revision:u64,part:&
     if charts==host.model().definitions().charts(sheet){return Ok(Vec::new());}Ok(vec![crate::CellEdit::Charts{sheet,charts}])
 }
 
-/// Primary axis pairs must belong to this plot and cross each other. Scatter returns X then Y.
+/// Associated primary/secondary axis pairs cross each other. Scatter returns X then Y.
 pub fn value_axes<'a>(axes:&'a [calc_doc_model::ChartAxis],ids:&[u32],scatter:bool)->Result<Vec<&'a calc_doc_model::ChartAxis>,String>{
-    let invalid=||"Secondary or unassociated chart axes are preserved but not drawn or edited here".to_owned();
-    if axes.len()!=2 || ids.len()!=2 || ids[0]==ids[1] || axes[0].id==axes[1].id {return Err(invalid());}
+    let invalid=||"Unassociated chart axes are preserved but not drawn or edited here".to_owned();
+    if !matches!(axes.len(),2|4) || ids.len()!=2 || ids[0]==ids[1] || axes.iter().map(|a|a.id).collect::<std::collections::BTreeSet<_>>().len()!=axes.len(){return Err(invalid());}
     let a=axes.iter().find(|a|a.id==ids[0]).ok_or_else(invalid)?;
     let b=axes.iter().find(|a|a.id==ids[1]).ok_or_else(invalid)?;
     if a.cross_axis!=Some(b.id) || b.cross_axis!=Some(a.id){return Err(invalid());}
@@ -663,6 +696,7 @@ pub(crate) fn prepare_type(host:&HostState,sheet:SheetId,revision:u64,part:&str,
     prepare_properties(host,sheet,revision,part,None,false,None)?;
     let mut charts=host.model().definitions().charts(sheet).to_vec();
     let chart=charts.iter_mut().find(|c|c.part==part).ok_or("The chart is unavailable")?;
+    check_axes_for_edit(host,sheet,part)?;
     if chart.plots.len()!=1 || plot!=0 {return Err("Changing combination chart types is not modelled (dc-971p.46)".into());}
     if stacked && chart.axes.iter().any(|a|a.log_base.is_some()){return Err("Stacked logarithmic plots are not modelled (dc-971p.50)".into());}
     let p=&mut chart.plots[0];
@@ -715,7 +749,9 @@ pub(crate) fn prepare_create(host:&HostState,revision:u64,area:calc_value::GridA
     let points=length.checked_sub(u32::from(headers)).filter(|n|*n>0).ok_or_else(||fail("Select at least one data point after the series names"))?;
     let count=width.checked_sub(u32::from(categories)).filter(|n|*n>0).ok_or_else(||fail("Select at least one values series after the categories"))?;
     if count>255 || points>32767 || u64::from(points)*u64::from(count)>262144 {return Err(fail("Use at most 255 series, 32,767 points per series and 262,144 points in total"));}
-    let (plot_kind,dir)=match kind{"column"=>("barChart",Some("col")),"bar"=>("barChart",Some("bar")),"line"=>("lineChart",None),"area"=>("areaChart",None),"pie"=>("pieChart",None),"doughnut"=>("doughnutChart",None),"scatter"=>("scatterChart",None),_=>return Err(fail("Choose a supported two-dimensional chart type"))};
+    let (plot_kind,dir)=match kind{"column"|"combo"=>("barChart",Some("col")),"bar"=>("barChart",Some("bar")),"line"=>("lineChart",None),"area"=>("areaChart",None),"pie"=>("pieChart",None),"doughnut"=>("doughnutChart",None),"scatter"=>("scatterChart",None),_=>return Err(fail("Choose a supported two-dimensional chart type"))};
+    let combo=kind=="combo";
+    if combo && count<2{return Err(fail("Select at least two values series for a column and line combination (dc-971p.51)"));}
     let pie=matches!(kind,"pie"|"doughnut");
     if pie && count!=1{return Err(fail("Select one values series for a pie or doughnut"));}
     if kind=="scatter" && !categories{return Err(fail("Use the first column or row as X values for a scatter chart"));}
@@ -728,16 +764,31 @@ pub(crate) fn prepare_create(host:&HostState,revision:u64,area:calc_value::GridA
         let name=if headers{Some(data(cell(0,minor),cell(0,minor),false)?)}else{None};
         series.push(ChartSeries{index:i,name,categories:cats.clone(),values:Some(data(cell(u32::from(headers),minor),cell(length-1,minor),true)?),fill:None});
     }
-    let axes=if pie{Vec::new()}else{vec![
+    let mut axes=if pie{Vec::new()}else{vec![
         ChartAxis{id:1,cross_axis:Some(2),kind:if kind=="scatter"{"valAx"}else{"catAx"}.into(),position:Some(if kind=="bar"{"l"}else{"b"}.into()),..Default::default()},
         ChartAxis{id:2,cross_axis:Some(1),kind:"valAx".into(),position:Some(if kind=="bar"{"b"}else{"l"}.into()),..Default::default()},
     ]};
+    if combo{
+        axes.push(ChartAxis{id:3,cross_axis:Some(4),kind:"catAx".into(),position:Some("t".into()),..Default::default()});
+        axes.push(ChartAxis{id:4,cross_axis:Some(3),kind:"valAx".into(),position:Some("r".into()),..Default::default()});
+    }
+    let mut plots=vec![ChartPlot{kind:plot_kind.into(),bar_direction:dir.map(str::to_owned),grouping:(!pie&&kind!="scatter").then(||if matches!(kind,"column"|"bar"|"combo"){"clustered"}else{"standard"}.into()),vary_colors:pie,series,axis_ids:if pie{Vec::new()}else{vec![1,2]}}];
+    if combo{let last=plots[0].series.pop().unwrap();plots.push(ChartPlot{kind:"lineChart".into(),grouping:Some("standard".into()),series:vec![last],axis_ids:vec![3,4],..Default::default()});}
     let mut charts=host.model().definitions().charts(sheet).to_vec();
     let reserved=host.model().definitions().all_charts().flat_map(|(_,cs)|cs.iter().map(|c|c.part.clone())).collect::<Vec<_>>();
     let part=host.loaded().available_part_name("charts/dnaChart","xml",&reserved);
     let names=charts.iter().map(|c|c.name.as_str()).collect::<std::collections::BTreeSet<_>>();
     let name=(1u32..).map(|i|format!("Chart {i}")).find(|n|!names.contains(n.as_str())).unwrap();
-    charts.push(Chart{part,name,anchor:ChartAnchor::OneCell{from:DrawingPoint{column:area.last().column().saturating_add(1).min(16383),row:area.first().row()-1,..Default::default()},width:640*9525,height:360*9525},title:None,title_formula:None,auto_title_deleted:true,legend:Some("r".into()),plots:vec![ChartPlot{kind:plot_kind.into(),bar_direction:dir.map(str::to_owned),grouping:(!pie && kind!="scatter").then(||if kind=="column"||kind=="bar"{"clustered"}else{"standard"}.into()),vary_colors:pie,series,axis_ids:if pie{Vec::new()}else{vec![1,2]}}],axes});
+    charts.push(Chart{part,name,anchor:ChartAnchor::OneCell{from:DrawingPoint{column:area.last().column().saturating_add(1).min(16383),row:area.first().row()-1,..Default::default()},width:640*9525,height:360*9525},title:None,title_formula:None,auto_title_deleted:true,legend:Some("r".into()),plots,axes});
     host.loaded().check_chart_set(sheet,&charts).map_err(|e|e.to_string())?;
     Ok(vec![crate::CellEdit::Charts{sheet,charts}])
+}
+
+/// Legend placement is an authored property, validated and saved through the retained chart route.
+pub(crate) fn prepare_legend(host:&HostState,sheet:SheetId,revision:u64,part:&str,position:&str)->Result<Vec<crate::CellEdit>,String>{
+    prepare_properties(host,sheet,revision,part,None,false,None)?;
+    if !matches!(position,"l"|"r"|"t"|"b"|"tr"){return Err("Choose Left, Right, Top, Bottom or Top right (dc-971p.52)".into());}
+    let mut charts=host.model().definitions().charts(sheet).to_vec();let chart=charts.iter_mut().find(|c|c.part==part).ok_or("The chart is unavailable (dc-971p.52)")?;chart.legend=Some(position.into());
+    host.loaded().check_chart_properties(sheet,chart).map_err(|e|e.to_string())?;
+    if charts==host.model().definitions().charts(sheet){return Ok(Vec::new());}Ok(vec![crate::CellEdit::Charts{sheet,charts}])
 }

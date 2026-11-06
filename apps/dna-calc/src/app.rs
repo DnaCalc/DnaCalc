@@ -268,15 +268,21 @@ pub fn app_with_transport(
     });
 
     let name_box = RwSignal::new(String::new());
+    let name_box_focused = RwSignal::new(false);
+    let name_box_epoch = StoredValue::new(0u64);
+    // A delayed selection reply must not replace a focused native draft or collapse
+    // its Ctrl+A selection before the next key (dc-971p.53).
     Effect::new(move |_| {
         let (row, col) = controller.active.get();
-        name_box.set(cells::address(row, col));
+        if !name_box_focused.get() { name_box.set(cells::address(row, col)); }
     });
     let go_to = move |text: String| {
+        let epoch = name_box_epoch.get_value();
         controller.go_to_text(text, move |accepted| {
             let (row, col) = controller.active.get_untracked();
-            name_box.set(cells::address(row, col));
-            if accepted {
+            // Invalid submissions still restore the address unless newer native input owns it.
+            if name_box_epoch.get_value() == epoch { name_box.set(cells::address(row, col)); }
+            if accepted && name_box_epoch.get_value() == epoch {
                 controller.focus_active_skin();
             }
         })
@@ -733,9 +739,15 @@ pub fn app_with_transport(
                     class="dc-namebox"
                     data-dnacalc="name-box"
                     aria-label="Name box"
+                    on:pointerdown=move |_| name_box_epoch.update_value(|n| *n += 1)
+                    on:beforeinput=move |_| name_box_epoch.update_value(|n| *n += 1)
+                    on:compositionstart=move |_| name_box_epoch.update_value(|n| *n += 1)
+                    on:focus=move |_| { name_box_epoch.update_value(|n| *n += 1); name_box_focused.set(true); }
+                    on:blur=move |_| { name_box_epoch.update_value(|n| *n += 1); name_box_focused.set(false); }
                     prop:value=move || name_box.get()
-                    on:input=move |ev| name_box.set(event_target_value(&ev))
+                    on:input=move |ev| { name_box_epoch.update_value(|n| *n += 1); name_box.set(event_target_value(&ev)); }
                     on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                        name_box_epoch.update_value(|n| *n += 1);
                         if ev.key() == "Enter" {
                             ev.prevent_default();
                             go_to(name_box.get_untracked());

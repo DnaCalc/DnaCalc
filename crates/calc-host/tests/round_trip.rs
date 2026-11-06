@@ -16264,3 +16264,36 @@ fn dc_971p_47__flash_fill_ambiguous_placements_across_kinds_refuse(){
     let area=GridArea::new(at(s,"B1"),at(s,"B3")).unwrap();let before=(book.host().revision(),book.history_depth());
     assert!(calc_host::prepare_paste(book.host(),calc_host::PasteSource::FlashFill,area,calc_host::PasteMode::All).unwrap_err().contains("different results"));assert_eq!((book.host().revision(),book.history_depth()),before);assert!(book.host().model().cell(at(s,"B3")).is_none());
 }
+
+
+/// Orphan retained axes must not be silently omitted when four-axis combinations are supported.
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_51__orphan_axes_refuse_before_history_changes(){
+    let part="xl/charts/chart1.xml";
+    let bytes=package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"),part,|xml|{
+        let mut extra=String::new();for kind in ["catAx","valAx"]{let start=xml.find(&format!("<c:{kind}>")).unwrap();let end=start+xml[start..].find(&format!("</c:{kind}>")).unwrap()+format!("</c:{kind}>").len();extra.push_str(&xml[start..end].replace("1264925584","1000000001").replace("1264926064","1000000002"));}
+        xml.replace("</c:plotArea>",&format!("{extra}</c:plotArea>"))
+    });
+    let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();let before=book.host().charts(sheet).0;assert_eq!(before[0].axes.len(),4);assert!(!calc_host::chart::axes_associated(&before[0]));let revision=book.host().revision();let history=book.history_depth();
+    for command in [
+        calc_host::WorkbookCommand::ChartAxis{sheet,revision:revision.get(),part:part.into(),axis:1264926064,minimum:None,maximum:Some("100".into()),major_unit:None,reversed:false},
+        calc_host::WorkbookCommand::ChartLogAxis{sheet,revision:revision.get(),part:part.into(),axis:1264926064,base:Some("10".into())},
+        calc_host::WorkbookCommand::ChartType{sheet,revision:revision.get(),part:part.into(),plot:0,kind:"line".into(),stacked:false},
+    ]{assert!(!book.dispatch(SkinIntent::Command(command)).accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,before);}
+}
+/// Imported shared-axis combinations use the same source editor and retained writer as Save.
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_51__shared_axis_combination_edit_and_saved_reopening(){
+    let part="xl/charts/chart1.xml";
+    let bytes=package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"),part,|xml|{
+        let start=xml.match_indices("<c:ser>").nth(1).unwrap().0;let end=start+xml[start..].find("</c:ser>").unwrap()+8;
+        let series=xml[start..end].replace("<c:invertIfNegative val=\"0\"/>","");let retained=format!("{}{}",&xml[..start],&xml[end..]);
+        retained.replace("</c:barChart>",&format!("</c:barChart><c:lineChart><c:grouping val=\"standard\"/>{series}<c:axId val=\"1264925584\"/><c:axId val=\"1264926064\"/></c:lineChart>"))
+    });
+    let mut book=session(&bytes);assert!(book.dispatch(SkinIntent::Recalculate).accepted());let sheet=book.host().sheets()[0].id();let chart=book.host().charts(sheet).0[0].clone();assert!(calc_host::chart::combination_supported(&chart));assert_eq!(chart.axes.len(),2);assert_eq!(calc_host::chart::category_scale(&chart,&chart.plots[0]).unwrap(),calc_host::chart::category_scale(&chart,&chart.plots[1]).unwrap());
+    let command=calc_host::WorkbookCommand::ChartLogAxis{sheet,revision:book.host().revision().get(),part:part.into(),axis:1264926064,base:Some("10".into())};let outcome=book.dispatch(SkinIntent::Command(command));assert!(outcome.accepted(),"{outcome:?}");
+    let command=calc_host::WorkbookCommand::ChartSeries{sheet,revision:book.host().revision().get(),part:part.into(),plot:1,series:Some(1),name:None,categories:None,values:Some("Data!D2:D7".into()),remove:false};let outcome=book.dispatch(SkinIntent::Command(command));assert!(outcome.accepted(),"{outcome:?}");
+    let after=book.host().charts(sheet).0;assert_eq!(after[0].plots[1].series[0].values[0],Some(20.));let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());assert_eq!(reopened.host().charts(sheet).0,after);let xml=part_text(&saved,part);assert_eq!(xml.matches("<c:barChart>").count(),1);assert_eq!(xml.matches("<c:lineChart>").count(),1);assert_eq!(xml.matches("<c:catAx>").count(),1);assert_eq!(xml.matches("<c:valAx>").count(),1);
+}

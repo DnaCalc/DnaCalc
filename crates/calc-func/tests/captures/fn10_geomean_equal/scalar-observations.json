@@ -1,0 +1,2396 @@
+{
+  "format": "dnacalc-scalar-service-observations/1",
+  "purpose": "Qualified normal-positive GEOMEAN equal-input identity controls and six unequal-input controls; unchanged raw reply and exact typed input readbacks.",
+  "calls": [
+    {
+      "function": "GEOMEAN",
+      "questions": [
+        [
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0010000000000001"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0010000000000001"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000001"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0010000000000001"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000001"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000001"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0010000000000001"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000001"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000001"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000001"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0010000000000001"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000001"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000001"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000001"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000001"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000001"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000001"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000001"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0010000000000040"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0010000000000040"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000040"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0010000000000040"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000040"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000040"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0010000000000040"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000040"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000040"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000040"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0010000000000040"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000040"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000040"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000040"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000040"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000040"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000040"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000040"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "01a56e1fc2f8f359"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "01a56e1fc2f8f359"
+          },
+          {
+            "type": "number",
+            "bits": "01a56e1fc2f8f359"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "01a56e1fc2f8f359"
+          },
+          {
+            "type": "number",
+            "bits": "01a56e1fc2f8f359"
+          },
+          {
+            "type": "number",
+            "bits": "01a56e1fc2f8f359"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "01a56e1fc2f8f359"
+          },
+          {
+            "type": "number",
+            "bits": "01a56e1fc2f8f359"
+          },
+          {
+            "type": "number",
+            "bits": "01a56e1fc2f8f359"
+          },
+          {
+            "type": "number",
+            "bits": "01a56e1fc2f8f359"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "01a56e1fc2f8f359"
+          },
+          {
+            "type": "number",
+            "bits": "01a56e1fc2f8f359"
+          },
+          {
+            "type": "number",
+            "bits": "01a56e1fc2f8f359"
+          },
+          {
+            "type": "number",
+            "bits": "01a56e1fc2f8f359"
+          },
+          {
+            "type": "number",
+            "bits": "01a56e1fc2f8f359"
+          },
+          {
+            "type": "number",
+            "bits": "01a56e1fc2f8f359"
+          },
+          {
+            "type": "number",
+            "bits": "01a56e1fc2f8f359"
+          },
+          {
+            "type": "number",
+            "bits": "01a56e1fc2f8f359"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "16687e92154ef7ac"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "16687e92154ef7ac"
+          },
+          {
+            "type": "number",
+            "bits": "16687e92154ef7ac"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "16687e92154ef7ac"
+          },
+          {
+            "type": "number",
+            "bits": "16687e92154ef7ac"
+          },
+          {
+            "type": "number",
+            "bits": "16687e92154ef7ac"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "16687e92154ef7ac"
+          },
+          {
+            "type": "number",
+            "bits": "16687e92154ef7ac"
+          },
+          {
+            "type": "number",
+            "bits": "16687e92154ef7ac"
+          },
+          {
+            "type": "number",
+            "bits": "16687e92154ef7ac"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "16687e92154ef7ac"
+          },
+          {
+            "type": "number",
+            "bits": "16687e92154ef7ac"
+          },
+          {
+            "type": "number",
+            "bits": "16687e92154ef7ac"
+          },
+          {
+            "type": "number",
+            "bits": "16687e92154ef7ac"
+          },
+          {
+            "type": "number",
+            "bits": "16687e92154ef7ac"
+          },
+          {
+            "type": "number",
+            "bits": "16687e92154ef7ac"
+          },
+          {
+            "type": "number",
+            "bits": "16687e92154ef7ac"
+          },
+          {
+            "type": "number",
+            "bits": "16687e92154ef7ac"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "2b2bff2ee48e0530"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "2b2bff2ee48e0530"
+          },
+          {
+            "type": "number",
+            "bits": "2b2bff2ee48e0530"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "2b2bff2ee48e0530"
+          },
+          {
+            "type": "number",
+            "bits": "2b2bff2ee48e0530"
+          },
+          {
+            "type": "number",
+            "bits": "2b2bff2ee48e0530"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "2b2bff2ee48e0530"
+          },
+          {
+            "type": "number",
+            "bits": "2b2bff2ee48e0530"
+          },
+          {
+            "type": "number",
+            "bits": "2b2bff2ee48e0530"
+          },
+          {
+            "type": "number",
+            "bits": "2b2bff2ee48e0530"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "2b2bff2ee48e0530"
+          },
+          {
+            "type": "number",
+            "bits": "2b2bff2ee48e0530"
+          },
+          {
+            "type": "number",
+            "bits": "2b2bff2ee48e0530"
+          },
+          {
+            "type": "number",
+            "bits": "2b2bff2ee48e0530"
+          },
+          {
+            "type": "number",
+            "bits": "2b2bff2ee48e0530"
+          },
+          {
+            "type": "number",
+            "bits": "2b2bff2ee48e0530"
+          },
+          {
+            "type": "number",
+            "bits": "2b2bff2ee48e0530"
+          },
+          {
+            "type": "number",
+            "bits": "2b2bff2ee48e0530"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3ff199999999999a"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3ff199999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3ff199999999999a"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3ff199999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3ff199999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3ff199999999999a"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3ff199999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3ff199999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3ff199999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3ff199999999999a"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "3ff199999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3ff199999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3ff199999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3ff199999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3ff199999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3ff199999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3ff199999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3ff199999999999a"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "54b249ad2594c37d"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "54b249ad2594c37d"
+          },
+          {
+            "type": "number",
+            "bits": "54b249ad2594c37d"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "54b249ad2594c37d"
+          },
+          {
+            "type": "number",
+            "bits": "54b249ad2594c37d"
+          },
+          {
+            "type": "number",
+            "bits": "54b249ad2594c37d"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "54b249ad2594c37d"
+          },
+          {
+            "type": "number",
+            "bits": "54b249ad2594c37d"
+          },
+          {
+            "type": "number",
+            "bits": "54b249ad2594c37d"
+          },
+          {
+            "type": "number",
+            "bits": "54b249ad2594c37d"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "54b249ad2594c37d"
+          },
+          {
+            "type": "number",
+            "bits": "54b249ad2594c37d"
+          },
+          {
+            "type": "number",
+            "bits": "54b249ad2594c37d"
+          },
+          {
+            "type": "number",
+            "bits": "54b249ad2594c37d"
+          },
+          {
+            "type": "number",
+            "bits": "54b249ad2594c37d"
+          },
+          {
+            "type": "number",
+            "bits": "54b249ad2594c37d"
+          },
+          {
+            "type": "number",
+            "bits": "54b249ad2594c37d"
+          },
+          {
+            "type": "number",
+            "bits": "54b249ad2594c37d"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "6974e718d7d7625a"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "6974e718d7d7625a"
+          },
+          {
+            "type": "number",
+            "bits": "6974e718d7d7625a"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "6974e718d7d7625a"
+          },
+          {
+            "type": "number",
+            "bits": "6974e718d7d7625a"
+          },
+          {
+            "type": "number",
+            "bits": "6974e718d7d7625a"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "6974e718d7d7625a"
+          },
+          {
+            "type": "number",
+            "bits": "6974e718d7d7625a"
+          },
+          {
+            "type": "number",
+            "bits": "6974e718d7d7625a"
+          },
+          {
+            "type": "number",
+            "bits": "6974e718d7d7625a"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "6974e718d7d7625a"
+          },
+          {
+            "type": "number",
+            "bits": "6974e718d7d7625a"
+          },
+          {
+            "type": "number",
+            "bits": "6974e718d7d7625a"
+          },
+          {
+            "type": "number",
+            "bits": "6974e718d7d7625a"
+          },
+          {
+            "type": "number",
+            "bits": "6974e718d7d7625a"
+          },
+          {
+            "type": "number",
+            "bits": "6974e718d7d7625a"
+          },
+          {
+            "type": "number",
+            "bits": "6974e718d7d7625a"
+          },
+          {
+            "type": "number",
+            "bits": "6974e718d7d7625a"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "7e37e43c8800759c"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "7e37e43c8800759c"
+          },
+          {
+            "type": "number",
+            "bits": "7e37e43c8800759c"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "7e37e43c8800759c"
+          },
+          {
+            "type": "number",
+            "bits": "7e37e43c8800759c"
+          },
+          {
+            "type": "number",
+            "bits": "7e37e43c8800759c"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "7e37e43c8800759c"
+          },
+          {
+            "type": "number",
+            "bits": "7e37e43c8800759c"
+          },
+          {
+            "type": "number",
+            "bits": "7e37e43c8800759c"
+          },
+          {
+            "type": "number",
+            "bits": "7e37e43c8800759c"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "7e37e43c8800759c"
+          },
+          {
+            "type": "number",
+            "bits": "7e37e43c8800759c"
+          },
+          {
+            "type": "number",
+            "bits": "7e37e43c8800759c"
+          },
+          {
+            "type": "number",
+            "bits": "7e37e43c8800759c"
+          },
+          {
+            "type": "number",
+            "bits": "7e37e43c8800759c"
+          },
+          {
+            "type": "number",
+            "bits": "7e37e43c8800759c"
+          },
+          {
+            "type": "number",
+            "bits": "7e37e43c8800759c"
+          },
+          {
+            "type": "number",
+            "bits": "7e37e43c8800759c"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "00100000000001c2"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0014000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0018000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0020000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0030000000000000"
+          }
+        ],
+        [
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0050000000000000"
+          }
+        ]
+      ],
+      "response": {
+        "version": 1,
+        "id": "1f8a76d2ece541d1b12eecb5ab586f49",
+        "ok": true,
+        "rows": [
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000001"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000001"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000001"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000001"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000001"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000040"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000040"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000040"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000040"
+          },
+          {
+            "type": "number",
+            "bits": "0010000000000040"
+          },
+          {
+            "type": "number",
+            "bits": "01a56e1fc2f8f359"
+          },
+          {
+            "type": "number",
+            "bits": "01a56e1fc2f8f359"
+          },
+          {
+            "type": "number",
+            "bits": "01a56e1fc2f8f359"
+          },
+          {
+            "type": "number",
+            "bits": "01a56e1fc2f8f359"
+          },
+          {
+            "type": "number",
+            "bits": "01a56e1fc2f8f359"
+          },
+          {
+            "type": "number",
+            "bits": "16687e92154ef7ac"
+          },
+          {
+            "type": "number",
+            "bits": "16687e92154ef7ac"
+          },
+          {
+            "type": "number",
+            "bits": "16687e92154ef7ac"
+          },
+          {
+            "type": "number",
+            "bits": "16687e92154ef7ac"
+          },
+          {
+            "type": "number",
+            "bits": "16687e92154ef7ac"
+          },
+          {
+            "type": "number",
+            "bits": "2b2bff2ee48e0530"
+          },
+          {
+            "type": "number",
+            "bits": "2b2bff2ee48e0530"
+          },
+          {
+            "type": "number",
+            "bits": "2b2bff2ee48e0530"
+          },
+          {
+            "type": "number",
+            "bits": "2b2bff2ee48e0530"
+          },
+          {
+            "type": "number",
+            "bits": "2b2bff2ee48e0530"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3fb999999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3ff199999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3ff199999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3ff199999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3ff199999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "3ff199999999999a"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "4000000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "54b249ad2594c37d"
+          },
+          {
+            "type": "number",
+            "bits": "54b249ad2594c37d"
+          },
+          {
+            "type": "number",
+            "bits": "54b249ad2594c37d"
+          },
+          {
+            "type": "number",
+            "bits": "54b249ad2594c37d"
+          },
+          {
+            "type": "number",
+            "bits": "54b249ad2594c37d"
+          },
+          {
+            "type": "number",
+            "bits": "6974e718d7d7625a"
+          },
+          {
+            "type": "number",
+            "bits": "6974e718d7d7625a"
+          },
+          {
+            "type": "number",
+            "bits": "6974e718d7d7625a"
+          },
+          {
+            "type": "number",
+            "bits": "6974e718d7d7625a"
+          },
+          {
+            "type": "number",
+            "bits": "6974e718d7d7625a"
+          },
+          {
+            "type": "number",
+            "bits": "7e37e43c8800759c"
+          },
+          {
+            "type": "number",
+            "bits": "7e37e43c8800759c"
+          },
+          {
+            "type": "number",
+            "bits": "7e37e43c8800759c"
+          },
+          {
+            "type": "number",
+            "bits": "7e37e43c8800759c"
+          },
+          {
+            "type": "number",
+            "bits": "7e37e43c8800759c"
+          },
+          {
+            "type": "number",
+            "bits": "00100000000000e1"
+          },
+          {
+            "type": "number",
+            "bits": "0011e3779b97f4a8"
+          },
+          {
+            "type": "number",
+            "bits": "0013988e1409212e"
+          },
+          {
+            "type": "number",
+            "bits": "0016a09e667f3bcd"
+          },
+          {
+            "type": "number",
+            "bits": "0020000000000000"
+          },
+          {
+            "type": "number",
+            "bits": "0030000000000000"
+          }
+        ],
+        "inputs": [
+          [
+            {
+              "type": "number",
+              "bits": "0010000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0010000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0010000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0010000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0010000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0010000000000001"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0010000000000001"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000001"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0010000000000001"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000001"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000001"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0010000000000001"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000001"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000001"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000001"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0010000000000001"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000001"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000001"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000001"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000001"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000001"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000001"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000001"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0010000000000040"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0010000000000040"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000040"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0010000000000040"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000040"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000040"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0010000000000040"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000040"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000040"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000040"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0010000000000040"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000040"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000040"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000040"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000040"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000040"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000040"
+            },
+            {
+              "type": "number",
+              "bits": "0010000000000040"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "01a56e1fc2f8f359"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "01a56e1fc2f8f359"
+            },
+            {
+              "type": "number",
+              "bits": "01a56e1fc2f8f359"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "01a56e1fc2f8f359"
+            },
+            {
+              "type": "number",
+              "bits": "01a56e1fc2f8f359"
+            },
+            {
+              "type": "number",
+              "bits": "01a56e1fc2f8f359"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "01a56e1fc2f8f359"
+            },
+            {
+              "type": "number",
+              "bits": "01a56e1fc2f8f359"
+            },
+            {
+              "type": "number",
+              "bits": "01a56e1fc2f8f359"
+            },
+            {
+              "type": "number",
+              "bits": "01a56e1fc2f8f359"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "01a56e1fc2f8f359"
+            },
+            {
+              "type": "number",
+              "bits": "01a56e1fc2f8f359"
+            },
+            {
+              "type": "number",
+              "bits": "01a56e1fc2f8f359"
+            },
+            {
+              "type": "number",
+              "bits": "01a56e1fc2f8f359"
+            },
+            {
+              "type": "number",
+              "bits": "01a56e1fc2f8f359"
+            },
+            {
+              "type": "number",
+              "bits": "01a56e1fc2f8f359"
+            },
+            {
+              "type": "number",
+              "bits": "01a56e1fc2f8f359"
+            },
+            {
+              "type": "number",
+              "bits": "01a56e1fc2f8f359"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "16687e92154ef7ac"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "16687e92154ef7ac"
+            },
+            {
+              "type": "number",
+              "bits": "16687e92154ef7ac"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "16687e92154ef7ac"
+            },
+            {
+              "type": "number",
+              "bits": "16687e92154ef7ac"
+            },
+            {
+              "type": "number",
+              "bits": "16687e92154ef7ac"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "16687e92154ef7ac"
+            },
+            {
+              "type": "number",
+              "bits": "16687e92154ef7ac"
+            },
+            {
+              "type": "number",
+              "bits": "16687e92154ef7ac"
+            },
+            {
+              "type": "number",
+              "bits": "16687e92154ef7ac"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "16687e92154ef7ac"
+            },
+            {
+              "type": "number",
+              "bits": "16687e92154ef7ac"
+            },
+            {
+              "type": "number",
+              "bits": "16687e92154ef7ac"
+            },
+            {
+              "type": "number",
+              "bits": "16687e92154ef7ac"
+            },
+            {
+              "type": "number",
+              "bits": "16687e92154ef7ac"
+            },
+            {
+              "type": "number",
+              "bits": "16687e92154ef7ac"
+            },
+            {
+              "type": "number",
+              "bits": "16687e92154ef7ac"
+            },
+            {
+              "type": "number",
+              "bits": "16687e92154ef7ac"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "2b2bff2ee48e0530"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "2b2bff2ee48e0530"
+            },
+            {
+              "type": "number",
+              "bits": "2b2bff2ee48e0530"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "2b2bff2ee48e0530"
+            },
+            {
+              "type": "number",
+              "bits": "2b2bff2ee48e0530"
+            },
+            {
+              "type": "number",
+              "bits": "2b2bff2ee48e0530"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "2b2bff2ee48e0530"
+            },
+            {
+              "type": "number",
+              "bits": "2b2bff2ee48e0530"
+            },
+            {
+              "type": "number",
+              "bits": "2b2bff2ee48e0530"
+            },
+            {
+              "type": "number",
+              "bits": "2b2bff2ee48e0530"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "2b2bff2ee48e0530"
+            },
+            {
+              "type": "number",
+              "bits": "2b2bff2ee48e0530"
+            },
+            {
+              "type": "number",
+              "bits": "2b2bff2ee48e0530"
+            },
+            {
+              "type": "number",
+              "bits": "2b2bff2ee48e0530"
+            },
+            {
+              "type": "number",
+              "bits": "2b2bff2ee48e0530"
+            },
+            {
+              "type": "number",
+              "bits": "2b2bff2ee48e0530"
+            },
+            {
+              "type": "number",
+              "bits": "2b2bff2ee48e0530"
+            },
+            {
+              "type": "number",
+              "bits": "2b2bff2ee48e0530"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3fb999999999999a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3ff199999999999a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3ff199999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3ff199999999999a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3ff199999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3ff199999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3ff199999999999a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3ff199999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3ff199999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3ff199999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3ff199999999999a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "3ff199999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3ff199999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3ff199999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3ff199999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3ff199999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3ff199999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3ff199999999999a"
+            },
+            {
+              "type": "number",
+              "bits": "3ff199999999999a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "54b249ad2594c37d"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "54b249ad2594c37d"
+            },
+            {
+              "type": "number",
+              "bits": "54b249ad2594c37d"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "54b249ad2594c37d"
+            },
+            {
+              "type": "number",
+              "bits": "54b249ad2594c37d"
+            },
+            {
+              "type": "number",
+              "bits": "54b249ad2594c37d"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "54b249ad2594c37d"
+            },
+            {
+              "type": "number",
+              "bits": "54b249ad2594c37d"
+            },
+            {
+              "type": "number",
+              "bits": "54b249ad2594c37d"
+            },
+            {
+              "type": "number",
+              "bits": "54b249ad2594c37d"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "54b249ad2594c37d"
+            },
+            {
+              "type": "number",
+              "bits": "54b249ad2594c37d"
+            },
+            {
+              "type": "number",
+              "bits": "54b249ad2594c37d"
+            },
+            {
+              "type": "number",
+              "bits": "54b249ad2594c37d"
+            },
+            {
+              "type": "number",
+              "bits": "54b249ad2594c37d"
+            },
+            {
+              "type": "number",
+              "bits": "54b249ad2594c37d"
+            },
+            {
+              "type": "number",
+              "bits": "54b249ad2594c37d"
+            },
+            {
+              "type": "number",
+              "bits": "54b249ad2594c37d"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "6974e718d7d7625a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "6974e718d7d7625a"
+            },
+            {
+              "type": "number",
+              "bits": "6974e718d7d7625a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "6974e718d7d7625a"
+            },
+            {
+              "type": "number",
+              "bits": "6974e718d7d7625a"
+            },
+            {
+              "type": "number",
+              "bits": "6974e718d7d7625a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "6974e718d7d7625a"
+            },
+            {
+              "type": "number",
+              "bits": "6974e718d7d7625a"
+            },
+            {
+              "type": "number",
+              "bits": "6974e718d7d7625a"
+            },
+            {
+              "type": "number",
+              "bits": "6974e718d7d7625a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "6974e718d7d7625a"
+            },
+            {
+              "type": "number",
+              "bits": "6974e718d7d7625a"
+            },
+            {
+              "type": "number",
+              "bits": "6974e718d7d7625a"
+            },
+            {
+              "type": "number",
+              "bits": "6974e718d7d7625a"
+            },
+            {
+              "type": "number",
+              "bits": "6974e718d7d7625a"
+            },
+            {
+              "type": "number",
+              "bits": "6974e718d7d7625a"
+            },
+            {
+              "type": "number",
+              "bits": "6974e718d7d7625a"
+            },
+            {
+              "type": "number",
+              "bits": "6974e718d7d7625a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "7e37e43c8800759c"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "7e37e43c8800759c"
+            },
+            {
+              "type": "number",
+              "bits": "7e37e43c8800759c"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "7e37e43c8800759c"
+            },
+            {
+              "type": "number",
+              "bits": "7e37e43c8800759c"
+            },
+            {
+              "type": "number",
+              "bits": "7e37e43c8800759c"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "7e37e43c8800759c"
+            },
+            {
+              "type": "number",
+              "bits": "7e37e43c8800759c"
+            },
+            {
+              "type": "number",
+              "bits": "7e37e43c8800759c"
+            },
+            {
+              "type": "number",
+              "bits": "7e37e43c8800759c"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "7e37e43c8800759c"
+            },
+            {
+              "type": "number",
+              "bits": "7e37e43c8800759c"
+            },
+            {
+              "type": "number",
+              "bits": "7e37e43c8800759c"
+            },
+            {
+              "type": "number",
+              "bits": "7e37e43c8800759c"
+            },
+            {
+              "type": "number",
+              "bits": "7e37e43c8800759c"
+            },
+            {
+              "type": "number",
+              "bits": "7e37e43c8800759c"
+            },
+            {
+              "type": "number",
+              "bits": "7e37e43c8800759c"
+            },
+            {
+              "type": "number",
+              "bits": "7e37e43c8800759c"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0010000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "00100000000001c2"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0010000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0014000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0010000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0018000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0010000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0020000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0010000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0030000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0010000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0050000000000000"
+            }
+          ]
+        ],
+        "excel_version": "16.0",
+        "excel_build": "20527",
+        "excel_file_version": "16.0.20527.20150",
+        "excel_pid": 66652,
+        "calculation_settings": {
+          "calculation": -4135,
+          "compatibility_version": null,
+          "unavailable": [],
+          "PrecisionAsDisplayed": false,
+          "Date1904": false,
+          "CompatibilityVersion": 2,
+          "UseSystemSeparators": true,
+          "DecimalSeparator": ".",
+          "ThousandsSeparator": "\u00a0"
+        },
+        "automation_security_before": 1,
+        "automation_security_after": 1,
+        "session_receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\session\\completed\\20261105T1511428022894-c51dfc035bc94b9a8e18319be1526338\\receipt.json",
+        "session_receipt_sha256": "d9282b2d7bd9ed865e75c83b54b2d6a7c74004711fae79040c618a29d7d1b638",
+        "machine": "GOVERT-OMEN",
+        "timestamp": "2026-11-05T15:11:46.295272+00:00",
+        "service_seconds": 4.172000000020489,
+        "request_sha256": "56a82213bb9f7477cf364c117871195dbe77ec250ac70ce71e722a4586769a6e",
+        "evidence": "C:\\Work\\DnaCalc\\codex-runs\\excel-service\\requests\\dna-koderbot\\1f8a76d2ece541d1b12eecb5ab586f49"
+      }
+    }
+  ]
+}

@@ -722,3 +722,39 @@ fn dc_971p_50__new_log_chart_and_positive_extents(){
     let after=book.host().charts(sheet).0;assert_eq!(calc_host::chart::plot_scale_range(&after[0].plots[0],true).unwrap(),(1.,100.));assert_eq!(after[0].plots[0].series[0].values,vec![Some(1.),Some(10.),Some(100.),Some(0.),Some(-5.)]);assert_eq!(reopened(&mut book).host().charts(sheet).0,after);
     let mut p=after[0].plots[0].clone();p.stacked=true;assert!(calc_host::chart::plot_scale_range(&p,true).is_err());
 }
+
+
+/// One created combination has live linked sources, two reciprocal pairs and independent scales.
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_51__create_combination_axes_and_saved_reopening(){
+    let mut book=session();let sheet=book.host().sheets()[0].id();let before=book.host().charts(sheet).0;
+    let command=create_command(&book,"A1:C7","combo",false,true,true);let outcome=book.dispatch(SkinIntent::Command(command));assert!(outcome.accepted(),"{outcome:?}");
+    let charts=book.host().charts(sheet).0;let c=&charts[6];assert!(calc_host::chart::combination_supported(c));assert_eq!(c.axes.len(),4);assert_eq!(c.plots.len(),2);assert_eq!(c.plots[0].kind,ChartKind::Column);assert_eq!(c.plots[1].kind,ChartKind::Line);assert_eq!(c.plots[0].series[0].name,"North");assert_eq!(c.plots[1].series[0].name,"South");assert_eq!(&charts[..6],before);
+    let command=axis_command(&book,6,2,None,Some("50"),Some("10"),false);assert!(book.dispatch(SkinIntent::Command(command)).accepted());let command=axis_command(&book,6,4,None,Some("200"),Some("50"),false);assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    let chart=book.host().charts(sheet).0[6].clone();assert_eq!(calc_host::chart::category_scale(&chart,&chart.plots[0]).unwrap().maximum,50.);assert_eq!(calc_host::chart::category_scale(&chart,&chart.plots[1]).unwrap().maximum,200.);
+    let command=log_command(&book,6,4,Some("10"));assert!(book.dispatch(SkinIntent::Command(command)).accepted());let after=book.host().charts(sheet).0;assert_eq!(reopened(&mut book).host().charts(sheet).0,after);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().charts(sheet).0[6].axes.iter().find(|a|a.id==4).unwrap().log_base,None);assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(book.host().charts(sheet).0,after);
+    assert!(book.dispatch(SkinIntent::EnterCell{at:at(sheet,"C2"),text:"125".into()}).accepted());assert_eq!(book.host().charts(sheet).0[6].plots[1].series[0].values[0],Some(125.));
+    assert!(book.dispatch(SkinIntent::EditAxis(calc_host::AxisEdit::new(sheet,calc_host::Axis::Rows,calc_host::AxisChange::Insert,1,2).unwrap())).accepted());let after=book.host().charts(sheet).0;assert_eq!(reopened(&mut book).host().charts(sheet).0,after);
+}
+/// A one-series combination cannot silently become a different type or change history.
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_51__combination_selection_refuses_atomically(){
+    let mut book=session();let sheet=book.host().sheets()[0].id();let before=book.host().charts(sheet).0;let revision=book.host().revision();let history=book.history_depth();
+    let command=create_command(&book,"A1:B7","combo",false,true,true);assert!(!book.dispatch(SkinIntent::Command(command)).accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,before);
+    let command=type_command(&book,0,"combo",false);assert!(!book.dispatch(SkinIntent::Command(command)).accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);
+}
+
+/// Legend placement is an ordinary retained property across history, saving and invalid input.
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_52__legend_placement_history_and_saved_reopening(){
+    let mut book=session();let sheet=book.host().sheets()[0].id();
+    for position in ["l","t","b","tr","r"]{
+        let before=book.host().charts(sheet).0;let command=calc_host::WorkbookCommand::ChartLegend{sheet,revision:book.host().revision().get(),part:before[0].part.clone(),position:position.into()};assert!(book.dispatch(SkinIntent::Command(command)).accepted());let after=book.host().charts(sheet).0;assert_eq!(after[0].legend.as_deref(),Some(position));assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().charts(sheet).0,before);assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(reopened(&mut book).host().charts(sheet).0,after);
+    }
+    let before=book.host().charts(sheet).0;let revision=book.host().revision();let history=book.history_depth();
+    for (rev,position) in [(revision.get(),"unknown"),(revision.get().saturating_sub(1),"l")]{let command=calc_host::WorkbookCommand::ChartLegend{sheet,revision:rev,part:before[0].part.clone(),position:position.into()};assert!(!book.dispatch(SkinIntent::Command(command)).accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,before);}
+}

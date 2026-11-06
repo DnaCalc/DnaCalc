@@ -261,6 +261,7 @@ fn dc_zsn25__fn6_iteration_primary_boundaries() {
 
 /// Fn7 pairs the same complete Jamo prefix and bare primary-group boundaries
 /// with an ordinary Greek prefix, which the Windows suffix comparison retains.
+/// Its bare reversed vowel/consonant pair has a measured first group too.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_zsn26__ordinary_prefix_before_jamo() {
@@ -270,8 +271,22 @@ fn dc_zsn26__ordinary_prefix_before_jamo() {
     ), &mut session, |entry| {
         entry.cell.row() == 20 && entry.cell.column() == 10
             && matches!(entry.cell.sheet(), "q035" | "q036" | "q039" | "q040"
-                | "q043" | "q044" | "q047" | "q048" | "q055" | "q056")
-    }, 10);
+                | "q043" | "q044" | "q047" | "q048" | "q055" | "q056"
+                | "q096" | "q097" | "q098")
+    }, 13);
+    for formula in [
+        "=\"ᅡᄀ\"<\"ᅡ\"",
+        "=\"αᅡᄀ\"<\"α가\"",
+        "=\"ᅡᄀz\"<\"가\"",
+        "=\"ᅡ가\"<\"가\"",
+    ] {
+        session.set_formula(formula);
+        let calculated = session.calculate();
+        assert!(calculated.result.is_none(), "{formula} needs unmeasured weights");
+        assert!(calculated.diagnostics.iter().any(|diagnostic| matches!(diagnostic,
+            Diagnostic::Eval(EvalFault::Function(FunctionFault::NotImplemented { .. }))
+        )), "{formula}: {:?}", calculated.diagnostics);
+    }
 }
 
 /// Original fn6 Version-1/2 captures distinguish a lone high surrogate from a low
@@ -3061,6 +3076,153 @@ fn recorded_exp_subnormal_results_use_the_kernel() {
         }
     }
     assert_eq!(rows, 59, "all original outputs and fresh controls must run");
+    assert!(failures.is_empty(), "{} of {rows} application checks differ:\n{}",
+        failures.len(), failures.join("\n"));
+}
+
+/// Equal positive inputs retain their common value, including the original
+/// minimum-normal triple and independent controls across the normal range.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_geomean_equal_inputs_keep_their_value() {
+    let set = calc_verdict::WitnessSet::decode(include_bytes!(
+        "../../../crates/calc-func/tests/witnesses/GEOMEAN.json"
+    )).unwrap();
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J20").unwrap();
+    let mut rows = 0;
+    let mut failures = Vec::new();
+    for row in &set.witnesses {
+        if !row.reading.starts_with("fn10-equal-") { continue; }
+        let expected = calc_verdict::decode_result(&row.expected).unwrap();
+        let common = expected.as_number().unwrap();
+        assert!(common.is_normal() && common > 0.0);
+        let mut cells = Vec::new();
+        for (index, argument) in row.args.iter().enumerate() {
+            let number = calc_verdict::decode_argument(argument, "GEOMEAN")
+                .unwrap().as_number().unwrap();
+            assert_eq!(number.to_bits(), common.to_bits());
+            let cell = format!("A{}", index + 1);
+            session.set_input(&cell, InputValue::number(number).unwrap()).unwrap();
+            cells.push(cell);
+        }
+        let arguments = cells.join(",");
+        for formula in [
+            format!("=GEOMEAN({arguments})"),
+            format!("=GEOMEAN(A1:A{})", cells.len()),
+            format!("=GEOMEAN(HSTACK({arguments}))"),
+        ] {
+            session.set_formula(&formula);
+            let result = session.calculate();
+            if result.result.as_ref() != Some(&expected) || !result.diagnostics.is_empty() {
+                failures.push(format!("{} {formula}: expected {expected:?}, calculated {:?}; {:?}",
+                    row.id, result.result, result.diagnostics));
+            }
+        }
+        rows += 1;
+    }
+    assert_eq!(rows, 176, "every original equal-positive observation and fresh control must run");
+    assert!(failures.is_empty(), "{} of {} application checks differ:\n{}",
+        failures.len(), 3 * rows, failures.join("\n"));
+}
+
+/// Original zero, signed-unit and overflowing finite-real controls distinguish
+/// the real-axis identity from an indeterminate imaginary zero times infinity.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_complex_hyperbolics_keep_the_real_axis() {
+    let sets: &[(&str, &[u8])] = &[
+        ("IMSINH", include_bytes!("../../../crates/calc-func/tests/witnesses/IMSINH.json")),
+        ("IMCOSH", include_bytes!("../../../crates/calc-func/tests/witnesses/IMCOSH.json")),
+        ("IMCSCH", include_bytes!("../../../crates/calc-func/tests/witnesses/IMCSCH.json")),
+        ("IMSECH", include_bytes!("../../../crates/calc-func/tests/witnesses/IMSECH.json")),
+    ];
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J20").unwrap();
+    let mut rows = 0;
+    let mut failures = Vec::new();
+    for &(function, bytes) in sets {
+        let set = calc_verdict::WitnessSet::decode(bytes).unwrap();
+        session.set_formula(&format!("={function}(A1)"));
+        for row in &set.witnesses {
+            if row.reading != "fn10-hyperbolic-original" { continue; }
+            let input = calc_verdict::decode_argument(&row.args[0], function)
+                .unwrap().as_number().unwrap();
+            if ![0.0_f64.to_bits(), 1.0_f64.to_bits(), (-1.0_f64).to_bits(), 1e100_f64.to_bits()]
+                .contains(&input.to_bits()) { continue; }
+            session.set_input("A1", InputValue::number(input).unwrap()).unwrap();
+            let expected = calc_verdict::decode_result(&row.expected).unwrap();
+            let result = session.calculate();
+            rows += 1;
+            if result.result.as_ref() != Some(&expected) || !result.diagnostics.is_empty() {
+                failures.push(format!("{}: expected {expected:?}, calculated {:?}; {:?}",
+                    row.id, result.result, result.diagnostics));
+            }
+        }
+    }
+    assert_eq!(rows, 16, "four original controls for each hyperbolic function must run");
+    assert!(failures.is_empty(), "{} of {rows} application checks differ:\n{}",
+        failures.len(), failures.join("\n"));
+}
+
+/// The original coefficient-publication arrays distinguish LOGEST's retained
+/// subnormal base from GROWTH's zero forecast and independent numeric errors.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_regression_publication_keeps_each_output_cell() {
+    use calc_func::value::CoreRef;
+    let sets: &[(&str, &[u8])] = &[
+        ("LOGEST", include_bytes!("../../../crates/calc-func/tests/witnesses/LOGEST.json")),
+        ("GROWTH", include_bytes!("../../../crates/calc-func/tests/witnesses/GROWTH.json")),
+    ];
+    let mut session = Session::new("Sheet1").unwrap();
+    session.set_formula_cell("J20").unwrap();
+    let mut rows = 0;
+    let mut failures = Vec::new();
+    for &(function, bytes) in sets {
+        let set = calc_verdict::WitnessSet::decode(bytes).unwrap();
+        for row in &set.witnesses {
+            if row.reading != "fn10-coefficient-publication" { continue; }
+            let mut references = Vec::new();
+            for (index, argument) in row.args.iter().enumerate() {
+                let value = calc_verdict::decode_argument(argument, function).unwrap();
+                let column = b'A' + 4 * index as u8;
+                let first = format!("{}1", char::from(column));
+                match value.core_ref() {
+                    CoreRef::Number(n) => {
+                        assert!(n == 0.0 || n.is_normal());
+                        session.set_input(&first, InputValue::number(n).unwrap()).unwrap();
+                        references.push(first);
+                    }
+                    CoreRef::Array(array) => {
+                        assert!(array.shape().cols <= 4);
+                        for r in 0..array.shape().rows {
+                            for (c, cell) in array.row_slice(r).unwrap().iter().enumerate() {
+                                let n = cell.as_number().unwrap();
+                                assert!(n == 0.0 || n.is_normal());
+                                let address = format!("{}{}", char::from(column + c as u8), r + 1);
+                                session.set_input(&address, InputValue::number(n).unwrap()).unwrap();
+                            }
+                        }
+                        let last = format!("{}{}", char::from(column + array.shape().cols as u8 - 1), array.shape().rows);
+                        references.push(format!("{first}:{last}"));
+                    }
+                    other => panic!("unexpected source argument {other:?}"),
+                }
+            }
+            session.set_formula(&format!("={function}({})", references.join(",")));
+            let result = session.calculate();
+            let actual = result.result.as_ref()
+                .and_then(|value| calc_verdict::select_result(value, row.result_index));
+            let expected = calc_verdict::decode_result(&row.expected).unwrap();
+            rows += 1;
+            if actual.as_ref() != Some(&expected) || !result.diagnostics.is_empty() {
+                failures.push(format!("{}: expected {expected:?}, calculated {actual:?}; {:?}",
+                    row.id, result.diagnostics));
+            }
+        }
+    }
+    assert_eq!(rows, 9, "all original coefficient and forecast output cells must run");
     assert!(failures.is_empty(), "{} of {rows} application checks differ:\n{}",
         failures.len(), failures.join("\n"));
 }
