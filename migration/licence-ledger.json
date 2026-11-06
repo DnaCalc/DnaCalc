@@ -502,6 +502,18 @@
    "surveyed_bytes": 12370
   },
   {
+   "path": "crates/calc-func/src/catalogue/euro_tools.rs",
+   "class": "own-work",
+   "reason": "written here from measurements of Excel; the add-in's code was not read",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "EUROCONVERT, the function of the Euro Currency Tools add-in"
+    }
+   ]
+  },
+  {
    "path": "crates/calc-func/src/catalogue/financial.rs",
    "class": "own-work",
    "reason": "ported from this project's legacy repositories or written here",

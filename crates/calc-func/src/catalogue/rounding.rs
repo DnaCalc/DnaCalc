@@ -297,7 +297,7 @@ fn flush(result: f64) -> f64 {
 /// ROUND(-5.480222088275654E-221,-2147483480.2228494) is -5.48022208827565E-221 (the sum wraps
 /// positive), as Excel 16.0.20430 gives them (the OxFunc-Evidence bank's integer-threshold,
 /// hyperbolic and count-refinement runs).
-fn nearest_digits(site: &Site<'_>, number: f64, places: f64) -> Step<f64> {
+pub(super) fn nearest_digits(site: &Site<'_>, number: f64, places: f64) -> Step<f64> {
     if number == 0.0 {
         return Ok(0.0);
     }
