@@ -815,6 +815,18 @@ impl Session {
     /// W3C browsingContext.setViewport, which changes CSS viewport dimensions rather
     /// than resizing Firefox's desktop window (whose minimum width is 500 px).
     fn viewport(&self, width: u32, height: u32) -> Result<(), String> {
+        if self.bidi.is_none() {
+            // Headless Chrome may clamp its desktop window to the host screen. Set the
+            // CSS viewport explicitly for desktop sizes too; window/rect is not evidence
+            // that innerWidth/innerHeight reached the requested dimensions.
+            self.post(
+                "/goog/cdp/execute",
+                json!({"cmd":"Emulation.setDeviceMetricsOverride","params":{
+                    "width":width,"height":height,"deviceScaleFactor":1,"mobile":width<1000
+                }}),
+            )?;
+            return Ok(());
+        }
         #[cfg(target_arch = "wasm32")]
         {
             let _ = (width, height);
@@ -2345,30 +2357,10 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             upload(app, session, name, &target)
         }
         Action::Window(width, height) => {
-            // Chrome keeps a desktop window at least about 500 pixels wide, so its viewport is
-            // set through the DevTools protocol (a phone's width, as its device toolbar does);
-            // the wide size clears that. Firefox takes the window size itself.
-            let wide = *width >= 1000;
-            let emulated = if wide {
-                session.post(
-                    "/goog/cdp/execute",
-                    json!({ "cmd": "Emulation.clearDeviceMetricsOverride", "params": {} }),
-                )
-            } else {
-                session.post(
-                    "/goog/cdp/execute",
-                    json!({
-                        "cmd": "Emulation.setDeviceMetricsOverride",
-                        "params": { "width": width, "height": height, "deviceScaleFactor": 1, "mobile": true }
-                    }),
-                )
-            };
-            if session.bidi.is_some() {
-                session.viewport(*width, *height)?;
-            } else if emulated.is_err() || wide {
+            if *width >= 1000 {
                 session.post("/window/rect", json!({ "width": width, "height": height }))?;
             }
-            Ok(())
+            session.viewport(*width, *height)
         }
     }
 }
@@ -2821,14 +2813,7 @@ fn start_group(app: &App, session: &Session, page: &str) -> Result<(), String> {
         "try { localStorage.clear(); sessionStorage.clear(); } catch (_) {} return true;",
     )?;
     session.post("/window/rect", json!({"width":1280,"height":1000}))?;
-    if session.bidi.is_some() {
-        session.viewport(1280, 1000)?;
-    } else {
-        session.post(
-            "/goog/cdp/execute",
-            json!({"cmd":"Emulation.clearDeviceMetricsOverride","params":{}}),
-        )?;
-    }
+    session.viewport(1280, 1000)?;
     for entry in fs::read_dir(&session.downloads).map_err(|e| e.to_string())? {
         let entry = entry.map_err(|e| e.to_string())?;
         if entry.file_type().map_err(|e| e.to_string())?.is_file() {
