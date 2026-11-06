@@ -143,6 +143,35 @@ class Service:
         return {"version": 1, "id": request_id, "ok": False, "error": str(error),
                 "rows": [], "excel_build": None, "machine": socket.gethostname(), "timestamp": utc()}
 
+    def stop_requested(self, stop):
+        retries = 0
+        while True:
+            try:
+                requested = stop.exists()
+                break
+            except OSError as error:
+                if getattr(error, "winerror", None) != 1450:
+                    raise
+                retries += 1
+                if retries == 1:
+                    self.resource_log("resource-retry", operation="stop-file-stat", error=str(error))
+                # Retry only this read. Never repeat an Excel job or replace a
+                # pending answer, and do not assume the stop file is absent.
+                self.stopping.wait(1)
+        if retries:
+            self.resource_log("resource-recovered", operation="stop-file-stat", retries=retries)
+        return requested
+
+    def resource_log(self, kind, **data):
+        # The same resource shortage may prevent opening the diagnostic log.
+        try:
+            self.log(kind, **data)
+        except OSError as error:
+            try:
+                print(f"{utc()} {kind}: {data}; log unavailable: {error}", file=sys.stderr, flush=True)
+            except OSError:
+                pass
+
     def evaluate(self, request, directory):
         prepared = directory / "witness-request.json"
         output = directory / "witness-result.json"
@@ -276,7 +305,7 @@ class Service:
                     thread.start()
                     threads.append(thread)
                 atomic_json(self.state / "status.json", {"pid": os.getpid(), "running": True, "utc": utc()})
-                while not stop.exists():
+                while not self.stop_requested(stop):
                     try:
                         origin, item, done = self.pending.get(timeout=.2)
                     except queue.Empty:

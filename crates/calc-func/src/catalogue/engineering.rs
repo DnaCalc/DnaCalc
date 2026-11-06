@@ -211,7 +211,17 @@ ported_family! {
     44 imlog2 "IMLOG2" (1, 1) [V "inumber"] |s, a, sv| {
         unary_complex(s, a, |z| {
             let ln = z.ln()?;
-            Ok(ParsedComplex::new(ln.re / crt_log(2.0), ln.im / crt_log(2.0), None))
+            let re = if z.im == 0.0 {
+                // Fn11's exact coefficient-bin bounds uniquely determine this binary64
+                // LN multiplier; independent normal and signed controls retain it.
+                crate::ported::excel_numeric::excel_x87_mul(
+                    crate::ported::excel_numeric::excel_log(z.re.abs()),
+                    f64::from_bits(0x3ff7_1547_652b_82ff),
+                )
+            } else {
+                ln.re / crt_log(2.0)
+            };
+            Ok(ParsedComplex::new(re, ln.im / crt_log(2.0), None))
         })
     }
     45 imsec "IMSEC" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| z.sec()) }

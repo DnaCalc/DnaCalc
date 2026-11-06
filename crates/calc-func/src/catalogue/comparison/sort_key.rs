@@ -35,7 +35,7 @@
 //!
 //! An ignorable unit adds no weight, and so does a supplementary variation selector (U+E0100 to
 //! U+E01EF, a surrogate pair). A text has incomplete weights here when it holds U+0000, a
-//! Hangul conjoining jamo (which Windows composes with each other), U+30A0 (which
+//! Hangul conjoining jamo (whose context-dependent continuations are not fully modelled), U+30A0 (which
 //! `CompareStringEx` orders otherwise than its key), an isolated or medial form of Arabic marks
 //! (U+FC5E to U+FC63, U+FE71 and the like, into which the walk's runs are not modelled), or an
 //! iteration mark after a special outside fn7's three adjacent forms and four punctuation units.
@@ -571,6 +571,44 @@ fn independent_jamo_suffix(text: &[u16]) -> bool {
     ))
 }
 
+/// Fn7's three leading consonants start with the same primary pair as their
+/// compatibility consonant, before the unmodelled Jamo bytes. This settles a
+/// strict primary difference, not an equality with that compatibility form.
+/// Native keys and CompareStringEx agree on the measured LV/LVT boundaries;
+/// their disagreement for Giyeok versus its compatibility form stays refused.
+fn jamo_leading_primary<'a>(table: &'a Table, text: &[u16], at: usize) -> Option<&'a [u8]> {
+    let (compatibility, tail) = match text[at] {
+        0x1100 => (0x3131, &text[at + 1..]),
+        0x1101 => (0x3132, &text[at + 1..]),
+        0x1102 => (0x3134, &text[at + 1..]),
+        _ => return None,
+    };
+    if !ordinary_jamo_prefix(&text[..at]) {
+        return None;
+    }
+    let tail = if tail.first() == Some(&0x1161) {
+        let tail = &tail[1..];
+        if text[at] == 0x1100 && tail.first() == Some(&0x11A8) { &tail[1..] } else { tail }
+    } else if text[at] == 0x1100
+        && matches!(tail, [0x00AD | 0x034F | 0x200B | 0x0301, 0x1161, ..])
+    {
+        &tail[2..]
+    } else if text[at] == 0x1100 {
+        tail
+    } else {
+        return None;
+    };
+    if !independent_jamo_suffix(tail) {
+        return None;
+    }
+    match table.weights[compatibility] {
+        Weight::Weighted { primary, primaries: 1, .. } => {
+            Some(&table.primary[primary as usize..primary as usize + PRIMARY_BYTES])
+        }
+        _ => None,
+    }
+}
+
 /// One step of a text's diacritic walk ([`diacritics`]): what each unit gives the diacritic
 /// level, in text order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -603,7 +641,16 @@ pub(super) struct Parts {
 /// or completed prefix to decide without assigning the remaining unknown weight.
 pub(super) struct Unfinished {
     primary: Vec<u8>,
-    continues: bool,
+    continuation: Continuation,
+}
+
+enum Continuation {
+    /// The failed unit may change an earlier primary too.
+    Unknown,
+    /// The primary prefix is known; later primary or secondary weights are not.
+    MayEnd,
+    /// More primary bytes must follow the known prefix.
+    More,
 }
 
 /// An order decided entirely before either unknown primary, or by a completed primary prefix.
@@ -612,23 +659,26 @@ pub(super) fn leading_order(
     left: &Result<Parts, Unfinished>,
     right: &Result<Parts, Unfinished>,
 ) -> Option<Ordering> {
-    fn prefix(parts: &Result<Parts, Unfinished>) -> Option<(&[u8], bool)> {
+    fn prefix(parts: &Result<Parts, Unfinished>) -> Option<(&[u8], bool, bool)> {
         match parts {
-            Ok(parts) => Some((parts.primary.as_slice(), false)),
-            Err(rest) if rest.continues => Some((rest.primary.as_slice(), true)),
-            Err(_) => None,
+            Ok(parts) => Some((parts.primary.as_slice(), true, false)),
+            Err(rest) => match rest.continuation {
+                Continuation::More => Some((rest.primary.as_slice(), false, true)),
+                Continuation::MayEnd => Some((rest.primary.as_slice(), false, false)),
+                Continuation::Unknown => None,
+            },
         }
     }
-    let (a, a_continues) = prefix(left)?;
-    let (b, b_continues) = prefix(right)?;
+    let (a, a_complete, a_continues) = prefix(left)?;
+    let (b, b_complete, b_continues) = prefix(right)?;
     let common = a.len().min(b.len());
     let earlier = a[..common].cmp(&b[..common]);
     if !earlier.is_eq() {
         return Some(earlier);
     }
-    if !a_continues && (a.len() < b.len() || (a.len() == b.len() && b_continues)) {
+    if a_complete && (a.len() < b.len() || (a.len() == b.len() && b_continues)) {
         Some(Ordering::Less)
-    } else if !b_continues && (b.len() < a.len() || (a.len() == b.len() && a_continues)) {
+    } else if b_complete && (b.len() < a.len() || (a.len() == b.len() && a_continues)) {
         Some(Ordering::Greater)
     } else {
         None
@@ -826,6 +876,10 @@ pub(super) fn parts(text: &[u16]) -> Result<Parts, Unfinished> {
         let primaries = gathered.primary.len();
         if gathered.unit(table, code, &mut before).is_none() {
             gathered.primary.truncate(primaries);
+            if let Some(primary) = jamo_leading_primary(table, text, at) {
+                gathered.primary.extend_from_slice(primary);
+                return Err(Unfinished { primary: gathered.primary, continuation: Continuation::MayEnd });
+            }
             // Fn7's exact bare reversed A/Giyeok pair keeps A's first EC byte.
             // No later byte, ordinary-prefix context or continuation is assigned.
             let bare_reversed_jamo = at == 0 && text == [0x1161, 0x1100];
@@ -836,14 +890,19 @@ pub(super) fn parts(text: &[u16]) -> Result<Parts, Unfinished> {
                 // A strict difference in this measured byte decides before any
                 // unknown byte or later level. Keep the rest explicitly unfinished.
                 gathered.primary.push(group);
-                return Err(Unfinished { primary: gathered.primary, continues: true });
+                return Err(Unfinished { primary: gathered.primary, continuation: Continuation::More });
             }
             return Err(Unfinished {
                 primary: gathered.primary,
                 // An iteration failure after One would still add a primary. After a special
                 // even a nonempty contribution has not been measured; leave it undecided.
-                continues: matches!(table.weights[usize::from(code)], Weight::Iteration(_))
-                    && matches!(before, Before::One(..)),
+                continuation: if matches!(table.weights[usize::from(code)], Weight::Iteration(_))
+                    && matches!(before, Before::One(..))
+                {
+                    Continuation::More
+                } else {
+                    Continuation::Unknown
+                },
             });
         }
         at += 1;

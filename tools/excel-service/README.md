@@ -39,6 +39,10 @@ Scalar catalogue functions are selected by `policy.py`; references, external/vol
 functions, array producers, paths and request formula text are refused before Excel runs.
 Limits: 20,000 calls, 32 arguments/call, 200,000 total arguments, 16 MiB/request.
 The host bounds each job to 75 seconds; crashes fail that request and recycle Excel.
+If Windows returns resource error 1450 while checking the stop file, the service
+retries that read and resumes polling. It keeps the owned host and pending answers;
+no Excel question is repeated. Recovery diagnostics fall back to stderr if the
+resource shortage also prevents writing the log. Other stop-file errors remain errors.
 All questions and answers stay in `C:\Work\DnaCalc\codex-runs\excel-service\log\questions.jsonl`;
 raw witness audits and session receipts stay beside them under `requests` and `session`.
 No request workbook is opened or saved; AutomationSecurity is preserved without assignment.

@@ -976,7 +976,7 @@ fn dc_hsa5_11__range_exclusion_wakes_waiters_and_cancel_counts_only_discovered_r
     use calc_host::value::GridArea;
     for (sparse, dynamic_cycle) in [(false, false), (true, false), (false, true), (true, true)] {
         let source = if dynamic_cycle { "eng14-range-dynamic-cycle" } else { "eng14-range-dynamic-cycle-reader" };
-        let mut authored = HostSession::open(Arc::new(MemorySource::new(eng14_input(source).to_vec())),
+        let mut authored = HostSession::open(Arc::new(MemorySource::new(p14_input(source).to_vec())),
             &OpenPolicy::default(), HostOptions { calc_mode: Some(CalcMode::Manual), ..HostOptions::default() }).unwrap();
         p14_enter(&mut authored, 1, 3, "=INDIRECT(\"E1\")+1");
         p14_enter(&mut authored, 1, 5, "=INDIRECT(\"A1\")+1");
@@ -1049,7 +1049,7 @@ fn dc_hsa5_11__selected_scalar_shape_does_not_grant_its_value() {
     use calc_host::value::GridArea;
     for formula in ["=SUM(A1#)", "=INDEX(A1#,1)", "=A1#", "=ROWS(A1#)+A1", "=IFERROR(SUM(A1#),777)"] {
         for budget in [usize::MAX, 1] {
-            let mut book = HostSession::open(Arc::new(MemorySource::new(eng14_input("eng14-range-cyclic-shape-reader").to_vec())),
+            let mut book = HostSession::open(Arc::new(MemorySource::new(p14_input("eng14-range-cyclic-shape-reader").to_vec())),
                 &OpenPolicy::default(), HostOptions { calc_mode: Some(CalcMode::Manual), ..HostOptions::default() }).unwrap();
             p14_enter(&mut book, 1, 3, formula);
             let before = [p14_visible(&book, 1, 1), p14_visible(&book, 1, 2)];
@@ -1333,7 +1333,7 @@ fn dc_hsa5_11__dynamic_range_neighbors_keep_scope_and_value_errors_distinct() {
     for neighbor in ["=SEQUENCE(2,1)", "=MissingPacketFunction()", "='missing-provider.xlsm'!NoSuch(1)"] {
         for budget in [usize::MAX, 1] {
             let mut book = HostSession::open(Arc::new(MemorySource::new(
-                eng14_input("eng14-range-dynamic-cycle").to_vec())), &OpenPolicy::default(),
+                p14_input("eng14-range-dynamic-cycle").to_vec())), &OpenPolicy::default(),
                 HostOptions { calc_mode: Some(CalcMode::Manual), ..HostOptions::default() }).unwrap();
             p14_enter(&mut book, 1, 3, neighbor);
             book.set_calculation_budget(WorkBudget::evaluations(budget));
@@ -1869,9 +1869,17 @@ fn dc_hsa5_11__p14_recorded_stopping_and_dependents() {
     );
 }
 
-// Original eng14 inputs and result objects. Keep one P14 typed-value decoder and host route.
-fn eng14_input(name: &str) -> &'static [u8] {
+// Original P14 inputs and result objects. Keep one typed-value decoder and host route.
+fn p14_input(name: &str) -> &'static [u8] {
     match name {
+        "eng17-logical-baseline-false-negative-eighth-half" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng17-20261105/inputs/eng17-logical-baseline-false-negative-eighth-half.xlsx"),
+        "eng17-logical-baseline-false-positive-eighth-half" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng17-20261105/inputs/eng17-logical-baseline-false-positive-eighth-half.xlsx"),
+        "eng17-logical-baseline-true-negative-eighth-half" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng17-20261105/inputs/eng17-logical-baseline-true-negative-eighth-half.xlsx"),
+        "eng17-logical-baseline-true-negative-eighth-one" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng17-20261105/inputs/eng17-logical-baseline-true-negative-eighth-one.xlsx"),
+        "eng17-logical-baseline-true-negative-one-half" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng17-20261105/inputs/eng17-logical-baseline-true-negative-one-half.xlsx"),
+        "eng17-logical-baseline-true-positive-eighth-half" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng17-20261105/inputs/eng17-logical-baseline-true-positive-eighth-half.xlsx"),
+        "eng17-logical-baseline-true-positive-eighth-one" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng17-20261105/inputs/eng17-logical-baseline-true-positive-eighth-one.xlsx"),
+        "eng17-logical-baseline-true-positive-one-three-halves" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng17-20261105/inputs/eng17-logical-baseline-true-positive-one-three-halves.xlsx"),
         "eng14-logical-number-baseline-false" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng14-20261104/inputs/eng14-logical-number-baseline-false.xlsx"),
         "eng14-logical-number-baseline-one" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng14-20261104/inputs/eng14-logical-number-baseline-one.xlsx"),
         "eng14-logical-number-baseline-true" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng14-20261104/inputs/eng14-logical-number-baseline-true.xlsx"),
@@ -1887,7 +1895,7 @@ fn eng14_input(name: &str) -> &'static [u8] {
         "eng14-rebuild-hidden-self-reader" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng14-20261104/inputs/eng14-rebuild-hidden-self-reader.xlsx"),
         "eng14-text-error-only-n2" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng14-20261104/inputs/eng14-text-error-only-n2.xlsx"),
         "eng14-text-error-only-n5" => include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng14-20261104/inputs/eng14-text-error-only-n5.xlsx"),
-        _ => panic!("unknown eng14 input {name}"),
+        _ => panic!("unknown P14 input {name}"),
     }
 }
 
@@ -1910,7 +1918,7 @@ fn dc_hsa5_11__eng14_range_paths_and_retained_seeds() {
         let stage = |label: &str| result["observations"].as_array().unwrap().iter().find(|s| s["stage"] == label).unwrap();
         let seeds = stage("seeds-verified")["cells"].as_array().unwrap();
         for budget in [usize::MAX, 1] {
-            let mut book = HostSession::open(Arc::new(MemorySource::new(eng14_input(name).to_vec())), &OpenPolicy::default(),
+            let mut book = HostSession::open(Arc::new(MemorySource::new(p14_input(name).to_vec())), &OpenPolicy::default(),
                 HostOptions { calc_mode: Some(CalcMode::Manual), ..HostOptions::default() }).unwrap();
             book.set_calculation_budget(WorkBudget::evaluations(budget));
             let settings = book.host().model().definitions().iteration();
@@ -2018,8 +2026,8 @@ fn dc_hsa5_11__eng14_range_paths_and_retained_seeds() {
     assert_eq!((evaluated, legacy_values, stale_evaluated, retained), (20, 8, 4, 48));
 }
 
-/// Seven supported stopping controls; the two logical-TRUE baseline conditions
-/// remain recorded mismatches in the full eng14 command replay, not fitted expectations.
+/// All nine original stopping controls, including the two earlier logical-TRUE
+/// mismatches. Expected values remain the original recorded observations.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_hsa5_11__eng14_supported_nonnumeric_stopping() {
@@ -2032,10 +2040,9 @@ fn dc_hsa5_11__eng14_supported_nonnumeric_stopping() {
     let mut checked = 0;
     for record in records {
         let name = record["condition"].as_str().unwrap();
-        if matches!(name, "eng14-logical-number-baseline-one" | "eng14-logical-number-baseline-true") { continue; }
         let result = &record["result"];
         for budget in [usize::MAX, 1] {
-            let mut book = HostSession::open(Arc::new(MemorySource::new(eng14_input(name).to_vec())), &OpenPolicy::default(),
+            let mut book = HostSession::open(Arc::new(MemorySource::new(p14_input(name).to_vec())), &OpenPolicy::default(),
                 HostOptions { calc_mode: Some(CalcMode::Manual), ..HostOptions::default() }).unwrap();
             book.set_calculation_budget(WorkBudget::evaluations(budget));
             for command in 1..=2 {
@@ -2054,7 +2061,54 @@ fn dc_hsa5_11__eng14_supported_nonnumeric_stopping() {
             }
         }
     }
-    assert_eq!(checked, 28);
+    assert_eq!(checked, 36);
+}
+
+/// Eight original conditions, each repeated ten times in fresh Excel processes.
+/// Final values establish the stopping boundary, not an internal sweep count.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_14__eng17_logical_seed_stopping_baseline() {
+    use calc_host::WorkBudget;
+    use serde_json::Value;
+    let records = std::str::from_utf8(include_bytes!(
+        "../../calc-engine/tests/fixtures/excel-calc-probes/P14/eng17-20261105/observations.jsonl"
+    )).unwrap().lines().map(|line| serde_json::from_str::<Value>(line).unwrap()).collect::<Vec<_>>();
+    assert_eq!(records.len(), 8);
+    let mut checked = 0;
+    let mut mismatches = Vec::new();
+    for record in records {
+        let name = record["condition"].as_str().unwrap();
+        let bytes = p14_input(name);
+        assert_eq!(calc_verdict::sha256_hex(bytes), record["input_sha256"].as_str().unwrap());
+        let stages = record["result"]["observations"].as_array().unwrap();
+        let stage = |name: &str| stages.iter().find(|s| s["stage"] == name).unwrap();
+        for budget in [usize::MAX, 1] {
+            let mut book = HostSession::open(Arc::new(MemorySource::new(bytes.to_vec())),
+                &OpenPolicy::default(), HostOptions { calc_mode: Some(CalcMode::Manual), ..HostOptions::default() }).unwrap();
+            book.set_calculation_budget(WorkBudget::evaluations(budget));
+            let at = CellKey::new(book.host().sheets()[0].id(), 1, 1).unwrap();
+            let initial = project(book.host(), &ProjectionRequest { cells: vec![at] }).unwrap();
+            let ProjectedValue::FileCached(seed) = initial.cells()[0].value() else { panic!("original logical seed"); };
+            assert_eq!(seed.value().to_value(), p14_value(&stage("seeds-verified")["cells"][0]["value"]));
+            for command in 1..=2 {
+                assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+                p14_advance(&mut book);
+                let page = project(book.host(), &ProjectionRequest { cells: vec![at] }).unwrap();
+                let ProjectedValue::Calculated { value, calculation } = page.cells()[0].value() else { panic!("{name}: {:?}", page.cells()[0]); };
+                assert!(!calculation.held_by_circular_rule());
+                assert!(!calculation.reads_external_links());
+                let expected = p14_value(&stage(&format!("after-command-{command}"))["cells"][0]["value"]);
+                if value != &expected {
+                    mismatches.push(format!("{name} budget={budget} command={command}: {value:?}, Excel {expected:?}"));
+                }
+                checked += 1;
+            }
+        }
+    }
+    assert_eq!(checked, 32);
+    println!("P14 eng17 stopping: {} matched, {} mismatched, {checked} calculated comparisons; no held-cache matches", checked - mismatches.len(), mismatches.len());
+    assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
 }
 
 #[derive(Clone, Debug, PartialEq)]

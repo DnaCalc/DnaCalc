@@ -15789,6 +15789,20 @@ fn cfunc_m3_6__lookup_edges() {
         out_of_range.asked
     );
 
+    // The measured Giyeok-A leading primary follows every ASCII entry in B1:B6.
+    // Approximate XMATCH therefore selects its final entry through the ordinary lookup route.
+    let xmatch = surface(Notation::Call, "XMATCH");
+    assert_eq!(invoke(
+        xmatch,
+        &mut Recorded::new(vec![
+            text_value("\u{1100}\u{1161}"),
+            reference(s, &["B1:B6"]).value,
+            CalcValue::number(-1.0),
+        ]),
+        &mut EvalServices::with_cells(&fast, s),
+        &mut FunctionCallScratch::new(),
+    ), Ok(CalcValue::number(6.0)));
+
     // Through the call interface alone (no row of the workbook): the formula's own cell, which
     // ROW() and COLUMN() need, is not among the services (dc-m3u); regex matching (match_mode 3,
     // dc-uar), an array index_num (dc-m3u) and a read past LOOKUP's result reference
@@ -15828,7 +15842,7 @@ fn cfunc_m3_6__lookup_edges() {
         (
             "XMATCH",
             vec![
-                text_value("\u{1100}\u{1161}"),
+                text_value("\u{1103}\u{1161}"),
                 reference(s, &["B1:B6"]).value,
                 CalcValue::number(-1.0),
             ],
@@ -15868,7 +15882,7 @@ fn cfunc_m3_6__lookup_edges() {
         );
     }
     note!(
-        "ACCEPT-NOTE: {CASE}: refused with NotImplemented: ROW() and COLUMN() (the formula's own cell is not supplied; owned by {}: {}), XMATCH(2,A1:A6,3) (regex; dc-uar), CHOOSE({{1}},\"a\") (lifted; dc-m3u), LOOKUP(3,A1:A6,B1) (Excel reads past B1; owned by {}: {}), XMATCH(\"\u{1100}\u{1161}\",B1:B6,-1) (Hangul conjoining jamo, for which calc_func's collation builds no sort key; dc-zsn.1), XMATCH(TRUE,{{#BUSY!,#N/A}},1) (an order of #BUSY! no formula on this machine gives offline; dc-uar)",
+        "ACCEPT-NOTE: {CASE}: refused with NotImplemented: ROW() and COLUMN() (the formula's own cell is not supplied; owned by {}: {}), XMATCH(2,A1:A6,3) (regex; dc-uar), CHOOSE({{1}},\"a\") (lifted; dc-m3u), LOOKUP(3,A1:A6,B1) (Excel reads past B1; owned by {}: {}), XMATCH(\"\u{1103}\u{1161}\",B1:B6,-1) (unmeasured leading Hangul conjoining jamo; dc-zsn.2), XMATCH(TRUE,{{#BUSY!,#N/A}},1) (an order of #BUSY! no formula on this machine gives offline; dc-uar)",
         CALLER_OWNER.bead,
         CALLER_OWNER.behaviour,
         READ_PAST_OWNER.bead,

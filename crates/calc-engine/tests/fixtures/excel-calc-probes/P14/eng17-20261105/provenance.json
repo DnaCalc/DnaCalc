@@ -1,0 +1,4120 @@
+{
+  "delivery_manifests": {
+    "eng17": "a37ba71bbc258ec9c0cec8d76f331e1467f23673850914509674965b6fba085a",
+    "eng18": "5596548a154c3a402c3e782521a0729b2dd966784010db4e4caa77f9317d42b6"
+  },
+  "qualified_trials": 160,
+  "qualified_fresh_processes": 160,
+  "families": {
+    "logical-baseline": 80,
+    "formula-entry": 50,
+    "event-owner": 30
+  },
+  "logical_conditions": 8,
+  "logical_trials": 80,
+  "logical_commands": 160,
+  "failed_or_blocked": [
+    {
+      "packet": "eng17",
+      "condition": "eng17-event-ordinary-failure-retains-state",
+      "trial": 1,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng17\\event-owner-attempt5\\trials\\eng17-event-ordinary-failure-retains-state\\1\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng17",
+      "condition": "eng17-event-events-switch-after-failure",
+      "trial": 1,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng17\\event-owner-attempt5\\trials\\eng17-event-events-switch-after-failure\\1\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng17",
+      "condition": "eng17-event-ordinary-failure-retains-state",
+      "trial": 2,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng17\\event-owner-attempt5\\trials\\eng17-event-ordinary-failure-retains-state\\2\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng17",
+      "condition": "eng17-event-events-switch-after-failure",
+      "trial": 2,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng17\\event-owner-attempt5\\trials\\eng17-event-events-switch-after-failure\\2\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng17",
+      "condition": "eng17-event-ordinary-failure-retains-state",
+      "trial": 3,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng17\\event-owner-attempt5\\trials\\eng17-event-ordinary-failure-retains-state\\3\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng17",
+      "condition": "eng17-event-events-switch-after-failure",
+      "trial": 3,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng17\\event-owner-attempt5\\trials\\eng17-event-events-switch-after-failure\\3\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng17",
+      "condition": "eng17-event-ordinary-failure-retains-state",
+      "trial": 4,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng17\\event-owner-attempt5\\trials\\eng17-event-ordinary-failure-retains-state\\4\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng17",
+      "condition": "eng17-event-events-switch-after-failure",
+      "trial": 4,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng17\\event-owner-attempt5\\trials\\eng17-event-events-switch-after-failure\\4\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng17",
+      "condition": "eng17-event-ordinary-failure-retains-state",
+      "trial": 5,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng17\\event-owner-attempt5\\trials\\eng17-event-ordinary-failure-retains-state\\5\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng17",
+      "condition": "eng17-event-events-switch-after-failure",
+      "trial": 5,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng17\\event-owner-attempt5\\trials\\eng17-event-events-switch-after-failure\\5\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng17",
+      "condition": "eng17-event-ordinary-failure-retains-state",
+      "trial": 6,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng17\\event-owner-attempt5\\trials\\eng17-event-ordinary-failure-retains-state\\6\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng17",
+      "condition": "eng17-event-events-switch-after-failure",
+      "trial": 6,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng17\\event-owner-attempt5\\trials\\eng17-event-events-switch-after-failure\\6\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng17",
+      "condition": "eng17-event-ordinary-failure-retains-state",
+      "trial": 7,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng17\\event-owner-attempt5\\trials\\eng17-event-ordinary-failure-retains-state\\7\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng17",
+      "condition": "eng17-event-events-switch-after-failure",
+      "trial": 7,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng17\\event-owner-attempt5\\trials\\eng17-event-events-switch-after-failure\\7\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng17",
+      "condition": "eng17-event-document-name-disabled-rename",
+      "trial": 8,
+      "attempt": 1,
+      "receipt_error": "no receipt",
+      "receipt": null
+    },
+    {
+      "packet": "eng17",
+      "condition": "eng17-event-ordinary-failure-retains-state",
+      "trial": 8,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng17\\event-owner-attempt5\\trials\\eng17-event-ordinary-failure-retains-state\\8\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng17",
+      "condition": "eng17-event-events-switch-after-failure",
+      "trial": 8,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng17\\event-owner-attempt5\\trials\\eng17-event-events-switch-after-failure\\8\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng17",
+      "condition": "eng17-event-ordinary-failure-retains-state",
+      "trial": 9,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng17\\event-owner-attempt5\\trials\\eng17-event-ordinary-failure-retains-state\\9\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng17",
+      "condition": "eng17-event-events-switch-after-failure",
+      "trial": 9,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng17\\event-owner-attempt5\\trials\\eng17-event-events-switch-after-failure\\9\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng17",
+      "condition": "eng17-event-ordinary-failure-retains-state",
+      "trial": 10,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng17\\event-owner-attempt5\\trials\\eng17-event-ordinary-failure-retains-state\\10\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng17",
+      "condition": "eng17-event-events-switch-after-failure",
+      "trial": 10,
+      "attempt": 1,
+      "receipt_error": "no receipt",
+      "receipt": null
+    },
+    {
+      "packet": "eng18",
+      "condition": "eng18-nested-change-unhandled-fault",
+      "trial": 1,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng18\\event-owner-attempt5\\trials\\eng18-nested-change-unhandled-fault\\1\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng18",
+      "condition": "eng18-nested-change-unhandled-fault",
+      "trial": 2,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng18\\event-owner-attempt5\\trials\\eng18-nested-change-unhandled-fault\\2\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng18",
+      "condition": "eng18-nested-change-unhandled-fault",
+      "trial": 3,
+      "attempt": 1,
+      "receipt_error": "no receipt",
+      "receipt": null
+    },
+    {
+      "packet": "eng18",
+      "condition": "eng18-nested-change-unhandled-fault",
+      "trial": 4,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng18\\event-owner-attempt5\\trials\\eng18-nested-change-unhandled-fault\\4\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng18",
+      "condition": "eng18-nested-change-unhandled-fault",
+      "trial": 5,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng18\\event-owner-attempt5\\trials\\eng18-nested-change-unhandled-fault\\5\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng18",
+      "condition": "eng18-nested-change-unhandled-fault",
+      "trial": 6,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng18\\event-owner-attempt5\\trials\\eng18-nested-change-unhandled-fault\\6\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng18",
+      "condition": "eng18-nested-change-unhandled-fault",
+      "trial": 7,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng18\\event-owner-attempt5\\trials\\eng18-nested-change-unhandled-fault\\7\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng18",
+      "condition": "eng18-nested-change-unhandled-fault",
+      "trial": 8,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng18\\event-owner-attempt5\\trials\\eng18-nested-change-unhandled-fault\\8\\recovered-session\\receipt.json"
+    },
+    {
+      "packet": "eng18",
+      "condition": "eng18-nested-change-unhandled-fault",
+      "trial": 9,
+      "attempt": 1,
+      "receipt_error": "no receipt",
+      "receipt": null
+    },
+    {
+      "packet": "eng18",
+      "condition": "eng18-nested-change-unhandled-fault",
+      "trial": 10,
+      "attempt": 1,
+      "receipt_error": "Previous session host exited before completing this job; observations remain unqualified.",
+      "receipt": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng18\\event-owner-attempt5\\trials\\eng18-nested-change-unhandled-fault\\10\\recovered-session\\receipt.json"
+    }
+  ],
+  "limits": "Observations and provenance only; no parity, SCC entry counts, dialog dismissal, or successful continuation after an unhandled event fault is inferred.",
+  "logical_trial_chains": [
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-false-negative-eighth-half",
+      "trial": 1,
+      "result": "logical-baseline/trials/eng17-logical-baseline-false-negative-eighth-half/01/result.json",
+      "result_sha256": "fa35cfae22f0144b6ada8576e6468e4ccebed6ae9ebf4697dd1c56cd8b56bc29",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-false-negative-eighth-half/01/ownership/receipt.json",
+      "receipt_sha256": "bb63abb53424ad888d2b59d340789c92364f0daa0b58042de96741b1814bcca4",
+      "excel": {
+        "pid": 63260,
+        "start_ticks": 639294655703456160,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\32-bootstrap.csv\"",
+        "launch": 32
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-false-negative-eighth-half.xlsx",
+      "input_sha256": "4b00957c07853f28100c1ad33c99d80b9133ec18a63eabcc697dd9507258db1c",
+      "request_sha256": "cef49958ffb809a8ecb00c60b5b8257bbc3de76b1bbcc27fd847023ebfda9d65",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": false
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-false-negative-eighth-half",
+      "trial": 2,
+      "result": "logical-baseline/trials/eng17-logical-baseline-false-negative-eighth-half/02/result.json",
+      "result_sha256": "fcedc6c17540954a0c734eec5db452ecec758a885578dd2bba2830d3ba2a4adf",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-false-negative-eighth-half/02/ownership/receipt.json",
+      "receipt_sha256": "06edaef73fc16c4ae34612350a556467e9683e5204b1a9b7af077183c4621e2d",
+      "excel": {
+        "pid": 64964,
+        "start_ticks": 639294655874683231,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\33-bootstrap.csv\"",
+        "launch": 33
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-false-negative-eighth-half.xlsx",
+      "input_sha256": "4b00957c07853f28100c1ad33c99d80b9133ec18a63eabcc697dd9507258db1c",
+      "request_sha256": "df80c8f23947e8382cd0707bbbdbe4ae805884379f17095fb8e634dfcc5516e3",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": false
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-false-negative-eighth-half",
+      "trial": 3,
+      "result": "logical-baseline/trials/eng17-logical-baseline-false-negative-eighth-half/03/result.json",
+      "result_sha256": "de30becf19d28f3f9c77a7ed9595fa4a1e74136ea8ec997ec54f6760a84c520e",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-false-negative-eighth-half/03/ownership/receipt.json",
+      "receipt_sha256": "d88911fadcdfb696f990fde2aa363cb80d8bf1de6af95c001539b4fa411fb4cc",
+      "excel": {
+        "pid": 46940,
+        "start_ticks": 639294656009302386,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\34-bootstrap.csv\"",
+        "launch": 34
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-false-negative-eighth-half.xlsx",
+      "input_sha256": "4b00957c07853f28100c1ad33c99d80b9133ec18a63eabcc697dd9507258db1c",
+      "request_sha256": "30d1391c89be080eb8f81eda396b65d5ba7c7a63b088f52058089e29648cb8c6",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": false
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-false-negative-eighth-half",
+      "trial": 4,
+      "result": "logical-baseline/trials/eng17-logical-baseline-false-negative-eighth-half/04/result.json",
+      "result_sha256": "9bad1e4dc0fcc7a175d0affcef421dd4da4c1fdc1176a9592daa6d3633276b5a",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-false-negative-eighth-half/04/ownership/receipt.json",
+      "receipt_sha256": "535f6aa90a6faec718158779f0fa79a3a9094108754e47597fe2e3d09a6cb279",
+      "excel": {
+        "pid": 23104,
+        "start_ticks": 639294656170006021,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\35-bootstrap.csv\"",
+        "launch": 35
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-false-negative-eighth-half.xlsx",
+      "input_sha256": "4b00957c07853f28100c1ad33c99d80b9133ec18a63eabcc697dd9507258db1c",
+      "request_sha256": "8223a75d17d700b4e1f2ee4df1546febe790c7d982e584433f14737c3f7ec230",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": false
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-false-negative-eighth-half",
+      "trial": 5,
+      "result": "logical-baseline/trials/eng17-logical-baseline-false-negative-eighth-half/05/result.json",
+      "result_sha256": "1021a892633467620fb33b23a2d75cf3cadad2442a4162aae5205550cf4c24a6",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-false-negative-eighth-half/05/ownership/receipt.json",
+      "receipt_sha256": "f6c0ab9b88224ff0340acae571343389c41e12bdbaa6f74aeb7a3fc0bf5bfdac",
+      "excel": {
+        "pid": 30404,
+        "start_ticks": 639294656315166660,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\36-bootstrap.csv\"",
+        "launch": 36
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-false-negative-eighth-half.xlsx",
+      "input_sha256": "4b00957c07853f28100c1ad33c99d80b9133ec18a63eabcc697dd9507258db1c",
+      "request_sha256": "ea45c2588ac371feb3de324177daaf3d9f9031659641ce3f89d2d01c0de33d29",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": false
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-false-negative-eighth-half",
+      "trial": 6,
+      "result": "logical-baseline/trials/eng17-logical-baseline-false-negative-eighth-half/06/result.json",
+      "result_sha256": "22a1cb94e91e859b9d2d7b9069a5e1bc96c09459ec6fd656dc4357ca29494ee6",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-false-negative-eighth-half/06/ownership/receipt.json",
+      "receipt_sha256": "68dec6ebde2f8b910886dad5d02440468c455e290e522823b3254c0419a7ae5c",
+      "excel": {
+        "pid": 41664,
+        "start_ticks": 639294656509225108,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\37-bootstrap.csv\"",
+        "launch": 37
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-false-negative-eighth-half.xlsx",
+      "input_sha256": "4b00957c07853f28100c1ad33c99d80b9133ec18a63eabcc697dd9507258db1c",
+      "request_sha256": "3d7564247580cef8ee47bae047b98be9783c53e9e867216a1c16dd9b77e991a2",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": false
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-false-negative-eighth-half",
+      "trial": 7,
+      "result": "logical-baseline/trials/eng17-logical-baseline-false-negative-eighth-half/07/result.json",
+      "result_sha256": "11b2448071f3bedc531bbeaa1bbe613fe38d7df7deddfeadf8f888ab79cc4f19",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-false-negative-eighth-half/07/ownership/receipt.json",
+      "receipt_sha256": "99e584833ef1af4ec41d8279fb360443816d78574710df5c4f91ecac662fc901",
+      "excel": {
+        "pid": 4432,
+        "start_ticks": 639294656688481797,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\38-bootstrap.csv\"",
+        "launch": 38
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-false-negative-eighth-half.xlsx",
+      "input_sha256": "4b00957c07853f28100c1ad33c99d80b9133ec18a63eabcc697dd9507258db1c",
+      "request_sha256": "24c86b031d70c3a9db55d63980b9d3210c6f0588fbb906aff9690276de6b511a",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": false
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-false-negative-eighth-half",
+      "trial": 8,
+      "result": "logical-baseline/trials/eng17-logical-baseline-false-negative-eighth-half/08/result.json",
+      "result_sha256": "2ba3ad76bc38874ed82c4025cf41e5f7444c64f8aa5ea68439c4058a24629889",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-false-negative-eighth-half/08/ownership/receipt.json",
+      "receipt_sha256": "7f0688bddbe2aca74849132034dbc2061604d3b86abcbbd9e59619d83cae3daf",
+      "excel": {
+        "pid": 62812,
+        "start_ticks": 639294656895065971,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\39-bootstrap.csv\"",
+        "launch": 39
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-false-negative-eighth-half.xlsx",
+      "input_sha256": "4b00957c07853f28100c1ad33c99d80b9133ec18a63eabcc697dd9507258db1c",
+      "request_sha256": "d792e6a0dbde19ef8dbb6a487997eea49aad34df6c02fbd40d2a0d6df4463883",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": false
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-false-negative-eighth-half",
+      "trial": 9,
+      "result": "logical-baseline/trials/eng17-logical-baseline-false-negative-eighth-half/09/result.json",
+      "result_sha256": "d8895a576f8b3f88c2f4b6f4d9629f67029edd4f82f1d4115acd3539761639ac",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-false-negative-eighth-half/09/ownership/receipt.json",
+      "receipt_sha256": "0bccc9bc4846f29d1df3395a5062c6e959bace2df77aaef693fe69c6c6d7d26c",
+      "excel": {
+        "pid": 20552,
+        "start_ticks": 639294657102233421,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\40-bootstrap.csv\"",
+        "launch": 40
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-false-negative-eighth-half.xlsx",
+      "input_sha256": "4b00957c07853f28100c1ad33c99d80b9133ec18a63eabcc697dd9507258db1c",
+      "request_sha256": "1403770b43107b872d470afa77f063da6d5bde788070a793fc7ab715381946fc",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": false
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-false-negative-eighth-half",
+      "trial": 10,
+      "result": "logical-baseline/trials/eng17-logical-baseline-false-negative-eighth-half/10/result.json",
+      "result_sha256": "92ec57821bc96cfd74ffdd536227fb225e1f8f7aedcd79c3d527758e5b79af0b",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-false-negative-eighth-half/10/ownership/receipt.json",
+      "receipt_sha256": "548df01d09d66c6e6d5bbe41c2fe0c3595e4ad1a0805d0c96058e02e9643a0bf",
+      "excel": {
+        "pid": 66512,
+        "start_ticks": 639294657312586693,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\41-bootstrap.csv\"",
+        "launch": 41
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-false-negative-eighth-half.xlsx",
+      "input_sha256": "4b00957c07853f28100c1ad33c99d80b9133ec18a63eabcc697dd9507258db1c",
+      "request_sha256": "2b2f74037bf06c2eafd0d7bc1870394fd10e6b366ab0d6c2eb02e0db18016780",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": false
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-false-positive-eighth-half",
+      "trial": 2,
+      "result": "logical-baseline/trials/eng17-logical-baseline-false-positive-eighth-half/02/result.json",
+      "result_sha256": "d09dc966ae614051cf862167f45972dbd2f67a21cab9a55e7076cd04448745eb",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-false-positive-eighth-half/02/ownership/receipt.json",
+      "receipt_sha256": "ec57e2cf51702bc3b36beb181d74746188545448394da84c6b1941347ff27707",
+      "excel": {
+        "pid": 34384,
+        "start_ticks": 639294653677373356,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\23-bootstrap.csv\"",
+        "launch": 23
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-false-positive-eighth-half.xlsx",
+      "input_sha256": "f127a4b4e8555fd50ed4855d92749a05ada78a42a02b17c5f073b7941826bba3",
+      "request_sha256": "e3cbd1ec2f47d5be4da725e4ae3301909dda37cdca725a5acf13572c4884377a",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": false
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-false-positive-eighth-half",
+      "trial": 4,
+      "result": "logical-baseline/trials/eng17-logical-baseline-false-positive-eighth-half/04/result.json",
+      "result_sha256": "d25fc71dc8fdc7c65148219ca5b656a8035c1b7e2604e2c3223ff3bc1e71c1d0",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-false-positive-eighth-half/04/ownership/receipt.json",
+      "receipt_sha256": "8322fa3024a5bb2eb0221168d55a4c10e6b740f9f7c3e1ad2b352dea63f98699",
+      "excel": {
+        "pid": 24388,
+        "start_ticks": 639294654785652401,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\25-bootstrap.csv\"",
+        "launch": 25
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-false-positive-eighth-half.xlsx",
+      "input_sha256": "f127a4b4e8555fd50ed4855d92749a05ada78a42a02b17c5f073b7941826bba3",
+      "request_sha256": "49c57be0bf9e7b068a01713ea381272be7e6e9d32b9c59a0d086e6b00c3603ff",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": false
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-false-positive-eighth-half",
+      "trial": 5,
+      "result": "logical-baseline/trials/eng17-logical-baseline-false-positive-eighth-half/05/result.json",
+      "result_sha256": "7d3e973349cef94dbf1f5348ab53f3dfe7851ee391fac00a0a0bf2da04fddd47",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-false-positive-eighth-half/05/ownership/receipt.json",
+      "receipt_sha256": "88dcbe6355bb7cd7643db4ee50954c9bd2d9a05a4c0847e22966e0fbe4fd7dc3",
+      "excel": {
+        "pid": 68520,
+        "start_ticks": 639294654916974511,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\26-bootstrap.csv\"",
+        "launch": 26
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-false-positive-eighth-half.xlsx",
+      "input_sha256": "f127a4b4e8555fd50ed4855d92749a05ada78a42a02b17c5f073b7941826bba3",
+      "request_sha256": "36639b0a222d26400684becb9b38308570679b6594d380c1fe99a4ba6609e06a",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": false
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-false-positive-eighth-half",
+      "trial": 6,
+      "result": "logical-baseline/trials/eng17-logical-baseline-false-positive-eighth-half/06/result.json",
+      "result_sha256": "18365ad3c3a43116ce6422c594b9ac8bbc71d1c4fbabfb11befb4493d8db769f",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-false-positive-eighth-half/06/ownership/receipt.json",
+      "receipt_sha256": "c479b5dc4e39a8c009777441fe739269caa965334a360de182cc892b8644927d",
+      "excel": {
+        "pid": 22256,
+        "start_ticks": 639294655053595807,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\27-bootstrap.csv\"",
+        "launch": 27
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-false-positive-eighth-half.xlsx",
+      "input_sha256": "f127a4b4e8555fd50ed4855d92749a05ada78a42a02b17c5f073b7941826bba3",
+      "request_sha256": "2e46cb0e012567441d7a1011cd9c29f1cdece03262a8ee0c4254e581628e0bc7",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": false
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-false-positive-eighth-half",
+      "trial": 7,
+      "result": "logical-baseline/trials/eng17-logical-baseline-false-positive-eighth-half/07/result.json",
+      "result_sha256": "5cba5323afc3825233344fa54dbfffa8d96f69e6fea28da7b384096c563037b9",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-false-positive-eighth-half/07/ownership/receipt.json",
+      "receipt_sha256": "b02fa38cf953ce7ab10e46f2a8838103118450fda83a88ecde4112f5487276ab",
+      "excel": {
+        "pid": 61348,
+        "start_ticks": 639294655220980251,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\28-bootstrap.csv\"",
+        "launch": 28
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-false-positive-eighth-half.xlsx",
+      "input_sha256": "f127a4b4e8555fd50ed4855d92749a05ada78a42a02b17c5f073b7941826bba3",
+      "request_sha256": "64ee5cb0fb2728300e06b4de1092ee4ee3335337b56acdeb60af0e78fa5a1f9f",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": false
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-false-positive-eighth-half",
+      "trial": 8,
+      "result": "logical-baseline/trials/eng17-logical-baseline-false-positive-eighth-half/08/result.json",
+      "result_sha256": "7acf97928739f6d27b6c8967450f205abd2af830508d5b0ac3bc324b8abdce34",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-false-positive-eighth-half/08/ownership/receipt.json",
+      "receipt_sha256": "f81d7137c2123d5d54c02c0f01476aeb7179c5d2a632a8189baaf154847a0c9c",
+      "excel": {
+        "pid": 68900,
+        "start_ticks": 639294655344247970,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\29-bootstrap.csv\"",
+        "launch": 29
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-false-positive-eighth-half.xlsx",
+      "input_sha256": "f127a4b4e8555fd50ed4855d92749a05ada78a42a02b17c5f073b7941826bba3",
+      "request_sha256": "46120f9f99b8bcd5479a73359ad8aca893868a3db66cc0344fba3da3c60b615c",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": false
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-false-positive-eighth-half",
+      "trial": 9,
+      "result": "logical-baseline/trials/eng17-logical-baseline-false-positive-eighth-half/09/result.json",
+      "result_sha256": "462ba7a968e94f02d0283ea57ead1447e93646f2f82cb50253bde911013c133a",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-false-positive-eighth-half/09/ownership/receipt.json",
+      "receipt_sha256": "9b3cbb56e8cdbece59993cf730937682858f0e91edd223c8076285736afb0d36",
+      "excel": {
+        "pid": 58516,
+        "start_ticks": 639294655463065010,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\30-bootstrap.csv\"",
+        "launch": 30
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-false-positive-eighth-half.xlsx",
+      "input_sha256": "f127a4b4e8555fd50ed4855d92749a05ada78a42a02b17c5f073b7941826bba3",
+      "request_sha256": "e36604e655445c7f84349dec97640a98ab61273fb38d85b07026e3690ed4b41c",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": false
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-false-positive-eighth-half",
+      "trial": 10,
+      "result": "logical-baseline/trials/eng17-logical-baseline-false-positive-eighth-half/10/result.json",
+      "result_sha256": "f8824dc111ca1f0a8cea73b3f81ef8435ed5ba41e9b302ea16a35b79eb198034",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-false-positive-eighth-half/10/ownership/receipt.json",
+      "receipt_sha256": "283bedef19d14698d23284eff4ad72d1c6d0c2a2e1e049679aaff4c9376fd7b8",
+      "excel": {
+        "pid": 63928,
+        "start_ticks": 639294655579746018,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\31-bootstrap.csv\"",
+        "launch": 31
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-false-positive-eighth-half.xlsx",
+      "input_sha256": "f127a4b4e8555fd50ed4855d92749a05ada78a42a02b17c5f073b7941826bba3",
+      "request_sha256": "45eb88ce62605292d2b0ba47164b318179f065c45ea3cfc2b009c27ac715e1b3",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": false
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-eighth-half",
+      "trial": 1,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-negative-eighth-half/01/result.json",
+      "result_sha256": "fb41ee588b3799d98e6d7e56a76f06599ead8c019eab58ee689311b199f0d978",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-negative-eighth-half/01/ownership/receipt.json",
+      "receipt_sha256": "262b8446ec140be053b1c4f92674f2b577f1809a732780491bbfb9da8e01a2c8",
+      "excel": {
+        "pid": 43300,
+        "start_ticks": 639294590883139883,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\12-bootstrap.csv\"",
+        "launch": 12
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-eighth-half.xlsx",
+      "input_sha256": "816915617c173826527579af59a7b3304f22bbab62e225e4babf491a63725a10",
+      "request_sha256": "6881d20b67bcdae8142f190dc3ba1ea3038c56df918a430435e644385e6f2f9a",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-eighth-half",
+      "trial": 2,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-negative-eighth-half/02/result.json",
+      "result_sha256": "b7116debf470a727bf5507b9347dc0c412caa9c6f24e864b8dd328b18a283c5b",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-negative-eighth-half/02/ownership/receipt.json",
+      "receipt_sha256": "1e19caf5512a8fad617fe069a4f5f02bc13b1c3ec9f4d68ba85d7d9f8c195140",
+      "excel": {
+        "pid": 45116,
+        "start_ticks": 639294591017004201,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\13-bootstrap.csv\"",
+        "launch": 13
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-eighth-half.xlsx",
+      "input_sha256": "816915617c173826527579af59a7b3304f22bbab62e225e4babf491a63725a10",
+      "request_sha256": "75bb8882ad4540933719714aadc657e11c816564224c15decafafdf976e716b6",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-eighth-half",
+      "trial": 3,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-negative-eighth-half/03/result.json",
+      "result_sha256": "92244f7147c97beb7b3e46b8a32b0ba8d532a5af58e4b9eb71f6755be00f27f3",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-negative-eighth-half/03/ownership/receipt.json",
+      "receipt_sha256": "a4678a2b5107ffa2b93a6a05c0c7158f8a9c23ca3df80cd51efecef38ea3e12b",
+      "excel": {
+        "pid": 25044,
+        "start_ticks": 639294591141995555,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\14-bootstrap.csv\"",
+        "launch": 14
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-eighth-half.xlsx",
+      "input_sha256": "816915617c173826527579af59a7b3304f22bbab62e225e4babf491a63725a10",
+      "request_sha256": "a7cac98433b4c6a8e2eb0a86280a306435d9d586189a739668169aae8ea9a1f7",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-eighth-half",
+      "trial": 4,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-negative-eighth-half/04/result.json",
+      "result_sha256": "960240b847445f60995121088b90d07c1c3cd04b1bfc4ef4b13729b264c8aa4f",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-negative-eighth-half/04/ownership/receipt.json",
+      "receipt_sha256": "fc3c104115e41f6cf051670e9eeb97679868026b0c58f44795ddeaf2e7deb6b2",
+      "excel": {
+        "pid": 43832,
+        "start_ticks": 639294591287193745,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\15-bootstrap.csv\"",
+        "launch": 15
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-eighth-half.xlsx",
+      "input_sha256": "816915617c173826527579af59a7b3304f22bbab62e225e4babf491a63725a10",
+      "request_sha256": "528f76ada95dbba3145b43f7436b95f6cc9d8133dbef332b62bb9738f42bf64a",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-eighth-half",
+      "trial": 5,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-negative-eighth-half/05/result.json",
+      "result_sha256": "e1dce4d25c7435d376a3bd12eaf04fd8f0921b4d3a2c318333432eec80293dfd",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-negative-eighth-half/05/ownership/receipt.json",
+      "receipt_sha256": "c1221c81ea9c347f4686cf9312d15f5bfe132fb1cba3ff8579b3210e23269c52",
+      "excel": {
+        "pid": 57848,
+        "start_ticks": 639294591437957424,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\16-bootstrap.csv\"",
+        "launch": 16
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-eighth-half.xlsx",
+      "input_sha256": "816915617c173826527579af59a7b3304f22bbab62e225e4babf491a63725a10",
+      "request_sha256": "d6d6df43e0eb6645d1cab764a605a192e24e829d4ecfa5dfde9f1831e0496127",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-eighth-half",
+      "trial": 6,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-negative-eighth-half/06/result.json",
+      "result_sha256": "e1666a9ec6f483afa9ee84ca126ba65807f297882aec1499d6889e13bc32cda0",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-negative-eighth-half/06/ownership/receipt.json",
+      "receipt_sha256": "98be55a97ebcac1d590300ecde7c5393f3fe30c28771aa408062995601a9d691",
+      "excel": {
+        "pid": 43476,
+        "start_ticks": 639294591589879464,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\17-bootstrap.csv\"",
+        "launch": 17
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-eighth-half.xlsx",
+      "input_sha256": "816915617c173826527579af59a7b3304f22bbab62e225e4babf491a63725a10",
+      "request_sha256": "fd61edf5025a0eb454663319240d7d4578e8966de30730b4c4fa49ab13e169fc",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-eighth-half",
+      "trial": 7,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-negative-eighth-half/07/result.json",
+      "result_sha256": "504f046a1e49302aadab36b2504261919574b3cee5bb25e5caf96c3f0036b8d7",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-negative-eighth-half/07/ownership/receipt.json",
+      "receipt_sha256": "6e2bf004c91f22ed0a4f91e3b03749de1e71e654e9d19f6cc2d0afd479631f70",
+      "excel": {
+        "pid": 67892,
+        "start_ticks": 639294591756323961,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\18-bootstrap.csv\"",
+        "launch": 18
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-eighth-half.xlsx",
+      "input_sha256": "816915617c173826527579af59a7b3304f22bbab62e225e4babf491a63725a10",
+      "request_sha256": "a616eaa465b18f975a53e73b5b3f2f583f31e5fe51e9ce3d18fdcc79f39562db",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-eighth-half",
+      "trial": 8,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-negative-eighth-half/08/result.json",
+      "result_sha256": "d974f6d152eafb278a4da7b413bcd1e48a9b70dfe85ab5dd7eb8697e2736ef48",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-negative-eighth-half/08/ownership/receipt.json",
+      "receipt_sha256": "e8e0f56cc6a1b80bd583034c6191f0777472b92e964f105d322869e5f962c705",
+      "excel": {
+        "pid": 6128,
+        "start_ticks": 639294591910271228,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\19-bootstrap.csv\"",
+        "launch": 19
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-eighth-half.xlsx",
+      "input_sha256": "816915617c173826527579af59a7b3304f22bbab62e225e4babf491a63725a10",
+      "request_sha256": "0eb42800a6974afad1622014e888fddb31e2320df1efbaaba6dfc813582b6ba9",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-eighth-half",
+      "trial": 9,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-negative-eighth-half/09/result.json",
+      "result_sha256": "472a6fb5b7c19abf7dd8f47675d18e2ce8bed389e55f97981f8ecf2c655716e9",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-negative-eighth-half/09/ownership/receipt.json",
+      "receipt_sha256": "63d3a2cb7baf76dc4a0a184792a84373e9b052570f54d31f9cefeec09ebdc23e",
+      "excel": {
+        "pid": 16648,
+        "start_ticks": 639294592071544901,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\20-bootstrap.csv\"",
+        "launch": 20
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-eighth-half.xlsx",
+      "input_sha256": "816915617c173826527579af59a7b3304f22bbab62e225e4babf491a63725a10",
+      "request_sha256": "bd7c88293b87a59c5215371622a5b50e2a93f2ccafbdc747542768e29ab0125f",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-eighth-half",
+      "trial": 10,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-negative-eighth-half/10/result.json",
+      "result_sha256": "5f0edd0848ee012c1a54aabfd0e4ab6917983b7b65353d57617e0eb1402b7f46",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-negative-eighth-half/10/ownership/receipt.json",
+      "receipt_sha256": "45ad99659ddc947e02909f180fedf50349ff56f13b15a72f69051ecccc06bbcf",
+      "excel": {
+        "pid": 17040,
+        "start_ticks": 639294592220154354,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\21-bootstrap.csv\"",
+        "launch": 21
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-eighth-half.xlsx",
+      "input_sha256": "816915617c173826527579af59a7b3304f22bbab62e225e4babf491a63725a10",
+      "request_sha256": "c23b224a3685cf10027b119bd9bfe0336730300df58932808b02af28aa1618f3",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-eighth-half",
+      "trial": 1,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-half/01/result.json",
+      "result_sha256": "f1e0b2db5a4a5998f338503b70b249ec0a1ba3e2dcbf556e9d1509aa56677a52",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-half/01/ownership/receipt.json",
+      "receipt_sha256": "138f334bccac49426b6636ce7ce27e2c52c5a8a137ea484969bee126370e554b",
+      "excel": {
+        "pid": 42732,
+        "start_ticks": 639294589516662584,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\2-bootstrap.csv\"",
+        "launch": 2
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-eighth-half.xlsx",
+      "input_sha256": "c82267231f21f6a2adc4efa15b3d0b42d91a852f46ad02a2ac767b2a9a661665",
+      "request_sha256": "9f34b37c45f0cca18feafe00cb462477ccfdb424e2a4a87fd7f07d7fc926b5e1",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-eighth-half",
+      "trial": 2,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-half/02/result.json",
+      "result_sha256": "06ff8a12673f25393db5ae8967aac41496c18b6e8dc483226577a241380fc6e8",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-half/02/ownership/receipt.json",
+      "receipt_sha256": "546c16cde17c70d2414a572493f37185461961bc381110acee77efb15d67e851",
+      "excel": {
+        "pid": 7724,
+        "start_ticks": 639294589703312146,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\3-bootstrap.csv\"",
+        "launch": 3
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-eighth-half.xlsx",
+      "input_sha256": "c82267231f21f6a2adc4efa15b3d0b42d91a852f46ad02a2ac767b2a9a661665",
+      "request_sha256": "306fd37ed311b7d1a22943d119fef51bd6b53ae52e6e277e73345e0581c4cd7b",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-eighth-half",
+      "trial": 3,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-half/03/result.json",
+      "result_sha256": "2d4e803f319b8789bde3808d6fe88b2758e808a33d12357e31725b4a365d0570",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-half/03/ownership/receipt.json",
+      "receipt_sha256": "e411a34671424431b020c2cffa0a1b75870b8df434777c11899f46e8d77a34f9",
+      "excel": {
+        "pid": 58180,
+        "start_ticks": 639294589838853002,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\4-bootstrap.csv\"",
+        "launch": 4
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-eighth-half.xlsx",
+      "input_sha256": "c82267231f21f6a2adc4efa15b3d0b42d91a852f46ad02a2ac767b2a9a661665",
+      "request_sha256": "6f84cf52ebff1e06e9ea2db5903148abc728f8ab16a1a8b651ee5d16e829755e",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-eighth-half",
+      "trial": 4,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-half/04/result.json",
+      "result_sha256": "9482aa84d34e1d32f3e58d7fa883d180c820c31011006981c3add099d700a3d0",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-half/04/ownership/receipt.json",
+      "receipt_sha256": "b55406f7668b7a19c9742ce0d6a03938fe7959ec84ea603259da6ce8f0f641f9",
+      "excel": {
+        "pid": 44776,
+        "start_ticks": 639294589967491561,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\5-bootstrap.csv\"",
+        "launch": 5
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-eighth-half.xlsx",
+      "input_sha256": "c82267231f21f6a2adc4efa15b3d0b42d91a852f46ad02a2ac767b2a9a661665",
+      "request_sha256": "460d0bba894eb2ecae390eaed557f6ebc6d3112e6ea9ccca3caaba8e44857251",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-eighth-half",
+      "trial": 5,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-half/05/result.json",
+      "result_sha256": "1e87b30d75821c44761e1cdb8f8f430ffb5d29c205ca31d5e6f4dabcc0907cab",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-half/05/ownership/receipt.json",
+      "receipt_sha256": "125deedf4dce83ac9065c326b1a357f24f43954636140a34b7257b28420782f5",
+      "excel": {
+        "pid": 61332,
+        "start_ticks": 639294590115502611,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\6-bootstrap.csv\"",
+        "launch": 6
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-eighth-half.xlsx",
+      "input_sha256": "c82267231f21f6a2adc4efa15b3d0b42d91a852f46ad02a2ac767b2a9a661665",
+      "request_sha256": "e215cc5f168007edbf7a79aa627f2b70d80f4b7b24b7687dcd0be2db35df6f2e",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-eighth-half",
+      "trial": 6,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-half/06/result.json",
+      "result_sha256": "f7e82e5d7fc6c9a1c99ace8cb8a50e51c58ee16de41d469fa6191cb064a4de95",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-half/06/ownership/receipt.json",
+      "receipt_sha256": "cf21b54d454f344b8369c8ab83b8387bbe327da83b0d63e52ee4481e793f4525",
+      "excel": {
+        "pid": 24836,
+        "start_ticks": 639294590233562013,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\7-bootstrap.csv\"",
+        "launch": 7
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-eighth-half.xlsx",
+      "input_sha256": "c82267231f21f6a2adc4efa15b3d0b42d91a852f46ad02a2ac767b2a9a661665",
+      "request_sha256": "cf1a99bb8d404a77f079bd97db31b20e6c9fd07c240c8458bade0ed11244d4ea",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-eighth-half",
+      "trial": 7,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-half/07/result.json",
+      "result_sha256": "340de506f140537b965fcc268d5e26131a74b8f32af486ef00da3b9852854c27",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-half/07/ownership/receipt.json",
+      "receipt_sha256": "1f0ee19fa870d3b86b881f2dc078bcc8acf277fb5bac9c70d3d79c29a64e0957",
+      "excel": {
+        "pid": 25044,
+        "start_ticks": 639294590349702064,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\8-bootstrap.csv\"",
+        "launch": 8
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-eighth-half.xlsx",
+      "input_sha256": "c82267231f21f6a2adc4efa15b3d0b42d91a852f46ad02a2ac767b2a9a661665",
+      "request_sha256": "13b6c9ffc4a1edc2e8c8b032ccc3438d8357f4ec64a60f55b4254e2c1cfffe3e",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-eighth-half",
+      "trial": 8,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-half/08/result.json",
+      "result_sha256": "2914477acad0f912ea3bbca8a11b131dd97c3799db08328eadad48deea4b6d17",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-half/08/ownership/receipt.json",
+      "receipt_sha256": "2cd4bbe788ae1cd265f9e85996cc4be28c74ec7a7d7a018fb7c4bf8c0f2e8733",
+      "excel": {
+        "pid": 21012,
+        "start_ticks": 639294590491462305,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\9-bootstrap.csv\"",
+        "launch": 9
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-eighth-half.xlsx",
+      "input_sha256": "c82267231f21f6a2adc4efa15b3d0b42d91a852f46ad02a2ac767b2a9a661665",
+      "request_sha256": "7f67aceab1372a8223e7483e603026bd31540f044fde1e95e026f4f0eb34571f",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-eighth-half",
+      "trial": 9,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-half/09/result.json",
+      "result_sha256": "674ba83b353c63438a9847bbb459bb3e1621a593397e9335a36ba7f57b7d7954",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-half/09/ownership/receipt.json",
+      "receipt_sha256": "1527221d8cec406a1967257acc350f65f0f59ca4b1507da85b812957f54c6a89",
+      "excel": {
+        "pid": 44416,
+        "start_ticks": 639294590630827347,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\10-bootstrap.csv\"",
+        "launch": 10
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-eighth-half.xlsx",
+      "input_sha256": "c82267231f21f6a2adc4efa15b3d0b42d91a852f46ad02a2ac767b2a9a661665",
+      "request_sha256": "06c4b9bfc46a6bb3604ddf8a26b26e66d5de2361ca13ba7aff8f1d9a5af37642",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-eighth-half",
+      "trial": 10,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-half/10/result.json",
+      "result_sha256": "bfa61239ce17f20e74e44e50f27898e177a2660cf5a2dd7eb80c4a32612769ae",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-half/10/ownership/receipt.json",
+      "receipt_sha256": "4d82bc5631310ff29e59ff353ec624866bcf837f05730697bdcd47000f5a5f08",
+      "excel": {
+        "pid": 44072,
+        "start_ticks": 639294590757714788,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\11-bootstrap.csv\"",
+        "launch": 11
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-eighth-half.xlsx",
+      "input_sha256": "c82267231f21f6a2adc4efa15b3d0b42d91a852f46ad02a2ac767b2a9a661665",
+      "request_sha256": "d30bf67e5da93666a0c6223079f2dca26fc9d047c2ed91b61603f28a893677ea",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-eighth-one",
+      "trial": 1,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-one/01/result.json",
+      "result_sha256": "57249d694a61de6da55dc3303c989f290471baff8a4969361375cfdac0f26fa5",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-one/01/ownership/receipt.json",
+      "receipt_sha256": "5e06a87585b4d9cc5028383783bc63aedf2cfda143598dc8ca5973f8c6a070d7",
+      "excel": {
+        "pid": 2680,
+        "start_ticks": 639294657533288086,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\42-bootstrap.csv\"",
+        "launch": 42
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-eighth-one.xlsx",
+      "input_sha256": "b5b7805016541dd7e2d76870a15a7330298c5752a48723bde81edf0a84a5287f",
+      "request_sha256": "c5acfdbf4aa2987a456e76eabfd601e061e1668b1b905cda40d70cb8748dea5e",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-eighth-one",
+      "trial": 2,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-one/02/result.json",
+      "result_sha256": "716665fd11854c12ad0f9d1436426667b6cf2e9cdac694e215b2b2eb11263d1e",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-one/02/ownership/receipt.json",
+      "receipt_sha256": "828ea4e52a737c2af03993f9a4999acb42d88b467425f65130a5855384ad7ff5",
+      "excel": {
+        "pid": 44092,
+        "start_ticks": 639294657755079920,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\43-bootstrap.csv\"",
+        "launch": 43
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-eighth-one.xlsx",
+      "input_sha256": "b5b7805016541dd7e2d76870a15a7330298c5752a48723bde81edf0a84a5287f",
+      "request_sha256": "ae6641b74fda2708e6f92c3fb8601e524a6fd489c5cae16e6df9c3f18ed88f19",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-eighth-one",
+      "trial": 3,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-one/03/result.json",
+      "result_sha256": "46c6144414745d39ec11c183a0835fb403c869038320c0ba22783ed572e58415",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-one/03/ownership/receipt.json",
+      "receipt_sha256": "4967a956f8a80c8eabc98e8469f27363647862945a52dc09d09ed02d2126f57e",
+      "excel": {
+        "pid": 52920,
+        "start_ticks": 639294657997777158,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\44-bootstrap.csv\"",
+        "launch": 44
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-eighth-one.xlsx",
+      "input_sha256": "b5b7805016541dd7e2d76870a15a7330298c5752a48723bde81edf0a84a5287f",
+      "request_sha256": "a151472b2d49b0cc21106492939fb41f4bf055a13a5ea904ba7baebdae37e69a",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-eighth-one",
+      "trial": 4,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-one/04/result.json",
+      "result_sha256": "09eb87e0d6960d943b232be1f40ac4e63ca2bccde3c978b7a790e8863c4083ed",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-one/04/ownership/receipt.json",
+      "receipt_sha256": "a24d73dce6ba884f24913df9a4818021e5ab8824cf7948b7ab7a730cdd3c6b2b",
+      "excel": {
+        "pid": 12192,
+        "start_ticks": 639294658258670689,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\45-bootstrap.csv\"",
+        "launch": 45
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-eighth-one.xlsx",
+      "input_sha256": "b5b7805016541dd7e2d76870a15a7330298c5752a48723bde81edf0a84a5287f",
+      "request_sha256": "a8101773968cbcfa82369f3352e02eac7ed74b7f87384d67fac84b978c58ccfb",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-eighth-one",
+      "trial": 5,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-one/05/result.json",
+      "result_sha256": "da2c94322ca796f310c2f5d481d93d0a6a8b1f2e1862c79402dbe315e7ed77ac",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-one/05/ownership/receipt.json",
+      "receipt_sha256": "53ff1735776db8035dda06a0c83b1cfa9684cf448c7cfdf21b13256b27a6b388",
+      "excel": {
+        "pid": 59236,
+        "start_ticks": 639294658605764815,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\46-bootstrap.csv\"",
+        "launch": 46
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-eighth-one.xlsx",
+      "input_sha256": "b5b7805016541dd7e2d76870a15a7330298c5752a48723bde81edf0a84a5287f",
+      "request_sha256": "eb272e093f2a8e25141bb05b7e8e6c5e9a752bdfa928baf53d3d11ae23934577",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-eighth-one",
+      "trial": 6,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-one/06/result.json",
+      "result_sha256": "cd81ddfd05f1dad38be78478f8153ceaba158b1854a9551ca5970005134781a7",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-one/06/ownership/receipt.json",
+      "receipt_sha256": "72d48c9ed275e9544068e007d0ae292ef5a74ac94c508d6ba00e38e4d94078c0",
+      "excel": {
+        "pid": 54680,
+        "start_ticks": 639294658816804819,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\47-bootstrap.csv\"",
+        "launch": 47
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-eighth-one.xlsx",
+      "input_sha256": "b5b7805016541dd7e2d76870a15a7330298c5752a48723bde81edf0a84a5287f",
+      "request_sha256": "4bea66f003a40466f672ec5a113a1cb6643f8a214478b254c200e6d433e766be",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-eighth-one",
+      "trial": 7,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-one/07/result.json",
+      "result_sha256": "f5f238bde45a29f4d4dc1f882b0ceab446da7673d367429aa5ee0d75714d32b0",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-one/07/ownership/receipt.json",
+      "receipt_sha256": "bb62c45b7ab447cf66d744856e08fa52fa8789449e13680840a2e63c238d44c0",
+      "excel": {
+        "pid": 38760,
+        "start_ticks": 639294659158044544,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\48-bootstrap.csv\"",
+        "launch": 48
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-eighth-one.xlsx",
+      "input_sha256": "b5b7805016541dd7e2d76870a15a7330298c5752a48723bde81edf0a84a5287f",
+      "request_sha256": "5c1f20f13001e15aef63805747986cb83dfcb057cc844954e85ee333f4304868",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-eighth-one",
+      "trial": 8,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-one/08/result.json",
+      "result_sha256": "47306c1af8f7045b719e6dd77df0ee826b53d68e098392e018b553c64e12294e",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-one/08/ownership/receipt.json",
+      "receipt_sha256": "1aa4ef61ce28f7d51e11d5a1a3003b2a2182e1343bb98553779de9777a229069",
+      "excel": {
+        "pid": 57660,
+        "start_ticks": 639294659375843796,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\49-bootstrap.csv\"",
+        "launch": 49
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-eighth-one.xlsx",
+      "input_sha256": "b5b7805016541dd7e2d76870a15a7330298c5752a48723bde81edf0a84a5287f",
+      "request_sha256": "89ade188801426fd320cbca065d72b84733f712d183d05be585965f57cb10b17",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-eighth-one",
+      "trial": 9,
+      "result": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-one/09/result.json",
+      "result_sha256": "e51836617fbea2160368bd54e550c59934d9c64eb880fdf3ea6fcac961eab7a7",
+      "receipt": "logical-baseline/trials/eng17-logical-baseline-true-positive-eighth-one/09/ownership/receipt.json",
+      "receipt_sha256": "c3a7b6be6694e3ec0217fabbfd1402b0dfe6485d3fd4977a09089e53a2d81deb",
+      "excel": {
+        "pid": 68936,
+        "start_ticks": 639294659608195145,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\excel-session\\launches\\50-bootstrap.csv\"",
+        "launch": 50
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-eighth-one.xlsx",
+      "input_sha256": "b5b7805016541dd7e2d76870a15a7330298c5752a48723bde81edf0a84a5287f",
+      "request_sha256": "ad1e49175ea5efe600a54627e19ef8cc36152606da09aaf45992eae7d0a007d4",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-false-positive-eighth-half",
+      "trial": 1,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-false-positive-eighth-half/1/result.json",
+      "result_sha256": "1bf6c75834e00c5f6506ee2a94f27526e60d01ff6232a5a5d9a18cc04ac4a2cf",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-false-positive-eighth-half/1/ownership/receipt.json",
+      "receipt_sha256": "68406b34407f53a87e15b2c654e2be92b20e058e3d35cf19e605c10566be646f",
+      "excel": {
+        "pid": 15288,
+        "start_ticks": 639294820228169258,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\1-bootstrap.csv\"",
+        "launch": 1
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-false-positive-eighth-half.xlsx",
+      "input_sha256": "f127a4b4e8555fd50ed4855d92749a05ada78a42a02b17c5f073b7941826bba3",
+      "request_sha256": "6b1a72f9a8b5f328cda9b2bc278c9474655c235f202fddc314459632a9b8b127",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": false
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-false-positive-eighth-half",
+      "trial": 3,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-false-positive-eighth-half/3/result.json",
+      "result_sha256": "e817297c9e2101ba0ed583dac247417be14df2f0ce84992138c36f45d38794e7",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-false-positive-eighth-half/3/ownership/receipt.json",
+      "receipt_sha256": "a1d360f9defc5d9471b401618b1c3394298727a81d33f880dd59467af49704f1",
+      "excel": {
+        "pid": 56732,
+        "start_ticks": 639294820487864515,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\2-bootstrap.csv\"",
+        "launch": 2
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-false-positive-eighth-half.xlsx",
+      "input_sha256": "f127a4b4e8555fd50ed4855d92749a05ada78a42a02b17c5f073b7941826bba3",
+      "request_sha256": "9d13c34a6ffa97e4aabba0bbf663a8c715a4ce649d9187ffe23fc54d52e25f3c",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": false
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-eighth-one",
+      "trial": 1,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-eighth-one/1/result.json",
+      "result_sha256": "a7f0a8d83f53c1574d9121dde73897f0d89bcbc0ef9c36b44c953ea2241338ca",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-eighth-one/1/ownership/receipt.json",
+      "receipt_sha256": "bcebfdd1f69641f6da9134d02a76a46b23b47945ba644f5e0fd025b3c60936e4",
+      "excel": {
+        "pid": 13944,
+        "start_ticks": 639294820716981531,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\3-bootstrap.csv\"",
+        "launch": 3
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-eighth-one.xlsx",
+      "input_sha256": "8ef8b51a449eb9213a4c3c698f265f35c8c1298adb32e156d0685cb40de27803",
+      "request_sha256": "81fa0a092ed9f119f5dbb2cb1d22b7b75aa5f67e222f8d97876ec387357e3ab9",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-eighth-one",
+      "trial": 2,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-eighth-one/2/result.json",
+      "result_sha256": "fdd863e9d0f08f852649798c04c4d7466e6e905261c72e72095597713d278370",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-eighth-one/2/ownership/receipt.json",
+      "receipt_sha256": "a5c775ab6bc6c6785520c45ca9889633bff138baa71f46b5c308d5ef3ad0e222",
+      "excel": {
+        "pid": 1712,
+        "start_ticks": 639294820940360574,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\4-bootstrap.csv\"",
+        "launch": 4
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-eighth-one.xlsx",
+      "input_sha256": "8ef8b51a449eb9213a4c3c698f265f35c8c1298adb32e156d0685cb40de27803",
+      "request_sha256": "ef58e76bd30a263cda583be575517a4da1bcdd25ddf913286da4ab878f545b52",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-eighth-one",
+      "trial": 3,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-eighth-one/3/result.json",
+      "result_sha256": "c0545f025243e5c4b225ed630814800649b1e80af0b6ef37e19f6552797d6051",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-eighth-one/3/ownership/receipt.json",
+      "receipt_sha256": "d9ff1011ec3ec574d8f7e303cc6b3cdb66804b28536c4818352b0883ef1fcdbc",
+      "excel": {
+        "pid": 19692,
+        "start_ticks": 639294821153219632,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\5-bootstrap.csv\"",
+        "launch": 5
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-eighth-one.xlsx",
+      "input_sha256": "8ef8b51a449eb9213a4c3c698f265f35c8c1298adb32e156d0685cb40de27803",
+      "request_sha256": "51cda589ec646279e63f881705058792d360377c71baa2ee4a5bc2329234d4ae",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-eighth-one",
+      "trial": 4,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-eighth-one/4/result.json",
+      "result_sha256": "a937ff2740d79d0a89fec1e8f428770ae718a5d8ccd59f3ba0f8f79f5ba977a5",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-eighth-one/4/ownership/receipt.json",
+      "receipt_sha256": "405243df663f8400dcaf3e6eb2a32e920a44a32a4d87daccb4f91ef65ee8e02f",
+      "excel": {
+        "pid": 26880,
+        "start_ticks": 639294821315507304,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\6-bootstrap.csv\"",
+        "launch": 6
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-eighth-one.xlsx",
+      "input_sha256": "8ef8b51a449eb9213a4c3c698f265f35c8c1298adb32e156d0685cb40de27803",
+      "request_sha256": "da63267005851fb7b8fb7c0a2749ce04355dc57358185a8d2ce2a56dc37a5de0",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-eighth-one",
+      "trial": 5,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-eighth-one/5/result.json",
+      "result_sha256": "e022cd0de628cb8aaf56c74bf4a25a07ca29963a1c8d598e11ae68d44feceec7",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-eighth-one/5/ownership/receipt.json",
+      "receipt_sha256": "4aa8c6038604c6722f031437dceef7f0075cf13e45f634bd8166afb94f1e110d",
+      "excel": {
+        "pid": 55092,
+        "start_ticks": 639294821465916040,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\7-bootstrap.csv\"",
+        "launch": 7
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-eighth-one.xlsx",
+      "input_sha256": "8ef8b51a449eb9213a4c3c698f265f35c8c1298adb32e156d0685cb40de27803",
+      "request_sha256": "95e74810dbcdfbe8d0d9f3b2ced6a55ab919e8a9d08ba359d2d85888a1b0894f",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-eighth-one",
+      "trial": 6,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-eighth-one/6/result.json",
+      "result_sha256": "55400b0704fde9759a2b54d97b00acfb574ad7dd39b5c63978e7c1d59398b91a",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-eighth-one/6/ownership/receipt.json",
+      "receipt_sha256": "9261b165073688bb16a4f5d4dc84483f892b56f6e28de837a9a6d10060c17ffd",
+      "excel": {
+        "pid": 27472,
+        "start_ticks": 639294821620239202,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\8-bootstrap.csv\"",
+        "launch": 8
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-eighth-one.xlsx",
+      "input_sha256": "8ef8b51a449eb9213a4c3c698f265f35c8c1298adb32e156d0685cb40de27803",
+      "request_sha256": "4e6d4e5860162841c85601537287a39fdcd0f3a236a7dc61f5d4ee0146779aaf",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-eighth-one",
+      "trial": 7,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-eighth-one/7/result.json",
+      "result_sha256": "d5e850565bd70f0c29daa3facd7bbafba867c5a5e77c57019c87a7c0d4bfc7ee",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-eighth-one/7/ownership/receipt.json",
+      "receipt_sha256": "e16b3a2f1776b2e7ad052456f892ac322ee72214218f1a1b98d8fc80ef6bc6f6",
+      "excel": {
+        "pid": 49524,
+        "start_ticks": 639294821775569162,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\9-bootstrap.csv\"",
+        "launch": 9
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-eighth-one.xlsx",
+      "input_sha256": "8ef8b51a449eb9213a4c3c698f265f35c8c1298adb32e156d0685cb40de27803",
+      "request_sha256": "d93580f15a4962843264dac0f2979c01f59cf8923c0ef98352efc7841af9fa51",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-eighth-one",
+      "trial": 8,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-eighth-one/8/result.json",
+      "result_sha256": "3bd30e7f62bf24ef9f68468e23dce0269151c3f61b37ae952ed4627f1a85e530",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-eighth-one/8/ownership/receipt.json",
+      "receipt_sha256": "5265c575e678800b0099a8eb7764984092945397c8b484068462ffefb91db1b3",
+      "excel": {
+        "pid": 52684,
+        "start_ticks": 639294821940705564,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\10-bootstrap.csv\"",
+        "launch": 10
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-eighth-one.xlsx",
+      "input_sha256": "8ef8b51a449eb9213a4c3c698f265f35c8c1298adb32e156d0685cb40de27803",
+      "request_sha256": "754b9e5f4caed56d2c44aa4d8fd4ce9d78600f74f6cab8c03dc74450649075c6",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-eighth-one",
+      "trial": 9,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-eighth-one/9/result.json",
+      "result_sha256": "a61ab8aceee96294da8789fb25753498cf62fe8c171cb65493569e297e3da91e",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-eighth-one/9/ownership/receipt.json",
+      "receipt_sha256": "ba98aef53e7ddc4aa26f9280e18fee1a7313f38ec32bc7fb48ad8f266bfca21f",
+      "excel": {
+        "pid": 1664,
+        "start_ticks": 639294822168133238,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\11-bootstrap.csv\"",
+        "launch": 11
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-eighth-one.xlsx",
+      "input_sha256": "8ef8b51a449eb9213a4c3c698f265f35c8c1298adb32e156d0685cb40de27803",
+      "request_sha256": "ecfb3235831a4812f420bd1435fd12a03791fb93e53ff076d5e5cbe2d4d6f93b",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-eighth-one",
+      "trial": 10,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-eighth-one/10/result.json",
+      "result_sha256": "4b51b87cb82057acb41832e1cd604919060685e110495f6a480c066be6cb48db",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-eighth-one/10/ownership/receipt.json",
+      "receipt_sha256": "e13cc02d479ff56406a41e38a77edc40299e56ec64a058b9dc58e344cfffeaca",
+      "excel": {
+        "pid": 38448,
+        "start_ticks": 639294822316379183,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\12-bootstrap.csv\"",
+        "launch": 12
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-eighth-one.xlsx",
+      "input_sha256": "8ef8b51a449eb9213a4c3c698f265f35c8c1298adb32e156d0685cb40de27803",
+      "request_sha256": "370c758d44f264cfe4f9e1f198c9055f4aa53f1dcd07a0f2ca325b3b79c9bb5d",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "bfc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-one-half",
+      "trial": 1,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-one-half/1/result.json",
+      "result_sha256": "17510d645a65f42ce7f355f89b7043c23eeca2838fbfbbeb195ef42c71bbf3ce",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-one-half/1/ownership/receipt.json",
+      "receipt_sha256": "9f540d13a770c9f668f9f4ee9022171c00d9dd2e106588dd15dbb97b3c5f0060",
+      "excel": {
+        "pid": 51460,
+        "start_ticks": 639294822490481351,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\13-bootstrap.csv\"",
+        "launch": 13
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-one-half.xlsx",
+      "input_sha256": "10470900b546beb615b1b3318e70c8528000e695e89f16b99d08bcdf209a96c5",
+      "request_sha256": "f51b171e0b7fa5ab20e1434372784d7a2ef24ea621d60a54185b3e30204ef72b",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-one-half",
+      "trial": 2,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-one-half/2/result.json",
+      "result_sha256": "1657bd1fa10e7010dc0aaf56c68ddbf4e7c973f89d522587d3e9f3153d617f2f",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-one-half/2/ownership/receipt.json",
+      "receipt_sha256": "89bff63e576d84fa2a72cab436be9ae38faa97b25fb6f06c91fc7346ef37c378",
+      "excel": {
+        "pid": 50112,
+        "start_ticks": 639294822679256593,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\14-bootstrap.csv\"",
+        "launch": 14
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-one-half.xlsx",
+      "input_sha256": "10470900b546beb615b1b3318e70c8528000e695e89f16b99d08bcdf209a96c5",
+      "request_sha256": "bece3ec8e2702d15c772da0f5bd72315e859975d23f3bf84a3c147d147c99ac7",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-one-half",
+      "trial": 3,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-one-half/3/result.json",
+      "result_sha256": "92b27864846b3dba81008b84b36736b376adb736cf2cc0b609be8b516109a509",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-one-half/3/ownership/receipt.json",
+      "receipt_sha256": "66cd6a5b448f8bb207266162aa024ffc2b4d4e77d83eb355a295b99343c99af4",
+      "excel": {
+        "pid": 59796,
+        "start_ticks": 639294822843560419,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\15-bootstrap.csv\"",
+        "launch": 15
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-one-half.xlsx",
+      "input_sha256": "10470900b546beb615b1b3318e70c8528000e695e89f16b99d08bcdf209a96c5",
+      "request_sha256": "f85bc6de925c1b6ac6e9cb6595874d2501fa1c5a244ef9ddef2136c30cf55053",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-one-half",
+      "trial": 4,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-one-half/4/result.json",
+      "result_sha256": "0912a4d28cec807ae3377d7f7291b7676ce77a82e87b31e35eacd98148461f4d",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-one-half/4/ownership/receipt.json",
+      "receipt_sha256": "c5c2dfafe88cd0d5ef6b040b3d0d24954665463b5273efbbcba6aa7d7287ea27",
+      "excel": {
+        "pid": 52060,
+        "start_ticks": 639294822993773651,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\16-bootstrap.csv\"",
+        "launch": 16
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-one-half.xlsx",
+      "input_sha256": "10470900b546beb615b1b3318e70c8528000e695e89f16b99d08bcdf209a96c5",
+      "request_sha256": "736f248746a03f099dd6d7073cea1045cdca48d36cdbe6ef74ba5a59d2074585",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-one-half",
+      "trial": 5,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-one-half/5/result.json",
+      "result_sha256": "cc55601ae7b4aa4c9b8cd1be48f1476561614b1d1a7e06440398e67a21cbf21f",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-one-half/5/ownership/receipt.json",
+      "receipt_sha256": "8cc258ab2626654453aa888a48f294a3a411b38d8a67ab64e5501e368d401e06",
+      "excel": {
+        "pid": 12824,
+        "start_ticks": 639294823179178576,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\17-bootstrap.csv\"",
+        "launch": 17
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-one-half.xlsx",
+      "input_sha256": "10470900b546beb615b1b3318e70c8528000e695e89f16b99d08bcdf209a96c5",
+      "request_sha256": "fe7091619ef20f90d851d2daebebb54973dc2b74684f2224ab791f8e7672ab5b",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-one-half",
+      "trial": 6,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-one-half/6/result.json",
+      "result_sha256": "c5848f16f3fefaca5973707ade4fee1e46275a5fb32e1a0b7ec1949aac18aabe",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-one-half/6/ownership/receipt.json",
+      "receipt_sha256": "15ee9b228f701d257b3808bf4040df6f8168df114336589cb0012bb31079a73c",
+      "excel": {
+        "pid": 44300,
+        "start_ticks": 639294823395192806,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\18-bootstrap.csv\"",
+        "launch": 18
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-one-half.xlsx",
+      "input_sha256": "10470900b546beb615b1b3318e70c8528000e695e89f16b99d08bcdf209a96c5",
+      "request_sha256": "3754c4d5baadfc81d01d7ad3d8cc60bdef4ff1582090957f52e95333746e325c",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-one-half",
+      "trial": 7,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-one-half/7/result.json",
+      "result_sha256": "c5c0730ffa60db279115bfb6b03a8e3930cc8ef9be6c89e3f514599127b0a27c",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-one-half/7/ownership/receipt.json",
+      "receipt_sha256": "dcd244956ac3493714ea168ce5002c05965bb1874c47539fdaecea62fcc95218",
+      "excel": {
+        "pid": 40904,
+        "start_ticks": 639294823614691562,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\19-bootstrap.csv\"",
+        "launch": 19
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-one-half.xlsx",
+      "input_sha256": "10470900b546beb615b1b3318e70c8528000e695e89f16b99d08bcdf209a96c5",
+      "request_sha256": "3d35f60fcc0d898dcfce6f990ac33b84257ac7fcf68ab90abb89e96ff5986cd5",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-one-half",
+      "trial": 8,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-one-half/8/result.json",
+      "result_sha256": "02e61f1471b35d7a51f37b1e3a6dc219105ef669637d188647f50a70ee10a029",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-one-half/8/ownership/receipt.json",
+      "receipt_sha256": "6623e97a7807bd9db1b5a51404fa1eda6636fedb9403a37918e09b83521d4e87",
+      "excel": {
+        "pid": 36288,
+        "start_ticks": 639294823782001218,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\20-bootstrap.csv\"",
+        "launch": 20
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-one-half.xlsx",
+      "input_sha256": "10470900b546beb615b1b3318e70c8528000e695e89f16b99d08bcdf209a96c5",
+      "request_sha256": "bb59d2c5138ceb3a5b4f897f71a236dbb508420fba6123717c2e644313b081f3",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-one-half",
+      "trial": 9,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-one-half/9/result.json",
+      "result_sha256": "9511a344c107d96092a190de397533bf146205901ba96d7b8c549cbc19f413d6",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-one-half/9/ownership/receipt.json",
+      "receipt_sha256": "93b34b08ddedf46cf85089020fdb49bd4fa83dd450e4d78ba2c9ca5f17fe8ec7",
+      "excel": {
+        "pid": 36956,
+        "start_ticks": 639294823956535789,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\21-bootstrap.csv\"",
+        "launch": 21
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-one-half.xlsx",
+      "input_sha256": "10470900b546beb615b1b3318e70c8528000e695e89f16b99d08bcdf209a96c5",
+      "request_sha256": "071b8676ae77d2e7a91bd7cd6ad0151f234c764f5719eb4b914bb7e45754c1cc",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-negative-one-half",
+      "trial": 10,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-one-half/10/result.json",
+      "result_sha256": "70f5ac02d938f6fc09a61d9c9db54baa69b51e0655d8cd385b6144eeb3cd1d56",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-negative-one-half/10/ownership/receipt.json",
+      "receipt_sha256": "010c7ddf52c20e52ef562eb9d51a92fb54cc9b75581d484afe2f2111fec1670f",
+      "excel": {
+        "pid": 37936,
+        "start_ticks": 639294824121815835,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\22-bootstrap.csv\"",
+        "launch": 22
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-negative-one-half.xlsx",
+      "input_sha256": "10470900b546beb615b1b3318e70c8528000e695e89f16b99d08bcdf209a96c5",
+      "request_sha256": "d060d427033ca0750f76a1ad5c90265cc0ceeb60b8b11d60de77b0ee71e4d92d",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-eighth-one",
+      "trial": 10,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-positive-eighth-one/10/result.json",
+      "result_sha256": "578afec7b0f560bb525acda1da7faa47502594233e034d9cedf68b6c8418269a",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-positive-eighth-one/10/ownership/receipt.json",
+      "receipt_sha256": "feb30f21b4fe10aa5cd3c08a79de209941710830821086654d2212a1ba163944",
+      "excel": {
+        "pid": 32552,
+        "start_ticks": 639294824287042709,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\23-bootstrap.csv\"",
+        "launch": 23
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-eighth-one.xlsx",
+      "input_sha256": "b5b7805016541dd7e2d76870a15a7330298c5752a48723bde81edf0a84a5287f",
+      "request_sha256": "5fa8d20ef57cfa835cd083af3a6e04906f148c3c0ac0dcbb283e5a95aa0b70b3",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3fc0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-one-three-halves",
+      "trial": 1,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-positive-one-three-halves/1/result.json",
+      "result_sha256": "1d69fedb1ed2f0f4c0fe10f1521d62719c63f146bd28efcd6f88a36390df4ba5",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-positive-one-three-halves/1/ownership/receipt.json",
+      "receipt_sha256": "df2cc8949df14aa66b53e3fddad26851457d725a5b755fa7be4c52e3a3030e8a",
+      "excel": {
+        "pid": 41264,
+        "start_ticks": 639294824451897330,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\24-bootstrap.csv\"",
+        "launch": 24
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-one-three-halves.xlsx",
+      "input_sha256": "44d18fa9f0d51b09e62a3416faa6bd4364baf00055d6823812ff5d30e7ad9140",
+      "request_sha256": "54790283de1668efba4a5847bfdb155b906f9cebcf38529860689ce464519241",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-one-three-halves",
+      "trial": 2,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-positive-one-three-halves/2/result.json",
+      "result_sha256": "422461683dc6b812e0a526d0d433a0bf44889341ad707ca65d390f1b349064c2",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-positive-one-three-halves/2/ownership/receipt.json",
+      "receipt_sha256": "a54d557b8d750dcee12c8b9b8d2e0138216c6b0b534b5cde79c01131c037ac49",
+      "excel": {
+        "pid": 61628,
+        "start_ticks": 639294824637252104,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\25-bootstrap.csv\"",
+        "launch": 25
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-one-three-halves.xlsx",
+      "input_sha256": "44d18fa9f0d51b09e62a3416faa6bd4364baf00055d6823812ff5d30e7ad9140",
+      "request_sha256": "684508599b979c2a60f287e04566eec76b3ef3d84dc5a91a331108007a3680da",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-one-three-halves",
+      "trial": 3,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-positive-one-three-halves/3/result.json",
+      "result_sha256": "df34b446e3961939620c431872bd684a17cbce0ff2c808e428687a89da25ea3b",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-positive-one-three-halves/3/ownership/receipt.json",
+      "receipt_sha256": "80ebbcaa0acbc49002dec65608eaca4a66cd03c603d8c08b154e8804100d8030",
+      "excel": {
+        "pid": 33580,
+        "start_ticks": 639294824863173602,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\26-bootstrap.csv\"",
+        "launch": 26
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-one-three-halves.xlsx",
+      "input_sha256": "44d18fa9f0d51b09e62a3416faa6bd4364baf00055d6823812ff5d30e7ad9140",
+      "request_sha256": "7c6d495fdb2b118294062e9ea2e2b494719c4d94323e5c1eac98ac5e3cfd1f55",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-one-three-halves",
+      "trial": 4,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-positive-one-three-halves/4/result.json",
+      "result_sha256": "153e62581bd5ebaf4d721dc585d59454709721b20f22a7713150299fa17a7b16",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-positive-one-three-halves/4/ownership/receipt.json",
+      "receipt_sha256": "9e3b6bdcaed353066851fe2bf2584fb5572187a25c945d2bbd169176cc8e088d",
+      "excel": {
+        "pid": 50296,
+        "start_ticks": 639294825019925955,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\27-bootstrap.csv\"",
+        "launch": 27
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-one-three-halves.xlsx",
+      "input_sha256": "44d18fa9f0d51b09e62a3416faa6bd4364baf00055d6823812ff5d30e7ad9140",
+      "request_sha256": "e9355dd451af399b625163d785cc3a42cc9f1693205ce9791cc29b63ea7effbf",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-one-three-halves",
+      "trial": 5,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-positive-one-three-halves/5/result.json",
+      "result_sha256": "7ca7da1ef3ee4014746643c09a668d77a7ed35962aa87940cbff9535ded3e162",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-positive-one-three-halves/5/ownership/receipt.json",
+      "receipt_sha256": "e3df29b9199383f0b3c83cffc0aa585bdd9188de93fa9ce44166e4d062178a9a",
+      "excel": {
+        "pid": 10192,
+        "start_ticks": 639294825175527906,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\28-bootstrap.csv\"",
+        "launch": 28
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-one-three-halves.xlsx",
+      "input_sha256": "44d18fa9f0d51b09e62a3416faa6bd4364baf00055d6823812ff5d30e7ad9140",
+      "request_sha256": "168f2622515094e7e4b0be9f43e790cb14a4dee6aebc7192237ed36da59f9914",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-one-three-halves",
+      "trial": 6,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-positive-one-three-halves/6/result.json",
+      "result_sha256": "5bd9e44d56f86bc17a8ff44e24cfc79f67a84d29615931db6f471c55cfdbecc6",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-positive-one-three-halves/6/ownership/receipt.json",
+      "receipt_sha256": "fba2a7a9b68a47a232c46233ade14202d8ea0979bc59fc51a9b800c643c989e9",
+      "excel": {
+        "pid": 25108,
+        "start_ticks": 639294825326291597,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\29-bootstrap.csv\"",
+        "launch": 29
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-one-three-halves.xlsx",
+      "input_sha256": "44d18fa9f0d51b09e62a3416faa6bd4364baf00055d6823812ff5d30e7ad9140",
+      "request_sha256": "c024a2b7949bc468a62f37c2a8cd7dc2e8829821b74cc8e4506d7c689d92a218",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-one-three-halves",
+      "trial": 7,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-positive-one-three-halves/7/result.json",
+      "result_sha256": "47267b95ab7a397225302ecae164a3bb6e731d6f8b5348544172fb4c7c648619",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-positive-one-three-halves/7/ownership/receipt.json",
+      "receipt_sha256": "1e3f5c036beb2ce705b6dfbac15bee2e5df1e42b3ee6cfd0e50dbca91c796a75",
+      "excel": {
+        "pid": 12860,
+        "start_ticks": 639294825506321321,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\30-bootstrap.csv\"",
+        "launch": 30
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-one-three-halves.xlsx",
+      "input_sha256": "44d18fa9f0d51b09e62a3416faa6bd4364baf00055d6823812ff5d30e7ad9140",
+      "request_sha256": "9eb71159f4dbdcb0b579b4119bd7c964b4a976e2424d53eb1bb38e29140abe9d",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-one-three-halves",
+      "trial": 8,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-positive-one-three-halves/8/result.json",
+      "result_sha256": "2c97738e599fa69a117a26d46ccfd82e7d6bceaf3718b92417495e676ca222ea",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-positive-one-three-halves/8/ownership/receipt.json",
+      "receipt_sha256": "83d96ecee869e160263d5a21ea7c572ed78a89df38a9c98ac80361f40c95fd2b",
+      "excel": {
+        "pid": 54228,
+        "start_ticks": 639294825689967820,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\31-bootstrap.csv\"",
+        "launch": 31
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-one-three-halves.xlsx",
+      "input_sha256": "44d18fa9f0d51b09e62a3416faa6bd4364baf00055d6823812ff5d30e7ad9140",
+      "request_sha256": "ba38d9733ad1c45f6bfd9069e4fa47f0eb5a76c3e995ddf23a8ba14581815b19",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-one-three-halves",
+      "trial": 9,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-positive-one-three-halves/9/result.json",
+      "result_sha256": "a57050e5fac9c505e34e57cb2e70427fc8b67d464ec6c4d596220b5359530f91",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-positive-one-three-halves/9/ownership/receipt.json",
+      "receipt_sha256": "6671627bf62701e4f7cb7edefb85e85288966b2bf24cb8a6ba2745eb9d1493ea",
+      "excel": {
+        "pid": 28208,
+        "start_ticks": 639294826038795861,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\32-bootstrap.csv\"",
+        "launch": 32
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-one-three-halves.xlsx",
+      "input_sha256": "44d18fa9f0d51b09e62a3416faa6bd4364baf00055d6823812ff5d30e7ad9140",
+      "request_sha256": "b927900bc4d1c3bc2b34c3460e59afb7171bec16d287668a39198c714cc14710",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "packet": "eng17",
+      "family": "logical-baseline",
+      "condition": "eng17-logical-baseline-true-positive-one-three-halves",
+      "trial": 10,
+      "result": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-positive-one-three-halves/10/result.json",
+      "result_sha256": "d89ae465f32c0c2ee2119e1bb5a60afc7b0e5d7d6411db7d4f9699910fa980c3",
+      "receipt": "logical-baseline/recovery-round17/trials/eng17-logical-baseline-true-positive-one-three-halves/10/ownership/receipt.json",
+      "receipt_sha256": "0bd7780b99a2ed9465d29db45e0b9028bfab58f9ebd6637a624f1ed4b487360e",
+      "excel": {
+        "pid": 740,
+        "start_ticks": 639294826245403874,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll17\\logical-recovery-session\\launches\\33-bootstrap.csv\"",
+        "launch": 33
+      },
+      "input": "logical-baseline/inputs/eng17-logical-baseline-true-positive-one-three-halves.xlsx",
+      "input_sha256": "44d18fa9f0d51b09e62a3416faa6bd4364baf00055d6823812ff5d30e7ad9140",
+      "request_sha256": "674dc7d82da83c679dc304659296bb78d903eac361bc7f324a8070c500d5544b",
+      "snapshots": {
+        "seeds-verified": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ],
+        "after-command-1": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "number": "3ff0000000000000"
+            }
+          }
+        ],
+        "after-command-2": [
+          {
+            "row": 1,
+            "column": 1,
+            "value": {
+              "logical": true
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "licence": "MIT; DNA-authored questions and original inputs produced by crates/calc-engine/tests/fixtures/make-dc-y2o-oracles.ps1",
+  "source": "~/codex-runs/excel-results-eng17",
+  "importer": "~/codex-runs/engine21/ingest-eng17.py",
+  "source_hashes": {
+    "crates/calc-engine/tests/fixtures/make-dc-y2o-oracles.ps1": "e5552757ee09e32611b5e99a2f1ab8dc5a9ae31ee6f72b6e93640db4be4bd8aa",
+    "tools/excel-session/iteration-job.ps1": "ae825e6c9094879af01d0fb690ea4ed90cd346a46358c860d218c07a204aad68",
+    "tools/excel-session/host.ps1": "598f1dac6f56234b4465ddc51a756e5106479b52a97b4a4a6e9be612e5665a35",
+    "tools/excel-session/submit.ps1": "c0558f0bb1e1d3980f61a7d614a62ee7abf420e8448708924ebc3e3bcb83c5f7",
+    "tools/excel-session/condition-job.ps1": "11e838a59db0329eada6faa3d9bbebffc271340e42f16980130827a0700c18b0",
+    "platform/calc-oracle-excel/worker/capture-worker.ps1": "2fe478f77bbb71db12c4533a8c41560ed89467e05ab1ee1af4ae60cb8eb9ffab"
+  }
+}

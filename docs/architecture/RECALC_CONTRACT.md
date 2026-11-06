@@ -274,15 +274,25 @@ reads, unsupported bindings, multi-cell outputs and later repair waves. It grant
 no new shape pin for a dynamically discovered cycle. Broader dynamic profiles
 keep their typed whole-command refusal; ordinary worksheet errors remain values.
 
-The seven supported stopping conditions and the Rebuild hidden-self control
-reproduce recorded final values, while iterative sessions keep their existing
-uncertified invocation boundary. Two logical-TRUE baseline command results
-still differ: numeric 1 is returned where Excel ends logical TRUE. Prior TRUE
-therefore cannot be treated as numeric +1 for stopping; these answers do not
-distinguish zero from -1 or establish a general replacement rule. Eight new
-eng17 discriminators remain unanswered. Eng14 supplies no SCC execution counts,
-mid-cycle cache observations or Full conditions; the instrumented Full/Rebuild
-questions remain pending. The late eng15 observer delivery is described below.
+Eng17 logical stopping follow-up (engine21): eight conditions, ten fresh owned
+Excel processes each, distinguish zero from a numeric coercion of prior logical
+values. Original inputs, stored logical seeds, formulas, request/result/receipt
+links and source hashes were verified. Manual, iteration enabled, MTC off and
+events off were recorded on Excel 16.0.20527 with VS15ExcelAdaptor connected.
+The positive/negative eighth controls and the two thresholds establish zero as
+the prior logical baseline for a numeric stopping sample in this scalar profile.
+Logical outputs still supply no numeric stopping sample. No output value is
+coerced by this change.
+
+HostSession replays all eight new and all nine original eng14 stopping inputs at
+unlimited and one-evaluation budgets: 68 typed command-result comparisons pass.
+The new controls reproduced six mismatches before the change; the two older
+logical-TRUE conditions are now included in the ordinary passing test. Every
+compared command actually calculates its target; no imported or held seed is a
+match. Final values do not establish internal sweep counts or mid-cycle reads.
+Iteration retains its existing uncertified invocation boundary. Broader array,
+topology, MTC and history profiles remain open under dc-hsa5.14. The late eng15
+observer delivery is described below.
 
 Eng14's separate unchanged authored-entry nonfinite capture has 21 immediate
 bit matches through the existing compare route. Its source is the workbook plus
@@ -937,6 +947,30 @@ reopening preserves every original module. The separate initialized logger
 control succeeds, but no initialization is added to the opened project. These
 350 saved mismatches remain failures; this is runtime evidence without a new
 Excel observation.
+
+Native17 delivery audit (engine21): 18,165 delivery hashes and all 600 workbook
+summary rows were checked. The retained Windows executable at source 652fcb31
+uses the recorded P07 release controller as an explicit new runtime condition.
+Its 279 formerly waiting workbook runs complete, and 558 former file-cache
+positions now return calculated values. Supplemental saved-reference matches
+are 440,642/441,470 (99.8124%); 828 nonmatches comprise 440 saved mismatches and
+388 missing references. Of those 388, 378 positions calculated but have excluded
+dirty/volatile or unattested saved references, and ten retain typed EVALUATE
+refusals. The delivery gains 400 saved comparisons, loses none and changes no
+previously calculated value. No new live Excel observation was acquired: live
+pass remains 0/441,470, with 441,460 unmeasured and ten refused. The 440 historical
+Peek mismatches remain failures. These are audited delivered Windows results,
+not a new Linux native-provider execution or a gain attributed to this code change.
+
+Eng17/eng18 delivery audit (engine21): all 5,497 hashes and 160 successful
+request/result/receipt chains were checked, including distinct fresh process
+identities and preserved automation security. These cover 80 logical-seed,
+50 formula-entry and 30 event trials. The event successes observe Manual nested
+Calculate, document names across disabled-event renames, and a cached read
+retained in module state. Twenty unhandled-fault eng17 attempts, ten eng18 nested
+fault attempts and one earlier preparation failure remain failed or blocked.
+The dialogs supply no successful later-handler or post-dismissal observation.
+No whole original-project parity or event-state cache provenance is inferred.
 
 Workbook_Open runs once after file-project installation and before automatic
 calculation; replacement does not replay it. Open, Change, Calculate and BeforeSave
