@@ -1,6 +1,6 @@
 param([Parameter(Mandatory)][string]$PacketDirectory, [Parameter(Mandatory)][string]$OutputDirectory,
     [string]$DnaCalcCheckout=(Join-Path $PSScriptRoot '../..'),
-    [string]$EvidenceCheckout='C:\Work\DnaCalc\OxFunc-Evidence', [switch]$CapturePending,
+    [string]$EvidenceCheckout='C:\Work\DnaCalc\CalcFunc-Evidence', [switch]$CapturePending,
     [string]$XtaskExecutable, [string[]]$Functions, [switch]$AllowRepeatedCalls)
 # Generalizes the supplied R16 RUN-R16.ps1 using the same witness and catalogue routes.
 $ErrorActionPreference='Stop'
@@ -47,7 +47,7 @@ if($Functions){
 }
 $wanted=@{}
 foreach($batch in $batches){$wanted[(Get-FileHash -LiteralPath (Join-Path $packet $batch.path)).Hash.ToLowerInvariant()]=$batch.function}
-$roots=[ordered]@{'worker/capture'=(Join-Path $checkout 'target/c');'worker/read'=(Join-Path $checkout 'target/witness/read');'worker/frozen'=(Join-Path $checkout 'target/witness/frozen');'OxFunc-Evidence/readings'=(Join-Path $evidence 'readings')}
+$roots=[ordered]@{'worker/capture'=(Join-Path $checkout 'target/c');'worker/read'=(Join-Path $checkout 'target/witness/read');'worker/frozen'=(Join-Path $checkout 'target/witness/frozen');'CalcFunc-Evidence/readings'=(Join-Path $evidence 'readings')}
 $before=@{}
 foreach($name in $roots.Keys){$before[$name]=@{};if(Test-Path $roots[$name]){Get-ChildItem -LiteralPath $roots[$name] -Recurse -File|ForEach-Object{$before[$name][$_.FullName]=(Get-FileHash -LiteralPath $_.FullName).Hash}}}
 if(-not $env:DNACALC_EXCEL_SESSION){$env:DNACALC_EXCEL_SESSION=Join-Path $checkout 'target/excel-session'}
@@ -91,7 +91,7 @@ finally {
     }}
     if(Test-Path (Join-Path $session 'launches')){Copy-Item -LiteralPath (Join-Path $session 'launches') -Destination (Join-Path $output 'session-launches') -Recurse}
     $canonical=@();$counts=@{};$unread=0
-    $readingOutput=Join-Path $output 'OxFunc-Evidence/readings'
+    $readingOutput=Join-Path $output 'CalcFunc-Evidence/readings'
     if(Test-Path $readingOutput){Get-ChildItem -LiteralPath $readingOutput -Filter '*.json' -Recurse|ForEach-Object{
         $doc=Get-Content -LiteralPath $_.FullName -Raw -Encoding utf8|ConvertFrom-Json
         if($doc.PSObject.Properties['capture_provenance'] -and $doc.capture_provenance.PSObject.Properties['frozen_model_predictions']){
