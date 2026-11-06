@@ -42,6 +42,8 @@
 //! repository commands).
 
 mod capture;
+mod capture_failures;
+pub use capture_failures::{CaptureFailureClass, CaptureFailureEvidence};
 #[cfg(test)]
 mod capture_v2_tests;
 mod evaluations;
@@ -90,8 +92,8 @@ pub use verdict::{
     judge,
 };
 pub use witness::{
-    ReadingSource, Severity, WITNESS_SET_FORMAT, WitnessInvocation, WitnessRow, WitnessSet, decode_argument,
-    decode_result, encode_result, result_index, select_result,
+    ReadingSource, Severity, WITNESS_SET_FORMAT, WitnessInvocation, WitnessRow, WitnessSet,
+    decode_argument, decode_result, encode_result, result_index, select_result,
 };
 
 use std::fmt;
