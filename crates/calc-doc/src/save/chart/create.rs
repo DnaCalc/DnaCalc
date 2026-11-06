@@ -43,119 +43,160 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
     {
         return Err(fail("Choose a supported legend position"));
     }
-    if chart.plots.len() != 1 {
-        return Err(fail("New charts need one supported two-dimensional plot"));
-    }
-    let p = &chart.plots[0];
-    let pie = pie_kind(&p.kind);
-    let scatter = p.kind == "scatterChart";
-    if !category_kind(&p.kind) && !pie && !scatter {
-        return Err(fail("Choose a supported two-dimensional chart type"));
-    }
-    if (p.kind == "barChart" && !matches!(p.bar_direction.as_deref(), Some("col" | "bar")))
-        || (p.kind != "barChart" && p.bar_direction.is_some())
-    {
-        return Err(fail("Invalid bar direction"));
-    }
-    if category_kind(&p.kind)
-        && p.grouping.as_deref() != Some("stacked")
-        && p.grouping.as_deref()
-            != Some(if p.kind == "barChart" {
-                "clustered"
-            } else {
-                "standard"
-            })
-    {
-        return Err(fail("Choose Normal or Stacked grouping"));
-    }
-    if (pie || scatter) && p.grouping.is_some() {
-        return Err(fail("This plot has no grouping"));
-    }
-    if p.series.is_empty() || p.series.len() > 255 || (pie && p.series.len() != 1) {
+    let combo = chart.plots.len() == 2
+        && chart.plots[0].kind == "barChart"
+        && chart.plots[0].bar_direction.as_deref() == Some("col")
+        && chart.plots[1].kind == "lineChart"
+        && chart
+            .plots
+            .iter()
+            .all(|p| p.grouping.as_deref() != Some("stacked"));
+    if chart.plots.len() != 1 && !combo {
         return Err(fail(
-            "Use 1 to 255 series, or one series for a pie or doughnut",
+            "Use one supported plot or a column and line combination (dc-971p.51)",
         ));
     }
+    if chart.plots.iter().map(|p| p.series.len()).sum::<usize>() > 255 {
+        return Err(fail("Use at most 255 series"));
+    }
     let mut indices = BTreeSet::new();
-    for s in &p.series {
-        if !indices.insert(s.index)
-            || s.fill
-                .as_deref()
-                .is_some_and(|s| s.len() != 6 || !s.bytes().all(|b| b.is_ascii_hexdigit()))
+    for (plot_index, p) in chart.plots.iter().enumerate() {
+        let pie = pie_kind(&p.kind);
+        let scatter = p.kind == "scatterChart";
+        if !category_kind(&p.kind) && !pie && !scatter {
+            return Err(fail("Choose a supported two-dimensional chart type"));
+        }
+        if (p.kind == "barChart" && !matches!(p.bar_direction.as_deref(), Some("col" | "bar")))
+            || (p.kind != "barChart" && p.bar_direction.is_some())
         {
-            return Err(fail("Use distinct series indices and RGB colours"));
+            return Err(fail("Invalid bar direction"));
         }
-        if s.values.is_none() {
-            return Err(fail("Each series needs a values range"));
+        if category_kind(&p.kind)
+            && p.grouping.as_deref() != Some("stacked")
+            && p.grouping.as_deref()
+                != Some(if p.kind == "barChart" {
+                    "clustered"
+                } else {
+                    "standard"
+                })
+        {
+            return Err(fail("Choose Normal or Stacked grouping"));
         }
-        for d in [&s.name, &s.categories, &s.values].into_iter().flatten() {
-            if d.formula
-                .as_deref()
-                .is_some_and(|f| f.is_empty() || !valid_text(f))
-                || d.cache.len() > 32767
-                || d.cache.iter().flatten().any(|s| !valid_text(s))
+        if (pie || scatter) && p.grouping.is_some() {
+            return Err(fail("This plot has no grouping"));
+        }
+        if p.series.is_empty() || p.series.len() > 255 || (pie && p.series.len() != 1) {
+            return Err(fail(
+                "Use 1 to 255 series, or one series for a pie or doughnut",
+            ));
+        }
+        for s in &p.series {
+            if !indices.insert(s.index)
+                || s.fill
+                    .as_deref()
+                    .is_some_and(|s| s.len() != 6 || !s.bytes().all(|b| b.is_ascii_hexdigit()))
             {
-                return Err(fail("The series data exceeds chart text or point limits"));
+                return Err(fail("Use distinct series indices and RGB colours"));
+            }
+            if s.values.is_none() {
+                return Err(fail("Each series needs a values range"));
+            }
+            for d in [&s.name, &s.categories, &s.values].into_iter().flatten() {
+                if d.formula
+                    .as_deref()
+                    .is_some_and(|f| f.is_empty() || !valid_text(f))
+                    || d.cache.len() > 32767
+                    || d.cache.iter().flatten().any(|s| !valid_text(s))
+                {
+                    return Err(fail("The series data exceeds chart text or point limits"));
+                }
+            }
+        }
+        if pie {
+            if !chart.axes.is_empty() || !p.axis_ids.is_empty() {
+                return Err(fail("Pie and doughnut plots have no axes"));
+            }
+        } else {
+            if chart.axes.len() != (if combo { 4 } else { 2 })
+                || p.axis_ids.len() != 2
+                || p.axis_ids[0] == p.axis_ids[1]
+            {
+                return Err(fail("Use one reciprocal axis pair"));
+            }
+            let a = chart
+                .axes
+                .iter()
+                .find(|a| a.id == p.axis_ids[0])
+                .ok_or_else(|| fail("Missing chart axis"))?;
+            let b = chart
+                .axes
+                .iter()
+                .find(|a| a.id == p.axis_ids[1])
+                .ok_or_else(|| fail("Missing chart axis"))?;
+            if a.cross_axis != Some(b.id)
+                || b.cross_axis != Some(a.id)
+                || a.kind != if scatter { "valAx" } else { "catAx" }
+                || b.kind != "valAx"
+            {
+                return Err(fail(
+                    "Use one reciprocal category/value or scatter axis pair",
+                ));
+            }
+            let horizontal = p.kind == "barChart" && p.bar_direction.as_deref() == Some("bar");
+            if a.position.as_deref()
+                != Some(if combo && plot_index == 1 {
+                    "t"
+                } else if horizontal {
+                    "l"
+                } else {
+                    "b"
+                })
+                || b.position.as_deref()
+                    != Some(if combo && plot_index == 1 {
+                        "r"
+                    } else if horizontal {
+                        "b"
+                    } else {
+                        "l"
+                    })
+            {
+                return Err(fail("Invalid chart axis positions"));
+            }
+            for axis in &chart.axes {
+                valid_log_axis(axis).map_err(fail)?;
+                for n in [&axis.minimum, &axis.maximum, &axis.major_unit]
+                    .into_iter()
+                    .flatten()
+                {
+                    if n.parse::<f64>().ok().is_none_or(|n| !n.is_finite()) {
+                        return Err(fail("Use finite axis settings"));
+                    }
+                }
+                if axis
+                    .major_unit
+                    .as_deref()
+                    .and_then(|n| n.parse::<f64>().ok())
+                    .is_some_and(|n| n <= 0.)
+                {
+                    return Err(fail("Use a positive major unit"));
+                }
+                if let (Some(min), Some(max)) = (&axis.minimum, &axis.maximum) {
+                    if min.parse::<f64>().unwrap() >= max.parse::<f64>().unwrap() {
+                        return Err(fail("The axis maximum must exceed its minimum"));
+                    }
+                }
             }
         }
     }
-    if pie {
-        if !chart.axes.is_empty() || !p.axis_ids.is_empty() {
-            return Err(fail("Pie and doughnut plots have no axes"));
-        }
-    } else {
-        if chart.axes.len() != 2 || p.axis_ids.len() != 2 || p.axis_ids[0] == p.axis_ids[1] {
-            return Err(fail("Use one reciprocal axis pair"));
-        }
-        let a = chart
-            .axes
-            .iter()
-            .find(|a| a.id == p.axis_ids[0])
-            .ok_or_else(|| fail("Missing chart axis"))?;
-        let b = chart
-            .axes
-            .iter()
-            .find(|a| a.id == p.axis_ids[1])
-            .ok_or_else(|| fail("Missing chart axis"))?;
-        if a.cross_axis != Some(b.id)
-            || b.cross_axis != Some(a.id)
-            || a.kind != if scatter { "valAx" } else { "catAx" }
-            || b.kind != "valAx"
-        {
-            return Err(fail(
-                "Use one reciprocal category/value or scatter axis pair",
-            ));
-        }
-        let horizontal = p.kind == "barChart" && p.bar_direction.as_deref() == Some("bar");
-        if a.position.as_deref() != Some(if horizontal { "l" } else { "b" })
-            || b.position.as_deref() != Some(if horizontal { "b" } else { "l" })
-        {
-            return Err(fail("Invalid chart axis positions"));
-        }
-        for axis in &chart.axes {
-            valid_log_axis(axis).map_err(fail)?;
-            for n in [&axis.minimum, &axis.maximum, &axis.major_unit]
-                .into_iter()
-                .flatten()
-            {
-                if n.parse::<f64>().ok().is_none_or(|n| !n.is_finite()) {
-                    return Err(fail("Use finite axis settings"));
-                }
-            }
-            if axis
-                .major_unit
-                .as_deref()
-                .and_then(|n| n.parse::<f64>().ok())
-                .is_some_and(|n| n <= 0.)
-            {
-                return Err(fail("Use a positive major unit"));
-            }
-            if let (Some(min), Some(max)) = (&axis.minimum, &axis.maximum) {
-                if min.parse::<f64>().unwrap() >= max.parse::<f64>().unwrap() {
-                    return Err(fail("The axis maximum must exceed its minimum"));
-                }
-            }
-        }
+    if chart
+        .axes
+        .iter()
+        .map(|a| a.id)
+        .collect::<BTreeSet<_>>()
+        .len()
+        != chart.axes.len()
+    {
+        return Err(fail("Use distinct axis identities"));
     }
     let mut bytes = format!("<c:chartSpace xmlns:c=\"{C}\" xmlns:a=\"{A}\"><c:chart>").into_bytes();
     if let Some(title) = &chart.title {
@@ -168,68 +209,82 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
         if chart.auto_title_deleted { "1" } else { "0" },
     ));
     bytes.extend(b"<c:plotArea><c:layout/>");
-    bytes.extend(format!("<c:{}>", p.kind).as_bytes());
-    if let Some(dir) = &p.bar_direction {
-        bytes.extend(fresh_number("barDir", dir));
-    }
-    if let Some(grouping) = &p.grouping {
-        bytes.extend(fresh_number("grouping", grouping));
-    }
-    if scatter {
-        bytes.extend(fresh_number("scatterStyle", "marker"));
-    }
-    bytes.extend(fresh_number(
-        "varyColors",
-        if p.vary_colors { "1" } else { "0" },
-    ));
-    for (order, s) in p.series.iter().enumerate() {
-        bytes.extend(b"<c:ser>");
-        bytes.extend(fresh_number("idx", &s.index.to_string()));
-        bytes.extend(fresh_number("order", &order.to_string()));
-        bytes.extend(data_xml("tx", s.name.as_ref()));
-        if let Some(color) = &s.fill {
-            bytes.extend(
-                format!("<c:spPr><a:solidFill><a:srgbClr val=\"{color}\"/></a:solidFill></c:spPr>")
-                    .as_bytes(),
-            );
+    let mut order = 0u32;
+    for p in &chart.plots {
+        let scatter = p.kind == "scatterChart";
+        bytes.extend(format!("<c:{}>", p.kind).as_bytes());
+        if let Some(dir) = &p.bar_direction {
+            bytes.extend(fresh_number("barDir", dir));
         }
-        for (slot, data) in [
-            (if scatter { "xVal" } else { "cat" }, s.categories.as_ref()),
-            (if scatter { "yVal" } else { "val" }, s.values.as_ref()),
-        ] {
-            bytes.extend(data_xml(slot, data));
+        if let Some(grouping) = &p.grouping {
+            bytes.extend(fresh_number("grouping", grouping));
         }
-        bytes.extend(b"</c:ser>");
-    }
-    if p.kind == "barChart" {
-        bytes.extend(fresh_number("gapWidth", "150"));
+        if scatter {
+            bytes.extend(fresh_number("scatterStyle", "marker"));
+        }
         bytes.extend(fresh_number(
-            "overlap",
-            if p.grouping.as_deref() == Some("stacked") {
-                "100"
-            } else {
-                "0"
-            },
+            "varyColors",
+            if p.vary_colors { "1" } else { "0" },
         ));
+        for s in &p.series {
+            bytes.extend(b"<c:ser>");
+            bytes.extend(fresh_number("idx", &s.index.to_string()));
+            bytes.extend(fresh_number("order", &order.to_string()));
+            order += 1;
+            bytes.extend(data_xml("tx", s.name.as_ref()));
+            if let Some(color) = &s.fill {
+                bytes.extend(
+                    format!(
+                        "<c:spPr><a:solidFill><a:srgbClr val=\"{color}\"/></a:solidFill></c:spPr>"
+                    )
+                    .as_bytes(),
+                );
+            }
+            for (slot, data) in [
+                (if scatter { "xVal" } else { "cat" }, s.categories.as_ref()),
+                (if scatter { "yVal" } else { "val" }, s.values.as_ref()),
+            ] {
+                bytes.extend(data_xml(slot, data));
+            }
+            bytes.extend(b"</c:ser>");
+        }
+        if p.kind == "barChart" {
+            bytes.extend(fresh_number("gapWidth", "150"));
+            bytes.extend(fresh_number(
+                "overlap",
+                if p.grouping.as_deref() == Some("stacked") {
+                    "100"
+                } else {
+                    "0"
+                },
+            ));
+        }
+        if p.kind == "doughnutChart" {
+            bytes.extend(fresh_number("holeSize", "50"));
+        }
+        for id in &p.axis_ids {
+            bytes.extend(fresh_number("axId", &id.to_string()));
+        }
+        bytes.extend(format!("</c:{}>", p.kind).as_bytes());
     }
-    if p.kind == "doughnutChart" {
-        bytes.extend(fresh_number("holeSize", "50"));
-    }
-    for id in &p.axis_ids {
-        bytes.extend(fresh_number("axId", &id.to_string()));
-    }
-    bytes.extend(format!("</c:{}>", p.kind).as_bytes());
     for a in &chart.axes {
         bytes.extend(format!("<c:{}>", a.kind).as_bytes());
         bytes.extend(fresh_number("axId", &a.id.to_string()));
         bytes.extend(fresh_scaling(a));
+        let secondary = combo && matches!(a.position.as_deref(), Some("t" | "r"));
+        if secondary && a.kind == "catAx" {
+            bytes.extend(fresh_number("delete", "1"));
+        }
         bytes.extend(fresh_number("axPos", a.position.as_deref().unwrap()));
-        if a.kind == "valAx" {
+        if a.kind == "valAx" && !secondary {
             bytes.extend(b"<c:majorGridlines/>");
         }
         bytes.extend(b"<c:numFmt formatCode=\"General\" sourceLinked=\"1\"/><c:majorTickMark val=\"none\"/><c:minorTickMark val=\"none\"/><c:tickLblPos val=\"nextTo\"/>");
         bytes.extend(fresh_number("crossAx", &a.cross_axis.unwrap().to_string()));
-        bytes.extend(fresh_number("crosses", "autoZero"));
+        bytes.extend(fresh_number(
+            "crosses",
+            if secondary { "max" } else { "autoZero" },
+        ));
         if a.kind == "catAx" {
             bytes.extend(b"<c:auto val=\"1\"/><c:lblAlgn val=\"ctr\"/><c:lblOffset val=\"100\"/>");
         } else {

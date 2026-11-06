@@ -12,6 +12,7 @@ pub fn controls(controller: Controller) -> AnyView {
     let charts = RwSignal::new(Vec::<wire::Chart>::new());
     let chosen = controller.tool_field(|s| &s.chart.part, |s| &mut s.chart.part);
     let title = controller.tool_field(|s| &s.chart.title, |s| &mut s.chart.title);
+    let legend_position=controller.tool_field(|s|&s.chart.legend_position,|s|&mut s.chart.legend_position);
     let legend = controller.tool_field(|s| &s.chart.legend, |s| &mut s.chart.legend);
     let plot = controller.tool_field(|s| &s.chart.plot, |s| &mut s.chart.plot);
     let series = controller.tool_field(|s| &s.chart.series, |s| &mut s.chart.series);
@@ -108,6 +109,7 @@ pub fn controls(controller: Controller) -> AnyView {
                 .unwrap_or_default(),
         );
         legend.set(chart.as_ref().is_some_and(|chart| chart.legend.is_some()));
+        legend_position.set(chart.as_ref().and_then(|c|c.legend.clone()).unwrap_or("r".into()));
     });
     let current_part=Memo::new(move |_|current.get().map(|c|c.part));
     Effect::new(move |_| {
@@ -205,6 +207,14 @@ pub fn controls(controller: Controller) -> AnyView {
             controller.dispatch(wire::Intent::ChartAxis{sheet:wire::Sheet::of(sheet),revision,part:chart.part,axis:axis.id,minimum,maximum,major_unit,reversed},move |outcome|{if outcome.accepted{controller.say("Chart axis updated",false);}});
         });
     };
+    let place_legend=move |_| {
+        let Some((generation,revision,sheet))=ready.get_untracked()else{return;};let Some(chart)=current.get_untracked()else{return;};let position=legend_position.get_untracked();
+        if chart.legend.as_deref()==Some(position.as_str()){return;}
+        controller.after_input(move || {
+            if controller.generation.get_untracked()!=generation||controller.summary.get_untracked().revision!=revision||controller.sheet.get_untracked()!=Some(sheet)||controller.editing.get_untracked().is_some(){controller.say("The workbook changed; reopen the chart controls",true);return;}
+            controller.dispatch(wire::Intent::ChartLegend{sheet:wire::Sheet::of(sheet),revision,part:chart.part,position},move |outcome|{if outcome.accepted{controller.say("Chart legend updated",false);}});
+        });
+    };
     let apply = move |_| {
         let Some((generation, revision, sheet)) = ready.get_untracked() else {
             return;
@@ -272,12 +282,13 @@ pub fn controls(controller: Controller) -> AnyView {
             <fieldset class="dc-chart-series"><legend>"Create from selection"</legend>
                 <p class="dc-note" data-dnacalc="chart-create-range">{move ||controller.areas.get().first().map(|a|controller.area_label(*a)).unwrap_or_else(||"Select a rectangular data range".into())}</p>
                 <div class="dc-command-row"><label>"Type "<select data-dnacalc="chart-create-type" prop:value=move ||{let v=create_type.get();if v.is_empty(){"column".into()}else{v}} on:change=move |ev|create_type.set(event_target_value(&ev))>
-                    <option value="column">"Column"</option><option value="bar">"Bar"</option><option value="line">"Line"</option><option value="area">"Area"</option><option value="pie">"Pie"</option><option value="doughnut">"Doughnut"</option><option value="scatter">"Scatter (XY)"</option>
+                    <option value="column">"Column"</option><option value="bar">"Bar"</option><option value="line">"Line"</option><option value="area">"Area"</option><option value="pie">"Pie"</option><option value="doughnut">"Doughnut"</option><option value="scatter">"Scatter (XY)"</option><option value="combo">"Column + line (secondary axis)"</option>
                 </select></label></div>
                 <div class="dc-command-row"><label><input data-dnacalc="chart-create-rows" type="checkbox" prop:checked=move ||create_rows.get() on:change=move |ev|create_rows.set(event_target_checked(&ev))/>"Series in rows"</label>
                     <label><input data-dnacalc="chart-create-headers" type="checkbox" prop:checked=move ||create_headers.get() on:change=move |ev|create_headers.set(event_target_checked(&ev))/>"First row contains series names (first column for rows)"</label>
                     <label><input data-dnacalc="chart-create-categories" type="checkbox" prop:checked=move ||create_categories.get() on:change=move |ev|create_categories.set(event_target_checked(&ev))/>"First column contains categories / X values (first row for rows)"</label></div>
                 <button type="button" data-dnacalc="chart-create" disabled=move ||controller.assist.readonly.get() || controller.editing.get().is_some() || controller.areas.get().len()!=1 on:click=create>"Create chart"</button>
+            <p class="dc-note">"Column + line uses the last values series as a line on the right axis; the other series are columns on the left axis."</p>
             </fieldset>
             <Show when=move ||charts.get().is_empty()><p class="dc-note">"This worksheet has no readable charts. Select data above to create one."</p></Show>
             <Show when=move ||!charts.get().is_empty()>
@@ -292,6 +303,9 @@ pub fn controls(controller: Controller) -> AnyView {
                     <label><input data-dnacalc="chart-edit-legend" type="checkbox" prop:checked=move ||legend.get() on:change=move |ev|legend.set(event_target_checked(&ev))/>"Show legend"</label>
                     <button type="button" data-dnacalc="chart-edit-apply" disabled=move ||ready.get().is_none() || controller.assist.readonly.get() || controller.editing.get().is_some() on:click=apply>"Apply"</button>
                 </div>
+                <div class="dc-command-row"><label>"Legend position "<select data-dnacalc="chart-legend-position" prop:value=move ||legend_position.get() on:change=move |ev|legend_position.set(event_target_value(&ev))>
+                    <option value="r">"Right"</option><option value="l">"Left"</option><option value="t">"Top"</option><option value="b">"Bottom"</option><option value="tr">"Top right"</option>
+                </select></label><button type="button" data-dnacalc="chart-legend-apply" disabled=move ||ready.get().is_none()||!legend.get()||controller.assist.readonly.get()||controller.editing.get().is_some() on:click=place_legend>"Place legend"</button></div>
                 <Show when=move ||current.get().is_some_and(|chart|chart.title_linked)><p class="dc-note">"Changing this title replaces its link to a cell with the text you enter."</p></Show>
                 <p class="dc-note">"Leave the title empty to hide it. Undo restores the previous chart settings."</p>
                 <Show when=move ||current_plot.get().is_some_and(|p|edit_type(&p)!="unsupported")>
