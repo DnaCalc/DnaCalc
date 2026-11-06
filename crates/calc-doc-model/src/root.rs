@@ -760,6 +760,7 @@ impl ModelRoot {
         let mut review = Vec::new();
         let mut links = Vec::new();
         let mut charts = Vec::new();
+        let mut page_setups = Vec::new();
         let mut validations = Vec::new();
         let mut panes = Vec::new();
         let mut axis_formats = Vec::new();
@@ -768,6 +769,7 @@ impl ModelRoot {
         let mut iteration: Option<crate::definitions::IterationSettings> = None;
         for (operation, op) in batch.operations.iter().enumerate() {
             match op {
+                WorkbookOp::SetPageSetup {sheet, setup} => { self.position_of(operation, *sheet)?; if setup.validate().is_err() { return Err(ApplyError::AxisEdit {operation}); } page_setups.push((*sheet,setup.clone())); }
                 WorkbookOp::SetCharts {sheet,charts:values}=>{self.position_of(operation,*sheet)?;charts.push((*sheet,values.clone()));}
                 WorkbookOp::SetStyles(value) => styles = Some(Arc::clone(value)),
                 WorkbookOp::SetTables(value)=>{for t in value{self.position_of(operation,t.sheet)?;}tables=Some(value.clone());},
@@ -939,6 +941,7 @@ impl ModelRoot {
             || !review.is_empty()
             || !links.is_empty()
             || !charts.is_empty()
+            || !page_setups.is_empty()
             || !validations.is_empty()
             || !filters.is_empty()
             || !formats.is_empty()
@@ -955,6 +958,7 @@ impl ModelRoot {
             for (sheet, filter) in filters { next = next.with_auto_filter(sheet, filter);
             }
             for (sheet, rules) in validations { next = next.with_validations(sheet, rules); }
+            for (sheet, setup) in page_setups { next = next.with_page_setup(sheet,setup); }
             for (sheet, values) in charts {next=next.with_charts(sheet,values);}
             for (sheet, values) in links {next=next.with_review_links(sheet,values);}
             for (sheet, notes) in review {

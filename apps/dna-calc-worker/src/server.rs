@@ -935,6 +935,18 @@ impl Server {
                         markers.into_iter().take(5000).collect(),
                     ))
                 }
+                Request::PageSetup(sheet) => Ok(Reply::PageSetup(crate::printing::settings(
+                    &self.book, sheet,
+                ))),
+                Request::PrintPreview { sheet, revision } => {
+                    Ok(Reply::PrintPreview(crate::printing::preview(
+                        &self.book,
+                        sheet,
+                        revision,
+                        self.geometry(sheet),
+                        self.charts(sheet),
+                    )))
+                }
                 Request::Charts(sheet) => Ok(Reply::Charts(self.charts(sheet))),
                 Request::AtlasRefusals { reason, page } => Ok(Reply::AtlasRefusals(
                     self.book
@@ -1429,6 +1441,15 @@ impl Server {
 
             Intent::ChartCreate{revision,area,kind,rows,headers,categories}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartCreate{revision,area:area.area().ok_or("Invalid chart selection")?,kind,rows,headers,categories}),
             Intent::ChartType{sheet,revision,part,plot,kind,stacked}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartType{sheet:sheet.id(),revision,part,plot,kind,stacked}),
+            Intent::PageSetup {
+                sheet,
+                revision,
+                change,
+            } => SkinIntent::Command(calc_host::WorkbookCommand::PageSetup {
+                sheet: sheet.id(),
+                revision,
+                change: crate::printing::change(change),
+            }),
             Intent::ChartLegend{sheet,revision,part,position}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartLegend{sheet:sheet.id(),revision,part,position}),
             Intent::ChartLogAxis{sheet,revision,part,axis,base}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartLogAxis{sheet:sheet.id(),revision,part,axis,base}),
             Intent::ChartAxis{sheet,revision,part,axis,minimum,maximum,major_unit,reversed}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartAxis{sheet:sheet.id(),revision,part,axis,minimum,maximum,major_unit,reversed}),
@@ -5550,5 +5571,263 @@ mod template_pending_tests {
         assert!(!server.has_pending_calculation());
         assert_eq!(server.book().shown(&server.book().cell(CellKey::new(sheet,1,4).unwrap()).unwrap()).text,"44");
         assert!(events.iter().any(|e|matches!(e,Event::Calculation{receipt:wire::CalculationEvent::Completed{outcome:wire::CalculationOutcome::Cancelled,..},..})),"{events:?}");
+    }
+}
+
+#[cfg(test)]
+mod printing_tests {
+    use super::*;
+    use dna_calc_model::printing::{PageBreak, PageSetupChange};
+    fn state(server: &mut Server, sheet: Sheet) -> dna_calc_model::printing::PageSetupState {
+        let Reply::PageSetup(Ok(s)) = server
+            .execute_current(Request::PageSetup(sheet), None)
+            .reply
+            .unwrap()
+        else {
+            panic!("Page Setup reply")
+        };
+        s
+    }
+    fn preview(
+        server: &mut Server,
+        sheet: Sheet,
+    ) -> Result<dna_calc_model::printing::PrintDocument, String> {
+        let revision = server.book.host().revision().get();
+        let Reply::PrintPreview(p) = server
+            .execute_current(Request::PrintPreview { sheet, revision }, None)
+            .reply
+            .unwrap()
+        else {
+            panic!("Print preview reply")
+        };
+        p
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn page_setup_and_print_preview_use_the_host_values_history_and_saved_document() {
+        let mut s = Server::new();
+        let sheet = Sheet::of(s.book.host().sheets()[0].id());
+        for (row, col, text) in [(1, 1, "6"), (1, 2, "=A1*3"), (60, 4, "end")] {
+            s.execute_current(
+                Request::Intent(Intent::EnterCell {
+                    at: Key(sheet.0, sheet.1, row, col),
+                    text: text.into(),
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        }
+        let old = state(&mut s, sheet);
+        let change = PageSetupChange {
+            attributes: vec![
+                (
+                    "pageSetup".into(),
+                    "orientation".into(),
+                    Some("portrait".into()),
+                ),
+                ("pageSetup".into(), "paperSize".into(), Some("1".into())),
+            ],
+            print_area: Some("A1:D60".into()),
+            print_titles: Some("1:2".into()),
+            headers: vec![("oddHeader".into(), "&CPage &P of &N".into())],
+            row_breaks: Some(vec![PageBreak {
+                id: 20,
+                min: 0,
+                max: 16383,
+                manual: true,
+                pivot: false,
+            }]),
+            ..Default::default()
+        };
+        let reply = s
+            .execute_current(
+                Request::Intent(Intent::PageSetup {
+                    sheet,
+                    revision: old.revision,
+                    change,
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        assert!(
+            matches!(
+                reply,
+                Reply::Done {
+                    outcome: Outcome { accepted: true, .. },
+                    ..
+                }
+            ),
+            "{reply:?}"
+        );
+        let settings = state(&mut s, sheet);
+        let doc = preview(&mut s, sheet).unwrap();
+        assert_eq!(doc.plan.pages.len(), 2);
+        assert_eq!(doc.plan.pages[0].body.1.2, 20);
+        assert_eq!(doc.plan.pages[1].regions[0].area.1.2, 2);
+        let b1 = doc
+            .cells
+            .iter()
+            .find(|c| c.at.2 == 1 && c.at.3 == 2)
+            .unwrap();
+        assert_eq!(b1.text, "18");
+        assert_eq!(b1.provenance, wire::Provenance::Calculated);
+        let Reply::PrintPreview(Err(stale)) = s
+            .execute_current(
+                Request::PrintPreview {
+                    sheet,
+                    revision: old.revision,
+                },
+                None,
+            )
+            .reply
+            .unwrap()
+        else {
+            panic!("Stale preview must refuse")
+        };
+        assert!(stale.contains("changed"));
+        s.execute_current(Request::Intent(Intent::Undo), None)
+            .reply
+            .unwrap();
+        assert_eq!(state(&mut s, sheet).settings, old.settings);
+        s.execute_current(Request::Intent(Intent::Redo), None)
+            .reply
+            .unwrap();
+        assert_eq!(state(&mut s, sheet).settings, settings.settings);
+        let bytes = s.execute_current(Request::Save, None).bytes.unwrap();
+        let mut reopened = Server::new();
+        reopened
+            .execute_current(
+                Request::Open {
+                    name: "Layout.xlsx".into(),
+                },
+                Some(bytes),
+            )
+            .reply
+            .unwrap();
+        let reopened_sheet = Sheet::of(reopened.book.host().sheets()[0].id());
+        let saved = state(&mut reopened, reopened_sheet);
+        assert_eq!(saved.settings, settings.settings);
+        assert_eq!(saved.print_area, settings.print_area);
+        assert_eq!(saved.print_titles, settings.print_titles);
+        assert_eq!(
+            preview(&mut reopened, reopened_sheet).unwrap().plan.pages,
+            doc.plan.pages
+        );
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn print_preview_refuses_stale_values_and_large_areas_before_expansion() {
+        let mut s = Server::new();
+        let sheet = Sheet::of(s.book.host().sheets()[0].id());
+        s.execute_current(Request::Intent(Intent::SetCalcMode { manual: true }), None)
+            .reply
+            .unwrap();
+        s.execute_current(
+            Request::Intent(Intent::EnterCell {
+                at: Key(sheet.0, sheet.1, 1, 1),
+                text: "=1+2".into(),
+            }),
+            None,
+        )
+        .reply
+        .unwrap();
+        assert!(preview(&mut s, sheet).unwrap_err().contains("uncalculated"));
+        s.execute_current(Request::Intent(Intent::Recalculate), None)
+            .reply
+            .unwrap();
+        assert_eq!(preview(&mut s, sheet).unwrap().cells[0].text, "3");
+        let revision = s.book.host().revision().get();
+        let change = PageSetupChange {
+            print_area: Some("A1:XFD1048576".into()),
+            ..Default::default()
+        };
+        s.execute_current(
+            Request::Intent(Intent::PageSetup {
+                sheet,
+                revision,
+                change,
+            }),
+            None,
+        )
+        .reply
+        .unwrap();
+        assert!(preview(&mut s, sheet).unwrap_err().contains("200 pages"));
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn print_preview_accepts_an_unsaved_added_sheet_and_waits_for_calculation() {
+        let mut s = Server::new();
+        let reply = s
+            .execute_current(
+                Request::Intent(Intent::EditSheet {
+                    sheet: None,
+                    change: wire::SheetChange::Add {
+                        name: "Print this sheet".into(),
+                    },
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        assert!(
+            matches!(
+                reply,
+                Reply::Done {
+                    outcome: Outcome { accepted: true, .. },
+                    ..
+                }
+            ),
+            "{reply:?}"
+        );
+        let sheet = Sheet::of(s.book.host().sheets().last().unwrap().id());
+        for (col, text) in [
+            (1, "42"),
+            (2, "=INDIRECT(\"A1\")+1"),
+            (3, "=B1+1"),
+            (4, "=C1+1"),
+        ] {
+            s.execute_current(
+                Request::Intent(Intent::EnterCell {
+                    at: Key(sheet.0, sheet.1, 1, col),
+                    text: text.into(),
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        }
+        let doc = preview(&mut s, sheet).unwrap();
+        assert_eq!(doc.sheet_name, "Print this sheet");
+        assert_eq!(doc.cells.iter().find(|c| c.at.3 == 4).unwrap().text, "45");
+        s.set_calculation_budget(calc_host::WorkBudget::evaluations(1));
+        s.execute_current(Request::Intent(Intent::Recalculate), None)
+            .reply
+            .unwrap();
+        assert!(s.book.has_pending_calculation());
+        assert!(
+            preview(&mut s, sheet)
+                .unwrap_err()
+                .contains("still running")
+        );
+        for _ in 0..100 {
+            if !s.has_pending_calculation() {
+                break;
+            }
+            s.advance_calculation();
+            s.take_events();
+        }
+        assert!(!s.book.has_pending_calculation());
+        assert_eq!(
+            preview(&mut s, sheet)
+                .unwrap()
+                .cells
+                .iter()
+                .find(|c| c.at.3 == 4)
+                .unwrap()
+                .text,
+            "45"
+        );
     }
 }

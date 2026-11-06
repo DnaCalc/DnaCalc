@@ -56,6 +56,7 @@ pub enum ConditionalChange {
 /// Authored workbook commands. The session is the sole dispatch route for all clients.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WorkbookCommand {
+    PageSetup {sheet:SheetId,revision:u64,change:crate::PageSetupChange},
     ChartCreate {revision:u64,area:GridArea,kind:String,rows:bool,headers:bool,categories:bool},
     ChartType {sheet:SheetId,revision:u64,part:String,plot:u32,kind:String,stacked:bool},
     ChartLegend {sheet:SheetId,revision:u64,part:String,position:String},
@@ -138,6 +139,7 @@ pub(crate) fn prepare(
     command: WorkbookCommand,
 ) -> Result<Vec<CellEdit>, String> {
     match command {
+        WorkbookCommand::PageSetup {sheet,revision,change}=>crate::page_setup::prepare(host,sheet,revision,change),
         WorkbookCommand::ChartCreate{revision,area,kind,rows,headers,categories}=>crate::chart::prepare_create(host,revision,area,&kind,rows,headers,categories),
         WorkbookCommand::ChartType{sheet,revision,part,plot,kind,stacked}=>crate::chart::prepare_type(host,sheet,revision,&part,plot,&kind,stacked),
         WorkbookCommand::ChartLegend{sheet,revision,part,position}=>crate::chart::prepare_legend(host,sheet,revision,&part,&position),

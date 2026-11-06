@@ -9,6 +9,7 @@ pub mod command;
 pub mod geometry;
 mod outbox;
 pub mod presentation;
+pub mod printing;
 pub mod projection;
 pub mod render_plan;
 mod tile_mirror;

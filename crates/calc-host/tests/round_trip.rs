@@ -16298,6 +16298,125 @@ fn dc_971p_51__shared_axis_combination_edit_and_saved_reopening(){
     let after=book.host().charts(sheet).0;assert_eq!(after[0].plots[1].series[0].values[0],Some(20.));let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());assert_eq!(reopened.host().charts(sheet).0,after);let xml=part_text(&saved,part);assert_eq!(xml.matches("<c:barChart>").count(),1);assert_eq!(xml.matches("<c:lineChart>").count(),1);assert_eq!(xml.matches("<c:catAx>").count(),1);assert_eq!(xml.matches("<c:valAx>").count(),1);
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_56__page_setup_is_authored_undoable_and_survives_xlsx() {
+    let mut book=session(&calc_host::blank_package());let sheet=book.host().sheets()[0].id();
+    let original=book.host().model().definitions().page_setup(sheet);let mut setup=original.clone();
+    for (section,name,value) in [("pageSetup","orientation","landscape"),("pageSetup","paperSize","9"),("pageSetup","scale","75"),("pageSetUpPr","fitToPage","1"),("pageSetup","fitToWidth","1"),("pageSetup","fitToHeight","0"),("pageMargins","left","0.25"),("printOptions","gridLines","1"),("printOptions","headings","1"),("headerFooter","differentFirst","1")] {setup.set(section,name,Some(value.into())).unwrap();}
+    setup.headers.insert("oddHeader".into(),calc_host::value::ExcelText::from_utf16_code_units("&LReport&CPage &P of &N".encode_utf16().collect()));setup.headers.insert("firstFooter".into(),calc_host::value::ExcelText::from_utf16_code_units("&RConfidential".encode_utf16().collect()));
+    setup.row_breaks.push(calc_doc_model::PageBreak {id:20,min:0,max:16383,manual:true,pivot:false});setup.column_breaks.push(calc_doc_model::PageBreak{id:4,min:0,max:1048575,manual:true,pivot:false});
+    let receipt=book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::PageSetup{sheet,setup:setup.clone()}]});assert!(receipt.accepted(),"{:?}",receipt.error);
+    assert_eq!(book.host().model().definitions().page_setup(sheet),setup);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().model().definitions().page_setup(sheet),original);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(book.host().model().definitions().page_setup(sheet),setup);
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let reopened_sheet=reopened.host().sheets()[0].id();assert_eq!(reopened.host().model().definitions().page_setup(reopened_sheet),setup);
+    let before=(book.host().revision(),book.history_depth());let mut bad=setup.clone();bad.sections.entry("pageSetup".into()).or_default().insert("scale".into(),"NaN".into());
+    assert!(!book.dispatch(SkinIntent::Edit{edits:vec![CellEdit::PageSetup{sheet,setup:bad}]}).accepted());assert_eq!((book.host().revision(),book.history_depth()),before);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_56__page_setup_commands_keep_scoped_print_names_atomic_and_reject_stale_edits() {
+    use calc_host::{PageSetupChange,WorkbookCommand};
+    let mut book=session(&calc_host::blank_package());let sheet=book.host().sheets()[0].id();let revision=book.host().revision().get();
+    let change=PageSetupChange {attributes:vec![("pageSetup".into(),"orientation".into(),Some("landscape".into()))],print_area:Some("A5:H80,K2:N15".into()),print_titles:Some("1:2,A:B".into()),..Default::default()};
+    let command=||SkinIntent::Command(WorkbookCommand::PageSetup{sheet,revision,change:change.clone()});
+    let receipt=book.dispatch(command());assert!(receipt.accepted(),"{:?}",receipt.error);
+    let area=calc_host::print_name(book.host(),sheet,"_xlnm.Print_Area").unwrap();assert_eq!(area,"'Sheet1'!$A$5:$H$80,'Sheet1'!$K$2:$N$15");
+    let titles=calc_host::print_name(book.host(),sheet,"_xlnm.Print_Titles").unwrap();assert_eq!(titles,"'Sheet1'!$1:$2,'Sheet1'!$A:$B");
+    let before=(book.host().revision(),book.history_depth());assert!(!book.dispatch(command()).accepted());assert_eq!((book.host().revision(),book.history_depth()),before);
+    let invalid=PageSetupChange{attributes:vec![("pageSetup".into(),"orientation".into(),Some("portrait".into()))],print_titles:Some("A1:B2".into()),..Default::default()};assert!(!book.dispatch(SkinIntent::Command(WorkbookCommand::PageSetup{sheet,revision:before.0.get(),change:invalid})).accepted());assert_eq!(book.host().model().definitions().page_setup(sheet).get("pageSetup","orientation"),Some("landscape"));
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let other=reopened.host().sheets()[0].id();assert_eq!(calc_host::print_name(reopened.host(),other,"_xlnm.Print_Area"),Some(area));assert_eq!(calc_host::print_name(reopened.host(),other,"_xlnm.Print_Titles"),Some(titles));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(calc_host::print_name(book.host(),sheet,"_xlnm.Print_Area"),None);assert_eq!(book.host().model().definitions().page_setup(sheet).get("pageSetup","orientation"),None);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_57__print_inspection_keeps_charts_and_refuses_unrendered_drawing_objects() {
+    let chart_bytes = include_bytes!("fixtures/dc_6yw/charts.xlsx");
+    let chart_book = session(chart_bytes);
+    let sheet = chart_book.host().sheets()[0].id();
+    assert!(
+        chart_book
+            .host()
+            .loaded()
+            .check_print_objects(sheet)
+            .is_ok()
+    );
+    let no_print = package_with_part_from(chart_bytes, "xl/drawings/drawing1.xml", |xml| {
+        xml.replacen(
+            "<xdr:clientData/>",
+            "<xdr:clientData fPrintsWithSheet=\"0\"/>",
+            1,
+        )
+    });
+    let book = session(&no_print);
+    let sheet = book.host().sheets()[0].id();
+    assert!(
+        book.host().loaded().check_print_objects(sheet).is_err(),
+        "A chart with an unmodelled print-object flag cannot be silently included"
+    );
+    let grouped = package_with_part_from(chart_bytes, "xl/drawings/drawing1.xml", |xml| {
+        xml.replacen("<xdr:graphicFrame", "<xdr:grpSp><xdr:nvGrpSpPr><xdr:cNvPr id=\"900\" name=\"Grouped print object\"/><xdr:cNvGrpSpPr/></xdr:nvGrpSpPr><xdr:grpSpPr/><xdr:graphicFrame",1).replacen("</xdr:graphicFrame>","</xdr:graphicFrame><xdr:sp><xdr:nvSpPr><xdr:cNvPr id=\"901\" name=\"Text box\"/><xdr:cNvSpPr/></xdr:nvSpPr><xdr:spPr/></xdr:sp></xdr:grpSp>",1)
+    });
+    let book = session(&grouped);
+    let sheet = book.host().sheets()[0].id();
+    assert!(
+        book.host()
+            .loaded()
+            .check_print_objects(sheet)
+            .unwrap_err()
+            .contains("shapes")
+    );
+    let mut notes = session(&calc_host::blank_package());
+    let ns = notes.host().sheets()[0].id();
+    assert!(
+        review_action(
+            &mut notes,
+            at(ns, "A1"),
+            calc_host::ReviewAction::Create {
+                parent: None,
+                threaded: false,
+                author: "Local".into(),
+                text: "Not printed when comments are none".into(),
+                timestamp: String::new()
+            }
+        )
+        .accepted()
+    );
+    let mut saved = Vec::new();
+    notes.save(&SavePolicy::default(), &mut saved).unwrap();
+    let notes = session(&saved);
+    let ns = notes.host().sheets()[0].id();
+    assert!(notes.host().loaded().check_print_objects(ns).is_ok());
+    let book = session(include_bytes!("fixtures/d2/structural-base.xlsx"));
+    let sheet = self::sheet(book.host(), "S");
+    assert!(
+        book.host()
+            .loaded()
+            .check_print_objects(sheet)
+            .unwrap_err()
+            .contains("text boxes")
+    );
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace(
+            "</worksheet>",
+            "<controls><control name=\"Print control\" shapeId=\"1\"/></controls></worksheet>",
+        )
+    });
+    let book = session(&bytes);
+    let sheet = book.host().sheets()[0].id();
+    assert!(
+        book.host()
+            .loaded()
+            .check_print_objects(sheet)
+            .unwrap_err()
+            .contains("controls")
+    );
+}
+
 /// A current decision must use the owner mode before any formula publication.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

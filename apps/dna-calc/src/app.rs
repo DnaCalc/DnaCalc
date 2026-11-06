@@ -116,9 +116,10 @@ pub fn app() -> impl IntoView {
     app_with_transport(std::rc::Rc::new(crate::port::BrowserTransport))
 }
 /// The shell over an injected transport. Native compositions keep the worker outside the UI.
+#[inline(never)]
 pub fn app_with_transport(
     transport: std::rc::Rc<dyn dna_calc_model::WorkbookTransport>,
-) -> impl IntoView {
+) -> AnyView {
     let controller = Controller::with_transport(transport);
     controller.install_input_queue();
     let registry = registry();
@@ -825,6 +826,7 @@ pub fn app_with_transport(
                         on:click=move |_| { controller.cancel_edit(); controller.focus_active_skin(); }>"Cancel"</button>
                 </div>
             })}
+            {crate::printing::toolbar(controller)}
             <main id="dc-workspace" class="dc-main" tabindex="-1" aria-label="Workbook workspace">{skin_view}</main>
             {crate::commands::summary(controller)}
             <div class="dc-sheet-strip"><nav class="dc-tabs" role="tablist" aria-label="Worksheets" data-dnacalc="sheet-tabs">{tabs}</nav>{sheet_controls}</div>
@@ -843,6 +845,8 @@ pub fn app_with_transport(
             {crate::review::controls(controller)}
             {crate::commands::controls(controller)}
             {crate::format::controls(controller)}
+            {crate::page_setup::controls(controller)}
+            {crate::printing::controls(controller)}
             {crate::names::controls(controller)}
             {crate::format::diagnostic(controller)}
             <dialog class="dc-replace" node_ref=replace_dialog data-dnacalc="replace-dialog" aria-labelledby="dc-replace-title" aria-describedby="dc-replace-description"
@@ -855,7 +859,7 @@ pub fn app_with_transport(
                 </div>
             </dialog>
         </div>
-    }
+    }.into_any()
 }
 
 /// The application, mounted in `parent` for the life of the page.

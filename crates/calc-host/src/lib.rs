@@ -54,6 +54,9 @@
 //! no way around these calls to change the authored revision or the engine state.
 
 mod actions;
+mod page_setup;
+pub use page_setup::{PageSetupChange, print_name, print_references};
+pub use calc_doc_model::{PageSetup, PageBreak};
 mod templates;
 mod outline;
 pub use outline::OutlineChange;

@@ -59,7 +59,7 @@ pub(super) fn expanded<'a>(
     sheets
 }
 
-pub(super) fn read_sheet(package: &Package, name: &str) -> Result<XmlPart, SaveRefusal> {
+pub(crate) fn read_sheet(package: &Package, name: &str) -> Result<XmlPart, SaveRefusal> {
     if package.part(name).is_some() {
         read_part(package, name)
     } else {
