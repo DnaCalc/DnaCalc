@@ -3357,3 +3357,41 @@ fn recorded_financial_ordering_uses_the_kernel() {
     assert!(failures.is_empty(), "{} of {rows} application checks differ:\n{}",
         failures.len(), failures.join("\n"));
 }
+
+/// Every input-selected NUMBERVALUE grammar and conversion control runs through
+/// ordinary application cells. Unmatched Excel answers retain their separate
+/// calculated pins; this test does not count those rows as Excel matches.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_numbervalue_scientific_grammar_uses_the_kernel() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let mut session = Session::new("Sheet1").unwrap();
+    let mut environment = CalcEnvironment::dates(DateSystem::System1900);
+    environment.compatibility_version = 2;
+    environment.profile = Some(format_profile(LocaleId::EnZa).with_separators(".", " ").unwrap());
+    session.set_environment(Some(environment));
+    session.set_formula_cell("J20").unwrap();
+    session.set_formula("=NUMBERVALUE(A1,B1,C1)");
+    let set = calc_verdict::WitnessSet::decode(include_bytes!(
+        "../../../crates/calc-func/tests/witnesses/NUMBERVALUE.json"
+    )).unwrap();
+    let mut rows = 0;
+    let mut failures = Vec::new();
+    for row in &set.witnesses {
+        assert_eq!(row.args.len(), 3);
+        for (cell, argument) in ["A1", "B1", "C1"].into_iter().zip(&row.args) {
+            session.set_input(cell, InputValue::text(argument.as_str().unwrap()).unwrap()).unwrap();
+        }
+        let pinned = row.calc_func.as_deref().unwrap_or(&row.expected);
+        let expected = calc_verdict::decode_result(pinned).unwrap();
+        let result = session.calculate();
+        rows += 1;
+        if result.result.as_ref() != Some(&expected) || !result.diagnostics.is_empty() {
+            failures.push(format!("{}: Excel {}, pinned {pinned}, calculated {:?}; {:?}",
+                row.id, row.expected, result.result, result.diagnostics));
+        }
+    }
+    assert_eq!(rows, 366, "every selected NUMBERVALUE service answer must run");
+    assert!(failures.is_empty(), "{} of {rows} application pins differ:\n{}",
+        failures.len(), failures.join("\n"));
+}

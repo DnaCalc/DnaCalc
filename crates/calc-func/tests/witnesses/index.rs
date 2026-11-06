@@ -199,6 +199,7 @@ pub const SETS: &[(&str, &str)] = &[
     ("NOT.json", include_str!("NOT.json")),
     ("NPER.json", include_str!("NPER.json")),
     ("NPV.json", include_str!("NPV.json")),
+    ("NUMBERVALUE.json", include_str!("NUMBERVALUE.json")),
     ("OCT2BIN.json", include_str!("OCT2BIN.json")),
     ("OCT2DEC.json", include_str!("OCT2DEC.json")),
     ("OCT2HEX.json", include_str!("OCT2HEX.json")),
