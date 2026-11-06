@@ -1002,6 +1002,15 @@ before the fix and covers short/growing/shrinking footprints at unlimited and
 one-evaluation budgets; the disabled UDF remains a counted refusal. This changes
 certificate validation, without a new claim about Excel callback or SCC counts.
 
+Target-generation storage (dc-hsa5.16, engine21): formula target versions now use
+the same generation-checked bounded slot pages as admitted requirement cuts.
+Lookup and retirement still compare the complete NodeId; a stale handle cannot
+read or remove its replacement. Replacement and rebuild retain the same monotonic
+target counter. Pinned saves share immutable pages, with writes copying at most
+four bounded pages. Small or sparse books pay page overhead; no workbook-sized
+array is allocated for a high sparse slot. This changes metadata storage, without
+changing evaluation order, result provenance or certificate/async target checks.
+
 Comparison proof (dc-d7r1, 2026-11-04): the existing verdict recognizes the exact
 primitive scalar published from a one-cell evaluated array, as `array_outcome`
 already does. The retained fn2 WRAPCOLS controls show the array in the version-2
