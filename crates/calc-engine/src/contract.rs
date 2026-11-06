@@ -456,17 +456,19 @@ use crate::state::{ArrayRole, Binding};
 use crate::{EngineState, FormulaResult};
 use std::collections::{BTreeMap, BTreeSet};
 
-/// Generation-checked, persistent requirement versions pinned by an admitted calculation.
+/// Generation-checked persistent node metadata. Requirement pins and formula target
+/// generations share the existing bounded slot pages; a reused slot is a different key.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct RequirementCut(crate::slots::SlotCut<(NodeId, RequirementState)>);
-impl RequirementCut {
-    pub fn get(&self, node: &NodeId) -> Option<&RequirementState> {
+pub(crate) struct NodeCut<T>(crate::slots::SlotCut<(NodeId, T)>);
+pub(crate) type RequirementCut = NodeCut<RequirementState>;
+impl<T: Clone> NodeCut<T> {
+    pub fn get(&self, node: &NodeId) -> Option<&T> {
         self.0
             .get(node.slot())
             .filter(|(held, _)| held == node)
             .map(|(_, value)| value)
     }
-    fn insert(&mut self, node: NodeId, value: RequirementState) {
+    fn insert(&mut self, node: NodeId, value: T) {
         self.0.insert(node.slot(), (node, value));
     }
     fn remove(&mut self, node: NodeId) {
@@ -487,7 +489,7 @@ pub(crate) struct ContractState {
     pub facts: u64,
     pub external_inputs: u64,
     pub external_versions: BTreeMap<calc_fml::UserInputKey, u64>,
-    generations: BTreeMap<NodeId, u64>,
+    generations: NodeCut<u64>,
     requirements: RequirementCut,
     pub demanded: BTreeSet<NodeId>,
     writes: Vec<(GridArea, u64)>,
@@ -516,7 +518,7 @@ impl ContractState {
             facts: 1,
             external_inputs: 0,
             external_versions: BTreeMap::new(),
-            generations: BTreeMap::new(),
+            generations: NodeCut::default(),
             requirements: RequirementCut::default(),
             demanded: BTreeSet::new(),
             writes: Vec::new(),
@@ -538,7 +540,7 @@ impl ContractState {
         self.external_inputs = previous.external_inputs;
         self.external_versions = previous.external_versions.clone();
         self.generation = previous.generation;
-        self.generations.clear();
+        self.generations = NodeCut::default();
         self.requirements = RequirementCut::default();
         self.demanded.clear();
         for node in nodes {
@@ -563,7 +565,7 @@ impl ContractState {
         self.generations.insert(node, self.generation);
     }
     pub fn retire(&mut self, node: NodeId) {
-        self.generations.remove(&node);
+        self.generations.remove(node);
         self.requirements.remove(node);
         self.demanded.remove(&node);
         self.facility_roots.remove(&node);
@@ -1387,5 +1389,62 @@ mod read_details_tests {
         };
         assert_eq!(hash(&empty), hash(&used));
         assert_ne!(empty, retained);
+    }
+}
+
+#[cfg(test)]
+mod generation_cut_tests {
+    use super::{ContractState, NodeId};
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn formula_generations_keep_full_handles_and_pinned_versions_on_slot_reuse() {
+        for slot in [0, 256, 65_536, u32::MAX] {
+            let old = NodeId::from_parts(slot, 1);
+            let new = NodeId::from_parts(slot, 2);
+            let mut state = ContractState::new();
+            state.replace(old);
+            let generation = state.generation(old);
+            let pinned = state.clone();
+            state.replace(new);
+            let replacement = state.generation(new);
+            assert!(replacement > generation);
+            assert_eq!(
+                state.generation(old), 1,
+                "a stale handle cannot read its replacement"
+            );
+            assert_eq!(pinned.generation(old), generation);
+            assert_eq!(pinned.generation(new), 1);
+            state.retire(old);
+            assert_eq!(
+                state.generation(new), replacement,
+                "stale retirement cannot erase a live target"
+            );
+            state.retire(new);
+            assert_eq!(state.generation(new), 1);
+            assert_eq!(
+                pinned.generation(old), generation,
+                "retirement leaves the pinned save intact"
+            );
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn rebuilding_identity_renews_targets_without_rewriting_an_admitted_requirement_cut() {
+        let node = NodeId::from_parts(u32::MAX, 7);
+        let mut old = ContractState::new();
+        old.replace(node);
+        old.require_at([node], 17);
+        let pinned = old.snapshot();
+        let mut rebuilt = ContractState::new();
+        rebuilt.inherit_identity(&old, vec![node]);
+        assert_eq!(rebuilt.workbook, old.workbook);
+        assert!(rebuilt.generation(node) > old.generation(node));
+        assert_eq!(rebuilt.requirement(node).required, 1);
+        rebuilt.require_at([node], 23);
+        old.retire(node);
+        assert_eq!(pinned.get(&node).unwrap().required, 17);
+        assert_eq!(rebuilt.requirement(node).required, 23);
     }
 }
