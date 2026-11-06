@@ -223,7 +223,7 @@ pub fn layout(
         let shift = if vertical == "top" { extra } else { -extra };
         out.span.push_str(&format!(";position:relative;top:{shift}px"));
     }
-    if let Some(advances) = autofit::number_advances(&cell.shown, &out.lines[0].text, zoom) {
+    if let Some(advances) = autofit::text_advances(&cell.shown, &out.lines[0].text, zoom) {
         out.lines[0].segments = Some(graphemes(&out.lines[0].text));
         out.lines[0].advances = Some(advances);
         out.lines[0].css.push_str(";display:inline-flex;align-items:baseline");

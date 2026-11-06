@@ -284,6 +284,7 @@ pub fn app_with_transport(
             // Invalid submissions still restore the address unless newer native input owns it.
             if name_box_epoch.get_value() == epoch { name_box.set(cells::address(row, col)); }
             if accepted && name_box_epoch.get_value() == epoch {
+                name_box_focused.set(false);
                 controller.focus_active_skin();
             }
         })
@@ -740,14 +741,16 @@ pub fn app_with_transport(
                     class="dc-namebox"
                     data-dnacalc="name-box"
                     aria-label="Name box"
-                    on:pointerdown=move |_| name_box_epoch.update_value(|n| *n += 1)
-                    on:beforeinput=move |_| name_box_epoch.update_value(|n| *n += 1)
-                    on:compositionstart=move |_| name_box_epoch.update_value(|n| *n += 1)
+                    on:pointerdown=move |_| { name_box_focused.set(true); name_box_epoch.update_value(|n| *n += 1); }
+                    on:beforeinput=move |_| { name_box_focused.set(true); name_box_epoch.update_value(|n| *n += 1); }
+                    on:compositionstart=move |_| { name_box_focused.set(true); name_box_epoch.update_value(|n| *n += 1); }
                     on:focus=move |_| { name_box_epoch.update_value(|n| *n += 1); name_box_focused.set(true); }
                     on:blur=move |_| { name_box_epoch.update_value(|n| *n += 1); name_box_focused.set(false); }
                     prop:value=move || name_box.get()
-                    on:input=move |ev| { name_box_epoch.update_value(|n| *n += 1); name_box.set(event_target_value(&ev)); }
+                    on:input=move |ev| { name_box_focused.set(true); name_box_epoch.update_value(|n| *n += 1); name_box.set(event_target_value(&ev)); }
                     on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                        // Firefox can deliver native input without a fresh focus event.
+                        name_box_focused.set(true);
                         name_box_epoch.update_value(|n| *n += 1);
                         if ev.key() == "Enter" {
                             ev.prevent_default();

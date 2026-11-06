@@ -1,5 +1,5 @@
 /* grid.css: moved from apps/dna-calc/src/grid/mod.rs (GRID_CSS), dc-xib. */
-.dc-grid{--dc-gridline:#e0e0e0;position:relative;overflow:auto;flex:1 1 auto;min-height:200px;outline:none;background:var(--dna-paper);border-top:1px solid var(--dna-line)}
+.dc-grid{--dc-gridline:#e0e0e0;--dc-selection:#217346;position:relative;overflow:auto;flex:1 1 auto;min-height:200px;outline:none;background:var(--dna-paper);border-top:1px solid var(--dna-line)}
 :root[data-dna-theme=cockpit-dark] .dc-grid,:root[data-dna-theme=high-contrast] .dc-grid{--dc-gridline:var(--dna-line-soft)}
 @media(prefers-color-scheme:dark){:root:not([data-dna-theme]) .dc-grid{--dc-gridline:var(--dna-line-soft)}}
 .dc-grid:focus{box-shadow:inset 0 0 0 1px var(--dna-accent)}
@@ -20,12 +20,14 @@
 .dc-head[data-column]{display:grid;grid-template-rows:minmax(0,1fr) 1.833333em;text-align:center}
 .dc-head[data-row]::before,.dc-head[data-column]::before{content:""}
 .dc-corner{position:absolute;left:0;top:0;background:var(--dna-line-soft);border-right:1px solid var(--dna-line);border-bottom:1px solid var(--dna-line);box-sizing:border-box}
-.dc-selection{position:absolute;box-sizing:border-box;background:rgb(255 179 1 / 0.16);border:1px solid var(--dna-amber);pointer-events:none}
-.dc-active{position:absolute;box-sizing:border-box;border:2px solid var(--dna-amber);pointer-events:none}
+.dc-selection{position:absolute;box-sizing:border-box;border:2px solid var(--dc-selection);pointer-events:none}
+.dc-selection-shade{position:absolute;background:rgb(0 0 0 / .12);pointer-events:none}
+.dc-active{position:absolute;box-sizing:border-box;border:2px solid var(--dc-selection);pointer-events:none}
 .dc-copy-outline,.dc-fill-preview{position:absolute;box-sizing:border-box;border:2px dashed var(--dna-accent);pointer-events:none}
 .dc-copy-outline[data-cut=true]{border-color:var(--dna-red-ink)}
 .dc-fill-preview{background:var(--dna-accent-soft)}
-.dc-fill-handle{position:absolute;width:13px;height:13px;min-width:0;min-height:0;padding:0;border:2px solid var(--dna-paper);background:var(--dna-accent);cursor:crosshair;z-index:2}
+.dc-fill-handle{position:absolute;width:13px;height:13px;min-width:0;min-height:0;padding:0;border:0;background:transparent;cursor:crosshair;z-index:2}
+.dc-fill-handle::after{content:"";position:absolute;left:2px;top:2px;width:7px;height:7px;box-sizing:border-box;border:1px solid var(--dna-paper);background:var(--dc-selection)}
 .dc-clipboard-tools{padding:var(--dna-gap-2) var(--dna-gap-4);background:var(--dna-paper-2);border-top:1px solid var(--dna-line);font-size:12px;flex:none}
 .dc-clipboard-tools summary{cursor:pointer;width:fit-content}
 .dc-command-row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--dna-gap-3);padding:var(--dna-gap-3) 0}
