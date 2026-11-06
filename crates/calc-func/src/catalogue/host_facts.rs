@@ -6,8 +6,8 @@
 //! A fact the host does not supply ([`crate::HostFacts`], [`crate::WorkbookFacts`]) refuses the
 //! call as not modelled: SHEET of the calling sheet or of a sheet name, SHEETS of the workbook,
 //! FORMULATEXT, and CELL's and INFO's facts about the file, formats, views and application
-//! ([`cell`] and [`info`] list them, dc-uar). GETPIVOTDATA needs a pivot table, which no workbook
-//! model holds, and is refused (dc-8wp).
+//! ([`cell`] and [`info`] list them, dc-uar). GETPIVOTDATA asks the host for a visible output
+//! cell and reads it through the same cell reader as other functions (dc-8wp).
 //!
 //! FIELDVALUE reads a field of a linked data type (a stock, a geography). No value the model holds
 //! is one: calc-doc's reader leaves a workbook cell holding a linked data type unloaded, so a
@@ -442,6 +442,22 @@ fn transpose(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Ste
         .ok_or_else(|| site.not_modelled(None))
 }
 
+// Excel documents visible pivot cells, caption or base field names and #REF for absent data:
+// https://support.microsoft.com/en-us/excel/functions/getpivotdata-function
+fn getpivotdata(site:&Site<'_>,a:&[CalcValue],sv:&mut EvalServices<'_>)->Step<CalcValue>{
+    if a.len()%2!=0{return Err(Exit::Error(WorksheetErrorCode::Value));}
+    let name=String::from_utf16(text_arg(site,a,0)?.utf16_code_units()).map_err(|_|site.not_modelled(Some(0)))?;
+    let reference=match a[1].core_ref(){CoreRef::Reference(r)=>r,CoreRef::Error(e)=>return Err(Exit::Error(e)),_=>return Err(Exit::Error(WorksheetErrorCode::Ref))};
+    let mut filters=Vec::new();
+    for index in (2..a.len()).step_by(2){let field=String::from_utf16(text_arg(site,a,index)?.utf16_code_units()).map_err(|_|site.not_modelled(Some(index)))?;filters.push((field,a[index+1].clone()));}
+    let lookup=sv.host().ok_or_else(||site.not_modelled(None))?.pivot_data_cell(&name,reference.areas(),&filters);
+    match lookup {
+        crate::PivotLookup::Cell(at)=>cell_value(site,at,1,sv),
+        crate::PivotLookup::Error(e)=>Err(Exit::Error(e)),
+        crate::PivotLookup::NotModelled=>Err(Exit::Fault(crate::FunctionFault::ReferenceUnreadable{id:site.id(),index:1})),
+    }
+}
+
 ported_family! {
     code: CODE;
     1 cell_fn "CELL" (1, 2) [V "info_type", F "reference"] |s, a, sv| { cell(s, a, sv) }
@@ -451,7 +467,7 @@ ported_family! {
     5 formulatext_fn "FORMULATEXT" (1, 1) [F "reference"] |s, a, sv| { formulatext(s, a, sv) }
     6 address_entry "ADDRESS" (2, 5) [V "row_num", V "column_num", V "abs_num", V "a1", V "sheet_text"] |s, a, sv| { address_fn(s, a) }
     7 getpivotdata_fn "GETPIVOTDATA" (2, 254) [V "data_field", F "pivot_table", V "field1", V "item1"] |s, a, sv| {
-        Err(s.not_modelled(None))
+        getpivotdata(s,a,sv)
     }
     8 transpose_fn "TRANSPOSE" (1, 1) [R "array"] |s, a, sv| { transpose(s, a, sv) }
     9 fieldvalue_fn "FIELDVALUE" (2, 2) [V "value", V "field_name"] |s, a, sv| { fieldvalue(s, a) }

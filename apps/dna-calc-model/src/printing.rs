@@ -265,30 +265,66 @@ pub fn paginate(
     let hw = if headings { m.header_w } else { 0. };
     let hh = if headings { m.header_h } else { 0. };
     let fit = settings.flag("pageSetUpPr", "fitToPage", false);
-    let breaks = |rows: bool| -> Result<BTreeSet<u32>, String> {
-        let list = if rows {
+    // UI27 q4-manual: Excel 16.0.20527 stores row max=15 and column max=119
+    // for A1:P120. A break spanning the complete printed area is not a partial cut.
+    let breaks = |rows: bool, area: Area| -> Result<BTreeSet<u32>, String> {
+        if fit {
+            return Ok(BTreeSet::new());
+        }
+        let area = area.area().ok_or_else(|| fail("Invalid print area"))?;
+        let (first, last, mut cross_first, mut cross_last, title) = if rows {
+            (
+                area.first().row(),
+                area.last().row(),
+                area.first().column() - 1,
+                area.last().column() - 1,
+                title_columns,
+            )
+        } else {
+            (
+                area.first().column(),
+                area.last().column(),
+                area.first().row() - 1,
+                area.last().row() - 1,
+                title_rows,
+            )
+        };
+        if let Some((first, last)) = title {
+            let first = first
+                .checked_sub(1)
+                .ok_or_else(|| fail("Invalid print-title band"))?;
+            let last = last
+                .checked_sub(1)
+                .ok_or_else(|| fail("Invalid print-title band"))?;
+            cross_first = cross_first.min(first);
+            cross_last = cross_last.max(last);
+        }
+        let mut out = BTreeSet::new();
+        for b in if rows {
             &settings.row_breaks
         } else {
             &settings.column_breaks
-        };
-        let max = if rows { 16_383 } else { 1_048_575 };
-        if !fit
-            && list
-                .iter()
-                .any(|b| b.manual && (b.min != 0 || b.max != max || b.pivot))
-        {
-            return Err(fail(
-                "Partial-span or pivot page breaks need Excel pagination measurements",
-            ));
+        } {
+            if !b.manual {
+                continue;
+            }
+            if b.pivot || b.min > b.max {
+                return Err(fail(
+                    "Pivot or invalid page-break spans need Excel pagination measurements",
+                ));
+            }
+            if b.id < first || b.id > last || b.max < cross_first || b.min > cross_last {
+                continue;
+            }
+            if b.min > cross_first || b.max < cross_last {
+                return Err(fail(
+                    "A page break crossing only part of a print area needs Excel pagination measurements",
+                ));
+            }
+            out.insert(b.id);
         }
-        Ok(if fit {
-            BTreeSet::new()
-        } else {
-            list.iter().filter(|b| b.manual).map(|b| b.id).collect()
-        })
+        Ok(out)
     };
-    let rb = breaks(true)?;
-    let cb = breaks(false)?;
     let dimensions = |area: Area, scale: f64| -> Result<(Vec<Slice>, Vec<Slice>), String> {
         let a = area.area().ok_or_else(|| fail("Invalid print area"))?;
         if title_rows.is_some_and(|(r, _)| r > a.first().row())
@@ -298,6 +334,8 @@ pub fn paginate(
                 "Title bands after the start of the print area need Excel pagination measurements",
             ));
         }
+        let rb = breaks(true, area)?;
+        let cb = breaks(false, area)?;
         Ok((
             slices(
                 &m,
@@ -320,6 +358,8 @@ pub fn paginate(
         ))
     };
     let scale = if fit {
+        let rb = BTreeSet::new();
+        let cb = BTreeSet::new();
         let wide = settings.number("pageSetup", "fitToWidth", 1.);
         let tall = settings.number("pageSetup", "fitToHeight", 1.);
         if wide > MAX_PRINT_PAGES as f64 || tall > MAX_PRINT_PAGES as f64 {
@@ -696,6 +736,55 @@ mod tests {
         assert_eq!(q.pages[1].body.0.2, 1);
         assert_eq!(q.pages[1].body.0.3, 5);
         assert_eq!(q.pages[3].body.0.2, 21);
+    }
+    // Measurements: UI27 q4-manual saved.xlsx SHA256
+    // 16ca94926eb5f82ac4cdb73435eafec942cabcc55a827e4751b983746dcdff38.
+    // Automatic printer-dependent boundaries are not asserted by these manual-cut checks.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn measured_print_area_spans_apply_per_area_without_becoming_global_breaks() {
+        let mut s = setup();
+        s.row_breaks.push(PageBreak {
+            id: 20,
+            min: 0,
+            max: 15,
+            manual: true,
+            pivot: false,
+        });
+        s.column_breaks.push(PageBreak {
+            id: 4,
+            min: 0,
+            max: 119,
+            manual: true,
+            pivot: false,
+        });
+        let p = paginate(&s, &Geometry::default(), &[area(1, 1, 120, 16)], None, None).unwrap();
+        assert_eq!(p.pages[0].body, area(1, 1, 20, 4));
+        assert!(p.pages[0].manual_bottom && p.pages[0].manual_right);
+        s.row_breaks[0].max = 7;
+        s.column_breaks[0].max = 1048575;
+        let p = paginate(
+            &s,
+            &Geometry::default(),
+            &[area(5, 1, 80, 8), area(2, 11, 15, 14)],
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(p.pages[0].body, area(5, 1, 20, 4));
+        assert_eq!(p.pages.last().unwrap().body, area(2, 11, 15, 14));
+        assert!(!p.pages.last().unwrap().manual_bottom && !p.pages.last().unwrap().manual_right);
+        assert!(
+            paginate(&s, &Geometry::default(), &[area(1, 1, 120, 16)], None, None)
+                .unwrap_err()
+                .contains("part of a print area")
+        );
+        set(&mut s, "pageSetUpPr", "fitToPage", "1");
+        set(&mut s, "pageSetup", "fitToWidth", "1");
+        set(&mut s, "pageSetup", "fitToHeight", "1");
+        let p = paginate(&s, &Geometry::default(), &[area(1, 1, 120, 16)], None, None).unwrap();
+        assert_eq!(p.pages.len(), 1);
+        assert!(!p.pages[0].manual_bottom && !p.pages[0].manual_right);
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
