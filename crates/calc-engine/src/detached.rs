@@ -45,6 +45,7 @@ pub struct DetachedEvaluationContext<'a> {
     state: &'a EngineState,
     inputs: &'a ModelRoot,
     policy: DetachedReadPolicy,
+    numeric: NumericMode,
     stale: Vec<CellKey>,
     all_values_current: bool,
     progress: Progress,
@@ -59,16 +60,43 @@ impl<'a> DetachedEvaluationContext<'a> {
         inputs: &'a ModelRoot,
         policy: DetachedReadPolicy,
     ) -> Result<Self, NotModeled> {
+        Self::new_with_numeric_mode(
+            state,
+            inputs,
+            policy,
+            state.published_mode.as_ref().unwrap_or(&NumericMode::Fast),
+        )
+    }
+
+    /// An owner-selected policy for the whole batch, including before publication.
+    /// Current consumers cannot read formula values published under another mode;
+    /// unused branches and literal inputs remain available without producer work.
+    pub fn new_with_numeric_mode(
+        state: &'a EngineState,
+        inputs: &'a ModelRoot,
+        policy: DetachedReadPolicy,
+        numeric: &NumericMode,
+    ) -> Result<Self, NotModeled> {
         if state.revision() != inputs.revision() {
             return Err(NotModeled::Evaluation(EvalFault::NotModelled {
                 construct: "a diagnostic snapshot from another authored revision",
                 owner: "dc-hsa5.6",
             }));
         }
-        let stale = match policy {
+        let mut stale = match policy {
             DetachedReadPolicy::CurrentValues => state.stale(inputs).expect("revision checked"),
             DetachedReadPolicy::PublishedValues => Vec::new(),
         };
+        if policy == DetachedReadPolicy::CurrentValues
+            && state
+                .published_mode
+                .as_ref()
+                .is_some_and(|published| published != numeric)
+        {
+            stale.extend(state.nodes().map(|node| node.anchor()));
+            stale.sort_unstable();
+            stale.dedup();
+        }
         let mut progress = Progress::new(state.nodes.len());
         for &at in &stale {
             if let Some(node) = state.node_at(at) {
@@ -101,6 +129,7 @@ impl<'a> DetachedEvaluationContext<'a> {
             state,
             inputs,
             policy,
+            numeric: numeric.clone(),
             stale,
             all_values_current,
             progress,
@@ -118,6 +147,17 @@ impl<'a> DetachedEvaluationContext<'a> {
     /// read certificate. Refusals, file/held/qualified caches and stale results fail.
     pub fn all_formula_values_current(&self) -> Option<bool> {
         (self.policy == DetachedReadPolicy::CurrentValues).then_some(self.all_values_current)
+    }
+
+    /// Bind against this snapshot's actual callable metadata without granting a runtime.
+    /// Evaluation still applies the diagnostic read policy to any reached user call.
+    pub fn compile(
+        &self,
+        text: &str,
+        origin: CellKey,
+        form: FormulaForm,
+    ) -> Result<DetachedFormula, NotModeled> {
+        DetachedFormula::compile_in(self.inputs, text, origin, form, Some(&self.state.callables))
     }
 
     fn view(&self) -> RecalcView<'_> {
@@ -213,7 +253,7 @@ impl DetachedFormula {
     /// Compiles `text` (A1 notation, without `=`) as a legacy formula at `origin`, its sheets and
     /// names bound through `inputs`.
     pub fn compile(inputs: &ModelRoot, text: &str, origin: CellKey) -> Result<Self, NotModeled> {
-        Self::compile_in(inputs, text, origin, FormulaForm::Legacy)
+        Self::compile_in(inputs, text, origin, FormulaForm::Legacy, None)
     }
 
     /// [`DetachedFormula::compile`] in the dynamic-array form, where a range of one area is the
@@ -224,7 +264,7 @@ impl DetachedFormula {
         text: &str,
         origin: CellKey,
     ) -> Result<Self, NotModeled> {
-        Self::compile_in(inputs, text, origin, FormulaForm::Dynamic)
+        Self::compile_in(inputs, text, origin, FormulaForm::Dynamic, None)
     }
 
     fn compile_in(
@@ -232,17 +272,31 @@ impl DetachedFormula {
         text: &str,
         origin: CellKey,
         form: FormulaForm,
+        functions: Option<&calc_fml::CallableBindings>,
     ) -> Result<Self, NotModeled> {
         let source = format!("={text}");
         let mut plans = PlanCache::new();
-        let plan = compile_loaded_with(
-            &parse_formula(&source),
-            ReferenceNotation::A1,
-            FormulaAnchor::new(origin),
-            &SnapshotCatalog::new(inputs),
-            &mut plans,
-            form,
-        )
+        let tree = parse_formula(&source);
+        let catalog = SnapshotCatalog::new(inputs);
+        let plan = match functions {
+            Some(functions) => calc_fml::compile_loaded_with_bindings(
+                &tree,
+                ReferenceNotation::A1,
+                FormulaAnchor::new(origin),
+                &catalog,
+                &mut plans,
+                form,
+                functions,
+            ),
+            None => compile_loaded_with(
+                &tree,
+                ReferenceNotation::A1,
+                FormulaAnchor::new(origin),
+                &catalog,
+                &mut plans,
+                form,
+            ),
+        }
         .map_err(NotModeled::Compile)?;
         Ok(DetachedFormula {
             plan,
@@ -276,12 +330,7 @@ impl DetachedFormula {
         context: &DetachedEvaluationContext<'_>,
         at: CellKey,
     ) -> Result<CalcValue, NotModeled> {
-        let mode = context
-            .state
-            .published_mode
-            .clone()
-            .unwrap_or(NumericMode::Fast);
-        self.evaluate_recording(context, at, &mode, None, None)
+        self.evaluate_recording(context, at, None, None)
     }
 
     /// Execute through the same diagnostic reader and evaluator while retaining bounded
@@ -298,56 +347,59 @@ impl DetachedFormula {
         let mut effects = calc_fml::UserFunctionEffects::default();
         let mut root = None;
         let mut random_draws = crate::RandomDrawEvidence::default();
-        let outcome =
-            DetachedEvaluationContext::new(state, inputs, DetachedReadPolicy::CurrentValues)
-                .and_then(|context| {
-                    self.validate_context(&context, at)?;
-                    let mut random = self.selected_name.as_ref().map(|definition| {
-                        use crate::contract::{
-                            CalcCommandId, CalcPassId, InvocationId, NameEvaluationLocus,
-                            PassReason, ReevaluationReason,
-                        };
-                        let workbook = state.workbook_instance();
-                        let sequence = state.allocate_tick();
-                        root = Some(InvocationId {
-                            pass: CalcPassId {
-                                command: CalcCommandId {
-                                    domain_incarnation: workbook.document,
-                                    sequence,
-                                },
-                                ordinal: 0,
-                                reason: PassReason::Initial,
-                            },
-                            workbook,
-                            locus: NameEvaluationLocus {
-                                definition: definition.clone(),
-                                caller: at,
-                            },
-                            evaluation: 0,
-                            call_site: 0,
-                            occurrence: Vec::new(),
-                            reason: ReevaluationReason::NewCommandDemand,
-                        });
-                        crate::random::RecordedRandom::new(crate::random::RandomStream::new(
-                            state.random_seed,
+        let outcome = DetachedEvaluationContext::new_with_numeric_mode(
+            state,
+            inputs,
+            DetachedReadPolicy::CurrentValues,
+            numeric,
+        )
+        .and_then(|context| {
+            self.validate_context(&context, at)?;
+            let mut random = self.selected_name.as_ref().map(|definition| {
+                use crate::contract::{
+                    CalcCommandId, CalcPassId, InvocationId, NameEvaluationLocus, PassReason,
+                    ReevaluationReason,
+                };
+                let workbook = state.workbook_instance();
+                let sequence = state.allocate_tick();
+                root = Some(InvocationId {
+                    pass: CalcPassId {
+                        command: CalcCommandId {
+                            domain_incarnation: workbook.document,
                             sequence,
-                            at,
-                        ))
-                    });
-                    let outcome = self.evaluate_recording(
-                        &context,
-                        at,
-                        numeric,
-                        Some(&mut effects),
-                        random
-                            .as_mut()
-                            .map(|r| r as &mut dyn calc_fml::RandomSource),
-                    );
-                    if let Some(random) = random {
-                        random_draws = random.into_evidence();
-                    }
-                    outcome
+                        },
+                        ordinal: 0,
+                        reason: PassReason::Initial,
+                    },
+                    workbook,
+                    locus: NameEvaluationLocus {
+                        definition: definition.clone(),
+                        caller: at,
+                    },
+                    evaluation: 0,
+                    call_site: 0,
+                    occurrence: Vec::new(),
+                    reason: ReevaluationReason::NewCommandDemand,
                 });
+                crate::random::RecordedRandom::new(crate::random::RandomStream::new(
+                    state.random_seed,
+                    sequence,
+                    at,
+                ))
+            });
+            let outcome = self.evaluate_recording(
+                &context,
+                at,
+                Some(&mut effects),
+                random
+                    .as_mut()
+                    .map(|r| r as &mut dyn calc_fml::RandomSource),
+            );
+            if let Some(random) = random {
+                random_draws = random.into_evidence();
+            }
+            outcome
+        });
         DetachedNameEvaluation {
             outcome,
             numeric: numeric.clone(),
@@ -372,11 +424,16 @@ impl DetachedFormula {
             || (context.policy == DetachedReadPolicy::CurrentValues
                 && (inputs.revision() != self.compiled_inputs.revision()
                     || at.sheet() != self.caller_sheet
-                    || !Arc::ptr_eq(inputs.definitions(), self.compiled_inputs.definitions())))
+                    || !Arc::ptr_eq(inputs.definitions(), self.compiled_inputs.definitions())
+                    || self
+                        .plan
+                        .callable_bindings()
+                        .iter()
+                        .any(|proof| !context.state.callables.validates(proof))))
             || !crate::contract::name_bindings_valid(inputs, self.plan.name_bindings())
         {
             return Err(NotModeled::Evaluation(EvalFault::NotModelled {
-                construct: "a detached formula with expired model, caller or name bindings",
+                construct: "a detached formula with expired model, caller, name or callable bindings",
                 owner: "dc-hsa5.6",
             }));
         }
@@ -387,7 +444,6 @@ impl DetachedFormula {
         &self,
         context: &DetachedEvaluationContext<'_>,
         at: CellKey,
-        numeric: &NumericMode,
         effects: Option<&mut calc_fml::UserFunctionEffects>,
         random: Option<&mut dyn calc_fml::RandomSource>,
     ) -> Result<CalcValue, NotModeled> {
@@ -402,7 +458,7 @@ impl DetachedFormula {
         let mut scratch = EvalScratch::new();
         let outcome = {
             let mut services = FormulaEvaluationContext::new(
-                numeric,
+                &context.numeric,
                 &mut reader,
                 state.environment(),
                 Some(&mut host),
