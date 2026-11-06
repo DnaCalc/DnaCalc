@@ -1,12 +1,14 @@
 {
   "format": "dnacalc-witness-set/1",
   "function": "PMT",
-  "selection": "cargo xtask witness pin: of 291719 distinct readings in 4 bank files of OxFunc-Evidence, the first 4 rows of each bank and an evenly spaced sample of the rest, the budget of 120 rows shared by bank size; calc_func is the result calc-func calculated at pinning, on rows it did not match",
+  "selection": "cargo xtask witness pin: of 291719 distinct readings in 4 bank files of OxFunc-Evidence, the first 4 rows of each bank and an evenly spaced sample of the rest, the budget of 120 rows shared by bank size; calc_func is the result calc-func calculated at pinning, on rows it did not match; fn11 retains all seven original plain-text-rate inputs and answers, plus21 separately qualified text/numeric controls; all seven now match after incoming positive beginning-payment arithmetic46db6058",
   "readings": [
     {"bitness":null,"cpu":"AMD Ryzen 7 4800H with Radeon Graphics","excel_build":"20131","id":"r0","platform":"Windows","source":"OxFunc-Evidence cache/oracle/build-20131/PMT.jsonl"},
     {"bitness":"64-bit","cpu":null,"excel_build":"20228","id":"r1","platform":"Windows","source":"OxFunc-Evidence work/w109/G6-cumprinc/answers-pmt-cumprinc-companion-20260809.json"},
     {"bitness":null,"cpu":null,"excel_build":null,"id":"r2","platform":"Windows","source":"OxFunc-Evidence work/w109/G6-solvers/answers-ipmt-pmt.json"},
-    {"bitness":"64-bit","cpu":null,"excel_build":"20228","id":"r3","platform":"Windows","source":"OxFunc-Evidence work/w109/G6-solvers/answers-pmt-tf-metamer-heldout-20260809.json"}
+    {"bitness":"64-bit","cpu":null,"excel_build":"20228","id":"r3","platform":"Windows","source":"OxFunc-Evidence work/w109/G6-solvers/answers-pmt-tf-metamer-heldout-20260809.json"},
+    {"bitness":"64-bit","cpu":"AMD Ryzen 7 4800H with Radeon Graphics         ","excel_build":"20527","invocation":{"compatibility_version":"2","date_system":"1900","decimal_separator":".","input_transport":"cell_value2_bulk","thousands_separator":" "},"platform":"Windows","id":"fn11-original-pmt","source":"OxFunc-Evidence readings/excel-20527/PMT.json"},
+    {"id":"fn11-pmt-controls","source":"fn11 public-interface capture bfa2bb665b8d44ffa86ec67b4e5b000d; exact reply retained in fn4_questions/DELTA.reading.json","excel_build":"20527","platform":"Windows","bitness":"64-bit","cpu":null,"invocation":{"input_transport":"cell_value2_bulk","compatibility_version":"2"}}
   ],
   "witnesses": [
     {"args":["0x3e70000000000000","0x3ff0000000000000","0x3ff0000000000000","0x0000000000000000","0x0000000000000000"],"expected_bits":"0xbff0000010000000","id":"oc260329","reading":"r0"},
@@ -128,6 +130,34 @@
     {"args":["0xbf9bf965261c71bb","0x4030000000000000","0x401c000000000000","0x0000000000000000","0x0000000000000000"],"expected_bits":"0xbfd5f26aaac0b984","id":"oc79664","reading":"r0"},
     {"args":["0x3f564f23b0123bb2","0x405fc00000000000","0x406b9446d200b345","0x0000000000000000","0x0000000000000000"],"expected_bits":"0xbffe49b178993c71","id":"cumx-c03-t0-v04-pmt","reading":"r1"},
     {"args":["0x3F91111111111111","0x4076800000000000","0x4108CA0000000000","0x0000000000000000","0x0000000000000000"],"expected_bits":"0xc0aa82bdfc6eda91","id":"p0","reading":"r2"},
-    {"args":["0x3d70000000000000","0x4062febe60000000","0x409ee853a93d681f","0x0000000000000000","0x0000000000000000"],"expected_bits":"0xc02a08bbc7703f20","id":"pmt-tf-ho-0395-t0","reading":"r3"}
+    {"args":["0x3d70000000000000","0x4062febe60000000","0x409ee853a93d681f","0x0000000000000000","0x0000000000000000"],"expected_bits":"0xc02a08bbc7703f20","id":"pmt-tf-ho-0395-t0","reading":"r3"},
+    {"id":"r10-pmt-60","args":["0.0013616417420825142","0x405fc00000000000","0x407b9446d200b345","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0xc00e3f265c984e85","reading":"fn11-original-pmt"},
+    {"id":"r10-pmt-63","args":["0.0043595306416848566","0x4050c00000000000","0x40ea4c4d5274941a","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0xc08ce55c75fb2edb","reading":"fn11-original-pmt"},
+    {"id":"r10-pmt-56","args":["0.0044557502625213567","0x4018000000000000","0x3ff0000000000000","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0xbfc59236a4c29f4a","reading":"fn11-original-pmt"},
+    {"id":"r10-pmt-59","args":["0.044999999999999998","0x3ff0000000000000","0x408f400000000000","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0xc08f400000000000","reading":"fn11-original-pmt"},
+    {"id":"r10-pmt-62","args":["0.16571949292308774","0x3ff0000000000000","0x3fcf3897970e9902","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0xbfcf3897970e9902","reading":"fn11-original-pmt"},
+    {"id":"r10-pmt-58","args":["2.9516769794057447e-05","0x4040000000000000","0x3ff0000000000000","0xc08f400000000000","0x3ff0000000000000"],"expected_bits":"0x403f3419d05241b9","reading":"fn11-original-pmt"},
+    {"id":"r10-pmt-61","args":["9.3731542686325735e-06","0x4000000000000000","0x4048a864ef0098a0","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0xc038a86c81c76b77","reading":"fn11-original-pmt"},
+    {"id":"fn11-plain-PMT-000","args":["0.0013616417420825142","0x405fc00000000000","0x407b9446d200b345","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0xc00e3f265c984e85","reading":"fn11-pmt-controls"},
+    {"id":"fn11-plain-PMT-001","args":["0x3f564f23b0123b9f","0x405fc00000000000","0x407b9446d200b345","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0xc00e3f265c984e85","reading":"fn11-pmt-controls"},
+    {"id":"fn11-plain-PMT-002","args":["0x3f564f23b0123bb2","0x405fc00000000000","0x407b9446d200b345","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0xc00e3f265c984e88","reading":"fn11-pmt-controls"},
+    {"id":"fn11-plain-PMT-003","args":["0.0043595306416848566","0x4050c00000000000","0x40ea4c4d5274941a","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0xc08ce55c75fb2edb","reading":"fn11-pmt-controls"},
+    {"id":"fn11-plain-PMT-004","args":["0x3f71db4c9882da26","0x4050c00000000000","0x40ea4c4d5274941a","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0xc08ce55c75fb2edb","reading":"fn11-pmt-controls"},
+    {"id":"fn11-plain-PMT-005","args":["0x3f71db4c9882da2e","0x4050c00000000000","0x40ea4c4d5274941a","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0xc08ce55c75fb2ede","reading":"fn11-pmt-controls"},
+    {"id":"fn11-plain-PMT-006","args":["0.0044557502625213567","0x4018000000000000","0x3ff0000000000000","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0xbfc59236a4c29f4a","reading":"fn11-pmt-controls"},
+    {"id":"fn11-plain-PMT-007","args":["0x3f7240315a81bb24","0x4018000000000000","0x3ff0000000000000","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0xbfc59236a4c29f4a","reading":"fn11-pmt-controls"},
+    {"id":"fn11-plain-PMT-008","args":["0x3f7240315a81bb2c","0x4018000000000000","0x3ff0000000000000","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0xbfc59236a4c29f4a","reading":"fn11-pmt-controls"},
+    {"id":"fn11-plain-PMT-009","args":["0.044999999999999998","0x3ff0000000000000","0x408f400000000000","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0xc08f400000000000","reading":"fn11-pmt-controls"},
+    {"id":"fn11-plain-PMT-010","args":["0x3fa70a3d70a3d6fc","0x3ff0000000000000","0x408f400000000000","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0xc08f400000000000","reading":"fn11-pmt-controls"},
+    {"id":"fn11-plain-PMT-011","args":["0x3fa70a3d70a3d70a","0x3ff0000000000000","0x408f400000000000","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0xc08f3fffffffffff","reading":"fn11-pmt-controls"},
+    {"id":"fn11-plain-PMT-012","args":["0.16571949292308774","0x3ff0000000000000","0x3fcf3897970e9902","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0xbfcf3897970e9902","reading":"fn11-pmt-controls"},
+    {"id":"fn11-plain-PMT-013","args":["0x3fc5364bdd3509d1","0x3ff0000000000000","0x3fcf3897970e9902","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0xbfcf3897970e9902","reading":"fn11-pmt-controls"},
+    {"id":"fn11-plain-PMT-014","args":["0x3fc5364bdd3509ec","0x3ff0000000000000","0x3fcf3897970e9902","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0xbfcf3897970e9906","reading":"fn11-pmt-controls"},
+    {"id":"fn11-plain-PMT-015","args":["2.9516769794057447e-05","0x4040000000000000","0x3ff0000000000000","0xc08f400000000000","0x3ff0000000000000"],"expected_bits":"0x403f3419d05241b9","reading":"fn11-pmt-controls"},
+    {"id":"fn11-plain-PMT-016","args":["0x3efef358f9a5b297","0x4040000000000000","0x3ff0000000000000","0xc08f400000000000","0x3ff0000000000000"],"expected_bits":"0x403f3419d05241b9","reading":"fn11-pmt-controls"},
+    {"id":"fn11-plain-PMT-017","args":["0x3efef358f9a5b2a5","0x4040000000000000","0x3ff0000000000000","0xc08f400000000000","0x3ff0000000000000"],"expected_bits":"0x403f3419d05241b8","reading":"fn11-pmt-controls"},
+    {"id":"fn11-plain-PMT-018","args":["9.3731542686325735e-06","0x4000000000000000","0x4048a864ef0098a0","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0xc038a86c81c76b77","reading":"fn11-pmt-controls"},
+    {"id":"fn11-plain-PMT-019","args":["0x3ee3a82c836effe8","0x4000000000000000","0x4048a864ef0098a0","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0xc038a86c81c76b77","reading":"fn11-pmt-controls"},
+    {"id":"fn11-plain-PMT-020","args":["0x3ee3a82c836effea","0x4000000000000000","0x4048a864ef0098a0","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0xc038a86c81c76b77","reading":"fn11-pmt-controls"}
   ]
 }

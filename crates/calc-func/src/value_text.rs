@@ -48,6 +48,10 @@
 use crate::locale::{DateComponentOrder, DateSystem, FormatProfile, LocaleId};
 use crate::ported::date_kernels::{OFFSET_1904, days_in_month, ymd_1900};
 
+/// Maximum text length in the measured scalar numeric readers.
+/// Fn8 VALUE/NUMBERVALUE and fn11 DELTA/EXP/PMT measure the same boundary.
+pub(crate) const MAX_READER_TEXT: usize = 255;
+
 /// What text reads as.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Reading {
@@ -339,7 +343,7 @@ fn number(text: &str, profile: &FormatProfile) -> Result<Option<f64>, Unread> {
 /// The binary64 nearest `digits` (ASCII decimal digits) times 10^scale, its significant digits
 /// cut to 15; `None` when the value's decimal point lies outside -308..=308, as Excel's number
 /// text reading rejects it.
-fn decimal(digits: &str, scale: i64) -> Option<f64> {
+pub(crate) fn decimal(digits: &str, scale: i64) -> Option<f64> {
     let trimmed = digits.trim_start_matches('0');
     if trimmed.is_empty() {
         return Some(0.0);
