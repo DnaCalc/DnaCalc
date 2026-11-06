@@ -12,61 +12,8 @@ use std::{
 };
 const R: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PivotIssue {
-    pub part: String,
-    pub detail: String,
-    pub owner: &'static str,
-}
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct PivotCaches {
-    pub caches: BTreeMap<u32, Arc<PivotCache>>,
-    pub issues: Vec<PivotIssue>,
-}
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PivotCache {
-    pub id: u32,
-    pub part: String,
-    pub records_part: Option<String>,
-    pub record_count: Option<u64>,
-    pub source_type: String,
-    pub source_sheet: Option<String>,
-    pub source_range: Option<String>,
-    pub source_name: Option<String>,
-    pub fields: Vec<PivotCacheField>,
-    pub attributes: BTreeMap<String, String>,
-}
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PivotCacheField {
-    pub name: String,
-    pub shared_items: Option<u32>,
-    pub items: Vec<PivotItem>,
-    pub attributes: BTreeMap<String, String>,
-}
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct SheetPivots {
-    pub tables: Vec<PivotTable>,
-    pub issues: Vec<PivotIssue>,
-}
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PivotTable {
-    pub name: String,
-    pub part: String,
-    pub cache_id: u32,
-    pub area: GridArea,
-    pub row_fields: Vec<i32>,
-    pub column_fields: Vec<i32>,
-    pub page_fields: Vec<u32>,
-    pub data_fields: Vec<PivotDataField>,
-    pub attributes: BTreeMap<String, String>,
-}
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PivotDataField {
-    pub name: Option<String>,
-    pub field: u32,
-    pub subtotal: String,
-    pub attributes: BTreeMap<String, String>,
-}
+pub use calc_doc_model::pivot::*;
+fn decoded(value:&str,events:&Events<'_>)->Result<String,LoadError>{String::from_utf16(&super::strings::decode(value)).map_err(|_|events.invalid("A pivot string has an unpaired UTF-16 code unit"))}
 fn attrs(e: &XmlElement) -> BTreeMap<String, String> {
     e.attributes
         .iter()
@@ -196,6 +143,8 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
         source_name: None,
         fields: Vec::new(),
         attributes: attrs(&root),
+        unsupported: Vec::new(),
+        snapshot: None,
     };
     let mut path = Vec::<String>::new();
     let mut item_count = 0usize;
@@ -210,6 +159,8 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
                             .as_slice(),
                         e.name.local.as_str(),
                     ) {
+                        ([], "calculatedItems" | "calculatedMembers" | "cacheHierarchies" | "dimensions" | "measureGroups" | "maps")
+                        | (["cacheFields", "cacheField"], "fieldGroup" | "mpMap" | "extLst") => cache.unsupported.push(e.name.local.to_string()),
                         ([], "cacheSource") => {
                             cache.source_type = required(&e, "type", &events)?.into()
                         }
@@ -218,12 +169,12 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
                             cache.source_range = e.attribute("ref").map(str::to_owned);
                             cache.source_name = e.attribute("name").map(str::to_owned);
                         }
-                        (["cacheFields"], "cacheField") => cache.fields.push(PivotCacheField {
-                            name: required(&e, "name", &events)?.into(),
+                        (["cacheFields"], "cacheField") => { if e.attribute("formula").is_some() || matches!(e.attribute("databaseField"),Some("0"|"false")) {cache.unsupported.push("calculated cache field".into());} cache.fields.push(PivotCacheField {
+                            name: decoded(required(&e, "name", &events)?,&events)?,
                             shared_items: None,
                             items: Vec::new(),
                             attributes: attrs(&e),
-                        }),
+                        }); },
                         (["cacheFields", "cacheField"], "sharedItems") => {
                             if let Some(field) = cache.fields.last_mut() {
                                 field.shared_items = optional_integer(&e, "count", &events)?;
@@ -302,6 +253,17 @@ pub(crate) fn read_parts(
     }
 }
 
+/// Worksheet pivots are implicit relationship targets in SpreadsheetML. Retain support for
+/// the older synthetic fixture's explicit list, without reading any definition twice.
+/// https://learn.microsoft.com/en-us/office/open-xml/spreadsheet/working-with-pivottables
+pub(crate) fn read_related(package:&Package,sheet_part:&str,sheet:SheetId,out:&mut SheetPivots){
+    let mut seen=out.tables.iter().map(|t|t.part.clone()).chain(out.issues.iter().map(|i|i.part.clone())).collect::<BTreeSet<_>>();
+    for rel in package.relationships_of(Some(sheet_part)).into_iter().flat_map(|r|r.items()).filter(|r|r.kind==format!("{R}/pivotTable")){
+        let Some(part)=rel.resolved.as_deref().filter(|_|rel.mode==TargetMode::Internal)else{out.issues.push(issue(sheet_part,"A pivot relationship has no internal definition target"));continue;};
+        if seen.insert(part.to_owned()){match read_table(package,part,sheet){Ok(table)=>out.tables.push(table),Err(e)=>out.issues.push(issue(part,e)),}}
+    }
+}
+
 fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTable, LoadError> {
     let xml = read_xml(package, part)?;
     let mut events = Events::new(&xml);
@@ -310,9 +272,13 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
         "pivotTableDefinition",
         "The table part has no pivotTableDefinition root",
     )?;
-    let name = required(&root, "name", &events)?.into();
+    let name = decoded(required(&root, "name", &events)?,&events)?;
     let cache_id = integer(&root, "cacheId", &events)?;
     let mut location = None;
+    let mut location_attrs = BTreeMap::new();
+    let mut fields = Vec::<PivotField>::new();
+    let mut row_items = Vec::<PivotAxisItem>::new();
+    let mut unsupported = Vec::new();
     let mut row_fields = Vec::new();
     let mut column_fields = Vec::new();
     let mut page_fields = Vec::new();
@@ -330,6 +296,7 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
                         e.name.local.as_str(),
                     ) {
                         ([], "location") => {
+                            location_attrs = attrs(&e);
                             if location.is_some() {
                                 return Err(events.invalid("Duplicate pivot locations"));
                             }
@@ -349,13 +316,21 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
                                     .map_err(|_| events.invalid("The pivot location is invalid"))?
                             });
                         }
+                        (["pivotFields"], "pivotField") => fields.push(PivotField { attributes:attrs(&e),items:Vec::new() }),
+                        (["pivotFields","pivotField","items"],"item") => {
+                            if let Some(field)=fields.last_mut() {field.items.push(PivotFieldItem {index:optional_integer(&e,"x",&events)?,kind:e.attribute("t").unwrap_or("data").into(),hidden:matches!(e.attribute("h"),Some("1"|"true"))});}
+                        }
+                        (["rowItems"],"i") => row_items.push(PivotAxisItem {kind:e.attribute("t").unwrap_or("data").into(),repeat:optional_integer(&e,"r",&events)?.unwrap_or(0),data_index:optional_integer(&e,"i",&events)?.unwrap_or(0),indexes:Vec::new()}),
+                        (["rowItems","i"],"x") => {if let Some(item)=row_items.last_mut(){item.indexes.push(optional_integer(&e,"v",&events)?.unwrap_or(0));}}
+                        ([],"filters"|"formats"|"conditionalFormats"|"rowHierarchies"|"colHierarchies"|"calculatedMembers")
+                        | (["pivotFields","pivotField"],"autoSortScope"|"memberProperties"|"extLst") => unsupported.push(e.name.local.to_string()),
                         (["rowFields"], "field") => row_fields.push(integer(&e, "x", &events)?),
                         (["colFields"], "field") => column_fields.push(integer(&e, "x", &events)?),
                         (["pageFields"], "pageField") => {
                             page_fields.push(integer(&e, "fld", &events)?)
                         }
                         (["dataFields"], "dataField") => data_fields.push(PivotDataField {
-                            name: e.attribute("name").map(str::to_owned),
+                            name: e.attribute("name").map(|s|decoded(s,&events)).transpose()?,
                             field: integer(&e, "fld", &events)?,
                             subtotal: e.attribute("subtotal").unwrap_or("sum").into(),
                             attributes: attrs(&e),
@@ -387,31 +362,15 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
         page_fields,
         data_fields,
         attributes: attrs(&root),
+        location: location_attrs, fields, row_items, unsupported,
     })
 }
 
-/// Values are source records, not engine-calculated results. Numeric/date/error spellings remain
-/// exact until a future measured refresh interprets them.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum PivotItem {
-    Missing,
-    Number(String),
-    Text(String),
-    Boolean(bool),
-    Date(String),
-    Error(String),
-    Index(u32),
-    Other {
-        namespace: Option<String>,
-        element: String,
-        attributes: BTreeMap<String, String>,
-    },
-}
 fn item(e: &XmlElement, events: &Events<'_>) -> Result<PivotItem, LoadError> {
     Ok(match e.name.local.as_str() {
         "m" => PivotItem::Missing,
         "n" => PivotItem::Number(required(e, "v", events)?.into()),
-        "s" => PivotItem::Text(required(e, "v", events)?.into()),
+        "s" => PivotItem::Text(decoded(required(e, "v", events)?,events)?),
         "d" => PivotItem::Date(required(e, "v", events)?.into()),
         "e" => PivotItem::Error(required(e, "v", events)?.into()),
         "x" => PivotItem::Index(integer(e, "v", events)?),

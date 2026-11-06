@@ -18,6 +18,7 @@ use std::sync::Arc;
 pub enum CellEdit {
     /// Authored style table, in the same transaction as its cell assignments.
     Tables(Vec<calc_doc_model::Table>),
+    Pivots(Arc<calc_doc_model::pivot::PivotState>),
     Styles(Arc<calc_doc_model::StyleTable>),
     PageSetup {sheet:calc_value::SheetId,setup:calc_doc_model::PageSetup},
     Charts {sheet:calc_value::SheetId,charts:Vec<calc_doc_model::Chart>},
@@ -86,6 +87,7 @@ pub enum CellEdit {
 impl CellEdit {
     fn operation(self) -> WorkbookOp {
         match self {
+            CellEdit::Pivots(state)=>WorkbookOp::SetPivots(state),
             CellEdit::Tables(tables)=>WorkbookOp::SetTables(tables),
             CellEdit::PageSetup {sheet,setup}=>WorkbookOp::SetPageSetup {sheet,setup},
             CellEdit::Charts {sheet,charts}=>WorkbookOp::SetCharts {sheet,charts},
@@ -278,6 +280,15 @@ pub fn dispatch(
         operations: command.edits.into_iter().map(CellEdit::operation).collect(),
     };
 
+    let pivot_change=batch.operations.iter().any(|op|matches!(op,WorkbookOp::SetPivots(_)));
+    let refuse=|message:&str|CommandError::Document(EditError::SheetOperation(format!("{message} (dc-8wp)")));
+    if !pivot_change && batch.operations.iter().any(|op|match op {
+        WorkbookOp::SetCell{at,..}=>host.model.definitions().pivots().contains(*at),
+        WorkbookOp::Clear{area}=>host.model.definitions().pivots().tables().any(|t|t.area.intersection(*area).is_some()),
+        WorkbookOp::SetArray{array,..}=>host.model.definitions().pivots().tables().any(|t|t.area.intersection(array.area()).is_some()),_=>false,
+    }){return Err(refuse("Pivot output is owned by its table; edit its source data and refresh"));}
+    if host.model.definitions().pivots().tables().next().is_some() && batch.operations.iter().any(|op|matches!(op,WorkbookOp::EditAxis(_)|WorkbookOp::EditSheet(_))){return Err(refuse("Structural edits of pivot workbooks need measured source and layout transforms"));}
+    for op in &batch.operations {if let WorkbookOp::SetPivots(state)=op {host.loaded.check_pivot_state(state).map_err(|e|refuse(&e.to_string()))?;}}
     let transformed_scope = if batch
         .operations
         .iter()

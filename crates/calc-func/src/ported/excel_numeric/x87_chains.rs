@@ -75,18 +75,6 @@ pub(crate) fn excel_exp_rz(x: f64) -> f64 {
     exp_with::<Native>(x, CW_RZ)
 }
 
-/// `exp(t - x - c)` with the difference in the 64-bit registers, stored once. GAMMA.DIST's
-/// prefactor: storing `t - x` puts a slow line of amplitude 5 units in the residual that Excel's
-/// answers do not have.
-pub(crate) fn excel_exp_difference(t: f64, x: f64, c: f64) -> f64 {
-    exp_difference::<Native>(t, x, c)
-}
-
-fn exp_difference<F: Fpu>(t: f64, x: f64, c: f64) -> f64 {
-    let difference = F::sub(&F::sub(&load(t), &load(x), CW), &load(c), CW);
-    F::store(&exp_ext::<F>(&difference), CW)
-}
-
 /// `exp(start - terms[0] - terms[1] ...)` as Excel forms the exponential of a difference. Each
 /// subtraction is stored and what the store dropped is kept: the exponential is the public EXP of
 /// the last stored difference, then one stored multiply by the stored `1 + dropped` per subtraction,
@@ -165,6 +153,50 @@ fn stirling_series<F: Fpu>(n: f64) -> f64 {
     F::store(&F::div(&w, &load(n), CW), CW)
 }
 
+/// One step down the recurrence `s(n) = s(n + 1) + (n + 1/2) ln(1 + 1/n) - 1`, the part after
+/// `s(n + 1)`: the stored product of the stored `n + 1/2` and `ln(1 + u)`, less one, with `u = 1/n`
+/// stored. For `u < 3/8` the logarithm is `2 S`, where `2 + u` is stored, `v = u / (2 + u)` runs the
+/// series of `atanh v`, and `S` is the stored sum of the stored `v` and the tail, as in
+/// [`excel_deviance_series`]. From `u = 3/8` it is the public LN of the stored `1 + u`.
+///
+/// Read from GAMMA.DIST on adjacent doubles and on pairs `(x, a)` with `x` next to `a`, where the
+/// deviance vanishes and the exponent is `-s(a)`, pinning each `s(a)` to a double. Lines at the
+/// frequencies of `1/n` and `1 + 1/(2n)` name `u` and the stored `2 + u`, with the weights `n` and
+/// `-1/(2 (1 + u/2))` that this form gives them.
+pub(crate) fn excel_stirling_step(n: f64) -> f64 {
+    stirling_step::<Native>(n)
+}
+
+fn atanh_tail<F: Fpu>(v: &Ext80) -> Ext80 {
+    let w = F::mul(v, v, CW);
+    let (mut tail, mut power, mut j) = (load(0.0), *v, 1.0);
+    loop {
+        power = F::mul(&power, &w, CW);
+        let next = F::add(&tail, &F::div(&power, &load(2.0 * j + 1.0), CW), CW);
+        if next.0 == tail.0 {
+            return tail;
+        }
+        tail = next;
+        j += 1.0;
+    }
+}
+
+fn stirling_step<F: Fpu>(n: f64) -> f64 {
+    let one = ext_one();
+    let u = F::store(&F::div(&one, &load(n), CW), CW);
+    let half = load(F::store(&F::add(&load(n), &load(0.5), CW), CW));
+    let product = if u < 0.375 {
+        let q = F::store(&F::add(&load(2.0), &load(u), CW), CW);
+        let v = F::div(&load(u), &load(q), CW);
+        let sum = F::store(&F::add(&load(F::store(&v, CW)), &atanh_tail::<F>(&v), CW), CW);
+        F::mul(&half, &F::mul(&load(2.0), &load(sum), CW), CW)
+    } else {
+        let log = log_with::<F>(F::store(&F::add(&one, &load(u), CW), CW), &ext_ln2());
+        F::mul(&half, &load(log), CW)
+    };
+    F::store(&F::sub(&load(F::store(&product, CW)), &one, CW), CW)
+}
+
 /// The deviance `x ln(x/np) + np - x` inside its series range. With `d = x - np` and `x + np` stored
 /// and `V` their stored quotient, `S` is the stored sum of `V` and the tail `v^3/3 + v^5/5 + ...` of
 /// `atanh v`, so that `ln(x/np) = 2 S`. The answer is the stored sum of the stored
@@ -182,17 +214,7 @@ fn deviance_series<F: Fpu>(x: f64, np: f64) -> f64 {
     let (fx, fnp) = (load(x), load(np));
     let d = F::store(&F::sub(&fx, &fnp, CW), CW);
     let v = F::div(&load(d), &load(F::store(&F::add(&fx, &fnp, CW), CW)), CW);
-    let w = F::mul(&v, &v, CW);
-    let (mut tail, mut power, mut j) = (load(0.0), v, 1.0);
-    loop {
-        power = F::mul(&power, &w, CW);
-        let next = F::add(&tail, &F::div(&power, &load(2.0 * j + 1.0), CW), CW);
-        if next.0 == tail.0 {
-            break;
-        }
-        tail = next;
-        j += 1.0;
-    }
+    let tail = atanh_tail::<F>(&v);
     let quotient = load(F::store(&v, CW));
     let sum = load(F::store(&F::add(&quotient, &tail, CW), CW));
     let twice_x = load(2.0 * x);

@@ -275,6 +275,7 @@ pub enum Interest {
 /// What the page asks the session to do: calc-host's skin intents as the page sends them.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Intent {
+    PivotRefresh {sheet:Sheet,revision:u64,part:String},
     PageSetup {
         sheet: Sheet,
         revision: u64,
@@ -1568,4 +1569,4 @@ pub struct ChartTextStyle{pub family:Option<String>,pub size:Option<u32>,pub bol
 
 /// Metadata for a saved pivot; its cells are presented through the normal worksheet route.
 #[derive(Clone,Debug,PartialEq,Eq,Serialize,Deserialize)]
-pub struct SavedPivot {pub name:String,pub part:String,pub area:Area,pub location:String,pub source:String,pub fields:String,pub cache:String}
+pub struct SavedPivot {pub refreshed_revision:Option<u64>,pub name:String,pub part:String,pub area:Area,pub location:String,pub source:String,pub fields:String,pub cache:String}

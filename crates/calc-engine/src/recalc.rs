@@ -6201,6 +6201,7 @@ enum Collision {
 /// calculated leaves it unknown.
 fn collision(view: RecalcView<'_>, node: NodeId, anchor: CellKey, extent: GridArea) -> Collision {
     let inputs = view.inputs;
+    if inputs.definitions().pivots().tables().any(|table|table.area.intersection(extent).is_some()){return Collision::Blocked;}
     if inputs
         .cells(extent)
         .into_iter()

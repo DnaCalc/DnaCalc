@@ -70,6 +70,7 @@ pub enum PrepareError {
     },
     /// The batch's base is the last revision the counter holds, so the edit has no next one.
     RevisionExhausted,
+    PivotRefresh { operation:usize },
     /// The operation at this index of the batch names a sheet the snapshot does not hold.
     UnknownSheet { operation: usize, sheet: SheetId },
     /// The operation at this index inserts or deletes rows or columns or inserts, renames, moves
@@ -92,6 +93,7 @@ impl fmt::Display for PrepareError {
                 engine.get(),
                 inputs.get()
             ),
+            PrepareError::PivotRefresh{operation}=>write!(f,"operation {operation} contains an unmodelled pivot refresh (dc-8wp)"),
             PrepareError::RevisionExhausted => {
                 f.write_str("the batch's base revision has no next revision")
             }
@@ -136,6 +138,7 @@ pub struct PreparedEngineChange<'s, 'r> {
     /// become pending when it commits.
     iteration_changed: bool,
     dimensions_pending: Option<BTreeSet<NodeId>>,
+    pivot_results:Option<crate::pivot::PivotResults>,
 }
 
 impl<'r> PreparedEngineChange<'_, 'r> {
@@ -240,9 +243,14 @@ pub fn prepare_edit<'s, 'r>(
             names_changed: false,
             iteration_changed: false,
             dimensions_pending: None,
+            pivot_results:None,
         });
     }
 
+    let pivot_results=change.operations.iter().enumerate().rev().find_map(|(operation,op)|match op {WorkbookOp::SetPivots(pivots)=>Some((operation,pivots)),_=>None}).map(|(operation,pivots)|{
+        let results=crate::pivot::calculate(pivots,crate::CalcTick::new(state.allocate_tick()));
+        if results.issues.is_empty(){Ok(results)}else{Err(PrepareError::PivotRefresh{operation})}
+    }).transpose()?;
     // What each cell the batch can change holds after the batch (`None` for empty). A cleared
     // area adds every cell of it that holds an input in the snapshot or a formula node in the
     // state, so a cell is missing here only when the batch leaves it as the snapshot has it.
@@ -308,6 +316,7 @@ pub fn prepare_edit<'s, 'r>(
             WorkbookOp::EditSkinLayout(_)
             | WorkbookOp::SetFormat { .. }
             | WorkbookOp::SetStyles(_)
+            | WorkbookOp::SetPivots(_)
             | WorkbookOp::SetTables(_)
             | WorkbookOp::SetNameFormula { .. }
             | WorkbookOp::RestoreNames(_) => {}
@@ -481,7 +490,7 @@ pub fn prepare_edit<'s, 'r>(
     let schema_changed = change
         .operations
         .iter()
-        .any(|op| matches!(op, WorkbookOp::SetIteration(_)));
+        .any(|op| matches!(op, WorkbookOp::SetIteration(_) | WorkbookOp::SetPivots(_)));
     // Preview text only. Allocation of a name identity/version belongs to ModelRoot::apply.
     let mut name_after = BTreeMap::<NameKey, Option<&str>>::new();
     let mut name_keys = BTreeSet::new();
@@ -534,7 +543,7 @@ pub fn prepare_edit<'s, 'r>(
             dependents: users.into_iter().collect(),
         });
     }
-    let regions: Vec<GridArea> = change
+    let mut regions: Vec<GridArea> = change
         .operations
         .iter()
         .filter_map(|op| match op {
@@ -546,6 +555,11 @@ pub fn prepare_edit<'s, 'r>(
             _ => None,
         })
         .collect();
+    if pivot_results.is_some(){
+        for area in inputs.definitions().pivots().tables().map(|t|t.area).chain(change.operations.iter().filter_map(|op|if let WorkbookOp::SetPivots(p)=op{Some(p)}else{None}).flat_map(|p|p.tables().map(|t|t.area))){
+            let mut users=BTreeSet::new();state.index.dependents_of_area(inputs,area,&mut users);seeds.push(InputSeed::Area{area,dependents:users.into_iter().collect()});regions.push(area);
+        }
+    }
     let mut certificate_candidates = BTreeSet::new();
     for region in &regions {
         state
@@ -599,6 +613,7 @@ pub fn prepare_edit<'s, 'r>(
             )
         }),
         dimensions_pending,
+        pivot_results,
         iteration_changed: change.operations.iter().any(|op| {
             matches!(op, WorkbookOp::SetIteration(settings)
                 if *settings != inputs.definitions().iteration())
@@ -641,6 +656,7 @@ fn structural_moves(
                 | WorkbookOp::SetArray { .. }
                 | WorkbookOp::SetFormat { .. }
                 | WorkbookOp::SetStyles(_)
+            | WorkbookOp::SetPivots(_)
             | WorkbookOp::SetTables(_)
                 | WorkbookOp::SetNameFormula { .. }
                 | WorkbookOp::RestoreNames(_)
@@ -671,6 +687,7 @@ fn structural_moves(
             | WorkbookOp::SetArray { .. }
             | WorkbookOp::SetFormat { .. }
             | WorkbookOp::SetStyles(_)
+            | WorkbookOp::SetPivots(_)
             | WorkbookOp::SetTables(_)
             | WorkbookOp::SetNameFormula { .. }
             | WorkbookOp::RestoreNames(_)
@@ -754,6 +771,7 @@ impl CommitReceipt {
 pub fn commit_edit(mut change: PreparedEngineChange<'_, '_>) -> CommitReceipt {
     let node_changes = std::mem::take(&mut change.node_changes);
     let state = &mut *change.state;
+    if let Some(results)=change.pivot_results.take(){state.pivot_results=results;state.advance_view();}
     state
         .certificate_candidates
         .extend(std::mem::take(&mut change.certificate_candidates));

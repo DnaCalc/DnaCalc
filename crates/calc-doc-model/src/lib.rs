@@ -122,3 +122,5 @@ pub use wire::{
 
 mod page_setup;
 pub use page_setup::{PageSetup, PageBreak, PAGE_SECTIONS, HEADER_FIELDS};
+
+pub mod pivot;

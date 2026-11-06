@@ -1268,6 +1268,7 @@ pub(crate) fn potential_blank(
             .cells(area)
             .is_some_and(|mut cells| !cells.any(|(at, _)| at != anchor))
             && inputs.definitions().unloaded_in(area).next().is_none()
+            && !inputs.definitions().pivots().tables().any(|table|table.area.intersection(area).is_some())
     };
     if free(first) {
         return Some(first);

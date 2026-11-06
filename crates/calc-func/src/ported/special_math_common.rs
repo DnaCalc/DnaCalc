@@ -459,6 +459,7 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
     if a * x == 0.0 {
         return if x <= a { (0.0, 1.0) } else { (1.0, 0.0) };
     }
+    use crate::ported::discrete_dist::poisson_mass;
     if a == 1.0 {
         // Excel dispatches a == 1 to the exponential CDF (W109: proven by the
         // a = 1+2^-20 contradiction probe; emulator race a=1 slice 179/205
@@ -530,16 +531,13 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
     // a >= 1
     if a < GRATIO_BIG[iop - 1] {
         if a > x || x >= x0 {
-            // statement 20. Series arm publishes r from the CHOPPED exp
-            // (W109 chopped-exp identification); CF/asymptotic arms keep the
-            // nearest-rounded exp (chop measurably hurts there).
-            let t1 = a * crt_log(x) - x;
-            let g = gratio_norm_gamma(a);
+            // statement 20.
+            let m = poisson_mass(a, x);
             return gratio_after40(
                 a,
                 x,
-                series_prefactor(a, x),
-                crate::ported::excel_numeric::excel_exp(t1) / g,
+                m,
+                crate::ported::excel_numeric::excel_x87_mul(m, a),
                 e,
                 acc,
                 x0,
@@ -578,13 +576,12 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
             let qans = summ;
             return (0.5 + (0.5 - qans), qans);
         }
-        let t1 = a * crt_log(x) - x;
-        let g = gratio_norm_gamma(a);
+        let m = poisson_mass(a, x);
         return gratio_after40(
             a,
             x,
-            series_prefactor(a, x),
-            crate::ported::excel_numeric::excel_exp(t1) / g,
+            m,
+            crate::ported::excel_numeric::excel_x87_mul(m, a),
             e,
             acc,
             x0,
@@ -599,12 +596,6 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
     }
     let s = 0.5 + (0.5 - l);
     let z = gratio_rlog(l);
-    if z >= 700.0 / a {
-        if s.abs() <= 2.0 * e {
-            return (2.0, 2.0);
-        }
-        return if x <= a { (0.0, 1.0) } else { (1.0, 0.0) };
-    }
     let y = a * z;
     let rta = a.sqrt();
     if s.abs() <= e0 / rta {
@@ -613,25 +604,8 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
     if s.abs() <= 0.4 {
         return gratio_temme_270(a, l, y, z, e, s, iop);
     }
-    let t = (1.0 / a).powi(2);
-    let mut t1 = (((0.75 * t - 1.0) * t + 3.5) * t - 105.0) / (a * 1260.0);
-    t1 -= y;
-    let r = GRATIO_RT2PIN * rta * crate::ported::excel_numeric::excel_exp(t1);
-    // a >= big: no chopped-exp evidence for this r staging; same r both arms.
-    gratio_after40(a, x, r / a, r, e, acc, x0, &mut wk)
-}
-
-/// `x^a exp(-x) / Gamma(a+1)`, the prefactor of the series arm: `exp(t - x - GAMMALN(a+1))` with
-/// `ln x` and `t = a ln x` stored, and the worksheet's GAMMALN in the exponent.
-///
-/// Read from Excel 16.0.20527 windows and the recorded bank: a line at `1/x` in units of `ulp(ln x)`
-/// has weight `a`, a line at a quarter of it for `a = 3` is the stored product, and the answers
-/// carry a constant error for each `a` (-0.875, +0.25, -1.25, +1.625, -2 of 2^-53 for `a = 2..=6`)
-/// that is the rounding of the stored GAMMALN(a+1), which also ended the "chopped exponential" of
-/// even shapes.
-fn series_prefactor(a: f64, x: f64) -> f64 {
-    use crate::ported::excel_numeric::{excel_exp_difference, excel_log, excel_x87_mul, gammaln_excel};
-    excel_exp_difference(excel_x87_mul(a, excel_log(x)), x, gammaln_excel(a + 1.0))
+    let m = poisson_mass(a, x);
+    gratio_after40(a, x, m, crate::ported::excel_numeric::excel_x87_mul(m, a), e, acc, x0, &mut wk)
 }
 
 fn gratio_after40(
@@ -705,7 +679,8 @@ fn gratio_after40(
         n -= 1;
         summ += wk[n];
     }
-    let qans = (r / x) * (1.0 + summ);
+    use crate::ported::excel_numeric::{excel_x87_div, excel_x87_mul};
+    let qans = excel_x87_mul(excel_x87_mul(r_series, excel_x87_div(a, x)), 1.0 + summ);
     (0.5 + (0.5 - qans), qans)
 }
 

@@ -1610,6 +1610,9 @@ impl HostSession {
                     }
                 }
             }
+            // Explicit pivot outputs have no authored cell inputs. Every skin subscription uses
+            // the same sparse engine-owned output map as direct projections and formula reads.
+            cells.extend(self.host.engine.pivot_results().cells.range(area.first()..=area.last()).filter(|(at,_)|area.contains(**at)).map(|(at,_)|*at));
             for array in definitions.arrays_meeting(area) {
                 cells.extend(cells_of(intersection(array.area(), area)));
             }

@@ -125,9 +125,9 @@
     {"args":["0x0000000000000000","0x0000000000000000","0x0000000000000000"],"expected_bits":"0x3ff0000000000000","id":"poisson-branch-heldout-00056-count-domain","reading":"r2"},
     {"args":["0x0000000000000000","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"0x3ff0000000000000","id":"poisson-branch-heldout-00057-count-domain","reading":"r2"},
     {"args":["0x3ff0000000000000","0x4085c00eebb0b75c","0x0000000000000000"],"expected_bits":"0x01c3ed7a3974ca9b","id":"poisson-publication-discovery-00196-fresh-near-underflow","reading":"r3"},
-    {"args":["0x3ff0000000000000","0x4085c00eebb0b75c","0x3ff0000000000000"],"calc_func":"0x01c3f4ce9c3c15cd","expected_bits":"0x01c3f4ce9c3c14b8","id":"poisson-publication-discovery-00197-fresh-near-underflow","reading":"r3"},
+    {"args":["0x3ff0000000000000","0x4085c00eebb0b75c","0x3ff0000000000000"],"calc_func":"0x01c3f4ce9c3c14b9","expected_bits":"0x01c3f4ce9c3c14b8","id":"poisson-publication-discovery-00197-fresh-near-underflow","reading":"r3"},
     {"args":["0x3ff0000000000000","0x408600399489ad27","0x0000000000000000"],"expected_bits":"0x010b2052fc6e76c8","id":"poisson-publication-discovery-00216-fresh-near-underflow","reading":"r3"},
-    {"args":["0x3ff0000000000000","0x408600399489ad27","0x3ff0000000000000"],"calc_func":"0x010b2a3018109a14","expected_bits":"0x010b2a301810989e","id":"poisson-publication-discovery-00217-fresh-near-underflow","reading":"r3"},
+    {"args":["0x3ff0000000000000","0x408600399489ad27","0x3ff0000000000000"],"calc_func":"0x010b2a301810989c","expected_bits":"0x010b2a301810989e","id":"poisson-publication-discovery-00217-fresh-near-underflow","reading":"r3"},
     {"args":["0x0000000000000000","0x4086220000000000","0x0000000000000000"],"expected_bits":"0x001285dc1b5961f1","id":"poisson-publication-heldout-01040-zero-branch-and-raw-negative-controls","reading":"r4"},
     {"args":["0x0000000000000000","0x4086220000000000","0x3ff0000000000000"],"expected_bits":"0x001285dc1b5961f1","id":"poisson-publication-heldout-01041-zero-branch-and-raw-negative-controls","reading":"r4"}
   ]
