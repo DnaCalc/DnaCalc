@@ -164,7 +164,7 @@ pub(super) fn plan_advance(
             cache.boxes.clear();
             cache.bytes = 0;
         }
-        let integer = integer_number(shown, text);
+        let integer = integer_text(shown, text);
         let key = (font.clone(), text.to_owned(), integer);
         if let Some(width) = cache.widths.get(&key) {
             return Some(*width);
@@ -196,17 +196,16 @@ pub(super) fn plan_advance(
         Some(width)
     })
 }
-/// Excel's captured Western numeric runs advance in integral display pixels. Keep complex
+/// Captured unwrapped Western text advances in integral display pixels. Keep complex
 /// scripts, shrinking, rotation and wrapping on their shaped text route.
-pub(super) fn integer_number(shown: &crate::cells::CellShown, text: &str) -> bool {
-    shown.kind == "number"
-        && matches!(shown.format, crate::cells::FormatShown::Applied | crate::cells::FormatShown::Unshowable)
+pub(super) fn integer_text(shown: &crate::cells::CellShown, text: &str) -> bool {
+    matches!(shown.kind, "number" | "text" | "logical" | "error")
         && !shown.style.shrink && !shown.style.wrap && shown.style.rotation == 0
         && !matches!(shown.style.horizontal.as_deref(), Some("fill" | "justify" | "distributed" | "centerContinuous"))
-        && !text.contains('\n') && text.is_ascii() && !text.bytes().any(|c| c.is_ascii_alphabetic())
+        && text.is_ascii() && !text.bytes().any(|c| c.is_ascii_control())
 }
-pub(super) fn number_advances(shown: &crate::cells::CellShown, text: &str, zoom: f64) -> Option<Vec<f64>> {
-    if !integer_number(shown, text) { return None; }
+pub(super) fn text_advances(shown: &crate::cells::CellShown, text: &str, zoom: f64) -> Option<Vec<f64>> {
+    if !integer_text(shown, text) { return None; }
     let font = canvas_font(&shown.style, shown.conditional.as_ref(), matches!(shown.provenance,crate::cells::Provenance::FileCache | crate::cells::Provenance::Refused), zoom);
     FONT_MEASURES.with(|cache| {
         let mut cache = cache.borrow_mut();

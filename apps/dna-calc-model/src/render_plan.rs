@@ -190,6 +190,9 @@ pub fn build_render_plan_with<'a>(
             !shown.text.is_empty()
                 || shown.formula
                 || shown.provenance != crate::projection::Provenance::Empty
+                || shown.style.fill.is_some()
+                || shown.style.brush.is_some()
+                || shown.conditional.as_ref().is_some_and(|c| c.fill.is_some())
         })
         .map(|shown| (shown.at.row(), shown.at.column()))
         .collect();
@@ -298,7 +301,8 @@ fn shared_borders(
     let strength = |edge: &crate::projection::BorderShown| match edge.style.as_str() {
         "double" => 30, "thick" => 29, "medium" => 20,
         "mediumDashed" => 19, "mediumDashDot" => 18, "mediumDashDotDot" => 17,
-        "thin" => 10, "dashed" => 9, "dashDot" | "slantDashDot" => 8,
+        "slantDashDot" => 16,
+        "thin" => 10, "dashed" => 9, "dashDot" => 8,
         "dashDotDot" => 7, "dotted" => 6, "hair" => 1, _ => 0,
     };
     let (row,col) = (shown.at.row(),shown.at.column());
@@ -940,6 +944,28 @@ mod tests {
                 cell_rect(&m, &v, 1, last).x + m.width(last)
             );
             assert_eq!(shown.anchor, cell_rect(&m, &v, 1, 4));
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn filled_blank_neighbours_stop_text_while_font_only_blanks_allow_overflow() {
+        let s=sheet();let m=GridMetrics::default();let v=viewport(2000.,400.);
+        let mut source=cell(s,1,1,"Text that is wider than its source column");source.kind="text";
+        let mut blank=cell(s,1,2,"");blank.kind="";blank.formula=false;blank.provenance=Provenance::Empty;
+        blank.style.bold=true;
+        let plan=build_render_plan(&[source.clone(),blank.clone()],&m,&v,10,10);
+        assert!(plan.cells[0].rect.w>m.width(1));
+        for kind in 0..3 {
+            let mut blank=blank.clone();
+            match kind {
+                0=>blank.style.fill=Some("#ffeecc".into()),
+                1=>blank.style.brush=Some(crate::projection::FillShown::Pattern{name:"lightGrid".into(),foreground:"#154c94".into(),background:"#ffffff".into()}),
+                _=>blank.conditional=Some(crate::projection::ConditionalShown{fill:Some("#ffeecc".into()),..Default::default()}),
+            }
+            let plan=build_render_plan(&[source.clone(),blank],&m,&v,10,10);
+            assert_eq!(plan.cells[0].rect,plan.cells[0].anchor);
+            assert_eq!(plan.cells[0].shown.text,source.text);
         }
     }
 

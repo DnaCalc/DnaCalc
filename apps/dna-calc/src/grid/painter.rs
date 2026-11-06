@@ -268,36 +268,7 @@ pub(super) fn paint(
         ctx.begin_path();
         rect(&ctx, clip);
         ctx.clip();
-        for (side, edge) in cell.borders.iter().enumerate() {
-            let Some(edge) = edge else {
-                continue;
-            };
-            let line = super::decoration::line(edge, plan.scale);
-            ctx.set_stroke_style_str(edge.color.as_deref().unwrap_or("#000000"));
-            let dashes = js_sys::Array::new();
-            for n in line.dash {
-                dashes.push(&wasm_bindgen::JsValue::from_f64(*n));
-            }
-            let _ = ctx.set_line_dash(&dashes);
-            ctx.set_line_width(if line.double { 1. } else { line.width });
-            for offset in if line.double {
-                vec![0.5, 2.5]
-            } else {
-                vec![line.width / 2.]
-            } {
-                let (x1, y1, x2, y2) = match side {
-                    0 => {let x=r.x+offset-if expanded {line.width}else{0.};(x,border_rect.y,x,r.y+r.h)},
-                    1 => (r.x + r.w - offset, border_rect.y, r.x + r.w - offset, r.y + r.h),
-                    2 => {let y=r.y+offset-if expanded {line.width}else{0.};(border_rect.x,y,r.x+r.w,y)},
-                    _ => (border_rect.x, r.y + r.h - offset, r.x + r.w, r.y + r.h - offset),
-                };
-                ctx.begin_path();
-                ctx.move_to(x1, y1);
-                ctx.line_to(x2, y2);
-                ctx.stroke();
-            }
-        }
-        for line in super::decoration::strokes(cell, plan.scale) {
+        for line in super::decoration::edges(cell, plan.scale).into_iter().chain(super::decoration::strokes(cell, plan.scale)) {
             ctx.set_stroke_style_str(&line.color);
             ctx.set_line_width(line.width);
             let dashes = js_sys::Array::new();
@@ -305,6 +276,7 @@ pub(super) fn paint(
                 dashes.push(&wasm_bindgen::JsValue::from_f64(n));
             }
             let _ = ctx.set_line_dash(&dashes);
+            ctx.set_line_dash_offset(line.phase);
             ctx.begin_path();
             ctx.move_to(r.x + line.x1, r.y + line.y1);
             ctx.line_to(r.x + line.x2, r.y + line.y2);
@@ -402,7 +374,7 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
         match vertical { "top" => extra, "bottom" => -extra, _ => 0. }
     } else { 0. };
     let double = autofit::double_underline(s,Some(&c));
-    let integer = autofit::integer_number(&cell.shown, &shown);
+    let integer = autofit::integer_text(&cell.shown, &shown);
     let advance = |line: &str| -> f64 {
         if integer { alignment::graphemes(line).into_iter().map(|part| width(ctx,&part).round()).sum() }
         else { width(ctx,line) }
@@ -510,12 +482,15 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
                 decorate(x, y, w);
             }
         } else if integer {
+            // GDI's unwrapped Western baselines occupy whole display pixels. Canvas
+            // otherwise rounds the half-pixel at 150% below the DOM text baseline.
+            let paint_y=if matches!(vertical,"top"|"bottom") {(y+baseline).floor()-baseline}else{y};
             let mut pen = x;
             for part in alignment::graphemes(line) {
-                let _ = ctx.fill_text(&part, pen, y + baseline);
+                let _ = ctx.fill_text(&part, pen, paint_y + baseline);
                 pen += width(ctx, &part).round();
             }
-            decorate(x, y, w);
+            decorate(x, paint_y, w);
         } else {
             let _ = ctx.fill_text(line, x, y + baseline);
             decorate(x, y, w);
