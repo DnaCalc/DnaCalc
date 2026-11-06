@@ -80,8 +80,8 @@ fn stored_horner(coefficients: &[u64], t: f64) -> f64 {
 ///
 /// Above 0.5 the magnitude is the stored-PC64 complement of the upper ERFC body. Independent
 /// public calls agree on 3,328 adjacent inputs; exponent-edge controls distinguish the final
-/// PC64 store from strict binary64 subtraction. ERFC's `F` remains a stand-in, so this measured
-/// composition does not establish its last bits. Exactly 0.5 keeps its existing boundary body.
+/// PC64 store from strict binary64 subtraction. Up to 4 ERFC's `F` remains a stand-in, so this measured
+/// composition does not establish its last bits there. Exactly 0.5 keeps its existing boundary body.
 /// Subnormal arguments cannot be written to a cell (Excel reads them back as zero).
 pub fn erf_approx(x: f64) -> f64 {
     if x.is_normal() && x.abs() < 0.5 {
@@ -98,9 +98,9 @@ pub fn erf_approx(x: f64) -> f64 {
     libm::erf(x)
 }
 
-/// Cody's erfc rationals (Math. Comp. 23 (1969); the SPECFUN CALERF tables) for `x*exp(x*x)*erfc(x)`
-/// and `exp(x*x)*erfc(x)`. They stand in for Excel's own `F` in [`erfc_upper`], which is not
-/// identified: Excel's noise and steps show a different rational.
+/// Cody's erfc rationals (Math. Comp. 23 (1969); the SPECFUN CALERF tables) for `x*exp(x*x)*erfc(x)`.
+/// They stand in for Excel's own `F` in [`erfc_upper`] below 4, which is not identified: Excel's
+/// noise and steps show a different rational.
 const ERFC_C: [f64; 9] = [
     5.64188496988670089e-1, 8.88314979438837594e0, 6.61191906371416295e1, 2.98635138197400131e2,
     8.81952221241769090e2, 1.71204761263407058e3, 2.05107837782607147e3, 1.23033935479799725e3,
@@ -110,16 +110,33 @@ const ERFC_D: [f64; 8] = [
     1.57449261107098347e1, 1.17693950891312499e2, 5.37181101862009858e2, 1.62138957456669019e3,
     3.29079923573345963e3, 4.36261909014324716e3, 3.43936767414372164e3, 1.23033935480374942e3,
 ];
-const ERFC_P: [f64; 6] = [
-    3.05326634961232344e-1, 3.60344899949804439e-1, 1.25781726111229246e-1, 1.60837851487422766e-2,
-    6.58749161529837803e-4, 1.63153871373020978e-2,
+
+/// `N(x)` of Excel's `F = N(x) / D(x)` for `x > 4`, lowest power first. Measured from Excel's
+/// answers (see [`erfc_upper`]); the published table is not identified.
+const ERFC_TAIL_N: [u64; 9] = [
+    0x3ff0_00ae_bf22_de1a,
+    0x4003_da26_6cd0_39c2,
+    0x4008_0fb2_b571_6d18,
+    0x4002_6c40_9d38_4171,
+    0x3ff3_96f0_fc8e_5c9c,
+    0x3fdd_936f_5138_efd9,
+    0x3fc0_191f_8363_4b97,
+    0x3f96_ca0f_8ecf_c798,
+    0x3f64_dc75_6d76_1350,
 ];
-const ERFC_Q: [f64; 5] = [
-    2.56852019228982242e0, 1.87295284992346725e0, 5.27905102951428412e-1, 6.05183413124413191e-2,
-    2.33520497626869185e-3,
+/// `D(x)`, lowest power first, measured as [`ERFC_TAIL_N`]. Excel's constant term reads as 1.
+const ERFC_TAIL_D: [u64; 10] = [
+    0x3ff0_0000_0000_0000,
+    0x400c_e328_ffeb_7964,
+    0x4018_50e3_f0a8_dba3,
+    0x4019_3da0_f9da_ba61,
+    0x4011_e2d9_55b8_fd9e,
+    0x4002_3c05_0f5f_c4a3,
+    0x3fea_d794_d2e2_c325,
+    0x3fcc_d273_9010_3553,
+    0x3fa4_324d_3ef0_f238,
+    0x3f72_7cdb_b941_913d,
 ];
-/// `1/sqrt(pi)`.
-const ERFC_SQRPI: f64 = 5.6418958354775628695e-1;
 
 /// The upper branch of Excel's erfc for `x >= 0.5`: `Q = E * F`.
 ///
@@ -129,15 +146,32 @@ const ERFC_SQRPI: f64 = 5.6418958354775628695e-1;
 /// hundreds of units. `z`'s double rounding shows directly: plain binary64 `x*x` leaves outliers of
 /// up to 1,024 units.
 ///
-/// `F` is a stand-in with the same store discipline. Excel's own `F` is not identified: its
-/// noise lines are those of two degree-8 polynomials in `x`, close in shape to Cephes'. Last bits
-/// differ until it is.
+/// `F` has two branches. `x = 4` itself falls below: bisected on consecutive doubles, Excel leaves the table below at the next double up.
+///
+/// Above 4, `F = N(x) / D(x)`, degrees (8, 9), Horner in `x`, each product, sum and the final
+/// quotient stored to binary64 from precision 64, and `Q` is the stored product `E * F`. The
+/// coefficients were read from Excel one stored stage at a time, from the top of each polynomial:
+/// the rounding of a stored stage leaves a sawtooth in the answers, so runs of consecutive doubles
+/// at geometrically spaced `x` give each stage's phase, and the next stage's phase over a long
+/// baseline gives the coefficient above it. The answers' last bits then fix the low bits, band by
+/// band downward from `x = 26.5`. `D(0)` reads as 1 and `N/D` follows `exp(x*x)*erfc(x)`'s
+/// expansion at infinity: the top two coefficients agree between `N` and `D` to 1e-14, the next
+/// differs by 1/2.
+///
+/// Up to 4 `F` is a stand-in with the same store discipline, and last bits differ. The stage tones
+/// of the table above stop between 3.95 and 4.05. Excel's own table there is not identified.
 pub fn erfc_upper(x: f64) -> f64 {
-    use crate::ported::excel_numeric::{excel_exp, excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_sub};
+    use crate::ported::excel_numeric::{excel_exp, excel_x87_add, excel_x87_div, excel_x87_mul};
     let step = |value: f64, c: f64, by: f64| excel_x87_mul(excel_x87_add(value, c), by);
     let z = excel_x87_mul(x, x);
     let e = excel_exp(-z);
-    let f = if x <= 4.0 {
+    if e == 0.0 {
+        // Past about 27 the exponential is gone and the polynomials below can overflow.
+        return 0.0;
+    }
+    let f = if x > 4.0 {
+        excel_x87_div(stored_horner(&ERFC_TAIL_N, x), stored_horner(&ERFC_TAIL_D, x))
+    } else {
         let mut num = excel_x87_mul(ERFC_C[8], x);
         let mut den = x;
         for i in 0..7 {
@@ -145,16 +179,6 @@ pub fn erfc_upper(x: f64) -> f64 {
             den = step(den, ERFC_D[i], x);
         }
         excel_x87_div(excel_x87_add(num, ERFC_C[7]), excel_x87_add(den, ERFC_D[7]))
-    } else {
-        let u = excel_x87_div(1.0, z);
-        let mut num = excel_x87_mul(ERFC_P[5], u);
-        let mut den = u;
-        for i in 0..4 {
-            num = step(num, ERFC_P[i], u);
-            den = step(den, ERFC_Q[i], u);
-        }
-        let r = excel_x87_div(excel_x87_mul(u, excel_x87_add(num, ERFC_P[4])), excel_x87_add(den, ERFC_Q[4]));
-        excel_x87_div(excel_x87_sub(ERFC_SQRPI, r), x)
     };
     excel_x87_mul(e, f)
 }
@@ -253,6 +277,53 @@ mod tests {
         let (d0, d1) = (f64::from_bits(ERF_D[0]), f64::from_bits(ERF_D[1]));
         assert!((n0 / d0 - f64::from_bits(0x3ff2_0dd7_5042_9b6d)).abs() <= 2.0 * f64::EPSILON);
         assert!((n1 / n0 - d1 / d0 + 1.0 / 3.0).abs() < 1e-15);
+    }
+
+    /// Fresh `ERFC.PRECISE` answers above 4 from the question service (Excel 16.0 build 20527),
+    /// held out of the coefficient reading: `(x bits, answer bits)`.
+    const ERFC_TAIL_RECORDED: [(u64, u64); 26] = [
+        (0x40108402930e0cfe, 0x3e36883c63d60e12),
+        (0x4010924024151932, 0x3e3405114de80265),
+        (0x40109689765f9dbe, 0x3e3351885f627dea),
+        (0x40109b5244840768, 0x3e32905d9da06fd3),
+        (0x401186561022949a, 0x3e03e87552471f61),
+        (0x40130d149d4ecfae, 0x3db1f3dcd6d899b8),
+        (0x4013c4151072bbda, 0x3d8878903b4994af),
+        (0x401446853c9d0d10, 0x3d6aaf8a69f2ac11),
+        (0x4016356dbfcf2913, 0x3cf2721271ba052a),
+        (0x40166a9ff4f7543d, 0x3ce47a7e0aedf3ad),
+        (0x4018aa82f38f4935, 0x3c497c5e2c05b719),
+        (0x40198718c8297c6b, 0x3c0a6b29a16ded6b),
+        (0x401da0c7181f6595, 0x3ac165ae716256a6),
+        (0x401db87f8a2a5126, 0x3ab89940bd6ce926),
+        (0x4020238c4208b7c3, 0x39d27df17f4bab41),
+        (0x40231df84d856657, 0x37711cd2af8384c9),
+        (0x4025ec25ae3d2b6b, 0x34d4c4fe29eb9037),
+        (0x40269e22261ede8d, 0x3421e922c4e8d883),
+        (0x4028ca2b00fe21c8, 0x31cdb688819cd6c8),
+        (0x402949dc0ee700f7, 0x313cf20e9523ae25),
+        (0x40317115db752ada, 0x2431dd29a749111d),
+        (0x4032dcb45204c473, 0x1f8928daaf4decc9),
+        (0x4035016c45b0d013, 0x17d290d09ece5706),
+        (0x403516513fb9a44b, 0x17830f7d38c4726d),
+        (0x4035a7d11800dd41, 0x1551f599691079f5),
+        (0x403a6cdfea446fae, 0x00a03c758075bc76),
+    ];
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn erfc_tail_reproduces_recorded_excel_answers() {
+        for (x, excel) in ERFC_TAIL_RECORDED {
+            let actual = erfc_upper(f64::from_bits(x)).to_bits();
+            assert_eq!(actual, excel, "ERFC.PRECISE({x:#018x}): calculated {actual:#018x}, Excel {excel:#018x}");
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn erfc_tail_has_no_overflow_past_the_exponential() {
+        assert_eq!(erfc_upper(1e300), 0.0);
+        assert_eq!(erfc_upper(f64::MAX), 0.0);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
