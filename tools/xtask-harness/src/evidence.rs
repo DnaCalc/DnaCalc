@@ -1,11 +1,11 @@
 //! `cargo xtask evidence verify [--all | --sample N] [--seed S]`, `cargo xtask evidence restore
 //! <dir> [--sample N] [--seed S]` and `cargo xtask evidence labels [--write]`: the repository
 //! commands over the backup of OxFunc's smart-fuzzer evidence in the evidence repository
-//! `OxFunc-Evidence` (bead `infra-m0.6`).
+//! `CalcFunc-Evidence` (bead `infra-m0.6`).
 //!
 //! `verify` and `restore` run that repository's own `archive-evidence.py`, which is the one
 //! implementation of both; nothing here reads a blob. The evidence checkout is
-//! `<legacy root>/OxFunc-Evidence`, where the legacy root is the workspace root's parent or
+//! `<legacy root>/CalcFunc-Evidence`, where the legacy root is the workspace root's parent or
 //! `DNACALC_LEGACY_ROOT`. The script runs with `python` on Windows and `python3` elsewhere, with
 //! `--dest` naming the checkout and no `--source`: neither subcommand reads the originals, so a
 //! restore needs only the checkout. Before the script runs, the command prints the commit that
@@ -28,7 +28,7 @@ pub const USAGE: &str = "usage: cargo xtask evidence verify [--all | --sample N]
 const EXIT_USAGE: u8 = 2;
 
 /// The evidence repository's directory under the legacy root.
-pub const CHECKOUT: &str = "OxFunc-Evidence";
+pub const CHECKOUT: &str = "CalcFunc-Evidence";
 
 /// The script in the evidence repository that archives, verifies and restores.
 pub const SCRIPT: &str = "archive-evidence.py";

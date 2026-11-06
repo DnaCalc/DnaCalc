@@ -77,7 +77,7 @@ CEILING.MATH	pinned	20430	120	119	-	structural	919dd43269+changes
 CEILING.PRECISE	full	20430	1335	1323	4611686018427387904	structural	919dd43269+changes
 CEILING.PRECISE	pinned	20430	120	120	-	exact	919dd43269+changes
 CHIDIST	full	20131,?	388	250	24	numeric	919dd43269+changes
-CHIDIST	pinned	20131	120	83	15	numeric	481f4ab85d+changes
+CHIDIST	pinned	20131	120	92	15	numeric	3d41c452b2+changes
 CHIINV	full	20131,?	100	31	91	numeric	919dd43269+changes
 CHIINV	pinned	20131	100	30	91	numeric	481f4ab85d+changes
 CHISQ.DIST.RT	full	20131,?	6	6	-	exact	919dd43269+changes
