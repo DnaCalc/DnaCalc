@@ -938,6 +938,29 @@ and Input$ are unresolved; the Input statement has a separate symbol route.
 No helper is removed, temporary introduced, or input state invented to admit
 these original projects. The pin remains 7eb4fdd9.
 
+Original-source admission follow-up (engine22, dc-snz.15): CalcVBA
+`a4bf979239e1cb67326d13b760c04ecd13bbf55f` compiles temporary-array
+UBound/LBound and Input/Input$. The host also declares ExecuteExcel4Macro
+in its existing finite member catalogue; reaching that unsupported member
+still refuses through VBA error handlers and worksheet IFERROR. Complete
+P01 and P10 projects now compile without removing helpers or changing their
+source. Admission and save/reopen preserve every original module.
+
+The same-input comparison removes all 358 original project-compilation
+failures: 250 P01 and 108 P10 controllers. P01's 530 formula positions now
+calculate, but live matches remain 0/530 because no matching live capture is
+registered. Supplemental saved references give 80 matches, 160 mismatches
+and 290 missing/excluded references. The mismatches calculate #VALUE!;
+the representative fresh PeekB1 call directly raises ordinary VBA error 91
+because RunCase has not assigned observedSheet. No setup is invented.
+P10's folder includes 204 owner XLSX files besides the controllers. All 528
+formula positions remain typed refusals for missing provider functions;
+the add-in/session setup has not run. Its live matches remain 0/528.
+Input/Input$ compilation does not establish file-I/O execution or original
+RunCase replay. The 54 existing oracle books retain byte-identical reports
+and evaluations at 38,822/40,141 matches, 1,319 inclusive failures and 77
+capture failures, with no strict certification.
+
 The 350 P02 saved-reference mismatches are a different source-history case.
 Their original Note calls UBound on an unallocated trace array, which RunCase
 initializes only in the capture session. Calling the complete fresh project with
