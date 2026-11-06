@@ -51,7 +51,7 @@ pub(crate) fn read_charts(package: &Package, sheet_part: &str) -> SheetCharts {
     let Some(drawing) = related(package, sheet_part, None, DRAWING) else {
         return read;
     };
-    let frames = match read_drawing(package, &drawing) {
+    let (frames, _) = match read_drawing(package, &drawing) {
         Ok(frames) => frames,
         Err(_) => {
             read.unread += 1;
@@ -69,6 +69,10 @@ pub(crate) fn read_charts(package: &Package, sheet_part: &str) -> SheetCharts {
     read
 }
 
+pub(super) fn unprinted_objects(package: &Package, part: &str) -> Result<usize, LoadError> {
+    read_drawing(package, part).map(|(_, count)| count)
+}
+
 fn number(text: &str) -> i64 {
     text.trim().parse().unwrap_or(0)
 }
@@ -77,7 +81,7 @@ fn number(text: &str) -> i64 {
 fn read_drawing(
     package: &Package,
     part: &str,
-) -> Result<Vec<(String, ChartAnchor, String)>, LoadError> {
+) -> Result<(Vec<(String, ChartAnchor, String)>, usize), LoadError> {
     let xml = read_xml(package, part)?;
     let mut events = Events::new(&xml);
     events.root(
@@ -86,6 +90,7 @@ fn read_drawing(
         "the document element is not a spreadsheet drawing",
     )?;
     let mut frames = Vec::new();
+    let mut other_objects = 0;
     loop {
         let element = match events.next()? {
             Some(XmlEvent::Start(element)) => element,
@@ -100,6 +105,7 @@ fn read_drawing(
                 "twoCellAnchor" | "oneCellAnchor" | "absoluteAnchor"
             )
         {
+            other_objects += 1;
             events.skip()?;
             continue;
         }
@@ -110,10 +116,24 @@ fn read_drawing(
         let mut chart: Option<String> = None;
         let mut path: Vec<String> = Vec::new();
         let mut frame = false;
+        let mut unsupported = false;
         loop {
             match events.next()? {
                 Some(XmlEvent::Start(child)) => {
                     let local = child.name.local.as_str().to_owned();
+                    if child.name.namespace.as_deref() == Some(SPREADSHEET_DRAWING)
+                        && (matches!(
+                            local.as_str(),
+                            "grpSp" | "sp" | "pic" | "cxnSp" | "contentPart"
+                        ) || local == "graphicFrame" && !path.is_empty()
+                            || local == "clientData"
+                                && matches!(
+                                    child.attribute("fPrintsWithSheet"),
+                                    Some("0" | "false")
+                                ))
+                    {
+                        unsupported = true;
+                    }
                     match local.as_str() {
                         "graphicFrame" => frame = true,
                         "cNvPr" if frame => {
@@ -154,7 +174,11 @@ fn read_drawing(
                 None => return Err(events.invalid("the part ends inside an anchor")),
             }
         }
+        if unsupported {
+            other_objects += 1;
+        }
         let Some(chart) = chart.filter(|_| frame) else {
+            other_objects += 1;
             continue;
         };
         let anchor = match kind.as_str() {
@@ -173,7 +197,7 @@ fn read_drawing(
         };
         frames.push((name, anchor, chart));
     }
-    Ok(frames)
+    Ok((frames, other_objects))
 }
 
 /// Which of a series' data an element under `c:ser` holds.

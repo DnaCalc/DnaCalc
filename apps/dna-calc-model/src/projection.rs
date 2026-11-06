@@ -275,6 +275,11 @@ pub enum Interest {
 /// What the page asks the session to do: calc-host's skin intents as the page sends them.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Intent {
+    PageSetup {
+        sheet: Sheet,
+        revision: u64,
+        change: crate::printing::PageSetupChange,
+    },
     ChartCreate {revision:u64,area:Area,kind:String,rows:bool,headers:bool,categories:bool},
     ChartType {sheet:Sheet,revision:u64,part:String,plot:u32,kind:String,stacked:bool},
     ChartLegend {sheet:Sheet,revision:u64,part:String,position:String},
@@ -555,6 +560,11 @@ pub enum TableChange {Create{area:Area,name:String},Resize{part:String,area:Area
 /// What the page asks of the server.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Request {
+    PageSetup(Sheet),
+    PrintPreview {
+        sheet: Sheet,
+        revision: u64,
+    },
     InspectTemplate,
     OpenTemplate {name:String},
     InsertTemplate {name:Option<String>,revision:u64},
@@ -1047,6 +1057,8 @@ pub struct PastePreview {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Reply {
+    PageSetup(Result<crate::printing::PageSetupState, String>),
+    PrintPreview(Result<crate::printing::PrintDocument, String>),
     TemplateFormat(FileFormat),
     FilterValues { revision:u64, values:Result<(Vec<(String,bool)>,bool),String>, criteria:Option<FilterChange> },
     Names(crate::names::NamePage),

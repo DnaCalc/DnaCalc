@@ -88,3 +88,80 @@ pub(crate) fn read(xml: &XmlPart) -> Result<PageSetup, LoadError> {
     }
     Ok(setup)
 }
+
+impl super::LoadedWorkbook {
+    /// Inspect original drawing objects before printing; preserve unsupported objects in XLSX.
+    pub fn check_print_objects(&self, sheet: calc_doc_model::value::SheetId) -> Result<(), String> {
+        // A newly authored sheet has no retained package part yet. The caller checks that
+        // the sheet exists in the current model; there are no source objects to inspect.
+        let Some(source) = self.sheet(sheet) else {
+            return Ok(());
+        };
+        let fail = || {
+            "Pictures, shapes, text boxes or worksheet controls are preserved; their browser printing is not modelled (dc-971p.57)".to_owned()
+        };
+        let rels = self.package.relationships_of(Some(source.part().name()));
+        let target = |e: &XmlElement, kind: &str| -> Result<String, String> {
+            let id = e
+                .attributes
+                .iter()
+                .find(|a| a.name.is(super::RELATIONSHIP_ATTRIBUTES, "id"))
+                .ok_or_else(fail)?;
+            rels.and_then(|r| {
+                r.items().iter().find(|r| {
+                    r.id == id.value
+                        && r.kind.ends_with(kind)
+                        && r.mode == crate::opc::TargetMode::Internal
+                })
+            })
+            .and_then(|r| r.resolved.clone())
+            .ok_or_else(fail)
+        };
+        let xml = self
+            .package
+            .read_xml(source.part().name())
+            .map_err(|_| fail())?;
+        let mut events = Events::new(&xml);
+        let mut drawings = 0;
+        while let Some(event) = events.next().map_err(|_| fail())? {
+            if let XmlEvent::Start(e) = event {
+                if e.name.is(MAIN_NAMESPACE, "sheetData") {
+                    events.skip().map_err(|_| fail())?;
+                    continue;
+                }
+                if e.name.is(MAIN_NAMESPACE, "controls") || e.name.is(MAIN_NAMESPACE, "oleObjects")
+                {
+                    return Err(fail());
+                }
+                if e.name.is(MAIN_NAMESPACE, "drawing") {
+                    drawings += 1;
+                    let part = target(&e, "/drawing")?;
+                    if drawings > 1
+                        || super::chart::unprinted_objects(&self.package, &part)
+                            .map_err(|_| fail())?
+                            > 0
+                    {
+                        return Err(fail());
+                    }
+                }
+                if e.name.is(MAIN_NAMESPACE, "legacyDrawing") {
+                    let part = target(&e, "/vmlDrawing")?;
+                    let xml = self.package.read_xml(&part).map_err(|_| fail())?;
+                    let notes = self.model().definitions().review_notes(sheet);
+                    crate::save::review::check_note_shapes(&xml, notes, notes)
+                        .map_err(|_| fail())?;
+                }
+            }
+        }
+        if rels.map_or(0, |r| {
+            r.items()
+                .iter()
+                .filter(|r| r.kind.ends_with("/drawing"))
+                .count()
+        }) != drawings
+        {
+            return Err(fail());
+        }
+        Ok(())
+    }
+}

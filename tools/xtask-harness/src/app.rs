@@ -188,6 +188,7 @@ pub static APPS: [App; 2] = [
             "apps/dna-formula-ui/web/css/formula-field.css",
             "apps/dna-calc/web/css/shell.css",
             "apps/dna-calc/web/css/grid.css",
+            "apps/dna-calc/web/css/printing.css",
             "apps/dna-calc/web/css/notebook.css",
             "apps/dna-calc/web/css/atlas.css",
             "apps/dna-calc/web/css/tree.css",
@@ -922,7 +923,19 @@ fn open(browser: &Browser, download_root: &Path) -> Result<(DriverProcess, Sessi
     // ubs:ignore — the executable comes from the local driver setting or PATH, never workbook data.
     let mut command = Command::new(&program);
     match browser.name {
-        "firefox" => command.args(["--port", &port.to_string()]),
+        "firefox" => {
+            // Geckodriver's fixed default BiDi port can belong to another test session.
+            // A connection there returns 404 for this session's otherwise valid identity.
+            let mut bidi_port = free_port()?;
+            while bidi_port == port {
+                bidi_port = free_port()?;
+            }
+            command.args(["--port", &port.to_string(),
+                "--websocket-port",
+                &bidi_port.to_string(),
+                "--allow-system-access",
+            ])
+        }
         _ => command.arg(format!("--port={port}")),
     };
     command
@@ -1020,6 +1033,9 @@ fn select(app: &App, name: &str) -> String {
 
 /// What a case does. A name is a role or a selector ([`select`]).
 pub enum Action {
+    RememberPrintPreview,
+    /// Browser PDF of the application-generated print document, saved as base64 evidence.
+    CapturePrintPdf(&'static str),
     /// Cell-boundary continuation in the bundled calculation worker, with an intervening Ping.
     WorkerCalculation,
     /// A native wheel gesture, with observation of its completed scroll.
@@ -1104,6 +1120,9 @@ pub enum Action {
 
 /// What a case expects the page to show. A name is a role or a selector ([`select`]).
 pub enum Check {
+    PrintRefreshed,
+    /// Completed browser print frame, physical page rule and decoded drawings.
+    PrintDocument(usize),
     /// Browser visibility, including closed native disclosure contents (not viewport clipping).
     Rendered(&'static str, bool),
     /// Read an actual session-owned JSON download.
@@ -1240,6 +1259,9 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
         return Ok(value.pointer(pointer).cloned().unwrap_or(Value::Null));
     }
     let script = match check {
+        Check::PrintRefreshed=>"const h=window.__dcPrintHold,p=document.querySelector('[data-dnacalc=print-workspace]'),c=p?.querySelector('canvas');return !!h&&!!p?.dataset.printEpoch&&p.dataset.printEpoch!==h.epoch&&!!c&&c.getAttribute('aria-label')!==h.values;".into(),
+        Check::PrintDocument(pages)=>format!("const d=document.querySelector('#dc-print-frame')?.contentDocument;return !!d&&d.body.dataset.dnacalcPrintReady==='true'&&d.querySelectorAll('[data-dnacalc=print-page]').length==={pages}&&Array.from(d.images).length>0&&Array.from(d.images).every(i=>i.complete&&i.naturalWidth>0)&&Array.from(d.styleSheets).some(s=>Array.from(s.cssRules).some(r=>r.type===6&&r.cssText.includes('size:')));"),
+
         Check::MinHeight(name, pixels) => format!("var e={};return !!e&&e.getBoundingClientRect().height>={};",q(name),pixels),
         Check::Rendered(name, _) => format!("var e={};return e?e.checkVisibility():false;",q(name)),
         Check::DownloadedJson(..) => unreachable!(),
@@ -1269,6 +1291,11 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
             return {{ok:!!a&&!!b&&a.text_measured&&b.text_measured&&a.shown.text===b.shown.text&&Math.abs(b.text_advance-a.text_advance)>1&&b.rect.w>a.rect.w&&Number.isFinite(before)&&Math.abs(after-before)>1&&Math.abs(after-b.text_advance)<1&&getComputedStyle(e).fontFamily.includes('DnacalcReflow')&&window.__dcAppliedFont?.trusted===true,before:a,after:b,dom_before:before,dom_after:after}};"#)
         }
         Check::CanvasInk(address) => {
+            if address.starts_with('[') {
+                let selector=serde_json::to_string(address).unwrap();
+                return session.script(&format!("const c=document.querySelector({selector});if(!c||!c.width||!c.height)return false;const d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;for(let i=0;i<d.length;i+=4)if(d[i+3]>0&&Math.min(d[i],d[i+1],d[i+2])<160)return true;return false;"));
+            }
+
             let address=serde_json::to_string(address).unwrap();
             format!(r#"{READ_PLANS}var p=plans[0]?.plan,c=p?.cells.find(c=>c.address==={address}),g=document.querySelector('[data-dnacalc=grid][data-grid-active=true]'),canvas=g?.querySelector('canvas');if(!c||!canvas||g.dataset.painter!=='canvas')return false;
             var r=c.anchor,d=devicePixelRatio,ctx=canvas.getContext('2d'),data=ctx.getImageData(Math.ceil((r.x+4)*d),Math.ceil((r.y+2)*d),Math.max(1,Math.floor((r.w-8)*d)),Math.max(1,Math.floor((r.h-4)*d))).data;
@@ -1446,7 +1473,9 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
                 .iter()
                 .any(|item| item.as_str().is_some_and(|text| text.starts_with(wanted)))
         }),
-        Check::Aligned(..)
+        Check::PrintRefreshed
+        | Check::PrintDocument(_)
+        | Check::Aligned(..)
         | Check::PlanAbsent(_)
         | Check::PlanReady
         | Check::PainterStable
@@ -1492,6 +1521,12 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
 
 fn describe(check: &Check) -> String {
     match check {
+        Check::PrintRefreshed => {
+            "recalculation replaces the preview epoch and its printed volatile value".into()
+        }
+        Check::PrintDocument(pages) => format!(
+            "the completed application print document has {pages} physical pages and decoded drawings"
+        ),
         Check::Rendered(name, expected) => format!("the browser reports {name} rendered: {expected}"),
         Check::DownloadedJson(name, pointer, expected) => format!("download {name} {pointer} is {expected:?}"),
         Check::PlanCell(address, field, expected) => {
@@ -1504,7 +1539,13 @@ fn describe(check: &Check) -> String {
         Check::PainterStable => {
             "switching painter preserves the exact committed plan and command count".into()
         }
-        Check::CanvasInk(address) => format!("Canvas2D has rasterized text in {address}"),
+        Check::CanvasInk(address) => {
+            if address.starts_with('[') {
+                format!("Canvas2D has a nonwhite drawing in {address}")
+            } else {
+                format!("Canvas2D has rasterized text in {address}")
+            }
+        }
         Check::PresentationChanged(cause) => format!(
             "{cause} rebuilds the RenderPlan without changing values, model revision or submitting a workbook command"
         ),
@@ -1744,6 +1785,83 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
         Action::PauseMillis(ms) => {
             thread::sleep(Duration::from_millis(*ms));
             Ok(())
+        }
+        Action::RememberPrintPreview => {
+            session.script("const p=document.querySelector('[data-dnacalc=print-workspace]'),c=p?.querySelector('canvas');if(!p?.dataset.printEpoch||!c)throw new Error('Print values are not ready');window.__dcPrintHold={epoch:p.dataset.printEpoch,values:c.getAttribute('aria-label')};return null;")?;
+            Ok(())
+        }
+        Action::CapturePrintPdf(name) => {
+            if session.bidi.is_some() {
+                // Firefox's native preview lives in browser UI, beyond content key input.
+                // Control only this smoke session's print dialog, then restore content scope.
+                // https://firefox-source-docs.mozilla.org/testing/geckodriver/Flags.html
+                session.post("/moz/context", json!({"context":"chrome"}))?;
+                let cancelled = (|| {
+                    let started = Instant::now();
+                    loop {
+                        let count=session.script("const manager=gBrowser.getTabDialogBox(gBrowser.selectedBrowser).getTabDialogManager();const printing=Array.from(manager.dialogs).filter(d=>d._box.querySelector('.printSettingsBrowser'));for(const dialog of printing)dialog.close();return printing.length;")?;
+                        if count.as_u64().is_some_and(|n| n > 0) {
+                            return Ok(());
+                        }
+                        if started.elapsed() > Duration::from_secs(10) {
+                            return Err(
+                                "Firefox did not expose the native print preview to cancel"
+                                    .to_owned(),
+                            );
+                        }
+                        thread::sleep(Duration::from_millis(50));
+                    }
+                })();
+                let restored = session.post("/moz/context", json!({"context":"content"}));
+                cancelled.and(restored.map(|_| ()))?;
+            }
+            // Copy only the application's completed print document into the top-level context
+            // because WebDriver Print operates on that context. No pagination is built here.
+            let info=session.script(r#"const source=document.querySelector('#dc-print-frame')?.contentDocument;
+                if(source?.body?.dataset.dnacalcPrintReady!=='true')throw new Error('Application print document is not ready');
+                const page=source.querySelector('[data-dnacalc=print-page]'),box=page.getBoundingClientRect(),root=document.importNode(source.querySelector('[data-dnacalc=print-pages]'),true);
+                const rule=Array.from(source.styleSheets).flatMap(s=>Array.from(s.cssRules)).find(r=>r.type===6)?.cssText;
+                const sheet=Array.from(document.styleSheets).find(s=>s.href?.endsWith('/app.css'));
+                if(!rule||!sheet)throw new Error('Application print paper rule is missing');
+                window.__dcPrintPdfHold={sheet,index:sheet.cssRules.length};sheet.insertRule(rule,sheet.cssRules.length);
+                sheet.insertRule('@media print {body>*:not(#dc-print-pdf-capture),dialog{display:none!important}#dc-print-pdf-capture{display:block!important;position:static!important;left:auto!important;top:auto!important}}',sheet.cssRules.length);
+                root.id='dc-print-pdf-capture';document.body.appendChild(root);
+                for(const e of root.querySelectorAll('[style]'))e.style.cssText=e.getAttribute('style');
+                root.style.cssText='position:fixed;left:-20000px;top:0';
+                return {width:parseFloat(page.style.width),height:parseFloat(page.style.height)};"#)?;
+            let captured = (|| {
+                // The application already awaited decode in the print frame. For imported
+                // copies, poll their loaded resource and font state, with failure diagnostics.
+                // Require every copied image to be complete and valid, and the fonts loaded.
+                let started = Instant::now();
+                loop {
+                    let ready=session.script("const root=document.querySelector('#dc-print-pdf-capture'),images=Array.from(root?.querySelectorAll('img')||[]);return {ready:document.fonts.status==='loaded'&&images.length>0&&images.every(i=>i.complete&&i.naturalWidth>0),fonts:document.fonts.status,images:images.map(i=>({complete:i.complete,width:i.naturalWidth}))};")?;
+                    if ready["ready"] == json!(true) {
+                        break;
+                    }
+                    if started.elapsed() > Duration::from_secs(10) {
+                        return Err(format!("Generated print images/fonts: {ready}"));
+                    }
+                    thread::sleep(Duration::from_millis(50));
+                }
+                let width = info["width"].as_f64().ok_or("Print paper width")? * 2.54 / 96.;
+                let height = info["height"].as_f64().ok_or("Print paper height")? * 2.54 / 96.;
+                let pdf=session.post("/print",json!({"background":true,"shrinkToFit":false,"scale":1,"orientation":"portrait","page":{"width":width,"height":height},"margin":{"top":0,"bottom":0,"left":0,"right":0}}))?;
+                let encoded = pdf
+                    .as_str()
+                    .filter(|s| s.starts_with("JVBERi0") && s.len() <= 48_000_000)
+                    .ok_or("Browser Print did not return a bounded PDF")?;
+                let path = session
+                    .downloads
+                    .parent()
+                    .ok_or("Print capture folder")?
+                    .join(format!("print-{}-{name}", session.id));
+                fs::write(&path, encoded).map_err(|e| e.to_string())?;
+                println!("DNACALC browser PDF {}", path.display());
+                Ok(())
+            })();
+            let restored=session.script("const h=window.__dcPrintPdfHold;if(h){document.querySelector('#dc-print-pdf-capture')?.remove();h.sheet.deleteRule(h.index);h.sheet.deleteRule(h.index);delete window.__dcPrintPdfHold;}return null;");
+            captured.and(restored.map(|_| ()))
         }
         Action::ClearDownloads => {
             for entry in fs::read_dir(&session.downloads).map_err(|e| e.to_string())? {
@@ -3123,9 +3241,19 @@ mod tests {
             .iter()
             .map(|app| SmokeSelection::default().count(app))
             .sum();
+        let inherited_total: usize = APPS
+            .iter()
+            .flat_map(|app| app.groups)
+            .filter(|group| group.name != "page-layout")
+            .map(|group| group.core)
+            .sum();
         assert_eq!(
-            total, 381,
-            "the two applications have 381 core cases including eighteen chart creation/log/combination/legend cases and all 363 inherited core cases"
+            inherited_total, 381,
+            "the two applications retain 381 core cases including eighteen chart creation/log/combination/legend cases and all 363 inherited core cases"
+        );
+        assert_eq!(
+            total, 393,
+            "the twelve page-layout cases extend all 381 inherited core cases"
         );
     }
 

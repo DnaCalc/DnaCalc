@@ -88,11 +88,11 @@ impl Skin for GridSkin {
     }
 
     fn focus_target(&self) -> &'static str {
-        "[data-dnacalc=grid][data-grid-active=true][data-surface-ready=true]"
+        "[data-dnacalc=grid][data-grid-active=true][data-surface-ready=true], [data-dnacalc=print-workspace]"
     }
 
     fn mount(&self, ctx: SkinContext) -> AnyView {
-        grid_workspace(ctx.controller).into_any()
+        crate::printing::grid_workspace(ctx.controller)
     }
 }
 
@@ -167,7 +167,7 @@ impl PaneContext {
         }
     }
 }
-fn grid_workspace(controller: Controller) -> impl IntoView {
+pub(crate) fn grid_workspace(controller: Controller) -> impl IntoView {
     let canvas = RwSignal::new(painter::initial_canvas());
     let layout = RwSignal::new(wire::Geometry::default());
     let loaded = RwSignal::new(false);
@@ -2412,4 +2412,23 @@ pub fn validation_list_index(index: usize, key: &str, len: usize) -> Option<usiz
         "End" => Some(len - 1),
         _ => None,
     }
+}
+
+/// Print pages consume the existing Canvas2D painter without changing its geometry or metrics.
+pub(crate) fn print_advance(
+    cell: &dna_calc_model::projection::CellShown,
+    text: &str,
+    fonts: u64,
+) -> Option<f64> {
+    autofit::plan_advance(cell, text, 1., fonts)
+}
+pub(crate) fn print_family(name: &str) -> String {
+    autofit::family_css(Some(name))
+}
+pub(crate) fn paint_print(
+    canvas: &web_sys::HtmlCanvasElement,
+    plan: &render_plan::RenderPlan,
+    metrics: &geometry::GridMetrics,
+) {
+    painter::paint(canvas, plan, panes::Panes::default(), metrics);
 }

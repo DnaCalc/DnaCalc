@@ -16331,3 +16331,88 @@ fn dc_971p_56__page_setup_commands_keep_scoped_print_names_atomic_and_reject_sta
     assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(calc_host::print_name(book.host(),sheet,"_xlnm.Print_Area"),None);assert_eq!(book.host().model().definitions().page_setup(sheet).get("pageSetup","orientation"),None);
     assert!(book.dispatch(SkinIntent::Redo).accepted());
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_57__print_inspection_keeps_charts_and_refuses_unrendered_drawing_objects() {
+    let chart_bytes = include_bytes!("fixtures/dc_6yw/charts.xlsx");
+    let chart_book = session(chart_bytes);
+    let sheet = chart_book.host().sheets()[0].id();
+    assert!(
+        chart_book
+            .host()
+            .loaded()
+            .check_print_objects(sheet)
+            .is_ok()
+    );
+    let no_print = package_with_part_from(chart_bytes, "xl/drawings/drawing1.xml", |xml| {
+        xml.replacen(
+            "<xdr:clientData/>",
+            "<xdr:clientData fPrintsWithSheet=\"0\"/>",
+            1,
+        )
+    });
+    let book = session(&no_print);
+    let sheet = book.host().sheets()[0].id();
+    assert!(
+        book.host().loaded().check_print_objects(sheet).is_err(),
+        "A chart with an unmodelled print-object flag cannot be silently included"
+    );
+    let grouped = package_with_part_from(chart_bytes, "xl/drawings/drawing1.xml", |xml| {
+        xml.replacen("<xdr:graphicFrame", "<xdr:grpSp><xdr:nvGrpSpPr><xdr:cNvPr id=\"900\" name=\"Grouped print object\"/><xdr:cNvGrpSpPr/></xdr:nvGrpSpPr><xdr:grpSpPr/><xdr:graphicFrame",1).replacen("</xdr:graphicFrame>","</xdr:graphicFrame><xdr:sp><xdr:nvSpPr><xdr:cNvPr id=\"901\" name=\"Text box\"/><xdr:cNvSpPr/></xdr:nvSpPr><xdr:spPr/></xdr:sp></xdr:grpSp>",1)
+    });
+    let book = session(&grouped);
+    let sheet = book.host().sheets()[0].id();
+    assert!(
+        book.host()
+            .loaded()
+            .check_print_objects(sheet)
+            .unwrap_err()
+            .contains("shapes")
+    );
+    let mut notes = session(&calc_host::blank_package());
+    let ns = notes.host().sheets()[0].id();
+    assert!(
+        review_action(
+            &mut notes,
+            at(ns, "A1"),
+            calc_host::ReviewAction::Create {
+                parent: None,
+                threaded: false,
+                author: "Local".into(),
+                text: "Not printed when comments are none".into(),
+                timestamp: String::new()
+            }
+        )
+        .accepted()
+    );
+    let mut saved = Vec::new();
+    notes.save(&SavePolicy::default(), &mut saved).unwrap();
+    let notes = session(&saved);
+    let ns = notes.host().sheets()[0].id();
+    assert!(notes.host().loaded().check_print_objects(ns).is_ok());
+    let book = session(include_bytes!("fixtures/d2/structural-base.xlsx"));
+    let sheet = self::sheet(book.host(), "S");
+    assert!(
+        book.host()
+            .loaded()
+            .check_print_objects(sheet)
+            .unwrap_err()
+            .contains("text boxes")
+    );
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace(
+            "</worksheet>",
+            "<controls><control name=\"Print control\" shapeId=\"1\"/></controls></worksheet>",
+        )
+    });
+    let book = session(&bytes);
+    let sheet = book.host().sheets()[0].id();
+    assert!(
+        book.host()
+            .loaded()
+            .check_print_objects(sheet)
+            .unwrap_err()
+            .contains("controls")
+    );
+}

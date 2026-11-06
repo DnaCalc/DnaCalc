@@ -73,6 +73,7 @@ pub(crate) fn prepare(
         if value.is_empty() {
             setup.headers.remove(&name);
         } else {
+            setup.sections.entry("headerFooter".into()).or_default();
             setup.headers.insert(
                 name,
                 ExcelText::from_utf16_code_units(value.encode_utf16().collect()),
