@@ -16789,3 +16789,42 @@ fn dc_hsa5_6__conditional_colour_filter_uses_current_owner_services() {
     }
     assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
 }
+
+/// Saved pivot output remains worksheet data; cache parts are retained through the application save.
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_1__saved_pivots_share_caches_and_survive_source_edits(){
+    use calc_doc::pivot::PivotItem;
+    let bytes=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
+    let mut book=session(bytes);let sheet=book.host().sheets()[0].id();
+    let check=|book:&HostSession|{
+        let loaded=book.host().loaded();let caches=loaded.pivot_caches();assert!(caches.issues.is_empty(),"{:?}",caches.issues);assert_eq!(caches.caches.keys().copied().collect::<Vec<_>>(),[7,9]);
+        let cache=&caches.caches[&7];assert_eq!(cache.source_sheet.as_deref(),Some("Data"));assert_eq!(cache.source_range.as_deref(),Some("A1:B4"));assert_eq!(cache.fields.iter().map(|f|f.name.as_str()).collect::<Vec<_>>(),["Region","Amount"]);assert_eq!(cache.fields[0].items,[PivotItem::Text("East".into()),PivotItem::Text("West".into())]);assert_eq!(caches.caches[&9].source_name.as_deref(),Some("SalesRange"));
+        let pivots=loaded.sheet(sheet).unwrap().pivots();assert!(pivots.issues.is_empty());assert_eq!(pivots.tables.len(),2);assert!(pivots.tables.iter().all(|p|p.cache_id==7));assert_eq!(pivots.tables[0].name,"Summary");assert_eq!(pivots.tables[0].area,GridArea::new(at(sheet,"D3"),at(sheet,"E6")).unwrap());assert_eq!(pivots.tables[0].row_fields,[0]);assert_eq!(pivots.tables[0].data_fields[0].field,1);assert_eq!(pivots.tables[0].data_fields[0].subtotal,"sum");
+        let rows=loaded.pivot_records(7,10).unwrap();assert_eq!(rows.declared_count,Some(3));assert!(!rows.truncated);assert_eq!(rows.records,[vec![PivotItem::Index(0),PivotItem::Number("12".into())],vec![PivotItem::Index(1),PivotItem::Number("8".into())],vec![PivotItem::Index(0),PivotItem::Number("4".into())]]);let limited=loaded.pivot_records(7,1).unwrap();assert!(limited.truncated);assert_eq!(limited.records,rows.records[..1]);assert!(loaded.pivot_records(9,10).is_err());assert!(loaded.pivot_records(99,10).is_err());
+    };
+    check(&book);assert!(enter(&mut book,at(sheet,"B2"),"100").accepted());assert_eq!(session_calculated(&book,at(sheet,"H1")),Some(CalcValue::number(112.)));assert!(matches!(session_value(&book,at(sheet,"E6")),ProjectedValue::Literal(_)),"Saved output is literal worksheet data");assert_eq!(session_value(&book,at(sheet,"E6")),ProjectedValue::Literal(CalcValue::number(24.)));
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());check(&reopened);assert_eq!(session_calculated(&reopened,at(sheet,"H1")),Some(CalcValue::number(112.)));assert_eq!(reopened.host().model().cell(at(sheet,"E6")).unwrap(),book.host().model().cell(at(sheet,"E6")).unwrap());
+    for part in ["xl/_rels/workbook.xml.rels","xl/pivotCache/cache-main.xml","xl/pivotCache/cache-name.xml","xl/pivotCache/records.xml","xl/pivotCache/_rels/cache-main.xml.rels","xl/pivotTables/summary.xml","xl/pivotTables/summary-two.xml","xl/worksheets/_rels/sheet1.xml.rels","xl/pivotTables/_rels/summary.xml.rels","xl/pivotTables/_rels/summary-two.xml.rels"]{assert_eq!(part_text(&saved,part),part_text(bytes,part),"{part}");}
+}
+
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_1__unread_pivot_metadata_is_reported_and_preserved_without_losing_the_workbook(){
+ let original=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
+ for (part,from,to,kind) in [
+   ("xl/pivotTables/summary.xml","ref=\"D3:E6\"","ref=\"not-an-area\"",0),
+   ("xl/workbook.xml","<pivotCache cacheId=\"7\" r:id=\"Cache77\"/>","<pivotCache cacheId=\"7\" r:id=\"Cache77\"/><pivotCache cacheId=\"7\" r:id=\"Cache77\"/>",1),
+   ("xl/pivotCache/records.xml","<n v=\"12\"/>","<n/>",2),
+   ("xl/worksheets/_rels/sheet1.xml.rels","relationships/pivotTable","relationships/unreadPivot",3),
+ ]{
+  let bytes=package_with_part_from(original,part,|xml|{assert!(xml.contains(from));xml.replacen(from,to,1)});let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();let loaded=book.host().loaded();
+  match kind{
+   0|3=>{assert_eq!(loaded.sheet(sheet).unwrap().pivots().tables.len(),1);let issues=&loaded.sheet(sheet).unwrap().pivots().issues;assert_eq!(issues.len(),1);assert_eq!(issues[0].owner,"dc-8wp");},
+   1=>{assert_eq!(loaded.pivot_caches().issues.len(),1);assert!(!loaded.pivot_caches().caches.contains_key(&7));assert!(loaded.pivot_caches().caches.contains_key(&9));},
+   _=>{assert!(loaded.pivot_caches().issues.is_empty());assert_eq!(loaded.pivot_records(7,10).unwrap_err().owner,"dc-8wp");},
+  }
+  assert!(enter(&mut book,at(sheet,"B2"),"100").accepted());assert_eq!(session_calculated(&book,at(sheet,"H1")),Some(CalcValue::number(112.)));let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();if part!="xl/workbook.xml"{assert_eq!(part_text(&saved,part),part_text(&bytes,part));}else{assert!(part_text(&saved,part).contains(to));}
+ }
+}

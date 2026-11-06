@@ -2303,6 +2303,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 </span>
             </div>
             {crate::charts::controls(controller)}
+        {crate::pivots::controls(controller)}
             </>})}
             <span class="dc-sr-only" data-dnacalc="grid-announcement" role="status" aria-live="polite" aria-atomic="true">{move || if ctx.active.get()==ctx.index { announcement.get() } else { String::new() }}</span>
         </div>

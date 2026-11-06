@@ -282,6 +282,7 @@ pub enum Intent {
     },
     ChartCreate {revision:u64,area:Area,kind:String,rows:bool,headers:bool,categories:bool},
     ChartSeriesStyle {sheet:Sheet,revision:u64,part:String,plot:u32,series:u32,fill:Option<String>},
+    ChartTextStyle{sheet:Sheet,revision:u64,part:String,style:ChartTextStyle},
     ChartType {sheet:Sheet,revision:u64,part:String,plot:u32,kind:String,stacked:bool},
     ChartLegend {sheet:Sheet,revision:u64,part:String,position:String},
     ChartLogAxis {sheet:Sheet,revision:u64,part:String,axis:u32,base:Option<String>},
@@ -670,6 +671,7 @@ pub enum Request {
     },
     /// The sheet's charts, drawn.
     Charts(Sheet),
+    PivotTables(Sheet),
     /// The cell's data validation: its rule and, for a list, its items.
     Validation(Key),
     ValidationInvalid(Sheet),
@@ -935,6 +937,7 @@ impl Geometry {
 /// its position and size, and its drawing.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Chart {
+    #[serde(default)] pub text_style:ChartTextStyle,
     #[serde(default)] pub plots:Vec<ChartPlotSource>,
     #[serde(default)] pub axes:Vec<ChartAxisSource>,
     #[serde(default)] pub part:String,
@@ -1104,6 +1107,7 @@ pub enum Reply {
     UsedArea(Option<Area>),
     ResolvedReference(Result<Area, String>),
     Charts(Vec<Chart>),
+    PivotTables{tables:Vec<SavedPivot>,issues:Vec<String>},
     Validation(Option<Validation>),
     ValidationInvalid(ValidationScan),
     Atlas(Atlas),
@@ -1558,3 +1562,10 @@ pub enum FillShown {
 pub struct ReviewFormat {pub bold:Option<bool>,pub italic:Option<bool>,pub underline:Option<bool>,pub color:Option<String>,pub clear:bool}
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReviewRun {pub text:String,pub bold:bool,pub italic:bool,pub underline:bool,pub strike:bool,pub color:Option<String>,pub size:Option<String>}
+
+#[derive(Clone,Debug,Default,PartialEq,Eq,Serialize,Deserialize)]
+pub struct ChartTextStyle{pub family:Option<String>,pub size:Option<u32>,pub bold:Option<bool>,pub italic:Option<bool>,pub color:Option<String>}
+
+/// Metadata for a saved pivot; its cells are presented through the normal worksheet route.
+#[derive(Clone,Debug,PartialEq,Eq,Serialize,Deserialize)]
+pub struct SavedPivot {pub name:String,pub part:String,pub area:Area,pub location:String,pub source:String,pub fields:String,pub cache:String}

@@ -2901,3 +2901,12 @@ fn contract_vba_load_is_wire_deduplicated_and_failed_load_preserves_the_project(
     assert_eq!(failures.iter().filter(|event| matches!(event, wire::Event::WorkbookEventFailed { event, reason, .. } if event == "Workbook_BeforeSave" && reason.contains("(5:"))).count(), 1);
     assert_eq!(report(&mut server), "2:False");
 }
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_1__saved_pivots_cross_the_page_wire_without_refresh_claims(){
+ use dna_calc_worker::{server::{Server,answer_text},wire::{self,Request,Reply,ToServer,FromServer,Sheet}};
+ let mut server=Server::new();let opened=server.execute_current(Request::Open{name:"pivot-saved.xlsx".into()},Some(include_bytes!("../../../crates/calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx").to_vec()));assert!(matches!(opened.reply,Ok(Reply::Done{outcome:wire::Outcome{accepted:true,..},..})),"{:?}",opened.reply);
+ let sheet=server.book().sheets()[0].id;let request=ToServer{id:71,request:Request::PivotTables(Sheet::of(sheet))};let (text,bytes)=answer_text(&mut server,&wire::encode(&request),None);assert!(bytes.is_none());let response:FromServer=wire::decode(&text).unwrap();let tables=match response{FromServer::Reply{id:71,reply:Reply::PivotTables{tables,issues},..}=>{assert!(issues.is_empty(),"{issues:?}");tables},other=>panic!("{other:?}")};assert_eq!(tables.len(),2);assert_eq!(tables[0].name,"Summary");assert_eq!(tables[0].location,"D3:E6");assert_eq!(tables[0].source,"Source: Data!A1:B4");assert!(tables[0].fields.contains("Rows: Region")&&tables[0].fields.contains("Sum of Amount (sum)"));assert!(tables[0].cache.contains("Saved cache 7")&&tables[1].cache.contains("Saved cache 7"));assert_eq!(shown(server.book(),CellKey::new(sheet,6,5).unwrap()).text,"24");
+ let save=server.execute_current(Request::Save,None);assert!(save.reply.is_ok(),"{:?}",save.reply);let opened=server.execute_current(Request::Open{name:"pivot-saved.xlsx".into()},save.bytes);assert!(opened.reply.is_ok());let sheet=server.book().sheets()[0].id;let reply=server.execute_current(Request::PivotTables(Sheet::of(sheet)),None);assert!(matches!(reply.reply,Ok(Reply::PivotTables{tables:ref again,ref issues})if *again==tables&&issues.is_empty()),"{:?}",reply.reply);
+}

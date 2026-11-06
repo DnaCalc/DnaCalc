@@ -15,6 +15,7 @@ const C: &str = "http://schemas.openxmlformats.org/drawingml/2006/chart";
 const A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
 mod create;
 mod colour;
+mod font;
 pub(crate) fn check_new_frames(package:&Package,source:&crate::load::LoadedSheet,charts:&[Chart])->Result<(),SaveRefusal>{
     create::add(package,source,charts,&mut Changes::default(),None)
 }
@@ -61,13 +62,14 @@ fn source_with_xml(
     retained.legend = before.legend.clone();
     retained.plots = before.plots.clone();
     retained.axes = before.axes.clone();
+    retained.text_style=before.text_style.clone();
     if retained != *before {
         return Err(invalid(
             "Changes to the chart frame are not modelled",
         ));
     }
     if before.plots.len()!=after.plots.len() {return Err(invalid("Adding or removing chart plots is not modelled (dc-971p.46)"));}
-    if before.plots.len()!=1 && before.plots.iter().zip(&after.plots).any(|(a,b)|plot_type_changed(a,b)){return Err(invalid("Changing combination chart types is not modelled (dc-971p.46)"));}
+    if before.plots.len()!=1 && before.plots.iter().zip(&after.plots).any(|(a,b)|plot_type_changed(a,b)) && !category_combination(&after.plots){return Err(invalid("Choose two distinct vertical column, line or area plots with Normal grouping (dc-971p.59)"));}
     let old_total=before.plots.iter().map(|p|p.series.len()).sum::<usize>();let new_total=after.plots.iter().map(|p|p.series.len()).sum::<usize>();
     if new_total>255 && new_total>old_total{return Err(invalid("A chart can have at most 255 series (dc-971p.46)"));}
     for (old,new) in before.plots.iter().zip(&after.plots) {
@@ -194,6 +196,7 @@ fn source_with_xml(
     if !found {
         return Err(invalid("The part holds no chart"));
     }
+    if before.text_style!=after.text_style{font::apply(&xml,&before.text_style,&after.text_style,&mut patches)?;}
     patches.sort_by_key(|(span, _)| (span.0, span.1));
     let mut splice = Splice::new(xml.bytes());
     for (span, bytes) in patches {
@@ -815,4 +818,8 @@ mod colour_order_tests {
    let text=String::from_utf8(splice.finish()).unwrap();assert!(text.find("<c:tx").unwrap()<text.find("<c:spPr").unwrap(),"{text}");assert!(text.find("<c:spPr").unwrap()<text.find("<c:cat").unwrap(),"{text}");
   }
  }
+}
+
+fn category_combination(plots:&[ChartPlot])->bool{
+    plots.len()==2 && plots[0].kind!=plots[1].kind && plots.iter().all(|p|category_kind(&p.kind)&&(p.kind!="barChart"||p.bar_direction.as_deref()==Some("col"))&&!matches!(p.grouping.as_deref(),Some("stacked"|"percentStacked")))
 }

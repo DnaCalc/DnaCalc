@@ -34,11 +34,11 @@
 .dc-command-row label{display:flex;align-items:center;gap:var(--dna-gap-2);max-width:100%}
 .dc-command-row select{min-width:0;max-width:100%}
 .dc-command-row [data-dnacalc=filter-color]{width:10ch;min-width:0}
-.dc-command-row :is(button,input,select,textarea),.dc-clipboard-dialog button,.dc-gridbar :is(button,input){box-sizing:border-box;min-height:28px;padding:var(--dna-gap-2) var(--dna-gap-3);font:inherit;color:var(--dna-ink);background:var(--dna-paper);border:1px solid var(--dna-ink-3);border-radius:var(--dna-radius-chip)}
+.dc-command-row :is(button,input,select,textarea),.dc-clipboard-dialog button,.dc-gridbar :is(button,input),.dc-pivot-summary button{box-sizing:border-box;min-height:28px;padding:var(--dna-gap-2) var(--dna-gap-3);font:inherit;color:var(--dna-ink);background:var(--dna-paper);border:1px solid var(--dna-ink-3);border-radius:var(--dna-radius-chip)}
 .dc-command-row .dc-filter-date-input{flex-direction:column;align-items:flex-start;width:min(100%,28em)}
 .dc-filter-date-input textarea{width:100%;max-width:100%;resize:vertical}
-.dc-command-row button:hover,.dc-clipboard-dialog button:hover{background:var(--dna-accent-soft);border-color:var(--dna-accent)}
-.dc-command-row :focus-visible,.dc-clipboard-dialog :focus-visible{outline:2px solid var(--dna-amber);outline-offset:2px}
+.dc-command-row button:hover,.dc-clipboard-dialog button:hover,.dc-pivot-summary button:hover{background:var(--dna-accent-soft);border-color:var(--dna-accent)}
+.dc-command-row :focus-visible,.dc-clipboard-dialog :focus-visible,.dc-pivot-summary button:focus-visible{outline:2px solid var(--dna-amber);outline-offset:2px}
 .dc-command-row :disabled{opacity:.55;cursor:default}
 .dc-clipboard-dialog [data-dnacalc=paste-confirm]{background:var(--dna-accent-soft);border-color:var(--dna-accent);color:var(--dna-accent-ink)}
 .dc-clipboard-dialog{background:var(--dna-paper);color:var(--dna-ink);border:1px solid var(--dna-line);border-radius:var(--dna-radius-card);padding:var(--dna-gap-5);max-width:min(580px,calc(100vw - 36px));max-height:85vh;overflow:auto}
@@ -108,11 +108,15 @@
 .dc-invalid-circle{position:absolute;box-sizing:border-box;border:2px solid var(--dna-red-ink);border-radius:50%;pointer-events:none;z-index:3}
 /* Keep chart controls usable beside the worksheet on narrow screens. */
 [data-dnacalc=clipboard-tools][open],
-[data-dnacalc=chart-tools][open]{max-height:min(40dvh,320px);overflow:auto}
-@media(max-width:600px){[data-dnacalc=pane-tools][open]{position:fixed;z-index:30;left:.5rem;right:.5rem;bottom:6.5rem;box-sizing:border-box;max-height:40dvh;overflow:auto;box-shadow:0 3px 14px #13233140}}
-.dc-chart-series{min-width:0;border:1px solid var(--dna-line);border-radius:var(--dna-radius-chip);margin:8px 0;padding:8px 12px}
+[data-dnacalc=chart-tools][open],
+[data-dnacalc=pivot-tools][open]{max-height:min(40dvh,320px);overflow:auto}
+@media(max-width:600px){[data-dnacalc=pane-tools][open],[data-dnacalc=pivot-tools][open]{position:fixed;z-index:30;left:.5rem;right:.5rem;bottom:6.5rem;box-sizing:border-box;max-height:40dvh;overflow:auto;box-shadow:0 3px 14px #13233140}}
+.dc-chart-series,.dc-pivot-summary{min-width:0;border:1px solid var(--dna-line);border-radius:var(--dna-radius-chip);margin:8px 0;padding:8px 12px}
 .dc-chart-series .dc-command-row label{flex-wrap:wrap;min-width:0}
 .dc-chart-series input{min-width:0;max-width:100%;width:28ch}
 .dc-chart-series input[type=checkbox]{width:auto;flex:none}
 
 [data-dnacalc=paste-samples]{overflow-wrap:anywhere;white-space:pre-wrap}
+
+.dc-pivot-summary,.dc-pivot-tools>.dc-note{overflow-wrap:anywhere}
+.dc-pivot-summary button{min-height:44px;cursor:pointer}
