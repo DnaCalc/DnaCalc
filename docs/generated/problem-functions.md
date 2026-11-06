@@ -9,7 +9,7 @@ python3 racer/corpus_cases.py problem-functions ../DnaCalc ../DnaCalc/docs/gener
 Last-bit: finite numeric mismatches <=16 ULP; larger numeric: >16 ULP. This split is triage, not a relaxed verdict. Every mismatch, refusal, unread, missing, pending, external and circular-policy cell remains an inclusive failure. Corpus labels follow exact single-cell aliases, infer calls from formula spelling and unwrap INDEX selections; unresolved references and infix operators remain explicit. Bank functions use canonical judge identities. Counts are observations per source; corpus and bank may overlap and must not be added as unique calls. Bank reference/locale context gaps remain failures, not proven numerical defects.
 
 Corpus: 52,883/54,794 matched (96.51239%); 1,911 inclusive failures, including 100 pending.
-Bank: 3,777,166/3,910,007 matched (96.60254%); 132,841 failures, including 116 unread.
+Bank: 3,777,655/3,910,007 matched (96.61504%); 132,352 failures, including 116 unread.
 
 Larger numeric and last-bit columns count numeric mismatches; other columns count remaining mismatches. Bank refusals and unread rows are separate. Corpus refusals/missing are recorded in the JSON, outside the mismatch table.
 
@@ -27,7 +27,7 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | NEGBINOMDIST | 0 | 18 | 0 | 356 | 1,281 | 0 | 0 | 0 |
 | IRR | 9 | 1 | 3 | 299 | 95 | 17 | 0 | 0 |
 | LINEST | 208 | 19 | 26 | 0 | 0 | 0 | 0 | 0 |
-| GAMMA.DIST | 0 | 15 | 0 | 166 | 30,188 | 0 | 0 | 0 |
+| GAMMA.DIST | 0 | 15 | 0 | 164 | 29,708 | 0 | 0 | 0 |
 | BINOM.DIST.RANGE | 0 | 2 | 0 | 163 | 321 | 0 | 0 | 0 |
 | LOGEST | 150 | 12 | 81 | 0 | 0 | 0 | 0 | 0 |
 | KURT | 0 | 0 | 0 | 145 | 1,154 | 0 | 0 | 0 |
@@ -63,7 +63,7 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | CRITBINOM | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | FLOOR | 0 | 0 | 0 | 1 | 0 | 0 | 10 | 0 |
 | NORM.S.DIST | 0 | 1 | 0 | 0 | 11,075 | 0 | 0 | 0 |
-| PMT | 0 | 0 | 0 | 0 | 4,659 | 4 | 7 | 0 |
+| PMT | 0 | 0 | 0 | 0 | 4,659 | 4 | 0 | 0 |
 | GAMMALN.PRECISE | 0 | 0 | 0 | 0 | 3,638 | 0 | 0 | 0 |
 | GAMMALN | 0 | 0 | 0 | 0 | 2,403 | 0 | 0 | 0 |
 | LOGNORMDIST | 0 | 2 | 0 | 0 | 2,141 | 0 | 0 | 0 |
