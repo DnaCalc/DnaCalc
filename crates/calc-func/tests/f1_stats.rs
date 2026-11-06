@@ -818,6 +818,20 @@ fn small_erf_matches_recorded_curvature_rows() {
     }
 }
 
+/// R30 Excel 16.0.20527 positive-ERF and negative-ERFC readings at two independently selected
+/// complement ties, plus a negative-ERF control from the separately measured odd wrapper.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn erf_complements_keep_the_recorded_pc64_store() {
+    for function in ["ERF", "ERF.PRECISE"] {
+        exact(call(function, vec![n(f64::from_bits(0x4017_afb4_8dc9_65a6))]), 1.0);
+        exact(call(function, vec![n(-f64::from_bits(0x4017_afb4_8dc9_65a6))]), -1.0);
+    }
+    for function in ["ERFC", "ERFC.PRECISE"] {
+        exact(call(function, vec![n(-f64::from_bits(0x4017_744f_8f74_e8ca))]), 2.0);
+    }
+}
+
 /// Recorded beta rows oc1582/oc640 and adjacent FDIST refinement inputs.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

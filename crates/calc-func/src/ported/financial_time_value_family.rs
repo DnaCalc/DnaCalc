@@ -250,8 +250,8 @@ pub fn pmt(
     // W109 G6-01 (2026-07-23, multi-agent workflow): the transcendental substrate is
     // the x87 chain (Excel's PMT `exp` is the x87 exponential `excel_exp`, matched 234/234; `expm1` is the internal
     // x87 double-rounded Kahan), and the combine is the live-Excel-pinned **quotient-first,
-    // ·rate LAST** graph; the timing division stores RN53(RN64((num/em)/tf)) — NOT the former
-    // reciprocal-multiply product order.
+    // ·rate LAST** graph for end payments. R30 separately identifies the positive-rate
+    // discount/type-one coefficient and its stores below; other routes keep the timing division.
     //
     // dc-j9k.12: the logarithm is not a correctly rounded log1p but the atanh series of
     // `excel_log1p_atanh`. Holding pv varied at fixed (rate, nper) pins Excel's binary64 em in
@@ -311,13 +311,31 @@ pub fn pmt(
         let numerator = present_value + future_value * inv_factor;
         excel_x87_div(numerator, em)
     };
-    let quotient = excel_x87_div(quotient, tf);
-    // The recorded discount arm stores the final product from PC64; the growth arm
-    // retains the native product, which the negative-rate control distinguishes.
-    let result = if neg_log < 0.0 {
-        excel_x87_mul(quotient, periodic_rate)
+    let result = if neg_log < 0.0 && periodic_rate > 0.0
+        && matches!(timing, PaymentTiming::BeginningOfPeriod)
+    {
+        // R30: paired type-zero calls pin em independently of timing. The positive
+        // discount arm multiplies by 1/(1+1/r), with every operation stored from PC64.
+        // New rate discriminants separately exclude strict inner/return rounding and
+        // a resident return. Dividing the balance quotient by (1+r) loses these stores.
+        let reciprocal = excel_x87_recip(periodic_rate);
+        let factor = if reciprocal.is_finite() {
+            excel_x87_recip(excel_x87_add(1.0, reciprocal))
+        } else {
+            // A positive rate whose reciprocal overflows is subnormal. Its exact
+            // r/(1+r) rounds to r: r^2 is far below half a subnormal unit.
+            periodic_rate
+        };
+        excel_x87_mul(quotient, factor)
     } else {
-        quotient * periodic_rate
+        let quotient = excel_x87_div(quotient, tf);
+        // Other timing and growth routes retain their existing finish. Negative-rate
+        // final-product probes are a separate unresolved stage.
+        if neg_log < 0.0 {
+            excel_x87_mul(quotient, periodic_rate)
+        } else {
+            quotient * periodic_rate
+        }
     };
     if result.is_finite() {
         Ok(result)

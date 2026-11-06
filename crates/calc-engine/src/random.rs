@@ -37,6 +37,46 @@ impl RandomSource for RandomStream {
     }
 }
 
+/// Actual unit draws of one explicit evaluation, in ordinal order. Its enclosing
+/// invocation supplies the draw key; omitted samples still execute normally.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct RandomDrawEvidence {
+    pub samples: Vec<u64>,
+    pub omitted: u64,
+}
+pub const MAX_RECORDED_RANDOM_DRAWS: usize = 1024;
+
+pub(crate) struct RecordedRandom {
+    stream: RandomStream,
+    evidence: RandomDrawEvidence,
+}
+impl RecordedRandom {
+    pub(crate) fn new(stream: RandomStream) -> Self {
+        Self {
+            stream,
+            evidence: RandomDrawEvidence::default(),
+        }
+    }
+    pub(crate) fn into_evidence(self) -> RandomDrawEvidence {
+        self.evidence
+    }
+}
+impl RandomSource for RecordedRandom {
+    fn next_unit(&mut self) -> f64 {
+        let value = self.stream.next_unit();
+        if self.evidence.samples.len() < MAX_RECORDED_RANDOM_DRAWS {
+            self.evidence.samples.push(value.to_bits());
+        } else {
+            self.evidence.omitted = self
+                .evidence
+                .omitted
+                .checked_add(1)
+                .expect("random evidence count exhausted");
+        }
+        value
+    }
+}
+
 /// One `splitmix64` finalizing mix: a bijection on `u64`.
 const fn splitmix64(mut z: u64) -> u64 {
     z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);

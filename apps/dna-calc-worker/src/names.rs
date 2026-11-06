@@ -2,7 +2,7 @@
 use crate::{cells, wire, workbook::Workbook};
 use calc_host::value::{CellKey, CoreRef, NameId, NameScope};
 use dna_calc_model::names::{NameBodyEvaluation, NameBodyResult, NameEvaluation,
-    NameEvaluationEvidence, NamePage, NameRecord};
+    NameEvaluationEvidence, NameEvaluationRoot, NamePage, NameRecord};
 
 pub fn page(book: &Workbook, query: String, page: u64) -> NamePage {
     let host = book.host();
@@ -31,7 +31,8 @@ pub fn page(book: &Workbook, query: String, page: u64) -> NamePage {
                 NameScope::Workbook => None,
                 NameScope::Sheet(s) => Some(wire::Sheet::of(s)),
             },
-            formula: d.formula.clone(),
+            formula: dna_formula_ui::display::formula(&format!("={}", d.formula))
+                .strip_prefix('=').unwrap_or(&d.formula).to_owned(),
             hidden: d.hidden,
             comment: d.comment.clone(),
         });
@@ -53,6 +54,14 @@ pub fn evaluate(book: &Workbook, id: (u32, u32), version: u64, anchor: CellKey) 
                 results: diagnostic.results.0,
                 workbook: (diagnostic.workbook.document, diagnostic.workbook.incarnation),
                 numeric: if diagnostic.evaluation.numeric.target().is_some() { "Exact" } else { "Fast" }.into(),
+                root: diagnostic.evaluation.root.as_ref().map(|root| NameEvaluationRoot {
+                    command: (root.pass.command.domain_incarnation, root.pass.command.sequence),
+                    pass: root.pass.ordinal, evaluation: root.evaluation,
+                }),
+                clock: diagnostic.evaluation.clock.map(|clock| format!("{:016x}", clock.to_bits())),
+                random_draws: diagnostic.evaluation.random_draws.samples.iter()
+                    .map(|bits| format!("{bits:016x}")).collect(),
+                omitted_random_draws: diagnostic.evaluation.random_draws.omitted,
                 bodies: diagnostic.evaluation.invocations.iter().map(|body| {
                     use calc_host::NameResultKind as K;
                     let result = match &body.result {
@@ -240,6 +249,10 @@ mod tests {
         assert_eq!(value.anchor, wire::Key::of(anchor));
         let evidence = value.evidence.as_ref().expect("actual diagnostic evidence");
         assert_eq!(evidence.numeric, "Fast");
+        let root = evidence.root.as_ref().unwrap();
+        assert_eq!((root.pass, root.evaluation), (0, 0));
+        assert!(root.command.1 > 0);
+        assert!(evidence.random_draws.is_empty());
         assert_eq!(evidence.omitted, 0);
         assert_eq!(evidence.bodies.len(), 1);
         let body = &evidence.bodies[0];
@@ -287,6 +300,71 @@ mod tests {
         assert!(value.evidence.is_none(), "stale definition never executes");
         assert!(value.text.unwrap_err().contains("changed"));
     }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn explicit_random_name_retries_retain_the_pass_and_raw_draws() {
+        let mut server = Server::new();
+        server.execute_current(decoded(Request::Intent(Intent::EditName {
+            id: None, version: None, name: "Roll".into(), scope: None,
+            formula: Some("=RAND()".into()),
+        })), None).reply.unwrap();
+        let row = page(server.book(), "Roll".into(), 0).rows.remove(0);
+        let anchor = CellKey::new(server.book().sheets()[0].id, 1, 1).unwrap();
+        let request = Request::EvaluateName { id: row.id, version: row.version, anchor: wire::Key::of(anchor) };
+        let envelope = server.envelope(request.clone());
+        let first = server.handle(decoded(envelope.clone()), None).reply.unwrap();
+        let revision = server.book().host().revision();
+        let history = server.book().session().history_depth();
+        let again = server.handle(decoded(envelope.clone()), None).reply.unwrap();
+        assert_eq!(first, again, "retry retains the actual name pass, not a new draw");
+        assert_eq!(wire::decode::<Reply>(&wire::encode(&first)).unwrap(), first);
+        let Reply::NameEvaluation(sample) = &first else { panic!("explicit random result"); };
+        assert!(sample.text.is_ok());
+        let evidence = sample.evidence.as_ref().unwrap();
+        assert_eq!((evidence.random_draws.len(), evidence.omitted_random_draws), (1, 0));
+        let bits = u64::from_str_radix(&evidence.random_draws[0], 16).unwrap();
+        assert!((0.0..1.0).contains(&f64::from_bits(bits)));
+        let second = server.execute_current(decoded(request), None).reply.unwrap();
+        let Reply::NameEvaluation(second) = second else { panic!("another explicit result"); };
+        assert_ne!(evidence.root.as_ref().unwrap().command,
+            second.evidence.as_ref().unwrap().root.as_ref().unwrap().command);
+        assert_eq!((server.book().host().revision(), server.book().session().history_depth()), (revision, history));
+        server.execute_current(decoded(Request::Intent(Intent::EditName {
+            id: Some(row.id), version: Some(row.version), name: "Roll".into(),
+            scope: None, formula: Some("=0".into()),
+        })), None).reply.unwrap();
+        assert_eq!(server.handle(decoded(envelope), None).reply.unwrap(), first,
+            "retry after an edit keeps the earlier input cut and draws");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn modern_name_entry_and_rename_keep_friendly_text_and_file_spelling() {
+        let mut server = Server::new();
+        server.execute_current(decoded(Request::Intent(Intent::EditName {
+            id: None, version: None, name: "ArrayResult".into(), scope: None,
+            formula: Some("=RANDARRAY(1,2)".into()),
+        })), None).reply.unwrap();
+        let row = page(server.book(), "ArrayResult".into(), 0).rows.remove(0);
+        assert_eq!(row.formula, "RANDARRAY(1,2)");
+        server.execute_current(decoded(Request::Intent(Intent::EditName {
+            id: Some(row.id), version: Some(row.version), name: "RenamedArray".into(),
+            scope: None, formula: Some(row.formula),
+        })), None).reply.unwrap();
+        let renamed = page(server.book(), "RenamedArray".into(), 0).rows.remove(0);
+        assert_eq!(renamed.id, row.id);
+        assert_eq!(renamed.formula, "RANDARRAY(1,2)");
+        let stored = server.book().host().name_node(NameId::from_parts(renamed.id.0, renamed.id.1)).unwrap();
+        assert_eq!(stored.definition().formula, "_xlfn.RANDARRAY(1,2)");
+        let anchor = CellKey::new(server.book().sheets()[0].id, 1, 1).unwrap();
+        let result = server.execute_current(decoded(Request::EvaluateName {
+            id: renamed.id, version: renamed.version, anchor: wire::Key::of(anchor),
+        }), None).reply.unwrap();
+        let Reply::NameEvaluation(result) = result else { panic!("array name result"); };
+        assert!(result.text.as_ref().unwrap().starts_with("1×2 array:"));
+        assert_eq!(result.evidence.unwrap().random_draws.len(), 2);
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn name_rename_and_scope_move_use_the_existing_journalled_wire_command() {
