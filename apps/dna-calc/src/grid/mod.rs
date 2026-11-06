@@ -1605,7 +1605,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 .map(|cell| {
                     let address = cells::address(cell.row, cell.col);
                     let mut style = rect_style(&cell.rect);
-                    style.push_str(&panes.get().cell_clip_style(cell,&metrics.get(),&viewport.get()));
+                    style.push_str(&panes.get().text_clip_style(cell,&metrics.get(),&viewport.get()));
 
                     let conditional = cell.shown.conditional.clone().unwrap_or_default();
                     // A conditional format's font colour comes before the number format's.

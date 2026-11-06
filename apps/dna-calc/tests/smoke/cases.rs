@@ -9569,8 +9569,8 @@ pub(crate) const CALC_LATENCY_CASES: &[Case] = &[
 
 
     Case{name:"worker latency: a delayed Enter preserves the focused name-box selection",actions:&[
-        Action::Window(1440,1000),Action::Wait(Check::PlanReady),Action::Wait(Check::Value("name-box","A1")),Action::PauseMillis(800),Action::Into(BAR,"7\u{E007}"),Action::Click("name-box"),Action::Keys("name-box","\u{E009}a\u{E000}"),Action::PauseMillis(1400)],checks:&[
-        Check::Focused("name-box"),Check::Value("name-box","A1"),Check::Text(cell!("A1"),"7")]},
+        Action::Window(1440,1000),Action::Wait(Check::PlanReady),Action::Wait(Check::Value("name-box","A1")),Action::PauseMillis(800),Action::HoldWorkerReplies(true),Action::Into(BAR,"7\u{E007}"),Action::Click("name-box"),Action::Keys("name-box","\u{E009}a\u{E000}"),Action::HoldWorkerReplies(false),Action::PauseMillis(1400)],checks:&[
+        Check::Focused("name-box"),Check::Value("name-box","A1"),Check::SelectedText("name-box","A1"),Check::Text(cell!("A1"),"7")]},
     Case{name:"worker latency: replacement after a delayed Enter reaches the typed address",actions:&[
         Action::Keys("name-box","D5\u{E007}"),Action::Wait(Check::Focused("grid"))],checks:&[
         Check::Value("name-box","D5"),Check::Value(BAR,""),Check::Text(cell!("A1"),"7")]},
@@ -9581,12 +9581,25 @@ pub(crate) const CALC_LATENCY_CASES: &[Case] = &[
         Action::Into("name-box","XFE1\u{E007}"),Action::Into("name-box","M4"),Action::PauseMillis(1000)],checks:&[
         Check::Focused("name-box"),Check::Value("name-box","M4")]},
     Case{name:"worker latency: an accepted address reply preserves a newer native select-all",actions:&[
-        Action::Keys("name-box","\u{E007}"),Action::Keys("name-box","\u{E009}a\u{E000}"),Action::PauseMillis(1000),Action::Wait(Check::Focused("name-box")),Action::Wait(Check::Value("name-box","M4")),Action::Keys("name-box","B1\u{E007}")],checks:&[
+        Action::HoldWorkerReplies(true),Action::Keys("name-box","\u{E007}"),Action::Keys("name-box","\u{E009}a\u{E000}"),Action::HoldWorkerReplies(false),Action::PauseMillis(1000),Action::Wait(Check::Focused("name-box")),Action::Wait(Check::Value("name-box","M4")),Action::Wait(Check::SelectedText("name-box","M4")),Action::Keys("name-box","B1\u{E007}")],checks:&[
         Check::Focused("grid"),Check::Value("name-box","B1"),Check::Text(cell!("A1"),"7")]},
 
     Case{name:"worker latency: a pointer inside the focused address preserves newer native attention",actions:&[
-        Action::Into("name-box","m4\u{E007}"),Action::Click("name-box"),Action::PauseMillis(1000)],checks:&[
+        Action::Wait(Check::PlanReady),Action::HoldWorkerReplies(true),Action::Into("name-box","m4\u{E007}"),Action::Click("name-box"),Action::HoldWorkerReplies(false),Action::PauseMillis(1000)],checks:&[
         Check::Focused("name-box"),Check::Value("name-box","m4"),Check::Text(cell!("A1"),"7")]},
+
+    Case{name:"worker latency: an accepted address reply preserves a newer partial range",actions:&[
+        Action::Wait(Check::PlanReady),Action::HoldWorkerReplies(true),Action::Into("name-box","D5\u{E007}"),Action::Into("name-box","C10:"),Action::HoldWorkerReplies(false),Action::PauseMillis(1000)],checks:&[
+        Check::Focused("name-box"),Check::Value("name-box","C10:")]},
+    Case{name:"worker latency: the preserved partial range submits without an older prefix",actions:&[
+        Action::Keys("name-box","D12\u{E007}"),Action::Wait(Check::Focused("grid"))],checks:&[
+        Check::Value("name-box","C10"),Check::Attr("[data-dnacalc=selection]","data-area","C10:D12")]},
+    Case{name:"worker latency: a delayed cell Enter preserves a newer partial range",actions:&[
+        Action::Wait(Check::PlanReady),Action::HoldWorkerReplies(true),Action::Into(BAR,"9\u{E007}"),Action::Into("name-box","A1:"),Action::HoldWorkerReplies(false),Action::PauseMillis(1000)],checks:&[
+        Check::Focused("name-box"),Check::Value("name-box","A1:"),Check::PlanCell("C10","text","9")]},
+    Case{name:"worker latency: the range after delayed cell Enter reaches its typed endpoints",actions:&[
+        Action::Keys("name-box","B2\u{E007}"),Action::Wait(Check::Focused("grid"))],checks:&[
+        Check::Value("name-box","A1"),Check::Attr("[data-dnacalc=selection]","data-area","A1:B2"),Check::PlanCell("A1","text","7")]},
 
 ];
 

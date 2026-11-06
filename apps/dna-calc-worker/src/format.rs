@@ -195,8 +195,7 @@ pub fn preview(book: &Workbook, at: CellKey, patch: FormatPatch) -> Result<wire:
     let mut shown = cells::shown(
         &cell,
         book.profile(),
-        table
-            .number_format_code(index)
+        host.style_number_format(&table,index)
             .map(|code| cells::CellFormat {
                 code,
                 date1904: host.declared_date1904(),

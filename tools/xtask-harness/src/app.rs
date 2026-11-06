@@ -634,7 +634,7 @@ fn answer(
         thread::sleep(Duration::from_secs(3));
         Some(b"setTimeout(()=>postMessage('{}'),200); throw new Error('Smoke worker startup failure');".to_vec())
     } else if worker_latency && name.as_deref() == Some("smoke-latency.js") {
-        Some(br#"const NativeWorker=window.Worker;window.Worker=class extends NativeWorker {set onmessage(fn){this.handler=fn;super.onmessage=fn?event=>setTimeout(()=>fn.call(this,event),300):null;}get onmessage(){return this.handler;}};"#.to_vec())
+        Some(br#"window.__dcHeldReplies=[];const NativeWorker=window.Worker;window.Worker=class extends NativeWorker {set onmessage(fn){this.handler=fn;super.onmessage=fn?event=>setTimeout(()=>{const deliver=()=>fn.call(this,event);if(window.__dcHoldReplies)window.__dcHeldReplies.push(deliver);else deliver();},300):null;}get onmessage(){return this.handler;}};"#.to_vec())
     } else if worker_latency && name.as_deref() == Some("index.html") {
         fs::read_to_string(dir.join("index.html")).ok().map(|html| {
             html.replacen(
@@ -923,6 +923,10 @@ impl Session {
 
 /// Starts `browser`'s driver and a headless session in it.
 fn open(browser: &Browser, download_root: &Path) -> Result<(DriverProcess, Session), String> {
+    open_locale(browser,download_root,None)
+}
+
+fn open_locale(browser:&Browser,download_root:&Path,locale:Option<&str>)->Result<(DriverProcess,Session),String> {
     let program = variable_file(browser.variable)
         .or_else(|| find_on_path(browser.program))
         .ok_or_else(|| {
@@ -981,7 +985,7 @@ fn open(browser: &Browser, download_root: &Path) -> Result<(DriverProcess, Sessi
     // Win32 prefix which Chrome/Firefox preferences do not accept.
     let download_text = downloads.to_string_lossy();
     let downloads = PathBuf::from(download_text.strip_prefix(r"\\?\").unwrap_or(&download_text));
-    let capabilities = match browser.name {
+    let mut capabilities = match browser.name {
         "firefox" => json!({
             "browserName": "firefox",
             "webSocketUrl": true,
@@ -995,6 +999,13 @@ fn open(browser: &Browser, download_root: &Path) -> Result<(DriverProcess, Sessi
             "goog:chromeOptions": { "args": ["--headless=new", "--disable-gpu", "--window-size=1280,1000"], "prefs": {"download.default_directory":downloads,"download.prompt_for_download":false} }
         }),
     };
+    if let Some(locale)=locale {
+        let options=if browser.name=="firefox" {"moz:firefoxOptions"}else{"goog:chromeOptions"};
+        capabilities[options]["prefs"]["intl.accept_languages"]=json!(locale);
+        if browser.name!="firefox" {
+            capabilities[options]["args"].as_array_mut().unwrap().push(json!(format!("--lang={locale}")));
+        }
+    }
     let created = webdriver(
         port,
         "POST",
@@ -1045,6 +1056,8 @@ fn select(app: &App, name: &str) -> String {
 
 /// What a case does. A name is a role or a selector ([`select`]).
 pub enum Action {
+    /// Tool-only delivery control: retain real Worker replies until native attention is established.
+    HoldWorkerReplies(bool),
     RememberPrintPreview,
     /// Browser PDF of the application-generated print document, saved as base64 evidence.
     CapturePrintPdf(&'static str),
@@ -1178,6 +1191,8 @@ pub enum Check {
     Absent(&'static str),
     /// The field's value.
     Value(&'static str, &'static str),
+    /// The field's actual native selected substring.
+    SelectedText(&'static str, &'static str),
     /// The element owns keyboard focus.
     Focused(&'static str),
     /// Browser accessibility computation through the standard WebDriver endpoints.
@@ -1400,6 +1415,7 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
         ),
         Check::Absent(name) => format!("return {} === null;", q(name)),
         Check::Value(name, _) => format!("var e = {}; return e ? (e.type===\"checkbox\" ? String(e.checked) : e.value) : null;", q(name)),
+        Check::SelectedText(name, _) => format!("var e={};return e&&Number.isInteger(e.selectionStart)&&Number.isInteger(e.selectionEnd)?e.value.slice(e.selectionStart,e.selectionEnd):null;",q(name)),
         Check::Focused(name) => format!("return {} === document.activeElement;", q(name)),
         Check::Attr(name, attribute, _) => format!(
             "var e = {}; return e ? e.getAttribute('{attribute}') : null;",
@@ -1447,6 +1463,7 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
         | Check::Text(_, expected)
         | Check::PlanCell(_, _, expected)
         | Check::Value(_, expected)
+        | Check::SelectedText(_, expected)
         | Check::Attr(_, _, expected)
         | Check::Role(_, expected)
         | Check::Name(_, expected) => seen.as_str() == Some(expected),
@@ -1592,6 +1609,7 @@ fn describe(check: &Check) -> String {
         Check::Contains(name, wanted) => format!("{name} has an item starting {wanted:?}"),
         Check::Absent(name) => format!("no {name}"),
         Check::Value(name, expected) => format!("the field {name} holds {expected:?}"),
+        Check::SelectedText(name, expected) => format!("the native selection in {name} holds {expected:?}"),
         Check::Focused(name) => format!("{name} owns keyboard focus"),
         Check::Role(name, value) => format!("{name} has computed accessibility role {value}"),
         Check::Name(name, value) => format!("{name} has computed accessible name {value}"),
@@ -1796,6 +1814,10 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
         }
         Action::PauseMillis(ms) => {
             thread::sleep(Duration::from_millis(*ms));
+            Ok(())
+        }
+        Action::HoldWorkerReplies(hold) => {
+            session.script(&format!("if(!Array.isArray(window.__dcHeldReplies))throw Error('Worker reply control requires the latency page');window.__dcHoldReplies={hold};if(!window.__dcHoldReplies)for(const deliver of window.__dcHeldReplies.splice(0))deliver();return null;"))?;
             Ok(())
         }
         Action::RememberPrintPreview => {
@@ -2089,6 +2111,12 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
         }
         Action::Click(name) => act_click(app, session, name),
         Action::CtrlClick(name) => {
+            if renderer::cell_rect(app,session,name)?.is_some() {
+                session.post("/actions",json!({"actions":[{"type":"key","id":"modifiers","actions":[{"type":"keyDown","value":"\u{E009}"}]}]}))?;
+                let clicked=renderer::click_cell(app,session,name,false);
+                let released=session.post("/actions",json!({"actions":[{"type":"key","id":"modifiers","actions":[{"type":"keyUp","value":"\u{E009}"}]}]}));
+                clicked?; released?; return Ok(());
+            }
             let element = session.element(&select(app, name))?;
             session.post("/actions",json!({"actions":[
                 {"type":"key","id":"modifiers","actions":[{"type":"keyDown","value":"\u{E009}"},{"type":"pause"},{"type":"pause"},{"type":"keyUp","value":"\u{E009}"}]},
@@ -2097,12 +2125,15 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             Ok(())
         }
         Action::DragOutside(name) => {
-            let from = session.element(&select(app, name))?;
+            let (origin,start_x,start_y)=if let Some(rect)=renderer::cell_rect(app,session,name)? {
+                if rect["reachable"]!=true {return Err(format!("Canvas drag source is obscured or clipped: {rect}"));}
+                (json!("viewport"),rect["visible_point"][0].as_f64().ok_or("missing drag x")?.round() as i64,rect["visible_point"][1].as_f64().ok_or("missing drag y")?.round() as i64)
+            }else{(json!({"element-6066-11e4-a52e-4f735466cecf":session.element(&select(app,name))?}),0,0)};
             let coordinates=session.script("var r=document.querySelector('[data-dnacalc=grid]').getBoundingClientRect();return [Math.round(r.left+90),Math.min(innerHeight-2,Math.round(r.bottom+24))];")?;
             let x = coordinates[0].as_i64().ok_or("drag x")?;
             let y = coordinates[1].as_i64().ok_or("drag y")?;
             session.post("/actions",json!({"actions":[{"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":[
-                {"type":"pointerMove","duration":0,"origin":{"element-6066-11e4-a52e-4f735466cecf":from},"x":0,"y":0},{"type":"pointerDown","button":0},
+                {"type":"pointerMove","duration":0,"origin":origin,"x":start_x,"y":start_y},{"type":"pointerDown","button":0},
                 {"type":"pointerMove","duration":200,"origin":"viewport","x":x,"y":y},{"type":"pause","duration":700},{"type":"pointerUp","button":0}
             ]}]}))?;
             Ok(())
@@ -2155,12 +2186,21 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             Ok(())
         }
         Action::Drag(from, to) => {
-            let from = session.element(&select(app, from))?;
-            let to = session.element(&select(app, to))?;
+            let point=|name:&str| -> Result<Value,String> {
+                if let Some(rect)=renderer::cell_rect(app,session,name)? {
+                    if rect["reachable"]!=true {return Err(format!("Canvas drag endpoint is obscured or clipped: {rect}"));}
+                    Ok(json!({"type":"pointerMove","duration":200,"origin":"viewport","x":rect["visible_point"][0].as_f64().ok_or("missing drag x")?.round() as i64,"y":rect["visible_point"][1].as_f64().ok_or("missing drag y")?.round() as i64}))
+                } else {
+                    Ok(json!({"type":"pointerMove","duration":200,"origin":{"element-6066-11e4-a52e-4f735466cecf":session.element(&select(app,name))?},"x":0,"y":0}))
+                }
+            };
+            let mut start=point(from)?;
+            start["duration"]=json!(0);
+            let end=point(to)?;
             session.post("/actions", json!({"actions":[{"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":[
-                {"type":"pointerMove","duration":0,"origin":{"element-6066-11e4-a52e-4f735466cecf":from},"x":0,"y":0},
+                start,
                 {"type":"pointerDown","button":0},
-                {"type":"pointerMove","duration":200,"origin":{"element-6066-11e4-a52e-4f735466cecf":to},"x":0,"y":0},
+                end,
                 {"type":"pointerUp","button":0}
             ]}]}))?;
             Ok(())

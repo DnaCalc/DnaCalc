@@ -108,6 +108,8 @@ pub struct HostState {
     pub(crate) model: Arc<ModelRoot>,
     pub(crate) engine: EngineState,
     pub(crate) options: HostOptions,
+    /// Regional meanings of undeclared built-ins; authored style records retain their IDs.
+    pub(crate) builtin_formats: std::collections::BTreeMap<u32,String>,
     /// The recalculation in progress, between two [`crate::step`] calls.
     pub(crate) work: Option<RecalcWork>,
     pub(crate) async_records: calc_engine::AsyncReturns,
@@ -261,6 +263,7 @@ impl HostState {
             loaded,
             model,
             engine,
+            builtin_formats: crate::format::builtin_formats(options.locale.as_ref()),
             options,
             work: None,
             async_records: Default::default(),
@@ -793,7 +796,12 @@ impl HostState {
     /// ([`HostState::opened_position`]); a cell format an edit gave the cell
     /// ([`crate::CellEdit::SetFormat`], a copy's) comes first.
     pub fn number_format(&self, at: CellKey) -> Option<&str> {
-        self.styles().number_format_code(self.cell_style(at))
+        self.style_number_format(self.styles(),self.cell_style(at))
+    }
+
+    /// The same format resolution for an uncommitted Format Cells preview table.
+    pub fn style_number_format<'a>(&'a self, table:&'a calc_doc_model::StyleTable, style:u32)->Option<&'a str> {
+        table.number_format_code_with(style,|id|self.builtin_formats.get(&id).map(String::as_str))
     }
 
     /// The cell format (an index into the workbook's cell formats, a cell's `s`) of the cell at
