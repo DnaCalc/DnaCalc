@@ -9,7 +9,7 @@
 
 use super::{Events, LoadError, read_xml};
 use crate::opc::{Package, TargetMode};
-use crate::xml::{XmlElement, XmlEvent};
+use crate::xml::{XmlElement, XmlEvent, XmlPart};
 
 const DRAWING: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing";
 const CHART: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart";
@@ -215,7 +215,11 @@ fn read_chart(
     anchor: ChartAnchor,
 ) -> Result<Chart, LoadError> {
     let xml = read_xml(package, part)?;
-    let mut events = Events::new(&xml);
+    read_chart_xml(&xml,part,name,anchor)
+}
+
+fn read_chart_xml(xml:&XmlPart,part:&str,name:String,anchor:ChartAnchor)->Result<Chart,LoadError>{
+    let mut events = Events::new(xml);
     events.root(
         CHART_NAMESPACE,
         "chartSpace",
@@ -327,11 +331,17 @@ fn read_chart(
             (Some("solidFill"), "srgbClr" | "schemeClr")
                 if path.len() >= 3
                     && path[path.len() - 2] == "spPr"
-                    && path[path.len() - 3] == "ser" =>
+                    && path[path.len() - 3] == "ser"
+                    =>
             {
                 if let Some(series) = plot.and_then(|plot| plot.series.last_mut()) {
                     series.fill = val;
                 }
+            }
+            (Some("solidFill"), "srgbClr" | "schemeClr")
+                if path.len()>=4 && path[path.len()-4..]==["ser","spPr","ln","solidFill"] => {
+                if let Some(plot)=plot && matches!(plot.kind.as_str(),"lineChart"|"scatterChart")
+                    && let Some(series)=plot.series.last_mut() && series.fill.is_none(){series.fill=val;}
             }
             (_, "f") if in_title => {
                 chart.title_formula = Some(events.text()?);
@@ -405,4 +415,22 @@ fn data_of(plots: &mut [ChartPlot], slot: Option<Slot>) -> Option<&mut ChartData
         Slot::Values => &mut series.values,
     };
     Some(data.get_or_insert_with(ChartData::default))
+}
+
+#[cfg(test)]
+mod tests {
+ use super::*;
+ #[cfg_attr(not(target_arch="wasm32"),test)]
+ #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+ fn outline_colours_do_not_replace_shape_fills(){
+   for kind in ["barChart","areaChart","pieChart","lineChart","scatterChart"] {
+    for shape in [true,false] {
+     let fill=if shape{r#"<a:solidFill><a:srgbClr val="FF0000"/></a:solidFill>"#}else{""};
+     let text=format!(r#"<c:chartSpace xmlns:c="{CHART_NAMESPACE}" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><c:chart><c:plotArea><c:{kind}><c:ser><c:idx val="0"/><c:spPr>{fill}<a:ln><a:solidFill><a:srgbClr val="0000FF"/></a:solidFill></a:ln></c:spPr></c:ser></c:{kind}></c:plotArea></c:chart></c:chartSpace>"#);
+     let xml=XmlPart::new("chart.xml".into(),text.into_bytes(),crate::xml::XmlLimits::default());
+     let chart=read_chart_xml(&xml,"chart.xml","Chart".into(),ChartAnchor::Absolute{x:0,y:0,width:100,height:100}).unwrap();
+     assert_eq!(chart.plots[0].series[0].fill.as_deref(),if shape{Some("FF0000")}else if matches!(kind,"lineChart"|"scatterChart"){Some("0000FF")}else{None},"{kind}, shape={shape}");
+    }
+   }
+ }
 }

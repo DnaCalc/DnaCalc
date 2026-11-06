@@ -3222,14 +3222,12 @@ mod tests {
                 app.cases.len()
             );
         }
-        let total: usize = APPS
-            .iter()
-            .map(|app| SmokeSelection::default().count(app))
-            .sum();
+        let current_total: usize = APPS.iter().map(|app|SmokeSelection::default().count(app)).sum();
+        let total: usize = APPS.iter().flat_map(|app|app.groups).filter(|group|group.name!="chart-formatting").map(|group|group.core).sum();
         let inherited_total: usize = APPS
             .iter()
             .flat_map(|app| app.groups)
-            .filter(|group| group.name != "page-layout")
+            .filter(|group| !matches!(group.name,"page-layout"|"chart-formatting"))
             .map(|group| group.core)
             .sum();
         assert_eq!(
@@ -3240,6 +3238,7 @@ mod tests {
             total, 393,
             "the twelve page-layout cases extend all 381 inherited core cases"
         );
+        assert_eq!(current_total,399,"six chart-formatting cases extend all 393 inherited core cases");
     }
 
     #[test]
