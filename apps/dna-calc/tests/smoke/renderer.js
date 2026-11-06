@@ -131,14 +131,20 @@
     const italic=s.italic||cf.italic||['file-cache','refused'].includes(cell.shown.provenance), bold=s.bold||cf.bold;
     const font=`${italic?'italic':'normal'} ${bold?700:400} ${s.pixels*scale}px ${family}`;
     context.font=font;
-    const measure=t=>context.measureText(t);
+    const measure=t=>{
+      const raw=context.measureText(t), integer=cell.shown.kind==='number'&&['applied','unshowable'].includes(cell.shown.format)&&!s.shrink&&!s.wrap&&s.rotation===0&&!['fill','justify','distributed','centerContinuous'].includes(s.horizontal)&&!/[A-Za-z\n\u0080-\uffff]/.test(t);
+      if(!integer)return raw;
+      let pen=0,left=Infinity,right=-Infinity,ascent=0,descent=0;
+      for(const part of t){const m=context.measureText(part);left=Math.min(left,pen-m.actualBoundingBoxLeft);right=Math.max(right,pen+m.actualBoundingBoxRight);ascent=Math.max(ascent,m.actualBoundingBoxAscent);descent=Math.max(descent,m.actualBoundingBoxDescent);pen+=Math.round(m.width)}
+      return {width:pen,actualBoundingBoxLeft:-left,actualBoundingBoxRight:right,actualBoundingBoxAscent:ascent,actualBoundingBoxDescent:descent,fontBoundingBoxAscent:raw.fontBoundingBoxAscent,fontBoundingBoxDescent:raw.fontBoundingBoxDescent};
+    };
     const rgb=color=>{context.clearRect(0,0,4,4);context.fillStyle=color;context.fillRect(0,0,4,4);return [...context.getImageData(0,0,1,1).data].slice(0,3);};
     const foreground=cf.font_color||cell.shown.color||s.font_color||token(cell.shown.provenance==='file-cache'?'--dna-ink-3':cell.shown.kind==='error'?'--dna-red-ink':'--dna-ink');
     const background=cf.fill||s.fill||token(cell.shown.provenance==='stale'?'--dna-amber-soft':'--dna-paper');
     const fg=rgb(foreground), bg=rgb(background), d=devicePixelRatio, surface=canvas.getContext('2d');
     const distance=(a,b)=>a.reduce((v,n,i)=>v+Math.abs(n-b[i]),0);
-    const crop=(r,inset=0)=>{
-      const clip=cell.clip||{x:0,y:0,w:plan.viewport.width,h:plan.viewport.height};
+    const crop=(r,inset=0,border=false)=>{
+      const clip=(border&&cell.row_span===1&&cell.col_span===1?null:cell.clip)||{x:0,y:0,w:plan.viewport.width,h:plan.viewport.height};
       const x=Math.max(0,Math.ceil(Math.max(r.x+inset,clip.x)*d)),y=Math.max(0,Math.ceil(Math.max(r.y+inset,clip.y)*d));
       const right=Math.min(canvas.width,Math.floor(Math.min(r.x+r.w-inset,clip.x+clip.w)*d)),bottom=Math.min(canvas.height,Math.floor(Math.min(r.y+r.h-inset,clip.y+clip.h)*d));
       if(right<=x||bottom<=y)return null;
@@ -156,12 +162,13 @@
       return {left:(raster.x+x0)/d,right:(raster.x+x1)/d,top:(raster.y+y0)/d,bottom:(raster.y+y1)/d,bands};
     };
     const ink=mask();let painted=cell.shown.text===''||!!ink;
-    const hasColour=(colour,r)=>{const data=crop(r);if(!data)return false;const want=rgb(colour);for(let i=0;i<data.pixels.length;i+=4)if(data.pixels[i+3]>127&&distance([data.pixels[i],data.pixels[i+1],data.pixels[i+2]],want)<36)return true;return false;};
+    const hasColour=(colour,r,border=false)=>{const data=crop(r,0,border);if(!data)return false;const want=rgb(colour);for(let i=0;i<data.pixels.length;i+=4)if(data.pixels[i+3]>127&&distance([data.pixels[i],data.pixels[i+1],data.pixels[i+2]],want)<36)return true;return false;};
     const horizontal=s.horizontal&&s.horizontal!=='general'?s.horizontal:cell.shown.kind==='number'?'right':cell.shown.kind==='logical'?'center':'left';
     const vertical=s.vertical||'bottom', leftPad=2*scale, rightPad=2*scale+1, icon=cf.icon?20*scale:0;
     context.font=`normal 400 ${13*scale}px system-ui`;const indent=context.measureText('   ').width*s.indent;context.font=font;
     const left=leftPad+icon+(['left','distributed'].includes(horizontal)?indent:0),right=rightPad+(['right','distributed'].includes(horizontal)?indent:0), capacity=rect.w-left-right;
     const unit=cell.shown.text, repeat=horizontal==='fill'&&unit?Math.max(1,Math.floor(capacity/measure(unit).width)):1, text=unit.repeat(Math.min(repeat,16384/Math.max(1,unit.length)));
+    const inset=s.rotation===0&&!s.wrap&&!s.shrink&&!['justify','distributed'].includes(horizontal)&&!unit.includes('\n')?scale:0;
     if(horizontal==='fill'&&unit&&repeat>1)painted=painted&&!!ink&&Math.abs(ink.right-(rect.x+left+measure(text).actualBoundingBoxRight))<3;
     // Canvas has no text span. Check the complete measured line box and its actual glyph
     // raster instead. Unsupported multi-line cases must fail, never imply that clipped ink fits.
@@ -186,7 +193,7 @@
       const rw=Math.abs(cos)*metrics.width+Math.abs(sin)*lh,rh=Math.abs(sin)*metrics.width+Math.abs(cos)*lh;
       const x=horizontal==='right'?rect.x+rect.w-right-rw:horizontal==='center'||horizontal==='centerContinuous'?anchor.x+(anchor.w-rw)/2:rect.x+left;
       const shift=s.rotation===0?((box.fontBoundingBoxAscent+box.fontBoundingBoxDescent-lh)/2)*(vertical==='top'?1:vertical==='bottom'?-1:0):0;
-      const y=(vertical==='top'?rect.y:vertical==='center'?rect.y+(rect.h-rh)/2:rect.y+rect.h-rh)+shift;
+      const y=(vertical==='top'?rect.y+inset:vertical==='center'?rect.y+(rect.h-rh)/2:rect.y+rect.h-rh-(vertical==='bottom'?inset+(cell.baseline_inset||0):0))+shift;
       const clip=cell.clip||rect;
       if(x<rect.x-1||x+rw>rect.x+rect.w+1||y<rect.y-1||y+rh>rect.y+rect.h+1||x<clip.x-1||x+rw>clip.x+clip.w+1||y<clip.y-1||y+rh>clip.y+clip.h+1)return false;
       if(x<anchor.x-1||x+rw>anchor.x+anchor.w+1||y<anchor.y-1||y+rh>anchor.y+anchor.h+1)return false;
@@ -228,8 +235,8 @@
       const shift=!s.wrap&&!['justify','distributed'].includes(horizontal)&&s.rotation===0&&!unit.includes('\n')?((box.fontBoundingBoxAscent+box.fontBoundingBoxDescent-lh)/2)*(v==='top'?1:v==='bottom'?-1:0):0;
       const topAt=y=>y+shift+baseline-metrics.actualBoundingBoxAscent,bottomAt=y=>y+shift+baseline+metrics.actualBoundingBoxDescent;
       const visibleTop=raster.y/d,visibleBottom=(raster.y+raster.h)/d;
-      if(v==='top')ok=ok&&Math.abs(ink.top-Math.max(visibleTop,topAt(rect.y)))<3;
-      if(v==='bottom')ok=ok&&Math.abs(ink.bottom-Math.min(visibleBottom,bottomAt(rect.y+rect.h-lh)))<3;
+      if(v==='top')ok=ok&&Math.abs(ink.top-Math.max(visibleTop,topAt(rect.y+inset)))<3;
+      if(v==='bottom')ok=ok&&Math.abs(ink.bottom-Math.min(visibleBottom,bottomAt(rect.y+rect.h-lh-inset-(cell.baseline_inset||0))))<3;
       if(v==='center')ok=ok&&Math.abs(ink.top-Math.max(visibleTop,topAt(rect.y+(rect.h-lh)/2)))<3&&Math.abs(ink.bottom-Math.min(visibleBottom,bottomAt(rect.y+(rect.h-lh)/2)))<3;
       if(v==='justify'||v==='distributed'){
         const bands=ink.bands,n=bands.length;ok=ok&&n>1;
@@ -256,7 +263,7 @@
         if(key==='background-color')rasterOK=rasterOK&&!!actual&&hasColour(actual,anchor);
         if(key==='white-space')rasterOK=rasterOK&&textBounds();
         const index=['border-left','border-right','border-top','border-bottom'].indexOf(key);
-        if(index>=0){const edge=(cell.borders||s.borders)[index];if(edge){const [w,kind]=line(edge.style),colour=edge.color||'#000000';actual=`${w*scale}px ${kind} ${colour}`;const band=index<2?{x:index===0?anchor.x:anchor.x+anchor.w-w*scale,y:anchor.y,w:w*scale,h:anchor.h}:{x:anchor.x,y:index===2?anchor.y:anchor.y+anchor.h-w*scale,w:anchor.w,h:w*scale};rasterOK=rasterOK&&hasColour(colour,band);}}
+        if(index>=0){const edge=(cell.borders||s.borders)[index];if(edge){const [w,kind]=line(edge.style),colour=edge.color||'#000000';actual=`${w}px ${kind} ${colour}`;const outside=cell.row_span===1&&cell.col_span===1;const band=index<2?{x:index===0?anchor.x-(outside?w:0):anchor.x+anchor.w-w,y:anchor.y,w,h:anchor.h}:{x:anchor.x,y:index===2?anchor.y-(outside?w:0):anchor.y+anchor.h-w,w:anchor.w,h:w};rasterOK=rasterOK&&hasColour(colour,band,true);}}
         return [key,actual===undefined?'':norm(key,actual),norm(key,expected)];
       });
       return {handled:true,seen:rasterOK?pairs:{unpainted:true,address,anchor,rect,clip:cell.clip,ink,pairs}};

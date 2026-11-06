@@ -68,6 +68,8 @@ pub struct PlannedCell {
     pub text_measured: bool,
     /// Display font size in CSS pixels before zoom. Authored style size stays in `shown`.
     pub paint_pixels: f64,
+    /// Extra bottom inset from the largest measured descent in this row (CSS pixels).
+    pub baseline_inset: f64,
     /// Viewport-local clipping of this fragment (a merge may cross frozen panes).
     pub clip: Option<CellRect>,
     pub address: String,
@@ -181,6 +183,7 @@ pub fn build_render_plan_with<'a>(
         .collect();
     cells.extend(empty.iter());
     let boundary_cells = cells.clone();
+    let by_address: BTreeMap<_,_> = cells.iter().map(|c|((c.at.row(),c.at.column()),*c)).collect();
     let occupied: std::collections::BTreeSet<(u32, u32)> = cells
         .iter()
         .filter(|shown| {
@@ -213,7 +216,7 @@ pub fn build_render_plan_with<'a>(
                 .and_then(|measure| measure(shown, &shown.text))
                 .filter(|w| w.is_finite() && *w >= 0.0);
             let (borders, boundary) = merged.map_or_else(
-                || (shown.style.borders.clone(), Vec::new()),
+                || (shared_borders(shown, &by_address, options.geometry), Vec::new()),
                 |area| merge_boundary(shown, area, &boundary_cells, m),
             );
             let mut cell = PlannedCell {
@@ -228,6 +231,7 @@ pub fn build_render_plan_with<'a>(
                         text_width(&shown.text, m) - left - right
                     }),
                 text_measured: measured.is_some(),
+                baseline_inset: 0.,
                 paint_pixels: shown.style.pixels,
                 clip: None,
                 address: format!("{}{}", column_letters(col), row),
@@ -284,6 +288,32 @@ pub fn build_render_plan_with<'a>(
         extent_rows,
         extent_cols,
     }
+}
+
+fn shared_borders(
+    shown: &CellShown,
+    cells: &BTreeMap<(u32,u32),&CellShown>,
+    geometry: Option<&crate::projection::Geometry>,
+) -> [Option<crate::projection::BorderShown>;4] {
+    let strength = |edge: &crate::projection::BorderShown| match edge.style.as_str() {
+        "double" => 30, "thick" => 29, "medium" => 20,
+        "mediumDashed" => 19, "mediumDashDot" => 18, "mediumDashDotDot" => 17,
+        "thin" => 10, "dashed" => 9, "dashDot" | "slantDashDot" => 8,
+        "dashDotDot" => 7, "dotted" => 6, "hair" => 1, _ => 0,
+    };
+    let (row,col) = (shown.at.row(),shown.at.column());
+    let neighbours = [(row,col.saturating_sub(1),1),(row,col.saturating_add(1),0),(row.saturating_sub(1),col,3),(row.saturating_add(1),col,2)];
+    let mut borders = shown.style.borders.clone();
+    for (side,(r,c,opposite)) in neighbours.into_iter().enumerate() {
+        let Some(other) = cells.get(&(r,c)) else {continue};
+        if geometry.is_some_and(|g|g.merge_at(other.at).is_some()) {continue;}
+        if let Some(edge) = &other.style.borders[opposite] {
+            if borders[side].as_ref().is_none_or(|own| strength(edge)>strength(own) || (strength(edge)==strength(own) && matches!(side,1|3))) {
+                borders[side] = Some(edge.clone());
+            }
+        }
+    }
+    borders
 }
 
 /// The width a cell's text takes, estimated from Excel's default font: each character the maximum
@@ -397,7 +427,9 @@ fn fit(
     } else {
         text_width(&cell.shown.text, m)
     };
-    if needed <= cell.rect.w || cell.rect.w <= 0.0 {
+    let unshowable = cell.shown.kind == "number"
+        && cell.shown.format == crate::projection::FormatShown::Unshowable;
+    if (!unshowable && needed <= cell.rect.w) || cell.rect.w <= 0.0 {
         return;
     }
     if cell.shown.style.shrink {
@@ -438,7 +470,7 @@ fn fit(
         return;
     }
     match cell.shown.kind {
-        "number" if cell.shown.format == crate::projection::FormatShown::Applied => {
+        "number" if matches!(cell.shown.format, crate::projection::FormatShown::Applied | crate::projection::FormatShown::Unshowable) => {
             let hash = options
                 .measure
                 .and_then(|f| f(&cell.shown, "#"))
@@ -1527,5 +1559,29 @@ mod layout_tests {
                 .text,
             "####"
         );
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn unshowable_dates_fill_the_physical_width_even_when_the_formatter_mask_is_short() {
+        let mut cell = text(1,1,"#####");
+        cell.kind = "number";
+        cell.format = crate::projection::FormatShown::Unshowable;
+        let measure = |_: &CellShown, value: &str| Some(value.chars().count() as f64 * 7.);
+        let plan = build_render_plan_with([&cell], &GridMetrics {col_width:84.,..Default::default()}, &Viewport {width:400.,height:100.,..Default::default()},100,20,&PlanOptions {measure:Some(&measure),..Default::default()});
+        assert_eq!(plan.cells[0].shown.text,"###########");
+        assert_eq!(cell.text,"#####");
+        assert_eq!(plan.cells[0].shown.format,crate::projection::FormatShown::Unshowable);
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn adjacent_cells_share_one_effective_border_without_changing_their_authored_styles() {
+        let mut a=text(1,1,"a");let mut b=text(1,2,"b");
+        a.style.borders[1]=Some(crate::projection::BorderShown {style:"thin".into(),color:Some("#154c94".into())});
+        b.style.borders[0]=Some(crate::projection::BorderShown {style:"medium".into(),color:Some("#154c94".into())});
+        let plan=build_render_plan([&a,&b],&GridMetrics::default(),&Viewport {width:400.,height:100.,..Default::default()},100,20);
+        assert_eq!(plan.cells[0].borders[1],plan.cells[1].borders[0]);
+        assert_eq!(plan.cells[0].borders[1].as_ref().unwrap().style,"medium");
+        assert_eq!(plan.cells[0].shown,a);
+        assert_eq!(plan.cells[1].shown,b);
     }
 }
