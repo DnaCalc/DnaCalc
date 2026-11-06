@@ -1676,7 +1676,7 @@ fn infra_m0_2__platform_matrix() {
 }
 
 /// The bodies of the infra-m0.6 cases, which check the backup of OxFunc's smart-fuzzer evidence
-/// in OxFunc-Evidence against the local originals and the record
+/// in CalcFunc-Evidence against the local originals and the record
 /// `migration/evidence/oxfunc-smart-fuzzer.json`, and restore through the xtask binary.
 #[path = "acceptance/infra_m0_6.rs"]
 mod infra_m0_6;

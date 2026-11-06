@@ -5,7 +5,7 @@
 //!
 //! - `--bank pinned` (the default) reads the pinned sets `crates/calc-func/tests/witnesses/*.json`,
 //!   which calc-func's portable test `witnesses` also judges.
-//! - `--bank full` reads every bank of the evidence repository (`<legacy root>/OxFunc-Evidence`,
+//! - `--bank full` reads every bank of the evidence repository (`<legacy root>/CalcFunc-Evidence`,
 //!   straight from its gzip blobs, no restore): the oracle cache `cache/oracle*/build-*/*.jsonl`
 //!   and every WitnessSet file (`{"function", "witnesses": [{"id", "args", "expected_bits"}]}`) of
 //!   `manifest.tsv` and `w109-manifest.tsv` named `answers*.json` (the runners' answer files;
@@ -86,7 +86,7 @@ use std::process::{Command, ExitCode};
 
 pub const USAGE: &str = "cargo xtask witness judge [--func <F>] [--bank pinned|full] [--trace <path>] [--values-only] | cargo xtask witness compare --before <trace> --after <trace> | cargo xtask witness refresh [--func <F>] [--context] [--classified-losses <tsv>] | cargo xtask witness pin [--func <F>] [--rows <N>] | cargo xtask witness read --func <F>[,<F>...] [--timeout <s>] [--inputs <json> [--new-only] [--repeat-calls]]";
 
-const CHECKOUT: &str = "OxFunc-Evidence";
+use crate::evidence::CHECKOUT;
 const MANIFESTS: [&str; 2] = ["manifest.tsv", "w109-manifest.tsv"];
 const PINNED_DIR: &str = "crates/calc-func/tests/witnesses";
 const STATUS: &str = "crates/calc-func/witness-status.tsv";
@@ -1317,7 +1317,13 @@ fn write_pinned(root: &Path, banks: &Banks, judged: &BTreeMap<String, Vec<Row>>,
 /// Restore only facts attested by the pinned row's original source. Neither the
 /// sample nor its Excel answers is selected again. A conflicting source is an error.
 fn restore_pinned_context(sets: &mut [(PathBuf, WitnessSet)], banks: &Banks) -> Result<usize, String> {
-    let source_path = |source: &str| source.split(';').next().unwrap_or(source).to_owned();
+    // The public archive rename keeps the same source paths and recorded answers.
+    // Compare that one alias without rewriting immutable witness provenance.
+    let source_path = |source: &str| {
+        let path = source.split(';').next().unwrap_or(source);
+        path.strip_prefix("OxFunc-Evidence ")
+            .map_or_else(|| path.to_owned(), |rest| format!("{CHECKOUT} {rest}"))
+    };
     let key = |function: &str, source: &str, args: &[Value], index| {
         format!("{}|{}", source_path(source), reading_key(function, args, index))
     };
@@ -2395,6 +2401,7 @@ mod tests {
         let mut witnesses = Vec::new();
         for (id, transport, expected) in [("cell", "cell_value2_bulk", "logical:True"), ("literal", "formula_literals_with_cell_echo", "logical:False")] {
             let mut env = base.clone();
+            env.source = format!("{CHECKOUT} bank");
             env.invocation = Some(calc_verdict::WitnessInvocation { input_transport: Some(transport.into()), ..Default::default() });
             let source = banks.sources.len();
             banks.sources.push(Source { path: "bank".into(), env });

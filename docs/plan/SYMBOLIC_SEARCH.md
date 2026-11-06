@@ -105,7 +105,7 @@ rows remain byte-identical. Thus the full baseline still has zero output changes
 and zero losses; the later totals use a changed observation set. Both comparisons
 and the initially failed whole-trace membership assumption are retained.
 
-Evidence `51bed087` answered the frozen Round-10 packet. Original packet hashes
+Evidence `8c3eccc3` answered the frozen Round-10 packet. Original packet hashes
 were checked before scoring. All 32 numeric PMT rechecks reproduce their historical
 answers, including all 24 certified gaps; the application matches eight controls.
 All eight logical-timing variants reproduce their paired numeric answers. Three
@@ -214,7 +214,7 @@ Changing a dependency makes dependent claims stale; it does not invalidate obser
   Excel/COM is on the Windows machine; this host can replay recorded answers.
 - Freeze DnaCalc revision, source diff, CPU, compiler, numeric mode and evidence revision.
   Reuse `cargo xtask witness judge --bank full --trace <outside-repo>/application.jsonl`.
-  `OxFunc-Evidence` at `0df452ec` supplies the bank; preserve input bits, omissions,
+  `CalcFunc-Evidence` at `43022fef` supplies the bank; preserve input bits, omissions,
   argument types, selected result element, expected outcome, source and environment.
 - Extend xtask's existing witness loader and calc-verdict encodings, rather than building
   another importer or oracle. Never ingest predictions or synthetic values as Excel answers.
@@ -410,7 +410,7 @@ separate, are in `/home/ubuntu/codex-runs/fresh-questions-r7/`; use the existing
 Omit `--new-only`: the packet intentionally includes controls that repeat old inputs.
 
 Research source is committed as `b46bd4e` in DnaCalc-Research (program code `624edfd`).
-The complete local `DnaCalc-Research-r7-final.bundle` stays in the round artifact directory. Evidence revision is `0df452ec63a8adcb0bf8a9a248dab11c49379136`.
+The complete local `DnaCalc-Research-r7-final.bundle` stays in the round artifact directory. Evidence revision is `43022fef6ce29fc8236c4e43f0b135a132f59a7c`.
 Sources used are annuity algebra, the [NIST Poisson PMF](https://www.itl.nist.gov/div898/handbook/eda/section3/eda366j.htm),
 recorded observations, the cleared Fpu
 and the MIT OxFunc `05196c39` racer subset; no excluded distribution source was read.
@@ -431,7 +431,7 @@ source unit built before that pull, at `ec05eae`; the numeric sources are unchan
 ## Round 8 result, 2026-10-31
 
 The 38 frozen Round-7 POISSON.DIST questions were answered in evidence commit
-`cba2fac2636c2cb6fd58e85e44f682d93dd387dd`. The original packet and every prediction
+`05bbf1fc3a6641a76eaad6cb2ca1be56baba24aa`. The original packet and every prediction
 hash were checked before scoring. All **52,908 hypotheses** have individual blind
 pass/fail records in `round8/poisson-blind/per-hypothesis-blind-scores.csv`.
 None matched 38/38; the highest count was 30/38, attained by 196 hypotheses.

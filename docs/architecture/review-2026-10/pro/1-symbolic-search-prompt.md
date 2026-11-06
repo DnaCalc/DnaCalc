@@ -86,7 +86,7 @@ Published methods remain generic fallbacks until Excel's actual program is ident
   Excel/COM is on the Windows machine; this host can replay recorded answers.
 - Freeze DnaCalc revision, source diff, CPU, compiler, numeric mode and evidence revision.
   Reuse `cargo xtask witness judge --bank full --trace <outside-repo>/application.jsonl`.
-  `OxFunc-Evidence` at `0df452ec` supplies the bank; preserve input bits, omissions,
+  `CalcFunc-Evidence` at `43022fef` supplies the bank; preserve input bits, omissions,
   argument types, selected result element, expected outcome, source and environment.
 - Extend xtask's existing witness loader and calc-verdict encodings, rather than building
   another importer or oracle. Never ingest predictions or synthetic values as Excel answers.

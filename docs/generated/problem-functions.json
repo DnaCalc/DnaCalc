@@ -7,7 +7,7 @@
   },
   "executable_sha256": "93b8ccd8d7166d94ac875c6f7d7e56cdaea56ebc14660816861ce3e1c184a08b",
   "bank_source": {
-    "revision": "4cb48d15eb9cb2a06becb443b306d637d84e6092",
+    "revision": "d224c5fb60547d73eeb71a195dd49456987ab102",
     "status": "",
     "readings_sha256": {
       "readings/excel-20527/BESSELI.json": "279d398e7c77059b362b7be6dff8cd7289dfcd59909d8edb1c43537cbf99f7f6",
