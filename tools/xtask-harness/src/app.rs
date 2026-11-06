@@ -3223,11 +3223,11 @@ mod tests {
             );
         }
         let current_total: usize = APPS.iter().map(|app|SmokeSelection::default().count(app)).sum();
-        let total: usize = APPS.iter().flat_map(|app|app.groups).filter(|group|!matches!(group.name,"chart-formatting"|"chart-text"|"chart-category-combos")).map(|group|group.core).sum();
+        let total: usize = APPS.iter().flat_map(|app|app.groups).filter(|group|!matches!(group.name,"chart-formatting"|"chart-text"|"chart-category-combos"|"saved-pivots")).map(|group|group.core).sum();
         let inherited_total: usize = APPS
             .iter()
             .flat_map(|app| app.groups)
-            .filter(|group| !matches!(group.name,"page-layout"|"chart-formatting"|"chart-text"|"chart-category-combos"))
+            .filter(|group| !matches!(group.name,"page-layout"|"chart-formatting"|"chart-text"|"chart-category-combos"|"saved-pivots"))
             .map(|group| group.core)
             .sum();
         assert_eq!(
@@ -3238,7 +3238,7 @@ mod tests {
             total, 393,
             "the twelve page-layout cases extend all 381 inherited core cases"
         );
-        assert_eq!(current_total,407,"fourteen chart cases extend all 393 inherited core cases");
+        assert_eq!(current_total,412,"nineteen chart and pivot cases extend all 393 inherited core cases");
     }
 
     #[test]
