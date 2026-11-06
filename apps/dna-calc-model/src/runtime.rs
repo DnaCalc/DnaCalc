@@ -84,9 +84,21 @@ impl Default for TableTools{fn default()->Self{Self{name:"Table1".into(),rows:St
 #[derive(Clone,Debug,Default,PartialEq,Eq)]
 pub struct ChartTools {pub create_type:String,pub create_rows:bool,pub create_headers:bool,pub create_categories:bool,pub part:String,pub title:String,pub legend:bool,pub legend_position:String,pub plot:String,pub series:String,pub series_name:String,pub categories:String,pub values:String,pub chart_type:String,pub chart_grouping:String,pub axis:String,pub axis_minimum:String,pub axis_maximum:String,pub axis_unit:String,pub axis_reverse:bool,pub axis_log:bool,pub axis_base:String}
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PageTools {
+    pub open: bool,
+    pub preview: bool,
+    pub view: String,
+    pub draft: std::collections::BTreeMap<String, String>,
+    pub base: std::collections::BTreeMap<String, String>,
+    pub source: Option<crate::printing::PageSetupState>,
+    pub target: Option<(u64, wire::Sheet)>,
+    pub message: String,
+}
 /// Shared Find/Replace/Go To inputs and workbook-relative query results.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ToolState {
+    pub page: PageTools,
     pub table:TableTools,
     pub chart:ChartTools,
     pub filter: FilterTools,
@@ -116,6 +128,7 @@ pub struct ToolState {
 impl Default for ToolState {
     fn default() -> Self {
         Self {
+            page: PageTools::default(),
             table:TableTools::default(),
             chart:ChartTools::default(),
             filter: FilterTools::default(),
@@ -153,6 +166,7 @@ impl ToolState {
     /// Keep user inputs; retire results, permissions and locations from the old workbook.
     pub fn reset_workbook(&mut self) {
         self.invalidate_search();
+        self.page = PageTools::default();
         self.table=TableTools::default();
         self.chart=ChartTools::default();
         self.filter=FilterTools {epoch:self.filter.epoch+1,..Default::default()};
@@ -384,6 +398,7 @@ mod tool_tests {
 
     fn populated() -> ToolState {
         ToolState {
+            page: PageTools::default(),
             table:TableTools::default(),
             chart:ChartTools {part:"old chart".into(),title:"old draft".into(),legend:true,chart_type:"line".into(),chart_grouping:"stacked".into(),axis:"old axis".into(),axis_minimum:"-5".into(),axis_maximum:"10".into(),axis_unit:"2.5".into(),axis_reverse:true,..ChartTools::default()},
             filter: FilterTools {loaded:true, sheet:Some(wire::Sheet(0,0)), revision:7, epoch:3, values:vec![("old choice".into(),true)],..Default::default()},

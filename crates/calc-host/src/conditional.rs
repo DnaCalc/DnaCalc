@@ -145,17 +145,43 @@ impl ConditionalFormats {
     /// What the conditional formats give the cell `at`, reading `host` (the revision they were
     /// prepared for); `None` when no rule changes its look.
     pub fn look(&self, host: &HostState, at: CellKey) -> Option<CellLook> {
+        self.look_with_context(host, at, None)
+    }
+
+    /// An authoring decision reuses its current-value context, without changing painting.
+    pub(crate) fn look_in(
+        &self,
+        host: &HostState,
+        at: CellKey,
+        context: &calc_engine::DetachedEvaluationContext<'_>,
+    ) -> Option<CellLook> {
+        self.look_with_context(host, at, Some(context))
+    }
+
+    fn look_with_context(
+        &self,
+        host: &HostState,
+        at: CellKey,
+        context: Option<&calc_engine::DetachedEvaluationContext<'_>>,
+    ) -> Option<CellLook> {
         if at.sheet() != self.sheet {
             return None;
         }
         let mut look = CellLook::default();
-        let mut value: Option<Option<CalcValue>> = None;
+        let mut value = None;
         for prepared in &self.rules {
             if !prepared.areas.iter().any(|area| area.contains(at)) {
                 continue;
             }
-            let value = value.get_or_insert_with(|| cell_value(host, at));
-            let held = self.apply(host, prepared, at, value.as_ref(), &mut look);
+            let value = value.get_or_insert_with(|| match context {
+                Some(context) => context.read_cell(at).map(Some),
+                None => Ok(cell_value(host, at)),
+            });
+            let Ok(value) = value else {
+                self.refused.set(self.refused.get() + 1);
+                return None;
+            };
+            let held = self.apply(host, prepared, at, value.as_ref(), &mut look, context);
             if held && prepared.rule.stop_if_true {
                 break;
             }
@@ -193,7 +219,7 @@ impl ConditionalFormats {
                 } else {
                     let old = look.clone();
                     let before = self.refused.get();
-                    let held = self.apply(host, p, at, value.as_ref(), &mut look);
+                    let held = self.apply(host, p, at, value.as_ref(), &mut look, None);
                     if self.refused.get() != before {
                         "Rule formula unavailable; no appearance supplied".to_owned()
                     } else if held {
@@ -224,6 +250,7 @@ impl ConditionalFormats {
         at: CellKey,
         value: Option<&CalcValue>,
         look: &mut CellLook,
+        context: Option<&calc_engine::DetachedEvaluationContext<'_>>,
     ) -> bool {
         let rule = &prepared.rule;
         let number = value.and_then(number_of);
@@ -238,7 +265,7 @@ impl ConditionalFormats {
                     .thresholds
                     .iter()
                     .enumerate()
-                    .filter_map(|(i, t)| self.threshold(host, prepared, i, t, stats, at))
+                    .filter_map(|(i, t)| self.threshold(host, prepared, i, t, stats, at, context))
                     .collect();
                 let colors: Vec<Option<(u8, u8, u8)>> =
                     scale.colors.iter().map(|c| rgb_triple(host, c)).collect();
@@ -262,11 +289,11 @@ impl ConditionalFormats {
                 let lo = bar
                     .thresholds
                     .first()
-                    .and_then(|t| self.threshold(host, prepared, 0, t, stats, at));
+                    .and_then(|t| self.threshold(host, prepared, 0, t, stats, at, context));
                 let hi = bar
                     .thresholds
                     .get(1)
-                    .and_then(|t| self.threshold(host, prepared, 1, t, stats, at));
+                    .and_then(|t| self.threshold(host, prepared, 1, t, stats, at, context));
                 let (Some(lo), Some(hi)) = (lo, hi) else {
                     return false;
                 };
@@ -297,7 +324,7 @@ impl ConditionalFormats {
                 };
                 let mut index = 0;
                 for (i, t) in set.thresholds.iter().enumerate().skip(1) {
-                    let Some(limit) = self.threshold(host, prepared, i, t, stats, at) else {
+                    let Some(limit) = self.threshold(host, prepared, i, t, stats, at, context) else {
                         return false;
                     };
                     if n > limit || (t.gte && n == limit) {
@@ -373,7 +400,7 @@ impl ConditionalFormats {
                     self.refused.set(self.refused.get() + 1);
                     return false;
                 };
-                match formula.evaluate(&host.engine, &host.model, at) {
+                match evaluate_formula(host, formula, at, context) {
                     Ok(result) if truth(&result) => dress(look, &prepared.dxf),
                     Ok(_) => false,
                     Err(_) => {
@@ -394,6 +421,7 @@ impl ConditionalFormats {
         threshold: &Threshold,
         stats: &Stats,
         at: CellKey,
+        context: Option<&calc_engine::DetachedEvaluationContext<'_>>,
     ) -> Option<f64> {
         let (lo, hi) = (*stats.numbers.first()?, *stats.numbers.last()?);
         let given = || {
@@ -407,16 +435,28 @@ impl ConditionalFormats {
             "max" | "autoMax" => Some(hi),
             "num" => given().or_else(|| {
                 let formula = prepared.threshold_formulas.get(index)?.as_ref()?;
-                number_of(&formula.evaluate(&host.engine, &host.model, at).ok()?)
+                number_of(&evaluate_formula(host, formula, at, context).ok()?)
             }),
             "percent" => Some(lo + (hi - lo) * given()? / 100.0),
             "percentile" => Some(percentile(&stats.numbers, given()? / 100.0)),
             "formula" => {
                 let formula = prepared.threshold_formulas.get(index)?.as_ref()?;
-                number_of(&formula.evaluate(&host.engine, &host.model, at).ok()?)
+                number_of(&evaluate_formula(host, formula, at, context).ok()?)
             }
             _ => None,
         }
+    }
+}
+
+fn evaluate_formula(
+    host: &HostState,
+    formula: &DetachedFormula,
+    at: CellKey,
+    context: Option<&calc_engine::DetachedEvaluationContext<'_>>,
+) -> Result<CalcValue, calc_engine::NotModeled> {
+    match context {
+        Some(context) => formula.evaluate_in(context, at),
+        None => formula.evaluate(&host.engine, &host.model, at),
     }
 }
 
@@ -698,15 +738,24 @@ impl HostState {
     /// The conditional formats of `sheet`, prepared for the current revision (see
     /// [`crate::conditional`]); empty for a sheet the file gave none.
     pub fn conditional_formats(&self, sheet: SheetId) -> ConditionalFormats {
-        self.prepare_conditional_formats(sheet, None)
+        self.prepare_conditional_formats(sheet, None, None)
     }
 
-    /// Prepare only rules intersecting this range, through the same evaluator as painting.
-    pub(crate) fn conditional_formats_for(&self, area: GridArea) -> ConditionalFormats {
-        self.prepare_conditional_formats(area.sheet(), Some(area))
+    /// Prepare an authoring range through the same evaluator as painting, in its current context.
+    pub(crate) fn conditional_formats_for(
+        &self,
+        area: GridArea,
+        context: &calc_engine::DetachedEvaluationContext<'_>,
+    ) -> ConditionalFormats {
+        self.prepare_conditional_formats(area.sheet(), Some(area), Some(context))
     }
 
-    fn prepare_conditional_formats(&self, sheet: SheetId, area: Option<GridArea>) -> ConditionalFormats {
+    fn prepare_conditional_formats(
+        &self,
+        sheet: SheetId,
+        area: Option<GridArea>,
+        context: Option<&calc_engine::DetachedEvaluationContext<'_>>,
+    ) -> ConditionalFormats {
         let mut rules = Vec::new();
         for (index, source) in self
             .model
@@ -718,7 +767,7 @@ impl HostState {
         {
             if let (Ok(rule), Some(origin)) = (calc_doc::conditional_rule(source), source.origin())
             {
-                let mut prepared = self.prepare(&rule, &source.areas, origin);
+                let mut prepared = self.prepare(&rule, &source.areas, origin, context);
                 prepared.source_index = index;
                 rules.push(prepared);
             }
@@ -782,9 +831,17 @@ impl HostState {
             .collect()
     }
 
-    fn prepare(&self, rule: &ConditionalRule, areas: &[GridArea], origin: CellKey) -> Prepared {
-        let compile =
-            |text: &str| DetachedFormula::compile(&self.model, text, origin).map_err(|_| ());
+    fn prepare(
+        &self,
+        rule: &ConditionalRule,
+        areas: &[GridArea],
+        origin: CellKey,
+        context: Option<&calc_engine::DetachedEvaluationContext<'_>>,
+    ) -> Prepared {
+        let compile = |text: &str| match context {
+            Some(context) => context.compile(text, origin, calc_fml::FormulaForm::Legacy),
+            None => DetachedFormula::compile(&self.model, text, origin),
+        }.map_err(|_| ());
         let condition = match rule.kind.as_str() {
             "cellIs" => Some(match cell_is_formula(rule, origin) {
                 Some(text) => compile(&text),
@@ -808,7 +865,7 @@ impl HostState {
             .iter()
             .map(|t| match (t.kind.as_str(), t.value.as_deref()) {
                 ("formula" | "num", Some(text)) if text.trim().parse::<f64>().is_err() => {
-                    DetachedFormula::compile(&self.model, text.trim_start_matches('='), origin).ok()
+                    compile(text.trim_start_matches('=')).ok()
                 }
                 _ => None,
             })
@@ -819,7 +876,7 @@ impl HostState {
             let mut bound=format!("AVERAGE({ranges})");
             if let Some(deviation)=rule.std_dev {bound.push_str(&format!("{}({deviation}*STDEVP({ranges}))",if rule.above_average {"+"}else{"-"}));}
             let formula=compile(&bound)?;
-            let value=formula.evaluate(&self.engine,&self.model,origin).map_err(|_|())?;
+            let value=evaluate_formula(self,&formula,origin,context).map_err(|_|())?;
             number_of(&value).ok_or(())
         });
         let stats = (condition.is_none() && average.is_none()).then(|| self.stats(areas));

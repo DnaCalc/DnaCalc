@@ -320,6 +320,7 @@ pub struct Definitions {
     validations: BTreeMap<SheetId, Vec<crate::Validation>>,
     review: BTreeMap<SheetId, Vec<crate::ReviewNote>>,
     links: BTreeMap<SheetId, Vec<crate::ReviewLink>>,
+    page_setups: BTreeMap<SheetId, crate::PageSetup>,
     charts: BTreeMap<SheetId,std::sync::Arc<[crate::Chart]>>,
     axis_layouts: crate::AxisLayouts,
     panes: BTreeMap<SheetId, crate::PaneLayout>,
@@ -344,6 +345,10 @@ pub struct Definitions {
 }
 
 impl Definitions {
+    pub fn page_setup(&self, sheet: SheetId) -> crate::PageSetup { self.page_setups.get(&sheet).cloned().unwrap_or_default() }
+    pub fn page_setups(&self) -> impl Iterator<Item=(SheetId, &crate::PageSetup)> { self.page_setups.iter().map(|(s,p)| (*s,p)) }
+    pub fn with_page_setup(mut self, sheet: SheetId, setup: crate::PageSetup) -> Self { if setup == crate::PageSetup::default() { self.page_setups.remove(&sheet); } else { self.page_setups.insert(sheet,setup); } self }
+
     pub fn charts(&self,sheet:SheetId)->&[crate::Chart] {self.charts.get(&sheet).map(|charts|charts.as_ref()).unwrap_or(&[])}
     pub fn all_charts(&self)->impl Iterator<Item=(SheetId,&[crate::Chart])> {self.charts.iter().map(|(sheet,charts)|(*sheet,charts.as_ref()))}
     pub fn with_charts(mut self,sheet:SheetId,charts:Vec<crate::Chart>)->Self {if charts.is_empty(){self.charts.remove(&sheet);}else{self.charts.insert(sheet,charts.into());}self}
@@ -518,6 +523,7 @@ impl Definitions {
             review: BTreeMap::new(),
             links: BTreeMap::new(),
             charts: BTreeMap::new(),
+            page_setups: BTreeMap::new(),
             validations: BTreeMap::new(),
             axis_layouts: crate::AxisLayouts::default(),
             panes: BTreeMap::new(),
@@ -726,6 +732,7 @@ impl Definitions {
         self.review.remove(&sheet);
         self.links.remove(&sheet);
         self.charts.remove(&sheet);
+        self.page_setups.remove(&sheet);
         if self.styles.runs.iter().any(|r| r.area.sheet() == sheet) {
             let mut styles = (*self.styles).clone();
             styles.runs = styles.runs.without_sheet(sheet);
@@ -762,6 +769,7 @@ impl Definitions {
         self.review.is_empty()
             && self.links.is_empty()
             && self.charts.is_empty()
+            && self.page_setups.is_empty()
             && self.validations.is_empty()
             && self.conditional.is_empty()
             && self.axis_layouts.sheets().next().is_none()
@@ -867,6 +875,7 @@ impl Definitions {
             .chain(self.filters.keys().copied())
             .chain(self.links.keys().copied())
             .chain(self.charts.keys().copied())
+            .chain(self.page_setups.keys().copied())
             .chain(self.axis_layouts.sheets())
             .chain(self.data_tables.iter().map(|table| table.area.sheet()))
             .chain(

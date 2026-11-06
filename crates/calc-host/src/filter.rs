@@ -346,7 +346,7 @@ pub(crate) fn apply(
             } else {
                 font_color(host, dxf.font.as_ref())?
             };
-            colors.push((*col, *cell_color, color, host.conditional_formats_for(area)));
+            colors.push((*col, *cell_color, color, host.conditional_formats_for(area, &context)));
             continue;
         }
         let origin = CellKey::new(filter.area.sheet(), first, *col).unwrap();
@@ -515,9 +515,9 @@ pub(crate) fn apply(
                 };
                 if formats.rule_count() > 0 {
                     let refused = formats.refused();
-                    let look = formats.look(host, at).unwrap_or_default();
+                    let look = formats.look_in(host, at, &context).unwrap_or_default();
                     if formats.refused() != refused {
-                        return Err(refusal("needs current calculated conditional-format values"));
+                        return Err(refusal("the conditional-format formula or its current inputs are unavailable"));
                     }
                     if let Some(color) = if *cell_color { look.fill } else { look.font_color } {
                         actual = Some(match color {

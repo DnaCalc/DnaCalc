@@ -2,7 +2,11 @@
 //! WebDriver session, upload route and committed RenderPlan; never synthesize painted values.
 use super::*;
 
-const HELP: &str = "cargo xtask app paint-compare calc --out DIR [--bundle DIR] [--workbook FILE] [--reference DIR] [--zooms 75,100,150] [--excel EXE]";
+const HELP: &str = "cargo xtask app paint-compare calc --out DIR [--bundle DIR] [--workbook FILE] [--reference DIR] [--zooms 75,100,150] [--normal-font FAMILY,POINTS] [--excel EXE]";
+
+fn python() -> Command {
+    Command::new(std::env::var_os("DNACALC_PAINT_PYTHON").unwrap_or_else(|| "python".into()))
+}
 
 pub(super) fn run(ws: &Workspace, app: &App, raw: &[String]) -> ExitCode {
     match execute(ws, app, raw) {
@@ -23,6 +27,7 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
     let mut workbook = None;
     let mut reference = None;
     let mut excel_path = None;
+    let mut normal_font = None;
     let mut zooms = vec![100, 75, 150];
     let mut args = raw.iter();
     while let Some(flag) = args.next() {
@@ -33,6 +38,12 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
             "--workbook" => workbook = Some(PathBuf::from(value)),
             "--reference" => reference = Some(PathBuf::from(value)),
             "--excel" => excel_path = Some(PathBuf::from(value)),
+            "--normal-font" => {
+                let (family,points)=value.rsplit_once(',').ok_or("--normal-font needs FAMILY,POINTS")?;
+                let points=points.parse::<f64>().map_err(|e|e.to_string())?;
+                if family.is_empty() || !points.is_finite() || !(1. ..=409.).contains(&points) { return Err("Normal font needs a family and 1 to 409 points".into()); }
+                normal_font=Some((family.to_owned(),points));
+            }
             "--zooms" => {
                 zooms = value
                     .split(',')
@@ -62,12 +73,14 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
         dir
     };
     let books = if let Some(path) = workbook {
+        if normal_font.is_some() {return Err("--normal-font applies to generated inputs; an existing workbook keeps its own Normal font".into());}
         vec![path.canonicalize().map_err(|e| e.to_string())?]
     } else {
         let mut books = Vec::new();
         for kind in ["geometry", "text", "borders", "panes"] {
             let path = out.join(format!("paint-{kind}.xlsx"));
-            fs::write(&path, calc_cases::fixtures::paint(kind)?).map_err(|e| e.to_string())?;
+            let bytes=if let Some((family,points))=&normal_font {calc_cases::fixtures::paint_with_normal(kind,family,*points)?}else{calc_cases::fixtures::paint(kind)?};
+            fs::write(&path,bytes).map_err(|e| e.to_string())?;
             books.push(path);
         }
         books
@@ -214,6 +227,9 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
                         plan["zoom"] = json!(zoom);
                         plan["painter"] = json!(mode);
                         plan["prefix"] = json!(prefix);
+                        plan["png_base64_sha256"] = json!(calc_verdict::sha256_hex(
+                            screenshot.as_str().ok_or("no screenshot")?.as_bytes()
+                        ));
                         fs::write(out.join(format!("{prefix}.json")), plan.to_string())
                             .map_err(|e| e.to_string())?;
                         captures.push(plan);
@@ -229,15 +245,31 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
     let bundle_hashes: Vec<_>=fs::read_dir(&bundle_dir).map_err(|e|e.to_string())?.filter_map(Result::ok).filter(|e|e.path().is_file()).map(|e|Ok(json!({"name":e.file_name().to_string_lossy(),"sha256":calc_verdict::sha256_hex(&fs::read(e.path()).map_err(|e|e.to_string())?)}))).collect::<Result<_,String>>()?;
     let record = json!({"schema":"dnacalc-paint/1","captures":captures,"reference":reference_dir,"bundle_source":built_source,"workspace_head_at_capture":cargo::git(&ws.root,&["rev-parse","HEAD"])? .trim(),"workspace_diff_sha256":calc_verdict::sha256_hex(cargo::git(&ws.root,&["diff","HEAD"] )?.as_bytes()),"bundle":bundle_hashes,"desktop":{"status":"not_run","reason":"dna-calc-desktop currently hosts XLL/COM; it has no worksheet painter"}});
     fs::write(out.join("browser.json"), record.to_string()).map_err(|e| e.to_string())?;
-    let status = Command::new("py")
+    let status = python()
         .arg(source.join("compare.py"))
         .arg(&out)
         .status()
-        .map_err(|e| format!("pixel comparison needs Python with Pillow: {e}"))?;
+        .map_err(|e| format!("cell parity reporting needs Python with Pillow and NumPy (DNACALC_PAINT_PYTHON selects the interpreter): {e}"))?;
     if !status.success() {
-        return Err(format!("pixel comparison exited {status}"));
+        return Err(format!("cell parity reporting exited {status}"));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    /// Native-only: runs Python against synthetic raster controls without starting Excel or a browser.
+    #[test]
+    fn cell_measurements_reject_known_paint_damage() {
+        let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/paint/compare.py");
+        let output = python()
+            .arg(script)
+            .arg("--self-test")
+            .output()
+            .expect("Python with Pillow and NumPy is required by paint-compare");
+        assert!(output.status.success(), "{}{}", cargo::text(&output.stdout), cargo::text(&output.stderr));
+    }
 }
 
 fn runtime_source(ws: &Workspace) -> Result<Value, String> {

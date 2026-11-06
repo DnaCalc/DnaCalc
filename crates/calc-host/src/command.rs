@@ -19,6 +19,7 @@ pub enum CellEdit {
     /// Authored style table, in the same transaction as its cell assignments.
     Tables(Vec<calc_doc_model::Table>),
     Styles(Arc<calc_doc_model::StyleTable>),
+    PageSetup {sheet:calc_value::SheetId,setup:calc_doc_model::PageSetup},
     Charts {sheet:calc_value::SheetId,charts:Vec<calc_doc_model::Chart>},
     AutoFilter { sheet: calc_doc_model::value::SheetId, filter: Option<calc_doc_model::AutoFilter> },
     /// Document layout metadata, independent of cell contents.
@@ -86,6 +87,7 @@ impl CellEdit {
     fn operation(self) -> WorkbookOp {
         match self {
             CellEdit::Tables(tables)=>WorkbookOp::SetTables(tables),
+            CellEdit::PageSetup {sheet,setup}=>WorkbookOp::SetPageSetup {sheet,setup},
             CellEdit::Charts {sheet,charts}=>WorkbookOp::SetCharts {sheet,charts},
             CellEdit::Styles(styles) => WorkbookOp::SetStyles(styles),
             CellEdit::AutoFilter { sheet, filter } => WorkbookOp::SetAutoFilter { sheet, filter },
@@ -418,6 +420,10 @@ pub fn dispatch(
         }
     }
     for op in &batch.operations {
+        if let WorkbookOp::SetPageSetup {sheet,setup}=op {
+            if host.model.sheet_by_id(*sheet).is_none() || host.loaded.sheet(*sheet).is_some_and(|s|s.protected()||s.is_macro_sheet()) {return Err(CommandError::Document(EditError::SheetOperation("Page setup needs an editable worksheet (dc-971p.56)".into())));}
+            host.loaded.check_page_setup(*sheet,&host.model.definitions().page_setup(*sheet),setup).map_err(|e|CommandError::Document(EditError::SheetOperation(e.to_string())))?;
+        }
         if let WorkbookOp::SetCharts {sheet,charts}=op {
             if host.loaded.sheet(*sheet).is_none_or(|s|s.protected()||s.is_macro_sheet()) {
                 return Err(CommandError::Document(EditError::SheetOperation("Chart editing requires an editable worksheet (dc-971p.49)".into())));

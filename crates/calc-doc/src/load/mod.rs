@@ -27,6 +27,7 @@
 
 pub(crate) mod address;
 mod chart;
+pub(crate) mod page_setup;
 pub(crate) mod conditional;
 mod error;
 mod external;
@@ -121,6 +122,7 @@ pub struct LoadedSheet {
     merged_areas: Vec<GridArea>,
     validations: Arc<[Validation]>,
     charts: Arc<SheetCharts>,
+    page_setup: calc_doc_model::PageSetup,
     review: Arc<SheetReview>,
 }
 
@@ -144,6 +146,7 @@ impl LoadedSheet {
             merged_areas: Vec::new(),
             validations: Arc::from([]),
             charts: Arc::new(SheetCharts::default()),
+            page_setup: Default::default(),
             review: Arc::new(SheetReview::default()),
         }
     }
@@ -389,6 +392,14 @@ pub struct LoadedWorkbook {
 }
 
 impl LoadedWorkbook {
+    /// Preflight the same print-element writer used by Save.
+    pub fn check_page_setup(&self, sheet: SheetId, old:&calc_doc_model::PageSetup, new:&calc_doc_model::PageSetup)->Result<(),crate::SaveRefusal> {
+        let name=self.sheet(sheet).map(|s|s.part().name()).unwrap_or("new-worksheet.xml");
+        if self.sheets.iter().any(|s|s.id()!=sheet&&s.part().name()==name) {return Err(crate::SaveRefusal::SharedSheetPart{part:name.into()});}
+        let xml=crate::save::sheets::read_sheet(&self.package,name)?;
+        crate::save::page_setup::rewrite(&xml,old,new).map(|_|())
+    }
+
     /// Preflight the retained chart writer used by authored Save.
     pub fn check_chart_properties(&self,sheet:SheetId,chart:&calc_doc_model::Chart)->Result<(),crate::SaveRefusal> {
         if let Some(original)=self.model.definitions().charts(sheet).iter().find(|old|old.part==chart.part) {
@@ -1589,6 +1600,7 @@ pub fn load_preserving_sheet_ids(
                     merged_areas: loaded.merged_areas,
                     validations: loaded.validations.into(),
                     charts: Arc::new(chart::read_charts(package, &declared.part)),
+                    page_setup: loaded.page_setup,
                     review: Arc::new(loaded.review),
                 });
             }
@@ -1696,6 +1708,7 @@ pub fn load_preserving_sheet_ids(
     definitions=definitions.with_axis_formats(outline_edits);
     for sheet in &sheets {
         definitions = definitions.with_review_links(sheet.id,sheet.review.links.clone()).with_review_notes(sheet.id, sheet.review.notes.clone())
+            .with_page_setup(sheet.id, sheet.page_setup.clone())
             .with_validations(sheet.id, sheet.validations.to_vec()).with_charts(sheet.id,sheet.charts.charts.clone());
     }
     for (sheet, rules) in conditional_sources {

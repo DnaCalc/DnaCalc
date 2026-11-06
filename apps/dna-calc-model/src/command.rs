@@ -5,6 +5,8 @@ use calc_value::{CellKey, GridArea, NameId, SheetId};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CommandId {
+    PageSetup,
+    PrintPreview,
     PasteSpecial,
     FlashFill,
     FormatCells,
@@ -19,7 +21,9 @@ pub enum CommandId {
     SwitchSkin,
 }
 impl CommandId {
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 14] = [
+        Self::PageSetup,
+        Self::PrintPreview,
         Self::PasteSpecial,
         Self::FlashFill,
         Self::FormatCells,
@@ -35,6 +39,8 @@ impl CommandId {
     ];
     pub const fn stable_id(self) -> &'static str {
         match self {
+            Self::PageSetup => "page.setup",
+            Self::PrintPreview => "page.print-preview",
             Self::PasteSpecial => "edit.paste-special",
             Self::FlashFill => "edit.flash-fill",
             Self::FormatCells => "format.cells",
@@ -51,6 +57,8 @@ impl CommandId {
     }
     pub const fn label(self) -> &'static str {
         match self {
+            Self::PageSetup => "Page Setup",
+            Self::PrintPreview => "Print preview",
             Self::PasteSpecial => "Paste Special",
             Self::FlashFill => "Flash Fill",
             Self::FormatCells => "Format Cells",
@@ -81,6 +89,8 @@ pub enum RevealTarget {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Command {
+    PageSetup,
+    PrintPreview,
     PasteSpecial,
     FlashFill,
     FormatCells,
@@ -97,6 +107,8 @@ pub enum Command {
 impl Command {
     pub const fn id(&self) -> CommandId {
         match self {
+            Self::PageSetup => CommandId::PageSetup,
+            Self::PrintPreview => CommandId::PrintPreview,
             Self::PasteSpecial => CommandId::PasteSpecial,
             Self::FlashFill => CommandId::FlashFill,
             Self::FormatCells => CommandId::FormatCells,
@@ -113,6 +125,8 @@ impl Command {
     }
     pub fn simple(id: CommandId) -> Option<Self> {
         Some(match id {
+            CommandId::PageSetup => Self::PageSetup,
+            CommandId::PrintPreview => Self::PrintPreview,
             CommandId::PasteSpecial => Self::PasteSpecial,
             CommandId::FlashFill => Self::FlashFill,
             CommandId::FormatCells => Self::FormatCells,
@@ -164,6 +178,8 @@ pub struct CommandRequest {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Effect {
+    PageSetup,
+    PrintPreview,
     PasteSpecial,
     FlashFill,
     FormatCells,
@@ -203,7 +219,9 @@ impl Model {
         if self.edit.surface.is_some()
             && matches!(
                 id,
-                CommandId::PasteSpecial | CommandId::FlashFill | CommandId::FormatCells
+                CommandId::PageSetup
+                    | CommandId::PrintPreview
+                    | CommandId::PasteSpecial | CommandId::FlashFill | CommandId::FormatCells
                     | CommandId::NameManager
                     | CommandId::Find
                     | CommandId::Replace
@@ -244,6 +262,14 @@ impl Model {
         let CommandRequest { command, focus } = request;
         self.availability(command.id(), context)?;
         Ok(match command {
+            Command::PageSetup => {
+                self.runtime.tools.page.open = true;
+                Effect::PageSetup
+            }
+            Command::PrintPreview => {
+                self.runtime.tools.page.preview = true;
+                Effect::PrintPreview
+            }
             Command::PasteSpecial => Effect::PasteSpecial,
             Command::FlashFill => Effect::FlashFill,
             Command::NameManager => {
@@ -305,6 +331,13 @@ pub struct CommandBinding {
     pub command: CommandId,
 }
 pub const SHELL_KEYMAP: &[CommandBinding] = &[
+    CommandBinding {
+        key: "p",
+        ctrl: true,
+        shift: false,
+        alt: false,
+        command: CommandId::PrintPreview,
+    },
     CommandBinding {key:"v",ctrl:true,shift:false,alt:true,command:CommandId::PasteSpecial},
     CommandBinding {key:"e",ctrl:true,shift:false,alt:false,command:CommandId::FlashFill},
     CommandBinding {

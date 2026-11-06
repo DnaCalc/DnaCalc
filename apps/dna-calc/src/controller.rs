@@ -748,7 +748,8 @@ impl Controller {
             }
             if matches!(
                 receipt,
-                wire::CalculationEvent::Admitted { .. } | wire::CalculationEvent::Completed { .. }
+                wire::CalculationEvent::Admitted { .. } | wire::CalculationEvent::Published(_)
+                    | wire::CalculationEvent::Completed { .. }
             ) {
                 self.validation_epoch().update(|epoch| {
                     *epoch = epoch
@@ -3663,7 +3664,10 @@ impl Controller {
             Ok(CommandEffect::FlashFill) => self.flash_fill(),
             Ok(CommandEffect::Recalculate) => self.dispatch(Intent::Recalculate, |_| {}),
             Ok(CommandEffect::Dialog) => self.focus_command_dialog(),
-            Ok(CommandEffect::FormatCells | CommandEffect::NameManager) => {}
+            Ok(CommandEffect::PageSetup
+                | CommandEffect::PrintPreview
+                | CommandEffect::FormatCells | CommandEffect::NameManager,
+            ) => {}
             Ok(CommandEffect::FocusSkin { skin, ticket }) => {
                 // The model already transferred the edit; only the ticketed effect may focus it.
                 self.edit_field.set_value(self.assist);
@@ -3938,6 +3942,7 @@ mod projection_lifetime_tests {
                 },
                 None,
             );
+            let settled_epoch = controller.validation_epoch().get_untracked();
             let mut current = (*original).clone();
             current.revision += 1;
             current.changed = true;
@@ -3969,6 +3974,11 @@ mod projection_lifetime_tests {
             );
             assert_eq!(*controller.summary.get_untracked(), current);
             assert_eq!(controller.status.get_untracked().text, "Entered");
+            assert_eq!(
+                controller.validation_epoch().get_untracked(),
+                settled_epoch,
+                "Rejected stale publications cannot invalidate a current preview"
+            );
         });
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -3981,6 +3991,7 @@ mod projection_lifetime_tests {
                     dna_calc_worker::transport::InProcessTransport::default(),
                 ));
                 let summary = controller.summary.get_untracked();
+                let display_epoch = controller.revision.get_untracked();
                 controller.receive(Event::Calculation {
                     workbook: summary.workbook,
                     receipt: wire::CalculationEvent::Admitted {
@@ -3996,6 +4007,27 @@ mod projection_lifetime_tests {
                     summary: None,
                     failed_projections: Vec::new(),
                 });
+                let admitted_epoch = controller.validation_epoch().get_untracked();
+                controller.receive(Event::Calculation {
+                    workbook: summary.workbook,
+                    receipt: wire::CalculationEvent::Published(wire::Publication {
+                        domain: 7,
+                        command: 11,
+                        sequence: 1,
+                    }),
+                    summary: None,
+                    failed_projections: Vec::new(),
+                });
+                let published_epoch = controller.validation_epoch().get_untracked();
+                assert!(
+                    published_epoch > admitted_epoch,
+                    "An accepted publication invalidates preview snapshots"
+                );
+                assert_eq!(
+                    controller.revision.get_untracked(),
+                    display_epoch,
+                    "A print snapshot invalidation must not rebuild the grid during typing"
+                );
                 if client_failure {
                     controller.selection.update(|mirror| mirror.invalidate());
                 }
@@ -4018,6 +4050,10 @@ mod projection_lifetime_tests {
                     summary: Some((*summary).clone()),
                     failed_projections: if client_failure { Vec::new() } else { vec![11] },
                 });
+                assert!(controller.validation_epoch().get_untracked() > published_epoch,
+                    "Completion refreshes a preview refused during calculation"
+                );
+                assert_eq!(controller.revision.get_untracked(), display_epoch);
                 assert!(controller.status.get_untracked().refused);
                 assert_eq!(
                     controller.status.get_untracked().text,

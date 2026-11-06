@@ -554,17 +554,17 @@ fn gamma_generic_body_records_known_gaps() {
     }
 }
 
-/// Recorded densities retain the gaps exposed by removing normalizer selection.
+/// Original density answers and current calculated returns; remaining prefix gaps stay visible.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn gamma_density_records_known_gaps() {
     for (x, alpha, expected, calculated) in [
         (0.12417919307712058, 6.423680034363982, 0x3e67_0863_f2ee_9357, 0x3e670863f2ee9357),
-        (0.8537609680018344, 7.171703572068208, 0x3f25_2274_a7b8_6ecb, 0x3f252274a7b86ecc),
-        (9.563436515180983, 6.15888078874286, 0x3faa_1da4_7b5c_d5ed, 0x3faa1da47b5cd5e7),
-        // A lower scalar-Gamma bound would lose these original PDF matches.
+        (0.8537609680018344, 7.171703572068208, 0x3f25_2274_a7b8_6ecb, 0x3f252274a7b86ecb),
+        (9.563436515180983, 6.15888078874286, 0x3faa_1da4_7b5c_d5ed, 0x3faa1da47b5cd5e8),
+        // Original normalizer-selection controls; the Excel answers remain unchanged.
         (0.0003421170430624811, 0.943075920351938, 0x3ff8_4f92_2b67_1613, 0x3ff84f922b671613),
-        (0.007825340264827977, 0.622814265063597, 0x4011_2efe_0987_a993, 0x40112efe0987a994),
+        (0.007825340264827977, 0.622814265063597, 0x4011_2efe_0987_a993, 0x40112efe0987a993),
     ] {
         recorded_calculation(call("GAMMA.DIST", vec![n(x), n(alpha), n(1.0), b(false)]), f64::from_bits(expected), f64::from_bits(calculated));
     }
@@ -578,6 +578,16 @@ fn gamma_density_uses_the_exact_shape_one_normalizer() {
         n(f64::from_bits(0x3f0b11ad0237a590)), n(1.0),
         n(f64::from_bits(0x3fce00f3acb82fad)), b(false),
     ]), f64::from_bits(0x4011_0f90_28e4_bd60));
+}
+
+/// Original R30 Value2 density and ratio-overflow readings (Excel build20527).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_density_multiplies_the_stored_shape_over_x_ratio() {
+    exact(call("GAMMA.DIST", vec![n(0.75), n(0.375), n(1.0), b(false)]),
+        f64::from_bits(0x3fce_880d_a95a_bce6));
+    error(call("GAMMA.DIST", vec![n(f64::MIN_POSITIVE), n(4.0),
+        n(f64::MIN_POSITIVE), b(false)]), Num);
 }
 
 /// Recorded MOD tiny-result and subnormal-admission rows from W111.

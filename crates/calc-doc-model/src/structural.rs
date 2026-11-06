@@ -383,6 +383,14 @@ impl ModelRoot {
             );
         // Chart anchors and references keep their source coordinate basis; the host and save
         // apply the existing structural transforms when they project or write them.
+        for (sheet, setup) in definitions.page_setups() {
+            let mut setup=setup.clone();
+            if sheet==edit.sheet() {
+                let same=if edit.axis()==Axis::Rows {&mut setup.row_breaks}else{&mut setup.column_breaks};
+                *same=same.iter().filter_map(|b|{let mut b=*b;b.id=if b.id==0 {0}else{moved_position(edit,b.id)?};Some(b)}).collect();
+            }
+            next=next.with_page_setup(sheet,setup);
+        }
         for (sheet,charts) in definitions.all_charts() {next=next.with_charts(sheet,charts.to_vec());}
         for (sheet,filter) in definitions.auto_filters() {
             let mut filter=filter.clone();

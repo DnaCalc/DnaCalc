@@ -118,7 +118,7 @@ pub(super) fn canvas_font(
 struct FontMeasures {
     revision: Option<u64>,
     context: Option<web_sys::CanvasRenderingContext2d>,
-    widths: BTreeMap<(String, String), f64>,
+    widths: BTreeMap<(String, String, bool), f64>,
     boxes: BTreeMap<String, (f64, f64)>,
     bytes: usize,
 }
@@ -164,7 +164,8 @@ pub(super) fn plan_advance(
             cache.boxes.clear();
             cache.bytes = 0;
         }
-        let key = (font.clone(), text.to_owned());
+        let integer = integer_number(shown, text);
+        let key = (font.clone(), text.to_owned(), integer);
         if let Some(width) = cache.widths.get(&key) {
             return Some(*width);
         }
@@ -172,7 +173,12 @@ pub(super) fn plan_advance(
         context.set_font(&font);
         let mut width: f64 = 0.0;
         for line in text.split('\n') {
-            width = width.max(context.measure_text(line).ok()?.width());
+            let advance = if integer {
+                super::alignment::graphemes(line).into_iter().try_fold(0., |sum, part| {
+                    context.measure_text(&part).ok().map(|m| sum + m.width().round())
+                })?
+            } else { context.measure_text(line).ok()?.width() };
+            width = width.max(advance);
         }
         if !width.is_finite() {
             return None;
@@ -190,6 +196,25 @@ pub(super) fn plan_advance(
         Some(width)
     })
 }
+/// Excel's captured Western numeric runs advance in integral display pixels. Keep complex
+/// scripts, shrinking, rotation and wrapping on their shaped text route.
+pub(super) fn integer_number(shown: &crate::cells::CellShown, text: &str) -> bool {
+    shown.kind == "number"
+        && matches!(shown.format, crate::cells::FormatShown::Applied | crate::cells::FormatShown::Unshowable)
+        && !shown.style.shrink && !shown.style.wrap && shown.style.rotation == 0
+        && !matches!(shown.style.horizontal.as_deref(), Some("fill" | "justify" | "distributed" | "centerContinuous"))
+        && !text.contains('\n') && text.is_ascii() && !text.bytes().any(|c| c.is_ascii_alphabetic())
+}
+pub(super) fn number_advances(shown: &crate::cells::CellShown, text: &str, zoom: f64) -> Option<Vec<f64>> {
+    if !integer_number(shown, text) { return None; }
+    let font = canvas_font(&shown.style, shown.conditional.as_ref(), matches!(shown.provenance,crate::cells::Provenance::FileCache | crate::cells::Provenance::Refused), zoom);
+    FONT_MEASURES.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        let context = cache.context()?;
+        context.set_font(&font);
+        super::alignment::graphemes(text).into_iter().map(|part|context.measure_text(&part).ok().map(|m|m.width().round())).collect()
+    })
+}
 /// Reuse the advance probe and its font-load invalidation for baseline placement.
 pub(super) fn font_box(style: &TextStyle, conditional: Option<&crate::cells::ConditionalShown>, italic: bool, zoom: f64) -> Option<(f64, f64)> {
     let font = canvas_font(style, conditional, italic, zoom);
@@ -205,6 +230,35 @@ pub(super) fn font_box(style: &TextStyle, conditional: Option<&crate::cells::Con
         cache.boxes.insert(font, bounds);
         Some(bounds)
     })
+}
+/// Bottom-aligned single lines in a row share the largest font descent. Top, middle,
+/// wrapping and multi-row merges retain their own placement.
+pub(super) fn align_row_baselines(
+    plan: &mut super::render_plan::RenderPlan,
+    shown: &[crate::cells::CellShown],
+    geometry: Option<&dna_calc_model::projection::Geometry>,
+    zoom: f64,
+) {
+    let eligible = |cell: &crate::cells::CellShown| {
+        !cell.text.is_empty() && !cell.text.contains('\n')
+            && !cell.style.wrap && !cell.style.shrink && cell.style.rotation == 0
+            && matches!(cell.style.vertical.as_deref(), None | Some("bottom"))
+            && !geometry.is_some_and(|g|g.merges.iter().any(|a|a.0.2 != a.1.2 && cell.at.row() >= a.0.2 && cell.at.row() <= a.1.2 && cell.at.column() >= a.0.3 && cell.at.column() <= a.1.3))
+    };
+    let descent = |cell: &crate::cells::CellShown| font_box(&cell.style, cell.conditional.as_ref(), matches!(cell.provenance,crate::cells::Provenance::FileCache | crate::cells::Provenance::Refused), zoom).map(|(_,d)|d);
+    let mut rows = BTreeMap::<u32,f64>::new();
+    for cell in shown.iter().filter(|c|eligible(c)) {
+        if let Some(d) = descent(cell) {
+            rows.entry(cell.at.row()).and_modify(|n|*n=n.max(d)).or_insert(d);
+        }
+    }
+    for cell in &mut plan.cells {
+        if eligible(&cell.shown) && cell.row_span == 1 {
+            if let (Some(row),Some(own)) = (rows.get(&cell.row),descent(&cell.shown)) {
+                cell.baseline_inset = (row-own).max(0.);
+            }
+        }
+    }
 }
 /// A shared DOM font probe. Its inline declarations are assigned through CSSOM under the CSP.
 pub(super) fn probe(font: &str, text: &str) -> Result<(f64, f64), String> {
