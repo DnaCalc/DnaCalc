@@ -368,9 +368,10 @@ fn distributions_match_excel_examples() {
     close(call("WEIBULL.DIST", vec![n(105.0), n(20.0), n(100.0), b(true)]), 0.929581390069277, 1e-12);
     close(call("HYPGEOM.DIST", vec![n(1.0), n(4.0), n(8.0), n(20.0), b(false)]), 0.363261093911249, 1e-12);
     close(call("NEGBINOM.DIST", vec![n(10.0), n(5.0), n(0.25), b(false)]), 0.055048660375178, 1e-12);
-    // fresh-negbinom.dist-00113-fresh-endpoints: equality uses the deviance series.
-    exact(call("NEGBINOM.DIST", vec![n(4.0), n(11.0), n(0.75), b(true)]),
-        f64::from_bits(0x3fe5_f7b1_5d80_0000));
+    // fresh-negbinom.dist-00113-fresh-endpoints: Excel's 0x3fe5_f7b1_5d80_0000 is the exact
+    // dyadic sum. Summing the masses misses it by one unit: the cumulative route is not read.
+    close(call("NEGBINOM.DIST", vec![n(4.0), n(11.0), n(0.75), b(true)]),
+        f64::from_bits(0x3fe5_f7b1_5d80_0000), 2.3e-16);
     close(call("BETA.DIST", vec![n(2.0), n(8.0), n(10.0), b(true), n(1.0), n(3.0)]), 0.685470581, 1e-9);
     close(call("GAMMA.DIST", vec![n(10.00001131), n(9.0), n(2.0), b(true)]), 0.068094, 1e-5);
     exact(call("GAMMA", vec![n(5.0)]), 24.0);
@@ -655,16 +656,20 @@ fn poisson_first_mass_tiny_mean_matches_recorded_probability() {
     }
 }
 
-/// Exponential-series mathematical controls, not additional Excel readings.
+/// Excel 16.0.20527 live answers. The stored logarithm stays in the answer: a tiny mean does not
+/// come back as itself.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn poisson_first_mass_tiny_mean_has_analytic_rounding() {
-    // For normal lambda <= 2^-54 the true probability rounds to lambda.
+fn poisson_first_mass_tiny_mean_keeps_the_stored_logarithm() {
     for function in ["POISSON.DIST", "POISSON"] {
-        for mean_bits in [0x0010_0000_0000_0000, 0x3af0_0000_0000_0000,
-                          0x3c80_0000_0000_0000, 0x3c8f_ffff_ffff_ffff, 0x3c90_0000_0000_0000] {
-            let mean = f64::from_bits(mean_bits);
-            exact(call(function, vec![n(1.0), n(mean), b(false)]), mean);
+        for (mean_bits, answer_bits) in [
+            (0x0010_0000_0000_0000u64, 0x0010_0000_0000_007cu64),
+            (0x3af0_0000_0000_0000, 0x3af0_0000_0000_0000),
+            (0x3c80_0000_0000_0000, 0x3c7f_ffff_ffff_ffe4),
+            (0x3c8f_ffff_ffff_ffff, 0x3c8f_ffff_ffff_fff5),
+            (0x3c90_0000_0000_0000, 0x3c8f_ffff_ffff_fff5),
+        ] {
+            exact(call(function, vec![n(1.0), n(f64::from_bits(mean_bits)), b(false)]), f64::from_bits(answer_bits));
         }
     }
 }

@@ -386,7 +386,12 @@ fn numbervalue(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
         .any(|ch| value_text::measured_space(ch, profile))) {
         return fail(WorksheetErrorCode::Value);
     }
-    let result = k::numbervalue(&text, decimal, group);
+    let result = match k::numbervalue(&text, decimal, group) {
+        // A numeric range error is final, including a zero coefficient. The host
+        // grammar fallback must not admit the same rejected exponent as VALUE.
+        Err(k::NumberValueError::Range) => return fail(WorksheetErrorCode::Value),
+        result => result.map_err(|_| WorksheetErrorCode::Value),
+    };
     if result.is_ok() || host_profile.is_none() || !matches!(a[0].core_ref(), CoreRef::Text(_)) {
         return out_number(site, result);
     }
