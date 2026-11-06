@@ -33,6 +33,10 @@ def catalogue_names(root):
     declared = set(re.findall(r'^\s*\d+\s+\w+\s+"([A-Z][A-Z0-9.]*)"\s+\(', source, re.M))
     names.update(declared & {"FIXED", "DOLLAR", "TEXT", "VALUE", "NUMBERVALUE",
                              "VALUETOTEXT", "ASC", "DBCS"})
+    # The base rounding family uses explicit call declarations, rather than the
+    # ported_family rows above. Its functions also return scalar values.
+    source = (directory / "rounding.rs").read_text(encoding="utf-8")
+    names.update(re.findall(r'^\s*call\(\w+,\s*"([A-Z][A-Z0-9.]*)",', source, re.M))
     source = (directory / "aggregate.rs").read_text(encoding="utf-8")
     names.update(re.findall(r'aggregate\(\w+, "([A-Z]+)"', source))
     if "ERF.PRECISE" not in names or "SUM" not in names:

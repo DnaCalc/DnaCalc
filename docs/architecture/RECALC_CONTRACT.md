@@ -1287,6 +1287,20 @@ uses the existing Excel file-form converter, and its display uses the shared for
 modern function prefixes survive save/reopen. P12 Excel alias measurement, effect-capable
 non-cell continuations, broader block execution and shared value reuse remain open.
 
+Owner contexts for current decisions (dc-hsa5.6, engine21): Host validation and
+formula-based filter criteria supply the owner's full numeric mode, including
+before any cell publication. One context retains it for the batch. If published
+formula values belong to another mode, current reads refuse them; literal inputs
+and unused branches remain available. The existing stale/retired-anchor closure
+is retained. Historical conditional painting keeps its published-value policy.
+
+Context compilation uses the existing metadata-only callable compiler. A reached
+known UDF refuses before user code enters, including inside IFERROR; an untaken
+branch stays lazy. Replacing a callable registration expires a current detached
+plan until it is compiled again. No executable owner, producer work, result or
+history entry is granted. Conditional colour filtering still uses the historical
+prepare/look path; passing its current context through that path remains open.
+
 Detached current-value contexts (dc-hsa5.6, engine20): validation audits and filter
 decisions can borrow one `DetachedEvaluationContext` for their whole batch. Its
 explicit policy selects historical published values or current values. The current
