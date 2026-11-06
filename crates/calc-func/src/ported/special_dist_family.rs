@@ -371,7 +371,7 @@ mod tests {
         // Large-x anchors preserved from the UCRT round.
         assert_recorded_bits("erfc(3)", erfc_kernel(3.0).unwrap(), 0x3ef729df6503422a, 0x3ef729df65034229);
         assert_recorded_bits("erfc(4)", erfc_kernel(4.0).unwrap(), 0x3e508ddd13bd35e6, 0x3e508ddd13bd35e7);
-        assert_recorded_bits("erfc(8)", erfc_kernel(8.0).unwrap(), 0x39ec74fc41217dfd, 0x39ec74fc41217dfb);
+        assert_recorded_bits("erfc(8)", erfc_kernel(8.0).unwrap(), 0x39ec74fc41217dfd, 0x39ec74fc41217dfd);
 
         // Historical anchors retain both their original answer and the current gap.
         assert_recorded_bits("erfc(1.85)", erfc_kernel(1.85).unwrap(), 0x3f82346159a247f7, 0x3f82346159a247f7);

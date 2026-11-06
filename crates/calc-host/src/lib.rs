@@ -179,3 +179,5 @@ pub use calc_doc_model::NoteStylePatch;
 mod copy_metadata;
 
 pub use calc_doc_model::note_segments;
+
+mod pivot;

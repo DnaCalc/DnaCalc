@@ -16,6 +16,9 @@ pub(crate) fn prepare(
     if revision != host.revision().get() {
         return Err(fail("The workbook changed before inserting the template"));
     }
+    if host.model.definitions().pivots().caches.caches.values().any(|c|c.snapshot.is_some()) {
+        return Err("Save and reopen before inserting worksheet templates after pivot refresh (dc-8wp); nothing changed".into());
+    }
     if host.loaded.structure_protected() {
         return Err(fail("The workbook structure is protected"));
     }

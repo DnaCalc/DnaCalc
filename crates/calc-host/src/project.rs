@@ -225,7 +225,7 @@ pub fn project(
         .iter()
         .map(|&at| {
             let input = host.model.cell(at).cloned();
-            let value = match &input {
+            let value = if let Some((value,calculation))=host.engine.pivot_results().cells.get(&at){ProjectedValue::Calculated{value:value.clone(),calculation:calculation.clone()}}else{match &input {
                 None => filled_value(host, at, &stale, cause),
                 Some(CellInput::Number(number)) => {
                     ProjectedValue::Literal(CalcValue::number(number.get()))
@@ -251,7 +251,7 @@ pub fn project(
                         file_cache_stands,
                     )
                 }
-            };
+            }};
             ProjectedCell {
                 at,
                 input,

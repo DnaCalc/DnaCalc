@@ -16828,3 +16828,111 @@ fn dc_8wp_1__unread_pivot_metadata_is_reported_and_preserved_without_losing_the_
   assert!(enter(&mut book,at(sheet,"B2"),"100").accepted());assert_eq!(session_calculated(&book,at(sheet,"H1")),Some(CalcValue::number(112.)));let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();if part!="xl/workbook.xml"{assert_eq!(part_text(&saved,part),part_text(&bytes,part));}else{assert!(part_text(&saved,part).contains(to));}
  }
 }
+
+/// Refresh reads actual source values and publishes owned engine results, never authored totals.
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_2__refresh_publishes_shared_results_and_roundtrips_source_records(){
+    let bytes=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
+    let mut book=session(bytes);let sheet=book.host().sheets()[0].id();
+    assert!(enter(&mut book,at(sheet,"B2"),"100").accepted());
+    let command=|book:&HostSession|SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet,revision:book.host().revision().get(),part:"xl/pivotTables/summary.xml".into()});
+    assert_eq!(session_value(&book,at(sheet,"E6")),ProjectedValue::Literal(CalcValue::number(24.)));
+    assert!(enter(&mut book,at(sheet,"J1"),"=E6*2").accepted());
+    assert!(enter(&mut book,at(sheet,"J2"),"=SUM(D3:E6)").accepted());
+    assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(48.)));
+    let region=GridArea::new(at(sheet,"A1"),at(sheet,"J13")).unwrap();let (_,received)=subscribe(&mut book,Interest::Area(region));
+    let receipt=book.dispatch(command(&book));assert!(receipt.accepted(),"{receipt:?}");
+    for cell in ["E6","E13"]{assert_eq!(session_calculated(&book,at(sheet,cell)),Some(CalcValue::number(112.)));assert!(book.host().model().cell(at(sheet,cell)).is_none(),"Calculated pivot output must not become authored input");}
+    assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(224.)));
+    assert_eq!(session_calculated(&book,at(sheet,"J2")),Some(CalcValue::number(224.)));
+    assert_mirror_current(&book,region,&received);
+    assert_eq!(book.host().model().definitions().pivots().caches.caches[&7].snapshot.as_ref().unwrap().records.len(),3);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(session_value(&book,at(sheet,"E6")),ProjectedValue::Literal(CalcValue::number(24.)));assert!(book.host().model().definitions().pivots().caches.caches[&7].snapshot.is_none());
+    assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(48.)));
+    assert_eq!(session_calculated(&book,at(sheet,"J2")),Some(CalcValue::number(48.)));
+    assert_mirror_current(&book,region,&received);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(session_calculated(&book,at(sheet,"E6")),Some(CalcValue::number(112.)));
+    assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(224.)));
+    assert_eq!(session_calculated(&book,at(sheet,"J2")),Some(CalcValue::number(224.)));
+    assert_mirror_current(&book,region,&received);
+    assert!(enter(&mut book,at(sheet,"B2"),"7").accepted());assert_eq!(session_calculated(&book,at(sheet,"H1")),Some(CalcValue::number(19.)));assert_eq!(session_calculated(&book,at(sheet,"E6")),Some(CalcValue::number(112.)),"Ordinary calculation must not refresh a pivot");
+    let template=package_with_part_from(&calc_host::blank_package(),"[Content_Types].xml",|xml|xml.replace("spreadsheetml.sheet.main+xml","spreadsheetml.template.main+xml"));
+    let revision=book.host().revision();let receipt=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::InsertTemplate{bytes:Arc::from(template),name:None,revision:revision.get()}));assert!(!receipt.accepted(),"{receipt:?}");assert_eq!(book.host().revision(),revision);assert_eq!(session_calculated(&book,at(sheet,"E6")),Some(CalcValue::number(112.)));
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();
+    let reopened=session(&saved);assert_eq!(session_value(&reopened,at(sheet,"E6")),ProjectedValue::Literal(CalcValue::number(112.)));assert!(reopened.host().model().definitions().pivots().caches.caches[&7].snapshot.is_none(),"Reopening a saved result is not a refresh");
+    let cache=&reopened.host().loaded().pivot_caches().caches[&7];let records=reopened.host().loaded().pivot_records(7,10).unwrap();
+    let values=records.records.iter().map(|row|{let calc_doc::pivot::PivotItem::Index(i)=row[1]else{panic!("Expected shared cache record")};cache.fields[1].items[i as usize].clone()}).collect::<Vec<_>>();
+    assert_eq!(values,[calc_doc::pivot::PivotItem::Number("100".into()),calc_doc::pivot::PivotItem::Number("8".into()),calc_doc::pivot::PivotItem::Number("4".into())]);
+    for part in ["xl/pivotCache/cache-name.xml","xl/pivotCache/_rels/cache-main.xml.rels","xl/worksheets/_rels/sheet1.xml.rels","xl/pivotTables/_rels/summary.xml.rels"]{assert_eq!(part_text(&saved,part),part_text(bytes,part),"{part}");}
+    let expected_rels=part_text(bytes,"xl/_rels/workbook.xml.rels").replace("</Relationships>","<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings\" Target=\"sharedStrings.xml\"/></Relationships>");
+    assert_eq!(part_text(&saved,"xl/_rels/workbook.xml.rels"),expected_rels,"Only the normal shared-string writer adds a relationship");
+    assert!(part_text(&saved,"xl/pivotTables/summary.xml").contains("definition-extension"));assert!(part_text(&saved,"xl/pivotCache/cache-main.xml").contains("cache-extension"));
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_2__refresh_refuses_stale_source_overwrite_and_unmeasured_layouts_atomically(){
+    let bytes=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
+    let mut book=session(bytes);let sheet=book.host().sheets()[0].id();
+    let refresh=|book:&mut HostSession|{let revision=book.host().revision();let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet,revision:revision.get(),part:"xl/pivotTables/summary.xml".into()}));assert!(!result.accepted(),"{result:?}");assert_eq!(book.host().revision(),revision);assert!(book.host().model().definitions().pivots().caches.caches[&7].snapshot.is_none());assert_eq!(session_value(book,at(sheet,"E6")),ProjectedValue::Literal(CalcValue::number(24.)));};
+    assert!(!book.dispatch(SkinIntent::EnterCell{at:at(sheet,"E6"),text:"999".into()}).accepted());
+    assert!(book.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual)).accepted());assert!(enter(&mut book,at(sheet,"B2"),"=6+6").accepted());refresh(&mut book);
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());assert!(book.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Automatic)).accepted());
+    assert!(enter(&mut book,at(sheet,"A4"),"North").accepted());assert!(enter(&mut book,at(sheet,"D7"),"keep").accepted());refresh(&mut book);assert_eq!(session_value(&book,at(sheet,"D7")),ProjectedValue::Literal(CalcValue::text(calc_value::ExcelText::from_utf16_code_units("keep".encode_utf16().collect()))));
+    let unsupported=package_with_part_from(bytes,"xl/pivotTables/summary.xml",|xml|xml.replace("<rowFields count=\"1\"><field x=\"0\"/></rowFields>","<rowFields count=\"2\"><field x=\"0\"/><field x=\"1\"/></rowFields>"));let mut other=session(&unsupported);refresh(&mut other);
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_2__refreshed_pivot_output_blocks_spills_and_supports_changed_categories(){
+    let bytes=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");let mut book=session(bytes);let sheet=book.host().sheets()[0].id();
+    assert!(enter(&mut book,at(sheet,"A4"),"North").accepted());let revision=book.host().revision().get();let receipt=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet,revision,part:"xl/pivotTables/summary.xml".into()}));assert!(receipt.accepted(),"{receipt:?}");
+    assert_eq!(book.host().model().definitions().pivots().sheets[&sheet].tables[0].area,GridArea::new(at(sheet,"D3"),at(sheet,"E7")).unwrap());assert_eq!(session_calculated(&book,at(sheet,"E7")),Some(CalcValue::number(24.)));
+    assert!(enter(&mut book,at(sheet,"C4"),"=SEQUENCE(1,3)").accepted());assert_eq!(session_calculated(&book,at(sheet,"C4")),Some(CalcValue::error(calc_value::WorksheetErrorCode::Spill)));
+    assert!(enter(&mut book,at(sheet,"A4"),"East").accepted());let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet,revision,part:"xl/pivotTables/summary.xml".into()})).accepted());
+    assert_eq!(session_calculated(&book,at(sheet,"E6")),Some(CalcValue::number(24.)));assert_eq!(session_value(&book,at(sheet,"E7")),ProjectedValue::Empty);assert!(enter(&mut book,at(sheet,"E7"),"3").accepted(),"A released output cell must become editable");
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_2__refresh_refuses_nested_metadata_without_losing_retained_bytes(){
+    let original=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
+    for (part,from,to) in [
+        ("xl/_rels/workbook.xml.rels","Target=\"pivotCache/cache-name.xml\"","Target=\"pivotCache/cache-main.xml\""),
+        ("xl/pivotTables/_rels/summary.xml.rels","Target=\"../pivotCache/cache-main.xml\"","Target=\"../pivotCache/cache-name.xml\""),
+        ("xl/pivotTables/summary.xml","<pivotField axis=","<pivotField xmlns:v=\"urn:keep\" v:flag=\"keep\" axis="),
+        ("xl/pivotTables/summary.xml","<items count=","<v:keep xmlns:v=\"urn:keep\"/><items count="),
+        ("xl/pivotTables/summary.xml","<item x=\"0\"/>","<item x=\"0\" n=\"Custom caption\"/>"),
+        ("xl/pivotCache/cache-main.xml","<sharedItems count=\"2\">","<sharedItems count=\"2\"><v:keep xmlns:v=\"urn:keep\"/>"),
+        ("xl/pivotCache/cache-main.xml","<cacheField name=\"Region\"","<cacheField xmlns:v=\"urn:keep\" v:flag=\"keep\" name=\"Region\""),
+        ("xl/pivotCache/records.xml","<r>","<r xmlns:v=\"urn:keep\" v:flag=\"keep\">"),
+        ("xl/pivotCache/records.xml","<r>","<r><v:keep xmlns:v=\"urn:keep\"/>"),
+        ("xl/pivotCache/cache-main.xml","<cacheField name=\"Region\"","<cacheField databaseField=\"false\" name=\"Region\""),
+    ]{
+        let bytes=package_with_part_from(original,part,|xml|{assert!(xml.contains(from));xml.replace(from,to)});
+        let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();let revision=book.host().revision();
+        let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet,revision:revision.get(),part:"xl/pivotTables/summary.xml".into()}));
+        assert!(!result.accepted(),"{part}: {result:?}");assert_eq!(book.host().revision(),revision);assert!(book.host().model().definitions().pivots().caches.caches[&7].snapshot.is_none());
+        let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert_eq!(part_text(&saved,part),part_text(&bytes,part));
+    }
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_2__refresh_keeps_the_cache_within_its_loader_budget(){
+    let original=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
+    let bytes=package_with_part_from(original,"xl/pivotCache/cache-main.xml",|xml|xml.replace("<sharedItems count=\"2\"><s v=\"East\"/><s v=\"West\"/></sharedItems>",&format!("<sharedItems count=\"100000\">{}</sharedItems>","<s v=\"held\"/>".repeat(100000))));
+    let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();assert_eq!(book.host().model().definitions().pivots().caches.caches[&7].fields[0].items.len(),100000);
+    let revision=book.host().revision();let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet,revision:revision.get(),part:"xl/pivotTables/summary.xml".into()}));assert!(!result.accepted(),"{result:?}");assert_eq!(book.host().revision(),revision);assert!(book.host().model().definitions().pivots().caches.caches[&7].snapshot.is_none());
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_2__implicit_worksheet_relationships_discover_and_refresh_both_pivots(){
+    let original=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
+    let bytes=package_with_part_from(original,"xl/worksheets/sheet1.xml",|xml|{let start=xml.find("<pivotParts").unwrap();let end=start+xml[start..].find("</pivotParts>").unwrap()+"</pivotParts>".len();format!("{}{}",&xml[..start],&xml[end..])});
+    let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();assert_eq!(book.host().model().definitions().pivots().sheets[&sheet].tables.len(),2);
+    assert!(enter(&mut book,at(sheet,"B2"),"100").accepted());let revision=book.host().revision().get();let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet,revision,part:"xl/pivotTables/summary.xml".into()}));assert!(result.accepted(),"{result:?}");assert_eq!(session_calculated(&book,at(sheet,"E6")),Some(CalcValue::number(112.)));assert_eq!(session_calculated(&book,at(sheet,"E13")),Some(CalcValue::number(112.)));
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert!(!part_text(&saved,"xl/worksheets/sheet1.xml").contains("pivotParts"));let reopened=session(&saved);assert_eq!(reopened.host().model().definitions().pivots().sheets[&sheet].tables.len(),2);assert_eq!(session_value(&reopened,at(sheet,"E6")),ProjectedValue::Literal(CalcValue::number(112.)));
+}

@@ -760,6 +760,7 @@ impl ModelRoot {
         let mut review = Vec::new();
         let mut links = Vec::new();
         let mut charts = Vec::new();
+        let mut pivots = None;
         let mut page_setups = Vec::new();
         let mut validations = Vec::new();
         let mut panes = Vec::new();
@@ -770,6 +771,7 @@ impl ModelRoot {
         for (operation, op) in batch.operations.iter().enumerate() {
             match op {
                 WorkbookOp::SetPageSetup {sheet, setup} => { self.position_of(operation, *sheet)?; if setup.validate().is_err() { return Err(ApplyError::AxisEdit {operation}); } page_setups.push((*sheet,setup.clone())); }
+                WorkbookOp::SetPivots(value)=>{for table in value.tables(){self.position_of(operation,table.area.sheet())?;}pivots=Some(value.clone());},
                 WorkbookOp::SetCharts {sheet,charts:values}=>{self.position_of(operation,*sheet)?;charts.push((*sheet,values.clone()));}
                 WorkbookOp::SetStyles(value) => styles = Some(Arc::clone(value)),
                 WorkbookOp::SetTables(value)=>{for t in value{self.position_of(operation,t.sheet)?;}tables=Some(value.clone());},
@@ -936,7 +938,7 @@ impl ModelRoot {
             Some(definitions) => Arc::new(definitions),
             None => Arc::clone(&self.definitions),
         };
-        if tables.is_some() || styles.is_some()
+        if tables.is_some() || pivots.is_some() || styles.is_some()
             || !conditional.is_empty()
             || !review.is_empty()
             || !links.is_empty()
@@ -951,6 +953,7 @@ impl ModelRoot {
             || iteration.is_some_and(|settings| settings != definitions.iteration())
         {
             let mut next = Definitions::clone(&definitions);
+            if let Some(pivots)=pivots {next=next.with_pivots(pivots);}
             if let Some(tables)=tables {next=next.with_tables(tables);}
         if let Some(styles) = styles {
                 next = next.with_styles(styles);

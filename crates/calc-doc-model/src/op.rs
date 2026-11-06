@@ -39,6 +39,7 @@ pub enum WorkbookOp {
     SetTables(Vec<crate::Table>),
     SetPageSetup { sheet: SheetId, setup: crate::PageSetup },
     SetCharts {sheet:SheetId,charts:Vec<crate::Chart>},
+    SetPivots(std::sync::Arc<crate::pivot::PivotState>),
     SetValidations { sheet: SheetId, rules: Vec<crate::Validation> },
     SetReviewLinks { sheet:SheetId, links:Vec<crate::ReviewLink> },
     SetReviewNotes {

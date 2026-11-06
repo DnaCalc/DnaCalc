@@ -1516,6 +1516,7 @@ impl Server {
                 direction,
             } => return self.notebook_order(placement, direction),
 
+            Intent::PivotRefresh{sheet,revision,part}=>SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet:sheet.id(),revision,part}),
             Intent::ChartCreate{revision,area,kind,rows,headers,categories}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartCreate{revision,area:area.area().ok_or("Invalid chart selection")?,kind,rows,headers,categories}),
             Intent::ChartSeriesStyle{sheet,revision,part,plot,series,fill}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartSeriesStyle{sheet:sheet.id(),revision,part,plot,series,fill}),
             Intent::ChartTextStyle{sheet,revision,part,style}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartTextStyle{sheet:sheet.id(),revision,part,style:calc_host::chart::ChartTextStyle{family:style.family,size:style.size,bold:style.bold,italic:style.italic,color:style.color}}),
@@ -2952,11 +2953,11 @@ impl Server {
     /// The sheet's charts, laid out with its sizes at 100% and drawn.
     /// Describe saved definitions; cache contents never stand in for a refresh.
     fn pivots(&self,sheet:Sheet)->(Vec<wire::SavedPivot>,Vec<String>){
-        let loaded=self.book.host().loaded();let caches=loaded.pivot_caches();
+        let state=self.book.host().model().definitions().pivots();let caches=&state.caches;
         let mut issues=caches.issues.iter().map(|e|format!("{}: {} ({})",e.part,e.detail,e.owner)).collect::<Vec<_>>();
-        let Some(source)=loaded.sheet(sheet.id())else{return (Vec::new(),vec!["The worksheet is unavailable".into()]);};
-        issues.extend(source.pivots().issues.iter().map(|e|format!("{}: {} ({})",e.part,e.detail,e.owner)));
-        let tables=source.pivots().tables.iter().map(|p|{
+        let Some(source)=state.sheet(sheet.id())else{return (Vec::new(),Vec::new());};
+        issues.extend(source.issues.iter().map(|e|format!("{}: {} ({})",e.part,e.detail,e.owner)));
+        let tables=source.tables.iter().map(|p|{
             let (source,fields,cache)=match caches.caches.get(&p.cache_id){
                 Some(c)=>{
                     let field=|index:i32|if index==-2{"Values".to_owned()}else{usize::try_from(index).ok().and_then(|i|c.fields.get(i)).map(|f|f.name.clone()).unwrap_or_else(||format!("Field {index} (unread)"))};
@@ -2966,7 +2967,7 @@ impl Server {
                 },None=>{issues.push(format!("{}: cache {} was not read (dc-8wp)",p.name,p.cache_id));("Source unavailable".into(),"Fields unavailable".into(),format!("Saved cache {} is unread",p.cache_id))},
             };
             let address=|cell:CellKey|format!("{}{}",dna_calc_model::address::column_letters(cell.column()),cell.row());
-            wire::SavedPivot{name:p.name.clone(),part:p.part.clone(),area:Area::of(p.area),location:format!("{}:{}",address(p.area.first()),address(p.area.last())),source,fields,cache}
+            wire::SavedPivot{refreshed_revision:caches.caches.get(&p.cache_id).and_then(|c|c.snapshot.as_ref().map(|s|s.source_revision)),name:p.name.clone(),part:p.part.clone(),area:Area::of(p.area),location:format!("{}:{}",address(p.area.first()),address(p.area.last())),source,fields,cache}
         }).collect();(tables,issues)
     }
 
