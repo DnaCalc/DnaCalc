@@ -5,29 +5,37 @@
 //! # Sources
 //!
 //! - C. Loader, "Fast and Accurate Computation of Binomial Probabilities" (2000): the saddle-point
-//!   form of the binomial mass, `exp(lc) / sqrt(2 pi x (n - x) / n)` with
-//!   `lc = stirling_error(n) - stirling_error(x) - stirling_error(n - x) - deviance(x, np) - deviance(n - x, nq)`; the
-//!   deviance term `deviance(x, np) = x ln(x/np) + np - x`, summed as its series in
-//!   `v = (x - np)/(x + np)` when `|x - np| <= 0.1 (x + np)` at positive finite boundaries; the Stirling error
-//!   `stirling_error(n) = ln n! - (n + 1/2) ln n + n - ln sqrt(2 pi)`, for `n > 15` from its asymptotic
-//!   series `1/(12n) - 1/(360n^3) + 1/(1260n^5) - 1/(1680n^7) + 1/(1188n^9)` cut at 35, 80 and
-//!   500, and for the half-integers to 15 from its value (computed here to binary64 from the
-//!   definition with a high-precision log-gamma); the Poisson mass
-//!   `exp(-stirling_error(x) - deviance(x, lambda)) / sqrt(2 pi x)`; the hypergeometric mass as a ratio of
-//!   three binomial masses, and the negative binomial as `s/(s+f)` times a binomial mass.
+//!   form of the binomial and Poisson masses, the deviance `x ln(x/np) + np - x` and its series in
+//!   `v = (x - np)/(x + np)`, the Stirling error `ln n! - (n + 1/2) ln n + n - ln sqrt(2 pi)`, the
+//!   hypergeometric mass as a ratio of three binomial masses and the negative binomial as
+//!   `s/(s+f)` times a binomial mass.
+//! - NSWC's `gamln` for the six Stirling coefficients.
 //! - The cumulative functions sum the masses; BINOM.INV is the smallest count whose cumulative
 //!   probability reaches alpha.
 //!
-//! # What was measured in Excel (16.0, 64-bit, 2026-10-30)
+//! # What was measured in Excel (16.0, 64-bit)
 //!
 //! The argument rules (truncation of counts, which out-of-range arguments are #NUM! and which give
 //! 0 or 1), the special cases at p = 0 and p = 1 (BINOM.DIST(0,10,1,FALSE) is #NUM!), the use of
 //! Excel's EXP and LN chains, the exponential distribution's cumulative form `-expm1(-lambda x)`,
-//! and the binomial mass's final step: `lc - lf/2` formed in extended precision before the
-//! exponential, `lf = ln(2 pi x (n - x) / n)`, and `n ln p` at x = n. Excel's masses agree with these to within a few
-//! units in the last place; about half are bit-identical (the rest are dc-j9k's to find).
+//! `n ln p` at x = n, and these stages of the masses, each read from Excel's answers (live windows
+//! of adjacent doubles and the bank):
+//!
+//! - The stored exponent: with the normalizer removed, the answers sit on its binary64 grid.
+//! - The Stirling error: a table to 7 cut to 16 decimals, NSWC's series from 8.
+//! - The deviance outside its series range: `x/np`, its logarithm, the product with `x` and `np - x`
+//!   each stored, then summed.
+//! - BINOM.DIST's exponent: `s(n) - s(x) - d(x) - s(n-x) - d(n-x)`, stored after each subtraction.
+//! - BINOM.DIST's normalizer and POISSON.DIST's first route: the exponential of a stored difference
+//!   with what the stores dropped put back as a factor (`excel_exp_running`,
+//!   `excel_exp_compensated`).
+//!
+//! Inside its series range the deviance is read in part (`excel_deviance_series`).
 
-use crate::ported::excel_numeric::{crt_log, excel_binom_pmf_exp, excel_exp, excel_expm1_spilled, excel_log, excel_x87_mul};
+use crate::ported::excel_numeric::{
+    excel_deviance_series, excel_exp, excel_exp_compensated, excel_exp_running, excel_expm1_spilled, excel_log, excel_x87_add, excel_x87_div,
+    excel_x87_mul, excel_x87_sub, gammaln_excel,
+};
 use crate::value::WorksheetErrorCode;
 
 type R = Result<f64, WorksheetErrorCode>;
@@ -36,94 +44,53 @@ const NUM: WorksheetErrorCode = WorksheetErrorCode::Num;
 /// `ln(sqrt(2 pi))`, rounded to binary64.
 const LN_SQRT_2PI: f64 = 0.9189385332046728;
 
-/// `stirling_error(k / 2)` for k = 0..30, rounded to binary64 from the definition.
-const STIRLING_ERROR_HALVES: [f64; 31] = [
+/// `stirling_error(n)` for n = 0..7, each the exact value cut to 16 decimals, not rounded: the 3,800
+/// POISSON.DIST answers of the second route at `n = 2..6` hold each to a few units of 2^-60, on
+/// these digits and away from the rounded ones. `n = 7` misses 2 of 240 at the rounding of the
+/// exponent, and `n = 1` is held only by BINOM.DIST, so their last digits are not settled.
+const STIRLING_ERROR: [f64; 8] = [
     0.0,
-    0.15342640972002736,
-    0.08106146679532726,
-    0.05481412105191765,
-    0.0413406959554093,
-    0.03316287351993629,
-    0.02767792568499834,
-    0.023746163656297496,
-    0.020790672103765093,
-    0.018488450532673187,
-    0.016644691189821193,
-    0.015134973221917378,
-    0.013876128823070748,
-    0.012810465242920227,
-    0.01189670994589177,
-    0.011104559758206917,
-    0.010411265261972096,
-    0.009799416126158804,
-    0.009255462182712733,
-    0.008768700134139386,
-    0.00833056343336287,
-    0.00793411456431402,
-    0.007573675487951841,
-    0.007244554301320383,
-    0.00694284010720953,
-    0.006665247032707682,
-    0.006408994188004207,
-    0.006171712263039458,
-    0.0059513701127588475,
-    0.0057462165130101155,
-    0.005554733551962801,
+    0.0810614667953272,
+    0.0413406959554092,
+    0.0276779256849983,
+    0.0207906721037650,
+    0.0166446911898211,
+    0.0138761288230707,
+    0.0118967099458917,
+];
+
+/// The six coefficients of Stirling's correction in NSWC's `gamln`, used from 8 up. Loader's cuts of
+/// the series at 35, 80 and 500 are not there: at `n = 16, 17` his five terms miss Excel's answers,
+/// and this form meets all 240 answers at each `n` from 8 to 600.
+const STIRLING_SERIES: [f64; 6] = [
+    0.833333333333333e-01,
+    -0.277777777760991e-02,
+    0.793650666825390e-03,
+    -0.595202931351870e-03,
+    0.837308034031215e-03,
+    -0.165322962780713e-02,
 ];
 
 fn stirling_error(n: f64) -> f64 {
-    // The 15-digit leading coefficient also used by the retained NSWC Stirling
-    // expansions distinguishes recorded interior mass oc16921 from RN(1/12).
-    // This is a finite-precision model parameter, not the exact Bernoulli value.
-    const S0: f64 = 0.0833333333333333;
-    const S1: f64 = 1.0 / 360.0;
-    const S2: f64 = 1.0 / 1260.0;
-    const S3: f64 = 1.0 / 1680.0;
-    const S4: f64 = 1.0 / 1188.0;
-    if n <= 15.0 {
-        let nn = n + n;
-        if nn == nn.trunc() {
-            return STIRLING_ERROR_HALVES[nn as usize];
-        }
-        return crate::ported::excel_numeric::gammaln_excel(n + 1.0) - (n + 0.5) * excel_log(n) + n - LN_SQRT_2PI;
+    if n < 8.0 {
+        return STIRLING_ERROR[n as usize];
     }
-    let nn = n * n;
-    if n > 500.0 {
-        return (S0 - S1 / nn) / n;
+    let t = excel_x87_div(1.0, excel_x87_mul(n, n));
+    let mut w = STIRLING_SERIES[5];
+    for c in STIRLING_SERIES[..5].iter().rev() {
+        w = excel_x87_add(excel_x87_mul(w, t), *c);
     }
-    if n > 80.0 {
-        return (S0 - (S1 - S2 / nn) / nn) / n;
-    }
-    if n > 35.0 {
-        return (S0 - (S1 - (S2 - S3 / nn) / nn) / nn) / n;
-    }
-    (S0 - (S1 - (S2 - (S3 - S4 / nn) / nn) / nn) / nn) / n
+    excel_x87_div(w, n)
 }
 
+/// Loader's deviance `x ln(x/np) + np - x`. Measured on POISSON.DIST: the series range is
+/// `|x - np| < 0.2 (x + np)`, that is `x/np` inside `(2/3, 3/2)`, where Loader has 0.1. Outside it
+/// the quotient, its logarithm, the product and `np - x` are each stored and then summed.
 fn deviance(x: f64, np: f64) -> f64 {
-    // The recorded negative-binomial CDF boundary is admitted to this series.
-    let difference = (x - np).abs();
-    let boundary = 0.1 * (x + np);
-    if difference < boundary
-        || (difference == boundary && difference > 0.0 && difference.is_finite())
-    {
-        let mut v = (x - np) / (x + np);
-        // Preserve the PC64 product before the initial series sum is stored.
-        let mut s = crate::ported::excel_numeric::excel_x87_mul(x - np, v);
-        let mut ej = 2.0 * x * v;
-        v *= v;
-        let mut j = 1.0;
-        loop {
-            ej *= v;
-            let s1 = s + ej / (2.0 * j + 1.0);
-            if s1 == s {
-                return s1;
-            }
-            s = s1;
-            j += 1.0;
-        }
+    if (x - np).abs() < 0.2 * (x + np) {
+        return excel_deviance_series(x, np);
     }
-    x * excel_log(x / np) + np - x
+    excel_x87_add(excel_x87_mul(x, excel_log(excel_x87_div(x, np))), excel_x87_sub(np, x))
 }
 
 /// The binomial mass of `x` successes in `n` trials, `0 < p < 1` (Loader's saddle-point form).
@@ -145,28 +112,36 @@ fn binom_mass(x: f64, n: f64, p: f64, q: f64) -> f64 {
     if x < 0.0 || x > n {
         return 0.0;
     }
-    let lc = stirling_error(n) - stirling_error(x) - stirling_error(n - x) - deviance(x, n * p) - deviance(n - x, n * q);
-    // The recorded interior masses distinguish the internal CRT logarithm here
-    // from the worksheet logarithm used in the deviance and endpoint branches.
-    let lf = crt_log(2.0 * core::f64::consts::PI * x * (n - x) / n);
-    excel_binom_pmf_exp(lc, lf)
+    // The stored order is read from the exponent's grid: 100% of 13,000 rows of six pairs `(n, x)`.
+    let lc = excel_x87_sub(stirling_error(n), stirling_error(x));
+    let lc = excel_x87_sub(lc, deviance(x, excel_x87_mul(n, p)));
+    let lc = excel_x87_sub(lc, stirling_error(n - x));
+    let lc = excel_x87_sub(lc, deviance(n - x, excel_x87_mul(n, q)));
+    // `sqrt(n / (2 pi x (n - x)))` as halves of stored logarithms, in this order: outside the
+    // series range 41,430 of 41,437 bank and live rows.
+    excel_exp_running(lc, &[-excel_log(n) / 2.0, excel_log(x) / 2.0, excel_log(n - x) / 2.0, LN_SQRT_2PI])
 }
 
-/// The Poisson mass at `x` for `lambda > 0`.
+/// The Poisson mass at `x` for `lambda > 0`. Two routes, split at `lambda = 1.1` (bisected on live
+/// answers at `x = 2, 3, 7`) with `x = 1` always on the first:
+///
+/// - `exp(x ln lambda - lambda - GAMMALN(x + 1))`, the prefactor of GAMMA.DIST's series arm.
+///   `ln lambda` is stored (the answers sit on its grid) and so is the product with `x`; the stored
+///   GAMMALN is why the bank's constants carry its low bits (+1 unit at `x = 2, 8`). The two
+///   subtractions are compensated (`excel_exp_compensated`).
+/// - Loader's saddle point `exp(-stirling_error(x) - deviance(x, lambda)) / sqrt(2 pi x)`, with the
+///   exponent and the exponential each stored: the answers sit on the exponent's binary64 grid
+///   once the normalizer is removed, from `lambda` near 4 to 1000 and `x` up to 100.
 fn poisson_mass(x: f64, lambda: f64) -> f64 {
     if x == 0.0 {
         return excel_exp(-lambda);
     }
-    if x == 1.0 && lambda <= 1.0 / 134_217_728.0 {
-        // lambda*exp(-lambda) = lambda-lambda^2 + R, 0 < R < lambda^3/2.
-        // At lambda <= 2^-27 the omitted term is at most epsilon/8 relative
-        // to lambda. Binary64 binade spacing bounds it below 1/4 ULP; FMA
-        // adds at most 1/2 ULP. This analytic limit was not fitted to Excel.
-        // Only one recorded semantic input supports exact Excel agreement;
-        // the uniform <3/4-ULP bound does not identify Excel's method.
-        return (-lambda).mul_add(lambda, lambda);
+    if x == 1.0 || lambda < 1.1 {
+        let t = excel_x87_mul(x, excel_log(lambda));
+        return excel_exp_compensated(t, &[lambda, gammaln_excel(x + 1.0)]);
     }
-    excel_exp(-stirling_error(x) - deviance(x, lambda)) / (2.0 * core::f64::consts::PI * x).sqrt()
+    let exponent = excel_x87_sub(-stirling_error(x), deviance(x, lambda));
+    excel_x87_div(excel_exp(exponent), (2.0 * core::f64::consts::PI * x).sqrt())
 }
 
 /// A finite result, with a subnormal one flushed to zero as Excel computes (EXPON.DIST(745,1,FALSE)
@@ -403,10 +378,10 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn stirling_table_is_the_definition() {
-        // stirling_error(1) = 1 - ln sqrt(2 pi); stirling_error(1/2) = ln sqrt(pi) - 1/2 ln(1/2) + 1/2 - ln sqrt(2 pi)
+        // stirling_error(1) = 1 - ln sqrt(2 pi), cut to 16 decimals.
         assert!((stirling_error(1.0) - (1.0 - LN_SQRT_2PI)).abs() < 1e-16);
-        // The asymptotic arm uses the recorded finite-precision coefficient;
-        // the application-route oc16921 control distinguishes it from RN(1/12).
-        assert_eq!(stirling_error(16.0), (0.0833333333333333 - (1.0 / 360.0 - (1.0 / 1260.0 - (1.0 / 1680.0 - (1.0 / 1188.0) / 256.0) / 256.0) / 256.0) / 256.0) / 16.0);
+        // The series arm against the definition's value at 8 and 100.
+        assert!((stirling_error(8.0) - 0.010411265261972096).abs() < 1e-16);
+        assert!((stirling_error(100.0) - 0.0008333305556349147).abs() < 1e-17);
     }
 }

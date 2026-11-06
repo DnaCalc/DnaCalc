@@ -6,8 +6,8 @@
     {"bitness":null,"cpu":"AMD Ryzen 7 4800H with Radeon Graphics","excel_build":"20131","id":"r0","platform":"Windows","source":"OxFunc-Evidence cache/oracle/build-20131/HYPGEOMDIST.jsonl"}
   ],
   "witnesses": [
-    {"args":["0x3ff0000000000000","0x4010000000000000","0x4010000000000000","0x4028000000000000"],"calc_func":"0x3fdcf62c7a0d724b","expected_bits":"0x3fdcf62c7a0d724a","id":"oc1","reading":"r0"},
-    {"args":["0x4000000000000000","0x4018000000000000","0x4014000000000000","0x4034000000000000"],"calc_func":"0x3fd689e83910a4dc","expected_bits":"0x3fd689e83910a4d9","id":"oc2","reading":"r0"},
+    {"args":["0x3ff0000000000000","0x4010000000000000","0x4010000000000000","0x4028000000000000"],"calc_func":"0x3fdcf62c7a0d7248","expected_bits":"0x3fdcf62c7a0d724a","id":"oc1","reading":"r0"},
+    {"args":["0x4000000000000000","0x4018000000000000","0x4014000000000000","0x4034000000000000"],"calc_func":"0x3fd689e83910a4da","expected_bits":"0x3fd689e83910a4d9","id":"oc2","reading":"r0"},
     {"args":["0x4008000000000000","0x4020000000000000","0x4024000000000000","0x403e000000000000"],"calc_func":"0x3fd458031a19d5d1","expected_bits":"0x3fd458031a19d5d0","id":"oc3","reading":"r0"}
   ]
 }
