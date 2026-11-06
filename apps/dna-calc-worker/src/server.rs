@@ -32,6 +32,25 @@ enum PendingSave {
     Calculated(calc_host::CalculatingSave),
     Ordinary(calc_host::OrdinarySave),
 }
+
+struct PendingName {
+    token: u64,
+    id: (u32, u32),
+    version: u64,
+    anchor: CellKey,
+    command: u64,
+    work: Option<Box<calc_host::NameCalculation>>,
+    result: Option<dna_calc_model::names::NameEvaluation>,
+}
+impl PendingName {
+    fn reply(&self) -> dna_calc_model::names::NameCalculationReply {
+        use dna_calc_model::names::NameCalculationReply;
+        match &self.result {
+            Some(evaluation) => NameCalculationReply::Ready { token: self.token, evaluation: evaluation.clone() },
+            None => NameCalculationReply::Pending { token: self.token },
+        }
+    }
+}
 impl PendingSave {
     fn needs_advance(&self, host: &calc_host::HostState) -> bool {
         match self {
@@ -72,6 +91,8 @@ pub struct Server {
     clipboard_session: String,
     paste_plan: Option<(u64, calc_host::PastePlan)>,
     pending_save: Option<(u64, PendingSave)>,
+    pending_name: Option<PendingName>,
+    next_name: u64,
     save_as_target: Option<(String, calc_host::SpreadsheetFormat)>,
     next_save: u64,
     /// Successful creations, per template stem, across workbook replacements in this session.
@@ -255,6 +276,8 @@ impl Server {
             clipboard_session: crate::services::session_nonce(),
             paste_plan: None,
             pending_save: None,
+            pending_name: None,
+            next_name: 1,
             save_as_target: None,
             next_save: 1,
             template_counters: BTreeMap::new(),
@@ -266,13 +289,28 @@ impl Server {
         self.book.set_calculation_budget(budget);
     }
     pub fn has_pending_calculation(&self) -> bool {
-        self.pending_save
+        self.pending_name.as_ref().is_some_and(|name| name.work.is_some())
+            || self.pending_save
             .as_ref()
             .is_some_and(|(_, save)| save.needs_advance(self.book.host()))
             || self.deferred_calculation.len() < wire::MAX_PENDING_REQUESTS - 2
                 && self.book.has_pending_calculation()
     }
     pub fn advance_calculation(&mut self) -> calc_host::HostProgress {
+        if let Some(name) = &mut self.pending_name && let Some(work) = &mut name.work {
+            let quantum = if self.calculation_budget == calc_host::WorkBudget::UNLIMITED { usize::MAX }
+                else if self.calculation_budget == calc_host::WorkBudget::evaluations(0) { 0 } else { 64 };
+            let progress = self.book.advance_name_calculation(work, quantum);
+            self.collect_name_result();
+            self.collect();
+            return if progress == calc_host::NameCalculationProgress::Calculating {
+                calc_host::HostProgress::Calculating { remaining: 1 }
+            } else if self.book.has_pending_calculation() {
+                calc_host::HostProgress::Calculating { remaining: 0 }
+            } else if self.book.host().calc_mode() == CalcMode::Manual {
+                calc_host::HostProgress::Manual
+            } else { calc_host::HostProgress::Current };
+        }
         if let Some((token, save)) = self.pending_save.as_mut()
             && save.needs_advance(self.book.host())
         {
@@ -323,6 +361,15 @@ impl Server {
         let progress = self.book.advance_calculation();
         self.collect();
         progress
+    }
+
+    fn collect_name_result(&mut self) {
+        let Some(name) = &mut self.pending_name else { return; };
+        let Some(work) = &mut name.work else { return; };
+        let Some(result) = work.take_result() else { return; };
+        name.result = Some(crate::names::calculated(&self.book, name.id, name.version,
+            name.anchor, name.command, result));
+        name.work = None;
     }
 
     pub fn update_rtd(
@@ -479,6 +526,9 @@ impl Server {
         if let Ok(Reply::NameEvaluation(value)) = &mut answer.reply {
             value.command = stamp.id;
         }
+        if let Ok(Reply::NameCalculation(dna_calc_model::names::NameCalculationReply::Pending { token })) = &answer.reply
+            && let Some(name) = self.pending_name.as_mut().filter(|name| name.token == *token && name.command == 0)
+        { name.command = stamp.id; }
         let reply_bytes = wire::encode(&answer.reply)
             .len()
             .saturating_add(answer.bytes.as_ref().map_or(0, Vec::len));
@@ -507,6 +557,31 @@ impl Server {
                     version,
                     cell(anchor)?,
                 ))),
+                Request::CalculateName { id, version, anchor } => {
+                    if self.pending_name.as_ref().is_some_and(|name| name.work.is_some()) {
+                        return Err("A selected-name calculation is already running".into());
+                    }
+                    let anchor = cell(anchor)?;
+                    let token = self.next_name;
+                    let next = token.checked_add(1).ok_or("Name calculation tokens exhausted")?;
+                    let work = self.book.begin_name_calculation(calc_host::value::NameId::from_parts(id.0, id.1), version, anchor)?;
+                    self.next_name = next;
+                    self.pending_name = Some(PendingName { token, id, version, anchor, command: 0,
+                        work: Some(Box::new(work)), result: None });
+                    Ok(Reply::NameCalculation(self.pending_name.as_ref().expect("an admitted name task").reply()))
+                }
+                Request::PollNameCalculation { token } => {
+                    let name = self.pending_name.as_ref().filter(|name| name.token == token)
+                        .ok_or("The selected-name calculation token has expired")?;
+                    Ok(Reply::NameCalculation(name.reply()))
+                }
+                Request::CancelNameCalculation { token } => {
+                    let name = self.pending_name.as_mut().filter(|name| name.token == token)
+                        .ok_or("The selected-name calculation token has expired")?;
+                    if let Some(work) = &mut name.work { work.cancel(); }
+                    self.collect_name_result();
+                    Ok(Reply::NameCalculation(self.pending_name.as_ref().expect("the selected name task").reply()))
+                }
                 Request::FormatSelection(areas) => Ok(Reply::FormatSelection(
                     areas
                         .into_iter()
@@ -1070,6 +1145,7 @@ impl Server {
 
     /// A new workbook in place of the open one: the page's subscriptions end with it.
     fn install(&mut self, mut book: Workbook) {
+        self.pending_name = None;
         self.pending_save = None;
         self.save_as_target = None;
         let interrupted = self.book.has_pending_calculation();

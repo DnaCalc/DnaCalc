@@ -34,10 +34,22 @@ pub struct NameBodyEvaluation {
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NameBodyResult {
-    Empty, Missing, Number, Text, Logical, Error(String),
-    Reference { areas: Vec<Area>, omitted_areas: usize },
-    Array { rows: usize, columns: usize },
-    Callable, Refused,
+    Empty,
+    Missing,
+    Number,
+    Text,
+    Logical,
+    Error(String),
+    Reference {
+        areas: Vec<Area>,
+        omitted_areas: usize,
+    },
+    Array {
+        rows: usize,
+        columns: usize,
+    },
+    Callable,
+    Refused,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NameEvaluationRoot {
@@ -47,6 +59,8 @@ pub struct NameEvaluationRoot {
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NameEvaluationEvidence {
+    #[serde(default)]
+    pub calculation: Option<NameCalculationEvidence>,
     pub results: u64,
     pub workbook: (u64, u64),
     /// Informational numeric policy, never a shared-value reuse key.
@@ -74,6 +88,44 @@ pub struct NameEvaluation {
     #[serde(default)]
     pub evidence: Option<NameEvaluationEvidence>,
     pub text: Result<String, String>,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NameUserCall {
+    pub runtime: u64,
+    pub parent: Option<u64>,
+    pub provider: (u64, u32, u64),
+    pub call_site: u32,
+    pub occurrence: Vec<u32>,
+    pub completed: bool,
+    pub non_preemptible: bool,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NameObservation {
+    pub area: Area,
+    pub view: u64,
+    pub imported: bool,
+    pub dirty: bool,
+    pub external: bool,
+    pub provisional: bool,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NameCalculationEvidence {
+    pub runtime_root: Option<u64>,
+    pub calls: Vec<NameUserCall>,
+    pub omitted_calls: usize,
+    pub observations: Vec<NameObservation>,
+    pub omitted_observations: usize,
+    pub udf_volatile: bool,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NameCalculationReply {
+    Pending {
+        token: u64,
+    },
+    Ready {
+        token: u64,
+        evaluation: NameEvaluation,
+    },
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct NameState {

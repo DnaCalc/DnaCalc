@@ -1,0 +1,4191 @@
+{
+  "excel_build": "20527",
+  "observations": [
+    {
+      "stage": "before-open",
+      "utc": "2026-11-06T13:27:12.7678721Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": true,
+        "Iteration": true,
+        "MaxIterations": 50.0,
+        "MaxChange": "3f1a36e2eb1c432d",
+        "EnableEvents": false,
+        "CalculationState": 0,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {},
+      "active_sheet": null,
+      "cells": null
+    },
+    {
+      "stage": "after-open-before-calculation",
+      "utc": "2026-11-06T13:27:14.5893970Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": true,
+        "Iteration": true,
+        "MaxIterations": 50.0,
+        "MaxChange": "3f1a36e2eb1c432d",
+        "EnableEvents": false,
+        "CalculationState": 2,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "It",
+      "cells": [
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1799",
+          "column": 1,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00420031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00420031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "409c1c0000000000"
+          },
+          "formula": "=B1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1800",
+          "column": 2,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00410031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "409c200000000000"
+          },
+          "formula": "=A1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "850",
+          "column": 3,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00430031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "408a900000000000"
+          },
+          "formula": "=C1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 4,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00450031002f0032002b0031"
+            },
+            "Formula2": {
+              "value": "003d00450031002f0032002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=E1/2+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00440031"
+            },
+            "Formula2": {
+              "value": "003d00440031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=D1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "10",
+          "column": 6,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00460031002a0030002e0035002b0035"
+            },
+            "Formula2": {
+              "value": "003d00460031002a0030002e0035002b0035"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4024000000000000"
+          },
+          "formula": "=F1*0.5+5"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "3599",
+          "column": 7,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00530055004d002800410031003a004200310029"
+            },
+            "Formula2": {
+              "value": "003d00530055004d002800410031003a004200310029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "40ac1e0000000000"
+          },
+          "formula": "=SUM(A1:B1)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "6",
+          "column": 8,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00490031002a0032"
+            },
+            "Formula2": {
+              "value": "003d00490031002a0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4018000000000000"
+          },
+          "formula": "=I1*2"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 11,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d0049004e00440049005200450043005400280022004c003100220029002b0031"
+            },
+            "Formula2": {
+              "value": "003d00400049004e00440049005200450043005400280022004c003100220029002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=@INDIRECT(\"L1\")+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1",
+          "column": 12,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d0049004e00440049005200450043005400280022004b003100220029002f0032"
+            },
+            "Formula2": {
+              "value": "003d00400049004e00440049005200450043005400280022004b003100220029002f0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "3ff0000000000000"
+          },
+          "formula": "=@INDIRECT(\"K1\")/2"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1004.184",
+          "column": 3,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d00420033002b00440033"
+            },
+            "Formula2": {
+              "value": "003d00420033002b00440033"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "408f617909a3e202"
+          },
+          "formula": "=B3+D3"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "4.1841",
+          "column": 4,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430033002a0030002e00300035002f00310032"
+            },
+            "Formula2": {
+              "value": "003d00430033002a0030002e00300035002f00310032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4010bc84d1f10113"
+          },
+          "formula": "=C3*0.05/12"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "4.18",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d0052004f0055004e0044002800440033002c00320029"
+            },
+            "Formula2": {
+              "value": "003d0052004f0055004e0044002800440033002c00320029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4010b851eb851eb8"
+          },
+          "formula": "=ROUND(D3,2)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "3",
+          "column": 1,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410036002f0033002b0031"
+            },
+            "Formula2": {
+              "value": "003d00410036002f0033002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4007fffffffffffe"
+          },
+          "formula": "=A6/3+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "200",
+          "column": 2,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00490046002800410035003e0031002c00420035002b0031002c00300029"
+            },
+            "Formula2": {
+              "value": "003d00490046002800410035003e0031002c00420035002b0031002c00300029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4069000000000000"
+          },
+          "formula": "=IF(A5>1,B5+1,0)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "12",
+          "column": 3,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00460031002b00440031"
+            },
+            "Formula2": {
+              "value": "003d00460031002b00440031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4028000000000000"
+          },
+          "formula": "=F1+D1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "6",
+          "column": 1,
+          "row": 6,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410035002a0032"
+            },
+            "Formula2": {
+              "value": "003d00410035002a0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4017fffffffffffe"
+          },
+          "formula": "=A5*2"
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng20\\phase-attempt2\\eng20-persistence-dc_10y_iteration-calculate-before-save-true\\1",
+        "name": "input.xlsx",
+        "saved": true
+      }
+    },
+    {
+      "stage": "seeds-verified",
+      "utc": "2026-11-06T13:27:16.4147035Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": true,
+        "Iteration": true,
+        "MaxIterations": 50.0,
+        "MaxChange": "3f1a36e2eb1c432d",
+        "EnableEvents": false,
+        "CalculationState": 2,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "It",
+      "cells": [
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1799",
+          "column": 1,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00420031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00420031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "409c1c0000000000"
+          },
+          "formula": "=B1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1800",
+          "column": 2,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00410031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "409c200000000000"
+          },
+          "formula": "=A1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "850",
+          "column": 3,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00430031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "408a900000000000"
+          },
+          "formula": "=C1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 4,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00450031002f0032002b0031"
+            },
+            "Formula2": {
+              "value": "003d00450031002f0032002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=E1/2+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00440031"
+            },
+            "Formula2": {
+              "value": "003d00440031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=D1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "10",
+          "column": 6,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00460031002a0030002e0035002b0035"
+            },
+            "Formula2": {
+              "value": "003d00460031002a0030002e0035002b0035"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4024000000000000"
+          },
+          "formula": "=F1*0.5+5"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "3599",
+          "column": 7,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00530055004d002800410031003a004200310029"
+            },
+            "Formula2": {
+              "value": "003d00530055004d002800410031003a004200310029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "40ac1e0000000000"
+          },
+          "formula": "=SUM(A1:B1)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "6",
+          "column": 8,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00490031002a0032"
+            },
+            "Formula2": {
+              "value": "003d00490031002a0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4018000000000000"
+          },
+          "formula": "=I1*2"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 11,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d0049004e00440049005200450043005400280022004c003100220029002b0031"
+            },
+            "Formula2": {
+              "value": "003d00400049004e00440049005200450043005400280022004c003100220029002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=@INDIRECT(\"L1\")+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1",
+          "column": 12,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d0049004e00440049005200450043005400280022004b003100220029002f0032"
+            },
+            "Formula2": {
+              "value": "003d00400049004e00440049005200450043005400280022004b003100220029002f0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "3ff0000000000000"
+          },
+          "formula": "=@INDIRECT(\"K1\")/2"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1004.184",
+          "column": 3,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d00420033002b00440033"
+            },
+            "Formula2": {
+              "value": "003d00420033002b00440033"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "408f617909a3e202"
+          },
+          "formula": "=B3+D3"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "4.1841",
+          "column": 4,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430033002a0030002e00300035002f00310032"
+            },
+            "Formula2": {
+              "value": "003d00430033002a0030002e00300035002f00310032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4010bc84d1f10113"
+          },
+          "formula": "=C3*0.05/12"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "4.18",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d0052004f0055004e0044002800440033002c00320029"
+            },
+            "Formula2": {
+              "value": "003d0052004f0055004e0044002800440033002c00320029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4010b851eb851eb8"
+          },
+          "formula": "=ROUND(D3,2)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "3",
+          "column": 1,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410036002f0033002b0031"
+            },
+            "Formula2": {
+              "value": "003d00410036002f0033002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4007fffffffffffe"
+          },
+          "formula": "=A6/3+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "200",
+          "column": 2,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00490046002800410035003e0031002c00420035002b0031002c00300029"
+            },
+            "Formula2": {
+              "value": "003d00490046002800410035003e0031002c00420035002b0031002c00300029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4069000000000000"
+          },
+          "formula": "=IF(A5>1,B5+1,0)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "12",
+          "column": 3,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00460031002b00440031"
+            },
+            "Formula2": {
+              "value": "003d00460031002b00440031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4028000000000000"
+          },
+          "formula": "=F1+D1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "6",
+          "column": 1,
+          "row": 6,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410035002a0032"
+            },
+            "Formula2": {
+              "value": "003d00410035002a0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4017fffffffffffe"
+          },
+          "formula": "=A5*2"
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng20\\phase-attempt2\\eng20-persistence-dc_10y_iteration-calculate-before-save-true\\1",
+        "name": "input.xlsx",
+        "saved": true
+      }
+    },
+    {
+      "stage": "before-command-1",
+      "utc": "2026-11-06T13:27:17.5689965Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": true,
+        "Iteration": true,
+        "MaxIterations": 50.0,
+        "MaxChange": "3f1a36e2eb1c432d",
+        "EnableEvents": false,
+        "CalculationState": 2,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "It",
+      "cells": [
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1799",
+          "column": 1,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00420031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00420031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "409c1c0000000000"
+          },
+          "formula": "=B1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1800",
+          "column": 2,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00410031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "409c200000000000"
+          },
+          "formula": "=A1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "850",
+          "column": 3,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00430031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "408a900000000000"
+          },
+          "formula": "=C1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 4,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00450031002f0032002b0031"
+            },
+            "Formula2": {
+              "value": "003d00450031002f0032002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=E1/2+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00440031"
+            },
+            "Formula2": {
+              "value": "003d00440031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=D1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "10",
+          "column": 6,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00460031002a0030002e0035002b0035"
+            },
+            "Formula2": {
+              "value": "003d00460031002a0030002e0035002b0035"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4024000000000000"
+          },
+          "formula": "=F1*0.5+5"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "3599",
+          "column": 7,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00530055004d002800410031003a004200310029"
+            },
+            "Formula2": {
+              "value": "003d00530055004d002800410031003a004200310029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "40ac1e0000000000"
+          },
+          "formula": "=SUM(A1:B1)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "6",
+          "column": 8,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00490031002a0032"
+            },
+            "Formula2": {
+              "value": "003d00490031002a0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4018000000000000"
+          },
+          "formula": "=I1*2"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 11,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d0049004e00440049005200450043005400280022004c003100220029002b0031"
+            },
+            "Formula2": {
+              "value": "003d00400049004e00440049005200450043005400280022004c003100220029002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=@INDIRECT(\"L1\")+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1",
+          "column": 12,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d0049004e00440049005200450043005400280022004b003100220029002f0032"
+            },
+            "Formula2": {
+              "value": "003d00400049004e00440049005200450043005400280022004b003100220029002f0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "3ff0000000000000"
+          },
+          "formula": "=@INDIRECT(\"K1\")/2"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1004.184",
+          "column": 3,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d00420033002b00440033"
+            },
+            "Formula2": {
+              "value": "003d00420033002b00440033"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "408f617909a3e202"
+          },
+          "formula": "=B3+D3"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "4.1841",
+          "column": 4,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430033002a0030002e00300035002f00310032"
+            },
+            "Formula2": {
+              "value": "003d00430033002a0030002e00300035002f00310032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4010bc84d1f10113"
+          },
+          "formula": "=C3*0.05/12"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "4.18",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d0052004f0055004e0044002800440033002c00320029"
+            },
+            "Formula2": {
+              "value": "003d0052004f0055004e0044002800440033002c00320029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4010b851eb851eb8"
+          },
+          "formula": "=ROUND(D3,2)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "3",
+          "column": 1,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410036002f0033002b0031"
+            },
+            "Formula2": {
+              "value": "003d00410036002f0033002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4007fffffffffffe"
+          },
+          "formula": "=A6/3+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "200",
+          "column": 2,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00490046002800410035003e0031002c00420035002b0031002c00300029"
+            },
+            "Formula2": {
+              "value": "003d00490046002800410035003e0031002c00420035002b0031002c00300029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4069000000000000"
+          },
+          "formula": "=IF(A5>1,B5+1,0)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "12",
+          "column": 3,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00460031002b00440031"
+            },
+            "Formula2": {
+              "value": "003d00460031002b00440031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4028000000000000"
+          },
+          "formula": "=F1+D1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "6",
+          "column": 1,
+          "row": 6,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410035002a0032"
+            },
+            "Formula2": {
+              "value": "003d00410035002a0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4017fffffffffffe"
+          },
+          "formula": "=A5*2"
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng20\\phase-attempt2\\eng20-persistence-dc_10y_iteration-calculate-before-save-true\\1",
+        "name": "input.xlsx",
+        "saved": true
+      }
+    },
+    {
+      "stage": "after-command-1",
+      "utc": "2026-11-06T13:27:18.5585352Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": true,
+        "Iteration": true,
+        "MaxIterations": 50.0,
+        "MaxChange": "3f1a36e2eb1c432d",
+        "EnableEvents": false,
+        "CalculationState": 2,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "It",
+      "cells": [
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1899",
+          "column": 1,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00420031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00420031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "409dac0000000000"
+          },
+          "formula": "=B1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1900",
+          "column": 2,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00410031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "409db00000000000"
+          },
+          "formula": "=A1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "900",
+          "column": 3,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00430031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "408c200000000000"
+          },
+          "formula": "=C1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 4,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00450031002f0032002b0031"
+            },
+            "Formula2": {
+              "value": "003d00450031002f0032002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=E1/2+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00440031"
+            },
+            "Formula2": {
+              "value": "003d00440031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=D1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "10",
+          "column": 6,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00460031002a0030002e0035002b0035"
+            },
+            "Formula2": {
+              "value": "003d00460031002a0030002e0035002b0035"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4024000000000000"
+          },
+          "formula": "=F1*0.5+5"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "3799",
+          "column": 7,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00530055004d002800410031003a004200310029"
+            },
+            "Formula2": {
+              "value": "003d00530055004d002800410031003a004200310029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "40adae0000000000"
+          },
+          "formula": "=SUM(A1:B1)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "6",
+          "column": 8,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00490031002a0032"
+            },
+            "Formula2": {
+              "value": "003d00490031002a0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4018000000000000"
+          },
+          "formula": "=I1*2"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 11,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d0049004e00440049005200450043005400280022004c003100220029002b0031"
+            },
+            "Formula2": {
+              "value": "003d00400049004e00440049005200450043005400280022004c003100220029002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=@INDIRECT(\"L1\")+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1",
+          "column": 12,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d0049004e00440049005200450043005400280022004b003100220029002f0032"
+            },
+            "Formula2": {
+              "value": "003d00400049004e00440049005200450043005400280022004b003100220029002f0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "3ff0000000000000"
+          },
+          "formula": "=@INDIRECT(\"K1\")/2"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1004.184",
+          "column": 3,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d00420033002b00440033"
+            },
+            "Formula2": {
+              "value": "003d00420033002b00440033"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "408f617909a3e202"
+          },
+          "formula": "=B3+D3"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "4.1841",
+          "column": 4,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430033002a0030002e00300035002f00310032"
+            },
+            "Formula2": {
+              "value": "003d00430033002a0030002e00300035002f00310032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4010bc84d1f10113"
+          },
+          "formula": "=C3*0.05/12"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "4.18",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d0052004f0055004e0044002800440033002c00320029"
+            },
+            "Formula2": {
+              "value": "003d0052004f0055004e0044002800440033002c00320029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4010b851eb851eb8"
+          },
+          "formula": "=ROUND(D3,2)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "3",
+          "column": 1,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410036002f0033002b0031"
+            },
+            "Formula2": {
+              "value": "003d00410036002f0033002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4007fffffffffffe"
+          },
+          "formula": "=A6/3+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "250",
+          "column": 2,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00490046002800410035003e0031002c00420035002b0031002c00300029"
+            },
+            "Formula2": {
+              "value": "003d00490046002800410035003e0031002c00420035002b0031002c00300029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "406f400000000000"
+          },
+          "formula": "=IF(A5>1,B5+1,0)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "12",
+          "column": 3,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00460031002b00440031"
+            },
+            "Formula2": {
+              "value": "003d00460031002b00440031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4028000000000000"
+          },
+          "formula": "=F1+D1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "6",
+          "column": 1,
+          "row": 6,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410035002a0032"
+            },
+            "Formula2": {
+              "value": "003d00410035002a0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4017fffffffffffe"
+          },
+          "formula": "=A5*2"
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng20\\phase-attempt2\\eng20-persistence-dc_10y_iteration-calculate-before-save-true\\1",
+        "name": "input.xlsx",
+        "saved": false
+      }
+    },
+    {
+      "stage": "before-save",
+      "utc": "2026-11-06T13:27:19.6193272Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": true,
+        "Iteration": true,
+        "MaxIterations": 50.0,
+        "MaxChange": "3f1a36e2eb1c432d",
+        "EnableEvents": false,
+        "CalculationState": 2,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "It",
+      "cells": [
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1899",
+          "column": 1,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00420031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00420031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "409dac0000000000"
+          },
+          "formula": "=B1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1900",
+          "column": 2,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00410031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "409db00000000000"
+          },
+          "formula": "=A1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "900",
+          "column": 3,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00430031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "408c200000000000"
+          },
+          "formula": "=C1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 4,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00450031002f0032002b0031"
+            },
+            "Formula2": {
+              "value": "003d00450031002f0032002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=E1/2+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00440031"
+            },
+            "Formula2": {
+              "value": "003d00440031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=D1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "10",
+          "column": 6,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00460031002a0030002e0035002b0035"
+            },
+            "Formula2": {
+              "value": "003d00460031002a0030002e0035002b0035"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4024000000000000"
+          },
+          "formula": "=F1*0.5+5"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "3799",
+          "column": 7,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00530055004d002800410031003a004200310029"
+            },
+            "Formula2": {
+              "value": "003d00530055004d002800410031003a004200310029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "40adae0000000000"
+          },
+          "formula": "=SUM(A1:B1)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "6",
+          "column": 8,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00490031002a0032"
+            },
+            "Formula2": {
+              "value": "003d00490031002a0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4018000000000000"
+          },
+          "formula": "=I1*2"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 11,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d0049004e00440049005200450043005400280022004c003100220029002b0031"
+            },
+            "Formula2": {
+              "value": "003d00400049004e00440049005200450043005400280022004c003100220029002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=@INDIRECT(\"L1\")+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1",
+          "column": 12,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d0049004e00440049005200450043005400280022004b003100220029002f0032"
+            },
+            "Formula2": {
+              "value": "003d00400049004e00440049005200450043005400280022004b003100220029002f0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "3ff0000000000000"
+          },
+          "formula": "=@INDIRECT(\"K1\")/2"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1004.184",
+          "column": 3,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d00420033002b00440033"
+            },
+            "Formula2": {
+              "value": "003d00420033002b00440033"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "408f617909a3e202"
+          },
+          "formula": "=B3+D3"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "4.1841",
+          "column": 4,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430033002a0030002e00300035002f00310032"
+            },
+            "Formula2": {
+              "value": "003d00430033002a0030002e00300035002f00310032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4010bc84d1f10113"
+          },
+          "formula": "=C3*0.05/12"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "4.18",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d0052004f0055004e0044002800440033002c00320029"
+            },
+            "Formula2": {
+              "value": "003d0052004f0055004e0044002800440033002c00320029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4010b851eb851eb8"
+          },
+          "formula": "=ROUND(D3,2)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "3",
+          "column": 1,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410036002f0033002b0031"
+            },
+            "Formula2": {
+              "value": "003d00410036002f0033002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4007fffffffffffe"
+          },
+          "formula": "=A6/3+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "250",
+          "column": 2,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00490046002800410035003e0031002c00420035002b0031002c00300029"
+            },
+            "Formula2": {
+              "value": "003d00490046002800410035003e0031002c00420035002b0031002c00300029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "406f400000000000"
+          },
+          "formula": "=IF(A5>1,B5+1,0)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "12",
+          "column": 3,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00460031002b00440031"
+            },
+            "Formula2": {
+              "value": "003d00460031002b00440031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4028000000000000"
+          },
+          "formula": "=F1+D1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "6",
+          "column": 1,
+          "row": 6,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410035002a0032"
+            },
+            "Formula2": {
+              "value": "003d00410035002a0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4017fffffffffffe"
+          },
+          "formula": "=A5*2"
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng20\\phase-attempt2\\eng20-persistence-dc_10y_iteration-calculate-before-save-true\\1",
+        "name": "input.xlsx",
+        "saved": false
+      }
+    },
+    {
+      "stage": "after-save",
+      "utc": "2026-11-06T13:27:20.4818638Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": true,
+        "Iteration": true,
+        "MaxIterations": 50.0,
+        "MaxChange": "3f1a36e2eb1c432d",
+        "EnableEvents": false,
+        "CalculationState": 2,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "It",
+      "cells": [
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1999",
+          "column": 1,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00420031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00420031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "409f3c0000000000"
+          },
+          "formula": "=B1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2000",
+          "column": 2,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00410031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "409f400000000000"
+          },
+          "formula": "=A1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "950",
+          "column": 3,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00430031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "408db00000000000"
+          },
+          "formula": "=C1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 4,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00450031002f0032002b0031"
+            },
+            "Formula2": {
+              "value": "003d00450031002f0032002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=E1/2+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00440031"
+            },
+            "Formula2": {
+              "value": "003d00440031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=D1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "10",
+          "column": 6,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00460031002a0030002e0035002b0035"
+            },
+            "Formula2": {
+              "value": "003d00460031002a0030002e0035002b0035"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4024000000000000"
+          },
+          "formula": "=F1*0.5+5"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "3999",
+          "column": 7,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00530055004d002800410031003a004200310029"
+            },
+            "Formula2": {
+              "value": "003d00530055004d002800410031003a004200310029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "40af3e0000000000"
+          },
+          "formula": "=SUM(A1:B1)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "6",
+          "column": 8,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00490031002a0032"
+            },
+            "Formula2": {
+              "value": "003d00490031002a0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4018000000000000"
+          },
+          "formula": "=I1*2"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 11,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d0049004e00440049005200450043005400280022004c003100220029002b0031"
+            },
+            "Formula2": {
+              "value": "003d00400049004e00440049005200450043005400280022004c003100220029002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=@INDIRECT(\"L1\")+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1",
+          "column": 12,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d0049004e00440049005200450043005400280022004b003100220029002f0032"
+            },
+            "Formula2": {
+              "value": "003d00400049004e00440049005200450043005400280022004b003100220029002f0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "3ff0000000000000"
+          },
+          "formula": "=@INDIRECT(\"K1\")/2"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1004.184",
+          "column": 3,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d00420033002b00440033"
+            },
+            "Formula2": {
+              "value": "003d00420033002b00440033"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "408f617909a3e202"
+          },
+          "formula": "=B3+D3"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "4.1841",
+          "column": 4,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430033002a0030002e00300035002f00310032"
+            },
+            "Formula2": {
+              "value": "003d00430033002a0030002e00300035002f00310032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4010bc84d1f10113"
+          },
+          "formula": "=C3*0.05/12"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "4.18",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d0052004f0055004e0044002800440033002c00320029"
+            },
+            "Formula2": {
+              "value": "003d0052004f0055004e0044002800440033002c00320029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4010b851eb851eb8"
+          },
+          "formula": "=ROUND(D3,2)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "3",
+          "column": 1,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410036002f0033002b0031"
+            },
+            "Formula2": {
+              "value": "003d00410036002f0033002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4007fffffffffffe"
+          },
+          "formula": "=A6/3+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "300",
+          "column": 2,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00490046002800410035003e0031002c00420035002b0031002c00300029"
+            },
+            "Formula2": {
+              "value": "003d00490046002800410035003e0031002c00420035002b0031002c00300029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4072c00000000000"
+          },
+          "formula": "=IF(A5>1,B5+1,0)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "12",
+          "column": 3,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00460031002b00440031"
+            },
+            "Formula2": {
+              "value": "003d00460031002b00440031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4028000000000000"
+          },
+          "formula": "=F1+D1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "6",
+          "column": 1,
+          "row": 6,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410035002a0032"
+            },
+            "Formula2": {
+              "value": "003d00410035002a0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4017fffffffffffe"
+          },
+          "formula": "=A5*2"
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng20\\phase-attempt2\\eng20-persistence-dc_10y_iteration-calculate-before-save-true\\1",
+        "name": "saved.xlsx",
+        "saved": true
+      }
+    },
+    {
+      "stage": "after-close",
+      "utc": "2026-11-06T13:27:21.9704460Z",
+      "settings": {
+        "Calculation": -2146826246,
+        "CalculateBeforeSave": -2146826246,
+        "Iteration": -2146826246,
+        "MaxIterations": -2146826246,
+        "MaxChange": "c1dffd7e01800000",
+        "EnableEvents": false,
+        "CalculationState": 0,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {},
+      "active_sheet": null,
+      "cells": null
+    },
+    {
+      "stage": "after-reopen",
+      "utc": "2026-11-06T13:27:23.0689229Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": true,
+        "Iteration": true,
+        "MaxIterations": 50.0,
+        "MaxChange": "3f1a36e2eb1c432d",
+        "EnableEvents": false,
+        "CalculationState": 2,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "It",
+      "cells": [
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1999",
+          "column": 1,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00420031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00420031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "409f3c0000000000"
+          },
+          "formula": "=B1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2000",
+          "column": 2,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00410031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "409f400000000000"
+          },
+          "formula": "=A1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "950",
+          "column": 3,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00430031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "408db00000000000"
+          },
+          "formula": "=C1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 4,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00450031002f0032002b0031"
+            },
+            "Formula2": {
+              "value": "003d00450031002f0032002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=E1/2+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00440031"
+            },
+            "Formula2": {
+              "value": "003d00440031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=D1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "10",
+          "column": 6,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00460031002a0030002e0035002b0035"
+            },
+            "Formula2": {
+              "value": "003d00460031002a0030002e0035002b0035"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4024000000000000"
+          },
+          "formula": "=F1*0.5+5"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "3999",
+          "column": 7,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00530055004d002800410031003a004200310029"
+            },
+            "Formula2": {
+              "value": "003d00530055004d002800410031003a004200310029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "40af3e0000000000"
+          },
+          "formula": "=SUM(A1:B1)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "6",
+          "column": 8,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00490031002a0032"
+            },
+            "Formula2": {
+              "value": "003d00490031002a0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4018000000000000"
+          },
+          "formula": "=I1*2"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 11,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d0049004e00440049005200450043005400280022004c003100220029002b0031"
+            },
+            "Formula2": {
+              "value": "003d00400049004e00440049005200450043005400280022004c003100220029002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=@INDIRECT(\"L1\")+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1",
+          "column": 12,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d0049004e00440049005200450043005400280022004b003100220029002f0032"
+            },
+            "Formula2": {
+              "value": "003d00400049004e00440049005200450043005400280022004b003100220029002f0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "3ff0000000000000"
+          },
+          "formula": "=@INDIRECT(\"K1\")/2"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1004.184",
+          "column": 3,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d00420033002b00440033"
+            },
+            "Formula2": {
+              "value": "003d00420033002b00440033"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "408f617909a3e202"
+          },
+          "formula": "=B3+D3"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "4.1841",
+          "column": 4,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430033002a0030002e00300035002f00310032"
+            },
+            "Formula2": {
+              "value": "003d00430033002a0030002e00300035002f00310032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4010bc84d1f10113"
+          },
+          "formula": "=C3*0.05/12"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "4.18",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d0052004f0055004e0044002800440033002c00320029"
+            },
+            "Formula2": {
+              "value": "003d0052004f0055004e0044002800440033002c00320029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4010b851eb851eb8"
+          },
+          "formula": "=ROUND(D3,2)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "3",
+          "column": 1,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410036002f0033002b0031"
+            },
+            "Formula2": {
+              "value": "003d00410036002f0033002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4007fffffffffffe"
+          },
+          "formula": "=A6/3+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "300",
+          "column": 2,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00490046002800410035003e0031002c00420035002b0031002c00300029"
+            },
+            "Formula2": {
+              "value": "003d00490046002800410035003e0031002c00420035002b0031002c00300029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4072c00000000000"
+          },
+          "formula": "=IF(A5>1,B5+1,0)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "12",
+          "column": 3,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00460031002b00440031"
+            },
+            "Formula2": {
+              "value": "003d00460031002b00440031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4028000000000000"
+          },
+          "formula": "=F1+D1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "6",
+          "column": 1,
+          "row": 6,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410035002a0032"
+            },
+            "Formula2": {
+              "value": "003d00410035002a0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4017fffffffffffe"
+          },
+          "formula": "=A5*2"
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng20\\phase-attempt2\\eng20-persistence-dc_10y_iteration-calculate-before-save-true\\1",
+        "name": "saved.xlsx",
+        "saved": true
+      }
+    },
+    {
+      "stage": "before-final-rebuild",
+      "utc": "2026-11-06T13:27:23.9008269Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": true,
+        "Iteration": true,
+        "MaxIterations": 50.0,
+        "MaxChange": "3f1a36e2eb1c432d",
+        "EnableEvents": false,
+        "CalculationState": 2,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "It",
+      "cells": [
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1999",
+          "column": 1,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00420031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00420031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "409f3c0000000000"
+          },
+          "formula": "=B1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2000",
+          "column": 2,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00410031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "409f400000000000"
+          },
+          "formula": "=A1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "950",
+          "column": 3,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00430031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "408db00000000000"
+          },
+          "formula": "=C1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 4,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00450031002f0032002b0031"
+            },
+            "Formula2": {
+              "value": "003d00450031002f0032002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=E1/2+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00440031"
+            },
+            "Formula2": {
+              "value": "003d00440031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=D1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "10",
+          "column": 6,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00460031002a0030002e0035002b0035"
+            },
+            "Formula2": {
+              "value": "003d00460031002a0030002e0035002b0035"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4024000000000000"
+          },
+          "formula": "=F1*0.5+5"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "3999",
+          "column": 7,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00530055004d002800410031003a004200310029"
+            },
+            "Formula2": {
+              "value": "003d00530055004d002800410031003a004200310029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "40af3e0000000000"
+          },
+          "formula": "=SUM(A1:B1)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "6",
+          "column": 8,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00490031002a0032"
+            },
+            "Formula2": {
+              "value": "003d00490031002a0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4018000000000000"
+          },
+          "formula": "=I1*2"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 11,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d0049004e00440049005200450043005400280022004c003100220029002b0031"
+            },
+            "Formula2": {
+              "value": "003d00400049004e00440049005200450043005400280022004c003100220029002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=@INDIRECT(\"L1\")+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1",
+          "column": 12,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d0049004e00440049005200450043005400280022004b003100220029002f0032"
+            },
+            "Formula2": {
+              "value": "003d00400049004e00440049005200450043005400280022004b003100220029002f0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "3ff0000000000000"
+          },
+          "formula": "=@INDIRECT(\"K1\")/2"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1004.184",
+          "column": 3,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d00420033002b00440033"
+            },
+            "Formula2": {
+              "value": "003d00420033002b00440033"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "408f617909a3e202"
+          },
+          "formula": "=B3+D3"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "4.1841",
+          "column": 4,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430033002a0030002e00300035002f00310032"
+            },
+            "Formula2": {
+              "value": "003d00430033002a0030002e00300035002f00310032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4010bc84d1f10113"
+          },
+          "formula": "=C3*0.05/12"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "4.18",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d0052004f0055004e0044002800440033002c00320029"
+            },
+            "Formula2": {
+              "value": "003d0052004f0055004e0044002800440033002c00320029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4010b851eb851eb8"
+          },
+          "formula": "=ROUND(D3,2)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "3",
+          "column": 1,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410036002f0033002b0031"
+            },
+            "Formula2": {
+              "value": "003d00410036002f0033002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4007fffffffffffe"
+          },
+          "formula": "=A6/3+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "300",
+          "column": 2,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00490046002800410035003e0031002c00420035002b0031002c00300029"
+            },
+            "Formula2": {
+              "value": "003d00490046002800410035003e0031002c00420035002b0031002c00300029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4072c00000000000"
+          },
+          "formula": "=IF(A5>1,B5+1,0)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "12",
+          "column": 3,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00460031002b00440031"
+            },
+            "Formula2": {
+              "value": "003d00460031002b00440031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4028000000000000"
+          },
+          "formula": "=F1+D1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "6",
+          "column": 1,
+          "row": 6,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410035002a0032"
+            },
+            "Formula2": {
+              "value": "003d00410035002a0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4017fffffffffffe"
+          },
+          "formula": "=A5*2"
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng20\\phase-attempt2\\eng20-persistence-dc_10y_iteration-calculate-before-save-true\\1",
+        "name": "saved.xlsx",
+        "saved": true
+      }
+    },
+    {
+      "stage": "after-final-rebuild",
+      "utc": "2026-11-06T13:27:24.3944979Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": true,
+        "Iteration": true,
+        "MaxIterations": 50.0,
+        "MaxChange": "3f1a36e2eb1c432d",
+        "EnableEvents": false,
+        "CalculationState": 2,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "It",
+      "cells": [
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2099",
+          "column": 1,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00420031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00420031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "40a0660000000000"
+          },
+          "formula": "=B1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2100",
+          "column": 2,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00410031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "40a0680000000000"
+          },
+          "formula": "=A1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1000",
+          "column": 3,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430031002b0031"
+            },
+            "Formula2": {
+              "value": "003d00430031002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "408f400000000000"
+          },
+          "formula": "=C1+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 4,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00450031002f0032002b0031"
+            },
+            "Formula2": {
+              "value": "003d00450031002f0032002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=E1/2+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00440031"
+            },
+            "Formula2": {
+              "value": "003d00440031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=D1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "10",
+          "column": 6,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00460031002a0030002e0035002b0035"
+            },
+            "Formula2": {
+              "value": "003d00460031002a0030002e0035002b0035"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4024000000000000"
+          },
+          "formula": "=F1*0.5+5"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "4199",
+          "column": 7,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00530055004d002800410031003a004200310029"
+            },
+            "Formula2": {
+              "value": "003d00530055004d002800410031003a004200310029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "40b0670000000000"
+          },
+          "formula": "=SUM(A1:B1)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "6",
+          "column": 8,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00490031002a0032"
+            },
+            "Formula2": {
+              "value": "003d00490031002a0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4018000000000000"
+          },
+          "formula": "=I1*2"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "2",
+          "column": 11,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d0049004e00440049005200450043005400280022004c003100220029002b0031"
+            },
+            "Formula2": {
+              "value": "003d00400049004e00440049005200450043005400280022004c003100220029002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4000000000000000"
+          },
+          "formula": "=@INDIRECT(\"L1\")+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1",
+          "column": 12,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d0049004e00440049005200450043005400280022004b003100220029002f0032"
+            },
+            "Formula2": {
+              "value": "003d00400049004e00440049005200450043005400280022004b003100220029002f0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "3ff0000000000000"
+          },
+          "formula": "=@INDIRECT(\"K1\")/2"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "1004.184",
+          "column": 3,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d00420033002b00440033"
+            },
+            "Formula2": {
+              "value": "003d00420033002b00440033"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "408f617909a3e202"
+          },
+          "formula": "=B3+D3"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "4.1841",
+          "column": 4,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430033002a0030002e00300035002f00310032"
+            },
+            "Formula2": {
+              "value": "003d00430033002a0030002e00300035002f00310032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4010bc84d1f10113"
+          },
+          "formula": "=C3*0.05/12"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "4.18",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d0052004f0055004e0044002800440033002c00320029"
+            },
+            "Formula2": {
+              "value": "003d0052004f0055004e0044002800440033002c00320029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4010b851eb851eb8"
+          },
+          "formula": "=ROUND(D3,2)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "3",
+          "column": 1,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410036002f0033002b0031"
+            },
+            "Formula2": {
+              "value": "003d00410036002f0033002b0031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4007fffffffffffe"
+          },
+          "formula": "=A6/3+1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "350",
+          "column": 2,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00490046002800410035003e0031002c00420035002b0031002c00300029"
+            },
+            "Formula2": {
+              "value": "003d00490046002800410035003e0031002c00420035002b0031002c00300029"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4075e00000000000"
+          },
+          "formula": "=IF(A5>1,B5+1,0)"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "12",
+          "column": 3,
+          "row": 5,
+          "metadata": {
+            "Formula": {
+              "value": "003d00460031002b00440031"
+            },
+            "Formula2": {
+              "value": "003d00460031002b00440031"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4028000000000000"
+          },
+          "formula": "=F1+D1"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "6",
+          "column": 1,
+          "row": 6,
+          "metadata": {
+            "Formula": {
+              "value": "003d00410035002a0032"
+            },
+            "Formula2": {
+              "value": "003d00410035002a0032"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "It",
+          "value": {
+            "number": "4017fffffffffffe"
+          },
+          "formula": "=A5*2"
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng20\\phase-attempt2\\eng20-persistence-dc_10y_iteration-calculate-before-save-true\\1",
+        "name": "saved.xlsx",
+        "saved": false
+      }
+    }
+  ],
+  "input_parts": {
+    "xl/workbook.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" mc:Ignorable=\"x15 xr xr6 xr10 xr2\" xmlns:x15=\"http://schemas.microsoft.com/office/spreadsheetml/2010/11/main\" xmlns:xr=\"http://schemas.microsoft.com/office/spreadsheetml/2014/revision\" xmlns:xr6=\"http://schemas.microsoft.com/office/spreadsheetml/2016/revision6\" xmlns:xr10=\"http://schemas.microsoft.com/office/spreadsheetml/2016/revision10\" xmlns:xr2=\"http://schemas.microsoft.com/office/spreadsheetml/2015/revision2\"><fileVersion appName=\"xl\" lastEdited=\"7\" lowestEdited=\"7\" rupBuild=\"30430\"/><workbookPr defaultThemeVersion=\"202300\"/><mc:AlternateContent xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\"><mc:Choice Requires=\"x15\"><x15ac:absPath url=\"C:\\Work\\DnaCalc\\DnaCalc-cfml\\crates\\calc-engine\\tests\\fixtures\\dc_10y_iteration\\\" xmlns:x15ac=\"http://schemas.microsoft.com/office/spreadsheetml/2010/11/ac\"/></mc:Choice></mc:AlternateContent><xr:revisionPtr revIDLastSave=\"0\" documentId=\"8_{8BDD105A-D583-4BC4-939A-141A23B4233D}\" xr6:coauthVersionLast=\"47\" xr6:coauthVersionMax=\"47\" xr10:uidLastSave=\"{00000000-0000-0000-0000-000000000000}\"/><bookViews><workbookView xWindow=\"3510\" yWindow=\"3510\" windowWidth=\"21600\" windowHeight=\"11295\" xr2:uid=\"{63AB64E6-7AA1-4F0F-9DA4-BC099D00DCE1}\"/></bookViews><sheets><sheet name=\"It\" sheetId=\"1\" r:id=\"rId1\"/></sheets><calcPr calcId=\"191029\" iterate=\"1\" iterateCount=\"50\" iterateDelta=\"1E-4\"/><extLst><ext uri=\"{140A7094-0E35-4892-8432-C4D2E57EDEB5}\" xmlns:x15=\"http://schemas.microsoft.com/office/spreadsheetml/2010/11/main\"><x15:workbookPr chartTrackingRefBase=\"1\"/></ext><ext uri=\"{B58B0392-4F1F-4190-BB64-5DF3571DCE5F}\" xmlns:xcalcf=\"http://schemas.microsoft.com/office/spreadsheetml/2018/calcfeatures\"><xcalcf:calcFeatures><xcalcf:feature name=\"microsoft.com:RD\"/><xcalcf:feature name=\"microsoft.com:Single\"/><xcalcf:feature name=\"microsoft.com:FV\"/><xcalcf:feature name=\"microsoft.com:CNMTM\"/><xcalcf:feature name=\"microsoft.com:LET_WF\"/><xcalcf:feature name=\"microsoft.com:LAMBDA_WF\"/><xcalcf:feature name=\"microsoft.com:ARRAYTEXT_WF\"/></xcalcf:calcFeatures></ext><ext uri=\"{D14903EA-33C4-47F7-8F05-3474C54BE107}\" xmlns:xlwcv=\"http://schemas.microsoft.com/office/spreadsheetml/2024/workbookCompatibilityVersion\"><xlwcv:version setVersion=\"2\"/></ext></extLst></workbook>",
+    "xl/calcChain.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n<calcChain xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><c r=\"H1\" i=\"1\" l=\"1\"/><c r=\"A1\" i=\"1\"/><c r=\"B1\" i=\"1\"/><c r=\"C1\" i=\"1\"/><c r=\"D1\" i=\"1\"/><c r=\"E1\" i=\"1\"/><c r=\"F1\" i=\"1\"/><c r=\"G1\" i=\"1\"/><c r=\"K1\" i=\"1\"/><c r=\"L1\" i=\"1\"/><c r=\"C3\" i=\"1\"/><c r=\"D3\" i=\"1\"/><c r=\"E3\" i=\"1\"/><c r=\"A5\" i=\"1\"/><c r=\"B5\" i=\"1\"/><c r=\"C5\" i=\"1\"/><c r=\"A6\" i=\"1\"/></calcChain>"
+  },
+  "excel_version": "16.0",
+  "condition": {
+    "id": "eng20-persistence-dc_10y_iteration-calculate-before-save-true",
+    "iteration": true,
+    "iterations": 50,
+    "change_bits": "3f1a36e2eb1c432d",
+    "commands": 1,
+    "command_sequence": [
+      "Rebuild"
+    ],
+    "operation": "Rebuild",
+    "range": "A1:Z1000",
+    "persistence": true,
+    "calculate_before_save": true,
+    "calculation_mode": "manual"
+  },
+  "cpu": "AMD Ryzen 7 4800H with Radeon Graphics         ",
+  "excel_channel": [
+    "current",
+    "http://officecdn.microsoft.com/pr/492350f6-3a01-4f97-b9c0-c7c6ddf67d60"
+  ],
+  "trial": 1,
+  "excel_machine": "x86-64",
+  "locale": "en-ZA",
+  "input_sha256": "dd3d66a85327aaa2cfef12f54607821482babdb4947655ba31aa0fccd9fce87f",
+  "generator_sha256": "E5552757EE09E32611B5E99A2F1AB8DC5A9AE31EE6F72B6E93640DB4BE4BD8AA",
+  "excel_file_version": "16.0.20527.20150",
+  "limitations": "Pure COM lane, no observer UDF or event instrumentation. Save and reopen are separate recorded operations; initial stored seeds are verified before calculation.",
+  "fatal": null
+}

@@ -2,7 +2,7 @@
 
 `dc-snz.3` value calls are closed; `dc-snz.5` remains in progress (2026-10-31).
 Only `calc-vba` depends on the OxVba embedding API, pinned to
-`7eb4fdd93dbbce1a7a1e8114aec7d21ffbcddd6a`. Native builds prefer JIT;
+`a4bf979239e1cb67326d13b760c04ecd13bbf55f`. Native builds prefer JIT;
 browser builds omit JIT and use the interpreter. A native admission decline can select
 the interpreter before any code runs. Runtime errors and exhausted budgets never retry.
 The OxVba/CalcVba rename is deferred; OneCalc stays free of calc-engine/calc-doc/calc-host.

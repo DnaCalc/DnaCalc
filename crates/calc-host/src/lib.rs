@@ -64,6 +64,8 @@ mod format;
 mod filter;
 pub use filter::{AutoFilter,FilterCriteria,FilterOperator,FilterPredicate,FilterChange,filter_values,filter_values_for};
 mod names;
+mod name_calculation;
+pub use name_calculation::{NameCalculation, NameCalculationProgress, NameCalculationResult};
 pub use facts::alignment as style_alignment;
 pub use format::{BorderPatch, FormatPatch, format_regions, format_samples, patched_style};
 pub use names::{NameDiagnosticEvaluation, NameEdit, NameInvocationView};
