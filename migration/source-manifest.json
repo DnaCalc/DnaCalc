@@ -1101,14 +1101,14 @@
   ],
   "not_pinned": [
     {
-      "archive": "DnaCalc/OxFunc-Evidence",
+      "archive": "DnaCalc/CalcFunc-Evidence",
       "owner": "infra-m0.6",
       "path": "smart-fuzzer/cache/",
       "reason": "bulk evidence",
       "repository": "OxFunc"
     },
     {
-      "archive": "DnaCalc/OxFunc-Evidence",
+      "archive": "DnaCalc/CalcFunc-Evidence",
       "owner": "infra-m0.6",
       "path": "smart-fuzzer/runs/",
       "reason": "bulk evidence",

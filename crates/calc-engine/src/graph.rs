@@ -368,6 +368,13 @@ pub(crate) struct ReverseIndex {
 }
 
 impl ReverseIndex {
+    /// Rebuild discards every derived edge. Retire the index in one traversal,
+    /// retaining a changed epoch so an existing readers cache cannot match it.
+    pub(crate) fn clear(&mut self) {
+        let epoch = self.epoch.checked_add(1).expect("graph epoch exhausted");
+        *self = Self { epoch, ..Self::default() };
+    }
+
     pub(crate) fn name_bindings(&self, node: NodeId) -> &[calc_fml::reference::NameBindingProof] {
         self.name_bindings.get(&node).map_or(&[], Vec::as_slice)
     }

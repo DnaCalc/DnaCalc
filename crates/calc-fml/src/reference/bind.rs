@@ -422,7 +422,16 @@ impl Binder<'_> {
                 SyntaxKind::UnsupportedExpr => Some(Err(BindError::UnsupportedSyntax)),
                 SyntaxKind::QualifiedReferenceExpr if self.qualified_structured(node) => continue,
                 SyntaxKind::QualifiedReferenceExpr
-                    if qualified_call(node).is_some_and(|(book, _)| match &book {
+                    if qualified_sheet_call(node).is_some_and(|(sheet, call)| {
+                        let Some(SyntaxChild::Token(name)) = call.children().first() else {
+                            return false;
+                        };
+                        self.catalog.sheet_named(&sheet).is_some_and(|sheet| {
+                            matches!(self.catalog.defined_name(name.text(), NameScope::Sheet(sheet)),
+                                NameDefinition::Formula(_))
+                        })
+                    })
+                        || qualified_call(node).is_some_and(|(book, _)| match &book {
                         ExternalBookRef::Number(_) => true,
                         ExternalBookRef::File(name) => {
                             self.catalog.workbook_name().is_some_and(|held| {
@@ -431,8 +440,8 @@ impl Binder<'_> {
                         }
                     }) =>
                 {
-                    // The qualifier selects the procedure's workbook, not the sheets of
-                    // its arguments. Ordinary reference binding still walks those arguments.
+                    // A name/procedure qualifier does not qualify its argument references.
+                    // Ordinary binding still walks the arguments in the caller's context.
                     let (_, call) = qualified_call(node).expect("a qualified call");
                     visit_children(call, &mut pending);
                     continue;
@@ -851,6 +860,13 @@ pub fn qualified_name(node: &SyntaxNode) -> Option<(String, &Token)> {
         _ => return None,
     };
     Some((sheet, token))
+}
+
+pub(crate) fn qualified_sheet_call(node: &SyntaxNode) -> Option<(String, &SyntaxNode)> {
+    let (Qualifier::Sheet(sheet), target) = qualified_parts(node)? else {
+        return None;
+    };
+    (target.kind() == SyntaxKind::CallExpr).then_some((sheet, target))
 }
 
 /// A workbook qualifier followed by a call, retaining the workbook index or file spelling.

@@ -32,6 +32,18 @@ pub(crate) struct HostFacts {
     pub(crate) active_sheet: Option<SheetId>,
 }
 
+impl HostFacts {
+    pub(crate) fn matches(&self, host: &HostState) -> bool {
+        Arc::ptr_eq(&self.model, &host.model)
+            && Arc::ptr_eq(&self.styles, host.styles())
+            && Arc::ptr_eq(&self.sheets, &host.loaded.shared_sheets())
+            && self.axis_edits.as_ref() == host.axis_edits.as_slice()
+            && self.file == host.file && self.application == host.application
+            && self.calc_mode == host.calc_mode()
+            && self.active_sheet == host.loaded.active_sheet()
+    }
+}
+
 /// Where the cell at `at` was when the workbook was opened, through the rows and columns
 /// `edits` inserted and deleted since ([`HostState::opened_position`]).
 pub(crate) fn opened_position(edits: &[AxisEdit], at: CellKey) -> Option<(u32, u32)> {
@@ -233,6 +245,13 @@ impl WorkbookFacts for HostFacts {
 impl HostState {
     /// The snapshot of the workbook facts at the current revision (see the module documentation).
     pub(crate) fn workbook_facts(&self) -> Arc<dyn WorkbookFacts> {
+        if let Some(facts) = &self.current_facts && facts.matches(self) {
+            return facts.clone();
+        }
+        self.capture_workbook_facts()
+    }
+
+    fn capture_workbook_facts(&self) -> Arc<HostFacts> {
         Arc::new(HostFacts {
             model: Arc::clone(&self.model),
             styles: Arc::clone(self.styles()),
@@ -245,16 +264,39 @@ impl HostState {
         })
     }
 
+    /// Share the existing owner snapshot while all of its sources still match.
+    pub(crate) fn refresh_workbook_facts(&mut self) -> Arc<HostFacts> {
+        if let Some(facts) = &self.current_facts && facts.matches(self) {
+            return facts.clone();
+        }
+        self.renew_workbook_facts()
+    }
+
+    /// Cell passes retain their existing new fact version at each admission.
+    pub(crate) fn renew_workbook_facts(&mut self) -> Arc<HostFacts> {
+        let facts = self.capture_workbook_facts();
+        self.engine.set_workbook_facts(Some(facts.clone()));
+        self.current_facts = Some(facts.clone());
+        facts
+    }
+
+    pub(crate) fn revoke_calculation_handles(&mut self) {
+        self.calculation_authority = self.calculation_authority.checked_add(1)
+            .expect("owner calculation authority exhausted");
+    }
+
     /// Sets the file the workbook was opened from, which CELL("filename") and a reference to
     /// another sheet in CELL("address") name: its folder (with its trailing separator) and file
     /// name; a folder of `None` for a workbook never saved. `None` refuses them again.
     pub fn set_file(&mut self, file: Option<WorkbookFile>) {
+        if self.file != file { self.revoke_calculation_handles(); }
         self.file = file;
     }
 
     /// Sets the facts about the application and its platform that INFO reads (`release`,
     /// `osversion`, `system`, `directory`); `None` refuses them again.
     pub fn set_application(&mut self, application: Option<ApplicationFacts>) {
+        if self.application != application { self.revoke_calculation_handles(); }
         self.application = application;
     }
 }

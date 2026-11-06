@@ -292,6 +292,15 @@ impl Workbook {
         &self.session
     }
 
+    pub(crate) fn begin_name_calculation(&mut self, id: calc_host::value::NameId,
+        version: u64, caller: CellKey) -> Result<calc_host::NameCalculation, String> {
+        self.session.begin_name_calculation(id, version, caller)
+    }
+    pub(crate) fn advance_name_calculation(&mut self, work: &mut calc_host::NameCalculation,
+        quantum: usize) -> calc_host::NameCalculationProgress {
+        work.advance(&mut self.session, quantum)
+    }
+
     /// Native composition installs XLL/VBA/WIT adapters through one callable table.
     pub fn set_user_functions(&mut self, functions: calc_host::CallableTable) {
         self.session.set_user_functions(functions);

@@ -1105,6 +1105,7 @@ impl<'a> WorkbookReader<'a> {
                 return;
             }
             covered = index + 1;
+            if let Some((value,_))=self.view.state.pivot_results.cells.get(&at){batch.push(value.clone());if batch.len()>=BATCH&&flush(batch,sink).is_break(){return;}continue;}
             let flow = match literal_value(input) {
                 Some(value) => {
                     batch.push(value);
@@ -1287,6 +1288,8 @@ impl<'a> WorkbookReader<'a> {
     fn overlay(&mut self, at: CellKey) -> Overlay<'a> {
         let view = self.view;
         let definitions = view.inputs.definitions();
+        if let Some((value,_))=view.state.pivot_results.cells.get(&at){return Overlay::Value(value);}
+        if !view.state.pivot_results.issues.is_empty() && definitions.pivots().contains(at){self.denial.set(Some(calc_fml::ReadDenial{construct:"pivot refresh",owner:"dc-8wp"}));return Overlay::Missing;}
         // L3 (dc-m3u): a data table's cell reads as its node's result.
         if definitions.data_table_containing(at).is_some() && view.state.node_at(at).is_some() {
             return match self.formula_value(at) {
@@ -1346,7 +1349,7 @@ impl<'a> WorkbookReader<'a> {
         let view = self.view;
         let inputs = view.inputs;
         let definitions = inputs.definitions();
-        if view.spills.is_empty()
+        if view.state.pivot_results.cells.is_empty() && view.state.pivot_results.issues.is_empty() && view.spills.is_empty()
             && view.state.spills.is_empty()
             && view.boundary_caches.is_none_or(|pin| pin.spills.is_empty())
             && definitions.arrays_meeting(area).next().is_none()
@@ -1406,6 +1409,7 @@ impl<'a> WorkbookReader<'a> {
                 }
             }
         }
+        candidates.extend(view.state.pivot_results.cells.range(area.first()..=area.last()).filter(|(at,_)|area.contains(**at)).map(|(at,_)|*at));
         let mut out = BTreeMap::new();
         for at in candidates {
             if inputs.cell(at).is_some() {
@@ -1437,6 +1441,9 @@ impl<'a> WorkbookReader<'a> {
     /// give it, the cell of a what-if table's node included; `None` for an empty cell, which an
     /// overlay may fill and the walk reads.
     fn single(&mut self, at: CellKey) -> Option<Single<'a>> {
+        if let Some((value,_))=self.view.state.pivot_results.cells.get(&at){return Some(Single::Formula(value));}
+        if !self.view.state.pivot_results.issues.is_empty() && self.view.inputs.definitions().pivots().contains(at){self.denial.set(Some(calc_fml::ReadDenial{construct:"pivot refresh",owner:"dc-8wp"}));return Some(Single::Missing);}
+
         if let Some(node) = self.view.state.node_at(at) {
             return Some(match self.node_value(node, at) {
                 Some(value) => Single::Formula(value),

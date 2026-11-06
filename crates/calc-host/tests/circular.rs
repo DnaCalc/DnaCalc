@@ -165,6 +165,88 @@ fn session_without_recalc(bytes: &[u8]) -> HostSession {
     HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).expect("it opens")
 }
 
+/// Eng20 independently varies CalculateBeforeSave. The same finite iterative
+/// inputs retain their values through false and advance through true. Reopen
+/// remains a file-cache observation until a distinct explicit rebuild. The
+/// comparisons cover the original 27 finite capture-failure positions; other
+/// numeric differences remain counted by the ordinary whole-workbook corpus.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_14__eng20_iterative_save_settings_preserve_distinct_phases() {
+    let cases: &[(&[u8], &[u8], &[u8], &[u8])] = &[
+        (include_bytes!("../../calc-engine/tests/fixtures/dc_86f/oracle.xlsx"),
+         include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P06/eng20-20261106/eng20-persistence-dc_86f-calculate-before-save-false/result.json"),
+         include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P06/eng20-20261106/eng20-persistence-dc_86f-calculate-before-save-true/result.json"),
+         include_bytes!("../../calc-engine/tests/captures/dc_86f/oracle.capture.json")),
+        (include_bytes!("../../calc-engine/tests/fixtures/dc_10y_iteration/oracle.xlsx"),
+         include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P06/eng20-20261106/eng20-persistence-dc_10y_iteration-calculate-before-save-false/result.json"),
+         include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P06/eng20-20261106/eng20-persistence-dc_10y_iteration-calculate-before-save-true/result.json"),
+         include_bytes!("../../calc-engine/tests/captures/dc_10y_iteration/oracle.capture.json")),
+    ];
+    let mut checked = 0;
+    for (input, no_calculation, calculate, capture) in cases {
+        let capture: serde_json::Value = serde_json::from_slice(capture).unwrap();
+        let selected = |cell: &&serde_json::Value| capture["session"]["failures"].as_array().unwrap().iter().any(|failure|
+            failure["sheet"] == cell["sheet"] && failure["row"] == cell["row"] && failure["column"] == cell["column"]);
+        for (calculate_before_save, record) in [(false, no_calculation), (true, calculate)] {
+            let record: serde_json::Value = serde_json::from_slice(record).unwrap();
+            let stage = |name: &str| record["observations"].as_array().unwrap().iter().find(|s| s["stage"] == name).unwrap();
+            for budget in [1, usize::MAX] {
+                let mut book = HostSession::open(Arc::new(MemorySource::new(input.to_vec())),
+                    &OpenPolicy::default(), HostOptions { calc_mode: Some(CalcMode::Manual), ..Default::default() }).unwrap();
+                book.set_calculation_budget(calc_host::WorkBudget::evaluations(budget));
+                let drain = |book: &mut HostSession| {
+                    for _ in 0..100_000 {
+                        if !book.has_pending_calculation() { break; }
+                        assert!(!matches!(book.advance_calculation(), calc_host::HostProgress::Failed(_)));
+                    }
+                    assert!(!book.has_pending_calculation());
+                };
+                let mut assert_stage = |book: &HostSession, name: &str| {
+                    for cell in stage(name)["cells"].as_array().unwrap().iter().filter(selected) {
+                        let s = book.host().sheets().iter().find(|s| s.name().text().to_string_lossy() == cell["sheet"].as_str().unwrap()).unwrap().id();
+                        let at = CellKey::new(s, cell["row"].as_u64().unwrap() as u32, cell["column"].as_u64().unwrap() as u32).unwrap();
+                        let page = project(book.host(), &ProjectionRequest { cells: vec![at] }).unwrap();
+                        let ProjectedValue::Calculated { value, calculation } = page.cells()[0].value() else {
+                            panic!("{} {name} {at:?}: {:?}", record["condition"]["id"], page.cells()[0].value());
+                        };
+                        assert!(!calculation.held_by_circular_rule());
+                        assert_eq!(value, &p14_value(&cell["value"]), "{} {name} {at:?}", record["condition"]["id"]);
+                        checked += 1;
+                    }
+                };
+                assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+                drain(&mut book);
+                assert_stage(&book, "before-save");
+                let s = book.host().sheets()[0].id();
+                let image = book.prepare_save_with_context(&SavePolicy::default(), calc_host::ExcelSaveContext {
+                    operation: calc_host::SaveOperation::SaveAs, calculate_before_save, active_sheet: s,
+                    disabled_sheets: &[], before_save: None,
+                }).unwrap();
+                assert_stage(&book, "after-save");
+                let mut saved = Vec::new();
+                image.write(&mut saved).unwrap();
+                let mut reopened = HostSession::open(Arc::new(MemorySource::new(saved)), &OpenPolicy::default(),
+                    HostOptions { calc_mode: Some(CalcMode::Manual), ..Default::default() }).unwrap();
+                for cell in stage("after-reopen")["cells"].as_array().unwrap().iter().filter(selected) {
+                    let s = reopened.host().sheets().iter().find(|s| s.name().text().to_string_lossy() == cell["sheet"].as_str().unwrap()).unwrap().id();
+                    let at = CellKey::new(s, cell["row"].as_u64().unwrap() as u32, cell["column"].as_u64().unwrap() as u32).unwrap();
+                    let page = project(reopened.host(), &ProjectionRequest { cells: vec![at] }).unwrap();
+                    let ProjectedValue::FileCached(cache) = page.cells()[0].value() else {
+                        panic!("a reopened value has no producing invocation");
+                    };
+                    assert_eq!(cache.value().to_value(), p14_value(&cell["value"]));
+                }
+                reopened.set_calculation_budget(calc_host::WorkBudget::evaluations(budget));
+                assert!(reopened.dispatch(SkinIntent::Rebuild).accepted());
+                drain(&mut reopened);
+                assert_stage(&reopened, "after-final-rebuild");
+            }
+        }
+    }
+    assert_eq!(checked, 324);
+}
+
 fn p14_value(raw: &serde_json::Value) -> CalcValue {
     use calc_host::value::{ExcelText, WorksheetErrorCode};
     if let Some(bits) = raw["number"].as_str() {

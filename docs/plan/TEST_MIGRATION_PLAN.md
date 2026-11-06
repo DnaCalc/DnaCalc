@@ -238,7 +238,7 @@ There are four dispositions. Each is checked by section 4.
      reference to an empty cell.
    - This is one extension of the one generator, not a second generator.
 4. **Import the readings, keep their environment.** OxFunc's captured answers (W111, the oracle
-   cache and the W109 banks, in the evidence repository OxFunc-Evidence) are Excel readings and
+   cache and the W109 banks, in the evidence repository CalcFunc-Evidence) are Excel readings and
    part of the project's Excel record (owner, 2026-10-30). They are imported as they were read,
    each with the Excel build, platform, bitness and CPU its capture recorded (all on one Windows
    host with an AMD Ryzen 7 4800H; builds 19929 to 20430, or unknown where the capture did not

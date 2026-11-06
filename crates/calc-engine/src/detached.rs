@@ -9,9 +9,15 @@
 //! a refusal) is refused as CalcFml refuses a missing input. Explicit name diagnostics,
 //! validation audits and filter decisions also refuse stale or qualified cached inputs
 //! through a shared current-value context. Rendering keeps its published-value policy.
+//! Selected names can separately admit an owned NameCalculationWork. That explicit
+//! pass can retain user-function effects across yields without publishing a cell;
+//! ordinary detached contexts and diagnostics keep their existing read-only policy.
 
 #[path = "detached_name.rs"]
 mod name_inspection;
+#[path = "detached_work.rs"]
+mod calculation;
+pub use calculation::{NameCalculationProgress, NameCalculationResult, NameCalculationWork};
 
 use crate::read::{Progress, RecalcView, SnapshotCatalog, WorkbookReader};
 use crate::result::NotModeled;
@@ -356,36 +362,9 @@ impl DetachedFormula {
         .and_then(|context| {
             self.validate_context(&context, at)?;
             let mut random = self.selected_name.as_ref().map(|definition| {
-                use crate::contract::{
-                    CalcCommandId, CalcPassId, InvocationId, NameEvaluationLocus, PassReason,
-                    ReevaluationReason,
-                };
-                let workbook = state.workbook_instance();
-                let sequence = state.allocate_tick();
-                root = Some(InvocationId {
-                    pass: CalcPassId {
-                        command: CalcCommandId {
-                            domain_incarnation: workbook.document,
-                            sequence,
-                        },
-                        ordinal: 0,
-                        reason: PassReason::Initial,
-                    },
-                    workbook,
-                    locus: NameEvaluationLocus {
-                        definition: definition.clone(),
-                        caller: at,
-                    },
-                    evaluation: 0,
-                    call_site: 0,
-                    occurrence: Vec::new(),
-                    reason: ReevaluationReason::NewCommandDemand,
-                });
-                crate::random::RecordedRandom::new(crate::random::RandomStream::new(
-                    state.random_seed,
-                    sequence,
-                    at,
-                ))
+                let (identity, random) = name_pass(state, definition.clone(), at);
+                root = Some(identity);
+                random
             });
             let outcome = self.evaluate_recording(
                 &context,
@@ -417,11 +396,17 @@ impl DetachedFormula {
         context: &DetachedEvaluationContext<'_>,
         at: CellKey,
     ) -> Result<(), NotModeled> {
-        let inputs = context.inputs;
-        if !inputs.same_lineage(&self.compiled_inputs)
+        self.validate_inputs(context.state, context.inputs, at,
+            context.policy == DetachedReadPolicy::CurrentValues)
+    }
+
+    fn validate_inputs(&self, state: &EngineState, inputs: &ModelRoot, at: CellKey,
+        current: bool) -> Result<(), NotModeled> {
+        if state.revision() != inputs.revision()
+            || !inputs.same_lineage(&self.compiled_inputs)
             || inputs.sheet_by_id(at.sheet()).is_none()
             || (at.sheet() != self.caller_sheet && !self.plan.name_bindings().is_empty())
-            || (context.policy == DetachedReadPolicy::CurrentValues
+            || (current
                 && (inputs.revision() != self.compiled_inputs.revision()
                     || at.sheet() != self.caller_sheet
                     || !Arc::ptr_eq(inputs.definitions(), self.compiled_inputs.definitions())
@@ -429,7 +414,7 @@ impl DetachedFormula {
                         .plan
                         .callable_bindings()
                         .iter()
-                        .any(|proof| !context.state.callables.validates(proof))))
+                        .any(|proof| !state.callables.validates(proof))))
             || !crate::contract::name_bindings_valid(inputs, self.plan.name_bindings())
         {
             return Err(NotModeled::Evaluation(EvalFault::NotModelled {
@@ -492,4 +477,20 @@ impl DetachedFormula {
         }
         outcome.map_err(NotModeled::Evaluation)
     }
+}
+
+fn name_pass(state: &EngineState, definition: calc_fml::reference::BoundName, at: CellKey)
+    -> (crate::contract::NameInvocationId, crate::random::RecordedRandom) {
+    use crate::contract::{CalcCommandId, CalcPassId, InvocationId, NameEvaluationLocus,
+        PassReason, ReevaluationReason};
+    let workbook = state.workbook_instance();
+    let sequence = state.allocate_tick();
+    (InvocationId {
+        pass: CalcPassId { command: CalcCommandId { domain_incarnation: workbook.document,
+            sequence }, ordinal: 0, reason: PassReason::Initial },
+        workbook, locus: NameEvaluationLocus { definition, caller: at },
+        evaluation: 0, call_site: 0, occurrence: Vec::new(),
+        reason: ReevaluationReason::NewCommandDemand,
+    }, crate::random::RecordedRandom::new(crate::random::RandomStream::new(
+        state.random_seed, sequence, at)))
 }

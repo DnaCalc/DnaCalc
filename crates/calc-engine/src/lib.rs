@@ -73,6 +73,7 @@ mod state;
 mod structural;
 
 pub use detached::{DetachedEvaluationContext, DetachedFormula, DetachedNameEvaluation, DetachedReadPolicy};
+pub use detached::{NameCalculationProgress, NameCalculationResult, NameCalculationWork};
 pub use random::{MAX_RECORDED_RANDOM_DRAWS, RandomDrawEvidence};
 pub use edit::{
     CommitReceipt, InputSeed, NodeChange, PrepareError, PreparedEngineChange, commit_edit,
@@ -103,3 +104,5 @@ pub use contract::{
     AdmissionReceipt, CalcCommandId, CalcEvent, CalcPassId, CalcScope, CompletionReceipt,
     EvalSelection, InvocationId, ReadCertificate, ResultStamp,
 };
+
+pub mod pivot;

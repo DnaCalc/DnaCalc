@@ -15,8 +15,8 @@
 //!    options `cargo xtask compare` opens it with (the capture's locale, automatic calculation).
 //!    The parent decodes the capture once and hands each run its locale and formula inventory in
 //!    a small file, so that no run's peak memory holds a decoded capture;
-//! 2. rebuild: the first recalculation, which compiles every formula, builds the graph, orders and
-//!    evaluates every formula (Excel's `CalculateFullRebuild`), timed as its first [`step`] with a
+//! 2. cold build (`rebuild_s` in JSON): the first recalculation, which compiles every formula,
+//!    builds the graph, orders and evaluates every formula, timed as its first [`step`] with a
 //!    budget of no evaluations (binding and ordering) and the step that evaluates and publishes;
 //! 3. project: [`project`] of every formula cell of the capture's inventory, counting the cells
 //!    projected as calculated by the engine. A run in which any is not counts as failed: a file
@@ -28,7 +28,10 @@
 //!    number times 1.01 (1 when it holds 0) by [`dispatch`], then the recalculation of the dirty
 //!    closure, then the cell set back and recalculated, each timed (commit and recalculation) with
 //!    the number of formulas the recalculation published; the pair is done `--repeat` times;
-//! 6. memory: on Windows, peak working set/private bytes (`GetProcessMemoryInfo`);
+//! 6. warm Rebuild: the existing HostSession Rebuild command discards the bound graph and
+//!    recalculates every formula after the preceding phases; both thread lanes run it and
+//!    every formula is projected and checked again. Its clock includes dependency cleanup.
+//! 7. memory: on Windows, peak working set/private bytes (`GetProcessMemoryInfo`);
 //!    on Linux, resident bytes by phase and peak RSS (`/proc/self/status` VmRSS/VmHWM).
 //!    RSS is not private/committed memory; unavailable counters remain null.
 //!
@@ -60,6 +63,7 @@ use crate::corpus::{Cache, DEFAULT_CACHE, Entry, compare_program, excel_build, f
 use calc_host::value::{CellKey, SheetId};
 use calc_host::{
     CalcMode, CellEdit, CellInput, FiniteNumber, HostCommand, HostOptions, HostProgress, HostState,
+    HostSession, SkinIntent,
     MemorySource, OpenPolicy, PackageRead, ProjectedValue, ProjectionRequest, Unobserved,
     WorkBudget, calculate_full, dispatch, project, step,
 };
@@ -378,6 +382,28 @@ fn recalculate(host: &mut HostState, ask: impl FnOnce(&mut HostState)) -> Result
     }
 }
 
+/// Exercise the application's actual Rebuild admission on an already bound graph.
+fn warm_rebuild(session: &mut HostSession) -> Result<Phases, String> {
+    session.set_calculation_budget(WorkBudget::evaluations(0));
+    let clock = Clock::start();
+    let receipt = session.dispatch(SkinIntent::Rebuild);
+    let order = clock.stop();
+    if !receipt.accepted() {
+        return Err(format!("warm Rebuild was refused: {:?}", receipt.error));
+    }
+    let mut progress = receipt.recalc.ok_or("warm Rebuild supplied no progress")?;
+    session.set_calculation_budget(WorkBudget::UNLIMITED);
+    let clock = Clock::start();
+    while matches!(progress, HostProgress::Calculating { .. }) {
+        progress = session.advance_calculation();
+    }
+    let evaluate = clock.stop();
+    match progress {
+        HostProgress::Published(delta) => Ok(Phases { order, evaluate, published: delta.changes().len() }),
+        other => Err(format!("warm Rebuild did not publish: {other:?}")),
+    }
+}
+
 /// Projects `cells` and counts those the engine calculated; the seconds it took.
 fn calculated(host: &HostState, request: &ProjectionRequest) -> Result<(f64, usize), String> {
     let started = Instant::now();
@@ -647,6 +673,17 @@ fn run_one(
             from = to;
         }
     }
+    let mut session = HostSession::new(host);
+    let warm = warm_rebuild(&mut session)?;
+    if let Some(twin) = twin.take() {
+        let mut twin = HostSession::new(twin);
+        warm_rebuild(&mut twin)?;
+        differing += differences(session.host(), twin.host(), &inventory)?;
+        compared += 1;
+    }
+    let (warm_project_s, warm_count) = calculated(session.host(), &inventory)?;
+    all_calculated(warm_count, "warm Rebuild")?;
+    let rss_after_warm_rebuild = resident("VmRSS:");
     let memory = peak_memory();
     Ok(json!({
         "threads": threads,
@@ -662,6 +699,12 @@ fn run_one(
         "rebuild_evaluate_gcycles": available_cycles(rebuild.evaluate.1),
         "rebuild_gcycles": available_cycles(rebuild.order.1 + rebuild.evaluate.1),
         "rebuild_published": rebuild.published,
+        "warm_rebuild_order_s": warm.order.0,
+        "warm_rebuild_evaluate_s": warm.evaluate.0,
+        "warm_rebuild_s": warm.order.0 + warm.evaluate.0,
+        "warm_rebuild_published": warm.published,
+        "warm_project_s": warm_project_s,
+        "rss_after_warm_rebuild": rss_after_warm_rebuild,
         "project_s": project_s,
         "fulls": fulls,
         "full_project_s": full_project,
@@ -849,6 +892,10 @@ fn workbook_stats(dna: &[Value], excel: &Value) -> Value {
             "rebuild_s": stats(&samples(&ok, "rebuild_s", None)),
             "rebuild_order_s": stats(&samples(&ok, "rebuild_order_s", None)),
             "rebuild_evaluate_s": stats(&samples(&ok, "rebuild_evaluate_s", None)),
+            "warm_rebuild_s": stats(&samples(&ok, "warm_rebuild_s", None)),
+            "warm_rebuild_order_s": stats(&samples(&ok, "warm_rebuild_order_s", None)),
+            "warm_rebuild_evaluate_s": stats(&samples(&ok, "warm_rebuild_evaluate_s", None)),
+            "warm_project_s": stats(&samples(&ok, "warm_project_s", None)),
             "full_s": stats(&samples(&ok, "full_s", Some("fulls"))),
             "full_order_s": stats(&samples(&ok, "order_s", Some("fulls"))),
             "full_evaluate_s": stats(&samples(&ok, "evaluate_s", Some("fulls"))),
@@ -921,6 +968,17 @@ fn markdown(run: &Value, workbooks: &[Value]) -> String {
             cell(&get("full_evaluate_s"), 1.0, 3),
             cell(&get("project_s"), 1.0, 3),
         ));
+    }
+    out.push_str("\n## DNA Calc warm Rebuild\n\nThe existing Rebuild columns above time a newly opened, unbound graph. This separate command discards an already bound graph through HostSession and checks every formula again. No Excel warm-Rebuild timing is supplied.\n\n| Workbook | Clear, bind and order s | Evaluate and publish s | Total s | Project inventory s |\n|---|---|---|---|---|\n");
+    for workbook in workbooks {
+        let m = &workbook["stats"]["dna"];
+        let get = |k: &str| -> Option<Value> { m.get(k).cloned().filter(|v| !v.is_null()) };
+        out.push_str(&format!("| {} | {} | {} | {} | {} |\n",
+            workbook["name"].as_str().unwrap_or("?"),
+            cell(&get("warm_rebuild_order_s"), 1.0, 3),
+            cell(&get("warm_rebuild_evaluate_s"), 1.0, 3),
+            cell(&get("warm_rebuild_s"), 1.0, 3),
+            cell(&get("warm_project_s"), 1.0, 3)));
     }
     out.push_str("\n## DNA Calc thread cycles (billions; QueryThreadCycleTime, less sensitive to other load than wall time)\n\n| Workbook | Open | Rebuild | Full | Full: order | Full: evaluate | One-cell edit |\n|---|---|---|---|---|---|---|\n");
     for workbook in workbooks {

@@ -1760,8 +1760,8 @@ fn cfml_m1_2__provider_reads() {
     );
 
     // A qualifier belongs to its whole operand. Before an operand that is no reference endpoint
-    // it is refused as one site spanning both, without a catalogue request, so nothing inside
-    // binds as a reference of the anchor's sheet or of an inner qualifier's.
+    // it is refused as one site spanning both, so nothing inside binds as a reference of
+    // the anchor's sheet or of an inner qualifier's. A call checks for a scoped name first.
     let asked = catalog.requests.borrow().len();
     for formula in [
         "=Sheet2!(A1)",
@@ -1800,8 +1800,10 @@ fn cfml_m1_2__provider_reads() {
             "{formula}"
         );
     }
-    // L3 (dc-m3u): the run of sheets asked for its two sheets.
-    let asked = asked + 2;
+    // The qualified call checked Sheet2 for a defined-name callee; the run of sheets
+    // asked for its two sheets. No argument or inner qualifier added a sheet request.
+    assert_eq!(&catalog.requests.borrow()[asked..], ["Sheet2", "Sheet1", "Sheet3"]);
+    let asked = asked + 3;
     // An array constant holds constants only: each reference inside one is refused, a qualified
     // one without asking the catalogue, and the constants and the name give no site.
     assert_eq!(

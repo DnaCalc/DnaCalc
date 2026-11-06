@@ -160,6 +160,8 @@ pub enum SkinIntent {
     /// Excel's Calculate Now does).
     Recalculate,
     /// Rebuild formula bindings/dependencies, then force every workbook formula.
+    /// Active cell work blocks admission. A retained name handle expires when
+    /// this command resets binding authority, before it can enter more user code.
     Rebuild,
     /// Explicit exact-area calculation. Formula caches outside the areas are a bounded P02
     /// refusal until boundary-cache qualifications are implemented.
@@ -504,6 +506,7 @@ impl HostSession {
     }
 
     pub fn cancel_calculation(&mut self) {
+        self.host.revoke_calculation_handles();
         if let Some(mut work) = self.host.work.take() {
             self.host.record_calc_events(work.take_events());
             let receipt = work.completion(
@@ -940,6 +943,7 @@ impl HostSession {
                 self.request_calculation(scope, selection, &mut receipt)
             }
             SkinIntent::SetCalcMode(mode) => {
+                if self.host.calc_mode() != mode { self.host.revoke_calculation_handles(); }
                 self.host.options.calc_mode = Some(mode);
                 if mode != CalcMode::Manual {
                     self.recalculate(&mut receipt);
@@ -1606,6 +1610,9 @@ impl HostSession {
                     }
                 }
             }
+            // Explicit pivot outputs have no authored cell inputs. Every skin subscription uses
+            // the same sparse engine-owned output map as direct projections and formula reads.
+            cells.extend(self.host.engine.pivot_results().cells.range(area.first()..=area.last()).filter(|(at,_)|area.contains(**at)).map(|(at,_)|*at));
             for array in definitions.arrays_meeting(area) {
                 cells.extend(cells_of(intersection(array.area(), area)));
             }

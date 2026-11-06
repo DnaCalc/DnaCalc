@@ -11,6 +11,7 @@
 //! view manifest ([`manifest`]) and adds or removes its blocks' locator names. [`write`] streams
 //! the plan to the sink entry by entry.
 
+pub(crate) mod pivot;
 mod array_metadata;
 mod author;
 pub(crate) mod chart;
@@ -96,9 +97,12 @@ pub(crate) struct Edited {
     /// package's rows, columns and what lies on them by ([`DocumentSnapshot::with_structural_edits`]).
     structural: Option<StructuralEdits>,
     cache_state: Option<CalculationCacheState>,
+    pivot_outputs:Arc<BTreeMap<CellKey,calc_doc_model::value::CalcValue>>,
 }
 
 impl DocumentSnapshot {
+    pub fn with_pivot_outputs(mut self,values:Arc<BTreeMap<CellKey,calc_doc_model::value::CalcValue>>)->Self{if let Some(edit)=self.edit.as_mut(){edit.pivot_outputs=values;}self}
+
     pub(crate) fn new(package: Arc<Package>) -> Self {
         DocumentSnapshot {
             package,
@@ -128,6 +132,7 @@ impl DocumentSnapshot {
                 spills,
                 structural: None,
                 cache_state: None,
+                pivot_outputs:Default::default(),
             }),
         }
     }
@@ -258,6 +263,7 @@ pub struct SaveViews {
 /// revision the caller holds.
 #[derive(Debug, PartialEq, Eq)]
 pub enum SaveRefusal {
+    PivotNotModelled {part:String,detail:String,owner:&'static str},
     ChartNotModelled {part:String,detail:String,owner:&'static str},
     TemplateNotModelled { detail: String, owner: &'static str },
     /// Macro-free output would discard active content. Choose a macro-enabled format.
@@ -362,6 +368,7 @@ pub enum SaveRefusal {
 impl fmt::Display for SaveRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::PivotNotModelled {part,detail,owner}=>write!(f,"{part}: {detail} ({owner})"),
             Self::ChartNotModelled {part,detail,owner}=>write!(f,"{part}: {detail} ({owner})"),
             Self::TemplateNotModelled { detail, owner } => write!(f, "{detail} ({owner}); nothing changed"),
             Self::WindowView {detail,owner}=>write!(f,"{detail} ({owner})"),

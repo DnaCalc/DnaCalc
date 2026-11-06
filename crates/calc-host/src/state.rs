@@ -115,6 +115,9 @@ pub struct HostState {
     pub(crate) async_records: calc_engine::AsyncReturns,
     pub(crate) last_calculation_completion: Option<calc_engine::CompletionReceipt>,
     pub(crate) pinned_calculations: std::rc::Rc<std::cell::Cell<usize>>,
+    /// Revokes owner-held continuations even when no cell calculation is active.
+    pub(crate) calculation_authority: u64,
+    pub(crate) current_facts: Option<Arc<crate::facts::HostFacts>>,
     pub(crate) functions: calc_fml::CallableTable,
     pub(crate) rtd_inputs: std::rc::Rc<crate::recalc::RtdSnapshot>,
     pub(crate) retired_rtd: std::collections::BTreeSet<calc_fml::UserInputKey>,
@@ -269,6 +272,8 @@ impl HostState {
             async_records: Default::default(),
             last_calculation_completion: None,
             pinned_calculations: Default::default(),
+            calculation_authority: 0,
+            current_facts: None,
             functions: calc_fml::CallableTable::new(),
             rtd_inputs: Default::default(),
             retired_rtd: Default::default(),
@@ -494,6 +499,7 @@ impl HostState {
                 area.last().column(),
             );
         }
+        for table in definitions.pivots().tables().filter(|t|t.area.sheet()==sheet){let area=table.area;take(area.first().row(),area.first().column(),area.last().row(),area.last().column());}
         let (top, left, bottom, right) = bounds?;
         let first = CellKey::new(sheet, top, left).expect("an occupied cell is inside the grid");
         let last = CellKey::new(sheet, bottom, right).expect("an occupied cell is inside the grid");
@@ -671,6 +677,7 @@ impl HostState {
             .collect();
         let definitions = self.model.definitions();
         let full = GridArea::full_sheet(sheet);
+        areas.extend(definitions.pivots().tables().filter(|t|t.area.sheet()==sheet).map(|t|t.area));
         areas.extend(definitions.arrays_meeting(full).map(|array| array.area()));
         areas.extend(
             definitions

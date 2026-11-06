@@ -32,7 +32,7 @@ here. Read `AGENTS.md` first; it is the contract. Then read the bead of your wor
 
 | # | Work set | Beads | Excel | Notes |
 |---|---|---|---|---|
-| 1 | Per-function bit-exact status | dc-ymjf.2, dc-ymjf.3 | partly | `cargo xtask witness judge`, pinned witness sets, `crates/calc-func/witness-status.tsv`; OxFunc's Excel answers (in OxFunc-Evidence) are imported as readings. Plan: `parked/assess/bit-exact.md` §4 (on the Windows machine). |
+| 1 | Per-function bit-exact status | dc-ymjf.2, dc-ymjf.3 | partly | `cargo xtask witness judge`, pinned witness sets, `crates/calc-func/witness-status.tsv`; OxFunc's Excel answers (in CalcFunc-Evidence) are imported as readings. Plan: `parked/assess/bit-exact.md` §4 (on the Windows machine). |
 | 2 | Algorithm search research | dc-ymjf.4 and its units | no (results are confirmed on the Windows machine) | A public research repository with the search tools; one unit per root cause: BINOM/POISSON mass (clean-room: never read the deleted `discrete_dist_family.rs`, its history or R nmath), ERFC body, PPMT/IPMT, the incomplete beta tail, RATE/IRR solvers, GAMMA.DIST's three cumulative cells. Good for other machines and models. |
 | 3 | Test migration from the legacy repositories | dc-jnt.5 to dc-jnt.16 | J1-J3 no (import), others partly | `docs/plan/TEST_MIGRATION_PLAN.md`. Bring useful OxFunc/OxFml/OxCalc/OxDoc tests over against calc-* APIs. Then dc-jnt.2 and dc-jnt.4 (archive, owner confirms each). |
 | 4 | Circular references | dc-y2o, dc-y2o.1, dc-y2o.2, dc-86f | yes | Iteration off as an engine rule with its own provenance; iteration on in Excel's order. Read the handover notes on the beads. |
@@ -77,14 +77,14 @@ force pushes), each publish to dnacalc.com (dc-ysl), and archiving legacy reposi
 ## Fresh numerical checks, 2026-10-31
 
 Run4 blind firehorse answers were committed before predictions were opened:
-[OxFunc-Evidence 0df452ec](https://github.com/DnaCalc/OxFunc-Evidence/tree/0df452ec/probes/2026-10-31-calcvba-run4),
-then [frozen scores 3f021224](https://github.com/DnaCalc/OxFunc-Evidence/tree/3f021224/probes/2026-10-31-calcvba-run4).
+[CalcFunc-Evidence 43022fef](https://github.com/DnaCalc/CalcFunc-Evidence/tree/43022fef/probes/2026-10-31-calcvba-run4),
+then [frozen scores 14ce2184](https://github.com/DnaCalc/CalcFunc-Evidence/tree/14ce2184/probes/2026-10-31-calcvba-run4).
 Retained frozen models match PMT78/132, GAMMA.DIST A34/128, BINOM.DIST25/120 and
 POISSON.DIST31/161. Poisson includes four changed subnormal inputs as unread
 failures. These targeted questions are separate from a whole-function pass rate.
 
 `dc-ymjf.5` retained independent readings and pre-reading predictions in
-[OxFunc-Evidence 0f4e1d95](https://github.com/DnaCalc/OxFunc-Evidence/tree/0f4e1d95/probes/2026-10-31-calcvba-run2).
+[CalcFunc-Evidence a8a001a9](https://github.com/DnaCalc/CalcFunc-Evidence/tree/a8a001a9/probes/2026-10-31-calcvba-run2).
 Against the frozen `379d51f` model, ERF.PRECISE matched 3908/4096 new inputs with
 abs(x)<0.01 (188 misses, worst 3 ULP). GAMMA's `df1215e` changed-input rechecks
 matched 2/97, and 194 new adjacent inputs matched 4; zero inputs changed or went

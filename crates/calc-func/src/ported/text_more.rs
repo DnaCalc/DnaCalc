@@ -503,13 +503,19 @@ pub(crate) fn regex_matches(
 
 // --- NUMBERVALUE (number_regex_translate_family.rs) ---------------------------------------------
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum NumberValueError {
+    Syntax,
+    Range,
+}
+
 pub(crate) fn numbervalue(
     text: &ExcelText,
     decimal_separator: Option<char>,
     group_separator: Option<char>,
-) -> Result<f64, WorksheetErrorCode> {
+) -> Result<f64, NumberValueError> {
     if decimal_separator.is_some() && decimal_separator == group_separator {
-        return Err(WorksheetErrorCode::Value);
+        return Err(NumberValueError::Syntax);
     }
     let mut raw: String = text
         .to_string_lossy()
@@ -526,7 +532,7 @@ pub(crate) fn numbervalue(
         percent_count += 1;
     }
     if raw.is_empty() {
-        return Err(WorksheetErrorCode::Value);
+        return Err(NumberValueError::Syntax);
     }
     let mut chars = raw.chars().peekable();
     let mut sign = 1.0;
@@ -539,6 +545,7 @@ pub(crate) fn numbervalue(
     let mut normalized = String::new();
     let mut seen_digit = false;
     let mut seen_decimal = false;
+    let mut seen_exponent = false;
     for ch in chars {
         if ch.is_ascii_digit() {
             normalized.push(ch);
@@ -546,27 +553,49 @@ pub(crate) fn numbervalue(
             continue;
         }
         if decimal_separator == Some(ch) {
-            if seen_decimal {
-                return Err(WorksheetErrorCode::Value);
+            if seen_decimal || seen_exponent {
+                return Err(NumberValueError::Syntax);
             }
             normalized.push('.');
             seen_decimal = true;
             continue;
         }
-        if group_separator == Some(ch) {
-            if seen_decimal {
-                return Err(WorksheetErrorCode::Value);
-            }
+        if group_separator == Some(ch) && !seen_decimal {
             continue;
         }
-        return Err(WorksheetErrorCode::Value);
+        if matches!(ch, 'e' | 'E') && seen_digit && !seen_exponent {
+            normalized.push('e');
+            seen_exponent = true;
+            continue;
+        }
+        if matches!(ch, '+' | '-') && normalized.ends_with('e') {
+            normalized.push(ch);
+            continue;
+        }
+        return Err(NumberValueError::Syntax);
     }
     if !seen_digit {
-        return Err(WorksheetErrorCode::Value);
+        return Err(NumberValueError::Syntax);
     }
-    let mut value = normalized
-        .parse::<f64>()
-        .map_err(|_| WorksheetErrorCode::Value)?;
+    let (mantissa, exponent) = if let Some((mantissa, exponent)) = normalized.split_once('e') {
+        if matches!(exponent, "" | "+" | "-") {
+            return Err(NumberValueError::Syntax);
+        }
+        (mantissa, exponent.parse::<i64>().map_err(|_| NumberValueError::Range)?)
+    } else {
+        (normalized.as_str(), 0)
+    };
+    let fraction_digits = mantissa.split_once('.').map_or(0, |(_, fraction)| fraction.len());
+    let digits = mantissa.replace('.', "");
+    let scale = exponent.checked_sub(fraction_digits as i64).ok_or(NumberValueError::Range)?;
+    let position = scale.checked_add(digits.trim_start_matches('0').len() as i64)
+        .ok_or(NumberValueError::Range)?;
+    // NUMBERVALUE checks this range even for an all-zero coefficient and before
+    // applying trailing percents (fn12's explicit-separator Excel controls).
+    if !(-308..=308).contains(&position) {
+        return Err(NumberValueError::Range);
+    }
+    let mut value = crate::value_text::decimal(&digits, scale).ok_or(NumberValueError::Range)?;
     value *= sign;
     Ok(numbervalue_percent(value, percent_count))
 }

@@ -87,6 +87,126 @@ fn exp_difference<F: Fpu>(t: f64, x: f64, c: f64) -> f64 {
     F::store(&exp_ext::<F>(&difference), CW)
 }
 
+/// `exp(start - terms[0] - terms[1] ...)` as Excel forms the exponential of a difference. Each
+/// subtraction is stored and what the store dropped is kept: the exponential is the public EXP of
+/// the last stored difference, then one stored multiply by the stored `1 + dropped` per subtraction,
+/// in order.
+///
+/// Measured on POISSON.DIST's prefactor route: at `x = 2` and negligible `lambda` the answers sit a
+/// sawtooth of one unit in the last place, with period 1/8 of the significand, away from one
+/// rounding of `exp(t - c)`. That is the double rounding of `exp(hi) * (1 + lo)` with `lo = 2^-49`,
+/// the part of GAMMALN(3) below the grid of `t`. At `x = 1` a run of 7,500 adjacent means then has
+/// no miss.
+pub(crate) fn excel_exp_compensated(start: f64, terms: &[f64]) -> f64 {
+    exp_compensated::<Native>(start, terms)
+}
+
+fn exp_compensated<F: Fpu>(start: f64, terms: &[f64]) -> f64 {
+    let mut stored = start;
+    let mut factors = [1.0_f64; 2];
+    for (term, factor) in terms.iter().zip(factors.iter_mut()) {
+        let difference = F::sub(&load(stored), &load(*term), CW);
+        stored = F::store(&difference, CW);
+        let dropped = F::store(&F::sub(&difference, &load(stored), CW), CW);
+        *factor = F::store(&F::add(&ext_one(), &load(dropped), CW), CW);
+    }
+    let mut value = exp_with::<F>(stored, CW);
+    for factor in &factors[..terms.len()] {
+        value = F::store(&F::mul(&load(value), &load(*factor), CW), CW);
+    }
+    value
+}
+
+/// `exp(start - terms...)` with one correction: the difference is stored after every subtraction,
+/// the same subtractions run on in the registers, and the exponential is the public EXP of the last
+/// stored difference times the stored `1 + (registers - stored)`. BINOM.DIST's normalizer.
+pub(crate) fn excel_exp_running(start: f64, terms: &[f64]) -> f64 {
+    exp_running::<Native>(start, terms)
+}
+
+fn exp_running<F: Fpu>(start: f64, terms: &[f64]) -> f64 {
+    let mut stored = start;
+    let mut registers = load(start);
+    for term in terms {
+        stored = F::store(&F::sub(&load(stored), &load(*term), CW), CW);
+        registers = F::sub(&registers, &load(*term), CW);
+    }
+    let dropped = F::store(&F::sub(&registers, &load(stored), CW), CW);
+    let factor = F::store(&F::add(&ext_one(), &load(dropped), CW), CW);
+    F::store(&F::mul(&load(exp_with::<F>(stored, CW)), &load(factor), CW), CW)
+}
+
+/// `stirling_error(n)` from its asymptotic series, ten terms in the registers, stored once. Ten terms
+/// because `n = 7` reads 2.2e-17 under the true value, where the tenth term leaves 2.0e-17 and the
+/// ninth and eleventh are 1.0e-16 and 4.5e-18 over. From 8 on the answers in the series range hold it
+/// to the true value within a few units in the last place.
+pub(crate) fn excel_stirling_series(n: f64) -> f64 {
+    stirling_series::<Native>(n)
+}
+
+fn stirling_series<F: Fpu>(n: f64) -> f64 {
+    const TERMS: [f64; 10] = [
+        1.0 / 12.0,
+        -1.0 / 360.0,
+        1.0 / 1260.0,
+        -1.0 / 1680.0,
+        1.0 / 1188.0,
+        -691.0 / 360360.0,
+        1.0 / 156.0,
+        -3617.0 / 122400.0,
+        43867.0 / 244188.0,
+        -174611.0 / 125400.0,
+    ];
+    let t = F::div(&ext_one(), &F::mul(&load(n), &load(n), CW), CW);
+    let mut w = load(TERMS[9]);
+    for term in TERMS[..9].iter().rev() {
+        w = F::add(&F::mul(&w, &t, CW), &load(*term), CW);
+    }
+    F::store(&F::div(&w, &load(n), CW), CW)
+}
+
+/// The deviance `x ln(x/np) + np - x` inside its series range. With `d = x - np` and `x + np` stored
+/// and `V` their stored quotient, `S` is the stored sum of `V` and the tail `v^3/3 + v^5/5 + ...` of
+/// `atanh v`, so that `ln(x/np) = 2 S`. The answer is the stored sum of the stored
+/// `(np - x) + st(2 x S) - st(2 x V)`, then `d`, then the stored `d V`.
+///
+/// Read from POISSON.DIST on runs of adjacent means, one rounding at a time. Each stored sum leaves
+/// a sawtooth in the exponent's error, and the sawtooth's frequency names the sum: the tail's
+/// rounding to `x` times the grid of `V` at `x = 100`, `x + np` stored at `x = 1024`, the products at
+/// `x = 501`. All 1,000 rows at `x = 100` and 1,199 of 1,200 at `x = 1024` agree.
+pub(crate) fn excel_deviance_series(x: f64, np: f64) -> f64 {
+    deviance_series::<Native>(x, np)
+}
+
+fn deviance_series<F: Fpu>(x: f64, np: f64) -> f64 {
+    let (fx, fnp) = (load(x), load(np));
+    let d = F::store(&F::sub(&fx, &fnp, CW), CW);
+    let v = F::div(&load(d), &load(F::store(&F::add(&fx, &fnp, CW), CW)), CW);
+    let w = F::mul(&v, &v, CW);
+    let (mut tail, mut power, mut j) = (load(0.0), v, 1.0);
+    loop {
+        power = F::mul(&power, &w, CW);
+        let next = F::add(&tail, &F::div(&power, &load(2.0 * j + 1.0), CW), CW);
+        if next.0 == tail.0 {
+            break;
+        }
+        tail = next;
+        j += 1.0;
+    }
+    let quotient = load(F::store(&v, CW));
+    let sum = load(F::store(&F::add(&quotient, &tail, CW), CW));
+    let twice_x = load(2.0 * x);
+    let near = F::add(
+        &load(F::store(&F::sub(&fnp, &fx, CW), CW)),
+        &load(F::store(&F::mul(&twice_x, &sum, CW), CW)),
+        CW,
+    );
+    let near = F::sub(&near, &load(F::store(&F::mul(&twice_x, &quotient, CW), CW)), CW);
+    let near = F::add(&load(F::store(&near, CW)), &load(d), CW);
+    let product = F::store(&F::mul(&load(d), &quotient, CW), CW);
+    F::store(&F::add(&near, &load(product), CW), CW)
+}
+
 /// `constant * log2 x` by `FYL2X`, with the logarithm's special values.
 fn log_with<F: Fpu>(x: f64, constant: &Ext80) -> f64 {
     if x.is_nan() {
@@ -154,17 +274,6 @@ fn root<F: Fpu>(product: f64, count: usize) -> f64 {
     libm::scalbn(F::store(&exp_ext::<F>(&load(mean)), CW), scale as i32)
 }
 
-/// BINOM.DIST's mass exponential: `e^(lc - lf/2)` with the difference extended.
-pub(crate) fn excel_binom_pmf_exp(lc: f64, lf: f64) -> f64 {
-    pmf_exp::<Native>(lc, lf)
-}
-
-fn pmf_exp<F: Fpu>(lc: f64, lf: f64) -> f64 {
-    let half = F::div(&load(lf), &load(2.0), CW);
-    let t = F::sub(&load(lc), &half, CW);
-    F::store(&exp_ext::<F>(&t), CW)
-}
-
 #[cfg(test)]
 mod tests {
     use super::super::Soft;
@@ -182,5 +291,9 @@ mod tests {
         assert_eq!(pow_direct::<Soft>(2.0, 10.0), 1024.0);
         assert_eq!(root::<Soft>(16.0, 2), 4.0);
         assert!(exp_with::<Soft>(1.5, CW_RZ) <= exp_with::<Soft>(1.5, CW));
+        assert_eq!(exp_compensated::<Soft>(1.5, &[0.25]), exp_with::<Soft>(1.25, CW));
+        assert_eq!(exp_running::<Soft>(1.5, &[0.25]), exp_with::<Soft>(1.25, CW));
+        let exact = 4.0 * (4.0_f64 / 3.0).ln() + 3.0 - 4.0;
+        assert!((deviance_series::<Soft>(4.0, 3.0) - exact).abs() < 1e-15);
     }
 }

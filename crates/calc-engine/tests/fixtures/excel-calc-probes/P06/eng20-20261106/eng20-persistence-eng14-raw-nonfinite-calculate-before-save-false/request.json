@@ -1,0 +1,23 @@
+{
+  "action": "observe",
+  "condition": {
+    "id": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false",
+    "iteration": false,
+    "iterations": 100,
+    "change_bits": "3f50624dd2f1a9fc",
+    "commands": 1,
+    "command_sequence": [
+      "Rebuild"
+    ],
+    "operation": "Rebuild",
+    "range": "A1:Z1000",
+    "persistence": true,
+    "calculate_before_save": false,
+    "calculation_mode": "automatic"
+  },
+  "trial": 1,
+  "input": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng20\\inputs\\eng14-raw-nonfinite\\oracle.xlsx",
+  "input_sha256": "240bd72aba9f1471a99d4de4208a75015a53f0d627019b7a15aef08cff055ac3",
+  "full_precision": true,
+  "unseeded_observation": true
+}

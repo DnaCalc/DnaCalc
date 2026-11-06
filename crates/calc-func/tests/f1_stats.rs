@@ -368,7 +368,8 @@ fn distributions_match_excel_examples() {
     close(call("WEIBULL.DIST", vec![n(105.0), n(20.0), n(100.0), b(true)]), 0.929581390069277, 1e-12);
     close(call("HYPGEOM.DIST", vec![n(1.0), n(4.0), n(8.0), n(20.0), b(false)]), 0.363261093911249, 1e-12);
     close(call("NEGBINOM.DIST", vec![n(10.0), n(5.0), n(0.25), b(false)]), 0.055048660375178, 1e-12);
-    // fresh-negbinom.dist-00113-fresh-endpoints: equality uses the deviance series.
+    // fresh-negbinom.dist-00113-fresh-endpoints: retain the recorded exact dyadic sum.
+    // Other classified distribution losses do not authorize a tolerance for this answer.
     exact(call("NEGBINOM.DIST", vec![n(4.0), n(11.0), n(0.75), b(true)]),
         f64::from_bits(0x3fe5_f7b1_5d80_0000));
     close(call("BETA.DIST", vec![n(2.0), n(8.0), n(10.0), b(true), n(1.0), n(3.0)]), 0.685470581, 1e-9);
@@ -498,29 +499,29 @@ fn normal_error_functions_publish_recorded_underflows() {
 fn error_function_tails_record_known_gaps() {
     // These ERFC arguments belong to different halves of the frozen split.
     for function in ["ERFC", "ERFC.PRECISE"] {
-        recorded_calculation(call(function, vec![n(f64::from_bits(0x4021_0c8a_deec_196e))]), f64::from_bits(0x3922_d992_80b1_9df9), f64::from_bits(0x3922d99280b19df8));
-        recorded_calculation(call(function, vec![n(f64::from_bits(0x4024_2bc8_1cf3_8194))]), f64::from_bits(0x3680_fa89_4f89_d6df), f64::from_bits(0x3680fa894f89d6de));
+        recorded_calculation(call(function, vec![n(f64::from_bits(0x4021_0c8a_deec_196e))]), f64::from_bits(0x3922_d992_80b1_9df9), f64::from_bits(0x3922d99280b19df9));
+        recorded_calculation(call(function, vec![n(f64::from_bits(0x4024_2bc8_1cf3_8194))]), f64::from_bits(0x3680_fa89_4f89_d6df), f64::from_bits(0x3680fa894f89d6df));
         // Residuals between 2^-49 and 2^-48, from both split halves.
         recorded_calculation(call(function, vec![n(f64::from_bits(0x4019_3db4_8c78_fb1d))]), f64::from_bits(0x3c20_95a4_42f6_d57d), f64::from_bits(0x3c2095a442f6d57d));
-        recorded_calculation(call(function, vec![n(f64::from_bits(0x401c_c218_61f7_e239))]), f64::from_bits(0x3b0a_c48e_8af8_7271), f64::from_bits(0x3b0ac48e8af87270));
+        recorded_calculation(call(function, vec![n(f64::from_bits(0x401c_c218_61f7_e239))]), f64::from_bits(0x3b0a_c48e_8af8_7271), f64::from_bits(0x3b0ac48e8af87271));
         // Residuals between 2^-50 and 2^-49, from both split halves.
-        recorded_calculation(call(function, vec![n(f64::from_bits(0x4010_5ad1_5827_f62f))]), f64::from_bits(0x3e3f_a6da_a7f6_9fce), f64::from_bits(0x3e3fa6daa7f69fd0));
-        recorded_calculation(call(function, vec![n(f64::from_bits(0x4010_836a_af1b_be42))]), f64::from_bits(0x3e36_a4ab_c77f_b3ec), f64::from_bits(0x3e36a4abc77fb3ea));
+        recorded_calculation(call(function, vec![n(f64::from_bits(0x4010_5ad1_5827_f62f))]), f64::from_bits(0x3e3f_a6da_a7f6_9fce), f64::from_bits(0x3e3fa6daa7f69fce));
+        recorded_calculation(call(function, vec![n(f64::from_bits(0x4010_836a_af1b_be42))]), f64::from_bits(0x3e36_a4ab_c77f_b3ec), f64::from_bits(0x3e36a4abc77fb3ec));
     }
     recorded_calculation(call("NORM.S.DIST", vec![
         n(f64::from_bits(0xc026_a496_5d40_5589)), b(true),
-    ]), f64::from_bits(0x39da_0ca4_2246_3668), f64::from_bits(0x39da0ca422463667));
+    ]), f64::from_bits(0x39da_0ca4_2246_3668), f64::from_bits(0x39da0ca422463668));
     recorded_calculation(call("NORM.S.DIST", vec![
         n(f64::from_bits(0xc020_0893_4d02_54c4)), b(true),
     ]), f64::from_bits(0x3cc3_8f68_673d_153e), f64::from_bits(0x3cc38f68673d153e));
     recorded_calculation(call("NORM.S.DIST", vec![
         n(f64::from_bits(0xc016_a24f_cfb0_a98c)), b(true),
-    ]), f64::from_bits(0x3e40_653f_58c2_faf3), f64::from_bits(0x3e40653f58c2faf4));
+    ]), f64::from_bits(0x3e40_653f_58c2_faf3), f64::from_bits(0x3e40653f58c2faf3));
     recorded_calculation(call("NORM.S.DIST", vec![
         n(f64::from_bits(0xc016_aa4e_776d_04bd)), b(true),
     ]), f64::from_bits(0x3e3f_5501_63f6_fedc), f64::from_bits(0x3e3f550163f6fedc));
     // Recorded oc10307 distinguishes the PC64 square in the residual.
-    recorded_calculation(call("NORM.S.DIST", vec![n(-17.145244843201656), b(true)]), f64::from_bits(0x3256_fcaf_346e_9729), f64::from_bits(0x3256fcaf346e972a));
+    recorded_calculation(call("NORM.S.DIST", vec![n(-17.145244843201656), b(true)]), f64::from_bits(0x3256_fcaf_346e_9729), f64::from_bits(0x3256fcaf346e9729));
     // The same staging reaches the normal wrappers (recorded oc2613).
     for function in ["NORM.DIST", "NORMDIST"] {
         recorded_calculation(call(function, vec![n(-33.26358352947733), n(-3.934034287489425),
@@ -655,16 +656,20 @@ fn poisson_first_mass_tiny_mean_matches_recorded_probability() {
     }
 }
 
-/// Exponential-series mathematical controls, not additional Excel readings.
+/// Excel 16.0.20527 live answers. The stored logarithm stays in the answer: a tiny mean does not
+/// come back as itself.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn poisson_first_mass_tiny_mean_has_analytic_rounding() {
-    // For normal lambda <= 2^-54 the true probability rounds to lambda.
+fn poisson_first_mass_tiny_mean_keeps_the_stored_logarithm() {
     for function in ["POISSON.DIST", "POISSON"] {
-        for mean_bits in [0x0010_0000_0000_0000, 0x3af0_0000_0000_0000,
-                          0x3c80_0000_0000_0000, 0x3c8f_ffff_ffff_ffff, 0x3c90_0000_0000_0000] {
-            let mean = f64::from_bits(mean_bits);
-            exact(call(function, vec![n(1.0), n(mean), b(false)]), mean);
+        for (mean_bits, answer_bits) in [
+            (0x0010_0000_0000_0000u64, 0x0010_0000_0000_007cu64),
+            (0x3af0_0000_0000_0000, 0x3af0_0000_0000_0000),
+            (0x3c80_0000_0000_0000, 0x3c7f_ffff_ffff_ffe4),
+            (0x3c8f_ffff_ffff_ffff, 0x3c8f_ffff_ffff_fff5),
+            (0x3c90_0000_0000_0000, 0x3c8f_ffff_ffff_fff5),
+        ] {
+            exact(call(function, vec![n(1.0), n(f64::from_bits(mean_bits)), b(false)]), f64::from_bits(answer_bits));
         }
     }
 }

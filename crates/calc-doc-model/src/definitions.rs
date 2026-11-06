@@ -322,6 +322,7 @@ pub struct Definitions {
     links: BTreeMap<SheetId, Vec<crate::ReviewLink>>,
     page_setups: BTreeMap<SheetId, crate::PageSetup>,
     charts: BTreeMap<SheetId,std::sync::Arc<[crate::Chart]>>,
+    pivots: std::sync::Arc<crate::pivot::PivotState>,
     axis_layouts: crate::AxisLayouts,
     panes: BTreeMap<SheetId, crate::PaneLayout>,
     filters: BTreeMap<SheetId, crate::AutoFilter>,
@@ -345,6 +346,9 @@ pub struct Definitions {
 }
 
 impl Definitions {
+    pub fn pivots(&self)->&std::sync::Arc<crate::pivot::PivotState>{&self.pivots}
+    pub fn with_pivots(mut self,state:std::sync::Arc<crate::pivot::PivotState>)->Self{self.pivots=state;self}
+
     pub fn page_setup(&self, sheet: SheetId) -> crate::PageSetup { self.page_setups.get(&sheet).cloned().unwrap_or_default() }
     pub fn page_setups(&self) -> impl Iterator<Item=(SheetId, &crate::PageSetup)> { self.page_setups.iter().map(|(s,p)| (*s,p)) }
     pub fn with_page_setup(mut self, sheet: SheetId, setup: crate::PageSetup) -> Self { if setup == crate::PageSetup::default() { self.page_setups.remove(&sheet); } else { self.page_setups.insert(sheet,setup); } self }
@@ -523,6 +527,7 @@ impl Definitions {
             review: BTreeMap::new(),
             links: BTreeMap::new(),
             charts: BTreeMap::new(),
+            pivots: Default::default(),
             page_setups: BTreeMap::new(),
             validations: BTreeMap::new(),
             axis_layouts: crate::AxisLayouts::default(),
@@ -732,6 +737,7 @@ impl Definitions {
         self.review.remove(&sheet);
         self.links.remove(&sheet);
         self.charts.remove(&sheet);
+        std::sync::Arc::make_mut(&mut self.pivots).sheets.remove(&sheet);
         self.page_setups.remove(&sheet);
         if self.styles.runs.iter().any(|r| r.area.sheet() == sheet) {
             let mut styles = (*self.styles).clone();
@@ -769,6 +775,7 @@ impl Definitions {
         self.review.is_empty()
             && self.links.is_empty()
             && self.charts.is_empty()
+            && self.pivots.tables().next().is_none() && self.pivots.caches.caches.is_empty()
             && self.page_setups.is_empty()
             && self.validations.is_empty()
             && self.conditional.is_empty()
@@ -875,6 +882,7 @@ impl Definitions {
             .chain(self.filters.keys().copied())
             .chain(self.links.keys().copied())
             .chain(self.charts.keys().copied())
+            .chain(self.pivots.sheets.keys().copied())
             .chain(self.page_setups.keys().copied())
             .chain(self.axis_layouts.sheets())
             .chain(self.data_tables.iter().map(|table| table.area.sheet()))
