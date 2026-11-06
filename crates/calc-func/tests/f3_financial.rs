@@ -76,6 +76,59 @@ fn annuity_beginning_reciprocal_pole_keeps_first_interest_zero() {
     // Existing period-range contract controls precede the first-interest shortcut.
     error(call("IPMT", vec![n(rate), n(1.0), n(0.5), n(3.7), n(0.9), n(1.0)]), Num);
     error(call("IPMT", vec![n(rate), n(0.5), n(17.0), n(3.7), n(0.9), n(1.0)]), Num);
+    // Original R31 overflow readings; the second rate has no timing-coefficient pole.
+    for rate in [rate, f64::from_bits(0xbfeffffffffffffe)] {
+        error(call("PMT", vec![n(rate), n(97.0), n(3.7), n(0.9), n(0.0)]), Num);
+        error(call("PMT", vec![n(rate), n(97.0), n(3.7), n(0.9), n(1.0)]), Num);
+        exact(call("IPMT", vec![n(rate), n(1.0), n(97.0), n(3.7), n(0.9), n(1.0)]), 0.0);
+        error(call("IPMT", vec![n(rate), n(2.0), n(97.0), n(3.7), n(0.9), n(1.0)]), Num);
+        error(call("PPMT", vec![n(rate), n(1.0), n(97.0), n(3.7), n(0.9), n(1.0)]), Num);
+    }
+}
+
+/// Original R29 Excel20527 final-product discriminants, independently replayed
+/// with the R31 negative-rate denominator constraints. Expectations are unchanged.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn negative_pmt_final_product_stores_from_pc64() {
+    let rate = f64::from_bits(0xbf647ae147ae147b);
+    for (present, expected) in [
+        (0x4057f34535865460, 0xc057e3f13230dfb0),
+        (0x3f97ea772967735f, 0xbf97db28c8a91cb0),
+    ] {
+        exact(call("PMT", vec![n(rate), n(1.0), n(f64::from_bits(present)), n(0.0), n(0.0)]),
+            f64::from_bits(expected));
+    }
+}
+
+/// Original negative-rate PMT calls retained from R29, including nonzero fv.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn negative_pmt_uses_the_stored_future_balance_fold() {
+    let rate = f64::from_bits(0xbf647ae147ae147b);
+    for (periods, present, future, expected) in [
+        (1.0, 1.0, 0.7, 0xbffb28f5c28f5c2a),
+        (1.0, 1000.0, -700.0, 0xc072980000000000),
+        (12.0, 0.0, 1.1, 0xbfb7ca846ef1e0f1),
+    ] {
+        exact(call("PMT", vec![n(rate), n(periods), n(present), n(future), n(0.0)]),
+            f64::from_bits(expected));
+    }
+}
+
+/// Original R31 Excel20527 beginning-payment product ties and a negative-period control.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn negative_pmt_due_uses_the_stored_reciprocal_coefficient() {
+    let rate = f64::from_bits(0xbf647ae147ae147b);
+    for (periods, present, expected) in [
+        (1.0, 0x4067fcf842776dad, 0xc067fcf842776dae),
+        (1.0, 0x407a8c08866060be, 0xc07a8c08866060be),
+        (-12.0, 0x40fe848000000000, 0x40c4ad91fae1ab02),
+    ] {
+        exact(call("PMT", vec![n(rate), n(periods), n(f64::from_bits(present)), n(0.0), n(1.0)]),
+            f64::from_bits(expected));
+    }
 }
 
 /// Excel 16.0 build 20228, answers-irr-exact-graph-discovery-20260809.json,
@@ -350,6 +403,13 @@ fn pmt_equal_opposite_balances_are_interest_only() {
         n(1.0), n(1.0), n(-1.0), n(0.0)]), f64::from_bits(0xbeb2_eee1_6da1_925e));
     exact(call("PMT", vec![n(0.05), n(12.0), n(1.0), n(-1.0), n(1.0)]),
         f64::from_bits(0xbfa8_6186_1861_8618));
+    // R31 paired public calls: negative-rate cancellation keeps the measured
+    // reciprocal coefficient rather than dividing the interest-only product.
+    for periods in [1.0, -0.5] {
+        exact(call("PMT", vec![n(f64::from_bits(0xbf7eb851eb851eb8)),
+            n(periods), n(1.0), n(-1.0), n(1.0)]),
+            f64::from_bits(0x3f7ef3bf843101ef));
+    }
 }
 
 /// Mathematical overflow controls, not additional Excel readings.
@@ -423,7 +483,8 @@ fn pmt_uses_recorded_exponential_and_timing_stores() {
     exact(call("PMT", vec![
         n(f64::from_bits(0x3eb6_b288_9103_0aed)), n(256.0), n(1.0),
     ]), f64::from_bits(0xbf70_00b6_4c87_af22));
-    // oc30542: the growth arm retains the native product.
+    // oc30542: negative growth uses the stored balance fold and reciprocal
+    // timing coefficient. A stored product after division by (1+r) loses this bit.
     exact(call("PMT", vec![
         n(f64::from_bits(0xbee8_ffdb_60af_1ab5)), n(192.0), n(1.0), n(-1000.0), n(1.0),
     ]), f64::from_bits(0x4014_d624_c57a_7851));

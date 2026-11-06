@@ -9,7 +9,7 @@ python3 racer/corpus_cases.py problem-functions ../DnaCalc ../DnaCalc/docs/gener
 Last-bit: finite numeric mismatches <=16 ULP; larger numeric: >16 ULP. This split is triage, not a relaxed verdict. Every mismatch, refusal, unread, missing, pending, external and circular-policy cell remains an inclusive failure. Corpus labels follow exact single-cell aliases, infer calls from formula spelling and unwrap INDEX selections; unresolved references and infix operators remain explicit. Bank functions use canonical judge identities. Counts are observations per source; corpus and bank may overlap and must not be added as unique calls. Bank reference/locale context gaps remain failures, not proven numerical defects.
 
 Corpus: 52,883/54,794 matched (96.51239%); 1,911 inclusive failures, including 100 pending.
-Bank: 3,777,655/3,910,007 matched (96.61504%); 132,352 failures, including 116 unread.
+Bank: 3,782,935/3,910,007 matched (96.75008%); 127,072 failures, including 116 unread.
 
 Larger numeric and last-bit columns count numeric mismatches; other columns count remaining mismatches. Bank refusals and unread rows are separate. Corpus refusals/missing are recorded in the JSON, outside the mismatch table.
 
@@ -19,13 +19,13 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | POISSON.DIST | 12 | 67 | 0 | 2,240 | 8,065 | 0 | 0 | 4 |
 | BETA.DIST | 0 | 1 | 0 | 574 | 1,363 | 0 | 0 | 0 |
 | LOGNORM.DIST | 0 | 1 | 0 | 559 | 3,331 | 0 | 0 | 0 |
-| ROUNDDOWN | 0 | 0 | 0 | 492 | 321 | 0 | 0 | 0 |
-| TRUNC | 0 | 0 | 0 | 492 | 321 | 0 | 0 | 0 |
 | YIELD | 31 | 5 | 6 | 424 | 95 | 0 | 0 | 0 |
-| ROUNDUP | 0 | 0 | 0 | 451 | 327 | 41 | 0 | 0 |
 | RATE | 35 | 0 | 9 | 339 | 20 | 13 | 0 | 0 |
 | NEGBINOMDIST | 0 | 18 | 0 | 356 | 1,281 | 0 | 0 | 0 |
 | IRR | 9 | 1 | 3 | 299 | 95 | 17 | 0 | 0 |
+| ROUNDUP | 0 | 0 | 0 | 236 | 327 | 0 | 0 | 0 |
+| ROUNDDOWN | 0 | 0 | 0 | 236 | 321 | 0 | 0 | 0 |
+| TRUNC | 0 | 0 | 0 | 236 | 321 | 0 | 0 | 0 |
 | LINEST | 208 | 19 | 26 | 0 | 0 | 0 | 0 | 0 |
 | GAMMA.DIST | 0 | 15 | 0 | 164 | 29,708 | 0 | 0 | 0 |
 | BINOM.DIST.RANGE | 0 | 2 | 0 | 163 | 321 | 0 | 0 | 0 |
@@ -63,7 +63,6 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | CRITBINOM | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | FLOOR | 0 | 0 | 0 | 1 | 0 | 0 | 10 | 0 |
 | NORM.S.DIST | 0 | 1 | 0 | 0 | 11,075 | 0 | 0 | 0 |
-| PMT | 0 | 0 | 0 | 0 | 4,659 | 4 | 0 | 0 |
 | GAMMALN.PRECISE | 0 | 0 | 0 | 0 | 3,638 | 0 | 0 | 0 |
 | GAMMALN | 0 | 0 | 0 | 0 | 2,403 | 0 | 0 | 0 |
 | LOGNORMDIST | 0 | 2 | 0 | 0 | 2,141 | 0 | 0 | 0 |
@@ -75,6 +74,7 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | NORM.DIST | 0 | 0 | 0 | 0 | 244 | 0 | 0 | 0 |
 | F.DIST | 0 | 0 | 0 | 0 | 197 | 0 | 0 | 0 |
 | MDURATION | 0 | 0 | 0 | 0 | 157 | 0 | 0 | 0 |
+| PMT | 0 | 0 | 0 | 0 | 151 | 0 | 0 | 0 |
 | SINH | 0 | 0 | 0 | 0 | 130 | 0 | 0 | 0 |
 | ROUND | 0 | 0 | 0 | 0 | 124 | 0 | 0 | 0 |
 | NPV | 0 | 0 | 0 | 0 | 94 | 0 | 0 | 0 |
