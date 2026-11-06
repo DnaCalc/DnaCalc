@@ -318,6 +318,7 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
                         }
                         (["pivotFields"], "pivotField") => fields.push(PivotField { attributes:attrs(&e),items:Vec::new() }),
                         (["pivotFields","pivotField","items"],"item") => {
+                            if e.attribute("n").is_some(){unsupported.push("custom item captions".into());}
                             if let Some(field)=fields.last_mut() {field.items.push(PivotFieldItem {index:optional_integer(&e,"x",&events)?,kind:e.attribute("t").unwrap_or("data").into(),hidden:matches!(e.attribute("h"),Some("1"|"true"))});}
                         }
                         (["rowItems"],"i") => row_items.push(PivotAxisItem {kind:e.attribute("t").unwrap_or("data").into(),repeat:optional_integer(&e,"r",&events)?.unwrap_or(0),data_index:optional_integer(&e,"i",&events)?.unwrap_or(0),indexes:Vec::new()}),

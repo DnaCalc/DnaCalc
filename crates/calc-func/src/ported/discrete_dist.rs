@@ -31,10 +31,11 @@
 //!   `excel_exp_compensated`).
 //! - The deviance inside its series range: `excel_deviance_series`.
 //!
-//! The zero-success mass is not read: 100 rows of the bank, where `ln q` is not of the stored `q`.
+//! - The zero-success mass: EXP of the stored `n ln(1 - p)`, with Excel's internal logarithm of
+//!   `1 + u` (`excel_log1p_times`), all 11,901 rows of the bank.
 
 use crate::ported::excel_numeric::{
-    excel_deviance_series, excel_exp, excel_exp_compensated, excel_exp_running, excel_expm1_spilled, excel_log, excel_stirling_series, excel_stirling_step, excel_x87_add, excel_x87_div,
+    excel_deviance_in_series, excel_deviance_series, excel_exp, excel_exp_compensated, excel_exp_running, excel_expm1_spilled, excel_log, excel_log1p_times, excel_stirling_series, excel_stirling_step, excel_x87_add, excel_x87_div,
     excel_x87_mul, excel_x87_sub, gammaln_excel,
 };
 use crate::value::WorksheetErrorCode;
@@ -82,7 +83,7 @@ fn stirling_error(n: f64) -> f64 {
 /// `|x - np| < 0.2 (x + np)`, that is `x/np` inside `(2/3, 3/2)`, where Loader has 0.1. Outside it
 /// the quotient, its logarithm, the product and `np - x` are each stored and then summed.
 fn deviance(x: f64, np: f64) -> f64 {
-    if (x - np).abs() < 0.2 * (x + np) {
+    if excel_deviance_in_series(x, np) {
         return excel_deviance_series(x, np);
     }
     excel_x87_add(excel_x87_mul(x, excel_log(excel_x87_div(x, np))), excel_x87_sub(np, x))
@@ -94,8 +95,7 @@ fn binom_mass(x: f64, n: f64, p: f64, q: f64) -> f64 {
         if n == 0.0 {
             return 1.0;
         }
-        let lc = if p < 0.1 { -deviance(n, n * q) - n * p } else { n * excel_log(q) };
-        return excel_exp(lc);
+        return excel_exp(excel_log1p_times(n, -p));
     }
     if x == n {
         // With measured binary64 LN/EXP leaves, the R27 large-count readings
@@ -299,7 +299,7 @@ fn hypergeom_mass(s: f64, n: f64, k: f64, big_n: f64) -> f64 {
     let a = binom_mass(s, k, p, q);
     let b = binom_mass(n - s, big_n - k, p, q);
     let c = binom_mass(n, big_n, p, q);
-    a * b / c
+    excel_x87_mul(excel_x87_div(a, c), b)
 }
 
 /// `HYPGEOM.DIST(sample_s, number_sample, population_s, number_pop, cumulative)`.

@@ -1917,6 +1917,10 @@ impl ReferenceReader for WorkbookReader<'_> {
 /// The workbook's facts an evaluation may ask about (calc-func's HostFacts): which cells hold
 /// formulas and their text, and the sheets. The formula being evaluated is the caller's to say.
 impl HostFacts for WorkbookReader<'_> {
+    fn pivot_data_cell(&mut self,data_field:&str,reference:&[GridArea],fields:&[(String,CalcValue)])->calc_fml::PivotLookup {
+        crate::pivot::data_cell(self.view.inputs.definitions().pivots(),data_field,reference,fields)
+    }
+
     fn caller(&mut self) -> Option<CellKey> {
         None
     }
