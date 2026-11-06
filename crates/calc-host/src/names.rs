@@ -15,8 +15,9 @@ pub struct NameInvocationView {
     pub omitted: u64,
 }
 
-/// A requested name diagnostic against one published result view. Its command identity
-/// belongs to the caller; it is never a cell calculation or a shared name-value cache.
+/// A requested name diagnostic against one published result view. Its external command
+/// identity belongs to the caller; the evaluation retains its own typed name pass.
+/// It can consume supplied clock/random services without installing a cell or shared value.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NameDiagnosticEvaluation {
     pub revision: calc_doc_model::AuthoredRevision,
@@ -34,6 +35,36 @@ pub struct NameEdit {
     pub formula: Option<String>,
 }
 use calc_engine::valid_defined_name as valid_name;
+
+/// Authored name bodies use the existing file-form converter. Name results are
+/// reference-or-value, so retain explicit intersection rather than choosing a
+/// cell's inferred legacy form. Imported/restored definitions keep their source.
+fn authored_name_formula(host: &HostState, text: &str, scope: NameScope) -> Result<String, String> {
+    let formula = calc_doc_model::FormulaText::with_form(
+        calc_value::ExcelText::from_utf16_code_units(text.encode_utf16().collect()),
+        calc_doc_model::FormulaForm::Dynamic,
+    ).map_err(|_| "The name's formula is empty")?;
+    let table = host.model().definitions().name_table();
+    let lookup = |qualifier: Option<&str>, spelling: &str| {
+        let local = match qualifier {
+            Some(name) => Some(host.model().sheets().iter().find(|sheet|
+                calc_value::workbook_names_equal(&sheet.name().text().to_string_lossy(), name))?.id()),
+            None => match scope { NameScope::Sheet(sheet) => Some(sheet), NameScope::Workbook => None },
+        };
+        if let Some(sheet) = local
+            && let Some(node) = table.lookup(NameScope::Sheet(sheet), spelling)
+        {
+            return Some(node.definition().formula.as_str());
+        }
+        qualifier.is_none().then(|| table.lookup(NameScope::Workbook, spelling))
+            .flatten().map(|node| node.definition().formula.as_str())
+    };
+    let links = host.model().definitions().external_file_names();
+    let form = calc_doc::file_form_with_lookup(&formula, &lookup, &links)
+        .map_err(|_| "The name's formula cannot be written in Excel form (dc-hsa5.6)")?;
+    String::from_utf16(&form.text).map_err(|_| "The name's formula is unreadable (dc-hsa5.6)".into())
+}
+
 pub(crate) fn prepare(host: &HostState, edit: NameEdit) -> Result<Vec<CellEdit>, String> {
     let table = host.model().definitions().name_table();
     if let NameScope::Sheet(sheet) = edit.scope
@@ -77,7 +108,7 @@ pub(crate) fn prepare(host: &HostState, edit: NameEdit) -> Result<Vec<CellEdit>,
         return Ok(vec![CellEdit::SetName {
             name: edit.name,
             scope: edit.scope,
-            formula,
+            formula: formula.map(|f| authored_name_formula(host, &f, edit.scope)).transpose()?,
         }]);
     };
     let node = host
@@ -87,7 +118,8 @@ pub(crate) fn prepare(host: &HostState, edit: NameEdit) -> Result<Vec<CellEdit>,
         return Err("The name changed; refresh before editing it".into());
     }
     if node.definition().scope != edit.scope || node.definition().name != edit.name {
-        if formula.as_deref() != Some(node.definition().formula.as_str()) {
+        let original = calc_fml::assist::display_formula(&format!("={}", node.definition().formula));
+        if formula.as_ref().map(|f| calc_fml::assist::display_formula(&format!("={f}"))).as_ref() != Some(&original) {
             return Err(
                 "Rename or move the name first, then edit or delete its definition (dc-hsa5.6)"
                     .into(),
@@ -167,6 +199,7 @@ pub(crate) fn prepare(host: &HostState, edit: NameEdit) -> Result<Vec<CellEdit>,
             })
             .collect();
     }
+    let formula = formula.map(|f| authored_name_formula(host, &f, edit.scope)).transpose()?;
     if formula.as_ref() == Some(&node.definition().formula) {
         return Ok(Vec::new());
     }
@@ -246,13 +279,14 @@ impl HostState {
         if self.model.sheet_by_id(anchor.sheet()).is_none() {
             return Err("The evaluation worksheet is unavailable".into());
         }
-        let formula = calc_engine::DetachedFormula::compile_name(&self.model, id, anchor)
+        let formula = calc_engine::DetachedFormula::compile_name_with_bindings(
+            &self.model, id, anchor, &self.user_function_bindings())
             .map_err(|e| e.to_string())?;
         Ok(NameDiagnosticEvaluation {
             revision: self.revision(),
             results: self.engine.result_view(),
             workbook: self.engine.workbook_instance(),
-            evaluation: formula.evaluate_with_name_evidence(&self.engine, &self.model, anchor),
+            evaluation: formula.evaluate_with_name_evidence(&self.engine, &self.model, anchor, &self.options.numeric),
         })
     }
 }
@@ -292,6 +326,173 @@ mod tests {
         book.host()
             .evaluate_name(id, node.binding_version(), at)
             .unwrap()
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_hsa5_6__explicit_name_passes_keep_draw_occurrences_and_let_reuse() {
+        let mut book = book();
+        let sheet = book.host().sheets()[0].id();
+        let anchor = CellKey::new(sheet, 4, 5).unwrap();
+        let inner = add(&mut book, NameScope::Workbook, "PassRandom", "=RAND()");
+        let repeated = add(&mut book, NameScope::Workbook, "RepeatedRandom", "=PassRandom+PassRandom");
+        let once = add(&mut book, NameScope::Workbook, "LocalRandom", "=LET(x,PassRandom,x+x)");
+        let evaluate = |id| book.host().evaluate_name_with_evidence(id,
+            book.host().name_node(id).unwrap().binding_version(), anchor).unwrap();
+        let revision = book.host().revision();
+        let results = book.host().engine.result_view();
+        let history = book.history_depth();
+        let first = evaluate(repeated);
+        let root = first.evaluation.root.as_ref().unwrap();
+        assert_eq!(root.workbook, first.workbook);
+        assert_eq!(root.locus.definition.id, repeated);
+        assert_eq!(root.locus.caller, anchor);
+        assert_eq!(root.pass.ordinal, 0);
+        assert_eq!(root.reason, calc_engine::contract::ReevaluationReason::NewCommandDemand);
+        assert_eq!(first.evaluation.inputs, book.host().engine.input_version());
+        let draws = &first.evaluation.random_draws;
+        assert_eq!((draws.samples.len(), draws.omitted), (2, 0));
+        assert_eq!(first.evaluation.outcome, Ok(CalcValue::number(
+            f64::from_bits(draws.samples[0]) + f64::from_bits(draws.samples[1]))));
+        assert_eq!(first.evaluation.invocations.iter().filter(|body| body.definition.id == inner).count(), 2);
+        let local = evaluate(once);
+        let local_root = local.evaluation.root.as_ref().unwrap();
+        assert_ne!(root.pass.command, local_root.pass.command, "new command has a new draw key");
+        let draws = &local.evaluation.random_draws;
+        assert_eq!((draws.samples.len(), draws.omitted), (1, 0));
+        let x = f64::from_bits(draws.samples[0]);
+        assert_eq!(local.evaluation.outcome, Ok(CalcValue::number(x + x)));
+        assert_eq!(local.evaluation.invocations.iter().filter(|body| body.definition.id == inner).count(), 1);
+        for _ in 0..4 {
+            assert!(book.host().name_node(inner).is_some());
+            assert!(book.host().name_invocation_view(anchor).is_none());
+        }
+        let next = evaluate(once);
+        assert_eq!(next.evaluation.root.as_ref().unwrap().pass.command.sequence,
+            local_root.pass.command.sequence + 1, "passive views allocate no name pass");
+        assert_eq!(book.host().engine.nodes().count(), 0, "no synthetic name cell");
+        assert_eq!((book.host().revision(), book.host().engine.result_view(), book.history_depth()),
+            (revision, results, history));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_hsa5_6__name_passes_bound_draw_evidence_and_refuse_stale_inputs() {
+        let mut book = book();
+        let sheet = book.host().sheets()[0].id();
+        let at = |row, column| CellKey::new(sheet, row, column).unwrap();
+        let anchor = at(4,5);
+        let array = add(&mut book, NameScope::Workbook, "RandomArray", "=RANDARRAY(1,1026)");
+        let evaluate = |book: &HostSession, id| book.host().evaluate_name_with_evidence(id,
+            book.host().name_node(id).unwrap().binding_version(), anchor).unwrap();
+        let sampled = evaluate(&book, array);
+        assert!(sampled.evaluation.outcome.is_ok(), "{:?}", sampled.evaluation.outcome);
+        let draws = &sampled.evaluation.random_draws;
+        assert_eq!((draws.samples.len(), draws.omitted), (calc_engine::MAX_RECORDED_RANDOM_DRAWS, 2),
+            "outcome {:?}; bodies {:?}", sampled.evaluation.outcome, sampled.evaluation.invocations);
+        let value = sampled.evaluation.outcome.as_ref().unwrap().as_array().unwrap();
+        assert_eq!((value.shape().rows, value.shape().cols), (1, 1026));
+        for (value, bits) in value.iter_row_major().zip(&draws.samples) {
+            assert_eq!(value.as_number().unwrap().to_bits(), *bits);
+        }
+        assert_eq!(book.host().engine.nodes().count(), 0);
+        assert_eq!(book.host().name_node(array).unwrap().definition().formula, "_xlfn.RANDARRAY(1,1026)");
+        let mut bytes = Vec::new();
+        book.save(&Default::default(), &mut bytes).unwrap();
+        let reopened = HostSession::open(std::sync::Arc::new(crate::MemorySource::new(bytes)),
+            &Default::default(), crate::HostOptions { calc_mode: Some(crate::CalcMode::Manual), ..Default::default() }).unwrap();
+        let restored = reopened.host().model().definitions().name_table().lookup(NameScope::Workbook, "RandomArray").unwrap();
+        assert_eq!(restored.definition().formula, "_xlfn.RANDARRAY(1,1026)");
+        let restored_evaluation = reopened.host().evaluate_name_with_evidence(restored.id(), restored.binding_version(),
+            CellKey::new(reopened.host().sheets()[0].id(), 4, 5).unwrap()).unwrap();
+        assert_eq!((restored_evaluation.evaluation.random_draws.samples.len(), restored_evaluation.evaluation.random_draws.omitted),
+            (calc_engine::MAX_RECORDED_RANDOM_DRAWS, 2));
+        assert_ne!(restored_evaluation.workbook, sampled.workbook, "reopen has a new owner namespace");
+        for (at, text) in [(at(1,1), "1"), (at(1,2), "=$A$1+1")] {
+            assert!(book.dispatch(SkinIntent::EnterCell { at, text: text.into() }).accepted());
+        }
+        let stale = add(&mut book, NameScope::Workbook, "RandomThenStale", "=RAND()+$B$1");
+        assert!(book.dispatch(SkinIntent::SetCalcMode(crate::CalcMode::Manual)).accepted());
+        assert!(book.dispatch(SkinIntent::EnterCell { at: at(1,1), text: "5".into() }).accepted());
+        let revision = book.host().revision();
+        let results = book.host().engine.result_view();
+        let history = book.history_depth();
+        let refused = evaluate(&book, stale);
+        assert!(refused.evaluation.outcome.is_err());
+        assert_eq!(refused.evaluation.random_draws.samples.len(), 1, "retain the executed prefix");
+        assert_eq!(refused.evaluation.root.as_ref().unwrap().locus.definition.id, stale);
+        assert!(refused.evaluation.invocations.iter().any(|body| body.result == calc_fml::NameResultKind::Refused));
+        let page = crate::project(book.host(), &crate::ProjectionRequest { cells: vec![at(1,2)] }).unwrap();
+        assert!(matches!(page.cells()[0].value(), ProjectedValue::Stale(_)), "diagnostic admits no producer");
+        assert_eq!((book.host().revision(), book.host().engine.result_view(), book.history_depth()),
+            (revision, results, history));
+        let clock = add(&mut book, NameScope::Workbook, "OwnerClock", "=NOW()");
+        book.set_clock(Some(45200.25));
+        let timed = evaluate(&book, clock);
+        assert_eq!(timed.evaluation.clock, Some(45200.25));
+        assert_eq!(timed.evaluation.outcome, Ok(CalcValue::number(45200.25)));
+        assert!(timed.evaluation.random_draws.samples.is_empty());
+        book.set_clock(None);
+        let absent = evaluate(&book, clock);
+        assert_eq!(absent.evaluation.clock, None);
+        assert!(absent.evaluation.outcome.is_err(), "no implicit clock source");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_hsa5_6__name_pass_uses_owner_numeric_mode_before_any_cell_publication() {
+        let target = calc_value::NumericTargetId::new("16.0.20527.20150", "Current", "Excel", "x86-64").unwrap();
+        let mode = calc_value::NumericMode::Exact(target);
+        let mut book = HostSession::open(
+            std::sync::Arc::new(crate::MemorySource::new(crate::blank_package())),
+            &Default::default(),
+            crate::HostOptions { numeric: mode.clone(), calc_mode: Some(crate::CalcMode::Manual), ..Default::default() },
+        ).unwrap();
+        let id = add(&mut book, NameScope::Workbook, "SelectedMode", "=42");
+        let anchor = CellKey::new(book.host().sheets()[0].id(), 1, 1).unwrap();
+        let diagnostic = book.host().evaluate_name_with_evidence(id,
+            book.host().name_node(id).unwrap().binding_version(), anchor).unwrap();
+        assert_eq!(diagnostic.evaluation.outcome, Ok(CalcValue::number(42.)));
+        assert_eq!(diagnostic.evaluation.numeric, mode,
+            "the requested owner mode is independent of the last cell publication");
+        assert_eq!(book.host().engine.nodes().count(), 0);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_hsa5_6__name_diagnostic_binds_known_udfs_but_never_enters_them() {
+        #[derive(Debug)]
+        struct Counted(std::rc::Rc<std::cell::Cell<usize>>);
+        impl calc_fml::UserFunction for Counted {
+            fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+                self.0.set(self.0.get() + 1);
+                Ok(CalcValue::number(42.))
+            }
+        }
+        let mut book = book();
+        let calls = std::rc::Rc::new(std::cell::Cell::new(0));
+        let mut functions = calc_fml::CallableTable::new();
+        functions.register("KnownUdf", std::rc::Rc::new(Counted(calls.clone()))).unwrap();
+        book.set_user_functions(functions);
+        let anchor = CellKey::new(book.host().sheets()[0].id(), 1, 1).unwrap();
+        for (name, formula, refused) in [
+            ("DirectCall", "=KnownUdf()", true),
+            ("CaughtCall", "=IFERROR(KnownUdf(),99)", true),
+            ("UntakenCall", "=IF(FALSE,KnownUdf(),RAND())", false),
+        ] {
+            let id = add(&mut book, NameScope::Workbook, name, formula);
+            let result = book.host().evaluate_name_with_evidence(id,
+                book.host().name_node(id).unwrap().binding_version(), anchor).unwrap();
+            assert_eq!(result.evaluation.outcome.is_err(), refused, "{formula}: {:?}", result.evaluation.outcome);
+            assert!(result.evaluation.root.is_some());
+            assert_eq!(result.evaluation.random_draws.samples.len(), usize::from(!refused));
+            if !refused {
+                assert_eq!(result.evaluation.outcome, Ok(CalcValue::number(
+                    f64::from_bits(result.evaluation.random_draws.samples[0]))));
+            }
+        }
+        assert_eq!(calls.get(), 0, "registration metadata grants no executable capability");
+        assert_eq!(book.host().engine.nodes().count(), 0);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -399,6 +600,9 @@ mod tests {
             let results = book.host().engine.result_view();
             let history = book.history_depth();
             let diagnostic = book.host().evaluate_name_with_evidence(id, version, anchor).unwrap();
+            let root = diagnostic.evaluation.root.as_ref().unwrap();
+            assert_eq!((root.locus.definition.id, root.locus.definition.version), (id, version));
+            assert_eq!(root.locus.caller, anchor);
             assert_eq!(diagnostic.revision, revision);
             assert_eq!(diagnostic.results, results);
             assert_eq!(diagnostic.evaluation.outcome, Ok(CalcValue::number(expected)));
