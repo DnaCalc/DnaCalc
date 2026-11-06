@@ -289,6 +289,44 @@ fn dc_zsn26__ordinary_prefix_before_jamo() {
     }
 }
 
+/// These native leading primaries decide before the unknown Jamo continuation.
+/// Compatibility forms with that same leading primary still need later weights.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zsn28__jamo_leading_primaries() {
+    let mut session = Session::new("Sheet1").unwrap();
+    check_captured_questions(include_bytes!(
+        "../../../crates/calc-func/tests/captures/fn7_collation_contractions/oracle.capture.json"
+    ), &mut session, |entry| {
+        entry.cell.row() == 20 && entry.cell.column() == 10
+            && matches!(entry.cell.sheet(), "q017" | "q018" | "q019" | "q020"
+                | "q021" | "q022" | "q023" | "q024" | "q025" | "q026"
+                | "q027" | "q028" | "q029" | "q030" | "q031" | "q032"
+                | "q081" | "q082" | "q083" | "q084" | "q085" | "q086"
+                | "q087" | "q088" | "q089" | "q093" | "q094" | "q095")
+    }, 28);
+    for formula in [
+        "=\"ᄀz\"<\"ㄱz\"",
+        "=\"αᄀz\"<\"αㄱz\"",
+        "=\"ᄀ\"<\"ㄱ\"",
+        "=\"가\"<\"ㄱ\"",
+        "=\"ㄱ\"<\"가\"",
+        "=\"ᄁ\"<\"a\"",
+        "=\"ᄂ\"<\"a\"",
+        "=\"가\"<\"개\"",
+        "=\"깍\"<\"까\"",
+        "=\"낙\"<\"나\"",
+        "=\"가ー\"<\"가\"",
+    ] {
+        session.set_formula(formula);
+        let calculated = session.calculate();
+        assert!(calculated.result.is_none(), "{formula} needs later Jamo weights");
+        assert!(calculated.diagnostics.iter().any(|diagnostic| matches!(diagnostic,
+            Diagnostic::Eval(EvalFault::Function(FunctionFault::NotImplemented { .. }))
+        )), "{formula}: {:?}", calculated.diagnostics);
+    }
+}
+
 /// Original fn6 Version-1/2 captures distinguish a lone high surrogate from a low
 /// surrogate and an empty needle. All original primary questions remain intact,
 /// including the two Version-2 SEARCH roots explained by valid-Unicode wildcard controls.

@@ -33,18 +33,19 @@
 //! special outside fn7's three adjacent iteration forms and four punctuation units
 //! (see [`super::sort_key`]).
 //! Identical complete modern Jamo runs after a common ordinary prefix and with independent known suffixes cancel their common
-//! default entries; different Jamo prefixes remain refused. Fn7 matches the ASCII pass followed
+//! default entries; different Jamo continuations remain refused. Fn7 matches the ASCII pass followed
 //! by CompareStringEx on all284 scalar pairs; suffix sort-key byte order differs on two Hangul
 //! pairs. These measured rules and the stored Unicode weights run unchanged on every platform.
-//! Bare U+1100/U+1161 after only simple ordinary entries and before an independent suffix have measured primary
-//! groups C0/EC. An unfinished key can decide a strict group difference; it still
-//! refuses a same-group comparison or an unmeasured Jamo continuation.
+//! U+1100 has its compatibility consonant's leading primary in fn7's bare, LV/LVT and separated
+//! forms; U+1101/U+1102 have it in their measured LV forms. U+1161 has leading group EC. An unfinished key can decide
+//! a strict primary difference after an ordinary prefix and before an independent suffix;
+//! equal leading primaries and unmeasured Jamo continuations stay refused.
 //! Iteration after Han uses the measured repeat primary,
 //! confirmed by fn1's comparison and ordering controls. Fn3's previously measured strict
 //! prefixes also follow from fn7's positive punctuation primary.
 
 use super::Beyond;
-use super::sort_key::{diacritic_order, leading_order, parts, refused, shared_jamo_tails};
+use super::sort_key::{diacritic_order, leading_order, parts, shared_jamo_tails};
 use std::cmp::Ordering;
 
 /// The last code unit the first pass reads itself.
@@ -84,9 +85,6 @@ fn weighed(a: &[u16], b: &[u16]) -> Result<Ordering, Beyond> {
         let prefix = |tail: &[u16]| a[..length].iter().copied()
             .chain(std::iter::once(0x0061)).chain(tail.iter().copied()).collect::<Vec<_>>();
         return weighed(&prefix(left), &prefix(right));
-    }
-    if let Some(operand) = [a, b].iter().position(|text| text.iter().any(|&code| refused(code))) {
-        return Err(Beyond { operand });
     }
     let left = parts(a);
     let right = parts(b);
@@ -149,10 +147,11 @@ mod tests {
         assert_eq!(order("\u{411}", "\u{410}"), Ok(Ordering::Greater));
         assert_eq!(order("a", "a\u{4e2d}"), Ok(Ordering::Less));
         assert_eq!(order("a\u{80}", "a"), Ok(Ordering::Greater));
+        assert_eq!(order("\u{1100}\u{1161}", "a"), Ok(Ordering::Greater));
         assert_eq!(
-            order("\u{1100}\u{1161}", "a"),
+            order("\u{1103}\u{1161}", "a"),
             Err(Beyond { operand: 0 }),
-            "conjoining jamo"
+            "unmeasured leading jamo"
         );
     }
 }
