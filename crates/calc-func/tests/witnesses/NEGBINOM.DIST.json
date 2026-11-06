@@ -124,7 +124,7 @@
     {"args":["0x4026000000000000","0x401c000000000000","0x3ff0000000000001","0x3ff0000000000000"],"expected_bits":"error:Num","id":"fresh-negbinom.dist-00159-fresh-endpoints","reading":"r2"},
     {"args":["0x4026000000000000","0x4026000000000000","0x0000000000000000","0x3ff0000000000000"],"expected_bits":"error:Num","id":"fresh-negbinom.dist-00163-fresh-endpoints","reading":"r2"},
     {"args":["0x4026000000000000","0x4026000000000000","0x3fc0000000000000","0x0000000000000000"],"calc_func":"0x3ee3d2818247faa4","expected_bits":"0x3ee3d2818247faa0","id":"fresh-negbinom.dist-00168-fresh-endpoints","reading":"r2"},
-    {"args":["0x4026000000000000","0x4026000000000000","0x3fe8000000000000","0x0000000000000000"],"calc_func":"0x3f6d18810e080005","expected_bits":"0x3f6d18810e07fff9","id":"fresh-negbinom.dist-00172-fresh-endpoints","reading":"r2"},
+    {"args":["0x4026000000000000","0x4026000000000000","0x3fe8000000000000","0x0000000000000000"],"calc_func":"0x3f6d18810e07fffb","expected_bits":"0x3f6d18810e07fff9","id":"fresh-negbinom.dist-00172-fresh-endpoints","reading":"r2"},
     {"args":["0x4026000000000000","0x4026000000000000","0x3ff0000000000000","0x3ff0000000000000"],"expected_bits":"error:Num","id":"fresh-negbinom.dist-00177-fresh-endpoints","reading":"r2"},
     {"args":["0x4014000000000000","0x4008000000000000","0x3fd9999999999992","0x3ff0000000000000"],"calc_func":"0x3fe5e849aaeed684","expected_bits":"0x3fe5e849aaeed685","id":"w111-seed-recheck-NEGBINOM.DIST-000","reading":"r3"},
     {"args":["0x4014000000000000","0x4008000000000000","0x3fd9999999999993","0x3ff0000000000000"],"calc_func":"0x3fe5e849aaeed686","expected_bits":"0x3fe5e849aaeed688","id":"w111-seed-recheck-NEGBINOM.DIST-001","reading":"r3"},
