@@ -25,6 +25,7 @@ pub use udf::{
 mod catalogue;
 mod coerce;
 mod decimal;
+mod fetch;
 mod file_prefix;
 mod format;
 /// One-line function descriptions for signature help and function help.
@@ -45,6 +46,10 @@ pub use call::{
 pub use catalogue::{
     ArgumentDemand, Catalogue, FunctionCallTarget, FunctionId, HelpParameter, Notation,
     ParameterClass, RegistrationError, SignatureHelp, catalogue,
+};
+pub use fetch::{
+    FETCH_FUNCTIONS, FETCH_PROVIDER, FetchFunction, FetchKind, FetchReply, FetchRequest,
+    FetchRoute, decode_body, wire_url,
 };
 pub use file_prefix::FilePrefix;
 

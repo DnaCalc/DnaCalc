@@ -78,6 +78,8 @@ pub(super) struct Job<'a> {
     pub(super) spills: &'a BTreeMap<(u32, u32), (u32, u32, u32, u32)>,
     /// The `vm` of each newer error's value metadata record.
     pub(super) error_vm: &'a BTreeMap<u32, u32>,
+    /// The `vm` of each picture a value holds.
+    pub(super) image_vm: &'a [(calc_doc_model::value::ImageValue, u32)],
     pub(super) loaded: &'a LoadedSheet,
     pub(super) model: &'a ModelRoot,
     /// Where the sheet's positions went, when rows or columns of it were inserted or deleted: the
@@ -543,8 +545,17 @@ fn styled(element: &XmlElement) -> bool {
 /// `t="e"`, the `#VALUE!` fallback Excel writes, and the `vm` of its value metadata record in
 /// `error_vm`; `None` for a newer error without one (#BUSY!), which is left for Excel to
 /// calculate.
-fn cache_xml(value: &CachedValue, error_vm: &BTreeMap<u32, u32>) -> Option<Cache> {
+fn cache_xml(
+    value: &CachedValue,
+    error_vm: &BTreeMap<u32, u32>,
+    image_vm: &[(calc_doc_model::value::ImageValue, u32)],
+) -> Option<Cache> {
     Some(match value {
+        CachedValue::Image(image) => (
+            Some("e"),
+            b"#VALUE!".to_vec(),
+            Some(image_vm.iter().find(|(held, _)| held == image)?.1),
+        ),
         CachedValue::Number(number) => (None, super::text::number(number.get()).into_bytes(), None),
         CachedValue::Text(text) => {
             let mut out = Vec::new();
@@ -579,7 +590,7 @@ impl<'j> Rewrite<'_, 'j> {
         let values = self.job.values?;
         match values
             .get(&(row, column))
-            .and_then(|value| cache_xml(value, self.job.error_vm))
+            .and_then(|value| cache_xml(value, self.job.error_vm, self.job.image_vm))
         {
             Some(cache) => {
                 self.values_written += 1;
@@ -994,7 +1005,7 @@ impl<'j> Rewrite<'_, 'j> {
             .job
             .values
             .and_then(|values| values.get(&(row, column)))
-            .and_then(|value| cache_xml(value, self.job.error_vm))
+            .and_then(|value| cache_xml(value, self.job.error_vm, self.job.image_vm))
         else {
             // A value Excel holds only with value metadata the save has none for: the cell is
             // left out, for Excel to fill when it calculates the anchor.

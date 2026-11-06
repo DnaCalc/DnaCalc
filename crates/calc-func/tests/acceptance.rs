@@ -14,7 +14,8 @@
 
 use calc_func::value::{
     ArrayShape, CalcArray, CalcValue, CallableArityShape, CallableValue, CellKey, CoreRef,
-    CoreValue, ExcelText, GridArea, GridError, IdAllocator, IdError, MAX_COLUMNS, MAX_ROWS, NameId,
+    CoreValue, ExcelText, GridArea, GridError, IdAllocator, IdError, ImageFormat, ImageValue,
+    MAX_COLUMNS, MAX_ROWS, NameId,
     NameKey, NameScope, NodeId, NumericMode, NumericTargetId, OpaqueCallable, ReferenceError,
     ReferenceLike, Selection, SheetId, TableId, WorkbookId, WorksheetErrorCode,
 };
@@ -346,6 +347,8 @@ macro_rules! send_sync_types {
 
 send_sync_types![
     CalcValue,
+    ImageFormat,
+    ImageValue,
     CoreValue,
     CoreRef<'static>,
     CalcArray,

@@ -44,6 +44,8 @@ pub enum CachedValue {
     Text(CellText),
     Logical(bool),
     Error(WorksheetErrorCode),
+    /// A picture in a cell, as IMAGE gave it; a file holds it as a `_webimage` rich value.
+    Image(calc_value::ImageValue),
 }
 
 impl CachedValue {
@@ -53,6 +55,7 @@ impl CachedValue {
         match self {
             CachedValue::Number(number) => CalcValue::number(number.get()),
             CachedValue::Text(text) => CalcValue::text(text.text().clone()),
+            CachedValue::Image(image) => CalcValue::image(image.clone()),
             CachedValue::Logical(logical) => CalcValue::logical(*logical),
             CachedValue::Error(code) => CalcValue::error(*code),
         }
