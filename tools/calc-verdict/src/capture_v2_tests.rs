@@ -804,13 +804,20 @@ fn capture_failures_are_counted_in_the_report() {
     by_stage.insert("value".to_owned(), 1);
     assert_eq!(
         report.capture_failures,
-        Some(CaptureFailureCounts { total: 2, by_stage })
+        Some(CaptureFailureCounts {
+            total: 2,
+            by_stage,
+            by_class: [("other_capture_stage".to_owned(), 2)]
+                .into_iter()
+                .collect()
+        })
     );
     let encoded: serde_json::Value = serde_json::from_str(&report.encode()).unwrap();
-    assert_eq!(encoded["version"], 5);
+    assert_eq!(encoded["version"], 6);
     assert_eq!(
         encoded["capture_failures"],
-        serde_json::json!({"total": 2, "by_stage": {"isolation": 1, "value": 1}})
+        serde_json::json!({"total": 2, "by_stage": {"isolation": 1, "value": 1},
+            "by_class": {"other_capture_stage": 2}})
     );
     // The member follows `captured`, which follows `run`.
     let text = report.encode();
@@ -827,7 +834,7 @@ fn capture_failures_are_counted_in_the_report() {
     assert!(
         report
             .summary()
-            .ends_with("; 2 capture failures (isolation 1, value 1)"),
+            .ends_with("; 2 capture failures (isolation 1, value 1); capture failure classes other_capture_stage 2"),
         "{}",
         report.summary()
     );
@@ -845,6 +852,11 @@ fn capture_failures_are_counted_in_the_report() {
         serde_json::json!({"total": 0, "by_stage": {}})
     );
     assert!(report.summary().ends_with("; 0 capture failures"));
+    assert_eq!(
+        encoded["version"], 5,
+        "clean reports preserve their historical byte format"
+    );
+    assert!(encoded.get("capture_failure_evidence").is_none());
     let mut v1 = clean;
     v1.session = None;
     let (results, proof) = calculated((1, CONTEXT), 1, CONTEXT);
@@ -853,6 +865,132 @@ fn capture_failures_are_counted_in_the_report() {
     let encoded: serde_json::Value = serde_json::from_str(&report.encode()).unwrap();
     assert!(encoded.get("capture_failures").is_none());
     assert!(!report.summary().contains("capture failures"));
+}
+
+/// These are unchanged original captures. Phase metadata cannot turn a retained
+/// file cache into a calculated match or erase the recorded loss.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn engine_capture_losses_retain_all_three_original_phases() {
+    use crate::CaptureFailureClass as C;
+    let cases: &[(&[u8], &[(C, u64)])] = &[
+        (
+            include_bytes!("../../../crates/calc-engine/tests/captures/dc_86f/oracle.capture.json"),
+            &[
+                (C::FiniteNumberChangedDuringSaveAndReopen, 19),
+                (C::FiniteNumberChangedOnReopen, 2),
+                (C::FiniteNumberChangedDuringSave, 1),
+            ],
+        ),
+        (
+            include_bytes!(
+                "../../../crates/calc-engine/tests/captures/dc_10y_iteration/oracle.capture.json"
+            ),
+            &[(C::FiniteNumberChangedDuringSaveAndReopen, 5)],
+        ),
+        (
+            include_bytes!(
+                "../../../crates/calc-engine/tests/captures/eng14-raw-nonfinite/oracle.capture.json"
+            ),
+            &[(C::NonfiniteNumberSavedAndReopenedAsNum, 6)],
+        ),
+        (
+            include_bytes!(
+                "../../../crates/calc-engine/tests/captures/eng15-overflow/oracle.capture.json"
+            ),
+            &[(C::NonfiniteNumberSavedAndReopenedAsNum, 30)],
+        ),
+    ];
+    let mut losses = 0;
+    for &(bytes, expected) in cases {
+        let capture = CaptureRecord::decode(bytes).unwrap();
+        let before = capture.encode().unwrap();
+        let failures = &capture.session.as_ref().unwrap().failures;
+        let report = file_cache_replay(&capture, &VerdictPolicy::default()).unwrap();
+        let counts = report.capture_failures.as_ref().unwrap();
+        assert_eq!(counts.total, failures.len() as u64);
+        assert_eq!(
+            counts.by_class,
+            expected
+                .iter()
+                .map(|(class, count)| (class.name().to_owned(), *count))
+                .collect()
+        );
+        assert_eq!(report.capture_failure_evidence.len(), failures.len());
+        assert_eq!(counts.by_class.values().sum::<u64>(), counts.total);
+        assert_eq!(report.counts.calculated, 0);
+        assert_eq!(report.counts.matched, 0);
+        let encoded: serde_json::Value = serde_json::from_str(&report.encode()).unwrap();
+        for (index, (evidence, failure)) in report
+            .capture_failure_evidence
+            .iter()
+            .zip(failures)
+            .enumerate()
+        {
+            assert_eq!(&evidence.failure, failure);
+            assert!(
+                evidence.immediate.is_some()
+                    && evidence.saved.is_some()
+                    && evidence.reopened.is_some()
+            );
+            let detail = &encoded["capture_failure_evidence"][index];
+            assert_eq!(detail["message"], failure.message);
+            assert_eq!(detail["classification"], evidence.classification.name());
+            if evidence.classification == C::NonfiniteNumberSavedAndReopenedAsNum {
+                let immediate = evidence
+                    .immediate
+                    .as_ref()
+                    .unwrap()
+                    .expected()
+                    .as_number()
+                    .unwrap();
+                assert!(!immediate.is_finite());
+                assert_eq!(
+                    detail["immediate"]["excel_raw"]["number"],
+                    format!("{:016x}", immediate.to_bits())
+                );
+                assert_eq!(detail["saved"]["excel_saved_cache"]["t"], "e");
+                assert_eq!(detail["saved"]["excel_saved_cache"]["v"], "#NUM!");
+                assert_eq!(detail["reopened"]["excel_raw"]["error"], "num");
+            }
+        }
+        assert_eq!(capture.encode().unwrap(), before);
+        losses += counts.total;
+    }
+    assert_eq!(losses, 63);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn capture_phase_classification_keeps_missing_duplicate_and_unchanged_evidence_as_failures() {
+    use crate::CaptureFailureClass as C;
+    let mut capture = record();
+    let failure = CaptureFailure {
+        stage: "reopen".into(),
+        cell: Some(cell("Sheet1", 1, 1)),
+        message: "original failure".into(),
+    };
+    capture.session.as_mut().unwrap().failures = vec![failure.clone()];
+    let report = file_cache_replay(&capture, &VerdictPolicy::default()).unwrap();
+    assert_eq!(report.capture_failures.as_ref().unwrap().total, 1);
+    assert_eq!(
+        report.capture_failure_evidence[0].classification,
+        C::NoObservedValueChange
+    );
+    assert_eq!(report.counts.calculated, 0);
+    capture.session.as_mut().unwrap().reopened.clear();
+    assert_eq!(
+        capture.failure_evidence()[0].classification,
+        C::IncompletePhaseEvidence
+    );
+    capture = record();
+    capture.session.as_mut().unwrap().failures = vec![failure];
+    let duplicate = capture.session.as_ref().unwrap().saved[0].clone();
+    capture.session.as_mut().unwrap().saved.push(duplicate);
+    let evidence = capture.failure_evidence();
+    assert_eq!(evidence[0].classification, C::IncompletePhaseEvidence);
+    assert!(evidence[0].saved.is_none());
+    assert!(file_cache_replay(&capture, &VerdictPolicy::default()).is_err());
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -1078,19 +1216,34 @@ fn legacy_array_cells_are_proven_by_their_anchors_evaluation() {
             evaluated(cell("Calc", 1, 15), CalcValue::number(1.0)),
         ],
     };
-    let report = judge(&capture, &results_of(&legacy_values()), &record, &VerdictPolicy::default())
-        .unwrap();
+    let report = judge(
+        &capture,
+        &results_of(&legacy_values()),
+        &record,
+        &VerdictPolicy::default(),
+    )
+    .unwrap();
     assert!(
         report
             .cells
             .iter()
             .all(|cell| matches!(cell.verdict, Verdict::Matched { .. })),
         "{:?}",
-        report.cells.iter().map(|cell| &cell.verdict).collect::<Vec<_>>()
+        report
+            .cells
+            .iter()
+            .map(|cell| &cell.verdict)
+            .collect::<Vec<_>>()
     );
     let mut wrong = legacy_values();
     wrong[4].1 = 10.0;
-    let report = judge(&capture, &results_of(&wrong), &record, &VerdictPolicy::default()).unwrap();
+    let report = judge(
+        &capture,
+        &results_of(&wrong),
+        &record,
+        &VerdictPolicy::default(),
+    )
+    .unwrap();
     assert!(matches!(report.cells[4].verdict, Verdict::Unproven { .. }));
 }
 
