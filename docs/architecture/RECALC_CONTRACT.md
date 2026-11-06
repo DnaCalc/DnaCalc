@@ -538,6 +538,19 @@ Manual reopen retains their file-cache provenance, and full recalculation restor
 The saved-cache reader continues to require finite numeric XML because these caches have error
 type. New oracle capture and additional formatting/order measurements remain open.
 
+Capture phase evidence (dc-hsa5.15, engine20): failure-bearing verdict report version 6 retains
+every original failure, cell and message with its available immediate, saved and
+reopened typed observations. Classification describes value transitions rather
+than their cause. The four engine captures contain 63 recorded losses: 36 raw
+nonfinite numbers saved and reopened as #NUM!, 24 finite changes during both
+save and reopen, two only on reopen and one during save. The 27 finite changes
+were captured with iteration enabled; that setting alone does not prove why
+they changed. Counts and original captures remain unchanged. Missing, duplicate
+or unchanged phase evidence cannot remove a recorded failure or grant calculation
+proof. No new Excel execution is claimed. Questions for explicit save settings and
+phase snapshots remain under `~/codex-runs/excel-questions-eng20/`.
+Reports without recorded failures keep their byte-identical version 5 encoding.
+
 ## 5. The VBA read view
 
 Linked workbook inputs (dc-ylr, 2026-11-03): the portable host calculation domain

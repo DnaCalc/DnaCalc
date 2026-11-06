@@ -96,7 +96,10 @@ pub const REPORT_FORMAT: &str = "dnacalc-verdict-report";
 /// reason `com_add_in_connected`. Version 5 adds the strata `legacy_array_anchor` and
 /// `legacy_array_member`, and on the cell of a legacy array formula its `ref` (an anchor) or its
 /// `anchor` (a member).
-pub const REPORT_VERSION: u64 = 5;
+/// Latest report schema. Version 6 adds original capture-failure phase evidence
+/// and classification counts. Reports with no recorded failures keep byte-exact
+/// version 5 output; they have none of the new fields.
+pub const REPORT_VERSION: u64 = 6;
 
 /// What a verdict run is judged against: the numeric mode whose Exact target strict-bit certainty
 /// needs, and the legacy evidence labels a record converted from legacy evidence needs.
@@ -362,6 +365,7 @@ pub struct Strata {
 pub struct CaptureFailureCounts {
     pub total: u64,
     pub by_stage: BTreeMap<String, u64>,
+    pub by_class: BTreeMap<String, u64>,
 }
 
 /// The CellVerdict report of one verdict run.
@@ -378,6 +382,9 @@ pub struct VerdictReport {
     /// The failures a version 2 capture record's session records, counted; `None` for a version 1
     /// record, which records none.
     pub capture_failures: Option<CaptureFailureCounts>,
+    /// Every original failure, with its immediate/saved/reopened evidence. This
+    /// metadata neither changes a cell verdict nor certifies a capture transition.
+    pub capture_failure_evidence: Vec<crate::CaptureFailureEvidence>,
     /// The COM add-ins the capture record's environment lists as connected while the capture was
     /// taken ([`crate::SETTING_COM_ADD_INS_CONNECTED`]); `None` when the record carries no
     /// environment or its environment no such setting.
@@ -1103,6 +1110,7 @@ pub fn judge<'e>(
         }
     }
 
+    let capture_failure_evidence = capture.failure_evidence();
     Ok(VerdictReport {
         case: capture.case.clone(),
         source: capture.source.clone(),
@@ -1119,8 +1127,15 @@ pub fn judge<'e>(
                 counts.total += 1;
                 *counts.by_stage.entry(failure.stage.clone()).or_default() += 1;
             }
+            for evidence in &capture_failure_evidence {
+                *counts
+                    .by_class
+                    .entry(evidence.classification.name().to_owned())
+                    .or_default() += 1;
+            }
             counts
         }),
+        capture_failure_evidence,
         com_add_ins_connected: capture
             .environment
             .as_ref()
@@ -1386,7 +1401,8 @@ impl VerdictReport {
         by_reason
     }
 
-    /// The report as a JSON document (`dnacalc-verdict-report`, version 5): the headline
+    /// The report as a JSON document (`dnacalc-verdict-report`): version 6 with
+    /// recorded failure evidence, otherwise the unchanged version 5 encoding. The headline
     /// (calculated of the denominator, then matched of the calculated), every count, the uncertified
     /// comparisons by reason, the strata, one line per inventory cell in inventory order, and the
     /// results outside the inventory. For a version 2 capture record a `captured` member after
@@ -1418,7 +1434,14 @@ impl VerdictReport {
         let s = &self.strata;
         let mut members = vec![
             ("format", Out::text(REPORT_FORMAT)),
-            ("version", Out::Unsigned(REPORT_VERSION)),
+            (
+                "version",
+                Out::Unsigned(if self.capture_failure_evidence.is_empty() {
+                    5
+                } else {
+                    REPORT_VERSION
+                }),
+            ),
             ("case", Out::text(self.case.as_str())),
             ("source", Out::text(self.source.as_str())),
             ("acquisition", self.acquisition.out()),
@@ -1429,21 +1452,42 @@ impl VerdictReport {
             members.push(("captured", run(captured)));
         }
         if let Some(failures) = &self.capture_failures {
-            members.push((
-                "capture_failures",
-                Out::Object(vec![
-                    ("total", Out::Unsigned(failures.total)),
-                    (
-                        "by_stage",
-                        Out::Members(
-                            failures
-                                .by_stage
-                                .iter()
-                                .map(|(stage, count)| (stage.clone(), Out::Unsigned(*count)))
-                                .collect(),
-                        ),
+            let mut fields = vec![
+                ("total", Out::Unsigned(failures.total)),
+                (
+                    "by_stage",
+                    Out::Members(
+                        failures
+                            .by_stage
+                            .iter()
+                            .map(|(stage, count)| (stage.clone(), Out::Unsigned(*count)))
+                            .collect(),
                     ),
-                ]),
+                ),
+            ];
+            if !failures.by_class.is_empty() {
+                fields.push((
+                    "by_class",
+                    Out::Members(
+                        failures
+                            .by_class
+                            .iter()
+                            .map(|(class, count)| (class.clone(), Out::Unsigned(*count)))
+                            .collect(),
+                    ),
+                ));
+            }
+            members.push(("capture_failures", Out::Object(fields)));
+        }
+        if !self.capture_failure_evidence.is_empty() {
+            members.push((
+                "capture_failure_evidence",
+                Out::Array(
+                    self.capture_failure_evidence
+                        .iter()
+                        .map(crate::CaptureFailureEvidence::out)
+                        .collect(),
+                ),
             ));
         }
         if let Some(connected) = self.com_add_ins_connected {
@@ -1472,54 +1516,66 @@ impl VerdictReport {
             ),
             (
                 "counts",
-                Out::Object(vec![
-                    ("denominator", Out::Unsigned(c.denominator)),
-                    ("calculated", Out::Unsigned(c.calculated)),
-                    ("matched", Out::Unsigned(c.matched)),
-                    ("mismatched", Out::Unsigned(c.mismatched)),
-                    ("not_run", Out::Unsigned(c.not_run)),
-                    ("strict_certified", Out::Unsigned(c.strict_certified)),
-                    ("uncertified", Out::Unsigned(c.uncertified)),
-                    ("unproven", Out::Unsigned(c.unproven)),
-                    ("stale", Out::Unsigned(c.stale)),
-                    ("file_cached", Out::Unsigned(c.file_cached)),
-                    ("not_modeled", Out::Unsigned(c.not_modeled)),
-                    ("failed", Out::Unsigned(c.failed)),
-                    ("missing", Out::Unsigned(c.missing)),
-                    (
-                        "not_calculated_equal_to_expectation",
-                        Out::Unsigned(c.not_calculated_equal_to_expectation),
-                    ),
-                    ("outside_inventory", Out::Unsigned(c.outside_inventory)),
-                    ("evaluator_calls", Out::Unsigned(c.evaluator_calls)),
-                    (
-                        "calculated_without_value_check",
-                        Out::Unsigned(c.calculated_without_value_check),
-                    ),
-                ]
-                .into_iter()
-                // Written only when a calculated cell read another workbook's link caches, so a
-                // report without one reads as it did before (dc-ylr).
-                .chain((c.external_links > 0).then(|| {
-                    [
-                        ("external_links", Out::Unsigned(c.external_links)),
+                Out::Object(
+                    vec![
+                        ("denominator", Out::Unsigned(c.denominator)),
+                        ("calculated", Out::Unsigned(c.calculated)),
+                        ("matched", Out::Unsigned(c.matched)),
+                        ("mismatched", Out::Unsigned(c.mismatched)),
+                        ("not_run", Out::Unsigned(c.not_run)),
+                        ("strict_certified", Out::Unsigned(c.strict_certified)),
+                        ("uncertified", Out::Unsigned(c.uncertified)),
+                        ("unproven", Out::Unsigned(c.unproven)),
+                        ("stale", Out::Unsigned(c.stale)),
+                        ("file_cached", Out::Unsigned(c.file_cached)),
+                        ("not_modeled", Out::Unsigned(c.not_modeled)),
+                        ("failed", Out::Unsigned(c.failed)),
+                        ("missing", Out::Unsigned(c.missing)),
                         (
-                            "matched_external_links",
-                            Out::Unsigned(c.matched_external_links),
+                            "not_calculated_equal_to_expectation",
+                            Out::Unsigned(c.not_calculated_equal_to_expectation),
+                        ),
+                        ("outside_inventory", Out::Unsigned(c.outside_inventory)),
+                        ("evaluator_calls", Out::Unsigned(c.evaluator_calls)),
+                        (
+                            "calculated_without_value_check",
+                            Out::Unsigned(c.calculated_without_value_check),
                         ),
                     ]
-                }).into_iter().flatten())
-                // Written only when a cell holds the circular-reference rule's value (dc-y2o.1).
-                .chain((c.circular_rule > 0).then(|| {
-                    [
-                        ("circular_rule", Out::Unsigned(c.circular_rule)),
-                        (
-                            "matched_circular_rule",
-                            Out::Unsigned(c.matched_circular_rule),
-                        ),
-                    ]
-                }).into_iter().flatten())
-                .collect()),
+                    .into_iter()
+                    // Written only when a calculated cell read another workbook's link caches, so a
+                    // report without one reads as it did before (dc-ylr).
+                    .chain(
+                        (c.external_links > 0)
+                            .then(|| {
+                                [
+                                    ("external_links", Out::Unsigned(c.external_links)),
+                                    (
+                                        "matched_external_links",
+                                        Out::Unsigned(c.matched_external_links),
+                                    ),
+                                ]
+                            })
+                            .into_iter()
+                            .flatten(),
+                    )
+                    // Written only when a cell holds the circular-reference rule's value (dc-y2o.1).
+                    .chain(
+                        (c.circular_rule > 0)
+                            .then(|| {
+                                [
+                                    ("circular_rule", Out::Unsigned(c.circular_rule)),
+                                    (
+                                        "matched_circular_rule",
+                                        Out::Unsigned(c.matched_circular_rule),
+                                    ),
+                                ]
+                            })
+                            .into_iter()
+                            .flatten(),
+                    )
+                    .collect(),
+                ),
             ),
             (
                 "uncertified_by_reason",
@@ -1604,10 +1660,17 @@ impl VerdictReport {
                 if stages.is_empty() {
                     "; 0 capture failures".to_owned()
                 } else {
+                    let classes = failures
+                        .by_class
+                        .iter()
+                        .map(|(class, count)| format!("{class} {count}"))
+                        .collect::<Vec<_>>()
+                        .join(", ");
                     format!(
-                        "; {} capture failures ({})",
+                        "; {} capture failures ({}); capture failure classes {}",
                         failures.total,
-                        stages.join(", ")
+                        stages.join(", "),
+                        classes,
                     )
                 }
             })

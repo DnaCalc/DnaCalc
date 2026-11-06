@@ -395,7 +395,10 @@ pub enum FormulaKind {
     /// The top-left cell of a what-if data table's result area (`<f t="dataTable" ref ...>`), which
     /// starts at the cell and spans `rows` rows and `columns` columns. JSON: `"kind":
     /// "data_table_anchor"` with `"ref"`, as a legacy array anchor's.
-    DataTableAnchor { rows: u32, columns: u32 },
+    DataTableAnchor {
+        rows: u32,
+        columns: u32,
+    },
     /// Another cell of a data table's result area, whose top-left cell is at `anchor_row` and
     /// `anchor_column` of the same sheet: Excel lists every cell of the area among its formula
     /// cells (`{=TABLE(...)}`). JSON: `"kind": "data_table_member"` with `"anchor"`.
@@ -867,7 +870,7 @@ impl Observation {
         }
     }
 
-    fn out(&self) -> Out {
+    pub(crate) fn out(&self) -> Out {
         match self {
             Observation::ExcelRaw(value) => value_out(value),
             Observation::ExcelSavedCache(cache) | Observation::UnknownFreshnessCache(cache) => {

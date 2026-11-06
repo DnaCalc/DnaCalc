@@ -271,7 +271,6 @@ pub fn pmt(
     if em == 0.0 {
         return Err(FinancialError::Num);
     }
-    let inv_factor = 1.0 + em; // v = (1+r)^-n
     let tf = timing.factor(periodic_rate); // 1 + r·type
     // Equal opposite balances are interest only: pv + fv*v = fv*(v - 1).
     // Cancelling that common factor before rounding avoids subtracting nearly
@@ -294,12 +293,24 @@ pub fn pmt(
         };
         return if result.is_finite() { Ok(result) } else { Err(FinancialError::Num) };
     }
-    let numerator = present_value + future_value * inv_factor;
     // Both arms store the quotient from PC64 (dc-j9k.12). With pv varied at fixed (rate, nper),
     // fv 0 and type 0, q = RN53(RN64(pv / em)) followed by RN53(RN64(q * rate)) admits one
     // binary64 em in every one of 4,802 recorded groups; a binary64 quotient leaves 59 groups
     // with no em at all.
-    let quotient = excel_x87_div(numerator, em);
+    let quotient = if neg_log < 0.0 {
+        // dc-j9k.12, R29: the discount arm combines balances as
+        // (pv + fv)/em + fv, with both additions and the division stored
+        // from PC64. Public type-zero calls constrain em independently:
+        // this fold matches all192 paired future-value calls. Separately
+        // selected ties distinguish each addition (60 and99 readings).
+        // Forming pv + fv*(1+em) loses those recorded roundings.
+        let balance = excel_x87_add(present_value, future_value);
+        excel_x87_add(excel_x87_div(balance, em), future_value)
+    } else {
+        let inv_factor = 1.0 + em;
+        let numerator = present_value + future_value * inv_factor;
+        excel_x87_div(numerator, em)
+    };
     let quotient = excel_x87_div(quotient, tf);
     // The recorded discount arm stores the final product from PC64; the growth arm
     // retains the native product, which the negative-rate control distinguishes.
