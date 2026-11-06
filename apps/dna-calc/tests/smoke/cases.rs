@@ -9012,6 +9012,22 @@ Case {
         Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools"),Action::Choose("chart-choice","xl/charts/dnaChart.xml"),Action::Wait(Check::Value("chart-type","column")),Action::Choose("chart-plot","1"),Action::Wait(Check::Value("chart-type","area"))
     ],checks:&[Check::Count("[data-dnacalc=chart]",7),Check::Absent("[data-chart=\"Chart 7\"] [data-dnacalc=chart-notice]")]},
 
+    Case{name:"saved pivots: read shared cache definitions and show saved output",actions:&[
+        Action::Window(1440,1100),Action::Upload("open-file","crates/calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx"),Action::DiscardReplacement,Action::OpenDetails("pivot-tools"),Action::Wait(Check::Count("[data-dnacalc=saved-pivot]",2))
+    ],checks:&[Check::TextContains("pivot-state","No pivot refresh has run"),Check::TextContains("[data-pivot=Summary] [data-dnacalc=pivot-source]","Data!A1:B4"),Check::TextContains("[data-pivot=Summary] [data-dnacalc=pivot-fields]","Rows: Region"),Check::TextContains("[data-pivot=Summary] [data-dnacalc=pivot-fields]","Sum of Amount (sum)"),Check::PlanCell("E6","text","24"),Check::PlanCell("E6","provenance","literal")]},
+    Case{name:"saved pivots: selecting the retained location uses normal grid selection",actions:&[
+        Action::Click("[data-pivot=Summary] [data-dnacalc=pivot-reveal]"),Action::Wait(Check::Attr("selection","data-area","D3:E6"))
+    ],checks:&[Check::Attr("selection","data-area","D3:E6"),Check::Value("name-box","D3"),Check::PlanCell("E6","text","24")]},
+    Case{name:"saved pivots: source edits recalculate formulas without pretending to refresh",actions:&[
+        Action::Into("name-box","B2\u{E007}"),Action::Into(BAR,"100\u{E007}"),Action::Wait(Check::PlanCell("H1","text","112"))
+    ],checks:&[Check::PlanCell("H1","provenance","calculated"),Check::PlanCell("E6","text","24"),Check::PlanCell("E6","provenance","literal"),Check::Count("[data-dnacalc=saved-pivot]",2)]},
+    Case{name:"saved pivots: actual XLSX reopening retains both pivots and shared cache",actions:&[
+        Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("pivot-saved.xlsx"),Action::DiscardReplacement,Action::OpenDetails("pivot-tools"),Action::Wait(Check::Count("[data-dnacalc=saved-pivot]",2))
+    ],checks:&[Check::PlanCell("H1","text","112"),Check::PlanCell("E6","text","24"),Check::TextContains("[data-pivot=Summary2]","Saved cache 7"),Check::TextContains("pivot-state","No pivot refresh has run")]},
+    Case{name:"saved pivots: phone panel remains reachable",actions:&[
+        Action::Window(390,844),Action::Wait(Check::Reachable("[data-pivot=Summary] [data-dnacalc=pivot-reveal]")),Action::Wait(Check::HitTarget("[data-pivot=Summary] [data-dnacalc=pivot-reveal]")),Action::Keys("[data-pivot=Summary] [data-dnacalc=pivot-reveal]","\u{E00C}")
+    ],checks:&[Check::Fits,Check::Narrow(390),Check::Focused("pivot-tools-toggle"),Check::Count("[data-dnacalc=saved-pivot]",0)]},
+
 ];
 
 /// The script that reads what one check looks at.
@@ -9902,4 +9918,5 @@ CaseGroup {
     CaseGroup {name:"chart-formatting",start:802,end:808,core:6,setup:&[]},
     CaseGroup{name:"chart-text",start:808,end:813,core:5,setup:&[]},
     CaseGroup{name:"chart-category-combos",start:813,end:816,core:3,setup:&[]},
+    CaseGroup{name:"saved-pivots",start:816,end:821,core:5,setup:&[]},
 ];

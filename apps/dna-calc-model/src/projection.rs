@@ -668,6 +668,7 @@ pub enum Request {
     },
     /// The sheet's charts, drawn.
     Charts(Sheet),
+    PivotTables(Sheet),
     /// The cell's data validation: its rule and, for a list, its items.
     Validation(Key),
     ValidationInvalid(Sheet),
@@ -1099,6 +1100,7 @@ pub enum Reply {
     UsedArea(Option<Area>),
     ResolvedReference(Result<Area, String>),
     Charts(Vec<Chart>),
+    PivotTables{tables:Vec<SavedPivot>,issues:Vec<String>},
     Validation(Option<Validation>),
     ValidationInvalid(ValidationScan),
     Atlas(Atlas),
@@ -1556,3 +1558,7 @@ pub struct ReviewRun {pub text:String,pub bold:bool,pub italic:bool,pub underlin
 
 #[derive(Clone,Debug,Default,PartialEq,Eq,Serialize,Deserialize)]
 pub struct ChartTextStyle{pub family:Option<String>,pub size:Option<u32>,pub bold:Option<bool>,pub italic:Option<bool>,pub color:Option<String>}
+
+/// Metadata for a saved pivot; its cells are presented through the normal worksheet route.
+#[derive(Clone,Debug,PartialEq,Eq,Serialize,Deserialize)]
+pub struct SavedPivot {pub name:String,pub part:String,pub area:Area,pub location:String,pub source:String,pub fields:String,pub cache:String}
