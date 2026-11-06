@@ -1002,6 +1002,15 @@ before the fix and covers short/growing/shrinking footprints at unlimited and
 one-evaluation budgets; the disabled UDF remains a counted refusal. This changes
 certificate validation, without a new claim about Excel callback or SCC counts.
 
+Target-generation storage (dc-hsa5.16, engine21): formula target versions now use
+the same generation-checked bounded slot pages as admitted requirement cuts.
+Lookup and retirement still compare the complete NodeId; a stale handle cannot
+read or remove its replacement. Replacement and rebuild retain the same monotonic
+target counter. Pinned saves share immutable pages, with writes copying at most
+four bounded pages. Small or sparse books pay page overhead; no workbook-sized
+array is allocated for a high sparse slot. This changes metadata storage, without
+changing evaluation order, result provenance or certificate/async target checks.
+
 Comparison proof (dc-d7r1, 2026-11-04): the existing verdict recognizes the exact
 primitive scalar published from a one-cell evaluated array, as `array_outcome`
 already does. The retained fn2 WRAPCOLS controls show the array in the version-2
@@ -1277,6 +1286,20 @@ cannot turn that refusal into a value. Untaken branches stay lazy. Name Manager 
 uses the existing Excel file-form converter, and its display uses the shared formatter;
 modern function prefixes survive save/reopen. P12 Excel alias measurement, effect-capable
 non-cell continuations, broader block execution and shared value reuse remain open.
+
+Owner contexts for current decisions (dc-hsa5.6, engine21): Host validation and
+formula-based filter criteria supply the owner's full numeric mode, including
+before any cell publication. One context retains it for the batch. If published
+formula values belong to another mode, current reads refuse them; literal inputs
+and unused branches remain available. The existing stale/retired-anchor closure
+is retained. Historical conditional painting keeps its published-value policy.
+
+Context compilation uses the existing metadata-only callable compiler. A reached
+known UDF refuses before user code enters, including inside IFERROR; an untaken
+branch stays lazy. Replacing a callable registration expires a current detached
+plan until it is compiled again. No executable owner, producer work, result or
+history entry is granted. Conditional colour filtering still uses the historical
+prepare/look path; passing its current context through that path remains open.
 
 Detached current-value contexts (dc-hsa5.6, engine20): validation audits and filter
 decisions can borrow one `DetachedEvaluationContext` for their whole batch. Its
