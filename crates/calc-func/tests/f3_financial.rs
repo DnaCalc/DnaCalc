@@ -59,6 +59,25 @@ fn time_value_of_money() {
     error(call("PMT", vec![n(0.1), n(0.0), n(1000.0)]), Num);
 }
 
+/// Original R31 scalar Excel16.0.20527 replies and exact operand readbacks:
+/// DnaCalc-Research/evidence/round31, annuity reciprocal-domain studies.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn annuity_beginning_reciprocal_pole_keeps_first_interest_zero() {
+    let rate = f64::from_bits(0xbfefffffffffffff);
+    for (periods, present, future) in [(1.0, 3.7, -3.7), (17.0, 3.7, 0.0), (2.0, 0.0, 3.7)] {
+        error(call("PMT", vec![n(rate), n(periods), n(present), n(future), n(1.0)]), Num);
+    }
+    for rate in [rate, -1.0, -1.25, -2.0] {
+        exact(call("IPMT", vec![n(rate), n(1.0), n(17.0), n(3.7), n(0.9), n(1.0)]), 0.0);
+    }
+    error(call("PPMT", vec![n(rate), n(1.0), n(17.0), n(3.7), n(0.9), n(1.0)]), Num);
+    error(call("IPMT", vec![n(rate), n(2.0), n(17.0), n(3.7), n(0.9), n(1.0)]), Num);
+    // Existing period-range contract controls precede the first-interest shortcut.
+    error(call("IPMT", vec![n(rate), n(1.0), n(0.5), n(3.7), n(0.9), n(1.0)]), Num);
+    error(call("IPMT", vec![n(rate), n(0.5), n(17.0), n(3.7), n(0.9), n(1.0)]), Num);
+}
+
 /// Excel 16.0 build 20228, answers-irr-exact-graph-discovery-20260809.json,
 /// d16-root / d16-far_p010 and d11-root. These run through the application call path.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

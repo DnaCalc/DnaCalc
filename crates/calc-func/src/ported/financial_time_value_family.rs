@@ -247,6 +247,14 @@ pub fn pmt(
     if 1.0 + periodic_rate <= 0.0 {
         return Err(FinancialError::Num);
     }
+    // R31 adjacent-rate calls: beginning payments reject the pole in the
+    // stored-PC64 reciprocal coefficient, even when balances cancel. End
+    // payments at the same rate retain their ordinary discount domain.
+    if matches!(timing, PaymentTiming::BeginningOfPeriod)
+        && excel_x87_add(1.0, excel_x87_recip(periodic_rate)) == 0.0
+    {
+        return Err(FinancialError::Num);
+    }
     // W109 G6-01 (2026-07-23, multi-agent workflow): the transcendental substrate is
     // the x87 chain (Excel's PMT `exp` is the x87 exponential `excel_exp`, matched 234/234; `expm1` is the internal
     // x87 double-rounded Kahan), and the combine is the live-Excel-pinned **quotient-first,
@@ -884,6 +892,12 @@ pub fn ipmt(
     ])?;
     if period_index < 1.0 || period_index > periods {
         return Err(FinancialError::Num);
+    }
+    // R31 public IPMT calls return zero here even at rate -1 and below.
+    // This precedes PMT's rate and reciprocal-pole checks, but follows the
+    // finite-argument and period-range checks.
+    if period_index == 1.0 && matches!(timing, PaymentTiming::BeginningOfPeriod) {
+        return Ok(0.0);
     }
     // W109 G6-01 (2026-07-23): EXACT zero-rate special case (mirrors PMT's W108 Bead C),
     // NOT an `abs() < EPSILON` band. Live-Excel: IPMT(0,per,..)=+0.0, but a merely-tiny rate

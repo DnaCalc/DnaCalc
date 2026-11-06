@@ -1,0 +1,23 @@
+{
+  "action": "observe",
+  "condition": {
+    "id": "eng20-persistence-eng15-overflow-calculate-before-save-true",
+    "iteration": false,
+    "iterations": 100,
+    "change_bits": "3f50624dd2f1a9fc",
+    "commands": 1,
+    "command_sequence": [
+      "Rebuild"
+    ],
+    "operation": "Rebuild",
+    "range": "A1:Z1000",
+    "persistence": true,
+    "calculate_before_save": true,
+    "calculation_mode": "automatic"
+  },
+  "trial": 1,
+  "input": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng20\\inputs\\eng15-overflow\\oracle.xlsx",
+  "input_sha256": "603ce07db6e424a5bc457c8edc272440b283bf50d08f2ff6802046d69be3e149",
+  "full_precision": true,
+  "unseeded_observation": true
+}

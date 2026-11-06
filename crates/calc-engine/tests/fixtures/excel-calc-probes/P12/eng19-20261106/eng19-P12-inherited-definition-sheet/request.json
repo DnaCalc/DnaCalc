@@ -1,0 +1,52 @@
+{
+  "action": "names",
+  "condition": {
+    "id": "eng19-P12-inherited-definition-sheet",
+    "names": [
+      {
+        "name": "Inner",
+        "scope": "workbook",
+        "refers_to": "=A1"
+      },
+      {
+        "name": "Outer",
+        "scope": "Sheet1",
+        "refers_to": "=Inner+Inner"
+      }
+    ],
+    "cells": {
+      "Sheet1!A1": 2,
+      "Other!A1": 9,
+      "Other!E1": {
+        "formula": "=Sheet1!Outer"
+      }
+    },
+    "question": "From Other!E1, which worksheet supplies the nested workbook-scoped Inner references inside Sheet1-local Outer? Retain typed formula results, exact name RefersTo/RefersToR1C1, active sheet/cell before/after each operation and all source readbacks.",
+    "expected": null,
+    "trial_count": 10,
+    "operations": [
+      "prepare two authored sheets named Sheet1 and Other in a fresh workbook",
+      "set constants, add names in listed order, record exact readbacks before writing formulas",
+      "record formula-assignment return and startup entries separately",
+      "verify Manual/iteration-off/MTC-off/events-off and typed seeds",
+      "perform CalculateFull then CalculateFullRebuild, retaining a typed snapshot after each",
+      "record explicit Evaluate calls only where requested, without replacing formula results",
+      "save/reopen only as a separately labelled observation; retain all failures"
+    ]
+  },
+  "trial": 1,
+  "observe_cells": [
+    {
+      "sheet": "Sheet1",
+      "address": "A1"
+    },
+    {
+      "sheet": "Other",
+      "address": "A1"
+    },
+    {
+      "sheet": "Other",
+      "address": "E1"
+    }
+  ]
+}

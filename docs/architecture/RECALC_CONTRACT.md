@@ -1310,6 +1310,46 @@ uses the existing Excel file-form converter, and its display uses the shared for
 modern function prefixes survive save/reopen. P12 Excel alias measurement, effect-capable
 non-cell continuations, broader block execution and shared value reuse remain open.
 
+P12 recorded alias contexts (dc-hsa5.6, engine22): the eng19 delivery contains ten
+fresh-process repetitions of each of three name-scope conditions. The retained
+original result, request, receipt and saved workbook for each condition are under
+`excel-calc-probes/P12/eng19-20261106`; provenance lists every audited repetition.
+Re-entering the authored formula syntax and evaluating the recorded selected names
+gives 40 matching comparisons across one-step and unlimited execution budgets.
+Known local-sheet function calls now use the existing scoped-name and Invoke route,
+with arguments evaluated in the caller context. Name watches cover definition edits,
+rename, Undo/Redo and scope moves. A missing sheet-qualified name or an ambiguous
+sheet/workbook qualifier refuses before entering argument UDFs; explicit bracketed
+workbook calls retain their existing route. This is the measured bounded profile.
+Excel rewrote the original Names.Add definition `=A1` as `=Sheet1!A1`, still relative,
+so constant-name discriminators remain requested under `~/codex-runs/excel-questions-eng22/`.
+Effect-capable non-cell continuations and shared name-value reuse remain open.
+
+Persistence controls (dc-hsa5.14, dc-hsa5.15, engine22): the eng19 and eng20 imports
+audit 4,420 delivery hashes and 180 successful fresh-process trials. The 21 failed
+attempts and 40 unrun original Peek setup trials remain recorded outside the repository.
+The eng20 P06 supplement retains original results and immediate saved packages for
+four workbooks with CalculateBeforeSave false and true, ten trials per condition.
+The numeric workbooks actually reopen in Automatic mode; events and MTC are off.
+
+Of the original 36 nonfinite persistence changes, 32 have the same live raw number
+before and after either save setting, serialize as #NUM!, reopen as #NUM! and recover
+the raw encoding on explicit Rebuild. The other four ABS observers are already #NUM!
+in the new Rebuild control, unlike their original entry-time observation. Their original
+loss cannot yet be assigned solely to serialization. For all 27 original finite phase
+failures (24 save-and-reopen, two reopen-only and one save-only), Save(true) reproduces
+the original saved value and its later explicit Rebuild reproduces the original reopened
+value. The original worker did not record CalculateBeforeSave or reopen calculation,
+so that causal explanation remains conditional. New questions ask for those missing
+controls without rewriting the original captures.
+
+The existing host Save route matches 324 selected finite phase comparisons across both
+save settings and execution budgets. Retained post-Save values are counted as comparisons,
+not additional executions. Imported reopen caches remain FileCached and unscored until
+the separate Rebuild. The original 63 capture failures, corpus denominators and live
+scores remain unchanged. These controls do not measure SCC entry counts, MTC-on behavior,
+linked iterative workbooks or the broader array/topology profiles.
+
 Owner contexts for current decisions (dc-hsa5.6, engine21): Host validation and
 formula-based filter criteria supply the owner's full numeric mode, including
 before any cell publication. One context retains it for the batch. If published
