@@ -218,7 +218,7 @@ FORECAST	pinned	20131	70	70	-	exact	919dd43269+changes
 FV	full	20131,20228,20430,20527,?	2561	2559	100663296	gross	919dd43269+changes
 FV	pinned	20131,20228,20430	120	120	-	exact	919dd43269+changes
 GAMMA	full	20131,20527,?	12603	6406	49	numeric	919dd43269+changes
-GAMMA	pinned	20131	120	69	3	last_bit	919dd43269+changes
+GAMMA	pinned	20131	120	83	2	last_bit	250e887126+changes
 GAMMA.DIST	full	20131,20430,20527,?	77975	48103	58	numeric	919dd43269+changes
 GAMMA.DIST	pinned	20131,20430	120	119	1	last_bit	d711d51236+changes
 GAMMA.INV	full	20131,?	204	50	55	numeric	919dd43269+changes

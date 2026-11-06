@@ -536,7 +536,7 @@ fn gamma_generic_body_records_known_gaps() {
     for (input, expected, calculated) in [
         (0x400d_1554_af11_39b0, 0x400e_f676_6ccb_fa92, 0x400ef6766ccbfa92),
         (0x400d_4f88_34b9_3ec3, 0x400f_fe1e_2ca0_074c, 0x400ffe1e2ca0074c),
-        (0x4044_be47_5963_23ad, 0x4a0b_1f25_9b34_f3ae, 0x4a0b1f259b34f3af),
+        (0x4044_be47_5963_23ad, 0x4a0b_1f25_9b34_f3ae, 0x4a0b1f259b34f3ae),
         (0x405c_03e8_db5e_238e, 0x6562_21fb_163a_ffa9, 0x656221fb163affa9),
         // Positive tgamma refinement, from both grouped-argument halves.
         (0x3f21_ee1e_5eb2_9a49, 0x40bc_8d91_582d_997d, 0x40bc8d91582d997d),
