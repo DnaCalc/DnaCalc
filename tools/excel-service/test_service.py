@@ -61,6 +61,18 @@ class ProtocolTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate(request, self.names, "a" * 32)
 
+    def test_base_rounding_catalogue_entries_are_admitted(self):
+        expected = {"ABS", "SIGN", "INT", "TRUNC", "ROUND", "ROUNDUP", "ROUNDDOWN",
+                    "MROUND", "CEILING", "FLOOR", "MOD", "QUOTIENT", "EVEN", "ODD",
+                    "ECMA.CEILING"}
+        self.assertTrue(expected <= self.names)
+        request = self.request(function="ROUNDUP",
+                               rows=[[number("0010000000000000"), number(-309.0)]])
+        self.assertIs(validate(request, self.names, "a" * 32), request)
+        with self.assertRaises(ValueError):
+            validate(self.request(function="ROUNDUP", rows=[[text("[book]A1"), number(2.0)]]),
+                     self.names, "a" * 32)
+
     def test_queue_and_adaptive_helpers_retain_exact_inputs(self):
         with tempfile.TemporaryDirectory() as directory:
             client = Client(directory, timeout=3)
