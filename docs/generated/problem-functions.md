@@ -9,7 +9,7 @@ python3 racer/corpus_cases.py problem-functions ../DnaCalc ../DnaCalc/docs/gener
 Last-bit: finite numeric mismatches <=16 ULP; larger numeric: >16 ULP. This split is triage, not a relaxed verdict. Every mismatch, refusal, unread, missing, pending, external and circular-policy cell remains an inclusive failure. Corpus labels follow exact single-cell aliases, infer calls from formula spelling and unwrap INDEX selections; unresolved references and infix operators remain explicit. Bank functions use canonical judge identities. Counts are observations per source; corpus and bank may overlap and must not be added as unique calls. Bank reference/locale context gaps remain failures, not proven numerical defects.
 
 Corpus: 52,883/54,794 matched (96.51239%); 1,911 inclusive failures, including 100 pending.
-Bank: 3,782,935/3,910,007 matched (96.75008%); 127,072 failures, including 116 unread.
+Bank: 3,783,217/3,910,007 matched (96.75729%); 126,790 failures, including 116 unread.
 
 Larger numeric and last-bit columns count numeric mismatches; other columns count remaining mismatches. Bank refusals and unread rows are separate. Corpus refusals/missing are recorded in the JSON, outside the mismatch table.
 
@@ -37,11 +37,11 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | PPMT | 18 | 33 | 0 | 0 | 8 | 0 | 0 | 0 |
 | BETADIST | 0 | 12 | 0 | 17 | 137 | 0 | 0 | 0 |
 | CUMIPMT | 1 | 51 | 0 | 15 | 10 | 0 | 0 | 0 |
-| FV | 0 | 0 | 0 | 15 | 281 | 0 | 0 | 0 |
 | PV | 0 | 0 | 0 | 15 | 147 | 0 | 0 | 0 |
 | FDIST | 0 | 2 | 0 | 13 | 3,745 | 0 | 0 | 0 |
 | CUMPRINC | 13 | 155 | 0 | 0 | 356 | 0 | 0 | 0 |
 | F.TEST | 0 | 0 | 0 | 13 | 48 | 0 | 0 | 0 |
+| FV | 0 | 0 | 0 | 12 | 2 | 0 | 0 | 0 |
 | IPMT | 11 | 54 | 2 | 0 | 7 | 0 | 0 | 0 |
 | GAMMA.INV | 0 | 1 | 0 | 7 | 147 | 0 | 0 | 0 |
 | HYPGEOM.DIST | 2 | 27 | 0 | 3 | 190 | 0 | 0 | 0 |

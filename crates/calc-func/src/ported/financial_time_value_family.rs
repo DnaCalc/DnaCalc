@@ -1,8 +1,5 @@
-// The annuity compositions were tuned and live-Excel-validated (W108 Bead C)
-// against the portable correctly-rounded numeric core. They intentionally do
-// NOT use the x87 `excel_exp`/`excel_log` worksheet backends yet; migrating the
-// financial substrate to the x87 primitives (`fyl2xp1`/`f2xm1`) is tracked as
-// W108 Phase C and requires its own live-Excel re-validation.
+// Growth helpers, logarithms and stored arithmetic remain separate stages.
+// Paired worksheet calls constrain each stage independently of its producers.
 use crate::ported::excel_numeric::{
     excel_expm1, excel_expm1_internal, excel_log1p, excel_log1p_atanh, excel_pow_chain,
     excel_pow_x87_direct,
@@ -198,8 +195,21 @@ pub fn fv(
 ) -> Result<f64, FinancialError> {
     validate_finite(&[periodic_rate, periods, payment_value, present_value])?;
     let factor = growth_allow_nonpositive_base(periodic_rate, periods)?;
-    let term = annuity_term_allow_nonpositive_base(periodic_rate, periods, timing)?;
-    let result = -(present_value * factor + payment_value * term);
+    // R31 paired end/beginning unit calls identify division before timing,
+    // with each operation stored from PC64. Small-rate controls keep only
+    // exact zero on the linear route, including measured cancellation at 2^-53.
+    // Reuse FV's growth stage; PV retains its own composition above.
+    let term = if periodic_rate == 0.0 {
+        periods
+    } else {
+        let end_term = excel_x87_div(factor - 1.0, periodic_rate);
+        excel_x87_mul(end_term, timing.factor(periodic_rate))
+    };
+    // R31 public unit calls isolate both products from their growth and annuity
+    // helpers. Separate nonzero pairs and addition ties identify the final store.
+    let present_component = excel_x87_mul(present_value, factor);
+    let payment_component = excel_x87_mul(payment_value, term);
+    let result = -excel_x87_add(present_component, payment_component);
     if result.is_finite() {
         Ok(result)
     } else {
