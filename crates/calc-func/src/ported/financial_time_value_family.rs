@@ -1,8 +1,5 @@
-// The annuity compositions were tuned and live-Excel-validated (W108 Bead C)
-// against the portable correctly-rounded numeric core. They intentionally do
-// NOT use the x87 `excel_exp`/`excel_log` worksheet backends yet; migrating the
-// financial substrate to the x87 primitives (`fyl2xp1`/`f2xm1`) is tracked as
-// W108 Phase C and requires its own live-Excel re-validation.
+// Growth helpers, logarithms and stored arithmetic remain separate stages.
+// Paired worksheet calls constrain each stage independently of its producers.
 use crate::ported::excel_numeric::{
     excel_expm1, excel_expm1_internal, excel_log1p, excel_log1p_atanh, excel_pow_chain,
     excel_pow_x87_direct,
@@ -107,6 +104,10 @@ fn annuity_term(
 fn growth_allow_nonpositive_base(periodic_rate: f64, periods: f64) -> Result<f64, FinancialError> {
     validate_finite(&[periodic_rate, periods])?;
     let base = 1.0 + periodic_rate;
+    growth_from_base(base, periods)
+}
+
+fn growth_from_base(base: f64, periods: f64) -> Result<f64, FinancialError> {
     let factor = match power_kernel(base, periods) {
         Ok(factor) => factor,
         Err(WorksheetErrorCode::Div0) => return Err(FinancialError::Div0),
@@ -197,9 +198,24 @@ pub fn fv(
     timing: PaymentTiming,
 ) -> Result<f64, FinancialError> {
     validate_finite(&[periodic_rate, periods, payment_value, present_value])?;
-    let factor = growth_allow_nonpositive_base(periodic_rate, periods)?;
-    let term = annuity_term_allow_nonpositive_base(periodic_rate, periods, timing)?;
-    let result = -(present_value * factor + payment_value * term);
+    // R31 n=1 public growth calls expose the base store. Independent POWER
+    // leaves confirm the same input stage at the remaining multi-period cases.
+    let factor = growth_from_base(excel_x87_add(1.0, periodic_rate), periods)?;
+    // R31 paired end/beginning unit calls identify division before timing,
+    // with each operation stored from PC64. Small-rate controls keep only
+    // exact zero on the linear route, including measured cancellation at 2^-53.
+    // Reuse FV's growth stage; PV retains its own composition above.
+    let term = if periodic_rate == 0.0 {
+        periods
+    } else {
+        let end_term = excel_x87_div(factor - 1.0, periodic_rate);
+        excel_x87_mul(end_term, timing.factor(periodic_rate))
+    };
+    // R31 public unit calls isolate both products from their growth and annuity
+    // helpers. Separate nonzero pairs and addition ties identify the final store.
+    let present_component = excel_x87_mul(present_value, factor);
+    let payment_component = excel_x87_mul(payment_value, term);
+    let result = -excel_x87_add(present_component, payment_component);
     if result.is_finite() {
         Ok(result)
     } else {
@@ -276,15 +292,18 @@ pub fn pmt(
     };
     let neg_log = -(periods * log_growth);
     let em = crate::ported::excel_numeric::excel_expm1_spilled(neg_log); // (1+r)^-n − 1  (x87 Kahan; negative for r>0)
-    if em == 0.0 {
+    // Preserve the growth-reciprocal overflow refusal before the balance
+    // fold can turn pv/Inf + fv into a finite payment. R31 paired parts keep
+    // first-period beginning IPMT zero ahead of this shared PMT check.
+    if em == 0.0 || !em.is_finite() {
         return Err(FinancialError::Num);
     }
     let tf = timing.factor(periodic_rate); // 1 + r·type
     // Equal opposite balances are interest only: pv + fv*v = fv*(v - 1).
     // Cancelling that common factor before rounding avoids subtracting nearly
-    // equal balances. All 3,572 recorded cases follow this period-independent
-    // identity. Keep the existing zero and nonfinite-exponential paths.
-    if present_value != 0.0 && future_value == -present_value && em.is_finite() {
+    // equal balances. Negative rates use the common stored fold below: its
+    // quotient is exactly fv here, retaining their measured final stores.
+    if periodic_rate > 0.0 && present_value != 0.0 && future_value == -present_value {
         let product = future_value * periodic_rate;
         let result = if product.is_finite() {
             product / tf
@@ -305,12 +324,12 @@ pub fn pmt(
     // fv 0 and type 0, q = RN53(RN64(pv / em)) followed by RN53(RN64(q * rate)) admits one
     // binary64 em in every one of 4,802 recorded groups; a binary64 quotient leaves 59 groups
     // with no em at all.
-    let quotient = if neg_log < 0.0 {
-        // dc-j9k.12, R29: the discount arm combines balances as
+    let quotient = if neg_log < 0.0 || periodic_rate < 0.0 {
+        // dc-j9k.12, R29/R31: the discount and negative-rate arms combine balances as
         // (pv + fv)/em + fv, with both additions and the division stored
         // from PC64. Public type-zero calls constrain em independently:
-        // this fold matches all192 paired future-value calls. Separately
-        // selected ties distinguish each addition (60 and99 readings).
+        // this fold matches all192 paired future-value calls for each rate sign.
+        // Separate negative-rate ties distinguish each addition (84 and114 readings).
         // Forming pv + fv*(1+em) loses those recorded roundings.
         let balance = excel_x87_add(present_value, future_value);
         excel_x87_add(excel_x87_div(balance, em), future_value)
@@ -319,27 +338,29 @@ pub fn pmt(
         let numerator = present_value + future_value * inv_factor;
         excel_x87_div(numerator, em)
     };
-    let result = if neg_log < 0.0 && periodic_rate > 0.0
+    let result = if (neg_log < 0.0 || periodic_rate < 0.0)
         && matches!(timing, PaymentTiming::BeginningOfPeriod)
     {
-        // R30: paired type-zero calls pin em independently of timing. The positive
-        // discount arm multiplies by 1/(1+1/r), with every operation stored from PC64.
-        // New rate discriminants separately exclude strict inner/return rounding and
-        // a resident return. Dividing the balance quotient by (1+r) loses these stores.
+        // R30/R31: paired type-zero calls pin em independently of timing. The
+        // discount and negative-rate arms multiply by 1/(1+1/r), storing each
+        // operation from PC64. Negative-rate calls also pin this coefficient
+        // under either final-word model before 44 fresh product ties distinguish
+        // the PC64 store. Dividing by (1+r) loses those recorded roundings.
         let reciprocal = excel_x87_recip(periodic_rate);
         let factor = if reciprocal.is_finite() {
             excel_x87_recip(excel_x87_add(1.0, reciprocal))
         } else {
-            // A positive rate whose reciprocal overflows is subnormal. Its exact
+            // A rate whose reciprocal overflows is subnormal. Its exact
             // r/(1+r) rounds to r: r^2 is far below half a subnormal unit.
             periodic_rate
         };
         excel_x87_mul(quotient, factor)
     } else {
         let quotient = excel_x87_div(quotient, tf);
-        // Other timing and growth routes retain their existing finish. Negative-rate
-        // final-product probes are a separate unresolved stage.
-        if neg_log < 0.0 {
+        // R31: 32 independently measured negative-rate product ties require
+        // the PC64-to-binary64 store after the already stored quotient.
+        // Their denominators are pinned by separate public type-zero calls.
+        if neg_log < 0.0 || periodic_rate < 0.0 {
             excel_x87_mul(quotient, periodic_rate)
         } else {
             quotient * periodic_rate
