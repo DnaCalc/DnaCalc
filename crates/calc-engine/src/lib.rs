@@ -73,6 +73,7 @@ mod state;
 mod structural;
 
 pub use detached::{DetachedEvaluationContext, DetachedFormula, DetachedNameEvaluation, DetachedReadPolicy};
+pub use random::{MAX_RECORDED_RANDOM_DRAWS, RandomDrawEvidence};
 pub use edit::{
     CommitReceipt, InputSeed, NodeChange, PrepareError, PreparedEngineChange, commit_edit,
     prepare_edit,

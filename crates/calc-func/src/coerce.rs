@@ -7,16 +7,16 @@
 //! read as 0, FALSE and empty text, while empty text read as a number or a logical is #VALUE!.
 //!
 //! Text reads as a number only in the plain decimal form: optional spaces, an optional sign,
-//! digits with at most one '.', an optional exponent and optional spaces, with at most 15
-//! significant digits. Plain decimal text whose scale is outside -308..308 ([`Decimal::nearest`])
-//! is #VALUE!, not refused, and so is text with no digit at all. Text of printable ASCII holding
+//! digits with at most one '.', an optional exponent and optional spaces. Digits beyond the
+//! first 15 significant digits are cut, using the same decimal converter as VALUE. Plain text
+//! beyond 255 UTF-16 units is #VALUE! before trimming. Plain decimal text whose scale is outside
+//! -308..308 ([`Decimal::nearest`]) is #VALUE!, not refused, and so is text with no digit at all. Text of printable ASCII holding
 //! a word outside the list that [`number_words`] measured in Excel 16.0 (build 20430) under the
 //! Windows locale en-ZA, such as the label 2016-17 Winter, is #VALUE! too: the rule takes those to
 //! be the only words Excel reads inside number text, and other locales were not measured. Any
 //! other text holding a digit (a date, a time, a fraction, a currency amount, grouped digits, a
-//! percentage, a 16th significant digit) is refused as not modelled, because Excel may read it as
-//! a number through its locale's number-text rules, which no service supplies yet (dc-uar); the
-//! same holds for a logical's text forms, which are the English TRUE and FALSE. Coercion only
+//! percentage) is refused as not modelled, because Excel may read it as a number through its
+//! locale's number-text rules (dc-uar); the same holds for a logical's text forms, which are the English TRUE and FALSE. Coercion only
 //! reads the decimal ([`Numeric::Decimal`]): finding its nearest binary64 rounds, so the kernel
 //! does that at an arithmetic site, under the call's numeric mode, and the scale's #VALUE! comes
 //! from there.
@@ -41,9 +41,6 @@ pub(crate) enum Stop {
     /// Excel's result for this value is not modelled, and the call is refused.
     NotModelled,
 }
-
-/// Significant digits Excel keeps when it reads a number.
-const SIGNIFICANT_DIGITS: usize = 15;
 
 const TRUE_TEXT: [u16; 4] = [b'T' as u16, b'R' as u16, b'U' as u16, b'E' as u16];
 const FALSE_TEXT: [u16; 5] = [
@@ -80,10 +77,19 @@ impl Decimal {
     /// lower end), a zero mantissa with no digit after its point ("0.e309"), and a written
     /// exponent beyond the cap of [`Decimal::scale`].
     pub(crate) fn nearest(&self) -> Result<f64, Stop> {
-        if !(-308..=308).contains(&self.scale()) {
+        let position = self.scale();
+        if !(-308..=308).contains(&position) {
             return Err(Stop::Error(WorksheetErrorCode::Value));
         }
-        let n: f64 = self.0.parse().map_err(|_| Stop::NotModelled)?;
+        // Plain spellings need no currency, date or grouping profile. Fn11's
+        // VALUE/DELTA/PMT pairs retain the first 15 digits, including long text.
+        let unsigned = self.0.trim_start_matches(['+', '-']);
+        let mantissa = unsigned.split(['e', 'E']).next().expect("a mantissa");
+        let digits: String = mantissa.chars().filter(|c| c.is_ascii_digit()).collect();
+        let significant = digits.trim_start_matches('0').len() as i64;
+        let magnitude = crate::value_text::decimal(&digits, position - significant)
+            .ok_or(Stop::Error(WorksheetErrorCode::Value))?;
+        let n = if self.0.starts_with('-') { -magnitude } else { magnitude };
         if n == 0.0 || n.is_subnormal() {
             Ok(0.0)
         } else {
@@ -234,23 +240,22 @@ fn text_as_decimal(text: &ExcelText) -> Result<Decimal, Stop> {
             _ => return Err(Stop::NotModelled),
         }
     }
-    let Some(significant) = decimal_form(decimal.as_bytes()) else {
+    if !decimal_form(decimal.as_bytes()) {
         return Err(Stop::NotModelled);
-    };
-    if significant > SIGNIFICANT_DIGITS {
-        return Err(Stop::NotModelled);
+    }
+    if units.len() > crate::value_text::MAX_READER_TEXT {
+        return Err(Stop::Error(WorksheetErrorCode::Value));
     }
     Ok(Decimal(decimal))
 }
 
-/// The number of significant digits of `text` when it is in the plain decimal form
-/// `[+|-] (digits [. [digits]] | . digits) [(e|E) [+|-] digits]`, or `None`.
-fn decimal_form(text: &[u8]) -> Option<usize> {
+/// Whether `text` is in the plain decimal form
+/// `[+|-] (digits [. [digits]] | . digits) [(e|E) [+|-] digits]`.
+fn decimal_form(text: &[u8]) -> bool {
     let mut at = 0;
     if matches!(text.first(), Some(b'+' | b'-')) {
         at += 1;
     }
-    let mantissa_start = at;
     let mut digits = 0;
     let mut points = 0;
     while let Some(&byte) = text.get(at) {
@@ -262,9 +267,8 @@ fn decimal_form(text: &[u8]) -> Option<usize> {
         at += 1;
     }
     if digits == 0 || points > 1 {
-        return None;
+        return false;
     }
-    let mantissa = &text[mantissa_start..at];
     if matches!(text.get(at), Some(b'e' | b'E')) {
         at += 1;
         if matches!(text.get(at), Some(b'+' | b'-')) {
@@ -275,23 +279,13 @@ fn decimal_form(text: &[u8]) -> Option<usize> {
             at += 1;
         }
         if at == exponent_start {
-            return None;
+            return false;
         }
     }
     if at != text.len() {
-        return None;
+        return false;
     }
-    let significant: Vec<u8> = mantissa
-        .iter()
-        .copied()
-        .filter(u8::is_ascii_digit)
-        .collect();
-    let first = significant.iter().position(|&d| d != b'0');
-    let last = significant.iter().rposition(|&d| d != b'0');
-    Some(match (first, last) {
-        (Some(first), Some(last)) => last - first + 1,
-        _ => 0,
-    })
+    true
 }
 
 /// Whether the text holds a character that some script writes as a digit.

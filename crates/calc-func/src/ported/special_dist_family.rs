@@ -98,6 +98,12 @@ pub fn erfc_kernel(x: f64) -> Result<f64, WorksheetErrorCode> {
         1.0 - erf_approx(x)
     } else if x > 0.5 {
         crate::ported::normal_dist_common::erfc_upper(x)
+    } else if x < -0.5 {
+        // R30 public complement pairs. The exponent controls distinguish the PC64
+        // subtraction from strict binary64. The positive upper body still owns F.
+        crate::ported::excel_numeric::excel_x87_sub(
+            2.0, crate::ported::normal_dist_common::erfc_upper(-x),
+        )
     } else {
         libm::erfc(x)
     };

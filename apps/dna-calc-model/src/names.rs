@@ -40,11 +40,27 @@ pub enum NameBodyResult {
     Callable, Refused,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NameEvaluationRoot {
+    pub command: (u64, u64),
+    pub pass: u32,
+    pub evaluation: u64,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NameEvaluationEvidence {
     pub results: u64,
     pub workbook: (u64, u64),
     /// Informational numeric policy, never a shared-value reuse key.
     pub numeric: String,
+    /// Owner pass identity for the selected name and caller in NameEvaluation.
+    #[serde(default)]
+    pub root: Option<NameEvaluationRoot>,
+    /// Supplied clock and actual unit draws, encoded as binary64 hex bits.
+    #[serde(default)]
+    pub clock: Option<String>,
+    #[serde(default)]
+    pub random_draws: Vec<String>,
+    #[serde(default)]
+    pub omitted_random_draws: u64,
     pub bodies: Vec<NameBodyEvaluation>,
     pub omitted: u64,
 }

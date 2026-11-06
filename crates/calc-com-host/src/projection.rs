@@ -47,6 +47,7 @@ unsafe extern "C" {
         context: *mut c_void,
     ) -> i32;
     fn dna_com_verify(projection: *mut c_void) -> i32;
+    fn dna_com_workbook(projection: *mut c_void, name: *const u16, length: usize) -> i32;
     fn dna_com_sheet(projection: *mut c_void, name: *const u16, length: usize) -> i32;
     fn dna_com_enable_events(projection: *mut c_void, enabled: bool) -> i32;
     fn dna_com_sheet_change(projection: *mut c_void, row: u32, column: u32) -> i32;
@@ -114,6 +115,14 @@ impl Projection {
         } else {
             Ok(())
         }
+    }
+    /// Bind the owning workbook identity on its STA before loading add-ins.
+    pub fn set_workbook(&self, name: &str) -> Result<(), String> {
+        let units = name.encode_utf16().collect::<Vec<_>>();
+        Self::checked(
+            unsafe { dna_com_workbook(self.pointer, units.as_ptr(), units.len()) },
+            "COM workbook",
+        )
     }
     /// Bind the real session's single worksheet name before loading add-ins.
     pub fn set_sheet(&self, name: &str) -> Result<(), String> {

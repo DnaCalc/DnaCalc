@@ -365,6 +365,29 @@ fn pmt_nonzero_future_uses_the_stored_balance_quotient() {
     }
 }
 
+/// Original Excel 16.0.20527 type-one calls distinguish three reciprocal coefficient stores.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn pmt_due_uses_the_stored_reciprocal_coefficient() {
+    for (rate, expected) in [
+        (0x3fd0_4b9d_e9ed_85c3, 0xbf9b_ce04_d2cc_9080),
+        (0x3fb1_cbab_c116_1a68, 0xbf8e_0eda_e3fe_71d7),
+        (0x3f48_2a5f_1634_106f, 0xbf85_6b81_0bc5_0955),
+    ] {
+        let got = number(call("PMT", vec![n(f64::from_bits(rate)), n(12.0), n(0.125), n(0.0), n(1.0)]));
+        assert_eq!(got.to_bits(), expected, "PMT due rate={rate:016x}");
+    }
+}
+
+/// Original Excel 16.0.20527 payments at the smallest normal and largest finite positive rates.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn pmt_due_keeps_recorded_extreme_rate_payments() {
+    for rate in [0x0010_0000_0000_0000, 0x7fef_ffff_ffff_ffff] {
+        exact(call("PMT", vec![n(f64::from_bits(rate)), n(1.0), n(1.0), n(0.0), n(1.0)]), -1.0);
+    }
+}
+
 /// Recorded PMT stores in the exponential correction and timing division.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

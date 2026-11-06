@@ -180,6 +180,7 @@ pub struct DetachedFormula {
     plan: Arc<CompiledPlan>,
     compiled_inputs: Arc<ModelRoot>,
     caller_sheet: calc_value::SheetId,
+    selected_name: Option<calc_fml::reference::BoundName>,
 }
 
 impl std::fmt::Debug for DetachedFormula {
@@ -198,6 +199,12 @@ impl std::fmt::Debug for DetachedFormula {
 pub struct DetachedNameEvaluation {
     pub outcome: Result<CalcValue, NotModeled>,
     pub numeric: NumericMode,
+    /// Present for a selected, admitted name pass; never a synthetic cell root.
+    pub root: Option<crate::contract::NameInvocationId>,
+    pub inputs: crate::CalculationInputVersion,
+    /// The supplied owner clock, not an implicit time sample during evaluation.
+    pub clock: Option<f64>,
+    pub random_draws: crate::RandomDrawEvidence,
     pub invocations: Vec<calc_fml::NameInvocation>,
     pub omitted: u64,
 }
@@ -242,6 +249,7 @@ impl DetachedFormula {
             reference_result: false,
             compiled_inputs: inputs.pin(),
             caller_sheet: origin.sheet(),
+            selected_name: None,
         })
     }
 
@@ -268,36 +276,96 @@ impl DetachedFormula {
         context: &DetachedEvaluationContext<'_>,
         at: CellKey,
     ) -> Result<CalcValue, NotModeled> {
-        self.evaluate_recording(context, at, None)
+        let mode = context
+            .state
+            .published_mode
+            .clone()
+            .unwrap_or(NumericMode::Fast);
+        self.evaluate_recording(context, at, &mode, None, None)
     }
 
     /// Execute through the same diagnostic reader and evaluator while retaining bounded
-    /// name-body evidence, including refused completions. No publication occurs.
+    /// name-body evidence, including refused completions. A selected name receives
+    /// its own pass and random stream. Generic snapshot consumers keep absent pass
+    /// services. No producer work, cell result or shared name value is installed.
     pub fn evaluate_with_name_evidence(
         &self,
         state: &EngineState,
         inputs: &ModelRoot,
         at: CellKey,
+        numeric: &NumericMode,
     ) -> DetachedNameEvaluation {
         let mut effects = calc_fml::UserFunctionEffects::default();
+        let mut root = None;
+        let mut random_draws = crate::RandomDrawEvidence::default();
         let outcome =
             DetachedEvaluationContext::new(state, inputs, DetachedReadPolicy::CurrentValues)
-                .and_then(|context| self.evaluate_recording(&context, at, Some(&mut effects)));
+                .and_then(|context| {
+                    self.validate_context(&context, at)?;
+                    let mut random = self.selected_name.as_ref().map(|definition| {
+                        use crate::contract::{
+                            CalcCommandId, CalcPassId, InvocationId, NameEvaluationLocus,
+                            PassReason, ReevaluationReason,
+                        };
+                        let workbook = state.workbook_instance();
+                        let sequence = state.allocate_tick();
+                        root = Some(InvocationId {
+                            pass: CalcPassId {
+                                command: CalcCommandId {
+                                    domain_incarnation: workbook.document,
+                                    sequence,
+                                },
+                                ordinal: 0,
+                                reason: PassReason::Initial,
+                            },
+                            workbook,
+                            locus: NameEvaluationLocus {
+                                definition: definition.clone(),
+                                caller: at,
+                            },
+                            evaluation: 0,
+                            call_site: 0,
+                            occurrence: Vec::new(),
+                            reason: ReevaluationReason::NewCommandDemand,
+                        });
+                        crate::random::RecordedRandom::new(crate::random::RandomStream::new(
+                            state.random_seed,
+                            sequence,
+                            at,
+                        ))
+                    });
+                    let outcome = self.evaluate_recording(
+                        &context,
+                        at,
+                        numeric,
+                        Some(&mut effects),
+                        random
+                            .as_mut()
+                            .map(|r| r as &mut dyn calc_fml::RandomSource),
+                    );
+                    if let Some(random) = random {
+                        random_draws = random.into_evidence();
+                    }
+                    outcome
+                });
         DetachedNameEvaluation {
             outcome,
-            numeric: state.published_mode.clone().unwrap_or(NumericMode::Fast),
+            numeric: numeric.clone(),
+            root,
+            inputs: state.input_version(),
+            clock: state.environment().and_then(|environment| environment.now),
+            random_draws,
             invocations: effects.name_invocations().to_vec(),
             omitted: effects.omitted_name_invocations(),
         }
     }
 
-    fn evaluate_recording(
+    fn validate_context(
         &self,
         context: &DetachedEvaluationContext<'_>,
         at: CellKey,
-        effects: Option<&mut calc_fml::UserFunctionEffects>,
-    ) -> Result<CalcValue, NotModeled> {
-        let (state, inputs) = (context.state, context.inputs);
+    ) -> Result<(), NotModeled> {
+        let inputs = context.inputs;
         if !inputs.same_lineage(&self.compiled_inputs)
             || inputs.sheet_by_id(at.sheet()).is_none()
             || (at.sheet() != self.caller_sheet && !self.plan.name_bindings().is_empty())
@@ -312,17 +380,29 @@ impl DetachedFormula {
                 owner: "dc-hsa5.6",
             }));
         }
+        Ok(())
+    }
+
+    fn evaluate_recording(
+        &self,
+        context: &DetachedEvaluationContext<'_>,
+        at: CellKey,
+        numeric: &NumericMode,
+        effects: Option<&mut calc_fml::UserFunctionEffects>,
+        random: Option<&mut dyn calc_fml::RandomSource>,
+    ) -> Result<CalcValue, NotModeled> {
+        self.validate_context(context, at)?;
+        let (state, inputs) = (context.state, context.inputs);
         let instance = instantiate(&self.plan, FormulaAnchor::new(at));
         let view = context.view();
         let uncomputed = Cell::new(None);
         let mut reader = WorkbookReader::new(view, &uncomputed);
         let mut host = WorkbookReader::new(view, &uncomputed);
         let catalog = SnapshotCatalog::new(inputs);
-        let mode = state.published_mode.clone().unwrap_or(NumericMode::Fast);
         let mut scratch = EvalScratch::new();
         let outcome = {
             let mut services = FormulaEvaluationContext::new(
-                &mode,
+                numeric,
                 &mut reader,
                 state.environment(),
                 Some(&mut host),
@@ -331,6 +411,9 @@ impl DetachedFormula {
             .with_catalog(&catalog);
             if let Some(effects) = effects {
                 services = services.with_user_function_effects(effects);
+            }
+            if let Some(random) = random {
+                services = services.with_random(random);
             }
             if self.reference_result {
                 services = services.with_reference_result();

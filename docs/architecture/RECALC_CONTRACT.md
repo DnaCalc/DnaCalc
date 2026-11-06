@@ -1261,6 +1261,23 @@ Host and worker controls cover selected bindings, snapshot refusals, worksheet e
 serialization and command retries. P12 Excel parity and non-cell calculation-pass
 envelopes remain open.
 
+Explicit name passes (dc-hsa5.6, engine21): selected diagnostics now reserve an owner
+command sequence from the same allocator as cell and save passes. The typed name locus
+contains the actual BoundName and caller; no formula cell is manufactured. Validation
+precedes allocation. The pass retains its input version, supplied owner clock and full
+owner numeric mode even before any cell publication. The existing random stream supplies
+actual draws, with the first 1024 raw bit patterns retained in ordinal order and an explicit
+omitted count. Evaluation continues after that limit. Repeated aliases draw separately;
+LET reuses its evaluated local. The worker journal replays the entire original reply.
+Passive name views reserve no sequence, and diagnostics publish no result or history entry.
+
+The existing compiler receives callable registration metadata, without executable owners.
+A reached known UDF refuses under DiagnosticSnapshot before user code enters; IFERROR
+cannot turn that refusal into a value. Untaken branches stay lazy. Name Manager authoring
+uses the existing Excel file-form converter, and its display uses the shared formatter;
+modern function prefixes survive save/reopen. P12 Excel alias measurement, effect-capable
+non-cell continuations, broader block execution and shared value reuse remain open.
+
 Detached current-value contexts (dc-hsa5.6, engine20): validation audits and filter
 decisions can borrow one `DetachedEvaluationContext` for their whole batch. Its
 explicit policy selects historical published values or current values. The current

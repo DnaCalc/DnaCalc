@@ -2,7 +2,7 @@ param([string]$RunDirectory = (Join-Path $PSScriptRoot ('runs/' + [DateTime]::Ut
     [string]$ExcelDnaDirectory, [string]$AddInName='X0', [string]$Cases, [switch]$Reload, [switch]$ReloadNewHost,
     [switch]$AotAliasLoad, [switch]$ExpectAotReloadRefusal,
     [string]$AddInDirectory, [string]$XllFileName, [switch]$ExpectXloilReloadRefusal, [switch]$Engine,
-    [switch]$PrivateComAddIn,[switch]$RibbonUI, $OwnedExcel=$null)
+    [switch]$PrivateComAddIn,[switch]$RibbonUI, [string]$WorkbookName, $OwnedExcel=$null)
 $ErrorActionPreference = 'Stop'
 if (-not $HostExecutable -and $null -eq $OwnedExcel) {
     $parameters=@{RunDirectory=$RunDirectory}
@@ -95,6 +95,7 @@ if ($HostExecutable) {
         $launch.RedirectStandardOutput=$true; $launch.RedirectStandardError=$true
         $arguments = @('--xll',$nativeXll,'--ready',$readyFile,'--wait',$go,'--finished',$done,'--release',$release)
         if ($Engine) { $arguments += '--engine' }
+        if ($WorkbookName) { $arguments += @('--workbook-name',$WorkbookName) }
         if ($RibbonUI) { $arguments += '--ribbon-ui' }
         if ($ExcelDnaDirectory -or $AddInDirectory) {
             $arguments += @('--cases',$Cases,'--sheet','X0')
@@ -149,6 +150,7 @@ if ($HostExecutable) {
             $metadata.assume_excel_process='1 (set by the host before creating threads)'
             if (-not $AddInDirectory -and $AddInName -eq 'X0') { $metadata.owner_xll_sha256=(Get-FileHash -LiteralPath $ownerXll).Hash }
         }
+        $metadata.workbook_name=if($WorkbookName){$WorkbookName}else{'Book1'}
         $metadata.runner_sha256=(Get-FileHash -LiteralPath $PSCommandPath).Hash
         $metadata | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $run 'environment.json') -Encoding utf8NoBOM
         if (-not $NoTrace) {
@@ -238,6 +240,7 @@ try {
     Set-Content -LiteralPath (Join-Path $run 'owned-excel.pid') -Value $ownedExcelPid
     $excel.DisplayAlerts = $false
     $book = $excel.Workbooks.Add()
+    if($WorkbookName -and [string]$book.Name -cne $WorkbookName){throw 'Observed Excel workbook name differs from the explicitly requested reference context'}
     if ($RibbonUI) { $excel.Visible=$true }
     $sheet = $book.Worksheets.Item(1)
     $sheet.Name = 'X0'

@@ -573,6 +573,13 @@ extern "C" HRESULT dna_com_ribbons(void* pointer,RibbonVisitor visit,void* conte
         return S_OK;
     }catch(...){return E_OUTOFMEMORY;}
 }
+extern "C" HRESULT dna_com_workbook(void* pointer,const wchar_t* name,size_t length) noexcept {
+    try {
+        auto app=static_cast<Projection*>(pointer)->app; HRESULT hr=valid(app); if(FAILED(hr)) return hr;
+        if(!name || !length) return E_INVALIDARG;
+        app->state->workbook_name.assign(name,length); return S_OK;
+    }catch(...) {return E_OUTOFMEMORY;}
+}
 extern "C" HRESULT dna_com_sheet(void* pointer,const wchar_t* name,size_t length) noexcept {
     try { auto app=static_cast<Projection*>(pointer)->app; HRESULT hr=valid(app); if(FAILED(hr)) return hr; app->state->worksheet_name.assign(name,length); return S_OK; }
     catch(...) { return E_OUTOFMEMORY; }
@@ -725,7 +732,7 @@ extern "C" HRESULT dna_com_test_office() noexcept {
     auto projection=static_cast<Projection*>(dna_com_create(1,nullptr,nullptr,nullptr,nullptr));
     if(!projection)return E_OUTOFMEMORY;
     struct Owner {Projection* p;~Owner(){if(p)dna_com_destroy(p);}} owner{projection};
-    struct Held {VARIANT value{};~Held(){VariantClear(&value);}} bars,bar,controls,popup,caption,count,addins;
+    struct Held {VARIANT value{};~Held(){VariantClear(&value);}} bars,bar,controls,popup,caption,count,addins,identity_book,identity_books,identity_name,identity_lookup;
     auto call=[](IDispatch* object,const wchar_t* name,WORD flags,VARIANT* arg,VARIANT* result) {
         LPOLESTR text=const_cast<LPOLESTR>(name);DISPID id;HRESULT hr=object->GetIDsOfNames(IID_NULL,&text,1,0,&id);
         if(FAILED(hr))return hr;DISPID put=DISPID_PROPERTYPUT;
@@ -733,7 +740,19 @@ extern "C" HRESULT dna_com_test_office() noexcept {
         return object->Invoke(id,IID_NULL,0,flags,&params,result,nullptr,nullptr);
     };
     auto app=reinterpret_cast<IDispatch*>(projection->app);
-    HRESULT hr=call(app,L"COMAddIns",DISPATCH_PROPERTYGET,nullptr,&addins.value);if(FAILED(hr))return hr;
+    HRESULT hr=dna_com_workbook(projection,L"RTD Book2",9);if(FAILED(hr))return hr;
+    hr=call(app,L"ActiveWorkbook",DISPATCH_PROPERTYGET,nullptr,&identity_book.value);if(FAILED(hr))return hr;
+    hr=call(identity_book.value.pdispVal,L"Name",DISPATCH_PROPERTYGET,nullptr,&identity_name.value);if(FAILED(hr))return hr;
+    if(identity_name.value.vt!=VT_BSTR || wcscmp(identity_name.value.bstrVal,L"RTD Book2"))return E_UNEXPECTED;
+    hr=call(app,L"Workbooks",DISPATCH_PROPERTYGET,nullptr,&identity_books.value);if(FAILED(hr))return hr;
+    VARIANT identity_key{};identity_key.vt=VT_BSTR;identity_key.bstrVal=SysAllocString(L"RTD Book2");
+    if(!identity_key.bstrVal)return E_OUTOFMEMORY;
+    hr=call(identity_books.value.pdispVal,L"Item",DISPATCH_PROPERTYGET,&identity_key,&identity_lookup.value);VariantClear(&identity_key);if(FAILED(hr))return hr;
+    if(identity_lookup.value.vt!=VT_DISPATCH || identity_lookup.value.pdispVal!=identity_book.value.pdispVal)return E_UNEXPECTED;
+    auto identity_thread=projection->app->state->thread;projection->app->state->thread=identity_thread+1;
+    hr=dna_com_workbook(projection,L"WrongThread",11);projection->app->state->thread=identity_thread;
+    if(hr!=RPC_E_WRONG_THREAD || projection->app->state->workbook_name!=L"RTD Book2")return E_UNEXPECTED;
+    hr=call(app,L"COMAddIns",DISPATCH_PROPERTYGET,nullptr,&addins.value);if(FAILED(hr))return hr;
     using EarlyItem=HRESULT (WINAPI*)(IDispatch*,VARIANT*,IDispatch**);
     auto early_item=reinterpret_cast<EarlyItem>((*reinterpret_cast<void***>(addins.value.pdispVal))[9]);
     VARIANT probe{};probe.vt=VT_I4;probe.lVal=1;IDispatch* none=nullptr;

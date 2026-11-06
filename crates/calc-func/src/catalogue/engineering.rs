@@ -21,8 +21,8 @@ use crate::ported::excel_numeric::crt_log;
 
 const CODE: u16 = 105;
 
-/// The radix functions' rule for the kinds they refuse: a logical is #VALUE!, an empty argument
-/// #N/A.
+/// The radix functions and BESSELJ refuse logicals with #VALUE! and omitted arguments with #N/A.
+/// A blank cell remains distinct from an omitted argument.
 fn radix_kind(a: &[CalcValue], index: usize) -> Step<()> {
     match a[index].core_ref() {
         CoreRef::Logical(_) => fail(WorksheetErrorCode::Value),
@@ -131,8 +131,10 @@ fn complexes(site: &Site<'_>, a: &[CalcValue], sv: &mut crate::call::EvalService
     Ok(found)
 }
 
-fn bessel(site: &Site<'_>, a: &[CalcValue], kernel: fn(f64, f64) -> Result<f64, WorksheetErrorCode>) -> Step<CalcValue> {
+fn bessel(site: &Site<'_>, a: &[CalcValue], kernel: fn(f64, f64) -> Result<f64, WorksheetErrorCode>, checked_kinds: bool) -> Step<CalcValue> {
+    if checked_kinds { radix_kind(a, 0)?; }
     let x = num(site, a, 0)?;
+    if checked_kinds { radix_kind(a, 1)?; }
     let n = num(site, a, 1)?;
     out(site, kernel(x, n))
 }
@@ -255,10 +257,10 @@ ported_family! {
         let product = zs.iter().fold(ParsedComplex::new(1.0, 0.0, None), |acc, z| acc.mul(*z));
         complex_text(Ok(product), &zs)
     }
-    60 besseli "BESSELI" (2, 2) [V "x", V "n"] |s, a, sv| { bessel(s, a, k::bessel::besseli_kernel) }
-    61 besselj "BESSELJ" (2, 2) [V "x", V "n"] |s, a, sv| { bessel(s, a, k::bessel::besselj_kernel) }
-    62 besselk "BESSELK" (2, 2) [V "x", V "n"] |s, a, sv| { bessel(s, a, k::bessel::besselk_kernel) }
-    63 bessely "BESSELY" (2, 2) [V "x", V "n"] |s, a, sv| { bessel(s, a, k::bessel::bessely_kernel) }
+    60 besseli "BESSELI" (2, 2) [V "x", V "n"] |s, a, sv| { bessel(s, a, k::bessel::besseli_kernel, false) }
+    61 besselj "BESSELJ" (2, 2) [V "x", V "n"] |s, a, sv| { bessel(s, a, k::bessel::besselj_kernel, true) }
+    62 besselk "BESSELK" (2, 2) [V "x", V "n"] |s, a, sv| { bessel(s, a, k::bessel::besselk_kernel, false) }
+    63 bessely "BESSELY" (2, 2) [V "x", V "n"] |s, a, sv| { bessel(s, a, k::bessel::bessely_kernel, false) }
     70 delta "DELTA" (1, 2) [V "number1", V "number2"] |s, a, sv| {
         // Excel reads the second scalar before the first, including conversion errors.
         let y = if given(a, 1) { super::kit::num_without_logical(s, a, 1)? } else { 0.0 };

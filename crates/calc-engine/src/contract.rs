@@ -45,15 +45,23 @@ pub struct WorkbookInstanceId {
     pub incarnation: u64,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct InvocationId {
+pub struct InvocationId<L = CellKey> {
     pub pass: CalcPassId,
     pub workbook: WorkbookInstanceId,
-    pub locus: CellKey,
+    pub locus: L,
     pub evaluation: u64,
     pub call_site: u32,
     pub occurrence: Vec<u32>,
     pub reason: ReevaluationReason,
 }
+/// An explicit definition evaluation has its own locus. Its caller places relative
+/// references; it is not a formula cell or a shared value attached to that name.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct NameEvaluationLocus {
+    pub definition: calc_fml::reference::BoundName,
+    pub caller: CellKey,
+}
+pub type NameInvocationId = InvocationId<NameEvaluationLocus>;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct EvaluationTarget {
     pub workbook: WorkbookInstanceId,
