@@ -1329,6 +1329,29 @@ impl<'c> Lowering<'c> {
                 NameDefinition::Unknown => {}
             }
         }
+        if target.as_deref().is_some_and(|target| {
+            is_euro_tool(target) && name.text().eq_ignore_ascii_case("EUROCONVERT")
+        }) {
+            tasks.push(Task::Emit {
+                block,
+                instruction: Instruction::Call {
+                    target: Target(catalogue().euro_tool_call()),
+                    argc: arguments.len(),
+                    retain: false,
+                    synthetic: false,
+                    admission: self.admission(Place::Unknown),
+                },
+            });
+            for argument in arguments.iter().rev() {
+                tasks.push(Task::Lower {
+                    node: argument,
+                    tail: false,
+                    block,
+                    place: Place::Unknown,
+                });
+            }
+            return Ok(());
+        }
         self.watch_callable(target.as_deref(), name.text());
         if self
             .functions
@@ -2596,6 +2619,15 @@ fn unknown_on_load(spelling: &str, target: Target) -> bool {
             Some(FilePrefix::Xlfn | FilePrefix::XlfnXlws) => true,
             Some(FilePrefix::Bare) | None => false,
         }
+}
+
+/// Whether a library link's target is the Euro Currency Tools add-in, wherever it was installed:
+/// the file form's link may carry a relative name or an absolute `file:///` path.
+fn is_euro_tool(target: &str) -> bool {
+    target
+        .rsplit(['/', '\\'])
+        .next()
+        .is_some_and(|file| file.eq_ignore_ascii_case("EUROTOOL.XLAM"))
 }
 
 /// The name a file stores a field access (`A1.Price`, a linked data type's field) under:
