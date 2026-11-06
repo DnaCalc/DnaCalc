@@ -3028,8 +3028,8 @@ fn mixed_operands_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         [txt("1e-400"), num("0")],
         E(WorksheetErrorCode::Value)
     );
-    // Text forms that Excel's locale rules may read as numbers, and a 16th or 17th significant
-    // digit, are refused, not guessed.
+    // Text forms that need Excel's locale rules remain refused. Plain long decimal
+    // text keeps 15 significant digits, as the unchanged D24/D25 captures measure.
     owned_by!(
         r,
         s,
@@ -3062,21 +3062,19 @@ fn mixed_operands_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         [txt("50%"), num("0")],
         Refused(Some(0))
     );
-    owned_by!(
+    row!(
         r,
         s,
-        NUMBER_TEXT,
         PLUS,
         [txt("1234567890123456"), num("0")],
-        Refused(Some(0))
+        N(1_234_567_890_123_450.0)
     );
-    owned_by!(
+    row!(
         r,
         s,
-        NUMBER_TEXT,
         PLUS,
         [txt("1.2345678901234567"), num("0")],
-        Refused(Some(0))
+        N(1.23456789012345)
     );
     row!(
         r,
