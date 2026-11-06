@@ -16369,3 +16369,64 @@ fn dc_hsa5_6__validation_known_udfs_use_context_metadata_without_entry() {
     assert_eq!(calls.get(), 0, "binding metadata grants no runtime capability");
     assert_eq!((book.host().revision(), book.history_depth()), (revision, history));
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_6__conditional_colour_filter_uses_current_owner_services() {
+    use calc_host::{WorkbookCommand as W, FilterChange as F};
+    #[derive(Debug)]
+    struct Counted(std::rc::Rc<std::cell::Cell<usize>>);
+    impl calc_fml::UserFunction for Counted {
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            self.0.set(self.0.get() + 1);
+            Ok(CalcValue::logical(true))
+        }
+    }
+    let target = calc_value::NumericTargetId::new("16.0.20527.20150", "Current", "Excel", "x86-64").unwrap();
+    let mut mismatches = Vec::new();
+    for (label, formula, exact, registered, allowed) in [
+        ("Fast arithmetic", "1+1", false, false, true),
+        ("Exact arithmetic", "1+1", true, false, false),
+        ("Exact literal", "TRUE", true, false, true),
+        ("Known UDF", "IFERROR(KnownUdf(),TRUE)", false, true, false),
+        ("Lazy UDF", "IF(FALSE,KnownUdf(),TRUE)", false, true, true),
+    ] {
+        let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+            xml.replace("<sheetData/>", r#"<sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>Key</t></is></c></row><row r="2"><c r="A2"><v>1</v></c></row></sheetData>"#)
+                .replace("</worksheet>", &format!(r#"<conditionalFormatting sqref="A2"><cfRule type="expression" dxfId="0" priority="1"><formula>{formula}</formula></cfRule></conditionalFormatting></worksheet>"#))
+        });
+        let bytes = package_with_part_from(&bytes, "xl/styles.xml", |xml| {
+            xml.replace("</styleSheet>", r#"<dxfs count="1"><dxf><fill><patternFill patternType="solid"><fgColor rgb="FFFF0000"/></patternFill></fill></dxf></dxfs></styleSheet>"#)
+        });
+        let mut book = HostSession::open(Arc::new(MemorySource::new(bytes)), &OpenPolicy::default(),
+            HostOptions { numeric: if exact { calc_value::NumericMode::Exact(target.clone()) } else { calc_value::NumericMode::Fast },
+                calc_mode: Some(CalcMode::Manual), ..Default::default() }).unwrap();
+        let calls = std::rc::Rc::new(std::cell::Cell::new(0));
+        if registered {
+            let mut functions = calc_fml::CallableTable::new();
+            functions.register("KnownUdf", std::rc::Rc::new(Counted(calls.clone()))).unwrap();
+            book.set_user_functions(functions);
+        }
+        let s = sheet(book.host(), "Sheet1");
+        let command = |book: &mut HostSession, change| {
+            let revision = book.host().revision().get();
+            book.dispatch(SkinIntent::Command(W::AutoFilter { sheet: s, revision, change }))
+        };
+        assert!(command(&mut book, F::Enable { area: GridArea::new(at(s,"A1"), at(s,"A2")).unwrap() }).accepted());
+        let revision = book.host().revision();
+        let history = book.history_depth();
+        let styles = book.host().styles().clone();
+        let filter = book.host().model().definitions().auto_filter(s).cloned();
+        let result = command(&mut book, F::Color { column: 1, cell_color: true, color: "#ff0000".into() });
+        if result.accepted() != allowed {
+            mismatches.push(format!("{label}: accepted={}, expected={allowed}; {:?}", result.accepted(), result.error));
+        }
+        if !allowed && !result.accepted() {
+            assert_eq!((book.host().revision(), book.history_depth()), (revision, history));
+            assert_eq!(book.host().styles(), &styles);
+            assert_eq!(book.host().model().definitions().auto_filter(s), filter.as_ref());
+        }
+        assert_eq!(calls.get(), 0, "{label}: no user code is entered");
+    }
+    assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
+}

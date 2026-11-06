@@ -1298,8 +1298,12 @@ Context compilation uses the existing metadata-only callable compiler. A reached
 known UDF refuses before user code enters, including inside IFERROR; an untaken
 branch stays lazy. Replacing a callable registration expires a current detached
 plan until it is compiled again. No executable owner, producer work, result or
-history entry is granted. Conditional colour filtering still uses the historical
-prepare/look path; passing its current context through that path remains open.
+history entry is granted. Colour-filter authoring passes the same context through
+conditional-rule preparation, formula evaluation and subject reads. A refusal
+precedes any visibility, style or history commit. Ordinary painting retains its
+published-value policy, and population/threshold colour rules keep their existing
+typed refusals. The five route controls cover Fast/Exact arithmetic, an Exact
+literal, reached and lazy known UDFs, zero entries and atomic refusal.
 
 Detached current-value contexts (dc-hsa5.6, engine20): validation audits and filter
 decisions can borrow one `DetachedEvaluationContext` for their whole batch. Its
