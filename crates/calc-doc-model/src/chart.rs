@@ -93,6 +93,7 @@ pub struct Chart {
     pub legend: Option<String>,
     pub plots: Vec<ChartPlot>,
     pub axes: Vec<ChartAxis>,
+    pub text_style:ChartTextStyle,
 }
 
 /// A sheet's charts and how many the reading left out.
@@ -114,4 +115,17 @@ pub struct ChartAxis {
     pub major_unit:Option<String>,
     pub reversed:bool,
     pub log_base:Option<String>,
+    pub cross_between:Option<String>,
+}
+
+
+/// Default chart text properties. Object-specific text and unknown DrawingML remain in source.
+#[derive(Clone,Debug,Default,PartialEq,Eq,Hash)]
+pub struct ChartTextStyle {
+    pub family:Option<String>,
+    /// Hundredths of a point, as DrawingML stores `sz`.
+    pub size:Option<u32>,
+    pub bold:Option<bool>,pub italic:Option<bool>,
+    /// RGB or a stored theme colour name.
+    pub color:Option<String>,
 }

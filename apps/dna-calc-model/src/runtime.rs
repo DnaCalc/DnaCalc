@@ -82,7 +82,7 @@ impl Default for TableTools{fn default()->Self{Self{name:"Table1".into(),rows:St
 
 /// A chart property draft uses the same portable tool state as tables and filters.
 #[derive(Clone,Debug,Default,PartialEq,Eq)]
-pub struct ChartTools {pub create_type:String,pub create_rows:bool,pub create_headers:bool,pub create_categories:bool,pub part:String,pub title:String,pub legend:bool,pub legend_position:String,pub plot:String,pub series:String,pub series_color:String,pub series_name:String,pub categories:String,pub values:String,pub chart_type:String,pub chart_grouping:String,pub axis:String,pub axis_minimum:String,pub axis_maximum:String,pub axis_unit:String,pub axis_reverse:bool,pub axis_log:bool,pub axis_base:String}
+pub struct ChartTools {pub font_family:String,pub font_size:String,pub font_color:String,pub font_bold:bool,pub font_italic:bool,pub create_type:String,pub create_rows:bool,pub create_headers:bool,pub create_categories:bool,pub part:String,pub title:String,pub legend:bool,pub legend_position:String,pub plot:String,pub series:String,pub series_color:String,pub series_name:String,pub categories:String,pub values:String,pub chart_type:String,pub chart_grouping:String,pub axis:String,pub axis_minimum:String,pub axis_maximum:String,pub axis_unit:String,pub axis_reverse:bool,pub axis_log:bool,pub axis_base:String}
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PageTools {
