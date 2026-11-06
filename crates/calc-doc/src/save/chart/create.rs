@@ -232,14 +232,7 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
             bytes.extend(fresh_number("order", &order.to_string()));
             order += 1;
             bytes.extend(data_xml("tx", s.name.as_ref()));
-            if let Some(color) = &s.fill {
-                bytes.extend(
-                    format!(
-                        "<c:spPr><a:solidFill><a:srgbClr val=\"{color}\"/></a:solidFill></c:spPr>"
-                    )
-                    .as_bytes(),
-                );
-            }
+            bytes.extend(colour::fresh(s.fill.as_deref()));
             for (slot, data) in [
                 (if scatter { "xVal" } else { "cat" }, s.categories.as_ref()),
                 (if scatter { "yVal" } else { "val" }, s.values.as_ref()),

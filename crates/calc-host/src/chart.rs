@@ -78,6 +78,8 @@ pub struct SeriesView {
     pub values: Vec<Option<f64>>,
     /// The series' colour, `RRGGBB`.
     pub color: String,
+    /// A direct series colour takes precedence over automatic point colours.
+    pub explicit_color: bool,
     /// Whether any values, categories/X coordinates or series name use the file's saved data.
     pub cached: bool,
 }
@@ -207,6 +209,7 @@ impl HostState {
                                     categories,
                                     values,
                                     color,
+                                    explicit_color:series.fill.is_some(),
                                     cached,
                                 }
                             })
@@ -791,4 +794,20 @@ pub(crate) fn prepare_legend(host:&HostState,sheet:SheetId,revision:u64,part:&st
     let mut charts=host.model().definitions().charts(sheet).to_vec();let chart=charts.iter_mut().find(|c|c.part==part).ok_or("The chart is unavailable (dc-971p.52)")?;chart.legend=Some(position.into());
     host.loaded().check_chart_properties(sheet,chart).map_err(|e|e.to_string())?;
     if charts==host.model().definitions().charts(sheet){return Ok(Vec::new());}Ok(vec![crate::CellEdit::Charts{sheet,charts}])
+}
+
+/// Series colour editing uses the retained DrawingML writer; an empty colour restores inheritance.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prepare_series_style(host:&HostState,sheet:SheetId,revision:u64,part:&str,plot:u32,series:u32,fill:Option<String>)->Result<Vec<crate::CellEdit>,String>{
+    prepare_properties(host,sheet,revision,part,None,false,None)?;
+    let fill=fill.map(|s|s.trim().to_owned()).filter(|s|!s.is_empty()&&!s.eq_ignore_ascii_case("automatic")).map(|s|s.strip_prefix('#').unwrap_or(&s).to_ascii_uppercase());
+    if fill.as_ref().is_some_and(|s|s.len()!=6||!s.bytes().all(|b|b.is_ascii_hexdigit())){return Err("Use a six-digit RGB colour, or Automatic (dc-971p.58)".into());}
+    let mut charts=host.model().definitions().charts(sheet).to_vec();
+    let chart=charts.iter_mut().find(|c|c.part==part).ok_or("The chart is unavailable")?;
+    let plot=chart.plots.get_mut(plot as usize).ok_or("The plot is unavailable")?;
+    if !matches!(plot.kind.as_str(),"barChart"|"lineChart"|"areaChart"|"pieChart"|"doughnutChart"|"scatterChart"){return Err("Series colours for this chart type are not modelled (dc-971p.58)".into());}
+    let series=plot.series.iter_mut().find(|s|s.index==series).ok_or("The series is unavailable")?;
+    if series.fill==fill{return Ok(Vec::new());}series.fill=fill;
+    host.loaded().check_chart_properties(sheet,chart).map_err(|e|e.to_string())?;
+    Ok(vec![crate::CellEdit::Charts{sheet,charts}])
 }
