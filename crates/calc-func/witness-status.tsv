@@ -403,6 +403,7 @@ NPER	full	20131,20430,20527,?	2509	2509	-	exact	b3b44246f7+changes
 NPER	pinned	20131,20430	120	120	-	exact	34a9d9d5f8
 NPV	full	20131,?	284	190	2	last_bit	b3b44246f7+changes
 NPV	pinned	20131,?	120	84	2	last_bit	34a9d9d5f8
+NUMBERVALUE	pinned	20527	366	311	1	structural	67e30b29bd+changes
 OCT2BIN	full	20430	1201	1201	-	exact	b3b44246f7+changes
 OCT2BIN	pinned	20430	120	120	-	exact	34a9d9d5f8
 OCT2DEC	full	20430	998	998	-	exact	b3b44246f7+changes
