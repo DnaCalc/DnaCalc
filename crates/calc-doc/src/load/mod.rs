@@ -391,8 +391,25 @@ pub struct LoadedWorkbook {
 impl LoadedWorkbook {
     /// Preflight the retained chart writer used by authored Save.
     pub fn check_chart_properties(&self,sheet:SheetId,chart:&calc_doc_model::Chart)->Result<(),crate::SaveRefusal> {
-        let original=self.model.definitions().charts(sheet).iter().find(|old|old.part==chart.part).ok_or_else(||crate::SaveRefusal::ChartNotModelled{part:chart.part.clone(),detail:"This chart has no original frame on this worksheet".into(),owner:"dc-e5z5"})?;
-        crate::save::chart::source(&self.package,&self.model,original,chart).map(|_|())
+        if let Some(original)=self.model.definitions().charts(sheet).iter().find(|old|old.part==chart.part) {
+            crate::save::chart::source(&self.package,&self.model,original,chart).map(|_|())
+        }else{
+            crate::save::chart::render_new(chart).map(|_|())
+        }
+    }
+
+    /// Validate the complete chart set through the same fresh-frame writer as Save.
+    pub fn check_chart_set(&self,sheet:SheetId,charts:&[calc_doc_model::Chart])->Result<(),crate::SaveRefusal>{
+        let fail=|detail:&str|crate::SaveRefusal::ChartNotModelled{part:"charts".into(),detail:detail.into(),owner:"dc-971p.49"};
+        let original=self.model.definitions().charts(sheet);
+        if charts.len()<original.len() || charts.iter().zip(original).any(|(a,b)|a.part!=b.part){return Err(fail("Removing or reordering imported chart frames is not modelled"));}
+        for (old,new) in original.iter().zip(charts).filter(|(old,new)|old!=new){crate::save::chart::source(&self.package,&self.model,old,new)?;}
+        let new=&charts[original.len()..];
+        if !new.is_empty(){
+            let source=self.sheet(sheet).ok_or_else(||fail("Save and reopen the new worksheet before creating a chart"))?;
+            crate::save::chart::check_new_frames(&self.package,source,new)?;
+        }
+        Ok(())
     }
 
     /// Preflight the same retained-element rewrite used by a sorted hyperlink save.

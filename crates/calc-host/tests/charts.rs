@@ -596,3 +596,165 @@ fn dc_971p_46__unsupported_type_changes_refuse_atomically() {
     let command=calc_host::WorkbookCommand::ChartSeries{sheet,revision:revision.get(),part:before[4].part.clone(),plot:0,series:None,name:Some("Not added".into()),categories:Some("Data!A2:A7".into()),values:Some("Data!B2:B7".into()),remove:false};assert!(!book.dispatch(SkinIntent::Command(command)).accepted());
     assert_eq!(book.host().charts(sheet).0,before);assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);
 }
+
+fn create_command(book:&HostSession,range:&str,kind:&str,rows:bool,headers:bool,categories:bool)->calc_host::WorkbookCommand {
+    let sheet=book.host().sheets()[0].id();let (first,last)=range.split_once(':').unwrap_or((range,range));
+    calc_host::WorkbookCommand::ChartCreate{revision:book.host().revision().get(),area:calc_value::GridArea::new(at(sheet,first),at(sheet,last)).unwrap(),kind:kind.into(),rows,headers,categories}
+}
+
+/// Creating a chart appends to an existing drawing, follows live edits, and participates in history.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_49__selection_creation_keeps_imported_frames_and_history(){
+    let mut book=session();let sheet=book.host().sheets()[0].id();let original=book.host().charts(sheet).0;
+    let original_package=book.host().loaded().snapshot(book.host().model());
+    let history=book.history_depth();
+    let command=create_command(&book,"A1:C7","column",false,true,true);
+    let outcome=book.dispatch(SkinIntent::Command(command));assert!(outcome.accepted(),"{outcome:?}");
+    assert_eq!(book.history_depth(),(history.0+1,0));
+    let charts=book.host().charts(sheet).0;assert_eq!(charts.len(),7);assert_eq!(&charts[..6],original);
+    let added=&charts[6];assert_eq!(added.plots[0].series[0].name,"North");assert_eq!(labels(added,0),"Jan;Feb;Mar;Apr;May;Jun");assert_eq!(numbers(&added.plots[0].series[1].values),"8;11;14;10;19;13");
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().charts(sheet).0,original);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert!(book.dispatch(SkinIntent::EnterCell{at:at(sheet,"B2"),text:"43".into()}).accepted());
+    assert_eq!(book.host().charts(sheet).0[6].plots[0].series[0].values[0],Some(43.));
+    let reopened=reopened(&mut book);let charts=reopened.host().charts(sheet).0;
+    assert_eq!(charts.len(),7);assert_eq!(charts[6].plots[0].series[0].values[0],Some(43.));assert!(!charts[6].plots[0].series[0].cached);
+    let saved=reopened.host().loaded().snapshot(reopened.host().model());
+    for chart in &original {
+        assert_eq!(original_package.package().read_xml(&chart.part).unwrap().bytes(),saved.package().read_xml(&chart.part).unwrap().bytes(),"imported chart part {}",chart.part);
+    }
+}
+
+/// The first drawing and subsequent frames save through the application's ordinary blank package.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_49__first_chart_multiple_types_and_row_orientation_save(){
+    let mut book=HostSession::open(Arc::new(MemorySource::new(calc_host::blank_package())),&OpenPolicy::default(),HostOptions::default()).unwrap();
+    let sheet=book.host().sheets()[0].id();
+    for (address,text) in [("A1","Month"),("B1","North"),("C1","South"),("A2","Jan"),("B2","2"),("C2","=B2*3"),("A3","Feb"),("B3","8"),("C3","=B3/2")]{assert!(book.dispatch(SkinIntent::EnterCell{at:at(sheet,address),text:text.into()}).accepted());}
+    for (kind,range,rows,headers,cats) in [("column","A1:C3",false,true,true),("bar","A1:C3",false,true,true),("line","A1:C3",true,true,true),("area","A1:C3",false,true,true),("pie","A1:B3",false,true,true),("doughnut","A1:C2",true,true,true),("scatter","B1:C3",false,true,true)]{
+        let command=create_command(&book,range,kind,rows,headers,cats);let outcome=book.dispatch(SkinIntent::Command(command));assert!(outcome.accepted(),"{kind}: {outcome:?}");
+    }
+    let before=book.host().charts(sheet).0;assert_eq!(before.len(),7);assert_eq!(numbers(&before[2].plots[0].series[0].values),"2;6");assert_eq!(before[2].plots[0].series[0].name,"Jan");
+    assert_eq!(before[6].plots[0].series[0].values,vec![Some(6.),Some(4.)]);
+    let next=reopened(&mut book);let after=next.host().charts(sheet).0;assert_eq!(before,after);assert_eq!(next.host().charts(sheet).1,0);
+}
+
+/// Invalid selections and stale commands cannot mutate state or history.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_49__creation_refusals_are_atomic(){
+    let mut book=session();let sheet=book.host().sheets()[0].id();let original=book.host().charts(sheet).0;let history=book.history_depth();let revision=book.host().revision();
+    for (range,kind,rows,headers,cats) in [("A1:C7","pie",false,true,true),("A1","column",false,true,false),("A1","column",false,false,true),("A1:C7","scatter",false,true,false),("A1:C7","unknown",false,true,true),("A1:JX32768","column",false,true,true)]{
+        let command=create_command(&book,range,kind,rows,headers,cats);assert!(!book.dispatch(SkinIntent::Command(command)).accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,original);
+    }
+    let command=create_command(&book,"A1:C7","column",false,true,true);assert!(book.dispatch(SkinIntent::EnterCell{at:at(sheet,"Z1"),text:"1".into()}).accepted());let history=book.history_depth();
+    assert!(!book.dispatch(SkinIntent::Command(command)).accepted());assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,original);
+}
+
+/// New chart references and anchors compose with later structural edits through the retained passes.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_49__created_chart_edits_and_row_insertion_save(){
+    let mut book=session();let sheet=book.host().sheets()[0].id();let command=create_command(&book,"A1:C7","column",false,true,true);
+    assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    let part=book.host().charts(sheet).0[6].part.clone();
+    let command=calc_host::WorkbookCommand::ChartProperties{sheet,revision:book.host().revision().get(),part,title:Some("Sales & forecast".into()),set_title:true,legend:Some(false)};
+    assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    assert!(book.dispatch(SkinIntent::EditAxis(calc_host::AxisEdit::new(sheet,calc_host::Axis::Rows,calc_host::AxisChange::Insert,1,2).unwrap())).accepted());
+    let expected=book.host().charts(sheet).0[6].clone();
+    let next=reopened(&mut book);assert_eq!(next.host().charts(sheet).0[6],expected);
+    assert_eq!(expected.title.as_deref(),Some("Sales & forecast"));assert_eq!(expected.plots[0].series[0].values[0],Some(12.));
+    let chart=next.host().model().definitions().charts(sheet)[6].clone();
+    assert_eq!(chart.plots[0].series[0].values.as_ref().unwrap().formula.as_deref(),Some("'Data'!$B$4:$B$9"));
+}
+
+/// Newly authored references receive the same rename/remove protection as imported charts.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_49__new_chart_blocks_unmodelled_sheet_rename_and_remove(){
+    let mut book=HostSession::open(Arc::new(MemorySource::new(calc_host::blank_package())),&OpenPolicy::default(),HostOptions::default()).unwrap();
+    assert!(book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::Sheet{sheet:None,change:calc_host::SheetChange::Add{name:"Other".into()}})).accepted());
+    let sheet=book.host().sheets()[0].id();
+    assert!(book.dispatch(SkinIntent::EnterCell{at:at(sheet,"A1"),text:"3".into()}).accepted());
+    let command=create_command(&book,"A1","column",false,false,false);assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    let charts=book.host().charts(sheet).0;let revision=book.host().revision();let history=book.history_depth();
+    for change in [calc_host::SheetChange::Rename{name:"Renamed".into()},calc_host::SheetChange::Remove]{
+        let outcome=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::Sheet{sheet:Some(sheet),change}));assert!(!outcome.accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,charts);
+    }
+    assert_eq!(reopened(&mut book).host().charts(sheet).0,charts);
+}
+
+fn log_command(book:&HostSession,chart:usize,axis:u32,base:Option<&str>)->calc_host::WorkbookCommand{
+    let sheet=book.host().sheets()[0].id();calc_host::WorkbookCommand::ChartLogAxis{sheet,revision:book.host().revision().get(),part:book.host().charts(sheet).0[chart].part.clone(),axis,base:base.map(str::to_owned)}
+}
+/// Log scales, authored bounds, direction and automatic linear restoration use ordinary history.
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_50__logarithmic_scale_history_and_saved_reopening(){
+    let mut book=session();let sheet=book.host().sheets()[0].id();let before=book.host().charts(sheet).0;let id=before[0].axes.iter().find(|a|a.kind=="valAx").unwrap().id;
+    let command=log_command(&book,0,id,Some("10"));let outcome=book.dispatch(SkinIntent::Command(command));assert!(outcome.accepted(),"{outcome:?}");
+    let command=axis_command(&book,0,id,Some("1"),Some("1000"),None,true);assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    let after=book.host().charts(sheet).0;let axis=after[0].axes.iter().find(|a|a.id==id).unwrap();assert_eq!(axis.log_base.as_deref(),Some("10"));
+    let scale=calc_host::chart::chart_scale(12.,40.,Some(axis)).unwrap();assert_eq!(scale.ticks(),vec![1.,10.,100.,1000.]);assert!((scale.position(10.).unwrap()-2./3.).abs()<1e-12);assert!((scale.position(100.).unwrap()-1./3.).abs()<1e-12);assert_eq!(scale.position(0.),None);assert_eq!(scale.position(-5.),None);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(!book.host().charts(sheet).0[0].axes.iter().find(|a|a.id==id).unwrap().reversed);assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(book.host().charts(sheet).0,after);
+    let mut next=reopened(&mut book);assert_eq!(next.host().charts(sheet).0,after);let revision=next.host().revision();let history=next.history_depth();let command=type_command(&next,0,"column",true);assert!(!next.dispatch(SkinIntent::Command(command)).accepted());assert_eq!(next.host().revision(),revision);assert_eq!(next.history_depth(),history);assert_eq!(next.host().charts(sheet).0,after);let command=log_command(&next,0,id,None);assert!(next.dispatch(SkinIntent::Command(command)).accepted());let command=axis_command(&next,0,id,None,None,None,false);assert!(next.dispatch(SkinIntent::Command(command)).accepted());assert_eq!(reopened(&mut next).host().charts(sheet).0,before);
+}
+/// Invalid logarithmic settings refuse atomically; scatter X/Y keep their own scales.
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_50__logarithmic_invalid_and_scatter_axes(){
+    let mut book=session();let sheet=book.host().sheets()[0].id();let chart=book.host().charts(sheet).0[5].clone();let x=chart.axes.iter().find(|a|a.position.as_deref()==Some("b")).unwrap().id;let y=chart.axes.iter().find(|a|a.position.as_deref()==Some("l")).unwrap().id;let revision=book.host().revision();let history=book.history_depth();
+    for base in ["1","0","-10","1001","NaN","inf",""]{let command=log_command(&book,5,x,Some(base));assert!(!book.dispatch(SkinIntent::Command(command)).accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);}
+    let command=log_command(&book,5,x,Some("2"));assert!(book.dispatch(SkinIntent::Command(command)).accepted());let command=log_command(&book,5,y,Some("10"));assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    let after=book.host().charts(sheet).0;let revision=book.host().revision();let history=book.history_depth();
+    for min in ["0","-1"]{let command=axis_command(&book,5,x,Some(min),Some("100"),None,false);assert!(!book.dispatch(SkinIntent::Command(command)).accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,after);}
+    assert_eq!(reopened(&mut book).host().charts(sheet).0,after);
+}
+/// A newly created chart saves logarithmic scaling and filters only the impossible values.
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_50__new_log_chart_and_positive_extents(){
+    let mut book=HostSession::open(Arc::new(MemorySource::new(calc_host::blank_package())),&OpenPolicy::default(),HostOptions::default()).unwrap();let sheet=book.host().sheets()[0].id();
+    for (address,text) in [("A1","1"),("A2","10"),("A3","100"),("A4","0"),("A5","-5")]{assert!(book.dispatch(SkinIntent::EnterCell{at:at(sheet,address),text:text.into()}).accepted());}
+    let command=create_command(&book,"A1:A5","line",false,false,false);assert!(book.dispatch(SkinIntent::Command(command)).accepted());let command=log_command(&book,0,2,Some("10"));assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    let after=book.host().charts(sheet).0;assert_eq!(calc_host::chart::plot_scale_range(&after[0].plots[0],true).unwrap(),(1.,100.));assert_eq!(after[0].plots[0].series[0].values,vec![Some(1.),Some(10.),Some(100.),Some(0.),Some(-5.)]);assert_eq!(reopened(&mut book).host().charts(sheet).0,after);
+    let mut p=after[0].plots[0].clone();p.stacked=true;assert!(calc_host::chart::plot_scale_range(&p,true).is_err());
+}
+
+
+/// One created combination has live linked sources, two reciprocal pairs and independent scales.
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_51__create_combination_axes_and_saved_reopening(){
+    let mut book=session();let sheet=book.host().sheets()[0].id();let before=book.host().charts(sheet).0;
+    let command=create_command(&book,"A1:C7","combo",false,true,true);let outcome=book.dispatch(SkinIntent::Command(command));assert!(outcome.accepted(),"{outcome:?}");
+    let charts=book.host().charts(sheet).0;let c=&charts[6];assert!(calc_host::chart::combination_supported(c));assert_eq!(c.axes.len(),4);assert_eq!(c.plots.len(),2);assert_eq!(c.plots[0].kind,ChartKind::Column);assert_eq!(c.plots[1].kind,ChartKind::Line);assert_eq!(c.plots[0].series[0].name,"North");assert_eq!(c.plots[1].series[0].name,"South");assert_eq!(&charts[..6],before);
+    let command=axis_command(&book,6,2,None,Some("50"),Some("10"),false);assert!(book.dispatch(SkinIntent::Command(command)).accepted());let command=axis_command(&book,6,4,None,Some("200"),Some("50"),false);assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    let chart=book.host().charts(sheet).0[6].clone();assert_eq!(calc_host::chart::category_scale(&chart,&chart.plots[0]).unwrap().maximum,50.);assert_eq!(calc_host::chart::category_scale(&chart,&chart.plots[1]).unwrap().maximum,200.);
+    let command=log_command(&book,6,4,Some("10"));assert!(book.dispatch(SkinIntent::Command(command)).accepted());let after=book.host().charts(sheet).0;assert_eq!(reopened(&mut book).host().charts(sheet).0,after);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().charts(sheet).0[6].axes.iter().find(|a|a.id==4).unwrap().log_base,None);assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(book.host().charts(sheet).0,after);
+    assert!(book.dispatch(SkinIntent::EnterCell{at:at(sheet,"C2"),text:"125".into()}).accepted());assert_eq!(book.host().charts(sheet).0[6].plots[1].series[0].values[0],Some(125.));
+    assert!(book.dispatch(SkinIntent::EditAxis(calc_host::AxisEdit::new(sheet,calc_host::Axis::Rows,calc_host::AxisChange::Insert,1,2).unwrap())).accepted());let after=book.host().charts(sheet).0;assert_eq!(reopened(&mut book).host().charts(sheet).0,after);
+}
+/// A one-series combination cannot silently become a different type or change history.
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_51__combination_selection_refuses_atomically(){
+    let mut book=session();let sheet=book.host().sheets()[0].id();let before=book.host().charts(sheet).0;let revision=book.host().revision();let history=book.history_depth();
+    let command=create_command(&book,"A1:B7","combo",false,true,true);assert!(!book.dispatch(SkinIntent::Command(command)).accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,before);
+    let command=type_command(&book,0,"combo",false);assert!(!book.dispatch(SkinIntent::Command(command)).accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);
+}
+
+/// Legend placement is an ordinary retained property across history, saving and invalid input.
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_52__legend_placement_history_and_saved_reopening(){
+    let mut book=session();let sheet=book.host().sheets()[0].id();
+    for position in ["l","t","b","tr","r"]{
+        let before=book.host().charts(sheet).0;let command=calc_host::WorkbookCommand::ChartLegend{sheet,revision:book.host().revision().get(),part:before[0].part.clone(),position:position.into()};assert!(book.dispatch(SkinIntent::Command(command)).accepted());let after=book.host().charts(sheet).0;assert_eq!(after[0].legend.as_deref(),Some(position));assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().charts(sheet).0,before);assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(reopened(&mut book).host().charts(sheet).0,after);
+    }
+    let before=book.host().charts(sheet).0;let revision=book.host().revision();let history=book.history_depth();
+    for (rev,position) in [(revision.get(),"unknown"),(revision.get().saturating_sub(1),"l")]{let command=calc_host::WorkbookCommand::ChartLegend{sheet,revision:rev,part:before[0].part.clone(),position:position.into()};assert!(!book.dispatch(SkinIntent::Command(command)).accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,before);}
+}

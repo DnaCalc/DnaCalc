@@ -2098,8 +2098,30 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             Ok(())
         }
         Action::DragToCell(from, row, col) => {
+            // Like RememberView, wait for name-box navigation to finish before reading
+            // geometry: the old handle can exist while the new target headers do not.
+            if let Some(reason)=wait_for(app,session,&Check::Absent("[data-dnacalc=skin-grid][disabled]"),SETTLE){return Err(reason);}
+            if let Some(reason)=wait_for(app,session,&Check::PlanReady,SETTLE){return Err(reason);}
+            let started=Instant::now();
+            let xy=loop {
+                let xy=session.script(&format!(r#"
+                    var g=document.querySelector('[data-dnacalc=grid]'),b=g.getBoundingClientRect();
+                    var c=document.querySelector('[data-dnacalc=column-header][data-column="{col}"]'),r=document.querySelector('[data-dnacalc=row-header][data-row="{row}"]');
+                    var cr=c?.getBoundingClientRect(),rr=r?.getBoundingClientRect(),x=cr?cr.left+cr.width/2:0,y=rr?rr.top+rr.height/2:0;
+                    var left=b.left+(rr?.width||0),top=b.top+(cr?.height||0),right=b.left+g.clientWidth,bottom=b.top+g.clientHeight;
+                    var rows=Array.from(document.querySelectorAll('[data-dnacalc=row-header]')).map(e=>+e.dataset.row),cols=Array.from(document.querySelectorAll('[data-dnacalc=column-header]')).map(e=>e.dataset.column);
+                    var dx=cr?(x<=left+2?-1:x>=right-2?1:0):cols.length&&('{col}'.length<cols[0].length||'{col}'.length===cols[0].length&&'{col}'<cols[0])?-1:1;
+                    var dy=rr?(y<=top+2?-1:y>=bottom-2?1:0):rows.length&&{row}<Math.min(...rows)?-1:1;
+                    if(cr&&rr&&cr.width>0&&rr.height>0&&!dx&&!dy)return [Math.round(x),Math.round(y)];
+                    return {{dx,dy}};
+                "#))?;
+                if xy.is_array(){break xy;}
+                if started.elapsed()>=SETTLE{return Err(format!("Fill target {col}{row} did not acquire rendered headers"));}
+                // Use the same real wheel action as ScrollGrid, without changing selection.
+                let dx=8 * xy["dx"].as_i64().unwrap_or(0) as i32;let dy=8 * xy["dy"].as_i64().unwrap_or(0) as i32;
+                if dx!=0||dy!=0{act(ws,app,session,&Action::ScrollGrid(dx,dy))?;if let Some(reason)=wait_for(app,session,&Check::PlanReady,SETTLE){return Err(reason);}}else{thread::sleep(Duration::from_millis(20));}
+            };
             let from = session.element(&select(app, from))?;
-            let xy=session.script(&format!("var c=document.querySelector('[data-dnacalc=column-header][data-column=\"{col}\"]').getBoundingClientRect();var r=document.querySelector('[data-dnacalc=row-header][data-row=\"{row}\"]').getBoundingClientRect();return [Math.round(c.left+c.width/2),Math.round(r.top+r.height/2)];"))?;
             session.post("/actions",json!({"actions":[{"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":[{"type":"pointerMove","duration":0,"origin":{"element-6066-11e4-a52e-4f735466cecf":from},"x":0,"y":0},{"type":"pointerDown","button":0},{"type":"pointerMove","duration":200,"origin":"viewport","x":xy[0],"y":xy[1]},{"type":"pointerUp","button":0}]}]}))?;
             Ok(())
         }
@@ -2303,6 +2325,7 @@ fn run_case(ws: &Workspace, app: &App, session: &Session, case: &Case) -> Vec<St
                     failures.push(format!("keyboard page state: {state}"));
                 }
             }
+            record_input_trace(session,&mut failures);
             return failures;
         }
     }
@@ -2327,7 +2350,16 @@ fn run_case(ws: &Workspace, app: &App, session: &Session, case: &Case) -> Vec<St
         Ok(list) => failures.extend(list.into_iter().map(|f| format!("page fault: {f}"))),
         Err(e) => failures.push(format!("cannot read the fault record: {e}")),
     }
+    record_input_trace(session,&mut failures);
     failures
+}
+
+/// Optional diagnostics from a locally instrumented bundle; ordinary pages have no trace.
+fn record_input_trace(session:&Session,failures:&mut Vec<String>){
+    if failures.is_empty(){return;}
+    if let Ok(state)=session.script(&format!(r#"if(!window.__dcInputTrace)return null;{READ_PLANS}return {{trace:window.__dcInputTrace.slice(-3000),focus:document.activeElement?.getAttribute('data-dnacalc'),active:document.querySelector('[data-dnacalc=name-box]')?.value,grids:Array.from(document.querySelectorAll('[data-dnacalc=grid]')).map(g=>({{rect:g.getBoundingClientRect().toJSON(),scroll:[g.scrollLeft,g.scrollTop]}})),plans:plans.map(p=>({{pane:p.pane,pending:p.pending,viewport:p.plan.viewport,publication:p.plan.publication,range:[p.plan.cells[0]?.address,p.plan.cells.at(-1)?.address],cells:p.plan.cells.filter(c=>c.shown.text||c.shown.formula).slice(0,24).map(c=>[c.address,c.shown.text,c.shown.formula])}}))}};"#)){
+        if !state.is_null(){failures.push(format!("input trace: {state}"));}
+    }
 }
 
 /// The text of the element `name` selects, or why it could not be read.
@@ -2857,7 +2889,7 @@ fn smoke_selected(
         core: 0,
         setup: &[],
     }];
-    const LATENCY_GROUPS: [CaseGroup; 3] = [CaseGroup {
+    const LATENCY_GROUPS: [CaseGroup; 4] = [CaseGroup {
         name: "worker-latency",
         start: 0,
         end: 22,
@@ -2872,6 +2904,12 @@ fn smoke_selected(
     }, CaseGroup {
         name: "review-latency",
         start: 24,
+        end: 27,
+        core: 0,
+        setup: &[],
+    }, CaseGroup {
+        name: "namebox-latency",
+        start: 27,
         end: CALC_LATENCY_CASES.len(),
         core: 0,
         setup: &[],
@@ -3086,8 +3124,8 @@ mod tests {
             .map(|app| SmokeSelection::default().count(app))
             .sum();
         assert_eq!(
-            total, 363,
-            "the two applications have 363 core cases including eight Find and hidden-name cases and all 355 inherited core cases"
+            total, 381,
+            "the two applications have 381 core cases including eighteen chart creation/log/combination/legend cases and all 363 inherited core cases"
         );
     }
 

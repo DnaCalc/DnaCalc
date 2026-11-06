@@ -66,7 +66,8 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
         );
         top = 34.0;
     }
-    if chart.plots.len()>1 {let _=write!(svg,"<text data-dnacalc=\"chart-notice\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">Combination chart preserved; its plots are not drawn here</text></svg>",width/2.,height/2.);return svg;}
+    if !calc_host::chart::axes_associated(chart){axis_notice(&mut svg,&Area{left:0.,top:0.,right:width,bottom:height},"Unassociated chart axes are preserved but not drawn here (dc-971p.51)");svg.push_str("</svg>");return svg;}
+    if chart.plots.len()>1 && !calc_host::chart::combination_supported(chart) {let _=write!(svg,"<text data-dnacalc=\"chart-notice\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">Combination chart preserved; its plots are not drawn here</text></svg>",width/2.,height/2.);return svg;}
     if chart.plots.iter().any(|p|p.percent){let _=write!(svg,"<text data-dnacalc=\"chart-notice\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">Percent-stacked chart preserved; its plots are not drawn here</text></svg>",width/2.,height/2.);return svg;}
     let cached=chart.plots.iter().flat_map(|p|&p.series).any(|s|s.cached);
     if cached {let _=write!(svg,"<text data-dnacalc=\"chart-cache\" x=\"10\" y=\"{:.1}\" fill=\"{AXIS}\">Includes saved chart values</text>",height-5.);}
@@ -89,42 +90,41 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
             })
             .collect()
     } else {
-        plot.series
-            .iter()
+        chart.plots.iter().flat_map(|p|&p.series)
             .map(|s| (s.name.clone(), s.color.clone()))
             .collect()
     };
-    let mut right = width - 10.0;
-    if chart.legend.is_some() && !entries.is_empty() {
-        let legend_width = 90.0f64.min(width * 0.3);
-        right = width - legend_width - 6.0;
-        let first = (height - entries.len() as f64 * 16.0) / 2.0;
-        for (i, (name, color)) in entries.iter().enumerate() {
-            let y = first + i as f64 * 16.0 + 8.0;
-            let _ = write!(
-                svg,
-                "<g data-dnacalc=\"chart-legend\"><rect x=\"{:.1}\" y=\"{:.1}\" width=\"7\" height=\"7\" fill=\"#{color}\"/><text x=\"{:.1}\" y=\"{:.1}\" fill=\"{AXIS}\">{}</text></g>",
-                right + 8.0,
-                y - 6.0,
-                right + 19.0,
-                y + 1.0,
-                escape(name)
-            );
+    let mut left=10.;let mut right=width-10.;let mut bottom=height-if cached{26.}else{10.};
+    if chart.legend.is_some()&&!entries.is_empty(){
+        let position=match chart.legend.as_deref(){Some("l")=>"l",Some("t")=>"t",Some("b")=>"b",Some("tr")=>"tr",_=>"r"};
+        let mut places=Vec::new();
+        if matches!(position,"t"|"b"){
+            let mut x=10.;let mut row=0usize;
+            for (name,_) in &entries{let size=(name.encode_utf16().count() as f64*6.5+22.).min((width-20.).max(1.));if x+size>width-10.&&x>10.{x=10.;row+=1;}places.push((x,row as f64*18.));x+=size;}
+            let reserve=(((row+1) as f64)*18.+6.).min((bottom-top).max(1.)*0.4);
+            let start=if position=="t"{let start=top+8.;top+=reserve;start}else{let start=bottom-reserve+8.;bottom-=reserve;start};
+            for (_,y) in &mut places{*y+=start;}
+        }else{
+            let legend_width=90f64.min(width*0.3);
+            let x=if position=="l"{left+=legend_width+6.;10.}else{right=width-legend_width-6.;right+8.};
+            let first=if position=="tr"{top}else{(height-entries.len() as f64*16.)/2.};
+            places.extend((0..entries.len()).map(|i|(x,first+i as f64*16.+8.)));
         }
+        for ((name,color),(x,y)) in entries.iter().zip(places){let _=write!(svg,"<g data-dnacalc=\"chart-legend\" data-position=\"{position}\"><rect x=\"{x:.1}\" y=\"{:.1}\" width=\"7\" height=\"7\" fill=\"#{color}\"/><text x=\"{:.1}\" y=\"{:.1}\" fill=\"{AXIS}\">{}</text></g>",y-6.,x+11.,y+1.,escape(name));}
     }
-    let area = Area {
-        left: 10.0,
-        top,
-        right,
-        bottom: height - if cached{26.0}else{10.0},
-    };
-    match &plot.kind {
+    let area=Area{left,top,right,bottom};
+    if chart.plots.len()>1{
+        match combination_layouts(chart,area){
+            Ok(layouts)=>for (i,p) in chart.plots.iter().enumerate(){let _=write!(svg,"<g data-plot=\"{i}\">");category_marks(&mut svg,chart,p,area,Some(layouts[i]));svg.push_str("</g>");},
+            Err(message)=>axis_notice(&mut svg,&area,&message),
+        }
+    }else{match &plot.kind {
         ChartKind::Pie | ChartKind::Doughnut => {
             pie_marks(&mut svg, chart, plot, &area);
         }
         ChartKind::Scatter => scatter_marks(&mut svg, chart, plot, area),
         ChartKind::Column | ChartKind::Bar | ChartKind::Line | ChartKind::Area => {
-            category_marks(&mut svg, chart, plot, area);
+            category_marks(&mut svg, chart, plot, area,None);
         }
         ChartKind::Other(kind) => {
             let _ = write!(
@@ -135,6 +135,7 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
                 escape(kind)
             );
         }
+    }
     }
     svg.push_str("</svg>");
     svg
@@ -155,19 +156,30 @@ fn mark(svg: &mut String, series: usize, point: usize, value: f64) {
     );
 }
 
+#[derive(Clone,Copy)]
+struct CategoryLayout{x0:f64,x1:f64,y0:f64,y1:f64,count:usize,index:usize,offset:usize,secondary:bool,ticks:bool}
+fn combination_layouts(chart:&ChartView,area:Area)->Result<[CategoryLayout;2],String>{
+    let first=calc_host::chart::category_scale(chart,&chart.plots[0])?;let second=calc_host::chart::category_scale(chart,&chart.plots[1])?;
+    let width=|s:calc_host::chart::ChartScale|label(s.minimum,s.step).len().max(label(s.maximum,s.step).len()) as f64*6.5+8.;
+    let secondary=chart.axes.len()==4;
+    let x0=area.left+width(first);let x1=(area.right-if secondary{width(second)}else{0.}).max(x0+1.);
+    let count=chart.plots.iter().flat_map(|p|&p.series).map(|s|s.values.len()).max().unwrap_or(1).max(1);
+    let a=CategoryLayout{x0,x1,y0:area.top,y1:area.bottom-18.,count,index:0,offset:0,secondary:false,ticks:true};
+    Ok([a,CategoryLayout{index:1,offset:chart.plots[0].series.len(),secondary,ticks:secondary,..a}])
+}
+
 /// Columns, bars, lines and areas over categories.
-fn category_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Area) {
+fn category_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Area, layout:Option<CategoryLayout>) {
     let horizontal = plot.kind == ChartKind::Bar;
-    let count = plot
+    let count = layout.map_or_else(||plot
         .series
         .iter()
         .map(|s| s.values.len())
         .max()
         .unwrap_or(0)
-        .max(1);
-    let (low,high)=calc_host::chart::plot_value_range(plot);
-    let axes=match calc_host::chart::value_axes(&chart.axes,&plot.axis_ids,false){Ok(axes)=>axes,Err(message)=>{axis_notice(svg,&area,&message);return;}};
-    let scale=match calc_host::chart::chart_scale(low,high,axes.first().copied()) {
+        .max(1),|l|l.count);
+    let offset=layout.map_or(0,|l|l.offset);
+    let scale=match calc_host::chart::category_scale(chart,plot) {
         Ok(scale)=>scale,Err(message)=>{axis_notice(svg,&area,&message);return;}
     };
     let (min,max,step)=(scale.minimum,scale.maximum,scale.step);
@@ -182,11 +194,10 @@ fn category_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Are
     } else {
         (area.left + widest * 6.5 + 8.0, area.bottom - 18.0)
     };
-    let (x0, x1, y0, y1) = (plot_left, area.right, area.top, plot_bottom);
+    let (x0, x1, y0, y1) = layout.map_or((plot_left, area.right, area.top, plot_bottom),|l|(l.x0,l.x1,l.y0,l.y1));
     // Where a value is along the value axis, and where a category's band starts.
     let value_at = |v: f64| {
-        let t = (v - min) / (max - min);
-        let t=if scale.reversed{1.-t}else{t};
+        let t = scale.position(v).unwrap_or(0.);
         if horizontal {
             x0 + t * (x1 - x0)
         } else {
@@ -207,10 +218,10 @@ fn category_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Are
         }
     };
     // Gridlines and value labels.
-    let steps = ((max - min) / step+1e-9).floor() as usize;
-    for k in 0..=steps {
-        let v = min + k as f64 * step;
+    for v in scale.ticks() {
+        if layout.is_some_and(|l|!l.ticks){break;}
         let p = value_at(v);
+        if layout.is_some_and(|l|l.secondary){let _=write!(svg,"<text data-dnacalc=\"chart-axis-tick\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"start\" fill=\"{AXIS}\">{}</text>",x1+4.,p+4.,label(v,step));continue;}
         if horizontal {
             let _ = write!(
                 svg,
@@ -246,6 +257,7 @@ fn category_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Are
         .map(|s| s.categories.clone())
         .unwrap_or_default();
     for j in 0..count {
+        if layout.is_some_and(|l|l.index>0){break;}
         let text = categories
             .get(j)
             .cloned()
@@ -284,8 +296,10 @@ fn category_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Are
             let mut up = vec![0.0f64; count];
             let mut down = vec![0.0f64; count];
             for (i, series) in plot.series.iter().enumerate() {
+                let i=i+offset;
                 for (j, value) in series.values.iter().enumerate() {
                     let Some(v) = *value else { continue };
+                    if scale.position(v).is_none(){continue;}
                     let (from, to) = if plot.stacked {
                         let base = if v >= 0.0 { &mut up[j] } else { &mut down[j] };
                         let from = *base;
@@ -317,11 +331,12 @@ fn category_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Are
             let x_at = middle_of;
             let mut shapes = String::new();
             for (i, series) in plot.series.iter().enumerate() {
+                let i=i+offset;
                 let points: Vec<(usize, f64)> = series
                     .values
                     .iter()
                     .enumerate()
-                    .filter_map(|(j, v)| v.map(|v| (j, v)))
+                    .filter_map(|(j, v)| v.filter(|v|scale.position(*v).is_some()).map(|v| (j, v)))
                     .collect();
                 let tops: Vec<(f64, f64)> = points
                     .iter()
@@ -386,6 +401,7 @@ fn category_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Are
         _ => {}
     }
     // The category axis line, at zero.
+    if layout.is_none_or(|l|l.index==0){
     if horizontal {
         let _ = write!(
             svg,
@@ -396,6 +412,7 @@ fn category_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Are
             svg,
             "<line x1=\"{x0:.1}\" y1=\"{zero:.1}\" x2=\"{x1:.1}\" y2=\"{zero:.1}\" stroke=\"{AXIS}\"/>"
         );
+    }
     }
     svg.push_str("</svg>");
 }
@@ -474,7 +491,7 @@ fn scatter_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Area
     let axes=match calc_host::chart::value_axes(&chart.axes,&plot.axis_ids,true){Ok(axes)=>axes,Err(message)=>{axis_notice(svg,&area,&message);return;}};
     let series=plot.series.iter().map(|s|(calc_host::chart::scatter_x_values(s),s)).collect::<Vec<_>>();
     if !series.iter().any(|(xs,s)|xs.iter().zip(&s.values).any(|(x,y)|x.is_some()&&y.is_some())){return;}
-    let ((xl,xh),(yl,yh))=calc_host::chart::scatter_ranges(plot);
+    let ((xl,xh),(yl,yh))=calc_host::chart::scatter_scale_ranges(plot,axes[0].log_base.is_some(),axes[1].log_base.is_some());
     let xscale=calc_host::chart::chart_scale(xl,xh,Some(axes[0]));
     let yscale=calc_host::chart::chart_scale(yl,yh,Some(axes[1]));
     let (xscale,yscale)=match (xscale,yscale){(Ok(x),Ok(y))=>(x,y),(Err(message),_)|(_,Err(message))=>{axis_notice(svg,&area,&message);return;}};
@@ -486,10 +503,9 @@ fn scatter_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Area
         area.top,
         area.bottom - 18.0,
     );
-    let px = |x: f64| {let t=(x-xmin)/(xmax-xmin);x0+(if xscale.reversed{1.-t}else{t})*(x1-x0)};
-    let py = |y: f64| {let t=(y-ymin)/(ymax-ymin);y1-(if yscale.reversed{1.-t}else{t})*(y1-y0)};
-    for k in 0..=((ymax - ymin) / ystep+1e-9).floor() as usize {
-        let v = ymin + k as f64 * ystep;
+    let px = |x: f64| {let t=xscale.position(x).unwrap_or(0.);x0+t*(x1-x0)};
+    let py = |y: f64| {let t=yscale.position(y).unwrap_or(0.);y1-t*(y1-y0)};
+    for v in yscale.ticks() {
         let _ = write!(
             svg,
             "<line x1=\"{x0:.1}\" y1=\"{:.1}\" x2=\"{x1:.1}\" y2=\"{:.1}\" stroke=\"{GRID}\"/><text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" fill=\"{AXIS}\">{}</text>",
@@ -500,8 +516,7 @@ fn scatter_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Area
             label(v, ystep)
         );
     }
-    for k in 0..=((xmax - xmin) / xstep+1e-9).floor() as usize {
-        let v = xmin + k as f64 * xstep;
+    for v in xscale.ticks() {
         let _ = write!(
             svg,
             "<line x1=\"{:.1}\" y1=\"{y0:.1}\" x2=\"{:.1}\" y2=\"{y1:.1}\" stroke=\"{GRID}\"/><text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">{}</text>",
@@ -516,6 +531,7 @@ fn scatter_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Area
     for (i, (xs, s)) in series.iter().enumerate() {
         for (j, (x, y)) in xs.iter().zip(&s.values).enumerate() {
             if let (Some(x), Some(y)) = (x, y) {
+                if xscale.position(*x).is_none()||yscale.position(*y).is_none(){continue;}
                 let _ = write!(
                     svg,
                     // Excel's first marker, a diamond.
@@ -544,6 +560,48 @@ mod tests {
         let bytes=include_bytes!("../../../crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx");let source:Arc<dyn PackageRead>=Arc::new(MemorySource::new(bytes.to_vec()));let mut book=HostSession::open(source,&OpenPolicy::default(),HostOptions::default()).unwrap();assert!(book.dispatch(SkinIntent::Recalculate).accepted());let (charts,unread)=book.host().charts(book.host().sheets()[0].id());assert_eq!(unread,0);assert_eq!(charts.len(),6);
         for chart in &charts{let svg=chart_svg(chart,600.,350.);assert!(svg.contains("data-point=\"0\""),"{}: {svg}",chart.name);assert!(!svg.contains("chart-cache"));}
         let mut cached=charts[0].clone();cached.plots[0].series[0].cached=true;assert!(chart_svg(&cached,600.,350.).contains("Includes saved chart values"));cached.plots.push(cached.plots[0].clone());let svg=chart_svg(&cached,600.,350.);assert!(svg.contains("Combination chart preserved"));assert!(!svg.contains("data-point="));
+    }
+
+    #[cfg_attr(not(target_arch="wasm32"),test)]
+    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    fn logarithmic_live_line_has_equal_decade_spacing_and_real_gaps(){
+        use std::sync::Arc;use calc_host::{HostSession,MemorySource,OpenPolicy,HostOptions,SkinIntent,WorkbookCommand};
+        let mut book=HostSession::open(Arc::new(MemorySource::new(calc_host::blank_package())),&OpenPolicy::default(),HostOptions::default()).unwrap();let sheet=book.host().sheets()[0].id();
+        for (row,value) in [(1,"1"),(2,"10"),(3,"100"),(4,"0"),(5,"-2"),(6,"10")]{assert!(book.dispatch(SkinIntent::EnterCell{at:calc_host::value::CellKey::new(sheet,row,1).unwrap(),text:value.into()}).accepted());}
+        let area=calc_host::value::GridArea::new(calc_host::value::CellKey::new(sheet,1,1).unwrap(),calc_host::value::CellKey::new(sheet,6,1).unwrap()).unwrap();
+        let command=WorkbookCommand::ChartCreate{revision:book.host().revision().get(),area,kind:"line".into(),rows:false,headers:false,categories:false};assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+        let command=WorkbookCommand::ChartLogAxis{sheet,revision:book.host().revision().get(),part:book.host().charts(sheet).0[0].part.clone(),axis:2,base:Some("10".into())};assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+        let svg=chart_svg(&book.host().charts(sheet).0[0],600.,350.);assert!(!svg.contains("chart-notice"),"{svg}");assert!(!svg.contains("NaN"));assert!(!svg.contains("inf"));assert_eq!(svg.matches("data-dnacalc=\"chart-mark\"").count(),4);assert!(!svg.contains("data-point=\"3\""));assert!(!svg.contains("data-point=\"4\""));
+        let ys=svg.split("data-dnacalc=\"chart-mark\"").skip(1).map(|s|s.split("cy=\"").nth(1).unwrap().split('"').next().unwrap().parse::<f64>().unwrap()).collect::<Vec<_>>();assert!((ys[0]+ys[2]-2.*ys[1]).abs()<0.2,"Equal ratios must occupy equal distances: {ys:?}");assert!((ys[1]-ys[3]).abs()<0.2);
+        let line=svg.split("<path d=\"").nth(1).unwrap().split('"').next().unwrap();assert_eq!(line.matches('M').count(),2,"Zero and negative points break the path: {line}");
+    }
+
+    #[cfg_attr(not(target_arch="wasm32"),test)]
+    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    fn column_line_combination_aligns_categories_and_keeps_independent_value_axes(){
+        use std::sync::Arc;use calc_host::{HostSession,MemorySource,OpenPolicy,HostOptions,SkinIntent,WorkbookCommand};
+        let mut book=HostSession::open(Arc::new(MemorySource::new(calc_host::blank_package())),&OpenPolicy::default(),HostOptions::default()).unwrap();let sheet=book.host().sheets()[0].id();
+        for row in 1..=3{for (column,value) in [(1,format!("Month {row}")),(2,row.to_string()),(3,(row*1000).to_string())]{assert!(book.dispatch(SkinIntent::EnterCell{at:calc_host::value::CellKey::new(sheet,row,column).unwrap(),text:value}).accepted());}}
+        let area=calc_host::value::GridArea::new(calc_host::value::CellKey::new(sheet,1,1).unwrap(),calc_host::value::CellKey::new(sheet,3,3).unwrap()).unwrap();
+        let command=WorkbookCommand::ChartCreate{revision:book.host().revision().get(),area,kind:"combo".into(),rows:false,headers:false,categories:true};assert!(book.dispatch(SkinIntent::Command(command)).accepted());let before=book.host().charts(sheet).0[0].clone();let svg=chart_svg(&before,640.,360.);
+        assert!(!svg.contains("chart-notice"),"{svg}");assert_eq!(svg.matches("data-dnacalc=\"chart-mark\"").count(),6);assert_eq!(svg.matches("data-dnacalc=\"chart-legend\"").count(),2);
+        let attribute=|tag:&str,name:&str|tag.split(&format!(" {name}=\"")).nth(1).unwrap().split('"').next().unwrap().parse::<f64>().unwrap();
+        let mark=|series:usize,point:usize|svg.split('<').find(|t|t.contains("data-dnacalc=\"chart-mark\"")&&t.contains(&format!("data-series=\"{series}\""))&&t.contains(&format!("data-point=\"{point}\""))).unwrap();
+        for point in 0..3{let bar=mark(0,point);let line=mark(1,point);assert!((attribute(bar,"x")+attribute(bar,"width")/2.-attribute(line,"cx")).abs()<0.2,"Shared category centre: {bar}; {line}");assert!((attribute(bar,"y")-attribute(line,"cy")).abs()<0.2,"Proportional data on independent scales: {bar}; {line}");}
+        let command=WorkbookCommand::ChartAxis{sheet,revision:book.host().revision().get(),part:before.part.clone(),axis:4,minimum:None,maximum:Some("10000".into()),major_unit:Some("2000".into()),reversed:false};assert!(book.dispatch(SkinIntent::Command(command)).accepted());let after=book.host().charts(sheet).0[0].clone();let after_svg=chart_svg(&after,640.,360.);let next_bar=after_svg.split('<').find(|t|t.contains("data-dnacalc=\"chart-mark\"")&&t.contains("data-series=\"0\"")&&t.contains("data-point=\"0\"")).unwrap();assert_eq!(attribute(mark(0,0),"y"),attribute(next_bar,"y"),"Secondary bounds keep the primary value position");assert_eq!(attribute(mark(0,0),"height"),attribute(next_bar,"height"));
+        let mut orphan=before.clone();orphan.plots.truncate(1);assert!(!calc_host::chart::axes_associated(&orphan));assert!(calc_host::chart::category_scale(&orphan,&orphan.plots[0]).is_err());let notice=chart_svg(&orphan,640.,360.);assert!(notice.contains("chart-notice"));assert!(!notice.contains("data-point="));
+        let mut shared=before.clone();shared.axes.truncate(2);shared.plots[1].axis_ids=shared.plots[0].axis_ids.clone();assert!(calc_host::chart::combination_supported(&shared));let a=calc_host::chart::category_scale(&shared,&shared.plots[0]).unwrap();let b=calc_host::chart::category_scale(&shared,&shared.plots[1]).unwrap();assert_eq!(a,b);assert_eq!(a.maximum,3500.);assert!(!chart_svg(&shared,640.,360.).contains("chart-notice"));
+    }
+
+    #[cfg_attr(not(target_arch="wasm32"),test)]
+    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    fn authored_legend_positions_move_the_plot_and_keep_all_marks(){
+        use std::sync::Arc;use calc_host::{HostSession,MemorySource,OpenPolicy,HostOptions,SkinIntent,WorkbookCommand};
+        let bytes=include_bytes!("../../../crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx");let mut book=HostSession::open(Arc::new(MemorySource::new(bytes.to_vec())),&OpenPolicy::default(),HostOptions::default()).unwrap();assert!(book.dispatch(SkinIntent::Recalculate).accepted());let sheet=book.host().sheets()[0].id();let chart=book.host().charts(sheet).0[0].clone();
+        let attribute=|tag:&str,name:&str|tag.split(&format!(" {name}=\"")).nth(1).unwrap().split('"').next().unwrap().parse::<f64>().unwrap();
+        let mut plots=std::collections::BTreeMap::new();
+        for position in ["r","l","t","b","tr"]{assert!(book.dispatch(SkinIntent::Command(WorkbookCommand::ChartLegend{sheet,revision:book.host().revision().get(),part:chart.part.clone(),position:position.into()})).accepted());let svg=chart_svg(&book.host().charts(sheet).0[0],640.,360.);assert_eq!(svg.matches("data-dnacalc=\"chart-mark\"").count(),12);assert_eq!(svg.matches(&format!("data-position=\"{position}\"")).count(),2);let tag=svg.split('<').find(|t|t.contains("data-dnacalc=\"chart-plot\"")).unwrap();plots.insert(position,(attribute(tag,"x"),attribute(tag,"y"),attribute(tag,"width"),attribute(tag,"height")));}
+        assert!(plots["l"].0>plots["r"].0);assert!(plots["t"].1>plots["b"].1);assert!(plots["t"].2>plots["r"].2);assert!(plots["b"].3<plots["r"].3);
     }
 
     /// Native-only: the axis arithmetic and escaping, without a page.
