@@ -248,10 +248,10 @@ def colour_class(rgb):
     return "mixed"
 
 
-def colour_mask(pixels, rgb):
+def colour_mask(pixels, rgb, tolerance=72):
     # Interior ink, not antialiasing fringes. Distance also distinguishes dark fills.
     delta = np.abs(pixels.astype(np.int16) - np.array(rgb, dtype=np.int16))
-    mask = np.max(delta, axis=2) <= 72
+    mask = np.max(delta, axis=2) <= tolerance
     # A grey antialiased letter is not a blue border, even when RGB distances overlap.
     hi, lo = max(rgb), min(rgb)
     if hi - lo >= 32:
@@ -265,7 +265,7 @@ def rgb_value(value):
     return tuple(int(value[i:i + 2], 16) for i in (0, 2, 4))
 
 
-def runs(values):
+def runs(values, complete=False):
     groups = []
     for index, value in enumerate(values):
         if value:
@@ -273,7 +273,9 @@ def runs(values):
                 groups[-1][1] = index + 1
             else:
                 groups.append([index, index + 1])
-    return groups
+    # Only runs touching the sampled strip's limits are censored. A first/last
+    # gap between two ink runs is complete and must remain in the sample.
+    return [r for r in groups if r[0] > 0 and r[1] < len(values)] if complete else groups
 
 
 def text_observation(image, foreground, pixels=15):
@@ -307,7 +309,9 @@ def border_observation(image, rect, side, colour, radius=5):
     box = (edge - radius, start, edge + radius + 1, end) if vertical else (start, edge - radius, end, edge + radius + 1)
     if end <= start or min(box) < 0 or box[2] > image.width or box[3] > image.height:
         return None
-    mask = colour_mask(np.asarray(image.crop(box)), colour)
+    # Solid pen colour is separate from the much wider ClearType fringe tolerance
+    # used for text. Nearby black letters otherwise become extra blue pen bands.
+    mask = colour_mask(np.asarray(image.crop(box)), colour, tolerance=16)
     if vertical:
         mask = mask.T
     # Axis 0 is the normal distance to the edge, axis 1 runs along it.
@@ -317,10 +321,11 @@ def border_observation(image, rect, side, colour, radius=5):
         return {"bands": [], "dash_runs": [], "present": False}
     bands = [[a - radius, b - radius] for a, b in runs(coverage >= .12)]
     along = np.any(mask[occupied], axis=0)
-    dash_runs = [b - a for a, b in runs(along)]
-    gap_runs = [b - a for a, b in runs(~along)][1:-1]
+    dash_runs = [b - a for a, b in runs(along, complete=True)]
+    gap_runs = [b - a for a, b in runs(~along, complete=True)]
     return {"bands": bands, "dash_runs": dash_runs, "gap_runs": gap_runs,
-            "present": True, "centre": float(np.average(np.arange(len(coverage)) - radius, weights=coverage)),
+            "solid": bool(along.all()),
+            "present": True, "centre": float(np.average(np.arange(len(coverage)) - radius, weights=np.where(coverage >= .12, coverage, 0))),
             "thickness": sum(b - a for a, b in bands)}
 
 
@@ -477,13 +482,22 @@ def parity(a, b, delta, reference_text, cell, excel_rect, dna_rect, excel_image,
         checks["line_thickness"] = check(None if not usable else exists and all(e["dna"]["thickness"] == e["excel"]["thickness"] for e in visible), edges=edges, measured_edges=len(visible), tolerance_px=0)
         dashed = [e for e in visible if "dash" in e["style"].lower() or e["style"] == "dotted"]
         if dashed and exists:
-            def typical(lengths):
-                return float(np.median(lengths)) if lengths else 0
-            checks["line_dashes"] = check(all(abs(typical(e["excel"][key]) - typical(e["dna"][key])) <= 1 for e in dashed for key in ("dash_runs", "gap_runs")), edges=dashed, tolerance_px=1)
+            comparisons=[]
+            for edge in dashed:
+                for key in ("dash_runs","gap_runs"):
+                    a_runs,b_runs=edge["excel"].get(key,[]),edge["dna"].get(key,[])
+                    if key=="gap_runs" and ((a_runs and edge["dna"].get("solid")) or (b_runs and edge["excel"].get("solid"))):
+                        comparisons.append(False)
+                    else:
+                        comparisons.append(None if not a_runs or not b_runs else abs(float(np.median(a_runs))-float(np.median(b_runs)))<=1)
+            outcome=False if False in comparisons else None if None in comparisons else True
+            checks["line_dashes"] = check(outcome, edges=dashed, tolerance_px=1,
+                reason="a complete dash or gap cannot be measured in the strip" if outcome is None else "",
+                method="median lengths of complete ink and gap runs; phase and glyph identity are not compared")
         def corner(im, rect, right, bottom, colour):
             x = round(rect["x"] + (rect["w"] if right else 0))
             y = round(rect["y"] + (rect["h"] if bottom else 0))
-            mask = colour_mask(np.asarray(im.crop((x - 4, y - 4, x + 5, y + 5))), colour)
+            mask = colour_mask(np.asarray(im.crop((x - 4, y - 4, x + 5, y + 5))), colour, tolerance=16)
             yy, xx = np.nonzero(mask)
             return {"box": [int(xx.min()), int(yy.min()), int(xx.max()) + 1, int(yy.max()) + 1] if len(xx) else None,
                     "quadrants": [bool(mask[ys, xs].any()) for ys, xs in ((slice(0,4),slice(0,4)),(slice(0,4),slice(4,9)),(slice(4,9),slice(0,4)),(slice(4,9),slice(4,9)))]}
@@ -705,6 +719,20 @@ def self_test():
             self.assertEqual(moved["centre"]-original["centre"],3)
             self.assertEqual(thick["thickness"],3)
             self.assertFalse(border_observation(Image.new("RGB",(128,80),"#808080"),rect,0,(21,76,148))["present"])
+        def test_border_fringe_is_not_an_extra_pen_band(self):
+            rect=dict(x=20,y=20,w=80,h=35)
+            image=Image.new("RGB",(128,80),"white");d=ImageDraw.Draw(image)
+            d.line((19,20,19,54),fill="#154c94")
+            # A measured ClearType blue fringe beside black text, not border ink.
+            d.line((24,35,24,44),fill=(0,58,144))
+            seen=border_observation(image,rect,0,(21,76,148))
+            self.assertEqual(seen["bands"],[[-1,0]])
+            self.assertEqual(seen["centre"],-1)
+        def test_complete_dash_and_gap_runs_keep_first_and_last_interior_runs(self):
+            self.assertEqual(runs([True,True,False,False,True,False,False,True],complete=True),[[4,5]])
+            self.assertEqual(runs([False,False,True,True,False,True,True,False],complete=True),[[2,4],[5,7]])
+            self.assertEqual(runs([True,False,False,True,False,False,True],complete=True),[[3,4]])
+            self.assertEqual(runs([False,True,True,False,True,True,False],complete=True),[[1,3],[4,6]])
         def test_pattern_period(self):
             self.style["pattern"]="lightGrid";self.style["fill"]="#154c94"
             source={"cells":{(1,1):{"style":self.style}},"default_style":self.style,"selections":[]}
@@ -769,6 +797,14 @@ def self_test():
                 return parity(self.a.crop((20,20,100,55)),b.crop((20,20,100,55)),dict(x=0,y=0,w=0,h=0),"",self.cell,self.rect,self.rect,self.a,b,source)
             self.assertEqual(measure(self.a)["selection"]["status"],"pass")
             self.assertEqual(measure(Image.new("RGB",(128,80),"white"))["selection"]["status"],"fail")
+        def test_two_strips_without_complete_dash_lengths_do_not_pass(self):
+            self.rect=dict(x=20,y=20,w=80,h=35,row=1,col=1)
+            self.cell["shown"]["text"]=""
+            self.style["borders"]=[{"style":"dashed","color":"#154c94"},None,None,None]
+            self.a=Image.new("RGB",(128,80),"white")
+            ImageDraw.Draw(self.a).line((19,20,19,54),fill="#154c94")
+            result=parity(self.a.crop((20,20,100,55)),self.a.crop((20,20,100,55)),dict(x=0,y=0,w=0,h=0),"",self.cell,self.rect,self.rect,self.a,self.a)
+            self.assertEqual(result["line_dashes"]["status"],"unmeasured")
     result=unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(Controls))
     if not result.wasSuccessful():
         raise SystemExit(1)
@@ -919,6 +955,7 @@ def compare(out, report=None):
                               "dpi": ref["dpi"], "freeze": ref["freeze"], "scroll": {k:plan["viewport"][k] for k in ("scroll_x","scroll_y")},
                               "source_merges": source_cells["merges"], "source_selection": source_cells["selections"]}
         result["format_environment"] = ref.get("format_environment")
+        result["browser_locale"] = capture.get("locale")
         low_b,high_b = b.convert("L").getextrema()
         result["pixel_guard"] = check(not (high_b < 240 or (any(c["excel_text"] for c in comparisons) and low_b > 200)),
                                       method="coarse blank/black-frame guard; difference rates do not determine cell results")
