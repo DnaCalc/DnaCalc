@@ -758,3 +758,31 @@ fn dc_971p_52__legend_placement_history_and_saved_reopening(){
     let before=book.host().charts(sheet).0;let revision=book.host().revision();let history=book.history_depth();
     for (rev,position) in [(revision.get(),"unknown"),(revision.get().saturating_sub(1),"l")]{let command=calc_host::WorkbookCommand::ChartLegend{sheet,revision:rev,part:before[0].part.clone(),position:position.into()};assert!(!book.dispatch(SkinIntent::Command(command)).accepted());assert_eq!(book.host().revision(),revision);assert_eq!(book.history_depth(),history);assert_eq!(book.host().charts(sheet).0,before);}
 }
+
+/// RGB series styles retain data, use one history entry, and survive the real XLSX writer.
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_58__series_rgb_history_save_and_automatic(){
+    let mut book=session();let sheet=book.host().sheets()[0].id();
+    for index in 0..6{
+        let original=book.host().charts(sheet).0;
+        let command=calc_host::WorkbookCommand::ChartSeriesStyle{sheet,revision:book.host().revision().get(),part:original[index].part.clone(),plot:0,series:0,fill:Some("#123abc".into())};
+        let history=book.history_depth();let outcome=book.dispatch(SkinIntent::Command(command));assert!(outcome.accepted(),"{outcome:?}");assert_eq!(book.history_depth(),(history.0+1,0));
+        let mut expected=original.clone();expected[index].plots[0].series[0].color="123ABC".into();expected[index].plots[0].series[0].explicit_color=true;assert_eq!(book.host().charts(sheet).0,expected);
+        assert_eq!(reopened(&mut book).host().charts(sheet).0,expected);
+        assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().charts(sheet).0,original);
+        assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(book.host().charts(sheet).0,expected);
+        let command=calc_host::WorkbookCommand::ChartSeriesStyle{sheet,revision:book.host().revision().get(),part:original[index].part.clone(),plot:0,series:0,fill:if index%2==0{Some("  aUtOmAtIc  ".into())}else{None}};
+        assert!(book.dispatch(SkinIntent::Command(command)).accepted());let reset=book.host().charts(sheet).0;assert!(!reset[index].plots[0].series[0].explicit_color);assert_eq!(reset[index].plots[0].series[0].color,reset[index].palette[0]);assert_eq!(reopened(&mut book).host().charts(sheet).0,reset);
+    }
+    let before=book.host().charts(sheet).0;let history=book.history_depth();let revision=book.host().revision();
+    for (plot,series,color,rev) in [(0,0,"#12",revision.get()),(0,0,"red",revision.get()),(0,0,"##123456",revision.get()),(99,0,"123456",revision.get()),(0,99,"123456",revision.get()),(0,0,"123456",revision.get()+1)]{
+        let command=calc_host::WorkbookCommand::ChartSeriesStyle{sheet,revision:rev,part:before[0].part.clone(),plot,series,fill:Some(color.into())};assert!(!book.dispatch(SkinIntent::Command(command)).accepted());assert_eq!(book.host().charts(sheet).0,before);assert_eq!(book.history_depth(),history);assert_eq!(book.host().revision(),revision);
+    }
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_58__unsaved_added_series_accepts_colour(){
+ let mut book=session();let sheet=book.host().sheets()[0].id();let command=series_command(&book,0,None,Some("Revenue"),Some("Data!A2:A7"),Some("Data!C2:C7"),false);assert!(book.dispatch(SkinIntent::Command(command)).accepted());let before=book.host().charts(sheet).0;let id=book.host().model().definitions().charts(sheet)[0].plots[0].series.last().unwrap().index;let command=calc_host::WorkbookCommand::ChartSeriesStyle{sheet,revision:book.host().revision().get(),part:before[0].part.clone(),plot:0,series:id,fill:Some("123ABC".into())};let outcome=book.dispatch(SkinIntent::Command(command));assert!(outcome.accepted(),"{outcome:?}");let after=book.host().charts(sheet).0;assert_eq!(after[0].plots[0].series.last().unwrap().color,"123ABC");assert_eq!(reopened(&mut book).host().charts(sheet).0,after);assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().charts(sheet).0,before);
+}

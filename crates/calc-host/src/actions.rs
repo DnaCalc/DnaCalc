@@ -58,6 +58,7 @@ pub enum ConditionalChange {
 pub enum WorkbookCommand {
     PageSetup {sheet:SheetId,revision:u64,change:crate::PageSetupChange},
     ChartCreate {revision:u64,area:GridArea,kind:String,rows:bool,headers:bool,categories:bool},
+    ChartSeriesStyle {sheet:SheetId,revision:u64,part:String,plot:u32,series:u32,fill:Option<String>},
     ChartType {sheet:SheetId,revision:u64,part:String,plot:u32,kind:String,stacked:bool},
     ChartLegend {sheet:SheetId,revision:u64,part:String,position:String},
     ChartLogAxis {sheet:SheetId,revision:u64,part:String,axis:u32,base:Option<String>},
@@ -141,6 +142,7 @@ pub(crate) fn prepare(
     match command {
         WorkbookCommand::PageSetup {sheet,revision,change}=>crate::page_setup::prepare(host,sheet,revision,change),
         WorkbookCommand::ChartCreate{revision,area,kind,rows,headers,categories}=>crate::chart::prepare_create(host,revision,area,&kind,rows,headers,categories),
+        WorkbookCommand::ChartSeriesStyle{sheet,revision,part,plot,series,fill}=>crate::chart::prepare_series_style(host,sheet,revision,&part,plot,series,fill),
         WorkbookCommand::ChartType{sheet,revision,part,plot,kind,stacked}=>crate::chart::prepare_type(host,sheet,revision,&part,plot,&kind,stacked),
         WorkbookCommand::ChartLegend{sheet,revision,part,position}=>crate::chart::prepare_legend(host,sheet,revision,&part,&position),
         WorkbookCommand::ChartLogAxis{sheet,revision,part,axis,base}=>crate::chart::prepare_log_axis(host,sheet,revision,&part,axis,base),

@@ -8963,6 +8963,30 @@ Case {
             Check::Count("[data-dnacalc=print-browser]:disabled", 1),
         ],
     },
+    Case {name:"chart formatting: series RGB colours use the authored command",actions:&[
+        Action::Window(1600,1800),Action::Upload("open-file","crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools"),Action::Wait(Check::Value("chart-series-name","=Data!$B$1")),Action::Into("chart-series-color","#123abc"),Action::Click("chart-series-color-apply"),Action::Wait(Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","fill","#123ABC"))
+    ],checks:&[Check::Value("chart-series-color","#123ABC"),Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","data-value","12"),Check::Count("[data-dnacalc=chart]",6)]},
+    Case {name:"chart formatting: Undo and Redo restore data and colour together",actions:&[
+        Action::Click("undo"),Action::Wait(Check::Value("chart-series-color","")),Action::Click("redo"),Action::Wait(Check::Value("chart-series-color","#123ABC"))
+    ],checks:&[Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","fill","#123ABC"),Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","data-value","12")]},
+    Case {name:"chart formatting: actual XLSX save and reopen keeps series colour",actions:&[
+        Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("charts.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools"),Action::Wait(Check::Value("chart-series-color","#123ABC"))
+    ],checks:&[Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","fill","#123ABC"),Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","data-value","12")]},
+    Case {name:"chart formatting: invalid RGB refuses atomically",actions:&[
+        Action::Into("chart-series-color","invalid"),Action::Click("chart-series-color-apply"),Action::Wait(Check::TextContains("status","six-digit RGB"))
+    ],checks:&[Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","fill","#123ABC"),Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","data-value","12")]},
+    Case {name:"chart formatting: Automatic resets the retained fill and phone controls fit",actions:&[
+        Action::Into("chart-series-color","aUtOmAtIc"),Action::Click("chart-series-color-apply"),Action::Wait(Check::Value("chart-series-color","")),Action::Window(390,844),Action::Click("chart-show")
+    ],checks:&[Check::Fits,Check::Attr("[data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]","fill","#156082")]},
+    Case {name:"chart formatting: 26 live series fit a crowded legend in the application",actions:&[
+        Action::Window(1440,1200),Action::Click("new"),Action::DiscardReplacement,
+        Action::Into("name-box","A1\u{E007}"),Action::Into(BAR,"=\"Very long region label \"&SEQUENCE(1,26)\u{E007}"),
+        Action::Into("name-box","A2\u{E007}"),Action::Into(BAR,"=SEQUENCE(1,26)\u{E007}"),
+        Action::Into("name-box","A1:Z2\u{E007}"),Action::OpenDetails("chart-tools"),Action::Choose("chart-create-type","column"),Action::Click("chart-create-headers"),Action::Click("chart-create"),
+        Action::Wait(Check::Count("[data-dnacalc=chart-legend]",26)),Action::Wait(Check::Contained("[data-dnacalc=chart-legend][aria-label=\"Very long region label 26\"] rect","[data-dnacalc=chart]")),
+        Action::Choose("chart-legend-position","t"),Action::Click("chart-legend-apply"),Action::Wait(Check::Attr("[data-dnacalc=chart-legend]","data-position","t")),Action::Wait(Check::Contained("[data-dnacalc=chart-legend][aria-label=\"Very long region label 26\"] rect","[data-dnacalc=chart]")),
+        Action::Choose("chart-legend-position","b"),Action::Click("chart-legend-apply"),Action::Wait(Check::Attr("[data-dnacalc=chart-legend]","data-position","b"))
+    ],checks:&[Check::Count("[data-dnacalc=chart-legend]",26),Check::Count("[data-dnacalc=chart-mark]",26),Check::Contained("[data-dnacalc=chart-legend][aria-label=\"Very long region label 26\"] rect","[data-dnacalc=chart]"),Check::Attr("[data-dnacalc=chart-legend] svg","overflow","hidden"),Check::TextContains("[data-dnacalc=chart-legend-description]","Very long region label 26"),Check::Absent("[data-dnacalc=chart-legend-overflow]")]},
 ];
 
 /// The script that reads what one check looks at.
@@ -9850,4 +9874,5 @@ CaseGroup {
         core: 12,
         setup: &[],
     },
+    CaseGroup {name:"chart-formatting",start:802,end:808,core:6,setup:&[]},
 ];

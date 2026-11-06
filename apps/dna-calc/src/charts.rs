@@ -16,6 +16,7 @@ pub fn controls(controller: Controller) -> AnyView {
     let legend = controller.tool_field(|s| &s.chart.legend, |s| &mut s.chart.legend);
     let plot = controller.tool_field(|s| &s.chart.plot, |s| &mut s.chart.plot);
     let series = controller.tool_field(|s| &s.chart.series, |s| &mut s.chart.series);
+    let series_color=controller.tool_field(|s|&s.chart.series_color,|s|&mut s.chart.series_color);
     let series_name = controller.tool_field(|s| &s.chart.series_name, |s| &mut s.chart.series_name);
     let categories = controller.tool_field(|s| &s.chart.categories, |s| &mut s.chart.categories);
     let values = controller.tool_field(|s| &s.chart.values, |s| &mut s.chart.values);
@@ -146,10 +147,16 @@ pub fn controls(controller: Controller) -> AnyView {
     });
     Effect::new(move |_| {
         open.track();current_part.track();let s=current_series.get();
+        series_color.set(s.as_ref().and_then(|s|s.fill.as_ref().filter(|c|c.len()==6&&c.bytes().all(|b|b.is_ascii_hexdigit())).map(|s|format!("#{s}"))).unwrap_or_default());
         series_name.set(s.as_ref().map(|s|s.name.clone()).unwrap_or_default());
         categories.set(s.as_ref().and_then(|s|s.categories.clone()).unwrap_or_default());
         values.set(s.as_ref().and_then(|s|s.values.clone()).unwrap_or_default());
     });
+    let style_series=move |_| {
+        let Some((generation,revision,sheet))=ready.get_untracked()else{return;};let Some(chart)=current.get_untracked()else{return;};let Some(series)=current_series.get_untracked()else{return;};
+        let plot=plot.get_untracked().parse::<u32>().unwrap_or(0);let color=series_color.get_untracked();let fill=(!color.trim().is_empty()).then(||color.trim().to_owned());
+        controller.after_input(move || {if controller.generation.get_untracked()!=generation{return;}controller.dispatch(wire::Intent::ChartSeriesStyle{sheet:wire::Sheet::of(sheet),revision,part:chart.part,plot,series:series.index,fill},move |outcome|{if outcome.accepted{controller.say("Series colour updated",false);}});});
+    };
     let edit_series=move |remove:bool| {
         let Some((generation,revision,sheet))=ready.get_untracked() else{return;};
         let Some(chart)=current.get_untracked() else{return;};
@@ -343,6 +350,7 @@ pub fn controls(controller: Controller) -> AnyView {
                         <button type="button" data-dnacalc="chart-series-apply" disabled=move ||ready.get().is_none() || controller.assist.readonly.get() || controller.editing.get().is_some() on:click=move |_|edit_series(false)>{move ||if current_series.get().is_some(){"Update series"}else{"Add series"}}</button>
                         <button type="button" data-dnacalc="chart-series-remove" disabled=move ||ready.get().is_none() || current_series.get().is_none() || current_plot.get().is_none_or(|p|p.series.len()<2) || controller.assist.readonly.get() || controller.editing.get().is_some() on:click=move |_|edit_series(true)>"Remove series"</button>
                     </div>
+                    <div class="dc-command-row"><label>"Series colour "<input data-dnacalc="chart-series-color" placeholder="Automatic or #RRGGBB" prop:value=move ||series_color.get() on:input=move |ev|series_color.set(event_target_value(&ev))/></label><button type="button" data-dnacalc="chart-series-color-apply" disabled=move ||ready.get().is_none()||current_series.get().is_none()||controller.assist.readonly.get()||controller.editing.get().is_some() on:click=style_series>"Apply colour"</button></div>
                     <p class="dc-note">"Use a one-row or one-column worksheet range. Names can be text or =Sheet1!$B$1. Empty categories use point numbers; unchanged literal data stays as stored."</p>
                 </fieldset>
                 <Show when=move ||current.get().is_some_and(|c|!c.axes.is_empty())>
