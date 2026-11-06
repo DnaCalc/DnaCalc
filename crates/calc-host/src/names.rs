@@ -330,6 +330,73 @@ mod tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_hsa5_6__current_numeric_context_refuses_old_formula_values_but_keeps_lazy_blocks() {
+        use calc_engine::{DetachedEvaluationContext as Context, DetachedReadPolicy as Policy};
+        let mut book = book();
+        let anchor = CellKey::new(book.host().sheets()[0].id(), 1, 1).unwrap();
+        assert!(book.dispatch(SkinIntent::EnterCell { at: anchor, text: "=2".into() }).accepted());
+        let host = book.host();
+        let fast = Context::new(&host.engine, host.model(), Policy::CurrentValues).unwrap();
+        assert_eq!(fast.read_cell(anchor), Ok(CalcValue::number(2.)));
+        let view = host.engine.result_view();
+        let revision = host.revision();
+        let history = book.history_depth();
+        let mode = calc_value::NumericMode::Exact(calc_value::NumericTargetId::new(
+            "16.0.20527.20150", "Current", "Excel", "x86-64").unwrap());
+        let current = Context::new_with_numeric_mode(&host.engine, host.model(), Policy::CurrentValues, &mode).unwrap();
+        assert!(current.stale_cells().unwrap().contains(&anchor));
+        assert_eq!(current.all_formula_values_current(), Some(false));
+        assert!(current.read_cell(anchor).is_err());
+        let lazy = current.compile("IF(FALSE,$A$1,42)", anchor, calc_fml::FormulaForm::Legacy).unwrap();
+        assert_eq!(lazy.evaluate_in(&current, anchor), Ok(CalcValue::number(42.)));
+        let arithmetic = current.compile("1+1", anchor, calc_fml::FormulaForm::Legacy).unwrap();
+        assert!(arithmetic.evaluate_in(&current, anchor).is_err());
+        let historical = Context::new_with_numeric_mode(&host.engine, host.model(), Policy::PublishedValues, &mode).unwrap();
+        assert_eq!(historical.read_cell(anchor), Ok(CalcValue::number(2.)));
+        assert!(historical.all_formula_values_current().is_none());
+        assert_eq!((host.engine.result_view(), host.revision(), book.history_depth()), (view, revision, history));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_hsa5_6__current_context_rejects_expired_callable_bindings_without_entry() {
+        use calc_engine::{DetachedEvaluationContext as Context, DetachedReadPolicy as Policy};
+        #[derive(Debug)]
+        struct Counted(std::rc::Rc<std::cell::Cell<usize>>);
+        impl calc_fml::UserFunction for Counted {
+            fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+                self.0.set(self.0.get() + 1);
+                Ok(CalcValue::number(42.))
+            }
+        }
+        let mut book = book();
+        let anchor = CellKey::new(book.host().sheets()[0].id(), 1, 1).unwrap();
+        let calls = std::rc::Rc::new(std::cell::Cell::new(0));
+        let functions = || {
+            let mut table = calc_fml::CallableTable::new();
+            table.register("KnownUdf", std::rc::Rc::new(Counted(calls.clone()))).unwrap();
+            table
+        };
+        book.set_user_functions(functions());
+        let old = {
+            let host = book.host();
+            let context = Context::new(&host.engine, host.model(), Policy::CurrentValues).unwrap();
+            let formula = context.compile("IF(FALSE,KnownUdf(),42)", anchor, calc_fml::FormulaForm::Legacy).unwrap();
+            assert_eq!(formula.evaluate_in(&context, anchor), Ok(CalcValue::number(42.)));
+            formula
+        };
+        book.set_user_functions(functions());
+        let host = book.host();
+        let context = Context::new(&host.engine, host.model(), Policy::CurrentValues).unwrap();
+        assert!(old.evaluate_in(&context, anchor).is_err(), "registration replacement expires the old plan");
+        let fresh = context.compile("IF(FALSE,KnownUdf(),42)", anchor, calc_fml::FormulaForm::Legacy).unwrap();
+        assert_eq!(fresh.evaluate_in(&context, anchor), Ok(CalcValue::number(42.)));
+        assert_eq!(calls.get(), 0, "neither binding nor a lazy branch enters user code");
+        assert_eq!(host.engine.nodes().count(), 0);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_hsa5_6__explicit_name_passes_keep_draw_occurrences_and_let_reuse() {
         let mut book = book();
         let sheet = book.host().sheets()[0].id();

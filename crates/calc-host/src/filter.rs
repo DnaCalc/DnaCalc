@@ -2,7 +2,7 @@
 use crate::value::{CellKey, CoreRef, GridArea, SheetId};
 use crate::{CellEdit, HostState, ProjectedValue, ProjectionRequest};
 pub use calc_doc_model::{AutoFilter, FilterCriteria, FilterOperator, FilterPredicate};
-use calc_engine::{DetachedEvaluationContext, DetachedFormula, DetachedReadPolicy};
+use calc_engine::{DetachedEvaluationContext, DetachedReadPolicy};
 use std::collections::{BTreeMap, BTreeSet};
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FilterChange {
@@ -246,7 +246,8 @@ pub(crate) fn apply(
                 .map(move |row| CellKey::new(filter.area.sheet(), row, *col).unwrap())
         })
         .collect();
-    let context = DetachedEvaluationContext::new(&host.engine, host.model(), DetachedReadPolicy::CurrentValues)
+    let context = DetachedEvaluationContext::new_with_numeric_mode(&host.engine, host.model(),
+        DetachedReadPolicy::CurrentValues, &host.options.numeric)
         .map_err(refusal)?;
     if cells.into_iter().any(|at| context.read_cell(at).is_err()) {
         return Err(refusal(
@@ -428,7 +429,7 @@ pub(crate) fn apply(
                     "IF(COUNT({range})=0,0,_xlfn.AGGREGATE({},6,{range},MIN(COUNT({range}),MAX(1,{k}))))",
                     if *top { 14 } else { 15 }
                 );
-                let cutoff_value = DetachedFormula::compile(host.model(), &cutoff, origin)
+                let cutoff_value = context.compile(&cutoff, origin, calc_fml::FormulaForm::Legacy)
                     .map_err(|e| refusal(e))?
                     .evaluate_in(&context, origin)
                     .map_err(|e| refusal(e))?;
@@ -450,7 +451,7 @@ pub(crate) fn apply(
                 format!("{}({})", if *and { "AND" } else { "OR" }, terms.join(","))
             }
         };
-        let plan = DetachedFormula::compile(host.model(), &formula, origin)
+        let plan = context.compile(&formula, origin, calc_fml::FormulaForm::Legacy)
             .map_err(|e| refusal(format!("could not compile its criteria: {e}")))?;
         plans.push((*col, plan));
     }
