@@ -185,6 +185,7 @@ pub fn run(
     shell: &Shell,
     native: &Rc<XllHost>,
     sheet_name: &str,
+    workbook_name: &str,
     cases: Option<PathBuf>,
     formula: String,
     early_execution: &[u64],
@@ -195,6 +196,7 @@ pub fn run(
         HostOptions::default(),
     )
     .map_err(|e| format!("{e:?}"))?;
+    book.set_file_identity(workbook_name, false);
     book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
     let sheet = book.host().sheets()[0].id();
     let rename = book.dispatch(SkinIntent::Command(WorkbookCommand::Sheet {
@@ -206,7 +208,8 @@ pub fn run(
     if !rename.accepted() {
         return Err(format!("sheet rename: {:?}", rename.error));
     }
-    native.set_sheet(sheet, format!("[Book1]{sheet_name}"), true);
+    native.set_sheet(sheet, format!("[{workbook_name}]{sheet_name}"), true);
+    shell.projection()?.set_workbook(workbook_name)?;
     shell.projection()?.set_sheet(sheet_name)?;
     native.set_async_continuations(true)?;
     let rtd = Rc::new(calc_com_host::RtdClient::new()?);
@@ -227,6 +230,13 @@ pub fn run(
             .map_err(|e| e.to_string())?,
         None => vec![serde_json::json!({"formula":formula,"value":null})],
     };
+    if workbook_name != "Book1"
+        && cases
+            .iter()
+            .any(|case| case.get("concurrent_formula").is_some())
+    {
+        return Err("dc-snz.23: named concurrent workbook contexts are not modelled".into());
+    }
     let dependent_address = cases
         .iter()
         .find_map(|case| case["dependent_cell"].as_str())

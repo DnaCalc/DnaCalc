@@ -31,6 +31,7 @@ fn run() -> Result<(), String> {
     let mut engine = false;
     let mut ribbon_ui = false;
     let mut sheet_name = "X1".to_owned();
+    let mut workbook_name = "Book1".to_owned();
     let mut wait = None;
     let mut ready = None;
     let mut startup_ack = None;
@@ -47,6 +48,9 @@ fn run() -> Result<(), String> {
             }
             "--command" => commands.push(args.next().ok_or("--command needs a name")?),
             "--sheet" => sheet_name = args.next().ok_or("--sheet needs a name")?,
+            "--workbook-name" => {
+                workbook_name = args.next().ok_or("--workbook-name needs a name")?
+            }
             "--early-command" => {
                 early_commands.push(args.next().ok_or("--early-command needs a name")?)
             }
@@ -75,12 +79,25 @@ fn run() -> Result<(), String> {
             }
             "--help" => {
                 println!(
-                    "dna-calc-desktop --xll PATH [--xll PATH ...] [--formula TEXT | --cases PATH | --self-test] [--sheet NAME] [--command NAME] [--early-command NAME] [--engine --early-execution NAME] [--reload]"
+                    "dna-calc-desktop --xll PATH [--xll PATH ...] [--formula TEXT | --cases PATH | --self-test] [--sheet NAME] [--workbook-name NAME] [--command NAME] [--early-command NAME] [--engine --early-execution NAME] [--reload]"
                 );
                 return Ok(());
             }
             _ => return Err(format!("unknown argument: {arg}")),
         }
+    }
+    if workbook_name.is_empty()
+        || workbook_name
+            .chars()
+            .any(|c| c.is_control() || c == '[' || c == ']')
+    {
+        return Err(
+            "--workbook-name needs a nonempty workbook name without brackets or control characters"
+                .into(),
+        );
+    }
+    if workbook_name != "Book1" && !engine {
+        return Err("--workbook-name requires --engine (dc-snz.23)".into());
     }
     if xlls.is_empty() {
         return Err("provide --xll PATH".into());
@@ -95,9 +112,10 @@ fn run() -> Result<(), String> {
     let mut host = std::rc::Rc::new(calc_xll_host::XllHost::new(shell.hwnd()));
     let mut session = dna_onecalc::Session::new(&sheet_name).map_err(|e| format!("{e:?}"))?;
     for (name, id) in session.sheets() {
-        host.set_sheet(id, format!("[Book1]{name}"), true);
+        host.set_sheet(id, format!("[{workbook_name}]{name}"), true);
     }
     shell.attach_host(host.clone())?;
+    shell.projection()?.set_workbook(&workbook_name)?;
     shell.projection()?.set_sheet(&sheet_name)?;
     for xll in &xlls {
         if let Err(why) = host.load(&xll) {
@@ -143,6 +161,7 @@ fn run() -> Result<(), String> {
             &shell,
             &host,
             &sheet_name,
+            &workbook_name,
             cases_file,
             formula,
             &early_execution,
@@ -195,7 +214,7 @@ fn run() -> Result<(), String> {
         let formula = case["formula"].as_str().ok_or("case needs formula")?;
         let expected = match case["value"].as_str() {
             Some(text) if text.starts_with("<workbook>|") => {
-                serde_json::json!(text.replacen("<workbook>", "Book1", 1))
+                serde_json::json!(text.replacen("<workbook>", &workbook_name, 1))
             }
             _ => case["value"].clone(),
         };
@@ -273,9 +292,10 @@ fn run() -> Result<(), String> {
         if reload_new_host {
             host = std::rc::Rc::new(calc_xll_host::XllHost::new(shell.hwnd()));
             for (name, id) in session.sheets() {
-                host.set_sheet(id, format!("[Book1]{name}"), true);
+                host.set_sheet(id, format!("[{workbook_name}]{name}"), true);
             }
             shell.attach_host(host.clone())?;
+            shell.projection()?.set_workbook(&workbook_name)?;
             shell.projection()?.set_sheet(&sheet_name)?;
         }
         for xll in &xlls {
