@@ -31,6 +31,7 @@ pub(super) struct Context<'a> {
 
 /// One sheet's cells as read: the inputs for the model and the records kept beside it.
 pub(super) struct SheetLoad {
+    pub(super) page_setup: calc_doc_model::PageSetup,
     pub(super) conditional_sources: Vec<calc_doc_model::ConditionalRuleSource>,
     pub(super) review: super::SheetReview,
     pub(super) protected: bool,
@@ -968,6 +969,7 @@ pub(super) fn load_sheet(
         id,
         part: Arc::clone(&source),
         load: SheetLoad {
+            page_setup: super::page_setup::read(&xml)?,
             conditional_sources: Vec::new(),
             review: super::review::read(package, part, id),
             protected: false,

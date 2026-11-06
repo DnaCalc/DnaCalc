@@ -119,3 +119,6 @@ pub use wire::{
     BATCH_FORMAT, BATCH_VERSION, DecodeError, EncodeError, OpCapability, decode_batch,
     encode_batch, op_capabilities,
 };
+
+mod page_setup;
+pub use page_setup::{PageSetup, PageBreak, PAGE_SECTIONS, HEADER_FIELDS};

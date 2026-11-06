@@ -413,6 +413,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
     // A defined name's formula an edit changed (rows or columns inserted or deleted, cells moved).
     let names_changed = base.definitions().names() != model.definitions().names();
     let validation_changed = base.definitions().all_validations().ne(model.definitions().all_validations());
+    let page_setup_changed=base.definitions().page_setups().ne(model.definitions().page_setups());
     let charts_changed=base.definitions().all_charts().ne(model.definitions().all_charts());
     let links_changed=base.definitions().all_review_links().ne(model.definitions().all_review_links());
     let review_changed = base
@@ -439,6 +440,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
         && !conditional_changed
         && !review_changed
         && !charts_changed
+        && !page_setup_changed
         && !links_changed
         && !validation_changed
         && views.is_none()
@@ -1158,6 +1160,19 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
             let current=out.rewritten.remove(sheet.part().name()).map(|b|original.with_bytes(b));
             let bytes=super::review::sorted_links(&original,current.as_ref().unwrap_or(&original),base.definitions().review_links(sheet.id()),model.definitions().review_links(sheet.id()))?;
             out.rewritten.insert(sheet.part().name().to_owned(),bytes);
+        }
+    }
+    if page_setup_changed {
+        for sheet in sheets.iter().filter(|s|model.sheet_by_id(s.id()).is_some()) {
+            let before=base.definitions().page_setup(sheet.id()); let after=model.definitions().page_setup(sheet.id());
+            if before==after {continue;}
+            if sheet.is_macro_sheet(){return Err(SaveRefusal::MacroSheetChanged{part:sheet.part().name().into()});}
+            if sheets.iter().any(|s|s.id()!=sheet.id()&&s.part().name().eq_ignore_ascii_case(sheet.part().name())){return Err(SaveRefusal::SharedSheetPart{part:sheet.part().name().into()});}
+            let original=super::sheets::read_sheet(package,sheet.part().name())?;
+            let current=out.rewritten.remove(sheet.part().name()).map(|b|original.with_bytes(b));
+            let current=current.as_ref().unwrap_or(&original);
+            let natural=crate::load::page_setup::read(current).map_err(|e|SaveRefusal::InvalidPart{part:sheet.part().name().into(),detail:e.to_string()})?;
+            out.rewritten.insert(sheet.part().name().into(),super::page_setup::rewrite(current,&natural,&after)?);
         }
     }
     if charts_changed {super::chart::finish(package,base,model,&mut out,&sheets,structural.as_ref())?;}
