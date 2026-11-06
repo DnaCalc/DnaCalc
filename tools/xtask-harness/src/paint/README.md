@@ -36,6 +36,10 @@ and strike-through do not supply baseline measurements. Colour classes group dar
 and broad hues; they do not require identical antialiasing or RGB fringes.
 
 Border positions, widths and dash lengths come from strips across physical cell boundaries.
+Pen bands use a strict colour distance so ClearType text fringes cannot add a false band.
+Dash lengths use complete runs; runs cut by either strip limit are excluded, while interior
+gaps remain. Two missing lengths never establish a match. The median complete dash and gap
+lengths are measured; dash phase and exact waveform identity remain unmeasured.
 Joins compare occupied quadrants at the original corners. All tolerances and original
 observations are retained. Selection requires visible reference edges; an inactive Excel
 capture without an outline establishes no selection-focus parity. Hidden bands, partial cells
