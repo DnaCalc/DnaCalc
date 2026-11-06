@@ -4275,7 +4275,8 @@ fn next_pass(work: &mut RecalcWork) -> bool {
 }
 
 /// P14's text, error and logical outputs supply no numeric stopping sample.
-/// A numeric output retains the prior number/logical baseline (zero for text/error).
+/// A numeric output uses its prior number, or zero for a prior text/error/logical.
+/// Eng17's positive/negative eighth controls distinguish this from TRUE-to-one coercion.
 /// No samples stops even at MaxChange zero; a numeric zero change still uses the
 /// strict threshold comparison. Array and missing outcomes retain their prior rule.
 /// Other result shapes retain the conservative unequal-value rule.
@@ -4286,14 +4287,10 @@ fn change_between(before: Option<&CalcValue>, after: Option<&CalcValue>) -> Opti
         {
             return None;
         }
-        (Some(a), Some(b)) => match (
-            a.as_number()
-                .or_else(|| a.as_logical().map(|value| if value { 1.0 } else { 0.0 })),
-            b.as_number(),
-        ) {
+        (Some(a), Some(b)) => match (a.as_number(), b.as_number()) {
             (Some(x), Some(y)) => (x - y).abs(),
             (None, Some(y))
-                if a.as_text().is_some() || a.as_error().is_some() =>
+                if a.as_text().is_some() || a.as_error().is_some() || a.as_logical().is_some() =>
             {
                 y.abs()
             }
