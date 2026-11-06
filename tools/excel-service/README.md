@@ -20,6 +20,7 @@ thousands separator properties and workbook date/compatibility settings (unavail
 With UseSystemSeparators enabled, those Application properties can differ from the characters Excel
 renders. Keep the observed text and original settings; a current setting does not establish a
 historical bank's missing context. FIXED rows with no_commas enabled need no grouping separator.
+Base rounding functions, including ROUNDUP, are admitted from their catalogue declarations.
 Scalar numeric formatting/text calls include FIXED, DOLLAR, TEXT, VALUE, NUMBERVALUE,
 VALUETOTEXT, ASC and DBCS; this does not admit array-producing or hyperlink entries from their family.
 `text(..., literal=True)` and `boolean(..., literal=True)` select direct literals;

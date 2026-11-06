@@ -85,7 +85,7 @@ impl<'m> Site<'m> {
     /// converted to its nearest binary64 here, an arithmetic site: the conversion rounds.
     ///
     /// Text that coercion's plain decimal form does not decide (a date, a time, a fraction, a
-    /// currency amount, grouped digits, a percentage, more than 15 significant digits) is read as
+    /// currency amount, grouped digits, a percentage) is read as
     /// VALUE reads it ([`crate::value_text`]) when the call's environment holds a locale profile,
     /// and refused as not modelled when it does not.
     pub(crate) fn number_argument(&self, index: usize, value: &CalcValue) -> Step<f64> {

@@ -15,13 +15,9 @@ use crate::locale::{CalcEnvironment, FormatProfile};
 use crate::coerce::{self, Numeric};
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{CalcValue, CoreRef, WorksheetErrorCode};
-use crate::value_text::{self, ReadContext, Reading, Unread};
+use crate::value_text::{self, ReadContext, Reading, Unread, MAX_READER_TEXT};
 
 const CODE: u16 = 202;
-
-/// VALUE and NUMBERVALUE reject longer text before trimming or parsing.
-/// Fn8 measures this with ASCII, BMP digits, cell/literal origins and separator errors.
-const MAX_READER_TEXT: usize = 255;
 
 /// Text argument `index` read as VALUE reads it under the call's locale profile
 /// ([`crate::value_text`]): #VALUE! for text the grammar does not read and for a value that is
