@@ -153,11 +153,33 @@ fn stirling_series<F: Fpu>(n: f64) -> f64 {
     F::store(&F::div(&w, &load(n), CW), CW)
 }
 
+/// `ln(1 + u)` as Excel's internal logarithm forms it, times `c`, the product stored. For
+/// `|u| < 3/8` the logarithm is `2 S`: `2 + u` is stored, `v = u / (2 + u)` runs the series of
+/// `atanh v`, and `S` is the stored sum of the stored `v` and the tail, as in
+/// [`excel_deviance_series`]. From `3/8` it is the public LN of the stored `1 + u`.
+///
+/// `n ln(1 - p)` in BINOM.DIST's zero-success mass: 11,901 of 11,901 bank rows, where LN of the
+/// stored `1 - p` misses below `p = 3/8`, as the mass does for all `p` above. The bound was
+/// bisected on GAMMA.DIST between `n = 2.66664` and `2.66668` with `u = 1/n`.
+pub(crate) fn excel_log1p_times(c: f64, u: f64) -> f64 {
+    log1p_times::<Native>(&load(c), u)
+}
+
+fn log1p_times<F: Fpu>(c: &Ext80, u: f64) -> f64 {
+    let product = if u.abs() < 0.375 {
+        let q = F::store(&F::add(&load(2.0), &load(u), CW), CW);
+        let v = F::div(&load(u), &load(q), CW);
+        let sum = F::store(&F::add(&load(F::store(&v, CW)), &atanh_tail::<F>(&v), CW), CW);
+        F::mul(c, &F::mul(&load(2.0), &load(sum), CW), CW)
+    } else {
+        let log = log_with::<F>(F::store(&F::add(&ext_one(), &load(u), CW), CW), &ext_ln2());
+        F::mul(c, &load(log), CW)
+    };
+    F::store(&product, CW)
+}
+
 /// One step down the recurrence `s(n) = s(n + 1) + (n + 1/2) ln(1 + 1/n) - 1`, the part after
-/// `s(n + 1)`: the stored product of the stored `n + 1/2` and `ln(1 + u)`, less one, with `u = 1/n`
-/// stored. For `u < 3/8` the logarithm is `2 S`, where `2 + u` is stored, `v = u / (2 + u)` runs the
-/// series of `atanh v`, and `S` is the stored sum of the stored `v` and the tail, as in
-/// [`excel_deviance_series`]. From `u = 3/8` it is the public LN of the stored `1 + u`.
+/// `s(n + 1)`: [`excel_log1p_times`] of the stored `n + 1/2` and the stored `u = 1/n`, less one.
 ///
 /// Read from GAMMA.DIST on adjacent doubles and on pairs `(x, a)` with `x` next to `a`, where the
 /// deviance vanishes and the exponent is `-s(a)`, pinning each `s(a)` to a double. Lines at the
@@ -185,16 +207,22 @@ fn stirling_step<F: Fpu>(n: f64) -> f64 {
     let one = ext_one();
     let u = F::store(&F::div(&one, &load(n), CW), CW);
     let half = load(F::store(&F::add(&load(n), &load(0.5), CW), CW));
-    let product = if u < 0.375 {
-        let q = F::store(&F::add(&load(2.0), &load(u), CW), CW);
-        let v = F::div(&load(u), &load(q), CW);
-        let sum = F::store(&F::add(&load(F::store(&v, CW)), &atanh_tail::<F>(&v), CW), CW);
-        F::mul(&half, &F::mul(&load(2.0), &load(sum), CW), CW)
-    } else {
-        let log = log_with::<F>(F::store(&F::add(&one, &load(u), CW), CW), &ext_ln2());
-        F::mul(&half, &load(log), CW)
-    };
-    F::store(&F::sub(&load(F::store(&product, CW)), &one, CW), CW)
+    F::store(&F::sub(&load(log1p_times::<F>(&half, u)), &one, CW), CW)
+}
+
+/// Whether `x` and `np` are in the deviance's series range: `|x - np| < 0.2 (x + np)` in the
+/// registers, so that the double 0.2, a little above a fifth, keeps `x/np = 3/2` inside. Of the
+/// 125 misses of 2,431 interior masses at `n` to 12 and `p = m/N`, 97 sat on that edge.
+pub(crate) fn excel_deviance_in_series(x: f64, np: f64) -> bool {
+    in_series::<Native>(x, np)
+}
+
+fn in_series<F: Fpu>(x: f64, np: f64) -> bool {
+    let (fx, fnp) = (load(x), load(np));
+    let d = F::sub(&fx, &fnp, CW);
+    let d = if d.0[9] & 0x80 != 0 { ext_chs(&d, CW) } else { d };
+    let gap = F::sub(&F::mul(&load(0.2), &F::add(&fx, &fnp, CW), CW), &d, CW);
+    gap.0[9] & 0x80 == 0 && gap.0[..8].iter().any(|&byte| byte != 0)
 }
 
 /// The deviance `x ln(x/np) + np - x` inside its series range. With `d = x - np` and `x + np` stored
