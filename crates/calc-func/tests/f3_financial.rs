@@ -348,6 +348,23 @@ fn pmt_interest_only_keeps_a_finite_factored_payment() {
     }
 }
 
+/// R29 Excel 16.0.20527 Value2 readings: a nonzero future balance and two
+/// separately selected addition ties. Raw replies remain in the research
+/// scalar-service lineage; the expected numbers are original observations.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn pmt_nonzero_future_uses_the_stored_balance_quotient() {
+    for (rate, pv, fv, expected) in [
+        (0x3f64_7ae1_47ae_147b, 0x3ff0_0000_0000_0000, 0x3fe6_6666_6666_6666, 0xbfc2_3491_be02_5d6a),
+        (0x3fb9_9999_9999_999a, 0x3f50_0000_0000_0000, 0x3c00_0080_0000_0000, 0xbf22_c923_eb4d_dc05),
+        (0x3f64_7ae1_47ae_147b, 0x3f4f_ffff_ffff_ffe0, 0x3c50_0080_0000_0000, 0xbf15_ae7c_7a58_50fe),
+    ] {
+        let got = number(call("PMT", vec![n(f64::from_bits(rate)), n(12.0),
+            n(f64::from_bits(pv)), n(f64::from_bits(fv)), n(0.0)]));
+        assert_eq!(got.to_bits(), expected, "PMT rate={rate:016x} pv={pv:016x} fv={fv:016x}");
+    }
+}
+
 /// Recorded PMT stores in the exponential correction and timing division.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

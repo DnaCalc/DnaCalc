@@ -8,8 +8,8 @@ python3 racer/corpus_cases.py problem-functions ../DnaCalc ../DnaCalc/docs/gener
 
 Last-bit: finite numeric mismatches <=16 ULP; larger numeric: >16 ULP. This split is triage, not a relaxed verdict. Every mismatch, refusal, unread, missing, pending, external and circular-policy cell remains an inclusive failure. Corpus labels follow exact single-cell aliases, infer calls from formula spelling and unwrap INDEX selections; unresolved references and infix operators remain explicit. Bank functions use canonical judge identities. Counts are observations per source; corpus and bank may overlap and must not be added as unique calls. Bank reference/locale context gaps remain failures, not proven numerical defects.
 
-Corpus: 52,171/54,694 matched (95.38706%); 2,523 inclusive failures, including 0 pending.
-Bank: 3,769,137/3,910,007 matched (96.39719%); 140,870 failures, including 116 unread.
+Corpus: 52,250/54,794 matched (95.35716%); 2,544 inclusive failures, including 100 pending.
+Bank: 3,773,403/3,910,007 matched (96.50630%); 136,604 failures, including 116 unread.
 
 Larger numeric and last-bit columns count numeric mismatches; other columns count remaining mismatches. Bank refusals and unread rows are separate. Corpus refusals/missing are recorded in the JSON, outside the mismatch table.
 
@@ -26,11 +26,10 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | RATE | 35 | 0 | 9 | 339 | 20 | 13 | 0 | 0 |
 | NEGBINOMDIST | 0 | 18 | 0 | 356 | 1,281 | 0 | 0 | 0 |
 | IRR | 9 | 1 | 3 | 299 | 95 | 17 | 0 | 0 |
-| PMT | 0 | 0 | 0 | 215 | 11,865 | 4 | 7 | 0 |
 | LINEST | 208 | 19 | 26 | 0 | 0 | 0 | 0 | 0 |
 | GAMMA.DIST | 0 | 13 | 0 | 166 | 30,186 | 0 | 0 | 0 |
 | BINOM.DIST.RANGE | 0 | 2 | 0 | 163 | 321 | 0 | 0 | 0 |
-| LOGEST | 150 | 12 | 81 | 0 | 0 | 0 | 2 | 0 |
+| LOGEST | 150 | 12 | 81 | 0 | 0 | 0 | 0 | 0 |
 | KURT | 0 | 0 | 0 | 145 | 1,154 | 0 | 0 | 0 |
 | NEGBINOM.DIST | 0 | 17 | 0 | 50 | 104 | 0 | 0 | 0 |
 | ODDFYIELD | 30 | 0 | 14 | 0 | 0 | 0 | 0 | 0 |
@@ -43,7 +42,7 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | FDIST | 0 | 2 | 0 | 13 | 3,745 | 0 | 0 | 0 |
 | CUMPRINC | 13 | 150 | 0 | 0 | 401 | 0 | 0 | 0 |
 | F.TEST | 0 | 0 | 0 | 13 | 48 | 0 | 0 | 0 |
-| IPMT | 11 | 59 | 2 | 0 | 9 | 0 | 0 | 0 |
+| IPMT | 11 | 58 | 2 | 0 | 9 | 0 | 0 | 0 |
 | GAMMA.INV | 0 | 1 | 0 | 7 | 147 | 0 | 0 | 0 |
 | HYPGEOM.DIST | 2 | 27 | 0 | 3 | 190 | 0 | 0 | 0 |
 | TINV | 0 | 2 | 0 | 4 | 13 | 0 | 0 | 0 |
@@ -64,6 +63,7 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | CRITBINOM | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | FLOOR | 0 | 0 | 0 | 1 | 0 | 0 | 10 | 0 |
 | NORM.S.DIST | 0 | 1 | 0 | 0 | 11,075 | 0 | 0 | 0 |
+| PMT | 0 | 0 | 0 | 0 | 8,325 | 4 | 7 | 0 |
 | GAMMALN.PRECISE | 0 | 0 | 0 | 0 | 3,638 | 0 | 0 | 0 |
 | GAMMALN | 0 | 0 | 0 | 0 | 2,403 | 0 | 0 | 0 |
 | LOGNORMDIST | 0 | 2 | 0 | 0 | 2,141 | 0 | 0 | 0 |
@@ -84,7 +84,7 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | BETAINV | 0 | 2 | 0 | 0 | 44 | 0 | 0 | 0 |
 | ERF.PRECISE | 0 | 0 | 0 | 0 | 18 | 0 | 0 | 0 |
 | CSCH | 0 | 0 | 0 | 0 | 6 | 0 | 0 | 0 |
-| GROWTH | 0 | 0 | 0 | 0 | 6 | 0 | 7 | 0 |
+| GROWTH | 0 | 0 | 0 | 0 | 6 | 0 | 0 | 0 |
 | HYPGEOMDIST | 0 | 2 | 0 | 0 | 3 | 0 | 0 | 0 |
 | PERMUTATIONA | 0 | 0 | 0 | 0 | 4 | 0 | 0 | 0 |
 | ZTEST | 0 | 4 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -98,7 +98,7 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | INT | 0 | 0 | 0 | 0 | 2 | 0 | 2 | 0 |
 | LOGINV | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | POISSON | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
-| POWER | 0 | 0 | 0 | 0 | 2 | 36 | 5 | 0 |
+| POWER | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 0 |
 | TREND | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 0 |
 | TTEST | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | WEIBULL.DIST | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 0 |
@@ -116,7 +116,7 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | T.DIST.2T | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | T.INV.2T | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | T.TEST | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
-| ABS | 0 | 0 | 1 | 0 | 0 | 0 | 2 | 0 |
+| ABS | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | CEILING.MATH | 0 | 0 | 0 | 0 | 0 | 0 | 12 | 0 |
 | COLUMNS | 0 | 0 | 6 | 0 | 0 | 0 | 0 | 0 |
 | COMPLEX | 0 | 0 | 0 | 0 | 0 | 40 | 10 | 0 |
@@ -127,21 +127,16 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | DELTA | 0 | 0 | 0 | 0 | 0 | 0 | 4 | 0 |
 | EUROCONVERT | 0 | 0 | 0 | 0 | 0 | 0 | 13 | 0 |
 | EVEN | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
-| EXP | 0 | 0 | 0 | 0 | 0 | 0 | 12 | 0 |
 | FIXED | 0 | 0 | 0 | 0 | 0 | 0 | 788 | 0 |
 | FLOOR.MATH | 0 | 0 | 0 | 0 | 0 | 0 | 12 | 0 |
-| GEOMEAN | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 |
 | GESTEP | 0 | 0 | 0 | 0 | 0 | 0 | 4 | 0 |
 | HSTACK | 0 | 0 | 5 | 0 | 0 | 0 | 0 | 0 |
 | IMCOSH | 0 | 0 | 0 | 0 | 0 | 7 | 0 | 0 |
-| IMCOT | 0 | 0 | 0 | 0 | 0 | 124 | 0 | 0 |
-| IMCSCH | 0 | 0 | 0 | 0 | 0 | 9 | 0 | 0 |
+| IMCSCH | 0 | 0 | 0 | 0 | 0 | 8 | 0 | 0 |
 | IMDIV | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 |
-| IMLOG10 | 0 | 0 | 0 | 0 | 0 | 11 | 0 | 0 |
 | IMLOG2 | 0 | 0 | 0 | 0 | 0 | 54 | 0 | 0 |
-| IMSECH | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 0 |
+| IMSECH | 0 | 0 | 0 | 0 | 0 | 4 | 0 | 0 |
 | IMSINH | 0 | 0 | 0 | 0 | 0 | 9 | 0 | 0 |
-| IMTAN | 0 | 0 | 0 | 0 | 0 | 144 | 0 | 0 |
 | INDEX | 0 | 0 | 24 | 0 | 0 | 0 | 0 | 0 |
 | ISEVEN | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | ISODD | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
@@ -149,7 +144,6 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | Infix + | 0 | 0 | 3 | 0 | 0 | 0 | 0 | 0 |
 | Infix - | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | JIS | 0 | 0 | 0 | 0 | 0 | 0 | 8 | 0 |
-| MEDIAN | 0 | 0 | 0 | 0 | 0 | 0 | 167 | 0 |
 | MINVERSE | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 112 |
 | N | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | NOT | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
@@ -162,6 +156,5 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | SORT | 0 | 0 | 4 | 0 | 0 | 0 | 0 | 0 |
 | SQRT | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | STANDARDIZE | 0 | 0 | 0 | 0 | 0 | 0 | 8 | 0 |
-| TEXT | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | TEXTSPLIT | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | WEEKNUM | 0 | 0 | 0 | 0 | 0 | 443 | 0 | 0 |
