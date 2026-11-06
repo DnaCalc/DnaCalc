@@ -17,6 +17,7 @@
 //! formats, trendlines, error bars, data labels, and the darker and
 //! lighter accents Excel uses past the sixth series.
 
+pub use calc_doc_model::ChartTextStyle;
 use crate::state::HostState;
 use calc_doc::{ChartAnchor, ChartData, DrawingPoint};
 use calc_doc_model::value::{CalcValue, CellKey, CoreRef, SheetId};
@@ -111,6 +112,7 @@ pub struct ChartView {
     pub axes:Vec<calc_doc_model::ChartAxis>,
     /// The theme's accent colours, accent1 to accent6, `RRGGBB`: a varied plot's point colours.
     pub palette: Vec<String>,
+    pub text_style:calc_doc_model::ChartTextStyle,
 }
 
 /// Excel's 2013 theme accents, for a workbook whose theme gives none.
@@ -238,6 +240,7 @@ impl HostState {
                 legend: chart.legend.clone(),
                 plots,
                 palette: palette.clone(),
+                text_style:{let mut style=chart.text_style.clone();style.color=style.color.as_ref().and_then(|c|if c.len()==6&&c.bytes().all(|b|b.is_ascii_hexdigit()){Some(c.clone())}else{scheme(c)});style},
                 axes:chart.axes.clone(),
             });
         }
@@ -605,7 +608,7 @@ fn check_axes_for_edit(host:&HostState,sheet:SheetId,part:&str)->Result<(),Strin
 }
 pub fn combination_supported(chart:&ChartView)->bool{
     if !axes_associated(chart){return false;}
-    if chart.plots.len()!=2||chart.plots[0].kind!=ChartKind::Column||chart.plots[1].kind!=ChartKind::Line||chart.plots.iter().any(|p|p.stacked||p.percent||p.series.is_empty()){return false;}
+    if chart.plots.len()!=2||chart.plots[0].kind==chart.plots[1].kind||chart.plots.iter().any(|p|!matches!(p.kind,ChartKind::Column|ChartKind::Line|ChartKind::Area))||chart.plots.iter().any(|p|p.stacked||p.percent||p.series.is_empty()){return false;}
     let ids=chart.plots.iter().flat_map(|p|p.axis_ids.iter().copied()).collect::<std::collections::BTreeSet<_>>();
     if ids.len()!=chart.axes.len(){return false;}
     let pairs=chart.plots.iter().map(|p|value_axes(&chart.axes,&p.axis_ids,false)).collect::<Result<Vec<_>,_>>();
@@ -700,16 +703,18 @@ pub(crate) fn prepare_type(host:&HostState,sheet:SheetId,revision:u64,part:&str,
     let mut charts=host.model().definitions().charts(sheet).to_vec();
     let chart=charts.iter_mut().find(|c|c.part==part).ok_or("The chart is unavailable")?;
     check_axes_for_edit(host,sheet,part)?;
-    if chart.plots.len()!=1 || plot!=0 {return Err("Changing combination chart types is not modelled (dc-971p.46)".into());}
+    if chart.plots.len()>2||plot as usize>=chart.plots.len(){return Err("Choose a plot in a single chart or a two-plot category combination (dc-971p.59)".into());}
+    let combo=chart.plots.len()==2;
+    if combo&&(kind=="bar"||stacked){return Err("Combination type changes use vertical plots and Normal grouping (dc-971p.59)".into());}
     if stacked && chart.axes.iter().any(|a|a.log_base.is_some()){return Err("Stacked logarithmic plots are not modelled (dc-971p.50)".into());}
-    let p=&mut chart.plots[0];
+    let p=&mut chart.plots[plot as usize];
     let category=|kind:&str|matches!(kind,"barChart"|"lineChart"|"areaChart");
     let pie=|kind:&str|matches!(kind,"pieChart"|"doughnutChart");
     let (next,direction)=match kind {"column"=>("barChart",Some("col")),"bar"=>("barChart",Some("bar")),"line"=>("lineChart",None),"area"=>("areaChart",None),"pie"=>("pieChart",None),"doughnut"=>("doughnutChart",None),_=>return Err("Choose a supported two-dimensional chart type (dc-971p.46)".into())};
     if category(&p.kind)&&category(next) {
         value_axes(&chart.axes,&p.axis_ids,false).map_err(|e|format!("{e} (dc-971p.46)"))?;
         let horizontal=p.kind=="barChart" && p.bar_direction.as_deref()==Some("bar");
-        if horizontal!=(kind=="bar") {for axis in &mut chart.axes {axis.position=axis.position.as_deref().map(|pos|match pos {"b"=>"l","t"=>"r","l"=>"b","r"=>"t",other=>other}.to_owned());}}
+        if !combo && horizontal!=(kind=="bar") {for axis in &mut chart.axes {axis.position=axis.position.as_deref().map(|pos|match pos {"b"=>"l","t"=>"r","l"=>"b","r"=>"t",other=>other}.to_owned());}}
     }else if !(pie(&p.kind)&&pie(next)) {return Err("Convert within column/bar/line/area, or between pie and doughnut; scatter and cross-family conversions are not modelled (dc-971p.46)".into());}
     if pie(next)&&p.series.len()!=1{return Err("Changing multi-series pie or doughnut charts is not modelled (dc-971p.46)".into());}
     if pie(next)&&stacked{return Err("Pie and doughnut charts do not have stacked grouping".into());}
@@ -752,9 +757,9 @@ pub(crate) fn prepare_create(host:&HostState,revision:u64,area:calc_value::GridA
     let points=length.checked_sub(u32::from(headers)).filter(|n|*n>0).ok_or_else(||fail("Select at least one data point after the series names"))?;
     let count=width.checked_sub(u32::from(categories)).filter(|n|*n>0).ok_or_else(||fail("Select at least one values series after the categories"))?;
     if count>255 || points>32767 || u64::from(points)*u64::from(count)>262144 {return Err(fail("Use at most 255 series, 32,767 points per series and 262,144 points in total"));}
-    let (plot_kind,dir)=match kind{"column"|"combo"=>("barChart",Some("col")),"bar"=>("barChart",Some("bar")),"line"=>("lineChart",None),"area"=>("areaChart",None),"pie"=>("pieChart",None),"doughnut"=>("doughnutChart",None),"scatter"=>("scatterChart",None),_=>return Err(fail("Choose a supported two-dimensional chart type"))};
-    let combo=kind=="combo";
-    if combo && count<2{return Err(fail("Select at least two values series for a column and line combination (dc-971p.51)"));}
+    let (plot_kind,dir)=match kind{"column"|"combo"|"combo-column-area"=>("barChart",Some("col")),"combo-line-column"|"combo-line-area"=>("lineChart",None),"combo-area-line"|"combo-area-column"=>("areaChart",None),"bar"=>("barChart",Some("bar")),"line"=>("lineChart",None),"area"=>("areaChart",None),"pie"=>("pieChart",None),"doughnut"=>("doughnutChart",None),"scatter"=>("scatterChart",None),_=>return Err(fail("Choose a supported two-dimensional chart type"))};
+    let combo=matches!(kind,"combo"|"combo-column-area"|"combo-line-column"|"combo-line-area"|"combo-area-line"|"combo-area-column");
+    if combo && count<2{return Err(fail("Select at least two values series for a category combination (dc-971p.51)"));}
     let pie=matches!(kind,"pie"|"doughnut");
     if pie && count!=1{return Err(fail("Select one values series for a pie or doughnut"));}
     if kind=="scatter" && !categories{return Err(fail("Use the first column or row as X values for a scatter chart"));}
@@ -769,20 +774,21 @@ pub(crate) fn prepare_create(host:&HostState,revision:u64,area:calc_value::GridA
     }
     let mut axes=if pie{Vec::new()}else{vec![
         ChartAxis{id:1,cross_axis:Some(2),kind:if kind=="scatter"{"valAx"}else{"catAx"}.into(),position:Some(if kind=="bar"{"l"}else{"b"}.into()),..Default::default()},
-        ChartAxis{id:2,cross_axis:Some(1),kind:"valAx".into(),position:Some(if kind=="bar"{"b"}else{"l"}.into()),..Default::default()},
+        ChartAxis{id:2,cross_axis:Some(1),kind:"valAx".into(),position:Some(if kind=="bar"{"b"}else{"l"}.into()),cross_between:Some("between".into()),..Default::default()},
     ]};
+    if kind=="scatter"{axes[0].cross_between=Some("between".into());}
     if combo{
         axes.push(ChartAxis{id:3,cross_axis:Some(4),kind:"catAx".into(),position:Some("t".into()),..Default::default()});
-        axes.push(ChartAxis{id:4,cross_axis:Some(3),kind:"valAx".into(),position:Some("r".into()),..Default::default()});
+        axes.push(ChartAxis{id:4,cross_axis:Some(3),kind:"valAx".into(),position:Some("r".into()),cross_between:Some("between".into()),..Default::default()});
     }
-    let mut plots=vec![ChartPlot{kind:plot_kind.into(),bar_direction:dir.map(str::to_owned),grouping:(!pie&&kind!="scatter").then(||if matches!(kind,"column"|"bar"|"combo"){"clustered"}else{"standard"}.into()),vary_colors:pie,series,axis_ids:if pie{Vec::new()}else{vec![1,2]}}];
-    if combo{let last=plots[0].series.pop().unwrap();plots.push(ChartPlot{kind:"lineChart".into(),grouping:Some("standard".into()),series:vec![last],axis_ids:vec![3,4],..Default::default()});}
+    let mut plots=vec![ChartPlot{kind:plot_kind.into(),bar_direction:dir.map(str::to_owned),grouping:(!pie&&kind!="scatter").then(||if plot_kind=="barChart"{"clustered"}else{"standard"}.into()),vary_colors:pie,series,axis_ids:if pie{Vec::new()}else{vec![1,2]}}];
+    if combo{let last=plots[0].series.pop().unwrap();let second=match kind{"combo-column-area"|"combo-line-area"=>"areaChart","combo-line-column"|"combo-area-column"=>"barChart",_=>"lineChart"};plots.push(ChartPlot{kind:second.into(),bar_direction:(second=="barChart").then(||"col".into()),grouping:Some(if second=="barChart"{"clustered"}else{"standard"}.into()),series:vec![last],axis_ids:vec![3,4],..Default::default()});}
     let mut charts=host.model().definitions().charts(sheet).to_vec();
     let reserved=host.model().definitions().all_charts().flat_map(|(_,cs)|cs.iter().map(|c|c.part.clone())).collect::<Vec<_>>();
     let part=host.loaded().available_part_name("charts/dnaChart","xml",&reserved);
     let names=charts.iter().map(|c|c.name.as_str()).collect::<std::collections::BTreeSet<_>>();
     let name=(1u32..).map(|i|format!("Chart {i}")).find(|n|!names.contains(n.as_str())).unwrap();
-    charts.push(Chart{part,name,anchor:ChartAnchor::OneCell{from:DrawingPoint{column:area.last().column().saturating_add(1).min(16383),row:area.first().row()-1,..Default::default()},width:640*9525,height:360*9525},title:None,title_formula:None,auto_title_deleted:true,legend:Some("r".into()),plots,axes});
+    charts.push(Chart{part,name,anchor:ChartAnchor::OneCell{from:DrawingPoint{column:area.last().column().saturating_add(1).min(16383),row:area.first().row()-1,..Default::default()},width:640*9525,height:360*9525},title:None,title_formula:None,auto_title_deleted:true,legend:Some("r".into()),plots,axes,text_style:Default::default()});
     host.loaded().check_chart_set(sheet,&charts).map_err(|e|e.to_string())?;
     Ok(vec![crate::CellEdit::Charts{sheet,charts}])
 }
@@ -808,6 +814,17 @@ pub(crate) fn prepare_series_style(host:&HostState,sheet:SheetId,revision:u64,pa
     if !matches!(plot.kind.as_str(),"barChart"|"lineChart"|"areaChart"|"pieChart"|"doughnutChart"|"scatterChart"){return Err("Series colours for this chart type are not modelled (dc-971p.58)".into());}
     let series=plot.series.iter_mut().find(|s|s.index==series).ok_or("The series is unavailable")?;
     if series.fill==fill{return Ok(Vec::new());}series.fill=fill;
+    host.loaded().check_chart_properties(sheet,chart).map_err(|e|e.to_string())?;
+    Ok(vec![crate::CellEdit::Charts{sheet,charts}])
+}
+
+pub(crate) fn prepare_text_style(host:&HostState,sheet:SheetId,revision:u64,part:&str,mut style:calc_doc_model::ChartTextStyle)->Result<Vec<crate::CellEdit>,String>{
+    prepare_properties(host,sheet,revision,part,None,false,None)?;
+    style.color=style.color.map(|s|s.trim().to_owned()).filter(|s|!s.is_empty()&&!s.eq_ignore_ascii_case("automatic"));
+    style.family=style.family.filter(|s|!s.eq_ignore_ascii_case("automatic"));
+    let mut charts=host.model().definitions().charts(sheet).to_vec();let chart=charts.iter_mut().find(|c|c.part==part).ok_or("The chart is unavailable")?;
+    if style.color.as_ref().zip(chart.text_style.color.as_ref()).is_some_and(|(new,old)|new.strip_prefix('#').unwrap_or(new).eq_ignore_ascii_case(old)){style.color=chart.text_style.color.clone();}else if style.color!=chart.text_style.color{style.color=style.color.map(|s|s.strip_prefix('#').unwrap_or(&s).to_ascii_uppercase());}
+    if chart.text_style==style{return Ok(Vec::new());}chart.text_style=style;
     host.loaded().check_chart_properties(sheet,chart).map_err(|e|e.to_string())?;
     Ok(vec![crate::CellEdit::Charts{sheet,charts}])
 }

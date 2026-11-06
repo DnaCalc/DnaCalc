@@ -22,6 +22,7 @@ fn invalid(part: &str, detail: &str) -> SaveRefusal {
 /// New parts have no opaque source records. Validate everything the fresh serializer owns.
 pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
     let fail = |s| invalid(&chart.part, s);
+    font::validate(&chart.text_style).map_err(fail)?;
     let valid_text = |s: &str| {
         s.encode_utf16().count() <= 32767
             && !s.chars().any(|c| {
@@ -43,17 +44,10 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
     {
         return Err(fail("Choose a supported legend position"));
     }
-    let combo = chart.plots.len() == 2
-        && chart.plots[0].kind == "barChart"
-        && chart.plots[0].bar_direction.as_deref() == Some("col")
-        && chart.plots[1].kind == "lineChart"
-        && chart
-            .plots
-            .iter()
-            .all(|p| p.grouping.as_deref() != Some("stacked"));
+    let combo=category_combination(&chart.plots);
     if chart.plots.len() != 1 && !combo {
         return Err(fail(
-            "Use one supported plot or a column and line combination (dc-971p.51)",
+            "Use one supported plot or two distinct vertical category plots (dc-971p.51)",
         ));
     }
     if chart.plots.iter().map(|p| p.series.len()).sum::<usize>() > 255 {
@@ -281,7 +275,7 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
         if a.kind == "catAx" {
             bytes.extend(b"<c:auto val=\"1\"/><c:lblAlgn val=\"ctr\"/><c:lblOffset val=\"100\"/>");
         } else {
-            bytes.extend(fresh_number("crossBetween", "between"));
+            bytes.extend(fresh_number("crossBetween", a.cross_between.as_deref().unwrap_or("between")));
             if let Some(unit) = &a.major_unit {
                 bytes.extend(fresh_number("majorUnit", unit));
             }
@@ -296,8 +290,10 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
         );
     }
     bytes.extend(
-        b"<c:plotVisOnly val=\"1\"/><c:dispBlanksAs val=\"gap\"/></c:chart></c:chartSpace>",
+        b"<c:plotVisOnly val=\"1\"/><c:dispBlanksAs val=\"gap\"/></c:chart>",
     );
+    if chart.text_style!=Default::default(){bytes.extend(font::fresh(&chart.text_style));}
+    bytes.extend(b"</c:chartSpace>");
     Ok(bytes)
 }
 

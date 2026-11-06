@@ -235,6 +235,7 @@ fn read_chart_xml(xml:&XmlPart,part:&str,name:String,anchor:ChartAnchor)->Result
         legend: None,
         plots: Vec::new(),
         axes: Vec::new(),
+        text_style:Default::default(),
     };
     // The path of local names below chartSpace, and where in a series the reading is.
     let mut path: Vec<String> = Vec::new();
@@ -264,15 +265,16 @@ fn read_chart_xml(xml:&XmlPart,part:&str,name:String,anchor:ChartAnchor)->Result
         let parent = path.last().map(String::as_str);
         let in_title = path.len() >= 2 && path[0] == "chart" && path[1] == "title";
         let val = element.attribute("val").map(str::to_owned);
+        if path.is_empty()&&element.name.is(CHART_NAMESPACE,"txPr"){chart.text_style=read_text_style(&mut events)?;continue;}
         let plot = chart.plots.last_mut();
         match (parent, local.as_str()) {
             (Some("plotArea"), "valAx"|"catAx"|"dateAx"|"serAx") if element.name.namespace.as_deref()==Some(CHART_NAMESPACE) => {
                 chart.axes.push(calc_doc_model::ChartAxis{kind:local.clone(),..Default::default()});
             }
-            (Some("valAx"|"catAx"|"dateAx"|"serAx"), "axId"|"crossAx"|"axPos"|"majorUnit") if element.name.namespace.as_deref()==Some(CHART_NAMESPACE) => {
+            (Some("valAx"|"catAx"|"dateAx"|"serAx"), "axId"|"crossAx"|"axPos"|"majorUnit"|"crossBetween") if element.name.namespace.as_deref()==Some(CHART_NAMESPACE) => {
                 if let Some(axis)=chart.axes.last_mut(){match local.as_str(){
                     "axId"=>axis.id=val.and_then(|s|s.parse().ok()).unwrap_or(0),
-                    "axPos"=>axis.position=val,
+                    "axPos"=>axis.position=val,"crossBetween"=>axis.cross_between=val,
                     "crossAx"=>axis.cross_axis=val.and_then(|s|s.parse().ok()),
                     _=>axis.major_unit=val,
                 }}
@@ -433,4 +435,23 @@ mod tests {
     }
    }
  }
+}
+
+fn read_text_style(events:&mut Events<'_>)->Result<calc_doc_model::ChartTextStyle,LoadError>{
+    let mut style=calc_doc_model::ChartTextStyle::default();let mut path=Vec::<String>::new();
+    let run=|p:&[String]|matches!(p.iter().map(String::as_str).collect::<Vec<_>>().as_slice(),["p","pPr","defRPr"]|["p","r","rPr"]|["p","endParaRPr"]);
+    loop{match events.next()?{
+        Some(XmlEvent::Start(e))=>{
+            if e.name.namespace.as_deref()!=Some("http://schemas.openxmlformats.org/drawingml/2006/main"){events.skip()?;continue;}
+            let local=e.name.local.as_str();let names=path.iter().map(String::as_str).collect::<Vec<_>>();
+            let properties=matches!((names.as_slice(),local),(["p","pPr"],"defRPr")|(["p","r"],"rPr")|(["p"],"endParaRPr"));
+            if properties{
+                if let Some(size)=e.attribute("sz").and_then(|s|s.parse().ok()){style.size=Some(size);}
+                for (key,target) in [("b",&mut style.bold),("i",&mut style.italic)]{if let Some(v)=e.attribute(key){*target=match v{"1"|"true"=>Some(true),"0"|"false"=>Some(false),_=>None};}}
+            }
+            if local=="latin"&&run(&path){style.family=e.attribute("typeface").map(str::to_owned);events.skip()?;continue;}
+            if matches!(local,"srgbClr"|"schemeClr")&&path.last().is_some_and(|p|p=="solidFill")&&run(&path[..path.len()-1]){style.color=e.attribute("val").map(str::to_owned);events.skip()?;continue;}
+            if properties||matches!((names.as_slice(),local),([],"p")|(["p"],"pPr"|"r"))||(local=="solidFill"&&run(&path)){path.push(local.into());}else{events.skip()?;}
+        },Some(XmlEvent::End(_))=>{if path.pop().is_none(){return Ok(style);}},Some(XmlEvent::Text(_))=>{},None=>return Err(events.invalid("The chart text defaults end before their close")),
+    }}
 }
