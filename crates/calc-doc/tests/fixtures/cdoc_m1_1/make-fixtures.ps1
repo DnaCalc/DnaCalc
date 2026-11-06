@@ -388,3 +388,13 @@ $manifest = [ordered]@{
     }
 }
 [System.IO.File]::WriteAllText((Join-Path $OutDir 'manifest.json'), (ConvertTo-Json -InputObject $manifest -Depth 10), $Utf8)
+
+
+# UI round 28: source-only saved pivots, intentionally synthetic rather than Excel readings.
+# Keep these cache/definition/record inputs as independent part files for fidelity checks.
+$pivotRoot = Join-Path $PSScriptRoot 'pivot-saved/parts'
+$pivotEntries = @(Get-ChildItem -LiteralPath $pivotRoot -Recurse -File | Sort-Object FullName | ForEach-Object {
+    $partName = $_.FullName.Substring($pivotRoot.Length + 1).Replace('\', '/')
+    New-Entry $partName ([System.IO.File]::ReadAllBytes($_.FullName)) 0
+})
+[void](Write-Zip (Join-Path $OutDir 'pivot-saved.xlsx') $pivotEntries @($pivotEntries | ForEach-Object { $_.Name }) '')
