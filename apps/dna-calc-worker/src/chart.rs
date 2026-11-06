@@ -11,7 +11,6 @@ use calc_host::chart::text_of;
 use calc_host::{ChartKind, ChartView, PlotView};
 use std::fmt::Write;
 
-const FONT: &str = "font-family=\"Calibri,'Segoe UI',system-ui,sans-serif\"";
 const AXIS: &str = "#595959";
 const GRID: &str = "#d9d9d9";
 
@@ -43,13 +42,23 @@ fn label(value: f64, step: f64) -> String {
 /// length on screen, which is not modelled.
 pub use calc_host::chart::axis;
 
+fn font_pixels(chart:&ChartView)->f64{chart.text_style.size.filter(|n|(100..=40900).contains(n)).map_or(11.,|n|f64::from(n)/100.*96./72.)}
+/// Only generated text start tags receive the default text colour. Mark fills stay independent.
+fn text_colour(svg:String,chart:&ChartView)->String{
+    let Some(color)=&chart.text_style.color else{return svg;};
+    let from=format!("fill=\"{AXIS}\"");let to=format!("fill=\"#{}\"",escape(color));let mut result=String::with_capacity(svg.len());let mut rest=svg.as_str();
+    while let Some(start)=rest.find("<text "){
+        result.push_str(&rest[..start]);rest=&rest[start..];let Some(end)=rest.find('>')else{break;};
+        result.push_str(&rest[..=end].replace(&from,&to));rest=&rest[end+1..];
+    }result.push_str(rest);result
+}
+
 /// The chart's markup, `width` by `height` pixels.
 pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
-    let mut svg = String::new();
-    let _ = write!(
-        svg,
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 {width:.1} {height:.1}\" preserveAspectRatio=\"none\" {FONT} font-size=\"11\">"
-    );
+    let mut svg=String::new();let text_pixels=font_pixels(chart);
+    let family=chart.text_style.family.as_ref().map(|s|format!("\"{}\",Calibri,'Segoe UI',system-ui,sans-serif",s.replace('\\',"\\\\").replace('"',"\\\""))).unwrap_or_else(||"Calibri,'Segoe UI',system-ui,sans-serif".into());
+    let weight=if chart.text_style.bold==Some(true){"700"}else{"400"};let italic=if chart.text_style.italic==Some(true){"italic"}else{"normal"};
+    let _=write!(svg,"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 {width:.1} {height:.1}\" preserveAspectRatio=\"none\" font-family=\"{}\" font-size=\"{text_pixels:.2}\" font-weight=\"{weight}\" font-style=\"{italic}\">",escape(&family));
     let _ = write!(
         svg,
         "<rect x=\"0.5\" y=\"0.5\" width=\"{:.1}\" height=\"{:.1}\" fill=\"#fff\" stroke=\"{GRID}\"/>",
@@ -66,14 +75,14 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
         );
         top = 34.0;
     }
-    if !calc_host::chart::axes_associated(chart){axis_notice(&mut svg,&Area{left:0.,top:0.,right:width,bottom:height},"Unassociated chart axes are preserved but not drawn here (dc-971p.51)");svg.push_str("</svg>");return svg;}
-    if chart.plots.len()>1 && !calc_host::chart::combination_supported(chart) {let _=write!(svg,"<text data-dnacalc=\"chart-notice\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">Combination chart preserved; its plots are not drawn here</text></svg>",width/2.,height/2.);return svg;}
-    if chart.plots.iter().any(|p|p.percent){let _=write!(svg,"<text data-dnacalc=\"chart-notice\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">Percent-stacked chart preserved; its plots are not drawn here</text></svg>",width/2.,height/2.);return svg;}
+    if !calc_host::chart::axes_associated(chart){axis_notice(&mut svg,&Area{left:0.,top:0.,right:width,bottom:height},"Unassociated chart axes are preserved but not drawn here (dc-971p.51)");svg.push_str("</svg>");return text_colour(svg,chart);}
+    if chart.plots.len()>1 && !calc_host::chart::combination_supported(chart) {let _=write!(svg,"<text data-dnacalc=\"chart-notice\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">Combination chart preserved; its plots are not drawn here</text></svg>",width/2.,height/2.);return text_colour(svg,chart);}
+    if chart.plots.iter().any(|p|p.percent){let _=write!(svg,"<text data-dnacalc=\"chart-notice\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">Percent-stacked chart preserved; its plots are not drawn here</text></svg>",width/2.,height/2.);return text_colour(svg,chart);}
     let cached=chart.plots.iter().flat_map(|p|&p.series).any(|s|s.cached);
     if cached {let _=write!(svg,"<text data-dnacalc=\"chart-cache\" x=\"10\" y=\"{:.1}\" fill=\"{AXIS}\">Includes saved chart values</text>",height-5.);}
     let Some(plot) = chart.plots.first() else {
         svg.push_str("</svg>");
-        return svg;
+        return text_colour(svg,chart);
     };
     let pie = matches!(plot.kind, ChartKind::Pie | ChartKind::Doughnut);
     // The legend's entries: the series, or a pie's points.
@@ -104,9 +113,10 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
         let max_h=if horizontal{available_h*0.4}else{available_h};
         let max_w=if horizontal{(width-20.).max(1.)}else{width*0.4};
         let _=write!(svg,"<desc data-dnacalc=\"chart-legend-description\">Legend: {}</desc>",escape(&entries.iter().map(|(n,_)|n.as_str()).collect::<Vec<_>>().join("; ")));
-        if max_h>=18. && max_w>=24. {
-        let desired=entries.iter().map(|(n,_)|n.chars().count() as f64*6.5+22.).fold(80.,f64::max).min(160.);
-        let rows=(max_h/18.).floor().max(1.) as usize;
+        let row_height=(font_pixels(chart)*1.5+2.).max(18.);let baseline=font_pixels(chart)+2.;
+        if max_h>=row_height && max_w>=24. {
+        let desired=entries.iter().map(|(n,_)|n.chars().count() as f64*font_pixels(chart)*0.6+22.).fold(80.,f64::max).min(160.);
+        let rows=(max_h/row_height).floor().max(1.) as usize;
         let max_columns=(max_w/80.).floor().max(1.) as usize;
         let columns=if horizontal{((max_w/desired).floor().max(1.) as usize).max(entries.len().div_ceil(rows)).min(max_columns)}else{entries.len().div_ceil(rows).min(max_columns).max(1)};
         let rows=entries.len().div_ceil(columns).min(rows).max(1);
@@ -115,17 +125,17 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
         let visible=entries.len().min(capacity.saturating_sub(usize::from(overflow)));
         let slot=(if horizontal{max_w/columns as f64}else{desired.min(max_w/columns as f64)}).max(1.);
         let legend_w=slot*columns as f64;
-        let legend_h=rows as f64*18.;
+        let legend_h=rows as f64*row_height;
         let x=match position{"l"=>{left+=legend_w+6.;10.},"t"|"b"=>10.,_=>{right=width-legend_w-6.;right+6.}};
         let y=match position{"t"=>{let y=top;top+=legend_h+6.;y},"b"=>{bottom-=legend_h+6.;bottom+6.},"tr"=>top,_=>top+(available_h-legend_h).max(0.)/2.};
         for (i,(name,color)) in entries.iter().take(visible).enumerate(){
             let col=if horizontal{i%columns}else{i/rows};let row=if horizontal{i/columns}else{i%rows};
-            let (x,y)=(x+col as f64*slot,y+row as f64*18.);
-            let _=write!(svg,"<g data-dnacalc=\"chart-legend\" data-position=\"{position}\" aria-label=\"{}\"><svg x=\"{x:.1}\" y=\"{y:.1}\" width=\"{slot:.1}\" height=\"18\" overflow=\"hidden\"><rect x=\"0\" y=\"4\" width=\"7\" height=\"7\" fill=\"#{color}\"/><text x=\"11\" y=\"12\" fill=\"{AXIS}\">{}</text></svg></g>",escape(name),escape(name));
+            let (x,y)=(x+col as f64*slot,y+row as f64*row_height);
+            let _=write!(svg,"<g data-dnacalc=\"chart-legend\" data-position=\"{position}\" aria-label=\"{}\"><svg x=\"{x:.1}\" y=\"{y:.1}\" width=\"{slot:.1}\" height=\"{row_height:.1}\" overflow=\"hidden\"><rect x=\"0\" y=\"4\" width=\"7\" height=\"7\" fill=\"#{color}\"/><text x=\"11\" y=\"{baseline:.1}\" fill=\"{AXIS}\">{}</text></svg></g>",escape(name),escape(name));
         }
         if overflow{
             let i=visible;let col=if horizontal{i%columns}else{i/rows};let row=if horizontal{i/columns}else{i%rows};
-            let _=write!(svg,"<svg x=\"{:.1}\" y=\"{:.1}\" width=\"{slot:.1}\" height=\"18\" overflow=\"hidden\"><text data-dnacalc=\"chart-legend-overflow\" x=\"0\" y=\"12\" fill=\"{AXIS}\">+{} entries</text></svg>",x+col as f64*slot,y+row as f64*18.,entries.len()-visible);
+            let _=write!(svg,"<svg x=\"{:.1}\" y=\"{:.1}\" width=\"{slot:.1}\" height=\"{row_height:.1}\" overflow=\"hidden\"><text data-dnacalc=\"chart-legend-overflow\" x=\"0\" y=\"{baseline:.1}\" fill=\"{AXIS}\">+{} entries</text></svg>",x+col as f64*slot,y+row as f64*row_height,entries.len()-visible);
         }
         }
     }
@@ -155,7 +165,7 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
     }
     }
     svg.push_str("</svg>");
-    svg
+    text_colour(svg,chart)
 }
 
 #[derive(Clone, Copy)]
@@ -176,6 +186,8 @@ fn mark(svg: &mut String, series: usize, point: usize, value: f64) {
 #[derive(Clone,Copy)]
 struct CategoryLayout{x0:f64,x1:f64,y0:f64,y1:f64,count:usize,index:usize,offset:usize,secondary:bool,ticks:bool}
 fn combination_layouts(chart:&ChartView,area:Area)->Result<[CategoryLayout;2],String>{
+    if chart.plots.iter().any(|p|p.kind==ChartKind::Area)&&chart.plots.iter().any(|p|calc_host::chart::value_axes(&chart.axes,&p.axis_ids,false).ok().is_some_and(|axes|axes[0].cross_between.is_none())){return Err("Combination category crossing is preserved but needs an Excel measurement before drawing (dc-971p.59)".into());}
+
     let first=calc_host::chart::category_scale(chart,&chart.plots[0])?;let second=calc_host::chart::category_scale(chart,&chart.plots[1])?;
     let width=|s:calc_host::chart::ChartScale|label(s.minimum,s.step).len().max(label(s.maximum,s.step).len()) as f64*6.5+8.;
     let secondary=chart.axes.len()==4;
@@ -258,7 +270,10 @@ fn category_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Are
     }
     // Where a category's point or label is: the middle of its band, or for an area the band's
     // edge, from the first category's to the last's (Excel's `crossBetween` of each).
-    let at_edges = plot.kind == ChartKind::Area && count > 1;
+    let between=calc_host::chart::value_axes(&chart.axes,&plot.axis_ids,false).ok().and_then(|a|a.first().and_then(|a|a.cross_between.as_deref()));
+    if between.is_some_and(|v|!matches!(v,"between"|"midCat")){axis_notice(svg,&area,"The stored category crossing is preserved but not drawn here (dc-971p.59)");return;}
+    if between==Some("midCat")&&matches!(plot.kind,ChartKind::Column|ChartKind::Bar){axis_notice(svg,&area,"Midpoint category crossing for columns and bars is preserved but not drawn here (dc-971p.59)");return;}
+    let at_edges=count>1&&between.map_or(plot.kind==ChartKind::Area,|v|v=="midCat");
     let middle_of = |j: usize| {
         if at_edges {
             x0 + j as f64 * (x1 - x0) / (count - 1) as f64
@@ -313,7 +328,6 @@ fn category_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Are
             let mut up = vec![0.0f64; count];
             let mut down = vec![0.0f64; count];
             for (i, series) in plot.series.iter().enumerate() {
-                let i=i+offset;
                 for (j, value) in series.values.iter().enumerate() {
                     let Some(v) = *value else { continue };
                     if scale.position(v).is_none(){continue;}
@@ -325,20 +339,20 @@ fn category_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Are
                     } else {
                         (zero, value_at(v))
                     };
-                    let offset = band_start(j)
+                    let bar_offset = band_start(j)
                         + (band - group) / 2.0
                         + if plot.stacked { 0.0 } else { i as f64 * width };
                     let (x, y, w, h) = if horizontal {
-                        (from.min(to), offset, (to - from).abs(), width)
+                        (from.min(to), bar_offset, (to - from).abs(), width)
                     } else {
-                        (offset, from.min(to), width, (to - from).abs())
+                        (bar_offset, from.min(to), width, (to - from).abs())
                     };
                     let _ = write!(
                         svg,
                         "<rect data-dnacalc=\"chart-mark\" x=\"{x:.1}\" y=\"{y:.1}\" width=\"{w:.1}\" height=\"{h:.1}\" fill=\"#{}\"",
                         series.color
                     );
-                    mark(svg, i, j, v);
+                    mark(svg, i+offset, j, v);
                     svg.push_str("/>");
                 }
             }
@@ -639,6 +653,37 @@ mod tests {
                 if w==640.{assert_eq!(svg.matches("data-dnacalc=\"chart-legend\"").count(),25);assert!(!svg.contains("chart-legend-overflow"));}
             }
         }
+    }
+
+    #[cfg_attr(not(target_arch="wasm32"),test)]
+    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    fn chart_text_colour_does_not_recolour_marks_and_legend_rows_grow_with_font(){
+        use std::sync::Arc;use calc_host::{HostSession,MemorySource,OpenPolicy,HostOptions,SkinIntent};
+        let mut book=HostSession::open(Arc::new(MemorySource::new(include_bytes!("../../../crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx").to_vec())),&OpenPolicy::default(),HostOptions::default()).unwrap();assert!(book.dispatch(SkinIntent::Recalculate).accepted());let mut chart=book.host().charts(book.host().sheets()[0].id()).0[0].clone();
+        for series in &mut chart.plots[0].series{series.color="595959".into();series.explicit_color=true;}
+        chart.text_style=calc_host::chart::ChartTextStyle{family:Some("A & <Family>".into()),size:Some(1800),bold:Some(true),italic:Some(true),color:Some("FF0000".into())};
+        for position in ["r","l","t","b","tr"]{
+            chart.legend=Some(position.into());let svg=chart_svg(&chart,640.,360.);assert!(svg.contains("font-size=\"24.00\"")&&svg.contains("font-weight=\"700\"")&&svg.contains("font-style=\"italic\""));assert!(svg.contains("A &amp; &lt;Family&gt;"));
+            for tag in svg.split('<').filter(|t|t.contains("data-dnacalc=\"chart-mark\"")){assert!(tag.contains("fill=\"#595959\""),"{tag}");}
+            assert!(svg.split('<').filter(|t|t.starts_with("text ")).all(|t|!t.contains("fill=\"#595959\"")));
+            for tag in svg.split('<').filter(|t|t.starts_with("svg x=")){let height=tag.split("height=\"").nth(1).unwrap().split('"').next().unwrap().parse::<f64>().unwrap();assert!(height>=36.,"{tag}");}
+        }
+    }
+
+    #[cfg_attr(not(target_arch="wasm32"),test)]
+    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    fn reversed_category_combinations_align_each_series_at_the_same_category(){
+        use std::sync::Arc;use calc_host::{HostSession,MemorySource,OpenPolicy,HostOptions,SkinIntent,WorkbookCommand};
+        for kind in ["combo","combo-column-area","combo-line-column","combo-line-area","combo-area-column","combo-area-line"]{
+            let mut book=HostSession::open(Arc::new(MemorySource::new(include_bytes!("../../../crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx").to_vec())),&OpenPolicy::default(),HostOptions::default()).unwrap();assert!(book.dispatch(SkinIntent::Recalculate).accepted());let sheet=book.host().sheets()[0].id();
+            let area=calc_host::value::GridArea::new(calc_host::value::CellKey::new(sheet,1,1).unwrap(),calc_host::value::CellKey::new(sheet,7,3).unwrap()).unwrap();let command=WorkbookCommand::ChartCreate{revision:book.host().revision().get(),area,kind:kind.into(),rows:false,headers:true,categories:true};assert!(book.dispatch(SkinIntent::Command(command)).accepted());let chart=book.host().charts(sheet).0.pop().unwrap();let svg=chart_svg(&chart,640.,360.);
+            if kind=="combo-area-line"{let mut shared=chart.clone();shared.axes.truncate(2);shared.plots[1].axis_ids=shared.plots[0].axis_ids.clone();for axis in &mut shared.axes{if axis.kind=="valAx"{axis.cross_between=None;}}let svg=chart_svg(&shared,640.,360.);assert!(svg.contains("needs an Excel measurement"));assert!(!svg.contains("data-dnacalc=\"chart-mark\""));}
+
+            for point in 0..6 {
+                let positions=svg.split('<').filter(|tag|tag.contains("data-dnacalc=\"chart-mark\"")&&tag.contains(&format!("data-point=\"{point}\""))).map(|tag|{let attr=|key:&str|tag.split(&format!(" {key}=\"")).nth(1).unwrap().split('"').next().unwrap().parse::<f64>().unwrap();if tag.starts_with("rect "){attr("x")+attr("width")/2.}else{attr("cx")}}).collect::<Vec<_>>();assert_eq!(positions.len(),2,"{kind}: {svg}");assert!((positions[0]-positions[1]).abs()<0.11,"{kind}, point {point}: {positions:?}");
+            }
+        }
+        let book=HostSession::open(Arc::new(MemorySource::new(include_bytes!("../../../crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx").to_vec())),&OpenPolicy::default(),HostOptions::default()).unwrap();let sheet=book.host().sheets()[0].id();for index in [0,1]{let mut chart=book.host().charts(sheet).0[index].clone();for axis in &mut chart.axes{if axis.kind=="valAx"{axis.cross_between=Some("midCat".into());}}let svg=chart_svg(&chart,640.,360.);assert!(svg.contains("Midpoint category crossing"));assert!(!svg.contains("data-dnacalc=\"chart-mark\""));}
     }
 
     /// Native-only: the axis arithmetic and escaping, without a page.
