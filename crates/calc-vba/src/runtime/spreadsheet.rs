@@ -1027,6 +1027,7 @@ impl oxvba_symbol::TypeLibResolver for SpreadsheetTypes {
                 ("Calculate", 0),
                 ("CalculateFull", 0),
                 ("CalculateFullRebuild", 0),
+                ("ExecuteExcel4Macro", 1),
                 ("Run", 31),
                 ("MacroOptions", 11),
                 ("RegisterXLL", 1),

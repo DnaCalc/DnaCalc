@@ -113,6 +113,9 @@ pub struct HostState {
     pub(crate) async_records: calc_engine::AsyncReturns,
     pub(crate) last_calculation_completion: Option<calc_engine::CompletionReceipt>,
     pub(crate) pinned_calculations: std::rc::Rc<std::cell::Cell<usize>>,
+    /// Revokes owner-held continuations even when no cell calculation is active.
+    pub(crate) calculation_authority: u64,
+    pub(crate) current_facts: Option<Arc<crate::facts::HostFacts>>,
     pub(crate) functions: calc_fml::CallableTable,
     pub(crate) rtd_inputs: std::rc::Rc<crate::recalc::RtdSnapshot>,
     pub(crate) retired_rtd: std::collections::BTreeSet<calc_fml::UserInputKey>,
@@ -266,6 +269,8 @@ impl HostState {
             async_records: Default::default(),
             last_calculation_completion: None,
             pinned_calculations: Default::default(),
+            calculation_authority: 0,
+            current_facts: None,
             functions: calc_fml::CallableTable::new(),
             rtd_inputs: Default::default(),
             retired_rtd: Default::default(),

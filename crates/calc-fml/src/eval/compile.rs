@@ -39,9 +39,10 @@ use crate::reference::{
     BindError, BoundName, ExternalBookRef, ExternalOperand, FormulaAnchor, NameBindingProof,
     NameDefinition, NameScope, ReferenceCatalog, ReferenceNotation, ReferenceOperand, SheetTarget,
     TableLookup, bind_references, external_operand, qualified_call, qualified_name,
+    qualified_sheet_call,
 };
 use crate::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, SyntaxTree, TextSpan, Token, TokenKind};
-use calc_func::value::{CellKey, ExcelText, WorksheetErrorCode};
+use calc_func::value::{CellKey, ExcelText, SheetId, WorksheetErrorCode};
 use calc_func::{ArgumentDemand, FilePrefix, Notation, ParameterClass, catalogue};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -596,7 +597,9 @@ impl<'c> Lowering<'c> {
             }
             SyntaxKind::QualifiedReferenceExpr | SyntaxKind::SheetSpan3DReferenceExpr => {
                 if let Some((book, call)) = qualified_call(node) {
-                    return self.qualified_user_call(book, call, block, tasks);
+                    let sheet = qualified_sheet_call(node)
+                        .and_then(|(sheet, _)| self.catalog.sheet_named(&sheet));
+                    return self.qualified_user_call(book, call, sheet, span, block, tasks);
                 }
                 if !self.reference(node, block)? {
                     // dc-g9q: `[0]!Name`, a defined name qualified by the formula's own workbook,
@@ -1235,6 +1238,8 @@ impl<'c> Lowering<'c> {
         &mut self,
         book: ExternalBookRef,
         call: &'t SyntaxNode,
+        sheet: Option<SheetId>,
+        qualified_span: TextSpan,
         block: usize,
         tasks: &mut Vec<Task<'t>>,
     ) -> Result<(), CompileError> {
@@ -1244,6 +1249,10 @@ impl<'c> Lowering<'c> {
             .into_iter()
             .next()
             .ok_or(CompileError::Syntax { span })?;
+        // A name edit replaces the complete qualifier and callee, leaving its
+        // argument list in place. Recording only the token would duplicate the
+        // sheet qualifier when the existing rewrite supplies a qualified name.
+        let name_span = TextSpan::covering(qualified_span, name.span());
         let list = call
             .child_nodes()
             .next()
@@ -1257,7 +1266,14 @@ impl<'c> Lowering<'c> {
                     .is_some_and(|held| calc_func::value::workbook_names_equal(held, name)),
                 _ => false,
             };
-        let target = if own {
+        if sheet.is_some() && (own || self.catalog.external_function_target(&book).is_some()) {
+            return Err(unsupported(
+                span,
+                "a call qualifier naming both a sheet and a workbook provider",
+                "dc-hsa5.6",
+            ));
+        }
+        let target = if own || sheet.is_some() {
             None
         } else {
             Some(
@@ -1272,14 +1288,13 @@ impl<'c> Lowering<'c> {
                     })?,
             )
         };
-        if own {
-            match self.lookup_name(
-                name.text(),
-                NameScope::Formula(self.name_context.lookup_sheet()),
-                name.span(),
-            ) {
+        if own || sheet.is_some() {
+            let scope = sheet.map(NameScope::Sheet).unwrap_or_else(|| {
+                NameScope::Formula(self.name_context.lookup_sheet())
+            });
+            match self.lookup_name(name.text(), scope, name_span) {
                 NameDefinition::Formula(definition) => {
-                    let name_block = self.name_block(name.text(), &definition, name.span())?;
+                    let name_block = self.name_block(name.text(), &definition, name_span)?;
                     self.blocks[block].push(Instruction::Name(name_block));
                     tasks.push(Task::Emit {
                         block,
@@ -1300,8 +1315,15 @@ impl<'c> Lowering<'c> {
                 NameDefinition::NotModelled => {
                     return Err(unsupported(
                         span,
-                        "a workbook-qualified function name",
-                        "dc-snz.9",
+                        "a qualified function name",
+                        if sheet.is_some() { "dc-hsa5.6" } else { "dc-snz.9" },
+                    ));
+                }
+                NameDefinition::Unknown if sheet.is_some() => {
+                    return Err(unsupported(
+                        span,
+                        "a sheet-qualified callee without a defined name",
+                        "dc-hsa5.6",
                     ));
                 }
                 NameDefinition::Unknown => {}

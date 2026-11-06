@@ -1,0 +1,68 @@
+{
+  "action": "names",
+  "condition": {
+    "id": "eng19-P12-shadowed-explicit-evaluate",
+    "names": [
+      {
+        "name": "Choice",
+        "scope": "workbook",
+        "refers_to": "=40+2"
+      },
+      {
+        "name": "Choice",
+        "scope": "Sheet1",
+        "refers_to": "=99"
+      },
+      {
+        "name": "Alias",
+        "scope": "workbook",
+        "refers_to": "=Choice+1"
+      }
+    ],
+    "cells": {
+      "Sheet1!E1": {
+        "formula": "=Choice"
+      },
+      "Other!E1": {
+        "formula": "=Choice"
+      },
+      "Other!E2": {
+        "formula": "=Alias"
+      },
+      "Other!E3": {
+        "formula": "=Sheet1!Choice"
+      }
+    },
+    "question": "Record ordinary formula and explicit Worksheet.Evaluate/Application.Evaluate resolution with active cell on each sheet. Record selected Name identity and RefersToRange/Value outcomes separately: evaluating a selected definition body and evaluating its spelling are distinct operations.",
+    "expected": null,
+    "trial_count": 10,
+    "operations": [
+      "prepare two authored sheets named Sheet1 and Other in a fresh workbook",
+      "set constants, add names in listed order, record exact readbacks before writing formulas",
+      "record formula-assignment return and startup entries separately",
+      "verify Manual/iteration-off/MTC-off/events-off and typed seeds",
+      "perform CalculateFull then CalculateFullRebuild, retaining a typed snapshot after each",
+      "record explicit Evaluate calls only where requested, without replacing formula results",
+      "save/reopen only as a separately labelled observation; retain all failures"
+    ]
+  },
+  "trial": 1,
+  "observe_cells": [
+    {
+      "sheet": "Sheet1",
+      "address": "E1"
+    },
+    {
+      "sheet": "Other",
+      "address": "E1"
+    },
+    {
+      "sheet": "Other",
+      "address": "E2"
+    },
+    {
+      "sheet": "Other",
+      "address": "E3"
+    }
+  ]
+}
