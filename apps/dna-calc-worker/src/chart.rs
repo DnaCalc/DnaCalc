@@ -86,7 +86,7 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
                     .and_then(|s| s.categories.get(j).cloned().flatten())
                     .map(|v| text_of(&v))
                     .unwrap_or_else(|| (j + 1).to_string());
-                (name, chart.palette[j % chart.palette.len().max(1)].clone())
+                (name, if plot.vary_colors && !series.is_some_and(|s|s.explicit_color) {chart.palette[j % chart.palette.len().max(1)].clone()}else{series.map(|s|s.color.clone()).unwrap_or_default()})
             })
             .collect()
     } else {
@@ -97,20 +97,37 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
     let mut left=10.;let mut right=width-10.;let mut bottom=height-if cached{26.}else{10.};
     if chart.legend.is_some()&&!entries.is_empty(){
         let position=match chart.legend.as_deref(){Some("l")=>"l",Some("t")=>"t",Some("b")=>"b",Some("tr")=>"tr",_=>"r"};
-        let mut places=Vec::new();
-        if matches!(position,"t"|"b"){
-            let mut x=10.;let mut row=0usize;
-            for (name,_) in &entries{let size=(name.encode_utf16().count() as f64*6.5+22.).min((width-20.).max(1.));if x+size>width-10.&&x>10.{x=10.;row+=1;}places.push((x,row as f64*18.));x+=size;}
-            let reserve=(((row+1) as f64)*18.+6.).min((bottom-top).max(1.)*0.4);
-            let start=if position=="t"{let start=top+8.;top+=reserve;start}else{let start=bottom-reserve+8.;bottom-=reserve;start};
-            for (_,y) in &mut places{*y+=start;}
-        }else{
-            let legend_width=90f64.min(width*0.3);
-            let x=if position=="l"{left+=legend_width+6.;10.}else{right=width-legend_width-6.;right+8.};
-            let first=if position=="tr"{top}else{(height-entries.len() as f64*16.)/2.};
-            places.extend((0..entries.len()).map(|i|(x,first+i as f64*16.+8.)));
+        // Bound the legend before laying out the plot. Long labels are clipped in their own
+        // nested SVG, with the complete names retained in text and accessible descriptions.
+        let horizontal=matches!(position,"t"|"b");
+        let available_h=(bottom-top).max(1.);
+        let max_h=if horizontal{available_h*0.4}else{available_h};
+        let max_w=if horizontal{(width-20.).max(1.)}else{width*0.4};
+        let _=write!(svg,"<desc data-dnacalc=\"chart-legend-description\">Legend: {}</desc>",escape(&entries.iter().map(|(n,_)|n.as_str()).collect::<Vec<_>>().join("; ")));
+        if max_h>=18. && max_w>=24. {
+        let desired=entries.iter().map(|(n,_)|n.chars().count() as f64*6.5+22.).fold(80.,f64::max).min(160.);
+        let rows=(max_h/18.).floor().max(1.) as usize;
+        let max_columns=(max_w/80.).floor().max(1.) as usize;
+        let columns=if horizontal{((max_w/desired).floor().max(1.) as usize).max(entries.len().div_ceil(rows)).min(max_columns)}else{entries.len().div_ceil(rows).min(max_columns).max(1)};
+        let rows=entries.len().div_ceil(columns).min(rows).max(1);
+        let capacity=columns*rows;
+        let overflow=entries.len()>capacity;
+        let visible=entries.len().min(capacity.saturating_sub(usize::from(overflow)));
+        let slot=(if horizontal{max_w/columns as f64}else{desired.min(max_w/columns as f64)}).max(1.);
+        let legend_w=slot*columns as f64;
+        let legend_h=rows as f64*18.;
+        let x=match position{"l"=>{left+=legend_w+6.;10.},"t"|"b"=>10.,_=>{right=width-legend_w-6.;right+6.}};
+        let y=match position{"t"=>{let y=top;top+=legend_h+6.;y},"b"=>{bottom-=legend_h+6.;bottom+6.},"tr"=>top,_=>top+(available_h-legend_h).max(0.)/2.};
+        for (i,(name,color)) in entries.iter().take(visible).enumerate(){
+            let col=if horizontal{i%columns}else{i/rows};let row=if horizontal{i/columns}else{i%rows};
+            let (x,y)=(x+col as f64*slot,y+row as f64*18.);
+            let _=write!(svg,"<g data-dnacalc=\"chart-legend\" data-position=\"{position}\" aria-label=\"{}\"><svg x=\"{x:.1}\" y=\"{y:.1}\" width=\"{slot:.1}\" height=\"18\" overflow=\"hidden\"><rect x=\"0\" y=\"4\" width=\"7\" height=\"7\" fill=\"#{color}\"/><text x=\"11\" y=\"12\" fill=\"{AXIS}\">{}</text></svg></g>",escape(name),escape(name));
         }
-        for ((name,color),(x,y)) in entries.iter().zip(places){let _=write!(svg,"<g data-dnacalc=\"chart-legend\" data-position=\"{position}\"><rect x=\"{x:.1}\" y=\"{:.1}\" width=\"7\" height=\"7\" fill=\"#{color}\"/><text x=\"{:.1}\" y=\"{:.1}\" fill=\"{AXIS}\">{}</text></g>",y-6.,x+11.,y+1.,escape(name));}
+        if overflow{
+            let i=visible;let col=if horizontal{i%columns}else{i/rows};let row=if horizontal{i/columns}else{i%rows};
+            let _=write!(svg,"<svg x=\"{:.1}\" y=\"{:.1}\" width=\"{slot:.1}\" height=\"18\" overflow=\"hidden\"><text data-dnacalc=\"chart-legend-overflow\" x=\"0\" y=\"12\" fill=\"{AXIS}\">+{} entries</text></svg>",x+col as f64*slot,y+row as f64*18.,entries.len()-visible);
+        }
+        }
     }
     let area=Area{left,top,right,bottom};
     if chart.plots.len()>1{
@@ -446,7 +463,7 @@ fn pie_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: &Area) 
             continue;
         };
         let sweep = v / total * std::f64::consts::TAU;
-        let color = if plot.vary_colors {
+        let color = if plot.vary_colors && !series.explicit_color {
             chart.palette[j % chart.palette.len().max(1)].clone()
         } else {
             series.color.clone()
@@ -602,6 +619,26 @@ mod tests {
         let mut plots=std::collections::BTreeMap::new();
         for position in ["r","l","t","b","tr"]{assert!(book.dispatch(SkinIntent::Command(WorkbookCommand::ChartLegend{sheet,revision:book.host().revision().get(),part:chart.part.clone(),position:position.into()})).accepted());let svg=chart_svg(&book.host().charts(sheet).0[0],640.,360.);assert_eq!(svg.matches("data-dnacalc=\"chart-mark\"").count(),12);assert_eq!(svg.matches(&format!("data-position=\"{position}\"")).count(),2);let tag=svg.split('<').find(|t|t.contains("data-dnacalc=\"chart-plot\"")).unwrap();plots.insert(position,(attribute(tag,"x"),attribute(tag,"y"),attribute(tag,"width"),attribute(tag,"height")));}
         assert!(plots["l"].0>plots["r"].0);assert!(plots["t"].1>plots["b"].1);assert!(plots["t"].2>plots["r"].2);assert!(plots["b"].3<plots["r"].3);
+    }
+
+
+    #[cfg_attr(not(target_arch="wasm32"),test)]
+    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    fn crowded_legends_keep_labels_and_clip_every_visual_entry_to_the_frame(){
+        use std::sync::Arc;use calc_host::{HostSession,MemorySource,OpenPolicy,HostOptions,SkinIntent};
+        let mut book=HostSession::open(Arc::new(MemorySource::new(include_bytes!("../../../crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx").to_vec())),&OpenPolicy::default(),HostOptions::default()).unwrap();assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        let mut chart=book.host().charts(book.host().sheets()[0].id()).0[0].clone();let base=chart.plots[0].series[0].clone();
+        for (w,h,n) in [(640.,360.,25),(300.,180.,25),(200.,50.,25),(100.,60.,255)]{
+            chart.plots[0].series=(0..n).map(|i|{let mut s=base.clone();s.name=format!("Region {i}: a very long & unabridged series label");s}).collect();
+            for position in ["r","l","t","b","tr"]{
+                chart.legend=Some(position.into());let svg=chart_svg(&chart,w,h);assert!(svg.contains(&escape(&format!("Region {}: a very long & unabridged series label",n-1))));
+                for tag in svg.split('<').filter(|t|t.starts_with("svg x=")){
+                    let a=|name:&str|tag.split(&format!("{name}=\"")).nth(1).unwrap().split('"').next().unwrap().parse::<f64>().unwrap();
+                    let (x,y,width,height)=(a("x"),a("y"),a("width"),a("height"));assert!(x>=0.&&y>=0.&&x+width<=w+0.11&&y+height<=h+0.11,"{w}x{h} {position}: {tag}");
+                }
+                if w==640.{assert_eq!(svg.matches("data-dnacalc=\"chart-legend\"").count(),25);assert!(!svg.contains("chart-legend-overflow"));}
+            }
+        }
     }
 
     /// Native-only: the axis arithmetic and escaping, without a page.

@@ -14,6 +14,7 @@ use calc_doc_model::{Chart, ChartPlot, ChartSeries, ChartData, ModelRoot};
 const C: &str = "http://schemas.openxmlformats.org/drawingml/2006/chart";
 const A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
 mod create;
+mod colour;
 pub(crate) fn check_new_frames(package:&Package,source:&crate::load::LoadedSheet,charts:&[Chart])->Result<(),SaveRefusal>{
     create::add(package,source,charts,&mut Changes::default(),None)
 }
@@ -82,9 +83,10 @@ fn source_with_xml(
         if existing!=retained {return Err(invalid("Reordering chart series is not modelled (dc-971p.46)"));}
         for series in &new.series {
             if let Some(original)=old.series.iter().find(|s|s.index==series.index) {
-                let mut keep=series.clone();keep.name=original.name.clone();keep.categories=original.categories.clone();keep.values=original.values.clone();
+                let mut keep=series.clone();keep.name=original.name.clone();keep.categories=original.categories.clone();keep.values=original.values.clone();keep.fill=original.fill.clone();
                 if keep!=*original {return Err(invalid("Changing series formatting is not modelled (dc-971p.46)"));}
-            } else if series.fill.is_some() {return Err(invalid("New series formatting is not modelled (dc-971p.46)"));}
+            }
+            if series.fill!=old.series.iter().find(|s|s.index==series.index).and_then(|s|s.fill.clone()) && series.fill.as_ref().is_some_and(|s|s.len()!=6||!s.bytes().all(|b|b.is_ascii_hexdigit())){return Err(invalid("Use RGB series colours (dc-971p.58)"));}
         }
     }
     if before.axes.len()!=after.axes.len(){return Err(invalid("Creating or removing chart axes is not modelled (dc-971p.46)"));}
@@ -590,7 +592,9 @@ fn plot_series(xml:&XmlPart,reader:&mut Reader<'_>,root:(usize,usize),before:&Ch
     let mut added=Vec::new();
     for (order,s) in after.series.iter().enumerate().filter(|(_,s)|!before.series.iter().any(|o|o.index==s.index)) {
         added.extend_from_slice(format!("<c:ser xmlns:c=\"{C}\"><c:idx val=\"{}\"/><c:order val=\"{order}\"/>",s.index).as_bytes());
-        for (slot,data) in [("tx",s.name.as_ref()),(if after.kind=="scatterChart"{"xVal"}else{"cat"},s.categories.as_ref()),(if after.kind=="scatterChart"{"yVal"}else{"val"},s.values.as_ref())] {added.extend_from_slice(&data_xml(slot,data));}
+        added.extend(data_xml("tx",s.name.as_ref()));
+        if s.fill.is_some(){added.extend(colour::fresh(s.fill.as_deref()));}
+        for (slot,data) in [(if after.kind=="scatterChart"{"xVal"}else{"cat"},s.categories.as_ref()),(if after.kind=="scatterChart"{"yVal"}else{"val"},s.values.as_ref())] {added.extend_from_slice(&data_xml(slot,data));}
         added.extend_from_slice(b"</c:ser>");
     }
     if !added.is_empty(){let at=insert.ok_or_else(||reader.invalid("This plot has no series insertion point (dc-971p.46)"))?;patches.push(((at,at),added));}
@@ -615,15 +619,26 @@ fn data_xml(slot:&str,data:Option<&ChartData>)->Vec<u8>{
 fn series_source(xml:&XmlPart,reader:&mut Reader<'_>,span:(usize,usize),before:&ChartSeries,after:&ChartSeries,kind:&str,next_kind:&str,order:Option<usize>,patches:&mut Vec<Patch>)->Result<usize,SaveRefusal>{
     let mut children=Vec::new();
     let (close,end)=loop {match reader.expect()? {
-        (XmlEvent::Start(e),span)=>{let end=reader.element_end()?;children.push((e.name,(span.0,end)));},
+        (XmlEvent::Start(e),s)=>{
+            let end=if before.fill!=after.fill && e.name.is(C,"spPr") {
+                let (end,bytes)=colour::replace(xml,reader,s,after.fill.as_deref(),false)?;patches.push(((s.0,end),bytes));end
+            }else{reader.element_end()?};children.push((e.name,(s.0,end)));
+        },
         (XmlEvent::End(_),(close,end))=>break (close,end),_=>{}
     }};
     if let Some(order)=order {
         let order_span=children.iter().find(|(n,_)|n.is(C,"order")).ok_or_else(||reader.invalid("The chart series has no order (dc-971p.46)"))?.1;
         patches.push((order_span,format!("<c:order xmlns:c=\"{C}\" val=\"{order}\"/>").into_bytes()));
     }
+    if before.fill!=after.fill && children.iter().filter(|(n,_)|n.is(C,"spPr")).count()>1{return Err(reader.invalid("Duplicate series shape records (dc-971p.58)"));}
     let rank=|name:&str|match name {"idx"=>0,"order"=>1,"tx"=>2,"spPr"=>3,"cat"|"xVal"=>20,"val"|"yVal"=>21,"smooth"|"shape"|"extLst"=>30,_=>10};
     for (slot,old,new) in [("tx",&before.name,&after.name),(if kind=="scatterChart"{"xVal"}else{"cat"},&before.categories,&after.categories),(if kind=="scatterChart"{"yVal"}else{"val"},&before.values,&after.values)] {
+        if slot==if kind=="scatterChart"{"xVal"}else{"cat"} {
+    if before.fill!=after.fill && !children.iter().any(|(n,_)|n.is(C,"spPr")) {
+        let at=children.iter().find(|(n,_)|n.namespace.as_deref()==Some(C)&&!matches!(n.local.as_str(),"idx"|"order"|"tx")).map_or(close,|(_,s)|s.0);
+        patches.push(((at,at),colour::fresh(after.fill.as_deref())));
+    }
+        }
         if old==new {continue;}
         let found=children.iter().filter(|(n,_)|n.is(C,slot)).collect::<Vec<_>>();
         if found.len()>1 {return Err(reader.invalid("Duplicate chart series source fields (dc-971p.46)"));}
@@ -784,4 +799,20 @@ fn valid_log_axis(axis:&calc_doc_model::ChartAxis)->Result<(),&'static str>{
         if axis.kind!="valAx"||base.parse::<f64>().ok().is_none_or(|n|!n.is_finite()||!(2. ..=1000.).contains(&n)){return Err("Use a value axis and a logarithmic base from 2 to 1,000 (dc-971p.50)");}
         if [&axis.minimum,&axis.maximum].into_iter().flatten().any(|v|v.parse::<f64>().ok().is_none_or(|n|!n.is_finite()||n<=0.)){return Err("Logarithmic bounds must be positive finite numbers (dc-971p.50)");}
     }Ok(())
+}
+
+#[cfg(test)]
+mod colour_order_tests {
+ use super::*;
+ #[cfg_attr(not(target_arch="wasm32"),test)]
+ #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+ fn missing_name_and_shape_follow_series_schema_order(){
+  for body in ["<c:val><c:numLit/></c:val>",""] {
+   let xml=XmlPart::new("chart.xml".into(),format!(r#"<c:ser xmlns:c="{C}"><c:idx val="0"/><c:order val="0"/>{body}</c:ser>"#).into_bytes(),crate::xml::XmlLimits::default());
+   let before=ChartSeries::default();let mut after=before.clone();after.name=Some(ChartData{cache:vec![Some("Revenue".into())],..Default::default()});after.fill=Some("123ABC".into());after.categories=Some(ChartData{cache:vec![Some("East".into())],..Default::default()});
+   let mut reader=Reader::new(&xml);let (_,span)=reader.expect().unwrap();let mut patches=Vec::new();series_source(&xml,&mut reader,span,&before,&after,"barChart","barChart",None,&mut patches).unwrap();
+   patches.sort_by_key(|(span,_)|*span);let mut splice=Splice::new(xml.bytes());for ((start,end),bytes) in patches {splice.replace((start,end),&bytes);}
+   let text=String::from_utf8(splice.finish()).unwrap();assert!(text.find("<c:tx").unwrap()<text.find("<c:spPr").unwrap(),"{text}");assert!(text.find("<c:spPr").unwrap()<text.find("<c:cat").unwrap(),"{text}");
+  }
+ }
 }

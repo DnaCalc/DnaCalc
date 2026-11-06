@@ -1440,6 +1440,7 @@ impl Server {
             } => return self.notebook_order(placement, direction),
 
             Intent::ChartCreate{revision,area,kind,rows,headers,categories}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartCreate{revision,area:area.area().ok_or("Invalid chart selection")?,kind,rows,headers,categories}),
+            Intent::ChartSeriesStyle{sheet,revision,part,plot,series,fill}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartSeriesStyle{sheet:sheet.id(),revision,part,plot,series,fill}),
             Intent::ChartType{sheet,revision,part,plot,kind,stacked}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartType{sheet:sheet.id(),revision,part,plot,kind,stacked}),
             Intent::PageSetup {
                 sheet,
@@ -2936,7 +2937,7 @@ impl Server {
                 let plots=source.map(|chart|chart.plots.iter().enumerate().map(|(p,plot)|wire::ChartPlotSource {
                     kind:plot.kind.clone(),bar_direction:plot.bar_direction.clone(),grouping:plot.grouping.clone(),
                     series:plot.series.iter().enumerate().map(|(i,s)|wire::ChartSeriesSource {
-                        index:s.index,
+                        index:s.index,fill:s.fill.clone(),
                         label:view.plots.get(p).and_then(|p|p.series.get(i)).map(|s|s.name.clone()).unwrap_or_default(),
                         name:s.name.as_ref().map(|d|d.formula.as_ref().map(|f|format!("={f}")).unwrap_or_else(||d.cache.first().cloned().flatten().unwrap_or_default())).unwrap_or_default(),
                         categories:s.categories.as_ref().and_then(|d|d.formula.clone()),

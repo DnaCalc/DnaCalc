@@ -281,6 +281,7 @@ pub enum Intent {
         change: crate::printing::PageSetupChange,
     },
     ChartCreate {revision:u64,area:Area,kind:String,rows:bool,headers:bool,categories:bool},
+    ChartSeriesStyle {sheet:Sheet,revision:u64,part:String,plot:u32,series:u32,fill:Option<String>},
     ChartType {sheet:Sheet,revision:u64,part:String,plot:u32,kind:String,stacked:bool},
     ChartLegend {sheet:Sheet,revision:u64,part:String,position:String},
     ChartLogAxis {sheet:Sheet,revision:u64,part:String,axis:u32,base:Option<String>},
@@ -954,6 +955,7 @@ pub struct ChartPlotSource {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChartSeriesSource {
+    #[serde(default)] pub fill:Option<String>,
     pub index:u32,
     pub label:String,
     /// A literal name, or a cell reference prefixed by '='.
