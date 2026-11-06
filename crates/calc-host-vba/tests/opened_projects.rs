@@ -605,6 +605,7 @@ fn file_classes_share_one_session_and_declared_unsupported_members_stay_refused(
     );
     let expressions = [
         "Application.Version",
+        "Application.ExecuteExcel4Macro(\"1+1\")",
         "ThisWorkbook.Date1904",
         "Sheet1.Range(\"A1\")",
         "ThisWorkbook.Name",
@@ -827,6 +828,12 @@ fn events_off_admission_checks_each_source_identity_including_class_and_name_swa
 fn original_probe_families_compile_as_complete_events_off_projects() {
     let sources: &[(&str, &[u8])] = &[
         (
+            "P01",
+            include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P01/cold-app-01.xlsm"
+            ),
+        ),
+        (
             "P02",
             include_bytes!(
                 "../../calc-engine/tests/fixtures/excel-calc-probes/P02/auto-app-01.xlsm"
@@ -864,6 +871,12 @@ fn original_probe_families_compile_as_complete_events_off_projects() {
             "P09",
             include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P09/cse-01.xlsm"),
         ),
+        (
+            "P10",
+            include_bytes!(
+                "../../calc-engine/tests/fixtures/excel-calc-probes/P10/close-owner-01.xlsm"
+            ),
+        ),
     ];
     let mut failures = Vec::new();
     for (name, source) in sources {
@@ -883,38 +896,61 @@ fn original_probe_families_compile_as_complete_events_off_projects() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn remaining_original_source_compiler_gaps_stay_typed() {
-    for (source, diagnostic) in [
-        (
-            include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P01/cold-app-01.xlsm")
-                .as_slice(),
-            "invalid assignment: `Split` is not an assignable variable",
-        ),
-        (
-            include_bytes!(
-                "../../calc-engine/tests/fixtures/excel-calc-probes/P10/close-owner-01.xlsm"
-            )
+fn original_p01_p10_projects_keep_all_source_after_admission_and_save() {
+    for source in [
+        include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P01/cold-app-01.xlsm")
             .as_slice(),
-            "Sub or Function not defined",
-        ),
+        include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P10/close-owner-01.xlsm")
+            .as_slice(),
     ] {
-        let session = opened(source, "probe.xlsm");
-        let error = calc_host_vba::prepare_file_project_with_events(
+        let mut session = opened(source, "probe.xlsm");
+        session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
+        session.set_workbook_events_enabled(false);
+        let original = session.host().loaded()
+            .read_vba_project(&Default::default()).unwrap().unwrap();
+        let owner = calc_host_vba::prepare_file_project_with_events(
             session.host(),
             "probe.xlsm",
             100_000,
             Some(calc_vba::Backend::Interpreter),
             false,
         )
-        .err()
-        .expect("remaining compiler gap refuses the whole original project");
-        assert!(matches!(
-            error,
-            calc_host_vba::FileProjectError::Preparation(_)
-        ));
-        assert!(error.to_string().contains("compile:"), "{error}");
-        assert!(error.to_string().contains(diagnostic), "{error}");
+        .expect("temporary-array bounds and Input$ admit the complete original project")
+        .unwrap();
+        owner.install(&mut session);
+        let mut saved = Vec::new();
+        session.save(&Default::default(), &mut saved).unwrap();
+        let reopened = opened(&saved, "probe.xlsm");
+        assert_eq!(original, reopened.host().loaded()
+            .read_vba_project(&Default::default()).unwrap().unwrap());
     }
+}
+
+/// RunCase assigned observedSheet in the Excel capture. Fresh file admission
+/// must not restore that object from saved formula caches.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn original_p01_fresh_observer_keeps_its_uninitialized_object_error() {
+    use calc_value::{CalcValue, WorksheetErrorCode};
+    let bytes = include_bytes!(
+        "../../calc-engine/tests/fixtures/excel-calc-probes/P01/cold-app-01.xlsm"
+    );
+    let mut session = opened(bytes, "probe.xlsm");
+    session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
+    session.set_workbook_events_enabled(false);
+    let owner = calc_host_vba::prepare_file_project_with_events(
+        session.host(), "probe.xlsm", 100_000, Some(calc_vba::Backend::Interpreter), false,
+    ).unwrap().unwrap();
+    let caller = calc_value::CellKey::new(session.host().sheets()[0].id(), 1, 3).unwrap();
+    let error = owner.functions().call_with_context("PeekB1", &[], &mut CallerOnlyContext(caller))
+        .expect_err("the fresh project's observedSheet is Nothing");
+    assert!(error.contains("VBA error 91:"), "{error}");
+    owner.install(&mut session);
+    enter(&mut session, 2, 11, "=IFERROR(PeekB1(),777)");
+    full(&mut session);
+    assert_eq!(value(&session, 1, 3), CalcValue::error(WorksheetErrorCode::Value));
+    assert_eq!(value(&session, 2, 11), CalcValue::number(777.));
+    assert!(session.take_workbook_event_failures().failures.is_empty());
 }
 
 /// The saved value reflects RunCase's initialized logger state; a fresh project

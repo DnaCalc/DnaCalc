@@ -1,0 +1,4042 @@
+{
+  "trial": 1,
+  "fatal": null,
+  "condition": {
+    "id": "eng19-P12-shadowed-explicit-evaluate",
+    "names": [
+      {
+        "name": "Choice",
+        "scope": "workbook",
+        "refers_to": "=40+2"
+      },
+      {
+        "name": "Choice",
+        "scope": "Sheet1",
+        "refers_to": "=99"
+      },
+      {
+        "name": "Alias",
+        "scope": "workbook",
+        "refers_to": "=Choice+1"
+      }
+    ],
+    "cells": {
+      "Sheet1!E1": {
+        "formula": "=Choice"
+      },
+      "Other!E1": {
+        "formula": "=Choice"
+      },
+      "Other!E2": {
+        "formula": "=Alias"
+      },
+      "Other!E3": {
+        "formula": "=Sheet1!Choice"
+      }
+    },
+    "question": "Record ordinary formula and explicit Worksheet.Evaluate/Application.Evaluate resolution with active cell on each sheet. Record selected Name identity and RefersToRange/Value outcomes separately: evaluating a selected definition body and evaluating its spelling are distinct operations.",
+    "expected": null,
+    "trial_count": 10,
+    "operations": [
+      "prepare two authored sheets named Sheet1 and Other in a fresh workbook",
+      "set constants, add names in listed order, record exact readbacks before writing formulas",
+      "record formula-assignment return and startup entries separately",
+      "verify Manual/iteration-off/MTC-off/events-off and typed seeds",
+      "perform CalculateFull then CalculateFullRebuild, retaining a typed snapshot after each",
+      "record explicit Evaluate calls only where requested, without replacing formula results",
+      "save/reopen only as a separately labelled observation; retain all failures"
+    ]
+  },
+  "observations": [
+    {
+      "stage": "constants-before-names",
+      "utc": "2026-11-06T13:16:26.9522171Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": false,
+        "Iteration": false,
+        "MaxIterations": 100.0,
+        "MaxChange": "3f50624dd2f1a9fc",
+        "EnableEvents": false,
+        "CalculationState": 0,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "Sheet1",
+      "cells": [
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Sheet1",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 2,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "",
+        "name": "Sheet1",
+        "saved": false
+      },
+      "names": []
+    },
+    {
+      "actual_name": "Choice",
+      "requested_scope": "workbook",
+      "requested_refers_to": "=40+2",
+      "actual_refers_to": "=40+2",
+      "operation": "Names.Add",
+      "requested_name": "Choice"
+    },
+    {
+      "stage": "after-name-workbook-Choice",
+      "utc": "2026-11-06T13:16:27.0711930Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": false,
+        "Iteration": false,
+        "MaxIterations": 100.0,
+        "MaxChange": "3f50624dd2f1a9fc",
+        "EnableEvents": false,
+        "CalculationState": 0,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "Sheet1",
+      "cells": [
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Sheet1",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 2,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "",
+        "name": "Sheet1",
+        "saved": false
+      },
+      "names": [
+        {
+          "RefersToR1C1": {
+            "value": "=40+2"
+          },
+          "RefersTo": {
+            "value": "=40+2"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=40+2"
+          },
+          "Name": {
+            "value": "Choice"
+          }
+        }
+      ]
+    },
+    {
+      "actual_name": "Sheet1!Choice",
+      "requested_scope": "Sheet1",
+      "requested_refers_to": "=99",
+      "actual_refers_to": "=99",
+      "operation": "Names.Add",
+      "requested_name": "Choice"
+    },
+    {
+      "stage": "after-name-Sheet1-Choice",
+      "utc": "2026-11-06T13:16:27.1665980Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": false,
+        "Iteration": false,
+        "MaxIterations": 100.0,
+        "MaxChange": "3f50624dd2f1a9fc",
+        "EnableEvents": false,
+        "CalculationState": 0,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "Sheet1",
+      "cells": [
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Sheet1",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 2,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "",
+        "name": "Sheet1",
+        "saved": false
+      },
+      "names": [
+        {
+          "RefersToR1C1": {
+            "value": "=99"
+          },
+          "RefersTo": {
+            "value": "=99"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=99"
+          },
+          "Name": {
+            "value": "Sheet1!Choice"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=40+2"
+          },
+          "RefersTo": {
+            "value": "=40+2"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=40+2"
+          },
+          "Name": {
+            "value": "Choice"
+          }
+        }
+      ]
+    },
+    {
+      "actual_name": "Alias",
+      "requested_scope": "workbook",
+      "requested_refers_to": "=Choice+1",
+      "actual_refers_to": "=Sheet1!Choice+1",
+      "operation": "Names.Add",
+      "requested_name": "Alias"
+    },
+    {
+      "stage": "after-name-workbook-Alias",
+      "utc": "2026-11-06T13:16:27.2905960Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": false,
+        "Iteration": false,
+        "MaxIterations": 100.0,
+        "MaxChange": "3f50624dd2f1a9fc",
+        "EnableEvents": false,
+        "CalculationState": 0,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "Sheet1",
+      "cells": [
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Sheet1",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 2,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "",
+        "name": "Sheet1",
+        "saved": false
+      },
+      "names": [
+        {
+          "RefersToR1C1": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersTo": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "Name": {
+            "value": "Alias"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=99"
+          },
+          "RefersTo": {
+            "value": "=99"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=99"
+          },
+          "Name": {
+            "value": "Sheet1!Choice"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=40+2"
+          },
+          "RefersTo": {
+            "value": "=40+2"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=40+2"
+          },
+          "Name": {
+            "value": "Choice"
+          }
+        }
+      ]
+    },
+    {
+      "stage": "before-entry-Sheet1!E1",
+      "utc": "2026-11-06T13:16:27.3853910Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": false,
+        "Iteration": false,
+        "MaxIterations": 100.0,
+        "MaxChange": "3f50624dd2f1a9fc",
+        "EnableEvents": false,
+        "CalculationState": 0,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "Sheet1",
+      "cells": [
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Sheet1",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 2,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "",
+        "name": "Sheet1",
+        "saved": false
+      },
+      "names": [
+        {
+          "RefersToR1C1": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersTo": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "Name": {
+            "value": "Alias"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=99"
+          },
+          "RefersTo": {
+            "value": "=99"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=99"
+          },
+          "Name": {
+            "value": "Sheet1!Choice"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=40+2"
+          },
+          "RefersTo": {
+            "value": "=40+2"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=40+2"
+          },
+          "Name": {
+            "value": "Choice"
+          }
+        }
+      ]
+    },
+    {
+      "authored": "=Choice",
+      "success": true,
+      "operation": "formula-entry",
+      "caller": "Sheet1!E1"
+    },
+    {
+      "stage": "after-entry-Sheet1!E1",
+      "utc": "2026-11-06T13:16:27.5080797Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": false,
+        "Iteration": false,
+        "MaxIterations": 100.0,
+        "MaxChange": "3f50624dd2f1a9fc",
+        "EnableEvents": false,
+        "CalculationState": 2,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "Sheet1",
+      "cells": [
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "99",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Sheet1",
+          "value": {
+            "number": "4058c00000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 2,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "",
+        "name": "Sheet1",
+        "saved": false
+      },
+      "names": [
+        {
+          "RefersToR1C1": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersTo": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "Name": {
+            "value": "Alias"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=99"
+          },
+          "RefersTo": {
+            "value": "=99"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=99"
+          },
+          "Name": {
+            "value": "Sheet1!Choice"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=40+2"
+          },
+          "RefersTo": {
+            "value": "=40+2"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=40+2"
+          },
+          "Name": {
+            "value": "Choice"
+          }
+        }
+      ]
+    },
+    {
+      "stage": "before-entry-Other!E1",
+      "utc": "2026-11-06T13:16:27.6184115Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": false,
+        "Iteration": false,
+        "MaxIterations": 100.0,
+        "MaxChange": "3f50624dd2f1a9fc",
+        "EnableEvents": false,
+        "CalculationState": 2,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "Sheet1",
+      "cells": [
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "99",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Sheet1",
+          "value": {
+            "number": "4058c00000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 2,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "",
+        "name": "Sheet1",
+        "saved": false
+      },
+      "names": [
+        {
+          "RefersToR1C1": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersTo": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "Name": {
+            "value": "Alias"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=99"
+          },
+          "RefersTo": {
+            "value": "=99"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=99"
+          },
+          "Name": {
+            "value": "Sheet1!Choice"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=40+2"
+          },
+          "RefersTo": {
+            "value": "=40+2"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=40+2"
+          },
+          "Name": {
+            "value": "Choice"
+          }
+        }
+      ]
+    },
+    {
+      "authored": "=Choice",
+      "success": true,
+      "operation": "formula-entry",
+      "caller": "Other!E1"
+    },
+    {
+      "stage": "after-entry-Other!E1",
+      "utc": "2026-11-06T13:16:27.7924603Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": false,
+        "Iteration": false,
+        "MaxIterations": 100.0,
+        "MaxChange": "3f50624dd2f1a9fc",
+        "EnableEvents": false,
+        "CalculationState": 2,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "Sheet1",
+      "cells": [
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "99",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Sheet1",
+          "value": {
+            "number": "4058c00000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "42",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": true
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4045000000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 2,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "",
+        "name": "Sheet1",
+        "saved": false
+      },
+      "names": [
+        {
+          "RefersToR1C1": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersTo": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "Name": {
+            "value": "Alias"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=99"
+          },
+          "RefersTo": {
+            "value": "=99"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=99"
+          },
+          "Name": {
+            "value": "Sheet1!Choice"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=40+2"
+          },
+          "RefersTo": {
+            "value": "=40+2"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=40+2"
+          },
+          "Name": {
+            "value": "Choice"
+          }
+        }
+      ]
+    },
+    {
+      "stage": "before-entry-Other!E2",
+      "utc": "2026-11-06T13:16:27.9552578Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": false,
+        "Iteration": false,
+        "MaxIterations": 100.0,
+        "MaxChange": "3f50624dd2f1a9fc",
+        "EnableEvents": false,
+        "CalculationState": 2,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "Sheet1",
+      "cells": [
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "99",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Sheet1",
+          "value": {
+            "number": "4058c00000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "42",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": true
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4045000000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 2,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "",
+        "name": "Sheet1",
+        "saved": false
+      },
+      "names": [
+        {
+          "RefersToR1C1": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersTo": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "Name": {
+            "value": "Alias"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=99"
+          },
+          "RefersTo": {
+            "value": "=99"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=99"
+          },
+          "Name": {
+            "value": "Sheet1!Choice"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=40+2"
+          },
+          "RefersTo": {
+            "value": "=40+2"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=40+2"
+          },
+          "Name": {
+            "value": "Choice"
+          }
+        }
+      ]
+    },
+    {
+      "authored": "=Alias",
+      "success": true,
+      "operation": "formula-entry",
+      "caller": "Other!E2"
+    },
+    {
+      "stage": "after-entry-Other!E2",
+      "utc": "2026-11-06T13:16:28.0782614Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": false,
+        "Iteration": false,
+        "MaxIterations": 100.0,
+        "MaxChange": "3f50624dd2f1a9fc",
+        "EnableEvents": false,
+        "CalculationState": 2,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "Sheet1",
+      "cells": [
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "99",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Sheet1",
+          "value": {
+            "number": "4058c00000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "42",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": true
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4045000000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "100",
+          "column": 5,
+          "row": 2,
+          "metadata": {
+            "Formula": {
+              "value": "003d0041006c006900610073"
+            },
+            "Formula2": {
+              "value": "003d0041006c006900610073"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": true
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4059000000000000"
+          },
+          "formula": "=Alias"
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "",
+        "name": "Sheet1",
+        "saved": false
+      },
+      "names": [
+        {
+          "RefersToR1C1": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersTo": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "Name": {
+            "value": "Alias"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=99"
+          },
+          "RefersTo": {
+            "value": "=99"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=99"
+          },
+          "Name": {
+            "value": "Sheet1!Choice"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=40+2"
+          },
+          "RefersTo": {
+            "value": "=40+2"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=40+2"
+          },
+          "Name": {
+            "value": "Choice"
+          }
+        }
+      ]
+    },
+    {
+      "stage": "before-entry-Other!E3",
+      "utc": "2026-11-06T13:16:28.2252905Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": false,
+        "Iteration": false,
+        "MaxIterations": 100.0,
+        "MaxChange": "3f50624dd2f1a9fc",
+        "EnableEvents": false,
+        "CalculationState": 2,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "Sheet1",
+      "cells": [
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "99",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Sheet1",
+          "value": {
+            "number": "4058c00000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "42",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": true
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4045000000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "100",
+          "column": 5,
+          "row": 2,
+          "metadata": {
+            "Formula": {
+              "value": "003d0041006c006900610073"
+            },
+            "Formula2": {
+              "value": "003d0041006c006900610073"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": true
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4059000000000000"
+          },
+          "formula": "=Alias"
+        },
+        {
+          "value2_runtime_type": null,
+          "display_text": "",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": ""
+            },
+            "Formula2": {
+              "value": ""
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "empty": true
+          },
+          "formula": ""
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "",
+        "name": "Sheet1",
+        "saved": false
+      },
+      "names": [
+        {
+          "RefersToR1C1": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersTo": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "Name": {
+            "value": "Alias"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=99"
+          },
+          "RefersTo": {
+            "value": "=99"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=99"
+          },
+          "Name": {
+            "value": "Sheet1!Choice"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=40+2"
+          },
+          "RefersTo": {
+            "value": "=40+2"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=40+2"
+          },
+          "Name": {
+            "value": "Choice"
+          }
+        }
+      ]
+    },
+    {
+      "authored": "=Sheet1!Choice",
+      "success": true,
+      "operation": "formula-entry",
+      "caller": "Other!E3"
+    },
+    {
+      "stage": "after-entry-Other!E3",
+      "utc": "2026-11-06T13:16:28.3514022Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": false,
+        "Iteration": false,
+        "MaxIterations": 100.0,
+        "MaxChange": "3f50624dd2f1a9fc",
+        "EnableEvents": false,
+        "CalculationState": 2,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "Sheet1",
+      "cells": [
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "99",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Sheet1",
+          "value": {
+            "number": "4058c00000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "42",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": true
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4045000000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "100",
+          "column": 5,
+          "row": 2,
+          "metadata": {
+            "Formula": {
+              "value": "003d0041006c006900610073"
+            },
+            "Formula2": {
+              "value": "003d0041006c006900610073"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": true
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4059000000000000"
+          },
+          "formula": "=Alias"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "99",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d005300680065006500740031002100430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d005300680065006500740031002100430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4058c00000000000"
+          },
+          "formula": "=Sheet1!Choice"
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "",
+        "name": "Sheet1",
+        "saved": false
+      },
+      "names": [
+        {
+          "RefersToR1C1": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersTo": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "Name": {
+            "value": "Alias"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=99"
+          },
+          "RefersTo": {
+            "value": "=99"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=99"
+          },
+          "Name": {
+            "value": "Sheet1!Choice"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=40+2"
+          },
+          "RefersTo": {
+            "value": "=40+2"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=40+2"
+          },
+          "Name": {
+            "value": "Choice"
+          }
+        }
+      ]
+    },
+    {
+      "stage": "before-CalculateFull",
+      "utc": "2026-11-06T13:16:28.4829054Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": false,
+        "Iteration": false,
+        "MaxIterations": 100.0,
+        "MaxChange": "3f50624dd2f1a9fc",
+        "EnableEvents": false,
+        "CalculationState": 2,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "Sheet1",
+      "cells": [
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "99",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Sheet1",
+          "value": {
+            "number": "4058c00000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "42",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": true
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4045000000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "100",
+          "column": 5,
+          "row": 2,
+          "metadata": {
+            "Formula": {
+              "value": "003d0041006c006900610073"
+            },
+            "Formula2": {
+              "value": "003d0041006c006900610073"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": true
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4059000000000000"
+          },
+          "formula": "=Alias"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "99",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d005300680065006500740031002100430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d005300680065006500740031002100430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4058c00000000000"
+          },
+          "formula": "=Sheet1!Choice"
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "",
+        "name": "Sheet1",
+        "saved": false
+      },
+      "names": [
+        {
+          "RefersToR1C1": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersTo": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "Name": {
+            "value": "Alias"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=99"
+          },
+          "RefersTo": {
+            "value": "=99"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=99"
+          },
+          "Name": {
+            "value": "Sheet1!Choice"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=40+2"
+          },
+          "RefersTo": {
+            "value": "=40+2"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=40+2"
+          },
+          "Name": {
+            "value": "Choice"
+          }
+        }
+      ]
+    },
+    {
+      "stage": "after-CalculateFull",
+      "utc": "2026-11-06T13:16:28.6815420Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": false,
+        "Iteration": false,
+        "MaxIterations": 100.0,
+        "MaxChange": "3f50624dd2f1a9fc",
+        "EnableEvents": false,
+        "CalculationState": 0,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "Sheet1",
+      "cells": [
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "99",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Sheet1",
+          "value": {
+            "number": "4058c00000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "42",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": true
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4045000000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "100",
+          "column": 5,
+          "row": 2,
+          "metadata": {
+            "Formula": {
+              "value": "003d0041006c006900610073"
+            },
+            "Formula2": {
+              "value": "003d0041006c006900610073"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": true
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4059000000000000"
+          },
+          "formula": "=Alias"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "99",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d005300680065006500740031002100430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d005300680065006500740031002100430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4058c00000000000"
+          },
+          "formula": "=Sheet1!Choice"
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "",
+        "name": "Sheet1",
+        "saved": false
+      },
+      "names": [
+        {
+          "RefersToR1C1": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersTo": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "Name": {
+            "value": "Alias"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=99"
+          },
+          "RefersTo": {
+            "value": "=99"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=99"
+          },
+          "Name": {
+            "value": "Sheet1!Choice"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=40+2"
+          },
+          "RefersTo": {
+            "value": "=40+2"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=40+2"
+          },
+          "Name": {
+            "value": "Choice"
+          }
+        }
+      ]
+    },
+    {
+      "stage": "after-CalculateFullRebuild",
+      "utc": "2026-11-06T13:16:28.7941486Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": false,
+        "Iteration": false,
+        "MaxIterations": 100.0,
+        "MaxChange": "3f50624dd2f1a9fc",
+        "EnableEvents": false,
+        "CalculationState": 0,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "Sheet1",
+      "cells": [
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "99",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Sheet1",
+          "value": {
+            "number": "4058c00000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "42",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": true
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4045000000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "100",
+          "column": 5,
+          "row": 2,
+          "metadata": {
+            "Formula": {
+              "value": "003d0041006c006900610073"
+            },
+            "Formula2": {
+              "value": "003d0041006c006900610073"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": true
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4059000000000000"
+          },
+          "formula": "=Alias"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "99",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d005300680065006500740031002100430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d005300680065006500740031002100430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4058c00000000000"
+          },
+          "formula": "=Sheet1!Choice"
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "",
+        "name": "Sheet1",
+        "saved": false
+      },
+      "names": [
+        {
+          "RefersToR1C1": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersTo": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "Name": {
+            "value": "Alias"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=99"
+          },
+          "RefersTo": {
+            "value": "=99"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=99"
+          },
+          "Name": {
+            "value": "Sheet1!Choice"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=40+2"
+          },
+          "RefersTo": {
+            "value": "=40+2"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=40+2"
+          },
+          "Name": {
+            "value": "Choice"
+          }
+        }
+      ]
+    },
+    {
+      "stage": "evaluate-context-Sheet1",
+      "utc": "2026-11-06T13:16:28.8967395Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": false,
+        "Iteration": false,
+        "MaxIterations": 100.0,
+        "MaxChange": "3f50624dd2f1a9fc",
+        "EnableEvents": false,
+        "CalculationState": 0,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "Sheet1",
+      "cells": [
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "99",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Sheet1",
+          "value": {
+            "number": "4058c00000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "42",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": true
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4045000000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "100",
+          "column": 5,
+          "row": 2,
+          "metadata": {
+            "Formula": {
+              "value": "003d0041006c006900610073"
+            },
+            "Formula2": {
+              "value": "003d0041006c006900610073"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": true
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4059000000000000"
+          },
+          "formula": "=Alias"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "99",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d005300680065006500740031002100430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d005300680065006500740031002100430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4058c00000000000"
+          },
+          "formula": "=Sheet1!Choice"
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "",
+        "name": "Sheet1",
+        "saved": false
+      },
+      "names": [
+        {
+          "RefersToR1C1": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersTo": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "Name": {
+            "value": "Alias"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=99"
+          },
+          "RefersTo": {
+            "value": "=99"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=99"
+          },
+          "Name": {
+            "value": "Sheet1!Choice"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=40+2"
+          },
+          "RefersTo": {
+            "value": "=40+2"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=40+2"
+          },
+          "Name": {
+            "value": "Choice"
+          }
+        }
+      ]
+    },
+    {
+      "operation": "Evaluate",
+      "selected_refers_to": null,
+      "runtime_type": "System.Double",
+      "expression": "=Choice",
+      "target": "Worksheet",
+      "sheet": "Sheet1",
+      "value": {
+        "number": "4058c00000000000"
+      },
+      "selected_name": null
+    },
+    {
+      "operation": "Evaluate",
+      "selected_refers_to": null,
+      "runtime_type": "System.Double",
+      "expression": "=Choice",
+      "target": "Application",
+      "sheet": "Sheet1",
+      "value": {
+        "number": "4058c00000000000"
+      },
+      "selected_name": null
+    },
+    {
+      "operation": "Evaluate",
+      "selected_refers_to": null,
+      "runtime_type": "System.Double",
+      "expression": "=Alias",
+      "target": "Worksheet",
+      "sheet": "Sheet1",
+      "value": {
+        "number": "4059000000000000"
+      },
+      "selected_name": null
+    },
+    {
+      "operation": "Evaluate",
+      "selected_refers_to": null,
+      "runtime_type": "System.Double",
+      "expression": "=Alias",
+      "target": "Application",
+      "sheet": "Sheet1",
+      "value": {
+        "number": "4059000000000000"
+      },
+      "selected_name": null
+    },
+    {
+      "operation": "Evaluate",
+      "selected_refers_to": null,
+      "runtime_type": "System.Double",
+      "expression": "=Sheet1!Choice",
+      "target": "Worksheet",
+      "sheet": "Sheet1",
+      "value": {
+        "number": "4058c00000000000"
+      },
+      "selected_name": null
+    },
+    {
+      "operation": "Evaluate",
+      "selected_refers_to": null,
+      "runtime_type": "System.Double",
+      "expression": "=Sheet1!Choice",
+      "target": "Application",
+      "sheet": "Sheet1",
+      "value": {
+        "number": "4058c00000000000"
+      },
+      "selected_name": null
+    },
+    {
+      "operation": "Evaluate",
+      "selected_refers_to": "=Sheet1!Choice+1",
+      "runtime_type": "System.Double",
+      "expression": "=Sheet1!Choice+1",
+      "target": "Worksheet",
+      "sheet": "Sheet1",
+      "value": {
+        "number": "4059000000000000"
+      },
+      "selected_name": "Alias"
+    },
+    {
+      "operation": "Evaluate",
+      "selected_refers_to": "=Sheet1!Choice+1",
+      "runtime_type": "System.Double",
+      "expression": "=Sheet1!Choice+1",
+      "target": "Application",
+      "sheet": "Sheet1",
+      "value": {
+        "number": "4059000000000000"
+      },
+      "selected_name": "Alias"
+    },
+    {
+      "operation": "Evaluate",
+      "selected_refers_to": "=99",
+      "runtime_type": "System.Double",
+      "expression": "=99",
+      "target": "Worksheet",
+      "sheet": "Sheet1",
+      "value": {
+        "number": "4058c00000000000"
+      },
+      "selected_name": "Sheet1!Choice"
+    },
+    {
+      "operation": "Evaluate",
+      "selected_refers_to": "=99",
+      "runtime_type": "System.Double",
+      "expression": "=99",
+      "target": "Application",
+      "sheet": "Sheet1",
+      "value": {
+        "number": "4058c00000000000"
+      },
+      "selected_name": "Sheet1!Choice"
+    },
+    {
+      "operation": "Evaluate",
+      "selected_refers_to": "=40+2",
+      "runtime_type": "System.Double",
+      "expression": "=40+2",
+      "target": "Worksheet",
+      "sheet": "Sheet1",
+      "value": {
+        "number": "4045000000000000"
+      },
+      "selected_name": "Choice"
+    },
+    {
+      "operation": "Evaluate",
+      "selected_refers_to": "=40+2",
+      "runtime_type": "System.Double",
+      "expression": "=40+2",
+      "target": "Application",
+      "sheet": "Sheet1",
+      "value": {
+        "number": "4045000000000000"
+      },
+      "selected_name": "Choice"
+    },
+    {
+      "stage": "evaluate-context-Other",
+      "utc": "2026-11-06T13:16:29.0481355Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": false,
+        "Iteration": false,
+        "MaxIterations": 100.0,
+        "MaxChange": "3f50624dd2f1a9fc",
+        "EnableEvents": false,
+        "CalculationState": 0,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "Other",
+      "cells": [
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "99",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Sheet1",
+          "value": {
+            "number": "4058c00000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "42",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": true
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4045000000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "100",
+          "column": 5,
+          "row": 2,
+          "metadata": {
+            "Formula": {
+              "value": "003d0041006c006900610073"
+            },
+            "Formula2": {
+              "value": "003d0041006c006900610073"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": true
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4059000000000000"
+          },
+          "formula": "=Alias"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "99",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d005300680065006500740031002100430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d005300680065006500740031002100430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4058c00000000000"
+          },
+          "formula": "=Sheet1!Choice"
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "",
+        "name": "Sheet1",
+        "saved": false
+      },
+      "names": [
+        {
+          "RefersToR1C1": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersTo": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "Name": {
+            "value": "Alias"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=99"
+          },
+          "RefersTo": {
+            "value": "=99"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=99"
+          },
+          "Name": {
+            "value": "Sheet1!Choice"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=40+2"
+          },
+          "RefersTo": {
+            "value": "=40+2"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=40+2"
+          },
+          "Name": {
+            "value": "Choice"
+          }
+        }
+      ]
+    },
+    {
+      "operation": "Evaluate",
+      "selected_refers_to": null,
+      "runtime_type": "System.Double",
+      "expression": "=Choice",
+      "target": "Worksheet",
+      "sheet": "Other",
+      "value": {
+        "number": "4045000000000000"
+      },
+      "selected_name": null
+    },
+    {
+      "operation": "Evaluate",
+      "selected_refers_to": null,
+      "runtime_type": "System.Double",
+      "expression": "=Choice",
+      "target": "Application",
+      "sheet": "Other",
+      "value": {
+        "number": "4045000000000000"
+      },
+      "selected_name": null
+    },
+    {
+      "operation": "Evaluate",
+      "selected_refers_to": null,
+      "runtime_type": "System.Double",
+      "expression": "=Alias",
+      "target": "Worksheet",
+      "sheet": "Other",
+      "value": {
+        "number": "4059000000000000"
+      },
+      "selected_name": null
+    },
+    {
+      "operation": "Evaluate",
+      "selected_refers_to": null,
+      "runtime_type": "System.Double",
+      "expression": "=Alias",
+      "target": "Application",
+      "sheet": "Other",
+      "value": {
+        "number": "4059000000000000"
+      },
+      "selected_name": null
+    },
+    {
+      "operation": "Evaluate",
+      "selected_refers_to": null,
+      "runtime_type": "System.Double",
+      "expression": "=Sheet1!Choice",
+      "target": "Worksheet",
+      "sheet": "Other",
+      "value": {
+        "number": "4058c00000000000"
+      },
+      "selected_name": null
+    },
+    {
+      "operation": "Evaluate",
+      "selected_refers_to": null,
+      "runtime_type": "System.Double",
+      "expression": "=Sheet1!Choice",
+      "target": "Application",
+      "sheet": "Other",
+      "value": {
+        "number": "4058c00000000000"
+      },
+      "selected_name": null
+    },
+    {
+      "operation": "Evaluate",
+      "selected_refers_to": "=Sheet1!Choice+1",
+      "runtime_type": "System.Double",
+      "expression": "=Sheet1!Choice+1",
+      "target": "Worksheet",
+      "sheet": "Other",
+      "value": {
+        "number": "4059000000000000"
+      },
+      "selected_name": "Alias"
+    },
+    {
+      "operation": "Evaluate",
+      "selected_refers_to": "=Sheet1!Choice+1",
+      "runtime_type": "System.Double",
+      "expression": "=Sheet1!Choice+1",
+      "target": "Application",
+      "sheet": "Other",
+      "value": {
+        "number": "4059000000000000"
+      },
+      "selected_name": "Alias"
+    },
+    {
+      "operation": "Evaluate",
+      "selected_refers_to": "=99",
+      "runtime_type": "System.Double",
+      "expression": "=99",
+      "target": "Worksheet",
+      "sheet": "Other",
+      "value": {
+        "number": "4058c00000000000"
+      },
+      "selected_name": "Sheet1!Choice"
+    },
+    {
+      "operation": "Evaluate",
+      "selected_refers_to": "=99",
+      "runtime_type": "System.Double",
+      "expression": "=99",
+      "target": "Application",
+      "sheet": "Other",
+      "value": {
+        "number": "4058c00000000000"
+      },
+      "selected_name": "Sheet1!Choice"
+    },
+    {
+      "operation": "Evaluate",
+      "selected_refers_to": "=40+2",
+      "runtime_type": "System.Double",
+      "expression": "=40+2",
+      "target": "Worksheet",
+      "sheet": "Other",
+      "value": {
+        "number": "4045000000000000"
+      },
+      "selected_name": "Choice"
+    },
+    {
+      "operation": "Evaluate",
+      "selected_refers_to": "=40+2",
+      "runtime_type": "System.Double",
+      "expression": "=40+2",
+      "target": "Application",
+      "sheet": "Other",
+      "value": {
+        "number": "4045000000000000"
+      },
+      "selected_name": "Choice"
+    },
+    {
+      "stage": "before-save",
+      "utc": "2026-11-06T13:16:29.1693150Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": false,
+        "Iteration": false,
+        "MaxIterations": 100.0,
+        "MaxChange": "3f50624dd2f1a9fc",
+        "EnableEvents": false,
+        "CalculationState": 0,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "Other",
+      "cells": [
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "99",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Sheet1",
+          "value": {
+            "number": "4058c00000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "42",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": true
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4045000000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "100",
+          "column": 5,
+          "row": 2,
+          "metadata": {
+            "Formula": {
+              "value": "003d0041006c006900610073"
+            },
+            "Formula2": {
+              "value": "003d0041006c006900610073"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": true
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4059000000000000"
+          },
+          "formula": "=Alias"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "99",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d005300680065006500740031002100430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d005300680065006500740031002100430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4058c00000000000"
+          },
+          "formula": "=Sheet1!Choice"
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "",
+        "name": "Sheet1",
+        "saved": false
+      },
+      "names": [
+        {
+          "RefersToR1C1": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersTo": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "Name": {
+            "value": "Alias"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=99"
+          },
+          "RefersTo": {
+            "value": "=99"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=99"
+          },
+          "Name": {
+            "value": "Sheet1!Choice"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=40+2"
+          },
+          "RefersTo": {
+            "value": "=40+2"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=40+2"
+          },
+          "Name": {
+            "value": "Choice"
+          }
+        }
+      ]
+    },
+    {
+      "stage": "after-save",
+      "utc": "2026-11-06T13:16:29.3658806Z",
+      "settings": {
+        "Calculation": -4135,
+        "CalculateBeforeSave": false,
+        "Iteration": false,
+        "MaxIterations": 100.0,
+        "MaxChange": "3f50624dd2f1a9fc",
+        "EnableEvents": false,
+        "CalculationState": 0,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "Other",
+      "cells": [
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "99",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Sheet1",
+          "value": {
+            "number": "4058c00000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "42",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": true
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4045000000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "100",
+          "column": 5,
+          "row": 2,
+          "metadata": {
+            "Formula": {
+              "value": "003d0041006c006900610073"
+            },
+            "Formula2": {
+              "value": "003d0041006c006900610073"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": true
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4059000000000000"
+          },
+          "formula": "=Alias"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "99",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d005300680065006500740031002100430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d005300680065006500740031002100430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4058c00000000000"
+          },
+          "formula": "=Sheet1!Choice"
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng19\\names-attempt1\\eng19-P12-shadowed-explicit-evaluate\\1",
+        "name": "saved.xlsx",
+        "saved": true
+      },
+      "names": [
+        {
+          "RefersToR1C1": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersTo": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "Name": {
+            "value": "Alias"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=99"
+          },
+          "RefersTo": {
+            "value": "=99"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=99"
+          },
+          "Name": {
+            "value": "Sheet1!Choice"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=40+2"
+          },
+          "RefersTo": {
+            "value": "=40+2"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=40+2"
+          },
+          "Name": {
+            "value": "Choice"
+          }
+        }
+      ]
+    },
+    {
+      "stage": "after-reopen-separate",
+      "utc": "2026-11-06T13:16:29.8012861Z",
+      "settings": {
+        "Calculation": -4105,
+        "CalculateBeforeSave": false,
+        "Iteration": false,
+        "MaxIterations": 100.0,
+        "MaxChange": "3f50624dd2f1a9fc",
+        "EnableEvents": false,
+        "CalculationState": 0,
+        "AutomationSecurity": 1,
+        "mtc_enabled": false,
+        "mtc_count": 1,
+        "mtc_mode": 0
+      },
+      "workbook_settings": {
+        "Date1904": false,
+        "PrecisionAsDisplayed": false,
+        "ForceFullCalculation": false
+      },
+      "active_sheet": "Other",
+      "cells": [
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "99",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Sheet1",
+          "value": {
+            "number": "4058c00000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "42",
+          "column": 5,
+          "row": 1,
+          "metadata": {
+            "Formula": {
+              "value": "003d00430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d00430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": true
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4045000000000000"
+          },
+          "formula": "=Choice"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "100",
+          "column": 5,
+          "row": 2,
+          "metadata": {
+            "Formula": {
+              "value": "003d0041006c006900610073"
+            },
+            "Formula2": {
+              "value": "003d0041006c006900610073"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": true
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4059000000000000"
+          },
+          "formula": "=Alias"
+        },
+        {
+          "value2_runtime_type": "System.Double",
+          "display_text": "99",
+          "column": 5,
+          "row": 3,
+          "metadata": {
+            "Formula": {
+              "value": "003d005300680065006500740031002100430068006f006900630065"
+            },
+            "Formula2": {
+              "value": "003d005300680065006500740031002100430068006f006900630065"
+            },
+            "HasArray": {
+              "value": false
+            },
+            "SavedAsArray": {
+              "value": false
+            }
+          },
+          "sheet": "Other",
+          "value": {
+            "number": "4058c00000000000"
+          },
+          "formula": "=Sheet1!Choice"
+        }
+      ],
+      "active_cell": "$A$1",
+      "identity": {
+        "file_format": 51,
+        "path": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng19\\names-attempt1\\eng19-P12-shadowed-explicit-evaluate\\1",
+        "name": "saved.xlsx",
+        "saved": true
+      },
+      "names": [
+        {
+          "RefersToR1C1": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersTo": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=Sheet1!Choice+1"
+          },
+          "Name": {
+            "value": "Alias"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=99"
+          },
+          "RefersTo": {
+            "value": "=99"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=99"
+          },
+          "Name": {
+            "value": "Sheet1!Choice"
+          }
+        },
+        {
+          "RefersToR1C1": {
+            "value": "=40+2"
+          },
+          "RefersTo": {
+            "value": "=40+2"
+          },
+          "RefersToRange": {
+            "unread": "System.Management.Automation.MethodInvocationException: Exception calling \"InvokeMember\" with \"5\" argument(s): \"0x800A03EC\"\r\n ---> System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC\r\n   --- End of inner exception stack trace ---\r\n   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)\r\n   at <ScriptBlock>(Closure, FunctionContext)",
+            "hresult": -2146233087
+          },
+          "Value": {
+            "value": "=40+2"
+          },
+          "Name": {
+            "value": "Choice"
+          }
+        }
+      ]
+    }
+  ],
+  "excel_build": "20527",
+  "excel_version": "16.0",
+  "limitations": "Authored names and COM Formula2/Evaluate observations. Hidden worksheet activation changes internal name context only. Save/reopen observations are separate."
+}

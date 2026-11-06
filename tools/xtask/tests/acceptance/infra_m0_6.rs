@@ -2,7 +2,7 @@
 //! `tests/acceptance.rs`, so libtest lists them under their registered names).
 //!
 //! Both cases read the record `migration/evidence/oxfunc-smart-fuzzer.json`, the evidence checkout
-//! `<legacy root>/OxFunc-Evidence` and the originals `<legacy root>/OxFunc/smart-fuzzer`, where the
+//! `<legacy root>/CalcFunc-Evidence` and the originals `<legacy root>/OxFunc/smart-fuzzer`, where the
 //! legacy root is the workspace root's parent or `DNACALC_LEGACY_ROOT`. Nothing here trusts what
 //! the record, `cargo xtask evidence labels` or the archive script reports about itself: the
 //! pinned tree, the manifest's bytes, the remote's master and the local inventory come from this
@@ -14,7 +14,7 @@
 //!
 //! The restore runs through the xtask binary this test build compiled (`CARGO_BIN_EXE_xtask`),
 //! which `cargo xtask` runs, with `DNACALC_LEGACY_ROOT` naming a temporary directory under
-//! `CARGO_TARGET_TMPDIR` that holds only a link `OxFunc-Evidence` to the evidence checkout (a
+//! `CARGO_TARGET_TMPDIR` that holds only a link `CalcFunc-Evidence` to the evidence checkout (a
 //! directory junction on Windows, a symbolic link elsewhere) and no `OxFunc`: the command finds
 //! the checkout through the link, and the script's command line it prints holds no `--source`.
 //! The script's restore reads only the archived blobs; its unused default source still resolves
@@ -43,8 +43,8 @@ const BEAD: &str = "infra-m0.6";
 const RECORD: &str = "migration/evidence/oxfunc-smart-fuzzer.json";
 const PROVENANCE: &str = "migration/numeric-provenance.json";
 const LEGACY_ROOT_VARIABLE: &str = "DNACALC_LEGACY_ROOT";
-const CHECKOUT: &str = "OxFunc-Evidence";
-const URL: &str = "https://github.com/DnaCalc/OxFunc-Evidence";
+const CHECKOUT: &str = "CalcFunc-Evidence";
+const URL: &str = "https://github.com/DnaCalc/CalcFunc-Evidence";
 
 /// The two archived directories under the originals.
 const ROOTS: [&str; 2] = ["cache", "runs"];
@@ -562,7 +562,7 @@ fn remove_link(link: &Path) -> std::io::Result<()> {
     }
 }
 
-/// Removes `<root>/OxFunc-Evidence` when it is a link and then `root` when it is empty; anything
+/// Removes `<root>/CalcFunc-Evidence` when it is a link and then `root` when it is empty; anything
 /// else is left in place and reported. Nothing is deleted recursively.
 fn clear_linked_root(root: &Path) -> Result<(), String> {
     let link = root.join(CHECKOUT);

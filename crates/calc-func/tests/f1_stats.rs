@@ -368,10 +368,10 @@ fn distributions_match_excel_examples() {
     close(call("WEIBULL.DIST", vec![n(105.0), n(20.0), n(100.0), b(true)]), 0.929581390069277, 1e-12);
     close(call("HYPGEOM.DIST", vec![n(1.0), n(4.0), n(8.0), n(20.0), b(false)]), 0.363261093911249, 1e-12);
     close(call("NEGBINOM.DIST", vec![n(10.0), n(5.0), n(0.25), b(false)]), 0.055048660375178, 1e-12);
-    // fresh-negbinom.dist-00113-fresh-endpoints: Excel's 0x3fe5_f7b1_5d80_0000 is the exact
-    // dyadic sum. Summing the masses misses it by one unit: the cumulative route is not read.
-    close(call("NEGBINOM.DIST", vec![n(4.0), n(11.0), n(0.75), b(true)]),
-        f64::from_bits(0x3fe5_f7b1_5d80_0000), 2.3e-16);
+    // fresh-negbinom.dist-00113-fresh-endpoints: retain the recorded exact dyadic sum.
+    // Other classified distribution losses do not authorize a tolerance for this answer.
+    exact(call("NEGBINOM.DIST", vec![n(4.0), n(11.0), n(0.75), b(true)]),
+        f64::from_bits(0x3fe5_f7b1_5d80_0000));
     close(call("BETA.DIST", vec![n(2.0), n(8.0), n(10.0), b(true), n(1.0), n(3.0)]), 0.685470581, 1e-9);
     close(call("GAMMA.DIST", vec![n(10.00001131), n(9.0), n(2.0), b(true)]), 0.068094, 1e-5);
     exact(call("GAMMA", vec![n(5.0)]), 24.0);

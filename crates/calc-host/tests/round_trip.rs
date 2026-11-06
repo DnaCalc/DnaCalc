@@ -3935,6 +3935,246 @@ fn dc_gf0__precedents_and_dependents_from_the_graph() {
     );
 }
 
+/// The eng19 name worker retained Excel's actual Names.Add rewrites. Replay
+/// those saved definitions, rather than the requested unqualified =A1 spelling.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_6__eng19_recorded_name_contexts_and_selected_evaluations() {
+    use calc_host::value::NameScope;
+    let cases: &[(&[u8], &[u8])] = &[
+        (include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P12/eng19-20261106/eng19-P12-inherited-definition-sheet/saved.xlsx"),
+         include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P12/eng19-20261106/eng19-P12-inherited-definition-sheet/result.json")),
+        (include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P12/eng19-20261106/eng19-P12-returned-closure-context/saved.xlsx"),
+         include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P12/eng19-20261106/eng19-P12-returned-closure-context/result.json")),
+        (include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P12/eng19-20261106/eng19-P12-shadowed-explicit-evaluate/saved.xlsx"),
+         include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P12/eng19-20261106/eng19-P12-shadowed-explicit-evaluate/result.json")),
+    ];
+    let mut checked = 0;
+    for (bytes, record) in cases {
+        let record: serde_json::Value = serde_json::from_slice(record).unwrap();
+        let observations = record["observations"].as_array().unwrap();
+        let expected = observations.iter().find(|s| s["stage"] == "after-CalculateFullRebuild").unwrap();
+        for budget in [1, usize::MAX] {
+            let mut book = HostSession::open(Arc::new(MemorySource::new(bytes.to_vec())),
+                &OpenPolicy::default(), HostOptions { calc_mode: Some(CalcMode::Manual), ..Default::default() }).unwrap();
+            book.set_calculation_budget(calc_host::WorkBudget::evaluations(budget));
+            for entry in observations.iter().filter(|s| s["operation"] == "formula-entry") {
+                let (worksheet, address) = entry["caller"].as_str().unwrap().split_once('!').unwrap();
+                let key = at(sheet(book.host(), worksheet), address);
+                assert!(enter(&mut book, key, entry["authored"].as_str().unwrap()).accepted());
+            }
+            assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+            for _ in 0..10_000 {
+                if !book.has_pending_calculation() { break; }
+                assert!(!matches!(book.advance_calculation(), calc_host::HostProgress::Failed(_)));
+            }
+            assert!(!book.has_pending_calculation());
+            for cell in expected["cells"].as_array().unwrap().iter().filter(|c|
+                c["formula"].as_str().is_some_and(|text| text.starts_with('='))) {
+                let s = sheet(book.host(), cell["sheet"].as_str().unwrap());
+                let key = CellKey::new(s, cell["row"].as_u64().unwrap() as u32,
+                    cell["column"].as_u64().unwrap() as u32).unwrap();
+                let ProjectedValue::Calculated { value, calculation } = value(book.host(), key) else {
+                    panic!("{} {key:?}: {:?}", record["condition"]["id"], value(book.host(), key));
+                };
+                let expected_bits = u64::from_str_radix(cell["value"]["number"].as_str().unwrap(), 16).unwrap();
+                assert_eq!(value.as_number().unwrap().to_bits(), expected_bits, "{} {key:?}", record["condition"]["id"]);
+                let stamp = calculation.stamp().expect("ordinary name formulas have producing invocations");
+                assert!(!stamp.reads.uses_imported_cache && !stamp.reads.uses_boundary_cache);
+                checked += 1;
+            }
+            for operation in observations.iter().filter(|s| s["operation"] == "Evaluate" && s["selected_name"].is_string()) {
+                let caller = at(sheet(book.host(), operation["sheet"].as_str().unwrap()), "A1");
+                let selected = operation["selected_name"].as_str().unwrap();
+                let (scope, name) = if let Some((scope, name)) = selected.split_once('!') {
+                    (NameScope::Sheet(sheet(book.host(), scope)), name)
+                } else { (NameScope::Workbook, selected) };
+                let definition = book.host().model().definitions().name_table().lookup(scope, name).unwrap();
+                let result = book.host().evaluate_name_with_evidence(definition.id(), definition.binding_version(), caller).unwrap();
+                let actual = result.evaluation.outcome.unwrap();
+                let expected_bits = u64::from_str_radix(operation["value"]["number"].as_str().unwrap(), 16).unwrap();
+                assert_eq!(actual.as_number().unwrap().to_bits(), expected_bits, "{selected}");
+                let root = result.evaluation.root.unwrap();
+                assert_eq!(root.locus.definition.id, definition.id());
+                assert_eq!(root.locus.caller, caller);
+                checked += 1;
+            }
+        }
+    }
+    assert_eq!(checked, 40);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_17__rebuild_keeps_targets_and_restores_all_dependency_kinds() {
+    use calc_host::{NameEdit, WorkbookCommand};
+    use calc_host::value::NameScope;
+    let drain = |book: &mut HostSession| {
+        for _ in 0..100_000 {
+            if !book.has_pending_calculation() { break; }
+            assert!(!matches!(book.advance_calculation(), calc_host::HostProgress::Failed(_)));
+        }
+        assert!(!book.has_pending_calculation());
+    };
+    let name = |book: &mut HostSession, name: &str, formula: &str| {
+        let previous = book.host().model().definitions().name_table().lookup(NameScope::Workbook, name)
+            .map(|node| (node.id(), node.binding_version()));
+        assert!(book.dispatch(SkinIntent::Command(WorkbookCommand::Name(NameEdit {
+            id: previous.map(|p| p.0), version: previous.map(|p| p.1), scope: NameScope::Workbook,
+            name: name.into(), formula: Some(formula.into()),
+        }))).accepted());
+    };
+    for budget in [1, usize::MAX] {
+        let mut book = session(&calc_host::blank_package());
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+        book.set_calculation_budget(calc_host::WorkBudget::evaluations(budget));
+        let s = book.host().sheets()[0].id();
+        name(&mut book, "Amount", "=$A$1");
+        for (address, text) in [("A1", "1"), ("A2", "2"), ("A3", "=SUBTOTAL(9,A1:A2)"),
+            ("B1", "=A1+1"), ("C1", "=INDIRECT(\"A2\")+1"), ("D1", "=SUBTOTAL(9,A1:A3)"),
+            ("E1", "=Amount+1"), ("G1", "=SEQUENCE(A1)"), ("H1", "=ROWS(G1#)+SUM(G1#)"),
+            ("I1", "=IFERROR(MissingAlias,77)"), ("J1", "=SUM(A1:A2)"), ("K1", "=SUM(A:A)")] {
+            assert!(enter(&mut book, at(s, address), text).accepted());
+        }
+        assert!(book.dispatch(SkinIntent::Calculate { scope: calc_host::CalcScope::Workbook,
+            selection: calc_host::EvalSelection::ForceAll }).accepted());
+        drain(&mut book);
+        let addresses = ["A3", "B1", "C1", "D1", "E1", "G1", "H1", "I1", "J1", "K1"];
+        let before: Vec<_> = addresses.iter().map(|address| {
+            let ProjectedValue::Calculated { value, calculation } = value(book.host(), at(s, address)) else {
+                panic!("{address}: expected an initial calculation");
+            };
+            (value, calculation.stamp().unwrap().clone())
+        }).collect();
+        let revision = book.host().revision();
+        assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+        drain(&mut book);
+        assert_eq!(book.host().revision(), revision);
+        for (address, (old_value, old_stamp)) in addresses.iter().zip(&before) {
+            let ProjectedValue::Calculated { value, calculation } = value(book.host(), at(s, address)) else {
+                panic!("{address}: expected a rebuilt calculation");
+            };
+            let stamp = calculation.stamp().unwrap();
+            assert_eq!(&value, old_value, "{address}");
+            assert_eq!(stamp.target, old_stamp.target, "Rebuild keeps the live formula target");
+            assert_ne!(stamp.computed_by, old_stamp.computed_by, "Rebuild actually calculates {address}");
+        }
+        assert!(book.host().dependents(at(s, "A2")).contains(&at(s, "C1")), "executed dynamic edge is restored");
+        assert!(enter(&mut book, at(s, "A1"), "3").accepted());
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        drain(&mut book);
+        for (address, expected) in [("A3", 5.), ("B1", 4.), ("C1", 3.), ("D1", 5.),
+            ("E1", 4.), ("G3", 3.), ("H1", 9.), ("I1", 77.), ("J1", 5.), ("K1", 10.)] {
+            assert_eq!(calculated(book.host(), at(s, address)), Some(CalcValue::number(expected)), "{address}");
+        }
+        name(&mut book, "Amount", "=$A$2");
+        name(&mut book, "MissingAlias", "=9");
+        assert!(enter(&mut book, at(s, "A2"), "7").accepted());
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        drain(&mut book);
+        for (address, expected) in [("A3", 10.), ("B1", 4.), ("C1", 8.), ("D1", 10.),
+            ("E1", 8.), ("H1", 9.), ("I1", 9.), ("J1", 10.), ("K1", 20.)] {
+            assert_eq!(calculated(book.host(), at(s, address)), Some(CalcValue::number(expected)), "{address}");
+        }
+    }
+}
+
+/// DNA integrity controls around the newly measured qualified-name route.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_6__qualified_name_calls_keep_caller_arguments_and_binding_watches() {
+    use calc_host::{NameEdit, WorkbookCommand};
+    use calc_host::value::NameScope;
+    #[derive(Debug)]
+    struct Mark(Rc<std::cell::Cell<usize>>);
+    impl calc_fml::UserFunction for Mark {
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            self.0.set(self.0.get() + 1);
+            Ok(CalcValue::number(1.))
+        }
+    }
+    let bytes = include_bytes!("../../calc-engine/tests/fixtures/excel-calc-probes/P12/eng19-20261106/eng19-P12-returned-closure-context/saved.xlsx");
+    let drain = |book: &mut HostSession| {
+        for _ in 0..10_000 {
+            if !book.has_pending_calculation() { break; }
+            assert!(!matches!(book.advance_calculation(), calc_host::HostProgress::Failed(_)));
+        }
+        assert!(!book.has_pending_calculation());
+    };
+    for ambiguous in [false, true] {
+        let mut book = HostSession::open(Arc::new(MemorySource::new(bytes.to_vec()).named(if ambiguous { "Sheet1" } else { "names.xlsx" })),
+            &OpenPolicy::default(), HostOptions { calc_mode: Some(CalcMode::Manual), ..Default::default() }).unwrap();
+        let entries = Rc::new(std::cell::Cell::new(0));
+        let mut functions = calc_fml::CallableTable::new();
+        functions.register("CallerMarker", Rc::new(Mark(entries.clone()))).unwrap();
+        book.set_user_functions(functions);
+        let other = sheet(book.host(), "Other");
+        let local = sheet(book.host(), "Sheet1");
+        assert!(book.dispatch(SkinIntent::Command(WorkbookCommand::Name(NameEdit {
+            id: None, version: None, scope: NameScope::Workbook, name: "OwnFunc".into(),
+            formula: Some("=LAMBDA(x,x+1)".into()),
+        }))).accepted());
+        assert!(enter(&mut book, at(other, "F1"), "=[0]!OwnFunc(CallerMarker())").accepted());
+        assert!(enter(&mut book, at(other, "F2"), "=IFERROR('Sheet1'!NotDefined(CallerMarker()),17)").accepted());
+        assert!(enter(&mut book, at(other, "F4"), "='Sheet1'!Maker(A1)").accepted());
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        drain(&mut book);
+        assert_eq!(entries.get(), 1, "only the unambiguous own-workbook call enters its argument");
+        assert_eq!(calculated(book.host(), at(other, "F1")), Some(CalcValue::number(2.)));
+        assert!(matches!(value(book.host(), at(other, "F2")), ProjectedValue::NotModeled { .. }));
+        if ambiguous {
+            let ProjectedValue::NotModeled { refusal, .. } = value(book.host(), at(other, "F4")) else {
+                panic!("an ambiguous sheet/workbook qualifier must refuse");
+            };
+            assert!(refusal.to_string().contains("both a sheet and a workbook provider"));
+            continue;
+        }
+        assert_eq!(calculated(book.host(), at(other, "F4")), Some(CalcValue::number(9.)), "A1 in an argument belongs to Other");
+        let maker = book.host().model().definitions().name_table().lookup(NameScope::Sheet(local), "Maker").unwrap();
+        let (id, version) = (maker.id(), maker.binding_version());
+        assert!(book.dispatch(SkinIntent::Command(WorkbookCommand::Name(NameEdit {
+            id: Some(id), version: Some(version), scope: NameScope::Sheet(local), name: "Maker".into(),
+            formula: Some("=LAMBDA(x,x+10)".into()),
+        }))).accepted());
+        assert!(book.dispatch(SkinIntent::Command(WorkbookCommand::Name(NameEdit {
+            id: None, version: None, scope: NameScope::Sheet(local), name: "NotDefined".into(),
+            formula: Some("=LAMBDA(x,x+2)".into()),
+        }))).accepted());
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        drain(&mut book);
+        assert_eq!(calculated(book.host(), at(other, "F4")), Some(CalcValue::number(19.)));
+        assert_eq!(calculated(book.host(), at(other, "F2")), Some(CalcValue::number(3.)), "a formerly refused missing binding becomes available");
+        assert_eq!(entries.get(), 2, "definition edits rebind only the reached marker argument");
+        let version = book.host().name_node(id).unwrap().binding_version();
+        let definition = format!("={}", book.host().name_node(id).unwrap().definition().formula);
+        let renamed = book.dispatch(SkinIntent::Command(WorkbookCommand::Name(NameEdit {
+            id: Some(id), version: Some(version), scope: NameScope::Sheet(local), name: "RenamedMaker".into(),
+            formula: Some(definition),
+        })));
+        assert!(renamed.accepted(), "{:?}", renamed.error);
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        drain(&mut book);
+        assert_eq!(calculated(book.host(), at(other, "F4")), Some(CalcValue::number(19.)));
+        for action in [SkinIntent::Undo, SkinIntent::Redo] {
+            assert!(book.dispatch(action).accepted());
+            assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+            drain(&mut book);
+            assert_eq!(calculated(book.host(), at(other, "F4")), Some(CalcValue::number(19.)));
+        }
+        let version = book.host().name_node(id).unwrap().binding_version();
+        let definition = format!("={}", book.host().name_node(id).unwrap().definition().formula);
+        let moved = book.dispatch(SkinIntent::Command(WorkbookCommand::Name(NameEdit {
+            id: Some(id), version: Some(version), scope: NameScope::Workbook, name: "RenamedMaker".into(),
+            formula: Some(definition),
+        })));
+        assert!(moved.accepted(), "{:?}", moved.error);
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        drain(&mut book);
+        assert_eq!(calculated(book.host(), at(other, "F4")), Some(CalcValue::number(19.)));
+        assert_eq!(entries.get(), 2);
+    }
+}
+
 /// dc-1yp: an edited save of a workbook whose metadata part holds the dynamic-array properties
 /// (cdoc_m1_2's d1.xlsx: Sheet2!A1 =SEQUENCE(3,2) saved as a dynamic array), which the save
 /// extends with value metadata for the errors it writes, reopens, and its model is the session's.

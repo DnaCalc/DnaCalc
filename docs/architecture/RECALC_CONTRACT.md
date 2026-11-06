@@ -938,6 +938,29 @@ and Input$ are unresolved; the Input statement has a separate symbol route.
 No helper is removed, temporary introduced, or input state invented to admit
 these original projects. The pin remains 7eb4fdd9.
 
+Original-source admission follow-up (engine22, dc-snz.15): CalcVBA
+`a4bf979239e1cb67326d13b760c04ecd13bbf55f` compiles temporary-array
+UBound/LBound and Input/Input$. The host also declares ExecuteExcel4Macro
+in its existing finite member catalogue; reaching that unsupported member
+still refuses through VBA error handlers and worksheet IFERROR. Complete
+P01 and P10 projects now compile without removing helpers or changing their
+source. Admission and save/reopen preserve every original module.
+
+The same-input comparison removes all 358 original project-compilation
+failures: 250 P01 and 108 P10 controllers. P01's 530 formula positions now
+calculate, but live matches remain 0/530 because no matching live capture is
+registered. Supplemental saved references give 80 matches, 160 mismatches
+and 290 missing/excluded references. The mismatches calculate #VALUE!;
+the representative fresh PeekB1 call directly raises ordinary VBA error 91
+because RunCase has not assigned observedSheet. No setup is invented.
+P10's folder includes 204 owner XLSX files besides the controllers. All 528
+formula positions remain typed refusals for missing provider functions;
+the add-in/session setup has not run. Its live matches remain 0/528.
+Input/Input$ compilation does not establish file-I/O execution or original
+RunCase replay. The 54 existing oracle books retain byte-identical reports
+and evaluations at 38,822/40,141 matches, 1,319 inclusive failures and 77
+capture failures, with no strict certification.
+
 The 350 P02 saved-reference mismatches are a different source-history case.
 Their original Note calls UBound on an unallocated trace array, which RunCase
 initializes only in the capture session. Calling the complete fresh project with
@@ -1284,8 +1307,75 @@ The existing compiler receives callable registration metadata, without executabl
 A reached known UDF refuses under DiagnosticSnapshot before user code enters; IFERROR
 cannot turn that refusal into a value. Untaken branches stay lazy. Name Manager authoring
 uses the existing Excel file-form converter, and its display uses the shared formatter;
-modern function prefixes survive save/reopen. P12 Excel alias measurement, effect-capable
-non-cell continuations, broader block execution and shared value reuse remain open.
+modern function prefixes survive save/reopen. The engine22 work below adds recorded
+aliases and explicit effect-capable name calculation. Shared value reuse and the
+unmeasured broader contexts remain open.
+
+P12 recorded alias contexts (dc-hsa5.6, engine22): the eng19 delivery contains ten
+fresh-process repetitions of each of three name-scope conditions. The retained
+original result, request, receipt and saved workbook for each condition are under
+`excel-calc-probes/P12/eng19-20261106`; provenance lists every audited repetition.
+Re-entering the authored formula syntax and evaluating the recorded selected names
+gives 40 matching comparisons across one-step and unlimited execution budgets.
+Known local-sheet function calls now use the existing scoped-name and Invoke route,
+with arguments evaluated in the caller context. Name watches cover definition edits,
+rename, Undo/Redo and scope moves. A missing sheet-qualified name or an ambiguous
+sheet/workbook qualifier refuses before entering argument UDFs; explicit bracketed
+workbook calls retain their existing route. This is the measured bounded profile.
+Excel rewrote the original Names.Add definition `=A1` as `=Sheet1!A1`, still relative,
+so constant-name discriminators remain requested under `~/codex-runs/excel-questions-eng22/`.
+Explicit selected-name calculation now has a retained non-cell activation through
+HostSession and the worker command journal. It owns the existing CalcFml continuation,
+actual caller and name invocation identity, full numeric mode, draw stream and current
+read frontier. Nested blocks, arrays and cooperative UDF suspension use that continuation;
+resuming does not replay an entered effect. A completed worker reply keeps its original
+revision and projected value when later commands change the workbook.
+
+Edits, cancellation, reload, changed owner facts or calculation mode, changed input or
+result frontiers, and Rebuild expire pending work before more user code. Retirement drops
+the activation before releasing its owner lane; completed scalar evidence releases unused
+workbook pins. Cached observations retain their qualifications and remain distinct from
+current dependency reads. Missing producers, asynchronous waits and semantic re-entry
+return a typed dc-hsa5.6 refusal, including under IFERROR. This route publishes no cell,
+creates no synthetic formula target and supplies no cell freshness certificate. Passive
+diagnostics retain their existing refusal before UDF entry. Shared name-value reuse,
+general non-cell async returns and a Name Manager calculation control remain open.
+
+Explicit Rebuild storage (dc-hsa5.17, engine22): discard the existing derived reverse
+indexes once, then clear per-anchor binding state through live anchor identities. This
+avoids removing each reader separately from a shared sorted vector, while preserving
+formula IDs, target generations, results and held spill storage. Binding reset still
+invalidates pending name work. The existing benchmark now measures a warm HostSession
+Rebuild after its cold calculation, full calculation and edits, including dispatch and
+binding work. Its older rebuild_s field measures the cold first calculation. The warm
+route projects the whole inventory and participates in the existing thread comparison.
+Measured speed and memory changes belong to their recorded binary pair and Linux runs;
+they do not establish Excel scheduling or Windows performance.
+
+Persistence controls (dc-hsa5.14, dc-hsa5.15, engine22): the eng19 and eng20 imports
+audit 4,420 delivery hashes and 180 successful fresh-process trials. The 21 failed
+attempts and 40 unrun original Peek setup trials remain recorded outside the repository.
+The eng20 P06 supplement retains original results and immediate saved packages for
+four workbooks with CalculateBeforeSave false and true, ten trials per condition.
+The numeric workbooks actually reopen in Automatic mode; events and MTC are off.
+
+Of the original 36 nonfinite persistence changes, 32 have the same live raw number
+before and after either save setting, serialize as #NUM!, reopen as #NUM! and recover
+the raw encoding on explicit Rebuild. The other four ABS observers are already #NUM!
+in the new Rebuild control, unlike their original entry-time observation. Their original
+loss cannot yet be assigned solely to serialization. For all 27 original finite phase
+failures (24 save-and-reopen, two reopen-only and one save-only), Save(true) reproduces
+the original saved value and its later explicit Rebuild reproduces the original reopened
+value. The original worker did not record CalculateBeforeSave or reopen calculation,
+so that causal explanation remains conditional. New questions ask for those missing
+controls without rewriting the original captures.
+
+The existing host Save route matches 324 selected finite phase comparisons across both
+save settings and execution budgets. Retained post-Save values are counted as comparisons,
+not additional executions. Imported reopen caches remain FileCached and unscored until
+the separate Rebuild. The original 63 capture failures, corpus denominators and live
+scores remain unchanged. These controls do not measure SCC entry counts, MTC-on behavior,
+linked iterative workbooks or the broader array/topology profiles.
 
 Owner contexts for current decisions (dc-hsa5.6, engine21): Host validation and
 formula-based filter criteria supply the owner's full numeric mode, including

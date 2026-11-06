@@ -3,10 +3,10 @@
   "bead": "infra-m0.6",
   "subject": "OxFunc/smart-fuzzer/cache and OxFunc/smart-fuzzer/runs: Excel oracle captures and campaign runs that OxFunc does not track (smart-fuzzer/.gitignore excludes the contents of both directories; only their two README.md files are tracked)",
   "evidence_repository": {
-    "url": "https://github.com/DnaCalc/OxFunc-Evidence",
+    "url": "https://github.com/DnaCalc/CalcFunc-Evidence",
     "branch": "master",
-    "commit": "1a47dfcec7db3cf8b8343da312af474cbd3ddcf1",
-    "local_checkout": "<legacy root>/OxFunc-Evidence",
+    "commit": "4287ba192d2e3a7fd54671ea1cee1c34cb2e84e2",
+    "local_checkout": "<legacy root>/CalcFunc-Evidence",
     "originals": "<legacy root>/OxFunc/smart-fuzzer",
     "legacy_root": "the parent directory of the DnaCalc checkout, or the directory DNACALC_LEGACY_ROOT names",
     "script": "archive-evidence.py",
@@ -48,7 +48,7 @@
     "reason": "third-party, re-downloadable Intel MKL wheel and its extracted DLLs under runs/w108a-reference-hunt/mkl_dl/: hashed, not stored"
   },
   "removed": {
-    "commit": "5e54ff72a0f2903f7dc55aa69c2ab64be193a468",
+    "commit": "6b01e31f5f2466c3b821b0afc44b10a9fdcd5df0",
     "files": 21,
     "raw_bytes": 739402,
     "reason": "dc-96l.4, the licence cleanup of the evidence repository: the third-party sources under runs/w108a-reference-hunt and the probe built from them, and the candidate copies of OxFunc code files under five runs/w111-*-20260929/candidate folders, were removed from its tree and from manifest.tsv at this commit (its parent's manifest.tsv lists each with these sizes); the measurements stay. The originals keep these files, so the local originals are manifest.tsv plus excluded.tsv plus these paths",

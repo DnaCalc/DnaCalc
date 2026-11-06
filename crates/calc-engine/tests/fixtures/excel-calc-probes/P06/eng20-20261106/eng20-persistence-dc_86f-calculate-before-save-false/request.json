@@ -1,0 +1,23 @@
+{
+  "action": "observe",
+  "condition": {
+    "id": "eng20-persistence-dc_86f-calculate-before-save-false",
+    "iteration": true,
+    "iterations": 1,
+    "change_bits": "3f50624dd2f1a9fc",
+    "commands": 1,
+    "command_sequence": [
+      "Rebuild"
+    ],
+    "operation": "Rebuild",
+    "range": "A1:Z1000",
+    "persistence": true,
+    "calculate_before_save": false,
+    "calculation_mode": "manual"
+  },
+  "trial": 1,
+  "input": "C:\\Work\\DnaCalc\\codex-runs\\excel-results-eng20\\inputs\\dc_86f\\oracle.xlsx",
+  "input_sha256": "7c8887848b182706ca8aefb53418ce66a234d768fec1bd48acfa39a525935da9",
+  "full_precision": true,
+  "unseeded_observation": false
+}

@@ -1,0 +1,2997 @@
+{
+  "source": "/home/ubuntu/codex-runs/excel-results-eng20",
+  "manifest_sha256": "bdbbce229ccd9c878e42677c7fde594af4c4ef4686c48bab511e26c83bc7a8aa",
+  "files": [
+    {
+      "path": "eng20-persistence-dc_10y_iteration-calculate-before-save-false/result.json",
+      "source": "phase-attempt2/eng20-persistence-dc_10y_iteration-calculate-before-save-false/1/result.json",
+      "sha256": "24a677e44be810c9ba1a63375326abb493cb46565b074c2a570af725f838ccfd"
+    },
+    {
+      "path": "eng20-persistence-dc_10y_iteration-calculate-before-save-false/request.json",
+      "source": "phase-attempt2/eng20-persistence-dc_10y_iteration-calculate-before-save-false/1/request.json",
+      "sha256": "5ab44552e5a8a04ebea70b94f2a6353fa558c300ce29029b43f169b94f03c555"
+    },
+    {
+      "path": "eng20-persistence-dc_10y_iteration-calculate-before-save-false/receipt.json",
+      "source": "phase-attempt2/eng20-persistence-dc_10y_iteration-calculate-before-save-false/1/session/receipt.json",
+      "sha256": "93bdc06b62d0f5d491f7405bc9cd4ec8eac0af64218e4684b608a67c8d7812eb"
+    },
+    {
+      "path": "eng20-persistence-dc_10y_iteration-calculate-before-save-false/saved-package-caches.json",
+      "source": "phase-attempt2/eng20-persistence-dc_10y_iteration-calculate-before-save-false/1/saved-package-caches.json",
+      "sha256": "2562cb3a06e2b589e73c759f4c86c64c4d6416fb8eac863c781243ea16aa9ee8"
+    },
+    {
+      "path": "eng20-persistence-dc_10y_iteration-calculate-before-save-false/saved-package-hash.json",
+      "source": "phase-attempt2/eng20-persistence-dc_10y_iteration-calculate-before-save-false/1/saved-package-hash.json",
+      "sha256": "3fd18b74377604f31b1dbbad0c7874b485a51bbb111fcc668b9ef82e96c19d45"
+    },
+    {
+      "path": "eng20-persistence-dc_10y_iteration-calculate-before-save-false/post-close-saved-hash.json",
+      "source": "phase-attempt2/eng20-persistence-dc_10y_iteration-calculate-before-save-false/1/post-close-saved-hash.json",
+      "sha256": "32019d4b339303cb23a93acc9e5cb6c72bf566eb1cd0e18fbfa3bd6df8f83150"
+    },
+    {
+      "path": "eng20-persistence-dc_10y_iteration-calculate-before-save-false/immediate-saved-package.xlsx",
+      "source": "phase-attempt2/eng20-persistence-dc_10y_iteration-calculate-before-save-false/1/immediate-saved-package.xlsx",
+      "sha256": "a2ad0edcd9e42afc5baaa55835799cc5d42576d31b346701dbb2b7caa853dacd"
+    },
+    {
+      "path": "eng20-persistence-dc_10y_iteration-calculate-before-save-true/result.json",
+      "source": "phase-attempt2/eng20-persistence-dc_10y_iteration-calculate-before-save-true/1/result.json",
+      "sha256": "7b788c495c5647ab624149547348c44c40a5ff125ec0152ae1711aab2432c0af"
+    },
+    {
+      "path": "eng20-persistence-dc_10y_iteration-calculate-before-save-true/request.json",
+      "source": "phase-attempt2/eng20-persistence-dc_10y_iteration-calculate-before-save-true/1/request.json",
+      "sha256": "81db020dd74c2bd3156f3b45a9fab097f87847ee940b83c12cdfd7687cf1bbfc"
+    },
+    {
+      "path": "eng20-persistence-dc_10y_iteration-calculate-before-save-true/receipt.json",
+      "source": "phase-attempt2/eng20-persistence-dc_10y_iteration-calculate-before-save-true/1/session/receipt.json",
+      "sha256": "42971d77e0a16202a5359c561742813b228d221b2e64c4fd4474e5aa58b0b458"
+    },
+    {
+      "path": "eng20-persistence-dc_10y_iteration-calculate-before-save-true/saved-package-caches.json",
+      "source": "phase-attempt2/eng20-persistence-dc_10y_iteration-calculate-before-save-true/1/saved-package-caches.json",
+      "sha256": "66e0a6aee19762db121b8ab7fcc476cbf6f26321835811600d7e265d897406ca"
+    },
+    {
+      "path": "eng20-persistence-dc_10y_iteration-calculate-before-save-true/saved-package-hash.json",
+      "source": "phase-attempt2/eng20-persistence-dc_10y_iteration-calculate-before-save-true/1/saved-package-hash.json",
+      "sha256": "6761dbfadba006625ebb9c40081aeccb4ef183c5df468e2741fc71243b9551e3"
+    },
+    {
+      "path": "eng20-persistence-dc_10y_iteration-calculate-before-save-true/post-close-saved-hash.json",
+      "source": "phase-attempt2/eng20-persistence-dc_10y_iteration-calculate-before-save-true/1/post-close-saved-hash.json",
+      "sha256": "b4ca6fb0b325608c14e291ca288983e8e6aabf4db8316aed0a8d01d80a0e78cb"
+    },
+    {
+      "path": "eng20-persistence-dc_10y_iteration-calculate-before-save-true/immediate-saved-package.xlsx",
+      "source": "phase-attempt2/eng20-persistence-dc_10y_iteration-calculate-before-save-true/1/immediate-saved-package.xlsx",
+      "sha256": "6c0334ab3a8e8a4c5bcfc8454a42948cb11b892d8a51776fac589d8e45578c91"
+    },
+    {
+      "path": "eng20-persistence-dc_86f-calculate-before-save-false/result.json",
+      "source": "phase-attempt2/eng20-persistence-dc_86f-calculate-before-save-false/1/result.json",
+      "sha256": "964fb5852a2c096251cbdf8cbdbccaac762425d8b3db687c8bc65bcd73de8c31"
+    },
+    {
+      "path": "eng20-persistence-dc_86f-calculate-before-save-false/request.json",
+      "source": "phase-attempt2/eng20-persistence-dc_86f-calculate-before-save-false/1/request.json",
+      "sha256": "7776103e3e226f8a62afa4ed64ffd0311f0a4a046cbe9967565ca023c435ef9c"
+    },
+    {
+      "path": "eng20-persistence-dc_86f-calculate-before-save-false/receipt.json",
+      "source": "phase-attempt2/eng20-persistence-dc_86f-calculate-before-save-false/1/session/receipt.json",
+      "sha256": "d1f7dffb134d6d802922b4031291eca77ab46ad4a9056787c57e245468a80337"
+    },
+    {
+      "path": "eng20-persistence-dc_86f-calculate-before-save-false/saved-package-caches.json",
+      "source": "phase-attempt2/eng20-persistence-dc_86f-calculate-before-save-false/1/saved-package-caches.json",
+      "sha256": "cf73815e145a52156c0f8eab5cb54d88c6a01656c87e481c6650e3a58fda4e8f"
+    },
+    {
+      "path": "eng20-persistence-dc_86f-calculate-before-save-false/saved-package-hash.json",
+      "source": "phase-attempt2/eng20-persistence-dc_86f-calculate-before-save-false/1/saved-package-hash.json",
+      "sha256": "b78e6532fb83687dbe09e7a33502ff65765ad6193459823fcdd2c0918cb48d47"
+    },
+    {
+      "path": "eng20-persistence-dc_86f-calculate-before-save-false/post-close-saved-hash.json",
+      "source": "phase-attempt2/eng20-persistence-dc_86f-calculate-before-save-false/1/post-close-saved-hash.json",
+      "sha256": "f9e7b19399fcc057b97a455ef5207ffb413e735182d8c586133142d00e45d201"
+    },
+    {
+      "path": "eng20-persistence-dc_86f-calculate-before-save-false/immediate-saved-package.xlsx",
+      "source": "phase-attempt2/eng20-persistence-dc_86f-calculate-before-save-false/1/immediate-saved-package.xlsx",
+      "sha256": "fa845298621017fcc557a73808550f33744ef42d1869b30487a472c6c973e958"
+    },
+    {
+      "path": "eng20-persistence-dc_86f-calculate-before-save-true/result.json",
+      "source": "phase-attempt2/eng20-persistence-dc_86f-calculate-before-save-true/1/result.json",
+      "sha256": "123aad364e795b9cb410a37fa720b812ede6a4972246d8b403a3c96f65ac81e9"
+    },
+    {
+      "path": "eng20-persistence-dc_86f-calculate-before-save-true/request.json",
+      "source": "phase-attempt2/eng20-persistence-dc_86f-calculate-before-save-true/1/request.json",
+      "sha256": "cf64908a2315965206f78deeaafe0acd44d3f4ee39fdb220f5ea3cdd0b3c8d2e"
+    },
+    {
+      "path": "eng20-persistence-dc_86f-calculate-before-save-true/receipt.json",
+      "source": "phase-attempt2/eng20-persistence-dc_86f-calculate-before-save-true/1/session/receipt.json",
+      "sha256": "dfd77650f5f0299eb7f59f0cbdbedbac2eff77e4f872447063db3c7514933d11"
+    },
+    {
+      "path": "eng20-persistence-dc_86f-calculate-before-save-true/saved-package-caches.json",
+      "source": "phase-attempt2/eng20-persistence-dc_86f-calculate-before-save-true/1/saved-package-caches.json",
+      "sha256": "05330730a01ee3213993fcda5d7bef4d8aa6dc17405aa6474f2c5e8303d964ec"
+    },
+    {
+      "path": "eng20-persistence-dc_86f-calculate-before-save-true/saved-package-hash.json",
+      "source": "phase-attempt2/eng20-persistence-dc_86f-calculate-before-save-true/1/saved-package-hash.json",
+      "sha256": "a9fca2efc81f78bb57d5e8e9d618d732d40f89b2c5ea9e1c474b56c8f20eb7f5"
+    },
+    {
+      "path": "eng20-persistence-dc_86f-calculate-before-save-true/post-close-saved-hash.json",
+      "source": "phase-attempt2/eng20-persistence-dc_86f-calculate-before-save-true/1/post-close-saved-hash.json",
+      "sha256": "8496f4e039d6f5a0a8b1b1c561abb32386c860819b7ebb162a1db58adf7cdf4b"
+    },
+    {
+      "path": "eng20-persistence-dc_86f-calculate-before-save-true/immediate-saved-package.xlsx",
+      "source": "phase-attempt2/eng20-persistence-dc_86f-calculate-before-save-true/1/immediate-saved-package.xlsx",
+      "sha256": "2c5248afeae1bbccd944efe859a9f03545d5e73f88eed60c09634a5659cb8e38"
+    },
+    {
+      "path": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/result.json",
+      "source": "phase-attempt2/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/1/result.json",
+      "sha256": "28c53dafc9bd19e7579558af0639b2096b280f70571bcb8223fdfd66ff411dea"
+    },
+    {
+      "path": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/request.json",
+      "source": "phase-attempt2/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/1/request.json",
+      "sha256": "be701a01ea3800d069198ba2581f59826e3a0a2052fe78cc0cfe5e7aa4c1631d"
+    },
+    {
+      "path": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/receipt.json",
+      "source": "phase-attempt2/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/1/session/receipt.json",
+      "sha256": "352412ebf340563e29b143615f05c3db167191e23bc65cf69e953c8dbcb48446"
+    },
+    {
+      "path": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/saved-package-caches.json",
+      "source": "phase-attempt2/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/1/saved-package-caches.json",
+      "sha256": "42a94627249ed44a5074a9a33980514e76958ea6b7691d05ce8ab59fd5b0b98a"
+    },
+    {
+      "path": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/saved-package-hash.json",
+      "source": "phase-attempt2/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/1/saved-package-hash.json",
+      "sha256": "dd846e80fe33a15b6bb60b63c08c29288bd4298122cc129728b01d55e36e62be"
+    },
+    {
+      "path": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/post-close-saved-hash.json",
+      "source": "phase-attempt2/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/1/post-close-saved-hash.json",
+      "sha256": "bcc9133f4ef0497adc95191c2ea79a9ce01bb906507da3c608bf895157bc24ea"
+    },
+    {
+      "path": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/immediate-saved-package.xlsx",
+      "source": "phase-attempt2/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/1/immediate-saved-package.xlsx",
+      "sha256": "9c7f06fb726ed97f3fca71c82610353de2946a650ae96ebf391e1793747e11f8"
+    },
+    {
+      "path": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/result.json",
+      "source": "phase-attempt2/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/1/result.json",
+      "sha256": "48339390aa03f6c2077ff75bd0e0e14a089fe7e6607fd29ed732de6e0387bcfc"
+    },
+    {
+      "path": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/request.json",
+      "source": "phase-attempt2/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/1/request.json",
+      "sha256": "f862c08d7dd26c38604e1b2579a35b92f9fa118c1ebd51221b9a61a41508c7ea"
+    },
+    {
+      "path": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/receipt.json",
+      "source": "phase-attempt2/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/1/session/receipt.json",
+      "sha256": "c6b0d78ab2af77621df722f81bd07b2d667495323a6aa0eca962b6269484fbf5"
+    },
+    {
+      "path": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/saved-package-caches.json",
+      "source": "phase-attempt2/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/1/saved-package-caches.json",
+      "sha256": "42a94627249ed44a5074a9a33980514e76958ea6b7691d05ce8ab59fd5b0b98a"
+    },
+    {
+      "path": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/saved-package-hash.json",
+      "source": "phase-attempt2/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/1/saved-package-hash.json",
+      "sha256": "1b71aa88983340abe9c90b089fa08bd2584ad4607f35bf4dac0ec4c3c6e77df5"
+    },
+    {
+      "path": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/post-close-saved-hash.json",
+      "source": "phase-attempt2/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/1/post-close-saved-hash.json",
+      "sha256": "5a694350ba609b3be8c49f87268e39c2f4619972af503347f003892b7b0edc90"
+    },
+    {
+      "path": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/immediate-saved-package.xlsx",
+      "source": "phase-attempt2/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/1/immediate-saved-package.xlsx",
+      "sha256": "ee838042f8a898d556109d1ea6734b9f8629afcdb19ef0e3214e5ce60032cf9a"
+    },
+    {
+      "path": "eng20-persistence-eng15-overflow-calculate-before-save-false/result.json",
+      "source": "phase-attempt2/eng20-persistence-eng15-overflow-calculate-before-save-false/1/result.json",
+      "sha256": "e50399eaa827436258050835c0581aa0100827f7cbe592fbec503a305b8175d9"
+    },
+    {
+      "path": "eng20-persistence-eng15-overflow-calculate-before-save-false/request.json",
+      "source": "phase-attempt2/eng20-persistence-eng15-overflow-calculate-before-save-false/1/request.json",
+      "sha256": "960868514035c55c01876e6015ba5608e06b3a70333fd351f2288420856fe4e2"
+    },
+    {
+      "path": "eng20-persistence-eng15-overflow-calculate-before-save-false/receipt.json",
+      "source": "phase-attempt2/eng20-persistence-eng15-overflow-calculate-before-save-false/1/session/receipt.json",
+      "sha256": "dab55cf25ec13e22c124132c4def2813295ba57c366d67541d938d7755f6a451"
+    },
+    {
+      "path": "eng20-persistence-eng15-overflow-calculate-before-save-false/saved-package-caches.json",
+      "source": "phase-attempt2/eng20-persistence-eng15-overflow-calculate-before-save-false/1/saved-package-caches.json",
+      "sha256": "68e9274dc1989faa7ec8b37b7e7472cf820a17fcbd0d47fbd740e561b1ebd7fb"
+    },
+    {
+      "path": "eng20-persistence-eng15-overflow-calculate-before-save-false/saved-package-hash.json",
+      "source": "phase-attempt2/eng20-persistence-eng15-overflow-calculate-before-save-false/1/saved-package-hash.json",
+      "sha256": "fe954b5d51fddb3082abe3aad3205fc723bbc5ac8630e04fe7f9b83e8fd58bb3"
+    },
+    {
+      "path": "eng20-persistence-eng15-overflow-calculate-before-save-false/post-close-saved-hash.json",
+      "source": "phase-attempt2/eng20-persistence-eng15-overflow-calculate-before-save-false/1/post-close-saved-hash.json",
+      "sha256": "2d0b18e48f35c74696683f09fba1f1484ba7c654d4db08ba9870fa4a7c9be0d5"
+    },
+    {
+      "path": "eng20-persistence-eng15-overflow-calculate-before-save-false/immediate-saved-package.xlsx",
+      "source": "phase-attempt2/eng20-persistence-eng15-overflow-calculate-before-save-false/1/immediate-saved-package.xlsx",
+      "sha256": "e4da9d7cf907fe901dc4f6d238fe5058cd935830e6058efbc5f0507f114bd00e"
+    },
+    {
+      "path": "eng20-persistence-eng15-overflow-calculate-before-save-true/result.json",
+      "source": "phase-attempt2/eng20-persistence-eng15-overflow-calculate-before-save-true/1/result.json",
+      "sha256": "d4d5d2509d9ff576dacb5f728c70cc9f6e896d3cb4fc70c8fa6ec2de94324a0c"
+    },
+    {
+      "path": "eng20-persistence-eng15-overflow-calculate-before-save-true/request.json",
+      "source": "phase-attempt2/eng20-persistence-eng15-overflow-calculate-before-save-true/1/request.json",
+      "sha256": "5a80ba7716a961fb3956dfe5a814500b808df02eff092c7d4a4796b6e90a80ba"
+    },
+    {
+      "path": "eng20-persistence-eng15-overflow-calculate-before-save-true/receipt.json",
+      "source": "phase-attempt2/eng20-persistence-eng15-overflow-calculate-before-save-true/1/session/receipt.json",
+      "sha256": "f7c10f31bb15cb4600f6d3ddbd1b0d5fc3332c85fcad453ffa7799829eb3786f"
+    },
+    {
+      "path": "eng20-persistence-eng15-overflow-calculate-before-save-true/saved-package-caches.json",
+      "source": "phase-attempt2/eng20-persistence-eng15-overflow-calculate-before-save-true/1/saved-package-caches.json",
+      "sha256": "68e9274dc1989faa7ec8b37b7e7472cf820a17fcbd0d47fbd740e561b1ebd7fb"
+    },
+    {
+      "path": "eng20-persistence-eng15-overflow-calculate-before-save-true/saved-package-hash.json",
+      "source": "phase-attempt2/eng20-persistence-eng15-overflow-calculate-before-save-true/1/saved-package-hash.json",
+      "sha256": "9959684214767dd08c99ac473dda3bef1d03a9c92fc1b62af9dbd4973171ec3a"
+    },
+    {
+      "path": "eng20-persistence-eng15-overflow-calculate-before-save-true/post-close-saved-hash.json",
+      "source": "phase-attempt2/eng20-persistence-eng15-overflow-calculate-before-save-true/1/post-close-saved-hash.json",
+      "sha256": "9028b44ebbb2323bb71fbcb696a3888886068bf01be7da5a5d1f1be1956a5fe4"
+    },
+    {
+      "path": "eng20-persistence-eng15-overflow-calculate-before-save-true/immediate-saved-package.xlsx",
+      "source": "phase-attempt2/eng20-persistence-eng15-overflow-calculate-before-save-true/1/immediate-saved-package.xlsx",
+      "sha256": "e07aa76822a43f6ea9781605264c1f95ae722393faaba970471f47e2b01a286f"
+    }
+  ],
+  "audit": {
+    "delivery_hashes": 2161,
+    "status": {
+      "updated_utc": "2026-11-06T15:04:26.167855+00:00",
+      "runnable_requested_trials": 80,
+      "observed_unique_trials": 80,
+      "missing_runnable_trials": 0,
+      "attempts": 91,
+      "late_completed_selected_trials": 3,
+      "failed_attempts": 14,
+      "by_kind": {
+        "phase": 80
+      },
+      "unrun_original_setup_trials": 0,
+      "scope": "Excel observations only. No pass rate or compatibility claim; worksheet errors retained as typed data. Failed attempts remain in all-attempts.json. Answers point to immutable complete raw results, requests and receipts."
+    },
+    "fresh_processes": 80,
+    "conditions": [
+      {
+        "condition": "eng20-persistence-dc_10y_iteration-calculate-before-save-false",
+        "trials": 10,
+        "cell_variants": 1,
+        "first": "phase-attempt2/eng20-persistence-dc_10y_iteration-calculate-before-save-false/1/result.json"
+      },
+      {
+        "condition": "eng20-persistence-dc_10y_iteration-calculate-before-save-true",
+        "trials": 10,
+        "cell_variants": 1,
+        "first": "phase-attempt2/eng20-persistence-dc_10y_iteration-calculate-before-save-true/1/result.json"
+      },
+      {
+        "condition": "eng20-persistence-dc_86f-calculate-before-save-false",
+        "trials": 10,
+        "cell_variants": 1,
+        "first": "phase-attempt2/eng20-persistence-dc_86f-calculate-before-save-false/1/result.json"
+      },
+      {
+        "condition": "eng20-persistence-dc_86f-calculate-before-save-true",
+        "trials": 10,
+        "cell_variants": 1,
+        "first": "phase-attempt2/eng20-persistence-dc_86f-calculate-before-save-true/1/result.json"
+      },
+      {
+        "condition": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false",
+        "trials": 10,
+        "cell_variants": 1,
+        "first": "phase-attempt2/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/1/result.json"
+      },
+      {
+        "condition": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true",
+        "trials": 10,
+        "cell_variants": 1,
+        "first": "phase-attempt2/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/1/result.json"
+      },
+      {
+        "condition": "eng20-persistence-eng15-overflow-calculate-before-save-false",
+        "trials": 10,
+        "cell_variants": 1,
+        "first": "phase-attempt2/eng20-persistence-eng15-overflow-calculate-before-save-false/1/result.json"
+      },
+      {
+        "condition": "eng20-persistence-eng15-overflow-calculate-before-save-true",
+        "trials": 10,
+        "cell_variants": 1,
+        "first": "phase-attempt2/eng20-persistence-eng15-overflow-calculate-before-save-true/1/result.json"
+      }
+    ]
+  },
+  "chains": [
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_10y_iteration-calculate-before-save-false",
+      "trial": 1,
+      "status": "observed",
+      "result": "phase-attempt2/eng20-persistence-dc_10y_iteration-calculate-before-save-false/1/result.json",
+      "result_sha256": "24a677e44be810c9ba1a63375326abb493cb46565b074c2a570af725f838ccfd",
+      "request_sha256": "5ab44552e5a8a04ebea70b94f2a6353fa558c300ce29029b43f169b94f03c555",
+      "receipt": "phase-attempt2/eng20-persistence-dc_10y_iteration-calculate-before-save-false/1/session/receipt.json",
+      "receipt_sha256": "93bdc06b62d0f5d491f7405bc9cd4ec8eac0af64218e4684b608a67c8d7812eb",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 24744,
+        "start_ticks": 639295683856200296,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\20-bootstrap.csv\"",
+        "launch": 20
+      },
+      "request": "phase-attempt2/eng20-persistence-dc_10y_iteration-calculate-before-save-false/1/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_10y_iteration-calculate-before-save-false",
+      "trial": 2,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/2/result.json",
+      "result_sha256": "a110b66fa41da716f4df59860b979ce18e134d4e097c09650c95e183a9f7897e",
+      "request_sha256": "08a0fda8016719138d807610e6e06df89538d9fa0272647e4ea1e3b3a0428f5d",
+      "receipt": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/2/session/receipt.json",
+      "receipt_sha256": "700155df3491d617bd3a523d9afa3527900f5d5030ac29d5d3d23ff82128579a",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 8924,
+        "start_ticks": 639295692895258468,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\28-bootstrap.csv\"",
+        "launch": 28
+      },
+      "request": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/2/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_10y_iteration-calculate-before-save-false",
+      "trial": 3,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/3/result.json",
+      "result_sha256": "b1e8a29cbbd900d52da0407a474b7634f2b71cb9881dc84b4da2d4d4b7a77492",
+      "request_sha256": "d6762609c271a662b10d6033e914902b1be8eafc63acbb33d3d9ed7eafceed4b",
+      "receipt": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/3/session/receipt.json",
+      "receipt_sha256": "66f18d0bce79d679116b07c5bf8d32838023e6223832e2e4554bc01ff4c3f334",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 68420,
+        "start_ticks": 639295699032889031,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\36-bootstrap.csv\"",
+        "launch": 36
+      },
+      "request": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/3/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_10y_iteration-calculate-before-save-false",
+      "trial": 4,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/4/result.json",
+      "result_sha256": "d414e4f20b03b6bdd7c1144b078e4fc9dab267c0c2890415d188951c97052c17",
+      "request_sha256": "97f924895d54ccb10a2f5c06f501b449adc5e4936e09530840a47811c92fedd6",
+      "receipt": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/4/session/receipt.json",
+      "receipt_sha256": "cf6368840be2a928c048dbcff4fb5fc3b0fee5100d3ad285fd584c4b44d07a7f",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 16532,
+        "start_ticks": 639295703977520796,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\44-bootstrap.csv\"",
+        "launch": 44
+      },
+      "request": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/4/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_10y_iteration-calculate-before-save-false",
+      "trial": 5,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/5/result.json",
+      "result_sha256": "92f4a67477b7abc470fcc52f4f76ca972c48de6a98fb48eda100a27f0a145982",
+      "request_sha256": "43b266cb33c4ae7ad6a1229653fc1cf3b9b4029915fd7d5a68eef15186e769e2",
+      "receipt": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/5/session/receipt.json",
+      "receipt_sha256": "f814048812545be0aea30ca41eb1d2fdd8605225202f6595684e8f37ce1427db",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 35144,
+        "start_ticks": 639295711889364579,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\59-bootstrap.csv\"",
+        "launch": 59
+      },
+      "request": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/5/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_10y_iteration-calculate-before-save-false",
+      "trial": 6,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/6/result.json",
+      "result_sha256": "267118b4980c363e4de3e01dd8b0b87acfa84586bcd6dd7e8eb42e3c1b9a44b1",
+      "request_sha256": "2f7712abfb50fedb64eeeab5341e495c781919130616a10427a85cdf876e80a7",
+      "receipt": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/6/session/receipt.json",
+      "receipt_sha256": "72c7b7f442fa45787c3a41f8a9d8b476507fd4f6d291dc446b43c230e4a5bff2",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 45676,
+        "start_ticks": 639295719104835151,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\68-bootstrap.csv\"",
+        "launch": 68
+      },
+      "request": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/6/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_10y_iteration-calculate-before-save-false",
+      "trial": 7,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/7/result.json",
+      "result_sha256": "d2c47255b7dc4307268b7869faf9a96bcc4d7118a1e8ff7d49bb7d538f2a3871",
+      "request_sha256": "6d18423bae1d3228981089cf17b1f0c516a89f9fca08a8ac410d670b7ae555a4",
+      "receipt": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/7/session/receipt.json",
+      "receipt_sha256": "b355de3af140b1972ba3956cb1a6b90ee66b6bc8b3826a72a78762bc52d7406b",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 6784,
+        "start_ticks": 639295721916862370,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\72-bootstrap.csv\"",
+        "launch": 72
+      },
+      "request": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/7/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_10y_iteration-calculate-before-save-false",
+      "trial": 8,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/8/result.json",
+      "result_sha256": "f64f3568b04f04748b0e8074120d8558ee6edd217d18417f0f9481878e9c0da6",
+      "request_sha256": "1b06ff959196686c3c435df74bc8bf1c7c0d35b29aa731e787d075677e24f677",
+      "receipt": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/8/session/receipt.json",
+      "receipt_sha256": "030f6f02cbc23d32d6a0bac83497da5ee0b8cb9cb0273183ca7b18ef637affd4",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 47000,
+        "start_ticks": 639295724724621268,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\76-bootstrap.csv\"",
+        "launch": 76
+      },
+      "request": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/8/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_10y_iteration-calculate-before-save-false",
+      "trial": 9,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/9/result.json",
+      "result_sha256": "466c303613e342822241dbb1444798a73607e8df54e9e22f4578e3d6f98ec715",
+      "request_sha256": "a7079929b36533aa5b942817d2bcd6d7561972eac19c5b60fc437c4b5c32ba63",
+      "receipt": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/9/session/receipt.json",
+      "receipt_sha256": "ff1e5be6c62c6b3c48d04a58cb72cd092ed7ad6395c69ddd52389dda5c0dc1a7",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 46992,
+        "start_ticks": 639295728926551437,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\83-bootstrap.csv\"",
+        "launch": 83
+      },
+      "request": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/9/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_10y_iteration-calculate-before-save-false",
+      "trial": 10,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/10/result.json",
+      "result_sha256": "c08dff2428132fb1b8cd07a32dc848a02376021eff0dcee1e4070a9a7d85c5d3",
+      "request_sha256": "0800c11137a661f6fbebc404f6fd4d14fb87cd207e3ac070183dcb3ca8e83876",
+      "receipt": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/10/session/receipt.json",
+      "receipt_sha256": "d08c420a2290c4f0f514e0468e7b54be3dc3d603757299d8b74d0c4c933d06d9",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 67580,
+        "start_ticks": 639295729809360464,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\85-bootstrap.csv\"",
+        "launch": 85
+      },
+      "request": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-false/10/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_10y_iteration-calculate-before-save-true",
+      "trial": 1,
+      "status": "observed",
+      "result": "phase-attempt2/eng20-persistence-dc_10y_iteration-calculate-before-save-true/1/result.json",
+      "result_sha256": "7b788c495c5647ab624149547348c44c40a5ff125ec0152ae1711aab2432c0af",
+      "request_sha256": "81db020dd74c2bd3156f3b45a9fab097f87847ee940b83c12cdfd7687cf1bbfc",
+      "receipt": "phase-attempt2/eng20-persistence-dc_10y_iteration-calculate-before-save-true/1/session/receipt.json",
+      "receipt_sha256": "42971d77e0a16202a5359c561742813b228d221b2e64c4fd4474e5aa58b0b458",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 3280,
+        "start_ticks": 639295684225795516,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\21-bootstrap.csv\"",
+        "launch": 21
+      },
+      "request": "phase-attempt2/eng20-persistence-dc_10y_iteration-calculate-before-save-true/1/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_10y_iteration-calculate-before-save-true",
+      "trial": 2,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-true/2/result.json",
+      "result_sha256": "c1b18d168666bf3305caffd8c36b61d1e4985cb0066eabd8d3e3c74a0155785b",
+      "request_sha256": "281e3fac597d4a3ecd844c43477a1f6bb029bb25f5f55ac050a957e4efed3651",
+      "receipt": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-true/2/session/receipt.json",
+      "receipt_sha256": "85e10a0a18c9dbf47707028e22ff664b7c995049cd812e02003c295a96e36d2c",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 60560,
+        "start_ticks": 639295693712152224,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\29-bootstrap.csv\"",
+        "launch": 29
+      },
+      "request": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-true/2/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_10y_iteration-calculate-before-save-true",
+      "trial": 3,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-true/3/result.json",
+      "result_sha256": "185c12ecd974db29b7e7cb58afc2f106831e8423554050259f3530aac4c15e42",
+      "request_sha256": "55e315e8a47d35ae69f877cdf44ac37dddce24f2afaf626d7a1254eaaa080a2f",
+      "receipt": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-true/3/session/receipt.json",
+      "receipt_sha256": "c7ac7f8b8a5562cd51f62ba92113c27b90e81472b0e52a2d0243e0ac848b3bc3",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 27168,
+        "start_ticks": 639295699510412819,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\37-bootstrap.csv\"",
+        "launch": 37
+      },
+      "request": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-true/3/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_10y_iteration-calculate-before-save-true",
+      "trial": 4,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-true/4/result.json",
+      "result_sha256": "1a5a7cb935fdec6bc4aabdb4f00b55db91ed43e40fd2648d2a6d48b7bbb89f8f",
+      "request_sha256": "bb1bafb3f65a5af34ec1868a978209ec306984332c67af98327764cd575e14c8",
+      "receipt": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-true/4/session/receipt.json",
+      "receipt_sha256": "8aa395696dbcfe97bbb23776c7acae4c132866e933f6bbf62abc893ec7d05d5f",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 12136,
+        "start_ticks": 639295704563845278,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\45-bootstrap.csv\"",
+        "launch": 45
+      },
+      "request": "phase-attempt3/eng20-persistence-dc_10y_iteration-calculate-before-save-true/4/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_10y_iteration-calculate-before-save-true",
+      "trial": 5,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-dc_10y_iteration-calculate-before-save-true/5/result.json",
+      "result_sha256": "e4d8c94ac6379062a198411f111ffd6b61b1989e98604265c1ef0df26ea82902",
+      "request_sha256": "dd4a62ce05a7c012f8f20349d004ec0de7ca98c4d00445a463f9dbc261c0a161",
+      "receipt": "phase-attempt4/eng20-persistence-dc_10y_iteration-calculate-before-save-true/5/session/receipt.json",
+      "receipt_sha256": "e02380cea644833452bccece985d95f8ec3ebc1eb1cd0ef4feee1f6237cbefde",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 63428,
+        "start_ticks": 639295731211688751,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\88-bootstrap.csv\"",
+        "launch": 88
+      },
+      "request": "phase-attempt4/eng20-persistence-dc_10y_iteration-calculate-before-save-true/5/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_10y_iteration-calculate-before-save-true",
+      "trial": 6,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-dc_10y_iteration-calculate-before-save-true/6/result.json",
+      "result_sha256": "5fbde4cabc3a128d41b167c258dc96d38c222d63ccdab80dcb006c240ceb401e",
+      "request_sha256": "9b226cf503fc6955392e73be3e1316a10b7e5509cb4ffa39fd26d875170d54e1",
+      "receipt": "phase-attempt4/eng20-persistence-dc_10y_iteration-calculate-before-save-true/6/session/receipt.json",
+      "receipt_sha256": "71f9061ea583120015bd087db301998618f27464dd6cde9eb9054b289f1760bc",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 50184,
+        "start_ticks": 639295732206672591,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\91-bootstrap.csv\"",
+        "launch": 91
+      },
+      "request": "phase-attempt4/eng20-persistence-dc_10y_iteration-calculate-before-save-true/6/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_10y_iteration-calculate-before-save-true",
+      "trial": 7,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-dc_10y_iteration-calculate-before-save-true/7/result.json",
+      "result_sha256": "4b69cf5fa50b69aeb661ce78330a3eedca1a1cd5fe7d788910b4e38a5b4d6833",
+      "request_sha256": "567e892121c8b7cc23c7d2cccf3fdd7e76c090adc4240d7439b39b239bbff6a9",
+      "receipt": "phase-attempt4/eng20-persistence-dc_10y_iteration-calculate-before-save-true/7/session/receipt.json",
+      "receipt_sha256": "3516e5c9bbad85e84a58432c5e54da80f56b4da5ae8f9e2bf98ed49ab1c4d371",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 32808,
+        "start_ticks": 639295733956162986,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\95-bootstrap.csv\"",
+        "launch": 95
+      },
+      "request": "phase-attempt4/eng20-persistence-dc_10y_iteration-calculate-before-save-true/7/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_10y_iteration-calculate-before-save-true",
+      "trial": 8,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-dc_10y_iteration-calculate-before-save-true/8/result.json",
+      "result_sha256": "f5314d02db41f8eb4cdd49b4ae84b295075212017072c085ac8a17d07699ca1d",
+      "request_sha256": "4d3bbcb4d2eb3f2a6e28284e42100b8b062d42e4c9458d0895aca525062b54b9",
+      "receipt": "phase-attempt4/eng20-persistence-dc_10y_iteration-calculate-before-save-true/8/session/receipt.json",
+      "receipt_sha256": "c7a0f11d468ca71be63b1d344251f0d4f9610938d2f0c4b9e045ce18c2cef926",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 13148,
+        "start_ticks": 639295735721174485,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\99-bootstrap.csv\"",
+        "launch": 99
+      },
+      "request": "phase-attempt4/eng20-persistence-dc_10y_iteration-calculate-before-save-true/8/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_10y_iteration-calculate-before-save-true",
+      "trial": 9,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-dc_10y_iteration-calculate-before-save-true/9/result.json",
+      "result_sha256": "16439acd03774f4aecd012c63395ae7ae5f0a9fc159833d66d14238cfc0b7fd4",
+      "request_sha256": "dc1ed59de45e77725bdf848b49540e53300fb9397b84c7ca3144d6a89d73eb44",
+      "receipt": "phase-attempt4/eng20-persistence-dc_10y_iteration-calculate-before-save-true/9/session/receipt.json",
+      "receipt_sha256": "ecba54a603015281ca3fbd350a3e752f09a68e0ae39fb8d008562e22c89362c5",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 24356,
+        "start_ticks": 639295737372777384,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\103-bootstrap.csv\"",
+        "launch": 103
+      },
+      "request": "phase-attempt4/eng20-persistence-dc_10y_iteration-calculate-before-save-true/9/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_10y_iteration-calculate-before-save-true",
+      "trial": 10,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-dc_10y_iteration-calculate-before-save-true/10/result.json",
+      "result_sha256": "d9e8f2fe346b862e6bb1934c306bc1fdc2363b98512044dde2eb33a4ed774a38",
+      "request_sha256": "bea68dace896db0c5a28d1152ea7849a8c2e6aa73e0846b8d2c949bae2b299c0",
+      "receipt": "phase-attempt4/eng20-persistence-dc_10y_iteration-calculate-before-save-true/10/session/receipt.json",
+      "receipt_sha256": "e81f8c9a97d8dc48eab6d47f6f756e10dcd7ba9b9b3c91a05ba2abd513d00ba4",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 35668,
+        "start_ticks": 639295740540033394,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\109-bootstrap.csv\"",
+        "launch": 109
+      },
+      "request": "phase-attempt4/eng20-persistence-dc_10y_iteration-calculate-before-save-true/10/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_86f-calculate-before-save-false",
+      "trial": 1,
+      "status": "observed",
+      "result": "phase-attempt2/eng20-persistence-dc_86f-calculate-before-save-false/1/result.json",
+      "result_sha256": "964fb5852a2c096251cbdf8cbdbccaac762425d8b3db687c8bc65bcd73de8c31",
+      "request_sha256": "7776103e3e226f8a62afa4ed64ffd0311f0a4a046cbe9967565ca023c435ef9c",
+      "receipt": "phase-attempt2/eng20-persistence-dc_86f-calculate-before-save-false/1/session/receipt.json",
+      "receipt_sha256": "d1f7dffb134d6d802922b4031291eca77ab46ad4a9056787c57e245468a80337",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 63268,
+        "start_ticks": 639295684556841155,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\22-bootstrap.csv\"",
+        "launch": 22
+      },
+      "request": "phase-attempt2/eng20-persistence-dc_86f-calculate-before-save-false/1/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_86f-calculate-before-save-false",
+      "trial": 2,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-dc_86f-calculate-before-save-false/2/result.json",
+      "result_sha256": "ac25fecacf1956f3a5339fada33f3bbcec84f94fad85f11f17ab11e4e960ced7",
+      "request_sha256": "ad4f74ea01f750fdba9f958b5e23d839c64a706439d5780fdd5ef76b825e9fde",
+      "receipt": "phase-attempt3/eng20-persistence-dc_86f-calculate-before-save-false/2/session/receipt.json",
+      "receipt_sha256": "dda34cdec99cf7dac1cea8fe8277d4aafe975dbcaa118e6201640e0d479362e3",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 15688,
+        "start_ticks": 639295694641715666,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\30-bootstrap.csv\"",
+        "launch": 30
+      },
+      "request": "phase-attempt3/eng20-persistence-dc_86f-calculate-before-save-false/2/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_86f-calculate-before-save-false",
+      "trial": 3,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-dc_86f-calculate-before-save-false/3/result.json",
+      "result_sha256": "6e9bed8a7db06a88649ffeb15166d9271f18cb9669dfff42cacdeb46675377b2",
+      "request_sha256": "db1107734657ab65e277b9b82c1be320ad2a6b235bc6e240aa6b62d6b45e7985",
+      "receipt": "phase-attempt3/eng20-persistence-dc_86f-calculate-before-save-false/3/session/receipt.json",
+      "receipt_sha256": "3f7cb04feaaf6842dba76e122691b1b9abc999866122c8aa0a5700cc56bb4bd7",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 19548,
+        "start_ticks": 639295700041872572,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\38-bootstrap.csv\"",
+        "launch": 38
+      },
+      "request": "phase-attempt3/eng20-persistence-dc_86f-calculate-before-save-false/3/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_86f-calculate-before-save-false",
+      "trial": 4,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-false/4/result.json",
+      "result_sha256": "2d5b848e951ac517ef133ce07605fe9816a231af4f16ff558268776751a8359c",
+      "request_sha256": "a55d9c90711a8f8843707fecb0c21a035269da12d04c20682f0bd1df06f8acf9",
+      "receipt": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-false/4/session/receipt.json",
+      "receipt_sha256": "86a11342dccb856a4cd2434574704a409b2a1418c77cd68bda42a8df460aaa0d",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 59164,
+        "start_ticks": 639295730696543673,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\87-bootstrap.csv\"",
+        "launch": 87
+      },
+      "request": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-false/4/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_86f-calculate-before-save-false",
+      "trial": 5,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-false/5/result.json",
+      "result_sha256": "8755b7b854ab2c70cec49421dc974bd31363e17f852869fc8b40660e17fbbc3f",
+      "request_sha256": "31431cce6ab50b207f51a783a33bb40111734e65163c113334550c94d7946b44",
+      "receipt": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-false/5/session/receipt.json",
+      "receipt_sha256": "a79b214a017570c5c12e36fe78c055a5e457e19a9fea2455fed22f37efa3a05f",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 33080,
+        "start_ticks": 639295731502126891,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\89-bootstrap.csv\"",
+        "launch": 89
+      },
+      "request": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-false/5/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_86f-calculate-before-save-false",
+      "trial": 6,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-false/6/result.json",
+      "result_sha256": "f1c40253571a5d4463b3e5e43ba65d8503a33135555554db5729f0d6acf13358",
+      "request_sha256": "1c03425a4675c73893b4d041b6f635ab443a4cbe2158aa6aa8a07218e9b28128",
+      "receipt": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-false/6/session/receipt.json",
+      "receipt_sha256": "b170d364cccc4f933cdcfc0334d85efb21494fe37413b55e7bf6388bed72c90b",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 51008,
+        "start_ticks": 639295732685740416,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\92-bootstrap.csv\"",
+        "launch": 92
+      },
+      "request": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-false/6/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_86f-calculate-before-save-false",
+      "trial": 7,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-false/7/result.json",
+      "result_sha256": "8b936017e3d02cdb786395cff609b88893fa1e4e589ce4257ee43001e5434ca3",
+      "request_sha256": "202cae56868c08ea4bf91f96b8f6006372f11237521c2b62c77140d865f81a5f",
+      "receipt": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-false/7/session/receipt.json",
+      "receipt_sha256": "a9a610cbcaeb11c9cace0b82797962198dfc23114411d8c3ac09361930f3ee26",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 53980,
+        "start_ticks": 639295734435459742,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\96-bootstrap.csv\"",
+        "launch": 96
+      },
+      "request": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-false/7/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_86f-calculate-before-save-false",
+      "trial": 8,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-false/8/result.json",
+      "result_sha256": "1fb4f22e93dd815ed84d45f3b0e998fcd3a9fef76d767e02723ef724b1a7ab1e",
+      "request_sha256": "2e6b3b2243ca4d042ef2e7b996e363b0f25850628dcd29c5951bcc81afc1d9cf",
+      "receipt": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-false/8/session/receipt.json",
+      "receipt_sha256": "2a74cc68d5867051408b5da8d17b3789cdf56dbfbca1aa6bac4306967d2197de",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 44600,
+        "start_ticks": 639295736196050391,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\100-bootstrap.csv\"",
+        "launch": 100
+      },
+      "request": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-false/8/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_86f-calculate-before-save-false",
+      "trial": 9,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-false/9/result.json",
+      "result_sha256": "2c814c3f60d7c5c782908fdf837aea48950a49bed9fffd1433da5f01233da969",
+      "request_sha256": "04162a61506f9a8fbaa49d548cfc4d8041a5c3cf7c2985138294d401c4d63bc3",
+      "receipt": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-false/9/session/receipt.json",
+      "receipt_sha256": "8ceec151b6aefe5daafb179b3f1720dd761f438cf57d5810423f7b9e1b77e5c8",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 19068,
+        "start_ticks": 639295737830630015,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\104-bootstrap.csv\"",
+        "launch": 104
+      },
+      "request": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-false/9/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_86f-calculate-before-save-false",
+      "trial": 10,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-false/10/result.json",
+      "result_sha256": "55a30ecbd355828bc74d5e2f545e9ea8e733ce398e96c58af9a27857c68b76be",
+      "request_sha256": "ca3fc9c5c95e49773b74b64094baeabb4f1eb6a82b793d748605bd58edb40906",
+      "receipt": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-false/10/session/receipt.json",
+      "receipt_sha256": "da6378ec6f6f9042b96ea0a46647fef47dfe5e37780c5dd002a5b2b1b73ee5da",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 29912,
+        "start_ticks": 639295740789742348,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\110-bootstrap.csv\"",
+        "launch": 110
+      },
+      "request": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-false/10/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_86f-calculate-before-save-true",
+      "trial": 1,
+      "status": "observed",
+      "result": "phase-attempt2/eng20-persistence-dc_86f-calculate-before-save-true/1/result.json",
+      "result_sha256": "123aad364e795b9cb410a37fa720b812ede6a4972246d8b403a3c96f65ac81e9",
+      "request_sha256": "cf64908a2315965206f78deeaafe0acd44d3f4ee39fdb220f5ea3cdd0b3c8d2e",
+      "receipt": "phase-attempt2/eng20-persistence-dc_86f-calculate-before-save-true/1/session/receipt.json",
+      "receipt_sha256": "dfd77650f5f0299eb7f59f0cbdbedbac2eff77e4f872447063db3c7514933d11",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 55904,
+        "start_ticks": 639295684855632456,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\23-bootstrap.csv\"",
+        "launch": 23
+      },
+      "request": "phase-attempt2/eng20-persistence-dc_86f-calculate-before-save-true/1/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_86f-calculate-before-save-true",
+      "trial": 2,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-dc_86f-calculate-before-save-true/2/result.json",
+      "result_sha256": "669ecec02b20a9344ff20220313faa811ae56678ea37622a83798e654f2a5187",
+      "request_sha256": "4072c5190d3c0d8ec4746d79d4b07f596feb8d731f3aef491ccf1a68a97ab708",
+      "receipt": "phase-attempt3/eng20-persistence-dc_86f-calculate-before-save-true/2/session/receipt.json",
+      "receipt_sha256": "1e8396e4d08e910cf8ddfd7a12dcfdac71d9307e1c110195e489935871ab3d45",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 56340,
+        "start_ticks": 639295695364526220,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\31-bootstrap.csv\"",
+        "launch": 31
+      },
+      "request": "phase-attempt3/eng20-persistence-dc_86f-calculate-before-save-true/2/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_86f-calculate-before-save-true",
+      "trial": 3,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-dc_86f-calculate-before-save-true/3/result.json",
+      "result_sha256": "52b14100b1c412298ae6bebc61f1b22992ca68bfd6af9692efe58f28ace307c6",
+      "request_sha256": "ee5aa0e91d9b71f8b314881e2101e0a4615648afd709a390afe6993128ad5f0a",
+      "receipt": "phase-attempt3/eng20-persistence-dc_86f-calculate-before-save-true/3/session/receipt.json",
+      "receipt_sha256": "92d696b10b9c4ea2462d4be33adbbab790f79fd28c7c6ecb9c9d7fc663484354",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 67044,
+        "start_ticks": 639295700537992188,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\39-bootstrap.csv\"",
+        "launch": 39
+      },
+      "request": "phase-attempt3/eng20-persistence-dc_86f-calculate-before-save-true/3/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_86f-calculate-before-save-true",
+      "trial": 4,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-dc_86f-calculate-before-save-true/4/result.json",
+      "result_sha256": "279a9edebc8a9599e5120a5b110c25ba788ff919854e049f44d9ce0b7d79ed0c",
+      "request_sha256": "89c14441936b078d76d510e8615fc5d8a978a290e48e7836693ff8d7b78d2211",
+      "receipt": "phase-attempt3/eng20-persistence-dc_86f-calculate-before-save-true/4/session/receipt.json",
+      "receipt_sha256": "2655eff93350b575c6f8ea766778d344c1d897da9336678fcc484d8447cc9daf",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 13460,
+        "start_ticks": 639295707412048635,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\49-bootstrap.csv\"",
+        "launch": 49
+      },
+      "request": "phase-attempt3/eng20-persistence-dc_86f-calculate-before-save-true/4/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_86f-calculate-before-save-true",
+      "trial": 5,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-dc_86f-calculate-before-save-true/5/result.json",
+      "result_sha256": "52e46087709e891605504e086d6fe05585a47ead51eb83b381ffd8573d150e89",
+      "request_sha256": "ea6fc1bb920ee96e3d6e6ed068fa7895b541051fec57f3c9f03f4efa46f08a13",
+      "receipt": "phase-attempt3/eng20-persistence-dc_86f-calculate-before-save-true/5/session-late/receipt.json",
+      "receipt_sha256": "0317ebacfa2b439beb4326257b034bb3753c97b638b8a132998720c28e0bfdc0",
+      "late_completed": true,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 44988,
+        "start_ticks": 639295714020689346,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\63-bootstrap.csv\"",
+        "launch": 63
+      },
+      "request": "phase-attempt3/eng20-persistence-dc_86f-calculate-before-save-true/5/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_86f-calculate-before-save-true",
+      "trial": 6,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-true/6/result.json",
+      "result_sha256": "ac88bc45ec36d8504676f30023f621166d6579dd102363f0c3e45ea52b9b4307",
+      "request_sha256": "b78d2c3f252f44f81d6236f5428897a223bb7b55af7745b9f778f7e10164b646",
+      "receipt": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-true/6/session/receipt.json",
+      "receipt_sha256": "334215246fbc0fc3d577c9ca965f30a23d5113caa3670244b40a9f342156b58a",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 14920,
+        "start_ticks": 639295733177272185,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\93-bootstrap.csv\"",
+        "launch": 93
+      },
+      "request": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-true/6/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_86f-calculate-before-save-true",
+      "trial": 7,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-true/7/result.json",
+      "result_sha256": "57ea54fa4f936316c4bd78fcfc19321523f37fff2ea6542e90327c2735759812",
+      "request_sha256": "3ef371b3c0e6f100c46f720309a4ba0af0b6b85bf9da56fea3fc733d30b12a23",
+      "receipt": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-true/7/session/receipt.json",
+      "receipt_sha256": "e367d96dc7151ab768692a8ebeabd0de97012c30841c08efb4bcf195fe0e0212",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 25828,
+        "start_ticks": 639295734874012689,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\97-bootstrap.csv\"",
+        "launch": 97
+      },
+      "request": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-true/7/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_86f-calculate-before-save-true",
+      "trial": 8,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-true/8/result.json",
+      "result_sha256": "a34f13cf1d9e4e716ebc192518d367c012d9a38b4d6de794024dba3fd6a1bd3c",
+      "request_sha256": "5b44d93263fcc53b7563e374ca77adcf8187e2a14eac98f35b103a789828a5cc",
+      "receipt": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-true/8/session/receipt.json",
+      "receipt_sha256": "09dac14c271194cd7edd6c3e5ddd6bf51c202f76421dff82d64acafb7745816b",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 30844,
+        "start_ticks": 639295736584732409,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\101-bootstrap.csv\"",
+        "launch": 101
+      },
+      "request": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-true/8/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_86f-calculate-before-save-true",
+      "trial": 9,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-true/9/result.json",
+      "result_sha256": "c802c89997c6dcbbec8cbca6f7e103efcfee34539af83fda7ccecdcca9e4ef4f",
+      "request_sha256": "2bd5d9d45ee6a434f3806bcebe92d14af4a8fdf85fd927147dfc547c290ec60a",
+      "receipt": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-true/9/session/receipt.json",
+      "receipt_sha256": "c9a4a04bf1f8c9ba490a2b5b79b324fd3480b8a4479c18d60e4e6ad39cdeeb44",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 56240,
+        "start_ticks": 639295738325280653,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\105-bootstrap.csv\"",
+        "launch": 105
+      },
+      "request": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-true/9/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-dc_86f-calculate-before-save-true",
+      "trial": 10,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-true/10/result.json",
+      "result_sha256": "19abaaa37cd72966efafc9e2de57cba80839ed4f79db0aa161d35f7477acbb9d",
+      "request_sha256": "69a4b64e6e9ceb60bf2caae312c876afbeddb64def2d41db0cf06e45c9fc446f",
+      "receipt": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-true/10/session/receipt.json",
+      "receipt_sha256": "a06ede6dfa1c944b098c4604d8d8dcad0bd0563e251b29cfdd05671206740a5f",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "seeds-verified",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 33984,
+        "start_ticks": 639295741041746991,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\111-bootstrap.csv\"",
+        "launch": 111
+      },
+      "request": "phase-attempt4/eng20-persistence-dc_86f-calculate-before-save-true/10/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false",
+      "trial": 1,
+      "status": "observed",
+      "result": "phase-attempt2/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/1/result.json",
+      "result_sha256": "28c53dafc9bd19e7579558af0639b2096b280f70571bcb8223fdfd66ff411dea",
+      "request_sha256": "be701a01ea3800d069198ba2581f59826e3a0a2052fe78cc0cfe5e7aa4c1631d",
+      "receipt": "phase-attempt2/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/1/session/receipt.json",
+      "receipt_sha256": "352412ebf340563e29b143615f05c3db167191e23bc65cf69e953c8dbcb48446",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 63412,
+        "start_ticks": 639295685267149992,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\24-bootstrap.csv\"",
+        "launch": 24
+      },
+      "request": "phase-attempt2/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/1/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false",
+      "trial": 2,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/2/result.json",
+      "result_sha256": "321422232822784f63cd046fc880127f1c42b2f9130dc215c42d887582fe2a0e",
+      "request_sha256": "c05040f402d484f1abf57d53f2993055639fc3a1a2628c4f9e482a251909ec81",
+      "receipt": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/2/session/receipt.json",
+      "receipt_sha256": "106c9fd8c244ba443fb30245fb84d1deea77459400eb0af8b01fd93857eb0ead",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 2880,
+        "start_ticks": 639295696233817624,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\32-bootstrap.csv\"",
+        "launch": 32
+      },
+      "request": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/2/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false",
+      "trial": 3,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/3/result.json",
+      "result_sha256": "2ecc6b097af138df2bf7f92eaf328ba6e1b4dbef97a654b4ca88fd909b9741b4",
+      "request_sha256": "ff73c8a1f3e1f9b9f46899e53ef451fa67da4a6b20152f729a411483dc0f664f",
+      "receipt": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/3/session/receipt.json",
+      "receipt_sha256": "993e500aac11b626940c683eaf5528e91414b3a34bae9b64c91e5bf1845979e0",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 46528,
+        "start_ticks": 639295701242695682,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\40-bootstrap.csv\"",
+        "launch": 40
+      },
+      "request": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/3/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false",
+      "trial": 4,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/4/result.json",
+      "result_sha256": "9ac539efbdbf7145e773fc34139813a70408f9d478234fe42bafe736be86a2b8",
+      "request_sha256": "39ed2145490110596eb26c6c83575bff38e316c9e4b9c8e7c0f84d824474c1b1",
+      "receipt": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/4/session/receipt.json",
+      "receipt_sha256": "1f0f2e0093c91172e41f258b23e8d22666d7b9639211900438b41b314a6e938a",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 19156,
+        "start_ticks": 639295708314885917,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\51-bootstrap.csv\"",
+        "launch": 51
+      },
+      "request": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/4/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false",
+      "trial": 5,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/5/result.json",
+      "result_sha256": "a5fb7117b599c7a07e417d763e40b70f40420221063de33d3309003004bbbe59",
+      "request_sha256": "53bd0cfa5a63036625a6d2b8859d720bc706ae44e175911a021e019f73a7c865",
+      "receipt": "phase-attempt4/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/5/session/receipt.json",
+      "receipt_sha256": "a5f9fac3f7a3a97b09d59312184787641743450717c443b3e50dfc1e00589f65",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 61048,
+        "start_ticks": 639295731846836996,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\90-bootstrap.csv\"",
+        "launch": 90
+      },
+      "request": "phase-attempt4/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/5/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false",
+      "trial": 6,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/6/result.json",
+      "result_sha256": "065d70fd7cd941bbab418c8310f83058b0dcff5a0333b34462d143b8c92342b1",
+      "request_sha256": "f572202983af42eb8231fb5fe269871e0bdd6f8bcbac1783025cf30daf4c68b3",
+      "receipt": "phase-attempt4/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/6/session/receipt.json",
+      "receipt_sha256": "5d0e74768610d06d2f50f49332d43f81e26ef9fb7016d27e0c067ed76ae44724",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 65704,
+        "start_ticks": 639295733623825001,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\94-bootstrap.csv\"",
+        "launch": 94
+      },
+      "request": "phase-attempt4/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/6/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false",
+      "trial": 7,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/7/result.json",
+      "result_sha256": "246fad033a563a1d46c9ea0e4ec4e83799921cdef81a2c3c7c48a7a44183785e",
+      "request_sha256": "8458a6d247c74c3631e90f08eeb4df8281afc9e1e5d3be77ad50d1a2cf632d0e",
+      "receipt": "phase-attempt4/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/7/session/receipt.json",
+      "receipt_sha256": "1fb02dbd95e188412dd437e1c93e1b2a7685052fb5fd8f56951ee74136233218",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 68016,
+        "start_ticks": 639295735325818925,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\98-bootstrap.csv\"",
+        "launch": 98
+      },
+      "request": "phase-attempt4/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/7/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false",
+      "trial": 8,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/8/result.json",
+      "result_sha256": "4796696d63cc6c7b0755a7557cee685db1883f7e3aa964b0a1d833ddc7430f87",
+      "request_sha256": "55fad5ae10c3770f96815266a6b22432a02b0402a18c150e83154f86111e2793",
+      "receipt": "phase-attempt4/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/8/session/receipt.json",
+      "receipt_sha256": "e82d67355547c3de2f2ef79c52603522befc98bf056a066f763b5d212c5675a3",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 42184,
+        "start_ticks": 639295736949954946,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\102-bootstrap.csv\"",
+        "launch": 102
+      },
+      "request": "phase-attempt4/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/8/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false",
+      "trial": 9,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/9/result.json",
+      "result_sha256": "45ce37a3a252484bf7a7fbbca9cb7f60fe1e2f631605a3e3b7a04d8e690f06ad",
+      "request_sha256": "a5e57d801653b87ff7d82058070778ad73038df3a6b9ad7aede4ea6fd9162102",
+      "receipt": "phase-attempt4/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/9/session/receipt.json",
+      "receipt_sha256": "5f919090db490faff00952090e42c94b65f0ffed6084fa15c454979f34fdc9b2",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 52132,
+        "start_ticks": 639295738748768827,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\106-bootstrap.csv\"",
+        "launch": 106
+      },
+      "request": "phase-attempt4/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/9/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false",
+      "trial": 10,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/10/result.json",
+      "result_sha256": "377c3c8413b15b0f029a43b008d01d2f690db3d7eecdbf6819155b391e093995",
+      "request_sha256": "a75ec4c39c60fb3846ff4e00dda754e3e40dfd2b4b789341c72700e84b5676cb",
+      "receipt": "phase-attempt4/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/10/session/receipt.json",
+      "receipt_sha256": "82540fc557593f111998fb8677d644c5a0aa72b3520ecc4c00f2afab0f202993",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 37304,
+        "start_ticks": 639295741375651962,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\112-bootstrap.csv\"",
+        "launch": 112
+      },
+      "request": "phase-attempt4/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-false/10/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true",
+      "trial": 1,
+      "status": "observed",
+      "result": "phase-attempt2/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/1/result.json",
+      "result_sha256": "48339390aa03f6c2077ff75bd0e0e14a089fe7e6607fd29ed732de6e0387bcfc",
+      "request_sha256": "f862c08d7dd26c38604e1b2579a35b92f9fa118c1ebd51221b9a61a41508c7ea",
+      "receipt": "phase-attempt2/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/1/session/receipt.json",
+      "receipt_sha256": "c6b0d78ab2af77621df722f81bd07b2d667495323a6aa0eca962b6269484fbf5",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 24584,
+        "start_ticks": 639295685629073930,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\25-bootstrap.csv\"",
+        "launch": 25
+      },
+      "request": "phase-attempt2/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/1/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true",
+      "trial": 2,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/2/result.json",
+      "result_sha256": "8bac89692f9d254c7ea6de1c31ce96921f1198e3266a540b0d9b49856a6ab0f3",
+      "request_sha256": "6076fbae46d831a29d9535e9ae9c72dbc49d1fc4897aa58caf2e5bbba686fcd5",
+      "receipt": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/2/session/receipt.json",
+      "receipt_sha256": "56e717a10bd3b69ea248d9550d36250236486fa111d0f1df1bfcff6752930e37",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 42004,
+        "start_ticks": 639295696726271065,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\33-bootstrap.csv\"",
+        "launch": 33
+      },
+      "request": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/2/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true",
+      "trial": 3,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/3/result.json",
+      "result_sha256": "9aabbca5bdbe3a466504c4bd9db7322b3088b3a8cc966ec7a6c2b1d7062ec47d",
+      "request_sha256": "97d54160b5c817198e6aad4ce6ba9e71eba53ad4a37fb652f5b99a2aa1959feb",
+      "receipt": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/3/session/receipt.json",
+      "receipt_sha256": "3f101c66db43dd6da28e162d2b93977fc382d1388e7780bf481daee133efa547",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 44340,
+        "start_ticks": 639295701790380666,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\41-bootstrap.csv\"",
+        "launch": 41
+      },
+      "request": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/3/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true",
+      "trial": 4,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/4/result.json",
+      "result_sha256": "6f53ff81e2f84a7025b03a0104ca84b06c57681cea4d874a73db59c6434c925e",
+      "request_sha256": "52a965ba4307fc23a9fbb6836dd40e5d0ec15861362401dc262ea16023f46c7a",
+      "receipt": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/4/session/receipt.json",
+      "receipt_sha256": "f1b0180685b1bd53b8409e0e9136eb4cdd7de693dc61b6f04aa5c0a41ad4fb7a",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 6000,
+        "start_ticks": 639295709042038456,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\53-bootstrap.csv\"",
+        "launch": 53
+      },
+      "request": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/4/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true",
+      "trial": 5,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/5/result.json",
+      "result_sha256": "4a016e678e857491b93990e564aac31ccaa869871d7117cd8427535f17a720ec",
+      "request_sha256": "2b90a4fc493a7944c41b50c73c51f60b7e704d5a78287dc5ecc3a1766673dec5",
+      "receipt": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/5/session/receipt.json",
+      "receipt_sha256": "c59f4c0f410bbc6d2af3aa8c43f082e54604b2e2e393f07c91697cfed0283499",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 16984,
+        "start_ticks": 639295716022468497,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\65-bootstrap.csv\"",
+        "launch": 65
+      },
+      "request": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/5/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true",
+      "trial": 6,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/6/result.json",
+      "result_sha256": "bb0eeb1977553ffeebd6f3988b1d99d4efa1370cbc148e01ef353e595c6016c6",
+      "request_sha256": "910b97273e5df46e22cd935195ebe86206288fd4a9e33d101b5a50cafaa22a4e",
+      "receipt": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/6/session/receipt.json",
+      "receipt_sha256": "5098382f5ba6ae56a4cc9a9feaba4ef6f4c3e20b8a0d28603684f247c4a56c95",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 740,
+        "start_ticks": 639295719759693627,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\69-bootstrap.csv\"",
+        "launch": 69
+      },
+      "request": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/6/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true",
+      "trial": 7,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/7/result.json",
+      "result_sha256": "df024dd807ee2578204272bc50c15c7591078accd14b48e43e8797029e701ee4",
+      "request_sha256": "166ca8e80447deed794ad4b1cb510372f4a4f99542c37c37d54762e7958deabd",
+      "receipt": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/7/session/receipt.json",
+      "receipt_sha256": "ebcc4cd9ae405cb83555e733f7be89fe34e49c301f91e7f63a83577de642b806",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 18204,
+        "start_ticks": 639295722321568742,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\73-bootstrap.csv\"",
+        "launch": 73
+      },
+      "request": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/7/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true",
+      "trial": 8,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/8/result.json",
+      "result_sha256": "864ec404f15d92e1f58c8442a939e8fcb25a44b051ffb5e1ec00ab2e3fe923a3",
+      "request_sha256": "c7597ad84a702e71d59e922ad807473d1eea557ec8acffbb1cc77b5136e7ce3c",
+      "receipt": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/8/session/receipt.json",
+      "receipt_sha256": "bc7d358730ea439080b9969e63a0f56d2fc1c53f7e5e7f18be44f839b34b379a",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 56052,
+        "start_ticks": 639295725394110643,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\77-bootstrap.csv\"",
+        "launch": 77
+      },
+      "request": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/8/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true",
+      "trial": 9,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/9/result.json",
+      "result_sha256": "7b55669d67905344815a826580b5648da6267e62e725e9782ab0e321a9740a29",
+      "request_sha256": "abf64daf79a1c608f1adffc093a770e033b8d172aa334bed6fe41a53d2176e14",
+      "receipt": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/9/session/receipt.json",
+      "receipt_sha256": "464b7329c917c8dba5da48ac1f3165b56be586c07fe8b3f23c419117f6741670",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 64692,
+        "start_ticks": 639295729371842651,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\84-bootstrap.csv\"",
+        "launch": 84
+      },
+      "request": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/9/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true",
+      "trial": 10,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/10/result.json",
+      "result_sha256": "88e9991f3430cbf14bb50fa83374dcf40c22c7851d63ce2680c2ac6e14473bc1",
+      "request_sha256": "238793b4ebb31ca0f05ec28b1532ce04de34d9a1ab3b220d707eab5f2c7b6688",
+      "receipt": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/10/session/receipt.json",
+      "receipt_sha256": "f21c3f179efe5f95b14003f245c07c593aa9d272b637524513eeecc672d0bd8e",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 57920,
+        "start_ticks": 639295730253292251,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\86-bootstrap.csv\"",
+        "launch": 86
+      },
+      "request": "phase-attempt3/eng20-persistence-eng14-raw-nonfinite-calculate-before-save-true/10/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng15-overflow-calculate-before-save-false",
+      "trial": 1,
+      "status": "observed",
+      "result": "phase-attempt2/eng20-persistence-eng15-overflow-calculate-before-save-false/1/result.json",
+      "result_sha256": "e50399eaa827436258050835c0581aa0100827f7cbe592fbec503a305b8175d9",
+      "request_sha256": "960868514035c55c01876e6015ba5608e06b3a70333fd351f2288420856fe4e2",
+      "receipt": "phase-attempt2/eng20-persistence-eng15-overflow-calculate-before-save-false/1/session/receipt.json",
+      "receipt_sha256": "dab55cf25ec13e22c124132c4def2813295ba57c366d67541d938d7755f6a451",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 12824,
+        "start_ticks": 639295685978699342,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\26-bootstrap.csv\"",
+        "launch": 26
+      },
+      "request": "phase-attempt2/eng20-persistence-eng15-overflow-calculate-before-save-false/1/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng15-overflow-calculate-before-save-false",
+      "trial": 2,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-false/2/result.json",
+      "result_sha256": "40ef97dcb3ab3abfaf10374720a23c5715ab5359dfdc4aa10c423b4f5f0e5054",
+      "request_sha256": "4697cc1c301e41e34ea1d12efd0a5c1f74a901a3fbe13c2697d4ac368aafe916",
+      "receipt": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-false/2/session/receipt.json",
+      "receipt_sha256": "bfd5464fecf120649d59b8bda88e67b4d67619375a4b382ef3f1320a1384f9d5",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 20700,
+        "start_ticks": 639295697259526085,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\34-bootstrap.csv\"",
+        "launch": 34
+      },
+      "request": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-false/2/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng15-overflow-calculate-before-save-false",
+      "trial": 3,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-false/3/result.json",
+      "result_sha256": "309e58fe0f22e44a761b3a8a3ad3114d21f539516a611461ebf7e17e23eee9bc",
+      "request_sha256": "b59be12565e3d6c16d9ab2cda4651425b689d7b379d0c6ac087cb92e34ca27bd",
+      "receipt": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-false/3/session/receipt.json",
+      "receipt_sha256": "6ab9c84260000fe4e672c63673828c19d9caddf0347073b7d0d64d1b959a821b",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 9068,
+        "start_ticks": 639295702250965885,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\42-bootstrap.csv\"",
+        "launch": 42
+      },
+      "request": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-false/3/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng15-overflow-calculate-before-save-false",
+      "trial": 4,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-false/4/result.json",
+      "result_sha256": "cc55a37c8f89ee48b223527a46fcfb881f6d7d875c4426bd0c962db3faf7f393",
+      "request_sha256": "29a1705c732ab512db9f952932b7fd9aed98c3487ac53dd0da64b5625a8f0e34",
+      "receipt": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-false/4/session/receipt.json",
+      "receipt_sha256": "39d20282c221d2b8dc1fa54d159905a07a9ee031e4e46510be44a6dc746d38b7",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 26168,
+        "start_ticks": 639295709618468295,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\55-bootstrap.csv\"",
+        "launch": 55
+      },
+      "request": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-false/4/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng15-overflow-calculate-before-save-false",
+      "trial": 5,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-false/5/result.json",
+      "result_sha256": "d49ba01220c5acb96d5ee5f1c713eb9139be8881aa3f4f744bca708b52614c32",
+      "request_sha256": "27201c63233a0d06706b3adb0c179df2e7801a963ac7ace9fb057fa1acd95a6c",
+      "receipt": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-false/5/session/receipt.json",
+      "receipt_sha256": "5e5ac83b48d6ccfe26215c548f6738ad8ddf4b5229d35585e9747225ee777c9d",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 35080,
+        "start_ticks": 639295716511750315,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\66-bootstrap.csv\"",
+        "launch": 66
+      },
+      "request": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-false/5/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng15-overflow-calculate-before-save-false",
+      "trial": 6,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-false/6/result.json",
+      "result_sha256": "509367a9c671d5ff5bb2886e6f0e21359d108ad9e09cdb63e66c86a6ace4f9c1",
+      "request_sha256": "7738afba2e89be944244903107026b90b7fda2e29271e017dfbe81a2863d1ef2",
+      "receipt": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-false/6/session/receipt.json",
+      "receipt_sha256": "8325965c893c8e450001c6ac794fdd2d134a8ef3db10330dbe3de31f04187d00",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 16576,
+        "start_ticks": 639295720296614270,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\70-bootstrap.csv\"",
+        "launch": 70
+      },
+      "request": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-false/6/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng15-overflow-calculate-before-save-false",
+      "trial": 7,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-false/7/result.json",
+      "result_sha256": "70035e62269146b5bb5caabe51d42a82bd6885fae30fa823ef4964fe79633efa",
+      "request_sha256": "4e4f3a5ef820ab89751dfe0d1953b2998ae2a2581f8bb2305667b2732ac08f94",
+      "receipt": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-false/7/session/receipt.json",
+      "receipt_sha256": "437c18333a7b7aede5ce62fa6452a9e74950b425b69db501ca871184d955e3c5",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 43208,
+        "start_ticks": 639295722674948837,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\74-bootstrap.csv\"",
+        "launch": 74
+      },
+      "request": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-false/7/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng15-overflow-calculate-before-save-false",
+      "trial": 8,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-false/8/result.json",
+      "result_sha256": "3c5e0e8b809f6c1dad44256d04c6a51ea8e9a929253ec9409289cf977fff4b7e",
+      "request_sha256": "b6124dccc6a02739e461bf887bc35214b4f9ed7cc1ab129d51aa0487667fdc6d",
+      "receipt": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-false/8/session-late/receipt.json",
+      "receipt_sha256": "5d0024dac1399b17b0144ad4984ecb2a57ff333a2418e811824b80b380c7521c",
+      "late_completed": true,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 38016,
+        "start_ticks": 639295727130278271,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\81-bootstrap.csv\"",
+        "launch": 81
+      },
+      "request": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-false/8/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng15-overflow-calculate-before-save-false",
+      "trial": 9,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-eng15-overflow-calculate-before-save-false/9/result.json",
+      "result_sha256": "4f278486f05f99716dd10f31d3b62ae8f1e2f10dd620cf5ee889b85d4d88c9a9",
+      "request_sha256": "a2234bdc46718a438198f099b5018e5ae9e385ca1bcfe1a083564d4336d97019",
+      "receipt": "phase-attempt4/eng20-persistence-eng15-overflow-calculate-before-save-false/9/session/receipt.json",
+      "receipt_sha256": "0612657b13548534ba8a6b282e8003d2d3fd1d24081dd524c213260ae1e45df5",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 47576,
+        "start_ticks": 639295739156288131,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\107-bootstrap.csv\"",
+        "launch": 107
+      },
+      "request": "phase-attempt4/eng20-persistence-eng15-overflow-calculate-before-save-false/9/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng15-overflow-calculate-before-save-false",
+      "trial": 10,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-eng15-overflow-calculate-before-save-false/10/result.json",
+      "result_sha256": "5a89e85f9818ae2c2324db9e43158bcccbd8ffacf2cf708407d966ecb4d8d1cf",
+      "request_sha256": "5e69c764ea9eae3ac55ffac56a6a5f72f953f5de9e639508f1df4c163f69e300",
+      "receipt": "phase-attempt4/eng20-persistence-eng15-overflow-calculate-before-save-false/10/session/receipt.json",
+      "receipt_sha256": "c501fa273a66a4fcbcd4aeb7a0670c0821dae4cebc84ef3c8c8edcf74cb644a5",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 54984,
+        "start_ticks": 639295741574093754,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\113-bootstrap.csv\"",
+        "launch": 113
+      },
+      "request": "phase-attempt4/eng20-persistence-eng15-overflow-calculate-before-save-false/10/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng15-overflow-calculate-before-save-true",
+      "trial": 1,
+      "status": "observed",
+      "result": "phase-attempt2/eng20-persistence-eng15-overflow-calculate-before-save-true/1/result.json",
+      "result_sha256": "d4d5d2509d9ff576dacb5f728c70cc9f6e896d3cb4fc70c8fa6ec2de94324a0c",
+      "request_sha256": "5a80ba7716a961fb3956dfe5a814500b808df02eff092c7d4a4796b6e90a80ba",
+      "receipt": "phase-attempt2/eng20-persistence-eng15-overflow-calculate-before-save-true/1/session/receipt.json",
+      "receipt_sha256": "f7c10f31bb15cb4600f6d3ddbd1b0d5fc3332c85fcad453ffa7799829eb3786f",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 66332,
+        "start_ticks": 639295686476704236,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\27-bootstrap.csv\"",
+        "launch": 27
+      },
+      "request": "phase-attempt2/eng20-persistence-eng15-overflow-calculate-before-save-true/1/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng15-overflow-calculate-before-save-true",
+      "trial": 2,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-true/2/result.json",
+      "result_sha256": "72f5c5734dd802a5eb00563a7eb57e3c094a6635d1e3a410a56b4cf3f5887029",
+      "request_sha256": "37bab930e200360e1f6b28a40a32d8ce3cdee6959cdc82006590f1ea2f5caf52",
+      "receipt": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-true/2/session/receipt.json",
+      "receipt_sha256": "ebc11ba09f663cfcd1c4a931257e1ffc53828594207c6cc9abc48e92cc62508e",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 35564,
+        "start_ticks": 639295697954370506,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\35-bootstrap.csv\"",
+        "launch": 35
+      },
+      "request": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-true/2/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng15-overflow-calculate-before-save-true",
+      "trial": 3,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-true/3/result.json",
+      "result_sha256": "9e1727e873170f8223996a77085394fbab744de9ac235dcbf074f5f83689a157",
+      "request_sha256": "8fecb2a8fcd055ccc20b5ce6cbb91aa3df30273d9f81261f24ccee0bcdab08c1",
+      "receipt": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-true/3/session/receipt.json",
+      "receipt_sha256": "783bf8fbd64bda9f9bede3693084536ef8bddff10346a24b02c1e35453ca109e",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 34100,
+        "start_ticks": 639295703056388950,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\43-bootstrap.csv\"",
+        "launch": 43
+      },
+      "request": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-true/3/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng15-overflow-calculate-before-save-true",
+      "trial": 4,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-true/4/result.json",
+      "result_sha256": "2eeeef7e2448370ade538be9bee78c14a04e942e1fe62f3174f782b1cb1d2d19",
+      "request_sha256": "a7be9dca9f546e64de2ee5032476a912e086e440086ae66fbe828c76863e8986",
+      "receipt": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-true/4/session/receipt.json",
+      "receipt_sha256": "b7302e4773da5dc467c59caa4233f3373e8d00f2bce938d38d276eb26795e363",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 49280,
+        "start_ticks": 639295710617990909,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\57-bootstrap.csv\"",
+        "launch": 57
+      },
+      "request": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-true/4/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng15-overflow-calculate-before-save-true",
+      "trial": 5,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-true/5/result.json",
+      "result_sha256": "c1bb1c82b091f4a3336304b9f1377df706828441badeff965338080e781a1dc6",
+      "request_sha256": "94ee84b005b502a7bfa2e26bb6245ffef443a3c35c58722a82dabed16319ee77",
+      "receipt": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-true/5/session/receipt.json",
+      "receipt_sha256": "90c164ad24a933697f6df0cad5ac64ac8efef8ec3dab0f534d148a4f6839e926",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 55520,
+        "start_ticks": 639295717746239961,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\67-bootstrap.csv\"",
+        "launch": 67
+      },
+      "request": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-true/5/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng15-overflow-calculate-before-save-true",
+      "trial": 6,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-true/6/result.json",
+      "result_sha256": "a7404a9c3697ff489025e9070e7072c55180c017eeb8f924daeaf82232efaa15",
+      "request_sha256": "2f227ccb61c6f30c3c8cb409b6765ca61f377370a35f1f466123b702313aea85",
+      "receipt": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-true/6/session/receipt.json",
+      "receipt_sha256": "05afea230d1ec2cb57e196756915debd5c2dfc83582a33fe0782b41cb7dd8639",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 50104,
+        "start_ticks": 639295721183103580,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\71-bootstrap.csv\"",
+        "launch": 71
+      },
+      "request": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-true/6/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng15-overflow-calculate-before-save-true",
+      "trial": 7,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-true/7/result.json",
+      "result_sha256": "c10a384be46d56ed4b8f8a0b379c4d136d15042a8588665a5c7faf325f85a173",
+      "request_sha256": "eb95b48fd437dbbaf92c98ab7816904c4682c0014011711f0f6c7f1580809526",
+      "receipt": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-true/7/session/receipt.json",
+      "receipt_sha256": "f4598393b88a583726db5648512db472ef56e5c1d937c0d7620fefa3e1631500",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 26544,
+        "start_ticks": 639295723554675296,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\75-bootstrap.csv\"",
+        "launch": 75
+      },
+      "request": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-true/7/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng15-overflow-calculate-before-save-true",
+      "trial": 8,
+      "status": "observed",
+      "result": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-true/8/result.json",
+      "result_sha256": "803a38357595553fed7533fd6592dde9d70a6a6b0c4aa29bcfb3a0c177276cbb",
+      "request_sha256": "3303826193ac455db950598145d59522ff9b3e9e7e9d5476a64a04616603a5db",
+      "receipt": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-true/8/session-late/receipt.json",
+      "receipt_sha256": "b00f853fa45dc7188353aa50f8feac125e67eb9ea5c7bfb98879959fd5c09843",
+      "late_completed": true,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 69564,
+        "start_ticks": 639295728042876883,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\82-bootstrap.csv\"",
+        "launch": 82
+      },
+      "request": "phase-attempt3/eng20-persistence-eng15-overflow-calculate-before-save-true/8/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng15-overflow-calculate-before-save-true",
+      "trial": 9,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-eng15-overflow-calculate-before-save-true/9/result.json",
+      "result_sha256": "32d8e435950ee1d47bb153cf78d5c1290eea8e0b73da9df403fa6b39f8178d21",
+      "request_sha256": "458efc76b988a544f9e895f8ce4a6a93f4d5bb47c985f9f09b663228057838e2",
+      "receipt": "phase-attempt4/eng20-persistence-eng15-overflow-calculate-before-save-true/9/session/receipt.json",
+      "receipt_sha256": "6a64c261852f416e54dfda423c7c626af9179bbc4c8d7a124b469e6c394384c2",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 59920,
+        "start_ticks": 639295739824245093,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\108-bootstrap.csv\"",
+        "launch": 108
+      },
+      "request": "phase-attempt4/eng20-persistence-eng15-overflow-calculate-before-save-true/9/request.json"
+    },
+    {
+      "kind": "phase",
+      "condition": "eng20-persistence-eng15-overflow-calculate-before-save-true",
+      "trial": 10,
+      "status": "observed",
+      "result": "phase-attempt4/eng20-persistence-eng15-overflow-calculate-before-save-true/10/result.json",
+      "result_sha256": "9a6820366f053f92cb606e6d5b194bff8188de4666785c5276244c672d1f91ef",
+      "request_sha256": "ea15393a1d78b200ce301ae5f62292266e59c1b4c31606a6262cbce78cf47c63",
+      "receipt": "phase-attempt4/eng20-persistence-eng15-overflow-calculate-before-save-true/10/session/receipt.json",
+      "receipt_sha256": "b187acc2ead4325a782968c080942ffc8a5cd7ccd8d762bf1218069720572f87",
+      "late_completed": false,
+      "stages": [
+        "before-open",
+        "after-open-before-calculation",
+        "startup-observed-no-declared-seeds",
+        "before-command-1",
+        "after-command-1",
+        "before-save",
+        "after-save",
+        "after-close",
+        "after-reopen",
+        "before-final-rebuild",
+        "after-final-rebuild"
+      ],
+      "worksheet_errors_are_data": true,
+      "excel": {
+        "pid": 45784,
+        "start_ticks": 639295741946174876,
+        "command_line": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE /x /automation /r \"C:\\Work\\DnaCalc\\codex-runs\\xll18\\question-session\\launches\\114-bootstrap.csv\"",
+        "launch": 114
+      },
+      "request": "phase-attempt4/eng20-persistence-eng15-overflow-calculate-before-save-true/10/request.json"
+    }
+  ],
+  "limits": "Original observations only. Selected trial1 objects remain unchanged. All repeats and failures audited; no live product pass or explanation of the original capture failures is supplied by this import."
+}

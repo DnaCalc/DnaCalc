@@ -1190,10 +1190,19 @@ impl EngineState {
     /// identities, held caches and spills survive; existing result proofs do not.
     /// The owner must have no active calculation using this mutable graph.
     pub fn rebuild_bindings(&mut self) {
-        let nodes: Vec<_> = self.nodes().map(|node| node.id()).collect();
-        for node in nodes {
-            self.rebind_names(node);
+        // Every binding is discarded together. Removing its edges individually
+        // would repeatedly search and mutate indexes that are about to be empty.
+        self.index.clear();
+        for &node in self.by_anchor.values() {
+            let Some(record) = self.nodes.get_mut(node.slot() as usize)
+                .and_then(Option::as_mut).filter(|record| record.id == node)
+            else { continue; };
+            record.prerequisites = None;
+            record.dynamic = Vec::new();
+            self.bindings.remove(&node);
         }
+        self.volatile.clear();
+        self.subtotal_cells.clear();
         self.templates.clear();
         self.plans = PlanCache::new();
         self.contract.bindings = self.contract.advance();
