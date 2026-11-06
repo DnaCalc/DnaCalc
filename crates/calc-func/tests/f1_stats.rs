@@ -692,7 +692,7 @@ fn poisson_cumulative_retains_the_temme_correction() {
     }
 }
 
-/// Recorded lower-series gains and protected controls from both argument halves.
+/// Recorded lower-series rows from both argument halves: all four now agree with Excel.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn gamma_cumulative_records_known_subtraction_gaps() {
@@ -701,8 +701,8 @@ fn gamma_cumulative_records_known_subtraction_gaps() {
         (0x3e45_bfed_3f9f_5d2c, 2.0, 0x3c8d_90cd_01b5_dad1, 0x3c8d90cd01b5dad1),
         (0x3e46_4f60_ae25_7bea, 3.0, 0x3acc_eb10_4395_7fa3, 0x3acceb1043957fa3),
         // oc41045 / oc40295: unbounded correction would lose these matches.
-        (0x3fb0_eec1_cb3a_8a9b, 3.0, 0x3f08_1056_fc2c_909a, 0x3f081056fc2c9099),
-        (0x3fb0_e0e8_3a02_c89a, 3.0, 0x3f07_d671_a72d_b3af, 0x3f07d671a72db3ae),
+        (0x3fb0_eec1_cb3a_8a9b, 3.0, 0x3f08_1056_fc2c_909a, 0x3f081056fc2c909a),
+        (0x3fb0_e0e8_3a02_c89a, 3.0, 0x3f07_d671_a72d_b3af, 0x3f07d671a72db3af),
     ] {
         for function in ["GAMMA.DIST", "GAMMADIST"] {
             recorded_calculation(call(function, vec![n(f64::from_bits(x)), n(shape), n(1.0), b(true)]),
