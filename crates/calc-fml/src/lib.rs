@@ -56,7 +56,7 @@ pub use syntax::parse_formula;
 /// calc-func's random source and SUBTOTAL exclusions, which a caller of [`evaluate`] supplies
 /// through [`FormulaEvaluationContext::with_random`] and [`ReferenceReader::subtotal_exclusions`].
 pub use calc_func::locale::{CalcEnvironment, DateSystem, FormatProfile};
-pub use calc_func::read_number_text;
+pub use calc_func::{read_number_text,text_order};
 /// The host's workbook facts CELL and INFO read ([`HostFacts::workbook_facts`], dc-uar).
 pub use calc_func::{
     ApplicationFacts, CalculationMode, CellFormatFacts, ColumnWidth, HorizontalAlignment,

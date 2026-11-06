@@ -357,8 +357,11 @@ pub(crate) fn prepare_image(
                     !matches!(input, CellInput::Formula(_)) || values.contains_key(&at)
                 })
         });
+    if let Some(issue)=engine.pivot_results().issues.first(){return Err(SaveFailed::Operation{owner:issue.owner,reason:issue.detail.clone()});}
+    let pivot_outputs=Arc::new(engine.pivot_results().cells.iter().map(|(at,(value,_))|(*at,value.clone())).collect());
     let snapshot = loaded
         .snapshot_with_results(model, values, spills)
+        .with_pivot_outputs(pivot_outputs)
         .with_structural_edits(StructuralEdits::new(
             axis_edits.to_vec(),
             Arc::new(calc_engine::ReferenceRewriter),

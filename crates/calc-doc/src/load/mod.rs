@@ -399,6 +399,8 @@ pub struct LoadedWorkbook {
 }
 
 impl LoadedWorkbook {
+    pub fn check_pivot_state(&self,state:&calc_doc_model::pivot::PivotState)->Result<(),crate::SaveRefusal>{crate::save::pivot::check(&self.package,self.model.definitions().pivots(),state)}
+
     pub fn pivot_caches(&self)->&pivot::PivotCaches{&self.pivot_caches}
     /// Inspect at most 100,000 saved records and 1,000,000 items, never calculated results.
     pub fn pivot_records(&self,id:u32,max_records:usize)->Result<pivot::PivotRecords,pivot::PivotIssue>{
@@ -1707,8 +1709,11 @@ pub fn load_preserving_sheet_ids(
             }
         }
     }
+    let pivot_caches=Arc::new(pivot::read_caches(package,&workbook));
+    let pivot_state=Arc::new(calc_doc_model::pivot::PivotState {caches:(*pivot_caches).clone(),sheets:sheets.iter().filter(|s|!s.pivots.tables.is_empty()||!s.pivots.issues.is_empty()).map(|s|(s.id,(*s.pivots).clone())).collect()});
     let styles = Arc::new(styles);
     let mut definitions = Definitions::new(arrays, names, tables, unloaded)
+        .with_pivots(pivot_state)
         .with_styles(Arc::clone(&styles))
         .with_axis_layouts(axis_layouts)
         .with_pane_layouts(sheets.iter().filter_map(|s|s.view.pane_layout().map(|p|(s.id,p))))
@@ -1746,7 +1751,6 @@ pub fn load_preserving_sheet_ids(
     .expect(
         "the IDs are distinct, the keys were checked, each cell, anchor and definition lies on a sheet of the load, and each array anchor holds its formula",
     );
-    let pivot_caches=Arc::new(pivot::read_caches(package,&workbook));
     Ok(LoadedWorkbook {
         package: Arc::clone(document.package_arc()),
         model,
