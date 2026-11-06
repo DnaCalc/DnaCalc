@@ -188,6 +188,19 @@ fn fv_distinguishes_exact_zero_from_small_rates() {
         f64::from_bits(0x3ff0000000001000));
 }
 
+/// R31 unit-growth base tie and the unchanged R15 original multi-period growth.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn fv_stores_the_growth_base_before_power() {
+    for (rate, periods, expected) in [
+        (0xbeb6f548e794006e, 1.0, 0x3feffffd2156e30e),
+        (0x3e40b25c74007082, f64::from_bits(0x4076700000000000), 0x3ff00002ed44382c),
+    ] {
+        exact(call("FV", vec![n(f64::from_bits(rate)), n(periods), n(0.0), n(-1.0), n(0.0)]),
+            f64::from_bits(expected));
+    }
+}
+
 /// Excel 16.0 build 20228, answers-irr-exact-graph-discovery-20260809.json,
 /// d16-root / d16-far_p010 and d11-root. These run through the application call path.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

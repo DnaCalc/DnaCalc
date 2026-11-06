@@ -104,6 +104,10 @@ fn annuity_term(
 fn growth_allow_nonpositive_base(periodic_rate: f64, periods: f64) -> Result<f64, FinancialError> {
     validate_finite(&[periodic_rate, periods])?;
     let base = 1.0 + periodic_rate;
+    growth_from_base(base, periods)
+}
+
+fn growth_from_base(base: f64, periods: f64) -> Result<f64, FinancialError> {
     let factor = match power_kernel(base, periods) {
         Ok(factor) => factor,
         Err(WorksheetErrorCode::Div0) => return Err(FinancialError::Div0),
@@ -194,7 +198,9 @@ pub fn fv(
     timing: PaymentTiming,
 ) -> Result<f64, FinancialError> {
     validate_finite(&[periodic_rate, periods, payment_value, present_value])?;
-    let factor = growth_allow_nonpositive_base(periodic_rate, periods)?;
+    // R31 n=1 public growth calls expose the base store. Independent POWER
+    // leaves confirm the same input stage at the remaining multi-period cases.
+    let factor = growth_from_base(excel_x87_add(1.0, periodic_rate), periods)?;
     // R31 paired end/beginning unit calls identify division before timing,
     // with each operation stored from PC64. Small-rate controls keep only
     // exact zero on the linear route, including measured cancellation at 2^-53.
