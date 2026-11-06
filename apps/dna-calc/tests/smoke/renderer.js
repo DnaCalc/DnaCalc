@@ -132,7 +132,7 @@
     const font=`${italic?'italic':'normal'} ${bold?700:400} ${s.pixels*scale}px ${family}`;
     context.font=font;
     const measure=t=>{
-      const raw=context.measureText(t), integer=cell.shown.kind==='number'&&['applied','unshowable'].includes(cell.shown.format)&&!s.shrink&&!s.wrap&&s.rotation===0&&!['fill','justify','distributed','centerContinuous'].includes(s.horizontal)&&!/[A-Za-z\n\u0080-\uffff]/.test(t);
+      const raw=context.measureText(t), integer=['number','text','logical','error'].includes(cell.shown.kind)&&!s.shrink&&!s.wrap&&s.rotation===0&&!['fill','justify','distributed','centerContinuous'].includes(s.horizontal)&&!/[\u0000-\u001f\u007f-\uffff]/.test(t);
       if(!integer)return raw;
       let pen=0,left=Infinity,right=-Infinity,ascent=0,descent=0;
       for(const part of t){const m=context.measureText(part);left=Math.min(left,pen-m.actualBoundingBoxLeft);right=Math.max(right,pen+m.actualBoundingBoxRight);ascent=Math.max(ascent,m.actualBoundingBoxAscent);descent=Math.max(descent,m.actualBoundingBoxDescent);pen+=Math.round(m.width)}
@@ -251,7 +251,7 @@
     }
     if(spec.op==='style'){
       const physical=(spec.selector.includes('cell-decoration')||spec.selector.includes('cell-borders')),r=physical?anchor:rect;
-      const line=style=>style==='medium'?[2,'solid']:['mediumDashed','mediumDashDot','mediumDashDotDot'].includes(style)?[2,'dashed']:style==='thick'?[3,'solid']:style==='double'?[3,'double']:style==='hair'?[.5,'solid']:style==='dotted'?[1,'dotted']:style==='dashed'||style?.includes('ashDot')?[1,'dashed']:[1,'solid'];
+      const line=style=>style==='medium'?[2,'solid']:['mediumDashed','mediumDashDot','mediumDashDotDot','slantDashDot'].includes(style)?[2,'dashed']:style==='thick'?[3,'solid']:style==='double'?[3,'double']:style==='hair'?[1,'dotted']:style==='dotted'?[1,'dotted']:style==='dashed'||style?.includes('ashDot')?[1,'dashed']:[1,'solid'];
       const values={left:r.x+'px',top:r.y+'px',width:r.w+'px',height:r.h+'px',color:foreground,'background-color':cf.fill||s.fill||'','font-family':family,'font-weight':bold?'700':'400','font-style':italic?'italic':'normal','font-size':s.pixels*scale+'px','text-align':horizontal==='justify'?'justify':horizontal==='distributed'?'justify':horizontal,'text-align-last':horizontal==='justify'?'left':horizontal==='distributed'?'justify':'auto'};
       // Equivalent Canvas whitespace treatment additionally requires the full glyph raster.
       values['white-space']=(s.wrap||['justify','distributed'].includes(horizontal))&&s.rotation===0?'pre-wrap':'pre';

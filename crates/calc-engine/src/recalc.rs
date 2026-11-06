@@ -4839,24 +4839,24 @@ fn stage(
 /// shows it each run, and the instrument CalcFml's evaluator reports to. Neither borrows it across
 /// the other: a read borrows it while the read runs, and the evaluator reports a call only after
 /// the call returns and its outcome only after the evaluation ends, never inside a read.
-type SharedObserver<'l, 'o> = &'l RefCell<&'o mut dyn ReadObserver>;
+pub(crate) type SharedObserver<'l, 'o> = &'l RefCell<&'o mut dyn ReadObserver>;
 
 /// The engine's reader, with the caller's observer shown each run before the evaluation receives
 /// it, for one formula's evaluation. It keeps every area the evaluation read.
-struct Observed<'l, 'o> {
-    observer: SharedObserver<'l, 'o>,
+pub(crate) struct Observed<'l, 'o> {
+    pub(crate) observer: SharedObserver<'l, 'o>,
     /// Whether the observer observes nothing ([`ReadObserver::is_silent`]): each run then goes
     /// to the evaluation as the engine's reader gives it, without the observer being shown it
     /// (dc-dxm), which is what showing it would come to.
-    silent: bool,
-    formula: CellKey,
-    cells: &'l mut dyn ReferenceReader,
-    footprint: &'l RefCell<Vec<GridArea>>,
-    facts: &'l RefCell<Vec<calc_fml::FactRead>>,
-    value_reads: &'l RefCell<Vec<(calc_fml::ReadRequest, GridArea)>>,
-    blanks: &'l RefCell<Vec<(GridArea, BlankRun)>>,
+    pub(crate) silent: bool,
+    pub(crate) formula: CellKey,
+    pub(crate) cells: &'l mut dyn ReferenceReader,
+    pub(crate) footprint: &'l RefCell<Vec<GridArea>>,
+    pub(crate) facts: &'l RefCell<Vec<calc_fml::FactRead>>,
+    pub(crate) value_reads: &'l RefCell<Vec<(calc_fml::ReadRequest, GridArea)>>,
+    pub(crate) blanks: &'l RefCell<Vec<(GridArea, BlankRun)>>,
     /// The area of the read the observer stopped.
-    stopped: Option<GridArea>,
+    pub(crate) stopped: Option<GridArea>,
 }
 
 impl ReferenceReader for Observed<'_, '_> {

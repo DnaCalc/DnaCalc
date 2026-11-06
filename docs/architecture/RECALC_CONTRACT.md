@@ -1307,8 +1307,9 @@ The existing compiler receives callable registration metadata, without executabl
 A reached known UDF refuses under DiagnosticSnapshot before user code enters; IFERROR
 cannot turn that refusal into a value. Untaken branches stay lazy. Name Manager authoring
 uses the existing Excel file-form converter, and its display uses the shared formatter;
-modern function prefixes survive save/reopen. P12 Excel alias measurement, effect-capable
-non-cell continuations, broader block execution and shared value reuse remain open.
+modern function prefixes survive save/reopen. The engine22 work below adds recorded
+aliases and explicit effect-capable name calculation. Shared value reuse and the
+unmeasured broader contexts remain open.
 
 P12 recorded alias contexts (dc-hsa5.6, engine22): the eng19 delivery contains ten
 fresh-process repetitions of each of three name-scope conditions. The retained
@@ -1323,7 +1324,33 @@ sheet/workbook qualifier refuses before entering argument UDFs; explicit bracket
 workbook calls retain their existing route. This is the measured bounded profile.
 Excel rewrote the original Names.Add definition `=A1` as `=Sheet1!A1`, still relative,
 so constant-name discriminators remain requested under `~/codex-runs/excel-questions-eng22/`.
-Effect-capable non-cell continuations and shared name-value reuse remain open.
+Explicit selected-name calculation now has a retained non-cell activation through
+HostSession and the worker command journal. It owns the existing CalcFml continuation,
+actual caller and name invocation identity, full numeric mode, draw stream and current
+read frontier. Nested blocks, arrays and cooperative UDF suspension use that continuation;
+resuming does not replay an entered effect. A completed worker reply keeps its original
+revision and projected value when later commands change the workbook.
+
+Edits, cancellation, reload, changed owner facts or calculation mode, changed input or
+result frontiers, and Rebuild expire pending work before more user code. Retirement drops
+the activation before releasing its owner lane; completed scalar evidence releases unused
+workbook pins. Cached observations retain their qualifications and remain distinct from
+current dependency reads. Missing producers, asynchronous waits and semantic re-entry
+return a typed dc-hsa5.6 refusal, including under IFERROR. This route publishes no cell,
+creates no synthetic formula target and supplies no cell freshness certificate. Passive
+diagnostics retain their existing refusal before UDF entry. Shared name-value reuse,
+general non-cell async returns and a Name Manager calculation control remain open.
+
+Explicit Rebuild storage (dc-hsa5.17, engine22): discard the existing derived reverse
+indexes once, then clear per-anchor binding state through live anchor identities. This
+avoids removing each reader separately from a shared sorted vector, while preserving
+formula IDs, target generations, results and held spill storage. Binding reset still
+invalidates pending name work. The existing benchmark now measures a warm HostSession
+Rebuild after its cold calculation, full calculation and edits, including dispatch and
+binding work. Its older rebuild_s field measures the cold first calculation. The warm
+route projects the whole inventory and participates in the existing thread comparison.
+Measured speed and memory changes belong to their recorded binary pair and Linux runs;
+they do not establish Excel scheduling or Windows performance.
 
 Persistence controls (dc-hsa5.14, dc-hsa5.15, engine22): the eng19 and eng20 imports
 audit 4,420 delivery hashes and 180 successful fresh-process trials. The 21 failed

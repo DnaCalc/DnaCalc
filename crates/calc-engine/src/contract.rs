@@ -167,8 +167,8 @@ pub struct CachedObservation {
     pub provisional: bool,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct CallInvocation {
-    pub identity: InvocationId,
+pub struct CallInvocation<L = CellKey> {
+    pub identity: InvocationId<L>,
     pub runtime: u64,
     pub parent: Option<u64>,
     pub callable: calc_fml::CallableHandle,
@@ -176,8 +176,8 @@ pub struct CallInvocation {
     pub non_preemptible: bool,
 }
 #[derive(Clone, Debug)]
-pub struct InvocationReadView {
-    pub root: InvocationId,
+pub struct InvocationReadView<L = CellKey> {
+    pub root: InvocationId<L>,
     pub view: crate::CachedReadLease,
 }
 

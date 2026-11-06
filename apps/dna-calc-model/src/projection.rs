@@ -579,6 +579,9 @@ pub enum Request {
         version: u64,
         anchor: Key,
     },
+    CalculateName { id: (u32, u32), version: u64, anchor: Key },
+    PollNameCalculation { token: u64 },
+    CancelNameCalculation { token: u64 },
     FormatSelection(Vec<Area>),
     PreviewFormat {
         at: Key,
@@ -740,6 +743,9 @@ impl Request {
             Self::OpenTemplate { .. }
                 | Self::InsertTemplate { .. }
                 | Self::EvaluateName { .. }
+                | Self::CalculateName { .. }
+                | Self::PollNameCalculation { .. }
+                | Self::CancelNameCalculation { .. }
                 | Self::New
                 | Self::Open { .. }
                 | Self::OpenForEditing { .. }
@@ -1065,6 +1071,7 @@ pub enum Reply {
     FilterValues { revision:u64, values:Result<(Vec<(String,bool)>,bool),String>, criteria:Option<FilterChange> },
     Names(crate::names::NamePage),
     NameEvaluation(crate::names::NameEvaluation),
+    NameCalculation(crate::names::NameCalculationReply),
     FormatSelection(Result<crate::format::FormatSelection, String>),
     FormatPreview(Result<Cell, String>),
     Summary(Summary),

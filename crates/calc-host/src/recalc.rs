@@ -89,8 +89,7 @@ pub fn step(
                 || !work.callables_current(&host.engine) =>
         {
             let reloaded = !work.callables_current(&host.engine);
-            let facts = host.workbook_facts();
-            host.engine.set_workbook_facts(Some(facts));
+            host.renew_workbook_facts();
             let transformed = host.transformed_calculation_scope.take();
             let selection = work.admission().selection;
             let started = if force {
@@ -158,8 +157,7 @@ pub fn step(
                 }
             }
             // dc-uar: the facts CELL and INFO read, as of this revision.
-            let facts = host.workbook_facts();
-            host.engine.set_workbook_facts(Some(facts));
+            host.renew_workbook_facts();
             let started = if let Some((scope, selection)) = host.requested_calculation.take() {
                 let scope = host.transformed_calculation_scope.take().unwrap_or(scope);
                 let poststate = if host.calc_mode() == CalcMode::Manual

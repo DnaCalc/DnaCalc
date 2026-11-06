@@ -1555,7 +1555,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
             style.push_str(";position:absolute;box-sizing:border-box;pointer-events:none");
             style.push_str(&if expanded {panes.get().clip_style(rect,&metrics.get(),&viewport.get(),Some(cell.row),Some(cell.col))} else {panes.get().anchor_clip_style(cell,&metrics.get(),&viewport.get())});
             if borders {
-                style.push_str(&decoration::css(&cell.borders,plan.scale));
+                style.push_str(&decoration::css(cell,plan.scale));
             } else if let Some(fill)=cell.shown.conditional.as_ref().and_then(|c|c.fill.as_ref()).or(cell.shown.style.fill.as_ref()) {
                 style.push_str(&format!(";background-color:{fill}"));
             } else if let Some(brush)=&cell.shown.style.brush {
@@ -1575,15 +1575,19 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 }
                 else {style.push_str(&format!(";background-image:linear-gradient(to right,{color},{end});background-size:{:.1}% 72%;background-position:left center;background-repeat:no-repeat",share*100.));}
             }
-            let strokes=if borders {decoration::strokes(cell,plan.scale)}else {Vec::new()};
+            let strokes=if borders {
+                let mut strokes=decoration::strokes(cell,plan.scale);
+                if expanded {strokes.extend(decoration::edges(cell,plan.scale).into_iter().filter(|line|!line.dash.is_empty()));}
+                strokes
+            }else {Vec::new()};
             let lines=(!strokes.is_empty()).then(|| {
-                let left=cell.borders[0].as_ref().map_or(0.,|e|decoration::line(e,plan.scale).width);
-                let top=cell.borders[2].as_ref().map_or(0.,|e|decoration::line(e,plan.scale).width);
-                let svg_style=format!("position:absolute;left:{}px;top:{}px;width:{}px;height:{}px;overflow:visible",if expanded {0.}else{-left},if expanded {0.}else{-top},cell.anchor.w,cell.anchor.h);
+                let left=cell.borders[0].as_ref().map_or(0.,|e|{let pen=decoration::line(e,plan.scale);if expanded&&!pen.dash.is_empty(){0.}else{pen.width}});
+                let top=cell.borders[2].as_ref().map_or(0.,|e|{let pen=decoration::line(e,plan.scale);if expanded&&!pen.dash.is_empty(){0.}else{pen.width}});
+                let svg_style=format!("position:absolute;left:{}px;top:{}px;width:{}px;height:{}px;overflow:visible",cell.anchor.x-rect.x-left,cell.anchor.y-rect.y-top,cell.anchor.w,cell.anchor.h);
                 view! {<svg data-dnacalc="cell-lines" viewBox=format!("0 0 {} {}",cell.anchor.w,cell.anchor.h) use:css=svg_style>
                     {strokes.into_iter().map(|line| {
                         let dash=line.dash.iter().map(|n|n.to_string()).collect::<Vec<_>>().join(" ");
-                        view! {<line x1=line.x1 y1=line.y1 x2=line.x2 y2=line.y2 stroke=line.color stroke-width=line.width stroke-dasharray=dash fill="none"/>}
+                        view! {<line x1=line.x1 y1=line.y1 x2=line.x2 y2=line.y2 stroke=line.color stroke-width=line.width stroke-dasharray=dash stroke-dashoffset=line.phase fill="none"/>}
                     }).collect_view()}
                 </svg>}
             });
@@ -1747,7 +1751,15 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
     let selection_view = move || {
         controller.areas.get().into_iter().flat_map(|area| {
             let label=format!("{}:{}",cells::address(area.first().row(),area.first().column()),cells::address(area.last().row(),area.last().column()));
-            panes.get().area_rects(area,&metrics.get(),&viewport.get()).into_iter().map(move |rect|view!{<div class="dc-selection" data-dnacalc="selection" data-area=label.clone() use:css=rect_style(&rect)></div>})
+            let active=active_rect();
+            let shade=area.cell_count()>1;
+            panes.get().area_rects(area,&metrics.get(),&viewport.get()).into_iter().map(move |rect|{
+                let shades=if shade {decoration::selection_shades(rect,active)}else {Vec::new()};
+                view!{<>
+                    {shades.into_iter().map(move |r|view!{<div class="dc-selection-shade" aria-hidden="true" use:css=rect_style(&r)></div>}).collect_view()}
+                    <div class="dc-selection" data-dnacalc="selection" data-area=label.clone() use:css=rect_style(&decoration::selection_rect(rect))></div>
+                </>}
+            })
         }).collect_view()
     };
     let active_view = move || {
@@ -1766,7 +1778,7 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
         } else {
             vec![active_rect()]
         };
-        rects.into_iter().map(|rect|view! { <div class="dc-active" data-dnacalc="active-cell" use:css=format!("{}{}",rect_style(&rect),if merged.is_some(){String::new()}else{panes.get().clip_style(rect,&metrics.get(),&viewport.get(),Some(row),Some(col))})></div> }).collect_view()
+        rects.into_iter().map(|rect|{let rect=decoration::selection_rect(rect);view! { <div class="dc-active" data-dnacalc="active-cell" use:css=format!("{}{}",rect_style(&rect),if merged.is_some(){String::new()}else{panes.get().clip_style(rect,&metrics.get(),&viewport.get(),Some(row),Some(col))})></div> }}).collect_view()
     };
     let filter_open=controller.tool_field(|s|&s.filter.open,|s|&mut s.filter.open);
     let filter_headers = move || {
