@@ -9028,6 +9028,19 @@ Case {
         Action::Window(390,844),Action::Wait(Check::Reachable("[data-pivot=Summary] [data-dnacalc=pivot-reveal]")),Action::Wait(Check::HitTarget("[data-pivot=Summary] [data-dnacalc=pivot-reveal]")),Action::Keys("[data-pivot=Summary] [data-dnacalc=pivot-reveal]","\u{E00C}")
     ],checks:&[Check::Fits,Check::Narrow(390),Check::Focused("pivot-tools-toggle"),Check::Count("[data-dnacalc=saved-pivot]",0)]},
 
+    Case{name:"pivot refresh: source records replace both shared-cache outputs through the engine",actions:&[
+        Action::Window(1440,1600),Action::OpenDetails("pivot-tools"),Action::Wait(Check::Count("[data-dnacalc=saved-pivot]",2)),Action::Click("[data-pivot=Summary] [data-dnacalc=pivot-refresh]"),Action::Wait(Check::PlanCell("E6","text","112"))
+    ],checks:&[Check::PlanCell("E6","provenance","calculated"),Check::PlanCell("E13","text","112"),Check::TextContains("pivot-state","Pivot refreshed from source data")]},
+    Case{name:"pivot refresh: undo and redo restore the shared cache and output together",actions:&[
+        Action::Click("undo"),Action::Wait(Check::PlanCell("E6","text","24")),Action::Wait(Check::TextContains("pivot-state","No pivot refresh has run")),Action::Click("redo"),Action::Wait(Check::PlanCell("E6","text","112"))
+    ],checks:&[Check::PlanCell("E6","provenance","calculated"),Check::PlanCell("E13","text","112")]},
+    Case{name:"pivot refresh: ordinary calculation leaves the last snapshot until another refresh",actions:&[
+        Action::Into("name-box","B2\u{E007}"),Action::Into(BAR,"7\u{E007}"),Action::Wait(Check::PlanCell("H1","text","19")),Action::Wait(Check::Count("[data-dnacalc=saved-pivot]",2))
+    ],checks:&[Check::PlanCell("E6","text","112"),Check::PlanCell("E6","provenance","calculated")]},
+    Case{name:"pivot refresh: another refresh and actual XLSX reopening retain updated records and values",actions:&[
+        Action::Click("[data-pivot=Summary] [data-dnacalc=pivot-refresh]"),Action::Wait(Check::PlanCell("E6","text","19")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("pivot-saved.xlsx"),Action::DiscardReplacement,Action::OpenDetails("pivot-tools"),Action::Wait(Check::Count("[data-dnacalc=saved-pivot]",2))
+    ],checks:&[Check::PlanCell("E6","text","19"),Check::PlanCell("E13","text","19"),Check::PlanCell("E6","provenance","literal"),Check::TextContains("pivot-state","No pivot refresh has run")]},
+
 ];
 
 /// The script that reads what one check looks at.
@@ -9918,5 +9931,5 @@ CaseGroup {
     CaseGroup {name:"chart-formatting",start:802,end:808,core:6,setup:&[]},
     CaseGroup{name:"chart-text",start:808,end:813,core:5,setup:&[]},
     CaseGroup{name:"chart-category-combos",start:813,end:816,core:3,setup:&[]},
-    CaseGroup{name:"saved-pivots",start:816,end:821,core:5,setup:&[]},
+    CaseGroup{name:"saved-pivots",start:816,end:825,core:9,setup:&[]},
 ];

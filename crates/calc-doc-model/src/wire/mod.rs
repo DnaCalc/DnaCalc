@@ -221,6 +221,7 @@ impl std::error::Error for DecodeError {}
 pub enum EncodeError {
     PageSetup {operation:usize},
     Charts {operation:usize},
+    Pivots {operation:usize},
     ReviewNotes {
         operation: usize,
     },
@@ -270,6 +271,7 @@ impl fmt::Display for EncodeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             EncodeError::PageSetup {operation}=>write!(f,"page setup changes in operation {operation} are not modelled by wire version 1 (dc-971p.56)"),
+            EncodeError::Pivots {operation}=>write!(f,"pivot changes in operation {operation} are not modelled by this wire version (dc-8wp)"),
             EncodeError::Charts {operation}=>write!(f,"chart changes in operation {operation} are not modelled by this wire version (dc-e5z5)"),
             EncodeError::ReviewNotes { operation } => write!(
                 f,
@@ -346,6 +348,7 @@ pub fn encode_batch(batch: &OpBatch, root: &ModelRoot) -> Result<Vec<u8>, Encode
             return Err(EncodeError::Iteration { operation: index });
         }
         if matches!(operation, WorkbookOp::SetPageSetup {..}) {return Err(EncodeError::PageSetup {operation:index});}
+        if matches!(operation, WorkbookOp::SetPivots(_)) {return Err(EncodeError::Pivots {operation:index});}
         if matches!(operation, WorkbookOp::SetCharts {..}) {return Err(EncodeError::Charts {operation:index});}
         if matches!(operation, WorkbookOp::SetTables(_)) {return Err(EncodeError::Tables{operation:index});}
         if matches!(operation, WorkbookOp::SetAutoFilter { .. }) { return Err(EncodeError::AutoFilter { operation:index }); }

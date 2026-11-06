@@ -314,6 +314,7 @@ pub(crate) enum ArrayRole {
 /// pending and [`EngineState::stale`] still lists every result it left stale.
 #[derive(Debug)]
 pub struct EngineState {
+    pub(crate) pivot_results: crate::pivot::PivotResults,
     pub(crate) linked_workbooks: Arc<crate::linked::LinkedWorkbooks>,
     pub(crate) linked_input_version: u64,
     pub(crate) contract: crate::contract::ContractState,
@@ -445,6 +446,8 @@ impl Default for ParallelMinimum {
 }
 
 impl EngineState {
+    pub fn pivot_results(&self)->&crate::pivot::PivotResults {&self.pivot_results}
+
     pub fn input_version(&self) -> CalculationInputVersion {
         CalculationInputVersion {
             environment: self.contract.environment,
@@ -545,6 +548,7 @@ impl EngineState {
     // their payloads; derived graph/result indexes are copied for this explicit save.
     pub(crate) fn snapshot_for_save(&self, save: crate::contract::CommandId) -> Self {
         Self {
+            pivot_results:self.pivot_results.clone(),
             linked_workbooks: self.linked_workbooks.clone(),
             linked_input_version: self.linked_input_version,
             contract: self.contract.clone(),
@@ -685,6 +689,7 @@ impl EngineState {
     /// published until the first recalculation, which calculates every node.
     pub fn new(inputs: &ModelRoot) -> Self {
         let mut state = EngineState {
+            pivot_results:Default::default(),
             linked_workbooks: Default::default(),
             linked_input_version: 0,
             contract: crate::contract::ContractState::new(),
@@ -759,6 +764,7 @@ impl EngineState {
             }
         }
         state.anchor_index = AnchorIndex::build(&state.by_anchor);
+        if inputs.definitions().pivots().caches.caches.values().any(|c|c.snapshot.is_some()){state.pivot_results=crate::pivot::calculate(inputs.definitions().pivots(),crate::CalcTick::new(state.allocate_tick()));}
         state
     }
 
@@ -1136,6 +1142,7 @@ impl EngineState {
         state.callables = self.callables.clone();
         state.last_tick = self.last_tick;
         state.tick_sequence = self.tick_sequence.clone();
+        if inputs.definitions().pivots().caches.caches.values().any(|c|c.snapshot.is_some()){state.pivot_results=crate::pivot::calculate(inputs.definitions().pivots(),crate::CalcTick::new(state.allocate_tick()));}
         state.view_sequence = self.view_sequence.clone();
         state.advance_view();
         state.environment = self.environment;

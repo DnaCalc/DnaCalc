@@ -496,6 +496,7 @@ impl HostState {
                 area.last().column(),
             );
         }
+        for table in definitions.pivots().tables().filter(|t|t.area.sheet()==sheet){let area=table.area;take(area.first().row(),area.first().column(),area.last().row(),area.last().column());}
         let (top, left, bottom, right) = bounds?;
         let first = CellKey::new(sheet, top, left).expect("an occupied cell is inside the grid");
         let last = CellKey::new(sheet, bottom, right).expect("an occupied cell is inside the grid");
@@ -673,6 +674,7 @@ impl HostState {
             .collect();
         let definitions = self.model.definitions();
         let full = GridArea::full_sheet(sheet);
+        areas.extend(definitions.pivots().tables().filter(|t|t.area.sheet()==sheet).map(|t|t.area));
         areas.extend(definitions.arrays_meeting(full).map(|array| array.area()));
         areas.extend(
             definitions

@@ -383,7 +383,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
                 .and_then(|moved| moved.moves.get_mut(index).and_then(Option::take))
         })
         .collect();
-    let changes: Vec<SheetChanges> = sheets
+    let mut changes: Vec<SheetChanges> = sheets
         .iter()
         .zip(&moves)
         .map(|(sheet, moves)| match moves {
@@ -391,6 +391,19 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
             None => sheet_changes(base, model, sheet.id()),
         })
         .collect();
+    // Fresh pivot outputs come from the engine's pinned result view, never model cell inputs.
+    for (at,value) in edit.pivot_outputs.iter(){
+        let index=sheets.iter().position(|sheet|sheet.id()==at.sheet()).ok_or_else(||super::pivot::missing_output("The output worksheet is unavailable"))?;
+        let input=match value.core_ref(){
+            calc_doc_model::value::CoreRef::Number(n)=>Some(CellInput::Number(calc_doc_model::FiniteNumber::new(n).ok_or_else(||super::pivot::missing_output("A pivot number is not finite"))?)),
+            calc_doc_model::value::CoreRef::Text(t)=>Some(CellInput::Text(calc_doc_model::CellText::new(t.clone()).ok_or_else(||super::pivot::missing_output("A pivot label exceeds the cell text limit"))?)),
+            calc_doc_model::value::CoreRef::Logical(b)=>Some(CellInput::Logical(b)),calc_doc_model::value::CoreRef::Error(e)=>Some(CellInput::Error(e)),
+            calc_doc_model::value::CoreRef::Empty=>None,_=>return Err(super::pivot::missing_output("A pivot output is not a scalar cell value")),
+        };changes[index].insert((at.row(),at.column()),input);
+    }
+    for table in model.definitions().pivots().tables(){if model.definitions().pivots().caches.caches.get(&table.cache_id).is_some_and(|c|c.snapshot.is_some()){
+        if (table.area.first().row()..=table.area.last().row()).any(|row|(table.area.first().column()..=table.area.last().column()).any(|column|!edit.pivot_outputs.contains_key(&calc_doc_model::value::CellKey::new(table.area.sheet(),row,column).expect("pivot bounds")))){return Err(super::pivot::missing_output("Refreshed pivot output is missing from the pinned engine view"));}
+    }}
     // The cell formats edits gave each sheet's cells (dc-09v), by (row, column).
     let formats: Vec<BTreeMap<(u32, u32), u32>> = sheets
         .iter()
@@ -415,6 +428,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
     let validation_changed = base.definitions().all_validations().ne(model.definitions().all_validations());
     let page_setup_changed=base.definitions().page_setups().ne(model.definitions().page_setups());
     let charts_changed=base.definitions().all_charts().ne(model.definitions().all_charts());
+    let pivots_changed=base.definitions().pivots()!=model.definitions().pivots();
     let links_changed=base.definitions().all_review_links().ne(model.definitions().all_review_links());
     let review_changed = base
         .definitions()
@@ -440,6 +454,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
         && !conditional_changed
         && !review_changed
         && !charts_changed
+        && !pivots_changed
         && !page_setup_changed
         && !links_changed
         && !validation_changed
@@ -1175,6 +1190,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
             out.rewritten.insert(sheet.part().name().into(),super::page_setup::rewrite(current,&natural,&after)?);
         }
     }
+    if pivots_changed {super::pivot::finish(package,base.definitions().pivots(),model.definitions().pivots(),&mut out)?;}
     if charts_changed {super::chart::finish(package,base,model,&mut out,&sheets,structural.as_ref())?;}
     if review_changed {super::review::finish(package,workbook_part,&sheets,base,model,&moves,&mut out)?;}
     if sheets_changed {
