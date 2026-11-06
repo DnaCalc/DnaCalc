@@ -16936,3 +16936,44 @@ fn dc_8wp_2__implicit_worksheet_relationships_discover_and_refresh_both_pivots()
     assert!(enter(&mut book,at(sheet,"B2"),"100").accepted());let revision=book.host().revision().get();let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet,revision,part:"xl/pivotTables/summary.xml".into()}));assert!(result.accepted(),"{result:?}");assert_eq!(session_calculated(&book,at(sheet,"E6")),Some(CalcValue::number(112.)));assert_eq!(session_calculated(&book,at(sheet,"E13")),Some(CalcValue::number(112.)));
     let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert!(!part_text(&saved,"xl/worksheets/sheet1.xml").contains("pivotParts"));let reopened=session(&saved);assert_eq!(reopened.host().model().definitions().pivots().sheets[&sheet].tables.len(),2);assert_eq!(session_value(&reopened,at(sheet,"E6")),ProjectedValue::Literal(CalcValue::number(112.)));
 }
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_3__getpivotdata_reads_visible_cells_and_tracks_refresh_undo_and_saved_reopen(){
+    let bytes=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");let mut book=session(bytes);let sheet=book.host().sheets()[0].id();
+    for (cell,formula,expected)in [
+        ("J1","=GETPIVOTDATA(\"Sum of Amount\",$D$3)",24.),
+        ("J2","=GETPIVOTDATA(\"Amount\",$D$3,\"Region\",\"east\")",16.),
+        ("J3","=GETPIVOTDATA(\"Amount\",$D$10,\"region\",\"West\")",8.),
+    ]{assert!(enter(&mut book,at(sheet,cell),formula).accepted());assert_eq!(session_calculated(&book,at(sheet,cell)),Some(CalcValue::number(expected)),"{formula}");}
+    for (cell,formula)in [
+        ("K1","=GETPIVOTDATA(\"Missing\",D3)"),
+        ("K2","=GETPIVOTDATA(\"Amount\",A1)"),
+        ("K3","=GETPIVOTDATA(\"Amount\",D3,\"Region\",\"Absent\")"),
+        ("K4","=GETPIVOTDATA(\"Amount\",D3,\"Missing\",\"East\")"),
+    ]{assert!(enter(&mut book,at(sheet,cell),formula).accepted());assert_eq!(session_calculated(&book,at(sheet,cell)),Some(CalcValue::error(calc_value::WorksheetErrorCode::Ref)),"{formula}");}
+    assert!(enter(&mut book,at(sheet,"K6"),"=GETPIVOTDATA(\"Amount\",D3,\"Region\")").accepted());assert_eq!(session_calculated(&book,at(sheet,"K6")),Some(CalcValue::error(calc_value::WorksheetErrorCode::Value)));
+    assert!(enter(&mut book,at(sheet,"B2"),"100").accepted());assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(24.)),"Source edits do not refresh GETPIVOTDATA");
+    let revision=book.host().revision().get();let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet,revision,part:"xl/pivotTables/summary.xml".into()}));assert!(result.accepted(),"{result:?}");
+    assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(112.)));assert_eq!(session_calculated(&book,at(sheet,"J2")),Some(CalcValue::number(104.)));assert_eq!(session_calculated(&book,at(sheet,"J3")),Some(CalcValue::number(8.)));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(24.)));assert_eq!(session_calculated(&book,at(sheet,"J2")),Some(CalcValue::number(16.)));
+    assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(112.)));
+    assert!(enter(&mut book,at(sheet,"A4"),"Absent").accepted());assert_eq!(session_calculated(&book,at(sheet,"K3")),Some(CalcValue::error(calc_value::WorksheetErrorCode::Ref)));
+    assert!(book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet,revision:book.host().revision().get(),part:"xl/pivotTables/summary.xml".into()})).accepted());
+    assert_eq!(session_calculated(&book,at(sheet,"K3")),Some(CalcValue::number(4.)));assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(112.)));assert_eq!(session_calculated(&book,at(sheet,"J2")),Some(CalcValue::number(100.)));assert_eq!(session_calculated(&book,at(sheet,"E7")),Some(CalcValue::number(112.)));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(session_calculated(&book,at(sheet,"K3")),Some(CalcValue::error(calc_value::WorksheetErrorCode::Ref)));assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(112.)));assert_eq!(session_calculated(&book,at(sheet,"J2")),Some(CalcValue::number(104.)));assert_eq!(session_calculated(&book,at(sheet,"E6")),Some(CalcValue::number(112.)));
+    assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(session_calculated(&book,at(sheet,"K3")),Some(CalcValue::number(4.)));assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(112.)));
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());assert_eq!(session_calculated(&reopened,at(sheet,"J1")),Some(CalcValue::number(112.)),"{:?}",session_value(&reopened,at(sheet,"J1")));assert_eq!(session_value(&reopened,at(sheet,"E7")),ProjectedValue::Literal(CalcValue::number(112.)));
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_3__getpivotdata_refuses_ambiguous_or_unmeasured_layouts_with_the_pivot_owner(){
+    let bytes=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");let mut book=session(bytes);let sheet=book.host().sheets()[0].id();
+    assert!(enter(&mut book,at(sheet,"J1"),"=GETPIVOTDATA(\"Amount\",D3:E13)").accepted());
+    let ProjectedValue::NotModeled{refusal,..}=session_value(&book,at(sheet,"J1"))else{panic!("Ambiguous imported creation order must remain refused")};assert!(format!("{refusal:?}").contains("dc-8wp"));
+    assert!(enter(&mut book,at(sheet,"J2"),"=GETPIVOTDATA(\"Amount\",D3,\"Region\",\"East\",\"Region\",\"West\")").accepted());assert!(matches!(session_value(&book,at(sheet,"J2")),ProjectedValue::NotModeled{..}));
+    let bytes=package_with_part_from(bytes,"xl/pivotTables/summary.xml",|xml|xml.replace("<rowFields count=\"1\"><field x=\"0\"/></rowFields>","<rowFields count=\"2\"><field x=\"0\"/><field x=\"1\"/></rowFields>"));let mut book=session(&bytes);assert!(enter(&mut book,at(sheet,"J1"),"=GETPIVOTDATA(\"Amount\",D3)").accepted());assert!(matches!(session_value(&book,at(sheet,"J1")),ProjectedValue::NotModeled{..}));
+    let bytes=package_with_part_from(include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx"),"xl/pivotTables/summary.xml",|xml|xml.replacen("<item x=\"0\"/>","<item x=\"0\" n=\"Custom caption\"/>",1));let mut book=session(&bytes);assert!(enter(&mut book,at(sheet,"J1"),"=GETPIVOTDATA(\"Amount\",D3,\"Region\",\"East\")").accepted());assert!(matches!(session_value(&book,at(sheet,"J1")),ProjectedValue::NotModeled{..}));
+
+}
