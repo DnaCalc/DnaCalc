@@ -634,6 +634,26 @@ pub fn tar(entries: &[(String, Option<Vec<u8>>)], mtime: u64) -> Result<Vec<u8>,
     Ok(out)
 }
 
+/// Match Cargo's target-specific package list to metadata. Reject ambiguous name/version
+/// pairs rather than silently attributing a notice to the wrong source.
+fn notice_packages(packages: &BTreeMap<String, &Value>, listing: &str) -> Result<BTreeSet<String>, String> {
+    let mut seen = BTreeSet::new();
+    for line in listing.lines().filter(|line| !line.trim().is_empty()) {
+        let mut words = line.split_whitespace();
+        let name = words.next().ok_or("cargo tree omitted a package name")?;
+        let version = words.next().and_then(|s| s.strip_prefix('v'))
+            .ok_or_else(|| format!("cargo tree omitted the version: {line}"))?;
+        let matches = packages.iter().filter(|(_, p)| p["name"] == name && p["version"] == version)
+            .collect::<Vec<_>>();
+        if matches.len() != 1 {
+            return Err(format!("cargo tree package {line:?} has {} metadata identities; its notice cannot be attributed", matches.len()));
+        }
+        seen.insert(matches[0].0.clone());
+    }
+    if seen.is_empty() { return Err("cargo tree listed no application packages".into()); }
+    Ok(seen)
+}
+
 /// THIRD-PARTY-NOTICES.txt for `app`: the ported-code notices, then the licence texts of every
 /// crate compiled into its wasm (cargo metadata for wasm32: the app's normal dependencies, not
 /// build scripts or procedural macros, which run at build time), each text once with the crates
@@ -665,55 +685,25 @@ fn notices(ws: &Workspace, app: &App) -> Result<String, String> {
         .flatten()
         .filter_map(|p| Some((p["id"].as_str()?.to_owned(), p)))
         .collect();
-    let nodes: BTreeMap<String, &Value> = metadata["resolve"]["nodes"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|n| Some((n["id"].as_str()?.to_owned(), n)))
-        .collect();
-    let roots = std::iter::once(app.package)
-        .chain(app.worker.map(|(package, _)| package))
-        .map(|name| {
-            packages
-                .iter()
-                .find(|(_, p)| p["name"] == name && p["source"].is_null())
-                .map(|(id, _)| id.clone())
-                .ok_or_else(|| format!("cargo metadata has no package {name}"))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let is_macro = |id: &str| {
-        packages.get(id).is_some_and(|p| {
-            p["targets"].as_array().into_iter().flatten().any(|t| {
-                t["kind"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .any(|k| k == "proc-macro")
-            })
-        })
-    };
-    let mut seen = roots.iter().cloned().collect::<BTreeSet<_>>();
-    let mut pending = roots;
-    while let Some(id) = pending.pop() {
-        for dep in nodes
-            .get(&id)
-            .and_then(|n| n["deps"].as_array())
-            .into_iter()
-            .flatten()
-        {
-            let normal = dep["dep_kinds"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .any(|k| k["kind"].is_null());
-            let Some(to) = dep["pkg"].as_str() else {
-                continue;
-            };
-            if normal && !is_macro(to) && seen.insert(to.to_owned()) {
-                pending.push(to.to_owned());
-            }
-        }
+    // Metadata unifies features across workspace members, including native JIT consumers.
+    // Cargo tree resolves these roots for the actual target, omitting host-only build scripts
+    // and procedural macros. Metadata still supplies the exact manifests and licence files.
+    let mut command = Command::new(cargo::cargo_program());
+    command.args([
+        "tree", "--locked", "--target", cargo::WASM_TARGET,
+        "--edges", "normal,no-proc-macro", "--prefix", "none", "--format", "{p}",
+        "--color", "never",
+    ]).current_dir(&ws.root);
+    for root in std::iter::once(app.package).chain(app.worker.map(|(package, _)| package)) {
+        command.args(["--package", root]);
     }
+    let out = cargo::output(&mut command)?;
+    if !out.status.success() {
+        return Err(format!("cargo tree failed: {}", cargo::tail(&out.stderr, 20)));
+    }
+    let listing = std::str::from_utf8(&out.stdout)
+        .map_err(|e| format!("cargo tree printed invalid UTF-8: {e}"))?;
+    let seen = notice_packages(&packages, listing)?;
     // Each licence text, by hash, with the crates that carry it.
     let mut texts: BTreeMap<String, (String, BTreeSet<String>)> = BTreeMap::new();
     let mut crates = Vec::new();
@@ -1240,6 +1230,26 @@ fn rollback(site: &Site, to: &str, release: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Native-only: exercises the Cargo text/metadata boundary used during local packaging.
+    #[test]
+    fn notices_use_target_packages_even_when_metadata_contains_native_jit_features() {
+        let page = json!({"name":"page","version":"1.0.0"});
+        let worker = json!({"name":"worker","version":"1.0.0"});
+        let normal = json!({"name":"normal","version":"2.0.0"});
+        let native = json!({"name":"cranelift-assembler-x64","version":"0.133.3"});
+        let packages = BTreeMap::from([
+            ("page".into(), &page), ("worker".into(), &worker),
+            ("normal".into(), &normal), ("native".into(), &native),
+        ]);
+        let seen = notice_packages(&packages, "page v1.0.0 (/workspace/page)\nnormal v2.0.0\nworker v1.0.0 (/workspace/worker)\nnormal v2.0.0 (*)\n").unwrap();
+        assert_eq!(seen, BTreeSet::from(["page".into(), "worker".into(), "normal".into()]));
+        assert!(notice_packages(&packages, "unknown v1.0.0").is_err());
+        assert!(notice_packages(&packages, "").is_err());
+        let mut ambiguous = packages;
+        ambiguous.insert("other-source".into(), &normal);
+        assert!(notice_packages(&ambiguous, "normal v2.0.0").is_err());
+    }
 
     /// Native-only: reads the repository's own snippet from the file system.
     #[test]

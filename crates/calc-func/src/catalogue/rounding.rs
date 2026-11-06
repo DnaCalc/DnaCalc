@@ -36,7 +36,9 @@
 //! Nothing passes through an integer type that could overflow: inputs near 2^53 or at the largest
 //! binary64 are read and computed exactly, or, in CEILING and FLOOR, as binary64.
 //!
-//! A result follows the number publication rule: one beyond binary64's range is #NUM!, a zero is
+//! The directed functions retain an initial reading below MIN_NORMAL as described in
+//! `directed_initial_underflow`; other results follow the number publication rule: one beyond
+//! binary64's range is #NUM!, a zero is
 //! +0 whatever its sign, and a subnormal one is refused, as is a non-zero exact result too small
 //! to convert to anything but a zero. Under NumericMode::Exact a call that reaches an arithmetic
 //! site (the conversion of number text or of an exact result, the division of MROUND, CEILING and
@@ -132,6 +134,9 @@ fn numeric(
         // which the worksheet holds as a number.
         if result.is_nan() && matches!(id, TRUNC | ROUND | ROUNDDOWN) {
             Ok(CalcValue::excel_overflow_number(result).expect("the stored rounding result"))
+        } else if result.is_subnormal() && matches!(id, TRUNC | ROUNDUP | ROUNDDOWN) {
+            // Only the measured initial-reading return below can reach this publication.
+            super::kit::out_with_subnormal(&site, Ok(result))
         } else {
             site.number(result)
         }
@@ -384,6 +389,9 @@ fn directed(site: &Site<'_>, number: f64, places: f64, direction: Direction) -> 
     let (places, in_range) = directed_places(places);
     let position = (-places).clamp(-PLACES, PLACES);
     let reading = reading(number, true);
+    if let Some(initial) = directed_initial_underflow(site, number, &reading)? {
+        return Ok(initial);
+    }
     let Some(down) = reading.round_at(position, Direction::TowardZero) else {
         let whole = whole_reading(site, number, &reading)?;
         // ROUNDUP gives #NUM! where ROUNDDOWN and TRUNC keep the bits past DBL_MAX (Excel
@@ -424,6 +432,32 @@ fn directed(site: &Site<'_>, number: f64, places: f64, direction: Direction) -> 
     }
     let magnitude = site.add(lower.abs(), unit)?;
     Ok(flush(if number < 0.0 { -magnitude } else { magnitude }))
+}
+
+/// A normal input whose initial15-digit reading falls below MIN_NORMAL returns before
+/// digit rounding in the directed functions. Excel20430 and20527 retain its sign and the
+/// normalized significand with exponent field zero, without shifting for a subnormal.
+/// Doubling the exact decimal gives a normal value; decrementing its encoded exponent
+/// reproduces that observed packing. This is an output model, not an internal-code claim.
+/// The other directed paths still flush final subnormal results; ROUND keeps its own policy.
+fn directed_initial_underflow(
+    site: &Site<'_>,
+    number: f64,
+    reading: &ExactDecimal,
+) -> Step<Option<f64>> {
+    // Only the lowest normal binade can have a15-digit reading below MIN_NORMAL.
+    // Keep arithmetic-free exact calls on their existing path, including under Exact mode.
+    if number.abs() >= 2.0 * f64::MIN_POSITIVE || reading.is_value_of(number) {
+        return Ok(None);
+    }
+    if !site.nearest(reading)?.is_subnormal() {
+        return Ok(None);
+    }
+    let mut twice = reading.clone();
+    twice.coefficient.add(&reading.coefficient);
+    let normal = site.nearest(&twice)?;
+    debug_assert!(normal.is_normal());
+    Ok(Some(f64::from_bits(normal.to_bits() - (1 << 52))))
 }
 
 /// How CEILING and FLOOR choose a multiple of the significance.
