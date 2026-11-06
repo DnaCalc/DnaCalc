@@ -5,7 +5,7 @@
 
 mod f1_support;
 
-use calc_func::value::WorksheetErrorCode::{NA, Num, Value};
+use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Value};
 use f1_support::*;
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -71,6 +71,32 @@ fn bessel_functions() {
     close(call("BESSELK", vec![n(1.5), n(1.0)]), 0.277387804, 1e-8);
     close(call("BESSELY", vec![n(2.5), n(1.0)]), 0.145918138, 1e-8);
     error(call("BESSELJ", vec![n(1.9), n(-1.0)]), Num);
+}
+
+/// Original dcztvv_r23/r24 workbook readings and R30 Value2/error-order controls.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn besselj_keeps_recorded_argument_kind_errors() {
+    for logical in [false, true] {
+        for order in [3.0, 50.0] {
+            error(call("BESSELJ", vec![b(logical), n(order)]), Value);
+        }
+        for x in [1.1, 100.0] {
+            error(call("BESSELJ", vec![n(x), b(logical)]), Value);
+        }
+    }
+    for order in [3.0, 50.0] {
+        error(call("BESSELJ", vec![missing(), n(order)]), NA);
+    }
+    for x in [1.1, 100.0] {
+        error(call("BESSELJ", vec![n(x), missing()]), NA);
+    }
+    exact(call("BESSELJ", vec![calc_func::value::CalcValue::empty(), n(3.0)]), 0.0);
+    exact(call("BESSELJ", vec![n(1.1), calc_func::value::CalcValue::empty()]),
+        f64::from_bits(0x3fe7_0724_bfe3_f22a));
+    error(call("BESSELJ", vec![e(Div0), b(true)]), Div0);
+    error(call("BESSELJ", vec![b(true), e(Div0)]), Value);
+    error(call("BESSELJ", vec![b(true), n(-1.0)]), Value);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

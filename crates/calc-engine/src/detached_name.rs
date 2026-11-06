@@ -120,15 +120,26 @@ impl DetachedFormula {
         id: NameId,
         anchor: CellKey,
     ) -> Result<Self, NotModeled> {
+        Self::compile_name_with_bindings(inputs, id, anchor, &Default::default())
+    }
+
+    /// Compile with registration metadata, without giving diagnostics executable owners.
+    pub fn compile_name_with_bindings(
+        inputs: &ModelRoot,
+        id: NameId,
+        anchor: CellKey,
+        functions: &calc_fml::CallableBindings,
+    ) -> Result<Self, NotModeled> {
         let catalog = selected_catalog(inputs, id)?;
         let mut cache = calc_fml::PlanCache::new();
-        let plan = calc_fml::compile_loaded_with(
+        let plan = calc_fml::compile_loaded_with_bindings(
             &calc_fml::parse_formula(&format!("={INSPECTION}")),
             ReferenceNotation::A1,
             FormulaAnchor::new(anchor),
             &catalog,
             &mut cache,
             calc_fml::FormulaForm::Dynamic,
+            functions,
         )
         .map_err(NotModeled::Compile)?;
         Ok(Self {
@@ -136,6 +147,11 @@ impl DetachedFormula {
             reference_result: true,
             compiled_inputs: inputs.pin(),
             caller_sheet: anchor.sheet(),
+            selected_name: Some(BoundName {
+                id: catalog.selected.id(),
+                version: catalog.selected.binding_version(),
+                scope: catalog.selected.definition().scope,
+            }),
         })
     }
 }

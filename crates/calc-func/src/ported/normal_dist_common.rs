@@ -78,8 +78,11 @@ fn stored_horner(coefficients: &[u64], t: f64) -> f64 {
 /// to 2e-16 and reproduce erf to a flat offset of 9e-17 up to 0.5, past which the error climbs at
 /// once, which places the approximation's design interval.
 ///
-/// Above 0.5 the body is still `libm::erf`. Subnormal arguments cannot be written to a cell (Excel
-/// reads them back as zero) and also stay there.
+/// Above 0.5 the magnitude is the stored-PC64 complement of the upper ERFC body. Independent
+/// public calls agree on 3,328 adjacent inputs; exponent-edge controls distinguish the final
+/// PC64 store from strict binary64 subtraction. ERFC's `F` remains a stand-in, so this measured
+/// composition does not establish its last bits. Exactly 0.5 keeps its existing boundary body.
+/// Subnormal arguments cannot be written to a cell (Excel reads them back as zero).
 pub fn erf_approx(x: f64) -> f64 {
     if x.is_normal() && x.abs() < 0.5 {
         use crate::ported::excel_numeric::{excel_x87_div, excel_x87_mul};
@@ -87,6 +90,10 @@ pub fn erf_approx(x: f64) -> f64 {
         let numerator = stored_horner(&ERF_N, t);
         let denominator = stored_horner(&ERF_D, t);
         return excel_x87_div(excel_x87_mul(x, numerator), denominator);
+    }
+    if x.abs() > 0.5 {
+        use crate::ported::excel_numeric::excel_x87_sub;
+        return excel_x87_sub(1.0, erfc_upper(x.abs())).copysign(x);
     }
     libm::erf(x)
 }
