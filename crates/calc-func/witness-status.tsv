@@ -55,9 +55,9 @@ BIN2HEX	pinned	20430	120	120	-	exact	34a9d9d5f8
 BIN2OCT	full	20430	742	742	-	exact	b3b44246f7+changes
 BIN2OCT	pinned	20430	120	120	-	exact	34a9d9d5f8
 BINOM.DIST	full	20131,20527,?	70349	32014	2004	gross	b3b44246f7+changes
-BINOM.DIST	pinned	20131	120	116	6	numeric	adcc9977e9+changes
+BINOM.DIST	pinned	20131	120	120	-	exact	1ce89de7f0+changes
 BINOM.DIST.RANGE	full	20430	1224	740	369	numeric	b3b44246f7+changes
-BINOM.DIST.RANGE	pinned	20430	120	114	32	numeric	adcc9977e9+changes
+BINOM.DIST.RANGE	pinned	20430	120	117	12	numeric	1ce89de7f0+changes
 BINOM.INV	full	20430	2152	2149	4607182418800017408	gross	b3b44246f7+changes
 BINOM.INV	pinned	20430	120	120	-	exact	34a9d9d5f8
 BITAND	full	20430	5989	5989	-	exact	b3b44246f7+changes
@@ -250,9 +250,9 @@ HEX2OCT	pinned	20430	120	120	-	exact	34a9d9d5f8
 HOUR	full	20430	14631	14631	-	exact	b3b44246f7+changes
 HOUR	pinned	20430	120	120	-	exact	34a9d9d5f8
 HYPGEOM.DIST	full	20430,20527	3661	3468	20	numeric	b3b44246f7+changes
-HYPGEOM.DIST	pinned	20430	120	117	2	last_bit	adcc9977e9+changes
+HYPGEOM.DIST	pinned	20430	120	117	2	last_bit	1ce89de7f0+changes
 HYPGEOMDIST	full	20131,?	3	0	3	last_bit	b3b44246f7+changes
-HYPGEOMDIST	pinned	20131	3	0	2	last_bit	adcc9977e9+changes
+HYPGEOMDIST	pinned	20131	3	0	2	last_bit	1ce89de7f0+changes
 IFS	full	20430	1212	1212	-	exact	b3b44246f7+changes
 IFS	pinned	20430	120	120	-	exact	34a9d9d5f8
 IMABS	full	20430	1209	1209	-	exact	b3b44246f7+changes
@@ -382,9 +382,9 @@ N	pinned	20430	120	119	-	structural	34a9d9d5f8
 NA	full	20430	1	1	-	exact	b3b44246f7+changes
 NA	pinned	20430	1	1	-	exact	34a9d9d5f8
 NEGBINOM.DIST	full	20430	510	356	4503599627370626	gross	b3b44246f7+changes
-NEGBINOM.DIST	pinned	20430	120	87	454	numeric	adcc9977e9+changes
+NEGBINOM.DIST	pinned	20430	120	89	454	numeric	1ce89de7f0+changes
 NEGBINOMDIST	full	20131,?	1804	167	296	numeric	b3b44246f7+changes
-NEGBINOMDIST	pinned	20131	120	15	107	numeric	adcc9977e9+changes
+NEGBINOMDIST	pinned	20131	120	15	107	numeric	1ce89de7f0+changes
 NETWORKDAYS	full	20430	3600	3600	-	exact	b3b44246f7+changes
 NETWORKDAYS	pinned	20430	120	120	-	exact	34a9d9d5f8
 NETWORKDAYS.INTL	full	20430	3600	3600	-	exact	b3b44246f7+changes
@@ -426,7 +426,7 @@ PI	pinned	20430	1	1	-	exact	34a9d9d5f8
 PMT	full	20131,20228,20527,?	291978	287319	7	numeric	da3ecc4fb1+changes
 PMT	pinned	20131,20228,20527,?	177	175	1	last_bit	da3ecc4fb1+changes
 POISSON.DIST	full	20131,20430,20527,?	49714	39405	18876141089959088	structural	b3b44246f7+changes
-POISSON.DIST	pinned	20131,20430	120	118	374	numeric	adcc9977e9+changes
+POISSON.DIST	pinned	20131,20430	120	118	374	numeric	1ce89de7f0+changes
 POWER	full	20131,20430,20527,?	62635	62633	1	last_bit	b3b44246f7+changes
 POWER	pinned	20131,20430	120	120	-	exact	34a9d9d5f8
 PPMT	full	20131,20527,?	33	25	3	last_bit	da3ecc4fb1+changes

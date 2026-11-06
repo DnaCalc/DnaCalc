@@ -136,18 +136,44 @@ fn exp_running<F: Fpu>(start: f64, terms: &[f64]) -> f64 {
     F::store(&F::mul(&load(exp_with::<F>(stored, CW)), &load(factor), CW), CW)
 }
 
-/// The deviance `x ln(x/np) + np - x` inside its series range. `d = x - np` and `x + np` are stored
-/// and their quotient `v` stays in the registers; `V` is `v` stored. `L = 2 (v + v^3/3 + ...)` is the
-/// logarithm from the series and `tail` its part past `v`. The answer is the stored `d V`, plus `d`,
-/// plus the stored sum of `np - x`, `2 x tail` and the roundings of the stored products `x L` and
-/// `2 x V`.
+/// `stirling_error(n)` from its asymptotic series, ten terms in the registers, stored once. Ten terms
+/// because `n = 7` reads 2.2e-17 under the true value, where the tenth term leaves 2.0e-17 and the
+/// ninth and eleventh are 1.0e-16 and 4.5e-18 over. From 8 on the answers in the series range hold it
+/// to the true value within a few units in the last place.
+pub(crate) fn excel_stirling_series(n: f64) -> f64 {
+    stirling_series::<Native>(n)
+}
+
+fn stirling_series<F: Fpu>(n: f64) -> f64 {
+    const TERMS: [f64; 10] = [
+        1.0 / 12.0,
+        -1.0 / 360.0,
+        1.0 / 1260.0,
+        -1.0 / 1680.0,
+        1.0 / 1188.0,
+        -691.0 / 360360.0,
+        1.0 / 156.0,
+        -3617.0 / 122400.0,
+        43867.0 / 244188.0,
+        -174611.0 / 125400.0,
+    ];
+    let t = F::div(&ext_one(), &F::mul(&load(n), &load(n), CW), CW);
+    let mut w = load(TERMS[9]);
+    for term in TERMS[..9].iter().rev() {
+        w = F::add(&F::mul(&w, &t, CW), &load(*term), CW);
+    }
+    F::store(&F::div(&w, &load(n), CW), CW)
+}
+
+/// The deviance `x ln(x/np) + np - x` inside its series range. With `d = x - np` and `x + np` stored
+/// and `V` their stored quotient, `S` is the stored sum of `V` and the tail `v^3/3 + v^5/5 + ...` of
+/// `atanh v`, so that `ln(x/np) = 2 S`. The answer is the stored sum of the stored
+/// `(np - x) + st(2 x S) - st(2 x V)`, then `d`, then the stored `d V`.
 ///
-/// Read from POISSON.DIST on runs of adjacent means. At `x = 1024`, where every product with `x` is
-/// exact, Excel's stored exponent differs from the exact one by the rounding of the tail to the
-/// grid of `np - x` (a sawtooth of correlation 0.965), and the 4-row period that remains is `x + np`
-/// stored: with `d V` stored, 1,199 of 1,200 rows agree. At `x = 501` two more sawteeth are the
-/// product roundings: 976 of 1,000. At `x = 100` the rows inside a band still sit one unit of that
-/// grid out (649 of 1,000), so the form is not complete. Why the products enter is not known.
+/// Read from POISSON.DIST on runs of adjacent means, one rounding at a time. Each stored sum leaves
+/// a sawtooth in the exponent's error, and the sawtooth's frequency names the sum: the tail's
+/// rounding to `x` times the grid of `V` at `x = 100`, `x + np` stored at `x = 1024`, the products at
+/// `x = 501`. All 1,000 rows at `x = 100` and 1,199 of 1,200 at `x = 1024` agree.
 pub(crate) fn excel_deviance_series(x: f64, np: f64) -> f64 {
     deviance_series::<Native>(x, np)
 }
@@ -167,17 +193,18 @@ fn deviance_series<F: Fpu>(x: f64, np: f64) -> f64 {
         tail = next;
         j += 1.0;
     }
-    let twice_x = load(2.0 * x);
-    let log = F::store(&F::mul(&load(2.0), &F::add(&v, &tail, CW), CW), CW);
     let quotient = load(F::store(&v, CW));
-    let dropped = |product: Ext80| F::sub(&load(F::store(&product, CW)), &product, CW);
-    let near = F::store(&F::sub(&fnp, &fx, CW), CW);
-    let inner = F::add(&load(near), &F::mul(&twice_x, &tail, CW), CW);
-    let inner = F::add(&inner, &dropped(F::mul(&fx, &load(log), CW)), CW);
-    let inner = F::sub(&inner, &dropped(F::mul(&twice_x, &quotient, CW)), CW);
-    let near_sum = F::add(&load(F::store(&inner, CW)), &load(d), CW);
+    let sum = load(F::store(&F::add(&quotient, &tail, CW), CW));
+    let twice_x = load(2.0 * x);
+    let near = F::add(
+        &load(F::store(&F::sub(&fnp, &fx, CW), CW)),
+        &load(F::store(&F::mul(&twice_x, &sum, CW), CW)),
+        CW,
+    );
+    let near = F::sub(&near, &load(F::store(&F::mul(&twice_x, &quotient, CW), CW)), CW);
+    let near = F::add(&load(F::store(&near, CW)), &load(d), CW);
     let product = F::store(&F::mul(&load(d), &quotient, CW), CW);
-    F::store(&F::add(&near_sum, &load(product), CW), CW)
+    F::store(&F::add(&near, &load(product), CW), CW)
 }
 
 /// `constant * log2 x` by `FYL2X`, with the logarithm's special values.

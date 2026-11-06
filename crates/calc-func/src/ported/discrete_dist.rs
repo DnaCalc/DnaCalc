@@ -9,7 +9,6 @@
 //!   `v = (x - np)/(x + np)`, the Stirling error `ln n! - (n + 1/2) ln n + n - ln sqrt(2 pi)`, the
 //!   hypergeometric mass as a ratio of three binomial masses and the negative binomial as
 //!   `s/(s+f)` times a binomial mass.
-//! - NSWC's `gamln` for the six Stirling coefficients.
 //! - The cumulative functions sum the masses; BINOM.INV is the smallest count whose cumulative
 //!   probability reaches alpha.
 //!
@@ -22,18 +21,19 @@
 //! of adjacent doubles and the bank):
 //!
 //! - The stored exponent: with the normalizer removed, the answers sit on its binary64 grid.
-//! - The Stirling error: a table to 7 cut to 16 decimals, NSWC's series from 8.
+//! - The Stirling error: a table to 6 cut to 16 decimals, ten terms of its series from 7.
 //! - The deviance outside its series range: `x/np`, its logarithm, the product with `x` and `np - x`
 //!   each stored, then summed.
 //! - BINOM.DIST's exponent: `s(n) - s(x) - d(x) - s(n-x) - d(n-x)`, stored after each subtraction.
 //! - BINOM.DIST's normalizer and POISSON.DIST's first route: the exponential of a stored difference
 //!   with what the stores dropped put back as a factor (`excel_exp_running`,
 //!   `excel_exp_compensated`).
+//! - The deviance inside its series range: `excel_deviance_series`.
 //!
-//! Inside its series range the deviance is read in part (`excel_deviance_series`).
+//! The zero-success mass is not read: 100 rows of the bank, where `ln q` is not of the stored `q`.
 
 use crate::ported::excel_numeric::{
-    excel_deviance_series, excel_exp, excel_exp_compensated, excel_exp_running, excel_expm1_spilled, excel_log, excel_x87_add, excel_x87_div,
+    excel_deviance_series, excel_exp, excel_exp_compensated, excel_exp_running, excel_expm1_spilled, excel_log, excel_stirling_series, excel_x87_add, excel_x87_div,
     excel_x87_mul, excel_x87_sub, gammaln_excel,
 };
 use crate::value::WorksheetErrorCode;
@@ -44,11 +44,11 @@ const NUM: WorksheetErrorCode = WorksheetErrorCode::Num;
 /// `ln(sqrt(2 pi))`, rounded to binary64.
 const LN_SQRT_2PI: f64 = 0.9189385332046728;
 
-/// `stirling_error(n)` for n = 0..7, each the exact value cut to 16 decimals, not rounded: the 3,800
-/// POISSON.DIST answers of the second route at `n = 2..6` hold each to a few units of 2^-60, on
-/// these digits and away from the rounded ones. `n = 7` misses 2 of 240 at the rounding of the
-/// exponent, and `n = 1` is held only by BINOM.DIST, so their last digits are not settled.
-const STIRLING_ERROR: [f64; 8] = [
+/// `stirling_error(n)` for n = 0..6, each the exact value cut to 16 decimals, not rounded: with the
+/// rest of the model in place the bank and live rows hold `n = 1, 2, 3, 5, 6` on these digits to
+/// within a few units of 2^-60. `n = 4` reads one unit in the last place above its digits, which
+/// is not explained and is not taken.
+const STIRLING_ERROR: [f64; 7] = [
     0.0,
     0.0810614667953272,
     0.0413406959554092,
@@ -56,31 +56,13 @@ const STIRLING_ERROR: [f64; 8] = [
     0.0207906721037650,
     0.0166446911898211,
     0.0138761288230707,
-    0.0118967099458917,
-];
-
-/// The six coefficients of Stirling's correction in NSWC's `gamln`, used from 8 up. Loader's cuts of
-/// the series at 35, 80 and 500 are not there: at `n = 16, 17` his five terms miss Excel's answers,
-/// and this form meets all 240 answers at each `n` from 8 to 600.
-const STIRLING_SERIES: [f64; 6] = [
-    0.833333333333333e-01,
-    -0.277777777760991e-02,
-    0.793650666825390e-03,
-    -0.595202931351870e-03,
-    0.837308034031215e-03,
-    -0.165322962780713e-02,
 ];
 
 fn stirling_error(n: f64) -> f64 {
-    if n < 8.0 {
+    if n < 7.0 {
         return STIRLING_ERROR[n as usize];
     }
-    let t = excel_x87_div(1.0, excel_x87_mul(n, n));
-    let mut w = STIRLING_SERIES[5];
-    for c in STIRLING_SERIES[..5].iter().rev() {
-        w = excel_x87_add(excel_x87_mul(w, t), *c);
-    }
-    excel_x87_div(w, n)
+    excel_stirling_series(n)
 }
 
 /// Loader's deviance `x ln(x/np) + np - x`. Measured on POISSON.DIST: the series range is

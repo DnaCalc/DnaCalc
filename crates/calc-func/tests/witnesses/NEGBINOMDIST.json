@@ -78,7 +78,7 @@
     {"args":["0x4008000000000000","0x4020000000000000","0x3feddb821ca421e8"],"calc_func":"0x3f952f8dea5750ea","expected_bits":"0x3f952f8dea5750e6","id":"oc974","reading":"r0"},
     {"args":["0x4008000000000000","0x402a000000000000","0x3f449c342936af9c"],"calc_func":"0x37d7d8acffa1e43f","expected_bits":"0x37d7d8acffa1e40a","id":"oc1026","reading":"r0"},
     {"args":["0x4008000000000000","0x402a000000000000","0x3fc7c99ad21f24ce"],"calc_func":"0x3e74c97289b77fc4","expected_bits":"0x3e74c97289b77fd4","id":"oc1062","reading":"r0"},
-    {"args":["0x4008000000000000","0x402a000000000000","0x3fe309e3df7a5fc7"],"calc_func":"0x3fa21e16bee7b897","expected_bits":"0x3fa21e16bee7b893","id":"oc1066","reading":"r0"},
+    {"args":["0x4008000000000000","0x402a000000000000","0x3fe309e3df7a5fc7"],"calc_func":"0x3fa21e16bee7b898","expected_bits":"0x3fa21e16bee7b893","id":"oc1066","reading":"r0"},
     {"args":["0x4008000000000000","0x402a000000000000","0x3fef2a5442686b19"],"calc_func":"0x3f777450932d2adf","expected_bits":"0x3f777450932d2ae4","id":"oc1043","reading":"r0"},
     {"args":["0x4014000000000000","0x3ff0000000000000","0x3f9ddf4d234ffa12"],"calc_func":"0x3f99c311b8771000","expected_bits":"0x3f99c311b8770fff","id":"oc1090","reading":"r0"},
     {"args":["0x4014000000000000","0x3ff0000000000000","0x3fdb881fb0034b0d"],"calc_func":"0x3f9a76600014c3de","expected_bits":"0x3f9a76600014c3e0","id":"oc1101","reading":"r0"},
@@ -104,7 +104,7 @@
     {"args":["0x4014000000000000","0x402a000000000000","0x3fe23c6962045bdc"],"expected_bits":"0x3faf2eff2602fb55","id":"oc1418","reading":"r0"},
     {"args":["0x4014000000000000","0x402a000000000000","0x3fefcfdb7edcf3b1"],"calc_func":"0x3e6591cd0dfabcb6","expected_bits":"0x3e6591cd0dfabcaa","id":"oc1437","reading":"r0"},
     {"args":["0x4020000000000000","0x3ff0000000000000","0x3f42d1239cc58282"],"calc_func":"0x3f42bb0dbe83a081","expected_bits":"0x3f42bb0dbe83a085","id":"oc1483","reading":"r0"},
-    {"args":["0x4020000000000000","0x3ff0000000000000","0x3fd46327eeb0f4cd"],"calc_func":"0x3f8e5642fd4d62ba","expected_bits":"0x3f8e5642fd4d62bb","id":"oc1451","reading":"r0"},
+    {"args":["0x4020000000000000","0x3ff0000000000000","0x3fd46327eeb0f4cd"],"calc_func":"0x3f8e5642fd4d62bc","expected_bits":"0x3f8e5642fd4d62bb","id":"oc1451","reading":"r0"},
     {"args":["0x4020000000000000","0x3ff0000000000000","0x3fe61f7fc370e6b7"],"calc_func":"0x3f0ddb767bbcf168","expected_bits":"0x3f0ddb767bbcf16a","id":"oc1460","reading":"r0"},
     {"args":["0x4020000000000000","0x3ff0000000000000","0x3feedea0037af43e"],"calc_func":"0x3d8491fa878d39f1","expected_bits":"0x3d8491fa878d39fb","id":"oc1487","reading":"r0"},
     {"args":["0x4020000000000000","0x4000000000000000","0x3ee4dfa00f6a0edc"],"calc_func":"0x3e0ea20e8314c755","expected_bits":"0x3e0ea20e8314c745","id":"oc1562","reading":"r0"},
@@ -124,7 +124,7 @@
     {"args":["0x4020000000000000","0x4020000000000000","0x3fe9d8f445a48a3d"],"calc_func":"0x3f61d625aea96b83","expected_bits":"0x3f61d625aea96b7f","id":"oc1727","reading":"r0"},
     {"args":["0x4020000000000000","0x4020000000000000","0x3feffff1f8fc1433"],"calc_func":"0x38218bbb411943be","expected_bits":"0x38218bbb411943bd","id":"oc1687","reading":"r0"},
     {"args":["0x4020000000000000","0x402a000000000000","0x3fbf9fbcd00346da"],"calc_func":"0x3e725e8c3f3c2923","expected_bits":"0x3e725e8c3f3c291b","id":"oc1749","reading":"r0"},
-    {"args":["0x4020000000000000","0x402a000000000000","0x3fe05566855cd61c"],"calc_func":"0x3fb0fd430cdcc161","expected_bits":"0x3fb0fd430cdcc162","id":"oc1778","reading":"r0"},
+    {"args":["0x4020000000000000","0x402a000000000000","0x3fe05566855cd61c"],"calc_func":"0x3fb0fd430cdcc163","expected_bits":"0x3fb0fd430cdcc162","id":"oc1778","reading":"r0"},
     {"args":["0x4020000000000000","0x402a000000000000","0x3feb72ed00190590"],"calc_func":"0x3f67827a8561884c","expected_bits":"0x3f67827a85618854","id":"oc1762","reading":"r0"}
   ]
 }
