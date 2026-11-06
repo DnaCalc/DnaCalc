@@ -74,7 +74,7 @@ fn Region(
         }
     }
     let measure = |c: &wire::CellShown, t: &str| crate::grid::print_advance(c, t, fonts);
-    let plan = Arc::new(build_render_plan_with(
+    let mut plan = build_render_plan_with(
         shown.iter(),
         &metrics,
         &viewport,
@@ -84,7 +84,9 @@ fn Region(
             geometry: Some(&document.geometry),
             measure: Some(&measure),
         },
-    ));
+    );
+    crate::grid::align_print_baselines(&mut plan, &shown, &document.geometry);
+    let plan = Arc::new(plan);
     let held_plan = Arc::clone(&plan);
     let held_metrics = metrics.clone();
     let drawing_document = Arc::clone(&document);

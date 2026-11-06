@@ -5,8 +5,13 @@ mod seven_cell;
 /// Authored paint inputs, sharing the existing package writer and fixture generator.
 /// These contain no reference pixels or cached formula results.
 pub(crate) fn paint(kind: &str) -> Result<Vec<u8>, String> {
+    paint_with_normal(kind,"Calibri",11.)
+}
+pub(crate) fn paint_with_normal(kind: &str, family: &str, points: f64) -> Result<Vec<u8>, String> {
     use std::collections::BTreeMap;
-    let mut fonts=vec![r#"<font><sz val="11"/><name val="Calibri"/><color rgb="FF000000"/></font>"#.to_owned()];
+    if family.is_empty() || !points.is_finite() || !(1. ..=409.).contains(&points) { return Err("Normal font needs a family and 1 to 409 points".into()); }
+    let family=family.replace('&',"&amp;").replace('<',"&lt;").replace('>',"&gt;").replace('"',"&quot;").replace('\'',"&apos;");
+    let mut fonts=vec![format!(r#"<font><sz val="{points}"/><name val="{family}"/><color rgb="FF000000"/></font>"#)];
     for (size,effect) in [(8,""),(16,""),(24,""),(11,"<b/>"),(11,"<i/>"),(11,"<u/>"),(11,"<u val=\"double\"/>"),(11,"<strike/>")] {
         fonts.push(format!("<font><sz val=\"{size}\"/><name val=\"Calibri\"/><color rgb=\"FF000000\"/>{effect}</font>"));
     }

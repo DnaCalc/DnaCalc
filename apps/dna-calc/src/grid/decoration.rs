@@ -7,7 +7,8 @@ pub struct Line {
     pub dash: &'static [f64],
     pub double: bool,
 }
-pub fn line(edge: &BorderShown, scale: f64) -> Line {
+// The captured 75/100/150% views use the same 96-DPI pen widths.
+pub fn line(edge: &BorderShown, _scale: f64) -> Line {
     let (width, css, dash, double) = match edge.style.as_str() {
         "hair" => (0.5, "solid", &[][..], false),
         "medium" => (2., "solid", &[][..], false),
@@ -23,7 +24,7 @@ pub fn line(edge: &BorderShown, scale: f64) -> Line {
         _ => (1., "solid", &[][..], false),
     };
     Line {
-        width: width * scale,
+        width,
         css,
         dash,
         double,
@@ -43,6 +44,18 @@ pub fn css(borders: &[Option<BorderShown>; 4], scale: f64) -> String {
         }
     }
     css
+}
+/// Unmerged cell edges lie immediately before the physical grid boundary, on both sides.
+/// Keep the original anchor for text, hit testing and merged fragment clipping.
+pub fn border_rect(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64) -> dna_calc_model::geometry::CellRect {
+    let mut rect = cell.anchor;
+    if cell.row_span == 1 && cell.col_span == 1 {
+        let left = cell.borders[0].as_ref().map_or(0.,|e|line(e,scale).width);
+        let top = cell.borders[2].as_ref().map_or(0.,|e|line(e,scale).width);
+        rect.x -= left; rect.w += left;
+        rect.y -= top; rect.h += top;
+    }
+    rect
 }
 
 use dna_calc_model::projection::FillShown;
@@ -64,7 +77,7 @@ fn pattern(name: &str, x: u32, y: u32) -> bool {
         "darkUp" => (x + y) % 8 < 3,
         "lightUp" => (x + y) % 8 == 0,
         "darkGrid" => x % 8 < 2 || y % 8 < 2,
-        "lightGrid" => x % 8 == 0 || y % 8 == 0,
+        "lightGrid" => x % 4 == 0 || y % 4 == 0,
         "darkTrellis" => (x + y) % 8 < 2 || (x + 8 - y) % 8 < 2,
         "lightTrellis" => (x + y) % 8 == 0 || (x + 8 - y) % 8 == 0,
         _ => false,
@@ -141,7 +154,7 @@ pub fn texture(
 ) -> Option<(web_sys::HtmlCanvasElement, String)> {
     use wasm_bindgen::{Clamped, JsCast};
     let (width, height) = if matches!(brush, FillShown::Pattern { .. }) {
-        (8. * scale, 8. * scale)
+        (8., 8.)
     } else {
         (width, height)
     };
@@ -200,8 +213,8 @@ pub fn texture(
                     let (fg, bg) = colors.unwrap();
                     if pattern(
                         name,
-                        (f64::from(x) * width / f64::from(w) / scale).floor() as u32,
-                        (f64::from(y) * height / f64::from(h) / scale).floor() as u32,
+                        (f64::from(x) * width / f64::from(w)).floor() as u32,
+                        (f64::from(y) * height / f64::from(h)).floor() as u32,
                     ) {
                         fg
                     } else {
@@ -299,6 +312,7 @@ mod brush_tests {
         assert_eq!(count("lightGray"), 16);
         assert_eq!(count("mediumGray"), 32);
         assert_eq!(count("darkGray"), 48);
+        assert_eq!(count("lightGrid"), 28);
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -347,7 +361,7 @@ pub fn strokes(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64) -> V
     for segment in &cell.boundary {
         let line = line(&segment.edge, scale);
         for offset in if line.double {
-            vec![0.5 * scale, 2.5 * scale]
+            vec![0.5, 2.5]
         } else {
             vec![line.width / 2.]
         } {
@@ -362,13 +376,13 @@ pub fn strokes(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64) -> V
                 y1: segment.y1 + dy,
                 x2: segment.x2 + dx,
                 y2: segment.y2 + dy,
-                width: if line.double { scale } else { line.width },
+                width: if line.double { 1. } else { line.width },
                 color: segment
                     .edge
                     .color
                     .clone()
                     .unwrap_or_else(|| "#000000".into()),
-                dash: line.dash.iter().map(|n| n * scale).collect(),
+                dash: line.dash.to_vec(),
             });
         }
     }
@@ -386,7 +400,7 @@ pub fn strokes(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64) -> V
             .sqrt()
             .max(1.);
         for offset in if line.double {
-            vec![-scale, scale]
+            vec![-1., 1.]
         } else {
             vec![0.]
         } {
@@ -396,9 +410,9 @@ pub fn strokes(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64) -> V
                 y1: y1 + dy,
                 x2: x2 + dx,
                 y2: y2 + dy,
-                width: if line.double { scale } else { line.width },
+                width: if line.double { 1. } else { line.width },
                 color: edge.color.clone().unwrap_or_else(|| "#000000".into()),
-                dash: line.dash.iter().map(|n| n * scale).collect(),
+                dash: line.dash.to_vec(),
             });
         }
     }

@@ -1,5 +1,5 @@
 # Pixel observation only. The numeric oracle worker and Excel question service are unchanged.
-param([Parameter(Mandatory=$true)][string]$Request,[switch]$Preflight,[string]$ExcelPath)
+param([Parameter(Mandatory=$true)][string]$Request,[switch]$Preflight,[string]$ExcelPath,[string]$WorkerDesktop)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 Add-Type @'
@@ -8,6 +8,47 @@ using System.Runtime.InteropServices;
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
+using System.Text;
+public static class PaintDesktop {
+ [StructLayout(LayoutKind.Sequential,CharSet=CharSet.Unicode)] struct Startup {
+   public int cb; public string reserved,desktop,title; public uint x,y,w,h,xc,yc,fill,flags;
+   public short show,reserved2; public IntPtr reservedPtr,input,output,error;
+ }
+ [StructLayout(LayoutKind.Sequential)] struct ProcessInfo {public IntPtr process,thread;public uint pid,tid;}
+ [DllImport("user32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern IntPtr CreateDesktop(string name,IntPtr device,IntPtr mode,uint flags,uint access,IntPtr security);
+ [DllImport("user32.dll")] static extern bool CloseDesktop(IntPtr desktop);
+ [DllImport("user32.dll")] static extern IntPtr GetThreadDesktop(uint thread);
+ [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+ [DllImport("user32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool GetUserObjectInformation(IntPtr handle,int index,StringBuilder name,int length,out int needed);
+ [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool CreateProcess(string application,StringBuilder command,IntPtr processSecurity,IntPtr threadSecurity,bool inherit,uint flags,IntPtr environment,string directory,ref Startup startup,out ProcessInfo info);
+ [DllImport("kernel32.dll",SetLastError=true)] static extern bool SetHandleInformation(IntPtr handle,uint mask,uint flags);
+ [DllImport("kernel32.dll")] static extern uint WaitForSingleObject(IntPtr handle,uint milliseconds);
+ [DllImport("kernel32.dll")] static extern bool GetExitCodeProcess(IntPtr process,out uint code);
+ [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
+ public static string Name() {
+   var text=new StringBuilder(256);int needed;
+   if(!GetUserObjectInformation(GetThreadDesktop(GetCurrentThreadId()),2,text,512,out needed))throw new System.ComponentModel.Win32Exception();
+   return text.ToString();
+ }
+ public static int Run(string name,string executable,string arguments,string log) {
+   // No SwitchDesktop, foreground, focus or input APIs. Every window stays on this owned desktop.
+   var desktop=CreateDesktop(name,IntPtr.Zero,IntPtr.Zero,0,0x00c7,IntPtr.Zero);
+   if(desktop==IntPtr.Zero)throw new System.ComponentModel.Win32Exception();
+   ProcessInfo info=new ProcessInfo();
+   try {
+     using(var stream=new FileStream(log,FileMode.Create,FileAccess.Write,FileShare.ReadWrite)) {
+       var handle=stream.SafeFileHandle.DangerousGetHandle();
+       if(!SetHandleInformation(handle,1,1))throw new System.ComponentModel.Win32Exception();
+       var startup=new Startup {cb=Marshal.SizeOf(typeof(Startup)),desktop="winsta0\\"+name,flags=0x101,show=0,output=handle,error=handle};
+       if(!CreateProcess(executable,new StringBuilder("\""+executable+"\" "+arguments),IntPtr.Zero,IntPtr.Zero,true,0x08000000,IntPtr.Zero,null,ref startup,out info))throw new System.ComponentModel.Win32Exception();
+       CloseHandle(info.thread);info.thread=IntPtr.Zero;
+       if(WaitForSingleObject(info.process,0xffffffff)!=0)throw new Exception("Isolated paint worker wait failed");
+       uint code;if(!GetExitCodeProcess(info.process,out code))throw new System.ComponentModel.Win32Exception();
+       return (int)code;
+     }
+   } finally {if(info.thread!=IntPtr.Zero)CloseHandle(info.thread);if(info.process!=IntPtr.Zero)CloseHandle(info.process);CloseDesktop(desktop);}
+ }
+}
 public static class PaintWindow {
  [StructLayout(LayoutKind.Sequential)] public struct Rect {public int L,T,R,B;}
  [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h,IntPtr dc,uint flags);
@@ -55,18 +96,27 @@ $job = Get-Content -LiteralPath $Request -Raw | ConvertFrom-Json
 $out = [string]$job.out -replace '^\\\\\?\\',''
 foreach ($inputBook in $job.books) { $inputBook.path = [string]$inputBook.path -replace '^\\\\\?\\','' }
 $bootstrap = [string]$job.bootstrap.path -replace '^\\\\\?\\',''
-$lockPath = 'C:\Work\DnaCalc\codex-runs\desktop.lock'
+if (-not $Preflight -and -not $WorkerDesktop) {
+    $paintDesktop = 'DNA-Calc-Paint-'+$PID+'-'+[Guid]::NewGuid().ToString('N')
+    $paintLog = Join-Path $out 'excel-worker.log'
+    $paintShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $paintArguments = '-NoProfile -STA -NonInteractive -File "'+$PSCommandPath+'" -Request "'+$Request+'" -WorkerDesktop "'+$paintDesktop+'"'
+    if ($ExcelPath) { $paintArguments += ' -ExcelPath "'+$ExcelPath+'"' }
+    $paintCode = [PaintDesktop]::Run($paintDesktop,$paintShell,$paintArguments,$paintLog)
+    Get-Content -LiteralPath $paintLog
+    if ($paintCode -ne 0) { throw "Isolated paint worker exited $paintCode" }
+    exit 0
+}
+if (-not $Preflight -and ([PaintDesktop]::Name() -ne $WorkerDesktop -or -not $WorkerDesktop.StartsWith('DNA-Calc-Paint-'))) {
+    throw 'Excel paint capture is permitted only on its own isolated desktop'
+}
+$lockPath = Join-Path $out 'excel-worker.lease'
 $script:lock = $null
 function Enter-Desktop {
-    $now = Get-Date
-    if ($now.TimeOfDay -lt [TimeSpan]'23:30:00' -and $now.TimeOfDay -ge [TimeSpan]'06:55:00') { throw 'Desktop permission window is closed' }
     if ((Test-Path -LiteralPath $lockPath) -and ((Get-Date)-(Get-Item -LiteralPath $lockPath).LastWriteTime).TotalMinutes -gt 5) {
         Remove-Item -LiteralPath $lockPath
     }
-    $cutoff = $now.Date.AddHours(6).AddMinutes(55)
-    if ($now.TimeOfDay -ge [TimeSpan]'23:30:00') { $cutoff=$cutoff.AddDays(1) }
-    $milliseconds = [int][Math]::Min(115000,($cutoff-$now).TotalMilliseconds-1000)
-    if ($milliseconds -lt 1) { throw 'Too close to the desktop permission cutoff' }
+    $milliseconds = 115000
     $script:lock = [PaintWindow+Lease]::new($lockPath,"DNA Calc paint capture worker $PID $(Get-Date -Format o)",$milliseconds)
     $script:lockStart = Get-Date
 }
@@ -137,7 +187,7 @@ try {
         $owned = $true
         Write-Host "PAINT owned Excel PID $excelProcess (launch 1)"
         $commandLine=$start.FileName+' '+$start.Arguments
-        $session = @{pid=$excelProcess;launches=1;started=(Get-Date -Format o);process_start_ticks=$excelStarted;command_line=$commandLine;preexisting=$before;closed=$false}
+        $session = @{pid=$excelProcess;launches=1;started=(Get-Date -Format o);process_start_ticks=$excelStarted;command_line=$commandLine;preexisting=$before;closed=$false;desktop=$WorkerDesktop;isolation='CreateDesktop/CreateProcess; no desktop switch or foreground/input APIs'}
         Write-Json $session (Join-Path $out 'excel-session.json')
         $startup=Get-Date
         $nativeWindow=$null
@@ -223,7 +273,9 @@ try {
                                 $x=$xEdges[$c]-$rect.L; $y=$yEdges[$r]-$rect.T
                                 $right=$xEdges[$c+1]-$rect.L; $bottom=$yEdges[$r+1]-$rect.T
                             }
-                            $cells.Add(@{row=$r;col=$c;x=$x;y=$y;w=$right-$x;h=$bottom-$y;points=@{x=[double]$cell.Left;y=[double]$cell.Top;w=[double]$cell.Width;h=[double]$cell.Height};text=[string]$cell.Text})
+                            $display=$cell.DisplayFormat
+                            $cells.Add(@{row=$r;col=$c;x=$x;y=$y;w=$right-$x;h=$bottom-$y;points=@{x=[double]$cell.Left;y=[double]$cell.Top;w=[double]$cell.Width;h=[double]$cell.Height};text=[string]$cell.Text;number_format=[string]$cell.NumberFormat;number_format_local=[string]$cell.NumberFormatLocal;display_fill_color=[long]$display.Interior.Color;display_fill_pattern=[int]$display.Interior.Pattern;display_font_color=[long]$display.Font.Color})
+                            [void][Runtime.InteropServices.Marshal]::ReleaseComObject($display)
                             [void][Runtime.InteropServices.Marshal]::ReleaseComObject($cell)
                         }
                     }
@@ -239,6 +291,8 @@ try {
                     } finally { $bitmap.Dispose() }
                     $records.Add(@{sha256=$inputBook.sha256;image_sha256=(File-Hash (Join-Path $out "$prefix.png"));sheet=$sheet.Name;zoom=[int]$zoom;dpi=[int]$dpi;origin=@{x=$originX;y=$originY};sheet_bounds=@{x=$sheetRect.L-$rect.L;y=$sheetRect.T-$rect.T;w=$sheetRect.R-$sheetRect.L;h=$sheetRect.B-$sheetRect.T};cells=@($cells.ToArray());prefix=$prefix;capture='PrintWindow(PW_RENDERFULLCONTENT)';excel_version=$excel.Version;excel_build=$excel.Build;normal_font=$book.Styles.Item('Normal').Font.Name;normal_size=$book.Styles.Item('Normal').Font.Size;default_row_height=$sheet.StandardHeight;default_column_width=$sheet.StandardWidth;gridlines=$win.DisplayGridlines;freeze=$win.FreezePanes})
                     $records[$records.Count-1].coordinate_calibrated=$calibrated
+                    $records[$records.Count-1].desktop=$WorkerDesktop
+                    $records[$records.Count-1].format_environment=@{decimal_separator=[string]$excel.DecimalSeparator;thousands_separator=[string]$excel.ThousandsSeparator;use_system_separators=[bool]$excel.UseSystemSeparators}
                     $records[$records.Count-1].coordinate_method=if($calibrated){'RangeFromPoint pixel edges'}else{'integral-point API; requires raster calibration'}
                     Write-Json @($records.ToArray()) (Join-Path $out 'excel.json')
                     Write-Host "PAINT Excel $prefix PID $excelProcess (launch 1)"
@@ -265,7 +319,9 @@ try {
         }
         if ($null -ne $excel) { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($excel) }
         $excel=$null
-        [GC]::Collect();[GC]::WaitForPendingFinalizers()
+        # An RCW finalizer can wait for a COM apartment that is already shutting down.
+        # Explicitly released objects and the owned PID/start-time check below bound cleanup.
+        [GC]::Collect()
         $process = Get-Process -Id $excelProcess -ErrorAction SilentlyContinue
         if ($process -and $process.StartTime.ToUniversalTime().Ticks -eq $excelStarted) {
             if (-not $process.WaitForExit(5000)) { Stop-Process -Id $excelProcess; [void]$process.WaitForExit(5000) }

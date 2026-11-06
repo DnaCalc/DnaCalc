@@ -143,7 +143,7 @@ pub(super) fn paint(
                     // fractional scroll offsets; gradients keep interpolation below.
                     ctx.set_image_smoothing_enabled(false);
                     let _ = ctx.translate(cell.anchor.x, cell.anchor.y);
-                    let unit = 8. * plan.scale / f64::from(texture.width());
+                    let unit = 8. / f64::from(texture.width());
                     let _ = ctx.scale(unit, unit);
                     ctx.set_fill_style_canvas_pattern(&pattern);
                     ctx.fill_rect(0., 0., cell.anchor.w / unit, cell.anchor.h / unit);
@@ -255,9 +255,11 @@ pub(super) fn paint(
     }
     for cell in &plan.cells {
         let r = cell.anchor;
+        let expanded = cell.row_span == 1 && cell.col_span == 1;
+        let border_rect = super::decoration::border_rect(cell,plan.scale);
         let Some(clip) = panes::intersection(
-            r,
-            cell.clip
+            border_rect,
+            (if expanded {None}else{cell.clip})
                 .unwrap_or_else(|| panes.bounds(metrics, &plan.viewport, cell.row, cell.col)),
         ) else {
             continue;
@@ -274,20 +276,20 @@ pub(super) fn paint(
             ctx.set_stroke_style_str(edge.color.as_deref().unwrap_or("#000000"));
             let dashes = js_sys::Array::new();
             for n in line.dash {
-                dashes.push(&wasm_bindgen::JsValue::from_f64(n * plan.scale));
+                dashes.push(&wasm_bindgen::JsValue::from_f64(*n));
             }
             let _ = ctx.set_line_dash(&dashes);
-            ctx.set_line_width(if line.double { plan.scale } else { line.width });
+            ctx.set_line_width(if line.double { 1. } else { line.width });
             for offset in if line.double {
-                vec![0.5 * plan.scale, 2.5 * plan.scale]
+                vec![0.5, 2.5]
             } else {
                 vec![line.width / 2.]
             } {
                 let (x1, y1, x2, y2) = match side {
-                    0 => (r.x + offset, r.y, r.x + offset, r.y + r.h),
-                    1 => (r.x + r.w - offset, r.y, r.x + r.w - offset, r.y + r.h),
-                    2 => (r.x, r.y + offset, r.x + r.w, r.y + offset),
-                    _ => (r.x, r.y + r.h - offset, r.x + r.w, r.y + r.h - offset),
+                    0 => {let x=r.x+offset-if expanded {line.width}else{0.};(x,border_rect.y,x,r.y+r.h)},
+                    1 => (r.x + r.w - offset, border_rect.y, r.x + r.w - offset, r.y + r.h),
+                    2 => {let y=r.y+offset-if expanded {line.width}else{0.};(border_rect.x,y,r.x+r.w,y)},
+                    _ => (border_rect.x, r.y + r.h - offset, r.x + r.w, r.y + r.h - offset),
                 };
                 ctx.begin_path();
                 ctx.move_to(x1, y1);
@@ -372,9 +374,12 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
     };
     let line_height = s.pixels * scale;
     let height = line_height * lines.len() as f64;
+    let inset = if s.rotation == 0 && !wrap && !s.shrink && !shown.contains('\n') { scale } else { 0. };
     let top = match vertical {
-        "top" | "justify" => cell.rect.y,
+        "top" => cell.rect.y + inset,
+        "justify" => cell.rect.y,
         "center" => cell.rect.y + (cell.rect.h - height) / 2.,
+        "bottom" => cell.rect.y + cell.rect.h - height - inset - cell.baseline_inset,
         _ => cell.rect.y + cell.rect.h - height,
     };
     ctx.set_text_align("left");
@@ -397,6 +402,11 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
         match vertical { "top" => extra, "bottom" => -extra, _ => 0. }
     } else { 0. };
     let double = autofit::double_underline(s,Some(&c));
+    let integer = autofit::integer_number(&cell.shown, &shown);
+    let advance = |line: &str| -> f64 {
+        if integer { alignment::graphemes(line).into_iter().map(|part| width(ctx,&part).round()).sum() }
+        else { width(ctx,line) }
+    };
     let decorate = |x: f64, y: f64, advance: f64| {
         if c.underline || c.strike || s.underline || s.strike {
             ctx.set_line_width(scale);
@@ -420,11 +430,11 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
     };
     let block_width = lines
         .iter()
-        .map(|line| width(ctx, line.trim_end_matches('\n')))
+        .map(|line| advance(line.trim_end_matches('\n')))
         .fold(0., f64::max);
     for (i, line) in lines.iter().enumerate() {
         let line = line.trim_end_matches('\n');
-        let w = width(ctx, line);
+        let w = advance(line);
         let x = if stacked {
             let left_edge = match horizontal {
                 "right" => cell.rect.x + cell.rect.w - right - block_width,
@@ -499,6 +509,13 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
             if horizontal == "justify" {
                 decorate(x, y, w);
             }
+        } else if integer {
+            let mut pen = x;
+            for part in alignment::graphemes(line) {
+                let _ = ctx.fill_text(&part, pen, y + baseline);
+                pen += width(ctx, &part).round();
+            }
+            decorate(x, y, w);
         } else {
             let _ = ctx.fill_text(line, x, y + baseline);
             decorate(x, y, w);
