@@ -245,6 +245,16 @@ impl ParsedComplex {
             None,
         ))
     }
+    /// The direct real-axis IMSINH/IMCOSH results have EXP's overflow domain.
+    /// Their reciprocal companions retain the wider runtime computation.
+    pub(crate) fn check_real_hyperbolic_domain(self) -> Result<(), WorksheetErrorCode> {
+        if self.im == 0.0
+            && !crate::ported::exp_fn::exp_kernel(self.re.abs()).is_finite()
+        {
+            return Err(WorksheetErrorCode::Num);
+        }
+        Ok(())
+    }
     pub(crate) fn sinh(self) -> Self {
         // Preserve the finite real axis when the real primitive overflows:
         // its imaginary component is zero, without forming infinity * sin(0).

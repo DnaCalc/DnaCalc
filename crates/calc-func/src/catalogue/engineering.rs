@@ -190,7 +190,7 @@ ported_family! {
     34 imreal "IMREAL" (1, 1) [V "inumber"] |s, a, sv| { complex_number(s, a, |z| Ok(z.re)) }
     35 imconjugate "IMCONJUGATE" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| Ok(z.conj())) }
     36 imcos "IMCOS" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| Ok(z.cos())) }
-    37 imcosh "IMCOSH" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| Ok(z.cosh())) }
+    37 imcosh "IMCOSH" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| { z.check_real_hyperbolic_domain()?; Ok(z.cosh()) }) }
     38 imcot "IMCOT" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| z.cot()) }
     39 imcsc "IMCSC" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| z.csc()) }
     40 imcsch "IMCSCH" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| z.csch()) }
@@ -229,7 +229,7 @@ ported_family! {
     45 imsec "IMSEC" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| z.sec()) }
     46 imsech "IMSECH" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| z.sech()) }
     47 imsin "IMSIN" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| Ok(z.sin())) }
-    48 imsinh "IMSINH" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| Ok(z.sinh())) }
+    48 imsinh "IMSINH" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| { z.check_real_hyperbolic_domain()?; Ok(z.sinh()) }) }
     49 imsqrt "IMSQRT" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| Ok(z.sqrt())) }
     50 imtan "IMTAN" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| z.tan()) }
     51 imdiv "IMDIV" (2, 2) [V "inumber1", V "inumber2"] |s, a, sv| {
