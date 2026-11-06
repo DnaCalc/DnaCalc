@@ -514,7 +514,12 @@ impl EngineState {
             .expect("pinned calculations cannot edit formula membership")
     }
     pub(crate) fn begin_tick(&mut self) {
-        self.last_tick = self
+        self.last_tick = self.allocate_tick();
+    }
+    /// Cell, save and explicit name passes share this owner-issued sequence.
+    /// Reserving a diagnostic pass does not publish or change the last cell tick.
+    pub(crate) fn allocate_tick(&self) -> u64 {
+        self
             .tick_sequence
             .fetch_update(
                 std::sync::atomic::Ordering::Relaxed,
@@ -522,7 +527,7 @@ impl EngineState {
                 |tick| tick.checked_add(1),
             )
             .expect("calculation tick exhausted")
-            + 1;
+            + 1
     }
     pub(crate) fn advance_view(&mut self) {
         self.generation = self
