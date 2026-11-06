@@ -3188,10 +3188,11 @@ fn recorded_complex_hyperbolics_keep_the_real_axis() {
         let set = calc_verdict::WitnessSet::decode(bytes).unwrap();
         session.set_formula(&format!("={function}(A1)"));
         for row in &set.witnesses {
-            if row.reading != "fn10-hyperbolic-original" { continue; }
+            if !["fn10-hyperbolic-original", "fn11-hyperbolic-overflow"].contains(&row.reading.as_str()) { continue; }
             let input = calc_verdict::decode_argument(&row.args[0], function)
                 .unwrap().as_number().unwrap();
-            if ![0.0_f64.to_bits(), 1.0_f64.to_bits(), (-1.0_f64).to_bits(), 1e100_f64.to_bits()]
+            if row.reading == "fn10-hyperbolic-original"
+                && ![0.0_f64.to_bits(), 1.0_f64.to_bits(), (-1.0_f64).to_bits(), 1e100_f64.to_bits()]
                 .contains(&input.to_bits()) { continue; }
             session.set_input("A1", InputValue::number(input).unwrap()).unwrap();
             let expected = calc_verdict::decode_result(&row.expected).unwrap();
@@ -3203,7 +3204,7 @@ fn recorded_complex_hyperbolics_keep_the_real_axis() {
             }
         }
     }
-    assert_eq!(rows, 16, "four original controls for each hyperbolic function must run");
+    assert_eq!(rows, 168, "sixteen original and152 overflow controls must run");
     assert!(failures.is_empty(), "{} of {rows} application checks differ:\n{}",
         failures.len(), failures.join("\n"));
 }

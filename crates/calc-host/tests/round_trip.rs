@@ -16416,3 +16416,75 @@ fn dc_971p_57__print_inspection_keeps_charts_and_refuses_unrendered_drawing_obje
             .contains("controls")
     );
 }
+
+/// A current decision must use the owner mode before any formula publication.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_6__validation_keeps_owner_numeric_mode_before_cell_publication() {
+    use calc_host::ValidationStatus;
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("<sheetData/>", r#"<sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData>"#)
+            .replace("</worksheet>", r#"<dataValidations count="1"><dataValidation type="custom" allowBlank="0" showErrorMessage="1" sqref="A1"><formula1>1+1</formula1></dataValidation></dataValidations></worksheet>"#)
+    });
+    let target = calc_value::NumericTargetId::new("16.0.20527.20150", "Current", "Excel", "x86-64").unwrap();
+    for mode in [calc_value::NumericMode::Fast, calc_value::NumericMode::Exact(target)] {
+        let exact = mode.target().is_some();
+        let mut book = HostSession::open(
+            Arc::new(MemorySource::new(bytes.clone())), &OpenPolicy::default(),
+            HostOptions { numeric: mode, calc_mode: Some(CalcMode::Manual), ..HostOptions::default() },
+        ).unwrap();
+        let s = sheet(book.host(), "Sheet1");
+        let revision = book.host().revision();
+        let history = book.history_depth();
+        let report = book.host().scan_validation(s);
+        assert_eq!(report.checked, 1);
+        assert_eq!((report.valid, report.unavailable), if exact { (0, 1) } else { (1, 0) },
+            "Exact arithmetic is unavailable; a detached decision cannot silently use Fast");
+        let status = book.host().validation_status(at(s, "A1"));
+        assert_eq!(matches!(status, Some(ValidationStatus::Unavailable { .. })), exact);
+        assert_eq!(book.host().revision(), revision);
+        assert_eq!(book.history_depth(), history);
+        let receipt = book.dispatch(SkinIntent::EnterCell { at: at(s, "A1"), text: "2".into() });
+        assert_eq!(receipt.accepted(), !exact, "candidate decision must use the same mode: {:?}", receipt.error);
+        if exact {
+            assert_eq!(book.host().revision(), revision);
+            assert_eq!(book.history_depth(), history);
+        }
+    }
+}
+
+/// Known user calls cannot be converted into catchable #NAME? in current decisions.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hsa5_6__validation_known_udfs_use_context_metadata_without_entry() {
+    use calc_host::ValidationStatus;
+    #[derive(Debug)]
+    struct Counted(std::rc::Rc<std::cell::Cell<usize>>);
+    impl calc_fml::UserFunction for Counted {
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            self.0.set(self.0.get() + 1);
+            Ok(CalcValue::logical(true))
+        }
+    }
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("<sheetData/>", r#"<sheetData><row r="1"><c r="A1"><v>1</v></c><c r="B1"><v>1</v></c><c r="C1"><v>1</v></c></row></sheetData>"#)
+            .replace("</worksheet>", r#"<dataValidations count="3"><dataValidation type="custom" allowBlank="0" showErrorMessage="0" sqref="A1"><formula1>KnownUdf()</formula1></dataValidation><dataValidation type="custom" allowBlank="0" showErrorMessage="0" sqref="B1"><formula1>IFERROR(KnownUdf(),TRUE)</formula1></dataValidation><dataValidation type="custom" allowBlank="0" showErrorMessage="0" sqref="C1"><formula1>IF(FALSE,KnownUdf(),TRUE)</formula1></dataValidation></dataValidations></worksheet>"#)
+    });
+    let mut book = session(&bytes);
+    let calls = std::rc::Rc::new(std::cell::Cell::new(0));
+    let mut functions = calc_fml::CallableTable::new();
+    functions.register("KnownUdf", std::rc::Rc::new(Counted(calls.clone()))).unwrap();
+    book.set_user_functions(functions);
+    let s = sheet(book.host(), "Sheet1");
+    let revision = book.host().revision();
+    let history = book.history_depth();
+    let report = book.host().scan_validation(s);
+    assert_eq!((report.checked, report.valid, report.unavailable), (3, 1, 2));
+    for address in ["A1", "B1"] {
+        assert!(matches!(book.host().validation_status(at(s, address)),
+            Some(ValidationStatus::Unavailable { .. })), "{address}");
+    }
+    assert_eq!(book.host().validation_status(at(s, "C1")), Some(ValidationStatus::Valid));
+    assert_eq!(calls.get(), 0, "binding metadata grants no runtime capability");
+    assert_eq!((book.host().revision(), book.history_depth()), (revision, history));
+}
