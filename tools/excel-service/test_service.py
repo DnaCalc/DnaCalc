@@ -9,6 +9,7 @@ import threading
 import time
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from client import Client, ServiceError, atomic_json, bits, from_bits, number, text
 from policy import catalogue_names, decode, validate
@@ -172,6 +173,75 @@ class ProtocolTests(unittest.TestCase):
         prepared = witness_request(self.request(rows=[[text('"=SUM(1,2)"', literal=True)]]))
         self.assertEqual(prepared["rows"][0]["formula"], '=ERF.PRECISE("""=SUM(1,2)""")')
         self.assertEqual(typed({"text": "0041d83dde000000"}), {"type": "text", "value": "A😀\x00"})
+
+    @unittest.skipUnless(os.name == "nt", "the service owns a Windows process lock")
+    def test_stop_stat_1450_keeps_polling_without_repeating_answers_or_restarting_host(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            service = Service(SimpleNamespace(state=root, local_queue=root / "queue", hosts=[]))
+            host_calls, evaluations, failures = [], [], []
+            inject, observed = threading.Event(), threading.Event()
+            original_exists, original_log = Path.exists, service.log
+
+            def exists(path):
+                if path == root / "stop" and inject.is_set() and not observed.is_set():
+                    observed.set()
+                    error = OSError(1450, "Insufficient system resources exist to complete the requested service")
+                    error.winerror = 1450
+                    raise error
+                return original_exists(path)
+
+            def log(kind, **data):
+                if kind == "resource-retry":
+                    error = OSError(1450, "Injected log resource shortage")
+                    error.winerror = 1450
+                    raise error
+                return original_log(kind, **data)
+
+            def evaluate(request, evidence):
+                evaluations.append(request["id"])
+                return {"version": 1, "id": request["id"], "ok": True, "rows": [number(1.0)]}
+
+            def run():
+                try:
+                    service.run()
+                except BaseException as error:
+                    failures.append(error)
+
+            service.host = lambda *args: host_calls.append(args)
+            service.evaluate, service.log = evaluate, log
+            thread = threading.Thread(target=run)
+            with patch.object(Path, "exists", exists):
+                thread.start()
+                try:
+                    client = Client(root / "queue", timeout=8)
+                    first = client.ask("SUM", [[number(1.0)]])
+                    inject.set()
+                    self.assertTrue(observed.wait(3), "stop stat fault was not injected")
+                    second = client.ask("SUM", [[number(1.0)]])
+                    self.assertTrue(thread.is_alive())
+                    self.assertEqual(evaluations, [first["id"], second["id"]])
+                    self.assertEqual(host_calls, [("-Stop",), ("-Start", "-NoSaveBaseline")])
+                    for answer in (first, second):
+                        saved = root / "requests/local" / answer["id"] / "answer.json"
+                        self.assertEqual(json.loads(saved.read_text()), answer)
+                finally:
+                    (root / "stop").touch()
+                    thread.join(timeout=5)
+            self.assertFalse(thread.is_alive())
+            self.assertEqual(failures, [])
+            events = [json.loads(line) for line in (root / "log/questions.jsonl").read_text().splitlines()]
+            self.assertEqual(sum(row["kind"] == "resource-recovered" for row in events), 1)
+
+    def test_stop_stat_other_errors_remain_errors_and_a_real_stop_is_preserved(self):
+        with tempfile.TemporaryDirectory() as directory:
+            service = Service(SimpleNamespace(state=Path(directory), local_queue=Path(directory), hosts=[]))
+            stop = Path(directory) / "stop"
+            with patch.object(Path, "exists", side_effect=PermissionError("denied")):
+                with self.assertRaises(PermissionError):
+                    service.stop_requested(stop)
+            stop.touch()
+            self.assertTrue(service.stop_requested(stop))
 
 
 if __name__ == "__main__":
