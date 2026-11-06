@@ -3270,3 +3270,46 @@ fn recorded_regression_publication_keeps_each_output_cell() {
     assert!(failures.is_empty(), "{} of {rows} application checks differ:\n{}",
         failures.len(), failures.join("\n"));
 }
+
+/// The four fresh normal-boundary matrices retain exact inputs, every typed Excel answer,
+/// and the application evaluator's distinction between the initial and final rounding.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn recorded_directed_initial_underflow_uses_the_kernel() {
+    use calc_func::locale::{CalcEnvironment, DateSystem};
+    let mut session = Session::new("Sheet1").unwrap();
+    let mut environment = CalcEnvironment::dates(DateSystem::System1900);
+    environment.compatibility_version = 2;
+    session.set_environment(Some(environment));
+    session.set_formula_cell("J20").unwrap();
+    let mut rows = 0;
+    let mut failures = Vec::new();
+    for (function, bytes) in [
+        ("ROUND", include_bytes!("../../../crates/calc-func/tests/witnesses/ROUND.json").as_slice()),
+        ("ROUNDUP", include_bytes!("../../../crates/calc-func/tests/witnesses/ROUNDUP.json").as_slice()),
+        ("ROUNDDOWN", include_bytes!("../../../crates/calc-func/tests/witnesses/ROUNDDOWN.json").as_slice()),
+        ("TRUNC", include_bytes!("../../../crates/calc-func/tests/witnesses/TRUNC.json").as_slice()),
+    ] {
+        let set = calc_verdict::WitnessSet::decode(bytes).unwrap();
+        session.set_formula(&format!("={function}(A1,B1)"));
+        for row in set.witnesses.iter().filter(|r| r.reading == "fn12-normal-boundary-live") {
+            assert_eq!(row.args.len(), 2);
+            for (cell, argument) in ["A1", "B1"].into_iter().zip(&row.args) {
+                let number = calc_verdict::decode_argument(argument, function)
+                    .unwrap().as_number().unwrap();
+                assert!(number == 0.0 || number.is_normal());
+                session.set_input(cell, InputValue::number(number).unwrap()).unwrap();
+            }
+            let expected = calc_verdict::decode_result(&row.expected).unwrap();
+            let result = session.calculate();
+            rows += 1;
+            if result.result.as_ref() != Some(&expected) || !result.diagnostics.is_empty() {
+                failures.push(format!("{}: expected {expected:?}, calculated {:?}; {:?}",
+                    row.id, result.result, result.diagnostics));
+            }
+        }
+    }
+    assert_eq!(rows, 1664, "every original service answer must run");
+    assert!(failures.is_empty(), "{} of {rows} application checks differ:\n{}",
+        failures.len(), failures.join("\n"));
+}

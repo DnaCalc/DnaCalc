@@ -5037,6 +5037,7 @@
  {"path": "crates/calc-func/tests/captures/fn10_geomean_equal/scalar-observations.json", "class": "own-work", "reason": "Original DNA Calc scalar-service observations and typed readbacks; no external source code."},
  {"path": "crates/calc-func/tests/fixtures/fn10_sort_cycle/sheet-fn10_sort_cycle.txt", "class": "own-work", "reason": "Original DNA Calc unanswered SORT algorithm questions, authored formula inputs and deterministic canonical-generator package; no invented Excel answers or external source code."},
  {"path": "crates/calc-func/tests/fixtures/fn10_sort_cycle/questions.json", "class": "own-work", "reason": "Original DNA Calc unanswered SORT algorithm questions, authored formula inputs and deterministic canonical-generator package; no invented Excel answers or external source code."},
- {"path": "crates/calc-func/tests/fixtures/fn10_sort_cycle/oracle.xlsx", "class": "own-work", "reason": "Original DNA Calc unanswered SORT algorithm questions, authored formula inputs and deterministic canonical-generator package; no invented Excel answers or external source code."}
+ {"path": "crates/calc-func/tests/fixtures/fn10_sort_cycle/oracle.xlsx", "class": "own-work", "reason": "Original DNA Calc unanswered SORT algorithm questions, authored formula inputs and deterministic canonical-generator package; no invented Excel answers or external source code."},
+ {"path": "crates/calc-func/tests/captures/fn12_rounding_boundary/scalar-observations.json", "class": "own-work", "reason": "Original DNA Calc rounding questions and complete qualified public-interface Excel replies; no implementation source copied."}
  ]
 }
