@@ -80,8 +80,8 @@ mod soft87;
 mod x87_chains;
 pub(crate) use x87_chains::excel_exp_difference;
 pub(crate) use x87_chains::{
-    excel_binom_pmf_exp, excel_exp, excel_exp_rz, excel_log, excel_log10, excel_pow_x87_direct,
-    excel_root_x87,
+    excel_deviance_series, excel_exp, excel_exp_compensated, excel_exp_running, excel_exp_rz, excel_log, excel_log10,
+    excel_pow_x87_direct, excel_root_x87, excel_stirling_series,
 };
 
 /// The Microsoft runtime's `pow` in portable Rust (dc-sbo).
