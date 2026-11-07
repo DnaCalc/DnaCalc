@@ -328,12 +328,27 @@ mod brush_tests {
         for scale in [0.75,1.,1.5] {
             for (style,low,high,width) in [("thin",-1.,0.,1.),("medium",-2.,0.,2.),("thick",-2.,1.,3.),("double",-2.,1.,2.)] {
                 cell.borders=[Some(BorderShown{style:style.into(),color:Some("#154c94".into())}),None,None,None];
-                let strokes=edges(&cell,scale);
+                let strokes=edges(&cell,scale,(0.,0.));
                 let lo=strokes.iter().map(|s|s.x1-s.width/2.).fold(f64::INFINITY,f64::min);
                 let hi=strokes.iter().map(|s|s.x1+s.width/2.).fold(f64::NEG_INFINITY,f64::max);
                 assert_eq!((lo,hi,strokes.iter().map(|s|s.width).sum::<f64>()),(low,high,width),"{style} at {scale}");
             }
         }
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dashes_run_from_excels_grid_corner_and_slants_stagger_their_cuts() {
+        use dna_calc_model::{geometry::{CellRect,GridMetrics,Viewport},projection::{CellShown,FormatShown,Provenance},render_plan::build_render_plan};
+        let metrics=GridMetrics::default();
+        assert_eq!(dash_shift(&metrics),(26.-metrics.header_w,20.-metrics.header_h));
+        assert_eq!(dash_shift(&metrics.scaled(1.5)),(40.-metrics.header_w*1.5,29.-metrics.header_h*1.5));
+        let mut ids=calc_value::IdAllocator::<calc_value::SheetId>::new();
+        let shown=CellShown{at:calc_value::CellKey::new(ids.issue().unwrap(),1,1).unwrap(),style:Default::default(),text:String::new(),kind:"",provenance:Provenance::Empty,formula:false,format:FormatShown::General,color:None,conditional:None};
+        let mut cell=build_render_plan(&[shown],&metrics,&Viewport{scroll_x:0.,scroll_y:0.,width:500.,height:300.},10,10).cells.remove(0);
+        cell.anchor=CellRect{x:30.,y:40.,w:100.,h:30.};
+        cell.borders=[Some(BorderShown{style:"slantDashDot".into(),color:None}),None,None,None];
+        let strokes=edges(&cell,1.,(-2.,-3.));
+        assert_eq!(strokes.iter().map(|s|s.phase).collect::<Vec<_>>(),vec![cell.anchor.y-3.+strokes[1].y1-1.,cell.anchor.y-3.+strokes[1].y1]);
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
