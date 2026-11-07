@@ -191,7 +191,9 @@ function Stop-Owned([string]$Reason) {
     $global:DnaExcelSessionState.App=$null
     [GC]::Collect(); [GC]::WaitForPendingFinalizers()
     $p=Get-Process -Id $identity.pid -ErrorAction SilentlyContinue
-    if ($p -and -not $p.WaitForExit(5000)) {
+    # Force-stopping an Excel that is still closing can make the next start show the safe-mode prompt.
+    $quitWait=if($env:DNACALC_EXCEL_LEAVE_STUCK_STARTUP){60000}else{5000}
+    if ($p -and -not $p.WaitForExit($quitWait)) {
         if ($p.Id -eq 3144 -or $p.StartTime.ToUniversalTime().Ticks -ne $identity.start_ticks -or $p.ProcessName -ine 'EXCEL') { throw 'Owned Excel identity changed; refusing termination.' }
         Stop-Process -Id $p.Id
         [void]$p.WaitForExit(5000)
@@ -237,7 +239,12 @@ function Start-Owned([string]$Reason) {
     $startup=[DateTime]::UtcNow;$nativeWindow=$null
     while($null -eq $nativeWindow){
         if($process.HasExited){throw 'Owned Excel exited during startup.'}
-        if(([DateTime]::UtcNow-$startup).TotalSeconds -gt 45){throw 'Owned Excel did not expose its worksheet native object model.'}
+        $startupLimit=if($env:DNACALC_EXCEL_STARTUP_SECONDS){[int]$env:DNACALC_EXCEL_STARTUP_SECONDS}else{45}
+        if(([DateTime]::UtcNow-$startup).TotalSeconds -gt $startupLimit){
+            # A prompt can block startup; force-stopping here makes the next start prompt again.
+            if($env:DNACALC_EXCEL_LEAVE_STUCK_STARTUP){Event 'startup-left-running' $script:owned;$script:owned=$null;Status}
+            throw 'Owned Excel did not expose its worksheet native object model.'
+        }
         $nativeWindow=[DnaSessionWindows]::NativeWindow($newPid)
         if($null -eq $nativeWindow){Start-Sleep -Milliseconds 100}
     }
