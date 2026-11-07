@@ -22,6 +22,11 @@ def number(value):
             else value.removeprefix("0x").lower()}
 
 
+def number_array(rows):
+    """A rectangular numeric array, transported as individual Value2 cells."""
+    return {"type": "array", "values": [[number(v) for v in row] for row in rows]}
+
+
 def text(value, *, literal=False):
     return {"type": "text", "value": value, "mode": "literal" if literal else "cell"}
 
@@ -60,7 +65,7 @@ class Client:
         self.queue = Path(queue or Path.home() / "excel-queue").expanduser()
         self.timeout = timeout
 
-    def ask(self, function, rows):
+    def ask(self, function, rows, *, result_index=None):
         """Return {rows: typed answers, ...provenance}; failures raise ServiceError.
 
         Request and response files remain available after a timeout. Retrying ask creates
@@ -71,6 +76,8 @@ class Client:
         request_id = uuid.uuid4().hex
         request = {"version": 1, "id": request_id, "function": function, "rows": rows,
                    "created": time.time(), "expires": time.time() + self.timeout}
+        if result_index is not None:
+            request["result_index"] = list(result_index)
         output = self.queue / "out" / (request_id + ".json")
         atomic_json(self.queue / "in" / (request_id + ".json"), request)
         deadline = time.monotonic() + self.timeout

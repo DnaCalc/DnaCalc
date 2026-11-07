@@ -11,10 +11,10 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from client import Client, ServiceError, atomic_json, bits, from_bits, number, text
+from client import Client, ServiceError, atomic_json, bits, from_bits, number, number_array, text
 from policy import catalogue_names, decode, validate
 from queue_bridge import operation
-from service import Service, typed, witness_request
+from service import Service, typed, typed_inputs, witness_request
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -72,6 +72,29 @@ class ProtocolTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate(self.request(function="ROUNDUP", rows=[[text("[book]A1"), number(2.0)]]),
                      self.names, "a" * 32)
+
+    def test_regression_selects_one_cell_and_audits_numeric_array_operands(self):
+        a = number_array([[1., 2.], [3., 4.]])
+        request = self.request(function="LINEST", rows=[[a, a, number(0.), number(1.)]],
+                               result_index=[4, 2])
+        validate(request, self.names, "a" * 32)
+        prepared = witness_request(request)["rows"][0]
+        self.assertEqual(prepared["formula"],
+            "=INDEX(LINEST(CHOOSE({1,2;3,4},RC[1],RC[2],RC[3],RC[4]),"
+            "CHOOSE({1,2;3,4},RC[5],RC[6],RC[7],RC[8]),RC[9],RC[10]),4,2)")
+        self.assertEqual(len(prepared["args"]), 10)
+        self.assertEqual(prepared["argument_modes"], ["cell"]*10)
+        self.assertEqual(typed_inputs(request["rows"][0], prepared["args"]), request["rows"][0])
+        for changes in ({"result_index": None}, {"result_index": [0, 1]},
+                        {"result_index": [1, True]}, {"function": "SUM"},
+                        {"rows": [[number_array([[1.], [2., 3.]])]]},
+                        {"rows": [[{"type": "array", "values": [[text("=CALL()")]]}]]},
+                        {"rows": [[{"type": "array", "values": [[number("7ff0000000000000")]]}]]},
+                        {"rows": [[number_array([[1.]*32]*5)]]}):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                validate({**request, **changes}, self.names, "a" * 32)
+        with self.assertRaises(ValueError):
+            validate(self.request(rows=[[a]]), self.names, "a" * 32)
 
     def test_queue_and_adaptive_helpers_retain_exact_inputs(self):
         with tempfile.TemporaryDirectory() as directory:
