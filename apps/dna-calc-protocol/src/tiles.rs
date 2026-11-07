@@ -328,7 +328,7 @@ mod tests {
     fn dictionary_fanout_is_charged_before_expanding_the_references() {
         let mut batch = sample();
         batch.cells.truncate(1);
-        batch.cells[0].text = "x".repeat(40_000);
+        batch.cells[0].text = "x".repeat(200_000);
         batch.removed.clear();
         let mut bytes = encode_tiles(&batch).unwrap();
         let mut reader = Reader(&bytes[86..]);

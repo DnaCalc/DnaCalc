@@ -85,6 +85,8 @@ pub struct Server {
     /// The page's subscriptions: its number for each, and calc-host's.
     subscriptions: BTreeMap<u64, SubscriptionId>,
     subscription_interests: BTreeMap<u64, calc_host::Interest>,
+    /// Per subscription: the authored revision its overflow anchors were found at, and those anchors.
+    overhang: BTreeMap<u64, (u64, Vec<GridArea>)>,
     last_subscription: Option<u64>,
     events: Vec<Event>,
     deferred_calculation: Vec<Event>,
@@ -272,6 +274,7 @@ impl Server {
             user_functions: None,
             subscriptions: BTreeMap::new(),
             subscription_interests: BTreeMap::new(),
+            overhang: BTreeMap::new(),
             last_subscription: None,
             events: Vec::new(),
             deferred_calculation: Vec::new(),
@@ -876,9 +879,11 @@ impl Server {
                         return Err("Too many tile subscriptions".into());
                     }
                     let interest = host_interest(interest)?;
-                    match self.book.subscribe(interest.clone()) {
+                    let extras = self.overhang_of(&interest);
+                    match self.book.subscribe(widened(&interest, &extras)) {
                         Ok(host) => {
                             self.last_subscription = Some(id);
+                            self.overhang.insert(id, (self.book.host().revision().get(), extras));
                             self.subscription_interests.insert(id, interest);
                             self.subscriptions.insert(id, host);
                             self.tile_streams.insert(id, Default::default());
@@ -898,13 +903,15 @@ impl Server {
                     let interest = host_interest(interest)?;
                     let subscription =
                         *self.subscriptions.get(&id).ok_or("no such subscription")?;
+                    let extras = self.overhang_of(&interest);
                     let receipt = self.book.dispatch(SkinIntent::SetInterest {
                         subscription,
-                        interest: interest.clone(),
+                        interest: widened(&interest, &extras),
                     });
                     if let Some(error) = receipt.error {
                         return Err(error.to_string());
                     }
+                    self.overhang.insert(id, (self.book.host().revision().get(), extras));
                     self.subscription_interests.insert(id, interest);
                     Ok(Reply::Subscribed)
                 }
@@ -936,10 +943,12 @@ impl Server {
                             .get(&id)
                             .ok_or("No such interest")?
                             .clone();
+                        let extras = self.overhang_of(&interest);
                         let receipt = self.book.dispatch(SkinIntent::SetInterest {
                             subscription,
-                            interest,
+                            interest: widened(&interest, &extras),
                         });
+                        self.overhang.insert(id, (self.book.host().revision().get(), extras));
                         if let Some(error) = receipt.error {
                             return Err(error.to_string());
                         }
@@ -953,6 +962,7 @@ impl Server {
                     }
                     self.retire_tile_events(id);
                     self.subscription_interests.remove(&id);
+                    self.overhang.remove(&id);
                     self.tile_streams.remove(&id);
                     if let Some(host) = self.subscriptions.remove(&id) {
                         self.book.unsubscribe(host);
@@ -1241,6 +1251,7 @@ impl Server {
         self.book = book;
         self.subscriptions.clear();
         self.subscription_interests.clear();
+        self.overhang.clear();
         self.last_subscription = None;
         self.events
             .retain(|event| matches!(event, Event::Calculation { .. }));
@@ -2554,6 +2565,83 @@ impl Server {
         geometry
     }
 
+    /// The cells outside a bounded area subscription whose text can overflow into it: in each
+    /// subscribed row, the nearest authored cell to the left and to the right, within
+    /// OVERHANG_COLUMNS. A nearer one stops the text of one beyond it, so these are the only
+    /// candidates. The page lays the overflow out, but only from cells it was sent.
+    fn overhang_of(&self, interest: &calc_host::Interest) -> Vec<GridArea> {
+        let areas = match interest {
+            calc_host::Interest::Area(a) => vec![*a],
+            calc_host::Interest::Areas(areas) => areas.clone(),
+            _ => return Vec::new(),
+        };
+        if areas.iter().map(|a| a.cell_count()).sum::<u64>() > OVERHANG_CELLS {
+            return Vec::new();
+        }
+        let model = self.book.host().model();
+        let mut found = std::collections::BTreeSet::new();
+        for area in &areas {
+            let (sheet, top, bottom) = (area.sheet(), area.first().row(), area.last().row());
+            let (left, right) = (area.first().column(), area.last().column());
+            let strip = |first: u32, last: u32| {
+                let first = CellKey::new(sheet, top, first).ok()?;
+                let last = CellKey::new(sheet, bottom, last).ok()?;
+                GridArea::new(first, last).ok()
+            };
+            let mut nearest: BTreeMap<u32, u32> = BTreeMap::new();
+            if left > 1
+                && let Some(strip) = strip(left.saturating_sub(OVERHANG_COLUMNS).max(1), left - 1)
+            {
+                for (at, _) in model.cells(strip).into_iter().flatten() {
+                    nearest.insert(at.row(), at.column());
+                }
+                found.extend(std::mem::take(&mut nearest).into_iter().map(|(row, column)| (sheet, row, column)));
+            }
+            if right < 16_384
+                && let Some(strip) = strip(right + 1, right.saturating_add(OVERHANG_COLUMNS).min(16_384))
+            {
+                for (at, _) in model.cells(strip).into_iter().flatten() {
+                    nearest.entry(at.row()).or_insert(at.column());
+                }
+                found.extend(std::mem::take(&mut nearest).into_iter().map(|(row, column)| (sheet, row, column)));
+            }
+        }
+        found
+            .into_iter()
+            .filter_map(|(sheet, row, column)| CellKey::new(sheet, row, column).ok())
+            .filter(|at| !areas.iter().any(|a| a.contains(*at)))
+            .map(GridArea::cell)
+            .collect()
+    }
+
+    /// Finds each subscription's overflow anchors again after an authored change and moves the
+    /// host's interest only when the set changed.
+    fn refresh_overhang(&mut self) {
+        let revision = self.book.host().revision().get();
+        let stale: Vec<u64> = self
+            .overhang
+            .iter()
+            .filter(|(_, (at, _))| *at != revision)
+            .map(|(id, _)| *id)
+            .collect();
+        for id in stale {
+            let (Some(interest), Some(&subscription)) =
+                (self.subscription_interests.get(&id).cloned(), self.subscriptions.get(&id))
+            else {
+                continue;
+            };
+            let extras = self.overhang_of(&interest);
+            let changed = self.overhang.get(&id).is_none_or(|(_, old)| *old != extras);
+            if changed {
+                self.book.dispatch(SkinIntent::SetInterest {
+                    subscription,
+                    interest: widened(&interest, &extras),
+                });
+            }
+            self.overhang.insert(id, (revision, extras));
+        }
+    }
+
     /// Adapt installed host deltas into bounded projection publications. There is no new
     /// evaluation here. Geometry-only revisions also publish, keeping value/style/layout roots
     /// related even when no displayed text changed.
@@ -2579,6 +2667,7 @@ impl Server {
                 self.push_calculation_event(event, false);
             }
         }
+        self.refresh_overhang();
         let deltas = self.book.take_deltas();
         let revision = self.book.host().revision().get();
         let geometry: Vec<_> = self
@@ -3152,6 +3241,23 @@ fn area(area: Area) -> Result<GridArea, String> {
     area.area().ok_or_else(|| "not an area".to_owned())
 }
 
+/// How far from a subscribed area an authored cell is looked for as an overflow anchor, and the
+/// largest subscription that is searched. Larger ones, such as a whole sheet, hold every anchor.
+const OVERHANG_COLUMNS: u32 = 2048;
+const OVERHANG_CELLS: u64 = 32_768;
+
+/// `interest` with the overflow anchors `extras` added; the page's requested interest and the
+/// coverage it reports stay as asked.
+fn widened(interest: &calc_host::Interest, extras: &[GridArea]) -> calc_host::Interest {
+    let mut areas = match interest {
+        _ if extras.is_empty() => return interest.clone(),
+        calc_host::Interest::Area(a) => vec![*a],
+        calc_host::Interest::Areas(areas) => areas.clone(),
+        other => return other.clone(),
+    };
+    areas.extend_from_slice(extras);
+    calc_host::Interest::Areas(areas)
+}
 fn host_interest(interest: Interest) -> Result<calc_host::Interest, String> {
     Ok(match interest {
         Interest::Area(a) => calc_host::Interest::Area(area(a)?),
@@ -3851,6 +3957,83 @@ mod tile_tests {
         receive(&mut mirror, projection_events(&mut server));
         assert_eq!(mirror.cell(anchor).unwrap().text, "changed source");
     }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dense_publication_reaches_the_mirror() {
+        let mut server = Server::new();
+        enter(&mut server, "1");
+        subscribe(&mut server, 11);
+        let mut mirror = ViewMirror::default();
+        let barrier = receive(&mut mirror, projection_events(&mut server));
+        server.handle(Request::TileAck(barrier), None);
+        let marker = mirror.cells().next().unwrap().1.clone();
+        eprintln!("cell inline bytes: {}, accounted bytes: {}", std::mem::size_of_val(&marker), marker.retained_bytes());
+        let sheet = Sheet(marker.at.0, marker.at.1);
+        let cells = (1..=7900).map(|row| {
+            let mut cell = marker.clone();
+            cell.at = Key(sheet.0, sheet.1, row, 1);
+            cell
+        }).collect();
+        let geometry = vec![(sheet, server.geometry(sheet))];
+        let stream = server.tile_streams.get_mut(&11).unwrap();
+        stream.update(true, cells, vec![], 1, geometry, None).unwrap();
+        let events = stream.publish(11, barrier.workbook, barrier.transaction + 1).unwrap();
+        receive(&mut mirror, events);
+        assert_eq!(mirror.cells().count(), 7900);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn distant_overflow_anchor_is_in_the_subscription() {
+        let mut server = Server::new();
+        let sheet = server.book().sheets()[0].id;
+        let anchor = CellKey::new(sheet, 1, 1).unwrap();
+        let visible = CellKey::new(sheet, 1, 17).unwrap();
+        server.execute_current(Request::Intent(Intent::EnterCell {
+            at: Key::of(anchor), text: "wide text ".repeat(100),
+        }), None).reply.unwrap();
+        server.take_events();
+        server.execute_current(Request::Subscribe {
+            workbook: server.workbook_id(), id: 1,
+            interest: Interest::Area(Area::of(GridArea::cell(visible))),
+        }, None).reply.unwrap();
+        let mut mirror = ViewMirror::default();
+        receive(&mut mirror, projection_events(&mut server));
+        assert!(mirror.cell(anchor).is_some(), "overflow source must be projected");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn an_overflow_anchor_authored_after_the_subscription_reaches_the_mirror_and_leaves_with_its_text() {
+        let mut server = Server::new();
+        let sheet = server.book().sheets()[0].id;
+        let anchor = CellKey::new(sheet, 2, 1).unwrap();
+        let near = CellKey::new(sheet, 2, 3).unwrap();
+        let visible = CellKey::new(sheet, 1, 17).unwrap();
+        let area = GridArea::new(visible, CellKey::new(sheet, 4, 20).unwrap()).unwrap();
+        server.execute_current(Request::Subscribe {
+            workbook: server.workbook_id(), id: 1,
+            interest: Interest::Area(Area::of(area)),
+        }, None).reply.unwrap();
+        let mut mirror = ViewMirror::default();
+        let barrier = receive(&mut mirror, projection_events(&mut server));
+        server.handle(Request::TileAck(barrier), None);
+        let enter = |server: &mut Server, at: CellKey, text: &str| {
+            server.execute_current(Request::Intent(Intent::EnterCell {
+                at: Key::of(at), text: text.into(),
+            }), None).reply.unwrap();
+        };
+        enter(&mut server, anchor, &"wide text ".repeat(100));
+        let barrier = receive(&mut mirror, projection_events(&mut server));
+        server.handle(Request::TileAck(barrier), None);
+        assert!(mirror.cell(anchor).is_some(), "an anchor authored later must be projected");
+        // A nearer cell in the same row stops the overflow, so it replaces the far anchor.
+        enter(&mut server, near, "blocker");
+        let barrier = receive(&mut mirror, projection_events(&mut server));
+        server.handle(Request::TileAck(barrier), None);
+        assert!(mirror.cell(near).is_some());
+        assert!(mirror.cell(anchor).is_none(), "a blocked anchor is no longer needed");
+    }
     fn projection_events(server: &mut Server) -> Vec<Event> {
         server
             .take_events()
@@ -4338,6 +4521,9 @@ mod tile_tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn an_oversized_calculation_reports_projection_failure_without_a_tile_barrier() {
+        // Real accounting charges each 32,767-character result its text, so the whole column must
+        // hold more than MAX_PUBLICATION_BYTES of it to be refused.
+        const ROWS: u32 = 3_000;
         let mut server = Server::new();
         subscribe(&mut server, 11);
         let mut mirror = ViewMirror::default();
@@ -4346,7 +4532,7 @@ mod tile_tests {
         server.take_events();
         let sheet = server.book().sheets()[0].id;
         let first = CellKey::new(sheet, 1, 1).unwrap();
-        let area = GridArea::new(first, CellKey::new(sheet, 100, 1).unwrap()).unwrap();
+        let area = GridArea::new(first, CellKey::new(sheet, ROWS, 1).unwrap()).unwrap();
         let selected = server.execute_current(
             Request::Intent(Intent::Select {
                 active: Key::of(first),
@@ -4375,7 +4561,7 @@ mod tile_tests {
                 .any(|e| matches!(e, Event::ProjectionFailed { id: 11, .. }))
         );
         assert!(!events.iter().any(|e| matches!(e, Event::TileCompletion(_))));
-        assert!(events.iter().any(|e| matches!(e,Event::Calculation { receipt: wire::CalculationEvent::Completed { outcome: wire::CalculationOutcome::Complete, calculated: 100, .. }, failed_projections, .. } if failed_projections == &[11])));
+        assert!(events.iter().any(|e| matches!(e,Event::Calculation { receipt: wire::CalculationEvent::Completed { outcome: wire::CalculationOutcome::Complete, calculated, .. }, failed_projections, .. } if failed_projections == &[11] && *calculated as u64 == u64::from(ROWS))));
         assert!(server.tile_streams[&11].failed());
         assert!(mirror.cells().next().is_none());
         let marker = CellKey::new(sheet, 1, 2).unwrap();
@@ -4391,7 +4577,7 @@ mod tile_tests {
             .unwrap();
         let deleted = GridArea::new(
             CellKey::new(sheet, 2, 1).unwrap(),
-            CellKey::new(sheet, 100, 1).unwrap(),
+            CellKey::new(sheet, ROWS, 1).unwrap(),
         )
         .unwrap();
         server

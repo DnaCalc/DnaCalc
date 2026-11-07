@@ -10,7 +10,10 @@ pub const MAX_SUBSCRIPTIONS: usize = 32;
 pub const MAX_TILE_CELLS: usize = 65_536;
 /// A delta can remove the old root and install a disjoint new root.
 pub const MAX_PUBLICATION_RECORDS: usize = MAX_TILE_CELLS * 2;
-pub const MAX_PUBLICATION_BYTES: usize = 16 * 1024 * 1024;
+/// Sized so that MAX_TILE_CELLS ordinary cells fit: each is charged CELL_BYTES plus its text.
+pub const MAX_PUBLICATION_BYTES: usize = 80 * 1024 * 1024;
+/// What a Cell holds inline, rounded up (896 bytes on 64-bit native). Heap text is added on top.
+pub const CELL_BYTES: usize = 1024;
 pub const MAX_TILE_BYTES: usize = 512 * 1024;
 pub const MAX_TILE_RECORDS: usize = 256;
 pub const MAX_PENDING_REQUESTS: usize = 256;
@@ -70,7 +73,8 @@ impl TileStamp {
 }
 
 impl Cell {
-    /// Conservative wire/retention budget, including JSON escaping of dictionary strings.
+    /// What the cell retains: its inline size plus the bytes of its strings. The wire form is
+    /// bounded separately by the length of the encoded fragment, so no escaping factor is charged.
     pub fn retained_bytes(&self) -> usize {
         let mut strings = vec![
             self.text.as_str(),
@@ -130,8 +134,8 @@ impl Cell {
         }
         strings
             .into_iter()
-            .fold(2048usize.saturating_add(brush_bytes), |n, s| {
-                n.saturating_add(s.len().saturating_mul(6))
+            .fold(CELL_BYTES.saturating_add(brush_bytes), |n, s| {
+                n.saturating_add(s.len())
             })
     }
 }
@@ -163,4 +167,15 @@ pub fn geometry_bytes(g: &Geometry) -> usize {
                 .as_ref()
                 .map_or(0, |s| s.len().saturating_mul(6)),
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn the_per_cell_charge_covers_the_inline_cell() {
+        assert!(std::mem::size_of::<Cell>() <= CELL_BYTES, "Cell is now {} bytes", std::mem::size_of::<Cell>());
+    }
 }
