@@ -135,6 +135,14 @@ const COLUMN_PADDING_DEVICE: f64 = 34.;
 /// Device pixels per point of row height: UI30 P2 puts it between 8.45 and 8.4583 (rows of 8,
 /// 12, 12.75, 15, 20 and 30 pt print as 68, 101, 108, 127, 169 and 254).
 const ROW_DEVICE_PER_POINT: f64 = 8.454;
+/// The printed width of the row-heading strip (UI30 P3, Aptos Narrow 11 and Calibri 11): the
+/// digits of the largest row number printed, at least three, at 47 device pixels each, and 32
+/// of padding. The strip is the same for 9, 99 and 999 (173) and grows by 47 a digit (220, 267
+/// and 314 for 9,999, 99,999 and 999,999). The column-heading strip is one default row (127).
+fn heading_width_device(last_row: u32) -> f64 {
+    let digits = last_row.max(1).to_string().len().max(3);
+    COLUMN_DIGIT_DEVICE * digits as f64 + 32.
+}
 /// The printed width of a column of `px` screen pixels, before the print scale.
 fn column_device(px: f64) -> f64 {
     if px <= 0. {
@@ -146,7 +154,12 @@ fn column_device(px: f64) -> f64 {
 /// Page and margin sizes: 600 dpi device pixels per CSS pixel.
 const PAGE_DEVICE_PER_PX: f64 = 600. / 96.;
 /// Bands in device pixels at one print scale, indexed like the pixel metrics.
-fn device_metrics(m: &GridMetrics, geometry: &Geometry, scale: f64) -> GridMetrics {
+fn device_metrics(
+    m: &GridMetrics,
+    geometry: &Geometry,
+    scale: f64,
+    last_row: u32,
+) -> GridMetrics {
     let round = |v: f64| (v * scale).round();
     let row_default = geometry.default_row_height.unwrap_or(15.) * ROW_DEVICE_PER_POINT;
     let col_default = column_device(m.col_width);
@@ -176,7 +189,7 @@ fn device_metrics(m: &GridMetrics, geometry: &Geometry, scale: f64) -> GridMetri
         row_height: round(row_default),
         col_width: round(col_default),
         header_h: round(m.header_h * ROW_DEVICE_PER_POINT * 0.75),
-        header_w: round(column_device(m.header_w)),
+        header_w: round(heading_width_device(last_row)),
         rows: Sizes::new(round(row_default), rows),
         cols: Sizes::new(round(col_default), columns),
     }
@@ -214,6 +227,20 @@ fn slices(
         // and carries on after it (title 1:22, break after row 20: page two is rows 1..22, 23...).
         if let Some((a, b)) = title.filter(|_| !out.is_empty()) {
             if (a..=b).contains(&start) {
+                // UI30 P7 (two manual breaks in the band, titles 1:10, breaks above rows 4 and 8):
+                // the page that starts at row 4 shows the band up to the next break, rows 1..7, and
+                // the page that starts at row 8 repeats the whole band and carries on.
+                if let Some(&id) = breaks.range(start..b).next() {
+                    out.push(Slice {
+                        first: a,
+                        last: id,
+                        title: None,
+                        length: length(m, rows, a, id),
+                        manual: true,
+                    });
+                    start = id + 1;
+                    continue;
+                }
                 start = b + 1;
                 if start > last {
                     break;
@@ -415,7 +442,7 @@ pub fn paginate(
         }
         let rb = breaks(true, area)?;
         let cb = breaks(false, area)?;
-        let d = device_metrics(&m, geometry, scale);
+        let d = device_metrics(&m, geometry, scale, a.last().row());
         let (hw, hh) = if headings { (d.header_w, d.header_h) } else { (0., 0.) };
         Ok((
             slices(
@@ -456,7 +483,13 @@ pub fn paginate(
             .rev()
             .find_map(|p| {
                 let s = f64::from(p) / 100.;
-                let d = device_metrics(&m, geometry, s);
+                let last_row = areas
+                    .iter()
+                    .filter_map(|a| a.area())
+                    .map(|a| a.last().row())
+                    .max()
+                    .unwrap_or(1);
+                let d = device_metrics(&m, geometry, s, last_row);
                 let (hw, hh) = if headings { (d.header_w, d.header_h) } else { (0., 0.) };
                 areas
                     .iter()
