@@ -337,7 +337,7 @@ ISTEXT	full	20430	1227	1227	-	exact	bab456b6f8+changes
 ISTEXT	pinned	20430	120	120	-	exact	919dd43269+changes
 JIS	full	20527	8	0	-	structural	bab456b6f8+changes
 KURT	full	20430	4508	3209	32768	gross	bab456b6f8+changes
-KURT	pinned	20430	120	87	128	numeric	919dd43269+changes
+KURT	pinned	20430	120	120	-	exact	9b6d452f27+changes
 LCM	full	20430	7967	7967	-	exact	bab456b6f8+changes
 LCM	pinned	20430	120	120	-	exact	919dd43269+changes
 LN	full	20131,20228,20430,20527,?	1685	1685	-	exact	bab456b6f8+changes
@@ -453,11 +453,11 @@ RECEIVED	full	20430	2400	2400	-	exact	bab456b6f8+changes
 RECEIVED	pinned	20430	120	120	-	exact	919dd43269+changes
 REGEXTEST	full	20527	6	6	-	exact	bab456b6f8+changes
 ROUND	full	20430	36945	36821	16	numeric	bab456b6f8+changes
-ROUND	pinned	20430,20527	536	536	-	exact	919dd43269+changes
+ROUND	pinned	20430,20527	536	536	-	exact	9b6d452f27+changes
 ROUNDDOWN	full	20430	59995	59438	86	numeric	bab456b6f8+changes
-ROUNDDOWN	pinned	20430,20527	782	779	12	numeric	919dd43269+changes
+ROUNDDOWN	pinned	20430,20527	782	779	12	numeric	9b6d452f27+changes
 ROUNDUP	full	20430	52841	52278	86	numeric	bab456b6f8+changes
-ROUNDUP	pinned	20430,20527	782	779	12	numeric	919dd43269+changes
+ROUNDUP	pinned	20430,20527	782	779	12	numeric	9b6d452f27+changes
 RRI	full	20228,?	5528	5483	-	structural	bab456b6f8+changes
 RRI	pinned	20228,?	120	118	-	structural	919dd43269+changes
 SEC	full	20131,20430,?	2138	2138	-	exact	bab456b6f8+changes
@@ -473,7 +473,7 @@ SIN	pinned	20131,20430	120	120	-	exact	919dd43269+changes
 SINH	full	20430	33550	33420	1	last_bit	bab456b6f8+changes
 SINH	pinned	20430	120	119	1	last_bit	919dd43269+changes
 SKEW	full	20430	4508	4501	170	numeric	bab456b6f8+changes
-SKEW	pinned	20430	120	120	-	exact	919dd43269+changes
+SKEW	pinned	20430	120	120	-	exact	9b6d452f27+changes
 SLN	full	20430	1205	1205	-	exact	bab456b6f8+changes
 SLN	pinned	20430	120	120	-	exact	919dd43269+changes
 SLOPE	full	20131	4	4	-	exact	bab456b6f8+changes
@@ -533,7 +533,7 @@ TREND	pinned	20131	12	10	2	last_bit	919dd43269+changes
 TRUE	full	20430	1	1	-	exact	bab456b6f8+changes
 TRUE	pinned	20430	1	1	-	exact	919dd43269+changes
 TRUNC	full	20430	51317	50760	86	numeric	bab456b6f8+changes
-TRUNC	pinned	20430,20527	783	780	12	numeric	919dd43269+changes
+TRUNC	pinned	20430,20527	783	780	12	numeric	9b6d452f27+changes
 TYPE	full	20430	1227	1227	-	exact	bab456b6f8+changes
 TYPE	pinned	20430	120	120	-	exact	919dd43269+changes
 UPPER	full	20527	5	5	-	exact	bab456b6f8+changes

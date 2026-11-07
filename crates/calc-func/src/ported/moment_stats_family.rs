@@ -1,73 +1,60 @@
+use crate::ported::excel_numeric::{excel_x87_add as add, excel_x87_div as div, excel_x87_mul as mul, excel_x87_sub as sub};
 use crate::value::WorksheetErrorCode;
 
 fn mean(values: &[f64]) -> f64 {
     values.iter().sum::<f64>() / values.len() as f64
 }
 
+/// The stored mean and the stored two-pass sum of squared deviations.
+fn stored_moments(values: &[f64]) -> (f64, f64) {
+    let avg = div(values.iter().fold(0.0, |sum, &value| add(sum, value)), values.len() as f64);
+    let sumsq = values.iter().fold(0.0, |sum, &value| {
+        let delta = sub(value, avg);
+        add(sum, mul(delta, delta))
+    });
+    (avg, sumsq)
+}
+
 pub(crate) fn kurt_kernel(values: &[f64]) -> Result<f64, WorksheetErrorCode> {
     if values.len() < 4 {
         return Err(WorksheetErrorCode::Div0);
     }
-
-    let n = values.len();
-    let avg = mean(values);
-    let mut sumsq = 0.0;
-    let mut deltas = Vec::with_capacity(n);
-    for value in values {
-        let delta = *value - avg;
-        sumsq += delta * delta;
-        deltas.push(delta);
-    }
+    let (avg, sumsq) = stored_moments(values);
     if sumsq == 0.0 {
         return Err(WorksheetErrorCode::Div0);
     }
-
-    let sample_std = (sumsq / (n as f64 - 1.0)).sqrt();
-    let standardized_sum = deltas
-        .iter()
-        .map(|delta| {
-            let z = *delta / sample_std;
-            let z2 = z * z;
-            z2 * z2
-        })
-        .sum::<f64>();
-    let n = n as f64;
-    Ok(
-        (n * (n + 1.0) * standardized_sum) / ((n - 1.0) * (n - 2.0) * (n - 3.0))
-            - (3.0 * (n - 1.0).powi(2)) / ((n - 2.0) * (n - 3.0)),
-    )
+    let n = values.len() as f64;
+    // Every operation is stored from the x87: the two-pass sum of squares, its square root, each
+    // z, the square of z squared, the running sum, and the coefficient before the product. All
+    // 4,508 bank rows; the division after the product holds 3,212.
+    let deviation = div(sumsq, n - 1.0).sqrt();
+    let fourths = values.iter().fold(0.0, |sum, &value| {
+        let z = div(sub(value, avg), deviation);
+        let square = mul(z, z);
+        add(sum, mul(square, square))
+    });
+    let coefficient = div(mul(n, n + 1.0), mul(mul(n - 1.0, n - 2.0), n - 3.0));
+    let offset = div(mul(3.0, mul(n - 1.0, n - 1.0)), mul(n - 2.0, n - 3.0));
+    Ok(sub(mul(coefficient, fourths), offset))
 }
 
 pub(crate) fn skew_kernel(values: &[f64]) -> Result<f64, WorksheetErrorCode> {
     if values.len() < 3 {
         return Err(WorksheetErrorCode::Div0);
     }
-
-    let n = values.len();
-    let avg = mean(values);
-    let mut sumsq = 0.0;
-    let mut deltas = Vec::with_capacity(n);
-    for value in values {
-        let delta = *value - avg;
-        sumsq += delta * delta;
-        deltas.push(delta);
-    }
+    let (avg, sumsq) = stored_moments(values);
     if sumsq == 0.0 {
         return Err(WorksheetErrorCode::Div0);
     }
-
-    let sample_std = (sumsq / (n as f64 - 1.0)).sqrt();
-    let standardized_sum = deltas
-        .iter()
-        .map(|delta| {
-            let z = *delta / sample_std;
-            z * z * z
-        })
-        .sum::<f64>();
-    let n = n as f64;
+    let n = values.len() as f64;
+    let deviation = div(sumsq, n - 1.0).sqrt();
+    let cubes = values.iter().fold(0.0, |sum, &value| {
+        let z = div(sub(value, avg), deviation);
+        add(sum, mul(mul(z, z), z))
+    });
     // F1 (dc-8dq): the factor n/((n-1)(n-2)) first, then times the sum, as Excel's SKEW gives
     // SKEW(1,2,3,5) (the catalogue oracle's capture); n*sum/((n-1)(n-2)) is one ulp above it.
-    Ok(n / ((n - 1.0) * (n - 2.0)) * standardized_sum)
+    Ok(mul(div(n, mul(n - 1.0, n - 2.0)), cubes))
 }
 
 pub(crate) fn skew_p_kernel(values: &[f64]) -> Result<f64, WorksheetErrorCode> {
