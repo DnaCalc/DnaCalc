@@ -8715,7 +8715,7 @@ mod async_contract {
             .bind(None, "RtdProbe")
             .unwrap();
         assert_eq!(
-            book.update_rtd(provider, 17, 1, CalcValue::number(20.0)),
+            book.update_rtd(probe_topic(), RtdLease(17), 1, CalcValue::number(20.0)),
             T::Accepted
         );
         let mut save = book
@@ -8729,7 +8729,7 @@ mod async_contract {
             "the RTD read follows the retained async call"
         );
         assert_eq!(
-            book.update_rtd(provider, 17, 2, CalcValue::number(80.0)),
+            book.update_rtd(probe_topic(), RtdLease(17), 2, CalcValue::number(80.0)),
             T::Accepted
         );
         assert_eq!(drive_save(&mut save, &book), P::Waiting);
@@ -8778,6 +8778,12 @@ mod async_contract {
         assert_eq!(*entries.borrow(), 2);
     }
 
+    /// The one topic the probe reads: Excel's identity of a ProgID, server and strings.
+    fn probe_topic() -> calc_host::TopicKey {
+        calc_host::TopicKey::new("Probe.Progid", "", &["t".to_owned()])
+    }
+    use calc_host::RtdLease;
+
     #[derive(Debug)]
     struct RtdProbe(
         Rc<RefCell<usize>>,
@@ -8799,11 +8805,84 @@ mod async_contract {
                     .expect("RTD uses the admitted provider identity"),
             );
             Ok(context
-                .rtd_value(17)?
-                .map(|(_, value)| value)
+                .rtd_value(&probe_topic(), RtdLease(17))?
+                .map(|entry| entry.value)
                 .unwrap_or_else(|| CalcValue::error(calc_host::value::WorksheetErrorCode::NA)))
         }
     }
+    /// One function that reads the cut for the topic its argument names and counts its
+    /// evaluations per topic: both cells below belong to this one callable.
+    #[derive(Debug)]
+    struct RtdNamed(Rc<RefCell<std::collections::BTreeMap<String, usize>>>);
+    impl UserFunction for RtdNamed {
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            panic!("an admitted external input view is required")
+        }
+        fn call_with_context(
+            &self,
+            arguments: &[CalcValue],
+            context: &mut dyn UserFunctionContext,
+        ) -> Result<CalcValue, String> {
+            let name = arguments[0]
+                .as_text()
+                .expect("a topic name")
+                .to_string_lossy();
+            *self.0.borrow_mut().entry(name.clone()).or_default() += 1;
+            let topic = calc_host::TopicKey::new("Probe.Progid", "", &[name]);
+            Ok(context
+                .rtd_value(&topic, RtdLease(1))?
+                .map(|entry| entry.value)
+                .unwrap_or_else(|| CalcValue::error(calc_host::value::WorksheetErrorCode::NA)))
+        }
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p03_an_rtd_update_dirties_only_the_cells_that_read_its_topic() {
+        use calc_host::RtdDisposition as T;
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        let runs = Rc::new(RefCell::new(std::collections::BTreeMap::new()));
+        let mut functions = calc_fml::CallableTable::new();
+        functions
+            .register("RtdBy", Rc::new(RtdNamed(runs.clone())))
+            .unwrap();
+        book.set_user_functions(functions);
+        let topic = |name: &str| calc_host::TopicKey::new("Probe.Progid", "", &[name.to_owned()]);
+        assert_eq!(
+            book.update_rtd(topic("a"), RtdLease(1), 1, CalcValue::number(1.0)),
+            T::Accepted
+        );
+        assert_eq!(
+            book.update_rtd(topic("b"), RtdLease(1), 1, CalcValue::number(10.0)),
+            T::Accepted
+        );
+        enter(&mut book, at(s, "B1"), "=RtdBy(\"a\")+1");
+        enter(&mut book, at(s, "B2"), "=RtdBy(\"b\")+1");
+        book.dispatch(SkinIntent::Recalculate);
+        drain(&mut book);
+        assert_eq!(calculated(book.host(), at(s, "B1")), Some(CalcValue::number(2.0)));
+        assert_eq!(calculated(book.host(), at(s, "B2")), Some(CalcValue::number(11.0)));
+        let (a0, b0) = (runs.borrow()["a"], runs.borrow()["b"]);
+        assert_eq!(
+            book.update_rtd(topic("a"), RtdLease(1), 2, CalcValue::number(5.0)),
+            T::Accepted
+        );
+        book.dispatch(SkinIntent::Recalculate);
+        drain(&mut book);
+        assert_eq!(calculated(book.host(), at(s, "B1")), Some(CalcValue::number(6.0)));
+        assert_eq!(calculated(book.host(), at(s, "B2")), Some(CalcValue::number(11.0)));
+        assert_eq!(
+            runs.borrow()["a"],
+            a0 + 1,
+            "the cell that read topic a re-evaluated"
+        );
+        assert_eq!(
+            runs.borrow()["b"],
+            b0,
+            "the cell that read topic b, of the same callable, did not"
+        );
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn contract_p03_rtd_events_are_ordered_inputs_and_manual_demand_pins_the_view() {
@@ -8829,7 +8908,7 @@ mod async_contract {
         enter(&mut book, at(s, "B1"), "=RtdProbe()+1");
         let revision = book.host().revision();
         assert_eq!(
-            book.update_rtd(provider, 17, 1, CalcValue::number(20.0)),
+            book.update_rtd(probe_topic(), RtdLease(17), 1, CalcValue::number(20.0)),
             T::Accepted
         );
         assert_eq!(*entries.borrow(), 0);
@@ -8845,25 +8924,25 @@ mod async_contract {
             panic!("calculated")
         };
         let read = &calculation.stamp().unwrap().reads.external_inputs[0];
-        assert_eq!(read.key.callable, provider);
-        assert_eq!(read.key.subscription, 17);
+        assert_eq!(read.topic, probe_topic());
+        assert_eq!(read.lease, RtdLease(17));
         assert_eq!(read.sequence, 1);
         assert_eq!(identities.borrow().as_slice(), &[provider]);
         assert_eq!(
-            book.update_rtd(provider, 17, 1, CalcValue::number(20.0)),
+            book.update_rtd(probe_topic(), RtdLease(17), 1, CalcValue::number(20.0)),
             T::Duplicate
         );
         assert_eq!(
-            book.update_rtd(provider, 17, 1, CalcValue::number(999.0)),
+            book.update_rtd(probe_topic(), RtdLease(17), 1, CalcValue::number(999.0)),
             T::ConflictingSequence
         );
         assert_eq!(*entries.borrow(), 1);
         assert_eq!(
-            book.update_rtd(provider, 17, 2, CalcValue::number(40.0)),
+            book.update_rtd(probe_topic(), RtdLease(17), 2, CalcValue::number(40.0)),
             T::Accepted
         );
         assert_eq!(
-            book.update_rtd(provider, 17, 1, CalcValue::number(999.0)),
+            book.update_rtd(probe_topic(), RtdLease(17), 1, CalcValue::number(999.0)),
             T::StaleSequence
         );
         assert!(!book.has_pending_calculation());
@@ -8879,9 +8958,9 @@ mod async_contract {
         );
         assert_eq!(*entries.borrow(), 2);
         assert_eq!(identities.borrow().as_slice(), &[provider, provider]);
-        assert_eq!(book.retire_rtd(provider, 17), T::Accepted);
+        assert_eq!(book.retire_rtd(probe_topic(), RtdLease(17)), T::Accepted);
         assert_eq!(
-            book.update_rtd(provider, 17, 99, CalcValue::number(999.0)),
+            book.update_rtd(probe_topic(), RtdLease(17), 99, CalcValue::number(999.0)),
             T::Retired
         );
         book.dispatch(SkinIntent::Recalculate);
@@ -8904,9 +8983,12 @@ mod async_contract {
             .bind(None, "RtdProbe")
             .unwrap();
         assert_ne!(next_provider, provider);
+        // The key is Excel's topic identity, not the calling add-in's generation (design A3): the
+        // reload is caught by the call's callable binding proof, and the retired lease stays
+        // retired for whoever reads the topic.
         assert_eq!(
-            book.update_rtd(provider, 17, 3, CalcValue::number(999.0)),
-            T::ProviderChanged
+            book.update_rtd(probe_topic(), RtdLease(17), 3, CalcValue::number(999.0)),
+            T::Retired
         );
         book.dispatch(SkinIntent::Recalculate);
         drain(&mut book);

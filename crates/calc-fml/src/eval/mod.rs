@@ -417,7 +417,7 @@ pub struct UserFunctionEffects {
     pub(crate) invocations: Vec<UserCallRecord>,
     pub(crate) reevaluation: Option<calc_func::UserReevaluationReason>,
     pub(crate) callable_reads: Vec<crate::CallableBindingProof>,
-    pub(crate) external_inputs: Vec<calc_func::UserInputRead>,
+    pub(crate) external_inputs: Vec<calc_func::RtdRead>,
     pub(crate) next_name: u64,
     pub(crate) name_invocations: Vec<NameInvocation>,
     pub(crate) omitted_name_invocations: u64,
@@ -484,7 +484,7 @@ impl UserFunctionEffects {
     pub fn omitted_name_invocations(&self) -> u64 {
         self.omitted_name_invocations
     }
-    pub fn external_inputs(&self) -> &[calc_func::UserInputRead] {
+    pub fn external_inputs(&self) -> &[calc_func::RtdRead] {
         &self.external_inputs
     }
     pub fn reevaluation(&self) -> Option<calc_func::UserReevaluationReason> {

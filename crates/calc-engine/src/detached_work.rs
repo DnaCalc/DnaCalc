@@ -23,7 +23,7 @@ pub struct NameCalculationResult {
     pub observations: Vec<crate::contract::CachedObservation>,
     pub value_reads: Vec<(calc_fml::ReadRequest, GridArea)>,
     pub facts: Vec<calc_fml::FactRead>,
-    pub external_inputs: Vec<calc_fml::UserInputRead>,
+    pub external_inputs: Vec<calc_fml::RtdRead>,
     pub udf_volatile: bool,
 }
 
@@ -235,7 +235,7 @@ impl NameCalculationWork {
         inputs: &ModelRoot,
         numeric: &NumericMode,
         functions: &calc_fml::CallableTable,
-        external: &dyn calc_fml::UserExternalInputs,
+        external: &dyn calc_fml::RtdCut,
         references: &dyn calc_fml::ReferenceHandles,
         quantum: usize,
     ) -> NameCalculationProgress {

@@ -220,8 +220,8 @@ impl App {
             let evaluating = self.server.borrow().has_pending_calculation();
             for input in addins.poll_rtd(evaluating).unwrap_or_default() {
                 self.server.borrow_mut().update_rtd(
-                    input.provider,
-                    input.subscription,
+                    input.topic,
+                    input.lease,
                     input.sequence,
                     input.value,
                 );

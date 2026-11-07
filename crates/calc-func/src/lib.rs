@@ -19,8 +19,8 @@ mod call;
 mod udf;
 pub use udf::{
     ReferenceHandleError, ReferenceHandles, StoredReference, UserCallableIdentity,
-    UserExternalInputs, UserFunction, UserFunctionContext, UserFunctionInvocation,
-    UserFunctionStep, UserInputKey, UserInputRead, UserInvocationFrame, UserReevaluationReason,
+    RtdCut, RtdEntry, RtdLease, RtdRead, TopicKey, UserFunction, UserFunctionContext, UserFunctionInvocation,
+    UserFunctionStep, UserInvocationFrame, UserReevaluationReason,
 };
 mod catalogue;
 mod coerce;

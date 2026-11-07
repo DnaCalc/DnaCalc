@@ -383,14 +383,14 @@ impl Server {
 
     pub fn update_rtd(
         &mut self,
-        provider: calc_host::CallableHandle,
-        subscription: u64,
+        topic: calc_host::TopicKey,
+        lease: calc_host::RtdLease,
         sequence: u64,
         value: calc_host::value::CalcValue,
     ) -> calc_host::RtdDisposition {
         let disposition = self
             .book
-            .update_rtd(provider, subscription, sequence, value);
+            .update_rtd(topic, lease, sequence, value);
         self.collect();
         disposition
     }

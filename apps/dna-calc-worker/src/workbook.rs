@@ -307,13 +307,13 @@ impl Workbook {
     }
     pub fn update_rtd(
         &mut self,
-        provider: calc_host::CallableHandle,
-        subscription: u64,
+        topic: calc_host::TopicKey,
+        lease: calc_host::RtdLease,
         sequence: u64,
         value: calc_host::value::CalcValue,
     ) -> calc_host::RtdDisposition {
         self.session
-            .update_rtd(provider, subscription, sequence, value)
+            .update_rtd(topic, lease, sequence, value)
     }
     pub fn set_fetch_route(&mut self, route: std::rc::Rc<dyn calc_func::FetchRoute>) {
         self.session.set_fetch_route(route);

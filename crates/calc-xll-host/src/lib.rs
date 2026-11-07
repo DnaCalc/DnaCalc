@@ -20,40 +20,43 @@ pub use calc_fml::reference::format_workbook_sheet_qualifier;
 #[cfg(windows)]
 pub use calc_func::UserCallableIdentity as RtdProvider;
 #[cfg(windows)]
+pub use calc_func::{RtdLease, TopicKey};
+#[cfg(windows)]
 pub use callbacks::dispatch;
 #[cfg(windows)]
 pub use native::{AsyncReturn, RegistrationInfo, XllHost};
-/// Owning-STA RTD service; worksheet results require admitted input reads.
+/// Owning-STA RTD service; worksheet results require admitted input reads. A topic is Excel's
+/// identity (ProgID, server, strings): the service shares one connection among every caller.
 #[cfg(windows)]
 pub trait RtdService {
+    /// Join (or start) the connection of `topic` for `caller`. Returns its lease: the
+    /// connection incarnation, never reused.
     fn subscribe(
         &self,
-        provider: RtdProvider,
         caller: calc_value::CellKey,
-        progid: &str,
-        topics: &[String],
-    ) -> Result<u64, String>;
+        topic: &calc_func::TopicKey,
+    ) -> Result<calc_func::RtdLease, String>;
     /// The exact ConnectData observation while it still awaits owner admission.
     /// This is a provisional C API return, not a certified worksheet input. The
     /// context still records its old/missing cut and normal admission invalidates it.
     fn initial_value(
         &self,
-        _provider: RtdProvider,
-        _subscription: u64,
+        _topic: &calc_func::TopicKey,
+        _lease: calc_func::RtdLease,
     ) -> Option<(u64, calc_value::CalcValue)> {
         None
     }
     fn close(&self) -> Result<(), String>;
-    fn subscriptions(&self, provider: RtdProvider, caller: calc_value::CellKey) -> Vec<u64>;
+    fn subscriptions(&self, caller: calc_value::CellKey) -> Vec<calc_func::RtdLease>;
     /// Recover only the inputs of this completed call when native code returns
-    /// from its own cache without another xlfRtd callback. New logical leases
+    /// from its own cache without another xlfRtd callback. New leases
     /// still need an ordinary admitted input read before publishing that result.
     fn cached_call_inputs(
         &self,
         _provider: RtdProvider,
         _caller: calc_value::CellKey,
         _arguments: &[calc_value::CalcValue],
-    ) -> Result<Vec<u64>, String> {
+    ) -> Result<Vec<(calc_func::TopicKey, calc_func::RtdLease)>, String> {
         Ok(Vec::new())
     }
     /// Record one completed native call. The owner reconciles the union of calls
@@ -64,8 +67,8 @@ pub trait RtdService {
         _caller: calc_value::CellKey,
         _invocation: u64,
         _arguments: &[calc_value::CalcValue],
-        _declared: &[u64],
-        _inputs: &[u64],
+        _declared: &[calc_func::RtdLease],
+        _inputs: &[calc_func::RtdLease],
     ) -> Result<(), String> {
         Ok(())
     }

@@ -5,7 +5,7 @@ use crate::{
     WorkBudget, contract::*,
 };
 use calc_doc_model::ModelRoot;
-use calc_fml::{CallableTable, UserExternalInputs, reference::ReferenceView};
+use calc_fml::{CallableTable, RtdCut, reference::ReferenceView};
 use calc_value::{CalcValue, NumericMode};
 use std::{rc::Rc, sync::Arc};
 
@@ -26,7 +26,7 @@ impl PinnedCalculation {
         numeric: NumericMode,
         save: CommandId,
         functions: &CallableTable,
-        external_inputs: Rc<dyn UserExternalInputs>,
+        external_inputs: Rc<dyn RtdCut>,
         references: Rc<ReferenceView>,
         facts: Arc<dyn calc_fml::WorkbookFacts>,
     ) -> Result<Self, StartError> {

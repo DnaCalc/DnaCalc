@@ -1,7 +1,7 @@
 //! Owning-STA RTD client. Notifications carry no evaluator or Rust pointers.
 use crate::projection::Value;
 use calc_value::{CalcValue, CellKey, ExcelText, WorksheetErrorCode};
-use calc_xll_host::{RtdProvider, RtdService};
+use calc_xll_host::{RtdLease, RtdProvider, RtdService, TopicKey};
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
@@ -95,15 +95,13 @@ unsafe fn decode(value: &Value) -> Result<CalcValue, String> {
 }
 #[derive(Clone, Debug)]
 pub struct RtdInput {
-    pub provider: RtdProvider,
-    pub subscription: u64,
+    pub topic: TopicKey,
+    pub lease: RtdLease,
     pub sequence: u64,
     pub value: CalcValue,
 }
 struct Topic {
-    provider: RtdProvider,
-    progid: String,
-    strings: Vec<String>,
+    key: TopicKey,
     callers: BTreeSet<CellKey>,
     // Keep the last input's logical lease until the owner retires it. Only
     // callers that still declare RTD keep its native transport connected.
@@ -121,14 +119,16 @@ struct Declaration {
     inputs: BTreeSet<u64>,
 }
 struct PendingDisconnect {
-    provider: RtdProvider,
     caller: CellKey,
     subscription: u64,
     topic: Topic,
 }
 struct State {
     pointer: *mut c_void,
+    /// The live topics by lease. `by_key` finds a topic by Excel's identity: one topic, one
+    /// ConnectData, however many cells (or add-ins) ask for it.
     topics: BTreeMap<u64, Topic>,
+    by_key: BTreeMap<TopicKey, u64>,
     pending_disconnects: Vec<PendingDisconnect>,
     declarations: BTreeMap<u64, Declaration>,
     replacement_calls: Vec<Declaration>,
@@ -157,6 +157,7 @@ impl RtdClient {
             state: RefCell::new(State {
                 pointer,
                 topics: BTreeMap::new(),
+                by_key: BTreeMap::new(),
                 pending_disconnects: Vec::new(),
                 declarations: BTreeMap::new(),
                 replacement_calls: Vec::new(),
@@ -208,7 +209,7 @@ impl RtdClient {
         &self,
         providers: &BTreeSet<RtdProvider>,
         caller: CellKey,
-    ) -> Result<Vec<(RtdProvider, u64)>, String> {
+    ) -> Result<Vec<(TopicKey, RtdLease)>, String> {
         let retired = self.begin_replacement(providers, caller)?;
         self.finish_replacement(providers, caller)?;
         Ok(retired)
@@ -226,7 +227,7 @@ impl RtdClient {
         let mut index = 0;
         while index < state.pending_disconnects.len() {
             let pending = &state.pending_disconnects[index];
-            if pending.caller == caller && providers.contains(&pending.provider) {
+            if pending.caller == caller {
                 let transport = pending.topic.transport;
                 checked(
                     unsafe { dna_rtd_disconnect(state.pointer, transport) },
@@ -254,7 +255,7 @@ impl RtdClient {
         &self,
         providers: &BTreeSet<RtdProvider>,
         caller: CellKey,
-    ) -> Result<Vec<(RtdProvider, u64)>, String> {
+    ) -> Result<Vec<(TopicKey, RtdLease)>, String> {
         let mut state = self
             .state
             .try_borrow_mut()
@@ -277,29 +278,29 @@ impl RtdClient {
             .topics
             .iter_mut()
             .filter_map(|(&id, topic)| {
-                if providers.contains(&topic.provider) {
-                    topic.callers.remove(&caller);
-                    topic.active_callers.remove(&caller);
-                }
+                topic.callers.remove(&caller);
+                topic.active_callers.remove(&caller);
                 topic.callers.is_empty().then_some(id)
             })
             .collect::<Vec<_>>();
         let mut retired = Vec::new();
         for id in ids {
             let topic = state.topics.remove(&id).unwrap();
-            let provider = topic.provider;
+            let key = topic.key.clone();
+            if state.by_key.get(&key) == Some(&id) {
+                state.by_key.remove(&key);
+            }
             state.transports.remove(&topic.transport);
             if topic.connected {
                 state.pending_disconnects.push(PendingDisconnect {
-                    provider: topic.provider,
                     caller,
                     subscription: id,
                     topic,
                 });
             }
-            state.updates.retain(|value| value.subscription != id);
+            state.updates.retain(|value| value.lease.0 != id);
             state.initial_values.remove(&id);
-            retired.push((provider, id));
+            retired.push((key, RtdLease(id)));
         }
         Ok(retired)
     }
@@ -326,7 +327,7 @@ impl RtdClient {
             .flat_map(|call| call.subscriptions.iter().copied())
             .collect();
         for (&id, topic) in &mut state.topics {
-            if providers.contains(&topic.provider) && !declared.contains(&id) {
+            if !declared.contains(&id) {
                 topic.active_callers.remove(&caller);
             }
         }
@@ -345,7 +346,7 @@ impl RtdClient {
             .iter()
             .flat_map(|call| call.inputs.iter().copied())
             .map(|id| state.renewed_inputs.get(&id).copied().unwrap_or(id))
-            .chain(state.updates.iter().map(|input| input.subscription))
+            .chain(state.updates.iter().map(|input| input.lease.0))
             .collect();
         let ids: Vec<_> = state
             .topics
@@ -369,20 +370,18 @@ impl RtdClient {
     }
 }
 impl RtdService for RtdClient {
-    fn initial_value(&self, provider: RtdProvider, subscription: u64) -> Option<(u64, CalcValue)> {
+    fn initial_value(&self, topic: &TopicKey, lease: RtdLease) -> Option<(u64, CalcValue)> {
         let state = self.state.borrow();
-        (state.topics.get(&subscription)?.provider == provider)
-            .then(|| state.initial_values.get(&subscription).cloned())
+        (state.topics.get(&lease.0)?.key == *topic)
+            .then(|| state.initial_values.get(&lease.0).cloned())
             .flatten()
     }
-    fn subscriptions(&self, provider: RtdProvider, caller: CellKey) -> Vec<u64> {
+    fn subscriptions(&self, caller: CellKey) -> Vec<RtdLease> {
         self.state
             .borrow()
             .topics
             .iter()
-            .filter_map(|(&id, topic)| {
-                (topic.provider == provider && topic.active_callers.contains(&caller)).then_some(id)
-            })
+            .filter_map(|(&id, topic)| topic.active_callers.contains(&caller).then_some(RtdLease(id)))
             .collect()
     }
     fn has_live_servers(&self) -> bool {
@@ -395,8 +394,8 @@ impl RtdService for RtdClient {
         caller: CellKey,
         invocation: u64,
         arguments: &[CalcValue],
-        declared: &[u64],
-        inputs: &[u64],
+        declared: &[RtdLease],
+        inputs: &[RtdLease],
     ) -> Result<(), String> {
         let mut state = self
             .state
@@ -408,8 +407,8 @@ impl RtdService for RtdClient {
                 provider,
                 caller,
                 arguments: arguments.to_vec(),
-                subscriptions: declared.iter().copied().collect(),
-                inputs: inputs.iter().copied().collect(),
+                subscriptions: declared.iter().map(|lease| lease.0).collect(),
+                inputs: inputs.iter().map(|lease| lease.0).collect(),
             },
         );
         Ok(())
@@ -420,7 +419,7 @@ impl RtdService for RtdClient {
         provider: RtdProvider,
         caller: CellKey,
         arguments: &[CalcValue],
-    ) -> Result<Vec<u64>, String> {
+    ) -> Result<Vec<(TopicKey, RtdLease)>, String> {
         let mut state = self
             .state
             .try_borrow_mut()
@@ -462,9 +461,6 @@ impl RtdService for RtdClient {
         for old in previous {
             let current = state.renewed_inputs.get(&old).copied().unwrap_or(old);
             if let Some(topic) = state.topics.get_mut(&current) {
-                if topic.provider != provider {
-                    return Err("dc-snz.23: cached RTD input belongs to another provider".into());
-                }
                 // Disconnection does not retire an admitted logical input.
                 topic.callers.insert(caller);
                 inputs.insert(current);
@@ -473,7 +469,7 @@ impl RtdService for RtdClient {
             let Some(index) = state
                 .pending_disconnects
                 .iter()
-                .position(|pending| pending.subscription == old && pending.provider == provider)
+                .position(|pending| pending.subscription == old)
             else {
                 return Err(
                     "dc-snz.23: retired cached RTD input has no live replacement lease".into(),
@@ -497,26 +493,27 @@ impl RtdService for RtdClient {
             // Its last observed signal gets a fresh logical lease and must pass
             // the same owner admission as ConnectData and RefreshData inputs.
             state.transports.insert(topic.transport, id);
+            let key = topic.key.clone();
+            state.by_key.entry(key.clone()).or_insert(id);
             state.topics.insert(id, topic);
             state.renewed_inputs.insert(old, id);
             state.updates.push(RtdInput {
-                provider,
-                subscription: id,
+                topic: key,
+                lease: RtdLease(id),
                 sequence,
                 value,
             });
             inputs.insert(id);
         }
-        Ok(inputs.into_iter().collect())
+        let mut readable = Vec::with_capacity(inputs.len());
+        for id in inputs {
+            readable.push((state.topics[&id].key.clone(), RtdLease(id)));
+        }
+        Ok(readable)
     }
 
-    fn subscribe(
-        &self,
-        provider: RtdProvider,
-        caller: CellKey,
-        progid: &str,
-        strings: &[String],
-    ) -> Result<u64, String> {
+    fn subscribe(&self, caller: CellKey, key: &TopicKey) -> Result<RtdLease, String> {
+        let (progid, strings) = (key.progid.as_str(), key.strings.as_slice());
         let mut state = self
             .state
             .try_borrow_mut()
@@ -524,16 +521,15 @@ impl RtdService for RtdClient {
         if state.closed {
             return Err("dc-snz.23: RTD client is closed".into());
         }
-        let existing = state.topics.iter().find_map(|(&id, topic)| {
-            (topic.provider == provider && topic.progid == progid && topic.strings == strings)
-                .then_some(id)
-        });
+        // One topic is one identity: the second cell (or add-in) on the same ProgID and strings
+        // joins the connected topic and calls ConnectData no second time.
+        let existing = state.by_key.get(key).copied();
         if let Some(id) = existing {
             let topic = state.topics.get_mut(&id).unwrap();
             if topic.connected {
                 topic.callers.insert(caller);
                 topic.active_callers.insert(caller);
-                return Ok(id);
+                return Ok(RtdLease(id));
             }
         }
         // A completed transport can reconnect while an older producing input is
@@ -598,10 +594,9 @@ impl RtdService for RtdClient {
                 return Err(why);
             }
         };
+        state.by_key.insert(key.clone(), id);
         let topic = state.topics.entry(id).or_insert_with(|| Topic {
-            provider,
-            progid: progid.into(),
-            strings: strings.to_vec(),
+            key: key.clone(),
             callers: BTreeSet::new(),
             active_callers: BTreeSet::new(),
             connected: false,
@@ -618,12 +613,12 @@ impl RtdService for RtdClient {
         state.transports.insert(transport, id);
         state.initial_values.insert(id, (sequence, value.clone()));
         state.updates.push(RtdInput {
-            provider,
-            subscription: id,
+            topic: key.clone(),
+            lease: RtdLease(id),
             sequence,
             value,
         });
-        Ok(id)
+        Ok(RtdLease(id))
     }
     fn close(&self) -> Result<(), String> {
         let mut state = self
@@ -640,6 +635,7 @@ impl RtdService for RtdClient {
             return Err(why);
         }
         state.topics.clear();
+        state.by_key.clear();
         state.transports.clear();
         state.declarations.clear();
         state.replacement_calls.clear();
@@ -684,8 +680,8 @@ unsafe extern "system" fn publish(context: *mut c_void, id: i32, value: *const V
         return 0;
     };
     state.updates.push(RtdInput {
-        provider: topic.provider,
-        subscription,
+        topic: topic.key.clone(),
+        lease: RtdLease(subscription),
         sequence,
         value,
     });
@@ -734,6 +730,10 @@ fn queued_events(client: &RtdClient) -> Vec<(i32, i32)> {
     }
     panic!("controlled RTD event log exceeded its bound")
 }
+#[cfg(test)]
+fn fixture_topic(name: &str) -> TopicKey {
+    TopicKey::new("fixture", "", &[name.to_owned()])
+}
 /// Native-only: drives the real client against its existing injected COM fixture.
 #[test]
 fn replacement_connects_before_retired_transport_disconnects() {
@@ -750,23 +750,23 @@ fn replacement_connects_before_retired_transport_disconnects() {
     let providers = BTreeSet::from([provider]);
     let caller = CellKey::new(calc_value::SheetId::from_parts(0, 0), 1, 1).unwrap();
     let old = client
-        .subscribe(provider, caller, "fixture", &["old".into()])
+        .subscribe(caller, &fixture_topic("old"))
         .unwrap();
     assert_eq!(
         client.begin_replacement(&providers, caller).unwrap(),
-        vec![(provider, old)]
+        vec![(fixture_topic("old"), old)]
     );
     assert_eq!(client.subscriptions(), 0);
     assert_eq!(queued_events(&client), vec![(1, 1)]);
     let next = client
-        .subscribe(provider, caller, "fixture", &["new".into()])
+        .subscribe(caller, &fixture_topic("new"))
         .unwrap();
     assert_ne!(old, next);
     client.finish_replacement(&providers, caller).unwrap();
     assert_eq!(queued_events(&client), vec![(1, 1), (1, 2), (2, 1)]);
     let updates = client.poll().unwrap();
     assert_eq!(updates.len(), 1);
-    assert_eq!(updates[0].subscription, next);
+    assert_eq!(updates[0].lease, next);
     assert_eq!(updates[0].sequence, 1);
     assert_eq!(updates[0].value, CalcValue::number(22.));
     assert!(client.state.borrow().pending_disconnects.is_empty());
@@ -793,11 +793,11 @@ fn replacement_preserves_another_callers_topic_lease() {
     let first = CellKey::new(sheet, 1, 1).unwrap();
     let other = CellKey::new(sheet, 1, 2).unwrap();
     let old = client
-        .subscribe(provider, first, "fixture", &["old".into()])
+        .subscribe(first, &fixture_topic("old"))
         .unwrap();
     assert_eq!(
         client
-            .subscribe(provider, other, "fixture", &["old".into()])
+            .subscribe(other, &fixture_topic("old"))
             .unwrap(),
         old
     );
@@ -808,15 +808,48 @@ fn replacement_preserves_another_callers_topic_lease() {
             .is_empty()
     );
     client
-        .subscribe(provider, first, "fixture", &["new".into()])
+        .subscribe(first, &fixture_topic("new"))
         .unwrap();
     client.finish_replacement(&providers, first).unwrap();
     assert_eq!(queued_events(&client), vec![(1, 1), (1, 2)]);
     assert_eq!(
         client.disconnect_caller(&providers, other).unwrap(),
-        vec![(provider, old)]
+        vec![(fixture_topic("old"), old)]
     );
     assert_eq!(queued_events(&client), vec![(1, 1), (1, 2), (2, 1)]);
+    client.close().unwrap();
+}
+
+/// Native-only: two cells (and a third on another topic) show that a topic is one connection.
+#[test]
+fn two_cells_on_one_topic_make_one_connect_data_call() {
+    let client = RtdClient::new().unwrap();
+    assert_eq!(
+        unsafe { dna_rtd_test_attach_queued(client.state.borrow().pointer) },
+        0
+    );
+    let sheet = calc_value::SheetId::from_parts(0, 0);
+    let first = CellKey::new(sheet, 1, 1).unwrap();
+    let second = CellKey::new(sheet, 1, 2).unwrap();
+    let third = CellKey::new(sheet, 1, 3).unwrap();
+    let lease = client.subscribe(first, &fixture_topic("one")).unwrap();
+    assert_eq!(
+        client.subscribe(second, &fixture_topic("one")).unwrap(),
+        lease,
+        "the second cell joins the topic's lease"
+    );
+    // The server saw ServerStart (method 0 is not queued) and one ConnectData for topic 1.
+    assert_eq!(queued_events(&client), vec![(1, 1)]);
+    assert_eq!(client.subscriptions(), 1);
+    let other = client.subscribe(third, &fixture_topic("two")).unwrap();
+    assert_ne!(other, lease, "another topic is another connection");
+    assert_eq!(queued_events(&client), vec![(1, 1), (1, 2)]);
+    // Both inputs of the first topic are delivered once, under one topic key and lease.
+    let inputs = client.poll().unwrap();
+    assert_eq!(inputs.len(), 2);
+    assert_eq!(inputs[0].topic, fixture_topic("one"));
+    assert_eq!(inputs[0].lease, lease);
+    assert_eq!(inputs[1].topic, fixture_topic("two"));
     client.close().unwrap();
 }
 
@@ -836,7 +869,7 @@ fn completed_call_defers_disconnect_until_replacement_can_connect() {
     let providers = BTreeSet::from([provider]);
     let caller = CellKey::new(calc_value::SheetId::from_parts(0, 0), 1, 1).unwrap();
     let old = client
-        .subscribe(provider, caller, "fixture", &["old".into()])
+        .subscribe(caller, &fixture_topic("old"))
         .unwrap();
     client
         .finish_call(provider, caller, 100, &[], &[], &[])
@@ -847,10 +880,10 @@ fn completed_call_defers_disconnect_until_replacement_can_connect() {
     assert_eq!(queued_events(&client), vec![(1, 1)]);
     assert_eq!(
         client.begin_replacement(&providers, caller).unwrap(),
-        vec![(provider, old)]
+        vec![(fixture_topic("old"), old)]
     );
     client
-        .subscribe(provider, caller, "fixture", &["next".into()])
+        .subscribe(caller, &fixture_topic("next"))
         .unwrap();
     client.finish_replacement(&providers, caller).unwrap();
     assert_eq!(queued_events(&client), vec![(1, 1), (1, 2), (2, 1)]);
@@ -878,11 +911,11 @@ fn cached_replacement_renews_one_signal_for_main_and_dependent_reads() {
         "shared".encode_utf16().collect(),
     ))];
     let old = client
-        .subscribe(provider, main, "fixture", &["shared".into()])
+        .subscribe(main, &fixture_topic("shared"))
         .unwrap();
     assert_eq!(
         client
-            .subscribe(provider, dependent, "fixture", &["shared".into()])
+            .subscribe(dependent, &fixture_topic("shared"))
             .unwrap(),
         old
     );
@@ -906,7 +939,7 @@ fn cached_replacement_renews_one_signal_for_main_and_dependent_reads() {
     );
     assert_eq!(
         client.begin_replacement(&providers, main).unwrap(),
-        vec![(provider, old)]
+        vec![(fixture_topic("shared"), old)]
     );
     assert!(
         client
@@ -936,23 +969,25 @@ fn cached_replacement_renews_one_signal_for_main_and_dependent_reads() {
         );
         assert!(state.updates.is_empty());
     }
-    let renewed = client
+    let renewed_inputs = client
         .cached_call_inputs(provider, main, &arguments)
         .unwrap();
-    assert_eq!(renewed.len(), 1);
+    assert_eq!(renewed_inputs.len(), 1);
+    assert_eq!(renewed_inputs[0].0, fixture_topic("shared"));
+    let renewed: Vec<RtdLease> = renewed_inputs.iter().map(|(_, lease)| *lease).collect();
     assert_ne!(renewed[0], old);
     assert_eq!(
         client
             .cached_call_inputs(provider, dependent, &arguments)
             .unwrap(),
-        renewed
+        renewed_inputs
     );
     assert_eq!(queued_events(&client), vec![(1, 1)]);
     {
         let state = client.state.borrow();
         let queued = &state.updates;
         assert_eq!(queued.len(), 1);
-        assert_eq!(queued[0].subscription, renewed[0]);
+        assert_eq!(queued[0].lease, renewed[0]);
         assert_eq!(queued[0].sequence, 1);
         assert_eq!(queued[0].value, CalcValue::number(42.));
     }
@@ -973,20 +1008,20 @@ fn cached_replacement_renews_one_signal_for_main_and_dependent_reads() {
         client
             .cached_call_inputs(provider, main, &arguments)
             .unwrap(),
-        renewed
+        renewed_inputs
     );
     // Completed generators do not remain connected throughout an idle owner turn.
     assert!(client.has_pending_inputs());
     let delivered = client.poll().unwrap();
     assert_eq!(delivered.len(), 1);
-    assert_eq!(delivered[0].subscription, renewed[0]);
+    assert_eq!(delivered[0].lease, renewed[0]);
     assert_eq!(delivered[0].sequence, 1);
     assert!(!client.has_pending_inputs());
-    assert!(client.state.borrow().topics[&renewed[0]].connected);
+    assert!(client.state.borrow().topics[&renewed[0].0].connected);
     client.poll_during_evaluation().unwrap();
-    assert!(client.state.borrow().topics[&renewed[0]].connected);
+    assert!(client.state.borrow().topics[&renewed[0].0].connected);
     client.poll().unwrap();
-    assert!(!client.state.borrow().topics[&renewed[0]].connected);
+    assert!(!client.state.borrow().topics[&renewed[0].0].connected);
     client.close().unwrap();
 }
 
@@ -1007,7 +1042,7 @@ fn cached_reads_survive_disconnect_but_not_unrenewable_retirement() {
     let caller = CellKey::new(calc_value::SheetId::from_parts(0, 0), 1, 1).unwrap();
     let arguments = [CalcValue::number(0.)];
     let topic = client
-        .subscribe(provider, caller, "fixture", &["cached".into()])
+        .subscribe(caller, &fixture_topic("cached"))
         .unwrap();
     assert_eq!(client.poll().unwrap().len(), 1);
     client
@@ -1017,12 +1052,12 @@ fn cached_reads_survive_disconnect_but_not_unrenewable_retirement() {
         .reconcile_evaluation(&providers, caller, &BTreeSet::from([100]))
         .unwrap();
     client.poll().unwrap();
-    assert!(!client.state.borrow().topics[&topic].connected);
+    assert!(!client.state.borrow().topics[&topic.0].connected);
     assert_eq!(
         client
             .cached_call_inputs(provider, caller, &arguments)
             .unwrap(),
-        vec![topic]
+        vec![(fixture_topic("cached"), topic)]
     );
     assert!(
         client
@@ -1065,7 +1100,7 @@ fn cached_call_keys_preserve_number_bits_and_refuse_reference_recovery() {
         caller,
     ))];
     let topic = client
-        .subscribe(provider, caller, "fixture", &["cached".into()])
+        .subscribe(caller, &fixture_topic("cached"))
         .unwrap();
     client
         .finish_call(provider, caller, 100, &arguments, &[topic], &[topic])
@@ -1097,22 +1132,21 @@ fn first_cache_only_sibling_keeps_the_observed_input() {
     let sibling = CellKey::new(sheet, 1, 2).unwrap();
     let arguments = [CalcValue::number(42.)];
     let id = client
-        .subscribe(provider, main, "fixture", &["shared".into()])
+        .subscribe(main, &fixture_topic("shared"))
         .unwrap();
+    let shared = fixture_topic("shared");
     assert_eq!(
-        client.initial_value(provider, id),
+        client.initial_value(&shared, id),
         Some((1, CalcValue::number(11.)))
     );
-    let different = RtdProvider {
-        slot: 1,
-        ..provider
-    };
-    assert_eq!(client.initial_value(different, id), None);
+    // The topic is Excel's identity: another topic does not answer for this lease.
+    assert_eq!(client.initial_value(&fixture_topic("other"), id), None);
     let observed = client.poll().unwrap();
     assert_eq!(observed.len(), 1);
-    assert_eq!((observed[0].subscription, observed[0].sequence), (id, 1));
+    assert_eq!((observed[0].lease, observed[0].sequence), (id, 1));
+    assert_eq!(observed[0].topic, shared);
     assert_eq!(observed[0].value, CalcValue::number(11.));
-    assert_eq!(client.initial_value(provider, id), None);
+    assert_eq!(client.initial_value(&shared, id), None);
     client
         .finish_call(provider, main, 100, &arguments, &[id], &[id])
         .unwrap();
@@ -1120,13 +1154,7 @@ fn first_cache_only_sibling_keeps_the_observed_input() {
         client
             .cached_call_inputs(provider, sibling, &arguments)
             .unwrap(),
-        vec![id]
-    );
-    assert!(
-        client
-            .cached_call_inputs(different, sibling, &arguments)
-            .unwrap()
-            .is_empty()
+        vec![(shared.clone(), id)]
     );
     assert!(
         client
@@ -1154,7 +1182,7 @@ fn first_cache_only_sibling_keeps_the_observed_input() {
         client
             .cached_call_inputs(provider, sibling, &arguments)
             .unwrap(),
-        vec![id]
+        vec![(shared, id)]
     );
     client.close().unwrap();
 }

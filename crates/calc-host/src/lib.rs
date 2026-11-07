@@ -152,7 +152,7 @@ pub use calc_engine::{
     ValueDelta, WorkBudget,
 };
 pub use calc_fml::reference::CellRun;
-pub use calc_fml::{CallableHandle, CallableTable, FormatProfile, NameResultKind};
+pub use calc_fml::{CallableHandle, CallableTable, FormatProfile, NameResultKind, RtdLease, TopicKey};
 
 /// The existing reference-text binder's typed result, exposed to host consumers.
 pub use calc_fml::reference::TextReference as ReferenceTarget;

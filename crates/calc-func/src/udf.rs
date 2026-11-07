@@ -10,20 +10,49 @@ pub struct UserCallableIdentity {
     pub slot: u32,
     pub generation: u64,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct UserInputKey {
-    pub callable: UserCallableIdentity,
-    pub subscription: u64,
+/// Excel's identity of one real-time-data topic: the server's ProgID, the (local) server name and
+/// the topic strings, 1 to 253 of them. Every cell that asks for the same arguments shares one
+/// topic. Whether Excel folds case in these strings is measured (dc-snz.23.4); this key compares
+/// them exactly until that is known.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TopicKey {
+    pub progid: String,
+    pub server: String,
+    pub strings: Vec<String>,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct UserInputRead {
-    pub key: UserInputKey,
+impl TopicKey {
+    pub fn new(progid: &str, server: &str, strings: &[String]) -> Self {
+        TopicKey {
+            progid: progid.to_owned(),
+            server: server.to_owned(),
+            strings: strings.to_vec(),
+        }
+    }
+}
+/// One connection incarnation of a topic: a new lease each time the topic is connected anew. A
+/// lease is never reused, so a value of an old incarnation cannot reach a new one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RtdLease(pub u64);
+/// The admitted state of one topic: its lease, the sequence of its latest value and the value.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RtdEntry {
+    pub lease: RtdLease,
+    pub sequence: u64,
+    pub value: CalcValue,
+}
+/// What a result read of a topic: the lease the reader asked for and the sequence it saw in its
+/// cut (0 when the cut held nothing for that lease).
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct RtdRead {
+    pub topic: TopicKey,
+    pub lease: RtdLease,
     pub sequence: u64,
 }
-/// One immutable external input cut, fixed at command admission. RTD never completes a call.
-pub trait UserExternalInputs: fmt::Debug + Send + Sync {
+/// One immutable external input cut, fixed at command admission, keyed by topic identity. RTD
+/// never completes a call. The cut is readable from any thread.
+pub trait RtdCut: fmt::Debug + Send + Sync {
     fn version(&self) -> u64;
-    fn rtd_value(&self, key: UserInputKey) -> Option<(u64, CalcValue)>;
+    fn get(&self, topic: &TopicKey) -> Option<RtdEntry>;
 }
 
 /// Host-owned identity and immutable read-view lease; no borrowed evaluator pointers.
@@ -188,7 +217,13 @@ pub trait UserFunctionContext {
     fn callable_identity(&self) -> Option<UserCallableIdentity> {
         None
     }
-    fn rtd_value(&mut self, _subscription: u64) -> Result<Option<(u64, CalcValue)>, String> {
+    /// The cut's value for `topic` at `lease`, recording the read. `None` when the cut holds
+    /// nothing for that lease.
+    fn rtd_value(
+        &mut self,
+        _topic: &TopicKey,
+        _lease: RtdLease,
+    ) -> Result<Option<RtdEntry>, String> {
         Err(self.refuse_by("RTD input without an admitted input view", "dc-hsa5.4"))
     }
     /// End this semantic evaluation after an unresolved read. The registration authorizes the reason.

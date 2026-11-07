@@ -321,6 +321,10 @@ pub struct EngineState {
     /// Nonlocal certificate facets retain conservative validation. Ordinary dependency reads
     /// use the graph's invalidation and publication candidates instead of a workbook scan.
     pub(crate) certificate_watch: BTreeSet<NodeId>,
+    /// Topic to the nodes whose published result stamp read it (dc-snz.23.2). Entries are added
+    /// when a result is published and verified against the current stamp when used, so a node
+    /// that no longer reads the topic is dropped lazily and never dirtied.
+    pub(crate) rtd_readers: BTreeMap<calc_fml::TopicKey, BTreeSet<NodeId>>,
     pub(crate) certificate_candidates: BTreeSet<NodeId>,
     pub(crate) certificate_context: Option<(u64, u64)>,
     revision: AuthoredRevision,
@@ -478,6 +482,7 @@ impl EngineState {
                 || !stamp.reads.facts.is_empty()
                 || !stamp.reads.names.is_empty()
                 || !stamp.reads.callables.is_empty()
+                || !stamp.reads.external_inputs.is_empty()
                 || stamp.reads.uses_boundary_cache
                 || stamp.reads.legacy_boundary
         });
@@ -485,6 +490,14 @@ impl EngineState {
             self.certificate_watch.insert(node);
         } else {
             self.certificate_watch.remove(&node);
+        }
+        if let Some(stamp) = result.stamp() {
+            for read in &stamp.reads.external_inputs {
+                self.rtd_readers
+                    .entry(read.topic.clone())
+                    .or_default()
+                    .insert(node);
+            }
         }
         self.results.publish(node, at, result, group);
     }
@@ -553,6 +566,7 @@ impl EngineState {
             linked_input_version: self.linked_input_version,
             contract: self.contract.clone(),
             certificate_watch: self.certificate_watch.clone(),
+            rtd_readers: self.rtd_readers.clone(),
             certificate_candidates: self.certificate_candidates.clone(),
             certificate_context: self.certificate_context,
             revision: self.revision,
@@ -651,20 +665,39 @@ impl EngineState {
         self.callables = next;
     }
 
-    /// An RTD/subscription event advances the next command's input cut. It is neither an
-    /// authored cell edit nor an async return, and never supplies a formula result directly.
-    pub fn invalidate_callable_input(
+    /// An RTD event advances the next command's input cut. It is neither an authored cell edit
+    /// nor an async return, and never supplies a formula result directly. Only the formulas whose
+    /// published stamp read `topic` are dirtied (dc-snz.23.2): the reverse index names them, and
+    /// each is checked against its current stamp before it counts.
+    pub fn invalidate_rtd_topic(
         &mut self,
         inputs: &ModelRoot,
-        key: calc_fml::UserInputKey,
+        topic: &calc_fml::TopicKey,
+        lease: calc_fml::RtdLease,
         sequence: u64,
     ) {
-        let provider = key.callable;
-        let roots:BTreeSet<_>=self.bindings.iter().filter_map(|(node,binding)| {
-            let watched=matches!(binding,Binding::Placed(instance,_) if instance.plan().callable_bindings().iter().any(|proof| proof.bound==Some(provider)))
-                || self.results.of(*node).and_then(FormulaResult::stamp).is_some_and(|stamp| stamp.reads.callables.iter().any(|proof| proof.bound==Some(provider)));
-            watched.then_some(*node)
-        }).collect();
+        let readers = self.rtd_readers.get(topic).cloned().unwrap_or_default();
+        let (live, gone): (BTreeSet<_>, BTreeSet<_>) = readers.into_iter().partition(|node| {
+            self.results
+                .of(*node)
+                .and_then(FormulaResult::stamp)
+                .is_some_and(|stamp| {
+                    stamp
+                        .reads
+                        .external_inputs
+                        .iter()
+                        .any(|read| &read.topic == topic)
+                })
+        });
+        if !gone.is_empty() {
+            if let Some(held) = self.rtd_readers.get_mut(topic) {
+                held.retain(|node| !gone.contains(node));
+                if held.is_empty() {
+                    self.rtd_readers.remove(topic);
+                }
+            }
+        }
+        let roots = live;
         let dirty = crate::recalc::dirty_closure(self, inputs, roots.clone(), &|n| {
             crate::recalc::invalidation_areas(self, inputs, n)
         })
@@ -672,7 +705,9 @@ impl EngineState {
         .to_vec();
         self.pending.extend(roots);
         self.contract.invalidate(dirty);
-        self.contract.external_versions.insert(key, sequence);
+        self.contract
+            .external_versions
+            .insert(topic.clone(), (lease, sequence));
         self.contract.external_inputs = self
             .contract
             .external_inputs
@@ -695,6 +730,7 @@ impl EngineState {
             linked_input_version: 0,
             contract: crate::contract::ContractState::new(),
             certificate_watch: BTreeSet::new(),
+            rtd_readers: BTreeMap::new(),
             certificate_candidates: BTreeSet::new(),
             certificate_context: None,
             callables: calc_fml::CallableBindings::default(),

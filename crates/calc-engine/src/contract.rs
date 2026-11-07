@@ -272,7 +272,7 @@ pub struct ReadCertificate {
 pub struct ReadDetails {
     pub linked_inputs: Option<crate::LinkedInputStamp>,
     pub observations: Vec<CachedObservation>,
-    pub external_inputs: Vec<calc_fml::UserInputRead>,
+    pub external_inputs: Vec<calc_fml::RtdRead>,
     pub callables: Vec<calc_fml::CallableBindingProof>,
     pub invocations: Vec<CallInvocation>,
     /// Actual executed definition bodies, scoped by this result's producing invocation.
@@ -488,7 +488,7 @@ pub(crate) struct ContractState {
     pub coordinates: u64,
     pub facts: u64,
     pub external_inputs: u64,
-    pub external_versions: BTreeMap<calc_fml::UserInputKey, u64>,
+    pub external_versions: BTreeMap<calc_fml::TopicKey, (calc_fml::RtdLease, u64)>,
     generations: NodeCut<u64>,
     requirements: RequirementCut,
     pub demanded: BTreeSet<NodeId>,
@@ -1049,12 +1049,15 @@ pub(crate) fn certificate_valid_at(
             .is_some_and(|pin| pin.version != state.linked_input_version)
         || stamp.reads.bindings != state.contract.bindings
         || stamp.reads.external_inputs.iter().any(|read| {
+            // The engine's sequence for the lease the read asked for: the latest admitted one
+            // when that is this lease, else nothing (0). A read of another incarnation that saw
+            // a value therefore goes stale when a newer incarnation is admitted.
             state
                 .contract
                 .external_versions
-                .get(&read.key)
-                .copied()
-                .unwrap_or(0)
+                .get(&read.topic)
+                .filter(|(lease, _)| *lease == read.lease)
+                .map_or(0, |(_, sequence)| *sequence)
                 != read.sequence
         })
         || !name_bindings_valid(inputs, &stamp.reads.names)

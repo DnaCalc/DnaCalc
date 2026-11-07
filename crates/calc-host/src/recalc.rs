@@ -318,28 +318,21 @@ impl HostState {
 
 pub use calc_fml::rtd::RtdDisposition;
 impl HostState {
-    /// RTD advances a provider's subscription input. Manual mode waits for explicit demand;
-    /// a current command is superseded at its next owner step, never completed by this event.
-    /// The admission rules are `calc_fml::rtd::admit`; this wrapper checks the provider and calls
-    /// the engine's invalidation.
+    /// RTD advances a topic's input. Manual mode waits for explicit demand; a current command is
+    /// superseded at its next owner step, never completed by this event. The admission rules are
+    /// `calc_fml::rtd::admit`; this wrapper calls the engine's per-topic invalidation.
     pub fn update_rtd(
         &mut self,
-        provider: calc_fml::CallableHandle,
-        subscription: u64,
+        topic: calc_fml::TopicKey,
+        lease: calc_fml::RtdLease,
         sequence: u64,
         value: calc_doc_model::value::CalcValue,
     ) -> RtdDisposition {
-        if self.functions.resolve(provider).is_none() {
-            return RtdDisposition::ProviderChanged;
-        }
-        let key = calc_fml::UserInputKey {
-            callable: provider,
-            subscription,
-        };
         let (next, disposition) = calc_fml::rtd::admit(
             &self.rtd_inputs,
             calc_fml::rtd::RtdEvent::Update {
-                key,
+                topic: topic.clone(),
+                lease,
                 sequence,
                 value,
             },
@@ -347,31 +340,30 @@ impl HostState {
         if disposition == RtdDisposition::Accepted {
             self.rtd_inputs = std::rc::Rc::new(next);
             self.engine
-                .invalidate_callable_input(&self.model, key, sequence);
+                .invalidate_rtd_topic(&self.model, &topic, lease, sequence);
             self.published = None;
         }
         disposition
     }
 
-    /// Subscription identifiers are never recycled within a callable generation. Disconnect
-    /// removes the current input and keeps a tombstone; old snapshots stay leased to old work.
+    /// Leases are never recycled. Disconnect removes the current input of that incarnation and
+    /// keeps a tombstone; old snapshots stay leased to old work.
     pub fn retire_rtd(
         &mut self,
-        provider: calc_fml::CallableHandle,
-        subscription: u64,
+        topic: calc_fml::TopicKey,
+        lease: calc_fml::RtdLease,
     ) -> RtdDisposition {
-        if self.functions.resolve(provider).is_none() {
-            return RtdDisposition::ProviderChanged;
-        }
-        let key = calc_fml::UserInputKey {
-            callable: provider,
-            subscription,
-        };
-        let (next, disposition) =
-            calc_fml::rtd::admit(&self.rtd_inputs, calc_fml::rtd::RtdEvent::Retire { key });
+        let (next, disposition) = calc_fml::rtd::admit(
+            &self.rtd_inputs,
+            calc_fml::rtd::RtdEvent::Retire {
+                topic: topic.clone(),
+                lease,
+            },
+        );
         if disposition == RtdDisposition::Accepted {
             self.rtd_inputs = std::rc::Rc::new(next);
-            self.engine.invalidate_callable_input(&self.model, key, 0);
+            self.engine
+                .invalidate_rtd_topic(&self.model, &topic, lease, 0);
             self.published = None;
         }
         disposition

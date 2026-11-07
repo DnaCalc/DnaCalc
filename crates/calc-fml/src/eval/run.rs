@@ -539,7 +539,7 @@ fn evaluate_slice(
 
 struct Run<'a, 'r> {
     current_name: Option<Arc<ActiveName>>,
-    external_inputs: Option<&'a dyn calc_func::UserExternalInputs>,
+    external_inputs: Option<&'a dyn calc_func::RtdCut>,
     read_policy: crate::ReadPolicy,
     invocation: Option<calc_func::UserInvocationFrame>,
     reference_handles: Option<&'a dyn calc_func::ReferenceHandles>,
@@ -3688,25 +3688,28 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
     fn callable_identity(&self) -> Option<calc_func::UserCallableIdentity> {
         Some(self.callable)
     }
-    fn rtd_value(&mut self, subscription: u64) -> Result<Option<(u64, CalcValue)>, String> {
+    fn rtd_value(
+        &mut self,
+        topic: &calc_func::TopicKey,
+        lease: calc_func::RtdLease,
+    ) -> Result<Option<calc_func::RtdEntry>, String> {
         let Some(inputs) = self.run.external_inputs else {
             return Err(self.refuse_by("RTD input without an admitted input view", "dc-hsa5.4"));
         };
-        let key = calc_func::UserInputKey {
-            callable: self.callable,
-            subscription,
-        };
-        let value = inputs.rtd_value(key);
+        // The cut holds one entry per topic, of its latest incarnation. A read of another lease
+        // finds nothing: its value belongs to a connection this read did not ask for.
+        let entry = inputs.get(topic).filter(|entry| entry.lease == lease);
         if let Some(effects) = self.run.user_function_effects.as_deref_mut() {
-            let read = calc_func::UserInputRead {
-                key,
-                sequence: value.as_ref().map_or(0, |value| value.0),
+            let read = calc_func::RtdRead {
+                topic: topic.clone(),
+                lease,
+                sequence: entry.as_ref().map_or(0, |entry| entry.sequence),
             };
             if !effects.external_inputs.contains(&read) {
                 effects.external_inputs.push(read);
             }
         }
-        Ok(value)
+        Ok(entry)
     }
 
     fn request_reevaluation(

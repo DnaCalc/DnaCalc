@@ -296,15 +296,15 @@ impl XllFunction {
                 let mut inputs = frame.rtd_subscriptions.clone();
                 if inputs.is_empty() {
                     let context = frame.context.as_mut().unwrap();
-                    for subscription in service.cached_call_inputs(provider, caller, &values)? {
+                    for (topic, lease) in service.cached_call_inputs(provider, caller, &values)? {
                         // The old formula's input may have retired. A recovered
                         // native signal is queued for normal P07 admission; its
                         // cached UDF output cannot publish ahead of that input.
-                        let admitted = context.rtd_value(subscription)?;
+                        let admitted = context.rtd_value(&topic, lease)?;
                         let newer_initial = service
-                            .initial_value(provider, subscription)
+                            .initial_value(&topic, lease)
                             .is_some_and(|(sequence, _)| {
-                                admitted.as_ref().is_none_or(|(held, _)| sequence > *held)
+                                admitted.as_ref().is_none_or(|held| sequence > held.sequence)
                             });
                         if admitted.is_none() || newer_initial {
                             result = Ok(NativeReturn::Value(
@@ -312,7 +312,7 @@ impl XllFunction {
                                 XL_ERR,
                             ));
                         }
-                        inputs.insert(subscription);
+                        inputs.insert(lease);
                     }
                 }
                 service.finish_call(

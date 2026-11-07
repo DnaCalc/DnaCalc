@@ -20,7 +20,7 @@ pub(crate) struct Frame<'a> {
     pub context: Option<&'a mut dyn UserFunctionContext>,
     pub signature: Option<XllSignature>,
     pub provider: Option<crate::RtdProvider>,
-    pub rtd_subscriptions: BTreeSet<u64>,
+    pub rtd_subscriptions: BTreeSet<calc_func::RtdLease>,
     pub unadmitted_rtd_initial: bool,
 }
 impl Frame<'_> {
@@ -807,7 +807,7 @@ fn run(
                 .map(text)
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|_| err("dc-snz.23: nontext RTD topics are not modelled"))?;
-            let provider = frame
+            let _provider = frame
                 .provider
                 .ok_or_else(|| err("dc-snz.23: RTD requires an admitted callable identity"))?;
             let service = frame
@@ -823,12 +823,14 @@ fn run(
             let caller = context
                 .caller()
                 .ok_or_else(|| err("dc-snz.23: RTD requires a worksheet caller"))?;
-            let subscription = service
-                .subscribe(provider, caller, &progid, &topics)
-                .map_err(err)?;
-            frame.rtd_subscriptions.insert(subscription);
-            let admitted = context.rtd_value(subscription).map_err(err)?;
-            let observed = service.initial_value(provider, subscription);
+            let topic = calc_func::TopicKey::new(&progid, "", &topics);
+            let lease = service.subscribe(caller, &topic).map_err(err)?;
+            frame.rtd_subscriptions.insert(lease);
+            let admitted = context
+                .rtd_value(&topic, lease)
+                .map_err(err)?
+                .map(|entry| (entry.sequence, entry.value));
+            let observed = service.initial_value(&topic, lease);
             let value = match (observed, admitted) {
                 (Some(initial), Some(held)) if initial.0 > held.0 => {
                     frame.unadmitted_rtd_initial = true;

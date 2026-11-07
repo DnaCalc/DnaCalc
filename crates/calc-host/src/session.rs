@@ -472,10 +472,10 @@ impl HostSession {
     /// by advance_calculation, never performed inside the provider return.
     pub fn retire_rtd(
         &mut self,
-        provider: calc_fml::CallableHandle,
-        subscription: u64,
+        topic: calc_fml::TopicKey,
+        lease: calc_fml::RtdLease,
     ) -> crate::RtdDisposition {
-        let disposition = self.host.retire_rtd(provider, subscription);
+        let disposition = self.host.retire_rtd(topic, lease);
         if disposition == crate::RtdDisposition::Accepted {
             self.deliver_changes(
                 DeltaCause::ExternalInputsChanged {
@@ -489,14 +489,12 @@ impl HostSession {
 
     pub fn update_rtd(
         &mut self,
-        provider: calc_fml::CallableHandle,
-        subscription: u64,
+        topic: calc_fml::TopicKey,
+        lease: calc_fml::RtdLease,
         sequence: u64,
         value: calc_doc_model::value::CalcValue,
     ) -> crate::RtdDisposition {
-        let disposition = self
-            .host
-            .update_rtd(provider, subscription, sequence, value);
+        let disposition = self.host.update_rtd(topic, lease, sequence, value);
         if disposition == crate::RtdDisposition::Accepted {
             self.deliver_changes(
                 DeltaCause::ExternalInputsChanged {

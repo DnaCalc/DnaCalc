@@ -406,7 +406,7 @@ pub struct RecalcWork {
     linked_workbooks: Arc<crate::linked::LinkedWorkbooks>,
     linked_input_version: u64,
     external_input_version: u64,
-    external_inputs: Option<std::rc::Rc<dyn calc_fml::UserExternalInputs>>,
+    external_inputs: Option<std::rc::Rc<dyn calc_fml::RtdCut>>,
     async_waits: BTreeMap<NodeId, AsyncToken>,
     async_resumed: BTreeSet<NodeId>,
     evaluations: BTreeMap<NodeId, (u64, ReevaluationReason)>,
@@ -575,7 +575,7 @@ pub(crate) struct EvalShared<'a> {
     pub(crate) calculation: &'a Calculation,
     pub(crate) environment: Option<calc_fml::CalcEnvironment>,
     pub(crate) random_seed: u64,
-    external_inputs: Option<&'a dyn calc_fml::UserExternalInputs>,
+    external_inputs: Option<&'a dyn calc_fml::RtdCut>,
     pub(crate) workbook_facts: Option<&'a Arc<dyn calc_fml::WorkbookFacts>>,
     pub(crate) progress: &'a Progress,
     pub(crate) spills: &'a SpillIndex,
@@ -653,7 +653,7 @@ macro_rules! shared_of {
 impl RecalcWork {
     pub fn with_external_inputs(
         mut self,
-        inputs: std::rc::Rc<dyn calc_fml::UserExternalInputs>,
+        inputs: std::rc::Rc<dyn calc_fml::RtdCut>,
     ) -> Self {
         if inputs.version() != self.external_input_version {
             self.failure = Some(RecalcFailure::ExternalInputMismatch);

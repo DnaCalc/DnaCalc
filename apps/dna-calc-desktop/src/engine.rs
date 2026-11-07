@@ -117,12 +117,12 @@ fn retire_rtd(
     at: CellKey,
     retired: &mut Vec<serde_json::Value>,
 ) -> Result<(), String> {
-    for (provider, subscription) in rtd.begin_replacement(providers, at)? {
-        let disposition = book.retire_rtd(provider, subscription);
+    for (topic, lease) in rtd.begin_replacement(providers, at)? {
+        let disposition = book.retire_rtd(topic.clone(), lease);
         if disposition != calc_host::RtdDisposition::Accepted {
             return Err(format!("RTD disconnect was not admitted: {disposition:?}"));
         }
-        retired.push(serde_json::json!({"provider":format!("{provider:?}"),"subscription":subscription,"disposition":format!("{disposition:?}")}));
+        retired.push(serde_json::json!({"topic":format!("{topic:?}"),"lease":lease.0,"disposition":format!("{disposition:?}")}));
     }
     Ok(())
 }
@@ -173,7 +173,7 @@ fn value(book: &HostSession, at: CellKey) -> Result<(CalcValue, serde_json::Valu
                 "invocations":stamp.reads.invocations.len(),
                 "cooperative_invocations":stamp.reads.invocations.iter().filter(|i|!i.non_preemptible).count(),
                 "completed_invocations":stamp.reads.invocations.iter().filter(|i|i.completed).count(),
-                "rtd_inputs":stamp.reads.external_inputs.iter().map(|read|serde_json::json!({"provider":format!("{:?}",read.key.callable),"subscription":read.key.subscription,"sequence":read.sequence})).collect::<Vec<_>>(),
+                "rtd_inputs":stamp.reads.external_inputs.iter().map(|read|serde_json::json!({"topic":format!("{:?}",read.topic),"lease":read.lease.0,"sequence":read.sequence})).collect::<Vec<_>>(),
                 "pass_reason":format!("{:?}",stamp.certification.pass.reason)}),
             ))
         }
@@ -373,15 +373,15 @@ pub fn run(
             let inputs = addins.poll_rtd(evaluating)?;
             for input in inputs {
                 let disposition = book.update_rtd(
-                    input.provider,
-                    input.subscription,
+                    input.topic.clone(),
+                    input.lease,
                     input.sequence,
                     input.value.clone(),
                 );
                 if disposition != calc_host::RtdDisposition::Accepted {
                     return Err(format!("RTD input was not admitted: {disposition:?}"));
                 }
-                rtd_updates.push(serde_json::json!({"provider":format!("{:?}",input.provider),"subscription":input.subscription,"sequence":input.sequence,"value":value_json(&input.value),"disposition":format!("{disposition:?}")}));
+                rtd_updates.push(serde_json::json!({"topic":format!("{:?}",input.topic),"lease":input.lease.0,"sequence":input.sequence,"value":value_json(&input.value),"disposition":format!("{disposition:?}")}));
                 // This controller explicitly requests a new manual command.
                 // The notification itself never completes an activation.
                 book.dispatch(SkinIntent::Recalculate);
