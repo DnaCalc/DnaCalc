@@ -298,6 +298,20 @@ fn flush(result: f64) -> f64 {
 /// positive), as Excel 16.0.20430 gives them (the OxFunc-Evidence bank's integer-threshold,
 /// hyperbolic and count-refinement runs).
 pub(super) fn nearest_digits(site: &Site<'_>, number: f64, places: f64) -> Step<f64> {
+    nearest_digits_with(site, number, places, stored)
+}
+
+/// EUROTOOL publishes its decimal reading directly. The captured add-in
+/// conversion of7840 ESP to NLG retains the upper double, while worksheet
+/// ROUND(7840/166.386,19) publishes the lower radix16-scaled double.
+pub(super) fn nearest_digits_exact(site: &Site<'_>, number: f64, places: f64) -> Step<f64> {
+    nearest_digits_with(site, number, places, stored_nearest)
+}
+
+fn nearest_digits_with(
+    site: &Site<'_>, number: f64, places: f64,
+    publish: fn(&Site<'_>, &ExactDecimal) -> Step<f64>,
+) -> Step<f64> {
     if number == 0.0 {
         return Ok(0.0);
     }
@@ -313,18 +327,25 @@ pub(super) fn nearest_digits(site: &Site<'_>, number: f64, places: f64) -> Step<
     let reading = reading(number, false);
     // Without a wrap, kept from 0 to 14 bounds digits to within 340 of 0.
     match reading.round_at(-digits.clamp(-PLACES, PLACES), Direction::Nearest) {
-        Some(rounded) if kept < 15 => Ok(flush(stored(site, &rounded)?)),
-        _ => whole_reading(site, number, &reading),
+        Some(rounded) if kept < 15 => Ok(flush(publish(site, &rounded)?)),
+        _ => whole_reading_with(site, number, &reading, publish),
     }
 }
 
 /// The reading itself as the result: the number unchanged, with no rounding, when the reading
 /// is its exact value, and otherwise the reading converted at an arithmetic site.
 fn whole_reading(site: &Site<'_>, number: f64, reading: &ExactDecimal) -> Step<f64> {
+    whole_reading_with(site, number, reading, stored)
+}
+
+fn whole_reading_with(
+    site: &Site<'_>, number: f64, reading: &ExactDecimal,
+    publish: fn(&Site<'_>, &ExactDecimal) -> Step<f64>,
+) -> Step<f64> {
     if reading.is_value_of(number) {
         Ok(number)
     } else {
-        Ok(flush(stored(site, reading)?))
+        Ok(flush(publish(site, reading)?))
     }
 }
 
@@ -336,6 +357,14 @@ fn whole_reading(site: &Site<'_>, number: f64, reading: &ExactDecimal) -> Step<f
 /// them (627 of 627 such bank rows). Excel shows such a value as 2E+308, ISNUMBER is TRUE, and
 /// arithmetic on it is #NUM!. A decimal of 2^1025 or more, which no reading reaches, is #NUM!.
 fn stored(site: &Site<'_>, decimal: &ExactDecimal) -> Step<f64> {
+    if site.nearest(decimal)?.is_normal() {
+        site.nearest(&decimal.scaled_pc64())
+    } else {
+        stored_nearest(site, decimal)
+    }
+}
+
+fn stored_nearest(site: &Site<'_>, decimal: &ExactDecimal) -> Step<f64> {
     let nearest = site.nearest(decimal)?;
     if nearest.is_finite() {
         return Ok(nearest);

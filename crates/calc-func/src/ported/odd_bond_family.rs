@@ -646,6 +646,24 @@ pub fn oddfyield_kernel(
     frequency: f64,
     basis: Option<f64>,
 ) -> Result<f64, OddBondEvalError> {
+    // Numeric date admission belongs to ODDFYIELD before price inversion.
+    // Excel20527 gives NUM for zero serials, and requires first_coupon to be
+    // on maturity's schedule. All820 independent date-grid calls agree with
+    // the public COUPPCD test, including clamped and month-end dates.
+    let date = |value| parse_date_serial(value)
+        .map_err(|_| OddBondEvalError::Domain(WorksheetErrorCode::Num));
+    let settlement = date(settlement)? as f64;
+    let maturity = date(maturity)? as f64;
+    let issue = date(issue)? as f64;
+    let first_coupon = date(first_coupon)? as f64;
+    if !(issue < settlement && settlement < first_coupon && first_coupon < maturity) {
+        return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
+    }
+    let previous = crate::ported::coupon_family::couppcd_kernel(
+        first_coupon, maturity, frequency, basis).map_err(OddBondEvalError::Domain)?;
+    if previous != first_coupon {
+        return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
+    }
     solve_yield_bisection(pr, |y| {
         oddfprice_kernel(
             settlement,
