@@ -415,9 +415,21 @@ pub struct Stroke {
     pub phase: f64,
 }
 
+/// Excel's dash patterns run from its grid window's corner, across its own row and column
+/// headers, so a border's phase depends on those headers and not on ours. The pairs are
+/// the measured header sizes at the captured zooms; another zoom scales the 100% pair.
+pub fn dash_shift(m: &dna_calc_model::geometry::GridMetrics) -> (f64, f64) {
+    let (w, h) = match (m.scale * 100.).round() as i32 {
+        75 => (23., 15.),
+        100 => (26., 20.),
+        150 => (40., 29.),
+        _ => ((26. * m.scale).round(), (20. * m.scale).round()),
+    };
+    (w - m.header_w, h - m.header_h)
+}
 /// Axis-aligned edges in cell-local coordinates. Shared sides use the same dash phase
 /// even when the neighbouring cell's perpendicular pens extend a different distance.
-pub fn edges(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64) -> Vec<Stroke> {
+pub fn edges(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64, shift: (f64, f64)) -> Vec<Stroke> {
     let mut out = Vec::new();
     let unmerged = cell.row_span == 1 && cell.col_span == 1;
     let rect = border_rect(cell,scale);
@@ -436,13 +448,14 @@ pub fn edges(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64) -> Vec
                 2 => (left,offset,right,offset),
                 _ => {let y=cell.anchor.h+if unmerged {offset}else{-offset};(left,y,right,y)},
             };
-            let phase=if side<2 {cell.anchor.y+y1}else{cell.anchor.x+x1};
+            let phase=if side<2 {cell.anchor.y+y1+shift.1}else{cell.anchor.x+x1+shift.0};
             if edge.style=="slantDashDot" && unmerged {
                 // The captured medium slant has staggered cuts across two one-pixel lanes.
                 // Their union has no empty gap; a two-pixel dashed stroke loses that shape.
-                for (lane,dash) in [(-0.5,vec![11.,1.,5.,1.,5.,1.]),(0.5,vec![10.,2.,4.,2.,4.,2.])] {
+                // Each outer cut starts one pixel past the end of the inner lane's cut.
+                for (lane,dash,cut) in [(-0.5,vec![11.,1.,5.,1.,5.,1.],-1.),(0.5,vec![10.,2.,4.,2.,4.,2.],0.)] {
                     let (dx,dy)=if side<2 {(lane,0.)}else{(0.,lane)};
-                    out.push(Stroke{x1:x1+dx,y1:y1+dy,x2:x2+dx,y2:y2+dy,width:1.,color:edge.color.clone().unwrap_or_else(||"#000000".into()),dash,phase});
+                    out.push(Stroke{x1:x1+dx,y1:y1+dy,x2:x2+dx,y2:y2+dy,width:1.,color:edge.color.clone().unwrap_or_else(||"#000000".into()),dash,phase:phase+cut});
                 }
             } else {
                 out.push(Stroke{x1,y1,x2,y2,width:if pen.double {1.}else{pen.width},
@@ -453,7 +466,7 @@ pub fn edges(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64) -> Vec
     out
 }
 /// Extra strokes use cell-local coordinates, so frozen-pane fragments share identical geometry.
-pub fn strokes(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64) -> Vec<Stroke> {
+pub fn strokes(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64, shift: (f64, f64)) -> Vec<Stroke> {
     let mut out = Vec::new();
     for segment in &cell.boundary {
         let line = line(&segment.edge, scale);
@@ -480,7 +493,7 @@ pub fn strokes(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64) -> V
                     .clone()
                     .unwrap_or_else(|| "#000000".into()),
                 dash: line.dash.to_vec(),
-                phase: if segment.side<2 {cell.anchor.y+segment.y1}else{cell.anchor.x+segment.x1},
+                phase: if segment.side<2 {cell.anchor.y+segment.y1+shift.1}else{cell.anchor.x+segment.x1+shift.0},
             });
         }
     }

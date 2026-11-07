@@ -263,7 +263,8 @@ pub(super) fn paint(
         ctx.begin_path();
         rect(&ctx, clip);
         ctx.clip();
-        for line in super::decoration::edges(cell, plan.scale).into_iter().chain(super::decoration::strokes(cell, plan.scale)) {
+        let shift = super::decoration::dash_shift(metrics);
+        for line in super::decoration::edges(cell, plan.scale, shift).into_iter().chain(super::decoration::strokes(cell, plan.scale, shift)) {
             ctx.set_stroke_style_str(&line.color);
             ctx.set_line_width(line.width);
             let dashes = js_sys::Array::new();
