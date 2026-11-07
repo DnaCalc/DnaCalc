@@ -51,7 +51,8 @@ pub use catalogue::{
 pub use cube::{CubeColumn, CubeFailure, CubeLookup, CubeMeasure, CubeMember, CubeModel, CubeTable};
 pub use fetch::{
     FETCH_FUNCTIONS, FETCH_PROVIDER, FetchFunction, FetchKind, FetchReply, FetchRequest,
-    FetchRoute, decode_body, wire_url,
+    FetchRoute, REDIRECT_LIMIT, RawResponse, decode_body, fetch_following, resolve_location,
+    wire_url,
 };
 pub use file_prefix::FilePrefix;
 

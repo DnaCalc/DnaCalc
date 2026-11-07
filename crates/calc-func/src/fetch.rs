@@ -223,6 +223,88 @@ fn names_a_port(url: &str) -> bool {
     })
 }
 
+/// Redirects a route follows before the fetch fails (measured: 25).
+pub const REDIRECT_LIMIT: usize = 25;
+
+/// One response as a transport primitive returns it: a single GET with no redirect followed, no
+/// `Accept-Encoding` sent and nothing decompressed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RawResponse {
+    pub status: u16,
+    /// The `Location` header, when the response carries one.
+    pub location: Option<String>,
+    pub body: Vec<u8>,
+}
+
+/// The absolute URL a `Location` names, relative to the URL that answered. `None` for a target
+/// that is not `http` or `https`.
+pub fn resolve_location(base: &str, location: &str) -> Option<String> {
+    let location = location.trim();
+    let location = location.split('#').next().unwrap_or_default();
+    let base = base.split('#').next().unwrap_or_default();
+    let (base_scheme, rest) = base.split_once("://")?;
+    let authority_end = rest.find(['/', '?']).unwrap_or(rest.len());
+    let (authority, path_and_query) = rest.split_at(authority_end);
+    let resolved = if let Some(found) = scheme(location) {
+        if !(found.eq_ignore_ascii_case("http") || found.eq_ignore_ascii_case("https")) {
+            return None;
+        }
+        location.to_owned()
+    } else if let Some(network) = location.strip_prefix("//") {
+        format!("{base_scheme}://{network}")
+    } else if location.starts_with('/') {
+        format!("{base_scheme}://{authority}{location}")
+    } else if location.starts_with('?') {
+        let path = path_and_query.split('?').next().unwrap_or_default();
+        let path = if path.is_empty() { "/" } else { path };
+        format!("{base_scheme}://{authority}{path}{location}")
+    } else if location.is_empty() {
+        format!("{base_scheme}://{authority}{path_and_query}")
+    } else {
+        let path = path_and_query.split('?').next().unwrap_or_default();
+        let directory = path.rfind('/').map_or("/", |at| &path[..=at]);
+        format!("{base_scheme}://{authority}{directory}{location}")
+    };
+    Some(resolved)
+}
+
+/// A fetch whose redirects the route follows by the measured rules, over a transport that does
+/// one GET at a time: `get` returns `None` when no response came (connection, name resolution,
+/// TLS, timeout). Redirect statuses 301, 302, 303, 307 and 308 with a `Location` are followed to
+/// [`REDIRECT_LIMIT`]; more is a failed fetch. WEBSERVICE does not follow `https` to `http` and
+/// replies with that response's empty body; IMAGE does. The same rules serve every host, so a
+/// shell supplies only `get`.
+pub fn fetch_following(
+    kind: FetchKind,
+    url: &str,
+    get: &mut dyn FnMut(&str) -> Option<RawResponse>,
+) -> FetchReply {
+    let mut current = url.to_owned();
+    for _ in 0..=REDIRECT_LIMIT {
+        let Some(response) = get(&current) else {
+            return FetchReply::Failed;
+        };
+        let redirect = matches!(response.status, 301 | 302 | 303 | 307 | 308);
+        let Some(location) = response.location.as_deref().filter(|_| redirect) else {
+            return if response.status >= 400 {
+                FetchReply::Status(response.status)
+            } else {
+                FetchReply::Body(response.body)
+            };
+        };
+        let Some(next) = resolve_location(&current, location) else {
+            return FetchReply::Failed;
+        };
+        let downgrade = scheme(&current).is_some_and(|s| s.eq_ignore_ascii_case("https"))
+            && scheme(&next).is_some_and(|s| s.eq_ignore_ascii_case("http"));
+        if downgrade && kind == FetchKind::Text {
+            return FetchReply::Body(Vec::new());
+        }
+        current = next;
+    }
+    FetchReply::Failed
+}
+
 /// What one element of a call does: answer at once, or fetch and then finish with its value.
 pub(crate) enum Prepared {
     Answer(CalcValue),
@@ -559,5 +641,66 @@ mod tests {
     fn the_longest_text_is_excels() {
         assert_eq!(decode_body(&[b'x'; 32767]).map(|text| text.len()), Some(32767));
         assert_eq!(decode_body(&[b'x'; 32768]), None);
+    }
+
+    /// A scripted transport: each URL answers from the table, and a miss is no response.
+    fn follow(kind: FetchKind, url: &str, table: &[(&str, u16, Option<&str>, &str)]) -> (FetchReply, usize) {
+        let mut asked = 0;
+        let reply = fetch_following(kind, url, &mut |asked_url| {
+            asked += 1;
+            table.iter().find(|row| row.0 == asked_url).map(|row| RawResponse {
+                status: row.1,
+                location: row.2.map(str::to_owned),
+                body: row.3.as_bytes().to_vec(),
+            })
+        });
+        (reply, asked)
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn locations_resolve_against_the_asking_url() {
+        let base = "https://example.org/a/b?q=1#top";
+        for (location, expected) in [
+            ("https://other.net/x", Some("https://other.net/x")),
+            ("//cdn.net/y", Some("https://cdn.net/y")),
+            ("/root", Some("https://example.org/root")),
+            ("next", Some("https://example.org/a/next")),
+            ("?p=2", Some("https://example.org/a/b?p=2")),
+            ("", Some("https://example.org/a/b?q=1")),
+            ("next#frag", Some("https://example.org/a/next")),
+            ("ftp://example.org/x", None),
+        ] {
+            assert_eq!(resolve_location(base, location).as_deref(), expected, "{location}");
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn redirects_follow_by_the_measured_rules() {
+        let table = [
+            ("http://a.test/one", 302, Some("/two"), ""),
+            ("http://a.test/two", 200, None, "ok"),
+            ("https://a.test/secure", 301, Some("http://a.test/two"), ""),
+            ("https://a.test/gone", 404, None, "no"),
+            ("https://a.test/empty", 204, None, ""),
+            ("http://a.test/loop", 302, Some("/loop"), ""),
+            ("http://a.test/odd", 302, Some("ftp://a.test/x"), ""),
+            ("http://a.test/plain", 302, None, "body"),
+        ];
+        // A redirect is followed, relative to the URL that asked.
+        assert_eq!(follow(FetchKind::Text, "http://a.test/one", &table), (FetchReply::Body(b"ok".to_vec()), 2));
+        // WEBSERVICE stops at https to http and answers the empty body; IMAGE follows.
+        assert_eq!(follow(FetchKind::Text, "https://a.test/secure", &table), (FetchReply::Body(Vec::new()), 1));
+        assert_eq!(follow(FetchKind::Picture, "https://a.test/secure", &table), (FetchReply::Body(b"ok".to_vec()), 2));
+        assert_eq!(follow(FetchKind::Text, "https://a.test/gone", &table).0, FetchReply::Status(404));
+        assert_eq!(follow(FetchKind::Text, "https://a.test/empty", &table).0, FetchReply::Body(Vec::new()));
+        // 25 redirects are followed; the 26th response ends the fetch as failed.
+        assert_eq!(follow(FetchKind::Text, "http://a.test/loop", &table), (FetchReply::Failed, REDIRECT_LIMIT + 1));
+        assert_eq!(follow(FetchKind::Text, "http://a.test/odd", &table).0, FetchReply::Failed);
+        // A redirect status with no Location is a final response.
+        assert_eq!(follow(FetchKind::Text, "http://a.test/plain", &table).0, FetchReply::Body(b"body".to_vec()));
+        // No response at all is a failed fetch.
+        assert_eq!(follow(FetchKind::Text, "http://nowhere.test/", &table), (FetchReply::Failed, 1));
     }
 }
