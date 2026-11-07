@@ -107,14 +107,22 @@ fn binom_mass(x: f64, n: f64, p: f64, q: f64) -> f64 {
     if x < 0.0 || x > n {
         return 0.0;
     }
-    // The stored order is read from the exponent's grid: 100% of 13,000 rows of six pairs `(n, x)`.
+    excel_exp_running(binom_exponent(x, n, p, q), &binom_normalizer(x, n))
+}
+
+/// The stored exponent of the binomial mass, `0 < x < n`. The stored order is read from the
+/// exponent's grid: 100% of 13,000 rows of six pairs `(n, x)`.
+fn binom_exponent(x: f64, n: f64, p: f64, q: f64) -> f64 {
     let lc = excel_x87_sub(stirling_error(n), stirling_error(x));
     let lc = excel_x87_sub(lc, deviance(x, excel_x87_mul(n, p)));
     let lc = excel_x87_sub(lc, stirling_error(n - x));
-    let lc = excel_x87_sub(lc, deviance(n - x, excel_x87_mul(n, q)));
-    // `sqrt(n / (2 pi x (n - x)))` as halves of stored logarithms, in this order: outside the
-    // series range 41,430 of 41,437 bank and live rows.
-    excel_exp_running(lc, &[-excel_log(n) / 2.0, excel_log(x) / 2.0, excel_log(n - x) / 2.0, LN_SQRT_2PI])
+    excel_x87_sub(lc, deviance(n - x, excel_x87_mul(n, q)))
+}
+
+/// `sqrt(n / (2 pi x (n - x)))` as halves of stored logarithms, in this order: outside the series
+/// range 41,430 of 41,437 bank and live rows.
+fn binom_normalizer(x: f64, n: f64) -> [f64; 4] {
+    [-excel_log(n) / 2.0, excel_log(x) / 2.0, excel_log(n - x) / 2.0, LN_SQRT_2PI]
 }
 
 /// The Poisson mass at `x` for `lambda > 0`, with `x` not necessarily whole: it is also GAMMA.DIST's
@@ -328,14 +336,35 @@ pub fn hypergeom_dist_kernel(sample_s: f64, number_sample: f64, population_s: f6
     finite(sum.min(1.0))
 }
 
-/// The negative binomial mass of `f` failures before the `s`-th success: `s/(s+f)` times the
-/// binomial mass of `s` successes in `s + f` trials.
+/// The negative binomial mass of `f` failures before the `s`-th success, with `n = s + f`: the
+/// binomial mass of `s - 1` successes in `n - 1` trials times `n` inside the exponential, then the
+/// stored `p / n` as a stored multiply.
+///
+/// Read from the bank: `p b(s - 1; n - 1)` shares its deviance noise with Excel's answers (spread of
+/// one unit, where `s/n b(s; n)` spreads by up to 30), and its mean error over the 60 rows of each
+/// `(f, s)` is the rounding error of `LN(n)` to a coefficient of -1.05, on `n` alone, for the
+/// zero-success route too. So `ln n` sits in the exponent as the last running subtraction and
+/// `n` comes back out through `p / n`: 60 of 60 at each `s = 1`.
 fn negbinom_mass(f: f64, s: f64, p: f64) -> f64 {
     let q = 1.0 - p;
     if f == 0.0 {
         return excel_exp(s * excel_log(p));
     }
-    s / (s + f) * binom_mass(s, s + f, p, q)
+    let n = s + f;
+    let (x, trials) = (s - 1.0, n - 1.0);
+    let ln_n = excel_log(n);
+    let body = if x == 0.0 {
+        excel_exp_running(excel_log1p_times(trials, -p), &[-ln_n])
+    } else {
+        let [a, b, c, d] = binom_normalizer(x, trials);
+        excel_exp_running(binom_exponent(x, trials, p, q), &[a, b, c, d, -ln_n])
+    };
+    // `p / n` below the normal range is gone before the product (NEGBINOM.DIST(1, 1, DBL_MIN, 0) = 0).
+    let rate = excel_x87_div(p, n);
+    if rate.is_subnormal() {
+        return 0.0;
+    }
+    excel_x87_mul(body, rate)
 }
 
 /// `NEGBINOM.DIST(number_f, number_s, probability_s, cumulative)`.
@@ -347,18 +376,27 @@ pub fn negbinom_dist_kernel(number_f: f64, number_s: f64, p: f64, cumulative: bo
     if !cumulative {
         return finite(negbinom_mass(f, s, p));
     }
-    let mut sum = 0.0;
-    let mut i = 0.0;
-    while i <= f {
-        sum += negbinom_mass(i, s, p);
-        i += 1.0;
+    if f == 0.0 {
+        return finite(negbinom_mass(0.0, s, p));
     }
-    finite(sum.min(1.0))
+    // Excel's cumulative is not the sum of its masses: at dyadic `p` it can sit on the exact dyadic
+    // sum (`fresh-negbinom.dist-00113`) where masses through EXP cannot, and at `p = 1/8` it stands
+    // 13 units off it. `I_p(s, f + 1)` holds the exact row and more of the 141 rows than the sum
+    // (73 against 70). The stages belong to the incomplete beta, still open.
+    finite(crate::ported::special_math_common::regularized_beta(p, s, f + 1.0))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// dc-j9k's D180: the Temme arm keeps Excel's truncated fraction.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn poisson_tail_keeps_the_truncated_fraction() {
+        let mean = (128159288.0 * 67108864.0 + 59652325.0) / 70368744177664.0;
+        assert_eq!(poisson_dist_kernel(100.0, mean, true).unwrap().to_bits(), 0x3f96_a06a_3c48_3193);
+    }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

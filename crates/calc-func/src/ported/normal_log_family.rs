@@ -46,7 +46,7 @@ pub fn identified_std_normal_cdf(x: f64) -> f64 {
     let ns = if x.is_sign_negative() {
         half_q
     } else {
-        1.0 - half_q
+        crate::ported::excel_numeric::excel_x87_sub(1.0, half_q)
     };
     flush_subnormal(ns)
 }

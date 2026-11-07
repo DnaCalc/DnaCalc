@@ -694,6 +694,34 @@ fn gratio_cf(a: f64, x: f64, r: f64, _e: f64, _acc: f64) -> (f64, f64) {
     (0.5 + (0.5 - qans), qans)
 }
 
+/// `Q(1/2, y)` as the Temme arm reads it. From `y = 1.1` it is Morris's statement 250, the two-term
+/// recurrence stopped at `acc = 5e-15`, not the fraction of [`gratio_cf`]: its truncation leaves
+/// 2.5e-15 in `w`, and that is the 16 units by which POISSON.DIST(100, 122.2..., TRUE), dc-j9k's
+/// D180, sits off the fully converged tail on Excel's side. With the converged `erfc` scaled, from
+/// either table, it stays 16 units away.
+fn gratio_half_for_temme(y: f64) -> f64 {
+    if y < 1.1 {
+        return gratio(0.5, y).1;
+    }
+    let a = 0.5;
+    let t1 = a * crt_log(y) - y;
+    let r = a * crate::ported::excel_numeric::excel_exp(t1) * (1.0 + gratio_gam1(a));
+    let (mut a2nm1, mut a2n, mut b2nm1, mut b2n, mut c) = (1.0, 1.0, y, y + (1.0 - a), 1.0);
+    loop {
+        a2nm1 = y * a2n + c * a2nm1;
+        b2nm1 = y * b2n + c * b2nm1;
+        let am0 = a2nm1 / b2nm1;
+        c += 1.0;
+        let cma = c - a;
+        a2n = a2nm1 + cma * a2n;
+        b2n = b2nm1 + cma * b2n;
+        let an0 = a2n / b2n;
+        if !((an0 - am0).abs() >= GRATIO_ACC0[0].max(GRATIO_E) * an0) {
+            return r * an0;
+        }
+    }
+}
+
 /// statement 270: Temme expansion for a >= big, |1 - x/a| <= 0.4.
 fn gratio_temme_270(a: f64, l: f64, y: f64, z: f64, e: f64, s: f64, iop: usize) -> (f64, f64) {
     if s.abs() <= 2.0 * e && a * e * e > 3.28e-3 {
@@ -701,7 +729,7 @@ fn gratio_temme_270(a: f64, l: f64, y: f64, z: f64, e: f64, s: f64, iop: usize) 
     }
     let c = crate::ported::excel_numeric::excel_exp(-y);
     // DEVIATION 3: w = 0.5*erfc1(1, sqrt(y)) = 0.5*exp(y)*Q(0.5, y).
-    let w = 0.5 * (crate::ported::excel_numeric::excel_exp(y) * gratio(0.5, y).1);
+    let w = 0.5 * (crate::ported::excel_numeric::excel_exp(y) * gratio_half_for_temme(y));
     let u = 1.0 / a;
     let mut zz = (z + z).sqrt();
     if l < 1.0 {

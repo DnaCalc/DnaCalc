@@ -95,7 +95,7 @@ pub fn erfc_kernel(x: f64) -> Result<f64, WorksheetErrorCode> {
     }
     // Recorded ERFC/ERFC.PRECISE tail readings publish +0 below the normal range.
     let value = if x > 0.0 && x <= 0.5 {
-        1.0 - erf_approx(x)
+        crate::ported::excel_numeric::excel_x87_sub(1.0, erf_approx(x))
     } else if x > 0.5 {
         crate::ported::normal_dist_common::erfc_upper(x)
     } else if x < -0.5 {
@@ -252,6 +252,10 @@ mod tests {
         );
     }
 
+    fn assert_excel_bits(label: &str, actual: f64, excel: u64) {
+        assert_eq!(actual.to_bits(), excel, "{label}: recorded Excel {excel:#018x}");
+    }
+
     fn assert_recorded_bits(label: &str, actual: f64, excel: u64, calculated: u64) {
         assert_eq!(actual.to_bits(), calculated,
             "{label}: calculation {calculated:#018x}; recorded Excel {excel:#018x}");
@@ -259,8 +263,8 @@ mod tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn erfc_one_records_the_stand_in_gap() {
-        assert_recorded_bits("erfc(1)", erfc_kernel(1.0).unwrap(), 0x3fc4226162fbddd5, 0x3fc4226162fbddd6);
+    fn erfc_one_is_excels_answer() {
+        assert_excel_bits("erfc(1)", erfc_kernel(1.0).unwrap(), 0x3fc4226162fbddd5);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -296,22 +300,21 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn erfc_family_direct_call_witnesses() {
-        // Excel-anchored bits. Above 0.5 the rational in `erfc_upper` is a stand-in, so positive
-        // arguments record Excel's answer and the calculation; negatives remain exact.
+        // Excel-anchored bits.
         assert_bits_eq("erfc(0)", erfc_kernel(0.0).unwrap(), 1.0);
         assert_bits_eq("erfc(0.5)", erfc_kernel(0.5).unwrap(), 0.4795001221869535);
-        assert_recorded_bits("erfc(1)", erfc_kernel(1.0).unwrap(), 0x3fc4226162fbddd5, 0x3fc4226162fbddd6);
-        assert_recorded_bits("erfc(1.25)", erfc_kernel(1.25).unwrap(), 0x3fb3bcd133aa0ffc, 0x3fb3bcd133aa0ffd);
+        assert_excel_bits("erfc(1)", erfc_kernel(1.0).unwrap(), 0x3fc4226162fbddd5);
+        assert_excel_bits("erfc(1.25)", erfc_kernel(1.25).unwrap(), 0x3fb3bcd133aa0ffc);
         assert_bits_eq("erfc(-1)", erfc_kernel(-1.0).unwrap(), 1.8427007929497148);
         assert_bits_eq("erfc(-2)", erfc_kernel(-2.0).unwrap(), 1.9953222650189528);
 
-        assert_recorded_bits("erfc(2.75)", erfc_kernel(2.75).unwrap(), 0x3f1a609f7584d32c, 0x3f1a609f7584d32a);
-        assert_recorded_bits("erfc(2.8)", erfc_kernel(2.8).unwrap(), 0x3f13aa0cdf15cedb, 0x3f13aa0cdf15cedc);
+        assert_excel_bits("erfc(2.75)", erfc_kernel(2.75).unwrap(), 0x3f1a609f7584d32c);
+        assert_excel_bits("erfc(2.8)", erfc_kernel(2.8).unwrap(), 0x3f13aa0cdf15cedb);
 
         // ERFC.PRECISE delegates to the same kernel; spot-check parity at
         // one representative in-range anchor and one blocked-regime pocket.
         assert_bits_eq("erfc.precise(0)", erfc_precise_kernel(0.0).unwrap(), 1.0);
-        assert_recorded_bits("erfc.precise(1)", erfc_precise_kernel(1.0).unwrap(), 0x3fc4226162fbddd5, 0x3fc4226162fbddd6);
+        assert_excel_bits("erfc.precise(1)", erfc_precise_kernel(1.0).unwrap(), 0x3fc4226162fbddd5);
         assert_bits_eq(
             "erfc.precise(-1)",
             erfc_precise_kernel(-1.0).unwrap(),
@@ -357,32 +360,32 @@ mod tests {
     // Keep their answers alongside strict pins of the current calculation.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn erfc_removed_fit_records_known_gaps() {
-        // Original answers remain facts even where the generic body differs.
-        assert_recorded_bits("erfc(1.5)", erfc_kernel(1.5).unwrap(), 0x3fa15aaa8ec85204, 0x3fa15aaa8ec85205);
-        assert_recorded_bits("erfc(1.8)", erfc_kernel(1.8).unwrap(), 0x3f8657b81585bd17, 0x3f8657b81585bd17);
-        assert_recorded_bits("erfc(2.15)", erfc_kernel(2.15).unwrap(), 0x3f6358333186b1c9, 0x3f6358333186b1c9);
-        assert_recorded_bits("erfc(2.25)", erfc_kernel(2.25).unwrap(), 0x3f57f713f9cc9783, 0x3f57f713f9cc9784);
-        assert_recorded_bits("erfc(2.4)", erfc_kernel(2.4).unwrap(), 0x3f468fac559f917a, 0x3f468fac559f9179);
-        assert_recorded_bits("erfc(2.5)", erfc_kernel(2.5).unwrap(), 0x3f3aab859b20ac9d, 0x3f3aab859b20ac9f);
-        assert_recorded_bits("erfc(2.99)", erfc_kernel(2.99).unwrap(), 0x3ef8ab1b2233a32d, 0x3ef8ab1b2233a32d);
-        assert_recorded_bits("erfc(3.25)", erfc_kernel(3.25).unwrap(), 0x3ed20c1303550f0d, 0x3ed20c1303550f0f);
+    fn erfc_keeps_its_recorded_answers() {
+        // Original answers.
+        assert_excel_bits("erfc(1.5)", erfc_kernel(1.5).unwrap(), 0x3fa15aaa8ec85204);
+        assert_excel_bits("erfc(1.8)", erfc_kernel(1.8).unwrap(), 0x3f8657b81585bd17);
+        assert_excel_bits("erfc(2.15)", erfc_kernel(2.15).unwrap(), 0x3f6358333186b1c9);
+        assert_excel_bits("erfc(2.25)", erfc_kernel(2.25).unwrap(), 0x3f57f713f9cc9783);
+        assert_excel_bits("erfc(2.4)", erfc_kernel(2.4).unwrap(), 0x3f468fac559f917a);
+        assert_excel_bits("erfc(2.5)", erfc_kernel(2.5).unwrap(), 0x3f3aab859b20ac9d);
+        assert_excel_bits("erfc(2.99)", erfc_kernel(2.99).unwrap(), 0x3ef8ab1b2233a32d);
+        assert_excel_bits("erfc(3.25)", erfc_kernel(3.25).unwrap(), 0x3ed20c1303550f0d);
 
         // Large-x anchors preserved from the UCRT round.
-        assert_recorded_bits("erfc(3)", erfc_kernel(3.0).unwrap(), 0x3ef729df6503422a, 0x3ef729df65034229);
-        assert_recorded_bits("erfc(4)", erfc_kernel(4.0).unwrap(), 0x3e508ddd13bd35e6, 0x3e508ddd13bd35e7);
-        assert_recorded_bits("erfc(8)", erfc_kernel(8.0).unwrap(), 0x39ec74fc41217dfd, 0x39ec74fc41217dfd);
+        assert_excel_bits("erfc(3)", erfc_kernel(3.0).unwrap(), 0x3ef729df6503422a);
+        assert_excel_bits("erfc(4)", erfc_kernel(4.0).unwrap(), 0x3e508ddd13bd35e6);
+        assert_excel_bits("erfc(8)", erfc_kernel(8.0).unwrap(), 0x39ec74fc41217dfd);
 
-        // Historical anchors retain both their original answer and the current gap.
-        assert_recorded_bits("erfc(1.85)", erfc_kernel(1.85).unwrap(), 0x3f82346159a247f7, 0x3f82346159a247f7);
-        assert_recorded_bits("erfc(1.95)", erfc_kernel(1.95).unwrap(), 0x3f77d7693dccb10d, 0x3f77d7693dccb10d);
-        assert_recorded_bits("erfc(2.75)", erfc_kernel(2.75).unwrap(), 0x3f1a609f7584d32c, 0x3f1a609f7584d32a);
-        assert_recorded_bits("erfc(2.8)", erfc_kernel(2.8).unwrap(), 0x3f13aa0cdf15cedb, 0x3f13aa0cdf15cedc);
-        assert_recorded_bits("erfc(3.001)", erfc_kernel(3.001).unwrap(), 0x3ef7049aa6d94903, 0x3ef7049aa6d948ff);
+        // Historical anchors.
+        assert_excel_bits("erfc(1.85)", erfc_kernel(1.85).unwrap(), 0x3f82346159a247f7);
+        assert_excel_bits("erfc(1.95)", erfc_kernel(1.95).unwrap(), 0x3f77d7693dccb10d);
+        assert_excel_bits("erfc(2.75)", erfc_kernel(2.75).unwrap(), 0x3f1a609f7584d32c);
+        assert_excel_bits("erfc(2.8)", erfc_kernel(2.8).unwrap(), 0x3f13aa0cdf15cedb);
+        assert_excel_bits("erfc(3.001)", erfc_kernel(3.001).unwrap(), 0x3ef7049aa6d94903);
 
         // ERFC.PRECISE parity spot-checks — same kernel.
-        assert_recorded_bits("erfc.precise(1.5)", erfc_precise_kernel(1.5).unwrap(), 0x3fa15aaa8ec85204, 0x3fa15aaa8ec85205);
-        assert_recorded_bits("erfc.precise(3)", erfc_precise_kernel(3.0).unwrap(), 0x3ef729df6503422a, 0x3ef729df65034229);
+        assert_excel_bits("erfc.precise(1.5)", erfc_precise_kernel(1.5).unwrap(), 0x3fa15aaa8ec85204);
+        assert_excel_bits("erfc.precise(3)", erfc_precise_kernel(3.0).unwrap(), 0x3ef729df6503422a);
     }
 
     // Historical exact-bit Excel witnesses not matched by the generic kernel.

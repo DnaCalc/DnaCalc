@@ -80,8 +80,7 @@ fn stored_horner(coefficients: &[u64], t: f64) -> f64 {
 ///
 /// Above 0.5 the magnitude is the stored-PC64 complement of the upper ERFC body. Independent
 /// public calls agree on 3,328 adjacent inputs; exponent-edge controls distinguish the final
-/// PC64 store from strict binary64 subtraction. Up to 4 ERFC's `F` remains a stand-in, so this measured
-/// composition does not establish its last bits there. Exactly 0.5 keeps its existing boundary body.
+/// PC64 store from strict binary64 subtraction. Exactly 0.5 keeps its existing boundary body.
 /// Subnormal arguments cannot be written to a cell (Excel reads them back as zero).
 pub fn erf_approx(x: f64) -> f64 {
     if x.is_normal() && x.abs() < 0.5 {
@@ -98,21 +97,35 @@ pub fn erf_approx(x: f64) -> f64 {
     libm::erf(x)
 }
 
-/// Cody's erfc rationals (Math. Comp. 23 (1969); the SPECFUN CALERF tables) for `x*exp(x*x)*erfc(x)`.
-/// They stand in for Excel's own `F` in [`erfc_upper`] below 4, which is not identified: Excel's
-/// noise and steps show a different rational.
-const ERFC_C: [f64; 9] = [
-    5.64188496988670089e-1, 8.88314979438837594e0, 6.61191906371416295e1, 2.98635138197400131e2,
-    8.81952221241769090e2, 1.71204761263407058e3, 2.05107837782607147e3, 1.23033935479799725e3,
-    2.15311535474403846e-8,
+/// `N(x)` of Excel's `F = N(x) / D(x)` for `1/2 <= x <= 4`, lowest power first. See [`erfc_upper`].
+const ERFC_MID_N: [u64; 10] = [
+    0x3fef_ffff_ffff_ff9f,
+    0x4000_223d_9f70_ed04,
+    0x4000_4481_1191_d2cb,
+    0x3ff4_db9f_cfb3_c6e7,
+    0x3fe2_7fc8_b2d9_7507,
+    0x3fc7_6480_f4d9_7fda,
+    0x3fa5_0b66_7465_37ea,
+    0x3f7a_0160_6645_9c2d,
+    0x3f44_1cfb_b83e_d0e4,
+    0x3efd_ecdb_b07d_9e2f,
 ];
-const ERFC_D: [f64; 8] = [
-    1.57449261107098347e1, 1.17693950891312499e2, 5.37181101862009858e2, 1.62138957456669019e3,
-    3.29079923573345963e3, 4.36261909014324716e3, 3.43936767414372164e3, 1.23033935480374942e3,
+/// `D(x)` of the same rational, lowest power first. The constant term is 1.
+const ERFC_MID_D: [u64; 11] = [
+    0x3ff0_0000_0000_0000,
+    0x4009_2929_4792_38db,
+    0x4012_5449_c578_e4bd,
+    0x4010_5350_002d_8ffa,
+    0x4003_bc73_0d3c_1c66,
+    0x3ff0_f7f2_7e5d_ccd7,
+    0x3fd5_16f2_9541_7ca8,
+    0x3fb2_ca1b_b9df_5335,
+    0x3f87_1934_f4e7_b285,
+    0x3f51_d32a_e54a_52b7,
+    0x3f0a_8542_411a_723b,
 ];
 
-/// `N(x)` of Excel's `F = N(x) / D(x)` for `x > 4`, lowest power first. Measured from Excel's
-/// answers (see [`erfc_upper`]); the published table is not identified.
+/// `N(x)` of Excel's `F = N(x) / D(x)` for `x > 4`, lowest power first. See [`erfc_upper`].
 const ERFC_TAIL_N: [u64; 9] = [
     0x3ff0_00ae_bf22_de1a,
     0x4003_da26_6cd0_39c2,
@@ -146,41 +159,44 @@ const ERFC_TAIL_D: [u64; 10] = [
 /// hundreds of units. `z`'s double rounding shows directly: plain binary64 `x*x` leaves outliers of
 /// up to 1,024 units.
 ///
-/// `F` has two branches. `x = 4` itself falls below: bisected on consecutive doubles, Excel leaves the table below at the next double up.
+/// `F` has two branches, both relative-error minimax rationals of `exp(x*x)*erfc(x)` in `x`, with
+/// `D(0) = 1`, Horner, each product, sum and the final quotient stored to binary64 from precision
+/// 64, and `Q` the stored product `E * F`. `x = 4` itself falls below: bisected on consecutive
+/// doubles, Excel leaves the table below at the next double up.
 ///
-/// Above 4, `F = N(x) / D(x)`, degrees (8, 9), Horner in `x`, each product, sum and the final
-/// quotient stored to binary64 from precision 64, and `Q` is the stored product `E * F`. The
-/// coefficients were read from Excel one stored stage at a time, from the top of each polynomial:
-/// the rounding of a stored stage leaves a sawtooth in the answers, so runs of consecutive doubles
-/// at geometrically spaced `x` give each stage's phase, and the next stage's phase over a long
-/// baseline gives the coefficient above it. The answers' last bits then fix the low bits, band by
-/// band downward from `x = 26.5`. `D(0)` reads as 1 and `N/D` follows `exp(x*x)*erfc(x)`'s
-/// expansion at infinity: the top two coefficients agree between `N` and `D` to 1e-14, the next
-/// differs by 1/2.
+/// - `1/2 <= x <= 4`: degrees (9, 10), on exactly that interval.
+/// - `x > 4`: degrees (8, 9), on `[4, 26.54]`. A fresh solve there reproduces the table read from
+///   Excel to 1e-12. 26.54 is Cody's XBIG (26.543) to four digits.
 ///
-/// Up to 4 `F` is a stand-in with the same store discipline, and last bits differ. The stage tones
-/// of the table above stop between 3.95 and 4.05. Excel's own table there is not identified.
+/// The degrees and intervals are identified by theory. Of 45 solves of (m, m + 1) on candidate
+/// intervals, the binade crossings of the Horner stages of (9, 10) on `[1/2, 4]` alone land on the
+/// 30 bias steps of Excel's answers: 27 within 0.002, where the next best has 10. Its predicted stage
+/// lines then appear in runs of adjacent doubles at the predicted frequency and amplitude, line by
+/// line.
+///
+/// The solve fixes the leading digits only. The two weakest singular directions of the coefficients
+/// differ from it by 4e-8 and 2e-10 relative (the error curve moves by 1e-28), so the printed table
+/// came from a less converged solve. Those directions were read from the phases of the stage lines
+/// over 140 windows. The low bits were not derived: a search of chained moves over the coefficients,
+/// on the squared last-bit error of 1,076,000 Excel answers, fixed them. That the search ended on
+/// the table rather than on a fit is shown by answers it did not see, not by its count.
 pub fn erfc_upper(x: f64) -> f64 {
-    use crate::ported::excel_numeric::{excel_exp, excel_x87_add, excel_x87_div, excel_x87_mul};
-    let step = |value: f64, c: f64, by: f64| excel_x87_mul(excel_x87_add(value, c), by);
+    use crate::ported::excel_numeric::{excel_exp, excel_x87_mul};
     let z = excel_x87_mul(x, x);
     let e = excel_exp(-z);
     if e == 0.0 {
         // Past about 27 the exponential is gone and the polynomials below can overflow.
         return 0.0;
     }
-    let f = if x > 4.0 {
-        excel_x87_div(stored_horner(&ERFC_TAIL_N, x), stored_horner(&ERFC_TAIL_D, x))
-    } else {
-        let mut num = excel_x87_mul(ERFC_C[8], x);
-        let mut den = x;
-        for i in 0..7 {
-            num = step(num, ERFC_C[i], x);
-            den = step(den, ERFC_D[i], x);
-        }
-        excel_x87_div(excel_x87_add(num, ERFC_C[7]), excel_x87_add(den, ERFC_D[7]))
-    };
-    excel_x87_mul(e, f)
+    excel_x87_mul(e, erfc_scaled(x))
+}
+
+/// `exp(x*x)*erfc(x)` for `x >= 1/2`: the stored `F` of [`erfc_upper`] alone, with no exponential.
+/// NSWC's erfc1 with `ind = 1`, which Morris's Temme expansion calls.
+pub fn erfc_scaled(x: f64) -> f64 {
+    use crate::ported::excel_numeric::excel_x87_div;
+    let (n, d): (&[u64], &[u64]) = if x > 4.0 { (&ERFC_TAIL_N, &ERFC_TAIL_D) } else { (&ERFC_MID_N, &ERFC_MID_D) };
+    excel_x87_div(stored_horner(n, x), stored_horner(d, x))
 }
 
 /// Binary64 reciprocal-square-root constant used by the normal wrappers.

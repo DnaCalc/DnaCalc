@@ -84,6 +84,16 @@ fn growth(periodic_rate: f64, periods: f64) -> Result<f64, FinancialError> {
     }
 }
 
+/// `ln(1 + r)` as Excel's growth forms it: Morris's alnrel, the atanh series below 3/8 in size and
+/// LN of the stored `1 + r` from there.
+fn alnrel(rate: f64) -> f64 {
+    if rate.abs() < 0.375 {
+        excel_log1p_atanh(rate)
+    } else {
+        crate::ported::excel_numeric::excel_log(excel_x87_add(1.0, rate))
+    }
+}
+
 fn annuity_term(
     periodic_rate: f64,
     periods: f64,
@@ -282,14 +292,11 @@ pub fn pmt(
     // 4,720 recorded groups (fv 0, type 0, rate > 0). For each of the 1,184 rates among them
     // one binary64 L reproduces em = expm1(-(nper * L)) through the x87 Kahan expm1 below at
     // every nper; the series gives that L for 1,181 rates, a correctly rounded log1p for 667.
-    // The series is used where its twelve terms have converged (-1/3 <= rate <= 1/2, so
-    // |s| <= 1/5); outside that range Excel's logarithm is not yet identified and the
-    // correctly rounded one stays.
-    let log_growth = if (-1.0 / 3.0..=0.5).contains(&periodic_rate) {
-        excel_log1p_atanh(periodic_rate)
-    } else {
-        excel_log1p(periodic_rate)
-    };
+    // The series was used where its twelve terms have converged (-1/3 <= rate <= 1/2, so
+    // |s| <= 1/5); outside that range Excel's logarithm was not identified and the
+    // correctly rounded one stayed. The range is Morris's alnrel bound instead, as in
+    // `excel_log1p_times`: one rate at 0.419 held 128 rows, all cleared by LN of the stored 1 + r.
+    let log_growth = alnrel(periodic_rate);
     let neg_log = -(periods * log_growth);
     let em = crate::ported::excel_numeric::excel_expm1_spilled(neg_log); // (1+r)^-n − 1  (x87 Kahan; negative for r>0)
     // Preserve the growth-reciprocal overflow refusal before the balance
@@ -306,7 +313,12 @@ pub fn pmt(
     if periodic_rate > 0.0 && present_value != 0.0 && future_value == -present_value {
         let product = future_value * periodic_rate;
         let result = if product.is_finite() {
-            product / tf
+            // Beginning payments are fv / stored(1 + stored(1 / rate)), the reciprocal coefficient
+            // of the pole check above: 20 of the 21 rows that missed by a unit here.
+            match timing {
+                PaymentTiming::EndOfPeriod => excel_x87_mul(future_value, periodic_rate),
+                PaymentTiming::BeginningOfPeriod => excel_x87_div(future_value, excel_x87_add(1.0, excel_x87_recip(periodic_rate))),
+            }
         } else {
             let scaled = (future_value / tf) * periodic_rate;
             if scaled.is_finite() {
@@ -860,7 +872,7 @@ fn end_payment_quotient(
     if present_value != 0.0 && future_value == -present_value {
         return None;
     }
-    let log_growth = excel_log1p_atanh(periodic_rate);
+    let log_growth = alnrel(periodic_rate);
     let em = crate::ported::excel_numeric::excel_expm1_spilled(-(periods * log_growth));
     if em == 0.0 || !em.is_finite() {
         return None;
@@ -960,7 +972,7 @@ pub fn ipmt(
         }
     } else {
         let remaining = periods - period_index + 1.0;
-        let log_discount = -(remaining * excel_log1p(periodic_rate));
+        let log_discount = -(remaining * alnrel(periodic_rate));
         let discount = exp_portable(log_discount); // v^m
         let discount_m1 = excel_expm1(log_discount); // v^m - 1
         let balance =
