@@ -2,6 +2,7 @@
 // (LCMapStringEx with LCMAP_SORTKEY and NORM_IGNORECASE under en-ZA, NLS version 0x00060502) give the
 // Hangul syllables, the compatibility jamo and the conjoining jamo, as measured on the machine
 // Excel was measured on. No Windows table is copied: each entry is one measured fact.
+// Written by tools/hangul-collation/generate_rust.py from the keys dump-keys.ps1 dumps.
 //
 // SYLLABLE_RUNS: the primary of the first syllable of each run of syllables whose primaries
 // are consecutive: (index from U+AC00, primary).
