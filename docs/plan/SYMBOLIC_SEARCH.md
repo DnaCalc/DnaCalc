@@ -3,9 +3,20 @@
 Owner direction, 2026-10-31; dc-j9k and dc-ymjf.4. The method below is a plan;
 the dated round sections record measured results with their separate bounds.
 The target is Excel's program: its operations, constants, branches and stores.
-A better match count does not identify it. No fitted coefficients, residual cutoffs,
-answer tables or switches chosen by disagreement belong in the implementation.
+A better match count does not identify it. No residual cutoffs, answer tables or
+switches chosen by disagreement belong in the implementation.
 Published methods remain generic fallbacks until Excel's actual program is identified.
+
+Owner guidance, 2026-11-07. This is a preference about approach, not a strict rule, and it
+replaces the earlier ban on fitted coefficients. Prefer the small algorithm. Find the shape
+by probing the mapping (single-bit-stepped regions, exponent edges, adjacent doubles,
+inverses) and from theory, not by steering on match percentage. A small polynomial extending
+a range is plausible author behaviour. Once the shape is known, recover its exact constants
+by bisection or by fitting all known samples, then prove them on fresh answers. Where
+neighbouring constant values all fit, find inputs that separate them and ask Excel, rather
+than accepting the first value that fits; a value no input separates is reported as
+undetermined. Warning signs of fitting the cases: degree or piece count growing to absorb
+residuals, or fresh answers not matching. If you see those, go back to the shape.
 
 ## Round 14: non-annuity corpus families, 2026-11-01
 
