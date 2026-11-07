@@ -17,6 +17,37 @@ fn dated(spelling: &str, args: Vec<calc_func::value::CalcValue>) -> Result<calc_
     call_in(&CalcEnvironment::dates(System1900), None, None, spelling, args)
 }
 
+/// Original corpus date-zero and adjacent-date failures, confirmed on Excel20527.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn oddfyield_rejects_zero_dates_and_an_unaligned_first_coupon() {
+    let base = [39763.0, 44256.0, 39736.0, 39873.0, 0.0575, 84.5, 100.0, 2.0, 0.0];
+    for slot in 0..4 {
+        let mut args = base;
+        args[slot] = 0.0;
+        error(dated("ODDFYIELD", args.into_iter().map(n).collect()), Num);
+    }
+    for (slot, date) in [(1, 44255.0), (1, 44257.0), (3, 39872.0), (3, 39874.0), (1, 39873.0)] {
+        let mut args = base;
+        args[slot] = date;
+        error(dated("ODDFYIELD", args.into_iter().map(n).collect()), Num);
+    }
+}
+
+/// Excel20527 paired ranges: beginning-period one contributes zero interest.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn cumipmt_omits_the_first_beginning_payment_from_its_finish() {
+    for (present_value, end, expected) in [
+        (0x3e0f_3fff_ffff_ffffu64, 2.0, 0xbd6b_5494_92e4_5a80),
+        (0x3e0f_3fff_ffff_ffff, 3.0, 0xbd79_6249_6ee8_e400),
+        (0x3e0f_4000_0000_0000, 2.0, 0xbd6b_5494_92e4_5a80),
+    ] {
+        exact(call("CUMIPMT", vec![n(1.0/1024.0), n(8.0), n(f64::from_bits(present_value)),
+            n(1.0), n(end), n(1.0)]), f64::from_bits(expected));
+    }
+}
+
 /// Original Excel20430 Value2 readings, cache/oracle-20430/COUPDAYS.jsonl.
 /// All expectations below are retained observations; the full bank supplies
 /// coverage of the other calendar intervals and domain cases.

@@ -375,6 +375,11 @@ impl ExactDecimal {
         if self.coefficient.is_zero() {
             return self.clone();
         }
+        let (kept, power) = self.pc64_parts();
+        Self::from_binary_parts(self.negative, kept, power)
+    }
+
+    fn pc64_parts(&self) -> (u128, i32) {
         let mut numerator = self.coefficient.clone();
         let denominator = if self.exponent < 0 {
             Natural::pow10(self.exponent.unsigned_abs())
@@ -382,7 +387,10 @@ impl ExactDecimal {
             numerator.times_pow10(self.exponent.unsigned_abs());
             Natural::from_u64(1)
         };
-        let (kept, power) = round_to_64_bits(&numerator, 0, &denominator);
+        round_to_64_bits(&numerator, 0, &denominator)
+    }
+
+    fn from_binary_parts(negative: bool, kept: u128, power: i32) -> ExactDecimal {
         let mut coefficient = Natural::from_u128(kept);
         let exponent = if power >= 0 {
             coefficient.times_pow2(power.unsigned_abs());
@@ -391,7 +399,35 @@ impl ExactDecimal {
             coefficient.times_pow5(power.unsigned_abs());
             power
         };
-        ExactDecimal { negative: self.negative, coefficient, exponent }
+        ExactDecimal { negative, coefficient, exponent }
+    }
+
+    /// Decimal publication scales the normalized integer coefficient by signed
+    /// powers of ten, taking the low four exponent bits first. Each table
+    /// operand and multiplication has a 64-bit binary significand.
+    pub(crate) fn scaled_pc64(&self) -> ExactDecimal {
+        if self.coefficient.is_zero() {
+            return self.clone();
+        }
+        let decimal = self.clone().normalized();
+        let mut magnitude = decimal.exponent.unsigned_abs();
+        let mut shift = 0;
+        let (mut kept, mut power) = round_to_64_bits(
+            &decimal.coefficient, 0, &Natural::from_u64(1));
+        while magnitude != 0 {
+            let part = (magnitude & 15) << shift;
+            if part != 0 {
+                let exponent = i32::try_from(part).expect("a decimal exponent");
+                let factor = Self::unit(if decimal.exponent < 0 { -exponent } else { exponent });
+                let (factor_kept, factor_power) = factor.pc64_parts();
+                (kept, power) = round_to_64_bits(
+                    &Natural::from_u128(kept * factor_kept), power + factor_power,
+                    &Natural::from_u64(1));
+            }
+            magnitude >>= 4;
+            shift += 4;
+        }
+        Self::from_binary_parts(decimal.negative, kept, power)
     }
 
     /// The decimal exponent of a non-zero decimal: the e with 10^e <= |self| < 10^(e+1).
