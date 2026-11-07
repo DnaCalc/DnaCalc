@@ -121,8 +121,7 @@ pub struct HostState {
     pub(crate) functions: calc_fml::CallableTable,
     /// The host's way to fetch a URL a workbook names; none gives Excel's failed-fetch results.
     pub(crate) fetch_route: Option<std::rc::Rc<dyn calc_func::FetchRoute>>,
-    pub(crate) rtd_inputs: std::rc::Rc<crate::recalc::RtdSnapshot>,
-    pub(crate) retired_rtd: std::collections::BTreeSet<calc_fml::UserInputKey>,
+    pub(crate) rtd_inputs: std::rc::Rc<calc_fml::rtd::RtdLedger>,
     pub(crate) references: std::rc::Rc<calc_fml::reference::ReferenceTracker>,
     pub(crate) calculation_interest: Vec<calc_doc_model::value::GridArea>,
     pub(crate) full_calculate_requested: bool,
@@ -290,7 +289,6 @@ impl HostState {
             functions: calc_fml::CallableTable::new(),
             fetch_route: None,
             rtd_inputs: Default::default(),
-            retired_rtd: Default::default(),
             references: calc_fml::reference::ReferenceTracker::new(),
             calculation_interest: Vec::new(),
             full_calculate_requested: false,

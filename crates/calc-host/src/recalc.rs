@@ -316,37 +316,12 @@ impl HostState {
     }
 }
 
-#[derive(Clone, Debug, Default)]
-pub(crate) struct RtdSnapshot {
-    version: u64,
-    values: std::sync::Arc<
-        std::collections::BTreeMap<calc_fml::UserInputKey, (u64, calc_doc_model::value::CalcValue)>,
-    >,
-}
-impl calc_fml::UserExternalInputs for RtdSnapshot {
-    fn version(&self) -> u64 {
-        self.version
-    }
-    fn rtd_value(
-        &self,
-        key: calc_fml::UserInputKey,
-    ) -> Option<(u64, calc_doc_model::value::CalcValue)> {
-        self.values.get(&key).cloned()
-    }
-}
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RtdDisposition {
-    Retired,
-    Accepted,
-    Duplicate,
-    StaleSequence,
-    ConflictingSequence,
-    ProviderChanged,
-    InvalidValue,
-}
+pub use calc_fml::rtd::RtdDisposition;
 impl HostState {
     /// RTD advances a provider's subscription input. Manual mode waits for explicit demand;
     /// a current command is superseded at its next owner step, never completed by this event.
+    /// The admission rules are `calc_fml::rtd::admit`; this wrapper checks the provider and calls
+    /// the engine's invalidation.
     pub fn update_rtd(
         &mut self,
         provider: calc_fml::CallableHandle,
@@ -357,43 +332,27 @@ impl HostState {
         if self.functions.resolve(provider).is_none() {
             return RtdDisposition::ProviderChanged;
         }
-        if value.is_missing() || sequence == 0 {
-            return RtdDisposition::InvalidValue;
-        }
         let key = calc_fml::UserInputKey {
             callable: provider,
             subscription,
         };
-        if self.retired_rtd.contains(&key) {
-            return RtdDisposition::Retired;
+        let (next, disposition) = calc_fml::rtd::admit(
+            &self.rtd_inputs,
+            calc_fml::rtd::RtdEvent::Update {
+                key,
+                sequence,
+                value,
+            },
+        );
+        if disposition == RtdDisposition::Accepted {
+            self.rtd_inputs = std::rc::Rc::new(next);
+            self.engine
+                .invalidate_callable_input(&self.model, key, sequence);
+            self.published = None;
         }
-        if let Some((held, old)) = self.rtd_inputs.values.get(&key) {
-            if sequence < *held {
-                return RtdDisposition::StaleSequence;
-            }
-            if sequence == *held {
-                return if *old == value {
-                    RtdDisposition::Duplicate
-                } else {
-                    RtdDisposition::ConflictingSequence
-                };
-            }
-        }
-        let mut next = (*self.rtd_inputs).clone();
-        next.version = next
-            .version
-            .checked_add(1)
-            .expect("RTD input view exhausted");
-        std::sync::Arc::make_mut(&mut next.values).insert(key, (sequence, value));
-        self.rtd_inputs = std::rc::Rc::new(next);
-        self.engine
-            .invalidate_callable_input(&self.model, key, sequence);
-        self.published = None;
-        RtdDisposition::Accepted
+        disposition
     }
-}
 
-impl HostState {
     /// Subscription identifiers are never recycled within a callable generation. Disconnect
     /// removes the current input and keeps a tombstone; old snapshots stay leased to old work.
     pub fn retire_rtd(
@@ -408,18 +367,13 @@ impl HostState {
             callable: provider,
             subscription,
         };
-        if !self.retired_rtd.insert(key) {
-            return RtdDisposition::Retired;
+        let (next, disposition) =
+            calc_fml::rtd::admit(&self.rtd_inputs, calc_fml::rtd::RtdEvent::Retire { key });
+        if disposition == RtdDisposition::Accepted {
+            self.rtd_inputs = std::rc::Rc::new(next);
+            self.engine.invalidate_callable_input(&self.model, key, 0);
+            self.published = None;
         }
-        let mut next = (*self.rtd_inputs).clone();
-        next.version = next
-            .version
-            .checked_add(1)
-            .expect("RTD input view exhausted");
-        std::sync::Arc::make_mut(&mut next.values).remove(&key);
-        self.rtd_inputs = std::rc::Rc::new(next);
-        self.engine.invalidate_callable_input(&self.model, key, 0);
-        self.published = None;
-        RtdDisposition::Accepted
+        disposition
     }
 }

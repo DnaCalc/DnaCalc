@@ -66,6 +66,7 @@ pub use calc_func::{
 };
 pub use calc_func::{HostFacts, PivotLookup, RandomSource, SubtotalExclusions};
 
+pub mod rtd;
 mod callable;
 pub use calc_func::{
     UserFunction, UserFunctionContext, UserFunctionInvocation, UserFunctionStep,
