@@ -154,6 +154,9 @@ fn outcomes() -> (BTreeMap<String, String>, BTreeMap<String, String>) {
     assert!(book.dispatch(SkinIntent::Recalculate).accepted());
     let mut saved = Vec::new();
     book.save(&SavePolicy::default(), &mut saved).expect("it saves");
+    if let Ok(dir) = std::env::var("DNACALC_UI30_PIVOTS") {
+        std::fs::write(format!("{dir}/pivots-refreshed-by-dna.xlsx"), &saved).unwrap();
+    }
     let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(saved));
     let reopened = HostSession::open(source, &OpenPolicy::default(), HostOptions::default())
         .expect("the saved workbook opens");
