@@ -234,8 +234,8 @@ fn dc_zsn2__identical_jamo_prefix_suffixes() {
     ), &mut session, |entry| entry.cell.row() == 20 && entry.cell.column() == 10, 24);
 }
 
-/// The measured first primary group settles fn6's bare-Jamo boundaries while
-/// incomplete same-group and contextual comparisons remain refused.
+/// Fn6's bare-Jamo boundaries and the contextual comparisons around them, decided by the
+/// measured jamo weights (dc-8wp): each order is CompareStringEx's on the generating machine.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_zsn25__fn6_iteration_primary_boundaries() {
@@ -243,29 +243,27 @@ fn dc_zsn25__fn6_iteration_primary_boundaries() {
     check_captured_questions(include_bytes!(
         "../../../crates/calc-func/tests/captures/fn6_iteration_primary/oracle.capture.json"
     ), &mut session, |entry| entry.cell.row() == 20 && entry.cell.column() == 10, 60);
-    for formula in [
-        "=\"ᄀ\"=\"ㄱ\"",
-        "=\"ᄃ\"<\"a\"",
-        "=\"αᄀ\"<\"αㄱ\"",
-        "=\"ᄀー\"<\"a\"",
-        "=\"ά가z\"=\"ά가a\"",
-        "=\"æ가z\"=\"æ가a\"",
-        "=\"가ᅡz\"=\"가a\"",
-        "=\"ㄱᅡz\"=\"ㄱa\"",
-        "=\"α\u{e0100}가z\"=\"α\u{e0100}가a\"",
+    for (formula, expected) in [
+        ("=\"ᄀ\"=\"ㄱ\"", false),
+        ("=\"ᄃ\"<\"a\"", false),
+        ("=\"αᄀ\"<\"αㄱ\"", true),
+        ("=\"ᄀー\"<\"a\"", false),
+        ("=\"ά가z\"=\"ά가a\"", false),
+        ("=\"æ가z\"=\"æ가a\"", false),
+        ("=\"가ᅡz\"=\"가a\"", false),
+        ("=\"ㄱᅡz\"=\"ㄱa\"", false),
+        ("=\"α\u{e0100}가z\"=\"α\u{e0100}가a\"", false),
     ] {
         session.set_formula(formula);
         let calculated = session.calculate();
-        assert!(calculated.result.is_none(), "{formula} remains outside the measured rule");
-        assert!(calculated.diagnostics.iter().any(|diagnostic| matches!(diagnostic,
-            Diagnostic::Eval(EvalFault::Function(FunctionFault::NotImplemented { .. }))
-        )), "{formula}: {:?}", calculated.diagnostics);
+        assert_eq!(calculated.result, Some(CalcValue::logical(expected)), "{formula}");
+        assert!(calculated.diagnostics.is_empty(), "{formula}: {:?}", calculated.diagnostics);
     }
 }
 
 /// Fn7 pairs the same complete Jamo prefix and bare primary-group boundaries
 /// with an ordinary Greek prefix, which the Windows suffix comparison retains.
-/// Its bare reversed vowel/consonant pair has a measured first group too.
+/// Its bare reversed vowel/consonant pair is decided by the measured jamo weights (dc-8wp).
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_zsn26__ordinary_prefix_before_jamo() {
@@ -278,23 +276,21 @@ fn dc_zsn26__ordinary_prefix_before_jamo() {
                 | "q043" | "q044" | "q047" | "q048" | "q055" | "q056"
                 | "q096" | "q097" | "q098")
     }, 13);
-    for formula in [
-        "=\"ᅡᄀ\"<\"ᅡ\"",
-        "=\"αᅡᄀ\"<\"α가\"",
-        "=\"ᅡᄀz\"<\"가\"",
-        "=\"ᅡ가\"<\"가\"",
+    for (formula, expected) in [
+        ("=\"ᅡᄀ\"<\"ᅡ\"", false),
+        ("=\"αᅡᄀ\"<\"α가\"", false),
+        ("=\"ᅡᄀz\"<\"가\"", false),
+        ("=\"ᅡ가\"<\"가\"", false),
     ] {
         session.set_formula(formula);
         let calculated = session.calculate();
-        assert!(calculated.result.is_none(), "{formula} needs unmeasured weights");
-        assert!(calculated.diagnostics.iter().any(|diagnostic| matches!(diagnostic,
-            Diagnostic::Eval(EvalFault::Function(FunctionFault::NotImplemented { .. }))
-        )), "{formula}: {:?}", calculated.diagnostics);
+        assert_eq!(calculated.result, Some(CalcValue::logical(expected)), "{formula}");
+        assert!(calculated.diagnostics.is_empty(), "{formula}: {:?}", calculated.diagnostics);
     }
 }
 
-/// These native leading primaries decide before the unknown Jamo continuation.
-/// Compatibility forms with that same leading primary still need later weights.
+/// The leading primaries, the compatibility forms that share them and the syllables, as the
+/// measured jamo weights order them (dc-8wp): each order is CompareStringEx's on the generating machine.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_zsn28__jamo_leading_primaries() {
@@ -309,25 +305,23 @@ fn dc_zsn28__jamo_leading_primaries() {
                 | "q081" | "q082" | "q083" | "q084" | "q085" | "q086"
                 | "q087" | "q088" | "q089" | "q093" | "q094" | "q095")
     }, 28);
-    for formula in [
-        "=\"ᄀz\"<\"ㄱz\"",
-        "=\"αᄀz\"<\"αㄱz\"",
-        "=\"ᄀ\"<\"ㄱ\"",
-        "=\"가\"<\"ㄱ\"",
-        "=\"ㄱ\"<\"가\"",
-        "=\"ᄁ\"<\"a\"",
-        "=\"ᄂ\"<\"a\"",
-        "=\"가\"<\"개\"",
-        "=\"깍\"<\"까\"",
-        "=\"낙\"<\"나\"",
-        "=\"가ー\"<\"가\"",
+    for (formula, expected) in [
+        ("=\"ᄀz\"<\"ㄱz\"", true),
+        ("=\"αᄀz\"<\"αㄱz\"", true),
+        ("=\"ᄀ\"<\"ㄱ\"", true),
+        ("=\"가\"<\"ㄱ\"", false),
+        ("=\"ㄱ\"<\"가\"", true),
+        ("=\"ᄁ\"<\"a\"", false),
+        ("=\"ᄂ\"<\"a\"", false),
+        ("=\"가\"<\"개\"", true),
+        ("=\"깍\"<\"까\"", true),
+        ("=\"낙\"<\"나\"", true),
+        ("=\"가ー\"<\"가\"", true),
     ] {
         session.set_formula(formula);
         let calculated = session.calculate();
-        assert!(calculated.result.is_none(), "{formula} needs later Jamo weights");
-        assert!(calculated.diagnostics.iter().any(|diagnostic| matches!(diagnostic,
-            Diagnostic::Eval(EvalFault::Function(FunctionFault::NotImplemented { .. }))
-        )), "{formula}: {:?}", calculated.diagnostics);
+        assert_eq!(calculated.result, Some(CalcValue::logical(expected)), "{formula}");
+        assert!(calculated.diagnostics.is_empty(), "{formula}: {:?}", calculated.diagnostics);
     }
 }
 
@@ -574,6 +568,8 @@ fn measured_iteration_primary_and_unmeasured_contexts() {
         ("=\"時-ゝx\"<\"時-\"", false),
         ("=\"時-ゝ\"<\"時ゝ\"", false),
         ("=\"時-'ゝ\"<\"時\"", false),
+        // After a Hangul syllable, measured with the jamo weights (dc-8wp).
+        ("=\"가-ゝ\"<\"가-\"", false),
     ] {
         session.set_formula(formula);
         let calculated = session.calculate();
@@ -585,7 +581,6 @@ fn measured_iteration_primary_and_unmeasured_contexts() {
         "=\"時‐́ゝ\"<\"時‐\"",
         "=\"時–ゝ\"<\"時–\"",     // Unmeasured punctuation.
         "=\"時-ゞ\"<\"時-\"",     // Unmeasured iteration after punctuation.
-        "=\"가-ゝ\"<\"가-\"",    // Jamo suffix depends on its preceding primary.
         "=\"時-­ゝ\"<\"時-\"",     // An ignorable separates the two units.
         "=\"時-ゝゝ\"<\"時-\"",    // Two iterations after punctuation.
     ] {

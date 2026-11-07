@@ -366,6 +366,24 @@
    "surveyed_blob": "51f6ed406b3c0ea896ff5b4464f2d4cd722e6ef5",
    "surveyed_bytes": 21696
   },
+ {
+  "path": "crates/calc-func/src/catalogue/comparison/hangul_collation.rs",
+  "class": "own-work",
+  "reason": "black-box measurement (dc-8wp, Hangul jamo collation): what Windows' sort keys under en-ZA with NORM_IGNORECASE give the Hangul syllables, the compatibility jamo and the conjoining jamo, measured through LCMapStringEx on the machine Excel was measured on; no Windows table or file is copied",
+  "evidence": [
+   {
+    "kind": "header",
+    "line": 1,
+    "quote": "Measured Hangul sort-key weights (bead dc-8wp, Hangul jamo collation)"
+   }
+  ],
+  "note": "generated from the measured keys by a script kept with the dc-8wp research notes"
+ },
+ {
+  "path": "crates/calc-func/src/catalogue/comparison/hangul_pairs.tsv",
+  "class": "own-work",
+  "reason": "black-box measurement (dc-8wp): orders CompareStringEx gave under en-ZA with NORM_IGNORECASE for random texts of Hangul jamo, syllables and the ignorable units between them, on the machine Excel was measured on; the test hangul_texts_order_as_windows_orders reads it"
+ },
   {
    "path": "crates/calc-func/src/catalogue/comparison/root_collation.rs",
    "class": "permissive-third-party",

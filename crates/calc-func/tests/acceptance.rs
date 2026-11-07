@@ -15806,14 +15806,24 @@ fn cfunc_m3_6__lookup_edges() {
         &mut FunctionCallScratch::new(),
     ), Ok(CalcValue::number(6.0)));
 
+    // Dieut-A (U+1103 U+1161) is measured now too: it follows every ASCII entry, as Giyeok-A does.
+    assert_eq!(invoke(
+        xmatch,
+        &mut Recorded::new(vec![
+            text_value("\u{1103}\u{1161}"),
+            reference(s, &["B1:B6"]).value,
+            CalcValue::number(-1.0),
+        ]),
+        &mut EvalServices::with_cells(&fast, s),
+        &mut FunctionCallScratch::new(),
+    ), Ok(CalcValue::number(6.0)));
+
     // Through the call interface alone (no row of the workbook): the formula's own cell, which
     // ROW() and COLUMN() need, is not among the services (dc-m3u); regex matching (match_mode 3,
     // dc-uar), an array index_num (dc-m3u) and a read past LOOKUP's result reference
-    // (dc-m3u) are refused; so is a text comparison calc_func's comparison cannot decide (text
-    // holding Hangul conjoining jamo, which compose with each other: dc-zsn.1's collation builds no
-    // sort key for them), and an order between #BUSY!, #BLOCKED! or #CONNECT! and another error,
+    // (dc-m3u) are refused; so is an order between #BUSY!, #BLOCKED! or #CONNECT! and another error,
     // which no formula on this machine gives offline (dc-uar).
-    let refusals: [(&str, Vec<CalcValue>, Option<usize>); 7] = [
+    let refusals: [(&str, Vec<CalcValue>, Option<usize>); 6] = [
         ("ROW", vec![], None),
         ("COLUMN", vec![], None),
         (
@@ -15841,15 +15851,6 @@ fn cfunc_m3_6__lookup_edges() {
                 reference(s, &["B1"]).value,
             ],
             Some(2),
-        ),
-        (
-            "XMATCH",
-            vec![
-                text_value("\u{1103}\u{1161}"),
-                reference(s, &["B1:B6"]).value,
-                CalcValue::number(-1.0),
-            ],
-            None,
         ),
         (
             "XMATCH",

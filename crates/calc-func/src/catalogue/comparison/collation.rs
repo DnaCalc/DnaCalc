@@ -28,24 +28,23 @@
 //! and marks past one byte ([`super::sort_key::diacritic_order`]).
 //!
 //! The weights cover every UTF-16 code unit but a few (dc-zsn.2). A text holding one of those is
-//! not decided ([`Beyond`]) when the second pass needs its weights: U+0000, the Hangul conjoining jamo,
-//! U+30A0, the isolated and medial forms of Arabic marks, and an iteration mark after a
-//! special outside fn7's three adjacent iteration forms and four punctuation units
-//! (see [`super::sort_key`]).
-//! Identical complete modern Jamo runs after a common ordinary prefix and with independent known suffixes cancel their common
-//! default entries; different Jamo continuations remain refused. Fn7 matches the ASCII pass followed
-//! by CompareStringEx on all284 scalar pairs; suffix sort-key byte order differs on two Hangul
-//! pairs. These measured rules and the stored Unicode weights run unchanged on every platform.
-//! U+1100 has its compatibility consonant's leading primary in fn7's bare, LV/LVT and separated
-//! forms; U+1101/U+1102 have it in their measured LV forms. U+1161 has leading group EC. An unfinished key can decide
-//! a strict primary difference after an ordinary prefix and before an independent suffix;
-//! equal leading primaries and unmeasured Jamo continuations stay refused.
+//! not decided ([`Beyond`]) when the second pass needs its weights: U+0000, U+30A0, the isolated
+//! and medial forms of Arabic marks, and an iteration mark after a special outside fn7's three
+//! adjacent iteration forms and four punctuation units, or after a Hangul jamo (see
+//! [`super::sort_key`]).
+//! The Hangul conjoining jamo are weighed as Windows' keys write them (dc-8wp): one primary and three
+//! extension bytes for a run of jamo, the Hangul syllables, compatibility jamo and jamo sharing one
+//! scale of primaries ([`super::hangul_collation`]). The comparison walks the weights in turn and
+//! compares the extension bytes of two weights at the same offset in their texts; a syllable equals
+//! the leading and trailing consonants that spell it, and Windows' order of two texts with an ignorable
+//! unit or mark leading both of them, followed by different jamo, is not modelled (a few in a
+//! thousand random texts).
 //! Iteration after Han uses the measured repeat primary,
 //! confirmed by fn1's comparison and ordering controls. Fn3's previously measured strict
 //! prefixes also follow from fn7's positive punctuation primary.
 
 use super::Beyond;
-use super::sort_key::{diacritic_order, leading_order, parts, shared_jamo_tails};
+use super::sort_key::{diacritic_order, leading_order, parts, primary_order};
 use std::cmp::Ordering;
 
 /// The last code unit the first pass reads itself.
@@ -78,14 +77,6 @@ pub(super) fn compare(a: &[u16], b: &[u16]) -> Result<Ordering, Beyond> {
 /// The second pass: the two texts' primary weights, then their diacritics as `CompareStringEx`
 /// walks them ([`diacritic_order`]), then the rest of their sort keys (case, kana, specials).
 fn weighed(a: &[u16], b: &[u16]) -> Result<Ordering, Beyond> {
-    if let Some((length, left, right)) = shared_jamo_tails(a, b) {
-        // Keep one common default entry for marks at the suffix boundary.
-        // Calling this pass directly preserves NLS's treatment of ignorables;
-        // Excel's ASCII length shortcut has already finished on the originals.
-        let prefix = |tail: &[u16]| a[..length].iter().copied()
-            .chain(std::iter::once(0x0061)).chain(tail.iter().copied()).collect::<Vec<_>>();
-        return weighed(&prefix(left), &prefix(right));
-    }
     let left = parts(a);
     let right = parts(b);
     if left.is_err() || right.is_err() {
@@ -101,9 +92,7 @@ fn weighed(a: &[u16], b: &[u16]) -> Result<Ordering, Beyond> {
     }
     let left = left.map_err(|_| Beyond { operand: 0 })?;
     let right = right.map_err(|_| Beyond { operand: 1 })?;
-    Ok(left
-        .primary
-        .cmp(&right.primary)
+    Ok(primary_order(&left, &right)
         .then_with(|| diacritic_order(a, &left, b, &right))
         .then_with(|| left.rest.cmp(&right.rest)))
 }
@@ -148,10 +137,40 @@ mod tests {
         assert_eq!(order("a", "a\u{4e2d}"), Ok(Ordering::Less));
         assert_eq!(order("a\u{80}", "a"), Ok(Ordering::Greater));
         assert_eq!(order("\u{1100}\u{1161}", "a"), Ok(Ordering::Greater));
-        assert_eq!(
-            order("\u{1103}\u{1161}", "a"),
-            Err(Beyond { operand: 0 }),
-            "unmeasured leading jamo"
-        );
+        assert_eq!(order("\u{1103}\u{1161}", "a"), Ok(Ordering::Greater));
+    }
+
+    /// Orders CompareStringEx gave under en-ZA with NORM_IGNORECASE (the generating machine) for
+    /// random texts of conjoining jamo, syllables, compatibility jamo and the ignorable units
+    /// and mark that end a run of jamo: code units in hexadecimal, then the order.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn hangul_texts_order_as_windows_orders() {
+        let units = |hex: &str| -> Vec<u16> {
+            hex.split(' ').map(|u| u16::from_str_radix(u, 16).unwrap()).collect()
+        };
+        let mut wrong = Vec::new();
+        let mut count = 0;
+        for line in include_str!("hangul_pairs.tsv").lines() {
+            let fields: Vec<&str> = line.split('\t').collect();
+            let expected = match fields[2] {
+                "-1" => Ordering::Less,
+                "0" => Ordering::Equal,
+                _ => Ordering::Greater,
+            };
+            count += 1;
+            let got = compare(&units(fields[0]), &units(fields[1]));
+            if got != Ok(expected) {
+                wrong.push(format!("{} against {}: Windows {expected:?}, here {got:?}", fields[0], fields[1]));
+            }
+        }
+        assert!(count >= 1000);
+        // Texts with an ignorable unit or mark at the start of both, and different jamo after
+        // them: Windows' order is not modelled for these (two of 6000 here, six of another 8000).
+        let unmodelled = [
+            "034F 00AD D7DD D7B9 against 11A8 00AD 1160 C0C3: Windows Less, here Ok(Greater)",
+            "034F D7B3 034F 11A9 against 11A8 1175: Windows Equal, here Ok(Less)",
+        ];
+        assert_eq!(wrong, unmodelled, "{} of {count}", wrong.len());
     }
 }

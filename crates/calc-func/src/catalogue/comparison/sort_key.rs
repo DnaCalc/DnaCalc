@@ -34,8 +34,9 @@
 //! U+30FC and the like), which takes the primary of the unit before it.
 //!
 //! An ignorable unit adds no weight, and so does a supplementary variation selector (U+E0100 to
-//! U+E01EF, a surrogate pair). A text has incomplete weights here when it holds U+0000, a
-//! Hangul conjoining jamo (whose context-dependent continuations are not fully modelled), U+30A0 (which
+//! U+E01EF, a surrogate pair). The Hangul syllables, compatibility jamo and conjoining jamo weigh
+//! on one scale of Windows primaries, and a run of conjoining jamo is weighed as Windows' keys write
+//! it ([`jamo_cluster`], dc-8wp). A text has incomplete weights here when it holds U+0000, U+30A0 (which
 //! `CompareStringEx` orders otherwise than its key), an isolated or medial form of Arabic marks
 //! (U+FC5E to U+FC63, U+FE71 and the like, into which the walk's runs are not modelled), or an
 //! iteration mark after a special outside fn7's three adjacent forms and four punctuation units.
@@ -45,6 +46,7 @@
 //! `cargo xtask collation verify` compares the order these weights give with `CompareStringEx`
 //! over random texts of many scripts.
 
+use super::hangul_collation::{COMPAT, JAMO, SYLLABLE_RUNS};
 use super::root_collation::{NEW, UNITS};
 use super::windows_collation::{
     COVERED, EXCEPTIONS, EXTRA, GROUPS, NO_REPEAT, PLACED, REPEAT, SECONDARY, SPECIAL, SURROGATES,
@@ -71,9 +73,9 @@ enum Weight {
     Ignorable,
     /// A unit the key is not built for here.
     Refused,
-    /// Only the first primary group is measured, after a simple ordinary prefix
-    /// and before an independent suffix. This cannot give a same-group order.
-    FirstPrimaryGroup(u8),
+    /// A Hangul conjoining jamo: its sort key is built from the run of jamo it starts
+    /// ([`jamo_cluster`]), not from the unit alone.
+    Jamo,
     /// A combining mark: its diacritic weight, added to the entry before it.
     Mark(u8),
     /// A special weight, placed by its position.
@@ -300,6 +302,7 @@ fn build() -> Table {
     let placed: HashMap<u64, (u64, u8)> = PLACED.iter().map(|&(t, a, s)| (t, (a, s))).collect();
     let secondary: HashMap<u32, u8> = SECONDARY.iter().copied().collect();
     let special: HashMap<u16, [u8; 2]> = SPECIAL.iter().copied().collect();
+    let compat: HashMap<u16, (u16, u8)> = COMPAT.iter().map(|&(c, p, w)| (c, (p, w))).collect();
 
     // A primary's ten key bytes and its length in Windows' keys.
     let slot = |token: u64| -> Slot {
@@ -365,12 +368,14 @@ fn build() -> Table {
     for point in 0u32..=0xFFFF {
         let code = point as u16;
         let covered = code != 0 && (in_ranges(code, &COVERED) || special.contains_key(&code));
-        let weight = if !covered {
+        let weight = if jamo_class(code).is_some() {
+            Weight::Jamo
+        } else if let Some(&(primary, case)) = compat.get(&code) {
+            // A compatibility jamo is one primary among the Hangul syllables' and the conjoining
+            // jamo's (measured, hangul_collation.rs), with its own case weight.
+            weighted(&mut table, &[HANGUL | u64::from(primary)], &[2], &[case], None)
+        } else if !covered {
             Weight::Refused
-        } else if matches!(code, 0x1100 | 0x1161) {
-            // Fn7's bare Giyeok/A native keys start C0/EC respectively.
-            // Their remaining primary bytes and contextual runs stay unknown.
-            Weight::FirstPrimaryGroup(if code == 0x1100 { 0xC0 } else { 0xEC })
         } else if let Some(exception) = exceptions.get(&code) {
             match exception {
                 Exception::Ignorable => Weight::Ignorable,
@@ -395,7 +400,19 @@ fn build() -> Table {
                     diacritic,
                     case,
                     kana,
-                } => weighted(&mut table, primaries, diacritic, case, *kana),
+                } => {
+                    // A syllable's token is its code unit; its primary is measured.
+                    let primaries: Vec<u64> = primaries
+                        .iter()
+                        .map(|&token| match token.checked_sub(HANGUL) {
+                            Some(point @ 0xAC00..=0xD7A3) => {
+                                HANGUL | u64::from(syllable_primary(point as u32 - 0xAC00))
+                            }
+                            _ => token,
+                        })
+                        .collect();
+                    weighted(&mut table, &primaries, diacritic, case, *kana)
+                }
             }
         } else if (0xD800..=0xDFFF).contains(&code) {
             match SURROGATES
@@ -411,7 +428,8 @@ fn build() -> Table {
         } else if let Some(w) = special.get(&code) {
             Weight::Special(*w)
         } else if (0xAC00..=0xD7A3).contains(&code) {
-            weighted(&mut table, &[HANGUL | point as u64], &[2], &[2], None)
+            let index = point - 0xAC00;
+            weighted(&mut table, &[HANGUL | u64::from(syllable_primary(index))], &[2], &[2], None)
         } else if let Some(base) = han_base(code) {
             if in_ranges(code, &NEW) {
                 Weight::Ignorable
@@ -516,8 +534,7 @@ fn derive(root: &Root, secondary: &HashMap<u32, u8>) -> Option<Derived> {
     })
 }
 
-/// Whether a unit has no measured comparison route. Partial Jamo groups reach
-/// `parts`, which still refuses a comparison needing their unknown bytes.
+/// Whether a unit has no measured comparison route.
 pub(super) fn refused(code: u16) -> bool {
     match code {
         0x0001..=0x007F => false,
@@ -525,88 +542,160 @@ pub(super) fn refused(code: u16) -> bool {
     }
 }
 
-/// Fn6's identical modern LV/LVT prefixes have default diacritic and case
-/// entries, as fn7's native keys confirm, including after an identical ordinary
-/// prefix. Their common weights cancel when
-/// neither suffix can extend a Jamo sequence or repeat the preceding primary.
-/// This gives no ordering between different Jamo prefixes or between a Jamo
-/// sequence and a precomposed syllable.
-pub(super) fn shared_jamo_tails<'a>(a: &'a [u16], b: &'a [u16]) -> Option<(usize, &'a [u16], &'a [u16])> {
-    let prefix = a.iter().zip(b).take_while(|(x, y)| {
-        x == y && ordinary_jamo_prefix(std::slice::from_ref(*x))
-    }).count();
-    let (a, b) = (&a[prefix..], &b[prefix..]);
-    if a.len() < 2 || b.len() < 2 || a[..2] != b[..2]
-        || !(0x1100..=0x1112).contains(&a[0]) || !(0x1161..=0x1175).contains(&a[1])
-    {
-        return None;
-    }
-    let at = if a.get(2) == b.get(2) && a.get(2).is_some_and(|c| (0x11A8..=0x11C2).contains(c)) {
-        3
-    } else {
-        2
-    };
-    let (a, b) = (&a[at..], &b[at..]);
-    (independent_jamo_suffix(a) && independent_jamo_suffix(b)).then_some((prefix, a, b))
+/// The kinds of Hangul conjoining jamo that Windows' sort keys tell apart.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum JamoClass {
+    /// U+1100 to U+1112, the leading consonants of modern syllables.
+    LeadModern,
+    /// The other leading consonants (U+1113 to U+115E, U+A960 to U+A97C).
+    LeadArchaic,
+    /// U+115F.
+    LeadFiller,
+    /// U+1160.
+    VowelFiller,
+    /// U+1161 to U+1175.
+    VowelModern,
+    /// The other vowels (U+1176 to U+11A7, U+D7B0 to U+D7C6).
+    VowelArchaic,
+    /// U+11A8 to U+11C2.
+    TrailModern,
+    /// The other trailing consonants (U+11C3 to U+11FF, U+D7CB to U+D7FB).
+    TrailArchaic,
 }
 
-/// Simple known entries neither join a Jamo run nor alter its boundary.
-/// Keep marks, expansions, specials and ignorables outside this prefix rule.
-fn ordinary_jamo_prefix(text: &[u16]) -> bool {
-    text.iter().all(|&code| {
-        // Paired surrogates can be variation selectors. Hangul syllables and
-        // compatibility forms have unmeasured boundaries with conjoining Jamo.
-        !matches!(code, 0x1100..=0x11FF | 0x3130..=0x318F | 0xA960..=0xA97F
-            | 0xAC00..=0xDFFF | 0xFFA0..=0xFFDC)
-            && matches!(table().weights[usize::from(code)],
-                Weight::Weighted { primaries: 1, diacritics: 1, cases: 1, .. })
+fn jamo_class(code: u16) -> Option<JamoClass> {
+    Some(match code {
+        0x1100..=0x1112 => JamoClass::LeadModern,
+        0x1113..=0x115E | 0xA960..=0xA97C => JamoClass::LeadArchaic,
+        0x115F => JamoClass::LeadFiller,
+        0x1160 => JamoClass::VowelFiller,
+        0x1161..=0x1175 => JamoClass::VowelModern,
+        0x1176..=0x11A7 | 0xD7B0..=0xD7C6 => JamoClass::VowelArchaic,
+        0x11A8..=0x11C2 => JamoClass::TrailModern,
+        0x11C3..=0x11FF | 0xD7CB..=0xD7FB => JamoClass::TrailArchaic,
+        _ => return None,
     })
 }
 
-/// These units cannot extend a Jamo run or repeat its preceding primary.
-fn independent_jamo_suffix(text: &[u16]) -> bool {
-    text.iter().all(|&code| matches!(
-        table().weights[usize::from(code)],
-        Weight::Ignorable | Weight::Mark(_) | Weight::Special(_) | Weight::Weighted { .. }
-    ))
+/// The measured weights of a conjoining jamo: primary and the leading, vowel and trailing
+/// extension bytes of its key.
+fn jamo_entry(code: u16) -> (u16, u8, u8, u8) {
+    let at = JAMO.binary_search_by_key(&code, |e| e.0).expect("a measured jamo");
+    let (_, p, l, v, t) = JAMO[at];
+    (p, l, v, t)
 }
 
-/// Fn7's three leading consonants start with the same primary pair as their
-/// compatibility consonant, before the unmodelled Jamo bytes. This settles a
-/// strict primary difference, not an equality with that compatibility form.
-/// Native keys and CompareStringEx agree on the measured LV/LVT boundaries;
-/// their disagreement for Giyeok versus its compatibility form stays refused.
-fn jamo_leading_primary<'a>(table: &'a Table, text: &[u16], at: usize) -> Option<&'a [u8]> {
-    let (compatibility, tail) = match text[at] {
-        0x1100 => (0x3131, &text[at + 1..]),
-        0x1101 => (0x3132, &text[at + 1..]),
-        0x1102 => (0x3134, &text[at + 1..]),
-        _ => return None,
-    };
-    if !ordinary_jamo_prefix(&text[..at]) {
-        return None;
-    }
-    let tail = if tail.first() == Some(&0x1161) {
-        let tail = &tail[1..];
-        if text[at] == 0x1100 && tail.first() == Some(&0x11A8) { &tail[1..] } else { tail }
-    } else if text[at] == 0x1100
-        && matches!(tail, [0x00AD | 0x034F | 0x200B | 0x0301, 0x1161, ..])
-    {
-        &tail[2..]
-    } else if text[at] == 0x1100 {
-        tail
-    } else {
-        return None;
-    };
-    if !independent_jamo_suffix(tail) {
-        return None;
-    }
-    match table.weights[compatibility] {
-        Weight::Weighted { primary, primaries: 1, .. } => {
-            Some(&table.primary[primary as usize..primary as usize + PRIMARY_BYTES])
+/// The primary Windows gives the syllable at `index` from U+AC00: the runs of consecutive
+/// primaries are measured, the gaps between them hold compatibility and archaic jamo.
+fn syllable_primary(index: u32) -> u16 {
+    let at = SYLLABLE_RUNS.partition_point(|&(first, _)| u32::from(first) <= index);
+    let (first, p) = SYLLABLE_RUNS[at - 1];
+    p + (index - u32::from(first)) as u16
+}
+
+/// How many modern trailing consonants weigh at most `t` (the position a trailing consonant
+/// takes among the syllables' final consonants).
+fn trailing_rank(t: u8) -> u32 {
+    JAMO.iter()
+        .filter(|e| (0x11A8..=0x11C2).contains(&e.0) && e.4 <= t)
+        .count() as u32
+}
+
+/// The index among the modern vowels of the last one weighing at most `v`.
+fn vowel_rank(v: u8) -> u32 {
+    JAMO.iter()
+        .filter(|e| (0x1161..=0x1175).contains(&e.0) && e.3 <= v)
+        .count() as u32
+        - 1
+}
+
+/// What a run of conjoining jamo adds to a key: one primary and its three extension bytes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Triple {
+    p: u16,
+    l: u8,
+    v: u8,
+    t: u8,
+}
+
+/// The first weight Windows' key holds for the conjoining jamo at the start of `units`, and
+/// how many units it takes. Windows' keys write each jamo as a primary and three extension
+/// bytes (leading, vowel, trailing weights), and run some neighbours together (measured over
+/// every leading consonant and vowel and the trailing consonants):
+/// - a vowel filler after a leading consonant adds nothing, once;
+/// - a vowel after the leading filler replaces it;
+/// - an archaic vowel after a modern leading consonant, or any vowel after an archaic one, makes
+///   one weight, placed where the syllable the pair would spell sorts;
+/// - a trailing consonant after a leading consonant, a vowel or such a pair sets its trailing
+///   byte, and after a modern leading consonant (alone, or with a vowel filler) moves its primary
+///   to the syllable with that trailing consonant; after a modern consonant and a modern vowel it
+///   joins all three when it is archaic (U+D7DD excepted).
+///
+/// Anything between two jamo, an ignorable unit or a mark too, ends the run.
+fn jamo_cluster(units: &[u16]) -> (Triple, usize) {
+    use JamoClass::*;
+    let first = units[0];
+    let mut class = jamo_class(first).expect("a conjoining jamo");
+    let (p, l, v, t) = jamo_entry(first);
+    let mut triple = Triple { p, l, v, t };
+    let lead_index = u32::from(first.wrapping_sub(0x1100));
+    let mut used = 1;
+    let mut filled = false;
+    let mut trailing_open = !matches!(class, TrailModern | TrailArchaic);
+    while let Some(&next) = units.get(used) {
+        let Some(next_class) = jamo_class(next) else { break };
+        let (_, _, nv, nt) = jamo_entry(next);
+        let leading = matches!(class, LeadModern | LeadArchaic | LeadFiller);
+        match next_class {
+            VowelFiller if leading && !filled => filled = true,
+            VowelFiller | VowelModern | VowelArchaic if filled => break,
+            VowelModern | VowelArchaic if class == LeadFiller => {
+                let (np, nl, nv, nt) = jamo_entry(next);
+                triple = Triple { p: np, l: nl, v: nv, t: nt };
+                class = next_class;
+            }
+            VowelArchaic if class == LeadModern => {
+                let syllable = lead_index * 588 + vowel_rank(nv) * 28 + 27;
+                triple = Triple { p: syllable_primary(syllable), l: triple.l - 0x80, v: nv, t: 2 };
+                class = TrailModern;
+                trailing_open = true;
+            }
+            VowelModern | VowelArchaic if class == LeadArchaic => {
+                triple = Triple { p: triple.p + 1, l: triple.l - 0x80, v: nv, t: 2 };
+                class = TrailModern;
+                trailing_open = true;
+            }
+            VowelModern
+                if class == LeadModern
+                    && matches!(units.get(used + 1), Some(&t3) if jamo_class(t3) == Some(TrailArchaic) && t3 != 0xD7DD) =>
+            {
+                let (_, _, _, t3) = jamo_entry(units[used + 1]);
+                let syllable = lead_index * 588 + vowel_rank(nv) * 28 + trailing_rank(t3);
+                triple = Triple { p: syllable_primary(syllable), l: triple.l - 0x80, v: nv, t: t3 };
+                used += 2;
+                break;
+            }
+            TrailModern | TrailArchaic if trailing_open && triple.t == 2 => {
+                if class == LeadModern {
+                    triple.p = syllable_primary(lead_index * 588 + trailing_rank(nt) - 1);
+                }
+                triple.t = nt;
+                used += 1;
+                break;
+            }
+            _ => break,
         }
-        _ => None,
+        used += 1;
     }
+    (triple, used)
+}
+
+/// A Hangul primary's key bytes: the syllables' group and the primary.
+fn hangul_slot(p: u16) -> [u8; PRIMARY_BYTES] {
+    let mut bytes = [0u8; PRIMARY_BYTES];
+    bytes[0] = 0xC0;
+    bytes[1..9].copy_from_slice(&(HANGUL | u64::from(p)).to_be_bytes());
+    bytes
 }
 
 /// One step of a text's diacritic walk ([`diacritics`]): what each unit gives the diacritic
@@ -630,6 +719,10 @@ pub(super) enum Step {
 /// case, kana and special sections (each ended by 0x01 but the last).
 pub(super) struct Parts {
     pub(super) primary: Vec<u8>,
+    /// The extension bytes of each primary weight that has them (a conjoining jamo's).
+    ext: Vec<Option<[u8; 3]>>,
+    /// The offset in the text of the unit each primary weight starts at.
+    at: Vec<u32>,
     pub(super) steps: Vec<Step>,
     pub(super) rest: Vec<u8>,
     /// Where each code unit's steps start, and after the last unit, the count of steps.
@@ -647,8 +740,6 @@ pub(super) struct Unfinished {
 enum Continuation {
     /// The failed unit may change an earlier primary too.
     Unknown,
-    /// The primary prefix is known; later primary or secondary weights are not.
-    MayEnd,
     /// More primary bytes must follow the known prefix.
     More,
 }
@@ -664,7 +755,6 @@ pub(super) fn leading_order(
             Ok(parts) => Some((parts.primary.as_slice(), true, false)),
             Err(rest) => match rest.continuation {
                 Continuation::More => Some((rest.primary.as_slice(), false, true)),
-                Continuation::MayEnd => Some((rest.primary.as_slice(), false, false)),
                 Continuation::Unknown => None,
             },
         }
@@ -695,6 +785,8 @@ enum Before {
     One(u16, Slot, Option<[u8; 3]>),
     /// The punctuation unit, its special bytes, and whether it is immediately before us.
     Special(u16, [u8; 2], bool),
+    /// A conjoining jamo, whose key an iteration mark after it is not measured against.
+    Jamo,
 }
 
 impl Before {
@@ -709,6 +801,12 @@ impl Before {
 #[derive(Default)]
 struct Gathered {
     primary: Vec<u8>,
+    /// The extension bytes of the primary weights that have them, by weight index.
+    ext: Vec<(usize, [u8; 3])>,
+    /// The offset in the text of the unit of each primary weight, by weight index.
+    starts_at: Vec<u32>,
+    /// The offset in the text of the unit being added.
+    at: u32,
     // Half the length Windows' primary weights so far have.
     windows_length: u32,
     steps: Vec<Step>,
@@ -723,6 +821,28 @@ struct Gathered {
 }
 
 impl Gathered {
+    /// Records the offset of the unit being added for the primary weights it has added.
+    fn mark_weights(&mut self) {
+        while self.starts_at.len() < self.primary.len() / PRIMARY_BYTES {
+            self.starts_at.push(self.at);
+        }
+    }
+
+    /// Adds one conjoining jamo weight (see [`jamo_cluster`]).
+    fn jamo(&mut self, triple: Triple, before: &mut Before) {
+        self.ext.push((
+            self.primary.len() / PRIMARY_BYTES,
+            [triple.l, triple.v, triple.t],
+        ));
+        self.primary
+            .extend_from_slice(&hangul_slot(triple.p));
+        // Windows' key holds the primary and six extension bytes.
+        self.windows_length += 8;
+        self.steps.push(Step::Base(2));
+        self.case.push(2);
+        *before = Before::Jamo;
+    }
+
     fn kana(&mut self, [small, kind, width]: [u8; 3], iteration: u8) {
         self.small.push(small);
         self.iteration.push(iteration);
@@ -736,7 +856,11 @@ impl Gathered {
             before.separate_special();
         }
         match table.weights[usize::from(code)] {
-            Weight::Refused | Weight::FirstPrimaryGroup(_) => return None,
+            Weight::Refused => return None,
+            Weight::Jamo => {
+                let (triple, _) = jamo_cluster(&[code]);
+                self.jamo(triple, before);
+            }
             Weight::Ignorable if self.expanding => {}
             Weight::Ignorable => self.steps.push(Step::Ignorable),
             Weight::Mark(added) => self.steps.push(Step::Mark(added)),
@@ -766,6 +890,7 @@ impl Gathered {
             }
             Weight::Iteration(rule) => {
                 let ((bytes, length), kana) = match *before {
+                    Before::Jamo => return None,
                     Before::Nothing => (table.no_repeat, None),
                     Before::Special(punctuation, [weight, _], adjacent) => {
                         // Fn7's native keys and Excel comparisons agree here: an
@@ -859,6 +984,7 @@ pub(super) fn parts(text: &[u16]) -> Result<Parts, Unfinished> {
     let mut at = 0;
     while at < text.len() {
         let code = text[at];
+        gathered.at = at as u32;
         starts.push(gathered.steps.len() as u32);
         if (0xD800..=0xDBFF).contains(&code)
             && let Some(&low) = text.get(at + 1)
@@ -873,31 +999,26 @@ pub(super) fn parts(text: &[u16]) -> Result<Parts, Unfinished> {
                 continue;
             }
         }
+        if table.weights[usize::from(code)] == Weight::Jamo {
+            // A run of jamo is one weight: its other units add nothing of their own.
+            let (triple, used) = jamo_cluster(&text[at..]);
+            gathered.jamo(triple, &mut before);
+            gathered.mark_weights();
+            for _ in 1..used {
+                starts.push(gathered.steps.len() as u32);
+            }
+            at += used;
+            continue;
+        }
         let primaries = gathered.primary.len();
         if gathered.unit(table, code, &mut before).is_none() {
             gathered.primary.truncate(primaries);
-            if let Some(primary) = jamo_leading_primary(table, text, at) {
-                gathered.primary.extend_from_slice(primary);
-                return Err(Unfinished { primary: gathered.primary, continuation: Continuation::MayEnd });
-            }
-            // Fn7's exact bare reversed A/Giyeok pair keeps A's first EC byte.
-            // No later byte, ordinary-prefix context or continuation is assigned.
-            let bare_reversed_jamo = at == 0 && text == [0x1161, 0x1100];
-            if ordinary_jamo_prefix(&text[..at])
-                && (independent_jamo_suffix(&text[at + 1..]) || bare_reversed_jamo)
-                && let Weight::FirstPrimaryGroup(group) = table.weights[usize::from(code)]
-            {
-                // A strict difference in this measured byte decides before any
-                // unknown byte or later level. Keep the rest explicitly unfinished.
-                gathered.primary.push(group);
-                return Err(Unfinished { primary: gathered.primary, continuation: Continuation::More });
-            }
             return Err(Unfinished {
                 primary: gathered.primary,
-                // An iteration failure after One would still add a primary. After a special
+                // An iteration failure after One or after a jamo (whose weight is measured, 04xx, not modelled) would still add a primary. After a special
                 // even a nonempty contribution has not been measured; leave it undecided.
                 continuation: if matches!(table.weights[usize::from(code)], Weight::Iteration(_))
-                    && matches!(before, Before::One(..))
+                    && matches!(before, Before::One(..) | Before::Jamo)
                 {
                     Continuation::More
                 } else {
@@ -905,6 +1026,7 @@ pub(super) fn parts(text: &[u16]) -> Result<Parts, Unfinished> {
                 },
             });
         }
+        gathered.mark_weights();
         at += 1;
     }
     starts.push(gathered.steps.len() as u32);
@@ -915,6 +1037,8 @@ pub(super) fn parts(text: &[u16]) -> Result<Parts, Unfinished> {
     };
     let Gathered {
         primary,
+        ext: ext_at,
+        starts_at,
         steps,
         mut case,
         special,
@@ -943,12 +1067,59 @@ pub(super) fn parts(text: &[u16]) -> Result<Parts, Unfinished> {
     }
     rest.push(1);
     rest.extend_from_slice(&special);
+    let mut ext = vec![None; primary.len() / PRIMARY_BYTES];
+    for (weight, bytes) in ext_at {
+        ext[weight] = Some(bytes);
+    }
     Ok(Parts {
         primary,
+        ext,
+        at: starts_at,
         steps,
         rest,
         starts,
     })
+}
+
+/// The order of two texts' primary weights, which Windows compares one weight at a time. A
+/// conjoining jamo's extension bytes order two weights of one primary when both have them and
+/// both start at the same offset in their texts: that pair is compared once both weights have
+/// been reached. A text with fewer weights sorts first. (Measured: a syllable equals the leading
+/// and trailing consonants that spell it; the leading consonant sorts below its compatibility
+/// form; an ignorable unit before a vowel in one text only leaves it equal to another vowel,
+/// though two weights later at one offset in both are compared.)
+pub(super) fn primary_order(left: &Parts, right: &Parts) -> Ordering {
+    let slot = |parts: &Parts, i: usize| -> [u8; PRIMARY_BYTES] {
+        parts.primary[i * PRIMARY_BYTES..(i + 1) * PRIMARY_BYTES]
+            .try_into()
+            .expect("primaries are whole weights")
+    };
+    let extension = |x: usize, y: usize| -> Ordering {
+        match (left.ext[x], right.ext[y]) {
+            (Some(p), Some(q)) if left.at[x] == right.at[y] && slot(left, x) == slot(right, y) => {
+                p.cmp(&q)
+            }
+            _ => Ordering::Equal,
+        }
+    };
+    let (a, b) = (left.ext.len(), right.ext.len());
+    for i in 0..a.min(b) {
+        let order = slot(left, i).cmp(&slot(right, i));
+        if order.is_ne() {
+            return order;
+        }
+        let order = extension(i, i);
+        if order.is_ne() {
+            return order;
+        }
+        for x in 0..i {
+            let order = extension(x, i).then_with(|| extension(i, x));
+            if order.is_ne() {
+                return order;
+            }
+        }
+    }
+    a.cmp(&b)
 }
 
 /// The diacritic level of two texts whose primary weights are the same (see [`diacritics`]):
@@ -1102,8 +1273,7 @@ mod tests {
         let (a, b) = (units(a), units(b));
         let (left, right) = (parts(&a).ok()?, parts(&b).ok()?);
         Some(
-            left.primary
-                .cmp(&right.primary)
+            primary_order(&left, &right)
                 .then_with(|| diacritic_order(&a, &left, &b, &right))
                 .then_with(|| left.rest.cmp(&right.rest)),
         )
@@ -1155,7 +1325,7 @@ mod tests {
             assert_eq!(order(a, b), Some(expected), "{a:?} against {b:?}");
         }
         assert!(
-            parts(&units("\u{1100}\u{1161}")).is_err(),
+            parts(&units("\u{1100}\u{1161}")).is_ok(),
             "conjoining jamo"
         );
         assert!(parts(&units("\u{30a0}")).is_err(), "the double hyphen");

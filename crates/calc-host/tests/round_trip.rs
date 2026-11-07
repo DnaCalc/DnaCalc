@@ -12061,9 +12061,9 @@ fn dc_971p__numeric_sort_refusals_preserve_inputs_styles_and_revision() {
     let r=refuse(&mut book,1,rev);assert!(r.error.unwrap().to_string().contains("qualified or unsupported formula references"));
     assert!(enter(&mut book,at(s,"B1"),"literal").accepted());
     let rev=book.host().revision().get();refuse(&mut book,3,rev);refuse(&mut book,1,rev-1);
-    // U+1100's measured primary group now orders it against Latin (dc-zsn.2.5).
-    // U+1103 still has no measured comparison route; keep every refusal assertion.
-    assert!(enter(&mut book,at(s,"A2"),"\u{1103}").accepted());assert!(enter(&mut book,at(s,"A1"),"text").accepted());let rev=book.host().revision().get();
+    // The Hangul jamo are measured now (dc-8wp). U+30A0 still has no measured comparison route
+    // (CompareStringEx orders it otherwise than its key); keep every refusal assertion.
+    assert!(enter(&mut book,at(s,"A2"),"\u{30a0}").accepted());assert!(enter(&mut book,at(s,"A1"),"text").accepted());let rev=book.host().revision().get();
     let r=refuse(&mut book,1,rev);assert!(r.error.unwrap().to_string().contains("row order"));
     assert!(enter(&mut book,at(s,"A1"),"3").accepted());
     assert!(enter(&mut book,at(s,"A2"),"1").accepted());
