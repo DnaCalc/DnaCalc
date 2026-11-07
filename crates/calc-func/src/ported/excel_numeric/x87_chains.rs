@@ -93,10 +93,12 @@ fn exp_compensated<F: Fpu>(start: f64, terms: &[f64]) -> f64 {
     let mut stored = start;
     let mut factors = [1.0_f64; 2];
     for (term, factor) in terms.iter().zip(factors.iter_mut()) {
-        let difference = F::sub(&load(stored), &load(*term), CW);
-        stored = F::store(&difference, CW);
-        let dropped = F::store(&F::sub(&difference, &load(stored), CW), CW);
+        let next = F::store(&F::sub(&load(stored), &load(*term), CW), CW);
+        // `(a - s) - b`, not `(a - b) - s`: a row whose register difference lost `b`'s low bits sits
+        // on a tie of `1 + dropped`, and Excel's answer there is not that tie's.
+        let dropped = F::store(&F::sub(&F::sub(&load(stored), &load(next), CW), &load(*term), CW), CW);
         *factor = F::store(&F::add(&ext_one(), &load(dropped), CW), CW);
+        stored = next;
     }
     let mut value = exp_with::<F>(stored, CW);
     for factor in &factors[..terms.len()] {
