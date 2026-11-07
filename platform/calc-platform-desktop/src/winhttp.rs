@@ -1,8 +1,9 @@
-//! The desktop's one-GET transport for WEBSERVICE and IMAGE (WinHTTP). It carries no rules: the
-//! redirect, status and body rules are `calc_func::fetch_following`'s, which every host shares.
-//! A request here sends no `Accept-Encoding`, follows no redirect and decompresses nothing, and
-//! has no cross-origin restriction (the native worker is not a page).
-use calc_func::RawResponse;
+//! The desktop's one-GET transport (WinHTTP), used by the applications for WEBSERVICE and IMAGE. It
+//! carries no rules: the redirect, status and body rules belong to the caller (CalcFunc's
+//! `fetch_following` for the applications), which every host shares. A request here sends no
+//! `Accept-Encoding`, follows no redirect and decompresses nothing, and has no cross-origin
+//! restriction (the native worker is not a page). The package has no product dependency, so the
+//! reply is this module's own [`Response`].
 use std::{ffi::c_void, ptr::null, time::Duration, time::Instant};
 use windows_sys::Win32::Networking::WinHttp::*;
 
@@ -11,6 +12,14 @@ const STEP: i32 = 6_000;
 const WHOLE: Duration = Duration::from_secs(8);
 /// The most body bytes read.
 const MOST_BODY: usize = 64 * 1024 * 1024;
+
+/// What one GET answered: the status, the `Location` header when there is one, and the body.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Response {
+    pub status: u16,
+    pub location: Option<String>,
+    pub body: Vec<u8>,
+}
 
 struct Handle(*mut c_void);
 impl Drop for Handle {
@@ -53,7 +62,7 @@ fn split(url: &str) -> Option<(bool, String, u16, String)> {
 }
 
 /// One GET of `url`, or `None` when no response came (connection, name resolution, TLS, timeout).
-pub fn get(url: &str) -> Option<RawResponse> {
+pub fn get(url: &str) -> Option<Response> {
     let (secure, host, port, path) = split(url)?;
     unsafe {
         let session = Handle(WinHttpOpen(
@@ -140,7 +149,7 @@ pub fn get(url: &str) -> Option<RawResponse> {
                 return None;
             }
         }
-        Some(RawResponse {
+        Some(Response {
             status: status as u16,
             location,
             body,
@@ -162,5 +171,42 @@ mod tests {
         assert_eq!(split("http://a.test?q"), owned(false, "a.test", 80, "/?q"));
         assert_eq!(split("http://[::1]:81/p"), owned(false, "::1", 81, "/p"));
         assert_eq!(split("ftp://a.test/"), None);
+    }
+
+    /// Native-only: a real GET over WinHTTP to a local server returns the status, the `Location`
+    /// header and the body, and follows no redirect itself.
+    #[test]
+    fn get_returns_status_location_and_body() {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            for mut stream in listener.incoming().flatten() {
+                let mut head = [0u8; 2048];
+                let read = stream.read(&mut head).unwrap_or(0);
+                let head = String::from_utf8_lossy(&head[..read]).into_owned();
+                let path = head.split_whitespace().nth(1).unwrap_or("/").to_owned();
+                let (status, extra, body) = match path.as_str() {
+                    "/text" => ("200 OK", "", "caf\u{e9} ok"),
+                    "/redir" => ("302 Found", "Location: /text\r\n", ""),
+                    "/gone" => ("404 Not Found", "", "no"),
+                    _ => ("204 No Content", "", ""),
+                };
+                let reply = format!(
+                    "HTTP/1.1 {status}\r\n{extra}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                let _ = stream.write_all(reply.as_bytes());
+            }
+        });
+        let url = |path: &str| format!("http://127.0.0.1:{port}/{path}");
+        let text = get(&url("text")).unwrap();
+        assert_eq!((text.status, text.location.clone()), (200, None));
+        assert_eq!(String::from_utf8(text.body).unwrap(), "caf\u{e9} ok");
+        let redirect = get(&url("redir")).unwrap();
+        assert_eq!((redirect.status, redirect.location.as_deref()), (302, Some("/text")));
+        assert_eq!(get(&url("gone")).unwrap().status, 404);
+        let empty = get(&url("nothing")).unwrap();
+        assert_eq!((empty.status, empty.body.len()), (204, 0));
     }
 }

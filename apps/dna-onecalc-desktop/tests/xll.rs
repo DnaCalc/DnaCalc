@@ -1,0 +1,359 @@
+#![cfg(windows)]
+//! DNA OneCalc's desktop executable: native add-ins through the formula session, no engine. The same case files run through DNA Calc's `--engine` harness (`dna-calc-desktop`'s tests).
+#[path = "../../dna-calc-desktop/tests/support/mod.rs"]
+mod support;
+use support::{Fixture, checked};
+
+fn new_fixture() -> Fixture {
+    Fixture::new(std::path::Path::new(env!("CARGO_BIN_EXE_dna-onecalc-desktop")))
+}
+/// Native-only: loads a native XLL in the exported Windows executable and calculates formulas.
+#[test]
+fn real_executable_uses_onecalc_for_the_same_excel_fixture() {
+    let fixture = new_fixture();
+    let result = checked(fixture.command().arg("--self-test").output().unwrap());
+    assert_eq!(result["results"].as_array().unwrap().len(), 21);
+    assert_eq!(result["results"][0]["value"], 3.);
+    assert_eq!(result["results"][16]["value"], 41.);
+    assert_eq!(result["results"][17]["value"], 42.);
+    assert_eq!(result["duplicate_use_count"], 2);
+    assert_eq!(result["live_callback_allocations"], 0);
+    assert_eq!(result["closed_registration"], "#NAME?");
+}
+
+/// Native-only: invokes typed ABI entries through the application and real XLL.
+#[test]
+fn typed_native_arguments_coerce_values_and_return_worksheet_errors() {
+    let fixture = new_fixture();
+    for (formula, expected) in [
+        ("=MyAdd(\"19\",23)", serde_json::json!(42.)),
+        ("=MyAdd(TRUE,41)", serde_json::json!(42.)),
+        (
+            "=MyAdd(\"invalid\",23)",
+            serde_json::json!({"error":"#VALUE!"}),
+        ),
+        ("=MyAdd(NA(),23)", serde_json::json!({"error":"#VALUE!"})),
+        ("=MyWide(12.25)", serde_json::json!("12.25")),
+        ("=MyWide(TRUE)", serde_json::json!("TRUE")),
+        ("=MyWide()", serde_json::json!("")),
+    ] {
+        let result = checked(
+            fixture
+                .command()
+                .args(["--formula", formula])
+                .output()
+                .unwrap(),
+        );
+        assert_eq!(result["results"][0]["value"], expected, "{formula}");
+        assert_eq!(result["live_callback_allocations"], 0);
+    }
+}
+
+/// Native-only: REFTEXT runs inside a real macro-equivalent XLL call.
+#[test]
+fn native_reference_text_uses_the_existing_address_formatter() {
+    let fixture = new_fixture();
+    let result = checked(
+        fixture
+            .command()
+            .env("DNA_XLL_REFERENCE_TEXT", "1")
+            .args(["--sheet", "Q'2 sales", "--formula", "=MyReference(A1:A2)"])
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(
+        result["results"][0]["value"],
+        "'[Book1]Q''2 sales'!$A$1:$A$2"
+    );
+    assert_eq!(result["live_callback_allocations"], 0);
+}
+
+/// Native-only: an unsupported locale-dependent input must survive IFERROR.
+#[test]
+fn unmodelled_native_argument_conversion_cannot_be_hidden() {
+    let fixture = new_fixture();
+    let output = fixture
+        .command()
+        .args(["--formula", "=IFERROR(MyAdd(\"12/15\",1),123)"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        error.contains("NotModelled") && error.contains("dc-snz.20"),
+        "{error}"
+    );
+    assert!(output.stdout.is_empty());
+}
+
+/// Native-only: registers ten thousand callable names in a native process, then invokes the last.
+#[test]
+fn ten_thousand_registrations_have_no_small_pool_limit() {
+    let fixture = new_fixture();
+    let result = checked(
+        fixture
+            .command()
+            .env("DNA_XLL_EXTRA_REGISTRATIONS", "10000")
+            .args(["--formula", "=Pool9999(19,23)"])
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(result["registrations"], 10018);
+    assert_eq!(result["results"][0]["value"], 42.);
+}
+
+/// Native-only: an XLL callback failure must survive both native swallowing and formula IFERROR.
+#[test]
+fn swallowed_unsupported_callbacks_remain_typed_refusals() {
+    let fixture = new_fixture();
+    let output = fixture
+        .command()
+        .args(["--formula", "=IFERROR(MyUnsupported(),123)"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        error.contains("NotModelled") && error.contains("dc-snz.2"),
+        "{error}"
+    );
+    assert!(output.stdout.is_empty());
+}
+
+/// Native-only: a registration can name a loaded helper DLL, whose allocator/free callback
+/// must remain distinct from the XLL that issued xlfRegister.
+#[test]
+fn helper_module_owns_the_return_and_its_free_callback() {
+    let fixture = new_fixture();
+    let helper = fixture.directory.join("helper.dll");
+    std::fs::copy(fixture.directory.join("fixture.xll"), &helper).unwrap();
+    let result = checked(
+        fixture
+            .command()
+            .env("DNA_XLL_HELPER", &helper)
+            .args([
+                "--formula",
+                "=LEN(MyHelperOwned())+MyHelperFreeCount()*100+MyFreeCount()*10000",
+            ])
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(result["results"][0]["value"], 112.);
+}
+
+/// Native-only: failed xlAutoOpen rolls back helper-module registrations and callback storage.
+#[test]
+fn failed_load_rolls_back_every_registration_from_its_origin() {
+    let fixture = new_fixture();
+    let helper = fixture.directory.join("helper.dll");
+    std::fs::copy(fixture.directory.join("fixture.xll"), &helper).unwrap();
+    let output = fixture
+        .command()
+        .env("DNA_XLL_HELPER", &helper)
+        .env("DNA_XLL_FAIL_AFTER_HELPER", "1")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert!(error.contains("xlAutoOpen returned zero"), "{error}");
+    assert!(
+        error.contains(
+            "after rollback: 0 active registrations, 0 callable names, 0 callback allocations"
+        ),
+        "{error}"
+    );
+}
+
+/// Native-only: a known Ftab name absent from CalcFunc must identify the XLL capability owner.
+#[test]
+fn known_but_unimplemented_worksheet_callbacks_keep_the_xll_owner() {
+    let fixture = new_fixture();
+    let output = fixture
+        .command()
+        .env("DNA_XLL_NEGATIVE_CALLBACK", "185")
+        .args(["--formula", "=IFERROR(MyUnsupported(),123)"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        error.contains("NotModelled") && error.contains("dc-snz.2"),
+        "{error}"
+    );
+    assert!(!error.contains("dc-snz.5"), "{error}");
+}
+
+/// Native-only: an in-context xlStack call uses this thread's actual Windows stack bounds.
+#[test]
+fn stack_headroom_is_available_in_context() {
+    let fixture = new_fixture();
+    let output = fixture
+        .command()
+        .env("DNA_XLL_NEGATIVE_CALLBACK", "16385")
+        .args(["--formula", "=IFERROR(MyUnsupported(),123)"])
+        .output()
+        .unwrap();
+    let result = checked(output);
+    assert_eq!(result["results"][0]["value"], 0.);
+}
+
+/// Native-only: Application.Run accepts a registered worksheet entry on the STA.
+#[test]
+fn application_run_can_enter_a_hidden_or_worksheet_registration() {
+    let fixture = new_fixture();
+    let result = checked(
+        fixture
+            .command()
+            .env("DNA_XLL_WORKER_TESTS", "1")
+            .args([
+                "--formula",
+                "=MyAdd(1,2)",
+                "--command",
+                "MyFreeCount",
+                "--early-command",
+                "MyFreeCount",
+            ])
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(result["commands"][0]["value"], 0.);
+    assert_eq!(result["commands"][1]["value"], 0.);
+    assert_eq!(result["commands"][1]["early_bound"], true);
+}
+
+/// Native-only: a failed second XLL must restore another load's use counts and hidden names.
+#[test]
+fn failed_second_load_restores_previous_names_and_use_counts() {
+    let fixture = new_fixture();
+    let helper = fixture.directory.join("helper.dll");
+    let second = fixture.directory.join("second.xll");
+    for destination in [&helper, &second] {
+        std::fs::copy(fixture.directory.join("fixture.xll"), destination).unwrap();
+    }
+    let output = fixture
+        .command()
+        .args(["--xll"])
+        .arg(&second)
+        .env("DNA_XLL_HELPER", &helper)
+        .env("DNA_XLL_FAIL_AFTER_HELPER", "1")
+        .env("DNA_XLL_FAIL_MODULE", "second.xll")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert!(error.contains("xlAutoOpen returned zero"), "{error}");
+    assert!(
+        error.contains(
+            "after rollback: 22 active registrations, 22 callable names, 0 callback allocations"
+        ),
+        "{error}"
+    );
+}
+
+/// Native-only: unimplemented EVALUATE reads remain refusals through native swallowing and IFERROR.
+#[test]
+fn unimplemented_evaluate_reference_remains_a_typed_refusal() {
+    let fixture = new_fixture();
+    let output = fixture
+        .command()
+        .env("DNA_XLL_NEGATIVE_CALLBACK", "257")
+        .env("DNA_XLL_EVALUATE_TEXT", "A1")
+        .args(["--formula", "=IFERROR(MyUnsupported(),123)"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        error.contains("NotModelled") && error.contains("dc-snz.2"),
+        "{error}"
+    );
+}
+
+/// Native-only: the product worker uses the evaluator's reference reader and function route,
+/// copies DLL-owned values, and frees them on the same worker before returning to the STA.
+#[test]
+fn worker_calls_keep_the_main_reader_and_native_memory_ownership() {
+    let fixture = new_fixture();
+    let result = checked(fixture.command().env("DNA_XLL_WORKER_TESTS", "1").args([
+        "--formula", "=AND(MyWorkerThread()<>MyMainThread(),MyWorkerReference(A1)=7,MyWorkerCallbacks(3,4)=7,LEN(MyWorkerOwned())=12,MyFreeCount()=1)"
+    ]).output().unwrap());
+    assert_eq!(result["results"][0]["value"], true);
+    assert_eq!(result["live_callback_allocations"], 0);
+}
+
+/// Native-only: a worker's refusal is carried back to the same formula invocation.
+#[test]
+fn worker_refusals_survive_native_swallowing_and_formula_handlers() {
+    let fixture = new_fixture();
+    let output = fixture
+        .command()
+        .env("DNA_XLL_WORKER_TESTS", "1")
+        .args(["--formula", "=IFERROR(MyWorkerUnsupported(),123)"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        error.contains("NotModelled") && error.contains("dc-snz.2"),
+        "{error}"
+    );
+}
+
+/// Native-only: valid worker event/status requests must not succeed against a discarded snapshot.
+#[test]
+fn worker_state_mutations_remain_typed_refusals() {
+    for callback in ["16401"] {
+        let fixture = new_fixture();
+        let output = fixture
+            .command()
+            .env("DNA_XLL_WORKER_TESTS", "1")
+            .env("DNA_XLL_NEGATIVE_CALLBACK", callback)
+            .args(["--formula", "=IFERROR(MyWorkerUnsupported(),123)"])
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        let error = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            error.contains("NotModelled") && error.contains("dc-snz.18"),
+            "{callback}: {error}"
+        );
+    }
+}
+
+/// Native-only: a nested native call cannot silently inherit a different reference-read mode.
+#[test]
+fn nested_read_mode_changes_remain_typed_refusals() {
+    let fixture = new_fixture();
+    let output = fixture
+        .command()
+        .env("DNA_XLL_NEGATIVE_CALLBACK", "255")
+        .args(["--formula", "=IFERROR(MyUnsupported(),123)"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        error.contains("dc-snz.18") && error.contains("NotModelled"),
+        "{error}"
+    );
+}
+
+/// Native-only: constant EVALUATE expressions execute through a real native callback in OneCalc's composition.
+#[test]
+fn constant_evaluate_callbacks_use_the_application_formula_route() {
+    for expression in ["1+1", "=SUM(3,4)*2", "SUM({1,2;3,4})"] {
+        {
+            let fixture = new_fixture();
+            let mut command = fixture.command();
+            command
+                .env("DNA_XLL_NEGATIVE_CALLBACK", "257")
+                .env("DNA_XLL_EVALUATE_TEXT", expression)
+                .args(["--formula", "=IFERROR(MyUnsupported(),123)"]);
+            let result = checked(command.output().unwrap());
+            // This fixture deliberately discards the callback value. The
+            // portable context regression and Excel boundary compare its value.
+            assert_eq!(result["results"][0]["value"], 0.);
+            assert_eq!(result["live_callback_allocations"], 0);
+        }
+    }
+}

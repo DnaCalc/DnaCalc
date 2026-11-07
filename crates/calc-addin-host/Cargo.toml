@@ -1,0 +1,27 @@
+[package]
+name = "calc-addin-host"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "The loaded add-in set of a desktop application: native XLL modules and VBA modules behind one callable table, the Excel object model they see, and the RTD client."
+
+[package.metadata.dnacalc]
+portability = "native-only"
+
+# Both desktop applications (OneCalc and DNA Calc) load add-ins through this one crate. It sits
+# below OneCalc's dependency ceiling: nothing here reaches calc-host, calc-engine or calc-doc
+# (tools/xtask/architecture.json checks it).
+[target.'cfg(windows)'.dependencies]
+calc-value = { path = "../calc-value" }
+calc-func = { path = "../calc-func" }
+calc-fml = { path = "../calc-fml" }
+calc-vba = { path = "../calc-vba" }
+calc-xll-host = { path = "../calc-xll-host" }
+calc-com-host = { path = "../calc-com-host" }
+calc-platform-desktop = { path = "../../platform/calc-platform-desktop" }
+serde_json = "=1.0.154"
+
+[target.'cfg(windows)'.dev-dependencies]
+calc-xll-fixture = { path = "../calc-xll-fixture" }
+calc-xll-shim = { path = "../../platform/calc-xll-shim" }

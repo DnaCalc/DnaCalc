@@ -65,7 +65,7 @@ if ($ExcelDnaDirectory) {
 }
 if ($X1Xll -or $ExcelDnaDirectory -or $AddInDirectory) {
     $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-    foreach ($directory in 'crates/calc-xll-abi','crates/calc-xll-host','crates/calc-xll-fixture','crates/calc-com-host','platform/calc-xll-shim','apps/dna-calc-desktop','crates/calc-fml','crates/calc-syntax','crates/calc-func','crates/calc-value','apps/dna-onecalc','crates/calc-engine','crates/calc-host','crates/calc-doc-model','crates/calc-doc') {
+    foreach ($directory in 'crates/calc-xll-abi','crates/calc-xll-host','crates/calc-xll-fixture','crates/calc-com-host','platform/calc-xll-shim','platform/calc-platform-desktop','crates/calc-addin-host','apps/dna-calc-desktop','apps/dna-onecalc-desktop','crates/calc-fml','crates/calc-syntax','crates/calc-func','crates/calc-value','apps/dna-onecalc','crates/calc-engine','crates/calc-host','crates/calc-doc-model','crates/calc-doc') {
         Get-ChildItem -LiteralPath (Join-Path $repositoryRoot $directory) -Recurse -File | Where-Object Extension -in '.rs','.toml','.c','.cpp','.rc','.h','.hpp' | ForEach-Object {
             $sourceFiles[[IO.Path]::GetRelativePath($repositoryRoot, $_.FullName).Replace('\','/')] = (Get-FileHash -LiteralPath $_.FullName).Hash
         }
@@ -76,6 +76,11 @@ if ($X1Xll -or $ExcelDnaDirectory -or $AddInDirectory) {
 if ($HostExecutable) {
     if (-not $X1Xll -and -not $ExcelDnaDirectory -and -not $AddInDirectory) { throw '-HostExecutable requires an XLL fixture.' }
     $builtExe = (Resolve-Path -LiteralPath $HostExecutable).Path
+    # Two hosts, two compositions: OneCalc's formula session (dna-onecalc-desktop) and DNA Calc's workbook
+    # engine (dna-calc-desktop, -Engine). Each refuses the other's mode, so name the right one.
+    $hostName = [IO.Path]::GetFileNameWithoutExtension($builtExe)
+    if ($Engine -and $hostName -eq 'dna-onecalc-desktop') { throw '-Engine runs DNA Calc''s CalcHost harness: use dna-calc-desktop.exe as -HostExecutable.' }
+    if (-not $Engine -and $hostName -eq 'dna-calc-desktop') { throw 'Without -Engine the host is OneCalc''s formula session: use dna-onecalc-desktop.exe as -HostExecutable.' }
     # A capture owns its executable copy; a later build cannot replace its code,
     # and the capture cannot hold the build output open while Cargo links it.
     $exe = Join-Path $run ([IO.Path]::GetFileName($builtExe))

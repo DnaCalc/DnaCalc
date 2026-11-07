@@ -1,15 +1,14 @@
 //! Desktop composition of native return messages and CalcHost's checked P07 route.
-use crate::shell::Shell;
+use calc_addin_host::{AddinHost, value_json};
+use calc_platform_desktop::Shell;
 use calc_host::{
     CalcMode, HostOptions, HostProgress, HostSession, MemorySource, OpenPolicy, ProjectedValue,
     ProjectionRequest, SheetChange, SkinIntent, WorkBudget, WorkbookCommand,
 };
 use calc_value::{CalcValue, CellKey};
-use calc_xll_host::XllHost;
 use std::{
     collections::BTreeSet,
     path::PathBuf,
-    rc::Rc,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -71,11 +70,11 @@ fn evaluate_entry(book: &mut HostSession, at: CellKey) -> Result<(), String> {
 }
 // All native publications, including formula entry, use this one P07 token route.
 fn deliver_native_returns(
-    native: &XllHost,
+    addins: &AddinHost,
     book: &mut HostSession,
     returns: &mut Vec<serde_json::Value>,
 ) -> Result<(), String> {
-    for returned in native.take_async_returns() {
+    for returned in addins.take_async_returns() {
         let token = book
             .host()
             .pending_async()
@@ -92,13 +91,13 @@ fn deliver_native_returns(
 }
 fn settle_entry(
     shell: &Shell,
-    native: &XllHost,
+    addins: &AddinHost,
     book: &mut HostSession,
     returns: &mut Vec<serde_json::Value>,
 ) -> Result<(), String> {
     let deadline = Instant::now() + Duration::from_secs(20);
     while book.has_pending_calculation() || !book.host().pending_async().is_empty() {
-        deliver_native_returns(native, book, returns)?;
+        deliver_native_returns(addins, book, returns)?;
         if book.has_pending_calculation() {
             if let HostProgress::Failed(why) = book.advance_calculation() {
                 return Err(why.to_string());
@@ -113,7 +112,7 @@ fn settle_entry(
 }
 fn retire_rtd(
     book: &mut HostSession,
-    rtd: &calc_com_host::RtdClient,
+    rtd: &calc_addin_host::RtdClient,
     providers: &BTreeSet<calc_xll_host::RtdProvider>,
     at: CellKey,
     retired: &mut Vec<serde_json::Value>,
@@ -129,7 +128,7 @@ fn retire_rtd(
 }
 fn reconcile_rtd(
     book: &HostSession,
-    rtd: &calc_com_host::RtdClient,
+    rtd: &calc_addin_host::RtdClient,
     providers: &BTreeSet<calc_xll_host::RtdProvider>,
     cells: &[CellKey],
 ) -> Result<(), String> {
@@ -183,7 +182,7 @@ fn value(book: &HostSession, at: CellKey) -> Result<(CalcValue, serde_json::Valu
 }
 pub fn run(
     shell: &Shell,
-    native: &Rc<XllHost>,
+    addins: &mut AddinHost,
     sheet_name: &str,
     workbook_name: &str,
     cases: Option<PathBuf>,
@@ -208,15 +207,13 @@ pub fn run(
     if !rename.accepted() {
         return Err(format!("sheet rename: {:?}", rename.error));
     }
-    native.set_sheet(sheet, format!("[{workbook_name}]{sheet_name}"), true);
-    shell.projection()?.set_workbook(workbook_name)?;
-    shell.projection()?.set_sheet(sheet_name)?;
-    native.set_async_continuations(true)?;
-    let rtd = Rc::new(calc_com_host::RtdClient::new()?);
-    native.set_rtd_service(rtd.clone())?;
-    book.set_user_functions(native.functions_with_early_execution(early_execution)?);
+    addins.bind_sheet(sheet, sheet_name);
+    addins.set_active_sheet(sheet_name)?;
+    addins.enable_async_continuations()?;
+    let rtd = addins.enable_rtd()?;
+    book.set_user_functions(addins.callables_with_early_execution(early_execution)?);
     let bindings = book.host().user_function_bindings();
-    let providers = native
+    let providers = addins
         .registrations()
         .iter()
         .filter_map(|r| bindings.bind(None, &r.name))
@@ -274,10 +271,10 @@ pub fn run(
             retire_rtd(&mut book, &rtd, &providers, c, &mut rtd_retired)?;
             if entry_evaluation {
                 evaluate_entry(&mut book, c)?;
-                settle_entry(shell, native, &mut book, &mut returns)?;
+                settle_entry(shell, addins, &mut book, &mut returns)?;
                 reconcile_rtd(&book, &rtd, &providers, &[c])?;
                 let (calculated, proof) = value(&book, c)?;
-                formula_entries.push(serde_json::json!({"formula":dependent,"cell":dependent_address,"value":crate::value_json(&calculated),"provenance":proof}));
+                formula_entries.push(serde_json::json!({"formula":dependent,"cell":dependent_address,"value":value_json(&calculated),"provenance":proof}));
             }
         }
         if let Some(edit) = case.get("edit") {
@@ -298,9 +295,7 @@ pub fn run(
             if !receipt.accepted() {
                 return Err(format!("input edit refused: {:?}", receipt.error));
             }
-            shell
-                .projection()?
-                .sheet_change(area.first().row(), area.first().column())?;
+            addins.sheet_changed(area.first().row(), area.first().column())?;
         }
         let keep_formula = case["keep_formula"].as_bool().unwrap_or(false);
         if keep_formula && current_formula.as_deref() != Some(formula) {
@@ -312,10 +307,10 @@ pub fn run(
             retire_rtd(&mut book, &rtd, &providers, b, &mut rtd_retired)?;
             if entry_evaluation {
                 evaluate_entry(&mut book, b)?;
-                settle_entry(shell, native, &mut book, &mut returns)?;
+                settle_entry(shell, addins, &mut book, &mut returns)?;
                 reconcile_rtd(&book, &rtd, &providers, &[b])?;
                 let (calculated, proof) = value(&book, b)?;
-                formula_entries.push(serde_json::json!({"formula":formula,"cell":"B3","value":crate::value_json(&calculated),"provenance":proof}));
+                formula_entries.push(serde_json::json!({"formula":formula,"cell":"B3","value":value_json(&calculated),"provenance":proof}));
             }
         }
         // Separate workbook commands retain separate read views and activations.
@@ -328,7 +323,7 @@ pub fn run(
             )
             .map_err(|e| format!("{e:?}"))?;
             peer.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
-            peer.set_user_functions(native.functions_with_early_execution(early_execution)?);
+            peer.set_user_functions(addins.callables_with_early_execution(early_execution)?);
             peer.set_calculation_budget(WorkBudget::evaluations(1));
             let cell = CellKey::new(peer.host().sheets()[0].id(), 3, 2).unwrap();
             enter(&mut peer, cell, formula)?;
@@ -338,11 +333,11 @@ pub fn run(
             None
         };
         if !keep_formula {
-            shell.projection()?.sheet_change(b.row(), b.column())?;
+            addins.sheet_changed(b.row(), b.column())?;
         }
         if let Some(command) = case["before_calculate"].as_str() {
-            let result = native.run(command, &[])?;
-            let actual = crate::value_json(&result);
+            let result = addins.run(command, &[])?;
+            let actual = value_json(&result);
             if actual.as_f64() != case["before_calculate_value"].as_f64() {
                 return Err("precalculation command differs".into());
             }
@@ -371,15 +366,11 @@ pub fn run(
         loop {
             let evaluating = book.has_pending_calculation()
                 || !book.host().pending_async().is_empty()
-                || native.outstanding_native_calls() != 0
+                || addins.native().outstanding_native_calls() != 0
                 || concurrent.as_ref().is_some_and(|(peer, _)| {
                     peer.has_pending_calculation() || !peer.host().pending_async().is_empty()
                 });
-            let inputs = if evaluating {
-                rtd.poll_during_evaluation()?
-            } else {
-                rtd.poll()?
-            };
+            let inputs = addins.poll_rtd(evaluating)?;
             for input in inputs {
                 let disposition = book.update_rtd(
                     input.provider,
@@ -390,12 +381,12 @@ pub fn run(
                 if disposition != calc_host::RtdDisposition::Accepted {
                     return Err(format!("RTD input was not admitted: {disposition:?}"));
                 }
-                rtd_updates.push(serde_json::json!({"provider":format!("{:?}",input.provider),"subscription":input.subscription,"sequence":input.sequence,"value":crate::value_json(&input.value),"disposition":format!("{disposition:?}")}));
+                rtd_updates.push(serde_json::json!({"provider":format!("{:?}",input.provider),"subscription":input.subscription,"sequence":input.sequence,"value":value_json(&input.value),"disposition":format!("{disposition:?}")}));
                 // This controller explicitly requests a new manual command.
                 // The notification itself never completes an activation.
                 book.dispatch(SkinIntent::Recalculate);
             }
-            deliver_native_returns(native, &mut book, &mut returns)?;
+            deliver_native_returns(addins, &mut book, &mut returns)?;
             if book.has_pending_calculation() {
                 let progress = book.advance_calculation();
                 if let HostProgress::Failed(why) = progress {
@@ -429,18 +420,18 @@ pub fn run(
             }
             if !book.has_pending_calculation()
                 && book.host().pending_async().is_empty()
-                && native.outstanding_native_calls() == 0
+                && addins.native().outstanding_native_calls() == 0
                 && !rtd.has_pending_inputs()
             {
                 reconcile_rtd(&book, &rtd, &providers, &[b, c])?;
             }
             let complete = !book.has_pending_calculation()
                 && book.host().pending_async().is_empty()
-                && native.outstanding_native_calls() == 0
+                && addins.native().outstanding_native_calls() == 0
                 && !rtd.has_pending_inputs()
                 && case.get("rtd_wait_value").is_none_or(|expected| {
                     value(&book, b).is_ok_and(|(actual, _)| {
-                        let actual = crate::value_json(&actual);
+                        let actual = value_json(&actual);
                         actual == *expected
                             || actual.is_number()
                                 && expected.is_number()
@@ -478,7 +469,7 @@ pub fn run(
         if case.get("replace_pending").is_some() && !replaced {
             return Err("native call completed before overwrite was exercised".into());
         }
-        let actual = crate::value_json(&calculated);
+        let actual = value_json(&calculated);
         if !case["value"].is_null()
             && actual != case["value"]
             && !(actual.as_f64().is_some() && actual.as_f64() == case["value"].as_f64())
@@ -490,7 +481,7 @@ pub fn run(
         }
         let (dependent, dependent_provenance) = if case.get("dependent").is_some() {
             let (calculated, proof) = value(&book, c)?;
-            let actual = crate::value_json(&calculated);
+            let actual = value_json(&calculated);
             if !case["dependent_value"].is_null()
                 && actual != case["dependent_value"]
                 && !(actual.as_f64().is_some()
@@ -506,7 +497,7 @@ pub fn run(
             .as_ref()
             .map(|(peer, cell)| {
                 let (calculated, proof) = value(peer, *cell)?;
-                let actual = crate::value_json(&calculated);
+                let actual = value_json(&calculated);
                 if actual != case["concurrent_value"]
                     && !(actual.as_f64().is_some()
                         && actual.as_f64() == case["concurrent_value"].as_f64())
@@ -528,7 +519,7 @@ pub fn run(
                     return Err("spill probe needs one local cell".into());
                 }
                 let (actual, proof) = value(&book, area.first())?;
-                let actual = crate::value_json(&actual);
+                let actual = value_json(&actual);
                 if actual != *expected
                     && !(actual.is_number()
                         && expected.is_number()
@@ -545,13 +536,14 @@ pub fn run(
             }
         }
         results.push(serde_json::json!({"formula":formula,"calculation":calculation,"value":actual,"dependent":dependent,"dependent_provenance":dependent_provenance,"concurrent":concurrent,"provenance":proof,"idle_observed_ms":idle_observed_ms,"rtd_updates_through":rtd_updates.len(),"spill_cells":spill_cells}));
-        shell.projection()?.after_calculate()?;
+        addins.after_calculate()?;
     }
+    let native = addins.native();
     if !native.diagnostics().is_empty() {
         return Err(format!("native refusals: {:?}", native.diagnostics()));
     }
-    let retained = native.functions_with_early_execution(early_execution)?;
-    let stale_name = native
+    let retained = addins.callables_with_early_execution(early_execution)?;
+    let stale_name = addins
         .registrations()
         .iter()
         .find(|r| r.macro_type == 1)
@@ -570,7 +562,7 @@ pub fn run(
         return Err("removed native entry still executes".into());
     }
     Ok(
-        serde_json::json!({"host":"DNA Calc / CalcHost P07","registrations":native.registrations().len(),"early_execution_registrations":early_execution,"results":results,"formula_entries":formula_entries,"async_returns":returns,"revoked_tokens":revoked,"rtd_updates":rtd_updates,"rtd_retired":rtd_retired,"rtd_subscriptions_after_close":rtd.subscriptions(),"status_message":native.status_message(),
+        serde_json::json!({"host":"DNA Calc / CalcHost P07","registrations":addins.registrations().len(),"early_execution_registrations":early_execution,"results":results,"formula_entries":formula_entries,"async_returns":returns,"revoked_tokens":revoked,"rtd_updates":rtd_updates,"rtd_retired":rtd_retired,"rtd_subscriptions_after_close":rtd.subscriptions(),"status_message":native.status_message(),
         "reload_results":[],"commands":commands,"live_callback_allocations":native.live_callback_allocations(),"closed_registration":"#NAME?","closed_name":stale_name}),
     )
 }

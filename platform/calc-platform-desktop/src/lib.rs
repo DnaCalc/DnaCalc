@@ -1,11 +1,42 @@
 //! The native-only package for the desktop platform adapter: native filesystem and operating-system services for the desktop application.
 //!
 //! Native only: it refuses to compile for wasm32, so it never enters portable library or browser builds.
+//!
+//! It has no product dependency: nothing here knows of CalcFunc, CalcFml, an add-in or an
+//! application. On Windows it holds the shell pieces the desktop applications share:
+//! - [`Shell`]: the single-threaded apartment, the `XLMAIN > XLDESK > EXCEL7` window chain and the
+//!   message pumps (`shell.rs`);
+//! - [`WebView`]: the WebView2 host with its string and bytes bridge, and the thread timer and
+//!   message loop that drive it (`webview.rs`);
+//! - [`winhttp`]: one GET over WinHTTP, and [`Background`]: work on a thread whose result is
+//!   announced to the thread that asked (`winhttp.rs`, `background.rs`);
+//! - [`dialogs`]: the native file open and save dialogs (`dialogs.rs`).
 
 #[cfg(target_arch = "wasm32")]
 compile_error!(
     "calc-platform-desktop is native-only and must not be built for wasm32; portable and browser builds exclude it"
 );
+
+#[cfg(windows)]
+mod background;
+#[cfg(windows)]
+pub mod dialogs;
+#[cfg(windows)]
+mod shell;
+#[cfg(windows)]
+mod webview;
+#[cfg(windows)]
+pub mod winhttp;
+
+#[cfg(windows)]
+pub use background::{Background, WM_BACKGROUND};
+#[cfg(windows)]
+pub use shell::{ObjectHandler, Shell, client_size};
+#[cfg(windows)]
+pub use webview::{
+    SEPARATOR, ThreadMessage, ThreadTimer, WebView, WebViewOptions, base64, per_monitor_dpi_aware,
+    run_message_loop, split_message, unbase64,
+};
 
 /// The most threads a native host's recalculation uses by default (dc-dxm): past eight the
 /// Ofgem workbooks measured no gain, on a machine of eight cores.

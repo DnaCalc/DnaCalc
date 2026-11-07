@@ -11,7 +11,9 @@
 //! - `ceiling`: the dependency ceiling on the host and wasm32: the resolved closures (normal and
 //!   build edges) of dna-onecalc and dna-formula-ui, the formula UI both apps show, hold none of
 //!   calc-engine, calc-doc and calc-host, and dna-calc does not depend directly on dna-onecalc
-//!   (what the apps share lives in dna-formula-ui);
+//!   (what the apps share lives in dna-formula-ui); on the host, dna-onecalc-desktop, the shipped
+//!   OneCalc executable, holds neither calc-host nor calc-engine, and dna-calc-desktop holds no
+//!   dna-onecalc;
 //! - `wasm`: `cargo xtask ci wasm`, the portable packages' tests in headless Chrome and Firefox,
 //!   with one line per package of where its tests ran; a test neither run in the browsers nor
 //!   marked `Native-only:` fails the wasm job, and so this step;
@@ -47,6 +49,9 @@ const STEPS: [&str; 6] = [
 /// The packages DNA OneCalc's ceiling covers, and the packages none of them may reach.
 const CEILING_PACKAGES: [&str; 2] = ["dna-onecalc", "dna-formula-ui"];
 const ABOVE_CEILING: [&str; 3] = ["calc-engine", "calc-doc", "calc-host"];
+/// OneCalc's desktop executable (native-only, so checked on the host) and what it may not reach.
+const DESKTOP_CEILING_PACKAGES: [&str; 1] = ["dna-onecalc-desktop"];
+const ABOVE_DESKTOP_CEILING: [&str; 2] = ["calc-engine", "calc-host"];
 
 /// The shipped targets the ceiling is resolved for, besides the host.
 const WASM_TARGET: &str = "wasm32-unknown-unknown";
@@ -87,6 +92,30 @@ fn ceiling(ws: &Workspace) -> (bool, String) {
                 }
             }
         }
+        if target == host.as_str() {
+            for package in DESKTOP_CEILING_PACKAGES {
+                let Some(member) = ws.member(package) else {
+                    findings.push(format!("{package} is not a workspace member"));
+                    continue;
+                };
+                let closure = resolved.reach(&member.id, |edge| edge.normal || edge.build, false);
+                for above in ABOVE_DESKTOP_CEILING {
+                    if closure.contains(above) {
+                        findings.push(format!(
+                            "[{target}] {package} has {above} in its dependency closure"
+                        ));
+                    }
+                }
+            }
+            if let Some(desktop) = ws.member("dna-calc-desktop") {
+                let closure = resolved.reach(&desktop.id, |edge| edge.normal || edge.build, false);
+                if closure.contains("dna-onecalc") {
+                    findings.push(format!(
+                        "[{target}] dna-calc-desktop has dna-onecalc in its dependency closure; DNA Calc's executable does not carry the OneCalc application"
+                    ));
+                }
+            }
+        }
         if let Some(calc) = ws.member("dna-calc") {
             let direct = resolved.reach(&calc.id, |edge| edge.normal || edge.build, true);
             if direct.contains("dna-onecalc") {
@@ -100,7 +129,7 @@ fn ceiling(ws: &Workspace) -> (bool, String) {
         (
             true,
             format!(
-                "{CEILING_PACKAGES:?} reach none of {ABOVE_CEILING:?}, and dna-calc does not depend on dna-onecalc, on {host} and {WASM_TARGET}"
+                "{CEILING_PACKAGES:?} reach none of {ABOVE_CEILING:?}, {DESKTOP_CEILING_PACKAGES:?} reach none of {ABOVE_DESKTOP_CEILING:?} and dna-calc-desktop none of dna-onecalc, and dna-calc does not depend on dna-onecalc, on {host} and {WASM_TARGET}"
             ),
         )
     } else {

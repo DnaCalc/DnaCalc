@@ -119,15 +119,19 @@ boundary traces are not counted as DNA Calc formula passes.
 
 `calc-xll-abi` owns the wire layouts, registration parser and per-call value arena.
 `calc-xll-host` loads native modules and adapts them to the existing caller-owned
-`calc_func::UserFunctions` registry. `dna-calc-desktop` creates an STA and hidden
-XLMAIN/XLDESK/EXCEL7 windows, exports MdCallBack12 and calculates through OneCalc's
-ordinary controller. The companion `calc-xll-shim` builds `xlcall32.dll` beside it.
-This is a minimal executable; the browser applications acquire no native dependency.
+`calc_func::UserFunctions` registry. `dna-onecalc-desktop` creates an STA and hidden
+XLMAIN/XLDESK/EXCEL7 windows (`calc-platform-desktop`), loads the add-ins through
+`calc-addin-host`, exports MdCallBack12 and calculates through OneCalc's ordinary controller.
+The companion `calc-xll-shim` builds `xlcall32.dll` beside it. `dna-calc-desktop` is DNA Calc's
+executable over the same add-in host: `--engine` runs the same case files through CalcHost
+(`run.ps1 -Engine`, with `dna-calc-desktop.exe` as `-HostExecutable`) and `--app` hosts the page.
+Each exports its own MdCallBack12 and carries its own version resource. These are minimal
+executables; the browser applications acquire no native dependency.
 
 ```powershell
-cargo build -p calc-xll-fixture -p calc-xll-shim -p dna-calc-desktop
-target/debug/dna-calc-desktop.exe --xll target/debug/calc_xll_fixture.dll --formula '=MyAdd(1,2)'
-cargo test -p calc-xll-abi -p calc-xll-shim -p dna-calc-desktop
+cargo build -p calc-xll-fixture -p calc-xll-shim -p dna-onecalc-desktop -p dna-calc-desktop
+target/debug/dna-onecalc-desktop.exe --xll target/debug/calc_xll_fixture.dll --formula '=MyAdd(1,2)'
+cargo test -p calc-xll-abi -p calc-xll-shim -p calc-addin-host -p dna-onecalc-desktop -p dna-calc-desktop
 ```
 
 The original Rust fixture is loaded unchanged in Excel and DNA Calc. Its single
@@ -155,8 +159,8 @@ Use the existing runner and tracer for four separate fresh directories:
 ./build.ps1 -NativeOnly
 pwsh -NoProfile -Sta -File ./run.ps1 -X1Xll ../../target/debug/calc_xll_fixture.dll -RunDirectory runs/x1-excel-traced
 pwsh -NoProfile -Sta -File ./run.ps1 -X1Xll ../../target/debug/calc_xll_fixture.dll -RunDirectory runs/x1-excel-control -NoTrace
-pwsh -NoProfile -Sta -File ./run.ps1 -X1Xll ../../target/debug/calc_xll_fixture.dll -HostExecutable ../../target/debug/dna-calc-desktop.exe -RunDirectory runs/x1-host-traced
-pwsh -NoProfile -Sta -File ./run.ps1 -X1Xll ../../target/debug/calc_xll_fixture.dll -HostExecutable ../../target/debug/dna-calc-desktop.exe -RunDirectory runs/x1-host-control -NoTrace
+pwsh -NoProfile -Sta -File ./run.ps1 -X1Xll ../../target/debug/calc_xll_fixture.dll -HostExecutable ../../target/debug/dna-onecalc-desktop.exe -RunDirectory runs/x1-host-traced
+pwsh -NoProfile -Sta -File ./run.ps1 -X1Xll ../../target/debug/calc_xll_fixture.dll -HostExecutable ../../target/debug/dna-onecalc-desktop.exe -RunDirectory runs/x1-host-control -NoTrace
 python verify.py runs/x1-excel-traced runs/x1-excel-control --host runs/x1-host-traced --host-control runs/x1-host-control --out runs/x1-summary.json
 ```
 
@@ -218,8 +222,8 @@ Build and use the existing runner:
 
 ```powershell
 ./build.ps1 -X2
-cargo build -p calc-xll-shim -p dna-calc-desktop
-pwsh -NoProfile -Sta -File ./run.ps1 -ExcelDnaDirectory fixture/bin/Release/net48 -HostExecutable ../../target/debug/dna-calc-desktop.exe -Reload -NoTrace -RunDirectory runs/example-x2
+cargo build -p calc-xll-shim -p dna-onecalc-desktop
+pwsh -NoProfile -Sta -File ./run.ps1 -ExcelDnaDirectory fixture/bin/Release/net48 -HostExecutable ../../target/debug/dna-onecalc-desktop.exe -Reload -NoTrace -RunDirectory runs/example-x2
 ```
 
 Use `-AddInName X2Aot` with the Native AOT publish directory for hello,
@@ -288,7 +292,7 @@ Build the pinned inputs outside the repository, then use the existing runner:
 
 ```powershell
 ./build.ps1 -X3 -UpstreamDirectory C:/Work/DnaCalc/codex-runs/x3-upstream
-pwsh -NoProfile -Sta -File ./run.ps1 -AddInDirectory C:/Work/DnaCalc/codex-runs/x3-upstream/xloil-runtime -XllFileName xlOil.xll -Cases fixture/x3-xloil-cases.json -HostExecutable ../../target/debug/dna-calc-desktop.exe -RunDirectory runs/example-x3
+pwsh -NoProfile -Sta -File ./run.ps1 -AddInDirectory C:/Work/DnaCalc/codex-runs/x3-upstream/xloil-runtime -XllFileName xlOil.xll -Cases fixture/x3-xloil-cases.json -HostExecutable ../../target/debug/dna-onecalc-desktop.exe -RunDirectory runs/example-x3
 ```
 
 Repeat without `-HostExecutable` for Excel and with `-NoTrace` for each control.

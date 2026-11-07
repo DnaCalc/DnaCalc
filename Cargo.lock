@@ -190,6 +190,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
+name = "calc-addin-host"
+version = "0.1.0"
+dependencies = [
+ "calc-com-host",
+ "calc-fml",
+ "calc-func",
+ "calc-platform-desktop",
+ "calc-value",
+ "calc-vba",
+ "calc-xll-fixture",
+ "calc-xll-host",
+ "calc-xll-shim",
+ "serde_json",
+]
+
+[[package]]
 name = "calc-com-host"
 version = "0.1.0"
 dependencies = [
@@ -312,6 +328,8 @@ dependencies = [
 name = "calc-platform-desktop"
 version = "0.1.0"
 dependencies = [
+ "webview2-com",
+ "windows",
  "windows-sys 0.61.2",
 ]
 
@@ -1045,9 +1063,10 @@ dependencies = [
 name = "dna-calc-desktop"
 version = "0.1.0"
 dependencies = [
- "calc-com-host",
+ "calc-addin-host",
  "calc-func",
  "calc-host",
+ "calc-platform-desktop",
  "calc-value",
  "calc-xll-abi",
  "calc-xll-fixture",
@@ -1055,11 +1074,7 @@ dependencies = [
  "calc-xll-shim",
  "dna-calc-protocol",
  "dna-calc-worker",
- "dna-onecalc",
  "serde_json",
- "webview2-com",
- "windows",
- "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1140,6 +1155,21 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
  "web-sys",
+]
+
+[[package]]
+name = "dna-onecalc-desktop"
+version = "0.1.0"
+dependencies = [
+ "calc-addin-host",
+ "calc-platform-desktop",
+ "calc-value",
+ "calc-xll-abi",
+ "calc-xll-fixture",
+ "calc-xll-host",
+ "calc-xll-shim",
+ "dna-onecalc",
+ "serde_json",
 ]
 
 [[package]]

@@ -1,27 +1,15 @@
 //! The desktop's fetch route for WEBSERVICE and IMAGE. `calc_func::fetch_following` holds every
-//! rule (redirects, statuses, bodies); this only runs a fetch on its own thread over WinHTTP and
-//! tells the UI thread, which hands the reply to the server. There is no cross-origin restriction.
-use crate::winhttp;
-use calc_func::{FetchKind, FetchReply, FetchRequest, FetchRoute, fetch_following};
-use std::{
-    cell::Cell,
-    fmt,
-    sync::{Arc, Mutex},
-};
-use windows_sys::Win32::{
-    System::Threading::GetCurrentThreadId,
-    UI::WindowsAndMessaging::{PostThreadMessageW, WM_APP},
-};
+//! rule (redirects, statuses, bodies); `calc_platform_desktop::winhttp` makes the one GET and
+//! `Background` runs it on a thread of its own and tells the UI thread, which hands the reply to
+//! the server. There is no cross-origin restriction.
+use calc_func::{FetchKind, FetchReply, FetchRequest, FetchRoute, RawResponse, fetch_following};
+use calc_platform_desktop::{Background, winhttp};
+use std::{cell::Cell, fmt};
 
-/// Posted to the UI thread when a fetch has finished.
-pub const WM_FETCH: u32 = WM_APP + 2;
-
-type Done = Arc<Mutex<Vec<(u64, FetchKind, FetchReply)>>>;
-
+/// A route whose replies are announced to the thread that made it, by `WM_BACKGROUND`.
 pub struct ThreadedFetch {
     next: Cell<u64>,
-    thread: u32,
-    done: Done,
+    jobs: Background<(u64, FetchKind, FetchReply)>,
 }
 
 impl fmt::Debug for ThreadedFetch {
@@ -35,14 +23,13 @@ impl ThreadedFetch {
     pub fn new() -> Self {
         Self {
             next: Cell::new(0),
-            thread: unsafe { GetCurrentThreadId() },
-            done: Done::default(),
+            jobs: Background::new(),
         }
     }
 
     /// The finished fetches, oldest first.
     pub fn take(&self) -> Vec<(u64, FetchKind, FetchReply)> {
-        std::mem::take(&mut *self.done.lock().unwrap_or_else(|e| e.into_inner()))
+        self.jobs.take()
     }
 }
 
@@ -50,13 +37,15 @@ impl FetchRoute for ThreadedFetch {
     fn begin(&self, request: FetchRequest) -> u64 {
         let id = self.next.get() + 1;
         self.next.set(id);
-        let (done, thread) = (self.done.clone(), self.thread);
-        std::thread::spawn(move || {
-            let reply = fetch_following(request.kind, &request.url, &mut |url| winhttp::get(url));
-            done.lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .push((id, request.kind, reply));
-            unsafe { PostThreadMessageW(thread, WM_FETCH, 0, 0) };
+        self.jobs.spawn(move || {
+            let reply = fetch_following(request.kind, &request.url, &mut |url| {
+                winhttp::get(url).map(|r| RawResponse {
+                    status: r.status,
+                    location: r.location,
+                    body: r.body,
+                })
+            });
+            (id, request.kind, reply)
         });
         id
     }
@@ -109,7 +98,7 @@ mod tests {
         )
         .unwrap();
         match page.cells()[0].value() {
-            calc_host::ProjectedValue::Calculated { value, .. } => crate::value_json(value).to_string(),
+            calc_host::ProjectedValue::Calculated { value, .. } => calc_addin_host::value_json(value).to_string(),
             other => format!("{other:?}"),
         }
     }

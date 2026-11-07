@@ -1662,7 +1662,7 @@ def verify_x2_controls(excel, host, identity=False):
             fields = value.split("|")
             require(len(fields) == 9, "Incomplete identity probe")
             process, major, assume, default_domain, version, hwnd, result, command_thread, function_thread = fields
-            require(process.lower() == ("excel" if index == 0 else "dna-calc-desktop"), "Process was renamed")
+            require(process.lower() == "excel" if index == 0 else process.lower() in ("dna-calc-desktop", "dna-onecalc-desktop"), "Process was renamed")
             require(major == "16" and version == "16.0" and int(hwnd) != 0, "Process or COM identity differs")
             require(result in ("True", "False") and command_thread == function_thread and int(command_thread) != 0, "PIA Run did not execute on the main lane")
             if index == 1:

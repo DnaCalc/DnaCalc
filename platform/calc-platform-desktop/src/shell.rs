@@ -1,5 +1,14 @@
+//! The desktop shell every DNA application starts from: a single-threaded COM apartment, the
+//! `XLMAIN > XLDESK > EXCEL7` window chain that add-ins look for in Excel's process, and the
+//! message pumps the owning thread runs.
+//!
+//! The chain is plain windows. What answers an add-in's `WM_GETOBJECT` (the Excel object model of
+//! the add-in host) is not this package's business: the owner registers it with
+//! [`Shell::set_object_handler`], so the shell has no product dependency.
 use std::{
+    cell::RefCell,
     path::Path,
+    rc::Rc,
     time::{Duration, Instant},
 };
 use windows_sys::Win32::{
@@ -8,17 +17,30 @@ use windows_sys::Win32::{
     UI::WindowsAndMessaging::*,
 };
 
+/// Answers `WM_GETOBJECT` on the innermost window: `(wParam, objectId)` to the `LRESULT`.
+pub type ObjectHandler = Rc<dyn Fn(usize, isize) -> isize>;
+
+/// Where the innermost window finds its handler. The window procedure reads it through the
+/// window's user data, so it lives as long as the shell.
+#[derive(Default)]
+struct Slot(RefCell<Option<ObjectHandler>>);
+
+/// The window chain, owned by the thread that made it.
 pub struct Shell {
     root: HWND,
     workbook: HWND,
-    projection: Option<Box<calc_com_host::Projection>>,
+    slot: Box<Slot>,
 }
+
 unsafe extern "system" fn window(hwnd: HWND, message: u32, w: WPARAM, l: LPARAM) -> LRESULT {
     if message == WM_GETOBJECT {
-        let pointer =
-            unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) } as *const calc_com_host::Projection;
-        if !pointer.is_null() {
-            return unsafe { &*pointer }.get_object(w, l);
+        let slot = unsafe { GetWindowLongPtrW(hwnd, GWLP_USERDATA) } as *const Slot;
+        if !slot.is_null() {
+            // The handler is cloned out before it runs: it may replace itself.
+            let handler = unsafe { &*slot }.0.borrow().clone();
+            if let Some(handler) = handler {
+                return handler(w, l);
+            }
         }
     }
     if message == WM_SIZE {
@@ -32,11 +54,15 @@ unsafe extern "system" fn window(hwnd: HWND, message: u32, w: WPARAM, l: LPARAM)
     }
     unsafe { DefWindowProcW(hwnd, message, w, l) }
 }
+
 fn wide(text: &str) -> Vec<u16> {
     text.encode_utf16().chain(Some(0)).collect()
 }
+
 impl Shell {
-    pub fn new() -> Result<Self, String> {
+    /// Enters a single-threaded apartment on this thread and creates the three windows, hidden,
+    /// titled `title`.
+    pub fn new(title: &str) -> Result<Self, String> {
         let status = unsafe { CoInitializeEx(std::ptr::null(), COINIT_APARTMENTTHREADED as u32) };
         if status < 0 {
             return Err(format!("CoInitializeEx STA: {status:#x}"));
@@ -70,7 +96,7 @@ impl Shell {
                 CreateWindowExW(
                     0,
                     class.as_ptr(),
-                    wide("DNA Calc").as_ptr(),
+                    wide(title).as_ptr(),
                     if parent.is_null() {
                         WS_OVERLAPPEDWINDOW
                     } else {
@@ -105,54 +131,49 @@ impl Shell {
             }
             parent = hwnd;
         }
+        let slot = Box::<Slot>::default();
+        unsafe {
+            SetWindowLongPtrW(parent, GWLP_USERDATA, (&*slot as *const Slot) as isize);
+        }
         Ok(Self {
             root,
             workbook: parent,
-            projection: None,
+            slot,
         })
     }
-    pub fn attach_host(&mut self, host: std::rc::Rc<calc_xll_host::XllHost>) -> Result<(), String> {
-        if let Some(old) = &self.projection {
-            old.close_addins()?;
-        }
-        let projection = Box::new(calc_com_host::Projection::new(self.hwnd(), host)?);
-        projection.verify_layout()?;
-        unsafe {
-            SetWindowLongPtrW(
-                self.workbook,
-                GWLP_USERDATA,
-                (&*projection as *const calc_com_host::Projection) as isize,
-            );
-        }
-        self.projection = Some(projection);
-        Ok(())
+
+    /// Sets (or with `None` clears) what answers `WM_GETOBJECT` on the innermost window.
+    pub fn set_object_handler(&self, handler: Option<ObjectHandler>) {
+        *self.slot.0.borrow_mut() = handler;
     }
+
+    /// Runs the thread's pending messages for `duration`.
     pub fn pump_for(&self, duration: Duration) {
         let start = Instant::now();
         loop {
-            let mut message: MSG = unsafe { std::mem::zeroed() };
-            while unsafe { PeekMessageW(&mut message, std::ptr::null_mut(), 0, 0, PM_REMOVE) } != 0
-            {
-                unsafe {
-                    TranslateMessage(&message);
-                    DispatchMessageW(&message);
-                }
-            }
+            pump_pending();
             if start.elapsed() >= duration {
                 break;
             }
             std::thread::sleep(Duration::from_millis(5));
         }
     }
-    /// The innermost window (EXCEL7), where the app mode puts the page.
+
+    /// The innermost window (EXCEL7), where an application puts its page.
     pub fn workbook_hwnd(&self) -> HWND {
         self.workbook
     }
+
     /// Sizes the window chain to `width` by `height` client pixels and shows it without taking
     /// the focus.
     pub fn show(&self, width: i32, height: i32) {
         unsafe {
-            let mut frame = RECT { left: 0, top: 0, right: width, bottom: height };
+            let mut frame = RECT {
+                left: 0,
+                top: 0,
+                right: width,
+                bottom: height,
+            };
             AdjustWindowRect(&mut frame, WS_OVERLAPPEDWINDOW, 0);
             SetWindowPos(
                 self.root,
@@ -166,31 +187,22 @@ impl Shell {
             ShowWindow(self.root, SW_SHOWNOACTIVATE);
         }
     }
+
+    /// The outermost window (XLMAIN), as the number add-ins read from `Application.Hwnd`.
     pub fn hwnd(&self) -> usize {
         self.root as usize
     }
-    pub fn run_early(&self, name: &str) -> Result<calc_value::CalcValue, String> {
-        self.projection
-            .as_ref()
-            .ok_or("COM projection is not attached")?
-            .run_early(name)
+
+    /// The client size of the innermost window, when it has one.
+    pub fn client_size(&self) -> Option<(i32, i32)> {
+        client_size(self.workbook)
     }
-    pub fn projection(&self) -> Result<&calc_com_host::Projection, String> {
-        self.projection
-            .as_deref()
-            .ok_or("COM projection is not attached".into())
-    }
+
+    /// Runs the thread's messages until `path` exists, for at most two minutes.
     pub fn wait_for(&self, path: &Path) -> Result<(), String> {
         let start = Instant::now();
         while !path.exists() {
-            let mut message: MSG = unsafe { std::mem::zeroed() };
-            while unsafe { PeekMessageW(&mut message, std::ptr::null_mut(), 0, 0, PM_REMOVE) } != 0
-            {
-                unsafe {
-                    TranslateMessage(&message);
-                    DispatchMessageW(&message);
-                }
-            }
+            pump_pending();
             if start.elapsed() > Duration::from_secs(120) {
                 return Err(format!("timed out waiting for {}", path.display()));
             }
@@ -199,19 +211,38 @@ impl Shell {
         Ok(())
     }
 }
+
+/// The client size of `window` in pixels, when it has one.
+pub fn client_size(window: HWND) -> Option<(i32, i32)> {
+    let mut rect = RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
+    (unsafe { GetClientRect(window, &mut rect) } != 0)
+        .then(|| (rect.right - rect.left, rect.bottom - rect.top))
+}
+
+/// Dispatches every message waiting for this thread.
+fn pump_pending() {
+    let mut message: MSG = unsafe { std::mem::zeroed() };
+    while unsafe { PeekMessageW(&mut message, std::ptr::null_mut(), 0, 0, PM_REMOVE) } != 0 {
+        unsafe {
+            TranslateMessage(&message);
+            DispatchMessageW(&message);
+        }
+    }
+}
+
 impl Drop for Shell {
     fn drop(&mut self) {
-        if let Some(projection) = &self.projection {
-            if let Err(why) = projection.close_addins() {
-                eprintln!("desktop shutdown: {why}");
-            }
-        }
-        // Detach the callback pointer before freeing it. A later WM_GETOBJECT must
-        // never find the old Box, including while COM releases pump sent messages.
+        // Detach the handler before anything it reaches is released. A later WM_GETOBJECT
+        // must never find it, including while COM releases pump sent messages.
+        self.set_object_handler(None);
         unsafe {
             SetWindowLongPtrW(self.workbook, GWLP_USERDATA, 0);
         }
-        self.projection.take();
         unsafe {
             DestroyWindow(self.root);
             CoUninitialize();

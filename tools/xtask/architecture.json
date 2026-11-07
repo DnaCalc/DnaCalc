@@ -159,6 +159,69 @@
         "dna-onecalc"
       ],
       "reason": "U1: workbook execution cannot depend on a page or a skin"
+    },
+    {
+      "package": "calc-platform-desktop",
+      "scope": "closure",
+      "forbidden": [
+        "calc-value",
+        "calc-func",
+        "calc-fml",
+        "calc-syntax",
+        "calc-vba",
+        "calc-xll-abi",
+        "calc-xll-host",
+        "calc-com-host",
+        "calc-addin-host",
+        "calc-doc-model",
+        "calc-doc",
+        "calc-engine",
+        "calc-host",
+        "calc-host-vba",
+        "calc-verdict",
+        "dna-formula-ui",
+        "dna-onecalc",
+        "dna-calc",
+        "dna-calc-model",
+        "dna-calc-protocol",
+        "dna-calc-worker",
+        "dna-strand",
+        "dna-calc-desktop",
+        "dna-onecalc-desktop"
+      ],
+      "reason": "the desktop platform adapter has no product dependency: windows, WebView2, WinHTTP and file dialogs only; the applications and the add-in host build on it (milestone 1 of the OneCalc desktop note)"
+    },
+    {
+      "package": "calc-addin-host",
+      "scope": "closure",
+      "forbidden": [
+        "calc-host",
+        "calc-engine",
+        "calc-doc",
+        "dna-onecalc",
+        "dna-calc",
+        "dna-calc-worker"
+      ],
+      "reason": "the loaded add-in set sits below both applications and below OneCalc's ceiling: CalcFml, CalcFunc, calc-vba and the native add-in hosts, never CalcHost, CalcEngine, the CalcDoc codec or an application"
+    },
+    {
+      "package": "dna-onecalc-desktop",
+      "scope": "closure",
+      "forbidden": [
+        "calc-host",
+        "calc-engine",
+        "dna-calc-desktop",
+        "dna-calc-worker"
+      ],
+      "reason": "plan 8.7 and the OneCalc desktop note: the shipped OneCalc executable reaches no CalcHost and no CalcEngine (also checked by `cargo xtask sweep`'s ceiling step)"
+    },
+    {
+      "package": "dna-calc-desktop",
+      "scope": "closure",
+      "forbidden": [
+        "dna-onecalc"
+      ],
+      "reason": "the DNA Calc executable does not carry the OneCalc application; what the two share lives in calc-addin-host, calc-platform-desktop and dna-formula-ui"
     }
   ],
   "os_binding_crates": [
