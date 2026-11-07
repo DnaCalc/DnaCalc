@@ -726,7 +726,7 @@ mod tests {
         assert_recorded_bits("GAMMA(6.0 / 11.0 - 6.0)", gamma_kernel(6.0 / 11.0 - 6.0).unwrap(), 0x3f887deb47c3ce38, 0x3f887deb47c3ce37);
         assert_recorded_bits("GAMMA(10.0 / 11.0 - 6.0)", gamma_kernel(10.0 / 11.0 - 6.0).unwrap(), 0x3fb45b15a0f213de, 0x3fb45b15a0f213dd);
         assert_recorded_bits("GAMMA(10.0 / 11.0 - 7.0)", gamma_kernel(10.0 / 11.0 - 7.0).unwrap(), 0xbf8abc68d3642961, 0xbf8abc68d3642960);
-        assert_recorded_bits("GAMMA(10.0 / 11.0 - 11.0)", gamma_kernel(10.0 / 11.0 - 11.0).unwrap(), 0xbec4ceb5db83f371, 0xbec4ceb5db83f370);
+        assert_recorded_bits("GAMMA(10.0 / 11.0 - 11.0)", gamma_kernel(10.0 / 11.0 - 11.0).unwrap(), 0xbec4ceb5db83f371, 0xbec4ceb5db83f371);
         assert_recorded_bits("GAMMA(1.0 + 2.0 / 11.0)", gamma_kernel(1.0 + 2.0 / 11.0).unwrap(), 0x3fed8addb6f81d80, 0x3fed8addb6f81d80);
         assert_recorded_bits("GAMMA(2.0 + 4.0 / 11.0)", gamma_kernel(2.0 + 4.0 / 11.0).unwrap(), 0x3ff36a412884def4, 0x3ff36a412884def3);
         assert_recorded_bits("GAMMA(3.0 + 7.0 / 11.0)", gamma_kernel(3.0 + 7.0 / 11.0).unwrap(), 0x400eff16b2482ffa, 0x400eff16b2482ff9);

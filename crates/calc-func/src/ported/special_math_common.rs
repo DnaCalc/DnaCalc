@@ -631,14 +631,15 @@ fn gratio_after40(
         // the residual is Excel's statically-linked legacy-CRT exp (one-sided
         // low, fdlibm-proxy 28/45).
         let _ = acc;
+        use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul};
         let mut rr = a;
         let mut c = 1.0f64;
         let mut ans = 1.0f64;
         loop {
             rr += 1.0;
-            c *= x / rr;
-            ans += c;
-            if c / ans <= 1.110_223_024_625_156_5e-16 {
+            c = excel_x87_mul(c, excel_x87_div(x, rr));
+            ans = excel_x87_add(ans, c);
+            if excel_x87_div(c, ans) <= 1.110_223_024_625_156_5e-16 {
                 break;
             }
         }
