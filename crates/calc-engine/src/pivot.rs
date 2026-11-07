@@ -269,6 +269,47 @@ fn field_groups(
     }
     Ok(groups)
 }
+/// The item lists of the page fields after a refresh. A page field showing (All) filters
+/// nothing, so only its item list follows the cache (UI28 pvt_report_filter); a selected item or
+/// a hidden item filters the source and refuses.
+fn page_field_items(
+    table: &PivotTable,
+    cache: &PivotCache,
+    snapshot: &PivotSnapshot,
+    measure: usize,
+    next: &mut PivotTable,
+) -> Result<(), PivotIssue> {
+    for &page in &table.page_fields {
+        let page = page as usize;
+        if page >= cache.fields.len()
+            || page >= next.fields.len()
+            || table.fields[page].items.iter().any(|i| i.hidden)
+        {
+            return Err(refusal(
+                &table.part,
+                "A filtered or invalid page field is not modelled",
+            ));
+        }
+        let groups = field_groups(table, cache, snapshot, page, measure)?;
+        let mut items = groups
+            .iter()
+            .filter(|g| !g.hidden)
+            .map(|g| PivotFieldItem {
+                index: Some(g.shared),
+                kind: "data".into(),
+                hidden: false,
+            })
+            .collect::<Vec<_>>();
+        items.push(PivotFieldItem {
+            index: None,
+            kind: "default".into(),
+            hidden: false,
+        });
+        next.fields[page].items = items;
+    }
+    Ok(())
+}
+
 /// The first refresh scope: one row field, one measure, no column/page/group/calculated fields.
 /// It preserves manual item order and applies saved ascending/descending sorts through the
 /// shared text comparator. Multi-field compact/outline/tabular layouts remain unmeasured.
@@ -288,7 +329,6 @@ pub fn layout(table: &PivotTable, cache: &PivotCache) -> Result<PivotLayout, Piv
     }
     if table.row_fields.len() == 1
         && table.column_fields.len() == 1
-        && table.page_fields.is_empty()
         && (table.column_fields[0] == -2) == (table.data_fields.len() > 1)
         && !table.data_fields.is_empty()
     {
@@ -296,14 +336,12 @@ pub fn layout(table: &PivotTable, cache: &PivotCache) -> Result<PivotLayout, Piv
     }
     if table.row_fields.len() == 2
         && table.column_fields.is_empty()
-        && table.page_fields.is_empty()
         && table.data_fields.len() == 1
     {
         return layout_two_rows(table, cache, snapshot);
     }
     if table.row_fields.len() != 1
         || !table.column_fields.is_empty()
-        || !table.page_fields.is_empty()
         || table.data_fields.len() != 1
     {
         return Err(bad(
@@ -449,6 +487,7 @@ pub fn layout(table: &PivotTable, cache: &PivotCache) -> Result<PivotLayout, Piv
         );
         cells.insert(at(height - 1, 1), total.result(&data.subtotal));
     }
+    page_field_items(table, cache, snapshot, measure, &mut next)?;
     Ok(PivotLayout { table: next, cells })
 }
 
@@ -733,6 +772,7 @@ fn layout_two_rows(
             )
         })
         .collect();
+    page_field_items(table, cache, snapshot, measure, &mut next)?;
     Ok(PivotLayout { table: next, cells })
 }
 
@@ -1027,6 +1067,7 @@ fn layout_matrix(
             )
         })
         .collect();
+    page_field_items(table, cache, snapshot, measure, &mut next)?;
     Ok(PivotLayout { table: next, cells })
 }
 
