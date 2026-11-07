@@ -470,7 +470,10 @@ fn rate_secant(
     for _ in 0..200 {
         let change = excel_x87_sub(value, value_before);
         if change == 0.0 {
-            return Some(current);
+            // A balance that does not move between two rates has no secant step: #NUM!, as in
+            // IRR's search (Excel 16.0.20527, dcztvv_r23: RATE(0,-100,1000,0,0,0.5),
+            // RATE(2^-1022,-100,1000,0,0,0.5) and RATE(FALSE,-200,8000) are #NUM!).
+            return None;
         }
         let next = excel_x87_sub(current, excel_x87_div(excel_x87_mul(value, excel_x87_sub(current, before)), change));
         let step = excel_x87_sub(next, current).abs();
@@ -1225,6 +1228,21 @@ mod tests {
             Err(FinancialError::Num),
             "pmt=0 on the main path is #NUM!"
         );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn rate_without_periods_is_num() {
+        // Excel 16.0.20527 (dcztvv_r23): with no periods, or 2^-1022 of one, the balance is the
+        // same at every rate and RATE is #NUM!.
+        for periods in [0.0, f64::MIN_POSITIVE] {
+            for (payment, present, guess) in [(-100.0, 1000.0, Some(0.5)), (-200.0, 8000.0, None)] {
+                assert_eq!(
+                    rate(periods, payment, present, 0.0, PaymentTiming::EndOfPeriod, guess),
+                    Err(FinancialError::Num)
+                );
+            }
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
