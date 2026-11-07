@@ -48,6 +48,18 @@ fn cumipmt_omits_the_first_beginning_payment_from_its_finish() {
     }
 }
 
+/// Excel20527 paired end/beginning calls, including a fractional period.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beginning_interest_uses_the_stored_period_component() {
+    for (args, interest) in [
+        ([0.125, 2.0, 12.0, 1.0, 0.0, 1.0], 0xbfbb_4d17_6eb7_88eb),
+        ([0.375, 2.5, 17.0, 1.1, 0.0, 1.0], 0xbfd3_25bb_416d_4ef3),
+    ] {
+        exact(call("IPMT", args.into_iter().map(n).collect()), f64::from_bits(interest));
+    }
+}
+
 /// Original Excel20430 Value2 readings, cache/oracle-20430/COUPDAYS.jsonl.
 /// All expectations below are retained observations; the full bank supplies
 /// coverage of the other calendar intervals and domain cases.

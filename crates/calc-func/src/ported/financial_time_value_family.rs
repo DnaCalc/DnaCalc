@@ -170,6 +170,17 @@ pub fn fv(
     }
 }
 
+/// Beginning-payment coefficient, with each reciprocal and addition stored
+/// from PC64. Shared by PMT and the period interest/principal finish.
+fn due_coefficient(rate: f64) -> f64 {
+    let reciprocal = excel_x87_recip(rate);
+    if reciprocal.is_finite() {
+        excel_x87_recip(excel_x87_add(1.0, reciprocal))
+    } else {
+        rate
+    }
+}
+
 /// PMT on the correctly-rounded numeric core (W108 Bead C).
 ///
 /// PV-side stable discount form (the live-Excel search winner). Instead of the
@@ -295,14 +306,9 @@ pub fn pmt(
         // operation from PC64. Negative-rate calls also pin this coefficient
         // under either final-word model before 44 fresh product ties distinguish
         // the PC64 store. Dividing by (1+r) loses those recorded roundings.
-        let reciprocal = excel_x87_recip(periodic_rate);
-        let factor = if reciprocal.is_finite() {
-            excel_x87_recip(excel_x87_add(1.0, reciprocal))
-        } else {
-            // A rate whose reciprocal overflows is subnormal. Its exact
-            // r/(1+r) rounds to r: r^2 is far below half a subnormal unit.
-            periodic_rate
-        };
+        // If its reciprocal overflows, r is subnormal and the coefficient
+        // rounds to r because r*r is below half a subnormal unit.
+        let factor = due_coefficient(periodic_rate);
         excel_x87_mul(quotient, factor)
     } else {
         let quotient = excel_x87_div(quotient, tf);
@@ -613,12 +619,19 @@ pub fn ipmt(
     let periodic_payment = pmt(periodic_rate, periods, present_value, future_value, timing)?;
     // dc-j9k.12: payments at the end of a period take Excel's own pieces. On the catalogue
     // oracle and bank rows with fv 0 (95 of 95) the interest is -RN(RN(q * em_m) * rate).
-    if matches!(timing, PaymentTiming::EndOfPeriod)
+    if (matches!(timing, PaymentTiming::EndOfPeriod) || periodic_rate > 0.0)
         && let Some((log_growth, quotient)) =
             end_payment_quotient(periodic_rate, periods, present_value, future_value)
     {
+        // Paired public end/beginning calls constrain the same stored period
+        // component. Beginning payments change only this final coefficient.
+        let factor = if matches!(timing, PaymentTiming::BeginningOfPeriod) {
+            due_coefficient(periodic_rate)
+        } else {
+            periodic_rate
+        };
         let (interest, _) = end_payment_parts(
-            periodic_rate, period_index, periods, future_value, log_growth, quotient,
+            factor, period_index, periods, future_value, log_growth, quotient,
         );
         return if interest.is_finite() { Ok(interest) } else { Err(FinancialError::Num) };
     }
