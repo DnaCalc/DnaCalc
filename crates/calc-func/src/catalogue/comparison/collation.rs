@@ -30,8 +30,7 @@
 //! The weights cover every UTF-16 code unit but a few (dc-zsn.2). A text holding one of those is
 //! not decided ([`Beyond`]) when the second pass needs its weights: U+0000, U+30A0, the isolated
 //! and medial forms of Arabic marks, and an iteration mark after a special outside fn7's three
-//! adjacent iteration forms and four punctuation units, or after a Hangul jamo (see
-//! [`super::sort_key`]).
+//! adjacent iteration forms and four punctuation units (see [`super::sort_key`]).
 //! The Hangul conjoining jamo are weighed as Windows' keys write them (dc-8wp): one primary and three
 //! extension bytes for a run of jamo, the Hangul syllables, compatibility jamo and jamo sharing one
 //! scale of primaries ([`super::hangul_collation`]). The comparison walks the weights in turn and

@@ -46,7 +46,7 @@
 //! `cargo xtask collation verify` compares the order these weights give with `CompareStringEx`
 //! over random texts of many scripts.
 
-use super::hangul_collation::{COMPAT, JAMO, SYLLABLE_RUNS};
+use super::hangul_collation::{COMPAT, ITERATION, JAMO, SYLLABLE_RUNS};
 use super::root_collation::{NEW, UNITS};
 use super::windows_collation::{
     COVERED, EXCEPTIONS, EXTRA, GROUPS, NO_REPEAT, PLACED, REPEAT, SECONDARY, SPECIAL, SURROGATES,
@@ -785,8 +785,8 @@ enum Before {
     One(u16, Slot, Option<[u8; 3]>),
     /// The punctuation unit, its special bytes, and whether it is immediately before us.
     Special(u16, [u8; 2], bool),
-    /// A conjoining jamo, whose key an iteration mark after it is not measured against.
-    Jamo,
+    /// A conjoining jamo: the second byte of the 04xx primary an iteration mark takes after it.
+    Jamo(u8),
 }
 
 impl Before {
@@ -829,7 +829,7 @@ impl Gathered {
     }
 
     /// Adds one conjoining jamo weight (see [`jamo_cluster`]).
-    fn jamo(&mut self, triple: Triple, before: &mut Before) {
+    fn jamo(&mut self, triple: Triple, last: u16, before: &mut Before) {
         self.ext.push((
             self.primary.len() / PRIMARY_BYTES,
             [triple.l, triple.v, triple.t],
@@ -840,7 +840,8 @@ impl Gathered {
         self.windows_length += 8;
         self.steps.push(Step::Base(2));
         self.case.push(2);
-        *before = Before::Jamo;
+        let at = ITERATION.binary_search_by_key(&last, |e| e.0).expect("a measured jamo");
+        *before = Before::Jamo(ITERATION[at].1);
     }
 
     fn kana(&mut self, [small, kind, width]: [u8; 3], iteration: u8) {
@@ -859,7 +860,7 @@ impl Gathered {
             Weight::Refused => return None,
             Weight::Jamo => {
                 let (triple, _) = jamo_cluster(&[code]);
-                self.jamo(triple, before);
+                self.jamo(triple, code, before);
             }
             Weight::Ignorable if self.expanding => {}
             Weight::Ignorable => self.steps.push(Step::Ignorable),
@@ -890,7 +891,14 @@ impl Gathered {
             }
             Weight::Iteration(rule) => {
                 let ((bytes, length), kana) = match *before {
-                    Before::Jamo => return None,
+                    Before::Jamo(weight) => {
+                        // Measured after every jamo, for every iteration and prolonged-sound
+                        // mark: the primary 04 and a byte by the jamo's consonant or vowel.
+                        let mut bytes = [0; PRIMARY_BYTES];
+                        bytes[0] = 0x04;
+                        bytes[8] = weight;
+                        ((bytes, 2), None)
+                    }
                     Before::Nothing => (table.no_repeat, None),
                     Before::Special(punctuation, [weight, _], adjacent) => {
                         // Fn7's native keys and Excel comparisons agree here: an
@@ -1002,7 +1010,7 @@ pub(super) fn parts(text: &[u16]) -> Result<Parts, Unfinished> {
         if table.weights[usize::from(code)] == Weight::Jamo {
             // A run of jamo is one weight: its other units add nothing of their own.
             let (triple, used) = jamo_cluster(&text[at..]);
-            gathered.jamo(triple, &mut before);
+            gathered.jamo(triple, text[at + used - 1], &mut before);
             gathered.mark_weights();
             for _ in 1..used {
                 starts.push(gathered.steps.len() as u32);
@@ -1018,7 +1026,7 @@ pub(super) fn parts(text: &[u16]) -> Result<Parts, Unfinished> {
                 // An iteration failure after One or after a jamo (whose weight is measured, 04xx, not modelled) would still add a primary. After a special
                 // even a nonempty contribution has not been measured; leave it undecided.
                 continuation: if matches!(table.weights[usize::from(code)], Weight::Iteration(_))
-                    && matches!(before, Before::One(..) | Before::Jamo)
+                    && matches!(before, Before::One(..))
                 {
                     Continuation::More
                 } else {
