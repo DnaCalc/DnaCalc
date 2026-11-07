@@ -765,7 +765,7 @@ mod tests {
         assert_recorded_bits("GAMMA(1.0625)", gamma_kernel(1.0625).unwrap(), 0x3feef66a79533ee8, 0x3feef66a79533ee7);
         assert_recorded_bits("GAMMA(9.0625)", gamma_kernel(9.0625).unwrap(), 0x40e682cf40f15007, 0x40e682cf40f15006);
         assert_recorded_bits("GAMMA(4.3125)", gamma_kernel(4.3125).unwrap(), 0x4022027d3db6cf53, 0x4022027d3db6cf54);
-        assert_recorded_bits("GAMMA(10.5625)", gamma_kernel(10.5625).unwrap(), 0x4133f93261bf1bc0, 0x4133f93261bf1bbe);
+        assert_recorded_bits("GAMMA(10.5625)", gamma_kernel(10.5625).unwrap(), 0x4133f93261bf1bc0, 0x4133f93261bf1bc0);
         assert_recorded_bits("GAMMA(5.8125)", gamma_kernel(5.8125).unwrap(), 0x4055db68b6f3576c, 0x4055db68b6f3576c);
         // Live Excel 16.0 b20326 fifths in (0,1). Recurrence n=1 already 1 ULP.
         assert_recorded_bits("GAMMA(1.0 / 5.0)", gamma_kernel(1.0 / 5.0).unwrap(), 0x40125d0622505413, 0x40125d0622505412);

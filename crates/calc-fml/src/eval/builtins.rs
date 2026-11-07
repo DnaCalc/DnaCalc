@@ -9,7 +9,8 @@
 //! which the handbook does not list (dc-b1l: Excel 16.0 knows it, `_xlfn.FIELDVALUE`), less JIS
 //! and EUROCONVERT (dc-h9u: Excel 16.0.20527 on Windows gives `=JIS("abc")` and
 //! `=EUROCONVERT(1,"DEM","EUR")` #NAME?: JIS is not in Excel for Windows, and EUROCONVERT is the
-//! Euro Currency Tools add-in's, which a workbook reaches as an add-in function).
+//! Euro Currency Tools add-in's, which a workbook reaches as an add-in function: a call qualified
+//! by a library link to EUROTOOL.XLAM, lowered to the catalogue's add-in entry).
 
 /// The built-in function names, upper case, sorted for binary search.
 const NAMES: [&str; 517] = [

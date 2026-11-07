@@ -255,6 +255,19 @@ impl CallableTable {
         self.entries.contains_key(&Self::key(provider, name))
     }
 
+    /// Bind the fetching functions to `route`, replacing any earlier route's.
+    pub fn register_fetch_route(&mut self, route: &Rc<dyn calc_func::FetchRoute>) {
+        let provider = calc_func::FETCH_PROVIDER;
+        self.entries
+            .retain(|(held, _), _| held.as_deref() != Some(provider));
+        for name in calc_func::FETCH_FUNCTIONS {
+            let function = calc_func::FetchFunction::new(name, route.clone())
+                .expect("a fetching function's spelling");
+            self.register_for(Some(provider), name, Rc::new(function))
+                .expect("a provider cleared above");
+        }
+    }
+
     fn key(provider: Option<&str>, name: &str) -> (Option<String>, String) {
         (
             provider.map(str::to_owned),

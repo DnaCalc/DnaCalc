@@ -127,15 +127,13 @@ pub fn gamma_dist_kernel(
         return Ok(regularized_gamma_p(alpha, x / beta));
     }
     // Gamma(1) = 1 exactly; Lanczos leaves a small nonzero log at this point.
-    if alpha != 1.0 && x > 0.0 {
-        // R30 scaled public calls identify a stored alpha/x ratio followed by multiplication.
-        // The prefix producer and its return storage remain separate unresolved stages.
-        use crate::ported::excel_numeric::{
-            excel_exp_difference, excel_log, excel_x87_div, excel_x87_mul, gammaln_excel,
-        };
+    if x > 0.0 {
+        // The density is the Poisson mass at `alpha` of mean `x/beta`, stored, times the stored
+        // `alpha/x`: R30's scaled public calls read the ratio, and with this mass every one of
+        // the 750 unit-shape rows of the bank agrees, where `exp(-x/beta)/beta` does not.
+        use crate::ported::excel_numeric::{excel_x87_div, excel_x87_mul};
         let y = excel_x87_div(x, beta);
-        let t = excel_x87_mul(alpha, excel_log(y));
-        let r = excel_exp_difference(t, y, gammaln_excel(alpha + 1.0));
+        let r = crate::ported::discrete_dist::poisson_mass(alpha, y);
         let pdf = excel_x87_mul(r, excel_x87_div(alpha, x));
         return if pdf.is_finite() { Ok(pdf) } else { Err(WorksheetErrorCode::Num) };
     }

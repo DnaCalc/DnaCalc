@@ -2555,6 +2555,46 @@
                      "IMPORTTEXT",
                      "=IMPORTTEXT(1)",
                      "_xlfn.IMPORTTEXT(1)"
+                 ],
+                 [
+                     "WEBSERVICE",
+                     "=WEBSERVICE(123)",
+                     "_xlfn.WEBSERVICE(123)"
+                 ],
+                 [
+                     "CUBEKPIMEMBER",
+                     "=CUBEKPIMEMBER(\"x\",\"x\",\"x\",1)",
+                     "CUBEKPIMEMBER(\"x\",\"x\",\"x\",1)"
+                 ],
+                 [
+                     "CUBEMEMBER",
+                     "=CUBEMEMBER(\"NoConnection\",\"[X]\")",
+                     "CUBEMEMBER(\"NoConnection\",\"[X]\")"
+                 ],
+                 [
+                     "CUBEMEMBERPROPERTY",
+                     "=CUBEMEMBERPROPERTY(\"x\",\"x\",\"x\")",
+                     "CUBEMEMBERPROPERTY(\"x\",\"x\",\"x\")"
+                 ],
+                 [
+                     "CUBERANKEDMEMBER",
+                     "=CUBERANKEDMEMBER(\"x\",\"x\",1)",
+                     "CUBERANKEDMEMBER(\"x\",\"x\",1)"
+                 ],
+                 [
+                     "CUBESET",
+                     "=CUBESET(\"x\",\"x\")",
+                     "CUBESET(\"x\",\"x\")"
+                 ],
+                 [
+                     "CUBESETCOUNT",
+                     "=CUBESETCOUNT(5)",
+                     "CUBESETCOUNT(5)"
+                 ],
+                 [
+                     "CUBEVALUE",
+                     "=CUBEVALUE(\"x\")",
+                     "CUBEVALUE(\"x\")"
                  ]
              ]
 }

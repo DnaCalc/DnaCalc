@@ -65,6 +65,8 @@ impl<'f> SessionFacts<'f> {
 }
 
 impl calc_func::HostFacts for SessionFacts<'_> {
+    fn pivot_data_cell(&mut self,_:&str,_:&[calc_func::value::GridArea],_:&[(String,calc_func::value::CalcValue)])->calc_func::PivotLookup{calc_func::PivotLookup::NotModelled}
+
     fn is_external_sheet(&mut self, _: SheetId) -> bool {
         false
     }

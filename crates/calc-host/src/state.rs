@@ -117,6 +117,8 @@ pub struct HostState {
     pub(crate) calculation_authority: u64,
     pub(crate) current_facts: Option<Arc<crate::facts::HostFacts>>,
     pub(crate) functions: calc_fml::CallableTable,
+    /// The host's way to fetch a URL a workbook names; none gives Excel's failed-fetch results.
+    pub(crate) fetch_route: Option<std::rc::Rc<dyn calc_func::FetchRoute>>,
     pub(crate) rtd_inputs: std::rc::Rc<crate::recalc::RtdSnapshot>,
     pub(crate) retired_rtd: std::collections::BTreeSet<calc_fml::UserInputKey>,
     pub(crate) references: std::rc::Rc<calc_fml::reference::ReferenceTracker>,
@@ -215,12 +217,23 @@ impl HostState {
     pub fn user_function_bindings(&self) -> calc_fml::CallableBindings {
         self.functions.bindings()
     }
-    pub fn set_user_functions(&mut self, functions: calc_fml::CallableTable) {
+    pub fn set_user_functions(&mut self, mut functions: calc_fml::CallableTable) {
+        if let Some(route) = &self.fetch_route {
+            functions.register_fetch_route(route);
+        }
         self.functions.replace(functions);
         self.engine
             .set_callable_bindings(&self.model, self.functions.bindings());
         self.published = None;
         self.last_failure = None;
+    }
+
+    /// Bind WEBSERVICE and IMAGE to `route`. Each fetch then waits on the async path; the host
+    /// delivers [`calc_func::FetchReply::into_value`] through the request's token.
+    pub fn set_fetch_route(&mut self, route: std::rc::Rc<dyn calc_func::FetchRoute>) {
+        self.fetch_route = Some(route);
+        let functions = self.functions.clone();
+        self.set_user_functions(functions);
     }
 
     /// Opens the package `source` under `policy`, loads its workbook at the document's first
@@ -272,6 +285,7 @@ impl HostState {
             calculation_authority: 0,
             current_facts: None,
             functions: calc_fml::CallableTable::new(),
+            fetch_route: None,
             rtd_inputs: Default::default(),
             retired_rtd: Default::default(),
             references: calc_fml::reference::ReferenceTracker::new(),

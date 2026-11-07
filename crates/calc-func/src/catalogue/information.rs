@@ -122,6 +122,9 @@ pub(super) const FAMILY: Family = Family {
 fn scalar<'v>(site: &Site<'_>, value: &'v CalcValue) -> Step<CoreRef<'v>> {
     match value.core_ref() {
         _ if value.callable_value().is_some() => Err(site.not_modelled(Some(0))),
+        // A picture is no error, number, text, logical or blank: every IS function is FALSE but
+        // ISNONTEXT (ISERROR measured; see crate::fetch).
+        _ if value.image_value().is_some() => Ok(CoreRef::Missing),
         CoreRef::Missing | CoreRef::Array(_) => Err(site.not_modelled(Some(0))),
         CoreRef::Number(n) if !n.is_finite() && !value.is_excel_overflow() => Err(site.not_modelled(Some(0))),
         core => Ok(core),
@@ -396,6 +399,10 @@ fn type_of(
 }
 
 fn type_code(site: &Site<'_>, value: &CalcValue) -> Step<f64> {
+    // A picture: TYPE(IMAGE(...)) is 128 (crate::fetch).
+    if value.image_value().is_some() {
+        return Ok(128.0);
+    }
     Ok(match known(site, value)? {
         CoreRef::Number(_) | CoreRef::Empty => 1.0,
         CoreRef::Text(_) => 2.0,
@@ -428,6 +435,10 @@ fn n_of(site: &Site<'_>, argument: &CalcValue, services: &mut EvalServices<'_>) 
         }
         _ => argument.clone(),
     };
+    // A picture reads as #VALUE! here (crate::fetch).
+    if value.image_value().is_some() {
+        return Err(Exit::Error(WorksheetErrorCode::Value));
+    }
     known(site, &value).and_then(|core| match core {
         CoreRef::Number(_) if value.is_excel_overflow() => Ok(value.clone()),
         CoreRef::Number(x) => site

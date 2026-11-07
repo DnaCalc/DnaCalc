@@ -209,6 +209,18 @@ impl Operand<'_> {
 
 pub(super) fn order(site: &Site<'_>, arguments: &[CalcValue], want: Want) -> Step<Ordering> {
     site.scalar_operands(arguments)?;
+    // Two pictures are equal when their source and alt text are; they have no order.
+    if let [left, right] = arguments
+        && let (Some(left), Some(right)) = (left.image_value(), right.image_value())
+    {
+        return match want {
+            Want::Equality if left.source == right.source && left.alt_text == right.alt_text => {
+                Ok(Ordering::Equal)
+            }
+            Want::Equality => Ok(Ordering::Less),
+            Want::Order => Err(Exit::Error(crate::value::WorksheetErrorCode::Value)),
+        };
+    }
     let mut operands = [Operand::Blank; 2];
     for (index, argument) in arguments.iter().enumerate() {
         operands[index] = match argument.core_ref() {

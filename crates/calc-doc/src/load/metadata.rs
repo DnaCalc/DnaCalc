@@ -19,8 +19,9 @@
 use super::{Events, LoadError, read_xml};
 use crate::opc::{Package, TargetMode};
 use crate::xml::XmlEvent;
-use calc_doc_model::value::WorksheetErrorCode;
+use calc_doc_model::value::{ImageFormat, ImageValue, WorksheetErrorCode};
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 /// What a `cm` index resolves to.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -40,7 +41,9 @@ pub(crate) enum ValueMeta {
     Error(WorksheetErrorCode),
     /// An `_error` rich value whose `errorType` names no worksheet error the model holds.
     UnknownErrorType { error_type: u32 },
-    /// A rich value of another structure (a linked data type, an image).
+    /// A `_webimage` rich value: IMAGE's picture, with the media part's bytes.
+    Image(ImageValue),
+    /// A rich value of another structure (a linked data type, a picture placed in a cell).
     OtherRichValue { structure: String },
     /// The chain could not be followed; the reason names the broken link.
     Unresolved { reason: String },
@@ -258,6 +261,90 @@ fn parse_rich_values(package: &Package, part: &str) -> Result<Vec<RichValue>, Lo
     Ok(values)
 }
 
+/// One `webImageSrd` of `rdRichValueWebImage.xml`, resolved through the part's relationships.
+#[derive(Debug)]
+struct WebImage {
+    address: String,
+    format: ImageFormat,
+    bytes: Arc<[u8]>,
+}
+
+/// The web images in document order; `None` for one whose address or picture does not resolve.
+fn parse_web_images(package: &Package, part: &str) -> Result<Vec<Option<WebImage>>, LoadError> {
+    let xml = read_xml(package, part)?;
+    let mut events = Events::new(&xml);
+    let mut ids: Vec<(Option<String>, Option<String>)> = Vec::new();
+    while let Some(event) = events.next()? {
+        if let XmlEvent::Start(element) = event {
+            let id = super::relationship_attribute(&element, "id").map(str::to_owned);
+            match element.name.local.as_str() {
+                "webImageSrd" => ids.push((None, None)),
+                "address" => {
+                    if let Some(last) = ids.last_mut() {
+                        last.0 = id;
+                    }
+                }
+                "blip" => {
+                    if let Some(last) = ids.last_mut() {
+                        last.1 = id;
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    let relationships = package.relationships_of(Some(part));
+    let find = |id: &str| {
+        relationships?
+            .items()
+            .iter()
+            .find(|item| item.id == id)
+    };
+    Ok(ids
+        .into_iter()
+        .map(|(address, blip)| {
+            let address = find(address.as_deref()?)?.target.clone();
+            let media = find(blip.as_deref()?)?.resolved.clone()?;
+            let bytes = package.read_part(&media).ok()?;
+            Some(WebImage {
+                address,
+                format: ImageFormat::sniff(&bytes)?,
+                bytes: bytes.into(),
+            })
+        })
+        .collect())
+}
+
+/// A `_webimage` rich value as the picture it names.
+fn web_image(value: &RichValue, structure: &Structure, images: Option<&[Option<WebImage>]>) -> ValueMeta {
+    let unresolved = |reason: &str| ValueMeta::Unresolved {
+        reason: reason.to_owned(),
+    };
+    let key = |name: &str| {
+        let at = structure.keys.iter().position(|key| key == name)?;
+        value.values.get(at).map(String::as_str)
+    };
+    let Some(index) = key("WebImageIdentifier").and_then(|text| text.trim().parse::<usize>().ok())
+    else {
+        return unresolved("_webimage rich value has no WebImageIdentifier");
+    };
+    let Some(Some(image)) = images.and_then(|images| images.get(index)) else {
+        return unresolved("_webimage rich value names no resolvable web image");
+    };
+    let size = |name: &str| key(name).and_then(|text| text.trim().parse::<f64>().ok());
+    ValueMeta::Image(ImageValue {
+        source: image.address.clone(),
+        alt_text: key("Text").map(str::to_owned),
+        sizing: key("ImageSizing")
+            .and_then(|text| text.trim().parse().ok())
+            .unwrap_or(0),
+        height: size("ImageHeight"),
+        width: size("ImageWidth"),
+        format: image.format,
+        bytes: image.bytes.clone(),
+    })
+}
+
 fn parse_structures(package: &Package, part: &str) -> Result<Vec<Structure>, LoadError> {
     let xml = read_xml(package, part)?;
     let mut events = Events::new(&xml);
@@ -313,6 +400,7 @@ fn resolve_value(
     parsed: &ParsedMetadata,
     rich_values: Option<&[RichValue]>,
     structures: Option<&[Structure]>,
+    web_images: Option<&[Option<WebImage>]>,
 ) -> ValueMeta {
     let unresolved = |reason: String| ValueMeta::Unresolved { reason };
     let Some((type_index, future_index)) = rc else {
@@ -362,6 +450,9 @@ fn resolve_value(
             structures.len()
         ));
     };
+    if structure.kind == "_webimage" {
+        return web_image(value, structure, web_images);
+    }
     if structure.kind != "_error" {
         return ValueMeta::OtherRichValue {
             structure: structure.kind.clone(),
@@ -438,6 +529,10 @@ pub(crate) fn read(package: &Package, workbook: &str) -> Result<Metadata, LoadEr
         Some(part) => Some(parse_structures(package, &part)?),
         None => None,
     };
+    let web_images = match related(package, workbook, "/rdRichValueWebImage") {
+        Some(part) => Some(parse_web_images(package, &part)?),
+        None => None,
+    };
     Ok(Metadata {
         cell: parsed
             .cell
@@ -447,7 +542,15 @@ pub(crate) fn read(package: &Package, workbook: &str) -> Result<Metadata, LoadEr
         value: parsed
             .value
             .iter()
-            .map(|rc| resolve_value(*rc, &parsed, rich_values.as_deref(), structures.as_deref()))
+            .map(|rc| {
+                resolve_value(
+                    *rc,
+                    &parsed,
+                    rich_values.as_deref(),
+                    structures.as_deref(),
+                    web_images.as_deref(),
+                )
+            })
             .collect(),
         unavailable: None,
     })

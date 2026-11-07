@@ -62,7 +62,7 @@ pub use calc_func::{
     ApplicationFacts, CalculationMode, CellFormatFacts, ColumnWidth, HorizontalAlignment,
     WorkbookFacts, WorkbookFile,
 };
-pub use calc_func::{HostFacts, RandomSource, SubtotalExclusions};
+pub use calc_func::{HostFacts, PivotLookup, RandomSource, SubtotalExclusions};
 
 mod callable;
 pub use calc_func::{

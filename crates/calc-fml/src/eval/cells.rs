@@ -296,6 +296,12 @@ impl ReaderHost<'_, '_> {
 }
 
 impl HostFacts for ReaderHost<'_, '_> {
+    fn pivot_data_cell(&mut self,data_field:&str,reference:&[GridArea],fields:&[(String,CalcValue)])->calc_func::PivotLookup {
+        self.fact(crate::FactSubject::Workbook,crate::ReadPurpose::SheetMetadata,crate::ObservableFacets::SheetMetadata,crate::FactInvalidation::OnChange);
+        let value=self.shared.host.borrow_mut().as_deref_mut().map_or(calc_func::PivotLookup::NotModelled,|host|host.pivot_data_cell(data_field,reference,fields));
+        if matches!(value,calc_func::PivotLookup::NotModelled){self.shared.refusal.set(Some(ReadRefusal::Denied(crate::ReadDenial{construct:"GETPIVOTDATA pivot layout",owner:"dc-8wp"})));}value
+    }
+
     fn caller(&mut self) -> Option<CellKey> {
         Some(self.shared.caller)
     }

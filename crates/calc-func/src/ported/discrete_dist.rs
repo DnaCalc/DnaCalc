@@ -21,7 +21,8 @@
 //! of adjacent doubles and the bank):
 //!
 //! - The stored exponent: with the normalizer removed, the answers sit on its binary64 grid.
-//! - The Stirling error: a table to 6 cut to 16 decimals, ten terms of its series from 7.
+//! - The Stirling error: a table to 6 cut to 16 decimals, ten terms of its series from 7. A shape
+//!   that is not whole takes the series from 6 and comes down the recurrence (`excel_stirling_step`).
 //! - The deviance outside its series range: `x/np`, its logarithm, the product with `x` and `np - x`
 //!   each stored, then summed.
 //! - BINOM.DIST's exponent: `s(n) - s(x) - d(x) - s(n-x) - d(n-x)`, stored after each subtraction.
@@ -30,10 +31,11 @@
 //!   `excel_exp_compensated`).
 //! - The deviance inside its series range: `excel_deviance_series`.
 //!
-//! The zero-success mass is not read: 100 rows of the bank, where `ln q` is not of the stored `q`.
+//! - The zero-success mass: EXP of the stored `n ln(1 - p)`, with Excel's internal logarithm of
+//!   `1 + u` (`excel_log1p_times`), all 11,901 rows of the bank.
 
 use crate::ported::excel_numeric::{
-    excel_deviance_series, excel_exp, excel_exp_compensated, excel_exp_running, excel_expm1_spilled, excel_log, excel_stirling_series, excel_x87_add, excel_x87_div,
+    excel_deviance_in_series, excel_deviance_series, excel_exp, excel_exp_compensated, excel_exp_running, excel_expm1_spilled, excel_log, excel_log1p_times, excel_stirling_series, excel_stirling_step, excel_x87_add, excel_x87_div,
     excel_x87_mul, excel_x87_sub, gammaln_excel,
 };
 use crate::value::WorksheetErrorCode;
@@ -58,18 +60,30 @@ const STIRLING_ERROR: [f64; 7] = [
     0.0138761288230707,
 ];
 
+///
+/// A count that is not whole reaches here from GAMMA.DIST: the series at `n + k` in `[6, 7)`, each
+/// step stored into the running value. At `x` next to `a` the exponent is `-s(a)` alone, and that
+/// pins `s(a)` to a double: of 2,430 shapes from 1.1 to 7, 2,392 hold within two of 40 rows.
+/// The ten-term series at 6 is what puts the error of -3.6 units of 2^-53 just above each integer.
 fn stirling_error(n: f64) -> f64 {
-    if n < 7.0 {
+    if n == n.floor() && n < 7.0 {
         return STIRLING_ERROR[n as usize];
     }
-    excel_stirling_series(n)
+    let steps = (6.0 - n.floor()).max(0.0);
+    let mut s = excel_stirling_series(n + steps);
+    let mut k = steps - 1.0;
+    while k >= 0.0 {
+        s = excel_x87_add(s, excel_stirling_step(n + k));
+        k -= 1.0;
+    }
+    s
 }
 
 /// Loader's deviance `x ln(x/np) + np - x`. Measured on POISSON.DIST: the series range is
 /// `|x - np| < 0.2 (x + np)`, that is `x/np` inside `(2/3, 3/2)`, where Loader has 0.1. Outside it
 /// the quotient, its logarithm, the product and `np - x` are each stored and then summed.
 fn deviance(x: f64, np: f64) -> f64 {
-    if (x - np).abs() < 0.2 * (x + np) {
+    if excel_deviance_in_series(x, np) {
         return excel_deviance_series(x, np);
     }
     excel_x87_add(excel_x87_mul(x, excel_log(excel_x87_div(x, np))), excel_x87_sub(np, x))
@@ -81,8 +95,7 @@ fn binom_mass(x: f64, n: f64, p: f64, q: f64) -> f64 {
         if n == 0.0 {
             return 1.0;
         }
-        let lc = if p < 0.1 { -deviance(n, n * q) - n * p } else { n * excel_log(q) };
-        return excel_exp(lc);
+        return excel_exp(excel_log1p_times(n, -p));
     }
     if x == n {
         // With measured binary64 LN/EXP leaves, the R27 large-count readings
@@ -104,21 +117,26 @@ fn binom_mass(x: f64, n: f64, p: f64, q: f64) -> f64 {
     excel_exp_running(lc, &[-excel_log(n) / 2.0, excel_log(x) / 2.0, excel_log(n - x) / 2.0, LN_SQRT_2PI])
 }
 
-/// The Poisson mass at `x` for `lambda > 0`. Two routes, split at `lambda = 1.1` (bisected on live
-/// answers at `x = 2, 3, 7`) with `x = 1` always on the first:
+/// The Poisson mass at `x` for `lambda > 0`, with `x` not necessarily whole: it is also GAMMA.DIST's
+/// prefactor `y^a exp(-y) / Gamma(a + 1)`, in the cumulative's arms and in the density, which is the
+/// mass times the stored `a/y`. At `a = 2` the error of GAMMA.DIST jumps at `y = 1.1` (5,000 live
+/// answers around it), and with this route the bank's failures fall from 29,872 to 594.
 ///
-/// - `exp(x ln lambda - lambda - GAMMALN(x + 1))`, the prefactor of GAMMA.DIST's series arm.
+/// Two routes, split at `lambda = 1.1` (bisected on live answers at `x = 2, 3, 7`) with `x <= 1`
+/// always on the first:
+///
+/// - `exp(x ln lambda - lambda - GAMMALN(x + 1))`.
 ///   `ln lambda` is stored (the answers sit on its grid) and so is the product with `x`; the stored
 ///   GAMMALN is why the bank's constants carry its low bits (+1 unit at `x = 2, 8`). The two
 ///   subtractions are compensated (`excel_exp_compensated`).
 /// - Loader's saddle point `exp(-stirling_error(x) - deviance(x, lambda)) / sqrt(2 pi x)`, with the
 ///   exponent and the exponential each stored: the answers sit on the exponent's binary64 grid
 ///   once the normalizer is removed, from `lambda` near 4 to 1000 and `x` up to 100.
-fn poisson_mass(x: f64, lambda: f64) -> f64 {
+pub(crate) fn poisson_mass(x: f64, lambda: f64) -> f64 {
     if x == 0.0 {
         return excel_exp(-lambda);
     }
-    if x == 1.0 || lambda < 1.1 {
+    if x <= 1.0 || lambda < 1.1 {
         let t = excel_x87_mul(x, excel_log(lambda));
         return excel_exp_compensated(t, &[lambda, gammaln_excel(x + 1.0)]);
     }
@@ -281,7 +299,7 @@ fn hypergeom_mass(s: f64, n: f64, k: f64, big_n: f64) -> f64 {
     let a = binom_mass(s, k, p, q);
     let b = binom_mass(n - s, big_n - k, p, q);
     let c = binom_mass(n, big_n, p, q);
-    a * b / c
+    excel_x87_mul(excel_x87_div(a, c), b)
 }
 
 /// `HYPGEOM.DIST(sample_s, number_sample, population_s, number_pop, cumulative)`.

@@ -25,6 +25,7 @@ pub use udf::{
 mod catalogue;
 mod coerce;
 mod decimal;
+mod fetch;
 mod file_prefix;
 mod format;
 /// One-line function descriptions for signature help and function help.
@@ -38,13 +39,17 @@ mod value_text;
 
 pub use call::{
     ApplicationFacts, CalculationMode, CallAbandoned, CallableInvoker, CellFormatFacts, CellReader,
-    ColumnWidth, EvalServices, FunctionCallScratch, FunctionFault, HorizontalAlignment, HostFacts,
+    ColumnWidth, EvalServices, FunctionCallScratch, FunctionFault, HorizontalAlignment, HostFacts, PivotLookup,
     PreparedArguments, RandomSource, ReferenceText, SubtotalExclusions, TextReference, Unreadable,
     WorkbookFacts, WorkbookFile, invoke, invoke_slice,
 };
 pub use catalogue::{
     ArgumentDemand, Catalogue, FunctionCallTarget, FunctionId, HelpParameter, Notation,
     ParameterClass, RegistrationError, SignatureHelp, catalogue,
+};
+pub use fetch::{
+    FETCH_FUNCTIONS, FETCH_PROVIDER, FetchFunction, FetchKind, FetchReply, FetchRequest,
+    FetchRoute, decode_body, wire_url,
 };
 pub use file_prefix::FilePrefix;
 

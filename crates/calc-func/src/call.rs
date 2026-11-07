@@ -92,10 +92,16 @@ pub enum TextReference {
     NotModelled,
 }
 
+/// The host identifies a visible pivot output; its value is read through the normal cell reader.
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub enum PivotLookup { Cell(CellKey), Error(WorksheetErrorCode), NotModelled }
+
 /// Facts about the workbook and its cells that only the host holds, which CELL, INFO, ISFORMULA,
 /// FORMULATEXT, SHEET and SHEETS read (ported from OxFunc's `host_info.rs` HostInfoProvider, at
 /// 6fca3518). Every question is required. An explicit `None` refuses a fact the host cannot supply.
 pub trait HostFacts {
+    fn pivot_data_cell(&mut self,data_field:&str,pivot_table:&[GridArea],fields:&[(String,CalcValue)])->PivotLookup;
+
     /// Whether `sheet` is a sheet of another workbook, read from the workbook's link to it
     /// (dc-ylr): Excel 16.0.20527 (2026-10-30, the other book closed) gives SUMIF, COUNTIF,
     /// SUMIFS, COUNTIFS, AVERAGEIF and OFFSET #VALUE! for a reference to it, and CELL, ISFORMULA
