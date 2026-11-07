@@ -17,6 +17,33 @@ fn dated(spelling: &str, args: Vec<calc_func::value::CalcValue>) -> Result<calc_
     call_in(&CalcEnvironment::dates(System1900), None, None, spelling, args)
 }
 
+/// Excel20527 paired parts keep the total-balance quotient before adding fv.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn period_parts_keep_the_discounted_total_balance() {
+    for (name, timing, expected) in [
+        ("IPMT", 0.0, 0xbfda_596f_c0e4_bab3),
+        ("IPMT", 1.0, 0xbfd3_29c5_a38f_136c),
+        ("PPMT", 0.0, 0xbf61_112c_3776_74d1),
+    ] {
+        exact(call(name, vec![n(0.375), n(2.5), n(17.0), n(1.1), n(-0.33), n(timing)]),
+            f64::from_bits(expected));
+    }
+}
+
+/// Independent Excel20527 scalar readings: invalid numeric dates are NUM.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn yield_rejects_invalid_numeric_dates_as_num() {
+    for slot in 0..2 {
+        for date in [-1.0, 0.0, 0.5, 2958466.0] {
+            let mut args = [39493.0, 42689.0, 0.0575, 95.04287, 100.0, 2.0, 0.0];
+            args[slot] = date;
+            error(dated("YIELD", args.into_iter().map(n).collect()), Num);
+        }
+    }
+}
+
 /// Original corpus date-zero and adjacent-date failures, confirmed on Excel20527.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

@@ -170,6 +170,12 @@ pub fn fv(
     }
 }
 
+/// The discount arm stores the total balance and its quotient from PC64.
+/// PMT adds fv after this common stage; period parts retain the quotient.
+fn discounted_balance(present_value: f64, future_value: f64, em: f64) -> f64 {
+    excel_x87_div(excel_x87_add(present_value, future_value), em)
+}
+
 /// Beginning-payment coefficient, with each reciprocal and addition stored
 /// from PC64. Shared by PMT and the period interest/principal finish.
 fn due_coefficient(rate: f64) -> f64 {
@@ -291,8 +297,7 @@ pub fn pmt(
         // this fold matches all192 paired future-value calls for each rate sign.
         // Separate negative-rate ties distinguish each addition (84 and114 readings).
         // Forming pv + fv*(1+em) loses those recorded roundings.
-        let balance = excel_x87_add(present_value, future_value);
-        excel_x87_add(excel_x87_div(balance, em), future_value)
+        excel_x87_add(discounted_balance(present_value, future_value, em), future_value)
     } else {
         let inv_factor = 1.0 + em;
         let numerator = present_value + future_value * inv_factor;
@@ -529,11 +534,10 @@ fn fv_exp(rate: f64, m: f64, payment: f64, present_value: f64, tf: f64) -> f64 {
     -(present_value * factor + payment * tf * (expm1_growth / rate))
 }
 
-/// What Excel's PMT, IPMT and PPMT share for payments at the end of a period (dc-j9k.12): the
-/// series logarithm `L` of 1 + rate and PMT's stored quotient
-/// `q = RN53(RN64((pv + fv * v^n) / em_n))`, `em_n = expm1(-(n * L))`, `v^n = 1 + em_n`.
-/// `None` where PMT itself takes another route: a rate outside the series' range, equal and
-/// opposite balances, or an em of zero.
+/// The existing period logarithm and stored balance operand. Positive rates
+/// retain h=RN((pv+fv)/em_n) before PMT's final addition of fv; negative rates
+/// retain the earlier quotient producer. None marks the existing fallback
+/// domain: rates outside the series bound, opposite balances or zero em.
 fn end_payment_quotient(
     periodic_rate: f64,
     periods: f64,
@@ -551,16 +555,20 @@ fn end_payment_quotient(
     if em == 0.0 || !em.is_finite() {
         return None;
     }
-    let quotient = excel_x87_div(present_value + future_value * (1.0 + em), em);
+    let quotient = if periodic_rate > 0.0 {
+        // Independent zero-future PMT calls isolate em across36 groups covering288 loans.
+        // The period parts retain this quotient before PMT adds fv.
+        discounted_balance(present_value, future_value, em)
+    } else {
+        excel_x87_div(present_value + future_value * (1.0 + em), em)
+    };
     quotient.is_finite().then_some((log_growth, quotient))
 }
 
-/// Period `period_index` of an end-of-period annuity on Excel's own pieces (dc-j9k.12), with
-/// `m = periods - period_index + 1` periods left, `t = -(m * L)`, `em_m = expm1(t)` (the x87
-/// Kahan expm1) and `u = exp(t)` (the x87 exponential that expm1 starts from):
-/// interest `-RN(RN(RN(q * em_m) - RN(fv * u)) * rate)` and principal
-/// `RN(RN(RN(q - fv) * u) * rate)`, every RN the x87 store RN53(RN64(.)).
-fn end_payment_parts(
+/// Stored interest and principal components before their final timing factor.
+/// Positive-rate parts use the total-balance quotient before adding fv;
+/// the existing negative-rate component expressions remain separate.
+fn period_components(
     periodic_rate: f64,
     period_index: f64,
     periods: f64,
@@ -571,12 +579,35 @@ fn end_payment_parts(
     let t = -((periods - period_index + 1.0) * log_growth);
     let em = crate::ported::excel_numeric::excel_expm1_spilled(t);
     let u = crate::ported::excel_numeric::excel_exp(t);
-    let interest = -excel_x87_mul(
-        excel_x87_sub(excel_x87_mul(quotient, em), excel_x87_mul(future_value, u)),
-        periodic_rate,
+    if periodic_rate > 0.0 {
+        // Keep h=(pv+fv)/em_n before PMT adds fv. The interest component is
+        // h*em_m-fv and principal h*u_m, with a store after every operation.
+        (-excel_x87_sub(excel_x87_mul(quotient, em), future_value),
+            excel_x87_mul(quotient, u))
+    } else {
+        (-excel_x87_sub(excel_x87_mul(quotient, em), excel_x87_mul(future_value, u)),
+            excel_x87_mul(excel_x87_sub(quotient, future_value), u))
+    }
+}
+
+fn end_payment_parts(
+    periodic_rate: f64,
+    period_index: f64,
+    periods: f64,
+    future_value: f64,
+    log_growth: f64,
+    quotient: f64,
+    timing: PaymentTiming,
+) -> (f64, f64) {
+    let (interest, principal) = period_components(
+        periodic_rate, period_index, periods, future_value, log_growth, quotient,
     );
-    let principal = excel_x87_mul(excel_x87_mul(excel_x87_sub(quotient, future_value), u), periodic_rate);
-    (interest, principal)
+    let factor = if matches!(timing, PaymentTiming::BeginningOfPeriod) {
+        due_coefficient(periodic_rate)
+    } else {
+        periodic_rate
+    };
+    (excel_x87_mul(interest, factor), excel_x87_mul(principal, factor))
 }
 
 /// IPMT on the correctly-rounded numeric core (W108 Bead C). Interest portion of
@@ -623,15 +654,8 @@ pub fn ipmt(
         && let Some((log_growth, quotient)) =
             end_payment_quotient(periodic_rate, periods, present_value, future_value)
     {
-        // Paired public end/beginning calls constrain the same stored period
-        // component. Beginning payments change only this final coefficient.
-        let factor = if matches!(timing, PaymentTiming::BeginningOfPeriod) {
-            due_coefficient(periodic_rate)
-        } else {
-            periodic_rate
-        };
         let (interest, _) = end_payment_parts(
-            factor, period_index, periods, future_value, log_growth, quotient,
+            periodic_rate, period_index, periods, future_value, log_growth, quotient, timing,
         );
         return if interest.is_finite() { Ok(interest) } else { Err(FinancialError::Num) };
     }
@@ -701,7 +725,7 @@ pub fn ppmt(
             end_payment_quotient(periodic_rate, periods, present_value, future_value)
     {
         let (_, principal) = end_payment_parts(
-            periodic_rate, period_index, periods, future_value, log_growth, quotient,
+            periodic_rate, period_index, periods, future_value, log_growth, quotient, timing,
         );
         return if principal.is_finite() { Ok(principal) } else { Err(FinancialError::Num) };
     }

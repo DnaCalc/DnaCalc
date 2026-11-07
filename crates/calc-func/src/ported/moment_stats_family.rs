@@ -27,7 +27,7 @@ pub(crate) fn kurt_kernel(values: &[f64]) -> Result<f64, WorksheetErrorCode> {
     // Every operation is stored from the x87: the two-pass sum of squares, its square root, each
     // z, the square of z squared, the running sum, and the coefficient before the product. All
     // 4,508 bank rows; the division after the product holds 3,212.
-    let deviation = div(sumsq, n - 1.0).sqrt();
+    let deviation = crate::ported::excel_numeric::excel_sqrt_staged(div(sumsq, n - 1.0));
     let fourths = values.iter().fold(0.0, |sum, &value| {
         let z = div(sub(value, avg), deviation);
         let square = mul(z, z);
@@ -47,7 +47,7 @@ pub(crate) fn skew_kernel(values: &[f64]) -> Result<f64, WorksheetErrorCode> {
         return Err(WorksheetErrorCode::Div0);
     }
     let n = values.len() as f64;
-    let deviation = div(sumsq, n - 1.0).sqrt();
+    let deviation = crate::ported::excel_numeric::excel_sqrt_staged(div(sumsq, n - 1.0));
     let cubes = values.iter().fold(0.0, |sum, &value| {
         let z = div(sub(value, avg), deviation);
         add(sum, mul(mul(z, z), z))

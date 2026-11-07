@@ -562,7 +562,17 @@ pub fn yield_kernel(
     frequency: f64,
     basis_: Option<f64>,
 ) -> Result<f64, BondCoreEvalError> {
-    let c = ctx(settlement, maturity, frequency, basis_)?;
+    let c = ctx(settlement, maturity, frequency, basis_).map_err(|error| {
+        // Finite invalid date serials are NUM in YIELD. Preserve the direct
+        // numeric API's VALUE result for nonfinite inputs.
+        if settlement.is_finite() && maturity.is_finite()
+            && error == derr(WorksheetErrorCode::Value)
+        {
+            derr(WorksheetErrorCode::Num)
+        } else {
+            error
+        }
+    })?;
     let p = period(c)?;
     let rate_ = rate(rate_)?;
     let price = pos(price)?;

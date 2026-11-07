@@ -16,6 +16,17 @@ fn data() -> CalcValue {
 
 use calc_func::value::CalcValue;
 
+/// Excel20527 root-word controls: the sample deviation stores FSQRT from PC64.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn sample_moments_store_the_pc64_square_root() {
+    let values = [0xc011_9ef0_6a93_d623, 0x401c_df7c_cd1a_a376,
+        0xc01f_734e_107b_dd5c, 0xbfde_9e26_ef0f_1a84].map(f64::from_bits);
+    for (name, expected) in [("SKEW", 0x3fea_710b_3237_584c), ("KURT", 0x3fd6_409e_d237_9560)] {
+        exact(call(name, values.into_iter().map(n).collect()), f64::from_bits(expected));
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn gamma_small_inputs_record_known_gaps() {
