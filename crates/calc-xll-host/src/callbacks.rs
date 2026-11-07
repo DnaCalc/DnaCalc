@@ -21,7 +21,6 @@ pub(crate) struct Frame<'a> {
     pub signature: Option<XllSignature>,
     pub provider: Option<crate::RtdProvider>,
     pub rtd_subscriptions: BTreeSet<calc_func::RtdLease>,
-    pub unadmitted_rtd_initial: bool,
 }
 impl Frame<'_> {
     pub fn lifecycle(state: Shared, module: Rc<Module>) -> Self {
@@ -33,7 +32,6 @@ impl Frame<'_> {
             signature: None,
             provider: None,
             rtd_subscriptions: BTreeSet::new(),
-            unadmitted_rtd_initial: false,
         }
     }
 }
@@ -810,38 +808,18 @@ fn run(
             let _provider = frame
                 .provider
                 .ok_or_else(|| err("dc-snz.23: RTD requires an admitted callable identity"))?;
-            let service = frame
-                .state
-                .borrow()
-                .rtd
-                .clone()
-                .ok_or_else(|| err("dc-snz.23: RTD client is not attached"))?;
             let context = frame
                 .context
                 .as_mut()
                 .ok_or_else(|| err("dc-snz.23: RTD requires an admitted input view"))?;
-            let caller = context
-                .caller()
-                .ok_or_else(|| err("dc-snz.23: RTD requires a worksheet caller"))?;
+            // The one rule for both RTD routes: join or start the topic through the owner's
+            // connector and read the admitted value, or ConnectData's own while it awaits
+            // admission. The value shows at once, as in Excel; the read stays uncertified
+            // until the owner admits that sequence.
             let topic = calc_func::TopicKey::new(&progid, "", &topics);
-            let lease = service.subscribe(caller, &topic).map_err(err)?;
-            frame.rtd_subscriptions.insert(lease);
-            let admitted = context
-                .rtd_value(&topic, lease)
-                .map_err(err)?
-                .map(|entry| (entry.sequence, entry.value));
-            let observed = service.initial_value(&topic, lease);
-            let value = match (observed, admitted) {
-                (Some(initial), Some(held)) if initial.0 > held.0 => {
-                    frame.unadmitted_rtd_initial = true;
-                    Some(initial)
-                }
-                (Some(initial), None) => {
-                    frame.unadmitted_rtd_initial = true;
-                    Some(initial)
-                }
-                (_, held) => held,
-            };
+            let read = context.read_topic(&topic).map_err(err)?;
+            frame.rtd_subscriptions.insert(read.lease);
+            let value = read.value;
             value
                 // Excel exposes an empty COM RTD signal as numeric zero. The
                 // admitted input remains empty and its sequence stays in the

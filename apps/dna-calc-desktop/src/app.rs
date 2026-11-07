@@ -290,9 +290,10 @@ pub fn run(args: &[String]) -> Result<(), String> {
             set.load(xll)?;
         }
         set.enable_async_continuations()?;
-        set.enable_rtd()?;
+        let rtd = set.enable_rtd()?;
         let table = set.callables()?;
         server.set_user_functions(table.clone());
+        server.set_rtd_connector(rtd);
         functions = Some(table);
         addins = Some(set);
     }

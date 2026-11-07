@@ -10,8 +10,8 @@
 //! latest connection incarnation ([`RtdLease`]); a lease above the held one replaces it and starts
 //! a new sequence, and retiring an old lease keeps the newer entry.
 
-use calc_func::value::CalcValue;
-use calc_func::{RtdCut, RtdEntry, RtdLease};
+use calc_func::value::{CalcValue, CellKey};
+use calc_func::{RtdConnector, RtdCut, RtdEntry, RtdLease, RtdTopicRead};
 pub use calc_func::{RtdRead, TopicKey};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -148,6 +148,51 @@ pub fn admit(ledger: &RtdLedger, event: RtdEvent) -> (RtdLedger, RtdDisposition)
     }
 }
 
+/// Why [`read_topic`] could not read.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RtdReadError {
+    /// The evaluation has no admitted input cut.
+    NoCut,
+    /// The evaluation has no owner connector (the browser has none).
+    NoConnector,
+    /// The connector failed to connect.
+    Connect(String),
+}
+
+/// The one rule for reading a topic, for the built-in `RTD` function and the `xlfRtd` callback
+/// alike. The owner's connector joins or starts the connection (a topic already connected is
+/// joined without a second ConnectData, and `caller` becomes one more reader). The value is the
+/// cut's admitted one; while the connection's provisional value is newer than the cut's (or the
+/// cut holds nothing for this lease), that value is shown at once, as Excel shows ConnectData's
+/// return, and the read is recorded at its sequence, so the result is not certified until the
+/// owner admits that sequence. Pure: it holds no state and calls nothing but the connector.
+pub fn read_topic(
+    cut: Option<&dyn RtdCut>,
+    connector: Option<&dyn RtdConnector>,
+    topic: &TopicKey,
+    caller: CellKey,
+) -> Result<(RtdTopicRead, RtdRead), RtdReadError> {
+    let cut = cut.ok_or(RtdReadError::NoCut)?;
+    let connector = connector.ok_or(RtdReadError::NoConnector)?;
+    let connection = connector
+        .connect(topic, caller)
+        .map_err(RtdReadError::Connect)?;
+    let lease = connection.lease;
+    let admitted = cut.get(topic).filter(|entry| entry.lease == lease);
+    let value = match (connection.provisional, admitted) {
+        (Some(provisional), Some(held)) if provisional.0 > held.sequence => Some(provisional),
+        (Some(provisional), None) => Some(provisional),
+        (_, Some(held)) => Some((held.sequence, held.value)),
+        (None, None) => None,
+    };
+    let read = RtdRead {
+        topic: topic.clone(),
+        lease,
+        sequence: value.as_ref().map_or(0, |(sequence, _)| *sequence),
+    };
+    Ok((RtdTopicRead { lease, value }, read))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -239,6 +284,72 @@ mod tests {
         let (again, verdict) = admit(&gone, update("a", 2, 1, 5.0));
         assert_eq!(verdict, RtdDisposition::Accepted);
         assert_eq!(again.get(&topic("a")), entry(2, 1, 5.0));
+    }
+
+    #[derive(Debug)]
+    struct Connector(Option<(u64, f64)>, u64);
+    impl RtdConnector for Connector {
+        fn connect(
+            &self,
+            _topic: &TopicKey,
+            _caller: CellKey,
+        ) -> Result<calc_func::RtdConnection, String> {
+            Ok(calc_func::RtdConnection {
+                lease: RtdLease(self.1),
+                provisional: self.0.map(|(sequence, value)| (sequence, CalcValue::number(value))),
+            })
+        }
+    }
+    fn caller() -> CellKey {
+        CellKey::new(calc_func::value::SheetId::from_parts(0, 0), 1, 1).unwrap()
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn read_topic_shows_the_provisional_value_and_reads_it_at_its_sequence() {
+        let empty = RtdLedger::default();
+        let t = topic("a");
+        // A new connection: ConnectData's value shows at once, read at sequence 1.
+        let (seen, read) =
+            read_topic(Some(&empty), Some(&Connector(Some((1, 7.0)), 3)), &t, caller()).unwrap();
+        assert_eq!(seen.lease, RtdLease(3));
+        assert_eq!(seen.value, Some((1, CalcValue::number(7.0))));
+        assert_eq!(read, RtdRead { topic: t.clone(), lease: RtdLease(3), sequence: 1 });
+        // Once the owner admitted sequence 1, the admitted value is used.
+        let (admitted, _) = admit(&empty, update("a", 3, 1, 7.0));
+        let (seen, read) = read_topic(
+            Some(&admitted),
+            Some(&Connector(Some((1, 7.0)), 3)),
+            &t,
+            caller(),
+        )
+        .unwrap();
+        assert_eq!(seen.value, Some((1, CalcValue::number(7.0))));
+        assert_eq!(read.sequence, 1);
+        // A joined topic with nothing provisional and nothing admitted has no value.
+        let (seen, read) =
+            read_topic(Some(&empty), Some(&Connector(None, 3)), &t, caller()).unwrap();
+        assert_eq!(seen.value, None);
+        assert_eq!(read.sequence, 0);
+        // A cut entry of another incarnation is not this lease's.
+        let (old, _) = admit(&empty, update("a", 2, 9, 1.0));
+        let (seen, _) = read_topic(Some(&old), Some(&Connector(None, 3)), &t, caller()).unwrap();
+        assert_eq!(seen.value, None);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn read_topic_refuses_without_a_cut_or_a_connector() {
+        let empty = RtdLedger::default();
+        let t = topic("a");
+        assert_eq!(
+            read_topic(None, Some(&Connector(None, 1)), &t, caller()).unwrap_err(),
+            RtdReadError::NoCut
+        );
+        assert_eq!(
+            read_topic(Some(&empty), None, &t, caller()).unwrap_err(),
+            RtdReadError::NoConnector
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

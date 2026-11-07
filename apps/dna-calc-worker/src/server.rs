@@ -82,6 +82,7 @@ pub struct Server {
     fetch_route: Option<std::rc::Rc<dyn calc_func::FetchRoute>>,
     /// A native host's user functions, applied to every workbook this server installs.
     user_functions: Option<calc_host::CallableTable>,
+    rtd_connector: Option<std::rc::Rc<dyn calc_host::RtdConnector>>,
     /// The page's subscriptions: its number for each, and calc-host's.
     subscriptions: BTreeMap<u64, SubscriptionId>,
     subscription_interests: BTreeMap<u64, calc_host::Interest>,
@@ -272,6 +273,7 @@ impl Server {
             book,
             fetch_route: None,
             user_functions: None,
+            rtd_connector: None,
             subscriptions: BTreeMap::new(),
             subscription_interests: BTreeMap::new(),
             overhang: BTreeMap::new(),
@@ -1213,6 +1215,12 @@ impl Server {
         self.collect();
     }
 
+    /// Bind a native host's RTD connector to this and every later workbook.
+    pub fn set_rtd_connector(&mut self, connector: std::rc::Rc<dyn calc_host::RtdConnector>) {
+        self.book.set_rtd_connector(connector.clone());
+        self.rtd_connector = Some(connector);
+    }
+
     /// A fetch has its reply: resumes the waiting cell, or does nothing when the calculation
     /// that asked has been superseded.
     pub fn complete_fetch(&mut self, request: u64, value: calc_host::value::CalcValue) -> bool {
@@ -1232,6 +1240,9 @@ impl Server {
         }
         if let Some(functions) = &self.user_functions {
             book.set_user_functions(functions.clone());
+        }
+        if let Some(connector) = &self.rtd_connector {
+            book.set_rtd_connector(connector.clone());
         }
         self.pending_name = None;
         self.pending_save = None;

@@ -110,6 +110,14 @@ fn settle_entry(
     }
     Ok(())
 }
+/// Move the RTD values the host admitted into the evidence list, in admission order: those this
+/// controller delivered from the client, and those the host admitted itself for a connection made
+/// during evaluation (the value ConnectData returned, admitted as sequence 1 before publication).
+fn record_admissions(book: &mut HostSession, out: &mut Vec<serde_json::Value>) {
+    for admission in book.take_rtd_admissions() {
+        out.push(serde_json::json!({"topic":format!("{:?}",admission.topic),"lease":admission.lease.0,"sequence":admission.sequence,"value":value_json(&admission.value),"disposition":"Accepted"}));
+    }
+}
 fn retire_rtd(
     book: &mut HostSession,
     rtd: &calc_addin_host::RtdClient,
@@ -211,6 +219,7 @@ pub fn run(
     addins.set_active_sheet(sheet_name)?;
     addins.enable_async_continuations()?;
     let rtd = addins.enable_rtd()?;
+    book.set_rtd_connector(rtd.clone());
     book.set_user_functions(addins.callables_with_early_execution(early_execution)?);
     let bindings = book.host().user_function_bindings();
     let providers = addins
@@ -370,6 +379,7 @@ pub fn run(
                 || concurrent.as_ref().is_some_and(|(peer, _)| {
                     peer.has_pending_calculation() || !peer.host().pending_async().is_empty()
                 });
+            record_admissions(&mut book, &mut rtd_updates);
             let inputs = addins.poll_rtd(evaluating)?;
             for input in inputs {
                 let disposition = book.update_rtd(
@@ -378,10 +388,14 @@ pub fn run(
                     input.sequence,
                     input.value.clone(),
                 );
-                if disposition != calc_host::RtdDisposition::Accepted {
-                    return Err(format!("RTD input was not admitted: {disposition:?}"));
+                match disposition {
+                    // The host already admitted the connection's own value as it was
+                    // returned; the client's queued copy of it is the same admission.
+                    calc_host::RtdDisposition::Duplicate => continue,
+                    calc_host::RtdDisposition::Accepted => {}
+                    other => return Err(format!("RTD input was not admitted: {other:?}")),
                 }
-                rtd_updates.push(serde_json::json!({"topic":format!("{:?}",input.topic),"lease":input.lease.0,"sequence":input.sequence,"value":value_json(&input.value),"disposition":format!("{disposition:?}")}));
+                record_admissions(&mut book, &mut rtd_updates);
                 // This controller explicitly requests a new manual command.
                 // The notification itself never completes an activation.
                 book.dispatch(SkinIntent::Recalculate);
@@ -392,6 +406,7 @@ pub fn run(
                 if let HostProgress::Failed(why) = progress {
                     return Err(why.to_string());
                 }
+                record_admissions(&mut book, &mut rtd_updates);
             }
             if let Some((peer, _)) = &mut concurrent {
                 if peer.has_pending_calculation()

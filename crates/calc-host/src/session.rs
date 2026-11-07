@@ -468,6 +468,17 @@ impl HostSession {
         self.host.take_calculation_events()
     }
 
+    /// The owner's capability to join or start RTD topics while this session evaluates. A
+    /// provisional value it returns is admitted by the host before the result is published.
+    pub fn set_rtd_connector(&mut self, connector: std::rc::Rc<dyn crate::RtdConnector>) {
+        self.host.set_rtd_connector(connector);
+    }
+
+    /// The RTD values admitted since the last call, in admission order.
+    pub fn take_rtd_admissions(&mut self) -> Vec<crate::RtdAdmission> {
+        self.host.take_rtd_admissions()
+    }
+
     /// Deliver through the same owner as ordinary application commands; resume is budgeted
     /// by advance_calculation, never performed inside the provider return.
     pub fn retire_rtd(

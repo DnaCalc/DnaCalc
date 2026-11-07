@@ -122,6 +122,12 @@ pub struct HostState {
     /// The host's way to fetch a URL a workbook names; none gives Excel's failed-fetch results.
     pub(crate) fetch_route: Option<std::rc::Rc<dyn calc_func::FetchRoute>>,
     pub(crate) rtd_inputs: std::rc::Rc<calc_fml::rtd::RtdLedger>,
+    /// The owner's capability to join or start RTD topics while this host evaluates, and the
+    /// provisional values it returned that this host must admit before publishing.
+    pub(crate) rtd_connector: Option<std::rc::Rc<dyn calc_fml::RtdConnector>>,
+    pub(crate) rtd_connected: crate::recalc::ConnectedQueue,
+    /// Every RTD value admitted since the owner last asked, in admission order.
+    pub(crate) rtd_admissions: Vec<crate::RtdAdmission>,
     pub(crate) references: std::rc::Rc<calc_fml::reference::ReferenceTracker>,
     pub(crate) calculation_interest: Vec<calc_doc_model::value::GridArea>,
     pub(crate) full_calculate_requested: bool,
@@ -289,6 +295,9 @@ impl HostState {
             functions: calc_fml::CallableTable::new(),
             fetch_route: None,
             rtd_inputs: Default::default(),
+            rtd_connector: None,
+            rtd_connected: Default::default(),
+            rtd_admissions: Vec::new(),
             references: calc_fml::reference::ReferenceTracker::new(),
             calculation_interest: Vec::new(),
             full_calculate_requested: false,

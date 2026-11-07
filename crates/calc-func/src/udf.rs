@@ -48,6 +48,29 @@ pub struct RtdRead {
     pub lease: RtdLease,
     pub sequence: u64,
 }
+/// What the owner's connector answers for one topic: the connection's lease and, while the
+/// owner has not yet admitted it, the value ConnectData returned (its sequence is 1 for a new
+/// connection). The provisional value is shown at once, as Excel shows it, but it is not
+/// certified: the owner admits it as that sequence before the result is published.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RtdConnection {
+    pub lease: RtdLease,
+    pub provisional: Option<(u64, CalcValue)>,
+}
+/// The owner's capability to join or start a topic's connection, supplied for one evaluation as
+/// a reference reader is. Calling it again for a topic already connected joins it (no second
+/// ConnectData) and registers `caller` as one more cell that reads the topic. Absent in the
+/// browser, where an RTD read is a typed refusal.
+pub trait RtdConnector: fmt::Debug {
+    fn connect(&self, topic: &TopicKey, caller: CellKey) -> Result<RtdConnection, String>;
+}
+/// What the one read-or-connect rule gives a reader: the lease it read at and the value with the
+/// sequence it was admitted (or provisionally observed) at, if there is one.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RtdTopicRead {
+    pub lease: RtdLease,
+    pub value: Option<(u64, CalcValue)>,
+}
 /// One immutable external input cut, fixed at command admission, keyed by topic identity. RTD
 /// never completes a call. The cut is readable from any thread.
 pub trait RtdCut: fmt::Debug + Send + Sync {
@@ -225,6 +248,12 @@ pub trait UserFunctionContext {
         _lease: RtdLease,
     ) -> Result<Option<RtdEntry>, String> {
         Err(self.refuse_by("RTD input without an admitted input view", "dc-hsa5.4"))
+    }
+    /// The one rule for reading a topic from a function: join or start its connection through
+    /// the owner's connector, and take the cut's admitted value, or the connection's
+    /// provisional one while it awaits admission. The read is recorded with the sequence used.
+    fn read_topic(&mut self, _topic: &TopicKey) -> Result<RtdTopicRead, String> {
+        Err(self.refuse_by("RTD read without an owner connector", "dc-snz.23"))
     }
     /// End this semantic evaluation after an unresolved read. The registration authorizes the reason.
     fn request_reevaluation(&mut self, _reason: UserReevaluationReason) -> Result<(), String> {

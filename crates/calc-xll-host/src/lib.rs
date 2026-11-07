@@ -20,7 +20,7 @@ pub use calc_fml::reference::format_workbook_sheet_qualifier;
 #[cfg(windows)]
 pub use calc_func::UserCallableIdentity as RtdProvider;
 #[cfg(windows)]
-pub use calc_func::{RtdLease, TopicKey};
+pub use calc_func::{RtdConnection, RtdConnector, RtdLease, TopicKey};
 #[cfg(windows)]
 pub use callbacks::dispatch;
 #[cfg(windows)]

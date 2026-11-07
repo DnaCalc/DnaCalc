@@ -121,10 +121,12 @@ pub fn step(
             };
             match started {
                 Ok(work) => {
-                    let work = work
-                        .with_external_inputs(host.rtd_inputs.clone())
-                        .with_functions(&host.functions)
-                        .with_reference_tracker(host.references.clone());
+                    let work = host
+                        .attach_rtd_connector(
+                            work.with_external_inputs(host.rtd_inputs.clone())
+                                .with_functions(&host.functions)
+                                .with_reference_tracker(host.references.clone()),
+                        );
                     if reloaded {
                         work.with_reevaluation_reason(
                             calc_engine::contract::ReevaluationReason::CallableReload,
@@ -184,10 +186,11 @@ pub fn step(
                 )
             };
             match started {
-                Ok(work) => work
-                    .with_external_inputs(host.rtd_inputs.clone())
-                    .with_functions(&host.functions)
-                    .with_reference_tracker(host.references.clone()),
+                Ok(work) => host.attach_rtd_connector(
+                    work.with_external_inputs(host.rtd_inputs.clone())
+                        .with_functions(&host.functions)
+                        .with_reference_tracker(host.references.clone()),
+                ),
                 Err(error) => return failed(host, RecalcFailed::Refused(error)),
             }
         }
@@ -215,7 +218,19 @@ pub fn step(
         host.work = Some(work);
         return HostProgress::Published(delta);
     }
-    match calc_engine::step(&host.engine, &host.model, &mut work, budget, observer) {
+    let progress = calc_engine::step(&host.engine, &host.model, &mut work, budget, observer);
+    // An RTD connection made during this step returned a value ConnectData supplied. Admit it
+    // as its sequence before anything is published, so the result that showed it is certified.
+    let admitted = host.admit_connected_rtd();
+    match progress {
+        RecalcProgress::Complete if admitted => {
+            // The admission moved the inputs under this work: the next step supersedes it,
+            // keeping every staged result whose certificate still holds.
+            host.work = Some(work);
+            HostProgress::Calculating {
+                remaining: host.engine.pending().count().max(1),
+            }
+        }
         RecalcProgress::Pending { remaining } | RecalcProgress::Waiting { remaining } => {
             let waiting = work.is_waiting_external();
             host.record_calc_events(work.take_events());
@@ -316,7 +331,88 @@ impl HostState {
     }
 }
 
+/// Provisional RTD values the connector returned during evaluation, awaiting admission.
+pub(crate) type ConnectedQueue = std::rc::Rc<
+    std::cell::RefCell<
+        Vec<(
+            calc_fml::TopicKey,
+            calc_fml::RtdLease,
+            u64,
+            calc_doc_model::value::CalcValue,
+        )>,
+    >,
+>;
+/// The owner's connector with a record of every provisional value it returned. CalcHost admits
+/// those values (as their sequence) before it publishes the results that showed them.
+struct RecordingConnector {
+    inner: std::rc::Rc<dyn calc_fml::RtdConnector>,
+    queue: ConnectedQueue,
+}
+impl std::fmt::Debug for RecordingConnector {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RecordingConnector").finish_non_exhaustive()
+    }
+}
+impl calc_fml::RtdConnector for RecordingConnector {
+    fn connect(
+        &self,
+        topic: &calc_fml::TopicKey,
+        caller: calc_doc_model::value::CellKey,
+    ) -> Result<calc_fml::RtdConnection, String> {
+        let connection = self.inner.connect(topic, caller)?;
+        if let Some((sequence, value)) = &connection.provisional {
+            self.queue.borrow_mut().push((
+                topic.clone(),
+                connection.lease,
+                *sequence,
+                value.clone(),
+            ));
+        }
+        Ok(connection)
+    }
+}
+impl HostState {
+    /// The RTD values admitted since the last call, in admission order: those the owner
+    /// delivered and those the host admitted for a connection made during evaluation.
+    pub fn take_rtd_admissions(&mut self) -> Vec<RtdAdmission> {
+        std::mem::take(&mut self.rtd_admissions)
+    }
+    /// The owner's capability to join or start RTD topics while this host evaluates.
+    pub fn set_rtd_connector(&mut self, connector: std::rc::Rc<dyn calc_fml::RtdConnector>) {
+        self.rtd_connector = Some(connector);
+    }
+    pub(crate) fn attach_rtd_connector(
+        &self,
+        work: calc_engine::RecalcWork,
+    ) -> calc_engine::RecalcWork {
+        match &self.rtd_connector {
+            Some(inner) => work.with_rtd_connector(std::rc::Rc::new(RecordingConnector {
+                inner: inner.clone(),
+                queue: self.rtd_connected.clone(),
+            })),
+            None => work,
+        }
+    }
+    /// Admit each provisional value the connector returned since the last call, as its
+    /// sequence. Returns whether any admission changed the input cut.
+    pub(crate) fn admit_connected_rtd(&mut self) -> bool {
+        let connected = std::mem::take(&mut *self.rtd_connected.borrow_mut());
+        let mut changed = false;
+        for (topic, lease, sequence, value) in connected {
+            changed |= self.update_rtd(topic, lease, sequence, value) == RtdDisposition::Accepted;
+        }
+        changed
+    }
+}
 pub use calc_fml::rtd::RtdDisposition;
+/// One RTD value the host admitted: its topic, lease and sequence, and the value.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RtdAdmission {
+    pub topic: calc_fml::TopicKey,
+    pub lease: calc_fml::RtdLease,
+    pub sequence: u64,
+    pub value: calc_doc_model::value::CalcValue,
+}
 impl HostState {
     /// RTD advances a topic's input. Manual mode waits for explicit demand; a current command is
     /// superseded at its next owner step, never completed by this event. The admission rules are
@@ -328,6 +424,7 @@ impl HostState {
         sequence: u64,
         value: calc_doc_model::value::CalcValue,
     ) -> RtdDisposition {
+        let admitted_value = value.clone();
         let (next, disposition) = calc_fml::rtd::admit(
             &self.rtd_inputs,
             calc_fml::rtd::RtdEvent::Update {
@@ -342,6 +439,12 @@ impl HostState {
             self.engine
                 .invalidate_rtd_topic(&self.model, &topic, lease, sequence);
             self.published = None;
+            self.rtd_admissions.push(RtdAdmission {
+                topic,
+                lease,
+                sequence,
+                value: admitted_value,
+            });
         }
         disposition
     }

@@ -305,6 +305,10 @@ impl Workbook {
     pub fn set_user_functions(&mut self, functions: calc_host::CallableTable) {
         self.session.set_user_functions(functions);
     }
+    /// A native host's capability to join or start RTD topics while this workbook evaluates.
+    pub fn set_rtd_connector(&mut self, connector: std::rc::Rc<dyn calc_host::RtdConnector>) {
+        self.session.set_rtd_connector(connector);
+    }
     pub fn update_rtd(
         &mut self,
         topic: calc_host::TopicKey,

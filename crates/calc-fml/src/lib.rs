@@ -74,6 +74,9 @@ pub use calc_func::{
 };
 pub use callable::{CallableBindingProof, CallableBindings, CallableHandle, CallableTable};
 
-pub use calc_func::{ReferenceHandles, RtdCut, RtdEntry, RtdLease, RtdRead, TopicKey};
+pub use calc_func::{
+    ReferenceHandles, RtdConnection, RtdConnector, RtdCut, RtdEntry, RtdLease, RtdRead,
+    RtdTopicRead, TopicKey,
+};
 
 pub use calc_func::value;

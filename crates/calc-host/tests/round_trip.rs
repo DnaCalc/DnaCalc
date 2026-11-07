@@ -8835,6 +8835,87 @@ mod async_contract {
                 .unwrap_or_else(|| CalcValue::error(calc_host::value::WorksheetErrorCode::NA)))
         }
     }
+    /// The owner's connector in a test: one lease, whose ConnectData value (1) stays provisional
+    /// until it is admitted, as the real client's does until the owner has taken it.
+    #[derive(Debug)]
+    struct TestConnector(Rc<RefCell<usize>>);
+    impl calc_host::RtdConnector for TestConnector {
+        fn connect(
+            &self,
+            _topic: &calc_host::TopicKey,
+            _caller: calc_host::value::CellKey,
+        ) -> Result<calc_host::RtdConnection, String> {
+            *self.0.borrow_mut() += 1;
+            Ok(calc_host::RtdConnection {
+                lease: RtdLease(5),
+                provisional: Some((1, CalcValue::number(1.0))),
+            })
+        }
+    }
+    /// A function that reads its topic through the one read-or-connect rule.
+    #[derive(Debug)]
+    struct RtdViaConnector;
+    impl UserFunction for RtdViaConnector {
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            panic!("an admitted external input view is required")
+        }
+        fn call_with_context(
+            &self,
+            _: &[CalcValue],
+            context: &mut dyn UserFunctionContext,
+        ) -> Result<CalcValue, String> {
+            let read = context.read_topic(&probe_topic())?;
+            Ok(read
+                .value
+                .map(|(_, value)| value)
+                .unwrap_or_else(|| CalcValue::error(calc_host::value::WorksheetErrorCode::NA)))
+        }
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p03_a_connection_shows_its_initial_value_at_once_and_it_is_admitted_as_sequence_one() {
+        use calc_host::RtdDisposition as T;
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        let connects = Rc::new(RefCell::new(0));
+        book.set_rtd_connector(Rc::new(TestConnector(connects.clone())));
+        let mut functions = calc_fml::CallableTable::new();
+        functions
+            .register("RtdVia", Rc::new(RtdViaConnector))
+            .unwrap();
+        book.set_user_functions(functions);
+        enter(&mut book, at(s, "B1"), "=RtdVia()+1");
+        book.dispatch(SkinIntent::Recalculate);
+        drain(&mut book);
+        // The value ConnectData returned shows at once: never a temporary #N/A.
+        assert_eq!(calculated(book.host(), at(s, "B1")), Some(CalcValue::number(2.0)));
+        assert!(*connects.borrow() >= 1);
+        // The host admitted it as sequence 1 before it published the result.
+        let admitted = book.take_rtd_admissions();
+        assert_eq!(admitted.len(), 1);
+        assert_eq!(
+            (admitted[0].lease, admitted[0].sequence, admitted[0].value.clone()),
+            (RtdLease(5), 1, CalcValue::number(1.0))
+        );
+        let ProjectedValue::Calculated { calculation, .. } = value(book.host(), at(s, "B1")) else {
+            panic!("calculated")
+        };
+        let read = &calculation.stamp().unwrap().reads.external_inputs[0];
+        assert_eq!((read.topic.clone(), read.lease, read.sequence), (probe_topic(), RtdLease(5), 1));
+        // The client's own queued copy of the same admission is a duplicate.
+        assert_eq!(
+            book.update_rtd(probe_topic(), RtdLease(5), 1, CalcValue::number(1.0)),
+            T::Duplicate
+        );
+        // A refresh advances the same lease.
+        assert_eq!(
+            book.update_rtd(probe_topic(), RtdLease(5), 2, CalcValue::number(42.0)),
+            T::Accepted
+        );
+        book.dispatch(SkinIntent::Recalculate);
+        drain(&mut book);
+        assert_eq!(calculated(book.host(), at(s, "B1")), Some(CalcValue::number(43.0)));
+    }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn contract_p03_an_rtd_update_dirties_only_the_cells_that_read_its_topic() {

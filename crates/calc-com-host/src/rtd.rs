@@ -1,7 +1,7 @@
 //! Owning-STA RTD client. Notifications carry no evaluator or Rust pointers.
 use crate::projection::Value;
 use calc_value::{CalcValue, CellKey, ExcelText, WorksheetErrorCode};
-use calc_xll_host::{RtdLease, RtdProvider, RtdService, TopicKey};
+use calc_xll_host::{RtdConnection, RtdConnector, RtdLease, RtdProvider, RtdService, TopicKey};
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
@@ -367,6 +367,22 @@ impl RtdClient {
             state.transports.remove(&transport);
         }
         Ok(())
+    }
+}
+impl std::fmt::Debug for RtdClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RtdClient").finish_non_exhaustive()
+    }
+}
+/// The owner's connector over this client: join or start the topic's one connection. The
+/// connect-time value is provisional until the owner admits it as its sequence.
+impl RtdConnector for RtdClient {
+    fn connect(&self, topic: &TopicKey, caller: CellKey) -> Result<RtdConnection, String> {
+        let lease = RtdService::subscribe(self, caller, topic)?;
+        Ok(RtdConnection {
+            lease,
+            provisional: RtdService::initial_value(self, topic, lease),
+        })
     }
 }
 impl RtdService for RtdClient {

@@ -116,6 +116,7 @@ pub struct FormulaEvaluationContext<'s> {
     pub(super) functions: Option<&'s crate::CallableTable>,
     pub(super) invocation: Option<calc_func::UserInvocationFrame>,
     pub(super) external_inputs: Option<&'s dyn calc_func::RtdCut>,
+    pub(super) rtd_connector: Option<&'s dyn calc_func::RtdConnector>,
     pub(super) reference_handles: Option<&'s dyn calc_func::ReferenceHandles>,
     pub(super) observation_reader: Option<&'s mut dyn ReferenceReader>,
     pub(super) function_diagnostics: Option<&'s mut Vec<String>>,
@@ -146,6 +147,7 @@ impl<'s> FormulaEvaluationContext<'s> {
             functions: None,
             invocation: None,
             external_inputs: None,
+            rtd_connector: None,
             reference_handles: None,
             observation_reader: None,
             function_diagnostics: None,
@@ -163,6 +165,11 @@ impl<'s> FormulaEvaluationContext<'s> {
 
     pub fn with_external_inputs(mut self, inputs: &'s dyn calc_func::RtdCut) -> Self {
         self.external_inputs = Some(inputs);
+        self
+    }
+    /// The owner's capability to join or start an RTD topic during this evaluation.
+    pub fn with_rtd_connector(mut self, connector: &'s dyn calc_func::RtdConnector) -> Self {
+        self.rtd_connector = Some(connector);
         self
     }
     pub fn with_reference_handles(mut self, handles: &'s dyn calc_func::ReferenceHandles) -> Self {

@@ -107,7 +107,9 @@ pub use project::{
     ProjectedCell, ProjectedValue, ProjectionError, ProjectionPage, ProjectionRequest, StaleCause,
     StaleValue, project,
 };
-pub use recalc::{HostProgress, RecalcFailed, RtdDisposition, calculate, calculate_full, step};
+pub use recalc::{
+    HostProgress, RecalcFailed, RtdAdmission, RtdDisposition, calculate, calculate_full, step,
+};
 pub use save::{
     BeforeSaveHandler, BeforeSaveOutcome, ExcelSaveContext, PreparedSave, SaveCachePolicy,
     SaveFailed, SaveOperation, SavePin, prepare_save, prepare_save_with_cache_policy, save,
@@ -152,7 +154,7 @@ pub use calc_engine::{
     ValueDelta, WorkBudget,
 };
 pub use calc_fml::reference::CellRun;
-pub use calc_fml::{CallableHandle, CallableTable, FormatProfile, NameResultKind, RtdLease, TopicKey};
+pub use calc_fml::{CallableHandle, CallableTable, FormatProfile, NameResultKind, RtdConnection, RtdConnector, RtdLease, TopicKey};
 
 /// The existing reference-text binder's typed result, exposed to host consumers.
 pub use calc_fml::reference::TextReference as ReferenceTarget;

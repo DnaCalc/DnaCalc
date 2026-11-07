@@ -407,6 +407,7 @@ pub struct RecalcWork {
     linked_input_version: u64,
     external_input_version: u64,
     external_inputs: Option<std::rc::Rc<dyn calc_fml::RtdCut>>,
+    rtd_connector: Option<std::rc::Rc<dyn calc_fml::RtdConnector>>,
     async_waits: BTreeMap<NodeId, AsyncToken>,
     async_resumed: BTreeSet<NodeId>,
     evaluations: BTreeMap<NodeId, (u64, ReevaluationReason)>,
@@ -515,6 +516,7 @@ pub(crate) struct EvalLocal {
     effects: calc_fml::UserFunctionEffects,
     semantic_prerequisite: Option<(CellKey, NodeId)>,
     references: Option<std::rc::Rc<calc_fml::reference::ReferenceView>>,
+    rtd_connector: Option<std::rc::Rc<dyn calc_fml::RtdConnector>>,
     observation: Option<crate::CachedReadLease>,
     observation_reads: Vec<(calc_fml::ReadRequest, GridArea)>,
     invocation: Option<calc_fml::UserInvocationFrame>,
@@ -687,6 +689,11 @@ impl RecalcWork {
         self
     }
 
+    /// The owner's capability to join or start RTD topics while this work evaluates.
+    pub fn with_rtd_connector(mut self, connector: std::rc::Rc<dyn calc_fml::RtdConnector>) -> Self {
+        self.rtd_connector = Some(connector);
+        self
+    }
     pub fn with_functions(mut self, functions: &calc_fml::CallableTable) -> Self {
         if self.callable_bindings != functions.bindings() {
             self.failure = Some(RecalcFailure::CallableBindingMismatch);
@@ -1516,6 +1523,7 @@ fn begin_with_scope(
         publication_sequence: 0,
         functions: None,
         references: None,
+        rtd_connector: None,
         callable_bindings: state.callables.clone(),
         root_reason: if selection == EvalSelection::FormulaEntry {
             ReevaluationReason::FormulaEntry
@@ -2454,7 +2462,7 @@ mod parallel {
                 for index in from..(from + CHUNK).min(positions.len()) {
                     let node = order[positions[index]];
                     let attempt =
-                        evaluate_with(state, inputs, &shared, local, node, None, None, &mut silent);
+                        evaluate_with(state, inputs, &shared, local, node, None, None, None, &mut silent);
                     // Unfinished speculative work is replayed by process on the owner.
                     // Its continuation belongs to this node, never the worker's next one.
                     if !matches!(&attempt, Ok(Attempt::Done(_))) {
@@ -5173,6 +5181,7 @@ fn evaluate_node(
         node,
         work.functions.as_ref(),
         work.references.as_ref(),
+        work.rtd_connector.as_ref(),
         observer,
     )
 }
@@ -5188,6 +5197,7 @@ fn evaluate_with(
     node: NodeId,
     functions: Option<&calc_fml::CallableTable>,
     references: Option<&ReferenceSource>,
+    rtd_connector: Option<&std::rc::Rc<dyn calc_fml::RtdConnector>>,
     observer: &mut dyn ReadObserver,
 ) -> Result<Attempt, RecalcFailure> {
     if !shared.scope.contains(live_anchor(state, node)) {
@@ -5201,6 +5211,12 @@ fn evaluate_with(
         local.references = if matches!(state.bindings.get(&node),Some(Binding::Placed(instance,_)) if instance.plan().has_user_calls())
         {
             references.map(|references| references.pin())
+        } else {
+            None
+        };
+        local.rtd_connector = if matches!(state.bindings.get(&node),Some(Binding::Placed(instance,_)) if instance.plan().has_user_calls())
+        {
+            rtd_connector.cloned()
         } else {
             None
         };
@@ -5675,6 +5691,7 @@ fn evaluate_unstamped(
         local.observation = Some(pin);
     }
     let reference_view = local.references.clone();
+    let rtd_connector = local.rtd_connector.clone();
     let observation_pin = local.observation.clone();
     let invocation = local.invocation.clone();
     let mut user_effects = std::mem::take(&mut local.effects);
@@ -5768,6 +5785,9 @@ fn evaluate_unstamped(
             }
             if let Some(references) = reference_view.as_deref() {
                 services = services.with_reference_handles(references);
+            }
+            if let Some(connector) = rtd_connector.as_deref() {
+                services = services.with_rtd_connector(connector);
             }
             if let Some(invocation) = invocation {
                 services = services.with_invocation(invocation);

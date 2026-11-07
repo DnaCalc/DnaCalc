@@ -467,6 +467,7 @@ fn evaluate_slice(
         read_policy: services.request.policy,
         invocation: services.invocation.clone(),
         external_inputs: services.external_inputs,
+        rtd_connector: services.rtd_connector,
         reference_handles: services.reference_handles,
         observation_reader: observation_reader.as_ref(),
         reader: &reader,
@@ -540,6 +541,7 @@ fn evaluate_slice(
 struct Run<'a, 'r> {
     current_name: Option<Arc<ActiveName>>,
     external_inputs: Option<&'a dyn calc_func::RtdCut>,
+    rtd_connector: Option<&'a dyn calc_func::RtdConnector>,
     read_policy: crate::ReadPolicy,
     invocation: Option<calc_func::UserInvocationFrame>,
     reference_handles: Option<&'a dyn calc_func::ReferenceHandles>,
@@ -3712,6 +3714,39 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
         Ok(entry)
     }
 
+    fn read_topic(
+        &mut self,
+        topic: &calc_func::TopicKey,
+    ) -> Result<calc_func::RtdTopicRead, String> {
+        use crate::rtd::RtdReadError;
+        let caller = self.caller();
+        let Some(caller) = caller else {
+            return Err(self.refuse_by("RTD read without a worksheet caller", "dc-snz.23"));
+        };
+        let read = crate::rtd::read_topic(
+            self.run.external_inputs,
+            self.run.rtd_connector,
+            topic,
+            caller,
+        );
+        let (seen, read) = match read {
+            Ok(done) => done,
+            Err(RtdReadError::NoCut) => {
+                return Err(self.refuse_by("RTD input without an admitted input view", "dc-hsa5.4"));
+            }
+            Err(RtdReadError::NoConnector) => {
+                return Err(self.refuse_by("RTD without an owner connector", "dc-snz.23"));
+            }
+            Err(RtdReadError::Connect(why)) => return Err(why),
+        };
+        if let Some(effects) = self.run.user_function_effects.as_deref_mut()
+            && !effects.external_inputs.contains(&read)
+        {
+            effects.external_inputs.push(read);
+        }
+        Ok(seen)
+    }
+
     fn request_reevaluation(
         &mut self,
         reason: calc_func::UserReevaluationReason,
@@ -4005,6 +4040,7 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
             read_policy: self.run.read_policy,
             invocation: self.frame.clone(),
             external_inputs: self.run.external_inputs,
+            rtd_connector: self.run.rtd_connector,
             reference_handles: self.run.reference_handles,
             observation_reader: self.run.observation_reader,
             function_diagnostics: self.run.function_diagnostics.as_deref_mut(),
