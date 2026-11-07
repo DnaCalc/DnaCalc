@@ -63,160 +63,6 @@ struct RegressionFit {
     observations: usize,
 }
 
-/// Outward intervals used only to decide whether the original Gram entries
-/// resolve an additional predictor. They do not supply regression coefficients.
-#[derive(Clone, Copy)]
-struct GramInterval { low: f64, high: f64 }
-
-impl GramInterval {
-    fn checked(low: f64, high: f64) -> Option<Self> {
-        (low.is_finite() && high.is_finite() && low <= high).then_some(Self { low, high })
-    }
-    fn subtract(self, other: Self) -> Option<Self> {
-        Self::checked((self.low-other.high).next_down(), (self.high-other.low).next_up())
-    }
-    fn multiply(self, other: Self) -> Option<Self> {
-        let products = [self.low*other.low, self.low*other.high, self.high*other.low, self.high*other.high];
-        if products.iter().any(|v| !v.is_finite()) { return None; }
-        Self::checked(products.into_iter().fold(f64::INFINITY, f64::min).next_down(),
-            products.into_iter().fold(f64::NEG_INFINITY, f64::max).next_up())
-    }
-    fn square(self) -> Option<Self> {
-        let a = self.low*self.low;
-        let b = self.high*self.high;
-        let low = if self.low <= 0.0 && self.high >= 0.0 { 0.0 } else { a.min(b).next_down().max(0.0) };
-        Self::checked(low, a.max(b).next_up())
-    }
-    fn divide_positive(self, other: Self) -> Option<Self> {
-        if other.low <= 0.0 { return None; }
-        self.multiply(Self::checked((1.0/other.high).next_down(), (1.0/other.low).next_up())?)
-    }
-}
-
-#[derive(Clone, Copy)]
-struct GramColumn { scale: f64, sum: GramInterval }
-
-/// A column-normalized numerical-rank policy from finite-precision Gram
-/// uncertainty. For n products/additions, gamma_(2n) bounds the dot-product
-/// error. Raw-moment intervals also account for cancellation when centering.
-/// A final LDL pivot containing zero is unresolved at that precision; it is
-/// not a proof of exact dependence or an identification of Excel's algorithm.
-struct GramRank<'a> {
-    columns: &'a [Vec<f64>],
-    centered: bool,
-    count: f64,
-    gamma: f64,
-    disabled: bool,
-    stats: std::collections::BTreeMap<usize, GramColumn>,
-    entries: std::collections::BTreeMap<(usize, usize), GramInterval>,
-    basis: Vec<usize>,
-    lower: Vec<Vec<GramInterval>>,
-    pivots: Vec<GramInterval>,
-}
-
-impl<'a> GramRank<'a> {
-    fn new(columns: &'a [Vec<f64>], centered: bool, n: usize, finite_norms: bool) -> Self {
-        let count = n as f64;
-        // Unit roundoff is EPSILON/2; at most 2n operations give n*EPSILON.
-        let error = count*f64::EPSILON;
-        let denominator = (1.0-error).next_down();
-        let gamma = (error/denominator).next_up();
-        Self { columns, centered, count, gamma,
-            disabled: !finite_norms || n == 0 || denominator <= 0.0 || !gamma.is_finite() || gamma >= 1.0,
-            stats: Default::default(), entries: Default::default(), basis: Vec::new(),
-            lower: Vec::new(), pivots: Vec::new() }
-    }
-
-    fn moment(&self, a: usize, sa: f64, b: Option<(usize, f64)>) -> Option<GramInterval> {
-        let mut sum = 0.0;
-        let mut absolute = 0.0;
-        for (i, &raw) in self.columns[a].iter().enumerate() {
-            let x = raw/sa;
-            let y = b.map_or(1.0, |(index, scale)| self.columns[index][i]/scale);
-            let product = x*y;
-            // The relative-error bound requires normal nonzero products.
-            if x != 0.0 && y != 0.0 && !product.is_normal() { return None; }
-            sum += product;
-            absolute += product.abs();
-        }
-        if absolute == 0.0 { return GramInterval::checked(sum, sum); }
-        let denominator = (1.0-self.gamma).next_down();
-        if denominator <= 0.0 { return None; }
-        let absolute_upper = (absolute/denominator).next_up();
-        let error = (self.gamma*absolute_upper).next_up();
-        GramInterval::checked((sum-error).next_down(), (sum+error).next_up())
-    }
-
-    fn column(&mut self, index: usize) -> Option<GramColumn> {
-        if let Some(stats) = self.stats.get(&index) { return Some(*stats); }
-        let values = &self.columns[index];
-        if values.len() as f64 != self.count || values.iter().any(|v| !v.is_finite()) { return None; }
-        let largest = values.iter().map(|v| v.abs()).fold(0.0_f64, f64::max);
-        if largest == 0.0 { return None; }
-        // Power-of-two normalization is exact when the scaled values stay
-        // normal. A representation failure keeps the existing QR path.
-        let exponent = largest.to_bits() & 0x7ff0_0000_0000_0000;
-        let scale = f64::from_bits(exponent.max(f64::MIN_POSITIVE.to_bits()));
-        if values.iter().any(|v| *v != 0.0 && !(v/scale).is_normal()) { return None; }
-        let stats = GramColumn { scale, sum: self.moment(index, scale, None)? };
-        self.stats.insert(index, stats);
-        Some(stats)
-    }
-
-    fn entry(&mut self, a: usize, b: usize) -> Option<GramInterval> {
-        let key = (a.min(b), a.max(b));
-        if let Some(value) = self.entries.get(&key) { return Some(*value); }
-        let x = self.column(a)?;
-        let y = self.column(b)?;
-        let mut value = self.moment(a, x.scale, Some((b, y.scale)))?;
-        if self.centered {
-            let count = GramInterval { low: self.count, high: self.count };
-            value = value.subtract(x.sum.multiply(y.sum)?.divide_positive(count)?)?;
-        }
-        self.entries.insert(key, value);
-        Some(value)
-    }
-
-    fn factor_column(&mut self, index: usize) -> Option<(Vec<GramInterval>, GramInterval)> {
-        let mut row: Vec<GramInterval> = Vec::with_capacity(self.basis.len());
-        for k in 0..self.basis.len() {
-            let mut value = self.entry(index, self.basis[k])?;
-            for r in 0..k {
-                value = value.subtract(row[r].multiply(self.lower[k][r])?.multiply(self.pivots[r])?)?;
-            }
-            row.push(value.divide_positive(self.pivots[k])?);
-        }
-        let mut pivot = self.entry(index, index)?;
-        for (r, coefficient) in row.iter().enumerate() {
-            pivot = pivot.subtract(coefficient.square()?.multiply(self.pivots[r])?)?;
-        }
-        Some((row, pivot))
-    }
-
-    fn unresolved_inner(&mut self, prefix: &[usize], index: usize) -> Option<bool> {
-        if self.basis != prefix {
-            self.basis.clear(); self.lower.clear(); self.pivots.clear();
-            for &earlier in prefix {
-                let (row, pivot) = self.factor_column(earlier)?;
-                if pivot.low <= 0.0 { return None; }
-                self.basis.push(earlier); self.lower.push(row); self.pivots.push(pivot);
-            }
-        }
-        let (row, pivot) = self.factor_column(index)?;
-        if pivot.high < 0.0 { return None; }
-        if pivot.low <= 0.0 { return Some(true); }
-        self.basis.push(index); self.lower.push(row); self.pivots.push(pivot);
-        Some(false)
-    }
-
-    fn unresolved(&mut self, prefix: &[usize], index: usize) -> bool {
-        if self.disabled || prefix.is_empty() { return false; }
-        match self.unresolved_inner(prefix, index) {
-            Some(result) => result,
-            None => { self.disabled = true; false }
-        }
-    }
-}
 /// An argument as the regression functions read it: the caller has read a reference into an
 /// array; an empty or omitted argument is #VALUE!.
 fn resolve_arg_eval(arg: &CalcValue) -> Result<CalcValue, WorksheetErrorCode> {
@@ -326,6 +172,86 @@ fn collect_numeric_vector_arg(
     collect_numeric_vector_from_eval(&eval)
 }
 
+/// A known_y or known_x argument of LINEST, LOGEST, TREND and GROWTH, read for its shape before
+/// its values: a text, logical or blank value is #VALUE! only when the shapes of known_y and
+/// known_x agree, and a shape disagreement is #REF! whatever the values are. An error value still
+/// comes first, and an omitted known_y is #VALUE! (Excel 16.0.20527, dcztvv_r23 and dcztvv_r24:
+/// `=LINEST("-11.827",X)`, `LINEST(TRUE,X)`, `LINEST(E1,X)` and `LINEST("",X)` with X eight rows
+/// by two columns are #REF!, `LINEST(NA(),X)` #N/A, `LINEST(1/0,X)` #DIV/0!, `LINEST(,X)` #VALUE!;
+/// `=LINEST("5",{1;2;3})` is #VALUE! and `LINEST(E1:E2,{1;2;3})` #REF!; eight known y with the
+/// known x "53.130000000000003" #REF!, and `LINEST(5,"1")` #VALUE!).
+struct ShapeFirst<T> {
+    value: T,
+    non_numeric: bool,
+}
+
+fn shape_first_cell(cell: &CalcValue, non_numeric: &mut bool) -> Result<f64, WorksheetErrorCode> {
+    match cell.core_ref() {
+        CoreRef::Number(n) => Ok(n),
+        CoreRef::Error(code) => Err(code),
+        CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Empty => {
+            *non_numeric = true;
+            Ok(f64::NAN)
+        }
+        CoreRef::Missing | CoreRef::Array(_) | CoreRef::Reference(_) => {
+            Err(WorksheetErrorCode::Value)
+        }
+    }
+}
+
+fn shape_first_matrix(arg: &CalcValue) -> Result<ShapeFirst<NumericMatrix>, WorksheetErrorCode> {
+    if matches!(arg.core_ref(), CoreRef::Missing) {
+        return Err(WorksheetErrorCode::Value);
+    }
+    let mut non_numeric = false;
+    let value = match arg.core_ref() {
+        CoreRef::Array(array) => {
+            let shape = array.shape();
+            let mut values = Vec::with_capacity(shape.rows * shape.cols);
+            for cell in array.iter_row_major() {
+                values.push(shape_first_cell(cell, &mut non_numeric)?);
+            }
+            NumericMatrix { rows: shape.rows, cols: shape.cols, values }
+        }
+        _ => NumericMatrix { rows: 1, cols: 1, values: vec![shape_first_cell(arg, &mut non_numeric)?] },
+    };
+    Ok(ShapeFirst { value, non_numeric })
+}
+
+fn shape_first_vector(arg: &CalcValue) -> Result<ShapeFirst<NumericVector>, WorksheetErrorCode> {
+    let ShapeFirst { value: matrix, non_numeric } = shape_first_matrix(arg)?;
+    if matrix.rows > 1 && matrix.cols > 1 {
+        return Err(WorksheetErrorCode::Ref);
+    }
+    let shape = if matrix.rows == 1 && matrix.cols == 1 {
+        VectorShape::Scalar
+    } else if matrix.rows == 1 {
+        VectorShape::Row(matrix.cols)
+    } else {
+        VectorShape::Column(matrix.rows)
+    };
+    Ok(ShapeFirst { value: NumericVector { values: matrix.values, shape }, non_numeric })
+}
+
+/// known_y, then known_x read into the predictors (#REF! when the shapes disagree), then #VALUE!
+/// for a value that is not a number.
+fn shape_first_inputs(
+    args: &[CalcValue],
+) -> Result<(NumericVector, PreparedPredictorInput), WorksheetErrorCode> {
+    let known_y = shape_first_vector(&args[0])?;
+    let known_x_raw = args
+        .get(1)
+        .filter(|arg| !matches!(arg.core_ref(), CoreRef::Missing))
+        .map(shape_first_matrix)
+        .transpose()?;
+    let x_non_numeric = known_x_raw.as_ref().is_some_and(|x| x.non_numeric);
+    let known_x = predictor_input_from_optional(known_x_raw.map(|x| x.value), &known_y.value)?;
+    if known_y.non_numeric || x_non_numeric {
+        return Err(WorksheetErrorCode::Value);
+    }
+    Ok((known_y.value, known_x))
+}
+
 impl NumericMatrix {
     fn cell(&self, row: usize, col: usize) -> f64 {
         self.values[row * self.cols + col]
@@ -411,11 +337,14 @@ fn normalize_known_x_matrix(
         Ok(raw)
     } else if raw.rows == 1 && raw.cols == observation_count {
         Ok(raw.transpose())
-    } else if observation_count == 1 {
-        // One known y: every known x is a predictor of that one observation (Excel 16.0.20430,
-        // 2026-10-25, dc-6au: `=LINEST(1,{1;2;3})` and `=LINEST(1,{1,2,3})` spill 0,0,0,1, three
-        // zero slopes and the intercept; `=TREND(1,{1;2;3})` and `=GROWTH(1,{1;2;3})` are 1,
-        // `=LOGEST(1,{1;2;3})` 1,1,1,1; `=TREND(5,{1;2;3},4)` is #REF!).
+    } else if observation_count == 1 && (raw.rows == 1 || raw.cols == 1) {
+        // One known y: every cell of a known x row or column is a predictor of that one
+        // observation (Excel 16.0.20430, 2026-10-25, dc-6au: `=LINEST(1,{1;2;3})` and
+        // `=LINEST(1,{1,2,3})` spill 0,0,0,1, three zero slopes and the intercept;
+        // `=TREND(1,{1;2;3})` and `=GROWTH(1,{1;2;3})` are 1, `=LOGEST(1,{1;2;3})` 1,1,1,1;
+        // `=TREND(5,{1;2;3},4)` is #REF!). A known x of several rows and columns is #REF!
+        // (Excel 16.0.20527, dcztvv_r23 and dcztvv_r24: `=LINEST(0,X)` with X eight rows by two
+        // columns or four rows by two).
         Ok(NumericMatrix {
             rows: 1,
             cols: raw.rows * raw.cols,
@@ -567,10 +496,22 @@ fn prediction_input_from_optional(
 ///    the later columns.
 /// 4. The intercept is `my - b_1*m_1 - b_2*m_2 - ...`, subtracted in predictor order.
 ///
-/// 5. Exactly proportional predictors are removed after the larger column has
-///    been selected. Zero and surplus predictors retain their structural handling.
-///    A further predictor is numerically eliminated when outward Gram-entry
-///    bounds leave its LDL pivot unresolved. Coefficients still use this QR.
+/// 5. Collinearity: at a predictor column's step, after the pivot is chosen, its remaining sum
+///    of squares is taken as its sum of squares before the steps less the square of each entry
+///    above the diagonal (a forward running difference), and the column is left out of the fit
+///    (coefficient 0, standard error 0, not counted in the degrees of freedom) when that remainder
+///    is below 2^-41 times its sum of squares before the steps. A column that was zero before the
+///    steps is kept with a zero coefficient and counts in the degrees of freedom.
+///    Identified on the degrees of freedom of 1,121 fits: the 1,025 captured ones and 96 fits
+///    asked of Excel 16.0.20527 on 2026-11-07 (dc-j9k.14, n = 3, 4, 8 and 16, with and without a
+///    constant, the tested column the larger or the smaller one, the remainder ratio at
+///    4.54e-13 to 4.80e-13): every fit dropped by Excel has a remainder ratio below 2^-41 and every
+///    kept one a ratio of at least 2^-41, four of them exactly 2^-41. The sum of squares the
+///    columns are reflected with, recomputed from the entries, places those 96 fits on the wrong
+///    side 11 times, so the test reads the running difference, not that sum.
+/// The collinearity test's bound on a column's remaining over its initial sum of squares (5 above).
+const COLLINEAR_REMAINDER: f64 = 1.0 / (1u64 << 41) as f64;
+
 fn least_squares(
     columns: &[Vec<f64>],
     y: &[f64],
@@ -627,12 +568,8 @@ fn least_squares(
     let initial: Vec<f64> = matrix.iter().map(|(_, column)| squares_from(column, 0)).collect();
     let mut scale: Vec<(Option<usize>, f64)> =
         matrix.iter().map(|(predictor, _)| *predictor).zip(initial).collect();
-    let finite_norms = scale.iter().all(|(predictor, norm)| predictor.is_none() || norm.is_finite());
-    let mut gram_rank = GramRank::new(columns, use_const, n, finite_norms);
     let mut diagonal = vec![0.0; p];
-    // Pivot by the remaining sum of squares; drop an exactly eliminated column
-    // only when it was nonzero before the reflections. Initially zero columns
-    // retain their zero coefficient and count in the degrees of freedom.
+    // Pivot by the remaining sum of squares, then apply the collinearity test (5 above).
     let mut j = 0;
     while j < matrix.len() {
         if j >= n {
@@ -656,27 +593,12 @@ fn least_squares(
         let x0 = matrix[j].1[j];
         let rest = squares_from(&matrix[j].1, j + 1);
         let squares = squares_from(&matrix[j].1, j);
-        // Reflections can leave a nonzero floating-point remainder even when
-        // two original columns are exactly proportional. Test that dependence
-        // in the original binary inputs, without a numerical rank tolerance.
-        let proportional = scale[j].1 > 0.0 && matrix[j].0.is_some_and(|index| {
-            matrix[..j].iter().zip(&scale[..j]).any(|((earlier, _), (_, original_squares))| {
-                *original_squares > 0.0
-                    && earlier.is_some_and(|other| exactly_proportional(&columns[index], &columns[other]))
-            })
-        });
-        if proportional {
-            matrix.remove(j);
-            scale.remove(j);
-            continue;
-        }
-        let unresolved = scale[j].1 > 0.0 && matrix[j].0.is_some_and(|index| {
-            let prefix: Vec<usize> = matrix[..j].iter().zip(&scale[..j])
-                .filter_map(|((predictor, _), (_, norm))| if *norm > 0.0 { *predictor } else { None })
-                .collect();
-            gram_rank.unresolved(&prefix, index)
-        });
-        if scale[j].1 > 0.0 && matrix[j].0.is_some() && (squares == 0.0 || unresolved) {
+        let collinear = scale[j].1 > 0.0 && matrix[j].0.is_some() && {
+            let before = scale[j].1;
+            let remainder = matrix[j].1[..j].iter().fold(before, |rest, r| rest - r * r);
+            remainder < before * COLLINEAR_REMAINDER
+        };
+        if scale[j].1 > 0.0 && matrix[j].0.is_some() && (squares == 0.0 || collinear) {
             matrix.remove(j);
             scale.remove(j);
             continue;
@@ -752,40 +674,6 @@ fn least_squares(
         y: centred_y,
         observations: n,
     })
-}
-
-/// Equality of cross products of finite binary64 values, without rounding or
-/// overflow. A significand product needs at most 106 bits, so u128 is sufficient.
-fn exact_product(a: f64, b: f64) -> (bool, u128, i32) {
-    let parts = |x: f64| {
-        let bits = x.to_bits();
-        let exponent = ((bits >> 52) & 0x7ff) as i32;
-        let fraction = bits & ((1u64 << 52) - 1);
-        if exponent == 0 {
-            (fraction, -1074)
-        } else {
-            (fraction | (1u64 << 52), exponent - 1075)
-        }
-    };
-    let (am, ae) = parts(a);
-    let (bm, be) = parts(b);
-    let product = u128::from(am) * u128::from(bm);
-    if product == 0 {
-        return (false, 0, 0);
-    }
-    let zeros = product.trailing_zeros();
-    (a.is_sign_negative() != b.is_sign_negative(), product >> zeros, ae + be + zeros as i32)
-}
-
-fn exactly_proportional(a: &[f64], b: &[f64]) -> bool {
-    if a.len() != b.len() || !a.iter().chain(b).all(|x| x.is_finite()) {
-        return false;
-    }
-    // Initially zero columns have their own recorded degrees-of-freedom policy.
-    let Some((&ax, &bx)) = a.iter().zip(b).find(|(x, y)| **x != 0.0 && **y != 0.0) else {
-        return false;
-    };
-    a.iter().zip(b).all(|(&x, &y)| exact_product(x, bx) == exact_product(y, ax))
 }
 
 fn linear_model_from_data(
@@ -1158,13 +1046,7 @@ fn forecast_pair_kernel(
 pub(crate) fn eval_trend_surface(
     args: &[CalcValue]
 ) -> Result<CalcValue, WorksheetErrorCode> {
-    let known_y = collect_numeric_vector_arg(&args[0])?;
-    let known_x_raw = args
-        .get(1)
-        .filter(|arg| !matches!(arg.core_ref(), CoreRef::Missing))
-        .map(|arg| collect_numeric_matrix_arg(arg))
-        .transpose()?;
-    let known_x = predictor_input_from_optional(known_x_raw, &known_y)?;
+    let (known_y, known_x) = shape_first_inputs(args)?;
     let new_x_raw = args
         .get(2)
         .filter(|arg| !matches!(arg.core_ref(), CoreRef::Missing))
@@ -1179,13 +1061,7 @@ pub(crate) fn eval_trend_surface(
 pub(crate) fn eval_growth_surface(
     args: &[CalcValue]
 ) -> Result<CalcValue, WorksheetErrorCode> {
-    let known_y = collect_numeric_vector_arg(&args[0])?;
-    let known_x_raw = args
-        .get(1)
-        .filter(|arg| !matches!(arg.core_ref(), CoreRef::Missing))
-        .map(|arg| collect_numeric_matrix_arg(arg))
-        .transpose()?;
-    let known_x = predictor_input_from_optional(known_x_raw, &known_y)?;
+    let (known_y, known_x) = shape_first_inputs(args)?;
     let new_x_raw = args
         .get(2)
         .filter(|arg| !matches!(arg.core_ref(), CoreRef::Missing))
@@ -1218,13 +1094,7 @@ pub(crate) fn eval_forecast_linear_surface(
 pub(crate) fn eval_linest_surface(
     args: &[CalcValue]
 ) -> Result<CalcValue, WorksheetErrorCode> {
-    let known_y = collect_numeric_vector_arg(&args[0])?;
-    let known_x_raw = args
-        .get(1)
-        .filter(|arg| !matches!(arg.core_ref(), CoreRef::Missing))
-        .map(|arg| collect_numeric_matrix_arg(arg))
-        .transpose()?;
-    let known_x = predictor_input_from_optional(known_x_raw, &known_y)?;
+    let (known_y, known_x) = shape_first_inputs(args)?;
     let use_const =
         bool_flag_from_eval_or_default(optional_arg_value(args.get(2))?, true)?;
     let stats = bool_flag_from_eval_or_default(optional_arg_value(args.get(3))?, false)?;
@@ -1234,13 +1104,7 @@ pub(crate) fn eval_linest_surface(
 pub(crate) fn eval_logest_surface(
     args: &[CalcValue]
 ) -> Result<CalcValue, WorksheetErrorCode> {
-    let known_y = collect_numeric_vector_arg(&args[0])?;
-    let known_x_raw = args
-        .get(1)
-        .filter(|arg| !matches!(arg.core_ref(), CoreRef::Missing))
-        .map(|arg| collect_numeric_matrix_arg(arg))
-        .transpose()?;
-    let known_x = predictor_input_from_optional(known_x_raw, &known_y)?;
+    let (known_y, known_x) = shape_first_inputs(args)?;
     let use_const =
         bool_flag_from_eval_or_default(optional_arg_value(args.get(2))?, true)?;
     let stats = bool_flag_from_eval_or_default(optional_arg_value(args.get(3))?, false)?;
@@ -1705,6 +1569,90 @@ mod tests {
                 Ok(1.0f64.to_bits()),
                 Ok(20.0f64.to_bits()),
             ]
+        );
+    }
+
+    fn bits_col(values: &[u64]) -> CalcValue {
+        col(&values.iter().map(|b| f64::from_bits(*b)).collect::<Vec<_>>())
+    }
+
+    /// dc-j9k.14: the collinearity test reads a column's running remainder, its sum of squares
+    /// before the steps less the square of each entry above the diagonal, against 2^-41 of that
+    /// sum. Excel 16.0.20527 (2026-11-07) degrees of freedom for two predictors, one exactly a
+    /// power-of-two multiple of b and one b plus a small multiple of a vector orthogonal to b:
+    /// the remainder ratio of the second pivot lies within 0.05% of 2^-41 in each, and the
+    /// fourth is exactly 2^-41 (kept). The remaining sum of squares the reflections use, taken
+    /// from the entries, puts each of these on the other side of 2^-41.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn collinearity_test_matches_excel_degrees_of_freedom() {
+        let cases: [(&[u64], &[u64], &[u64], bool, u64); 6] = [
+            (&[0x3ff0000000000000, 0x4000000000000000, 0x4010000000000000], &[0x3ff0000376b70fde, 0x3ffffffe44a47811, 0x4014000000000000], &[0x4000000000000000, 0x4010000000000000, 0x4024000000000000], false, 0x3ff0000000000000),
+            (&[0x3ff0000000000000, 0x4000000000000000, 0x4010000000000000], &[0x3ff00001843ac3a9, 0x3ffffffe7bc53c57, 0x4014000000000000], &[0x3fe0000000000000, 0x3ff0000000000000, 0x4004000000000000], true, 0x3ff0000000000000),
+            (&[0x3ff0000000000000, 0x4000000000000000, 0x4010000000000000, 0x401c000000000000], &[0x3ff000044a3dd906, 0x3ffffffddae1137d, 0x4014000000000000, 0x4010000000000000], &[0x4000000000000000, 0x4010000000000000, 0x4024000000000000, 0x4020000000000000], false, 0x4008000000000000),
+            (&[0x3ff0000000000000, 0x4000000000000000, 0x4010000000000000, 0x401c000000000000], &[0x3ff000044a3dd90b, 0x3ffffffddae1137b, 0x4014000000000000, 0x4010000000000000], &[0x3fe0000000000000, 0x3ff0000000000000, 0x4004000000000000, 0x4000000000000000], false, 0x4000000000000000),
+            (&[0x3ff0000000000000, 0x4000000000000000, 0x4010000000000000, 0x401c000000000000, 0x4008000000000000, 0x4020000000000000, 0x4018000000000000, 0x3ff0000000000000], &[0x3ff00007971f6708, 0x3ffffffc34704c7c, 0x4014000000000000, 0x4010000000000000, 0x4008000000000000, 0x401c000000000000, 0x4018000000000000, 0x4000000000000000], &[0x4000000000000000, 0x4010000000000000, 0x4024000000000000, 0x4020000000000000, 0x4018000000000000, 0x402c000000000000, 0x4028000000000000, 0x4010000000000000], false, 0x401c000000000000),
+            (&[0x3ff0000000000000, 0x4000000000000000, 0x4010000000000000, 0x401c000000000000, 0x4008000000000000, 0x4020000000000000, 0x4018000000000000, 0x3ff0000000000000, 0x4022000000000000, 0x4000000000000000, 0x4020000000000000, 0x4014000000000000, 0x4008000000000000, 0x4018000000000000, 0x4000000000000000, 0x4010000000000000], &[0x3ff00004c84789fa, 0x3ffffffb37b87606, 0x4014000000000000, 0x4010000000000000, 0x4008000000000000, 0x401c000000000000, 0x4018000000000000, 0x4000000000000000, 0x4020000000000000, 0x3ff0000000000000, 0x4022000000000000, 0x4010000000000000, 0x4000000000000000, 0x4018000000000000, 0x4008000000000000, 0x4014000000000000], &[0x3fe0000000000000, 0x3ff0000000000000, 0x4004000000000000, 0x4000000000000000, 0x3ff8000000000000, 0x400c000000000000, 0x4008000000000000, 0x3ff0000000000000, 0x4010000000000000, 0x3fe0000000000000, 0x4012000000000000, 0x4000000000000000, 0x3ff0000000000000, 0x4008000000000000, 0x3ff8000000000000, 0x4004000000000000], true, 0x402a000000000000),
+        ];
+        for (index, (y, x1, x2, constant, df)) in cases.iter().enumerate() {
+            let n = y.len();
+            let x = CalcValue::array(
+                CalcArray::from_rows(
+                    (0..n)
+                        .map(|i| {
+                            vec![
+                                CalcValue::number(f64::from_bits(x1[i])),
+                                CalcValue::number(f64::from_bits(x2[i])),
+                            ]
+                        })
+                        .collect(),
+                )
+                .unwrap(),
+            );
+            let cells = block(
+                eval_linest_surface(&[bits_col(y), x, bool_arg(*constant), bool_arg(true)])
+                    .unwrap(),
+            );
+            assert_eq!(cells[3 * 3 + 1], Ok(*df), "case {index}: degrees of freedom");
+        }
+    }
+
+    /// dc-j9k.14: with the larger column of a near-collinear pair kept and the other left out,
+    /// LOGEST's factors are finite (Excel 16.0.20527: 1.1912... and 1, where both columns in the
+    /// fit overflow EXP to #NUM!; catalogue sheet dcj9k_r16 and workbook dcj9k_r21).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn logest_leaves_out_a_near_collinear_column() {
+        let x = matrix(&[&[1.0, 2.0], &[2.0, 4.0], &[5.0, 10.0], &[4.0, 8.00000381469726]]);
+        let cells = block(
+            eval_logest_surface(&[col(&[1.0, 2.0, 4.0, 7.0]), x, bool_arg(false), bool_arg(true)])
+                .unwrap(),
+        );
+        assert_eq!(cells[0], Ok(0x3ff30f6b4559ebb7));
+        assert_eq!(cells[1], Ok(1.0f64.to_bits()));
+    }
+
+    /// The shapes of known_y and known_x are compared before their values are read (Excel
+    /// 16.0.20527, dcztvv_r23 and dcztvv_r24).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn regression_shapes_come_before_values() {
+        use WorksheetErrorCode::{Ref, Value};
+        let wide = || matrix(&[&[1.0, 2.0], &[2.0, 4.0], &[5.0, 10.0], &[4.0, 8.0001]]);
+        let text = |t: &str| CalcValue::text(crate::value::ExcelText::from_interop_assignment(t));
+        assert_eq!(eval_linest_surface(&[num(0.0), wide(), bool_arg(true), bool_arg(true)]), Err(Ref));
+        assert_eq!(eval_linest_surface(&[text("-11.827"), wide(), bool_arg(true), bool_arg(true)]), Err(Ref));
+        assert_eq!(eval_linest_surface(&[bool_arg(true), wide()]), Err(Ref));
+        assert_eq!(eval_logest_surface(&[num(0.0), wide(), bool_arg(true), bool_arg(true)]), Err(Ref));
+        assert_eq!(
+            eval_linest_surface(&[col(&[1.0, 2.0, 4.0, 7.0]), text("53.13")]),
+            Err(Ref)
+        );
+        assert_eq!(eval_linest_surface(&[text("5"), col(&[1.0, 2.0, 3.0])]), Err(Value));
+        assert_eq!(eval_linest_surface(&[num(5.0), text("1")]), Err(Value));
+        assert_eq!(
+            eval_linest_surface(&[CalcValue::error(WorksheetErrorCode::NA), wide()]),
+            Err(WorksheetErrorCode::NA)
         );
     }
 }
