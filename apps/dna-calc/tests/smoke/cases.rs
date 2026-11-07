@@ -9052,6 +9052,18 @@ Case {
         Action::Click("undo"),Action::Wait(Check::PlanCell("J1","text","19")),Action::Click("redo"),Action::Wait(Check::PlanCell("J1","text","62"))
     ],checks:&[Check::PlanCell("J2","text","54"),Check::PlanCell("J1","provenance","calculated")]},
 
+    Case{name:"pivot creation: selected source headers populate row and value choices",actions:&[
+        Action::Window(1920,1800),Action::Into("name-box","A1:B4\u{E007}"),Action::OpenDetails("pivot-tools"),Action::Click("pivot-source-selection"),Action::Wait(Check::Count("[data-dnacalc=pivot-create-value] option",2))
+    ],checks:&[Check::TextContains("pivot-create-range","A1:B4"),Check::TextContains("[data-dnacalc=pivot-create-row]","Region"),Check::Value("pivot-create-value","1")]},
+    Case{name:"pivot creation: a new table calculates at the chosen destination through the worker",actions:&[
+        Action::Into("pivot-create-destination","M3"),Action::Click("pivot-create-apply"),Action::Wait(Check::Count("[data-dnacalc=saved-pivot]",3)),Action::Wait(Check::PlanCell("N6","text","62"))
+    ],checks:&[Check::PlanCell("N6","provenance","calculated"),Check::TextContains("[data-pivot=PivotTable1] [data-dnacalc=pivot-source]","Data!A1:B4")]},
+    Case{name:"pivot creation: undo and redo remove and restore owned output and definitions",actions:&[
+        Action::Click("undo"),Action::Wait(Check::Count("[data-dnacalc=saved-pivot]",2)),Action::Wait(Check::PlanAbsent("N6")),Action::Click("redo"),Action::Wait(Check::Count("[data-dnacalc=saved-pivot]",3)),Action::Wait(Check::PlanCell("N6","text","62"))
+    ],checks:&[Check::PlanCell("N6","provenance","calculated")]},
+    Case{name:"pivot creation: real XLSX reopening discovers the new implicit table relationship",actions:&[
+        Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("pivot-saved.xlsx"),Action::DiscardReplacement,Action::OpenDetails("pivot-tools"),Action::Wait(Check::Count("[data-dnacalc=saved-pivot]",3))
+    ],checks:&[Check::PlanCell("N6","text","62"),Check::PlanCell("N6","provenance","literal"),Check::TextContains("[data-pivot=PivotTable1]","Saved cache"),Check::TextContains("pivot-state","No pivot refresh has run")]},
 ];
 
 /// The script that reads what one check looks at.
@@ -9942,5 +9954,5 @@ CaseGroup {
     CaseGroup {name:"chart-formatting",start:802,end:808,core:6,setup:&[]},
     CaseGroup{name:"chart-text",start:808,end:813,core:5,setup:&[]},
     CaseGroup{name:"chart-category-combos",start:813,end:816,core:3,setup:&[]},
-    CaseGroup{name:"saved-pivots",start:816,end:828,core:12,setup:&[]},
+    CaseGroup{name:"saved-pivots",start:816,end:832,core:16,setup:&[]},
 ];

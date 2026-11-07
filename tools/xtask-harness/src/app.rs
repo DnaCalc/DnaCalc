@@ -3238,7 +3238,7 @@ mod tests {
             total, 393,
             "the twelve page-layout cases extend all 381 inherited core cases"
         );
-        assert_eq!(current_total,419,"seven pivot refresh/query cases extend all 412 inherited core cases, including the nineteen chart and saved-pivot cases");
+        assert_eq!(current_total,423,"eleven pivot refresh/query/creation cases extend all 412 inherited core cases, including the nineteen chart and saved-pivot cases");
     }
 
     #[test]

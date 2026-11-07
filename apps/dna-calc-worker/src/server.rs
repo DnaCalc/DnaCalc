@@ -1022,6 +1022,7 @@ impl Server {
                         self.charts(sheet),
                     )))
                 }
+                Request::PivotSourceFields{area,revision}=>Ok(Reply::PivotSourceFields(if revision!=self.book.host().revision().get(){Err("The source changed; select it again".into())}else{area.area().ok_or_else(||"Select one source range".into()).and_then(|area|calc_host::pivot_source_fields(self.book.host(),area))})),
                 Request::PivotTables(sheet)=>{let (tables,issues)=self.pivots(sheet);Ok(Reply::PivotTables{tables,issues})},
                 Request::Charts(sheet) => Ok(Reply::Charts(self.charts(sheet))),
                 Request::AtlasRefusals { reason, page } => Ok(Reply::AtlasRefusals(
@@ -1516,6 +1517,7 @@ impl Server {
                 direction,
             } => return self.notebook_order(placement, direction),
 
+            Intent::PivotCreate{revision,source,destination,row,value,subtotal}=>SkinIntent::Command(calc_host::WorkbookCommand::PivotCreate{revision,source:source.area().ok_or("Invalid pivot source range")?,destination,row,value,subtotal}),
             Intent::PivotRefresh{sheet,revision,part}=>SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet:sheet.id(),revision,part}),
             Intent::ChartCreate{revision,area,kind,rows,headers,categories}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartCreate{revision,area:area.area().ok_or("Invalid chart selection")?,kind,rows,headers,categories}),
             Intent::ChartSeriesStyle{sheet,revision,part,plot,series,fill}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartSeriesStyle{sheet:sheet.id(),revision,part,plot,series,fill}),

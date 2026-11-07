@@ -275,6 +275,7 @@ pub enum Interest {
 /// What the page asks the session to do: calc-host's skin intents as the page sends them.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Intent {
+    PivotCreate {revision:u64,source:Area,destination:String,row:u32,value:u32,subtotal:String},
     PivotRefresh {sheet:Sheet,revision:u64,part:String},
     PageSetup {
         sheet: Sheet,
@@ -673,6 +674,7 @@ pub enum Request {
     /// The sheet's charts, drawn.
     Charts(Sheet),
     PivotTables(Sheet),
+    PivotSourceFields{area:Area,revision:u64},
     /// The cell's data validation: its rule and, for a list, its items.
     Validation(Key),
     ValidationInvalid(Sheet),
@@ -1109,6 +1111,7 @@ pub enum Reply {
     ResolvedReference(Result<Area, String>),
     Charts(Vec<Chart>),
     PivotTables{tables:Vec<SavedPivot>,issues:Vec<String>},
+    PivotSourceFields(Result<Vec<String>,String>),
     Validation(Option<Validation>),
     ValidationInvalid(ValidationScan),
     Atlas(Atlas),

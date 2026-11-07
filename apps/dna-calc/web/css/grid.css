@@ -120,3 +120,5 @@
 
 .dc-pivot-summary,.dc-pivot-tools>.dc-note{overflow-wrap:anywhere}
 .dc-pivot-summary button{min-height:44px;cursor:pointer}
+/* Pivot creation and saved ranges share a scrollable phone panel. */
+@media(max-width:600px){[data-dnacalc=pivot-tools][open]{max-height:min(70dvh,calc(100dvh - 8rem))}}

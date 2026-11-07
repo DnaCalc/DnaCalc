@@ -181,3 +181,5 @@ mod copy_metadata;
 pub use calc_doc_model::note_segments;
 
 mod pivot;
+
+pub use pivot::source_fields as pivot_source_fields;

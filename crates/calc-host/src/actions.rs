@@ -56,6 +56,7 @@ pub enum ConditionalChange {
 /// Authored workbook commands. The session is the sole dispatch route for all clients.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WorkbookCommand {
+    PivotCreate {revision:u64,source:GridArea,destination:String,row:u32,value:u32,subtotal:String},
     PivotRefresh {sheet:SheetId,revision:u64,part:String},
     PageSetup {sheet:SheetId,revision:u64,change:crate::PageSetupChange},
     ChartCreate {revision:u64,area:GridArea,kind:String,rows:bool,headers:bool,categories:bool},
@@ -142,6 +143,7 @@ pub(crate) fn prepare(
     command: WorkbookCommand,
 ) -> Result<Vec<CellEdit>, String> {
     match command {
+        WorkbookCommand::PivotCreate {revision,source,destination,row,value,subtotal}=>crate::pivot::prepare_create(host,revision,source,&destination,row,value,&subtotal),
         WorkbookCommand::PivotRefresh {sheet,revision,part}=>crate::pivot::prepare_refresh(host,sheet,revision,&part),
         WorkbookCommand::PageSetup {sheet,revision,change}=>crate::page_setup::prepare(host,sheet,revision,change),
         WorkbookCommand::ChartCreate{revision,area,kind,rows,headers,categories}=>crate::chart::prepare_create(host,revision,area,&kind,rows,headers,categories),

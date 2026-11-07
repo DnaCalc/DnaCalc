@@ -725,7 +725,7 @@ pub(crate) fn prepare_type(host:&HostState,sheet:SheetId,revision:u64,part:&str,
     Ok(vec![crate::CellEdit::Charts{sheet,charts}])
 }
 
-fn cell_a1(at:CellKey)->String {
+pub(crate) fn cell_a1(at:CellKey)->String {
     let mut n=at.column();let mut letters=String::new();while n>0{n-=1;letters.insert(0,(b'A'+(n%26) as u8)as char);n/=26;}format!("{letters}{}",at.row())
 }
 fn range_data(host:&HostState,origin:CellKey,text:&str,numeric:bool,single:bool)->Result<ChartData,String>{
