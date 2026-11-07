@@ -8755,7 +8755,10 @@ Case {
                 "A1:D20",
             ),
             Check::Count("[data-dnacalc=print-page][data-range='A21:D60']", 1),
-            Check::Count("[data-dnacalc=print-page][data-range='E1:M20']", 1),
+            // Excel prints a default 64 px column as 430 device pixels (UI27), so with the row
+            // headings and the repeated column A eight columns fit across a page, not nine.
+            Check::Count("[data-dnacalc=print-page][data-range='E1:L20']", 1),
+            Check::Count("[data-dnacalc=print-page][data-range='M1:T20']", 1),
             Check::Text("[data-page='1'] [data-dnacalc=print-header]", "First 1 / 6"),
             Check::Text("[data-page='2'] [data-dnacalc=print-header]", "Even 2"),
             Check::Text("[data-page='3'] [data-dnacalc=print-header]", "Page 3 of 6"),

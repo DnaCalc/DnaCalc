@@ -154,6 +154,9 @@ fn outcomes() -> (BTreeMap<String, String>, BTreeMap<String, String>) {
     assert!(book.dispatch(SkinIntent::Recalculate).accepted());
     let mut saved = Vec::new();
     book.save(&SavePolicy::default(), &mut saved).expect("it saves");
+    if let Ok(dir) = std::env::var("DNACALC_UI30_PIVOTS") {
+        std::fs::write(format!("{dir}/pivots-refreshed-by-dna.xlsx"), &saved).unwrap();
+    }
     let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(saved));
     let reopened = HostSession::open(source, &OpenPolicy::default(), HostOptions::default())
         .expect("the saved workbook opens");
@@ -260,7 +263,6 @@ fn ui28__pivot_refresh_against_excel() {
     println!("saved structure matched {} of {}: {saved:?}", saved.len(), structure.len());
     assert_eq!(saved, MUST_MATCH_SAVED, "{structure:#?}");
 }
-const MUST_MATCH: &[&str] = &["P1", "P10", "P11", "P12", "P13", "P14", "P15", "P16", "P17", "P18", "P19", "P2", "P20", "P3", "P4", "P5", "P6", "P7", "P9", "PName", "PTable"];
-// All 22 pivot definitions saved and reopened equal Excel's; pvt_report_filter and
-// pvt_row_col_dates were not refreshed (they refuse) and are written back as read.
+const MUST_MATCH: &[&str] = &["P1", "P10", "P11", "P12", "P13", "P14", "P15", "P16", "P17", "P18", "P19", "P2", "P20", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "PName", "PTable"];
+// All 22 pivot definitions saved and reopened equal Excel's.
 const MUST_MATCH_SAVED: &[&str] = &["pvt_average", "pvt_count", "pvt_grand_off", "pvt_max", "pvt_min", "pvt_named", "pvt_one_row_sum", "pvt_repeat_off", "pvt_repeat_on", "pvt_report_filter", "pvt_row_col", "pvt_row_col_dates", "pvt_sort_ascending", "pvt_sort_descending", "pvt_sort_manual", "pvt_subtotal_bottom", "pvt_subtotal_top", "pvt_table", "pvt_two_data", "pvt_two_row_compact", "pvt_two_row_outline", "pvt_two_row_tabular"];

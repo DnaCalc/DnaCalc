@@ -16,7 +16,9 @@ ERRORS = {"#NULL!": 2000, "#DIV/0!": 2007, "#VALUE!": 2015, "#REF!": 2023,
 FAMILIES = "math statistics distributions engineering rounding_more financial bonds dates text_functions logical_more".split()
 DENY = {"CALL", "REGISTER", "REGISTER.ID", "RTD", "DDE", "WEBSERVICE", "INFO", "CELL",
         "INDIRECT", "OFFSET", "NOW", "TODAY", "RAND", "RANDBETWEEN", "RANDARRAY",
-        "LINEST", "LOGEST", "TREND", "GROWTH", "FREQUENCY", "MINVERSE", "MMULT", "MUNIT", "MODE.MULT"}
+        "TREND", "GROWTH", "FREQUENCY", "MINVERSE", "MMULT", "MUNIT", "MODE.MULT"}
+
+REGRESSION = {"LINEST", "LOGEST"}
 
 
 def catalogue_names(root):
@@ -59,7 +61,7 @@ def decode(raw):
 
 
 def validate(request, names, request_id):
-    if not isinstance(request, dict) or set(request) != {"version", "id", "function", "rows", "created", "expires"}:
+    if not isinstance(request, dict) or set(request) - {"result_index"} != {"version", "id", "function", "rows", "created", "expires"}:
         raise ValueError("expected only version, id, function, rows, created, expires")
     if type(request["version"]) is not int or request["version"] != 1 or request["id"] != request_id:
         raise ValueError("request identity/version mismatch")
@@ -72,6 +74,14 @@ def validate(request, names, request_id):
     name = request["function"]
     if not isinstance(name, str) or name not in names:
         raise ValueError("function is outside the service's safe catalogue subset")
+    if name in REGRESSION:
+        index = request.get("result_index")
+        if (not isinstance(index, list) or len(index) != 2
+                or any(type(v) is not int for v in index)
+                or not 1 <= index[0] <= 5 or not 1 <= index[1] <= 33):
+            raise ValueError("regression requires a bounded scalar result_index")
+    elif "result_index" in request:
+        raise ValueError("result_index is only supported for regression")
     rows = request["rows"]
     if not isinstance(rows, list) or not 1 <= len(rows) <= MAX_CALLS:
         raise ValueError("expected 1..20000 calls")
@@ -81,6 +91,23 @@ def validate(request, names, request_id):
             raise ValueError("expected rows of at most 32 scalar arguments")
         total += len(row)
         for arg in row:
+            if isinstance(arg, dict) and arg.get("type") == "array":
+                values = arg.get("values")
+                if (name not in REGRESSION or set(arg) != {"type", "values"}
+                        or not isinstance(values, list) or not 1 <= len(values) <= 32
+                        or any(not isinstance(r, list) for r in values)
+                        or not 1 <= len(values[0]) <= 32
+                        or any(len(r) != len(values[0]) for r in values)
+                        or len(values)*len(values[0]) > 128):
+                    raise ValueError("expected a bounded rectangular regression array")
+                leaves = [v for r in values for v in r]
+                if any(not isinstance(v, dict) or set(v) != {"type", "bits"}
+                       or v["type"] != "number" or not isinstance(v["bits"], str)
+                       or not re.fullmatch("[0-9a-f]{16}", v["bits"])
+                       or not math.isfinite(from_bits(v["bits"])) for v in leaves):
+                    raise ValueError("regression arrays contain only finite numeric cells")
+                total += len(leaves)-1
+                continue
             if not isinstance(arg, dict) or arg.get("mode", "cell") not in ("cell", "literal"):
                 raise ValueError("expected typed cell or literal argument")
             kind = arg.get("type")

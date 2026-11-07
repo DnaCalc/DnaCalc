@@ -351,6 +351,9 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
                         (["rowFields"], "field") => row_fields.push(integer(&e, "x", &events)?),
                         (["colFields"], "field") => column_fields.push(integer(&e, "x", &events)?),
                         (["pageFields"], "pageField") => {
+                            if e.attribute("item").is_some() || e.attribute("hier").is_some_and(|h| h != "-1") {
+                                unsupported.push("selected page field item".into());
+                            }
                             page_fields.push(integer(&e, "fld", &events)?)
                         }
                         (["dataFields"], "dataField") => data_fields.push(PivotDataField {
