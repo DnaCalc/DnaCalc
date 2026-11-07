@@ -685,29 +685,50 @@ fn gratio_after40(
     (0.5 + (0.5 - qans), qans)
 }
 
-/// statement 250: unnormalized continued fraction (two-term recurrences).
+/// The upper tail's continued fraction, in place of Morris's statement 250.
 fn gratio_cf(a: f64, x: f64, r: f64, e: f64, acc: f64) -> (f64, f64) {
-    let tol = (5.0 * e).max(acc);
-    let mut a2nm1 = 1.0;
-    let mut a2n = 1.0;
-    let mut b2nm1 = x;
-    let mut b2n = x + (1.0 - a);
-    let mut c = 1.0;
-    let mut an0;
+    let _ = (e, acc);
+    // The upper tail's continued fraction as Moshier's Cephes writes igamc, each stage stored: of
+    // 183 live answers between `max(a, ln 10)` and 31 the misses fall from 85 to 75 and their
+    // spread from up to 5 units to mostly 1, and CHIDIST gains 38 of its bank and loses none.
+    // Morris's two-term recurrence, in stored stages or not, stays further off.
+    use crate::ported::excel_numeric::{excel_x87_add as add, excel_x87_div as div, excel_x87_mul as mul, excel_x87_sub as sub};
+    let mut y = 1.0 - a;
+    let mut z = x + y + 1.0;
+    let mut c = 0.0;
+    let mut pkm2 = 1.0;
+    let mut qkm2 = x;
+    let mut pkm1 = x + 1.0;
+    let mut qkm1 = mul(z, x);
+    let mut ans = div(pkm1, qkm1);
     loop {
-        a2nm1 = x * a2n + c * a2nm1;
-        b2nm1 = x * b2n + c * b2nm1;
-        let am0 = a2nm1 / b2nm1;
         c += 1.0;
-        let cma = c - a;
-        a2n = a2nm1 + cma * a2n;
-        b2n = b2nm1 + cma * b2n;
-        an0 = a2n / b2n;
-        if !((an0 - am0).abs() >= tol * an0) {
+        y += 1.0;
+        z += 2.0;
+        let yc = mul(y, c);
+        let pk = sub(mul(pkm1, z), mul(pkm2, yc));
+        let qk = sub(mul(qkm1, z), mul(qkm2, yc));
+        let mut t = 1.0;
+        if qk != 0.0 {
+            let rr = div(pk, qk);
+            t = div(sub(ans, rr), rr).abs();
+            ans = rr;
+        }
+        pkm2 = pkm1;
+        pkm1 = pk;
+        qkm2 = qkm1;
+        qkm1 = qk;
+        if pk.abs() > 4503599627370496.0 {
+            pkm2 *= 2.220446049250313e-16;
+            pkm1 *= 2.220446049250313e-16;
+            qkm2 *= 2.220446049250313e-16;
+            qkm1 *= 2.220446049250313e-16;
+        }
+        if t <= 1.1102230246251565e-16 {
             break;
         }
     }
-    let qans = r * an0;
+    let qans = mul(r, ans);
     (0.5 + (0.5 - qans), qans)
 }
 
