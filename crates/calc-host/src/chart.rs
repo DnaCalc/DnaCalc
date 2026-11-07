@@ -614,7 +614,8 @@ pub fn combination_supported(chart:&ChartView)->bool{
     if !(2..=3).contains(&chart.plots.len())||chart.plots.iter().enumerate().any(|(i,p)|chart.plots[..i].iter().any(|before|before.kind==p.kind))||chart.plots.iter().any(|p|!matches!(p.kind,ChartKind::Column|ChartKind::Line|ChartKind::Area)||p.percent||p.series.is_empty()){return false;}
     if !matches!(chart.axes.len(),2|4){return false;}
     let Ok(pairs)=chart.plots.iter().map(|p|value_axes(&chart.axes,&p.axis_ids,false)).collect::<Result<Vec<_>,_>>()else{return false;};
-    if pairs[0][0].position.as_deref()!=Some("l"){return false;}
+    // Excel writes a combination as area, bar, line, so the plot on the primary axes is not always first.
+    if !pairs.iter().any(|pair|pair[0].position.as_deref()==Some("l")){return false;}
     let mut sides=std::collections::BTreeMap::new();
     for pair in pairs {let Some(side @ ("l"|"r"))=pair[0].position.as_deref()else{return false;};if sides.insert(side,pair[0].id).is_some_and(|id|id!=pair[0].id){return false;}}
     sides.len()==chart.axes.len()/2
@@ -798,6 +799,10 @@ pub(crate) fn prepare_create(host:&HostState,revision:u64,area:calc_value::GridA
         let area=plots[0].series.pop().unwrap();let line=plots[0].series.pop().unwrap();
         for (kind,series,axis_ids)in [("lineChart",line,vec![3,4]),("areaChart",area,vec![1,2])]{plots.push(ChartPlot{kind:kind.into(),grouping:Some("standard".into()),series:vec![series],axis_ids,..Default::default()});}
     }else if combo{let last=plots[0].series.pop().unwrap();let second=match kind{"combo-column-area"|"combo-line-area"=>"areaChart","combo-line-column"|"combo-area-column"=>"barChart",_=>"lineChart"};plots.push(ChartPlot{kind:second.into(),bar_direction:(second=="barChart").then(||"col".into()),grouping:Some(if second=="barChart"{"clustered"}else{"standard"}.into()),series:vec![last],axis_ids:vec![3,4],..Default::default()});}
+    // Excel writes the plots of a two-plot combination as area, bar, line whatever the order they
+    // were made in (UI30 P9, UI28 combos); each series keeps its own index and order. The three-plot
+    // combination is unmeasured and keeps the order it is made in.
+    if plots.len()==2{plots.sort_by_key(|p|match p.kind.as_str(){"areaChart"=>0,"barChart"=>1,"lineChart"=>2,_=>3});}
     let mut charts=host.model().definitions().charts(sheet).to_vec();
     let reserved=host.model().definitions().all_charts().flat_map(|(_,cs)|cs.iter().map(|c|c.part.clone())).collect::<Vec<_>>();
     let part=host.loaded().available_part_name("charts/dnaChart","xml",&reserved);

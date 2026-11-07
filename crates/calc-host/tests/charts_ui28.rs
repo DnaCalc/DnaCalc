@@ -189,11 +189,10 @@ fn ui28__created_combination_charts_against_excel() {
         }
     }
     println!("exact {exact:?}, plot order only {reordered:?}");
-    // Axes, groupings, overlap and axis ids are Excel's for all five kinds. DNA Calc writes the
-    // plots in the order they were made, so two kinds differ from Excel in plot order alone:
-    // Excel sorts them (area, bar, line) and DNA Calc draws them in that order regardless.
-    assert_eq!(exact, ["combo", "combo-area-line", "combo-area-column"]);
-    assert_eq!(reordered, ["combo-line-column", "combo-column-area"]);
+    // Plots, axes, groupings, overlap and axis ids are Excel's for all five kinds: Excel writes the
+    // plots as area, bar, line (UI30 P9) and so does DNA Calc.
+    assert_eq!(exact, ["combo", "combo-line-column", "combo-area-line", "combo-column-area", "combo-area-column"]);
+    assert!(reordered.is_empty(), "{reordered:?}");
 }
 
 /// UI30 P10: the 100% stacked column, bar, line and area charts Excel saved

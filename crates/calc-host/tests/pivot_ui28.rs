@@ -299,6 +299,15 @@ fn ui30__pivot_layouts_refresh_to_the_cells_excel_held() {
             .map(|p| p.tables.iter().map(|t| (t.part.clone(), t.name.clone())).collect())
             .unwrap_or_default();
         let want = held(&book, *sheet, 60, 80);
+        let want_items: Vec<_> = book
+            .host()
+            .model()
+            .definitions()
+            .pivots()
+            .sheets
+            .get(sheet)
+            .map(|p| p.tables.iter().map(|t| t.row_items.clone()).collect())
+            .unwrap_or_default();
         let mut verdict = None;
         for (part, _) in &tables {
             let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
@@ -312,7 +321,18 @@ fn ui30__pivot_layouts_refresh_to_the_cells_excel_held() {
         }
         let verdict = verdict.unwrap_or_else(|| {
             let got = held(&book, *sheet, 60, 80);
-            if got == want {
+            let got_items: Vec<_> = book
+                .host()
+                .model()
+                .definitions()
+                .pivots()
+                .sheets
+                .get(sheet)
+                .map(|p| p.tables.iter().map(|t| t.row_items.clone()).collect())
+                .unwrap_or_default();
+            if got == want && got_items != want_items {
+                format!("mismatched: row items want {want_items:?} got {got_items:?}")
+            } else if got == want {
                 "matched".to_owned()
             } else {
                 let diff: Vec<_> = want
@@ -340,6 +360,17 @@ fn ui30__pivot_layouts_refresh_to_the_cells_excel_held() {
     assert_eq!(outcomes.len(), 16, "{outcomes:#?}");
     assert_eq!(matched, UI30_MUST_MATCH, "{outcomes:#?}");
 }
-// Data number formats refresh. Report filters with chosen items, two column fields, three row
-// fields, grouped dates, percent of column, top 10 and values filters still refuse (dc-8wp).
-const UI30_MUST_MATCH: &[&str] = &["pvt_fmt_0_00", "pvt_fmt_currency", "pvt_fmt_percent"];
+// Data number formats and three row fields (all layouts, cells and row items) refresh. Report
+// filters with chosen items, two column fields, grouped dates, percent of column, top 10 and
+// values filters still refuse (dc-8wp).
+const UI30_MUST_MATCH: &[&str] = &[
+    "pvt_fmt_0_00",
+    "pvt_fmt_currency",
+    "pvt_fmt_percent",
+    "pvt_three_rows_compact_suboff",
+    "pvt_three_rows_compact_subon",
+    "pvt_three_rows_outline_suboff",
+    "pvt_three_rows_outline_subon",
+    "pvt_three_rows_tabular_suboff",
+    "pvt_three_rows_tabular_subon",
+];

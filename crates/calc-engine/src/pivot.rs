@@ -334,7 +334,7 @@ pub fn layout(table: &PivotTable, cache: &PivotCache) -> Result<PivotLayout, Piv
     {
         return layout_matrix(table, cache, snapshot);
     }
-    if table.row_fields.len() == 2
+    if table.row_fields.len() >= 2
         && table.column_fields.is_empty()
         && table.data_fields.len() == 1
     {
@@ -514,10 +514,10 @@ enum Form {
     Tabular,
 }
 
-/// Two row fields and one value field in compact, outline or tabular form, with the subtotal
-/// above or below the group and optional repeated labels. UI28 P2 to P4 and P14 to P17 (Excel
-/// 16.0.20527): rows, row items and item lists compared cell for cell. Three or more row
-/// fields, column fields, page fields and several value fields remain unmeasured.
+/// Two or more row fields and one value field in compact, outline or tabular form, with the
+/// subtotal above or below each group (or none), and optional repeated labels. UI28 P2 to P4 and
+/// P14 to P17 and UI30 P8 (Excel 16.0.20527): rows, row items and item lists compared cell for
+/// cell. Column fields, page fields and several value fields remain unmeasured here.
 fn layout_two_rows(
     table: &PivotTable,
     cache: &PivotCache,
@@ -529,10 +529,14 @@ fn layout_two_rows(
         .iter()
         .map(|&r| usize::try_from(r).map_err(|_| bad("A row field is invalid")))
         .collect::<Result<Vec<_>, _>>()?;
+    let depth = rows.len();
     let data = &table.data_fields[0];
     let measure = data.field as usize;
     if rows.iter().any(|&r| r >= cache.fields.len())
-        || rows[0] == rows[1]
+        || rows
+            .iter()
+            .enumerate()
+            .any(|(i, r)| rows[..i].contains(r))
         || measure >= cache.fields.len()
         || table.fields.len() != cache.fields.len()
     {
@@ -550,14 +554,24 @@ fn layout_two_rows(
             "This value aggregation or Show Values As mode is not modelled",
         ));
     }
-    let fields = [&table.fields[rows[0]], &table.fields[rows[1]]];
+    let fields: Vec<&PivotField> = rows.iter().map(|&r| &table.fields[r]).collect();
     let flag = |f: &PivotField, name: &str, default: bool| truthy(f.attributes.get(name), default);
     for name in ["compact", "outline", "subtotalTop"] {
-        if flag(fields[0], name, true) != flag(fields[1], name, true) {
+        if fields
+            .iter()
+            .any(|f| flag(f, name, true) != flag(fields[0], name, true))
+        {
             return Err(bad("Row fields in different layout forms remain unmeasured"));
         }
     }
-    if fields.iter().any(|f| !flag(f, "defaultSubtotal", true)) {
+    // A field without its automatic subtotal (UI30 P8): compact and outline show the group's
+    // row with no value, tabular has no total row for it. Only the inner levels count, and a
+    // two-field pivot without one stays unmeasured.
+    let subtotal_on: Vec<bool> = fields
+        .iter()
+        .map(|f| flag(f, "defaultSubtotal", true))
+        .collect();
+    if depth == 2 && subtotal_on.iter().any(|on| !on) {
         return Err(bad("Row fields without a subtotal remain unmeasured"));
     }
     let form = if flag(fields[0], "compact", true) {
@@ -589,33 +603,38 @@ fn layout_two_rows(
             .map(|at| sorted[level][at])
             .map_err(|_| bad("A source label is missing from its row field"))
     };
-    let mut leaf = BTreeMap::<(usize, usize), Total>::new();
-    let mut outer = BTreeMap::<usize, Total>::new();
+    // The total of every group path: `totals[k]` holds the paths of `k + 1` groups.
+    let mut totals: Vec<BTreeMap<Vec<usize>, Total>> = (0..depth).map(|_| BTreeMap::new()).collect();
     let mut grand_total = Total::default();
     for record in &snapshot.records {
-        let g0 = find(0, resolve(cache, record, rows[0])?)?;
-        let g1 = find(1, resolve(cache, record, rows[1])?)?;
-        if levels[0][g0].hidden || levels[1][g1].hidden {
+        let mut path = Vec::with_capacity(depth);
+        for (level, &field) in rows.iter().enumerate() {
+            path.push(find(level, resolve(cache, record, field)?)?);
+        }
+        if path.iter().enumerate().any(|(l, &g)| levels[l][g].hidden) {
             continue;
         }
         let value = resolve(cache, record, measure)?;
-        leaf.entry((g0, g1)).or_default().push(value)?;
-        outer.entry(g0).or_default().push(value)?;
+        for (k, totals) in totals.iter_mut().enumerate() {
+            totals.entry(path[..=k].to_vec()).or_default().push(value)?;
+        }
         grand_total.push(value)?;
     }
-    let mut position = vec![Vec::new(), Vec::new()];
-    for (level, groups) in levels.iter().enumerate() {
+    let mut position = Vec::new();
+    for groups in &levels {
         let mut next = 0u32;
+        let mut column = Vec::new();
         for group in groups {
-            position[level].push(if group.hidden {
+            column.push(if group.hidden {
                 None
             } else {
                 next += 1;
                 Some(next - 1)
             });
         }
+        position.push(column);
     }
-    let label_columns: u32 = if form == Form::Compact { 1 } else { 2 };
+    let label_columns: u32 = if form == Form::Compact { 1 } else { depth as u32 };
     let value_column = label_columns;
     let first = table.area.first();
     let text =
@@ -630,81 +649,34 @@ fn layout_two_rows(
             .unwrap_or("Row Labels");
         cells.insert((0, 0), text(compact_caption));
     } else {
-        cells.insert((0, 0), text(&cache.fields[rows[0]].name));
-        cells.insert((0, 1), text(&cache.fields[rows[1]].name));
+        for (level, &field) in rows.iter().enumerate() {
+            cells.insert((0, level as u32), text(&cache.fields[field].name));
+        }
     }
     cells.insert((0, value_column), text(caption));
-    let mut axis = Vec::<PivotAxisItem>::new();
-    let item = |kind: &str, repeat: u32, indexes: Vec<u32>| PivotAxisItem {
-        kind: kind.into(),
-        repeat,
-        indexes,
-        ..Default::default()
-    };
-    let label = |group: &Group| -> Result<CalcValue, PivotIssue> {
-        if group.key == PivotItem::Missing {
-            Ok(text("(blank)"))
-        } else {
-            item_value(&group.key)
-        }
-    };
-    let mut r = 1u32;
+    let axis = Vec::<PivotAxisItem>::new();
     let kind = data.subtotal.as_str();
-    for (g0, group0) in levels[0].iter().enumerate().filter(|(_, g)| !g.hidden) {
-        let Some(sub) = outer.get(&g0) else {
-            continue;
-        };
-        let x0 = position[0][g0].expect("visible group");
-        let children = leaf
-            .range((g0, 0)..=(g0, usize::MAX))
-            .map(|(k, _)| k.1)
-            .collect::<Vec<_>>();
-        let total_label = format!("{} Total", label_text(group0)?);
-        match form {
-            Form::Compact | Form::Outline => {
-                cells.insert((r, 0), label(group0)?);
-                if subtotal_top {
-                    cells.insert((r, value_column), sub.result(kind));
-                }
-                axis.push(item("data", 0, vec![x0]));
-                r += 1;
-                for g1 in children {
-                    let group1 = &levels[1][g1];
-                    let column = if form == Form::Compact { 0 } else { 1 };
-                    cells.insert((r, column), label(group1)?);
-                    cells.insert((r, value_column), leaf[&(g0, g1)].result(kind));
-                    axis.push(item("data", 1, vec![position[1][g1].expect("visible group")]));
-                    r += 1;
-                }
-                if !subtotal_top {
-                    cells.insert((r, 0), text(&total_label));
-                    cells.insert((r, value_column), sub.result(kind));
-                    axis.push(item("default", 0, vec![x0]));
-                    r += 1;
-                }
-            }
-            Form::Tabular => {
-                for (n, g1) in children.into_iter().enumerate() {
-                    if n == 0 || fill_down {
-                        cells.insert((r, 0), label(group0)?);
-                    }
-                    cells.insert((r, 1), label(&levels[1][g1])?);
-                    cells.insert((r, value_column), leaf[&(g0, g1)].result(kind));
-                    let x1 = position[1][g1].expect("visible group");
-                    axis.push(if n == 0 {
-                        item("data", 0, vec![x0, x1])
-                    } else {
-                        item("data", 1, vec![x1])
-                    });
-                    r += 1;
-                }
-                cells.insert((r, 0), text(&total_label));
-                cells.insert((r, value_column), sub.result(kind));
-                axis.push(item("default", 0, vec![x0]));
-                r += 1;
-            }
-        }
+    if depth > 64 {
+        return Err(bad("More than 64 row fields remain unmeasured"));
     }
+    let mut walk = Walk {
+        levels: &levels,
+        totals: &totals,
+        position: &position,
+        form,
+        subtotal_top,
+        subtotal_on: &subtotal_on,
+        fill_down,
+        kind,
+        value_column,
+        r: 1,
+        printed: 0,
+        cells,
+        axis,
+    };
+    walk.visit(&mut Vec::new())?;
+    let mut r = walk.r;
+    let (mut cells, mut axis) = (walk.cells, walk.axis);
     if truthy(table.attributes.get("colGrandTotals"), true) {
         let grand_caption = table
             .attributes
@@ -713,7 +685,7 @@ fn layout_two_rows(
             .unwrap_or("Grand Total");
         cells.insert((r, 0), text(grand_caption));
         cells.insert((r, value_column), grand_total.result(kind));
-        axis.push(item("grand", 0, vec![0]));
+        axis.push(axis_item("grand", 0, vec![0]));
         r += 1;
     }
     let last = CellKey::new(
@@ -748,11 +720,14 @@ fn layout_two_rows(
         for old in table.fields[field].items.iter().filter(|i| i.hidden) {
             items.push(old.clone());
         }
-        items.push(PivotFieldItem {
-            index: None,
-            kind: "default".into(),
-            hidden: false,
-        });
+        // A field without its automatic subtotal has no default item (UI30 P8).
+        if subtotal_on[level] {
+            items.push(PivotFieldItem {
+                index: None,
+                kind: "default".into(),
+                hidden: false,
+            });
+        }
         next.fields[field].items = items;
     }
     next.row_items = axis;
@@ -1157,4 +1132,138 @@ pub fn data_cell(state:&PivotState,data_field:&str,reference:&[GridArea],filters
     let Some(row)=table.area.first().row().checked_add(first_row).and_then(|r|r.checked_add(position))else{return Lookup::NotModelled;};
     let Some(col)=table.area.first().column().checked_add(first_col)else{return Lookup::NotModelled;};
     match CellKey::new(table.area.sheet(),row,col){Ok(at) if table.area.contains(at)=>Lookup::Cell(at),_=>Lookup::NotModelled}
+}
+
+fn plain_text(s: &str) -> CalcValue {
+    CalcValue::text(ExcelText::from_utf16_code_units(s.encode_utf16().collect()))
+}
+fn axis_item(kind: &str, repeat: u32, indexes: Vec<u32>) -> PivotAxisItem {
+    PivotAxisItem {
+        kind: kind.into(),
+        repeat,
+        indexes,
+        ..Default::default()
+    }
+}
+fn group_label(group: &Group) -> Result<CalcValue, PivotIssue> {
+    if group.key == PivotItem::Missing {
+        Ok(plain_text("(blank)"))
+    } else {
+        item_value(&group.key)
+    }
+}
+/// The rows of a pivot with several row fields, written depth first: a group's own row (compact
+/// and outline) or its first leaf row (tabular), its children, then its total row if it has one.
+struct Walk<'a> {
+    levels: &'a [Vec<Group>],
+    /// `totals[k]` holds the total of each path of `k + 1` groups.
+    totals: &'a [BTreeMap<Vec<usize>, Total>],
+    position: &'a [Vec<Option<u32>>],
+    form: Form,
+    subtotal_top: bool,
+    subtotal_on: &'a [bool],
+    fill_down: bool,
+    kind: &'a str,
+    value_column: u32,
+    r: u32,
+    /// Tabular: how many leading levels of the current path already show their labels.
+    printed: usize,
+    cells: BTreeMap<(u32, u32), CalcValue>,
+    axis: Vec<PivotAxisItem>,
+}
+impl Walk<'_> {
+    /// The groups present under `prefix`, in the order of the next field's items.
+    fn children(&self, prefix: &[usize]) -> Vec<usize> {
+        let level = prefix.len();
+        let mut low = prefix.to_vec();
+        low.push(0);
+        let mut found: Vec<usize> = self.totals[level]
+            .range(low..)
+            .take_while(|(k, _)| k[..level] == *prefix)
+            .map(|(k, _)| k[level])
+            .collect();
+        found.dedup();
+        found
+    }
+    fn visit(&mut self, path: &mut Vec<usize>) -> Result<(), PivotIssue> {
+        for g in self.children(path) {
+            path.push(g);
+            self.group(path)?;
+            path.pop();
+        }
+        Ok(())
+    }
+    fn group(&mut self, path: &mut Vec<usize>) -> Result<(), PivotIssue> {
+        let level = path.len() - 1;
+        let depth = self.levels.len();
+        let g = path[level];
+        let group = &self.levels[level][g];
+        let x = self.position[level][g].expect("visible group");
+        let total = self.totals[level][&*path].result(self.kind);
+        let label_column = if self.form == Form::Compact { 0 } else { level as u32 };
+        if level + 1 == depth {
+            match self.form {
+                Form::Compact | Form::Outline => {
+                    self.cells.insert((self.r, label_column), group_label(group)?);
+                    self.cells.insert((self.r, self.value_column), total);
+                    self.axis.push(axis_item("data", level as u32, vec![x]));
+                }
+                Form::Tabular => {
+                    // Labels print from the first level not yet shown (or every level when the
+                    // labels repeat); the row item names the same levels.
+                    let from = self.printed.min(level);
+                    let mut indexes = Vec::new();
+                    for (l, &gl) in path.iter().enumerate() {
+                        if l >= from {
+                            indexes.push(self.position[l][gl].expect("visible group"));
+                        }
+                        if l >= from || self.fill_down {
+                            self.cells
+                                .insert((self.r, l as u32), group_label(&self.levels[l][gl])?);
+                        }
+                    }
+                    self.cells.insert((self.r, self.value_column), total);
+                    self.axis.push(axis_item("data", from as u32, indexes));
+                    self.printed = depth;
+                }
+            }
+            self.r += 1;
+            return Ok(());
+        }
+        match self.form {
+            Form::Compact | Form::Outline => {
+                self.cells.insert((self.r, label_column), group_label(group)?);
+                if self.subtotal_top && self.subtotal_on[level] {
+                    self.cells.insert((self.r, self.value_column), total);
+                }
+                self.axis.push(axis_item("data", level as u32, vec![x]));
+                self.r += 1;
+            }
+            Form::Tabular => self.printed = self.printed.min(level),
+        }
+        self.visit(path)?;
+        if !self.subtotal_on[level] {
+            return Ok(());
+        }
+        let group = &self.levels[level][g];
+        let total = self.totals[level][&*path].result(self.kind);
+        let total_label = plain_text(&format!("{} Total", label_text(group)?));
+        match self.form {
+            Form::Compact | Form::Outline if !self.subtotal_top => {
+                self.cells.insert((self.r, label_column), total_label);
+                self.cells.insert((self.r, self.value_column), total);
+                self.axis.push(axis_item("default", level as u32, vec![x]));
+                self.r += 1;
+            }
+            Form::Tabular => {
+                self.cells.insert((self.r, level as u32), total_label);
+                self.cells.insert((self.r, self.value_column), total);
+                self.axis.push(axis_item("default", level as u32, vec![x]));
+                self.r += 1;
+                self.printed = level;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
 }
