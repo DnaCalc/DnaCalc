@@ -103,7 +103,7 @@ COSH	pinned	20430	120	120	-	exact	919dd43269+changes
 COT	full	20131,20430,?	2130	2130	-	exact	9b6d452f27+changes
 COT	pinned	20131,20430	120	120	-	exact	919dd43269+changes
 COTH	full	20430	40241	40185	2	last_bit	9b6d452f27+changes
-COTH	pinned	20430	120	120	-	exact	919dd43269+changes
+COTH	pinned	20430	120	120	-	exact	fb999a7211+changes
 COUNT	full	20430	1212	1212	-	exact	9b6d452f27+changes
 COUNT	pinned	20430	120	120	-	exact	919dd43269+changes
 COUNTA	full	20430	1212	1212	-	exact	9b6d452f27+changes
@@ -401,7 +401,7 @@ NOT	full	20430	1227	1225	-	structural	9b6d452f27+changes
 NOT	pinned	20430	120	119	-	structural	919dd43269+changes
 NPER	full	20131,20430,20527,?	2509	2509	-	exact	9b6d452f27+changes
 NPER	pinned	20131,20430	120	120	-	exact	919dd43269+changes
-NPV	full	20131,?	284	190	2	last_bit	9b6d452f27+changes
+NPV	full	20131,?	284	234	2	last_bit	fb999a7211+changes
 NPV	pinned	20131,?	120	84	2	last_bit	919dd43269+changes
 NUMBERVALUE	pinned	20527	366	311	1	structural	919dd43269+changes
 OCT2BIN	full	20430	1201	1201	-	exact	9b6d452f27+changes
@@ -441,8 +441,8 @@ PRICEMAT	pinned	20430	120	120	-	exact	919dd43269+changes
 PRODUCT	full	20430	1211	1211	-	exact	9b6d452f27+changes
 PRODUCT	pinned	20430	120	120	-	exact	919dd43269+changes
 PROPER	full	20527	3	3	-	exact	9b6d452f27+changes
-PV	full	20131,20430,20527,?	1308	1146	255707920	gross	9b6d452f27+changes
-PV	pinned	20131,20430	120	102	8	numeric	919dd43269+changes
+PV	full	20131,20430,20527,?	1308	1306	3	last_bit	fb999a7211+changes
+PV	pinned	20131,20430	120	120	-	exact	fb999a7211+changes
 QUOTIENT	full	20430	1362	1350	-	structural	9b6d452f27+changes
 QUOTIENT	pinned	20430	120	119	-	structural	919dd43269+changes
 RADIANS	full	20430	32925	32923	-	structural	9b6d452f27+changes
@@ -471,7 +471,7 @@ SIGN	pinned	20430	120	119	-	structural	919dd43269+changes
 SIN	full	20131,20228,20430,20527,?	2129	2129	-	exact	9b6d452f27+changes
 SIN	pinned	20131,20430	120	120	-	exact	919dd43269+changes
 SINH	full	20430	33550	33420	1	last_bit	9b6d452f27+changes
-SINH	pinned	20430	120	119	1	last_bit	919dd43269+changes
+SINH	pinned	20430	120	120	-	exact	fb999a7211+changes
 SKEW	full	20430	4508	4501	170	numeric	9b6d452f27+changes
 SKEW	pinned	20430	120	120	-	exact	919dd43269+changes
 SLN	full	20430	1205	1205	-	exact	9b6d452f27+changes
@@ -511,7 +511,7 @@ T.DIST.RT	pinned	20131	6	1	24	numeric	919dd43269+changes
 TAN	full	20131,20430,?	2114	2114	-	exact	9b6d452f27+changes
 TAN	pinned	20131,20430	120	120	-	exact	919dd43269+changes
 TANH	full	20430	39028	38970	1	last_bit	9b6d452f27+changes
-TANH	pinned	20430	120	119	1	last_bit	919dd43269+changes
+TANH	pinned	20430	120	120	-	exact	fb999a7211+changes
 TBILLEQ	full	20430	3600	3600	-	exact	9b6d452f27+changes
 TBILLEQ	pinned	20430	120	120	-	exact	919dd43269+changes
 TBILLPRICE	full	20430	3600	3600	-	exact	9b6d452f27+changes

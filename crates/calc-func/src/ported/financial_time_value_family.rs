@@ -187,12 +187,17 @@ pub fn pv(
     if periodic_rate.abs() < EPSILON {
         return Ok(-(future_value + payment_value * periods));
     }
-    let factor = growth_allow_nonpositive_base(periodic_rate, periods)?;
-    let term = annuity_term_allow_nonpositive_base(periodic_rate, periods, timing)?;
+    // As FV: the growth of the stored 1 + rate, then the stored quotient of the balances, every step
+    // stored. 1,306 of 1,308 bank rows, where discounting the two terms apart holds 836.
+    let factor = growth_from_base(excel_x87_add(1.0, periodic_rate), periods)?;
+    let term = excel_x87_mul(
+        excel_x87_div(excel_x87_sub(factor, 1.0), periodic_rate),
+        timing.factor(periodic_rate),
+    );
     if factor == 0.0 {
         return Err(FinancialError::Div0);
     }
-    let result = -(future_value + payment_value * term) / factor;
+    let result = -excel_x87_div(excel_x87_add(future_value, excel_x87_mul(payment_value, term)), factor);
     if result.is_finite() {
         Ok(result)
     } else {
