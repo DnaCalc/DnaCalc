@@ -154,7 +154,14 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
     let area=Area{left,top,right,bottom};
     if chart.plots.len()>1{
         match combination_layouts(chart,area){
-            Ok(layouts)=>for (i,p) in chart.plots.iter().enumerate(){let _=write!(svg,"<g data-plot=\"{i}\">");category_marks(&mut svg,chart,p,area,Some(layouts[i]));svg.push_str("</g>");},
+            Ok(layouts)=>{
+                // Excel draws area plots under column and bar plots, and those under line plots,
+                // whatever order the plots were made in (UI28 combos-created.xlsx).
+                let rank=|k:&ChartKind|match k{ChartKind::Area=>0,ChartKind::Column|ChartKind::Bar=>1,_=>2};
+                let mut order:Vec<usize>=(0..chart.plots.len()).collect();
+                order.sort_by_key(|&i|rank(&chart.plots[i].kind));
+                for i in order{let p=&chart.plots[i];let _=write!(svg,"<g data-plot=\"{i}\">");category_marks(&mut svg,chart,p,area,Some(layouts[i]));svg.push_str("</g>");}
+            },
             Err(message)=>axis_notice(&mut svg,&area,&message),
         }
     }else{match &plot.kind {
@@ -198,7 +205,9 @@ fn mark(svg: &mut String, series: usize, point: usize, value: f64) {
 #[derive(Clone,Copy)]
 struct CategoryLayout{x0:f64,x1:f64,y0:f64,y1:f64,count:usize,index:usize,offset:usize,secondary:bool,ticks:bool}
 fn combination_layouts(chart:&ChartView,area:Area)->Result<Vec<CategoryLayout>,String>{
-    if chart.plots.iter().any(|p|p.kind==ChartKind::Area)&&chart.plots.iter().any(|p|calc_host::chart::value_axes(&chart.axes,&p.axis_ids,false).ok().is_some_and(|axes|axes[0].cross_between.is_none())){return Err("Combination category crossing is preserved but needs an Excel measurement before drawing (dc-971p.59)".into());}
+    // UI28 midCat answers: with crossBetween absent, an area plot alone crosses at the category
+    // edges but an area and a line plot together cross between categories. Three plots are unmeasured.
+    if chart.plots.len()>2&&chart.plots.iter().any(|p|p.kind==ChartKind::Area)&&chart.plots.iter().any(|p|calc_host::chart::value_axes(&chart.axes,&p.axis_ids,false).ok().is_some_and(|axes|axes[0].cross_between.is_none())){return Err("Three-plot category crossing with an area is preserved but needs an Excel measurement before drawing (dc-971p.59)".into());}
     let first=calc_host::chart::category_scale(chart,&chart.plots[0])?;
     let width=|s:calc_host::chart::ChartScale|label(s.minimum,s.step).len().max(label(s.maximum,s.step).len()) as f64*6.5+8.;
     let mut right=0.;let mut axes=Vec::new();
@@ -289,7 +298,7 @@ fn category_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Are
     let between=calc_host::chart::value_axes(&chart.axes,&plot.axis_ids,false).ok().and_then(|a|a.first().and_then(|a|a.cross_between.as_deref()));
     if between.is_some_and(|v|!matches!(v,"between"|"midCat")){axis_notice(svg,&area,"The stored category crossing is preserved but not drawn here (dc-971p.59)");return;}
     if between==Some("midCat")&&matches!(plot.kind,ChartKind::Column|ChartKind::Bar){axis_notice(svg,&area,"Midpoint category crossing for columns and bars is preserved but not drawn here (dc-971p.59)");return;}
-    let at_edges=count>1&&between.map_or(plot.kind==ChartKind::Area,|v|v=="midCat");
+    let at_edges=count>1&&between.map_or(plot.kind==ChartKind::Area&&chart.plots.len()==1,|v|v=="midCat");
     let middle_of = |j: usize| {
         if at_edges {
             x0 + j as f64 * (x1 - x0) / (count - 1) as f64
@@ -694,7 +703,8 @@ mod tests {
         for kind in ["combo","combo-column-area","combo-line-column","combo-line-area","combo-area-column","combo-area-line"]{
             let mut book=HostSession::open(Arc::new(MemorySource::new(include_bytes!("../../../crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx").to_vec())),&OpenPolicy::default(),HostOptions::default()).unwrap();assert!(book.dispatch(SkinIntent::Recalculate).accepted());let sheet=book.host().sheets()[0].id();
             let area=calc_host::value::GridArea::new(calc_host::value::CellKey::new(sheet,1,1).unwrap(),calc_host::value::CellKey::new(sheet,7,3).unwrap()).unwrap();let command=WorkbookCommand::ChartCreate{revision:book.host().revision().get(),area,kind:kind.into(),rows:false,headers:true,categories:true};assert!(book.dispatch(SkinIntent::Command(command)).accepted());let chart=book.host().charts(sheet).0.pop().unwrap();let svg=chart_svg(&chart,640.,360.);
-            if kind=="combo-area-line"{let mut shared=chart.clone();shared.axes.truncate(2);shared.plots[1].axis_ids=shared.plots[0].axis_ids.clone();for axis in &mut shared.axes{if axis.kind=="valAx"{axis.cross_between=None;}}let svg=chart_svg(&shared,640.,360.);assert!(svg.contains("needs an Excel measurement"));assert!(!svg.contains("data-dnacalc=\"chart-mark\""));}
+            if kind=="combo-area-line"{let mut shared=chart.clone();shared.axes.truncate(2);shared.plots[1].axis_ids=shared.plots[0].axis_ids.clone();for axis in &mut shared.axes{if axis.kind=="valAx"{axis.cross_between=None;}}let svg=chart_svg(&shared,640.,360.);assert!(!svg.contains("chart-notice"));for point in 0..6 {let xs=svg.split('<').filter(|tag|tag.contains("data-dnacalc=\"chart-mark\"")&&tag.contains(&format!("data-point=\"{point}\""))).map(|tag|{let attr=|key:&str|tag.split(&format!(" {key}=\"")).nth(1).unwrap().split('"').next().unwrap().parse::<f64>().unwrap();if tag.starts_with("rect "){attr("x")+attr("width")/2.}else{attr("cx")}}).collect::<Vec<_>>();assert_eq!(xs.len(),2);assert!((xs[0]-xs[1]).abs()<0.11,"absent crossBetween with an area and a line crosses between categories: {xs:?}");}}
+            if chart.plots.len()>1{let rank=|k:&ChartKind|match k{ChartKind::Area=>0,ChartKind::Column|ChartKind::Bar=>1,_=>2};let mut seen:Vec<(usize,usize)>=(0..chart.plots.len()).filter_map(|i|svg.find(&format!("<g data-plot=\"{i}\">")).map(|at|(at,i))).collect();seen.sort();let ranks=seen.iter().map(|&(_,i)|rank(&chart.plots[i].kind)).collect::<Vec<_>>();assert!(ranks.windows(2).all(|w|w[0]<=w[1]),"{kind}: area under column under line, got {ranks:?}");}
 
             for point in 0..6 {
                 let positions=svg.split('<').filter(|tag|tag.contains("data-dnacalc=\"chart-mark\"")&&tag.contains(&format!("data-point=\"{point}\""))).map(|tag|{let attr=|key:&str|tag.split(&format!(" {key}=\"")).nth(1).unwrap().split('"').next().unwrap().parse::<f64>().unwrap();if tag.starts_with("rect "){attr("x")+attr("width")/2.}else{attr("cx")}}).collect::<Vec<_>>();assert_eq!(positions.len(),2,"{kind}: {svg}");assert!((positions[0]-positions[1]).abs()<0.11,"{kind}, point {point}: {positions:?}");

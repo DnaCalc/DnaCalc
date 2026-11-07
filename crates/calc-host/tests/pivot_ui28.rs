@@ -11,13 +11,14 @@
 use calc_host::value::{CalcValue, CellKey, CoreRef, SheetId};
 use calc_host::{
     HostOptions, HostSession, MemorySource, OpenPolicy, PackageRead, ProjectedValue,
-    ProjectionRequest, SkinIntent, project,
+    ProjectionRequest, SavePolicy, SkinIntent, project,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 const WORKBOOK: &[u8] = include_bytes!("fixtures/ui28/pivots-built.xlsx");
 const EXCEL: &str = include_str!("fixtures/ui28/pivots-refreshed.tsv");
+const STRUCTURE: &str = include_str!("fixtures/ui28/pivots-structure.txt");
 
 fn at(sheet: SheetId, address: &str) -> CellKey {
     let split = address.find(|c: char| c.is_ascii_digit()).unwrap();
@@ -87,7 +88,7 @@ fn held(book: &HostSession, sheet: SheetId, width: u32, height: u32) -> BTreeMap
 }
 
 /// One line per pivot sheet: `matched`, or what differs, or the refusal.
-fn outcomes() -> BTreeMap<String, String> {
+fn outcomes() -> (BTreeMap<String, String>, BTreeMap<String, String>) {
     let expected = expected();
     let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(WORKBOOK.to_vec()));
     let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default())
@@ -148,13 +149,99 @@ fn outcomes() -> BTreeMap<String, String> {
         });
         out.insert(name.clone(), verdict);
     }
-    out
+    // The saved package, reopened: location, item lists, row items and column items against what
+    // Excel wrote for the same refreshed pivots.
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).expect("it saves");
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(saved));
+    let reopened = HostSession::open(source, &OpenPolicy::default(), HostOptions::default())
+        .expect("the saved workbook opens");
+    let mut structure = BTreeMap::new();
+    for line in STRUCTURE.lines().filter(|l| !l.is_empty()) {
+        let name = line.split('|').next().unwrap().to_owned();
+        let got = reopened
+            .host()
+            .model()
+            .definitions()
+            .pivots()
+            .tables()
+            .find(|t| t.name == name)
+            .map(canonical);
+        structure.insert(
+            name,
+            match got {
+                Some(got) if got == line => "matched".to_owned(),
+                Some(got) => format!("want {line} got {got}"),
+                None => "missing".to_owned(),
+            },
+        );
+    }
+    (out, structure)
+}
+fn canonical(t: &calc_doc_model::pivot::PivotTable) -> String {
+    let a = |items: &[calc_doc_model::pivot::PivotAxisItem]| {
+        items
+            .iter()
+            .map(|i| {
+                format!(
+                    "{}/{}/{}:{}",
+                    i.kind,
+                    i.repeat,
+                    i.data_index,
+                    i.indexes.iter().map(u32::to_string).collect::<Vec<_>>().join(",")
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(";")
+    };
+    let fields = t
+        .fields
+        .iter()
+        .enumerate()
+        .filter(|(_, f)| !f.items.is_empty())
+        .map(|(i, f)| {
+            format!(
+                "{i}={}",
+                f.items
+                    .iter()
+                    .map(|it| {
+                        let s = match it.index {
+                            Some(x) if it.kind == "data" => x.to_string(),
+                            _ => it.kind.clone(),
+                        };
+                        if it.hidden { format!("{s}!") } else { s }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(",")
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(";");
+    let location = t
+        .location
+        .iter()
+        .filter(|(k, _)| k.as_str() != "ref")
+        .map(|(k, v)| format!("{k}={v}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    format!(
+        "{}|{}:{}|{location}|{fields}|{}|{}",
+        t.name,
+        address(t.area.first().column(), t.area.first().row()),
+        address(t.area.last().column(), t.area.last().row()),
+        a(&t.row_items),
+        a(&t.col_items)
+    )
 }
 
 #[test]
 /// Native-only: the report test prints every outcome; the tracked lists below are asserted.
 fn ui28__pivot_refresh_against_excel() {
-    let outcomes = outcomes();
+    let (outcomes, structure) = outcomes();
+    for (name, verdict) in &structure {
+        println!("saved {name}: {}", &verdict[..verdict.len().min(700)]);
+    }
     for (name, verdict) in &outcomes {
         println!("{name}: {}", &verdict[..verdict.len().min(300)]);
     }
@@ -165,5 +252,15 @@ fn ui28__pivot_refresh_against_excel() {
         .collect();
     println!("matched {} of {}: {matched:?}", matched.len(), outcomes.len());
     assert_eq!(matched, MUST_MATCH, "{outcomes:#?}");
+    let saved: Vec<_> = structure
+        .iter()
+        .filter(|(_, v)| *v == "matched")
+        .map(|(n, _)| n.as_str())
+        .collect();
+    println!("saved structure matched {} of {}: {saved:?}", saved.len(), structure.len());
+    assert_eq!(saved, MUST_MATCH_SAVED, "{structure:#?}");
 }
-const MUST_MATCH: &[&str] = &["P1", "P10", "P11", "P12", "P18", "P19", "P20", "P9", "PName", "PTable"];
+const MUST_MATCH: &[&str] = &["P1", "P10", "P11", "P12", "P13", "P14", "P15", "P16", "P17", "P18", "P19", "P2", "P20", "P3", "P4", "P5", "P6", "P7", "P9", "PName", "PTable"];
+// All 22 pivot definitions saved and reopened equal Excel's; pvt_report_filter and
+// pvt_row_col_dates were not refreshed (they refuse) and are written back as read.
+const MUST_MATCH_SAVED: &[&str] = &["pvt_average", "pvt_count", "pvt_grand_off", "pvt_max", "pvt_min", "pvt_named", "pvt_one_row_sum", "pvt_repeat_off", "pvt_repeat_on", "pvt_report_filter", "pvt_row_col", "pvt_row_col_dates", "pvt_sort_ascending", "pvt_sort_descending", "pvt_sort_manual", "pvt_subtotal_bottom", "pvt_subtotal_top", "pvt_table", "pvt_two_data", "pvt_two_row_compact", "pvt_two_row_outline", "pvt_two_row_tabular"];
