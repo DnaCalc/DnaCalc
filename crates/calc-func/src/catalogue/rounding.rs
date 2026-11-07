@@ -421,7 +421,10 @@ fn directed(site: &Site<'_>, number: f64, places: f64, direction: Direction) -> 
         // Past DBL_MAX, adding the unit is an overflow: #NUM!, as Excel gives it.
         return Err(Exit::Error(WorksheetErrorCode::Num));
     }
-    let unit = site.nearest(&ExactDecimal::unit(position))?;
+    // The power-of-ten unit is published from PC64 before the addition.
+    // All616 exponent controls (-307..308) agree, including the double-rounding
+    // discriminator at10^126. General coefficient conversion is a separate step.
+    let unit = site.nearest(&ExactDecimal::unit(position).rounded_pc64())?;
     // A unit below the normal range is not added, whichever the sign, and a positive number whose
     // reading lies less than 2^-1026 above the truncation, both as binary64, stays at it (Excel
     // 16.0.20527: ROUNDUP(1.0001086461844975E-307,307) is 1E-307, while
