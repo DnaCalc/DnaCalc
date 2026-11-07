@@ -11,6 +11,18 @@ use f1_support::*;
 
 const PI: f64 = std::f64::consts::PI;
 
+/// Excel20527: the directed unit at10^126 rounds through PC64, then binary64.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn roundup_publishes_its_power_of_ten_unit_from_pc64() {
+    for sign in [1.0, -1.0] {
+        exact(call("ROUNDUP", vec![n(sign), n(-126.0)]),
+            sign * f64::from_bits(0x5a17_a2ec_c414_a040));
+        exact(call("ROUNDUP", vec![n(sign), n(-125.0)]), sign * 1e125);
+        exact(call("ROUNDUP", vec![n(sign), n(-127.0)]), sign * 1e127);
+    }
+}
+
 /// Original Excel20430 observations oc1418, oc1065 and oc1762.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

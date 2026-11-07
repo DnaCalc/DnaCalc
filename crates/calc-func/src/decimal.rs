@@ -369,6 +369,31 @@ impl ExactDecimal {
         }
     }
 
+    /// The exact rational rounded to a 64-bit binary significand. Keep that
+    /// binary value as an exact decimal so the arithmetic site can publish it.
+    pub(crate) fn rounded_pc64(&self) -> ExactDecimal {
+        if self.coefficient.is_zero() {
+            return self.clone();
+        }
+        let mut numerator = self.coefficient.clone();
+        let denominator = if self.exponent < 0 {
+            Natural::pow10(self.exponent.unsigned_abs())
+        } else {
+            numerator.times_pow10(self.exponent.unsigned_abs());
+            Natural::from_u64(1)
+        };
+        let (kept, power) = round_to_64_bits(&numerator, 0, &denominator);
+        let mut coefficient = Natural::from_u128(kept);
+        let exponent = if power >= 0 {
+            coefficient.times_pow2(power.unsigned_abs());
+            0
+        } else {
+            coefficient.times_pow5(power.unsigned_abs());
+            power
+        };
+        ExactDecimal { negative: self.negative, coefficient, exponent }
+    }
+
     /// The decimal exponent of a non-zero decimal: the e with 10^e <= |self| < 10^(e+1).
     pub(crate) fn magnitude(&self) -> i32 {
         let length = i32::try_from(self.coefficient.digits().len()).expect("a digit count");
