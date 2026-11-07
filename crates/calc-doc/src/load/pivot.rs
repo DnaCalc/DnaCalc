@@ -14,6 +14,8 @@ const R: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relations
 
 pub use calc_doc_model::pivot::*;
 fn decoded(value:&str,events:&Events<'_>)->Result<String,LoadError>{String::from_utf16(&super::strings::decode(value)).map_err(|_|events.invalid("A pivot string has an unpaired UTF-16 code unit"))}
+const X14: &str = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main";
+const FILL_DOWN_URI: &str = "{2946ED86-A175-432a-8AC1-64E0C546D7DE}";
 fn attrs(e: &XmlElement) -> BTreeMap<String, String> {
     e.attributes
         .iter()
@@ -278,6 +280,7 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
     let mut location_attrs = BTreeMap::new();
     let mut fields = Vec::<PivotField>::new();
     let mut row_items = Vec::<PivotAxisItem>::new();
+    let mut col_items = Vec::<PivotAxisItem>::new();
     let mut unsupported = Vec::new();
     let mut row_fields = Vec::new();
     let mut column_fields = Vec::new();
@@ -287,6 +290,20 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
     while let Some(event) = events.next()? {
         match event {
             XmlEvent::Start(e) => {
+                if e.name.namespace.as_deref() == Some(X14)
+                    && e.name.local == "pivotField"
+                    && path.iter().map(String::as_str).collect::<Vec<_>>() == ["pivotFields", "pivotField", "extLst", "ext"]
+                {
+                    // x14:pivotField carries Repeat All Item Labels as fillDownLabels.
+                    let known = e.attributes.iter().all(|a| a.name.local == "fillDownLabels");
+                    match (known, e.attribute("fillDownLabels"), fields.last_mut()) {
+                        (true, Some(v), Some(field)) => {
+                            field.attributes.insert("fillDownLabels".into(), v.into());
+                        }
+                        (true, None, Some(_)) => {}
+                        _ => unsupported.push("extLst".into()),
+                    }
+                }
                 if e.name.namespace.as_deref() == Some(M) {
                     match (
                         path.iter()
@@ -322,9 +339,15 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
                             if let Some(field)=fields.last_mut() {field.items.push(PivotFieldItem {index:optional_integer(&e,"x",&events)?,kind:e.attribute("t").unwrap_or("data").into(),hidden:matches!(e.attribute("h"),Some("1"|"true"))});}
                         }
                         (["rowItems"],"i") => row_items.push(PivotAxisItem {kind:e.attribute("t").unwrap_or("data").into(),repeat:optional_integer(&e,"r",&events)?.unwrap_or(0),data_index:optional_integer(&e,"i",&events)?.unwrap_or(0),indexes:Vec::new()}),
+                        (["colItems"],"i") => col_items.push(PivotAxisItem {kind:e.attribute("t").unwrap_or("data").into(),repeat:optional_integer(&e,"r",&events)?.unwrap_or(0),data_index:optional_integer(&e,"i",&events)?.unwrap_or(0),indexes:Vec::new()}),
+                        (["colItems","i"],"x") => {if let Some(item)=col_items.last_mut(){item.indexes.push(optional_integer(&e,"v",&events)?.unwrap_or(0));}}
                         (["rowItems","i"],"x") => {if let Some(item)=row_items.last_mut(){item.indexes.push(optional_integer(&e,"v",&events)?.unwrap_or(0));}}
                         ([],"filters"|"formats"|"conditionalFormats"|"rowHierarchies"|"colHierarchies"|"calculatedMembers")
-                        | (["pivotFields","pivotField"],"autoSortScope"|"memberProperties"|"extLst") => unsupported.push(e.name.local.to_string()),
+                        | (["pivotFields","pivotField"],"autoSortScope"|"memberProperties") => unsupported.push(e.name.local.to_string()),
+                        (["pivotFields","pivotField"],"extLst") => {}
+                        (["pivotFields","pivotField","extLst"],"ext") => {
+                            if e.attribute("uri") != Some(FILL_DOWN_URI) { unsupported.push("extLst".into()); }
+                        }
                         (["rowFields"], "field") => row_fields.push(integer(&e, "x", &events)?),
                         (["colFields"], "field") => column_fields.push(integer(&e, "x", &events)?),
                         (["pageFields"], "pageField") => {
@@ -363,7 +386,7 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
         page_fields,
         data_fields,
         attributes: attrs(&root),
-        location: location_attrs, fields, row_items, unsupported,
+        location: location_attrs, fields, row_items, col_items, unsupported,
     })
 }
 

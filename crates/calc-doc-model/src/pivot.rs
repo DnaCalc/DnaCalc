@@ -77,6 +77,7 @@ pub struct PivotTable {
     pub location: BTreeMap<String, String>,
     pub fields: Vec<PivotField>,
     pub row_items: Vec<PivotAxisItem>,
+    pub col_items: Vec<PivotAxisItem>,
     pub unsupported: Vec<String>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
@@ -118,4 +119,35 @@ pub enum PivotItem {
         element: String,
         attributes: BTreeMap<String, String>,
     },
+}
+
+impl PivotItem {
+    /// The Excel serial number of a cache date item (ISO 8601 date and optional time, 1900 date
+    /// system, from 1900-03-01), so dates order and compare with the numbers a source holds.
+    pub fn date_serial(&self) -> Option<f64> {
+        let PivotItem::Date(text) = self else {
+            return None;
+        };
+        let (date, time) = text.split_once('T').unwrap_or((text.as_str(), "00:00:00"));
+        let mut d = date.splitn(3, '-').map(|p| p.parse::<i64>().ok());
+        let (y, m, day) = (d.next()??, d.next()??, d.next()??);
+        if !(1..=12).contains(&m) || !(1..=31).contains(&day) || y < 1900 {
+            return None;
+        }
+        let mut t = time.trim_end_matches('Z').splitn(3, ':');
+        let hours = t.next()?.parse::<f64>().ok()?;
+        let minutes = t.next().map_or(Some(0.), |p| p.parse::<f64>().ok())?;
+        let seconds = t.next().map_or(Some(0.), |p| p.parse::<f64>().ok())?;
+        let y = if m <= 2 { y - 1 } else { y };
+        let era = y.div_euclid(400);
+        let yoe = y - era * 400;
+        let mp = (m + 9) % 12;
+        let doy = (153 * mp + 2) / 5 + day - 1;
+        let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+        let days = era * 146_097 + doe - 719_468 + 25_569;
+        if days < 61 {
+            return None;
+        }
+        Some(days as f64 + (hours * 3600. + minutes * 60. + seconds) / 86_400.)
+    }
 }
