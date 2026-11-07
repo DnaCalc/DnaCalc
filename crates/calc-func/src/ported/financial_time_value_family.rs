@@ -94,29 +94,6 @@ fn alnrel(rate: f64) -> f64 {
     }
 }
 
-fn annuity_term(
-    periodic_rate: f64,
-    periods: f64,
-    timing: PaymentTiming,
-) -> Result<f64, FinancialError> {
-    if periodic_rate.abs() < EPSILON {
-        return Ok(periods);
-    }
-    let factor = growth(periodic_rate, periods)?;
-    let term = timing.factor(periodic_rate) * (factor - 1.0) / periodic_rate;
-    if term.is_finite() {
-        Ok(term)
-    } else {
-        Err(FinancialError::Num)
-    }
-}
-
-fn growth_allow_nonpositive_base(periodic_rate: f64, periods: f64) -> Result<f64, FinancialError> {
-    validate_finite(&[periodic_rate, periods])?;
-    let base = 1.0 + periodic_rate;
-    growth_from_base(base, periods)
-}
-
 fn growth_from_base(base: f64, periods: f64) -> Result<f64, FinancialError> {
     let factor = match power_kernel(base, periods) {
         Ok(factor) => factor,
@@ -126,51 +103,6 @@ fn growth_from_base(base: f64, periods: f64) -> Result<f64, FinancialError> {
     };
     if factor.is_finite() {
         Ok(factor)
-    } else {
-        Err(FinancialError::Num)
-    }
-}
-
-fn annuity_term_allow_nonpositive_base(
-    periodic_rate: f64,
-    periods: f64,
-    timing: PaymentTiming,
-) -> Result<f64, FinancialError> {
-    if periodic_rate.abs() < EPSILON {
-        return Ok(periods);
-    }
-    let factor = growth_allow_nonpositive_base(periodic_rate, periods)?;
-    let term = timing.factor(periodic_rate) * (factor - 1.0) / periodic_rate;
-    if term.is_finite() {
-        Ok(term)
-    } else {
-        Err(FinancialError::Num)
-    }
-}
-
-fn balance_equation(
-    periodic_rate: f64,
-    periods: f64,
-    payment_value: f64,
-    present_value: f64,
-    future_value: f64,
-    timing: PaymentTiming,
-) -> Result<f64, FinancialError> {
-    validate_finite(&[
-        periodic_rate,
-        periods,
-        payment_value,
-        present_value,
-        future_value,
-    ])?;
-    if periodic_rate.abs() < EPSILON {
-        return Ok(future_value + present_value + payment_value * periods);
-    }
-    let factor = growth(periodic_rate, periods)?;
-    let term = annuity_term(periodic_rate, periods, timing)?;
-    let value = future_value + present_value * factor + payment_value * term;
-    if value.is_finite() {
-        Ok(value)
     } else {
         Err(FinancialError::Num)
     }
@@ -466,160 +398,6 @@ pub fn nper(
     }
 }
 
-fn values_bracket_root(lower_value: f64, upper_value: f64) -> bool {
-    (lower_value < 0.0 && upper_value > 0.0) || (lower_value > 0.0 && upper_value < 0.0)
-}
-
-fn bisect_rate_bracket(
-    mut lower: f64,
-    mut lower_value: f64,
-    mut upper: f64,
-    upper_value: f64,
-    periods: f64,
-    payment_value: f64,
-    present_value: f64,
-    future_value: f64,
-    timing: PaymentTiming,
-) -> Result<f64, FinancialError> {
-    if lower_value.abs() <= RATE_TOLERANCE {
-        return Ok(lower);
-    }
-    if upper_value.abs() <= RATE_TOLERANCE {
-        return Ok(upper);
-    }
-    if !values_bracket_root(lower_value, upper_value) {
-        return Err(FinancialError::NoConvergence);
-    }
-
-    for _ in 0..RATE_BRACKET_MAX_ITERATIONS {
-        let midpoint = (lower + upper) / 2.0;
-        let midpoint_value = balance_equation(
-            midpoint,
-            periods,
-            payment_value,
-            present_value,
-            future_value,
-            timing,
-        )?;
-        if midpoint_value.abs() <= RATE_TOLERANCE {
-            return Ok(midpoint);
-        }
-
-        if values_bracket_root(lower_value, midpoint_value) {
-            upper = midpoint;
-        } else {
-            lower = midpoint;
-            lower_value = midpoint_value;
-        }
-    }
-
-    let midpoint = (lower + upper) / 2.0;
-    let midpoint_value = balance_equation(
-        midpoint,
-        periods,
-        payment_value,
-        present_value,
-        future_value,
-        timing,
-    )?;
-    if midpoint_value.abs() <= RATE_TOLERANCE || (upper - lower).abs() <= EPSILON {
-        Ok(midpoint)
-    } else {
-        Err(FinancialError::NoConvergence)
-    }
-}
-
-fn search_rate_bracket_from_zero(
-    zero_value: f64,
-    initial_rate: f64,
-    periods: f64,
-    payment_value: f64,
-    present_value: f64,
-    future_value: f64,
-    timing: PaymentTiming,
-) -> Result<Option<f64>, FinancialError> {
-    let mut positive_rate = initial_rate.abs().max(0.1);
-    for _ in 0..RATE_BRACKET_MAX_ITERATIONS {
-        let positive_value = balance_equation(
-            positive_rate,
-            periods,
-            payment_value,
-            present_value,
-            future_value,
-            timing,
-        )?;
-        if positive_value.abs() <= RATE_TOLERANCE {
-            return Ok(Some(positive_rate));
-        }
-        if values_bracket_root(zero_value, positive_value) {
-            return bisect_rate_bracket(
-                0.0,
-                zero_value,
-                positive_rate,
-                positive_value,
-                periods,
-                payment_value,
-                present_value,
-                future_value,
-                timing,
-            )
-            .map(Some);
-        }
-
-        positive_rate *= 2.0;
-        if !positive_rate.is_finite() {
-            break;
-        }
-    }
-
-    let mut negative_rate = if initial_rate < 0.0 {
-        initial_rate
-    } else {
-        -0.1
-    };
-    if negative_rate <= MIN_VALID_RATE {
-        negative_rate = -0.1;
-    }
-    for _ in 0..RATE_BRACKET_MAX_ITERATIONS {
-        let negative_value = balance_equation(
-            negative_rate,
-            periods,
-            payment_value,
-            present_value,
-            future_value,
-            timing,
-        )?;
-        if negative_value.abs() <= RATE_TOLERANCE {
-            return Ok(Some(negative_rate));
-        }
-        if values_bracket_root(negative_value, zero_value) {
-            return bisect_rate_bracket(
-                negative_rate,
-                negative_value,
-                0.0,
-                zero_value,
-                periods,
-                payment_value,
-                present_value,
-                future_value,
-                timing,
-            )
-            .map(Some);
-        }
-
-        let margin = 1.0 + negative_rate;
-        if margin <= EPSILON {
-            break;
-        }
-        negative_rate = -1.0 + margin / 2.0;
-        if negative_rate <= MIN_VALID_RATE {
-            negative_rate = MIN_VALID_RATE + EPSILON;
-        }
-    }
-
-    Ok(None)
-}
-
 pub fn rate(
     periods: f64,
     payment_value: f64,
@@ -628,186 +406,71 @@ pub fn rate(
     timing: PaymentTiming,
     guess: Option<f64>,
 ) -> Result<f64, FinancialError> {
-    let root = rate_root(periods, payment_value, present_value, future_value, timing, guess)?;
-    Ok(polish_root(root, |r| {
-        balance_equation(r, periods, payment_value, present_value, future_value, timing)
-    }))
+    rate_secant(periods, payment_value, present_value, future_value, timing, guess.unwrap_or(0.1))
+        .ok_or(FinancialError::Num)
 }
 
-/// A root `seed` of `f`, polished by Newton steps (a central-difference slope) to full binary64
-/// convergence (dc-ifc): Excel's RATE converges fully where the 1e-7 tolerance of the search
-/// stops early (RATE(48,-200,8000): Excel 7e-16 from the exact root, the search's root 2e-13).
-/// The steps stop when they no longer contract, keeping whichever adjacent value has the smaller
-/// residual, or when `f` fails, keeping the last value.
-pub(crate) fn polish_root(seed: f64, f: impl Fn(f64) -> Result<f64, FinancialError>) -> f64 {
-    let mut rate = seed;
-    let mut last_step = f64::INFINITY;
-    for _ in 0..60 {
-        let Ok(value) = f(rate) else { break };
-        if value == 0.0 {
-            break;
-        }
-        let h = rate.abs().max(1e-4) * 1e-6;
-        let (Ok(up), Ok(down)) = (f(rate + h), f(rate - h)) else { break };
-        let slope = (up - down) / (2.0 * h);
-        if !slope.is_finite() || slope == 0.0 {
-            break;
-        }
-        let next = rate - value / slope;
-        if !next.is_finite() || next.to_bits() == rate.to_bits() || next <= MIN_VALID_RATE {
-            break;
-        }
-        let step = (next - rate).abs();
-        if step >= last_step {
-            if f(next).is_ok_and(|v| v.abs() <= value.abs()) {
-                rate = next;
-            }
-            break;
-        }
-        last_step = step;
-        rate = next;
-    }
-    rate
-}
-
-/// RATE's root search: secant steps from the guess, bisection once a bracket is found, to a
-/// residual of at most [`RATE_TOLERANCE`].
-fn rate_root(
+/// RATE's search as IRR's (`irr_discount_secant`), in the rate itself: the secant from the guess and
+/// a second point 0.001 away, against the sign of the balance at the guess. Over guesses a distance
+/// `d` from the root the error is `K d` with `K / C^2 = 1.00e-6`, `C` being `f''/2f'` in the rate.
+/// The balance is FV's, every step stored.
+///
+/// It stops when the rate moved by less than 1e-7 and the balance at the new rate is under 1e-7 as
+/// well, both at once. With a mortgage's slope the balance is the one that runs on to full
+/// convergence, where the small slope of RATE(10,-120,1000) leaves the error at the step's size:
+/// a guess 2.4e-7 off stops, a guess 4.8e-7 off takes one step more.
+///
+/// 200 steps, from a live window: RATE(360,-599.55,100000,0,0,g) answers up to g = 0.455, the
+/// 200th step, and is #NUM! from g = 0.46, the 201st. A step to `1 + rate <= 0` is #NUM! at once:
+/// guesses of -0.1 to -0.5 on that loan head to -1.3 and stop there.
+fn rate_secant(
     periods: f64,
     payment_value: f64,
     present_value: f64,
     future_value: f64,
     timing: PaymentTiming,
-    guess: Option<f64>,
-) -> Result<f64, FinancialError> {
-    validate_finite(&[periods, payment_value, present_value, future_value])?;
-    let mut prev_rate = 0.0;
-    let mut prev_value = balance_equation(
-        prev_rate,
-        periods,
-        payment_value,
-        present_value,
-        future_value,
-        timing,
-    )?;
-    let mut current_rate = guess.unwrap_or(0.1);
-    if current_rate <= MIN_VALID_RATE {
-        current_rate = MIN_VALID_RATE;
-    }
-    let mut current_value = balance_equation(
-        current_rate,
-        periods,
-        payment_value,
-        present_value,
-        future_value,
-        timing,
-    )?;
-
-    if current_value.abs() <= RATE_TOLERANCE {
-        return Ok(current_rate);
-    }
-    if values_bracket_root(prev_value, current_value) {
-        return bisect_rate_bracket(
-            prev_rate,
-            prev_value,
-            current_rate,
-            current_value,
-            periods,
-            payment_value,
-            present_value,
-            future_value,
-            timing,
-        );
-    }
-
-    for _ in 0..RATE_MAX_ITERATIONS {
-        if current_value.abs() <= RATE_TOLERANCE {
-            return Ok(current_rate);
+    guess: f64,
+) -> Option<f64> {
+    let balance = |rate: f64| -> Option<f64> {
+        if rate == 0.0 {
+            return Some(excel_x87_add(
+                excel_x87_add(future_value, present_value),
+                excel_x87_mul(payment_value, periods),
+            ));
         }
-
-        let denominator = current_value - prev_value;
-        let next_rate = if denominator.abs() > EPSILON {
-            current_rate - current_value * (current_rate - prev_rate) / denominator
-        } else {
-            let h = current_rate.abs().max(1.0) * 1e-6;
-            let lower = (current_rate - h).max(-0.999_999_999);
-            let upper = current_rate + h;
-            let lower_value = balance_equation(
-                lower,
-                periods,
-                payment_value,
-                present_value,
-                future_value,
-                timing,
-            )?;
-            let upper_value = balance_equation(
-                upper,
-                periods,
-                payment_value,
-                present_value,
-                future_value,
-                timing,
-            )?;
-            let derivative = (upper_value - lower_value) / (upper - lower);
-            if derivative.abs() <= EPSILON {
-                return Err(FinancialError::NoConvergence);
-            }
-            current_rate - current_value / derivative
-        };
-
-        if !next_rate.is_finite() || next_rate <= MIN_VALID_RATE {
-            break;
+        let base = excel_x87_add(1.0, rate);
+        if base <= 0.0 {
+            return None;
         }
-
-        prev_rate = current_rate;
-        prev_value = current_value;
-        current_rate = next_rate;
-        current_value = balance_equation(
-            current_rate,
-            periods,
-            payment_value,
-            present_value,
+        let factor = growth_from_base(base, periods).ok()?;
+        let term = excel_x87_mul(excel_x87_div(excel_x87_sub(factor, 1.0), rate), timing.factor(rate));
+        Some(excel_x87_add(
+            excel_x87_add(excel_x87_mul(present_value, factor), excel_x87_mul(payment_value, term)),
             future_value,
-            timing,
-        )?;
-
-        if values_bracket_root(prev_value, current_value) {
-            return bisect_rate_bracket(
-                prev_rate,
-                prev_value,
-                current_rate,
-                current_value,
-                periods,
-                payment_value,
-                present_value,
-                future_value,
-                timing,
-            );
+        ))
+    };
+    let mut before = guess;
+    let mut value_before = balance(before)?;
+    if value_before == 0.0 {
+        return Some(guess);
+    }
+    let mut current = excel_x87_add(before, 0.001f64.copysign(-value_before));
+    let mut value = balance(current)?;
+    for _ in 0..200 {
+        let change = excel_x87_sub(value, value_before);
+        if change == 0.0 {
+            return Some(current);
+        }
+        let next = excel_x87_sub(current, excel_x87_div(excel_x87_mul(value, excel_x87_sub(current, before)), change));
+        let step = excel_x87_sub(next, current).abs();
+        (before, value_before) = (current, value);
+        current = next;
+        value = balance(current)?;
+        if step < 1e-7 && value.abs() < 1e-7 {
+            return Some(current);
         }
     }
-
-    if current_value.abs() <= RATE_TOLERANCE {
-        Ok(current_rate)
-    } else if let Some(root) = search_rate_bracket_from_zero(
-        balance_equation(
-            0.0,
-            periods,
-            payment_value,
-            present_value,
-            future_value,
-            timing,
-        )?,
-        guess.unwrap_or(0.1),
-        periods,
-        payment_value,
-        present_value,
-        future_value,
-        timing,
-    )? {
-        Ok(root)
-    } else {
-        Err(FinancialError::NoConvergence)
-    }
+    None
 }
 
 pub fn npv(periodic_rate: f64, cashflows: &[f64]) -> Result<f64, FinancialError> {
@@ -1527,7 +1190,7 @@ mod tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn rate_exactness_witness_pins_current_local_value_and_excel_gap() {
+    fn rate_exactness_witness_matches_excel() {
         let actual = rate(
             360.0,
             -1073.64,
@@ -1537,13 +1200,7 @@ mod tests {
             None,
         )
         .expect("rate witness");
-        // dc-ifc: polished to full convergence, 55 ulp below Excel (0x3f71110b2048574f); the
-        // search's 1e-7 residual stopped 586 ulp above it (0.0041666445363460975).
-        let current_local = f64::from_bits(0x3f71110b20485718);
-        let excel_target = f64::from_bits(0x3f71110b2048574f);
-
-        assert_bits(actual, current_local);
-        assert_ne!(actual.to_bits(), excel_target.to_bits());
+        assert_bits(actual, f64::from_bits(0x3f71110b2048574f));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

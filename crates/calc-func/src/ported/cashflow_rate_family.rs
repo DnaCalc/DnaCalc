@@ -195,41 +195,6 @@ fn validate_xnpv_inputs(values: &[f64], dates: &[i64]) -> Result<(), WorksheetEr
     Ok(())
 }
 
-fn periodic_npv_with_t0(rate: f64, cashflows: &[f64]) -> Result<f64, WorksheetErrorCode> {
-    validate_cashflows(cashflows)?;
-    if !rate.is_finite() || rate <= MIN_VALID_RATE {
-        return Err(WorksheetErrorCode::Num);
-    }
-    let base = 1.0 + rate;
-    let mut total = 0.0;
-    for (idx, cashflow) in cashflows.iter().enumerate() {
-        total += *cashflow / crt_pow(base, idx as f64);
-    }
-    if total.is_finite() {
-        Ok(total)
-    } else {
-        Err(WorksheetErrorCode::Num)
-    }
-}
-
-fn periodic_npv_derivative(rate: f64, cashflows: &[f64]) -> Result<f64, WorksheetErrorCode> {
-    validate_cashflows(cashflows)?;
-    if !rate.is_finite() || rate <= MIN_VALID_RATE {
-        return Err(WorksheetErrorCode::Num);
-    }
-    let base = 1.0 + rate;
-    let mut total = 0.0;
-    for (idx, cashflow) in cashflows.iter().enumerate().skip(1) {
-        let period = idx as f64;
-        total += -period * *cashflow / crt_pow(base, period + 1.0);
-    }
-    if total.is_finite() {
-        Ok(total)
-    } else {
-        Err(WorksheetErrorCode::Num)
-    }
-}
-
 fn xnpv_kernel_raw(rate: f64, values: &[f64], dates: &[i64]) -> Result<f64, WorksheetErrorCode> {
     validate_xnpv_inputs(values, dates)?;
     if !rate.is_finite() || rate <= MIN_VALID_RATE {
@@ -480,48 +445,54 @@ where
     Ok(rate)
 }
 
-/// Two-period cashflows have a single pole in q = 1 + rate. The recorded
-/// rows favor a q-space secant fixpoint, including the final subtraction.
-/// Equal residuals use the analytic Newton step, including an initial guess of
-/// zero. A bounded solve keeps nonconvergence as the worksheet numeric error.
-fn irr_two_cashflows(cashflows: &[f64], guess: f64) -> Result<f64, WorksheetErrorCode> {
-    let mut current = 1.0 + guess;
-    let mut previous = 1.0;
-    let mut previous_value = periodic_npv_with_t0(0.0, cashflows)?;
-    for _ in 0..20 {
-        let rate = current - 1.0;
-        let value = periodic_npv_with_t0(rate, cashflows)?;
-        let step = if value == previous_value {
-            let derivative = periodic_npv_derivative(rate, cashflows)?;
-            if derivative == 0.0 {
-                return Err(WorksheetErrorCode::Num);
-            }
-            value / derivative
-        } else {
-            value * (current - previous) / (value - previous_value)
-        };
-        let next = current - step;
-        if next.to_bits() == current.to_bits() {
-            return Ok(next - 1.0);
-        }
-        previous = current;
-        previous_value = value;
-        current = next;
+/// IRR: the secant method in the discount factor `v = 1 / (1 + rate)`.
+///
+/// Read from the bank, not ported. Over guesses a dyadic distance `d` from the root, the error of
+/// the answer is `K d` with `K / C^2 = 1.000e-6` over 15 sets of flows, `C` being `P''/2P'` of the
+/// polynomial in `v`, where in `1 + rate` the same ratio spreads by ten times. That is two secant
+/// steps from the guess and a second point 0.001 away, on the side of the sign of the NPV at the
+/// guess: the factor `(|d| + 0.001)^2` shows as the growth of `K` with `|d|`, both signs alike. Two
+/// flows are linear in `v`, which is why their error does not depend on `d`.
+///
+/// The stop is RATE's (`rate_secant`): `v` moved by less than 1e-7 and the NPV at the new `v` is
+/// under 1e-7, both at once, 200 steps. The NPV test is why flows of 1e153 are #NUM!: their
+/// NPV has no value that small to land on. The NPV divides by POWER of the stored `1 / v`.
+fn irr_discount_secant(cashflows: &[f64], guess: f64) -> Option<f64> {
+    use crate::ported::excel_numeric::{excel_x87_add as add, excel_x87_div as div, excel_x87_mul as mul, excel_x87_sub as sub};
+    use crate::ported::power_fn::power_kernel;
+    let npv = |v: f64| {
+        let base = div(1.0, v);
+        cashflows.iter().enumerate().try_fold(0.0, |sum, (k, &flow)| {
+            power_kernel(base, k as f64).ok().map(|power| add(sum, div(flow, power)))
+        })
+    };
+    let mut before = div(1.0, add(1.0, guess));
+    let mut value_before = npv(before)?;
+    if value_before == 0.0 {
+        return Some(guess);
     }
-    Err(WorksheetErrorCode::Num)
+    let mut current = add(before, 0.001f64.copysign(value_before));
+    let mut value = npv(current)?;
+    for _ in 0..200 {
+        let change = sub(value, value_before);
+        if change == 0.0 {
+            return None;
+        }
+        let next = sub(current, div(mul(value, sub(current, before)), change));
+        let step = sub(next, current).abs();
+        (before, value_before) = (current, value);
+        current = next;
+        value = npv(current)?;
+        if step < 1e-7 && value.abs() < 1e-7 {
+            return Some(sub(div(1.0, current), 1.0));
+        }
+    }
+    None
 }
 
 pub(crate) fn irr_kernel(cashflows: &[f64], guess: Option<f64>) -> Result<f64, WorksheetErrorCode> {
     validate_cashflows(cashflows)?;
-    if cashflows.len() == 2 {
-        return irr_two_cashflows(cashflows, guess.unwrap_or(0.1));
-    }
-    let root = bounded_rate_solve(
-        guess.unwrap_or(0.1),
-        |rate| periodic_npv_with_t0(rate, cashflows),
-        |rate| periodic_npv_derivative(rate, cashflows),
-    )?;
-    midpoint_of_local_min_abs_residual_plateau(root, |rate| periodic_npv_with_t0(rate, cashflows))
+    irr_discount_secant(cashflows, guess.unwrap_or(0.1)).ok_or(WorksheetErrorCode::Num)
 }
 
 /// Worksheet `XNPV` — bit-exact to 64-bit Excel on `x86_64` (W109 pilot,

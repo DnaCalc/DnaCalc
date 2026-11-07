@@ -216,11 +216,12 @@ pub(crate) fn excel_stirling_step(n: f64) -> f64 {
 }
 
 fn atanh_tail<F: Fpu>(v: &Ext80) -> Ext80 {
-    let w = F::mul(v, v, CW);
-    let (mut tail, mut power, mut j) = (load(0.0), *v, 1.0);
+    let stored = load(F::store(v, CW));
+    let w = load(F::store(&F::mul(&stored, &stored, CW), CW));
+    let (mut tail, mut power, mut j) = (load(0.0), stored, 1.0);
     loop {
-        power = F::mul(&power, &w, CW);
-        let next = F::add(&tail, &F::div(&power, &load(2.0 * j + 1.0), CW), CW);
+        power = load(F::store(&F::mul(&power, &w, CW), CW));
+        let next = load(F::store(&F::add(&tail, &F::div(&power, &load(2.0 * j + 1.0), CW), CW), CW));
         if next.0 == tail.0 {
             return tail;
         }
@@ -301,6 +302,11 @@ fn gamma_fraction<F: Fpu>(a: f64, x: f64) -> f64 {
 /// a sawtooth in the exponent's error, and the sawtooth's frequency names the sum: the tail's
 /// rounding to `x` times the grid of `V` at `x = 100`, `x + np` stored at `x = 1024`, the products at
 /// `x = 501`. All 1,000 rows at `x = 100` and 1,199 of 1,200 at `x = 1024` agree.
+///
+/// The running sums are the two sides of that reading. The series loop is compiled C on doubles:
+/// `v`, `v^2`, the power and the tail are each stored, BINOM.DIST's bank 70,231 to 70,271 of 70,349.
+/// The sum of the stored parts then stays in the registers up to the last addition, 70,320:
+/// a store before `d` is 70,271 again, and each product left in the registers loses thousands.
 pub(crate) fn excel_deviance_series(x: f64, np: f64) -> f64 {
     deviance_series::<Native>(x, np)
 }
@@ -313,13 +319,10 @@ fn deviance_series<F: Fpu>(x: f64, np: f64) -> f64 {
     let quotient = load(F::store(&v, CW));
     let sum = load(F::store(&F::add(&quotient, &tail, CW), CW));
     let twice_x = load(2.0 * x);
-    let near = F::add(
-        &load(F::store(&F::sub(&fnp, &fx, CW), CW)),
-        &load(F::store(&F::mul(&twice_x, &sum, CW), CW)),
-        CW,
-    );
+    let gap = load(F::store(&F::sub(&fnp, &fx, CW), CW));
+    let near = F::add(&gap, &load(F::store(&F::mul(&twice_x, &sum, CW), CW)), CW);
     let near = F::sub(&near, &load(F::store(&F::mul(&twice_x, &quotient, CW), CW)), CW);
-    let near = F::add(&load(F::store(&near, CW)), &load(d), CW);
+    let near = F::add(&near, &load(d), CW);
     let product = F::store(&F::mul(&load(d), &quotient, CW), CW);
     F::store(&F::add(&near, &load(product), CW), CW)
 }
