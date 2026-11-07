@@ -97,11 +97,13 @@ fn principal_sum(
     Ok(total)
 }
 
-/// CUMIPMT's count-times-payment result is stored from PC64 before subtraction.
+/// CUMIPMT stores both the count-times-payment result and its subtraction from PC64.
 /// Eleven fresh count-product ties (3665 and above) distinguish it from strict
 /// multiplication, conditioned on independent public PMT and CUMPRINC operands.
+/// Seventeen further count-one ties isolate the subtraction from multiplication.
 fn interest_finish(count: f64, payment: f64, principal: f64) -> f64 {
-    crate::ported::excel_numeric::excel_x87_mul(count, payment) - principal
+    use crate::ported::excel_numeric::{excel_x87_mul, excel_x87_sub};
+    excel_x87_sub(excel_x87_mul(count, payment), principal)
 }
 
 fn validate_cumulative_inputs(
@@ -228,6 +230,22 @@ mod tests {
             let principal = f64::from_bits(principal);
             assert_ne!((count * payment - principal).to_bits(), interest);
             assert_eq!(interest_finish(count, payment, principal).to_bits(), interest);
+        }
+    }
+
+    /// Fresh count-one Excel20527 answers isolate the final subtraction.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn cumulative_interest_finish_stores_its_subtraction() {
+        for (payment, principal, interest) in [
+            (0xc35f_ffff_ffff_ffffu64, 0xbfff_ffff_ffff_fff4, 0xc35f_ffff_ffff_fffe),
+            (0xc49f_ffff_ffff_fffe, 0xc140_0000_0000_001a, 0xc49f_ffff_ffff_fffe),
+            (0xc4a0_0000_0000_0000, 0xc140_0000_0000_001b, 0xc4a0_0000_0000_0000),
+        ] {
+            let payment = f64::from_bits(payment);
+            let principal = f64::from_bits(principal);
+            assert_ne!((payment - principal).to_bits(), interest);
+            assert_eq!(interest_finish(1.0, payment, principal).to_bits(), interest);
         }
     }
 
