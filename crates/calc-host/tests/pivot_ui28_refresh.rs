@@ -10,7 +10,7 @@
 use calc_host::value::{CellKey, CoreRef, SheetId};
 use calc_host::{
     HostOptions, HostSession, MemorySource, OpenPolicy, PackageRead, ProjectedValue,
-    ProjectionRequest, SkinIntent, project,
+    ProjectionRequest, SavePolicy, SkinIntent, project,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -61,6 +61,9 @@ enum Cell {
     Error(String),
 }
 fn run(bytes: &[u8], edits: &str, expected: &str) -> String {
+    run_session(bytes, edits, expected).0
+}
+fn run_session(bytes: &[u8], edits: &str, expected: &str) -> (String, Option<HostSession>) {
     let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes.to_vec()));
     let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default())
         .expect("it opens");
@@ -80,7 +83,7 @@ fn run(bytes: &[u8], edits: &str, expected: &str) -> String {
             text: text.into(),
         });
         if !receipt.accepted() {
-            return format!("edit {line} refused: {receipt:?}");
+            return (format!("edit {line} refused: {receipt:?}"), None);
         }
     }
     let mut want: BTreeMap<String, BTreeMap<String, Cell>> = BTreeMap::new();
@@ -113,7 +116,7 @@ fn run(bytes: &[u8], edits: &str, expected: &str) -> String {
                 part,
             }));
             if !receipt.accepted() {
-                return format!("{name}: refused: {:?}", receipt.error);
+                return (format!("{name}: refused: {:?}", receipt.error), None);
             }
         }
     }
@@ -163,11 +166,41 @@ fn run(bytes: &[u8], edits: &str, expected: &str) -> String {
             }
         }
     }
-    if differences.is_empty() {
+    let verdict = if differences.is_empty() {
         "matched".into()
     } else {
         format!("{} differences: {}", differences.len(), differences.iter().take(4).cloned().collect::<Vec<_>>().join("; "))
-    }
+    };
+    (verdict, Some(book))
+}
+
+fn part_text(package: &[u8], name: &str) -> String {
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(package.to_vec()));
+    let document = calc_doc::open(source, &OpenPolicy::default()).expect("the package opens");
+    String::from_utf8(document.package().read_part(name).expect("the part")).unwrap()
+}
+fn formats_element(xml: &str) -> &str {
+    let start = xml.find("<formats").expect("a formats element");
+    &xml[start..xml.find("</formats>").unwrap() + "</formats>".len()]
+}
+
+#[test]
+/// Native-only: opens, refreshes and saves a workbook.
+fn ui28__refresh_keeps_the_pivot_formats_element_as_excel_does() {
+    // format-shrink: Excel kept the formats element byte for byte after a refresh that removed
+    // rows. DNA Calc keeps it too; it does not restyle the refreshed output cells.
+    let (_, bytes, edits, expected) = SCENARIOS.iter().find(|s| s.0 == "format-shrink").unwrap();
+    let (verdict, book) = run_session(bytes, edits, expected);
+    assert_eq!(verdict, "matched");
+    let mut book = book.unwrap();
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).expect("it saves");
+    let part = "xl/pivotTables/pivotTable1.xml";
+    assert_eq!(
+        formats_element(&part_text(&saved, part)),
+        formats_element(&part_text(bytes, part))
+    );
 }
 
 #[test]
@@ -189,6 +222,7 @@ fn ui28__pivot_refresh_scenarios_against_excel() {
         [
             "add-category",
             "blank-and-error",
+            "format-shrink",
             "grow-shift",
             "manual-pending",
             "remove-category",
@@ -198,14 +232,12 @@ fn ui28__pivot_refresh_scenarios_against_excel() {
     // Not matched, and why:
     // - add-row: Excel moves a range source that spans a table to the grown table (A1:E37 became
     //   A1:E38); DNA Calc does not grow a table when a cell is entered below it.
-    // - format-shrink: the pivot carries cell formats (the formats element), which refresh refuses.
     // - overlap-nonblank: Excel with alerts off collapses the pivot to its corner cell; DNA Calc
     //   refuses before changing anything.
     assert_eq!(
         other,
         [
             ("add-row", "11 differences".to_owned()),
-            ("format-shrink", "P".to_owned()),
             ("overlap-nonblank", "P".to_owned()),
         ]
     );
