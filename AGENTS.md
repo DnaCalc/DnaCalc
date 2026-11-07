@@ -66,8 +66,8 @@ DnaTreeCalc, DnaOneCalc and the others) are read-only inputs: port from them, ne
 
    `cargo xtask sweep` runs the slow and structural validation: the five architecture checks
    (dependencies, os-imports, wasm-refusal, tree-reference-tokens), the licence ledger's completeness, the dependency ceiling (dna-onecalc and
-   dna-formula-ui never reach calc-engine, calc-doc or calc-host; dna-onecalc-desktop reaches no
-   calc-host and no calc-engine; dna-calc does not depend on dna-onecalc, nor dna-calc-desktop), the portable packages' tests in headless Chrome and Firefox (a test that is
+   dna-formula-ui never reach calc-engine or calc-host, and may use calc-doc; dna-onecalc-desktop
+   reaches no calc-host and no calc-engine; dna-calc does not depend on dna-onecalc, nor dna-calc-desktop), the portable packages' tests in headless Chrome and Firefox (a test that is
    neither run there nor marked `Native-only:` fails it), and xtask's acceptance suite. It takes
    hours and is never required for a commit: run it at a milestone or on a schedule, on a clean
    tree. `--skip <step>` leaves a step out.

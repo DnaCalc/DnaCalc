@@ -17,9 +17,59 @@
 
 use crate::display;
 use crate::grid;
-use crate::session::{InputValue, Session};
+use crate::session::{AddinRef, InputValue, Session};
+use crate::shown::{Authored, Shown};
 use calc_fml::{CalcEnvironment, DateSystem, FormatProfile, FormulaForm};
 use serde::{Deserialize, Serialize};
+
+/// Bytes as base64 text in a message, so a file crosses the bridge as one JSON string.
+pub mod bytes_as_base64 {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    const DIGITS: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+    pub fn encode(bytes: &[u8]) -> String {
+        let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+        for chunk in bytes.chunks(3) {
+            let n = (u32::from(chunk[0]) << 16)
+                | (u32::from(*chunk.get(1).unwrap_or(&0)) << 8)
+                | u32::from(*chunk.get(2).unwrap_or(&0));
+            for i in 0..4 {
+                if i <= chunk.len() {
+                    out.push(DIGITS[(n >> (18 - 6 * i) & 63) as usize] as char);
+                } else {
+                    out.push('=');
+                }
+            }
+        }
+        out
+    }
+
+    pub fn decode(text: &str) -> Option<Vec<u8>> {
+        let mut out = Vec::with_capacity(text.len() / 4 * 3);
+        let (mut bits, mut have) = (0u32, 0);
+        for c in text.bytes().take_while(|&c| c != b'=') {
+            let v = DIGITS.iter().position(|&d| d == c)? as u32;
+            bits = (bits << 6) | v;
+            have += 6;
+            if have >= 8 {
+                have -= 8;
+                out.push((bits >> have) as u8);
+                bits &= (1 << have) - 1;
+            }
+        }
+        Some(out)
+    }
+
+    pub fn serialize<S: Serializer>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&encode(bytes))
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
+        let text = String::deserialize(deserializer)?;
+        decode(&text).ok_or_else(|| serde::de::Error::custom("not base64"))
+    }
+}
 
 /// What a surface asks of its session.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -49,6 +99,37 @@ pub enum Request {
     Functions,
     /// Calculates the formula over the inputs.
     Calculate,
+    /// The whole authored state in, what to show out: the surface's one request on each edit.
+    Evaluate(Authored),
+    /// Unloads the VBA module, if one is loaded.
+    UnloadVba,
+    /// A new, blank session; add-ins and their functions stay as they are.
+    New,
+    /// Opens the workbook `bytes` hold as the session (`name` is its file name).
+    Open {
+        name: String,
+        #[serde(with = "bytes_as_base64")]
+        bytes: Vec<u8>,
+    },
+    /// Opens a workbook through the native host's file dialog (a host with no dialog refuses).
+    OpenNative,
+    /// The session saved as a workbook, the bytes in the reply.
+    Save,
+    /// The session saved through the native host's file dialog (a host with no dialog refuses).
+    SaveNative,
+}
+
+/// A session a file opened, as the surface shows it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Opened {
+    /// The file's name, as chosen.
+    pub name: String,
+    pub authored: Authored,
+    pub shown: Shown,
+    /// The add-ins the file lists, never loaded by opening it.
+    pub addins: Vec<AddinRef>,
+    /// The paths of the add-ins the host has loaded, when it has any.
+    pub loaded: Vec<String>,
 }
 
 /// What a calculation gave, as text for people.
@@ -75,6 +156,22 @@ pub enum Reply {
     /// The names of the functions a VBA module published, or all user functions.
     Functions { names: Vec<String> },
     Refused { message: String },
+    /// What the surface shows for an authored state ([`Request::Evaluate`]).
+    Shown(Box<Shown>),
+    /// A file or a new session replaced the session.
+    Opened(Box<Opened>),
+    /// A file outside what a session holds: why, and the offer to open it in DNA Calc.
+    NotASession { reason: String, offer: String },
+    /// The session as a workbook ([`Request::Save`]).
+    File {
+        name: String,
+        #[serde(with = "bytes_as_base64")]
+        bytes: Vec<u8>,
+    },
+    /// The session was written to this path by the native host.
+    Saved { path: String },
+    /// The person closed the native file dialog; nothing changed.
+    Cancelled,
 }
 
 /// A session behind a message boundary. `&mut self` and no async: an answer is the thread's own
@@ -145,7 +242,59 @@ pub(crate) fn environment(culture: &str, now: Option<f64>) -> CalcEnvironment {
     }
 }
 
-fn refused(message: impl Into<String>) -> Reply {
+/// A session that replaces `old` keeps its callable functions (the add-ins the host loaded) unless
+/// they are a VBA module's, which a new session does not carry: the module is unloaded with the
+/// session it was loaded into.
+fn carry_functions(old: &Session, new: &mut Session) {
+    if !old.has_vba_module() {
+        new.set_user_functions(old.user_functions().clone());
+    }
+}
+
+/// The reply for a session that has just been opened or made: what to show for it.
+pub fn opened(session: &mut Session, name: String, loaded: Vec<String>) -> Reply {
+    let authored = crate::shown::authored_of(session);
+    let shown = crate::shown::evaluate(session, &authored);
+    Reply::Opened(Box::new(Opened {
+        name,
+        authored,
+        shown,
+        addins: session.addins().to_vec(),
+        loaded,
+    }))
+}
+
+/// A way for a surface to ask its session, one reply for each request in the order asked. The
+/// surface never holds the session: an in-process link answers at once ([`LocalLink`]), a bridge
+/// to a native session answers later (the answer arrives through `done`, after the call returns).
+pub trait Link {
+    fn call(&self, request: Request, done: Box<dyn FnOnce(Reply)>);
+
+    /// Whether the other side shows native file dialogs ([`Request::OpenNative`],
+    /// [`Request::SaveNative`]) rather than the page choosing and downloading files.
+    fn native_files(&self) -> bool {
+        false
+    }
+}
+
+/// A [`LocalPort`] in the page: the browser build's link.
+#[derive(Debug)]
+pub struct LocalLink(std::cell::RefCell<LocalPort>);
+
+impl LocalLink {
+    pub fn new(port: LocalPort) -> Self {
+        LocalLink(std::cell::RefCell::new(port))
+    }
+}
+
+impl Link for LocalLink {
+    fn call(&self, request: Request, done: Box<dyn FnOnce(Reply)>) {
+        let reply = self.0.borrow_mut().send(request);
+        done(reply);
+    }
+}
+
+pub(crate) fn refused(message: impl Into<String>) -> Reply {
     Reply::Refused {
         message: message.into(),
     }
@@ -210,6 +359,41 @@ impl SessionPort for LocalPort {
             Request::Functions => Reply::Functions {
                 names: session.user_function_names(),
             },
+            Request::UnloadVba => {
+                session.clear_user_functions();
+                Reply::Accepted
+            }
+            Request::Evaluate(authored) => {
+                Reply::Shown(Box::new(crate::shown::evaluate(session, &authored)))
+            }
+            Request::New => {
+                let mut fresh = Session::new("Sheet1").expect("Sheet1 is a sheet name");
+                carry_functions(session, &mut fresh);
+                fresh.set_addins(session.addins().to_vec());
+                *session = fresh;
+                opened(session, String::new(), Vec::new())
+            }
+            Request::Open { name, bytes } => match crate::file::open(&bytes) {
+                Ok(mut next) => {
+                    carry_functions(session, &mut next);
+                    *session = next;
+                    opened(session, name, Vec::new())
+                }
+                Err(refusal) => Reply::NotASession {
+                    reason: refusal.reason,
+                    offer: crate::file::OFFER.to_owned(),
+                },
+            },
+            Request::Save => match crate::file::save(session) {
+                Ok(bytes) => Reply::File {
+                    name: "onecalc-session.xlsx".to_owned(),
+                    bytes,
+                },
+                Err(message) => refused(message),
+            },
+            Request::OpenNative | Request::SaveNative => {
+                refused("this session has no native file dialog")
+            }
             Request::Calculate => {
                 let calculation = session.calculate();
                 Reply::Calculated(CalculationView {

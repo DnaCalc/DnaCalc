@@ -98,6 +98,8 @@ pub(crate) struct Edited {
     structural: Option<StructuralEdits>,
     cache_state: Option<CalculationCacheState>,
     pivot_outputs:Arc<BTreeMap<CellKey,calc_doc_model::value::CalcValue>>,
+    /// Custom XML items the save writes (added, or replacing the item of the same namespace).
+    custom_xml: Vec<crate::CustomXmlItem>,
 }
 
 impl DocumentSnapshot {
@@ -133,6 +135,7 @@ impl DocumentSnapshot {
                 structural: None,
                 cache_state: None,
                 pivot_outputs:Default::default(),
+                custom_xml: Vec::new(),
             }),
         }
     }
@@ -151,6 +154,18 @@ impl DocumentSnapshot {
             && !edits.edits().is_empty()
         {
             edit.structural = Some(edits);
+        }
+        self
+    }
+
+    /// Custom XML items the save writes: each is an item part (with its item properties, its
+    /// relationship from the workbook part and its content types) whose document element is in
+    /// the item's namespace. An item replaces the package's own item of that namespace, content
+    /// only, and is added when the package holds none. A snapshot of a package as opened is left
+    /// as it is.
+    pub fn with_custom_xml(mut self, items: Vec<crate::CustomXmlItem>) -> Self {
+        if let Some(edit) = self.edit.as_mut() {
+            edit.custom_xml = items;
         }
         self
     }

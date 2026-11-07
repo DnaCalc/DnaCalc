@@ -270,6 +270,12 @@ pub struct XmlPart {
 }
 
 impl XmlPart {
+    /// A document of `bytes` the application read itself (a custom XML item's content), read
+    /// under the default limits like any part.
+    pub fn from_bytes(name: impl Into<String>, bytes: Vec<u8>) -> Self {
+        Self::new(name.into(), bytes, XmlLimits::default())
+    }
+
     pub(crate) fn new(name: String, bytes: Vec<u8>, limits: XmlLimits) -> Self {
         XmlPart {
             name,

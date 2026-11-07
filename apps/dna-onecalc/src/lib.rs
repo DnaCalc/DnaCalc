@@ -14,22 +14,28 @@
 //! [`Diagnostic`]s that stopped one, and the [`Read`]s the evaluation made, in order, with what
 //! each returned.
 //!
-//! [`display`] renders those for people and [`surface`] is the browser surface over a session: a
-//! formula box, a table of typed inputs, the result, the diagnostics and the reads, recalculated on
-//! every edit. The formula field, the value and result display, the theme switch and the browser
-//! start are dna-formula-ui's, which DNA Calc shares; this package keeps only what a session needs
-//! (its sheets and inputs as calc-fml's reference reader, and the labels of its reads, diagnostics
-//! and refused inputs). It has no dependency graph and no recalculation order: a session holds one
-//! formula and calculates it on each edit.
+//! [`display`] renders those for people. [`surface`] is the browser surface: it holds only what the
+//! person typed ([`shown::Authored`]) and draws what its session says to show ([`shown::Shown`]),
+//! reaching the session through a [`port::Link`]: in the page ([`port::LocalLink`]) or, in the
+//! desktop exe's WebView2, over [`bridge`] to the native session. The file is a constrained Excel
+//! workbook ([`file`]), read and written through calc-doc. The formula field, the value and result
+//! display, the theme switch and the browser start are dna-formula-ui's, which DNA Calc shares. A
+//! session has one sheet and one formula, calculated on each edit; it has no dependency graph and no
+//! recalculation order.
 
+pub mod bridge;
 pub mod display;
+pub mod file;
 mod fixture;
 pub mod grid;
 pub mod port;
 pub mod result;
 mod session;
+pub mod shown;
 pub mod surface;
 pub mod web;
 
 pub use fixture::{Read, ReadRun, RunCells};
-pub use session::{Calculation, Diagnostic, InputError, InputValue, Session, SheetError};
+pub use session::{
+    AddinRef, Calculation, Diagnostic, InputError, InputValue, Session, SessionOptions, SheetError,
+};

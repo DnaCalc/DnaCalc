@@ -132,6 +132,38 @@ pub struct Calculation {
     pub reads: Vec<Read>,
 }
 
+/// The options a session keeps beside its formula: what the file format has no place for.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct SessionOptions {
+    /// The locale profile's culture name (`en-US`).
+    pub locale: String,
+    /// The number format text the result is shown with, in the locale's separators.
+    pub number_format: String,
+}
+
+impl Default for SessionOptions {
+    fn default() -> Self {
+        SessionOptions {
+            locale: "en-US".to_owned(),
+            number_format: "General".to_owned(),
+        }
+    }
+}
+
+impl SessionOptions {
+    /// The locales a session offers.
+    pub const LOCALES: [&'static str; 5] = ["en-US", "en-GB", "en-ZA", "de-DE", "fr-FR"];
+}
+
+/// An add-in a session lists: its kind (`xll`, `xlam`, `bas`), its path as the person chose it and
+/// the SHA-256 of its file when it was listed. A session file lists add-ins; it never loads one.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct AddinRef {
+    pub kind: String,
+    pub path: String,
+    pub hash: String,
+}
+
 /// The OneCalc application controller: named sheets, typed inputs, one formula and the cell it
 /// is entered in, and the caller-owned state calc-fml compiles and evaluates with (a plan cache
 /// and evaluation scratch). It holds no dependency graph and no recalculation engine.
@@ -153,6 +185,11 @@ pub struct Session {
     /// The form the formula is entered in: dynamic-array, as Excel 365 enters a formula, unless
     /// set otherwise.
     form: FormulaForm,
+    options: SessionOptions,
+    addins: Vec<AddinRef>,
+    /// Whether a VBA standard module is loaded (its source is not kept: the session file holds no
+    /// VBA project until dc-0f1k.4).
+    vba_loaded: bool,
 }
 
 /// Sheet names Excel reserves; matched regardless of case.
@@ -182,7 +219,33 @@ impl Session {
             environment: None,
             numeric: NumericMode::Fast,
             form: FormulaForm::Dynamic,
+            options: SessionOptions::default(),
+            addins: Vec::new(),
+            vba_loaded: false,
         })
+    }
+
+    /// The options kept beside the formula.
+    pub fn options(&self) -> &SessionOptions {
+        &self.options
+    }
+
+    pub fn set_options(&mut self, options: SessionOptions) {
+        self.options = options;
+    }
+
+    /// The add-ins the session lists.
+    pub fn addins(&self) -> &[AddinRef] {
+        &self.addins
+    }
+
+    pub fn set_addins(&mut self, addins: Vec<AddinRef>) {
+        self.addins = addins;
+    }
+
+    /// Whether a VBA module is loaded.
+    pub fn has_vba_module(&self) -> bool {
+        self.vba_loaded
     }
 
     /// Adds a sheet named `name`.
@@ -346,7 +409,13 @@ impl Session {
         let functions = calc_vba::load_module(name, source, max_steps)?;
         let names = functions.names().map(str::to_owned).collect();
         self.set_user_functions(functions);
+        self.vba_loaded = true;
         Ok(names)
+    }
+
+    /// The callable user functions, which a new session over the same add-ins takes over.
+    pub fn user_functions(&self) -> &calc_fml::CallableTable {
+        &self.functions
     }
 
     /// The names of the callable user functions (add-in registrations and VBA), in table order.
@@ -355,6 +424,7 @@ impl Session {
     }
 
     pub fn clear_user_functions(&mut self) {
+        self.vba_loaded = false;
         self.set_user_functions(calc_fml::CallableTable::new());
     }
 

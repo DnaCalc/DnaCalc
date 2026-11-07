@@ -14,7 +14,6 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
         ],
         checks: &[
             Check::Text("result", "no formula"),
-            Check::Text("sheets", "Sheet1"),
             Check::Text("formula-cell-status", "Sheet1!H1"),
         ],
     },
@@ -163,17 +162,32 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
         checks: &[Check::Text("result", "logical TRUE")],
     },
     Case {
-        name: "the legacy form takes one value: ={1,2;3,4}*10 is 10",
+        name: "Ctrl+Shift+Enter enters the legacy array form, which takes one value: ={1,2;3,4}*10 is 10, shown as {=...}",
         actions: &[
-            Action::Choose("formula-form", "legacy"),
             Action::Formula("={1,2;3,4}*10"),
+            Action::Keys("formula", CTRL_SHIFT_ENTER),
         ],
-        checks: &[Check::Text("result", "number 10")],
+        checks: &[
+            Check::Text("result", "number 10"),
+            Check::Text("array-formula", "{={1,2;3,4}*10}"),
+            Check::Rendered("array-formula", true),
+        ],
     },
     Case {
-        name: "back in the dynamic-array form the same formula is a 2 x 2 array",
-        actions: &[Action::Choose("formula-form", "dynamic")],
-        checks: &[Check::Array(&[&["10", "20"], &["30", "40"]])],
+        name: "editing the formula leaves the legacy form: the same text is a 2 x 2 array again",
+        actions: &[Action::Formula("={1,2;3,4}*10")],
+        checks: &[
+            Check::Array(&[&["10", "20"], &["30", "40"]]),
+            Check::Rendered("array-formula", false),
+        ],
+    },
+    Case {
+        name: "there is no form or numeric-mode selector on the page",
+        actions: &[],
+        checks: &[
+            Check::Absent("[data-onecalc=formula-form]"),
+            Check::Absent("[data-onecalc=numeric-mode]"),
+        ],
     },
     Case {
         name: "the function list finds ROUND by name and MROUND too",
@@ -228,7 +242,7 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
         checks: &[
             Check::Narrow(500),
             Check::Fits,
-            Check::Text("sheets", "Sheet1"),
+            Check::Text("formula-cell-status", "Sheet1!H1"),
         ],
     },
     Case {
@@ -285,25 +299,88 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
             Check::Text("vba-status", "No VBA module loaded."),
         ],
     },
+    // The files group runs in the browsers and in the desktop exe's WebView2: a file reaches the
+    // session through the page (the file input, as a drop does) and the link answers.
     Case {
-        name: "sessions: replacing unexported inputs asks and Escape preserves them",
+        name: "files: a session workbook opens through the page: formula, calculation and file state",
         actions: &[
-            Action::Click("fixture-tools"),
-            Action::Click("fixture-new"),
-            Action::Wait(Check::Role("fixture-dialog", "dialog")),
-            Action::Keys("fixture-keep", ESCAPE),
+            Action::WriteSession("opened.xlsx", "SUM(1,2)+3"),
+            Action::OpenDetails("file-controls"),
+            Action::UploadDownload("opened.xlsx"),
+            Action::Wait(Check::Text("result-state", "Calculated")),
+        ],
+        checks: &[
+            Check::Value("formula", "=SUM(1,2)+3"),
+            Check::Text("result", "number 6"),
+            Check::Starts("file-status", "Opened opened.xlsx"),
+            Check::Text("file-state", "Unchanged since opened or saved"),
+        ],
+    },
+    Case {
+        name: "files: opening over unsaved changes asks, and Escape keeps them",
+        actions: &[
+            Action::Formula("=1/0"),
+            Action::WriteSession("second.xlsx", "LEN(\"abc\")"),
+            Action::UploadDownload("second.xlsx"),
+            Action::Wait(Check::Role("file-dialog", "dialog")),
+            Action::Wait(Check::Rendered("file-dialog", true)),
+            Action::Keys("file-keep", ESCAPE),
+        ],
+        checks: &[
+            Check::Value("formula", "=1/0"),
+            Check::Text("result-value", "#DIV/0!"),
+            Check::Text("file-state", "Unsaved changes"),
+        ],
+    },
+    Case {
+        name: "files: Replace opens the file over the unsaved changes",
+        actions: &[
+            Action::UploadDownload("second.xlsx"),
+            Action::Wait(Check::Rendered("file-dialog", true)),
+            Action::Click("file-replace"),
+        ],
+        checks: &[
+            Check::Value("formula", "=LEN(\"abc\")"),
+            Check::Text("result", "number 3"),
+            Check::Text("file-state", "Unchanged since opened or saved"),
+        ],
+    },
+    Case {
+        name: "files: a file outside the constraints is refused with the offer to open it in DNA Calc, and nothing changes",
+        actions: &[
+            Action::WriteDownload("not-a-session.txt", b"this is not a workbook"),
+            Action::UploadDownload("not-a-session.txt"),
+        ],
+        checks: &[
+            Check::Starts(
+                "file-status",
+                "This file is outside what a OneCalc session holds:",
+            ),
+            Check::TextContains("file-status", "Open in DNA Calc."),
+            Check::Value("formula", "=LEN(\"abc\")"),
+            Check::Text("result", "number 3"),
+            Check::Absent("[data-onecalc=file-dialog][open]"),
+        ],
+    },
+    Case {
+        name: "sessions: replacing unsaved changes asks and Escape preserves them",
+        actions: &[
+            Action::OpenDetails("file-controls"),
+            Action::Click("file-new"),
+            Action::Wait(Check::Role("file-dialog", "dialog")),
+            Action::Keys("file-keep", ESCAPE),
         ],
         checks: &[
             Check::Value("formula", "=Spin()"),
             Check::Focused("formula"),
-            Check::Text("fixture-state", "Unexported changes"),
+            Check::Text("file-state", "Unsaved changes"),
         ],
     },
     Case {
         name: "workbench: a blank session offers a working SUM example with blank A3",
         actions: &[
-            Action::Click("fixture-new"),
-            Action::Click("fixture-replace"),
+            Action::Click("file-new"),
+            Action::Click("file-replace"),
             Action::Wait(Check::Text("result-state", "Ready")),
             Action::Click("try-example"),
         ],
@@ -330,16 +407,22 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
             Check::Text("result-value", "3,50"),
             Check::Text("result", "number 3.5"),
             Check::Text("format-note", ""),
-            Check::Text("fixture-state", "Unexported changes"),
+            Check::Text("file-state", "Unsaved changes"),
         ],
     },
     Case {
-        name: "sessions: JSON export starts a real file download and records its snapshot",
-        actions: &[Action::ClearDownloads, Action::Click("fixture-export")],
+        name: "sessions: Save starts a real .xlsx download that the codec reads as the session, and records its snapshot",
+        actions: &[Action::ClearDownloads, Action::Click("file-save")],
         checks: &[
-            Check::Starts("fixture-status", "Download started: onecalc-session.json."),
-            Check::Text("fixture-state", "Unchanged snapshot"),
-            Check::DownloadedJson("onecalc-session.json", "/formula", "=SUM(A1:A3)"),
+            Check::Starts("file-status", "Download started: onecalc-session.xlsx."),
+            Check::Text("file-state", "Unchanged since opened or saved"),
+            Check::DownloadedSession("onecalc-session.xlsx", "/formula", "SUM(A1:A3)"),
+            Check::DownloadedSession("onecalc-session.xlsx", "/sheet", "Sheet1"),
+            Check::DownloadedSession("onecalc-session.xlsx", "/cell/A1", "1.5"),
+            Check::DownloadedSession("onecalc-session.xlsx", "/cell/A2", "2"),
+            Check::DownloadedSession("onecalc-session.xlsx", "/cell/A3", ""),
+            Check::DownloadedSession("onecalc-session.xlsx", "/locale", "de-DE"),
+            Check::DownloadedSession("onecalc-session.xlsx", "/number-format", "0,00"),
         ],
     },
     Case {
@@ -349,16 +432,16 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
             Check::Text("result-state", "Worksheet error"),
             Check::Text("result-value", "#DIV/0!"),
             Check::Text("result-error", "division by zero"),
-            Check::Text("fixture-state", "Unexported changes"),
+            Check::Text("file-state", "Unsaved changes"),
         ],
     },
     Case {
-        name: "sessions: file import waits before discarding a changed formula",
+        name: "sessions: opening a file waits before discarding a changed formula",
         actions: &[
-            Action::UploadDownload("onecalc-session.json"),
-            Action::Wait(Check::Role("fixture-dialog", "dialog")),
-            Action::Wait(Check::Rendered("fixture-dialog", true)),
-            Action::Click("fixture-keep"),
+            Action::UploadDownload("onecalc-session.xlsx"),
+            Action::Wait(Check::Role("file-dialog", "dialog")),
+            Action::Wait(Check::Rendered("file-dialog", true)),
+            Action::Click("file-keep"),
         ],
         checks: &[
             Check::Value("formula", "=1/0"),
@@ -366,11 +449,11 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
         ],
     },
     Case {
-        name: "sessions: file restore restores grid inputs, formula, locale and format and recalculates",
+        name: "sessions: opening the file restores grid constants, formula, locale and format and recalculates",
         actions: &[
-            Action::UploadDownload("onecalc-session.json"),
-            Action::Wait(Check::Rendered("fixture-dialog", true)),
-            Action::Click("fixture-replace"),
+            Action::UploadDownload("onecalc-session.xlsx"),
+            Action::Wait(Check::Rendered("file-dialog", true)),
+            Action::Click("file-replace"),
         ],
         checks: &[
             Check::Value("formula", "=SUM(A1:A3)"),
@@ -379,44 +462,46 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
             Check::Value("[data-onecalc=grid-cell][data-cell=A1]", "1.5"),
             Check::Text("result-value", "3,50"),
             Check::Text("result-state", "Calculated"),
-            Check::Text("fixture-state", "Unchanged snapshot"),
+            Check::Text("file-state", "Unchanged since opened or saved"),
+            Check::Starts("file-status", "Opened onecalc-session.xlsx"),
         ],
     },
     Case {
-        name: "sessions: opening a shared fragment in this tab protects and replaces changed inputs",
+        name: "sessions: the formula's cell is saved with the file and restored from it",
         actions: &[
-            Action::Click("fixture-share"),
-            Action::RememberFieldLink("share-link"),
-            Action::Formula("=1/0"),
-            Action::OpenRememberedLink,
-            Action::Wait(Check::Role("fixture-dialog", "dialog")),
-            Action::Click("fixture-replace"),
+            Action::Into("formula-cell", "C7"),
+            Action::ClearDownloads,
+            Action::Click("file-save"),
+            Action::Into("formula-cell", "B9"),
+            Action::UploadDownload("onecalc-session.xlsx"),
+            Action::Wait(Check::Rendered("file-dialog", true)),
+            Action::Click("file-replace"),
         ],
         checks: &[
-            Check::Value("formula", "=SUM(A1:A3)"),
+            Check::Value("formula-cell", "C7"),
+            Check::Text("formula-cell-status", "Sheet1!C7"),
+            Check::Text("file-state", "Unchanged since opened or saved"),
+        ],
+    },
+    Case {
+        name: "sessions: an invalid formula-cell draft keeps the effective anchor, and the file keeps it",
+        actions: &[
+            Action::Into("formula-cell", "invalid!"),
+            Action::ClearDownloads,
+            Action::Click("file-save"),
+            Action::UploadDownload("onecalc-session.xlsx"),
+            Action::Wait(Check::Value("formula-cell", "C7")),
+        ],
+        checks: &[
+            Check::Value("formula-cell", "C7"),
+            Check::Text("formula-cell-status", "Sheet1!C7"),
             Check::Text("result-value", "3,50"),
-            Check::Text("fixture-state", "Unchanged snapshot"),
-        ],
-    },
-    Case {
-        name: "sessions: a generated link restores its authored session in a fresh page",
-        actions: &[
-            Action::Click("fixture-share"),
-            Action::OpenFieldLink("share-link"),
-            Action::Wait(Check::Text("result-value", "3,50")),
-            Action::Keys("formula", "\u{E009}z\u{E000}"),
-        ],
-        checks: &[
-            Check::Value("formula", "=SUM(A1:A3)"),
-            Check::Value("locale", "de-DE"),
-            Check::Text("result-state", "Calculated"),
-            Check::Text("fixture-state", "Unchanged snapshot"),
         ],
     },
     Case {
         name: "workbench: the array example uses the shared bounded result window",
         actions: &[
-            Action::Click("fixture-tools"),
+            Action::OpenDetails("file-controls"),
             Action::Click("example-array"),
         ],
         checks: &[
@@ -428,7 +513,7 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
         name: "workbench: the LAMBDA example executes with shared formula assistance",
         actions: &[
             Action::Click("example-lambda"),
-            Action::Click("fixture-replace"),
+            Action::Click("file-replace"),
         ],
         checks: &[
             Check::Text("result-value", "42"),
@@ -437,86 +522,14 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
         ],
     },
     Case {
-        name: "workbench: a missing fixture input names the cell that needs a value",
+        name: "workbench: a missing input names the cell that needs a value",
         actions: &[
             Action::Click("example-missing"),
-            Action::Click("fixture-replace"),
+            Action::Click("file-replace"),
         ],
         checks: &[
             Check::Text("result-state", "Missing input"),
             Check::Contains("diagnostics", "missing input: Sheet1!Z99 has no input"),
-        ],
-    },
-    Case {
-        name: "workbench: typed input controls have names and resolve the missing value",
-        actions: &[
-            Action::Click("add-input"),
-            Action::Into("input-cell", "Z99"),
-            Action::Into("input-value", "4"),
-        ],
-        checks: &[
-            Check::Text("result-value", "5"),
-            Check::Name("input-cell", "Input 1 cell"),
-            Check::Name("input-value", "Input 1 value"),
-            Check::Text("result-state", "Calculated"),
-        ],
-    },
-    Case {
-        name: "sessions: links also restore typed inputs through the normal reader",
-        actions: &[
-            Action::Click("fixture-share"),
-            Action::OpenFieldLink("share-link"),
-            Action::Wait(Check::Text("result-value", "5")),
-        ],
-        checks: &[
-            Check::Value("input-cell", "Z99"),
-            Check::Value("input-value", "4"),
-            Check::Text("result-state", "Calculated"),
-        ],
-    },
-    Case {
-        name: "sessions: an unqualified formula-address draft restores its effective sheet",
-        actions: &[
-            Action::Into("sheet-name", "Inputs"),
-            Action::Click("add-sheet"),
-            Action::Into("formula-cell", "Inputs!H1"),
-            Action::Into("formula-cell", "H1"),
-            Action::Click("fixture-tools"),
-            Action::Click("fixture-share"),
-            Action::OpenFieldLink("share-link"),
-        ],
-        checks: &[
-            Check::Text("result-value", "5"),
-            Check::Text("formula-cell-status", "Inputs!H1"),
-            Check::Value("formula-cell", "H1"),
-        ],
-    },
-    Case {
-        name: "sessions: an invalid formula-address draft also retains its effective anchor",
-        actions: &[
-            Action::Into("formula-cell", "invalid!"),
-            Action::Click("fixture-tools"),
-            Action::Click("fixture-share"),
-            Action::OpenFieldLink("share-link"),
-        ],
-        checks: &[
-            Check::Text("result-value", "5"),
-            Check::TextContains("formula-cell-status", "the formula stays in Inputs!H1"),
-            Check::Value("formula-cell", "invalid!"),
-        ],
-    },
-    Case {
-        name: "sessions: invalid JSON is refused before the current formula or inputs change",
-        actions: &[
-            Action::Click("fixture-tools"),
-            Action::Into("fixture-json", "this is not JSON"),
-            Action::Click("fixture-restore"),
-        ],
-        checks: &[
-            Check::Starts("fixture-status", "Invalid formula-session JSON:"),
-            Check::Text("result-value", "5"),
-            Check::Value("input-value", "4"),
-            Check::Absent("[data-onecalc=fixture-dialog][open]"),
         ],
     },
     Case {
@@ -531,8 +544,9 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
     Case {
         name: "workbench: phone layout keeps the primary result and inputs ahead of the catalogue",
         actions: &[
-            Action::Formula("=Z99+1"),
-            Action::Click("fixture-tools"),
+            Action::Formula("=A1*2"),
+            Action::Grid("A1", "21"),
+            Action::OpenDetails("file-controls"),
             Action::Window(390, 844),
             Action::Click("result-value"),
         ],
@@ -541,7 +555,7 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
             Check::Fits,
             Check::Reachable("primary-result"),
             Check::Before("grid", "functions"),
-            Check::Text("result-value", "5"),
+            Check::Text("result-value", "42"),
         ],
     },
     Case {
@@ -552,7 +566,7 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
     Case {
         name: "evaluation context: ROW and COLUMN use the formula instance in C7",
         actions: &[
-            Action::Click("fixture-tools"),
+            Action::OpenDetails("file-controls"),
             Action::Into("formula-cell", "C7"),
             Action::Formula("=ROW()*100+COLUMN()"),
         ],
@@ -563,26 +577,42 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
         ],
     },
     Case {
-        name: "friendly functions: imported session keeps saved call spelling while showing the entry spelling",
+        name: "friendly functions: an opened session keeps the file's call spelling while showing the entry spelling",
         actions: &[
-            Action::Click("fixture-tools"),
-            Action::Into("fixture-json", "{\"version\": 1, \"formula\": \"=_xlfn.SEQUENCE(2,2)\", \"formula_cell\": \"H1\", \"effective_anchor\": \"Sheet1!H1\", \"sheets\": [\"Sheet1\"], \"grid\": [\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\"], \"inputs\": [], \"legacy\": false, \"locale\": \"en-US\", \"number_format\": \"General\", \"vba_draft\": \"\", \"vba_loaded\": null}"),
-            Action::Click("fixture-restore"),
+            Action::WriteSession("friendly.xlsx", "_xlfn.SEQUENCE(2,2)"),
+            Action::OpenDetails("file-controls"),
+            Action::UploadDownload("friendly.xlsx"),
+            Action::Wait(Check::Text("result-state", "Calculated")),
         ],
-        checks: &[Check::Value("formula","=SEQUENCE(2,2)"),Check::Array(&[&["1","2"],&["3","4"]]),Check::Text("fixture-state","Unchanged snapshot")],
+        checks: &[
+            Check::Value("formula", "=SEQUENCE(2,2)"),
+            Check::Array(&[&["1", "2"], &["3", "4"]]),
+            Check::Text("file-state", "Unchanged since opened or saved"),
+        ],
     },
     Case {
-        name: "friendly functions: an unchanged field exports the original authored session text",
-        actions: &[Action::Click("formula"),Action::Click("fixture-status"),Action::ClearDownloads,Action::Click("fixture-export")],
-        checks: &[Check::DownloadedJson("onecalc-session.json","/formula","=_xlfn.SEQUENCE(2,2)"),Check::Value("formula","=SEQUENCE(2,2)"),Check::Text("fixture-state","Unchanged snapshot")],
+        name: "friendly functions: an unchanged field saves the file's spelling",
+        actions: &[Action::Click("formula"), Action::Click("file-status"), Action::ClearDownloads, Action::Click("file-save")],
+        checks: &[
+            Check::DownloadedSession("onecalc-session.xlsx", "/formula", "_xlfn.SEQUENCE(2,2)"),
+            Check::DownloadedSession("onecalc-session.xlsx", "/array", "Dynamic"),
+            Check::Value("formula", "=SEQUENCE(2,2)"),
+            Check::Text("file-state", "Unchanged since opened or saved"),
+        ],
     },
     Case {
-        name: "friendly functions: editing and sharing retains the new entry and actual calculation",
+        name: "friendly functions: editing and saving writes the new entry with the file's prefix and the actual calculation",
         actions: &[
-            Action::Formula("=SEQUENCE(1,3)"),Action::ClearDownloads,Action::Click("fixture-export"),
-            Action::Click("fixture-share"),Action::OpenFieldLink("share-link"),
+            Action::Formula("=SEQUENCE(1,3)"),
+            Action::ClearDownloads,
+            Action::Click("file-save"),
         ],
-        checks: &[Check::DownloadedJson("onecalc-session.json","/formula","=SEQUENCE(1,3)"),Check::Value("formula","=SEQUENCE(1,3)"),Check::Array(&[&["1","2","3"]]),Check::Text("fixture-state","Unchanged snapshot")],
+        checks: &[
+            Check::DownloadedSession("onecalc-session.xlsx", "/formula", "_xlfn.SEQUENCE(1,3)"),
+            Check::Value("formula", "=SEQUENCE(1,3)"),
+            Check::Array(&[&["1", "2", "3"]]),
+            Check::Text("file-state", "Unchanged since opened or saved"),
+        ],
     },
 
     Case {
@@ -598,24 +628,34 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
 
 ];
 
+/// Groups whose name ends in `-browser` need the browser's own download (Save writes a file the
+/// page offers); the desktop exe's Save is a native dialog, which needs a person, so the
+/// WebView2 run leaves those groups out.
 pub(crate) const ONECALC_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "formulas",
         start: 0,
-        end: 27,
+        end: 28,
         core: 5,
         setup: &[],
     },
     CaseGroup {
         name: "vba",
-        start: 27,
-        end: 31,
+        start: 28,
+        end: 32,
         core: 0,
         setup: &[],
     },
     CaseGroup {
-        name: "sessions",
-        start: 31,
+        name: "files",
+        start: 32,
+        end: 36,
+        core: 2,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "sessions-browser",
+        start: 36,
         end: 51,
         core: 3,
         setup: &[Action::Formula("=Spin()")],
@@ -627,6 +667,6 @@ pub(crate) const ONECALC_GROUPS: &[CaseGroup] = &[
         core: 1,
         setup: &[],
     },
-    CaseGroup {name:"friendly-functions",start:52,end:55,core:3,setup:&[]},
+    CaseGroup {name:"friendly-functions-browser",start:52,end:55,core:3,setup:&[]},
     CaseGroup {name:"completion-repair",start:55,end:57,core:2,setup:&[]},
 ];

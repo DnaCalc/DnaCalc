@@ -70,10 +70,27 @@ const SHARED_STRINGS: &str = concat!(
 
 /// The package of a new workbook with one empty worksheet, `Sheet1`.
 pub fn blank_package() -> Vec<u8> {
+    blank_package_named("Sheet1")
+}
+
+/// The package of a new workbook with one empty worksheet named `sheet`, which the caller has
+/// checked is a sheet name Excel accepts (`calc_doc_model::SheetName`).
+pub fn blank_package_named(sheet: &str) -> Vec<u8> {
+    let mut name = String::new();
+    for c in sheet.chars() {
+        match c {
+            '&' => name.push_str("&amp;"),
+            '<' => name.push_str("&lt;"),
+            '>' => name.push_str("&gt;"),
+            '"' => name.push_str("&quot;"),
+            c => name.push(c),
+        }
+    }
+    let workbook = WORKBOOK.replace(r#"name="Sheet1""#, &format!(r#"name="{name}""#));
     crate::save::new_archive(&[
         ("[Content_Types].xml", CONTENT_TYPES.as_bytes()),
         ("_rels/.rels", PACKAGE_RELATIONSHIPS.as_bytes()),
-        ("xl/workbook.xml", WORKBOOK.as_bytes()),
+        ("xl/workbook.xml", workbook.as_bytes()),
         (
             "xl/_rels/workbook.xml.rels",
             WORKBOOK_RELATIONSHIPS.as_bytes(),

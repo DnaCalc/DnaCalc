@@ -74,13 +74,18 @@ pub(super) fn fresh(layout: &SkinLayout) -> Vec<u8> {
 /// The parts of a manifest a save adds, numbered `n`: `customXml/item<n>.xml` holding `item`,
 /// `customXml/itemProps<n>.xml` and `customXml/_rels/item<n>.xml.rels`.
 pub(super) fn new_parts(n: u32, item: Vec<u8>) -> NewManifest {
+    new_parts_for(n, item, MANIFEST_NAMESPACE, DATASTORE_ITEM_ID)
+}
+
+/// [`new_parts`] for a custom XML item of any namespace, whose item properties carry `item_id`.
+pub(super) fn new_parts_for(n: u32, item: Vec<u8>, namespace: &str, item_id: &str) -> NewManifest {
     let props_target = format!("itemProps{n}.xml");
     let mut props = b"<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\r\n<ds:datastoreItem ds:itemID=".to_vec();
-    attribute_value(DATASTORE_ITEM_ID, &mut props);
+    attribute_value(item_id, &mut props);
     props.extend_from_slice(b" xmlns:ds=");
     attribute_value(DATASTORE_NAMESPACE, &mut props);
     props.extend_from_slice(b"><ds:schemaRefs><ds:schemaRef ds:uri=");
-    attribute_value(MANIFEST_NAMESPACE, &mut props);
+    attribute_value(namespace, &mut props);
     props.extend_from_slice(b"/></ds:schemaRefs></ds:datastoreItem>");
     let mut relationships = DECLARATION.as_bytes().to_vec();
     relationships.extend_from_slice(b"<Relationships xmlns=");
@@ -100,6 +105,12 @@ pub(super) fn new_parts(n: u32, item: Vec<u8>) -> NewManifest {
 /// The smallest `n` from 1 for which the package holds none of the parts [`new_parts`] names,
 /// and no content type override names one.
 pub(super) fn free_number(package: &Package) -> u32 {
+    free_number_beyond(package, &[])
+}
+
+/// [`free_number`] that also avoids the numbers in `used`, which earlier additions of the same
+/// save took.
+pub(super) fn free_number_beyond(package: &Package, used: &[u32]) -> u32 {
     let taken = |name: &str| {
         package.part(name).is_some()
             || package.content_types().overrides().iter().any(|(part, _)| {
@@ -109,7 +120,8 @@ pub(super) fn free_number(package: &Package) -> u32 {
     };
     (1u32..)
         .find(|n| {
-            !taken(&format!("customXml/item{n}.xml"))
+            !used.contains(n)
+                && !taken(&format!("customXml/item{n}.xml"))
                 && !taken(&format!("customXml/itemProps{n}.xml"))
                 && !taken(&format!("customXml/_rels/item{n}.xml.rels"))
         })

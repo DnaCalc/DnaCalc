@@ -849,6 +849,16 @@ impl LoadedWorkbook {
         }
     }
 
+    /// The custom XML items of the package whose document element is in `namespace`: each item
+    /// part's name and its bytes, in the order the package's relationships list them. An
+    /// application reads its own settings from such an item ([`crate::CustomXmlItem`]).
+    pub fn custom_xml(&self, namespace: &str) -> Result<Vec<(String, Vec<u8>)>, crate::PartReadError> {
+        crate::custom_xml::parts_in(&self.package, namespace)
+            .into_iter()
+            .map(|part| self.package.read_part(&part).map(|bytes| (part, bytes)))
+            .collect()
+    }
+
     /// Why the model's layout lacks what the package holds: a manifest that was not read, or a
     /// block whose locator did not resolve. Empty when the layout is all the package holds.
     pub fn layout_warnings(&self) -> &[LayoutWarning] {

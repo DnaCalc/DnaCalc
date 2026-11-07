@@ -4,13 +4,14 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 license.workspace = true
-description = "DNA OneCalc on the Windows desktop: the formula session over the loaded add-ins, no workbook and no calculation engine (today a command-line harness; the page follows)."
+description = "DNA OneCalc on the Windows desktop: the formula session over the loaded add-ins, no calculation engine; OneCalc's page in WebView2 over the native session (--app), and a command-line harness for the add-in comparisons."
 
 [package.metadata.dnacalc]
 portability = "native-only"
 
 # OneCalc's dependency ceiling applies to this executable: no calc-host and no calc-engine in its
-# closure (`cargo xtask sweep` checks it). Add-ins come through calc-addin-host, the window chain
+# closure (`cargo xtask sweep` checks it); calc-doc is allowed (the session file, through dna-onecalc).
+# calc-verdict supplies the SHA-256 a saved session lists for each loaded add-in. Add-ins come through calc-addin-host, the window chain
 # from calc-platform-desktop; this crate only drives the `Session`.
 [target.'cfg(windows)'.dependencies]
 dna-onecalc = { path = "../dna-onecalc" }
@@ -19,6 +20,7 @@ calc-platform-desktop = { path = "../../platform/calc-platform-desktop" }
 calc-xll-host = { path = "../../crates/calc-xll-host" }
 calc-xll-abi = { path = "../../crates/calc-xll-abi" }
 calc-value = { path = "../../crates/calc-value" }
+calc-verdict = { path = "../../tools/calc-verdict" }
 serde_json = "=1.0.154"
 
 [target.'cfg(windows)'.dev-dependencies]

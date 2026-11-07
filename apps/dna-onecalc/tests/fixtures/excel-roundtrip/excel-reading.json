@@ -1,0 +1,17 @@
+{
+ "sheets": 1,
+ "sheet_name": "Sheet1",
+ "formula": "=SUM(A1:A3)+LEN(B1)",
+ "formula2": "=SUM(A1:A3)+LEN(B1)",
+ "has_array": false,
+ "value2": 13.5,
+ "text": "13.5",
+ "cells": {
+  "A2": 2.0,
+  "B3": -2146826246,
+  "B1": "\u00e9 & <text>",
+  "A1": 1.5,
+  "B2": true
+ },
+ "note": "Excel 16 (owned session, 2026-11-07) opened onecalc-saved.xlsx and saved it as excel-saved.xlsx; its customXml/item1.xml holds the same options and add-in list as the one OneCalc wrote (Excel dropped only the line break after the XML declaration)."
+}

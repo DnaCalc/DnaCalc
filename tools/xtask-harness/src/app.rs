@@ -79,8 +79,13 @@ pub struct CaseGroup {
 
 /// Selection applies before building bundles or starting a browser. Explicit filters search
 /// the full suite unless `--suite core` is also supplied.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub(crate) struct SmokeSelection {
+    /// `--desktop EXE` (OneCalc): drive the page inside the WebView2 of the desktop exe, attached
+    /// to over its DevTools port, instead of the headless browsers.
+    desktop: Option<PathBuf>,
+    /// The DevTools address of that running WebView2 (set by the run itself).
+    attach: Option<String>,
     suite: Option<String>,
     groups: Vec<String>,
     cases: Vec<String>,
@@ -313,6 +318,9 @@ pub fn run(raw: &[String]) -> ExitCode {
                     ("--bundle", Some(dir)) => bundle_dir = Some(PathBuf::from(dir)),
                     ("--url", Some(page)) => url = Some(page.clone()),
                     ("--browser", Some(name)) => only = Some(name.clone()),
+                    ("--desktop", Some(exe)) if app.key == "onecalc" => {
+                        selection.desktop = Some(PathBuf::from(exe))
+                    }
                     ("--workbook", Some(path)) if app.key == "calc" => {
                         workbook = Some(PathBuf::from(path))
                     }
@@ -1049,6 +1057,7 @@ fn open_attached(browser:&Browser,download_root:&Path,locale:Option<&str>,attach
 /// WebDriver's codes for keys that are not characters.
 const TAB: &str = "\u{E004}";
 const ENTER: &str = "\u{E007}";
+const CTRL_SHIFT_ENTER: &str = "\u{E009}\u{E008}\u{E007}\u{E000}";
 const ESCAPE: &str = "\u{E00C}";
 const DELETE: &str = "\u{E017}";
 const F6: &str = "\u{E036}";
@@ -1096,9 +1105,6 @@ pub enum Action {
     /// Two real pointer clicks at the element's centre.
     DoubleClick(&'static str),
     ContextClick(&'static str, bool),
-    OpenFieldLink(&'static str),
-    RememberFieldLink(&'static str),
-    OpenRememberedLink,
     /// Reload the actual application, preserving browser personal templates.
     Reload,
     /// Two real clicks on a trailing row or column header boundary.
@@ -1110,6 +1116,11 @@ pub enum Action {
     DiscardReplacement,
     /// Only files in this browser session's own temporary download folder.
     ClearDownloads,
+    /// Write a session workbook into the downloads folder, as a file a person might open: its
+    /// name and its one formula's text as the file spells it (`_xlfn.SEQUENCE(2,2)`), at H1.
+    WriteSession(&'static str, &'static str),
+    /// Write these bytes into the downloads folder under this name (a file that is no workbook).
+    WriteDownload(&'static str, &'static [u8]),
     UploadDownload(&'static str),
     UploadDownloadTo(&'static str, &'static str),
     /// Prepare an explicitly manual cache fixture with the existing package-part editor.
@@ -1160,8 +1171,10 @@ pub enum Check {
     PrintDocument(usize),
     /// Browser visibility, including closed native disclosure contents (not viewport clipping).
     Rendered(&'static str, bool),
-    /// Read an actual session-owned JSON download.
-    DownloadedJson(&'static str, &'static str, &'static str),
+    /// Read an actual session-owned OneCalc session workbook download through the codec: a field
+    /// of the session it holds (`/formula`, `/array`, `/sheet`, `/cell/A1`, `/locale`,
+    /// `/number-format`, `/cached`).
+    DownloadedSession(&'static str, &'static str, &'static str),
     /// Exact semantic field from the renderer's live RenderPlan.
     PlanCell(&'static str, &'static str, &'static str),
     PlanAbsent(&'static str),
@@ -1290,10 +1303,9 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
             None,
         );
     }
-    if let Check::DownloadedJson(name, pointer, _) = check {
+    if let Check::DownloadedSession(name, field, _) = check {
         let bytes = fs::read(session.downloads.join(name)).map_err(|e| e.to_string())?;
-        let value: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
-        return Ok(value.pointer(pointer).cloned().unwrap_or(Value::Null));
+        return session_field(&bytes, field).map(Value::String);
     }
     let script = match check {
         Check::PrintRefreshed=>"const h=window.__dcPrintHold,p=document.querySelector('[data-dnacalc=print-workspace]'),c=p?.querySelector('canvas');return !!h&&!!p?.dataset.printEpoch&&p.dataset.printEpoch!==h.epoch&&!!c&&c.getAttribute('aria-label')!==h.values;".into(),
@@ -1301,7 +1313,7 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
 
         Check::MinHeight(name, pixels) => format!("var e={};return !!e&&e.getBoundingClientRect().height>={};",q(name),pixels),
         Check::Rendered(name, _) => format!("var e={};return e?e.checkVisibility():false;",q(name)),
-        Check::DownloadedJson(..) => unreachable!(),
+        Check::DownloadedSession(..) => unreachable!(),
         Check::HeaderHeightRetained => "var h=document.querySelector('.dc-mast')?.getBoundingClientRect().height,b=window.__dcHeaderHeight;return typeof h==='number'&&typeof b==='number'&&Math.abs(h-b)<1;".to_owned(),
         Check::PainterStable => format!("{READ_PLANS}return JSON.stringify(window.__dcPresentation)===JSON.stringify(plans[0]);"),
         Check::HashMask(address) => {
@@ -1469,7 +1481,7 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
                 .zip(v[1].as_f64())
                 .is_some_and(|(need, have)| need <= have + 1.0)
         }),
-        Check::DownloadedJson(_, _, expected)
+        Check::DownloadedSession(_, _, expected)
         | Check::Text(_, expected)
         | Check::PlanCell(_, _, expected)
         | Check::Value(_, expected)
@@ -1567,7 +1579,7 @@ fn describe(check: &Check) -> String {
             "the completed application print document has {pages} physical pages and decoded drawings"
         ),
         Check::Rendered(name, expected) => format!("the browser reports {name} rendered: {expected}"),
-        Check::DownloadedJson(name, pointer, expected) => format!("download {name} {pointer} is {expected:?}"),
+        Check::DownloadedSession(name, field, expected) => format!("download {name} {field} is {expected:?}"),
         Check::PlanCell(address, field, expected) => {
             format!("RenderPlan {address}.{field} is {expected:?}")
         }
@@ -1684,31 +1696,9 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             println!("{} WORKER finite calculation: {result}", app.label);
             Ok(())
         }
-        Action::RememberFieldLink(name) => {
-            let selector = serde_json::to_string(&select(app, name)).unwrap();
-            session.script(&format!(
-                "window.__ocSavedLink=document.querySelector({selector}).value;return null;"
-            ))?;
-            Ok(())
-        }
         Action::Reload => {
             let url=session.script("return window.location.href;")?.as_str().ok_or("No page URL")?.to_owned();
             session.post("/url",json!({"url":url}))?;Ok(())
-        }
-        Action::OpenRememberedLink => {
-            let url = session.script("return window.__ocSavedLink;")?;
-            let url = url.as_str().ok_or("No remembered session link")?;
-            session.post("/url", json!({"url":url}))?;
-            Ok(())
-        }
-        Action::OpenFieldLink(name) => {
-            let selector = serde_json::to_string(&select(app, name)).unwrap();
-            let url =
-                session.script(&format!("return document.querySelector({selector}).value;"))?;
-            let url = url.as_str().ok_or("The field did not contain a link")?;
-            session.post("/url", json!({"url":url}))?;
-            session.post("/refresh", json!({}))?;
-            Ok(())
         }
         Action::RememberView(name) => {
             // Name-box navigation resolves through the worker. Capture the selected view only
@@ -2091,13 +2081,32 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                     .map_err(|e| e.to_string())
             }
         }
+        Action::WriteSession(name, formula) => {
+            let file = calc_doc::SessionFile {
+                sheet: "Sheet1".to_owned(),
+                formula: Some(calc_doc::SessionFormula {
+                    row: 1,
+                    column: 8,
+                    text: formula.to_string(),
+                    array: calc_doc::SessionArray::Dynamic,
+                }),
+                constants: Vec::new(),
+                custom: None,
+                cached: None,
+            };
+            let bytes = calc_doc::write_session(&file).map_err(|e| e.to_string())?;
+            fs::write(session.downloads.join(name), bytes).map_err(|e| e.to_string())
+        }
+        Action::WriteDownload(name, bytes) => {
+            fs::write(session.downloads.join(name), bytes).map_err(|e| e.to_string())
+        }
         Action::UploadDownload(name) | Action::UploadDownloadTo(name, _) => {
             let path = session.downloads.join(name);
             downloaded_bytes(&path)?;
             upload(
                 app,
                 session,
-                match action { Action::UploadDownloadTo(_,role)=>role,_=>if app.key=="onecalc" {"fixture-file"}else{"open-file"} },
+                match action { Action::UploadDownloadTo(_,role)=>role,_=>if app.key=="onecalc" {"file-input"}else{"open-file"} },
                 &path,
             )
         }
@@ -2417,6 +2426,57 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
 
 /// A browser may create its final download name before finishing the file.
 /// Use the existing package reader to wait for complete workbook bytes.
+/// One field of the OneCalc session a downloaded workbook holds, read through calc-doc.
+fn session_field(bytes: &[u8], field: &str) -> Result<String, String> {
+    const NAMESPACE: &str = "urn:dnacalc:onecalc-session";
+    let file = calc_doc::read_session(bytes.to_vec(), NAMESPACE).map_err(|e| e.to_string())?;
+    let option = |name: &str| -> String {
+        let text = file
+            .custom
+            .as_ref()
+            .map(|item| String::from_utf8_lossy(&item.content).into_owned())
+            .unwrap_or_default();
+        let marker = format!("{name}=\"");
+        text.split_once(marker.as_str())
+            .and_then(|(_, rest)| rest.split_once('"'))
+            .map(|(value, _)| value.to_owned())
+            .unwrap_or_default()
+    };
+    Ok(match field {
+        "/formula" => file.formula.as_ref().map(|f| f.text.clone()).unwrap_or_default(),
+        "/array" => file
+            .formula
+            .as_ref()
+            .map(|f| format!("{:?}", f.array))
+            .unwrap_or_default(),
+        "/sheet" => file.sheet.clone(),
+        "/locale" => option("locale"),
+        "/number-format" => option("numberFormat"),
+        "/cached" => file.cached.as_ref().map(|v| format!("{v:?}")).unwrap_or_default(),
+        other => {
+            let address = other.strip_prefix("/cell/").ok_or(format!("no field {other}"))?;
+            let split = address.find(|c: char| c.is_ascii_digit()).ok_or("an address")?;
+            let (letters, digits) = address.split_at(split);
+            let column = letters
+                .bytes()
+                .fold(0u32, |n, b| n * 26 + u32::from(b.to_ascii_uppercase() - b'A' + 1));
+            let row: u32 = digits.parse().map_err(|_| "a row")?;
+            match file
+                .constants
+                .iter()
+                .find(|c| (c.row, c.column) == (row, column))
+                .map(|c| &c.value)
+            {
+                Some(calc_doc::SessionValue::Number(n)) => n.to_string(),
+                Some(calc_doc::SessionValue::Text(t)) => t.clone(),
+                Some(calc_doc::SessionValue::Logical(b)) => b.to_string().to_uppercase(),
+                Some(calc_doc::SessionValue::Error(code)) => format!("{code:?}"),
+                None => String::new(),
+            }
+        }
+    })
+}
+
 fn downloaded_bytes(path: &Path) -> Result<Vec<u8>, String> {
     let started = Instant::now();
     loop {
@@ -2907,12 +2967,22 @@ fn run_browser(
     if let Some(run) = workbook.filter(|r| r.renderer_report.is_some()) {
         return renderer::run_measurements(ws, app, browser, page, run);
     }
-    let (_driver, session) = open(browser, &ws.root.join("target/app-smoke-downloads"))?;
+    let (_driver, session) = open_attached(
+        browser,
+        &ws.root.join("target/app-smoke-downloads"),
+        None,
+        selection.attach.as_deref(),
+    )?;
     let page = renderer::page(page, selection.renderer.as_deref());
     let page = page.as_str();
     let outcome = (|| {
         let (mut passed, mut failed) = (0, 0);
         for group in app.groups {
+            // The desktop exe saves through a native dialog, which needs a person: groups that
+            // read the browser's own download are left out of its run.
+            if selection.attach.is_some() && group.name.ends_with("-browser") {
+                continue;
+            }
             let selected: Vec<usize> = (group.start..group.end)
                 .filter(|&i| selection.selected(group, i, &app.cases[i]))
                 .collect();
@@ -3157,6 +3227,59 @@ fn smoke_selected(
     };
     let mut all_passed = true;
     let mut summary = Vec::new();
+    // The desktop exe's WebView2, started here and stopped when this function ends.
+    let mut desktop_app = None;
+    let attached;
+    let selection = if let Some(exe) = &selection.desktop {
+        let upstream = match free_port() {
+            Ok(port) => port,
+            Err(e) => {
+                println!("{} DESKTOP did not start: {e}", app.label);
+                return ExitCode::from(1);
+            }
+        };
+        let child = match Command::new(exe)
+            .args(["--app", "--url", &page, "--debug-port", &upstream.to_string(), "--size", "1280x1000"])
+            .stdin(Stdio::null())
+            .spawn()
+        {
+            Ok(child) => child,
+            Err(e) => {
+                println!("{} DESKTOP cannot start {}: {e}", app.label, exe.display());
+                return ExitCode::from(1);
+            }
+        };
+        desktop_app = Some(DriverProcess { child, port: upstream });
+        let started = Instant::now();
+        while TcpStream::connect(("127.0.0.1", upstream)).is_err() {
+            if started.elapsed() > Duration::from_secs(60) {
+                println!("{} DESKTOP did not open its DevTools port", app.label);
+                return ExitCode::from(1);
+            }
+            thread::sleep(Duration::from_millis(200));
+        }
+        let version = variable_file(BROWSERS[0].variable)
+            .or_else(|| find_on_path(BROWSERS[0].program))
+            .and_then(|driver| cargo::output(Command::new(driver).arg("--version")).ok())
+            .map(|out| cargo::text(&out.stdout))
+            .and_then(|text| text.split_whitespace().nth(1).map(str::to_owned))
+            .unwrap_or_default();
+        let proxy = match paint::devtools_proxy(upstream, format!("Chrome/{version}")) {
+            Ok(port) => port,
+            Err(e) => {
+                println!("{} DESKTOP proxy: {e}", app.label);
+                return ExitCode::from(1);
+            }
+        };
+        attached = SmokeSelection {
+            attach: Some(format!("127.0.0.1:{proxy}")),
+            ..selection.clone()
+        };
+        &attached
+    } else {
+        selection
+    };
+    let only = if selection.desktop.is_some() { Some("chromium") } else { only };
     for browser in BROWSERS
         .iter()
         .filter(|b| only.is_none_or(|name| b.name == name))
@@ -3195,6 +3318,7 @@ fn smoke_selected(
             }
         }
     }
+    drop(desktop_app);
     if summary.is_empty() {
         println!("{} RESULT failed: no browser named {only:?}", app.label);
         return ExitCode::from(2);

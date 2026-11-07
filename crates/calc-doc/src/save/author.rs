@@ -459,6 +459,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
         && !links_changed
         && !validation_changed
         && views.is_none()
+        && edit.custom_xml.is_empty()
         && !panes_changed
         && !dimensions_changed
         && !tables_changed
@@ -1005,6 +1006,50 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
                 .extend([parts.item, parts.props, parts.relationships]);
         }
         None => {}
+    }
+    // Custom XML items an application keeps: the content of the package's own item of the
+    // namespace, or a new item with its item properties and relationship.
+    let mut used_numbers: Vec<u32> = out
+        .added
+        .iter()
+        .filter_map(|(name, _)| {
+            name.strip_prefix("customXml/item")
+                .and_then(|rest| rest.strip_suffix(".xml"))
+                .and_then(|n| n.parse().ok())
+        })
+        .collect();
+    for item in &edit.custom_xml {
+        if let Some(part) = crate::custom_xml::parts_in(package, &item.namespace).into_iter().next() {
+            out.rewritten.insert(part, item.content.clone());
+            continue;
+        }
+        let n = manifest::free_number_beyond(package, &used_numbers);
+        used_numbers.push(n);
+        let parts = manifest::new_parts_for(
+            n,
+            item.content.clone(),
+            &item.namespace,
+            &crate::custom_xml::item_id(&item.namespace),
+        );
+        let defaults = package.content_types().defaults();
+        let has_default = |extension: &str, content_type: &str| {
+            defaults
+                .iter()
+                .any(|(e, t)| e.eq_ignore_ascii_case(extension) && t == content_type)
+        };
+        relationships_added.push((CUSTOM_XML, relative_target(workbook_part, &parts.item.0)));
+        if !has_default("xml", manifest::ITEM_CONTENT_TYPE) {
+            overrides.push((parts.item.0.clone(), manifest::ITEM_CONTENT_TYPE));
+        }
+        overrides.push((parts.props.0.clone(), manifest::PROPS_CONTENT_TYPE));
+        if !has_default("rels", manifest::RELATIONSHIPS_CONTENT_TYPE) {
+            overrides.push((
+                parts.relationships.0.clone(),
+                manifest::RELATIONSHIPS_CONTENT_TYPE,
+            ));
+        }
+        out.added
+            .extend([parts.item, parts.props, parts.relationships]);
     }
 
     if chain.is_some() || !relationships_added.is_empty() {

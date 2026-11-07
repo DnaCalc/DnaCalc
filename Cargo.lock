@@ -1142,6 +1142,7 @@ dependencies = [
 name = "dna-onecalc"
 version = "0.1.0"
 dependencies = [
+ "calc-doc",
  "calc-fml",
  "calc-func",
  "calc-vba",
@@ -1164,6 +1165,7 @@ dependencies = [
  "calc-addin-host",
  "calc-platform-desktop",
  "calc-value",
+ "calc-verdict",
  "calc-xll-abi",
  "calc-xll-fixture",
  "calc-xll-host",

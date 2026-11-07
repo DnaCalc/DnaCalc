@@ -9,8 +9,9 @@
 //! - `provenance`: the whole provenance scan (`licence::check`): every file under calc-func and
 //!   calc-value has a licence-ledger entry, and no marker of a removed source reappears;
 //! - `ceiling`: the dependency ceiling on the host and wasm32: the resolved closures (normal and
-//!   build edges) of dna-onecalc and dna-formula-ui, the formula UI both apps show, hold none of
-//!   calc-engine, calc-doc and calc-host, and dna-calc does not depend directly on dna-onecalc
+//!   build edges) of dna-onecalc and dna-formula-ui, the formula UI both apps show, hold neither
+//!   calc-engine nor calc-host (calc-doc is allowed: OneCalc's file is a constrained workbook read
+//!   and written through the CalcDoc codec), and dna-calc does not depend directly on dna-onecalc
 //!   (what the apps share lives in dna-formula-ui); on the host, dna-onecalc-desktop, the shipped
 //!   OneCalc executable, holds neither calc-host nor calc-engine, and dna-calc-desktop holds no
 //!   dna-onecalc;
@@ -48,7 +49,7 @@ const STEPS: [&str; 6] = [
 
 /// The packages DNA OneCalc's ceiling covers, and the packages none of them may reach.
 const CEILING_PACKAGES: [&str; 2] = ["dna-onecalc", "dna-formula-ui"];
-const ABOVE_CEILING: [&str; 3] = ["calc-engine", "calc-doc", "calc-host"];
+const ABOVE_CEILING: [&str; 2] = ["calc-engine", "calc-host"];
 /// OneCalc's desktop executable (native-only, so checked on the host) and what it may not reach.
 const DESKTOP_CEILING_PACKAGES: [&str; 1] = ["dna-onecalc-desktop"];
 const ABOVE_DESKTOP_CEILING: [&str; 2] = ["calc-engine", "calc-host"];

@@ -12,7 +12,7 @@ fn python() -> Command {
 /// A pass-through TCP proxy to the app's DevTools port rewrites that one field to the driver's own
 /// version and relays every other byte (HTTP and WebSocket) untouched. The page, its protocol and
 /// the pixels are the real WebView2's; the capture record names the substitution.
-fn devtools_proxy(upstream: u16, product: String) -> Result<u16, String> {
+pub(super) fn devtools_proxy(upstream: u16, product: String) -> Result<u16, String> {
     let listener = TcpListener::bind(("127.0.0.1", 0)).map_err(|e| e.to_string())?;
     let port = listener.local_addr().map_err(|e| e.to_string())?.port();
     thread::spawn(move || {

@@ -71,6 +71,8 @@
 //! The codec opens no file: the source and the sink are supplied by the caller.
 
 mod blank;
+mod custom_xml;
+pub use custom_xml::CustomXmlItem;
 mod edit;
 mod formula_sources;
 pub use formula_sources::{FormulaSourceBudget, RegroupedFormulaSources, regroup_formula_sources};
@@ -80,13 +82,14 @@ pub use load::pivot;
 mod opc;
 mod policy;
 mod save;
+mod session;
 mod source;
 mod vba;
 mod xlsb;
 mod xml;
 mod zip;
 
-pub use blank::blank_package;
+pub use blank::{blank_package, blank_package_named};
 pub use calc_doc_model as model;
 pub use edit::{
     EditError, PreparedEdit, prepare_edit, prepare_sheet_edit, prepare_structural_edit,
@@ -111,6 +114,10 @@ pub use save::{
     merge_template_sheets, rename_template_sheet,
     DocumentSnapshot, SaveFormat, SavePlan, SavePolicy, SaveViews, SaveReceipt, SaveRefusal, StructuralEdits,
     WriteError, SpreadsheetFormat, conditional_rule, new_condition_rule, new_conditional_rule, prepare_save, write,
+};
+pub use session::{
+    SessionArray, SessionConstant, SessionFile, SessionFormula, SessionRefusal, SessionValue,
+    read_session, write_session,
 };
 pub use source::{MemorySource, PackageRead, PackageWrite, SinkError, SourceError};
 pub use vba::{VbaModuleKind, VbaModuleSource, VbaProjectSource, VbaReadError, VbaReadPolicy};

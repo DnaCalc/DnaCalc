@@ -1,6 +1,8 @@
-//! DNA OneCalc on the Windows desktop: today the command-line harness over `dna_onecalc::Session`
-//! (formulas without a workbook or a calculation engine), with the add-ins loaded through
-//! `calc-addin-host` and the window chain from `calc-platform-desktop`.
+//! DNA OneCalc on the Windows desktop. With `--app` it shows OneCalc's page in WebView2 over the
+//! native session ([`app`], [`host`]: open and save through the native dialogs, the add-ins loaded
+//! through `calc-addin-host`). Without it, it is the command-line harness over
+//! `dna_onecalc::Session` (formulas without a workbook or a calculation engine) that the add-in
+//! comparisons run, with the window chain from `calc-platform-desktop`.
 //!
 //! OneCalc's dependency ceiling holds here: this executable reaches no `calc-host` and no
 //! `calc-engine`. The harness for DNA Calc's workbook composition is the other executable,
@@ -20,6 +22,11 @@ pub unsafe extern "system" fn MdCallBack12(
 }
 
 #[cfg(windows)]
+mod app;
+#[cfg(windows)]
+mod host;
+
+#[cfg(windows)]
 const WORKBOOK: &str = "Book1";
 
 #[cfg(windows)]
@@ -28,6 +35,11 @@ fn run() -> Result<(), String> {
     use calc_platform_desktop::Shell;
     use calc_value::SheetId;
     use std::path::PathBuf;
+    // `--app`: the OneCalc page in WebView2 over the native session (src/app.rs).
+    let raw: Vec<String> = std::env::args().skip(1).collect();
+    if raw.first().map(String::as_str) == Some("--app") {
+        return app::run(&raw);
+    }
     let mut xlls = Vec::new();
     let mut formula = "=MyAdd(1,2)".to_owned();
     let mut self_test = false;

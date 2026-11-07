@@ -94,10 +94,29 @@ pub fn read_chosen(
     let Some(file) = input.files().and_then(|f| f.get(0)) else {
         return;
     };
+    read_file(file, limit, move |read| {
+        chosen(read);
+        input.set_value("");
+    });
+}
+#[cfg(not(target_arch = "wasm32"))]
+pub fn read_chosen(
+    _input: web_sys::HtmlInputElement,
+    _limit: Option<usize>,
+    _chosen: impl FnOnce(Result<(String, Vec<u8>), String>) + 'static,
+) {
+}
+
+/// Read a file the page holds (chosen in an input, or dropped on the page).
+#[cfg(target_arch = "wasm32")]
+pub fn read_file(
+    file: web_sys::File,
+    limit: Option<usize>,
+    chosen: impl FnOnce(Result<(String, Vec<u8>), String>) + 'static,
+) {
     let name = file.name();
     if limit.is_some_and(|limit| file.size() > limit as f64) {
         chosen(Err("The selected file exceeds the supported size".into()));
-        input.set_value("");
         return;
     }
     wasm_bindgen_futures::spawn_local(async move {
@@ -106,12 +125,11 @@ pub fn read_chosen(
             .map(|b| js_sys::Uint8Array::new(&b).to_vec())
             .map_err(|e| format!("{name} could not be read: {e:?}"));
         chosen(bytes.map(|bytes| (name, bytes)));
-        input.set_value("");
     });
 }
 #[cfg(not(target_arch = "wasm32"))]
-pub fn read_chosen(
-    _input: web_sys::HtmlInputElement,
+pub fn read_file(
+    _file: web_sys::File,
     _limit: Option<usize>,
     _chosen: impl FnOnce(Result<(String, Vec<u8>), String>) + 'static,
 ) {
