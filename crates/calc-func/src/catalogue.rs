@@ -31,6 +31,7 @@ mod distributions;
 mod engineering;
 mod error_fallback;
 mod euro_tools;
+mod fetching;
 mod financial;
 mod group_pivot;
 mod grouping;
@@ -54,7 +55,7 @@ mod text_functions;
 
 /// The family fragments that make up the catalogue. A new family adds its module above and one
 /// line here; its entries stay in its own file.
-const FAMILIES: [&Family; 32] = [
+const FAMILIES: [&Family; 33] = [
     &arithmetic::FAMILY,
     &comparison::FAMILY,
     &text::FAMILY,
@@ -64,6 +65,7 @@ const FAMILIES: [&Family; 32] = [
     &conditional::FAMILY,
     &error_fallback::FAMILY,
     &euro_tools::FAMILY,
+    &fetching::FAMILY,
     &lookup::FAMILY,
     &information::FAMILY,
     &reference_text::FAMILY,

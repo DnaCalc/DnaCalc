@@ -524,6 +524,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
         let mut sheet_values: Vec<Option<BTreeMap<(u32, u32), CachedValue>>> =
             vec![values.as_ref().map(|_| BTreeMap::new()); sheets.len()];
         let mut errors: Vec<WorksheetErrorCode> = Vec::new();
+        let mut images: Vec<calc_doc_model::value::ImageValue> = Vec::new();
         if let Some(values) = values {
             for (&at, value) in values.iter() {
                 let position = sheets.iter().position(|sheet| sheet.id() == at.sheet());
@@ -558,6 +559,11 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
                     && !errors.contains(code)
                 {
                     errors.push(*code);
+                }
+                if let CachedValue::Image(image) = value
+                    && !images.contains(image)
+                {
+                    images.push(image.clone());
                 }
                 if let Some(map) = sheet_values[position].as_mut() {
                     map.insert((at.row(), at.column()), value.clone());
@@ -598,7 +604,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
                 .position(|sheet| sheet.id() == anchor.sheet())
                 .is_some_and(|position| !written(position, (anchor.row(), anchor.column())))
         });
-        metadata = array_metadata::plan(package, workbook_part, dynamic, &errors)?;
+        metadata = array_metadata::plan(package, workbook_part, dynamic, &errors, &images)?;
         for (part, content) in std::mem::take(&mut metadata.rewritten) {
             out.rewritten.insert(part, content);
         }
@@ -733,6 +739,7 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
                 cache_state: cache_state.is_some(),
                 spills,
                 error_vm: &metadata.vm,
+                image_vm: &metadata.image_vm,
                 loaded: sheet,
                 model,
                 moves: moves[index].as_ref(),
@@ -967,6 +974,10 @@ pub(super) fn plan(package: &Package, edit: &Edited, views:Option<&super::SaveVi
         relationships_added.push((part.relationship, part.target));
         overrides.push((part.name.clone(), part.content_type));
         out.added.push((part.name, part.content));
+    }
+    for (name, content, content_type) in metadata.unrelated {
+        overrides.push((name.clone(), content_type));
+        out.added.push((name, content));
     }
     match layout.map(|layout| layout.manifest) {
         Some(ManifestChange::Rewrite { part, content }) => {

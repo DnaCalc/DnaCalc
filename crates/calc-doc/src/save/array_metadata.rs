@@ -24,7 +24,7 @@ use super::SaveRefusal;
 use super::author::new_part_name;
 use crate::load::metadata::{self, CellMeta};
 use crate::opc::Package;
-use calc_doc_model::value::WorksheetErrorCode;
+use calc_doc_model::value::{ImageValue, WorksheetErrorCode};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) const RELATIONSHIP: &str =
@@ -270,6 +270,17 @@ const RICH_VALUE_TYPE: &str = r#"<metadataType name="XLRICHVALUE" minSupportedVe
 const RICH_DATA_NAMESPACE: &str = "http://schemas.microsoft.com/office/spreadsheetml/2017/richdata";
 const ERROR_STRUCTURE: &str = r#"<s t="_error"><k n="errorType" t="i"/></s>"#;
 
+const WEB_IMAGE_RELATIONSHIP: &str =
+    "http://schemas.microsoft.com/office/2020/07/relationships/rdRichValueWebImage";
+const WEB_IMAGE_CONTENT_TYPE: &str = "application/vnd.ms-excel.rdrichvaluewebimage+xml";
+const WEB_IMAGE_NAMESPACE: &str =
+    "http://schemas.microsoft.com/office/spreadsheetml/2020/richdatawebimage";
+const RELATIONSHIPS_NAMESPACE: &str = "http://schemas.openxmlformats.org/package/2006/relationships";
+const OFFICE_RELATIONSHIPS: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+const RELATIONSHIPS_CONTENT_TYPE: &str =
+    "application/vnd.openxmlformats-package.relationships+xml";
+
 const RICH_VALUE_RELATIONSHIP: &str =
     "http://schemas.microsoft.com/office/2017/06/relationships/rdRichValue";
 const RICH_VALUE_CONTENT_TYPE: &str = "application/vnd.ms-excel.rdrichvalue+xml";
@@ -316,8 +327,12 @@ pub(super) struct MetadataPlan {
     pub(super) cm: Option<u32>,
     /// The `vm` of each newer error's record, by the error's `errorType`.
     pub(super) vm: BTreeMap<u32, u32>,
+    /// The `vm` of each picture's record.
+    pub(super) image_vm: Vec<(ImageValue, u32)>,
     pub(super) rewritten: Vec<(String, Vec<u8>)>,
     pub(super) added: Vec<NewPart>,
+    /// Parts no workbook relationship names (a media part, a relationships part).
+    pub(super) unrelated: Vec<(String, Vec<u8>, &'static str)>,
 }
 
 /// The 1-based index of the first `<child` start tag inside the element `parent` (whose start tag
@@ -352,13 +367,14 @@ pub(super) fn plan(
     workbook: &str,
     dynamic: bool,
     errors: &[WorksheetErrorCode],
+    images: &[ImageValue],
 ) -> Result<MetadataPlan, SaveRefusal> {
     let errors: BTreeSet<u32> = errors
         .iter()
         .filter_map(|code| rich_error_type(*code))
         .collect();
     let mut out = MetadataPlan::default();
-    if !dynamic && errors.is_empty() {
+    if !dynamic && errors.is_empty() && images.is_empty() {
         return Ok(out);
     }
     // The metadata part, with the dynamic-array record when one is needed.
@@ -396,8 +412,8 @@ pub(super) fn plan(
         }
     };
     let part_name = part.clone().unwrap_or_else(|| "xl/metadata.xml".to_owned());
-    if !errors.is_empty() {
-        add_errors(package, workbook, &part_name, &mut text, &errors, &mut out)?;
+    if !errors.is_empty() || !images.is_empty() {
+        add_rich_values(package, workbook, &part_name, &mut text, &errors, images, &mut out)?;
     }
     match part {
         Some(part) => {
@@ -426,13 +442,14 @@ pub(super) fn plan(
 }
 
 /// Appends to the metadata part's `text` (named `part`) and to the rich value parts one value
-/// metadata record for each of `errors`, recording each one's `vm` in `out`.
-fn add_errors(
+/// metadata record for each of `errors` and `images`, recording each one's `vm` in `out`.
+fn add_rich_values(
     package: &Package,
     workbook: &str,
     part: &str,
     text: &mut String,
     errors: &BTreeSet<u32>,
+    images: &[ImageValue],
     out: &mut MetadataPlan,
 ) -> Result<(), SaveRefusal> {
     // The rich value parts, read or new.
@@ -469,29 +486,27 @@ fn add_errors(
             "a rich value structure part whose elements carry a namespace prefix, which this writer does not extend",
         ));
     };
-    // The structure: an `_error` holding errorType alone, found or appended (0-based `s`).
-    let structure = match position_of(&structures_text, "rvStructures", "s", |_| true)
-        .and_then(|_| structures_text.find(ERROR_STRUCTURE))
-    {
-        Some(at) => {
-            let mut index = 0;
-            let mut from = s_root + "<rvStructures".len();
-            while let Some(found) = start_tag(&structures_text[from..at], "s") {
-                index += 1;
-                from += found + 2;
+    // A structure, found or appended (0-based `s`): an `_error` holding errorType alone, and a
+    // `_webimage` of each shape the pictures take.
+    let structure_index = |structures_text: &mut String, wanted: &str| {
+        match position_of(structures_text, "rvStructures", "s", |_| true)
+            .and_then(|_| structures_text.find(wanted))
+        {
+            Some(at) => {
+                let mut index = 0;
+                let mut from = s_root + "<rvStructures".len();
+                while let Some(found) = start_tag(&structures_text[from..at], "s") {
+                    index += 1;
+                    from += found + 2;
+                }
+                index
             }
-            index
-        }
-        None => {
-            let index = children(&structures_text, s_root, "rvStructures", "s");
-            append(
-                &mut structures_text,
-                s_root,
-                "rvStructures",
-                ERROR_STRUCTURE,
-            );
-            set_count(&mut structures_text, s_root, index + 1);
-            index
+            None => {
+                let index = children(structures_text, s_root, "rvStructures", "s");
+                append(structures_text, s_root, "rvStructures", wanted);
+                set_count(structures_text, s_root, index + 1);
+                index
+            }
         }
     };
     // The metadata type XLRICHVALUE, found or appended (1-based `t`).
@@ -520,14 +535,34 @@ fn add_errors(
             index
         }
     };
-    for &error_type in errors {
+    // Every record: one rich value, in the order errors then pictures.
+    let mut records: Vec<(String, Option<usize>, Option<u32>)> = Vec::new();
+    if !errors.is_empty() {
+        let structure = structure_index(&mut structures_text, ERROR_STRUCTURE);
+        for &error_type in errors {
+            records.push((
+                format!(r#"<rv s="{structure}"><v>{error_type}</v></rv>"#),
+                None,
+                Some(error_type),
+            ));
+        }
+    }
+    let first_image = web_image_count(package, workbook)?;
+    for (index, image) in images.iter().enumerate() {
+        let (shape, values) = web_image_value(image, first_image + index);
+        let structure = structure_index(&mut structures_text, &shape);
+        records.push((
+            format!(r#"<rv s="{structure}">{values}</rv>"#),
+            Some(index),
+            None,
+        ));
+    }
+    if !images.is_empty() {
+        add_web_images(package, workbook, images, out)?;
+    }
+    for (rich_value, image, error_type) in records {
         let rv = children(&values_text, rv_root, "rvData", "rv");
-        append(
-            &mut values_text,
-            rv_root,
-            "rvData",
-            &format!(r#"<rv s="{structure}"><v>{error_type}</v></rv>"#),
-        );
+        append(&mut values_text, rv_root, "rvData", &rich_value);
         set_count(&mut values_text, rv_root, rv + 1);
         let record = format!(
             r#"<bk><extLst><ext uri="{{3e2802c4-a4d2-4d8b-9148-e3be6c30e623}}"><xlrd:rvb xmlns:xlrd="{RICH_DATA_NAMESPACE}" i="{rv}"/></ext></extLst></bk>"#
@@ -566,8 +601,13 @@ fn add_errors(
                 1
             }
         };
-        out.vm
-            .insert(error_type, u32::try_from(vm).unwrap_or(u32::MAX));
+        let vm = u32::try_from(vm).unwrap_or(u32::MAX);
+        if let Some(error_type) = error_type {
+            out.vm.insert(error_type, vm);
+        }
+        if let Some(index) = image {
+            out.image_vm.push((images[index].clone(), vm));
+        }
     }
     match (rich_values, structures) {
         (Some(values), Some(structures)) => {
@@ -610,6 +650,130 @@ fn add_errors(
                 });
             }
         }
+    }
+    Ok(())
+}
+
+/// How many web images the package already holds.
+fn web_image_count(package: &Package, workbook: &str) -> Result<usize, SaveRefusal> {
+    match metadata::related(package, workbook, "/rdRichValueWebImage") {
+        Some(part) => Ok(read_text(package, &part)?.matches("<webImageSrd>").count()),
+        None => Ok(0),
+    }
+}
+
+/// A picture's `_webimage` structure and `<v>` values, as Excel 16.0.20527 writes them: the keys
+/// WebImageIdentifier, CalcOrigin (1), ComputedImage (0), then ImageHeight, ImageSizing,
+/// ImageWidth and Text as the call gave them.
+fn web_image_value(image: &ImageValue, identifier: usize) -> (String, String) {
+    let mut keys = String::from(
+        r#"<k n="WebImageIdentifier" t="i"/><k n="CalcOrigin" t="i"/><k n="ComputedImage" t="b"/>"#,
+    );
+    let mut values = format!("<v>{identifier}</v><v>1</v><v>0</v>");
+    if let Some(height) = image.height {
+        keys.push_str(r#"<k n="ImageHeight"/>"#);
+        values.push_str(&format!("<v>{height}</v>"));
+    }
+    keys.push_str(r#"<k n="ImageSizing" t="i"/>"#);
+    values.push_str(&format!("<v>{}</v>", image.sizing));
+    if let Some(width) = image.width {
+        keys.push_str(r#"<k n="ImageWidth"/>"#);
+        values.push_str(&format!("<v>{width}</v>"));
+    }
+    if let Some(text) = &image.alt_text {
+        keys.push_str(r#"<k n="Text" t="s"/>"#);
+        values.push_str(&format!("<v>{}</v>", xml_escaped(text)));
+    }
+    (format!(r#"<s t="_webimage">{keys}</s>"#), values)
+}
+
+fn xml_escaped(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
+/// Appends `images` to the web image part and its relationships, with one media part each.
+fn add_web_images(
+    package: &Package,
+    workbook: &str,
+    images: &[ImageValue],
+    out: &mut MetadataPlan,
+) -> Result<(), SaveRefusal> {
+    let existing = metadata::related(package, workbook, "/rdRichValueWebImage");
+    let mut part_text = match &existing {
+        Some(part) => read_text(package, part)?,
+        None => format!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<webImagesSrd xmlns=\"{WEB_IMAGE_NAMESPACE}\" xmlns:r=\"{OFFICE_RELATIONSHIPS}\"></webImagesSrd>"
+        ),
+    };
+    let (name, target) = match &existing {
+        Some(part) => (part.clone(), String::new()),
+        None => new_part_name(package, workbook, "richData/rdRichValueWebImage"),
+    };
+    let (folder, file) = name.rsplit_once('/').unwrap_or(("", &name));
+    let rels_name = format!("{folder}/_rels/{file}.rels");
+    let held = package.relationships_of(Some(&name));
+    let mut rels_text = match &held {
+        Some(_) => read_text(package, &rels_name)?,
+        None => format!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Relationships xmlns=\"{RELATIONSHIPS_NAMESPACE}\"></Relationships>"
+        ),
+    };
+    let used = held.map_or(0, |held| {
+        held.items()
+            .iter()
+            .filter_map(|item| item.id.strip_prefix("rId")?.parse::<usize>().ok())
+            .max()
+            .unwrap_or(0)
+    });
+    let mut entries = String::new();
+    let mut relationships = String::new();
+    let parent = workbook.rsplit_once('/').map_or("", |(parent, _)| parent);
+    let media_stem = if parent.is_empty() { "media/image" } else { "/media/image" };
+    let mut media_number = package
+        .parts()
+        .iter()
+        .filter(|part| part.name().contains("media/image"))
+        .count();
+    for (index, image) in images.iter().enumerate() {
+        let address = used + index * 2 + 1;
+        let blip = address + 1;
+        entries.push_str(&format!(
+            r#"<webImageSrd><address r:id="rId{address}"/><blip r:id="rId{blip}"/></webImageSrd>"#
+        ));
+        media_number += 1;
+        let extension = image.format.extension();
+        let media = format!("{parent}{media_stem}{media_number}.{extension}");
+        relationships.push_str(&format!(
+            r#"<Relationship Id="rId{address}" Type="{OFFICE_RELATIONSHIPS}/hyperlink" Target="{}" TargetMode="External"/><Relationship Id="rId{blip}" Type="{OFFICE_RELATIONSHIPS}/image" Target="../media/image{media_number}.{extension}"/>"#,
+            xml_escaped(&image.source)
+        ));
+        out.unrelated
+            .push((media, image.bytes.to_vec(), image.format.content_type()));
+    }
+    let close = "</webImagesSrd>";
+    let at = part_text.rfind(close).ok_or_else(|| invalid(&name, "a web image part without its end tag"))?;
+    part_text.insert_str(at, &entries);
+    let close = "</Relationships>";
+    let at = rels_text.rfind(close).ok_or_else(|| invalid(&rels_name, "a relationships part without its end tag"))?;
+    rels_text.insert_str(at, &relationships);
+    match existing {
+        Some(part) => out.rewritten.push((part, part_text.into_bytes())),
+        None => out.added.push(NewPart {
+            name,
+            target,
+            content: part_text.into_bytes(),
+            content_type: WEB_IMAGE_CONTENT_TYPE,
+            relationship: WEB_IMAGE_RELATIONSHIP,
+        }),
+    }
+    if held.is_some() {
+        out.rewritten.push((rels_name, rels_text.into_bytes()));
+    } else {
+        out.unrelated
+            .push((rels_name, rels_text.into_bytes(), RELATIONSHIPS_CONTENT_TYPE));
     }
     Ok(())
 }

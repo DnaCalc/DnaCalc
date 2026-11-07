@@ -95,6 +95,7 @@ fn handle(event: web_sys::MessageEvent) {
         let server = server.get_or_insert_with(|| {
             let mut server = crate::server::Server::new();
             server.set_calculation_budget(calc_host::WorkBudget::evaluations(64));
+            server.set_fetch_route(std::rc::Rc::new(BrowserFetch::default()));
             server
         });
         let (reply, out) = crate::server::answer_text(server, &text, bytes);
@@ -163,6 +164,64 @@ fn schedule_calculation() {
             id: None,
             message: "could not schedule the calculation continuation".into(),
         });
+    }
+}
+
+/// WEBSERVICE and IMAGE through the worker's `fetch`. A cross-origin URL answers only when its
+/// server allows it (CORS); anything the browser refuses is a failed fetch.
+#[cfg(target_arch = "wasm32")]
+#[derive(Debug, Default)]
+struct BrowserFetch {
+    next: std::cell::Cell<u64>,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl calc_func::FetchRoute for BrowserFetch {
+    fn begin(&self, request: calc_func::FetchRequest) -> u64 {
+        let id = self.next.get() + 1;
+        self.next.set(id);
+        wasm_bindgen_futures::spawn_local(async move {
+            let reply = fetch_url(&request.url).await;
+            let value = reply.into_value(request.kind);
+            let events = SERVER.with(|server| {
+                let mut server = server.borrow_mut();
+                let Some(server) = server.as_mut() else {
+                    return Vec::new();
+                };
+                server.complete_fetch(id, value);
+                server.take_events()
+            });
+            for event in events {
+                if !post_event(event) {
+                    return;
+                }
+            }
+            schedule_calculation();
+        });
+        id
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn fetch_url(url: &str) -> calc_func::FetchReply {
+    use calc_func::FetchReply;
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_futures::JsFuture;
+    let Ok(response) = JsFuture::from(scope().fetch_with_str(url)).await else {
+        return FetchReply::Failed;
+    };
+    let Ok(response) = response.dyn_into::<web_sys::Response>() else {
+        return FetchReply::Failed;
+    };
+    if response.status() >= 400 {
+        return FetchReply::Status(response.status());
+    }
+    let Ok(promise) = response.array_buffer() else {
+        return FetchReply::Failed;
+    };
+    match JsFuture::from(promise).await {
+        Ok(buffer) => FetchReply::Body(js_sys::Uint8Array::new(&buffer).to_vec()),
+        Err(_) => FetchReply::Failed,
     }
 }
 

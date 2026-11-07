@@ -4,7 +4,7 @@
 
 use super::{FunctionFileForm, Prefix};
 
-pub(super) const FUNCTIONS: [FunctionFileForm; 509] = [
+pub(super) const FUNCTIONS: [FunctionFileForm; 510] = [
     FunctionFileForm {
         name: "ABS",
         prefix: Prefix::Bare,
@@ -3427,6 +3427,13 @@ pub(super) const FUNCTIONS: [FunctionFileForm; 509] = [
         first_count: 1,
         bases: &[true, true],
         positions: &[true, true],
+    },
+    FunctionFileForm {
+        name: "WEBSERVICE",
+        prefix: Prefix::Xlfn,
+        first_count: 1,
+        bases: &[false],
+        positions: &[true],
     },
     FunctionFileForm {
         name: "WEEKDAY",

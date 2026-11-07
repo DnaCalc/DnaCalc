@@ -148,6 +148,8 @@ fn library_workbook(formulas: &[&str]) -> Vec<u8> {
             2 => r#"<c r="E2"><v>2</v></c><c r="F2" t="b"><v>1</v></c>"#,
             3 => r#"<c r="E3"><v>3</v></c>"#,
             4 => r#"<c r="F4" t="inlineStr"><is><t>text</t></is></c>"#,
+            5 => r#"<c r="F5" t="inlineStr"><is><t>DEM</t></is></c>"#,
+            6 => r#"<c r="F6"><v>3</v></c>"#,
             _ => "",
         };
         rows.push_str(&format!(

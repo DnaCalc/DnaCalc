@@ -229,6 +229,7 @@ impl Sheet<'_> {
         };
         Ok(match self.context.metadata.value(vm) {
             ValueMeta::Error(code) => Ok(CachedValue::Error(code)),
+            ValueMeta::Image(image) => Ok(CachedValue::Image(image)),
             ValueMeta::UnknownErrorType { error_type } => Err(UnloadedCell::RichValue {
                 structure: format!("_error with errorType {error_type}"),
             }),
@@ -238,6 +239,24 @@ impl Sheet<'_> {
             }
         })
     }
+    /// A rich value the model does not represent: the cell is unloaded, and its fallback `<v>`
+    /// is kept as what the file cached for it.
+    fn unloaded_rich(
+        &mut self,
+        row: u32,
+        column: u32,
+        kind: Option<&str>,
+        text: &str,
+        why: UnloadedCell,
+    ) {
+        if let Ok(fallback) = self.value(kind, text) {
+            let cache = FileCached::new(fallback, Arc::clone(&self.part));
+            self.load.value_caches.insert((row, column), cache);
+        }
+        let key = self.key(row, column);
+        self.load.unloaded.push((key, why));
+    }
+
     fn key(&self, row: u32, column: u32) -> CellKey {
         CellKey::new(self.id, row, column).expect("a cell the loader checked lies inside the grid")
     }
@@ -568,15 +587,15 @@ impl Sheet<'_> {
                 Ok(CachedValue::Text(text)) => Some(CellInput::Text(text)),
                 Ok(CachedValue::Logical(logical)) => Some(CellInput::Logical(logical)),
                 Ok(CachedValue::Error(code)) => Some(CellInput::Error(code)),
+                // A picture with no formula is no input the model holds.
+                Ok(CachedValue::Image(_)) => {
+                    self.unloaded_rich(row, column, kind, &text, UnloadedCell::RichValue {
+                        structure: "_webimage".to_owned(),
+                    });
+                    None
+                }
                 Err(why) => {
-                    // A rich value the model does not represent: the cell is unloaded, and its
-                    // fallback `<v>` is kept as what the file cached for it.
-                    if let Ok(fallback) = self.value(kind, &text) {
-                        let cache = FileCached::new(fallback, Arc::clone(&self.part));
-                        self.load.value_caches.insert((row, column), cache);
-                    }
-                    let key = self.key(row, column);
-                    self.load.unloaded.push((key, why));
+                    self.unloaded_rich(row, column, kind, &text, why);
                     None
                 }
             },
