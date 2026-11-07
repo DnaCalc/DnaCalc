@@ -26,7 +26,7 @@ use crate::grid::{self, Entry};
 use crate::result::{self, ResultView};
 use crate::session::{InputValue, Session};
 use calc_fml::syntax::TextSpan;
-use calc_fml::{CalcEnvironment, DateSystem, FormatProfile, FormulaForm};
+use calc_fml::{CalcEnvironment, FormatProfile, FormulaForm};
 use calc_func::help;
 use calc_func::value::CellKey;
 use dna_formula_ui::editor::browse;
@@ -128,35 +128,14 @@ pub fn mount(parent: HtmlElement) -> Mounted {
 
 /// The typed value a row's entry gives under its kind, or why it gives none.
 fn entry_value(session: &Session, kind: &str, entry: &str) -> Result<InputValue, String> {
-    let text = entry.trim();
-    let refused = |error| display::input_error(session, &error);
-    match kind {
-        "number" => match text.parse::<f64>() {
-            Ok(number) => InputValue::number(number).map_err(refused),
-            Err(_) => Err(format!("{entry:?} is not a number")),
-        },
-        "text" => InputValue::text(entry).map_err(refused),
-        "logical" if text.eq_ignore_ascii_case("TRUE") => Ok(InputValue::logical(true)),
-        "logical" if text.eq_ignore_ascii_case("FALSE") => Ok(InputValue::logical(false)),
-        "logical" => Err(format!("{entry:?} is neither TRUE nor FALSE")),
-        "error" => grid::error_literal(text)
-            .map(InputValue::error)
-            .ok_or_else(|| format!("{entry:?} is not a worksheet error such as #N/A")),
-        "blank" => Ok(InputValue::blank()),
-        other => Err(format!("{other:?} is not a kind of input")),
-    }
+    crate::port::entry_value(session, kind, entry)
 }
 
 /// The calculation environment the surface gives the session: the 1900 date system, the selected
 /// locale profile, and this browser's clock for NOW and TODAY (no clock off the browser, which
 /// refuses them).
 fn environment(locale: &str) -> CalcEnvironment {
-    CalcEnvironment {
-        compatibility_version: 1,
-        date_system: DateSystem::System1900,
-        profile: FormatProfile::for_culture(locale),
-        now: dna_formula_ui::web::serial_clock(),
-    }
+    crate::port::environment(locale, dna_formula_ui::web::serial_clock())
 }
 
 /// The grid's cell at a 0-based index, row by row.

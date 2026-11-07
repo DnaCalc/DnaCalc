@@ -25,6 +25,7 @@
 pub mod display;
 mod fixture;
 pub mod grid;
+pub mod port;
 pub mod result;
 mod session;
 pub mod surface;

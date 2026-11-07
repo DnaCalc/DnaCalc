@@ -349,6 +349,11 @@ impl Session {
         Ok(names)
     }
 
+    /// The names of the callable user functions (add-in registrations and VBA), in table order.
+    pub fn user_function_names(&self) -> Vec<String> {
+        self.functions.names().map(str::to_owned).collect()
+    }
+
     pub fn clear_user_functions(&mut self) {
         self.set_user_functions(calc_fml::CallableTable::new());
     }
