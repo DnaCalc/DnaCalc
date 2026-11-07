@@ -350,19 +350,6 @@ fn gamma_seed(y: f64) -> f64 {
     num / den + 1.0
 }
 
-/// The multiplicative Stirling series `1 + 1/(12x) + ...` for `x >= 10`. Excel's stored value is
-/// binary64; the true series stands in for its coefficients, which are not identified.
-fn stirling_series(x: f64) -> f64 {
-    let z = 1.0 / x;
-    let u = z * z;
-    let mut c = 3617.0 / 122400.0;
-    for term in [1.0 / 156.0, 691.0 / 360360.0, 1.0 / 1188.0, 1.0 / 1680.0, 1.0 / 1260.0, 1.0 / 360.0, 1.0 / 12.0] {
-        c = term - u * c;
-    }
-    c *= z;
-    1.0 + c * (1.0 + c / 2.0 * (1.0 + c / 3.0 * (1.0 + c / 4.0 * (1.0 + c / 5.0))))
-}
-
 /// `x^n` from the low bit up. Each square and each partial product is stored to binary64.
 fn integer_power(x: f64, mut n: u32) -> f64 {
     let (mut product, mut square) = (None, x);
@@ -381,21 +368,21 @@ fn integer_power(x: f64, mut n: u32) -> f64 {
     product.unwrap_or(1.0)
 }
 
-/// `GAMMA(x)` for `x >= 10`: `sqrt(2 pi) * x^x * exp(-x) / sqrt(x) * w`, with `w` the Stirling
-/// series.
+/// `GAMMA(x)` for `x >= 10`: `sqrt(2 pi) * x^x * exp(-x) * sqrt(1/x) * exp(s(x))`, with `s` the Stirling
+/// error of the masses, the same ten terms stored once.
 ///
 /// With `n = floor(x/2)` and `f = x/2 - n`, `v = x^(x/2)` is `x^n`, by binary powering with stored
 /// squares, times `exp(f * ln x)`, where `ln x`, their product and the exponential are stored, and
-/// `v` is stored. Then `u = v * exp(-x) / sqrt(x)` runs in the 64-bit registers from the stored
-/// `exp(-x)` and an unstored square root, and each of `u`, `u * v`, the product with the constant
-/// and the product with `w` is stored.
+/// `v` is stored. `1/x` and its square root are stored; so are their product with the stored
+/// `exp(-x)`, then that times `v`, and again times `v`, then the constant, then `EXP(s(x))`.
 ///
-/// Read from Excel 16.0.20527 answers on windows of 2,048 and 4,096 consecutive doubles from 10
-/// to 170. Lines at `2m`, `8(m-1)`, `32(m-1)` (`m` the significand of `x`) with weights `x/2`, `x/4`
-/// and `x/8` are the stored `x^2`, `x^4`, `x^8`; a line at `1/x` in units of `ulp(ln x)`, weight
-/// `2f`, is the stored logarithm; the residual bias of +0.66 of 2^-53 is the constant. Of 59,200
-/// answers from 36 to 170, 69% agree in every bit with `w` the true series; the misses are 1 or 2
-/// ULP and stand as the next target.
+/// Read from Excel 16.0.20527 answers on windows of consecutive doubles from 10 to 170. Lines at
+/// `2m`, `8(m-1)`, `32(m-1)` (`m` the significand of `x`) with weights `x/2`, `x/4` and `x/8` are the
+/// stored `x^2`, `x^4`, `x^8`; a line at `1/x` in units of `ulp(ln x)`, weight `2f`, is the stored
+/// logarithm; the residual bias of +0.66 of 2^-53 is the constant. With those in, the lines left
+/// in the misses at 50.3 stood at the frequencies of `1/x` and `sqrt(1/x)`: 17,988 of 18,000 adjacent
+/// doubles there, 5,994 of 6,000 from 36 to 170. From 10 to 36 `s(x)` matters and `w` is its stored
+/// exponential: 5,970 of 6,000, where a truncated series left a slope of a unit near 11.
 fn gamma_stirling(x: f64) -> f64 {
     use super::soft87::ext_from_f64 as ext;
     use super::{CW, Fpu, Native};
@@ -404,12 +391,10 @@ fn gamma_stirling(x: f64) -> f64 {
     let n = half.floor();
     let root = super::excel_exp(super::excel_x87_mul(half - n, super::excel_log(x)));
     let v = super::excel_x87_mul(integer_power(x, n as u32), root);
-    let scaled = Native::store(
-        &Native::div(&Native::mul(&ext(v), &ext(super::excel_exp(-x)), CW), &Native::sqrt(&ext(x), CW), CW),
-        CW,
-    );
+    let root_of_reciprocal = Native::store(&Native::sqrt(&ext(super::excel_x87_div(1.0, x)), CW), CW);
+    let scaled = super::excel_x87_mul(v, super::excel_x87_mul(super::excel_exp(-x), root_of_reciprocal));
     let body = super::excel_x87_mul(super::excel_x87_mul(scaled, v), SQRT_2PI);
-    super::excel_x87_mul(body, stirling_series(x))
+    super::excel_x87_mul(body, super::excel_exp(super::excel_stirling_series(x)))
 }
 
 /// `(x-1)(x-2)...(1+y) * seed`, the product from the top, every step stored.
