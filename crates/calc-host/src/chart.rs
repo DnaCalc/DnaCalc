@@ -785,8 +785,10 @@ pub(crate) fn prepare_create(host:&HostState,revision:u64,area:calc_value::GridA
     ]};
     if kind=="scatter"{axes[0].cross_between=Some("between".into());}
     if combo{
-        axes.push(ChartAxis{id:3,cross_axis:Some(4),kind:"catAx".into(),position:Some("t".into()),..Default::default()});
+        // Excel (UI28 combos-created.xlsx): the secondary value axis, then the deleted secondary
+        // category axis at the bottom.
         axes.push(ChartAxis{id:4,cross_axis:Some(3),kind:"valAx".into(),position:Some("r".into()),cross_between:Some("between".into()),..Default::default()});
+        axes.push(ChartAxis{id:3,cross_axis:Some(4),kind:"catAx".into(),position:Some("b".into()),..Default::default()});
     }
     let mut plots=vec![ChartPlot{kind:plot_kind.into(),bar_direction:dir.map(str::to_owned),grouping:(!pie&&kind!="scatter").then(||if plot_kind=="barChart"{"clustered"}else{"standard"}.into()),vary_colors:pie,series,axis_ids:if pie{Vec::new()}else{vec![1,2]}}];
     if kind=="combo-three"{
