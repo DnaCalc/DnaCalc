@@ -1351,3 +1351,74 @@ mod lambda {
         assert_eq!(book.dynamic("=LAMBDA(x,x)").as_error(), Some(W::Calc));
     }
 }
+
+/// A VBA function of the registry's name: the registry holds `Identity` under each name.
+#[derive(Debug)]
+struct Identity;
+impl calc_func::UserFunction for Identity {
+    fn call(&self, arguments: &[CalcValue]) -> Result<CalcValue, String> {
+        Ok(arguments.first().cloned().unwrap_or_else(CalcValue::empty))
+    }
+}
+
+impl Book {
+    /// A dynamic-array formula's value at Z100 with `functions` as the workbook's VBA functions.
+    fn with_functions(&mut self, formula: &str, functions: &calc_fml::CallableTable) -> CalcValue {
+        let anchor = FormulaAnchor::new(self.at("Z100"));
+        let plan = calc_fml::compile_with_functions(
+            &parse_formula(formula),
+            ReferenceNotation::A1,
+            anchor,
+            &self.catalog,
+            &mut PlanCache::new(),
+            FormulaForm::Dynamic,
+            functions,
+        )
+        .unwrap();
+        let instance = instantiate(&plan, anchor);
+        let mut scratch = EvalScratch::new();
+        let mut services = FormulaEvaluationContext::new(
+            &NumericMode::Fast,
+            &mut self.reader,
+            None,
+            None,
+            calc_fml::ReadRequest::DEPENDENCY,
+        )
+        .with_catalog(&self.catalog)
+        .with_functions(functions);
+        evaluate(EvalFrame::new(&instance, &mut scratch), &mut services).expect("it evaluates")
+    }
+}
+
+/// UI30 (Excel 16.0.20527, measured by COM): a built-in typed bare where a LAMBDA value is taken
+/// works (`=MAP({1,2,3},SUM)`); `=SUM` alone is #CALC!; a named LAMBDA passed bare works (6, 30,
+/// 60); an unknown name passed bare is #VALUE!; a VBA function passed bare is #VALUE!, and one
+/// named SUM shadows bare SUM with #VALUE!.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn bare_function_names_are_function_values() {
+    let mut book = Book::new();
+    book.name("Tri", "=LAMBDA(x,x*3)");
+    assert_eq!(book.dynamic("=MAP({1,2,3},SUM)"), numbers(&[&[1.0, 2.0, 3.0]]));
+    assert_eq!(book.dynamic("=MAP({1,2,3},sum)"), numbers(&[&[1.0, 2.0, 3.0]]));
+    assert_eq!(book.dynamic("=BYROW({1,2;3,4},SUM)"), numbers(&[&[3.0], &[7.0]]));
+    assert_eq!(book.dynamic("=BYCOL({1,2;3,4},MAX)"), numbers(&[&[3.0, 4.0]]));
+    assert_eq!(book.dynamic("=REDUCE(0,{1,2,3},SUM)"), n(6.0));
+    // The cell holds #CALC! (the value also carries the function it would call).
+    assert!(matches!(
+        book.dynamic("=SUM").core_ref(),
+        calc_func::value::CoreRef::Error(W::Calc)
+    ));
+    assert_eq!(book.dynamic("=MAP({2,10,20},Tri)"), numbers(&[&[6.0, 30.0, 60.0]]));
+    assert_eq!(book.dynamic("=MAP({1,2},Nope)"), e(W::Value));
+    let mut functions = calc_fml::CallableTable::new();
+    for name in ["MyFunc", "SUM"] {
+        functions.register(name, std::rc::Rc::new(Identity)).unwrap();
+    }
+    assert_eq!(book.with_functions("=MAP({1,2},MyFunc)", &functions), e(W::Value));
+    assert_eq!(book.with_functions("=MAP({1,2},MyFunc())", &functions), e(W::Value));
+    assert_eq!(book.with_functions("=MAP({1,2},Module1.MyFunc)", &functions), e(W::Value));
+    assert_eq!(book.with_functions("=MAP({1,2,3},SUM)", &functions), e(W::Value));
+    // A VBA function does not change a built-in of another name.
+    assert_eq!(book.with_functions("=MAP({1,2,3},MAX)", &functions), numbers(&[&[1.0, 2.0, 3.0]]));
+}
