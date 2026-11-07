@@ -54,7 +54,9 @@ fn plan(c: &Case) -> Result<PrintPlan, String> {
     }
     let mut g = Geometry::default();
     g.default_row_height = Some(c.row_height);
-    g.default_column_width = Some(c.column_width);
+    // The workbooks size columns A to P and leave the rest at the default width.
+    g.default_column_width = Some(9.140625);
+    g.columns.push((1, 16, Some(c.column_width), false));
     let areas: Vec<Area> = c.areas.iter().map(|a| area(*a)).collect();
     paginate(&s, &g, &areas, c.title_rows, c.title_columns)
 }

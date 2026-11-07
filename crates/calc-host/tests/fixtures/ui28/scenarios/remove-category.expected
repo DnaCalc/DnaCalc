@@ -1,0 +1,38 @@
+P	A3	s	Region
+P	B3	s	Product
+P	C3	s	Sum Amount
+P	A4	s	East
+P	B4	s	Alpha
+P	C4	n	1296
+P	B5	s	Beta
+P	C5	n	778.5
+P	A6	s	East Total
+P	C6	n	2074.5
+P	A7	s	North
+P	B7	s	Alpha
+P	C7	n	432
+P	B8	s	Beta
+P	C8	n	227.5
+P	A9	s	North Total
+P	C9	n	659.5
+P	A10	s	South
+P	B10	s	Alpha
+P	C10	n	1426.5
+P	B11	s	Beta
+P	C11	n	582.75
+P	A12	s	South Total
+P	C12	n	2009.25
+P	A13	s	West
+P	B13	s	Alpha
+P	C13	n	1548.25
+P	B14	s	Beta
+P	C14	n	713.25
+P	A15	s	West Total
+P	C15	n	2261.5
+P	A16	s	(blank)
+P	B16	s	Alpha
+P	C16	n	158
+P	A17	s	(blank) Total
+P	C17	n	158
+P	A18	s	Grand Total
+P	C18	n	7162.75

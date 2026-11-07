@@ -1,0 +1,53 @@
+P	A3	s	Region
+P	B3	s	Product
+P	C3	s	Sum Amount
+P	A4	s	East
+P	B4	s	Alpha
+P	C4	n	691.5
+P	B5	s	Beta
+P	C5	n	778.5
+P	B6	s	Gamma
+P	C6	n	490
+P	A7	s	East Total
+P	C7	n	1960
+P	A8	s	North
+P	B8	s	Alpha
+P	C8	n	100
+P	B9	s	Beta
+P	C9	n	227.5
+P	B10	s	Gamma
+P	C10	n	332
+P	A11	s	North Total
+P	C11	n	659.5
+P	A12	s	South
+P	B12	s	Alpha
+P	C12	n	756.75
+P	B13	s	Beta
+P	C13	n	475.5
+P	B14	s	Gamma
+P	C14	n	669.75
+P	B15	s	Zeta
+P	C15	n	107.25
+P	A16	s	South Total
+P	C16	n	2009.25
+P	A17	s	West
+P	B17	s	Alpha
+P	C17	n	748
+P	B18	s	Beta
+P	C18	n	713.25
+P	B19	s	Gamma
+P	C19	n	800.25
+P	A20	s	West Total
+P	C20	n	2261.5
+P	A21	s	(blank)
+P	B21	s	Gamma
+P	C21	n	158
+P	A22	s	(blank) Total
+P	C22	n	158
+P	A23	s	Aardvark
+P	B23	s	Gamma
+P	C23	n	114.5
+P	A24	s	Aardvark Total
+P	C24	n	114.5
+P	A25	s	Grand Total
+P	C25	n	7162.75
