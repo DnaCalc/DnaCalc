@@ -650,7 +650,7 @@ pub(crate) const ONECALC_GROUPS: &[CaseGroup] = &[
         name: "files",
         start: 32,
         end: 36,
-        core: 2,
+        core: 0,
         setup: &[],
     },
     CaseGroup {
