@@ -34,7 +34,7 @@ fn accept_negative_base_odd_root(power: f64) -> bool {
 /// LSB-first (right-to-left) square-and-multiply `base^n` for `n >= 0`, with
 /// staged products followed by binary64 stores (W111 numerical observations,
 /// distinct from `powf`). Returns the POSITIVE power; the caller reciprocates.
-fn binexp_positive(base: f64, mut n: u64) -> f64 {
+pub(crate) fn binexp_positive(base: f64, mut n: u64) -> f64 {
     let mut acc = 1.0;
     let mut b = base;
     while n > 0 {

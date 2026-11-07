@@ -8,38 +8,35 @@ python3 racer/corpus_cases.py problem-functions ../DnaCalc ../DnaCalc/docs/gener
 
 Last-bit: finite numeric mismatches <=16 ULP; larger numeric: >16 ULP. This split is triage, not a relaxed verdict. Every mismatch, refusal, unread, missing, pending, external and circular-policy cell remains an inclusive failure. Corpus labels follow exact single-cell aliases, infer calls from formula spelling and unwrap INDEX selections; unresolved references and infix operators remain explicit. Bank functions use canonical judge identities. Counts are observations per source; corpus and bank may overlap and must not be added as unique calls. Bank reference/locale context gaps remain failures, not proven numerical defects.
 
-Corpus: 53,052/54,794 matched (96.82082%); 1,742 inclusive failures, including 100 pending.
-Bank: 3,872,170/3,910,007 matched (99.03230%); 37,837 failures, including 116 unread.
+Corpus: 53,105/54,794 matched (96.91755%); 1,689 inclusive failures, including 100 pending.
+Bank: 3,885,745/3,910,007 matched (99.37949%); 24,262 failures, including 116 unread.
 
 Larger numeric and last-bit columns count numeric mismatches; other columns count remaining mismatches. Bank refusals and unread rows are separate. Corpus refusals/missing are recorded in the JSON, outside the mismatch table.
 
 | Function | Corpus larger | Corpus last-bit | Corpus other | Bank larger | Bank last-bit | Bank other | Bank refused | Bank unread |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | BETA.DIST | 0 | 1 | 0 | 574 | 1,363 | 0 | 0 | 0 |
-| LOGNORM.DIST | 0 | 1 | 0 | 559 | 2,090 | 0 | 0 | 0 |
-| YIELD | 31 | 5 | 6 | 424 | 95 | 0 | 0 | 0 |
+| YIELD | 31 | 5 | 6 | 422 | 95 | 0 | 0 | 0 |
 | RATE | 35 | 0 | 9 | 339 | 20 | 13 | 0 | 0 |
-| NEGBINOMDIST | 0 | 18 | 0 | 335 | 1,254 | 0 | 0 | 0 |
 | IRR | 9 | 1 | 3 | 299 | 95 | 17 | 0 | 0 |
 | ROUNDUP | 0 | 0 | 0 | 236 | 327 | 0 | 0 | 0 |
 | ROUNDDOWN | 0 | 0 | 0 | 236 | 321 | 0 | 0 | 0 |
 | TRUNC | 0 | 0 | 0 | 236 | 321 | 0 | 0 | 0 |
 | LINEST | 208 | 19 | 26 | 0 | 0 | 0 | 0 | 0 |
 | LOGEST | 150 | 12 | 81 | 0 | 0 | 0 | 0 | 0 |
-| KURT | 0 | 0 | 0 | 145 | 1,154 | 0 | 0 | 0 |
-| NEGBINOM.DIST | 0 | 17 | 0 | 48 | 102 | 0 | 0 | 0 |
 | BINOM.DIST | 12 | 60 | 0 | 28 | 90 | 0 | 0 | 0 |
 | ODDFYIELD | 30 | 0 | 14 | 0 | 0 | 0 | 0 | 0 |
 | PPMT | 18 | 33 | 0 | 0 | 8 | 0 | 0 | 0 |
 | BETADIST | 0 | 12 | 0 | 17 | 137 | 0 | 0 | 0 |
+| NEGBINOM.DIST | 1 | 1 | 0 | 16 | 53 | 0 | 0 | 0 |
 | CUMIPMT | 1 | 51 | 0 | 15 | 10 | 0 | 0 | 0 |
 | PV | 0 | 0 | 0 | 15 | 147 | 0 | 0 | 0 |
 | FDIST | 0 | 2 | 0 | 13 | 3,745 | 0 | 0 | 0 |
 | CUMPRINC | 13 | 155 | 0 | 0 | 356 | 0 | 0 | 0 |
 | F.TEST | 0 | 0 | 0 | 13 | 48 | 0 | 0 | 0 |
-| IPMT | 11 | 54 | 2 | 0 | 7 | 0 | 0 | 0 |
+| IPMT | 11 | 54 | 2 | 0 | 3 | 0 | 0 | 0 |
 | GAMMA.INV | 0 | 1 | 0 | 7 | 138 | 0 | 0 | 0 |
-| POISSON.DIST | 4 | 19 | 0 | 0 | 558 | 0 | 0 | 4 |
+| POISSON.DIST | 4 | 18 | 0 | 0 | 558 | 0 | 0 | 4 |
 | HYPGEOM.DIST | 2 | 2 | 0 | 2 | 92 | 0 | 0 | 0 |
 | TINV | 0 | 2 | 0 | 4 | 13 | 0 | 0 | 0 |
 | CHIINV | 0 | 0 | 0 | 3 | 67 | 0 | 0 | 0 |
@@ -51,8 +48,8 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | FLOOR.PRECISE | 0 | 0 | 0 | 2 | 0 | 0 | 10 | 0 |
 | ISO.CEILING | 0 | 0 | 0 | 2 | 0 | 0 | 10 | 0 |
 | SWITCH | 0 | 0 | 0 | 2 | 0 | 0 | 2 | 0 |
-| CHIDIST | 0 | 2 | 0 | 1 | 99 | 0 | 0 | 0 |
 | CHISQ.INV | 0 | 1 | 0 | 1 | 26 | 0 | 0 | 0 |
+| CHIDIST | 0 | 2 | 0 | 1 | 16 | 0 | 0 | 0 |
 | BINOM.DIST.RANGE | 0 | 0 | 0 | 1 | 13 | 0 | 0 | 0 |
 | SKEW | 0 | 0 | 0 | 1 | 6 | 0 | 0 | 0 |
 | T.DIST.RT | 0 | 1 | 0 | 1 | 4 | 0 | 0 | 0 |
@@ -60,19 +57,13 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | FV | 0 | 0 | 0 | 1 | 1 | 0 | 0 | 0 |
 | CRITBINOM | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | FLOOR | 0 | 0 | 0 | 1 | 0 | 0 | 10 | 0 |
-| NORM.S.DIST | 0 | 1 | 0 | 0 | 5,711 | 0 | 0 | 0 |
 | GAMMA | 0 | 0 | 0 | 0 | 4,410 | 0 | 0 | 0 |
-| GAMMALN.PRECISE | 0 | 0 | 0 | 0 | 3,638 | 0 | 0 | 0 |
+| GAMMALN.PRECISE | 0 | 0 | 0 | 0 | 3,635 | 0 | 0 | 0 |
 | GAMMALN | 0 | 0 | 0 | 0 | 2,403 | 0 | 0 | 0 |
-| LOGNORMDIST | 0 | 2 | 0 | 0 | 1,131 | 0 | 0 | 0 |
-| GAUSS | 0 | 0 | 0 | 0 | 357 | 0 | 0 | 0 |
-| DURATION | 0 | 2 | 0 | 0 | 333 | 0 | 0 | 0 |
-| ERFC.PRECISE | 0 | 1 | 0 | 0 | 308 | 0 | 0 | 0 |
-| GAMMA.DIST | 0 | 3 | 0 | 0 | 201 | 0 | 0 | 0 |
+| DURATION | 0 | 2 | 0 | 0 | 332 | 0 | 0 | 0 |
 | F.DIST | 0 | 0 | 0 | 0 | 197 | 0 | 0 | 0 |
+| GAMMA.DIST | 0 | 1 | 0 | 0 | 193 | 0 | 0 | 0 |
 | MDURATION | 0 | 0 | 0 | 0 | 157 | 0 | 0 | 0 |
-| PMT | 0 | 0 | 0 | 0 | 151 | 0 | 0 | 0 |
-| NORMDIST | 0 | 0 | 0 | 0 | 131 | 0 | 0 | 0 |
 | SINH | 0 | 0 | 0 | 0 | 130 | 0 | 0 | 0 |
 | ROUND | 0 | 0 | 0 | 0 | 124 | 0 | 0 | 0 |
 | NPV | 0 | 0 | 0 | 0 | 94 | 0 | 0 | 0 |
@@ -80,17 +71,12 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | COTH | 0 | 0 | 0 | 0 | 56 | 0 | 0 | 0 |
 | PRICE | 0 | 0 | 0 | 0 | 50 | 0 | 0 | 0 |
 | BETAINV | 0 | 2 | 0 | 0 | 44 | 0 | 0 | 0 |
-| ERFC | 0 | 2 | 0 | 0 | 42 | 0 | 0 | 0 |
-| NORM.DIST | 0 | 0 | 0 | 0 | 24 | 0 | 0 | 0 |
-| ERF.PRECISE | 0 | 1 | 0 | 0 | 19 | 0 | 0 | 0 |
+| NEGBINOMDIST | 0 | 0 | 0 | 0 | 13 | 0 | 0 | 0 |
 | CSCH | 0 | 0 | 0 | 0 | 6 | 0 | 0 | 0 |
 | GROWTH | 0 | 0 | 0 | 0 | 6 | 0 | 0 | 0 |
+| NORM.S.DIST | 0 | 0 | 0 | 0 | 6 | 0 | 0 | 0 |
 | PERMUTATIONA | 0 | 0 | 0 | 0 | 4 | 0 | 0 | 0 |
-| ZTEST | 0 | 4 | 0 | 0 | 0 | 0 | 0 | 0 |
-| Z.TEST | 0 | 3 | 0 | 0 | 0 | 0 | 0 | 0 |
-| CHISQ.TEST | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 0 |
 | CONFIDENCE | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
-| ERF | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | F.DIST.RT | 0 | 1 | 0 | 0 | 1 | 0 | 0 | 0 |
 | GAMMAINV | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | INT | 0 | 0 | 0 | 0 | 2 | 0 | 2 | 0 |
@@ -102,14 +88,15 @@ Larger numeric and last-bit columns count numeric mismatches; other columns coun
 | BESSELJ | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |
 | BETA.INV | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | CHISQ.DIST.RT | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
+| CHISQ.TEST | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |
 | CONFIDENCE.NORM | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | CONFIDENCE.T | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | EXPON.DIST | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |
 | F.INV | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | F.INV.RT | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
-| GAMMADIST | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |
 | HYPGEOMDIST | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |
 | LOGNORM.INV | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
+| PMT | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |
 | SECH | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |
 | T.DIST | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | T.DIST.2T | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |

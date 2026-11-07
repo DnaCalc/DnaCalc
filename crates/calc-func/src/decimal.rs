@@ -383,12 +383,13 @@ impl ExactDecimal {
     /// and down for ROUND. So ROUND(1594628480062905,14) is 1594628480062900 and
     /// ROUNDDOWN(283025097725723.5,0) is 283025097725724, as Excel gives them, and
     /// ROUNDDOWN(53311.02038735315,10), whose 10^10 multiple lies 0.2 * 2^-64 below a half,
-    /// reads the half. `None` when |n| > 27: how Excel scales by a larger power is not known.
+    /// reads the half. For |n| > 27 the power is a 64-bit constant, the nearest to 10^|n|, and the
+    /// product or quotient is rounded once. The low bit of that constant is not read: of 1,082
+    /// bank numbers next to a half at those scales this takes 879, and ROUND's rows lose nothing,
+    /// but some constants stand a unit from the nearest. The two tie rules hold there too: 824
+    /// directed rows on a tie go up on 726, 70 ROUND rows go down on 68.
     pub(crate) fn fifteen_x87(x: f64, ties_up: bool) -> Option<ExactDecimal> {
         let shift = 14 - ExactDecimal::binary(x).magnitude();
-        if shift.abs() > 27 {
-            return None;
-        }
         let bits = x.abs().to_bits();
         let biased = i32::try_from((bits >> 52) & 0x7FF).expect("an 11-bit exponent");
         let fraction_bits = bits & ((1u64 << 52) - 1);
@@ -405,7 +406,19 @@ impl ExactDecimal {
             denominator = Natural::pow10(shift.unsigned_abs());
         }
         // The scaled value rounded to 64 bits: kept * 2^power.
-        let (kept, power) = round_to_64_bits(&numerator, exponent, &denominator);
+        let (kept, power) = if shift.abs() <= 27 {
+            round_to_64_bits(&numerator, exponent, &denominator)
+        } else {
+            let one = Natural::from_u64(1);
+            let (scale, scale_power) = round_to_64_bits(&Natural::pow10(shift.unsigned_abs()), 0, &one);
+            let scale = Natural::from_u128(scale);
+            let start = Natural::from_u64(mantissa);
+            if shift > 0 {
+                round_to_64_bits(&start.times(&scale), exponent + scale_power, &one)
+            } else {
+                round_to_64_bits(&start, exponent - scale_power, &scale)
+            }
+        };
         let whole = if power >= 0 {
             let mut whole = Natural::from_u128(kept);
             whole.times_pow2(power.unsigned_abs());
