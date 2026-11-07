@@ -195,3 +195,21 @@ fn ui28__created_combination_charts_against_excel() {
     assert_eq!(exact, ["combo", "combo-area-line", "combo-area-column"]);
     assert_eq!(reordered, ["combo-line-column", "combo-column-area"]);
 }
+
+/// UI30 P10: the 100% stacked column, bar, line and area charts Excel saved
+/// (tests/fixtures/ui30/charts-ui30-excel.xlsx, charts 1 to 4 over A1:D7 with three series) against
+/// the charts DNA Calc creates over the same cells: plots, groupings, overlap, axes, and the
+/// percent number format linked to the value axis.
+#[test]
+/// Native-only: builds charts through the host, one session each.
+fn ui30__percent_stacked_charts_against_excel() {
+    const EXCEL_CHARTS: &[u8] = include_bytes!("fixtures/ui30/charts-ui30-excel.xlsx");
+    for (index, kind) in [(1, "column-percent"), (2, "bar-percent"), (3, "line-percent"), (4, "area-percent")] {
+        let want = skeleton(&part_text(EXCEL_CHARTS, &format!("xl/charts/chart{index}.xml")));
+        let xml = created(kind);
+        let got = skeleton(&xml);
+        assert_eq!(got, want, "{kind}");
+        assert!(xml.contains("formatCode=\"0%\""), "{kind}: {xml}");
+        assert!(xml.contains("percentStacked"), "{kind}");
+    }
+}

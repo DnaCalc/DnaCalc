@@ -67,6 +67,7 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
         }
         if category_kind(&p.kind)
             && p.grouping.as_deref() != Some("stacked")
+            && p.grouping.as_deref() != Some("percentStacked")
             && p.grouping.as_deref()
                 != Some(if p.kind == "barChart" {
                     "clustered"
@@ -74,7 +75,7 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
                     "standard"
                 })
         {
-            return Err(fail("Choose Normal or Stacked grouping"));
+            return Err(fail("Choose Normal, Stacked or 100% stacked grouping"));
         }
         if (pie || scatter) && p.grouping.is_some() {
             return Err(fail("This plot has no grouping"));
@@ -231,8 +232,8 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
         }
         if p.kind == "barChart" {
             bytes.extend(fresh_number("gapWidth", "150"));
-            // Excel writes overlap only for a stacked bar plot (UI28).
-            if p.grouping.as_deref() == Some("stacked") {
+            // Excel writes overlap only for a stacked or 100% stacked bar plot (UI28, UI30 P10).
+            if matches!(p.grouping.as_deref(), Some("stacked" | "percentStacked")) {
                 bytes.extend(fresh_number("overlap", "100"));
             }
         }
@@ -287,7 +288,20 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
         if a.kind == "valAx" && !secondary {
             bytes.extend(b"<c:majorGridlines/>");
         }
-        bytes.extend(b"<c:numFmt formatCode=\"General\" sourceLinked=\"1\"/><c:majorTickMark val=\"none\"/><c:minorTickMark val=\"none\"/><c:tickLblPos val=\"nextTo\"/>");
+        // A value axis of a 100% stacked plot is linked to the percent format Excel gives it
+        // (UI30 P10: `0%`, sourceLinked 1, on the secondary value axis too).
+        let percent_axis = a.kind == "valAx"
+            && chart.plots.iter().any(|p| {
+                p.grouping.as_deref() == Some("percentStacked") && p.axis_ids.contains(&a.id)
+            });
+        bytes.extend(
+            format!(
+                "<c:numFmt formatCode=\"{}\" sourceLinked=\"1\"/>",
+                if percent_axis { "0%" } else { "General" }
+            )
+            .as_bytes(),
+        );
+        bytes.extend(b"<c:majorTickMark val=\"none\"/><c:minorTickMark val=\"none\"/><c:tickLblPos val=\"nextTo\"/>");
         bytes.extend(fresh_number("crossAx", &a.cross_axis.unwrap().to_string()));
         if !(secondary && a.kind == "catAx") {
             bytes.extend(fresh_number(
