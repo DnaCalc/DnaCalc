@@ -110,7 +110,7 @@
 [data-dnacalc=clipboard-tools][open],
 [data-dnacalc=chart-tools][open],
 [data-dnacalc=pivot-tools][open]{max-height:min(40dvh,320px);overflow:auto}
-@media(max-width:600px){[data-dnacalc=pane-tools][open],[data-dnacalc=pivot-tools][open]{position:fixed;z-index:30;left:.5rem;right:.5rem;bottom:6.5rem;box-sizing:border-box;max-height:40dvh;overflow:auto;box-shadow:0 3px 14px #13233140}}
+@media(max-width:600px){[data-dnacalc=pane-tools][open],[data-dnacalc=chart-tools][open],[data-dnacalc=pivot-tools][open]{position:fixed;z-index:30;left:.5rem;right:.5rem;bottom:6.5rem;box-sizing:border-box;max-height:40dvh;overflow:auto;box-shadow:0 3px 14px #13233140}}
 .dc-chart-series,.dc-pivot-summary{min-width:0;border:1px solid var(--dna-line);border-radius:var(--dna-radius-chip);margin:8px 0;padding:8px 12px}
 .dc-chart-series .dc-command-row label{flex-wrap:wrap;min-width:0}
 .dc-chart-series input{min-width:0;max-width:100%;width:28ch}
@@ -122,3 +122,6 @@
 .dc-pivot-summary button{min-height:44px;cursor:pointer}
 /* Pivot creation and saved ranges share a scrollable phone panel. */
 @media(max-width:600px){[data-dnacalc=pivot-tools][open]{max-height:min(70dvh,calc(100dvh - 8rem))}}
+
+/* Keep the whole element-font form within the scrollable phone panel. */
+@media(max-width:600px){[data-dnacalc=chart-tools][open]{max-height:min(70dvh,calc(100dvh - 8rem))}}

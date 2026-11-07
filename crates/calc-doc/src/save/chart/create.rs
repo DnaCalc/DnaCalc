@@ -47,7 +47,7 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
     let combo=category_combination(&chart.plots);
     if chart.plots.len() != 1 && !combo {
         return Err(fail(
-            "Use one supported plot or two distinct vertical category plots (dc-971p.51)",
+            "Use one supported plot or up to three distinct vertical category plots (dc-971p.51)",
         ));
     }
     if chart.plots.iter().map(|p| p.series.len()).sum::<usize>() > 255 {
@@ -294,7 +294,7 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
     );
     if chart.text_style!=Default::default(){bytes.extend(font::fresh(&chart.text_style));}
     bytes.extend(b"</c:chartSpace>");
-    Ok(bytes)
+    font::apply_elements(&crate::xml::XmlPart::new(chart.part.clone(),bytes,crate::xml::XmlLimits::default()),&Default::default(),&chart.element_text)
 }
 
 fn frame(chart: &Chart, id: u32, rel: &str) -> Result<Vec<u8>, SaveRefusal> {

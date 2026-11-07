@@ -1,4 +1,4 @@
-//! Source-preserving chart default text formatting; object-specific formatting stays authored.
+//! Edit known chart and element text properties while retaining unrelated DrawingML.
 use super::*;
 use calc_doc_model::ChartTextStyle;
 
@@ -109,4 +109,46 @@ mod partial_tests {
   let fill=r#"<a:solidFill><a:schemeClr val="accent2"><a:lumMod val="50000"/></a:schemeClr></a:solidFill>"#;
   let xml=XmlPart::new("chart.xml".into(),format!(r#"<c:txPr xmlns:c="{C}" xmlns:a="{A}"><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="1100">{fill}</a:defRPr></a:pPr></a:p></c:txPr>"#).into_bytes(),crate::xml::XmlLimits::default());let before=ChartTextStyle{size:Some(1100),color:Some("accent2".into()),..Default::default()};let mut after=before.clone();after.family=Some("Arial".into());let mut reader=Reader::new(&xml);let (_,span)=reader.expect().unwrap();let (_,bytes)=replace(&xml,&mut reader,span,"txPr",&after,&before).unwrap();let text=String::from_utf8(bytes).unwrap();assert!(text.contains(fill),"{text}");assert!(text.contains("typeface=\"Arial\"")&&text.contains("sz=\"1100\""));
  }
+}
+
+/// Locate direct chart title/legend and plot-area axis objects by their authored identity.
+fn element_span(xml:&XmlPart,target:&str)->Result<Option<(usize,usize)>,SaveRefusal>{
+    let mut reader=Reader::new(xml);let mut frames=Vec::<(String,usize,Option<String>,Option<u32>)>::new();let mut found=None;
+    while let Some((event,span))=reader.next()?{match event{
+        XmlEvent::Start(e)=>{
+            let chart=e.name.namespace.as_deref()==Some(C);let path=frames.iter().map(|f|f.0.as_str()).collect::<Vec<_>>();
+            let key=if chart&&path==["chartSpace","chart"]&&matches!(e.name.local.as_str(),"title"|"legend"){Some(e.name.local.to_string())}else if chart&&path==["chartSpace","chart","plotArea"]&&matches!(e.name.local.as_str(),"valAx"|"catAx"|"dateAx"|"serAx"){Some("axis:".into())}else{None};
+            if chart&&e.name.local=="axId"{if let Some(frame)=frames.last_mut().filter(|f|f.2.as_deref()==Some("axis:")){frame.3=e.attribute("val").and_then(|s|s.parse().ok());}}
+            frames.push((if chart{e.name.local.to_string()}else{String::new()},span.0,key,None));
+        },XmlEvent::End(_)=>{let Some((_,start,key,id))=frames.pop()else{return Err(reader.invalid("Unbalanced chart text container"));};if let Some(mut key)=key{if key=="axis:"{let Some(id)=id else{continue;};key.push_str(&id.to_string());}if key==target{if found.replace((start,span.1)).is_some(){return Err(reader.invalid("Duplicate chart text target"));}}}},XmlEvent::Text(_)=>{}
+    }}reader.end()?;Ok(found)
+}
+fn object_text(xml:&XmlPart,reader:&mut Reader<'_>,span:(usize,usize),kind:&str,style:&ChartTextStyle,before:&ChartTextStyle)->Result<(usize,Vec<u8>),SaveRefusal>{
+    let tag=RawTag::parse(&xml.bytes()[span.0..span.1]);let mut patches=Vec::new();let mut found=false;let mut late=None;
+    let (close,end)=loop{match reader.expect()?{
+        (XmlEvent::Start(e),child)=>{
+            let end=if e.name.is(C,"txPr")&&kind!="tx"{
+                if found{return Err(reader.invalid("Duplicate object text properties"));}found=true;let (end,bytes)=replace(xml,reader,child,"txPr",style,before)?;patches.push(((child.0,end),bytes));end
+            }else if kind=="title"&&e.name.is(C,"tx"){
+                let (end,bytes)=object_text(xml,reader,child,"tx",style,before)?;patches.push(((child.0,end),bytes));end
+            }else if kind=="tx"&&e.name.is(C,"rich"){
+                let (end,bytes)=replace(xml,reader,child,"txPr",style,before)?;patches.push(((child.0,end),bytes));end
+            }else{reader.element_end()?};
+            let after_text=if kind.ends_with("Ax"){matches!(e.name.local.as_str(),"crossAx"|"crosses"|"crossesAt"|"crossBetween"|"majorUnit"|"minorUnit"|"dispUnits"|"auto"|"lblAlgn"|"lblOffset"|"tickLblSkip"|"tickMarkSkip"|"noMultiLvlLbl"|"extLst")}else{e.name.local=="extLst"};
+            if e.name.namespace.as_deref()==Some(C)&&after_text{late.get_or_insert(child.0);}let _=end;
+        },(XmlEvent::End(_),s)=>break s,_=>{}
+    }};
+    if !found&&kind!="tx"&&*style!=ChartTextStyle::default(){let delta=ChartTextStyle{family:if style.family!=before.family{style.family.clone()}else{None},size:if style.size!=before.size{style.size}else{None},bold:if style.bold!=before.bold{style.bold}else{None},italic:if style.italic!=before.italic{style.italic}else{None},color:if style.color!=before.color{style.color.clone()}else{None}};let bytes=fresh(&delta);if tag.is_empty(){return Ok((end,expand(&tag,bytes)));}let at=late.unwrap_or(close);patches.push(((at,at),bytes));}
+    Ok((end,rebuild(xml,span,end,patches)))
+}
+/// Object text edits use the same run writer as chart defaults, after other chart edits.
+pub(super) fn apply_elements(xml:&XmlPart,before:&std::collections::BTreeMap<String,ChartTextStyle>,after:&std::collections::BTreeMap<String,ChartTextStyle>)->Result<Vec<u8>,SaveRefusal>{
+    let mut bytes=xml.bytes().to_vec();let keys=before.keys().chain(after.keys()).collect::<std::collections::BTreeSet<_>>();
+    for target in keys{
+        let empty=ChartTextStyle::default();let old=before.get(target).unwrap_or(&empty);let new=after.get(target).unwrap_or(&empty);if old==new{continue;}
+        let mut changed=new.clone();if old.color==new.color{changed.color=None;}validate(&changed).map_err(|detail|SaveRefusal::ChartNotModelled{part:xml.name().into(),detail:detail.into(),owner:"dc-971p.61"})?;
+        let current=xml.with_bytes(bytes);let Some(wanted)=element_span(&current,target)?else{if after.contains_key(target){return Err(SaveRefusal::ChartNotModelled{part:xml.name().into(),detail:"The selected chart text object is absent".into(),owner:"dc-971p.61"});}bytes=current.bytes().to_vec();continue;};
+        let mut reader=Reader::new(&current);let mut patch=None;while let Some((event,span))=reader.next()?{if span.0==wanted.0{let XmlEvent::Start(e)=event else{return Err(reader.invalid("Chart text target is not an element"));};let (end,body)=object_text(&current,&mut reader,span,&e.name.local,new,old)?;patch=Some(((span.0,end),body));break;}}
+        let (span,body)=patch.ok_or_else(||reader.invalid("Chart text target disappeared"))?;let mut splice=Splice::new(current.bytes());splice.replace(span,&body);bytes=splice.finish();
+    }Ok(bytes)
 }

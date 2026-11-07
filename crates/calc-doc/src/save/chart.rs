@@ -62,14 +62,14 @@ fn source_with_xml(
     retained.legend = before.legend.clone();
     retained.plots = before.plots.clone();
     retained.axes = before.axes.clone();
-    retained.text_style=before.text_style.clone();
+    retained.text_style=before.text_style.clone();retained.element_text=before.element_text.clone();retained.element_text_complex=before.element_text_complex.clone();
     if retained != *before {
         return Err(invalid(
             "Changes to the chart frame are not modelled",
         ));
     }
     if before.plots.len()!=after.plots.len() {return Err(invalid("Adding or removing chart plots is not modelled (dc-971p.46)"));}
-    if before.plots.len()!=1 && before.plots.iter().zip(&after.plots).any(|(a,b)|plot_type_changed(a,b)) && !category_combination(&after.plots){return Err(invalid("Choose two distinct vertical column, line or area plots with Normal grouping (dc-971p.59)"));}
+    if before.plots.len()!=1 && before.plots.iter().zip(&after.plots).any(|(a,b)|plot_type_changed(a,b)) && !category_combination(&after.plots){return Err(invalid("Choose up to three distinct vertical column, line or area plots with Normal or Stacked grouping (dc-971p.59)"));}
     let old_total=before.plots.iter().map(|p|p.series.len()).sum::<usize>();let new_total=after.plots.iter().map(|p|p.series.len()).sum::<usize>();
     if new_total>255 && new_total>old_total{return Err(invalid("A chart can have at most 255 series (dc-971p.46)"));}
     for (old,new) in before.plots.iter().zip(&after.plots) {
@@ -202,7 +202,7 @@ fn source_with_xml(
     for (span, bytes) in patches {
         splice.replace(span, &bytes);
     }
-    Ok(splice.finish())
+    font::apply_elements(&xml.with_bytes(splice.finish()),&before.element_text,&after.element_text)
 }
 fn plain_text(title: &str) -> String {
     title
@@ -821,5 +821,5 @@ mod colour_order_tests {
 }
 
 fn category_combination(plots:&[ChartPlot])->bool{
-    plots.len()==2 && plots[0].kind!=plots[1].kind && plots.iter().all(|p|category_kind(&p.kind)&&(p.kind!="barChart"||p.bar_direction.as_deref()==Some("col"))&&!matches!(p.grouping.as_deref(),Some("stacked"|"percentStacked")))
+    (2..=3).contains(&plots.len()) && plots.iter().enumerate().all(|(i,p)|plots[..i].iter().all(|old|old.kind!=p.kind)) && plots.iter().all(|p|category_kind(&p.kind)&&(p.kind!="barChart"||p.bar_direction.as_deref()==Some("col"))&&p.grouping.as_deref()!=Some("percentStacked"))
 }

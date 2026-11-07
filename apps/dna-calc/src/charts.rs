@@ -4,6 +4,7 @@ use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 
 pub fn controls(controller: Controller) -> AnyView {
+    let font_target=RwSignal::new("default".to_owned());
     let font_family=controller.tool_field(|s|&s.chart.font_family,|s|&mut s.chart.font_family);
     let font_size=controller.tool_field(|s|&s.chart.font_size,|s|&mut s.chart.font_size);
     let font_color=controller.tool_field(|s|&s.chart.font_color,|s|&mut s.chart.font_color);
@@ -114,18 +115,22 @@ pub fn controls(controller: Controller) -> AnyView {
                 .and_then(|chart| chart.title.clone())
                 .unwrap_or_default(),
         );
-        let font=chart.as_ref().map(|c|c.text_style.clone()).unwrap_or_default();
-        font_family.set(font.family.unwrap_or_default());font_size.set(font.size.map(|n|(f64::from(n)/100.).to_string()).unwrap_or_default());font_color.set(font.color.map(|s|if s.len()==6&&s.bytes().all(|b|b.is_ascii_hexdigit()){format!("#{s}")}else{s}).unwrap_or_default());font_bold.set(font.bold.unwrap_or(false));font_italic.set(font.italic.unwrap_or(false));
         legend.set(chart.as_ref().is_some_and(|chart| chart.legend.is_some()));
         legend_position.set(chart.as_ref().and_then(|c|c.legend.clone()).unwrap_or("r".into()));
     });
+    let selected_font=Memo::new(move |_|{let Some(chart)=current.get()else{return wire::ChartTextStyle::default();};let target=font_target.get();if target=="default"{chart.text_style}else{chart.text_elements.into_iter().find(|e|e.target==target).map(|e|e.style).unwrap_or_default()}});
+    Effect::new(move |_|{let chart=current.get();if font_target.get_untracked()!="default"&&!chart.is_some_and(|c|c.text_elements.iter().any(|e|e.target==font_target.get_untracked())){font_target.set("default".into());}});
+    Effect::new(move |_|{let font=selected_font.get();
+        font_family.set(font.family.unwrap_or_default());font_size.set(font.size.map(|n|(f64::from(n)/100.).to_string()).unwrap_or_default());font_color.set(font.color.map(|s|if s.len()==6&&s.bytes().all(|b|b.is_ascii_hexdigit()){format!("#{s}")}else{s}).unwrap_or_default());font_bold.set(font.bold.unwrap_or(false));font_italic.set(font.italic.unwrap_or(false));
+    });
     let apply_font=move |reset:bool|{
         let Some((generation,revision,sheet))=ready.get_untracked()else{return;};let Some(chart)=current.get_untracked()else{return;};
+        let before=selected_font.get_untracked();let target=font_target.get_untracked();
         let style=if reset{wire::ChartTextStyle::default()}else{
             let text=font_size.get_untracked();let size=if text.trim().is_empty()||text.trim().eq_ignore_ascii_case("automatic"){None}else{match text.trim().parse::<f64>(){Ok(n)if n.is_finite()&&(1. ..=409.).contains(&n)&&((n*100.).round()-n*100.).abs()<1e-7=>Some((n*100.).round()as u32),_=>{controller.say("Use a font size from 1 to 409 points, with at most two decimal places",true);return;}}};
-            let family=font_family.get_untracked();let color=font_color.get_untracked();wire::ChartTextStyle{family:(!family.trim().is_empty()).then(||family.trim().to_owned()),size,color:(!color.trim().is_empty()).then(||color.trim().to_owned()),bold:if font_bold.get_untracked()==chart.text_style.bold.unwrap_or(false){chart.text_style.bold}else{Some(font_bold.get_untracked())},italic:if font_italic.get_untracked()==chart.text_style.italic.unwrap_or(false){chart.text_style.italic}else{Some(font_italic.get_untracked())}}
+            let family=font_family.get_untracked();let color=font_color.get_untracked();wire::ChartTextStyle{family:(!family.trim().is_empty()).then(||family.trim().to_owned()),size,color:(!color.trim().is_empty()).then(||color.trim().to_owned()),bold:if font_bold.get_untracked()==before.bold.unwrap_or(false){before.bold}else{Some(font_bold.get_untracked())},italic:if font_italic.get_untracked()==before.italic.unwrap_or(false){before.italic}else{Some(font_italic.get_untracked())}}
         };
-        controller.after_input(move ||{if controller.generation.get_untracked()!=generation{return;}controller.dispatch(wire::Intent::ChartTextStyle{sheet:wire::Sheet::of(sheet),revision,part:chart.part,style},move |outcome|{if outcome.accepted{controller.say("Chart text defaults updated",false);}});});
+        controller.after_input(move ||{if controller.generation.get_untracked()!=generation{return;}controller.dispatch(if target=="default"{wire::Intent::ChartTextStyle{sheet:wire::Sheet::of(sheet),revision,part:chart.part,style}}else{wire::Intent::ChartElementTextStyle{sheet:wire::Sheet::of(sheet),revision,part:chart.part,target,style}},move |outcome|{if outcome.accepted{controller.say("Chart text defaults updated",false);}});});
     };
     let current_part=Memo::new(move |_|current.get().map(|c|c.part));
     Effect::new(move |_| {
@@ -304,7 +309,7 @@ pub fn controls(controller: Controller) -> AnyView {
             <fieldset class="dc-chart-series"><legend>"Create from selection"</legend>
                 <p class="dc-note" data-dnacalc="chart-create-range">{move ||controller.areas.get().first().map(|a|controller.area_label(*a)).unwrap_or_else(||"Select a rectangular data range".into())}</p>
                 <div class="dc-command-row"><label>"Type "<select data-dnacalc="chart-create-type" prop:value=move ||{let v=create_type.get();if v.is_empty(){"column".into()}else{v}} on:change=move |ev|create_type.set(event_target_value(&ev))>
-                    <option value="column">"Column"</option><option value="bar">"Bar"</option><option value="line">"Line"</option><option value="area">"Area"</option><option value="pie">"Pie"</option><option value="doughnut">"Doughnut"</option><option value="scatter">"Scatter (XY)"</option><option value="combo">"Column + line (secondary axis)"</option><option value="combo-area-line">"Area + line"</option><option value="combo-column-area">"Column + area"</option><option value="combo-line-column">"Line + column"</option><option value="combo-line-area">"Line + area"</option><option value="combo-area-column">"Area + column"</option>
+                    <option value="column">"Column"</option><option value="bar">"Bar"</option><option value="line">"Line"</option><option value="area">"Area"</option><option value="pie">"Pie"</option><option value="doughnut">"Doughnut"</option><option value="scatter">"Scatter (XY)"</option><option value="combo">"Column + line (secondary axis)"</option><option value="combo-area-line">"Area + line"</option><option value="combo-column-area">"Column + area"</option><option value="combo-line-column">"Line + column"</option><option value="combo-line-area">"Line + area"</option><option value="combo-area-column">"Area + column"</option><option value="combo-three">"Column + line + area"</option>
                 </select></label></div>
                 <div class="dc-command-row"><label><input data-dnacalc="chart-create-rows" type="checkbox" prop:checked=move ||create_rows.get() on:change=move |ev|create_rows.set(event_target_checked(&ev))/>"Series in rows"</label>
                     <label><input data-dnacalc="chart-create-headers" type="checkbox" prop:checked=move ||create_headers.get() on:change=move |ev|create_headers.set(event_target_checked(&ev))/>"First row contains series names (first column for rows)"</label>
@@ -330,7 +335,8 @@ pub fn controls(controller: Controller) -> AnyView {
                 </select></label><button type="button" data-dnacalc="chart-legend-apply" disabled=move ||ready.get().is_none()||!legend.get()||controller.assist.readonly.get()||controller.editing.get().is_some() on:click=place_legend>"Place legend"</button></div>
                 <Show when=move ||current.get().is_some_and(|chart|chart.title_linked)><p class="dc-note">"Changing this title replaces its link to a cell with the text you enter."</p></Show>
                 <p class="dc-note">"Leave the title empty to hide it. Undo restores the previous chart settings."</p>
-                <fieldset class="dc-chart-series"><legend>"Default chart text"</legend>
+                <fieldset class="dc-chart-series"><legend>"Chart text"</legend>
+                    <label>"Text element "<select data-dnacalc="chart-font-target" prop:value=move ||font_target.get() on:change=move |ev|font_target.set(event_target_value(&ev))><option value="default" prop:selected=move ||font_target.get()=="default">"Chart defaults"</option>{move ||current.get().map(|c|c.text_elements.into_iter().map(move |e|{let target=e.target;let selected=target.clone();view!{<option value=target prop:selected=move ||font_target.get()==selected>{e.label}</option>}}).collect_view())}</select></label>
                     <div class="dc-command-row">
                         <label>"Font "<input data-dnacalc="chart-font-family" placeholder="Automatic" prop:value=move ||font_family.get() on:input=move |ev|font_family.set(event_target_value(&ev))/></label>
                         <label>"Points "<input data-dnacalc="chart-font-size" inputmode="decimal" placeholder="Automatic" prop:value=move ||font_size.get() on:input=move |ev|font_size.set(event_target_value(&ev))/></label>
@@ -340,7 +346,7 @@ pub fn controls(controller: Controller) -> AnyView {
                         <button type="button" data-dnacalc="chart-font-apply" disabled=move ||ready.get().is_none()||controller.assist.readonly.get()||controller.editing.get().is_some() on:click=move |_|apply_font(false)>"Apply text defaults"</button>
                         <button type="button" data-dnacalc="chart-font-reset" disabled=move ||ready.get().is_none()||controller.assist.readonly.get()||controller.editing.get().is_some() on:click=move |_|apply_font(true)>"Automatic text defaults"</button>
                     </div>
-                    <p class="dc-note">"Individual title and label formatting is retained in the workbook."</p>
+                    <p class="dc-note">"Choose chart defaults, a title, legend or axis. Formatting applies to the whole element. Several rich text runs or paragraphs are retained but cannot be edited yet; wrapping and placement remain unmeasured."</p>
                 </fieldset>
                 <Show when=move ||current_plot.get().is_some_and(|p|edit_type(&p)!="unsupported")>
                     <fieldset class="dc-chart-series"><legend>"Chart type"</legend>

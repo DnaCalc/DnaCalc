@@ -284,6 +284,7 @@ pub enum Intent {
     },
     ChartCreate {revision:u64,area:Area,kind:String,rows:bool,headers:bool,categories:bool},
     ChartSeriesStyle {sheet:Sheet,revision:u64,part:String,plot:u32,series:u32,fill:Option<String>},
+    ChartElementTextStyle{sheet:Sheet,revision:u64,part:String,target:String,style:ChartTextStyle},
     ChartTextStyle{sheet:Sheet,revision:u64,part:String,style:ChartTextStyle},
     ChartType {sheet:Sheet,revision:u64,part:String,plot:u32,kind:String,stacked:bool},
     ChartLegend {sheet:Sheet,revision:u64,part:String,position:String},
@@ -941,6 +942,7 @@ impl Geometry {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Chart {
     #[serde(default)] pub text_style:ChartTextStyle,
+    #[serde(default)] pub text_elements:Vec<ChartTextElement>,
     #[serde(default)] pub plots:Vec<ChartPlotSource>,
     #[serde(default)] pub axes:Vec<ChartAxisSource>,
     #[serde(default)] pub part:String,
@@ -1573,3 +1575,6 @@ pub struct ChartTextStyle{pub family:Option<String>,pub size:Option<u32>,pub bol
 /// Metadata for a saved pivot; its cells are presented through the normal worksheet route.
 #[derive(Clone,Debug,PartialEq,Eq,Serialize,Deserialize)]
 pub struct SavedPivot {pub refreshed_revision:Option<u64>,pub name:String,pub part:String,pub area:Area,pub location:String,pub source:String,pub fields:String,pub cache:String}
+
+#[derive(Clone,Debug,Default,PartialEq,Eq,Serialize,Deserialize)]
+pub struct ChartTextElement{pub target:String,pub label:String,pub style:ChartTextStyle}

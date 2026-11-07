@@ -22,6 +22,9 @@ fn observed(cell: &crate::ProjectedCell) -> Result<CalcValue, String> {
     }
 }
 fn item(value: &CalcValue) -> Result<PivotItem, String> {
+    if value.image_value().is_some() {
+        return Err(fail("Picture source values are not modelled for pivot caches"));
+    }
     Ok(match value.core_ref() {
         CoreRef::Empty => PivotItem::Missing,
         CoreRef::Number(n) if n.is_finite() && !value.is_excel_overflow() => {
