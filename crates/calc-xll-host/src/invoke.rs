@@ -247,6 +247,7 @@ impl XllFunction {
             signature: (!as_run && r.info.macro_type != 2).then(|| signature.clone()),
             provider,
             rtd_subscriptions: Default::default(),
+            unadmitted_rtd_initial: false,
         };
         let guard = unsafe { callbacks::enter(&mut frame) };
         let mut returned = Returned::default();
@@ -277,6 +278,15 @@ impl XllFunction {
                 .map(|value| NativeReturn::Value(value, kind))
         };
         drop(guard);
+        if frame.unadmitted_rtd_initial && matches!(&result, Ok(NativeReturn::Value(..))) {
+            // Native code saw the real ConnectData return, but its input is not
+            // in this immutable read view. Keep the worksheet unavailable until
+            // normal owner admission; never certify the native result at cut0.
+            result = Ok(NativeReturn::Value(
+                CalcValue::error(WorksheetErrorCode::NA),
+                XL_ERR,
+            ));
+        }
         if matches!(&result, Ok(NativeReturn::Value(..)))
             && let Some(provider) = frame.provider
             && let Some(caller) = frame.context.as_ref().and_then(|context| context.caller())
@@ -290,7 +300,13 @@ impl XllFunction {
                         // The old formula's input may have retired. A recovered
                         // native signal is queued for normal P07 admission; its
                         // cached UDF output cannot publish ahead of that input.
-                        if context.rtd_value(subscription)?.is_none() {
+                        let admitted = context.rtd_value(subscription)?;
+                        let newer_initial = service
+                            .initial_value(provider, subscription)
+                            .is_some_and(|(sequence, _)| {
+                                admitted.as_ref().is_none_or(|(held, _)| sequence > *held)
+                            });
+                        if admitted.is_none() || newer_initial {
                             result = Ok(NativeReturn::Value(
                                 CalcValue::error(WorksheetErrorCode::NA),
                                 XL_ERR,

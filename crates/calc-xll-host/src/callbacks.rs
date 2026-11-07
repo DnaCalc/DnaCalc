@@ -21,6 +21,7 @@ pub(crate) struct Frame<'a> {
     pub signature: Option<XllSignature>,
     pub provider: Option<crate::RtdProvider>,
     pub rtd_subscriptions: BTreeSet<u64>,
+    pub unadmitted_rtd_initial: bool,
 }
 impl Frame<'_> {
     pub fn lifecycle(state: Shared, module: Rc<Module>) -> Self {
@@ -32,6 +33,7 @@ impl Frame<'_> {
             signature: None,
             provider: None,
             rtd_subscriptions: BTreeSet::new(),
+            unadmitted_rtd_initial: false,
         }
     }
 }
@@ -825,9 +827,20 @@ fn run(
                 .subscribe(provider, caller, &progid, &topics)
                 .map_err(err)?;
             frame.rtd_subscriptions.insert(subscription);
-            context
-                .rtd_value(subscription)
-                .map_err(err)?
+            let admitted = context.rtd_value(subscription).map_err(err)?;
+            let observed = service.initial_value(provider, subscription);
+            let value = match (observed, admitted) {
+                (Some(initial), Some(held)) if initial.0 > held.0 => {
+                    frame.unadmitted_rtd_initial = true;
+                    Some(initial)
+                }
+                (Some(initial), None) => {
+                    frame.unadmitted_rtd_initial = true;
+                    Some(initial)
+                }
+                (_, held) => held,
+            };
+            value
                 // Excel exposes an empty COM RTD signal as numeric zero. The
                 // admitted input remains empty and its sequence stays in the
                 // invocation's certificate, including a cache-only UDF return.

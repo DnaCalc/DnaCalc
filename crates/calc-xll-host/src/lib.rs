@@ -23,7 +23,7 @@ pub use calc_func::UserCallableIdentity as RtdProvider;
 pub use callbacks::dispatch;
 #[cfg(windows)]
 pub use native::{AsyncReturn, RegistrationInfo, XllHost};
-/// Owning-STA service; RTD returns admitted inputs, never an async call result.
+/// Owning-STA RTD service; worksheet results require admitted input reads.
 #[cfg(windows)]
 pub trait RtdService {
     fn subscribe(
@@ -33,6 +33,16 @@ pub trait RtdService {
         progid: &str,
         topics: &[String],
     ) -> Result<u64, String>;
+    /// The exact ConnectData observation while it still awaits owner admission.
+    /// This is a provisional C API return, not a certified worksheet input. The
+    /// context still records its old/missing cut and normal admission invalidates it.
+    fn initial_value(
+        &self,
+        _provider: RtdProvider,
+        _subscription: u64,
+    ) -> Option<(u64, calc_value::CalcValue)> {
+        None
+    }
     fn close(&self) -> Result<(), String>;
     fn subscriptions(&self, provider: RtdProvider, caller: calc_value::CellKey) -> Vec<u64>;
     /// Recover only the inputs of this completed call when native code returns

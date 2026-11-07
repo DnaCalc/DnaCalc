@@ -137,6 +137,7 @@ struct State {
     next_transport: i32,
     transports: BTreeMap<i32, u64>,
     updates: Vec<RtdInput>,
+    initial_values: BTreeMap<u64, (u64, CalcValue)>,
     closed: bool,
     failure: Option<String>,
     close_failure: Option<String>,
@@ -164,6 +165,7 @@ impl RtdClient {
                 next_transport: 1,
                 transports: BTreeMap::new(),
                 updates: Vec::new(),
+                initial_values: BTreeMap::new(),
                 closed: false,
                 failure: None,
                 close_failure: None,
@@ -198,6 +200,7 @@ impl RtdClient {
         if let Some(why) = state.failure.take() {
             return Err(why);
         }
+        state.initial_values.clear();
         Ok(std::mem::take(&mut state.updates))
     }
     /// Retire and disconnect immediately when no replacement evaluation follows.
@@ -295,6 +298,7 @@ impl RtdClient {
                 });
             }
             state.updates.retain(|value| value.subscription != id);
+            state.initial_values.remove(&id);
             retired.push((provider, id));
         }
         Ok(retired)
@@ -365,6 +369,12 @@ impl RtdClient {
     }
 }
 impl RtdService for RtdClient {
+    fn initial_value(&self, provider: RtdProvider, subscription: u64) -> Option<(u64, CalcValue)> {
+        let state = self.state.borrow();
+        (state.topics.get(&subscription)?.provider == provider)
+            .then(|| state.initial_values.get(&subscription).cloned())
+            .flatten()
+    }
     fn subscriptions(&self, provider: RtdProvider, caller: CellKey) -> Vec<u64> {
         self.state
             .borrow()
@@ -418,13 +428,12 @@ impl RtdService for RtdClient {
         if state.closed {
             return Err("dc-snz.23: RTD client is closed".into());
         }
-        let previous: BTreeSet<_> = state
+        let matching: Vec<_> = state
             .declarations
             .values()
             .chain(state.replacement_calls.iter())
             .filter(|call| {
                 call.provider == provider
-                    && call.caller == caller
                     && call.arguments.len() == arguments.len()
                     && call
                         .arguments
@@ -432,6 +441,16 @@ impl RtdService for RtdClient {
                         .zip(arguments)
                         .all(|(a, b)| same_argument(a, b))
             })
+            .collect();
+        let own = matching
+            .iter()
+            .any(|call| call.caller == caller && !call.inputs.is_empty());
+        // A framework can return a shared native cache before this caller ever
+        // receives xlfRtd. Keep the observed sibling inputs conservatively when
+        // no own declaration exists; never infer an input from a UDF answer.
+        let previous: BTreeSet<_> = matching
+            .into_iter()
+            .filter(|call| !own || call.caller == caller)
             .flat_map(|call| call.inputs.iter().copied())
             .collect();
         if !previous.is_empty() && arguments.iter().any(has_reference) {
@@ -597,6 +616,7 @@ impl RtdService for RtdClient {
         topic.sequence = sequence;
         topic.last_value = value.clone();
         state.transports.insert(transport, id);
+        state.initial_values.insert(id, (sequence, value.clone()));
         state.updates.push(RtdInput {
             provider,
             subscription: id,
@@ -626,6 +646,7 @@ impl RtdService for RtdClient {
         state.renewed_inputs.clear();
         state.pending_disconnects.clear();
         state.updates.clear();
+        state.initial_values.clear();
         checked(result, "terminate")
     }
 }
@@ -947,11 +968,12 @@ fn cached_replacement_renews_one_signal_for_main_and_dependent_reads() {
     client
         .reconcile_evaluation(&providers, main, &BTreeSet::new())
         .unwrap();
-    assert!(
+    // A new call can still conservatively adopt the sibling's observed input.
+    assert_eq!(
         client
             .cached_call_inputs(provider, main, &arguments)
-            .unwrap()
-            .is_empty()
+            .unwrap(),
+        renewed
     );
     // Completed generators do not remain connected throughout an idle owner turn.
     assert!(client.has_pending_inputs());
@@ -1053,6 +1075,86 @@ fn cached_call_keys_preserve_number_bits_and_refuse_reference_recovery() {
             .cached_call_inputs(provider, caller, &arguments)
             .unwrap_err()
             .starts_with("dc-snz.23:")
+    );
+    client.close().unwrap();
+}
+
+/// Native-only: observes the real in-process COM fixture's initial value and shared lease.
+#[test]
+fn first_cache_only_sibling_keeps_the_observed_input() {
+    let client = RtdClient::new().unwrap();
+    assert_eq!(
+        unsafe { dna_rtd_test_attach_queued(client.state.borrow().pointer) },
+        0
+    );
+    let provider = RtdProvider {
+        table: 1,
+        slot: 0,
+        generation: 1,
+    };
+    let sheet = calc_value::SheetId::from_parts(0, 0);
+    let main = CellKey::new(sheet, 1, 1).unwrap();
+    let sibling = CellKey::new(sheet, 1, 2).unwrap();
+    let arguments = [CalcValue::number(42.)];
+    let id = client
+        .subscribe(provider, main, "fixture", &["shared".into()])
+        .unwrap();
+    assert_eq!(
+        client.initial_value(provider, id),
+        Some((1, CalcValue::number(11.)))
+    );
+    let different = RtdProvider {
+        slot: 1,
+        ..provider
+    };
+    assert_eq!(client.initial_value(different, id), None);
+    let observed = client.poll().unwrap();
+    assert_eq!(observed.len(), 1);
+    assert_eq!((observed[0].subscription, observed[0].sequence), (id, 1));
+    assert_eq!(observed[0].value, CalcValue::number(11.));
+    assert_eq!(client.initial_value(provider, id), None);
+    client
+        .finish_call(provider, main, 100, &arguments, &[id], &[id])
+        .unwrap();
+    assert_eq!(
+        client
+            .cached_call_inputs(provider, sibling, &arguments)
+            .unwrap(),
+        vec![id]
+    );
+    assert!(
+        client
+            .cached_call_inputs(different, sibling, &arguments)
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        client
+            .cached_call_inputs(provider, sibling, &[CalcValue::number(43.)])
+            .unwrap()
+            .is_empty()
+    );
+    client
+        .finish_call(provider, sibling, 101, &arguments, &[], &[id])
+        .unwrap();
+    let providers = BTreeSet::from([provider]);
+    client
+        .reconcile_evaluation(&providers, main, &BTreeSet::from([100]))
+        .unwrap();
+    client
+        .reconcile_evaluation(&providers, sibling, &BTreeSet::from([101]))
+        .unwrap();
+    assert!(
+        client
+            .begin_replacement(&providers, main)
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        client
+            .cached_call_inputs(provider, sibling, &arguments)
+            .unwrap(),
+        vec![id]
     );
     client.close().unwrap();
 }
