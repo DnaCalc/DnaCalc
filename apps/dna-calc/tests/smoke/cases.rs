@@ -9052,6 +9052,42 @@ Case {
         Action::Click("undo"),Action::Wait(Check::PlanCell("J1","text","19")),Action::Click("redo"),Action::Wait(Check::PlanCell("J1","text","62"))
     ],checks:&[Check::PlanCell("J2","text","54"),Check::PlanCell("J1","provenance","calculated")]},
 
+    Case{name:"pivot creation: selected source headers populate row and value choices",actions:&[
+        Action::Window(1920,1800),Action::Into("name-box","A1:B4\u{E007}"),Action::OpenDetails("pivot-tools"),Action::Click("pivot-source-selection"),Action::Wait(Check::Count("[data-dnacalc=pivot-create-value] option",2))
+    ],checks:&[Check::TextContains("pivot-create-range","A1:B4"),Check::TextContains("[data-dnacalc=pivot-create-row]","Region"),Check::Value("pivot-create-value","1")]},
+    Case{name:"pivot creation: a new table calculates at the chosen destination through the worker",actions:&[
+        Action::Into("pivot-create-destination","M3"),Action::Click("pivot-create-apply"),Action::Wait(Check::Count("[data-dnacalc=saved-pivot]",3)),Action::Wait(Check::PlanCell("N6","text","62"))
+    ],checks:&[Check::PlanCell("N6","provenance","calculated"),Check::TextContains("[data-pivot=PivotTable1] [data-dnacalc=pivot-source]","Data!A1:B4")]},
+    Case{name:"pivot creation: undo and redo remove and restore owned output and definitions",actions:&[
+        Action::Click("undo"),Action::Wait(Check::Count("[data-dnacalc=saved-pivot]",2)),Action::Wait(Check::PlanAbsent("N6")),Action::Click("redo"),Action::Wait(Check::Count("[data-dnacalc=saved-pivot]",3)),Action::Wait(Check::PlanCell("N6","text","62"))
+    ],checks:&[Check::PlanCell("N6","provenance","calculated")]},
+    Case{name:"pivot creation: real XLSX reopening discovers the new implicit table relationship",actions:&[
+        Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("pivot-saved.xlsx"),Action::DiscardReplacement,Action::OpenDetails("pivot-tools"),Action::Wait(Check::Count("[data-dnacalc=saved-pivot]",3))
+    ],checks:&[Check::PlanCell("N6","text","62"),Check::PlanCell("N6","provenance","literal"),Check::TextContains("[data-pivot=PivotTable1]","Saved cache"),Check::TextContains("pivot-state","No pivot refresh has run")]},
+    Case{name:"three plots: live selection creates columns line and area with independent axis pairs",actions:&[
+        Action::Window(1600,1800),Action::ExternalClipboard("Region\tFirst\tSecond\tLine\tArea\nEast\t-2\t-5\t100\t8\nWest\t3\t6\t200\t9\nNorth\t4\t7\t300\t10",false),Action::Keys("grid","\u{E009}v\u{E000}"),Action::Wait(Check::PlanCell("E4","text","10")),Action::Into("name-box","A1:E4\u{E007}"),Action::OpenDetails("chart-tools"),Action::Choose("chart-create-type","combo-three"),Action::Click("chart-create-headers"),Action::Click("chart-create-categories"),Action::Click("chart-create"),Action::Wait(Check::Count("[data-dnacalc=chart]",1)),Action::Wait(Check::Count("[data-dnacalc=chart] svg[data-dnacalc=chart-plot]",3)),Action::Wait(Check::Count("[data-dnacalc=chart-plot] option",3))
+    ],checks:&[Check::Count("[data-dnacalc=chart] svg[data-dnacalc=chart-plot]",3),Check::Count("[data-dnacalc=chart-mark]",12),Check::Count("[data-dnacalc=chart-plot] option",3),Check::Count("[data-dnacalc=chart-legend]",4),Check::Absent("[data-dnacalc=chart-notice]")]},
+    Case{name:"three plots: stacked primary columns use normal history and mixed signs",actions:&[
+        Action::Choose("chart-grouping","stacked"),Action::Click("chart-type-apply"),Action::Wait(Check::Value("chart-grouping","stacked")),Action::Click("undo"),Action::Wait(Check::Value("chart-grouping","normal")),Action::Click("redo"),Action::Wait(Check::Value("chart-grouping","stacked"))
+    ],checks:&[Check::Count("[data-plot='0'] rect[data-dnacalc=chart-mark]",6),Check::Count("[data-dnacalc=chart-mark]",12),Check::Absent("[data-dnacalc=chart-notice]")]},
+    Case{name:"three plots: both primary plots share explicit limits while secondary values retain their range",actions:&[
+        Action::Choose("chart-axis","2"),Action::Into("chart-axis-minimum","-10"),Action::Into("chart-axis-maximum","20"),Action::Into("chart-axis-unit","10"),Action::Click("chart-axis-apply"),Action::Wait(Check::Attr("[data-plot='0'] [data-dnacalc=chart-plot]","data-axis-max","20"))
+    ],checks:&[Check::Attr("[data-plot='2'] [data-dnacalc=chart-plot]","data-axis-max","20"),Check::Attr("[data-plot='2'] [data-dnacalc=chart-plot]","data-axis-min","-10"),Check::Attr("[data-plot='1'] [data-dnacalc=chart-plot]","data-axis-min","0")]},
+    Case{name:"three plots: actual saved XLSX reopens all plots grouping sources and shared limits",actions:&[
+        Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools"),Action::Wait(Check::Value("chart-grouping","stacked")),Action::Choose("chart-plot","2"),Action::Wait(Check::Value("chart-type","area"))
+    ],checks:&[Check::Value("chart-series-values","'Sheet1'!$E$2:$E$4"),Check::Count("[data-dnacalc=chart] svg[data-dnacalc=chart-plot]",3),Check::Count("[data-dnacalc=chart-mark]",12),Check::Attr("[data-plot='2'] [data-dnacalc=chart-plot]","data-axis-max","20"),Check::Absent("[data-dnacalc=chart-notice]")]},
+    Case{name:"element fonts: a title uses its own family size colour and weight",actions:&[
+        Action::Window(1600,1800),Action::ExternalClipboard("Region\tAmount\nEast\t10\nWest\t20\nNorth\t30",false),Action::Keys("grid","\u{E009}v\u{E000}"),Action::Wait(Check::PlanCell("B4","text","30")),Action::Into("name-box","A1:B4\u{E007}"),Action::OpenDetails("chart-tools"),Action::Click("chart-create-headers"),Action::Click("chart-create-categories"),Action::Click("chart-create"),Action::Wait(Check::Count("[data-dnacalc=chart]",1)),Action::Into("chart-edit-title","Element fonts"),Action::Click("chart-edit-apply"),Action::Wait(Check::Text("[data-dnacalc=chart-title]","Element fonts")),Action::Choose("chart-font-target","title"),Action::Into("chart-font-family","Arial"),Action::Into("chart-font-size","18"),Action::Into("chart-font-color","#D02030"),Action::Click("chart-font-bold"),Action::Click("chart-font-apply"),Action::Wait(Check::Attr("[data-dnacalc=chart-title]","fill","#D02030"))
+    ],checks:&[Check::Value("chart-font-target","title"),Check::Attr("[data-dnacalc=chart-title]","font-size","24.00"),Check::Attr("[data-dnacalc=chart-title]","font-weight","700"),Check::Value("chart-font-size","18"),Check::Count("[data-dnacalc=chart-mark]",3)]},
+    Case{name:"element fonts: legend and value-axis labels retain independent styles",actions:&[
+        Action::Choose("chart-font-target","legend"),Action::Into("chart-font-size","13"),Action::Into("chart-font-color","#209040"),Action::Click("chart-font-italic"),Action::Click("chart-font-apply"),Action::Wait(Check::Attr("[data-chart-text=legend]","fill","#209040")),Action::Choose("chart-font-target","axis:2"),Action::Into("chart-font-size","9"),Action::Into("chart-font-color","#2030C0"),Action::Click("chart-font-apply"),Action::Wait(Check::Attr("[data-chart-text='axis:2']","fill","#2030C0"))
+    ],checks:&[Check::Value("chart-font-target","axis:2"),Check::Attr("[data-dnacalc=chart-title]","fill","#D02030"),Check::Attr("[data-chart-text=legend]","font-style","italic"),Check::Attr("[data-chart-text='axis:2']","font-size","12.00"),Check::Attr("[data-chart-text='axis:1']","fill","#595959")]},
+    Case{name:"element fonts: normal history and real XLSX reopening retain each selected object",actions:&[
+        Action::Click("undo"),Action::Wait(Check::Attr("[data-chart-text='axis:2']","fill","#595959")),Action::Click("redo"),Action::Wait(Check::Attr("[data-chart-text='axis:2']","fill","#2030C0")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("Book1.xlsx"),Action::DiscardReplacement,Action::OpenDetails("chart-tools"),Action::Choose("chart-font-target","title"),Action::Wait(Check::Value("chart-font-size","18"))
+    ],checks:&[Check::Value("chart-font-family","Arial"),Check::Value("chart-font-color","#D02030"),Check::Attr("[data-chart-text=legend]","fill","#209040"),Check::Attr("[data-chart-text='axis:2']","fill","#2030C0")]},
+    Case{name:"element fonts: Automatic clears only the selected title and phone controls remain reachable",actions:&[
+        Action::Click("chart-font-reset"),Action::Wait(Check::Attr("[data-dnacalc=chart-title]","fill","#595959")),Action::Window(390,1100)
+    ],checks:&[Check::Attr("[data-dnacalc=chart-title]","font-size","14"),Check::Attr("[data-chart-text=legend]","fill","#209040"),Check::Attr("[data-chart-text='axis:2']","fill","#2030C0"),Check::Reachable("chart-font-target"),Check::HitTarget("chart-font-target"),Check::Reachable("chart-font-apply"),Check::HitTarget("chart-font-apply"),Check::Fits]},
 ];
 
 /// The script that reads what one check looks at.
@@ -9955,5 +9991,7 @@ CaseGroup {
     CaseGroup {name:"chart-formatting",start:802,end:808,core:6,setup:&[]},
     CaseGroup{name:"chart-text",start:808,end:813,core:5,setup:&[]},
     CaseGroup{name:"chart-category-combos",start:813,end:816,core:3,setup:&[]},
-    CaseGroup{name:"saved-pivots",start:816,end:828,core:12,setup:&[]},
+    CaseGroup{name:"saved-pivots",start:816,end:832,core:16,setup:&[]},
+    CaseGroup{name:"chart-multi-plot",start:832,end:836,core:4,setup:&[]},
+    CaseGroup{name:"chart-element-text",start:836,end:840,core:4,setup:&[]},
 ];

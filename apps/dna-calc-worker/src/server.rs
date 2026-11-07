@@ -1028,6 +1028,7 @@ impl Server {
                         self.charts(sheet),
                     )))
                 }
+                Request::PivotSourceFields{area,revision}=>Ok(Reply::PivotSourceFields(if revision!=self.book.host().revision().get(){Err("The source changed; select it again".into())}else{area.area().ok_or_else(||"Select one source range".into()).and_then(|area|calc_host::pivot_source_fields(self.book.host(),area))})),
                 Request::PivotTables(sheet)=>{let (tables,issues)=self.pivots(sheet);Ok(Reply::PivotTables{tables,issues})},
                 Request::Charts(sheet) => Ok(Reply::Charts(self.charts(sheet))),
                 Request::CellImage { .. } => Err("handle answers a cell image".into()),
@@ -1580,9 +1581,11 @@ impl Server {
                 direction,
             } => return self.notebook_order(placement, direction),
 
+            Intent::PivotCreate{revision,source,destination,row,value,subtotal}=>SkinIntent::Command(calc_host::WorkbookCommand::PivotCreate{revision,source:source.area().ok_or("Invalid pivot source range")?,destination,row,value,subtotal}),
             Intent::PivotRefresh{sheet,revision,part}=>SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet:sheet.id(),revision,part}),
             Intent::ChartCreate{revision,area,kind,rows,headers,categories}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartCreate{revision,area:area.area().ok_or("Invalid chart selection")?,kind,rows,headers,categories}),
             Intent::ChartSeriesStyle{sheet,revision,part,plot,series,fill}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartSeriesStyle{sheet:sheet.id(),revision,part,plot,series,fill}),
+            Intent::ChartElementTextStyle{sheet,revision,part,target,style}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartElementTextStyle{sheet:sheet.id(),revision,part,target,style:calc_host::chart::ChartTextStyle{family:style.family,size:style.size,bold:style.bold,italic:style.italic,color:style.color}}),
             Intent::ChartTextStyle{sheet,revision,part,style}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartTextStyle{sheet:sheet.id(),revision,part,style:calc_host::chart::ChartTextStyle{family:style.family,size:style.size,bold:style.bold,italic:style.italic,color:style.color}}),
             Intent::ChartType{sheet,revision,part,plot,kind,stacked}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartType{sheet:sheet.id(),revision,part,plot,kind,stacked}),
             Intent::PageSetup {
@@ -3110,6 +3113,7 @@ impl Server {
                 Chart {
                     axes:source.map(|c|c.axes.iter().filter(|a|a.kind=="valAx").map(|a|wire::ChartAxisSource{id:a.id,position:a.position.clone().unwrap_or_default(),minimum:a.minimum.clone(),maximum:a.maximum.clone(),major_unit:a.major_unit.clone(),reversed:a.reversed,logarithmic:a.log_base.is_some(),log_base:a.log_base.clone()}).collect()).unwrap_or_default(),
                     plots,
+                    text_elements:source.map(|c|{let mut targets=Vec::new();if c.title.is_some()||c.title_formula.is_some(){targets.push(("title".into(),"Title".into()));}if c.legend.is_some(){targets.push(("legend".into(),"Legend".into()));}for a in &c.axes{targets.push((format!("axis:{}",a.id),format!("{} axis labels",match a.position.as_deref(){Some("l")=>"Left",Some("r")=>"Right",Some("t")=>"Top",Some("b")=>"Bottom",_=>"Other"})));}targets.into_iter().map(|(target,label)|{let f=c.element_text.get(&target).cloned().unwrap_or_default();wire::ChartTextElement{target,label,style:wire::ChartTextStyle{family:f.family,size:f.size,bold:f.bold,italic:f.italic,color:f.color}}}).collect()}).unwrap_or_default(),
                     text_style:source.map(|c|wire::ChartTextStyle{family:c.text_style.family.clone(),size:c.text_style.size,bold:c.text_style.bold,italic:c.text_style.italic,color:c.text_style.color.clone()}).unwrap_or_default(),
                     part:view.part.clone(),title:view.title.clone(),legend:view.legend.clone(),
                     title_linked:host.model().definitions().charts(sheet.id()).iter().any(|chart|chart.part==view.part && chart.title_formula.is_some()),

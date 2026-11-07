@@ -400,7 +400,7 @@ pub struct LoadedWorkbook {
 }
 
 impl LoadedWorkbook {
-    pub fn check_pivot_state(&self,state:&calc_doc_model::pivot::PivotState)->Result<(),crate::SaveRefusal>{crate::save::pivot::check(&self.package,self.model.definitions().pivots(),state)}
+    pub fn check_pivot_state(&self,state:&calc_doc_model::pivot::PivotState)->Result<(),crate::SaveRefusal>{crate::save::pivot::check(&self.package,self.model.definitions().pivots(),state,&self.workbook_part,&self.sheets)}
 
     pub fn pivot_caches(&self)->&pivot::PivotCaches{&self.pivot_caches}
     /// Inspect at most 100,000 saved records and 1,000,000 items, never calculated results.

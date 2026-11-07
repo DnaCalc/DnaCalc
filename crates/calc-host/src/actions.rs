@@ -56,10 +56,12 @@ pub enum ConditionalChange {
 /// Authored workbook commands. The session is the sole dispatch route for all clients.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WorkbookCommand {
+    PivotCreate {revision:u64,source:GridArea,destination:String,row:u32,value:u32,subtotal:String},
     PivotRefresh {sheet:SheetId,revision:u64,part:String},
     PageSetup {sheet:SheetId,revision:u64,change:crate::PageSetupChange},
     ChartCreate {revision:u64,area:GridArea,kind:String,rows:bool,headers:bool,categories:bool},
     ChartSeriesStyle {sheet:SheetId,revision:u64,part:String,plot:u32,series:u32,fill:Option<String>},
+    ChartElementTextStyle{sheet:SheetId,revision:u64,part:String,target:String,style:calc_doc_model::ChartTextStyle},
     ChartTextStyle{sheet:SheetId,revision:u64,part:String,style:calc_doc_model::ChartTextStyle},
     ChartType {sheet:SheetId,revision:u64,part:String,plot:u32,kind:String,stacked:bool},
     ChartLegend {sheet:SheetId,revision:u64,part:String,position:String},
@@ -142,10 +144,12 @@ pub(crate) fn prepare(
     command: WorkbookCommand,
 ) -> Result<Vec<CellEdit>, String> {
     match command {
+        WorkbookCommand::PivotCreate {revision,source,destination,row,value,subtotal}=>crate::pivot::prepare_create(host,revision,source,&destination,row,value,&subtotal),
         WorkbookCommand::PivotRefresh {sheet,revision,part}=>crate::pivot::prepare_refresh(host,sheet,revision,&part),
         WorkbookCommand::PageSetup {sheet,revision,change}=>crate::page_setup::prepare(host,sheet,revision,change),
         WorkbookCommand::ChartCreate{revision,area,kind,rows,headers,categories}=>crate::chart::prepare_create(host,revision,area,&kind,rows,headers,categories),
         WorkbookCommand::ChartSeriesStyle{sheet,revision,part,plot,series,fill}=>crate::chart::prepare_series_style(host,sheet,revision,&part,plot,series,fill),
+        WorkbookCommand::ChartElementTextStyle{sheet,revision,part,target,style}=>crate::chart::prepare_element_text_style(host,sheet,revision,&part,&target,style),
         WorkbookCommand::ChartTextStyle{sheet,revision,part,style}=>crate::chart::prepare_text_style(host,sheet,revision,&part,style),
         WorkbookCommand::ChartType{sheet,revision,part,plot,kind,stacked}=>crate::chart::prepare_type(host,sheet,revision,&part,plot,&kind,stacked),
         WorkbookCommand::ChartLegend{sheet,revision,part,position}=>crate::chart::prepare_legend(host,sheet,revision,&part,&position),

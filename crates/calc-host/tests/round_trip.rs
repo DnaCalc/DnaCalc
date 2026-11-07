@@ -16977,3 +16977,162 @@ fn dc_8wp_3__getpivotdata_refuses_ambiguous_or_unmeasured_layouts_with_the_pivot
     let bytes=package_with_part_from(include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx"),"xl/pivotTables/summary.xml",|xml|xml.replacen("<item x=\"0\"/>","<item x=\"0\" n=\"Custom caption\"/>",1));let mut book=session(&bytes);assert!(enter(&mut book,at(sheet,"J1"),"=GETPIVOTDATA(\"Amount\",D3,\"Region\",\"East\")").accepted());assert!(matches!(session_value(&book,at(sheet,"J1")),ProjectedValue::NotModeled{..}));
 
 }
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_4__create_uses_source_headers_and_the_refresh_query_history_save_route(){
+    let bytes=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");let mut book=session(bytes);let sheet=book.host().sheets()[0].id();let source=GridArea::new(at(sheet,"A1"),at(sheet,"B4")).unwrap();
+    assert_eq!(calc_host::pivot_source_fields(book.host(),source).unwrap(),["Region","Amount"]);
+    assert!(enter(&mut book,at(sheet,"J1"),"=GETPIVOTDATA(\"Amount\",M3)").accepted());assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::error(calc_value::WorksheetErrorCode::Ref)));
+    let revision=book.host().revision().get();let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotCreate{revision,source,destination:"M3".into(),row:0,value:1,subtotal:"sum".into()}));assert!(result.accepted(),"{result:?}");
+    assert_eq!(session_calculated(&book,at(sheet,"N6")),Some(CalcValue::number(24.)));assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(24.)));assert!(book.host().model().cell(at(sheet,"N6")).is_none());
+    let table=book.host().model().definitions().pivots().tables().find(|t|t.name=="PivotTable1").unwrap().clone();let cache=book.host().model().definitions().pivots().caches.caches[&table.cache_id].clone();assert_ne!(table.cache_id,7);assert_ne!(cache.part,"xl/pivotCache/cache-main.xml");
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(session_value(&book,at(sheet,"N6")),ProjectedValue::Empty);assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::error(calc_value::WorksheetErrorCode::Ref)));
+    assert!(book.dispatch(SkinIntent::Redo).accepted());assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(24.)));
+    assert!(enter(&mut book,at(sheet,"B2"),"100").accepted());assert_eq!(session_calculated(&book,at(sheet,"N6")),Some(CalcValue::number(24.)));
+    let revision=book.host().revision().get();assert!(book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet,revision,part:table.part.clone()})).accepted());assert_eq!(session_calculated(&book,at(sheet,"J1")),Some(CalcValue::number(112.)));
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let mut reopened=session(&saved);assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());assert_eq!(reopened.host().model().definitions().pivots().tables().count(),3);assert_eq!(session_value(&reopened,at(sheet,"N6")),ProjectedValue::Literal(CalcValue::number(112.)));assert_eq!(session_calculated(&reopened,at(sheet,"J1")),Some(CalcValue::number(112.)));
+    assert_eq!(reopened.host().loaded().pivot_records(table.cache_id,10).unwrap().records.len(),3);
+    for part in ["xl/pivotCache/cache-main.xml","xl/pivotCache/records.xml","xl/pivotTables/summary.xml","xl/pivotTables/summary-two.xml"]{assert_eq!(part_text(&saved,part),part_text(bytes,part),"Creating a new cache leaves every imported cache/pivot part intact");}
+    assert!(part_text(&saved,"xl/workbook.xml").contains(&format!("cacheId=\"{}\"",table.cache_id)));assert!(part_text(&saved,&table.part).contains("pivotTableDefinition"));assert!(part_text(&saved,&cache.part).contains("pivotCacheDefinition"));
+    // The new table is discovered through an implicit relationship, without an extra sheet child.
+    assert_eq!(part_text(&saved,"xl/worksheets/sheet1.xml").matches("pivotPart r:id").count(),2);
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_4__creation_refuses_source_headers_and_destination_collisions_atomically(){
+    let bytes=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");let mut book=session(bytes);let sheet=book.host().sheets()[0].id();let source=GridArea::new(at(sheet,"A1"),at(sheet,"B4")).unwrap();
+    for destination in ["D3","A1","Data!A1:B2"]{let revision=book.host().revision();let count=book.host().model().definitions().pivots().tables().count();let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotCreate{revision:revision.get(),source,destination:destination.into(),row:0,value:1,subtotal:"sum".into()}));assert!(!result.accepted(),"{destination}: {result:?}");assert_eq!(book.host().revision(),revision);assert_eq!(book.host().model().definitions().pivots().tables().count(),count);}
+    assert!(enter(&mut book,at(sheet,"B1"),"region").accepted());assert!(calc_host::pivot_source_fields(book.host(),source).is_err());let revision=book.host().revision();let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotCreate{revision:revision.get(),source,destination:"M3".into(),row:0,value:1,subtotal:"sum".into()}));assert!(!result.accepted());assert_eq!(book.host().revision(),revision);
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_4__create_first_pivot_adds_root_collection_and_retains_nested_extensions(){
+    let blank=calc_host::blank_package();let bytes=package_with_part_from(&blank,"xl/workbook.xml",|xml|xml.replacen("</workbook>","<extLst><ext uri=\"keep-pivot-extension\"><pivotCaches><pivotCache cacheId=\"999\"/></pivotCaches></ext></extLst></workbook>",1));let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();
+    for(cell,text)in[("A1","Region"),("B1","Amount"),("A2","East"),("B2","10"),("A3","West"),("B3","8")]{assert!(enter(&mut book,at(sheet,cell),text).accepted());}
+    let source=GridArea::new(at(sheet,"A1"),at(sheet,"B3")).unwrap();let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotCreate{revision:book.host().revision().get(),source,destination:"D3".into(),row:0,value:1,subtotal:"sum".into()}));assert!(result.accepted(),"{result:?}");assert_eq!(session_calculated(&book,at(sheet,"E6")),Some(CalcValue::number(18.)));
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let xml=part_text(&saved,"xl/workbook.xml");assert!(xml.contains("<extLst><ext uri=\"keep-pivot-extension\"><pivotCaches><pivotCache cacheId=\"999\"/></pivotCaches></ext></extLst>"),"{xml}");let reopened=session(&saved);let pivots=reopened.host().model().definitions().pivots();assert_eq!(pivots.tables().count(),1);assert_eq!(pivots.caches.caches.len(),1);assert!(pivots.caches.issues.is_empty());assert_eq!(session_value(&reopened,at(sheet,"E6")),ProjectedValue::Literal(CalcValue::number(18.)));assert_eq!(reopened.host().loaded().pivot_records(pivots.tables().next().unwrap().cache_id,10).unwrap().records.len(),2);
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_60__chart_three_plot_stacked_combination_retains_sources_axes_and_history_on_save(){
+    let bytes=include_bytes!("fixtures/dc_6yw/charts.xlsx");let mut book=session(bytes);let sheet=book.host().sheets()[0].id();
+    for (cell,text)in [("A1","Region"),("B1","First"),("C1","Second"),("D1","Line"),("E1","Area"),("A2","East"),("A3","West"),("A4","North"),("B2","2"),("B3","3"),("B4","4"),("C2","5"),("C3","6"),("C4","7"),("D2","100"),("D3","200"),("D4","300"),("E2","8"),("E3","9"),("E4","10")]{assert!(enter(&mut book,at(sheet,cell),text).accepted());}
+    let source=calc_value::GridArea::new(at(sheet,"A1"),at(sheet,"E4")).unwrap();let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartCreate{revision:book.host().revision().get(),area:source,kind:"combo-three".into(),rows:false,headers:true,categories:true}));assert!(result.accepted(),"{result:?}");
+    let chart=book.host().charts(sheet).0.pop().unwrap();let part=chart.part.clone();assert_eq!(chart.plots.len(),3);assert_eq!(chart.plots.iter().map(|p|p.series.len()).collect::<Vec<_>>(),[2,1,1]);assert_eq!(chart.plots[0].axis_ids,chart.plots[2].axis_ids);assert_ne!(chart.plots[0].axis_ids,chart.plots[1].axis_ids);assert!(calc_host::chart::combination_supported(&chart));
+    let command=calc_host::WorkbookCommand::ChartType{sheet,revision:book.host().revision().get(),part:part.clone(),plot:0,kind:"column".into(),stacked:true};let result=book.dispatch(SkinIntent::Command(command));assert!(result.accepted(),"{result:?}");
+    let chart=book.host().charts(sheet).0.pop().unwrap();assert!(chart.plots[0].stacked);assert_eq!(calc_host::chart::plot_scale_range(&chart.plots[0],false).unwrap(),(0.,11.));assert_eq!(calc_host::chart::category_scale(&chart,&chart.plots[0]).unwrap(),calc_host::chart::category_scale(&chart,&chart.plots[2]).unwrap());assert!(calc_host::chart::category_scale(&chart,&chart.plots[1]).unwrap().maximum>=300.);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(!book.host().charts(sheet).0.last().unwrap().plots[0].stacked);assert!(book.dispatch(SkinIntent::Redo).accepted());
+    assert!(enter(&mut book,at(sheet,"B2"),"-2").accepted());assert!(enter(&mut book,at(sheet,"C2"),"-5").accepted());let chart=book.host().charts(sheet).0.pop().unwrap();assert_eq!(calc_host::chart::plot_scale_range(&chart.plots[0],false).unwrap(),(-7.,11.));
+    for (plot,kind)in [(2,"area")]{let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartType{sheet,revision:book.host().revision().get(),part:part.clone(),plot,kind:kind.into(),stacked:true}));assert!(result.accepted(),"{kind}: {result:?}");let current=book.host().charts(sheet).0.pop().unwrap();assert!(current.plots[plot as usize].stacked);assert!(calc_host::chart::combination_supported(&current));assert!(book.dispatch(SkinIntent::Undo).accepted());assert!(!book.host().charts(sheet).0.last().unwrap().plots[plot as usize].stacked);}
+    let before=(book.host().revision(),book.history_depth(),book.host().model().definitions().charts(sheet).to_vec());let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartType{sheet,revision:before.0.get(),part:part.clone(),plot:1,kind:"line".into(),stacked:true}));assert!(!result.accepted(),"{result:?}");assert_eq!((book.host().revision(),book.history_depth(),book.host().model().definitions().charts(sheet).to_vec()),before);
+    let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartLogAxis{sheet,revision:book.host().revision().get(),part:part.clone(),axis:4,base:Some("10".into())}));assert!(result.accepted(),"A separate unstacked logarithmic plot remains supported: {result:?}");
+    let before=(book.host().revision(),book.history_depth());assert!(!book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartLogAxis{sheet,revision:before.0.get(),part:part.clone(),axis:2,base:Some("10".into())})).accepted());assert_eq!((book.host().revision(),book.history_depth()),before);
+    let model=book.host().model().definitions().charts(sheet).iter().find(|c|c.part==part).unwrap().clone();let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let after=reopened.host().model().definitions().charts(sheet).iter().find(|c|c.part==part).unwrap();assert_eq!(after.plots,model.plots);assert_eq!(after.axes,model.axes);assert!(calc_host::chart::combination_supported(reopened.host().charts(sheet).0.last().unwrap()));
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_61__chart_element_fonts_keep_unknown_source_and_other_objects_through_history_and_save(){
+    let part="xl/charts/chart1.xml";let bytes=package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"),part,|xml|xml.replacen("<a:defRPr/>","<a:defRPr lang=\"en-ZA\" sz=\"1100\"><a:solidFill><a:schemeClr val=\"accent2\"><a:lumMod val=\"50000\"/></a:schemeClr></a:solidFill><a:latin typeface=\"Old title\" pitchFamily=\"34\"/><a:ea typeface=\"Retained\"/><a:extLst><a:ext uri=\"keep-font\"/></a:extLst></a:defRPr>",1));
+    let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();let original=book.host().model().definitions().charts(sheet)[0].clone();assert_eq!(original.element_text["title"].size,Some(1100));assert_eq!(original.element_text["title"].family.as_deref(),Some("Old title"));
+    let title_style=calc_host::chart::ChartTextStyle{family:Some("Arial & Title".into()),size:Some(1800),bold:Some(true),italic:Some(true),color:Some("D02030".into())};
+    let command=calc_host::WorkbookCommand::ChartElementTextStyle{sheet,revision:book.host().revision().get(),part:part.into(),target:"title".into(),style:title_style.clone()};let result=book.dispatch(SkinIntent::Command(command));assert!(result.accepted(),"{result:?}");assert_eq!(book.host().model().definitions().charts(sheet)[0].text_style,original.text_style);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());assert_eq!(book.host().model().definitions().charts(sheet)[0].element_text,original.element_text);assert!(book.dispatch(SkinIntent::Redo).accepted());
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let xml=part_text(&saved,part);for retained in ["lang=\"en-ZA\"","pitchFamily=\"34\"","<a:ea typeface=\"Retained\"/>","uri=\"keep-font\"","<a:t>Column</a:t>"]{assert!(xml.contains(retained),"{retained}: {xml}");}let title=xml.split("<c:title>").nth(1).unwrap().split("</c:title>").next().unwrap();assert!(title.contains("sz=\"1800\"")&&title.contains("Arial &amp; Title")&&title.contains("D02030"));assert!(!xml.split("</c:title>").nth(1).unwrap().contains("D02030"));let reopened=session(&saved);assert_eq!(reopened.host().model().definitions().charts(sheet)[0].element_text["title"],title_style);
+    for(target,size,color)in [("legend",1300,"209040"),("axis:1264926064",900,"2030C0")]{let command=calc_host::WorkbookCommand::ChartElementTextStyle{sheet,revision:book.host().revision().get(),part:part.into(),target:target.into(),style:calc_host::chart::ChartTextStyle{size:Some(size),color:Some(color.into()),..Default::default()}};let result=book.dispatch(SkinIntent::Command(command));assert!(result.accepted(),"{result:?}");}
+    let before=book.host().model().definitions().charts(sheet)[0].element_text.clone();let command=calc_host::WorkbookCommand::ChartProperties{sheet,revision:book.host().revision().get(),part:part.into(),title:Some("Renamed title".into()),set_title:true,legend:None};assert!(book.dispatch(SkinIntent::Command(command)).accepted());let command=calc_host::WorkbookCommand::ChartLegend{sheet,revision:book.host().revision().get(),part:part.into(),position:"b".into()};assert!(book.dispatch(SkinIntent::Command(command)).accepted());
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);assert_eq!(reopened.host().model().definitions().charts(sheet)[0].element_text,before);assert_eq!(reopened.host().model().definitions().charts(sheet)[0].title.as_deref(),Some("Renamed title"));
+    let command=calc_host::WorkbookCommand::ChartElementTextStyle{sheet,revision:book.host().revision().get(),part:part.into(),target:"title".into(),style:Default::default()};assert!(book.dispatch(SkinIntent::Command(command)).accepted());let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);let fonts=&reopened.host().model().definitions().charts(sheet)[0].element_text;assert!(!fonts.contains_key("title"));for key in ["legend","axis:1264926064"]{assert_eq!(fonts.get(key),before.get(key));}
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_61__chart_element_fonts_on_a_new_chart_save_and_invalid_targets_refuse_atomically(){
+    let mut book=session(&calc_host::blank_package());let sheet=book.host().sheets()[0].id();for(cell,text)in[("A1","Region"),("B1","Amount"),("A2","East"),("B2","10")]{assert!(enter(&mut book,at(sheet,cell),text).accepted());}let command=calc_host::WorkbookCommand::ChartCreate{revision:book.host().revision().get(),area:GridArea::new(at(sheet,"A1"),at(sheet,"B2")).unwrap(),kind:"column".into(),rows:false,headers:true,categories:true};assert!(book.dispatch(SkinIntent::Command(command)).accepted());let part=book.host().model().definitions().charts(sheet)[0].part.clone();
+    for(target,color)in[("legend","BAD"),("title","102030"),("axis:999","102030"),("axis:02","102030")]{let before=(book.host().revision(),book.history_depth(),book.host().model().definitions().charts(sheet).to_vec());let command=calc_host::WorkbookCommand::ChartElementTextStyle{sheet,revision:before.0.get(),part:part.clone(),target:target.into(),style:calc_host::chart::ChartTextStyle{color:Some(color.into()),..Default::default()}};assert!(!book.dispatch(SkinIntent::Command(command)).accepted());assert_eq!((book.host().revision(),book.history_depth(),book.host().model().definitions().charts(sheet).to_vec()),before);}
+    for target in ["legend","axis:1","axis:2"]{let command=calc_host::WorkbookCommand::ChartElementTextStyle{sheet,revision:book.host().revision().get(),part:part.clone(),target:target.into(),style:calc_host::chart::ChartTextStyle{family:Some("Arial".into()),size:Some(1250),color:Some("102030".into()),..Default::default()}};let result=book.dispatch(SkinIntent::Command(command));assert!(result.accepted(),"{result:?}");}
+    let before=book.host().model().definitions().charts(sheet)[0].element_text.clone();let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);assert_eq!(reopened.host().model().definitions().charts(sheet)[0].element_text,before);
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_61__chart_mixed_rich_text_refuses_before_noop_and_literal_replacement_allows_fonts(){
+    let part="xl/charts/chart1.xml";let bytes=package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"),part,|xml|xml.replacen("<a:t>Column</a:t>","<a:t>Column</a:t></a:r><a:r><a:rPr sz=\"1800\"/><a:t> mixed</a:t>",1));
+    let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();let chart=book.host().model().definitions().charts(sheet)[0].clone();assert!(chart.element_text_complex.contains("title"));
+    let before=(book.host().revision(),book.history_depth(),chart.clone());let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartElementTextStyle{sheet,revision:before.0.get(),part:part.into(),target:"title".into(),style:chart.element_text.get("title").cloned().unwrap_or_default()}));assert!(!result.accepted(),"{result:?}");assert_eq!((book.host().revision(),book.history_depth(),book.host().model().definitions().charts(sheet)[0].clone()),before);
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert_eq!(part_text(&saved,part),part_text(&bytes,part));
+    let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartProperties{sheet,revision:book.host().revision().get(),part:part.into(),title:Some("One run".into()),set_title:true,legend:None}));assert!(result.accepted(),"{result:?}");assert!(book.host().model().definitions().charts(sheet)[0].element_text_complex.contains("title"));
+    let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartProperties{sheet,revision:book.host().revision().get(),part:part.into(),title:None,set_title:true,legend:None}));assert!(result.accepted(),"{result:?}");let mut removed=Vec::new();book.save(&SavePolicy::default(),&mut removed).unwrap();book=session(&removed);let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartProperties{sheet,revision:book.host().revision().get(),part:part.into(),title:Some("One fresh run".into()),set_title:true,legend:None}));assert!(result.accepted(),"{result:?}");assert!(!book.host().model().definitions().charts(sheet)[0].element_text_complex.contains("title"));
+    let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartElementTextStyle{sheet,revision:book.host().revision().get(),part:part.into(),target:"title".into(),style:calc_host::chart::ChartTextStyle{size:Some(2000),..Default::default()}}));assert!(result.accepted(),"{result:?}");let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let reopened=session(&saved);assert_eq!(reopened.host().model().definitions().charts(sheet)[0].element_text["title"].size,Some(2000));
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_61__chart_title_run_font_overrides_paragraph_and_object_defaults(){
+    let part="xl/charts/chart1.xml";let bytes=package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"),part,|xml|xml.replacen("<a:defRPr/>","<a:defRPr sz=\"1100\"/>",1).replacen("<a:rPr lang=\"en-ZA\"/>","<a:rPr lang=\"en-ZA\" sz=\"2100\"/>",1).replacen("</a:r></a:p>","</a:r><a:endParaRPr sz=\"1200\"/></a:p>",1).replacen("</c:title>","<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz=\"1300\"/></a:pPr></a:p></c:txPr></c:title>",1));let book=session(&bytes);let sheet=book.host().sheets()[0].id();let chart=&book.host().model().definitions().charts(sheet)[0];assert!(!chart.element_text_complex.contains("title"));assert_eq!(chart.element_text["title"].size,Some(2100));
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_61__chart_legend_run_font_overrides_paragraph_and_end_defaults(){
+    let part="xl/charts/chart1.xml";let bytes=package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"),part,|xml|xml.replacen("</c:legend>","<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz=\"1100\"/></a:pPr><a:r><a:rPr sz=\"2100\"/><a:t>Legend</a:t></a:r><a:endParaRPr sz=\"1200\"/></a:p></c:txPr></c:legend>",1));let book=session(&bytes);let sheet=book.host().sheets()[0].id();let chart=&book.host().model().definitions().charts(sheet)[0];assert!(!chart.element_text_complex.contains("legend"));assert_eq!(chart.element_text["legend"].size,Some(2100));
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_61__chart_renaming_and_moving_keep_unchanged_theme_text_and_transforms(){
+    let part="xl/charts/chart1.xml";let fill="<a:solidFill><a:schemeClr val=\"accent2\"><a:lumMod val=\"50000\"/></a:schemeClr></a:solidFill>";let property=format!("<a:defRPr sz=\"1100\">{fill}</a:defRPr>");let bytes=package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"),part,|xml|xml.replacen("<a:defRPr/>",&property,1).replacen("</c:legend>",&format!("<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr>{property}</a:pPr></a:p></c:txPr></c:legend>"),1));let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();let fonts=book.host().model().definitions().charts(sheet)[0].element_text.clone();assert_eq!(fonts["title"].color.as_deref(),Some("accent2"));assert_eq!(fonts["legend"].color.as_deref(),Some("accent2"));
+    for command in [calc_host::WorkbookCommand::ChartProperties{sheet,revision:book.host().revision().get(),part:part.into(),title:Some("New title".into()),set_title:true,legend:None}]{let result=book.dispatch(SkinIntent::Command(command));assert!(result.accepted(),"{result:?}");}let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartLegend{sheet,revision:book.host().revision().get(),part:part.into(),position:"b".into()}));assert!(result.accepted(),"{result:?}");
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let xml=part_text(&saved,part);assert_eq!(xml.matches(fill).count(),2,"{xml}");let reopened=session(&saved);assert_eq!(reopened.host().model().definitions().charts(sheet)[0].element_text,fonts);assert_eq!(reopened.host().model().definitions().charts(sheet)[0].title.as_deref(),Some("New title"));assert_eq!(reopened.host().model().definitions().charts(sheet)[0].legend.as_deref(),Some("b"));
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_61__chart_linked_title_without_a_saved_text_cache_keeps_its_font_on_legend_edits(){
+    let part="xl/charts/chart1.xml";let bytes=package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"),part,|xml|{let start=xml.find("<c:tx>").unwrap();let end=xml[start..].find("</c:tx>").unwrap()+start+7;let mut s=xml.to_owned();s.replace_range(start..end,"<c:tx><c:strRef><c:f>Data!$A$1</c:f></c:strRef></c:tx>");s});let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();let chart=&book.host().model().definitions().charts(sheet)[0];assert!(chart.title.is_none());assert_eq!(chart.title_formula.as_deref(),Some("Data!$A$1"));
+    let style=calc_host::chart::ChartTextStyle{size:Some(1700),color:Some("123ABC".into()),..Default::default()};let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartElementTextStyle{sheet,revision:book.host().revision().get(),part:part.into(),target:"title".into(),style:style.clone()}));assert!(result.accepted(),"{result:?}");let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartLegend{sheet,revision:book.host().revision().get(),part:part.into(),position:"b".into()}));assert!(result.accepted(),"{result:?}");let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();assert!(part_text(&saved,part).contains("<c:f>Data!$A$1</c:f>"));let reopened=session(&saved);let chart=&reopened.host().model().definitions().charts(sheet)[0];assert_eq!(chart.element_text["title"],style);assert_eq!(chart.title_formula.as_deref(),Some("Data!$A$1"));
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_4__picture_source_refuses_refresh_and_creation_without_mutation(){
+    // Complete the normal IMAGE async route with a picture payload; no network or cache shortcut.
+    #[derive(Debug)]
+    struct Route;
+    impl calc_func::FetchRoute for Route { fn begin(&self,_:calc_func::FetchRequest)->u64{1} }
+    let bytes=include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
+    let mut book=session(bytes);let sheet=book.host().sheets()[0].id();
+    book.set_fetch_route(std::rc::Rc::new(Route));
+    assert!(enter(&mut book,at(sheet,"B2"),"=IMAGE(\"https://example.invalid/picture.png\")").accepted());
+    let tokens=book.host().pending_async();assert_eq!(tokens.len(),1);
+    let image=CalcValue::image(calc_value::ImageValue::picture(calc_value::ImageFormat::Png,std::sync::Arc::from(&b"\x89PNG\r\n\x1a\n picture"[..])));
+    book.complete_async(&tokens[0],image);
+    for _ in 0..100{if !book.has_pending_calculation(){break;}book.advance_calculation();}
+    assert!(session_calculated(&book,at(sheet,"B2")).unwrap().image_value().is_some());
+    let before=(book.host().revision(),book.history_depth(),book.host().model().definitions().pivots().clone());
+    let source=GridArea::new(at(sheet,"A1"),at(sheet,"B4")).unwrap();
+    for command in [
+        calc_host::WorkbookCommand::PivotRefresh{sheet,revision:before.0.get(),part:"xl/pivotTables/summary.xml".into()},
+        calc_host::WorkbookCommand::PivotCreate{revision:before.0.get(),source,destination:"M3".into(),row:0,value:1,subtotal:"sum".into()},
+    ]{
+        let result=book.dispatch(SkinIntent::Command(command));assert!(!result.accepted(),"{result:?}");
+        let message=format!("{result:?}");assert!(message.contains("Picture source")&&message.contains("dc-8wp"),"{message}");
+        assert_eq!((book.host().revision(),book.history_depth(),book.host().model().definitions().pivots().clone()),before);
+        assert_eq!(session_value(&book,at(sheet,"E6")),ProjectedValue::Literal(CalcValue::number(24.)));
+        assert!(book.host().model().cell(at(sheet,"M3")).is_none());
+    }
+}
+
+#[cfg_attr(not(target_arch="wasm32"),test)]
+#[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_61__title_family_edit_keeps_rich_theme_fill_without_object_text_defaults(){
+    let part="xl/charts/chart1.xml";let fill="<a:solidFill><a:schemeClr val=\"accent2\"><a:lumMod val=\"50000\"/></a:schemeClr></a:solidFill>";
+    let bytes=package_with_part_from(include_bytes!("fixtures/dc_6yw/charts.xlsx"),part,|xml|xml.replacen("<a:defRPr/>",&format!("<a:defRPr sz=\"1100\">{fill}</a:defRPr>"),1));
+    let mut book=session(&bytes);let sheet=book.host().sheets()[0].id();let mut style=book.host().model().definitions().charts(sheet)[0].element_text["title"].clone();assert_eq!(style.color.as_deref(),Some("accent2"));style.family=Some("New family".into());
+    let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartElementTextStyle{sheet,revision:book.host().revision().get(),part:part.into(),target:"title".into(),style:style.clone()}));assert!(result.accepted(),"{result:?}");
+    let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let xml=part_text(&saved,part);assert!(xml.contains(fill),"{xml}");assert!(!xml.contains("srgbClr val=\"accent2\""),"{xml}");let reopened=session(&saved);assert_eq!(reopened.host().model().definitions().charts(sheet)[0].element_text["title"],style);
+}

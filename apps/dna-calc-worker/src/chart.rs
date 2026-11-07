@@ -43,13 +43,24 @@ fn label(value: f64, step: f64) -> String {
 pub use calc_host::chart::axis;
 
 fn font_pixels(chart:&ChartView)->f64{chart.text_style.size.filter(|n|(100..=40900).contains(n)).map_or(11.,|n|f64::from(n)/100.*96./72.)}
-/// Only generated text start tags receive the default text colour. Mark fills stay independent.
+/// Generated SVG attributes are double quoted; only text tags enter this formatter.
+fn svg_attribute(tag:&mut String,name:&str,value:&str){
+    let key=format!(" {name}=\"");if let Some(start)=tag.find(&key){let value_start=start+key.len();if let Some(end)=tag[value_start..].find('"'){tag.replace_range(value_start..value_start+end,value);return;}}
+    let at=tag.len().saturating_sub(1);tag.insert_str(at,&format!(" {name}=\"{value}\""));
+}
 fn text_colour(svg:String,chart:&ChartView)->String{
-    let Some(color)=&chart.text_style.color else{return svg;};
-    let from=format!("fill=\"{AXIS}\"");let to=format!("fill=\"#{}\"",escape(color));let mut result=String::with_capacity(svg.len());let mut rest=svg.as_str();
+    let mut result=String::with_capacity(svg.len());let mut rest=svg.as_str();
     while let Some(start)=rest.find("<text "){
-        result.push_str(&rest[..start]);rest=&rest[start..];let Some(end)=rest.find('>')else{break;};
-        result.push_str(&rest[..=end].replace(&from,&to));rest=&rest[end+1..];
+        result.push_str(&rest[..start]);rest=&rest[start..];let Some(end)=rest.find('>')else{break;};let mut tag=rest[..=end].to_owned();
+        if let Some(color)=&chart.text_style.color{if tag.contains(&format!("fill=\"{AXIS}\"")){svg_attribute(&mut tag,"fill",&format!("#{}",escape(color)));}}
+        let target=tag.split(" data-chart-text=\"").nth(1).and_then(|s|s.split('"').next()).map(str::to_owned);
+        if let Some(style)=target.as_ref().and_then(|key|chart.element_text.get(key)){
+            if let Some(size)=style.size.filter(|n|(100..=40900).contains(n)){svg_attribute(&mut tag,"font-size",&format!("{:.2}",f64::from(size)/100.*96./72.));}
+            if let Some(family)=&style.family{svg_attribute(&mut tag,"font-family",&escape(&format!("\"{}\",Calibri,'Segoe UI',system-ui,sans-serif",family.replace('\\',"\\\\").replace('"',"\\\""))));}
+            if let Some(bold)=style.bold{svg_attribute(&mut tag,"font-weight",if bold{"700"}else{"400"});}if let Some(italic)=style.italic{svg_attribute(&mut tag,"font-style",if italic{"italic"}else{"normal"});}
+            if let Some(color)=&style.color{svg_attribute(&mut tag,"fill",&format!("#{}",escape(color)));}
+        }
+        result.push_str(&tag);rest=&rest[end+1..];
     }result.push_str(rest);result
 }
 
@@ -69,7 +80,7 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
     if let Some(title) = &chart.title {
         let _ = write!(
             svg,
-            "<text data-dnacalc=\"chart-title\" x=\"{:.1}\" y=\"22\" text-anchor=\"middle\" font-size=\"14\" font-weight=\"600\" fill=\"{AXIS}\">{}</text>",
+            "<text data-dnacalc=\"chart-title\" data-chart-text=\"title\" x=\"{:.1}\" y=\"22\" text-anchor=\"middle\" font-size=\"14\" font-weight=\"600\" fill=\"{AXIS}\">{}</text>",
             width / 2.0,
             escape(title)
         );
@@ -105,6 +116,7 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
     };
     let mut left=10.;let mut right=width-10.;let mut bottom=height-if cached{26.}else{10.};
     if chart.legend.is_some()&&!entries.is_empty(){
+        let legend_pixels=chart.element_text.get("legend").and_then(|s|s.size).filter(|n|(100..=40900).contains(n)).map_or_else(||font_pixels(chart),|n|f64::from(n)/100.*96./72.);
         let position=match chart.legend.as_deref(){Some("l")=>"l",Some("t")=>"t",Some("b")=>"b",Some("tr")=>"tr",_=>"r"};
         // Bound the legend before laying out the plot. Long labels are clipped in their own
         // nested SVG, with the complete names retained in text and accessible descriptions.
@@ -113,9 +125,9 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
         let max_h=if horizontal{available_h*0.4}else{available_h};
         let max_w=if horizontal{(width-20.).max(1.)}else{width*0.4};
         let _=write!(svg,"<desc data-dnacalc=\"chart-legend-description\">Legend: {}</desc>",escape(&entries.iter().map(|(n,_)|n.as_str()).collect::<Vec<_>>().join("; ")));
-        let row_height=(font_pixels(chart)*1.5+2.).max(18.);let baseline=font_pixels(chart)+2.;
+        let row_height=(legend_pixels*1.5+2.).max(18.);let baseline=legend_pixels+2.;
         if max_h>=row_height && max_w>=24. {
-        let desired=entries.iter().map(|(n,_)|n.chars().count() as f64*font_pixels(chart)*0.6+22.).fold(80.,f64::max).min(160.);
+        let desired=entries.iter().map(|(n,_)|n.chars().count() as f64*legend_pixels*0.6+22.).fold(80.,f64::max).min(160.);
         let rows=(max_h/row_height).floor().max(1.) as usize;
         let max_columns=(max_w/80.).floor().max(1.) as usize;
         let columns=if horizontal{((max_w/desired).floor().max(1.) as usize).max(entries.len().div_ceil(rows)).min(max_columns)}else{entries.len().div_ceil(rows).min(max_columns).max(1)};
@@ -131,11 +143,11 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
         for (i,(name,color)) in entries.iter().take(visible).enumerate(){
             let col=if horizontal{i%columns}else{i/rows};let row=if horizontal{i/columns}else{i%rows};
             let (x,y)=(x+col as f64*slot,y+row as f64*row_height);
-            let _=write!(svg,"<g data-dnacalc=\"chart-legend\" data-position=\"{position}\" aria-label=\"{}\"><svg x=\"{x:.1}\" y=\"{y:.1}\" width=\"{slot:.1}\" height=\"{row_height:.1}\" overflow=\"hidden\"><rect x=\"0\" y=\"4\" width=\"7\" height=\"7\" fill=\"#{color}\"/><text x=\"11\" y=\"{baseline:.1}\" fill=\"{AXIS}\">{}</text></svg></g>",escape(name),escape(name));
+            let _=write!(svg,"<g data-dnacalc=\"chart-legend\" data-position=\"{position}\" aria-label=\"{}\"><svg x=\"{x:.1}\" y=\"{y:.1}\" width=\"{slot:.1}\" height=\"{row_height:.1}\" overflow=\"hidden\"><rect x=\"0\" y=\"4\" width=\"7\" height=\"7\" fill=\"#{color}\"/><text data-chart-text=\"legend\" x=\"11\" y=\"{baseline:.1}\" fill=\"{AXIS}\">{}</text></svg></g>",escape(name),escape(name));
         }
         if overflow{
             let i=visible;let col=if horizontal{i%columns}else{i/rows};let row=if horizontal{i/columns}else{i%rows};
-            let _=write!(svg,"<svg x=\"{:.1}\" y=\"{:.1}\" width=\"{slot:.1}\" height=\"{row_height:.1}\" overflow=\"hidden\"><text data-dnacalc=\"chart-legend-overflow\" x=\"0\" y=\"{baseline:.1}\" fill=\"{AXIS}\">+{} entries</text></svg>",x+col as f64*slot,y+row as f64*row_height,entries.len()-visible);
+            let _=write!(svg,"<svg x=\"{:.1}\" y=\"{:.1}\" width=\"{slot:.1}\" height=\"{row_height:.1}\" overflow=\"hidden\"><text data-dnacalc=\"chart-legend-overflow\" data-chart-text=\"legend\" x=\"0\" y=\"{baseline:.1}\" fill=\"{AXIS}\">+{} entries</text></svg>",x+col as f64*slot,y+row as f64*row_height,entries.len()-visible);
         }
         }
     }
@@ -185,16 +197,17 @@ fn mark(svg: &mut String, series: usize, point: usize, value: f64) {
 
 #[derive(Clone,Copy)]
 struct CategoryLayout{x0:f64,x1:f64,y0:f64,y1:f64,count:usize,index:usize,offset:usize,secondary:bool,ticks:bool}
-fn combination_layouts(chart:&ChartView,area:Area)->Result<[CategoryLayout;2],String>{
+fn combination_layouts(chart:&ChartView,area:Area)->Result<Vec<CategoryLayout>,String>{
     if chart.plots.iter().any(|p|p.kind==ChartKind::Area)&&chart.plots.iter().any(|p|calc_host::chart::value_axes(&chart.axes,&p.axis_ids,false).ok().is_some_and(|axes|axes[0].cross_between.is_none())){return Err("Combination category crossing is preserved but needs an Excel measurement before drawing (dc-971p.59)".into());}
-
-    let first=calc_host::chart::category_scale(chart,&chart.plots[0])?;let second=calc_host::chart::category_scale(chart,&chart.plots[1])?;
+    let first=calc_host::chart::category_scale(chart,&chart.plots[0])?;
     let width=|s:calc_host::chart::ChartScale|label(s.minimum,s.step).len().max(label(s.maximum,s.step).len()) as f64*6.5+8.;
-    let secondary=chart.axes.len()==4;
-    let x0=area.left+width(first);let x1=(area.right-if secondary{width(second)}else{0.}).max(x0+1.);
+    let mut right=0.;let mut axes=Vec::new();
+    for plot in &chart.plots{let axis=calc_host::chart::value_axes(&chart.axes,&plot.axis_ids,false)?[0];let secondary=axis.position.as_deref()==Some("r");if secondary{right=width(calc_host::chart::category_scale(chart,plot)?);}axes.push((axis.id,secondary));}
+    let x0=area.left+width(first);let x1=(area.right-right).max(x0+1.);
     let count=chart.plots.iter().flat_map(|p|&p.series).map(|s|s.values.len()).max().unwrap_or(1).max(1);
-    let a=CategoryLayout{x0,x1,y0:area.top,y1:area.bottom-18.,count,index:0,offset:0,secondary:false,ticks:true};
-    Ok([a,CategoryLayout{index:1,offset:chart.plots[0].series.len(),secondary,ticks:secondary,..a}])
+    let mut seen=std::collections::BTreeSet::new();let mut offset=0;let mut layouts=Vec::new();
+    for (index,(plot,(id,secondary)))in chart.plots.iter().zip(axes).enumerate(){layouts.push(CategoryLayout{x0,x1,y0:area.top,y1:area.bottom-18.,count,index,offset,secondary,ticks:seen.insert(id)});offset+=plot.series.len();}
+    Ok(layouts)
 }
 
 /// Columns, bars, lines and areas over categories.
@@ -212,6 +225,9 @@ fn category_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Are
         Ok(scale)=>scale,Err(message)=>{axis_notice(svg,&area,&message);return;}
     };
     let (min,max,step)=(scale.minimum,scale.maximum,scale.step);
+    let Ok(axes)=calc_host::chart::value_axes(&chart.axes,&plot.axis_ids,false)else{return;};let value_axis=axes[0].id;
+    let Some(category_axis)=chart.axes.iter().find(|a|plot.axis_ids.contains(&a.id)&&a.id!=value_axis).map(|a|a.id)else{return;};
+
     // Room for the value labels and the category labels.
     let widest = [min, max]
         .iter()
@@ -250,18 +266,18 @@ fn category_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Are
     for v in scale.ticks() {
         if layout.is_some_and(|l|!l.ticks){break;}
         let p = value_at(v);
-        if layout.is_some_and(|l|l.secondary){let _=write!(svg,"<text data-dnacalc=\"chart-axis-tick\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"start\" fill=\"{AXIS}\">{}</text>",x1+4.,p+4.,label(v,step));continue;}
+        if layout.is_some_and(|l|l.secondary){let _=write!(svg,"<text data-dnacalc=\"chart-axis-tick\" data-chart-text=\"axis:{value_axis}\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"start\" fill=\"{AXIS}\">{}</text>",x1+4.,p+4.,label(v,step));continue;}
         if horizontal {
             let _ = write!(
                 svg,
-                "<line x1=\"{p:.1}\" y1=\"{y0:.1}\" x2=\"{p:.1}\" y2=\"{y1:.1}\" stroke=\"{GRID}\"/><text data-dnacalc=\"chart-axis-tick\" x=\"{p:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">{}</text>",
+                "<line x1=\"{p:.1}\" y1=\"{y0:.1}\" x2=\"{p:.1}\" y2=\"{y1:.1}\" stroke=\"{GRID}\"/><text data-dnacalc=\"chart-axis-tick\" data-chart-text=\"axis:{value_axis}\" x=\"{p:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">{}</text>",
                 y1 + 13.0,
                 label(v, step)
             );
         } else {
             let _ = write!(
                 svg,
-                "<line x1=\"{x0:.1}\" y1=\"{p:.1}\" x2=\"{x1:.1}\" y2=\"{p:.1}\" stroke=\"{GRID}\"/><text data-dnacalc=\"chart-axis-tick\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" fill=\"{AXIS}\">{}</text>",
+                "<line x1=\"{x0:.1}\" y1=\"{p:.1}\" x2=\"{x1:.1}\" y2=\"{p:.1}\" stroke=\"{GRID}\"/><text data-dnacalc=\"chart-axis-tick\" data-chart-text=\"axis:{value_axis}\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" fill=\"{AXIS}\">{}</text>",
                 x0 - 4.0,
                 p + 4.0,
                 label(v, step)
@@ -300,7 +316,7 @@ fn category_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Are
         if horizontal {
             let _ = write!(
                 svg,
-                "<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" fill=\"{AXIS}\">{}</text>",
+                "<text data-chart-text=\"axis:{category_axis}\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" fill=\"{AXIS}\">{}</text>",
                 x0 - 4.0,
                 middle + 4.0,
                 escape(&text)
@@ -308,7 +324,7 @@ fn category_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Are
         } else {
             let _ = write!(
                 svg,
-                "<text x=\"{middle:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">{}</text>",
+                "<text data-chart-text=\"axis:{category_axis}\" x=\"{middle:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">{}</text>",
                 y1 + 13.0,
                 escape(&text)
             );
@@ -520,6 +536,7 @@ fn pie_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: &Area) 
 /// A scatter plot's markers, on value axes for X and Y.
 fn scatter_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Area) {
     let axes=match calc_host::chart::value_axes(&chart.axes,&plot.axis_ids,true){Ok(axes)=>axes,Err(message)=>{axis_notice(svg,&area,&message);return;}};
+    let (x_axis,y_axis)=(axes[0].id,axes[1].id);
     let series=plot.series.iter().map(|s|(calc_host::chart::scatter_x_values(s),s)).collect::<Vec<_>>();
     if !series.iter().any(|(xs,s)|xs.iter().zip(&s.values).any(|(x,y)|x.is_some()&&y.is_some())){return;}
     let ((xl,xh),(yl,yh))=calc_host::chart::scatter_scale_ranges(plot,axes[0].log_base.is_some(),axes[1].log_base.is_some());
@@ -539,7 +556,7 @@ fn scatter_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Area
     for v in yscale.ticks() {
         let _ = write!(
             svg,
-            "<line x1=\"{x0:.1}\" y1=\"{:.1}\" x2=\"{x1:.1}\" y2=\"{:.1}\" stroke=\"{GRID}\"/><text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" fill=\"{AXIS}\">{}</text>",
+            "<line x1=\"{x0:.1}\" y1=\"{:.1}\" x2=\"{x1:.1}\" y2=\"{:.1}\" stroke=\"{GRID}\"/><text data-chart-text=\"axis:{y_axis}\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"end\" fill=\"{AXIS}\">{}</text>",
             py(v),
             py(v),
             x0 - 4.0,
@@ -550,7 +567,7 @@ fn scatter_marks(svg: &mut String, chart:&ChartView, plot: &PlotView, area: Area
     for v in xscale.ticks() {
         let _ = write!(
             svg,
-            "<line x1=\"{:.1}\" y1=\"{y0:.1}\" x2=\"{:.1}\" y2=\"{y1:.1}\" stroke=\"{GRID}\"/><text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">{}</text>",
+            "<line x1=\"{:.1}\" y1=\"{y0:.1}\" x2=\"{:.1}\" y2=\"{y1:.1}\" stroke=\"{GRID}\"/><text data-chart-text=\"axis:{x_axis}\" x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"{AXIS}\">{}</text>",
             px(v),
             px(v),
             px(v),
@@ -698,3 +715,28 @@ mod tests {
 }
 
 fn axis_notice(svg:&mut String,area:&Area,message:&str){let _=write!(svg,"<text data-dnacalc=\"chart-notice\" x=\"{}\" y=\"{}\" text-anchor=\"middle\" fill=\"{AXIS}\">{}</text>",(area.left+area.right)/2.,(area.top+area.bottom)/2.,escape(message));}
+
+#[cfg(test)]
+mod ui29_chart_tests{
+    use super::*;
+    use std::sync::Arc;
+    use calc_host::{HostSession,MemorySource,OpenPolicy,HostOptions,SkinIntent,WorkbookCommand};
+    #[cfg_attr(not(target_arch="wasm32"),test)]
+    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    fn chart_three_plot_stacks_share_primary_extents_and_draw_each_axis_once(){
+        let mut book=HostSession::open(Arc::new(MemorySource::new(calc_host::blank_package())),&OpenPolicy::default(),HostOptions::default()).unwrap();let sheet=book.host().sheets()[0].id();
+        for(row,values)in [["Region","First","Second","Line","Area"],["East","-2","-5","100","8"],["West","3","6","200","9"],["North","4","7","300","10"]].into_iter().enumerate(){for(col,text)in values.into_iter().enumerate(){assert!(book.dispatch(SkinIntent::EnterCell{at:calc_host::value::CellKey::new(sheet,row as u32+1,col as u32+1).unwrap(),text:text.into()}).accepted());}}
+        let area=calc_host::value::GridArea::new(calc_host::value::CellKey::new(sheet,1,1).unwrap(),calc_host::value::CellKey::new(sheet,4,5).unwrap()).unwrap();let result=book.dispatch(SkinIntent::Command(WorkbookCommand::ChartCreate{revision:book.host().revision().get(),area,kind:"combo-three".into(),rows:false,headers:true,categories:true}));assert!(result.accepted(),"{result:?}");let part=book.host().charts(sheet).0[0].part.clone();let result=book.dispatch(SkinIntent::Command(WorkbookCommand::ChartType{sheet,revision:book.host().revision().get(),part,plot:0,kind:"column".into(),stacked:true}));assert!(result.accepted(),"{result:?}");
+        let chart=book.host().charts(sheet).0[0].clone();let svg=chart_svg(&chart,640.,360.);assert!(!svg.contains("chart-notice"),"{svg}");assert_eq!(svg.matches("data-dnacalc=\"chart-mark\"").count(),12);for series in 0..4{assert_eq!(svg.split('<').filter(|tag|tag.contains("data-dnacalc=\"chart-mark\"")&&tag.contains(&format!("data-series=\"{series}\""))).count(),3);}
+        let ticks=calc_host::chart::category_scale(&chart,&chart.plots[0]).unwrap().ticks().into_iter().count()+calc_host::chart::category_scale(&chart,&chart.plots[1]).unwrap().ticks().into_iter().count();assert_eq!(svg.matches("data-dnacalc=\"chart-axis-tick\"").count(),ticks);let third=svg.split("<g data-plot=\"2\">").nth(1).unwrap().split("</g>").next().unwrap();assert!(!third.contains("chart-axis-tick"));
+    }
+    #[cfg_attr(not(target_arch="wasm32"),test)]
+    #[cfg_attr(target_arch="wasm32",wasm_bindgen_test::wasm_bindgen_test)]
+    fn chart_element_fonts_render_on_only_their_selected_text_and_preserve_marks(){
+        let mut book=HostSession::open(Arc::new(MemorySource::new(include_bytes!("../../../crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx").to_vec())),&OpenPolicy::default(),HostOptions::default()).unwrap();assert!(book.dispatch(SkinIntent::Recalculate).accepted());let sheet=book.host().sheets()[0].id();let chart=book.host().charts(sheet).0[0].clone();let original=chart_svg(&chart,640.,360.);
+        for(target,size,color)in[("title",1800,"D02030"),("legend",1300,"209040"),("axis:1264926064",900,"2030C0"),("axis:1264925584",1100,"C06010")]{let result=book.dispatch(SkinIntent::Command(WorkbookCommand::ChartElementTextStyle{sheet,revision:book.host().revision().get(),part:chart.part.clone(),target:target.into(),style:calc_host::chart::ChartTextStyle{family:Some("Arial".into()),size:Some(size),color:Some(color.into()),..Default::default()}}));assert!(result.accepted(),"{result:?}");}
+        let svg=chart_svg(&book.host().charts(sheet).0[0],640.,360.);for(target,size,color)in[("title","24.00","D02030"),("legend","17.33","209040"),("axis:1264926064","12.00","2030C0"),("axis:1264925584","14.67","C06010")]{let tags=svg.split('<').filter(|t|t.starts_with("text ")&&t.contains(&format!("data-chart-text=\"{target}\""))).collect::<Vec<_>>();assert!(!tags.is_empty(),"{target}: {svg}");for tag in tags{assert!(tag.contains(&format!("font-size=\"{size}\""))&&tag.contains(&format!("fill=\"#{color}\""))&&tag.contains("Arial"),"{tag}");}}
+        let attributes=|drawing:&str|drawing.split('<').filter(|t|t.contains("data-dnacalc=\"chart-mark\"")).map(|tag|["data-series","data-point","data-value","fill"].map(|key|tag.split(&format!(" {key}=\"")).nth(1).unwrap().split('"').next().unwrap().to_owned())).collect::<Vec<_>>();assert_eq!(attributes(&original),attributes(&svg));
+        let result=book.dispatch(SkinIntent::Command(WorkbookCommand::ChartElementTextStyle{sheet,revision:book.host().revision().get(),part:chart.part,target:"title".into(),style:Default::default()}));assert!(result.accepted());let svg=chart_svg(&book.host().charts(sheet).0[0],640.,360.);let title=svg.split('<').find(|t|t.contains("data-dnacalc=\"chart-title\"")).unwrap();assert!(title.contains("font-size=\"14\"")&&title.contains("fill=\"#595959\""));assert!(svg.contains("fill=\"#209040\"")&&svg.contains("fill=\"#2030C0\""));
+    }
+}

@@ -12,6 +12,7 @@ use crate::{
 };
 use calc_doc_model::pivot::*;
 use std::collections::{BTreeMap, BTreeSet};
+use std::borrow::Borrow;
 const M: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 pub(crate) fn missing_output(detail: &str) -> SaveRefusal {
     bad("pivot outputs", detail)
@@ -448,21 +449,17 @@ fn records(xml: &XmlPart, cache: &PivotCache) -> Result<Vec<u8>, SaveRefusal> {
     reader.end()?;
     Ok(splice.finish())
 }
-pub(super) fn finish(
+pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
     package: &Package,
     before: &PivotState,
     after: &PivotState,
     out: &mut Changes,
+    workbook:&str,sheets:&[S],
 ) -> Result<(), SaveRefusal> {
     if before == after {
         return Ok(());
     }
-    if before.tables().count() != after.tables().count() {
-        return Err(bad(
-            "pivot tables",
-            "Pivot creation needs the package relationship writer",
-        ));
-    }
+    if before.tables().any(|old|!after.tables().any(|t|t.part==old.part))||before.caches.caches.keys().any(|id|!after.caches.caches.contains_key(id)){return Err(bad("pivot tables","Removing imported pivots or caches is not modelled"));}
     for cache in after
         .caches
         .caches
@@ -483,7 +480,7 @@ pub(super) fn finish(
             ));
         }
     }
-    for table in after.tables() {
+    for table in after.tables().filter(|t|before.tables().any(|old|old.part==t.part)) {
         if let Some(cache) = after
             .caches
             .caches
@@ -554,7 +551,7 @@ pub(super) fn finish(
             rewrite(&xml, "pivotTableDefinition", &[], &replacements)?,
         );
     }
-    for (id, cache) in &after.caches.caches {
+    for (id, cache) in after.caches.caches.iter().filter(|(id,_)|before.caches.caches.contains_key(id)) {
         let old = before.caches.caches.get(id).ok_or_else(|| {
             bad(
                 &cache.part,
@@ -608,13 +605,71 @@ pub(super) fn finish(
         preflight(&xml, &["r"])?;
         out.rewritten.insert(part.into(), records(&xml, cache)?);
     }
+    add_new(package,before,after,out,workbook,sheets)?;
     Ok(())
 }
 
 pub(crate) fn check(
     package: &Package,
     before: &PivotState,
-    after: &PivotState,
+    after: &PivotState,workbook:&str,sheets:&[crate::load::LoadedSheet],
 ) -> Result<(), SaveRefusal> {
-    finish(package, before, after, &mut Changes::default())
+    finish(package, before, after, &mut Changes::default(),workbook,sheets)
+}
+
+const REL:&str="http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+/// Extend the existing collection through the shared child writer, preserving every old entry.
+fn append_collection(package:&Package,out:&mut Changes,part:&str,root:&str,name:&str,entry:&[u8],before:&[&str])->Result<(),SaveRefusal>{
+    let xml=super::parts::current_part(package,out,part,b"")?;
+    let mut reader=Reader::new(&xml);let (_,root_span)=reader.root(root)?;let root_tag=RawTag::parse(&xml.bytes()[root_span.0..root_span.1]);let mut children=Vec::new();
+    loop{match reader.expect()?{(XmlEvent::Start(e),span)=>{let end=reader.element_end()?;if e.name.is(M,name){let mut child=RawTag::parse(&xml.bytes()[span.0..span.1]).with_inherited_namespaces(&root_tag);child.extend_from_slice(&xml.bytes()[span.1..end]);children.push(child);}},(XmlEvent::End(_),_)=>break,_=>{}}}reader.end()?;
+    if children.len()>1{return Err(bad(part,"Duplicate pivot collections cannot be extended"));}
+    let bytes=if let Some(bytes)=children.first(){
+        let container=XmlPart::new(part.into(),bytes.clone(),crate::xml::XmlLimits::default());
+        super::parts::append_root(&container,entry)?
+    }else{
+        let mut bytes=format!("<{name} xmlns=\"{M}\">").into_bytes();bytes.extend(entry);bytes.extend(format!("</{name}>").as_bytes());bytes
+    };
+    let bytes=super::parts::root_child(&xml,root,name,&bytes,before)?;super::parts::put_part(package,out,part,bytes);Ok(())
+}
+fn fresh_cache(cache:&PivotCache,records_id:&str)->Result<Vec<u8>,SaveRefusal>{
+    let snapshot=cache.snapshot.as_ref().ok_or_else(||bad(&cache.part,"A new cache needs actual source records"))?;
+    let mut out=format!("<pivotCacheDefinition xmlns=\"{M}\" xmlns:r=\"{REL}\"").into_bytes();attr("r:id",records_id,&mut out);attr("recordCount",&snapshot.records.len().to_string(),&mut out);attrs(&BTreeMap::from([("saveData".into(),"1".into()),("refreshOnLoad".into(),"0".into()),("createdVersion".into(),"6".into()),("refreshedVersion".into(),"6".into()),("minRefreshableVersion".into(),"3".into())]),&mut out);
+    out.extend(b"><cacheSource type=\"worksheet\"><worksheetSource");
+    let (Some(sheet),Some(range))=(&cache.source_sheet,&cache.source_range)else{return Err(bad(&cache.part,"New pivots need an explicit worksheet source"));};string_attr("sheet",sheet,&mut out);attr("ref",range,&mut out);out.extend(b"/></cacheSource>");out.extend(cache_fields(cache)?);out.extend(b"</pivotCacheDefinition>");Ok(out)
+}
+fn fresh_table(table:&PivotTable)->Vec<u8>{
+    let mut out=format!("<pivotTableDefinition xmlns=\"{M}\"").into_bytes();let mut a=table.attributes.clone();a.remove("name");attrs(&a,&mut out);string_attr("name",&table.name,&mut out);out.push(b'>');out.extend(location(table));out.extend(fields(table));out.extend(format!("<rowFields count=\"1\"><field x=\"{}\"/></rowFields>",table.row_fields[0]).as_bytes());out.extend(row_items(table));
+    let data=&table.data_fields[0];out.extend(b"<dataFields count=\"1\"><dataField");let mut a=data.attributes.clone();a.remove("name");attrs(&a,&mut out);if let Some(name)=&data.name{string_attr("name",name,&mut out);}out.extend(b"/></dataFields><pivotTableStyleInfo name=\"PivotStyleLight16\" showRowHeaders=\"1\" showColHeaders=\"1\" showRowStripes=\"0\" showColStripes=\"0\" showLastColumn=\"1\"/></pivotTableDefinition>");out
+}
+fn add_new<S:Borrow<crate::load::LoadedSheet>>(package:&Package,before:&PivotState,after:&PivotState,out:&mut Changes,workbook:&str,sheets:&[S])->Result<(),SaveRefusal>{
+    use super::parts;
+    for (id,cache)in after.caches.caches.iter().filter(|(id,_)|!before.caches.caches.contains_key(id)){
+        if package.part(&cache.part).is_some(){return Err(bad(&cache.part,"The new cache part name is already used"));}
+        let records_part=cache.records_part.as_deref().ok_or_else(||bad(&cache.part,"A new cache needs a records part"))?;
+        if package.part(records_part).is_some(){return Err(bad(records_part,"The new records part name is already used"));}
+        let record_id=parts::ensure_relationship(package,out,&cache.part,&format!("{REL}/pivotCacheRecords"),records_part)?;
+        parts::put_part(package,out,&cache.part,fresh_cache(cache,&record_id)?);
+        let empty=XmlPart::new(records_part.into(),format!("<pivotCacheRecords xmlns=\"{M}\" count=\"0\"/>").into_bytes(),crate::xml::XmlLimits::default());parts::put_part(package,out,records_part,records(&empty,cache)?);
+        parts::ensure_content_type(package,out,&cache.part,"application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheDefinition+xml")?;
+        parts::ensure_content_type(package,out,records_part,"application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheRecords+xml")?;
+        let rel=parts::ensure_relationship(package,out,workbook,&format!("{REL}/pivotCacheDefinition"),&cache.part)?;
+        let mut entry=format!("<pivotCache xmlns=\"{M}\" xmlns:r=\"{REL}\" cacheId=\"{id}\"").into_bytes();attr("r:id",&rel,&mut entry);entry.extend(b"/>");
+        append_collection(package,out,workbook,"workbook","pivotCaches",&entry,&["smartTagPr","smartTagTypes","webPublishing","fileRecoveryPr","webPublishObjects","extLst"])?;
+    }
+    for table in after.tables().filter(|table|!before.tables().any(|old|old.part==table.part)){
+        let source=sheets.iter().map(Borrow::borrow).find(|s|s.id()==table.area.sheet()).ok_or_else(||bad(&table.part,"The destination worksheet is unavailable"))?;
+        if sheets.iter().map(Borrow::borrow).filter(|s|s.part().name()==source.part().name()).count()!=1||package.part(&table.part).is_some(){return Err(bad(&table.part,"A pivot definition or destination part is shared"));}
+        let cache=after.caches.caches.get(&table.cache_id).ok_or_else(||bad(&table.part,"The new pivot cache is unavailable"))?;
+        // Use the engine's same layout validation; the codec only writes neutral definitions.
+        // Host/engine already validated the supported row/value layout and actual source snapshot.
+        if table.row_fields.len()!=1||!table.column_fields.is_empty()||!table.page_fields.is_empty()||table.data_fields.len()!=1||cache.snapshot.is_none(){return Err(bad(&table.part,"The new pivot layout is not supported"));}
+        parts::put_part(package,out,&table.part,fresh_table(table));
+        parts::ensure_relationship(package,out,&table.part,&format!("{REL}/pivotCacheDefinition"),&cache.part)?;
+        parts::ensure_content_type(package,out,&table.part,"application/vnd.openxmlformats-officedocument.spreadsheetml.pivotTable+xml")?;
+        let sheet=source.part().name();let rel=parts::ensure_relationship(package,out,sheet,&format!("{REL}/pivotTable"),&table.part)?;
+        // Worksheet-to-pivot links are implicit relationships; SpreadsheetML has no pivotParts child.
+        let _=rel;
+
+    }Ok(())
 }

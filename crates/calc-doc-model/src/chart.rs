@@ -94,6 +94,9 @@ pub struct Chart {
     pub plots: Vec<ChartPlot>,
     pub axes: Vec<ChartAxis>,
     pub text_style:ChartTextStyle,
+    /// Multiple rich runs or paragraphs need a text-range editing model.
+    pub element_text_complex:std::collections::BTreeSet<String>,
+    pub element_text:std::collections::BTreeMap<String,ChartTextStyle>,
 }
 
 /// A sheet's charts and how many the reading left out.
@@ -119,7 +122,7 @@ pub struct ChartAxis {
 }
 
 
-/// Default chart text properties. Object-specific text and unknown DrawingML remain in source.
+/// Known chart text properties; unrelated DrawingML remains in source.
 #[derive(Clone,Debug,Default,PartialEq,Eq,Hash)]
 pub struct ChartTextStyle {
     pub family:Option<String>,
