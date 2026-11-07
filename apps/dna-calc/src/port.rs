@@ -348,8 +348,10 @@ fn start_worker() -> Result<WorkerLink, String> {
         .and_then(|value| value.as_string())
         .ok_or("the page did not record its asset folder")?;
     let url = web_sys::Url::new_with_base("worker.js", &assets)
-        .map_err(|e| format!("no worker URL: {e:?}"))?
-        .href();
+        .map_err(|e| format!("no worker URL: {e:?}"))?;
+    // Regional overrides belong to the workbook worker as well as its page.
+    url.set_search(&leptos::prelude::window().location().search().unwrap_or_default());
+    let url=url.href();
     let options = web_sys::WorkerOptions::new();
     options.set_type(web_sys::WorkerType::Module);
     let worker = web_sys::Worker::new_with_options(&url, &options)

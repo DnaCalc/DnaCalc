@@ -232,7 +232,10 @@ fn notebook_view(controller: Controller) -> impl IntoView {
                             p.insert(sheet, found.page as usize);
                         });
                     }
-                    notebook.try_set(found);
+                    // An identical reply keeps the mounted blocks, and with them the open editor.
+                    if notebook.try_with_untracked(|shown| *shown != found) == Some(true) {
+                        notebook.try_set(found);
+                    }
                     pending.try_set(false);
                     #[cfg(target_arch = "wasm32")]
                     {

@@ -292,7 +292,7 @@ try {
                     $records.Add(@{sha256=$inputBook.sha256;image_sha256=(File-Hash (Join-Path $out "$prefix.png"));sheet=$sheet.Name;zoom=[int]$zoom;dpi=[int]$dpi;origin=@{x=$originX;y=$originY};sheet_bounds=@{x=$sheetRect.L-$rect.L;y=$sheetRect.T-$rect.T;w=$sheetRect.R-$sheetRect.L;h=$sheetRect.B-$sheetRect.T};cells=@($cells.ToArray());prefix=$prefix;capture='PrintWindow(PW_RENDERFULLCONTENT)';excel_version=$excel.Version;excel_build=$excel.Build;normal_font=$book.Styles.Item('Normal').Font.Name;normal_size=$book.Styles.Item('Normal').Font.Size;default_row_height=$sheet.StandardHeight;default_column_width=$sheet.StandardWidth;gridlines=$win.DisplayGridlines;freeze=$win.FreezePanes})
                     $records[$records.Count-1].coordinate_calibrated=$calibrated
                     $records[$records.Count-1].desktop=$WorkerDesktop
-                    $records[$records.Count-1].format_environment=@{decimal_separator=[string]$excel.DecimalSeparator;thousands_separator=[string]$excel.ThousandsSeparator;use_system_separators=[bool]$excel.UseSystemSeparators}
+                    $records[$records.Count-1].format_environment=@{locale=[Globalization.CultureInfo]::CurrentCulture.Name;decimal_separator=[string]$excel.DecimalSeparator;thousands_separator=[string]$excel.ThousandsSeparator;use_system_separators=[bool]$excel.UseSystemSeparators}
                     $records[$records.Count-1].coordinate_method=if($calibrated){'RangeFromPoint pixel edges'}else{'integral-point API; requires raster calibration'}
                     Write-Json @($records.ToArray()) (Join-Path $out 'excel.json')
                     Write-Host "PAINT Excel $prefix PID $excelProcess (launch 1)"

@@ -175,7 +175,7 @@ pub(super) fn plan_advance(
         for line in text.split('\n') {
             let advance = if integer {
                 super::alignment::graphemes(line).into_iter().try_fold(0., |sum, part| {
-                    context.measure_text(&part).ok().map(|m| sum + m.width().round())
+                    context.measure_text(&part).ok().map(|m| sum + integer_advance(&shown.style, shown.conditional.as_ref(), matches!(shown.provenance, crate::cells::Provenance::FileCache | crate::cells::Provenance::Refused), zoom, &part, m.width()))
                 })?
             } else { context.measure_text(line).ok()?.width() };
             width = width.max(advance);
@@ -196,6 +196,17 @@ pub(super) fn plan_advance(
         Some(width)
     })
 }
+/// One grapheme's whole-pixel advance: GDI's where its table has an answer, else the
+/// browser's measurement rounded the same way.
+pub(super) fn integer_advance(style: &TextStyle, conditional: Option<&crate::cells::ConditionalShown>, italic: bool, zoom: f64, glyph: &str, measured: f64) -> f64 {
+    super::gdi_advances::advance(
+        style.family.as_deref(),
+        style.bold || conditional.is_some_and(|c| c.bold),
+        style.italic || italic || conditional.is_some_and(|c| c.italic),
+        style.pixels * zoom,
+        glyph,
+    ).unwrap_or_else(|| measured.round())
+}
 /// Captured unwrapped Western text advances in integral display pixels. Keep complex
 /// scripts, shrinking, rotation and wrapping on their shaped text route.
 pub(super) fn integer_text(shown: &crate::cells::CellShown, text: &str) -> bool {
@@ -211,8 +222,28 @@ pub(super) fn text_advances(shown: &crate::cells::CellShown, text: &str, zoom: f
         let mut cache = cache.borrow_mut();
         let context = cache.context()?;
         context.set_font(&font);
-        super::alignment::graphemes(text).into_iter().map(|part|context.measure_text(&part).ok().map(|m|m.width().round())).collect()
+        super::alignment::graphemes(text).into_iter().map(|part|context.measure_text(&part).ok().map(|m|integer_advance(&shown.style, shown.conditional.as_ref(), matches!(shown.provenance, crate::cells::Provenance::FileCache | crate::cells::Provenance::Refused), zoom, &part, m.width()))).collect()
     })
+}
+/// A segmented line is one atomic inline box, so the cell's text-decoration never reaches its
+/// glyphs. These backgrounds draw the lines the Canvas painter strokes at the same offsets.
+pub(super) fn segmented_decoration(style: &TextStyle, conditional: &crate::cells::ConditionalShown, italic: bool, zoom: f64) -> String {
+    let (underline, strike) = (style.underline || conditional.underline, style.strike || conditional.strike);
+    if !underline && !strike {
+        return String::new();
+    }
+    let line_height = style.pixels * zoom;
+    let (ascent, descent) = font_box(style, Some(conditional), italic, zoom).unwrap_or((line_height * 0.8, line_height * 0.2));
+    let baseline = (line_height - ascent - descent) / 2. + ascent;
+    let double = double_underline(style, Some(conditional));
+    let stroke = if double { underline_width(style.pixels, zoom) } else { zoom };
+    let under = baseline + stroke;
+    let lines: Vec<String> = [underline.then_some(under), double.then_some(under + 2. * stroke), strike.then_some(line_height / 2.)]
+        .into_iter().flatten()
+        .map(|offset| format!("linear-gradient(currentColor,currentColor) 0 {}px/100% {stroke}px no-repeat", offset - stroke / 2.))
+        .collect();
+    let spare = 4. * stroke;
+    format!(";background:{};padding-bottom:{spare}px;margin-bottom:-{spare}px", lines.join(","))
 }
 /// Reuse the advance probe and its font-load invalidation for baseline placement.
 pub(super) fn font_box(style: &TextStyle, conditional: Option<&crate::cells::ConditionalShown>, italic: bool, zoom: f64) -> Option<(f64, f64)> {
