@@ -67,8 +67,12 @@ pub(super) fn paint(
     panes: Panes,
     metrics: &GridMetrics,
 ) {
+    // The painter fills every pixel, and only an opaque context gets the LCD text
+    // antialiasing the DOM painter and Excel's raster have.
+    let options = js_sys::Object::new();
+    let _ = js_sys::Reflect::set(&options, &"alpha".into(), &false.into());
     let Some(ctx) = canvas
-        .get_context("2d")
+        .get_context_with_context_options("2d", &options)
         .ok()
         .flatten()
         .and_then(|v| v.dyn_into::<Context>().ok())
