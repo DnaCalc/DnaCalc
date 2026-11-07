@@ -50,8 +50,8 @@
 //!   an empty one. Custom needs one of them above 0 and neither below (`3,20` and `3,,20` are good).
 //! - HTTP status 400 to 499 is #CONNECT!. A failure to connect, status 500 and above, status 204,
 //!   and a body that is no picture are #VALUE!. The content type does not matter; the bytes do.
-//!   PNG, JPEG, WEBP, ICO, BMP and TIFF show; SVG is #VALUE!. GIF is taken from Microsoft's page
-//!   (the one GIF fetched was refused, for reasons not established).
+//!   PNG, JPEG, GIF, WEBP, ICO, BMP and TIFF show, served as anything (a GIF sent as text/html
+//!   shows); SVG is #VALUE!.
 //! - A good cell does not fetch again on Calculate or CalculateFull (no #BUSY! shows); a saved
 //!   picture shows on reopening with no fetch. Excel stores PNG, JPEG and TIFF bytes as fetched and
 //!   converts WEBP, BMP and ICO to PNG; here the bytes stay as fetched.

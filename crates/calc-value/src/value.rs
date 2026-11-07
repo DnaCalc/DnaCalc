@@ -495,6 +495,15 @@ impl ImageFormat {
     }
 }
 
+/// The members or set a CUBE function's value holds, by unique name.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CubeValue {
+    pub connection: String,
+    /// One tuple for a member; a set's tuples in its order.
+    pub tuples: Vec<Vec<String>>,
+    pub set: bool,
+}
+
 /// A picture in a cell, with what IMAGE was given for it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ImageValue {
@@ -571,6 +580,7 @@ enum ValueMetadata {
     Callable(CallableValue),
     ExcelOverflow,
     Image(ImageValue),
+    Cube(CubeValue),
 }
 
 impl fmt::Debug for CalcValue {
@@ -579,6 +589,9 @@ impl fmt::Debug for CalcValue {
         out.field("core", &self.core).field("callable", &self.callable_value());
         if let Some(image) = self.image_value() {
             out.field("image", image);
+        }
+        if let Some(cube) = self.cube_value() {
+            out.field("cube", cube);
         }
         if self.is_excel_overflow() {
             out.field("excel_overflow", &true);
@@ -737,7 +750,10 @@ impl CalcValue {
     pub fn callable_value(&self) -> Option<&CallableValue> {
         match self.metadata.as_deref() {
             Some(ValueMetadata::Callable(callable)) => Some(callable),
-            Some(ValueMetadata::ExcelOverflow | ValueMetadata::Image(_)) | None => None,
+            Some(
+                ValueMetadata::ExcelOverflow | ValueMetadata::Image(_) | ValueMetadata::Cube(_),
+            )
+            | None => None,
         }
     }
 
@@ -748,6 +764,22 @@ impl CalcValue {
         Self {
             core: CoreValue::Error(WorksheetErrorCode::Value),
             metadata: Some(Arc::new(ValueMetadata::Image(image))),
+        }
+    }
+
+    /// What a CUBE function gives: text to show, holding its members or set for the functions
+    /// that read the cell. Everything else reads the text.
+    pub fn cube(text: ExcelText, value: CubeValue) -> Self {
+        Self {
+            core: CoreValue::Text(text),
+            metadata: Some(Arc::new(ValueMetadata::Cube(value))),
+        }
+    }
+
+    pub fn cube_value(&self) -> Option<&CubeValue> {
+        match self.metadata.as_deref() {
+            Some(ValueMetadata::Cube(value)) => Some(value),
+            _ => None,
         }
     }
 

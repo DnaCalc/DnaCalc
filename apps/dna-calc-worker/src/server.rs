@@ -439,6 +439,9 @@ impl Server {
         if let Request::Command(envelope) = request {
             return self.command(envelope, bytes);
         }
+        if let Request::CellImage { at } = request {
+            return self.cell_image(at);
+        }
         if request.is_command() {
             return Answer {
                 reply: Err("A workbook command needs an identity and base revision".into()),
@@ -1028,6 +1031,7 @@ impl Server {
                 Request::PivotSourceFields{area,revision}=>Ok(Reply::PivotSourceFields(if revision!=self.book.host().revision().get(){Err("The source changed; select it again".into())}else{area.area().ok_or_else(||"Select one source range".into()).and_then(|area|calc_host::pivot_source_fields(self.book.host(),area))})),
                 Request::PivotTables(sheet)=>{let (tables,issues)=self.pivots(sheet);Ok(Reply::PivotTables{tables,issues})},
                 Request::Charts(sheet) => Ok(Reply::Charts(self.charts(sheet))),
+                Request::CellImage { .. } => Err("handle answers a cell image".into()),
                 Request::AtlasRefusals { reason, page } => Ok(Reply::AtlasRefusals(
                     self.book
                         .refusal_cells(&reason, usize::try_from(page).unwrap_or(usize::MAX)),
@@ -1148,6 +1152,40 @@ impl Server {
     }
 
     /// A new workbook in place of the open one: the page's subscriptions end with it.
+    /// The picture `at` holds, its bytes travelling beside the reply as a saved package's do.
+    fn cell_image(&self, at: Key) -> Answer {
+        let Some(cell) = at.cell() else {
+            return Answer {
+                reply: Ok(Reply::CellImage(None)),
+                bytes: None,
+            };
+        };
+        let cells = vec![cell];
+        let projected = calc_host::project(self.book.host(), &calc_host::ProjectionRequest { cells });
+        let value = match projected.as_ref().map(|page| page.cells()[0].value()) {
+            Ok(calc_host::ProjectedValue::Calculated { value, .. }) => Some(value.clone()),
+            Ok(calc_host::ProjectedValue::FileCached(cache)) => Some(cache.value().to_value()),
+            _ => None,
+        };
+        let Some(image) = value.as_ref().and_then(|value| value.image_value()) else {
+            return Answer {
+                reply: Ok(Reply::CellImage(None)),
+                bytes: None,
+            };
+        };
+        Answer {
+            reply: Ok(Reply::CellImage(Some(wire::CellImage {
+                source: image.source.clone(),
+                alt_text: image.alt_text.clone(),
+                sizing: image.sizing,
+                height: image.height,
+                width: image.width,
+                content_type: image.format.content_type().to_owned(),
+            }))),
+            bytes: Some(image.bytes.to_vec()),
+        }
+    }
+
     /// Bind WEBSERVICE and IMAGE of this and every later workbook to `route`.
     pub fn set_fetch_route(&mut self, route: std::rc::Rc<dyn calc_func::FetchRoute>) {
         self.book.set_fetch_route(route.clone());
@@ -4692,6 +4730,42 @@ mod async_contract_tests {
             }
             other => panic!("{other:?}"),
         }
+    }
+
+    /// A picture reaches the page with its bytes, and the cell shows its alt text meanwhile.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_fetch_f0tp__a_picture_reaches_the_page() {
+        let mut server = Server::new();
+        let route = Rc::new(MockFetch::default());
+        server.set_fetch_route(route.clone());
+        let s = server.book.host().sheets()[0].id();
+        let b = CellKey::new(s, 1, 2).unwrap();
+        server
+            .execute_current(
+                Request::Intent(Intent::EnterCell {
+                    at: Key::of(b),
+                    text: "=IMAGE(\"https://mock/p.png\",\"a picture\")".into(),
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        drain(&mut server);
+        let bytes = b"\x89PNG\r\n\x1a\n a picture".to_vec();
+        let reply = calc_func::FetchReply::Body(bytes.clone()).into_value(calc_func::FetchKind::Picture);
+        assert!(server.complete_fetch(1, reply));
+        drain(&mut server);
+        let answer = server.handle(Request::CellImage { at: Key::of(b) }, None);
+        match answer.reply.unwrap() {
+            Reply::CellImage(Some(image)) => {
+                assert_eq!(image.source, "https://mock/p.png");
+                assert_eq!(image.alt_text.as_deref(), Some("a picture"));
+                assert_eq!(image.content_type, "image/png");
+            }
+            other => panic!("{other:?}"),
+        }
+        assert_eq!(answer.bytes, Some(bytes));
     }
 
     /// `=FILTERXML(WEBSERVICE(url),xpath)` over the body Excel fetched from a public URL

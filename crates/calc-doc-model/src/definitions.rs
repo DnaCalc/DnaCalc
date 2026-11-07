@@ -108,6 +108,30 @@ pub struct ExternalSheet {
     pub cells: BTreeMap<(u32, u32), CachedValue>,
 }
 
+/// A workbook's connections and data model, as `xl/connections.xml` and `xl/model/item.data` hold
+/// them.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct DataModel {
+    /// Every connection's name.
+    pub connections: Vec<String>,
+    /// The connection to the workbook's own data model.
+    pub model_connection: Option<String>,
+    /// The worksheet tables feeding the model, by name.
+    pub tables: Vec<String>,
+    /// Every table the model part names, whatever feeds it. A model with one that no worksheet
+    /// table feeds holds rows the workbook's cells do not.
+    pub model_tables: Vec<String>,
+    pub measures: Vec<ModelMeasure>,
+}
+
+/// A measure of the data model.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ModelMeasure {
+    pub name: String,
+    /// The DAX after the `=`.
+    pub expression: String,
+}
+
 /// A table (ListObject) of a sheet, as its table part declares it.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Table {
@@ -323,6 +347,7 @@ pub struct Definitions {
     page_setups: BTreeMap<SheetId, crate::PageSetup>,
     charts: BTreeMap<SheetId,std::sync::Arc<[crate::Chart]>>,
     pivots: std::sync::Arc<crate::pivot::PivotState>,
+    data_model: Option<std::sync::Arc<DataModel>>,
     axis_layouts: crate::AxisLayouts,
     panes: BTreeMap<SheetId, crate::PaneLayout>,
     filters: BTreeMap<SheetId, crate::AutoFilter>,
@@ -347,6 +372,13 @@ pub struct Definitions {
 
 impl Definitions {
     pub fn pivots(&self)->&std::sync::Arc<crate::pivot::PivotState>{&self.pivots}
+    pub fn data_model(&self) -> Option<&std::sync::Arc<DataModel>> {
+        self.data_model.as_ref()
+    }
+    pub fn with_data_model(mut self, model: Option<DataModel>) -> Self {
+        self.data_model = model.map(std::sync::Arc::new);
+        self
+    }
     pub fn with_pivots(mut self,state:std::sync::Arc<crate::pivot::PivotState>)->Self{self.pivots=state;self}
 
     pub fn page_setup(&self, sheet: SheetId) -> crate::PageSetup { self.page_setups.get(&sheet).cloned().unwrap_or_default() }
@@ -528,6 +560,7 @@ impl Definitions {
             links: BTreeMap::new(),
             charts: BTreeMap::new(),
             pivots: Default::default(),
+            data_model: None,
             page_setups: BTreeMap::new(),
             validations: BTreeMap::new(),
             axis_layouts: crate::AxisLayouts::default(),

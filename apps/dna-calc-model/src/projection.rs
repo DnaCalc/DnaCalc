@@ -562,9 +562,23 @@ pub struct TableView {pub part:String,pub name:String,pub area:Area,pub columns:
 #[derive(Clone,Debug,PartialEq,Eq,Serialize,Deserialize)]
 pub enum TableChange {Create{area:Area,name:String},Resize{part:String,area:Area},Options{part:String,headers:bool,totals:bool,style:String,row_stripes:bool,column_stripes:bool,first_column:bool,last_column:bool},Total{part:String,column:u32,function:String},RenameColumn{part:String,column:u32,name:String},CalculatedColumn{part:String,column:u32,formula:Option<String>}}
 
+/// What a painter needs of a picture in a cell, beside its bytes.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CellImage {
+    pub source: String,
+    pub alt_text: Option<String>,
+    /// 0 fit, 1 fill, 2 original size, 3 custom size.
+    pub sizing: u8,
+    pub height: Option<f64>,
+    pub width: Option<f64>,
+    pub content_type: String,
+}
+
 /// What the page asks of the server.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Request {
+    /// The picture a cell holds: [`Reply::CellImage`], with its bytes beside the reply.
+    CellImage { at: Key },
     PageSetup(Sheet),
     PrintPreview {
         sheet: Sheet,
@@ -1073,6 +1087,7 @@ pub struct PastePreview {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Reply {
+    CellImage(Option<CellImage>),
     PageSetup(Result<crate::printing::PageSetupState, String>),
     PrintPreview(Result<crate::printing::PrintDocument, String>),
     TemplateFormat(FileFormat),

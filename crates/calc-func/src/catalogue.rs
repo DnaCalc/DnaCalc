@@ -25,6 +25,7 @@ mod bonds;
 mod comparison;
 pub(crate) use comparison::text_order;
 mod conditional;
+mod cube_functions;
 mod database;
 mod dates;
 mod distributions;
@@ -55,7 +56,7 @@ mod text_functions;
 
 /// The family fragments that make up the catalogue. A new family adds its module above and one
 /// line here; its entries stay in its own file.
-const FAMILIES: [&Family; 33] = [
+const FAMILIES: [&Family; 34] = [
     &arithmetic::FAMILY,
     &comparison::FAMILY,
     &text::FAMILY,
@@ -65,6 +66,7 @@ const FAMILIES: [&Family; 33] = [
     &conditional::FAMILY,
     &error_fallback::FAMILY,
     &euro_tools::FAMILY,
+    &cube_functions::FAMILY,
     &fetching::FAMILY,
     &lookup::FAMILY,
     &information::FAMILY,

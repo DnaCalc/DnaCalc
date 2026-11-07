@@ -228,6 +228,7 @@ impl Sheet<'_> {
             return self.value(kind, text).map(Ok);
         };
         Ok(match self.context.metadata.value(vm) {
+            ValueMeta::Mdx => return self.value(kind, text).map(Ok),
             ValueMeta::Error(code) => Ok(CachedValue::Error(code)),
             ValueMeta::Image(image) => Ok(CachedValue::Image(image)),
             ValueMeta::UnknownErrorType { error_type } => Err(UnloadedCell::RichValue {

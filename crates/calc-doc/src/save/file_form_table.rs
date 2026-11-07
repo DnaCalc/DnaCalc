@@ -4,7 +4,7 @@
 
 use super::{FunctionFileForm, Prefix};
 
-pub(super) const FUNCTIONS: [FunctionFileForm; 510] = [
+pub(super) const FUNCTIONS: [FunctionFileForm; 517] = [
     FunctionFileForm {
         name: "ABS",
         prefix: Prefix::Bare,
@@ -718,6 +718,55 @@ pub(super) const FUNCTIONS: [FunctionFileForm; 510] = [
         first_count: 1,
         bases: &[false],
         positions: &[true],
+    },
+    FunctionFileForm {
+        name: "CUBEKPIMEMBER",
+        prefix: Prefix::Bare,
+        first_count: 3,
+        bases: &[false, false, false],
+        positions: &[false, false, false, false],
+    },
+    FunctionFileForm {
+        name: "CUBEMEMBER",
+        prefix: Prefix::Bare,
+        first_count: 2,
+        bases: &[false, false],
+        positions: &[false, false, false],
+    },
+    FunctionFileForm {
+        name: "CUBEMEMBERPROPERTY",
+        prefix: Prefix::Bare,
+        first_count: 3,
+        bases: &[false, false, false],
+        positions: &[false, false, false],
+    },
+    FunctionFileForm {
+        name: "CUBERANKEDMEMBER",
+        prefix: Prefix::Bare,
+        first_count: 3,
+        bases: &[false, false, false],
+        positions: &[false, false, false, false],
+    },
+    FunctionFileForm {
+        name: "CUBESET",
+        prefix: Prefix::Bare,
+        first_count: 2,
+        bases: &[false, false],
+        positions: &[false, false, false, false, false],
+    },
+    FunctionFileForm {
+        name: "CUBESETCOUNT",
+        prefix: Prefix::Bare,
+        first_count: 1,
+        bases: &[false],
+        positions: &[false],
+    },
+    FunctionFileForm {
+        name: "CUBEVALUE",
+        prefix: Prefix::Bare,
+        first_count: 1,
+        bases: &[false],
+        positions: &[false, false],
     },
     FunctionFileForm {
         name: "CUMIPMT",
