@@ -349,7 +349,7 @@ LOG10	pinned	20430	120	120	-	exact	919dd43269+changes
 LOGEST	full	20228	360	360	-	exact	bab456b6f8+changes
 LOGEST	pinned	20228	121	2	-	structural	919dd43269+changes
 LOGNORM.DIST	full	20131,20430,?	7809	6534	2216	gross	bab456b6f8+changes
-LOGNORM.DIST	pinned	20131,20430	120	107	1082	gross	bab456b6f8+changes
+LOGNORM.DIST	pinned	20131,20430	120	120	-	exact	29017e52bc+changes
 LOGNORMDIST	full	20131,?	3299	3299	-	exact	bab456b6f8+changes
 LOGNORMDIST	pinned	20131	120	120	-	exact	bab456b6f8+changes
 LOWER	full	20527	6	6	-	exact	bab456b6f8+changes

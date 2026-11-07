@@ -126,6 +126,30 @@ fn exp_running<F: Fpu>(start: f64, terms: &[f64]) -> f64 {
     F::store(&F::mul(&load(exp_with::<F>(stored, CW)), &load(factor), CW), CW)
 }
 
+/// `exp(-(start + terms[0] + terms[1] ...))` as LOGNORM.DIST's density forms it. The sum is stored
+/// after every addition and runs on in the registers, as in [`excel_exp_running`], but what the
+/// stores dropped comes back with the wrong sign: EXP of minus the stored sum times the stored
+/// `1 + (registers - stored)`, where `1 - (registers - stored)` would correct it. So the answer's
+/// error is twice what the stores dropped, up to a whole grid step of the sum. Excel's own oddity.
+///
+/// The exponent `-ln Q`, read to a thousandth of its grid, is `2 S - R` with `S` the stored sum and
+/// `R` the registers': 312 of 312 bank rows with an exponent above 100, rms 0.003 of a grid step.
+pub(crate) fn excel_exp_of_sum(start: f64, terms: &[f64]) -> f64 {
+    exp_of_sum::<Native>(start, terms)
+}
+
+fn exp_of_sum<F: Fpu>(start: f64, terms: &[f64]) -> f64 {
+    let mut stored = start;
+    let mut registers = load(start);
+    for term in terms {
+        stored = F::store(&F::add(&load(stored), &load(*term), CW), CW);
+        registers = F::add(&registers, &load(*term), CW);
+    }
+    let dropped = F::store(&F::sub(&registers, &load(stored), CW), CW);
+    let factor = F::store(&F::add(&ext_one(), &load(dropped), CW), CW);
+    F::store(&F::mul(&load(exp_with::<F>(-stored, CW)), &load(factor), CW), CW)
+}
+
 /// `stirling_error(n)` from its asymptotic series, ten terms in the registers, stored once. Ten terms
 /// because `n = 7` reads 2.2e-17 under the true value, where the tenth term leaves 2.0e-17 and the
 /// ninth and eleventh are 1.0e-16 and 4.5e-18 over. From 8 on the answers in the series range hold it

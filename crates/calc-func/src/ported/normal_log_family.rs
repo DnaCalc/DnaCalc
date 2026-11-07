@@ -208,10 +208,21 @@ pub fn lognorm_dist_kernel(
     // the public LN chain differs there. The earlier 45-row identity still holds.
     let z = (crt_log(x) - mean) / sigma;
     if cumulative {
-        Ok(norm_cdf(z))
-    } else {
-        Ok(phi_kernel(z) / (x * sigma))
+        return Ok(norm_cdf(z));
     }
+    // The density never multiplies by 1 / x: answers on adjacent x repeat until the stored LN moves.
+    // On adjacent means the answers' exponent sits on one grid at a fine offset of minus the stored
+    // logarithms, which names `excel_exp_of_sum`. `(d*d / sigma*sigma) / 2` holds all 7,809 rows of
+    // the bank in this order of the logarithms; the other five orders hold 7,398 to 7,680.
+    use crate::ported::excel_numeric::{excel_exp_of_sum, excel_log, excel_x87_div, excel_x87_mul, excel_x87_sub};
+    let log_x = excel_log(x);
+    let d = excel_x87_sub(log_x, mean);
+    let half_square = excel_x87_div(excel_x87_mul(d, d), excel_x87_mul(sigma, sigma)) / 2.0;
+    if half_square.is_nan() {
+        return Err(WorksheetErrorCode::Num);
+    }
+    const LN_SQRT_2PI: f64 = 0.9189385332046728;
+    Ok(flush_subnormal(excel_exp_of_sum(half_square, &[excel_log(sigma), LN_SQRT_2PI, log_x])))
 }
 
 pub fn lognorm_inv_kernel(p: f64, mean: f64, sigma: f64) -> Result<f64, WorksheetErrorCode> {
