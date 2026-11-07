@@ -315,6 +315,10 @@ impl Workbook {
         self.session
             .update_rtd(provider, subscription, sequence, value)
     }
+    pub fn set_fetch_route(&mut self, route: std::rc::Rc<dyn calc_func::FetchRoute>) {
+        self.session.set_fetch_route(route);
+    }
+
     pub fn complete_async(
         &mut self,
         token: &calc_host::AsyncToken,

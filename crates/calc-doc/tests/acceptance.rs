@@ -5965,6 +5965,7 @@ fn cached_held(value: &CachedValue) -> Held {
         CachedValue::Text(text) => Held::Text(text.text().utf16_code_units().to_vec()),
         CachedValue::Logical(logical) => Held::Logical(*logical),
         CachedValue::Error(code) => Held::Error(spelling(*code)),
+        CachedValue::Image(_) => Held::Error("#VALUE!".into()),
     }
 }
 

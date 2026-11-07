@@ -17,7 +17,8 @@ calc-value = {path="../../crates/calc-value"}
 calc-func = {path="../../crates/calc-func"}
 wasm-bindgen = "=0.2.117"
 js-sys = "=0.3.94"
-web-sys = {version="=0.3.94",features=["DedicatedWorkerGlobalScope","MessageEvent","Crypto","Url","UrlSearchParams"]}
+wasm-bindgen-futures = "=0.4.67"
+web-sys = {version="=0.3.94",features=["DedicatedWorkerGlobalScope","WorkerGlobalScope","MessageEvent","Crypto","Response","Url","UrlSearchParams"]}
 [dev-dependencies]
 calc-fml = {path="../../crates/calc-fml"}
 calc-doc = {path="../../crates/calc-doc"}

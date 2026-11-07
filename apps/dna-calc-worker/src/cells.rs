@@ -43,6 +43,9 @@ pub fn area_label(host: &HostState, area: GridArea) -> String {
 pub use dna_formula_ui::display::{address, column_letters, parse_address};
 
 fn kind(value: &CalcValue) -> &'static str {
+    if value.image_value().is_some() {
+        return "image";
+    }
     match value.core() {
         CoreValue::Empty => "",
         _ => result::kind(value),
@@ -68,6 +71,10 @@ fn formatted(
     profile: Option<&FormatProfile>,
     format: Option<CellFormat<'_>>,
 ) -> (String, FormatShown) {
+    // Until the painter draws the picture, a cell shows its alt text, never the #VALUE! it reads as.
+    if let Some(image) = value.image_value() {
+        return (image.alt_text.clone().unwrap_or_default(), FormatShown::General);
+    }
     let general = || result::shown(value, profile);
     let (Some(CellFormat { code, date1904, .. }), Some(profile)) = (format, profile) else {
         return (general(), FormatShown::General);

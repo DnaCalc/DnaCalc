@@ -98,6 +98,9 @@ fn single(
     index: usize,
     services: &mut EvalServices<'_>,
 ) -> Step<CalcValue> {
+    if matches!(arguments[index].core_ref(), CoreRef::Array(_)) {
+        return value_error();
+    }
     let held = grid(site, arguments, index, services)?;
     if held.rows != 1 || held.cols != 1 {
         return value_error();
@@ -121,45 +124,62 @@ fn unit(value: &CalcValue) -> Step<usize> {
         .map_or_else(value_error, Ok)
 }
 
-/// Text read as the add-in reads a number; `None` when it is not one. Measured: spaces go
-/// (`"1 000"`), a sign or parentheses may stand round the digits (`"(5)"` is -5), an exponent is E
-/// or D (`"1d3"`), and `"&H10"` is 16; `"1,000"`, `"$5"`, `"5%"`, `"1e"` and dates are not read.
-/// Not measured: `&O`, and `&H` past 0x7FFF, which this reads as 16-bit integers because a
-/// Visual Basic conversion does.
+/// Text read as the add-in reads a number; `None` when it is not one, which is #VALUE!. Measured
+/// on this en-ZA machine: spaces round the text and inside parentheses go, a space may group digits
+/// (`"1 000"`), a sign may lead or trail (`"1-"` is -1), parentheses negate (`"(5)"`), the currency
+/// `R` may lead, an exponent is E or D with a sign or none, and `&H` and `&O` are unsigned
+/// (`"&HFFFF"` is 65535). Commas, `$`, `%`, dates, `"1e"`, `"1 e 3"`, `"--1"`, `"(-5)"` and
+/// `"-(5)"` are not read.
 fn read_number(text: &str) -> Option<f64> {
-    let text: String = text.chars().filter(|c| *c != ' ').collect();
+    let text = text.trim_matches(' ');
     if let Some(body) = text.strip_prefix('&') {
         let (radix, digits) = match body.chars().next()? {
             'h' | 'H' => (16, &body[1..]),
             'o' | 'O' => (8, &body[1..]),
             _ => return None,
         };
-        let value = u32::from_str_radix(digits, radix).ok()?;
-        return match value {
-            0..=0x7fff => Some(f64::from(value)),
-            0x8000..=0xffff => Some(f64::from(value) - 65536.0),
-            _ => None,
-        };
+        return u64::from_str_radix(digits, radix).ok().map(|value| value as f64);
     }
-    let (negative, body) = match text.strip_prefix('(').and_then(|t| t.strip_suffix(')')) {
-        Some(inner) => (true, inner),
-        None => (false, text.as_str()),
+    let (negated, body) = match text.strip_prefix('(').and_then(|t| t.strip_suffix(')')) {
+        Some(inner) => (true, inner.trim_matches(' ')),
+        None => (false, text),
     };
-    let (sign, body) = match body.as_bytes().first()? {
-        b'+' => (1.0, &body[1..]),
-        b'-' => (-1.0, &body[1..]),
-        _ => (1.0, body),
+    let body = body.strip_prefix('R').unwrap_or(body);
+    let (lead, body) = match body.as_bytes().first()? {
+        b'+' => (Some(1.0), &body[1..]),
+        b'-' => (Some(-1.0), &body[1..]),
+        _ => (None, body),
     };
+    let (trail, body) = match body.as_bytes().last()? {
+        b'+' if lead.is_none() && !negated => (Some(1.0), &body[..body.len() - 1]),
+        b'-' if lead.is_none() && !negated => (Some(-1.0), &body[..body.len() - 1]),
+        _ => (None, body),
+    };
+    if negated && (lead.is_some() || trail.is_some()) {
+        return None;
+    }
+    let sign = lead.or(trail).unwrap_or(1.0);
     let (mantissa, exponent) = match body.find(['e', 'E', 'd', 'D']) {
         Some(at) => (&body[..at], Some(&body[at + 1..])),
         None => (body, None),
     };
-    let digits = mantissa.bytes().filter(u8::is_ascii_digit).count();
-    let points = mantissa.bytes().filter(|b| *b == b'.').count();
-    if digits == 0 || points > 1 || digits + points != mantissa.len() {
+    let grouped = |at: usize, byte: u8| {
+        byte == b' '
+            && at > 0
+            && mantissa.as_bytes()[at - 1].is_ascii_digit()
+            && mantissa.as_bytes().get(at + 1).is_some_and(u8::is_ascii_digit)
+    };
+    if !mantissa.bytes().enumerate().all(|(at, byte)| {
+        byte.is_ascii_digit() || byte == b'.' || grouped(at, byte)
+    }) {
         return None;
     }
-    let mut decimal = mantissa.to_owned();
+    let mut decimal: String = mantissa.chars().filter(|c| *c != ' ').collect();
+    if decimal.bytes().filter(|byte| *byte == b'.').count() > 1
+        || !decimal.bytes().any(|byte| byte.is_ascii_digit())
+    {
+        return None;
+    }
     if let Some(exponent) = exponent {
         let unsigned = exponent.strip_prefix(['+', '-']).unwrap_or(exponent);
         if unsigned.is_empty() || !unsigned.bytes().all(|b| b.is_ascii_digit()) {
@@ -169,7 +189,7 @@ fn read_number(text: &str) -> Option<f64> {
         decimal.push_str(exponent);
     }
     let value: f64 = decimal.parse().ok()?;
-    Some(if negative { -sign * value } else { sign * value })
+    Some(if negated { -value } else { sign * value })
 }
 
 /// The number to convert: a blank is 0, TRUE is -1 and FALSE 0, and text is [`read_number`]; text

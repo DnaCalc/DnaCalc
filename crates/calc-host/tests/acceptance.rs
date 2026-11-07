@@ -194,6 +194,7 @@ fn cached(value: &CachedValue) -> String {
         CachedValue::Number(number) => format!("{}", number.get()),
         CachedValue::Text(text) => format!("{:?}", text.text().to_string_lossy()),
         CachedValue::Logical(logical) => logical.to_string().to_uppercase(),
+        CachedValue::Image(_) => "#VALUE!".to_owned(),
         CachedValue::Error(code) => format!("{code:?}"),
     }
 }

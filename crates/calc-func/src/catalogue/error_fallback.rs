@@ -89,7 +89,11 @@ fn fallback_selected(
         return Site::finish(Err(site.not_modelled(Some(0))));
     }
     let chosen = match value.core_ref() {
-        CoreRef::Error(code) if value.callable_value().is_none() && catches(code) => {
+        CoreRef::Error(code)
+            if value.callable_value().is_none()
+                && value.image_value().is_none()
+                && catches(code) =>
+        {
             let fallback = arguments.argument(1)?;
             if not_scalar(&fallback) {
                 return Site::finish(Err(site.not_modelled(Some(1))));
