@@ -207,16 +207,20 @@ pub fn binom_dist_kernel(number_s: f64, trials: f64, p: f64, cumulative: bool) -
     if !cumulative {
         return finite(binom_mass(k, n, p, q));
     }
+    finite(binom_cumulative(k, n, p, q))
+}
+
+/// The binomial's lower tail: the mass at 0, one at `n`, and between them the regularized beta at
+/// `q`, the same bits as `BETA.DIST(q, n - k, k + 1, TRUE)` on every row of 128 live ones at `n` =
+/// 30 and 100. Not a sum of the masses: that sum misses nine rows in ten by up to 188 units.
+fn binom_cumulative(k: f64, n: f64, p: f64, q: f64) -> f64 {
     if k == n {
-        return Ok(1.0);
+        1.0
+    } else if k == 0.0 {
+        binom_mass(k, n, p, q)
+    } else {
+        crate::ported::special_math_common::regularized_beta(q, n - k, k + 1.0)
     }
-    let mut sum = 0.0;
-    let mut i = 0.0;
-    while i <= k {
-        sum += binom_mass(i, n, p, q);
-        i += 1.0;
-    }
-    finite(sum.min(1.0))
 }
 
 /// `BINOM.DIST.RANGE(trials, probability_s, number_s, [number_s2])`.
@@ -236,13 +240,18 @@ pub fn binom_dist_range_kernel(trials: f64, p: f64, number_s: f64, number_s2: Op
             binom_mass(i, n, p, 1.0 - p)
         }
     };
-    let mut sum = 0.0;
-    let mut i = s;
-    while i <= s2 {
-        sum += mass(i);
-        i += 1.0;
+    if s == s2 || p == 0.0 || p == 1.0 {
+        return finite(if s == s2 {
+            mass(s)
+        } else {
+            let (first, last) = if p == 0.0 { (0.0, 0.0) } else { (n, n) };
+            if s <= first && first <= s2 && last <= s2 { 1.0 } else { 0.0 }
+        });
     }
-    finite(sum.min(1.0))
+    // Live: the difference of the two tails on 383 of 421 rows, against 20 for the sum of masses.
+    let q = 1.0 - p;
+    let upper = binom_cumulative(s2, n, p, q);
+    finite(if s == 0.0 { upper } else { excel_x87_sub(upper, binom_cumulative(s - 1.0, n, p, q)) })
 }
 
 /// `BINOM.INV(trials, probability_s, alpha)`: the smallest count whose cumulative binomial

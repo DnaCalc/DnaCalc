@@ -104,7 +104,7 @@
     {"args":["0x4053800000000000","0x3fd4fcb1c75307d0","0x403b000000000000"],"expected_bits":"0x3fb6d8e89546496c","id":"w111extended-2026092903-BINOM.DIST.RANGE-00455","reading":"r0"},
     {"args":["0x4053800000000000","0x3fee58f4bf53eefc","0x4057c00000000000"],"expected_bits":"error:Num","id":"w111extended-2026092903-BINOM.DIST.RANGE-00530","reading":"r0"},
     {"args":["0x4053c00000000000","0x3feac88b6c91b96b","0x0000000000000000"],"expected_bits":"0x33033de35d2e8b0b","id":"w111extended-2026092903-BINOM.DIST.RANGE-00061","reading":"r0"},
-    {"args":["0x4054000000000000","0x3fe620853cdc6598","0x4050400000000000"],"calc_func":"0x3f76dae331b74a8b","expected_bits":"0x3f76dae331b74a7f","id":"w111extended-2026092903-BINOM.DIST.RANGE-00414","reading":"r0"},
+    {"args":["0x4054000000000000","0x3fe620853cdc6598","0x4050400000000000"],"expected_bits":"0x3f76dae331b74a7f","id":"w111extended-2026092903-BINOM.DIST.RANGE-00414","reading":"r0"},
     {"args":["0x4054400000000000","0x3fd84dbe4f834ff4","0x4047000000000000"],"expected_bits":"0x3f30a71d96972528","id":"w111extended-2026092903-BINOM.DIST.RANGE-00102","reading":"r0"},
     {"args":["0x4054800000000000","0x3fbce72aa8450068","0x4047000000000000"],"expected_bits":"0x3b58fa7c6c5cdffb","id":"w111extended-2026092903-BINOM.DIST.RANGE-01177","reading":"r0"},
     {"args":["0x4054800000000000","0x3fe8a1e7e48203fc","0x4035000000000000"],"expected_bits":"0x3b5c2880b6823d66","id":"w111extended-2026092903-BINOM.DIST.RANGE-00709","reading":"r0"},

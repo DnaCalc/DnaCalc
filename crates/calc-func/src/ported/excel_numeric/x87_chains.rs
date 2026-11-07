@@ -216,11 +216,12 @@ pub(crate) fn excel_stirling_step(n: f64) -> f64 {
 }
 
 fn atanh_tail<F: Fpu>(v: &Ext80) -> Ext80 {
-    let w = F::mul(v, v, CW);
-    let (mut tail, mut power, mut j) = (load(0.0), *v, 1.0);
+    let stored = load(F::store(v, CW));
+    let w = load(F::store(&F::mul(&stored, &stored, CW), CW));
+    let (mut tail, mut power, mut j) = (load(0.0), stored, 1.0);
     loop {
-        power = F::mul(&power, &w, CW);
-        let next = F::add(&tail, &F::div(&power, &load(2.0 * j + 1.0), CW), CW);
+        power = load(F::store(&F::mul(&power, &w, CW), CW));
+        let next = load(F::store(&F::add(&tail, &F::div(&power, &load(2.0 * j + 1.0), CW), CW), CW));
         if next.0 == tail.0 {
             return tail;
         }
