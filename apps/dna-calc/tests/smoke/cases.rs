@@ -110,7 +110,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         actions: &[
             Action::Into("name-box", "B1\u{E007}"),
             Action::Keys("grid", "="),
-            Action::Keys("cell-editor", "WEBSERVICE(\"http://example.com\")"),
+            Action::Keys("cell-editor", "STOCKHISTORY(\"MSFT\",45293)"),
             Action::Keys("cell-editor", ENTER),
             Action::Into("name-box", "B1\u{E007}"),
         ],
@@ -1892,7 +1892,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         name: "shared states: a refusal opens the exact reason without inventing an owner",
         actions: &[
             Action::Into("name-box", "C1\u{E007}"),
-            Action::Into(BAR, "=WEBSERVICE(\"https://example.com\")\u{E007}"),
+            Action::Into(BAR, "=STOCKHISTORY(\"MSFT\",45293)\u{E007}"),
             Action::Into("name-box", "C1\u{E007}"),
         ],
         checks: &[
@@ -1972,7 +1972,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         name: "shared states: recovery opens the selected source without replacing it",
         actions: &[Action::Click("recover-edit")],
         checks: &[
-            Check::Value(BAR, "=WEBSERVICE(\"https://example.com\")"),
+            Check::Value(BAR, "=STOCKHISTORY(\"MSFT\",45293)"),
             Check::Focused(BAR),
         ],
     },
@@ -4492,7 +4492,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::DiscardReplacement,
             Action::Wait(Check::Text("status", "New workbook")),
             Action::ExternalClipboard(
-                "1\t=SUM(A1:A2)\ttext\n2\t=1/0\tTRUE\n\t=WEBSERVICE(\"https://example.com\")\t=\"\"",
+                "1\t=SUM(A1:A2)\ttext\n2\t=1/0\tTRUE\n\t=STOCKHISTORY(\"MSFT\",45293)\t=\"\"",
                 false,
             ),
             Action::Keys("grid", "\u{E009}v\u{E000}"),
