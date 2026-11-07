@@ -117,20 +117,39 @@ struct Slice {
     length: f64,
     manual: bool,
 }
-// UI27 (Excel 16.0.20527, Microsoft Print to PDF at 600 dpi): printed bands are whole device
-// pixels, and a band is a little larger than its nominal size. A 15 pt row (20 px) prints as 127
-// device pixels and a 10.7109375-character column (75 px) as 504; widths and heights are rounded
-// after the print scale is applied (q2-*, q3-fit-*). The column factor is calibrated at one
-// width; other widths are open questions (excel-questions-ui30).
-const COLUMN_DEVICE_PER_PX: f64 = 504. / 75.;
-const ROW_DEVICE_PER_POINT: f64 = 127. / 15.;
+// UI27 and UI30 (Excel 16.0.20527, Microsoft Print to PDF at 600 dpi, 100%): printed bands are
+// whole device pixels. A column prints as `digit * characters + padding` device pixels, where the
+// digit and the padding are the Normal font's at the printer: a screen column of `px` pixels
+// (7 pixels a digit and 5 of padding at Aptos Narrow 11 and Calibri 11) prints as
+// `(px - 5) * 47 / 7 + 34`, so 12, 19, 40, 64, 75, 110, 145, 285 and 705 pixels print as 81,
+// 128, 269, 430, 504, 739, 974, 1914 and 4500 (a column wider than the printable width is cut to
+// it). Arial 10 prints 46 a digit with 33 of padding, Times New Roman 14 59 with 46 (9 pixels a
+// digit, 7 of padding). Row heights print at a font-dependent rate: 15 pt is 127 device pixels at
+// Aptos Narrow 11, 121 at Calibri 11 and Arial 10, 116 at Times New Roman 14. Widths and heights
+// are rounded after the print scale is applied (q2-*, q3-fit-*). The model has no Normal font,
+// so it uses the Aptos Narrow 11 rates, which are the new-workbook default.
+const COLUMN_DIGIT_PX: f64 = 7.;
+const COLUMN_PADDING_PX: f64 = 5.;
+const COLUMN_DIGIT_DEVICE: f64 = 47.;
+const COLUMN_PADDING_DEVICE: f64 = 34.;
+/// Device pixels per point of row height: UI30 P2 puts it between 8.45 and 8.4583 (rows of 8,
+/// 12, 12.75, 15, 20 and 30 pt print as 68, 101, 108, 127, 169 and 254).
+const ROW_DEVICE_PER_POINT: f64 = 8.454;
+/// The printed width of a column of `px` screen pixels, before the print scale.
+fn column_device(px: f64) -> f64 {
+    if px <= 0. {
+        0.
+    } else {
+        (px - COLUMN_PADDING_PX) * COLUMN_DIGIT_DEVICE / COLUMN_DIGIT_PX + COLUMN_PADDING_DEVICE
+    }
+}
 /// Page and margin sizes: 600 dpi device pixels per CSS pixel.
 const PAGE_DEVICE_PER_PX: f64 = 600. / 96.;
 /// Bands in device pixels at one print scale, indexed like the pixel metrics.
 fn device_metrics(m: &GridMetrics, geometry: &Geometry, scale: f64) -> GridMetrics {
     let round = |v: f64| (v * scale).round();
     let row_default = geometry.default_row_height.unwrap_or(15.) * ROW_DEVICE_PER_POINT;
-    let col_default = m.col_width * COLUMN_DEVICE_PER_PX;
+    let col_default = column_device(m.col_width);
     let rows = geometry.rows.iter().map(|&(row, height, hidden)| {
         (
             row,
@@ -147,7 +166,7 @@ fn device_metrics(m: &GridMetrics, geometry: &Geometry, scale: f64) -> GridMetri
             let size = if hidden {
                 0.
             } else {
-                round((m.col_start(column + 1) - m.col_start(column)) * COLUMN_DEVICE_PER_PX)
+                round(column_device(m.col_start(column + 1) - m.col_start(column)))
             };
             columns.push((column, size));
         }
@@ -157,7 +176,7 @@ fn device_metrics(m: &GridMetrics, geometry: &Geometry, scale: f64) -> GridMetri
         row_height: round(row_default),
         col_width: round(col_default),
         header_h: round(m.header_h * ROW_DEVICE_PER_POINT * 0.75),
-        header_w: round(m.header_w * COLUMN_DEVICE_PER_PX),
+        header_w: round(column_device(m.header_w)),
         rows: Sizes::new(round(row_default), rows),
         cols: Sizes::new(round(col_default), columns),
     }

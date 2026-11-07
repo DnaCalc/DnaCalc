@@ -148,3 +148,30 @@ fn headers_and_footers_print_what_excel_printed_in_q7() {
         assert_eq!(text(true, 1), *footer, "page {}", index + 1);
     }
 }
+
+/// UI30 P1 and P2 (Excel 16.0.20527, Microsoft Print to PDF at 600 dpi, Letter, 100%): the
+/// printed pitch of columns and rows of other sizes at the default Aptos Narrow 11 Normal font,
+/// from the PDF label positions (pure arithmetic over the measured pairs).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn column_and_row_sizes_print_as_excel_printed_them_in_ui30() {
+    // (screen pixels of ColumnWidth 1, 2, 5, 8.43, 10, 15, 20, 40, 60), device pixels printed.
+    let columns = [
+        (12., 81.),
+        (19., 128.),
+        (40., 269.),
+        (64., 430.),
+        (75., 504.),
+        (110., 739.),
+        (145., 974.),
+        (285., 1914.),
+        (425., 2854.),
+    ];
+    for (px, device) in columns {
+        assert_eq!(column_device(px).round(), device, "{px} px");
+    }
+    // Row heights of 8, 12, 12.75, 15, 20 and 30 pt.
+    for (points, device) in [(8., 68.), (12., 101.), (12.75, 108.), (15., 127.), (20., 169.), (30., 254.)] {
+        assert_eq!((points * ROW_DEVICE_PER_POINT).round(), device, "{points} pt");
+    }
+}

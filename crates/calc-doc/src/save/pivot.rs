@@ -98,7 +98,27 @@ fn cache_fields(cache: &PivotCache) -> Result<Vec<u8>, SaveRefusal> {
             .iter()
             .any(|i| matches!(i, PivotItem::Boolean(_)));
         let error = field.items.iter().any(|i| matches!(i, PivotItem::Error(_)));
-        let mixed = u8::from(text) + u8::from(number) + u8::from(logical) + u8::from(error) > 1;
+        let dates = field
+            .items
+            .iter()
+            .filter_map(|i| {
+                if let PivotItem::Date(d) = i {
+                    Some(d.as_str())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        let date = !dates.is_empty();
+        // Excel refuses (through automation) a cache whose date items are flagged as non-dates:
+        // date items carry containsDate, with minDate and maxDate.
+        let non_date = missing || text || number || logical || error || !date;
+        let mixed = u8::from(text)
+            + u8::from(number)
+            + u8::from(logical)
+            + u8::from(error)
+            + u8::from(date)
+            > 1;
         attr(
             "containsInteger",
             if number
@@ -124,8 +144,8 @@ fn cache_fields(cache: &PivotCache) -> Result<Vec<u8>, SaveRefusal> {
         attr("containsBlank", if missing { "1" } else { "0" }, &mut out);
         attr("containsString", if text { "1" } else { "0" }, &mut out);
         attr("containsNumber", if number { "1" } else { "0" }, &mut out);
-        attr("containsNonDate", "1", &mut out);
-        attr("containsDate", "0", &mut out);
+        attr("containsNonDate", if non_date { "1" } else { "0" }, &mut out);
+        attr("containsDate", if date { "1" } else { "0" }, &mut out);
         attr(
             "containsMixedTypes",
             if mixed { "1" } else { "0" },
@@ -165,6 +185,10 @@ fn cache_fields(cache: &PivotCache) -> Result<Vec<u8>, SaveRefusal> {
         }
         if let Some(max) = numbers.iter().copied().reduce(f64::max) {
             attr("maxValue", &max.to_string(), &mut out);
+        }
+        if let (Some(min), Some(max)) = (dates.iter().min(), dates.iter().max()) {
+            attr("minDate", min, &mut out);
+            attr("maxDate", max, &mut out);
         }
         out.push(b'>');
         for value in &field.items {
@@ -750,4 +774,45 @@ fn add_new<S:Borrow<crate::load::LoadedSheet>>(package:&Package,before:&PivotSta
         let _=rel;
 
     }Ok(())
+}
+
+#[cfg(test)]
+mod date_flags {
+    use super::*;
+    /// UI30 P11: Excel refused a refreshed cache whose date items were flagged as non-dates
+    /// (it opened once the flags were Excel's: containsDate with minDate and maxDate).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn date_items_are_flagged_as_dates() {
+        let field = PivotCacheField {
+            name: "Month".into(),
+            shared_items: None,
+            items: vec![
+                PivotItem::Date("2024-02-15T00:00:00".into()),
+                PivotItem::Date("2024-01-15T00:00:00".into()),
+            ],
+            attributes: BTreeMap::new(),
+        };
+        let cache = PivotCache {
+            id: 1,
+            part: String::new(),
+            records_part: None,
+            record_count: None,
+            source_type: "worksheet".into(),
+            source_sheet: None,
+            source_range: None,
+            source_name: None,
+            fields: vec![field],
+            attributes: BTreeMap::new(),
+            unsupported: Vec::new(),
+            snapshot: None,
+        };
+        let xml = String::from_utf8(cache_fields(&cache).unwrap()).unwrap();
+        assert!(xml.contains(r#"containsDate="1""#), "{xml}");
+        assert!(xml.contains(r#"containsNonDate="0""#), "{xml}");
+        assert!(xml.contains(r#"containsNumber="0""#), "{xml}");
+        assert!(xml.contains(r#"containsMixedTypes="0""#), "{xml}");
+        assert!(xml.contains(r#"minDate="2024-01-15T00:00:00""#), "{xml}");
+        assert!(xml.contains(r#"maxDate="2024-02-15T00:00:00""#), "{xml}");
+    }
 }
