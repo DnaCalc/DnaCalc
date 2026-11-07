@@ -328,12 +328,27 @@ mod brush_tests {
         for scale in [0.75,1.,1.5] {
             for (style,low,high,width) in [("thin",-1.,0.,1.),("medium",-2.,0.,2.),("thick",-2.,1.,3.),("double",-2.,1.,2.)] {
                 cell.borders=[Some(BorderShown{style:style.into(),color:Some("#154c94".into())}),None,None,None];
-                let strokes=edges(&cell,scale);
+                let strokes=edges(&cell,scale,(0.,0.));
                 let lo=strokes.iter().map(|s|s.x1-s.width/2.).fold(f64::INFINITY,f64::min);
                 let hi=strokes.iter().map(|s|s.x1+s.width/2.).fold(f64::NEG_INFINITY,f64::max);
                 assert_eq!((lo,hi,strokes.iter().map(|s|s.width).sum::<f64>()),(low,high,width),"{style} at {scale}");
             }
         }
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dashes_run_from_excels_grid_corner_and_slants_stagger_their_cuts() {
+        use dna_calc_model::{geometry::{CellRect,GridMetrics,Viewport},projection::{CellShown,FormatShown,Provenance},render_plan::build_render_plan};
+        let metrics=GridMetrics::default();
+        assert_eq!(dash_shift(&metrics),(26.-metrics.header_w,20.-metrics.header_h));
+        assert_eq!(dash_shift(&metrics.scaled(1.5)),(40.-metrics.header_w*1.5,29.-metrics.header_h*1.5));
+        let mut ids=calc_value::IdAllocator::<calc_value::SheetId>::new();
+        let shown=CellShown{at:calc_value::CellKey::new(ids.issue().unwrap(),1,1).unwrap(),style:Default::default(),text:String::new(),kind:"",provenance:Provenance::Empty,formula:false,format:FormatShown::General,color:None,conditional:None};
+        let mut cell=build_render_plan(&[shown],&metrics,&Viewport{scroll_x:0.,scroll_y:0.,width:500.,height:300.},10,10).cells.remove(0);
+        cell.anchor=CellRect{x:30.,y:40.,w:100.,h:30.};
+        cell.borders=[Some(BorderShown{style:"slantDashDot".into(),color:None}),None,None,None];
+        let strokes=edges(&cell,1.,(-2.,-3.));
+        assert_eq!(strokes.iter().map(|s|s.phase).collect::<Vec<_>>(),vec![cell.anchor.y-3.+strokes[1].y1-1.,cell.anchor.y-3.+strokes[1].y1]);
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -415,9 +430,21 @@ pub struct Stroke {
     pub phase: f64,
 }
 
+/// Excel's dash patterns run from its grid window's corner, across its own row and column
+/// headers, so a border's phase depends on those headers and not on ours. The pairs are
+/// the measured header sizes at the captured zooms; another zoom scales the 100% pair.
+pub fn dash_shift(m: &dna_calc_model::geometry::GridMetrics) -> (f64, f64) {
+    let (w, h) = match (m.scale * 100.).round() as i32 {
+        75 => (23., 15.),
+        100 => (26., 20.),
+        150 => (40., 29.),
+        _ => ((26. * m.scale).round(), (20. * m.scale).round()),
+    };
+    (w - m.header_w, h - m.header_h)
+}
 /// Axis-aligned edges in cell-local coordinates. Shared sides use the same dash phase
 /// even when the neighbouring cell's perpendicular pens extend a different distance.
-pub fn edges(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64) -> Vec<Stroke> {
+pub fn edges(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64, shift: (f64, f64)) -> Vec<Stroke> {
     let mut out = Vec::new();
     let unmerged = cell.row_span == 1 && cell.col_span == 1;
     let rect = border_rect(cell,scale);
@@ -436,13 +463,14 @@ pub fn edges(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64) -> Vec
                 2 => (left,offset,right,offset),
                 _ => {let y=cell.anchor.h+if unmerged {offset}else{-offset};(left,y,right,y)},
             };
-            let phase=if side<2 {cell.anchor.y+y1}else{cell.anchor.x+x1};
+            let phase=if side<2 {cell.anchor.y+y1+shift.1}else{cell.anchor.x+x1+shift.0};
             if edge.style=="slantDashDot" && unmerged {
                 // The captured medium slant has staggered cuts across two one-pixel lanes.
                 // Their union has no empty gap; a two-pixel dashed stroke loses that shape.
-                for (lane,dash) in [(-0.5,vec![11.,1.,5.,1.,5.,1.]),(0.5,vec![10.,2.,4.,2.,4.,2.])] {
+                // Each outer cut starts one pixel past the end of the inner lane's cut.
+                for (lane,dash,cut) in [(-0.5,vec![11.,1.,5.,1.,5.,1.],-1.),(0.5,vec![10.,2.,4.,2.,4.,2.],0.)] {
                     let (dx,dy)=if side<2 {(lane,0.)}else{(0.,lane)};
-                    out.push(Stroke{x1:x1+dx,y1:y1+dy,x2:x2+dx,y2:y2+dy,width:1.,color:edge.color.clone().unwrap_or_else(||"#000000".into()),dash,phase});
+                    out.push(Stroke{x1:x1+dx,y1:y1+dy,x2:x2+dx,y2:y2+dy,width:1.,color:edge.color.clone().unwrap_or_else(||"#000000".into()),dash,phase:phase+cut});
                 }
             } else {
                 out.push(Stroke{x1,y1,x2,y2,width:if pen.double {1.}else{pen.width},
@@ -453,7 +481,7 @@ pub fn edges(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64) -> Vec
     out
 }
 /// Extra strokes use cell-local coordinates, so frozen-pane fragments share identical geometry.
-pub fn strokes(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64) -> Vec<Stroke> {
+pub fn strokes(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64, shift: (f64, f64)) -> Vec<Stroke> {
     let mut out = Vec::new();
     for segment in &cell.boundary {
         let line = line(&segment.edge, scale);
@@ -480,7 +508,7 @@ pub fn strokes(cell: &dna_calc_model::render_plan::PlannedCell, scale: f64) -> V
                     .clone()
                     .unwrap_or_else(|| "#000000".into()),
                 dash: line.dash.to_vec(),
-                phase: if segment.side<2 {cell.anchor.y+segment.y1}else{cell.anchor.x+segment.x1},
+                phase: if segment.side<2 {cell.anchor.y+segment.y1+shift.1}else{cell.anchor.x+segment.x1+shift.0},
             });
         }
     }

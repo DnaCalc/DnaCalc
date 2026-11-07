@@ -227,6 +227,7 @@ pub fn layout(
         out.lines[0].segments = Some(graphemes(&out.lines[0].text));
         out.lines[0].advances = Some(advances);
         out.lines[0].css.push_str(";display:inline-flex;align-items:baseline");
+        out.lines[0].css.push_str(&autofit::segmented_decoration(style, conditional, italic, zoom));
     }
     out
 }

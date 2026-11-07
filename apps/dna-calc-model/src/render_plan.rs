@@ -300,8 +300,8 @@ fn shared_borders(
 ) -> [Option<crate::projection::BorderShown>;4] {
     let strength = |edge: &crate::projection::BorderShown| match edge.style.as_str() {
         "double" => 30, "thick" => 29, "medium" => 20,
-        "mediumDashed" => 19, "mediumDashDot" => 18, "mediumDashDotDot" => 17,
-        "slantDashDot" => 16,
+        "mediumDashed" => 19, "mediumDashDot" => 18, "slantDashDot" => 17,
+        "mediumDashDotDot" => 16,
         "thin" => 10, "dashed" => 9, "dashDot" => 8,
         "dashDotDot" => 7, "dotted" => 6, "hair" => 1, _ => 0,
     };

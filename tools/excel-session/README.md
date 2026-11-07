@@ -112,3 +112,28 @@ Raw capture cells now retain the runtime type of the same Value2 getter that sup
 canonical value, plus Formula, Formula2, HasArray and SavedAsArray getter results. Immediate
 and reopened readings keep their own metadata. A numeric NaN stays a numeric bit pattern;
 worksheet errors keep their observed error codes, and a failed metadata getter stays unread.
+
+Excel shows each workbook window natively when a workbook is created, opened or added from a
+template, even with `Application.Visible` false, `Interactive` false and `UserControl` false
+(measured on build 20527, round 20: `Workbooks.Add`, `Workbooks.Open` and `Add(template)` all set
+WS_VISIBLE on XLMAIN). `hidden-window.ps1` sees and hides such a window within its sampling
+interval, but a window that was shown has still been on the owner's desktop. To keep Excel off the
+desktop altogether, run the driver through `on-private-desktop.ps1 -Command <cmd> -Log <file>
+-GuardOut <json> -SessionRoot <session>`: it creates a private Win32 desktop and starts the command
+there, so the host and Excel inherit it and the native binding works unchanged. A guard on the
+caller's real desktop samples for windows and foreground ownership of Excel processes launched
+under `-SessionRoot` and writes the counts to `-GuardOut`. On a private desktop `hidden-window.ps1`
+reports windows as `private_desktop_window_observations`, not as violations, and a job is
+compliant because of the desktop; the guard file is the evidence that nothing reached the real
+desktop. No registry, Trust Center or Excel setting is touched. A dialog on that desktop cannot be
+answered, so jobs end through the host's deadline.
+
+A prompt on a private desktop cannot be seen by anyone. Round 20 logged five safe-mode prompts on
+private desktops; those sessions only timed out. The Office alert log records them with the process
+ID: read it with `Get-WinEvent -FilterHashtable @{LogName='OAlerts'}`. `list-desktop.ps1 -Desktop
+<name>` lists a private desktop's visible windows without touching them. Force-stopping Excel at
+startup or while it closes is what makes the next start prompt. With
+`DNACALC_EXCEL_LEAVE_STUCK_STARTUP` set, the host leaves an Excel that exceeds
+`DNACALC_EXCEL_STARTUP_SECONDS` (default 45) running and reports it, and waits 60 seconds after
+`Quit` before stopping one. Run few sessions, and reuse one Excel unless a question needs a fresh
+process.

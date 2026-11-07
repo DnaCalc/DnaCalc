@@ -222,6 +222,27 @@ try{
     $sheet.Range('C1').Formula2='=B1*2';$setup.Add(@{operation='assign C1 formula';snapshot=(Snapshot-P22)})
     $excel.CalculateFull()
     $setup.Add(@{operation='setup CalculateFull';snapshot=(Snapshot-P22)})
+    if($req.PSObject.Properties['setup']){
+        $sheet.Cells.ClearContents()
+        foreach($entry in $req.setup.PSObject.Properties){
+            $cell=$sheet.Range($entry.Name);$v=$entry.Value
+            if($v.PSObject.Properties['formula']){$cell.Formula2=[string]$v.formula}
+            elseif($v.PSObject.Properties['text']){$cell.Value2=[string]$v.text}
+            elseif($v.PSObject.Properties['error']){
+                $code=@{'#NULL!'=2000;'#DIV/0!'=2007;'#VALUE!'=2015;'#REF!'=2023;'#NAME?'=2029;'#NUM!'=2036;'#N/A'=2042}[[string]$v.error]
+                if($null -eq $code){throw 'Unknown authored setup error'}
+                [void][System.__ComObject].InvokeMember('Value2',[Reflection.BindingFlags]::SetProperty,$null,$cell,@([Runtime.InteropServices.ErrorWrapper]::new([int](-2146828288+$code))))
+            }elseif($v -is [bool]){$cell.Value2=[bool]$v}else{$cell.Value2=[double]$v}
+            $actual=Read-Value $cell
+            if($v.PSObject.Properties['formula']){$expected=$null}
+            elseif($v.PSObject.Properties['error']){$expected=@{error_code=[int]$code}}
+            elseif($v.PSObject.Properties['text']){$expected=Convert-Value ([string]$v.text)}
+            elseif($v -is [bool]){$expected=Convert-Value ([bool]$v)}else{$expected=Convert-Value ([double]$v)}
+            $agrees=$null -eq $expected -or (ConvertTo-Json -InputObject $actual -Compress) -ceq (ConvertTo-Json -InputObject $expected -Compress)
+            $setup.Add(@{operation=('authored setup '+$entry.Name);declared=$v;actual=$actual;expected_input=$expected;typed_seed_agrees=$agrees;snapshot=(Snapshot-P22)})
+            if(-not $agrees){throw ('P22 typed setup differs for '+$entry.Name)}
+        }
+    }
     $project=$book.VBProject
     $component=$project.VBComponents.Add(1);$component.Name='P22Probe';Set-Code $component $module
     $component=$project.VBComponents.Add(2);$component.Name='P22Events';Set-Code $component $class
