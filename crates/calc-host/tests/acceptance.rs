@@ -1664,8 +1664,11 @@ fn dc_besk_calculated(bytes: Vec<u8>, expected: &[Host]) -> (Vec<String>, Vec<St
             Host::UnknownFunction(spelling) => match cell.value() {
                 ProjectedValue::NotModeled {
                     refusal:
-                        NotModeled::Compile(CompileError::UnknownFunction {
-                            spelling: refused_spelling,
+                        NotModeled::Compile(CompileError::NotModelled {
+                            gap:
+                                calc_fml::Gap::UnknownFunction {
+                                    spelling: refused_spelling,
+                                },
                             ..
                         }),
                     calculation,

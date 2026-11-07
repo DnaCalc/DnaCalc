@@ -60,7 +60,9 @@ const fn logicals(
         spelling,
         notation: Notation::Call,
         arity: CallableArityShape::range(1, most),
+        groups: None,
         parameters: LOGICALS,
+        result: super::ResultForm::Value,
         demand: ArgumentDemand::Eager,
         kernel: Kernel::Eager(kernel),
     }
@@ -73,7 +75,9 @@ const fn constant(id: FunctionId, spelling: &'static str, kernel: EagerKernel) -
         spelling,
         notation: Notation::Call,
         arity: CallableArityShape::exact(0),
+        groups: None,
         parameters: &[],
+        result: super::ResultForm::Value,
         demand: ArgumentDemand::Eager,
         kernel: Kernel::Eager(kernel),
     }
@@ -82,16 +86,21 @@ const fn constant(id: FunctionId, spelling: &'static str, kernel: EagerKernel) -
 pub(super) const FAMILY: Family = Family {
     code: CODE,
     entries: &[
+        // A call gives one of its values, which may be a reference or a LAMBDA (dc-mx3x, Excel
+        // 16.0.20527, 2026-11-07, Formula2 and Formula alike): `=COUNTBLANK(IF(TRUE,A1:A2))` is 1,
+        // and `=IF(TRUE,LAMBDA(x,x))(3)` and `=(IF(TRUE,LAMBDA(x,x)))(3)` are 3.
         CatalogueEntry {
             id: IF,
             spelling: "IF",
             notation: Notation::Call,
             arity: CallableArityShape::range(2, 3),
+            groups: None,
             parameters: &[
                 Parameter::value("logical_test"),
                 Parameter::value_or_reference("value_if_true"),
                 Parameter::value_or_reference("value_if_false"),
             ],
+            result: super::ResultForm::MayBeEither,
             demand: ArgumentDemand::BranchOnCondition,
             kernel: Kernel::Lazy(if_selected),
         },
@@ -105,7 +114,9 @@ pub(super) const FAMILY: Family = Family {
             spelling: "NOT",
             notation: Notation::Call,
             arity: CallableArityShape::exact(1),
+            groups: None,
             parameters: &[Parameter::value("logical")],
+            result: super::ResultForm::Value,
             demand: ArgumentDemand::Eager,
             kernel: Kernel::Eager(not),
         },

@@ -75,28 +75,42 @@ pub(super) fn selects_whole_result(
 pub(super) const FAMILY: Family = Family {
     code: CODE,
     entries: &[
+        // Formula entry (dc-mx3x, Excel 16.0.20527, 2026-11-07, Formula2 and Formula alike): the
+        // conditions and values come in pairs, so IFS takes 2, 4, 6 or 8 arguments of 1 to 8
+        // (`=IFS(TRUE)` and `=IFS(TRUE,1,FALSE)` are refused, `=IFS(TRUE,1,FALSE,2)` enters), and
+        // a call gives one of its values, which may be a reference or a LAMBDA:
+        // `=COUNTBLANK(IFS(TRUE,A1))` enters and `=IFS(TRUE,LAMBDA(x,x))(3)` is 3.
         CatalogueEntry {
             id: IFS,
             spelling: "IFS",
             notation: Notation::Call,
             arity: CallableArityShape::range(2, 254),
+            groups: Some(super::ArgumentGroups::new(0, 2, 0)),
             parameters: &[
                 Parameter::value("logical_test1"),
                 Parameter::value("value_if_true1"),
             ],
+            result: super::ResultForm::MayBeEither,
             demand: ArgumentDemand::Eager,
             kernel: Kernel::Eager(ifs),
         },
+        // The values and results come in pairs, with an optional default after them (dc-mx3x):
+        // SWITCH takes every count from 3 to 8 (`=SWITCH(1,1)` is refused, `=SWITCH(1,1,2)` and
+        // `=SWITCH(1,1,2,3)` enter), and a call gives one of its results, which may be a
+        // reference or a LAMBDA: `=COUNTBLANK(SWITCH(1,1,A1))` enters and
+        // `=SWITCH(1,1,LAMBDA(x,x))(3)` is 3.
         CatalogueEntry {
             id: SWITCH,
             spelling: "SWITCH",
             notation: Notation::Call,
             arity: CallableArityShape::range(3, 254),
+            groups: Some(super::ArgumentGroups::new(1, 2, 1)),
             parameters: &[
                 Parameter::value("expression"),
                 Parameter::value("value1"),
                 Parameter::value("result1"),
             ],
+            result: super::ResultForm::MayBeEither,
             demand: ArgumentDemand::Eager,
             kernel: Kernel::Eager(switch),
         },

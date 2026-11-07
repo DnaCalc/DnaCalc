@@ -928,7 +928,10 @@ ported_family! {
     8 bahttext_fn "BAHTTEXT" (1, 1) [V "number"] |s, a, sv| { bahttext(s, a) }
     9 asc_fn "ASC" (1, 1) [V "text"] |s, a, sv| { width_conversion(s, a) }
     10 dbcs_fn "DBCS" (1, 1) [V "text"] |s, a, sv| { width_conversion(s, a) }
-    12 phonetic_fn "PHONETIC" (1, 1) [F "reference"] |s, a, sv| { phonetic(s, a, sv) }
+    // PHONETIC's reference takes only an operand that may give one (dc-mx3x, Excel 16.0.20527,
+    // 2026-11-07, Formula2 and Formula alike): `=PHONETIC(2)`, `=PHONETIC({1,2})` and
+    // `=PHONETIC(1+1)` are refused, `=PHONETIC(B1)` and `=PHONETIC(INDEX(B1:B3,0))` enter.
+    12 phonetic_fn "PHONETIC" (1, 1) [F "reference" @Reference] |s, a, sv| { phonetic(s, a, sv) }
     13 textbefore_fn "TEXTBEFORE" (2, 6) [V "text", R "delimiter", V "instance_num", V "match_mode", V "match_end", V "if_not_found"] |s, a, sv| { text_delim(s, a, sv, Side::Before) }
     14 textafter_fn "TEXTAFTER" (2, 6) [V "text", R "delimiter", V "instance_num", V "match_mode", V "match_end", V "if_not_found"] |s, a, sv| { text_delim(s, a, sv, Side::After) }
     15 textsplit_fn "TEXTSPLIT" (2, 6) [V "text", R "col_delimiter", R "row_delimiter", V "ignore_empty", V "match_mode", V "pad_with"] |s, a, sv| { textsplit(s, a, sv) }

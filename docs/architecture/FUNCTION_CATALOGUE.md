@@ -63,10 +63,17 @@ pub(crate) struct Parameter {
     pub(crate) legacy: LegacyPlace,             // how a legacy formula treats a range or array here
 }
 
-pub enum EntryClass { Any, Reference, Callable }          // COUNTBLANK's range: Reference
-pub enum ResultForm { Value, MayBeReference, MayBeCallable, MayBeEither }
-pub(crate) struct ArgumentGroups { pub(crate) from: usize, pub(crate) size: usize, pub(crate) tail: usize }
+pub enum EntryClass { Any, Reference }                    // COUNTBLANK's range: Reference
+pub enum ResultForm { Value, MayBeReference, MayBeEither } // INDEX: MayBeReference; IF: MayBeEither
+pub struct ArgumentGroups { from: usize, size: usize, tail: usize }
 ```
+
+Excel's entry takes any operand in a LAMBDA place (`=MAP({1},1)` enters and gives #VALUE!), so no entry class
+requires a callable. Entry treats both result forms other than `Value` alike: such a call fills a reference place
+and may be called, and no built-in gives a LAMBDA without possibly giving a reference. `ArgumentGroups` says that
+from argument `from` on the arguments come in groups of `size`, each taking its group's declared parameter, with
+at most `tail` arguments after the last complete group (SWITCH's default). The first group's completeness is the
+arity's: SORTBY takes `(array, by_array1)` without its order, but no later pair without one.
 
 `LegacyPlace` holds the measured place rules of the legacy (pre-dynamic-array) form: whether a range is
 intersected, lifted, aggregated or kept as a reference, at the root and below an array place. `EntryTraits` holds
@@ -128,41 +135,84 @@ Excel checks a formula when it is entered and refuses some outright. COM reports
 - the corpus verdict.
 
 ```rust
-pub enum OperandForm { Missing, Constant, ArrayConstant, Reference, Call(FunctionId), Lambda, Name, Expression }
+pub enum OperandForm {
+    Missing, Constant, ArrayConstant,
+    Reference,                                  // a reference, a reference operation, `@x`, `x#`, `#REF!`
+    Call(FunctionId), Lambda, Let, Name,
+    Invocation,                                 // `f(1)`, `LAMBDA(x,x)(1)`: a call of a value or of a name
+    Expression,                                 // an operation of values: `-A1`, `A1+0`, `A1&""`
+}
 
 pub enum EntryRule {
     TooFewArguments, TooManyArguments, IncompleteGroup,
     ReferenceRequired { index: usize },         // COUNTBLANK(2), COUNTBLANK({"",1})
-    CallableRequired { index: usize },
     ResultNotCallable,                          // IFERROR(#N/A,LAMBDA(x,x))(3)
 }
 
 impl FunctionCallTarget<'_> {
     pub fn check_entry(self, operands: &[OperandForm]) -> Result<(), EntryRule>;
+    pub fn check_called(self) -> Result<(), EntryRule>;   // a call postfix after this call
 }
 ```
 
-The grammar's own rules (duplicate LET names, duplicate LAMBDA parameters, both case-insensitive within one scope)
-stay in CalcFml. A compile result separates a claim from a gap:
+A reference place takes a reference, a name (defined or not, whatever it holds), a LAMBDA, a LET, an invocation or
+a call whose result form is not `Value`; it refuses a constant, an array constant, an omitted argument, an
+operation of values and a call that gives a value, also in parentheses. A call postfix takes the same heads. These
+rules hold on every one of the 3,822 formulas measured on Excel 16.0 build 20527 (dc-mx3x, `Range.Formula2` and
+`Range.Formula` agreed on each): CalcFml's test `entry_matches_excel` replays them from
+`crates/calc-fml/tests/fixtures/entry/excel-entry.tsv`. The 34 entries with reference places and the 12 whose calls
+may give a reference (CHOOSE, DROP, IF, IFS, INDEX, INDIRECT, OFFSET, REDUCE, SWITCH, TAKE, TRIMRANGE, XLOOKUP)
+came from a census of every catalogue entry; each declaration cites its refused cases and accepted neighbours.
+
+`calc_fml::check_entry(tree, loaded)` makes the whole check on a parsed formula, without a workbook: it walks the
+tree, builds each call's operand forms from syntax and asks the call's entry once, and holds the grammar's own
+rules (`GrammarRule`):
+- `Syntax`: a parser diagnostic;
+- `BindingArguments`: `LET()`, `LET(x,1)`, `LET(x,1,y,2)`, `LAMBDA()`;
+- `DuplicateLetName`, `DuplicateLambdaParameter`: a name declared twice by one LET or one LAMBDA, by the fold
+  Excel matches parameters by (`xx` and `XX`, `x1` and `X1`, `é` and `É` clash); another LET or LAMBDA is another
+  scope;
+- `NotCallable`: a call postfix after a constant, an array constant or an operation (`=(1)(3)`);
+- `OperatorCall`: `ANCHORARRAY` and the trim references `_TRO_*` typed as calls (only a file stores them) and
+  `SINGLE` with other than one argument.
+
+A compile result separates a claim from a gap:
 
 ```rust
 pub enum CompileError {
     Rejected { span: TextSpan, rule: Rejection },        // a claim: Excel refuses this entry
-    NotModelled { span: TextSpan, construct: &'static str, owner: &'static str },   // a gap: a refusal
+    NotModelled { span: TextSpan, gap: Gap },            // a gap: a refusal
     Reference { span: TextSpan, error: BindError },
 }
+pub enum Gap { Construct { construct: &'static str, owner: &'static str }, UnknownFunction { spelling: String }, NumberLiteral }
 pub enum Rejection { Grammar(GrammarRule), Function { function: FunctionId, rule: EntryRule } }
 ```
 
+The three users ask the same check:
+- **The grid** (calc-host's `interpret_entry`) refuses a formula Excel's entry refuses with
+  `EntryRefusal::Rejected { span, rule }` and stores nothing.
+- **The file loader** (calc-doc) records a stored formula Excel's entry refuses as
+  `UnloadedCell::RejectedFormula { rule, cached }` and gives the cell no input. Excel does not open such a file
+  as it is (`Workbooks.Open` fails with 0x800A03EC); its repair removes the formula and keeps the cached value as a
+  constant. A calculation reads such a cell as blank when the file cached nothing, as Excel's repaired cell is,
+  and does not read a cached value yet.
+- **The corpus verdict** scores the cell from that record, or from the compile's rejection.
+
+The grid and the loader act only on the measured rules (`Rejection::is_measured`): a parser diagnostic may be
+syntax this parser does not hold, so it is left to the compiler, which reports it as a rejection.
+
 A rejection is scored like a value:
-- the oracle records Excel's refusal as an observation (`EntryRejected { form }`);
-- the engine reports `Rejected { rule }` as its provenance.
+- the oracle records Excel's refusal as an observation (`Observation::EntryRejected { form }`): reading a capture
+  record turns each capture failure at stage `entry` with COM `0x800A03EC` into one, and every other exception stays
+  a capture failure;
+- the engine's rejection reaches the verdict as the provenance `Rejected { rule }`.
 
 | Excel | DNA Calc | Verdict |
 |---|---|---|
-| refuses | refuses | match (`AgreedRejection`), counted in the headline and listed on its own line |
-| refuses | accepts | mismatch, class entry accepted |
-| accepts | refuses | mismatch, class entry rejected wrongly |
+| refuses | refuses | `agreed_rejection`: a pass, counted in the headline and listed on its own line |
+| refuses | accepts | `entry_accepted`: a mismatch |
+| accepts | refuses | `entry_rejected_wrongly`: a mismatch |
+| not observed | refuses | `rejection_not_run`: a failure |
 
 A refusal still means only "not modelled".
 

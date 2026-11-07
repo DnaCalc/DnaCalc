@@ -637,20 +637,25 @@ ported_family! {
     3 sort_fn "SORT" (1, 4) [R "array", R "sort_index", R "sort_order", V "by_col"] |s, a, sv| {
         sort(s, a, sv)
     }
-    4 sortby_fn "SORTBY" (2, 255) [R "array", R "by_array1", R "sort_order1"] |s, a, sv| {
+    // The arrays to sort by and their orders come in pairs (dc-mx3x, Excel 16.0.20527,
+    // 2026-11-07, Formula2 and Formula alike): SORTBY takes 2, 3, 5 and 7 arguments of 1 to 8,
+    // the first pair without its order but no later one (`=SORTBY(B1,B1,B1,B1)` is refused).
+    4 sortby_fn "SORTBY" (2, 255) [R "array", R "by_array1", R "sort_order1"] groups (1, 2, 0); |s, a, sv| {
         sortby(s, a, sv)
     }
     5 unique_fn "UNIQUE" (1, 3) [R "array", V "by_col", V "exactly_once"] |s, a, sv| {
         unique(s, a, sv)
     }
-    6 take_fn "TAKE" (2, 3) [R "array", V "rows", V "columns"] |s, a, sv| {
+    // A call of TAKE or DROP may give a reference (dc-mx3x): `=COUNTBLANK(TAKE(B1,B1))` and
+    // `=TAKE(B1,B1)(3)` enter, and so do DROP's.
+    6 take_fn "TAKE" (2, 3) [R "array", V "rows", V "columns"] result MayBeReference; |s, a, sv| {
         source_error(a)?;
         match sub_area(s, a, true)? {
             Some(reference) => Ok(reference),
             None => run(s, a, sv, k::eval_take_prepared),
         }
     }
-    7 drop_fn "DROP" (2, 3) [R "array", V "rows", V "columns"] |s, a, sv| {
+    7 drop_fn "DROP" (2, 3) [R "array", V "rows", V "columns"] result MayBeReference; |s, a, sv| {
         source_error(a)?;
         match sub_area(s, a, false)? {
             Some(reference) => Ok(reference),

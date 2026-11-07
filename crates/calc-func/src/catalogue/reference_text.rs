@@ -27,7 +27,11 @@ pub(super) const FAMILY: Family = Family {
         spelling: "INDIRECT",
         notation: Notation::Call,
         arity: CallableArityShape::range(1, 2),
+        groups: None,
         parameters: &[Parameter::value("ref_text"), Parameter::value("a1")],
+        // A call may give a reference (dc-mx3x, Excel 16.0.20527, 2026-11-07):
+        // `=COUNTBLANK(INDIRECT("A1"))` enters, and so does `=INDIRECT("A1")(3)` (#REF!).
+        result: super::ResultForm::MayBeReference,
         demand: super::ArgumentDemand::Eager,
         kernel: super::Kernel::Eager(indirect),
     }],

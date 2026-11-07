@@ -29,6 +29,7 @@
 //! `binding/excel_prefix.rs`, measured on Excel 16.0 on 2026-09-15).
 
 use super::builtins::is_builtin;
+use super::entry::{GrammarRule, Rejection, check_entry};
 use super::legacy::{self, Place};
 use super::{
     Admission, CompiledPlan, FormulaForm, Instruction, Literal, NameTarget, PlanCache, Target,
@@ -47,32 +48,89 @@ use calc_func::{ArgumentDemand, FilePrefix, Notation, ParameterClass, catalogue}
 use std::collections::HashMap;
 use std::sync::Arc;
 
-/// Why a formula did not compile.
+/// Why a formula did not compile: a claim about Excel ([`CompileError::Rejected`]), a gap of
+/// this compiler ([`CompileError::NotModelled`]), or a reference binding refused.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CompileError {
-    /// The parser refused the formula; `span` is its first diagnostic's. Also syntax the parser
-    /// accepts and Excel does not (a LET or LAMBDA name that is no name, an array constant
-    /// element that is no constant).
-    Syntax { span: TextSpan },
+    /// Excel's formula entry refuses this formula too ([`check_entry`]): a claim, scored against
+    /// Excel like a value.
+    Rejected { span: TextSpan, rule: Rejection },
+    /// A construct this compiler does not model: a typed refusal.
+    NotModelled { span: TextSpan, gap: Gap },
     /// A reference that binding refused.
     Reference { span: TextSpan, error: BindError },
+}
+
+/// What [`CompileError::NotModelled`] does not model.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Gap {
     /// Formula syntax this compiler does not lower yet: `construct` says what it is and `owner`
     /// names the work package that owns it.
-    Unsupported {
-        span: TextSpan,
+    Construct {
         construct: &'static str,
         owner: &'static str,
     },
     /// No catalogue entry is written this way: a function the catalogue does not hold yet, or a
     /// name Excel does not know (whose `#NAME?` result is not modelled either).
-    UnknownFunction { span: TextSpan, spelling: String },
-    /// The call supplies a number of arguments the entry's arity does not admit, which Excel
-    /// refuses to enter.
-    Arity { span: TextSpan, supplied: usize },
+    UnknownFunction { spelling: String },
     /// A number literal whose Excel value is not modelled: more than 15 significant digits
     /// (which Excel rounds to 15 at entry), beyond binary64's range, or in or below its subnormal
     /// range. Owned by bead dc-m3u (numeric text policy).
-    NumberLiteral { span: TextSpan },
+    NumberLiteral,
+}
+
+impl CompileError {
+    /// The span the error names.
+    pub fn span(&self) -> TextSpan {
+        match self {
+            CompileError::Rejected { span, .. }
+            | CompileError::NotModelled { span, .. }
+            | CompileError::Reference { span, .. } => *span,
+        }
+    }
+
+    /// The rule Excel's entry refuses the formula by, for a rejection.
+    pub fn rejection(&self) -> Option<Rejection> {
+        match self {
+            CompileError::Rejected { rule, .. } => Some(*rule),
+            _ => None,
+        }
+    }
+
+    /// The work package that owns a construct this compiler does not lower.
+    pub fn owner(&self) -> Option<&'static str> {
+        match self {
+            CompileError::NotModelled {
+                gap: Gap::Construct { owner, .. },
+                ..
+            } => Some(owner),
+            _ => None,
+        }
+    }
+}
+
+/// A rejection by the grammar's syntax rule at `span`.
+fn syntax(span: TextSpan) -> CompileError {
+    CompileError::Rejected {
+        span,
+        rule: Rejection::Grammar(GrammarRule::Syntax),
+    }
+}
+
+/// A rejection by the grammar rule `rule` at `span`.
+fn grammar(span: TextSpan, rule: GrammarRule) -> CompileError {
+    CompileError::Rejected {
+        span,
+        rule: Rejection::Grammar(rule),
+    }
+}
+
+/// A name no catalogue entry is written as.
+fn unknown(span: TextSpan, spelling: String) -> CompileError {
+    CompileError::NotModelled {
+        span,
+        gap: Gap::UnknownFunction { spelling },
+    }
 }
 
 /// The work package that owns the refusals of the constructs this module lowers and does not
@@ -303,13 +361,14 @@ fn compile_analyzed_as(
     functions: Option<(&crate::CallableBindings, bool)>,
     collect_name_uses: bool,
 ) -> Result<NameAnalysis, CompileError> {
-    if let Some(first) = tree.diagnostics().first() {
-        return Err(CompileError::Syntax { span: first.span });
+    if let Err(rejection) = check_entry(tree, loaded) {
+        return Err(CompileError::Rejected {
+            span: rejection.span,
+            rule: rejection.rule,
+        });
     }
     let Some(expression) = tree.expression() else {
-        return Err(CompileError::Syntax {
-            span: tree.root().span(),
-        });
+        return Err(syntax(tree.root().span()));
     };
     let mut lowering = Lowering {
         form,
@@ -584,10 +643,7 @@ impl<'c> Lowering<'c> {
                         let target = catalogue()
                             .resolve_surface(Notation::Call, file_function(function))
                             .map(Target)
-                            .map_err(|_| CompileError::UnknownFunction {
-                                span,
-                                spelling: text.to_owned(),
-                            })?;
+                            .map_err(|_| unknown(span, text.to_owned()))?;
                         self.blocks[block].push(Instruction::Function(target));
                     } else {
                         let scope = NameScope::Formula(self.name_context.lookup_sheet());
@@ -658,7 +714,7 @@ impl<'c> Lowering<'c> {
                 if !self.reference(node, block)? {
                     let mut operands = node.child_nodes();
                     let (Some(left), Some(right)) = (operands.next(), operands.next()) else {
-                        return Err(CompileError::Syntax { span });
+                        return Err(syntax(span));
                     };
                     tasks.push(Task::Emit {
                         block,
@@ -684,12 +740,12 @@ impl<'c> Lowering<'c> {
                     ".:" => 1.0,
                     ":." => 2.0,
                     ".:." => 3.0,
-                    _ => return Err(CompileError::Syntax { span }),
+                    _ => return Err(syntax(span)),
                 };
                 let target = catalogue()
                     .resolve_surface(Notation::Call, "TRIMRANGE")
                     .map(Target)
-                    .map_err(|_| CompileError::Syntax { span })?;
+                    .map_err(|_| syntax(span))?;
                 tasks.push(Task::Emit {
                     block,
                     instruction: Instruction::Call {
@@ -709,7 +765,7 @@ impl<'c> Lowering<'c> {
                 if !self.reference(node, block)? {
                     let mut operands = node.child_nodes();
                     let (Some(left), Some(right)) = (operands.next(), operands.next()) else {
-                        return Err(CompileError::Syntax { span });
+                        return Err(syntax(span));
                     };
                     tasks.push(Task::Emit {
                         block,
@@ -723,7 +779,7 @@ impl<'c> Lowering<'c> {
             SyntaxKind::IntersectionExpr => {
                 let mut operands = node.child_nodes();
                 let (Some(left), Some(right)) = (operands.next(), operands.next()) else {
-                    return Err(CompileError::Syntax { span });
+                    return Err(syntax(span));
                 };
                 tasks.push(Task::Emit {
                     block,
@@ -752,7 +808,7 @@ impl<'c> Lowering<'c> {
             SyntaxKind::ErrorLiteralExpr => {
                 let code = only_token(node)
                     .and_then(Token::error_code)
-                    .ok_or(CompileError::Syntax { span })?;
+                    .ok_or(syntax(span))?;
                 self.blocks[block].push(Instruction::Literal(Literal::Error(code)));
             }
             SyntaxKind::ArrayLiteralExpr => {
@@ -763,7 +819,7 @@ impl<'c> Lowering<'c> {
                 let inner = node
                     .child_nodes()
                     .next()
-                    .ok_or(CompileError::Syntax { span })?;
+                    .ok_or(syntax(span))?;
                 tasks.push(Task::Lower {
                     node: inner,
                     tail: false,
@@ -778,7 +834,7 @@ impl<'c> Lowering<'c> {
                         SyntaxChild::Token(operator),
                         SyntaxChild::Node(right),
                     ] => (left, operator, right),
-                    _ => return Err(CompileError::Syntax { span }),
+                    _ => return Err(syntax(span)),
                 };
                 let target = target(Notation::Infix, operator)?;
                 let final_sum =
@@ -810,7 +866,7 @@ impl<'c> Lowering<'c> {
                     [SyntaxChild::Token(operator), SyntaxChild::Node(operand)] => {
                         (operator, operand)
                     }
-                    _ => return Err(CompileError::Syntax { span }),
+                    _ => return Err(syntax(span)),
                 };
                 if operator.kind() == TokenKind::At {
                     tasks.push(Task::Emit {
@@ -850,7 +906,7 @@ impl<'c> Lowering<'c> {
                     [SyntaxChild::Node(operand), SyntaxChild::Token(operator)] => {
                         (operand, operator)
                     }
-                    _ => return Err(CompileError::Syntax { span }),
+                    _ => return Err(syntax(span)),
                 };
                 if operator.kind() == TokenKind::Hash {
                     tasks.push(Task::Emit {
@@ -887,7 +943,7 @@ impl<'c> Lowering<'c> {
             SyntaxKind::InvokeExpr => {
                 let (callee, list) = match node.children() {
                     [SyntaxChild::Node(callee), SyntaxChild::Node(list)] => (callee, list),
-                    _ => return Err(CompileError::Syntax { span }),
+                    _ => return Err(syntax(span)),
                 };
                 let arguments: Vec<&SyntaxNode> = list.child_nodes().collect();
                 tasks.push(Task::Emit {
@@ -916,7 +972,7 @@ impl<'c> Lowering<'c> {
             SyntaxKind::MissingExpr
             | SyntaxKind::UnsupportedExpr
             | SyntaxKind::FormulaRoot
-            | SyntaxKind::ArgumentList => return Err(CompileError::Syntax { span }),
+            | SyntaxKind::ArgumentList => return Err(syntax(span)),
         }
         Ok(())
     }
@@ -936,7 +992,7 @@ impl<'c> Lowering<'c> {
         let span = node.span();
         let (name, list) = match node.children() {
             [SyntaxChild::Token(name), SyntaxChild::Node(list)] => (name, list),
-            _ => return Err(CompileError::Syntax { span }),
+            _ => return Err(syntax(span)),
         };
         let arguments: Vec<&SyntaxNode> = list.child_nodes().collect();
         let argc = arguments.len();
@@ -956,10 +1012,7 @@ impl<'c> Lowering<'c> {
                 || spelling.eq_ignore_ascii_case("ANCHORARRAY"))
         {
             let [operand] = arguments[..] else {
-                return Err(CompileError::Arity {
-                    span,
-                    supplied: argc,
-                });
+                return Err(syntax(span));
             };
             let instruction = if spelling.eq_ignore_ascii_case("SINGLE") {
                 Instruction::Implicit
@@ -988,15 +1041,12 @@ impl<'c> Lowering<'c> {
         .map(|(_, mode)| mode);
         if let (true, Some(mode)) = (prefixed, trim) {
             let [operand] = arguments[..] else {
-                return Err(CompileError::Arity {
-                    span,
-                    supplied: argc,
-                });
+                return Err(syntax(span));
             };
             let target = catalogue()
                 .resolve_surface(Notation::Call, "TRIMRANGE")
                 .map(Target)
-                .map_err(|_| CompileError::Syntax { span })?;
+                .map_err(|_| syntax(span))?;
             tasks.push(Task::Emit {
                 block,
                 instruction: Instruction::Call {
@@ -1033,10 +1083,19 @@ impl<'c> Lowering<'c> {
             )));
             return Ok(());
         }
-        if !target.0.arity().accepts(argc) {
-            return Err(CompileError::Arity {
+        // Excel's entry check, which [`check_entry`] made on the whole formula before lowering
+        // began; asked again here for a defined name's formula, which it does not read.
+        let forms: Vec<calc_func::OperandForm> = arguments
+            .iter()
+            .map(|argument| super::entry::operand_form(argument, self.loaded))
+            .collect();
+        if let Err(rule) = target.0.check_entry(&forms) {
+            return Err(CompileError::Rejected {
                 span,
-                supplied: argc,
+                rule: Rejection::Function {
+                    function: target.0.id(),
+                    rule,
+                },
             });
         }
         let spelled = target.0.spelling();
@@ -1295,7 +1354,7 @@ impl<'c> Lowering<'c> {
             .tokens()
             .into_iter()
             .next()
-            .ok_or(CompileError::Syntax { span })?;
+            .ok_or(syntax(span))?;
         // A name edit replaces the complete qualifier and callee, leaving its
         // argument list in place. Recording only the token would duplicate the
         // sheet qualifier when the existing rewrite supplies a qualified name.
@@ -1303,7 +1362,7 @@ impl<'c> Lowering<'c> {
         let list = call
             .child_nodes()
             .next()
-            .ok_or(CompileError::Syntax { span })?;
+            .ok_or(syntax(span))?;
         let arguments: Vec<_> = list.child_nodes().collect();
         let own = book == ExternalBookRef::Number(0)
             || match &book {
@@ -1417,10 +1476,7 @@ impl<'c> Lowering<'c> {
             )));
         } else if self.functions.is_some() {
             // A failed qualified binding must remain eligible for registration changes.
-            return Err(CompileError::UnknownFunction {
-                span: name.span(),
-                spelling: name.text().to_owned(),
-            });
+            return Err(unknown(name.span(), name.text().to_owned()));
         } else {
             return Err(unsupported(
                 span,
@@ -1445,10 +1501,7 @@ impl<'c> Lowering<'c> {
     ) -> Result<(), CompileError> {
         let argc = arguments.len();
         if argc < 3 || argc.is_multiple_of(2) {
-            return Err(CompileError::Arity {
-                span,
-                supplied: argc,
-            });
+            return Err(grammar(span, GrammarRule::BindingArguments));
         }
         // Where a legacy formula's LET intersects is not measured: refused there.
         let _ = place;
@@ -1466,9 +1519,7 @@ impl<'c> Lowering<'c> {
         for pair in (0..pairs).rev() {
             let name = self.declared_name(arguments[2 * pair])?;
             if name.1 {
-                return Err(CompileError::Syntax {
-                    span: arguments[2 * pair].span(),
-                });
+                return Err(syntax(arguments[2 * pair].span()));
             }
             tasks.push(Task::Declare {
                 block,
@@ -1495,28 +1546,27 @@ impl<'c> Lowering<'c> {
         tasks: &mut Vec<Task<'t>>,
     ) -> Result<(), CompileError> {
         let Some((body, parameters)) = arguments.split_last() else {
-            return Err(CompileError::Arity { span, supplied: 0 });
+            return Err(grammar(span, GrammarRule::BindingArguments));
         };
         if body.kind() == SyntaxKind::OmittedArgExpr {
-            return Err(CompileError::Syntax { span: body.span() });
+            return Err(syntax(body.span()));
         }
         let mut names = Vec::with_capacity(parameters.len());
         let mut required = 0;
         for parameter in parameters {
             let (name, optional) = self.declared_name(parameter)?;
             if names.contains(&name) {
-                return Err(CompileError::Syntax {
-                    span: parameter.span(),
-                });
+                return Err(grammar(
+                    parameter.span(),
+                    GrammarRule::DuplicateLambdaParameter,
+                ));
             }
             if optional {
                 // A parameter after an optional one is optional too.
             } else if required == names.len() {
                 required += 1;
             } else {
-                return Err(CompileError::Syntax {
-                    span: parameter.span(),
-                });
+                return Err(syntax(parameter.span()));
             }
             names.push(name);
         }
@@ -1548,7 +1598,7 @@ impl<'c> Lowering<'c> {
     /// name, or that binding read as a reference, is refused as syntax Excel does not accept.
     fn declared_name(&mut self, node: &SyntaxNode) -> Result<(String, bool), CompileError> {
         let span = node.span();
-        let refused = CompileError::Syntax { span };
+        let refused = syntax(span);
         if node.kind() != SyntaxKind::IdentifierExpr {
             return Err(refused);
         }
@@ -1735,7 +1785,7 @@ impl<'c> Lowering<'c> {
         self.floor = floor;
         self.name_context = name_context;
         lowered.map_err(|error| match error {
-            CompileError::Unsupported { .. } | CompileError::UnknownFunction { .. } => error,
+            CompileError::NotModelled { .. } => error,
             _ => refused(),
         })?;
         Ok(target)
@@ -2518,7 +2568,7 @@ fn strip_prefixes(spelling: &str) -> &str {
 /// `=LET(Größe,21,GRÖßE*2)` finds the parameter, `GRÖSSE` does not and is read as a defined
 /// name; calc-value's `parameter_names_equal`). A defined name's block is keyed by the full fold,
 /// as defined names compare.
-fn parameter_key(text: &str) -> String {
+pub(super) fn parameter_key(text: &str) -> String {
     calc_func::value::fold_parameter_name(without_prefix(text, "_xlpm.").unwrap_or(text))
 }
 
@@ -2533,7 +2583,7 @@ fn array(node: &SyntaxNode) -> Result<Literal, CompileError> {
             SyntaxChild::Token(token) => match token.kind() {
                 TokenKind::Semicolon => rows.push(Vec::new()),
                 TokenKind::Comma | TokenKind::LBrace | TokenKind::RBrace => {}
-                _ => return Err(CompileError::Syntax { span: token.span() }),
+                _ => return Err(syntax(token.span())),
             },
             SyntaxChild::Node(element) => {
                 let literal = array_element(element)?;
@@ -2543,7 +2593,7 @@ fn array(node: &SyntaxNode) -> Result<Literal, CompileError> {
     }
     let cols = rows[0].len();
     if cols == 0 || rows.iter().any(|row| row.len() != cols) {
-        return Err(CompileError::Syntax { span });
+        return Err(syntax(span));
     }
     let count = rows.len();
     Ok(Literal::Array {
@@ -2561,7 +2611,7 @@ fn array_element(node: &SyntaxNode) -> Result<Literal, CompileError> {
         SyntaxKind::ErrorLiteralExpr => only_token(node)
             .and_then(Token::error_code)
             .map(Literal::Error)
-            .ok_or(CompileError::Syntax { span }),
+            .ok_or(syntax(span)),
         SyntaxKind::IdentifierExpr => {
             let text = only_token(node).map(Token::text).unwrap_or_default();
             if text.eq_ignore_ascii_case("TRUE") {
@@ -2569,7 +2619,7 @@ fn array_element(node: &SyntaxNode) -> Result<Literal, CompileError> {
             } else if text.eq_ignore_ascii_case("FALSE") {
                 Ok(Literal::Logical(false))
             } else {
-                Err(CompileError::Syntax { span })
+                Err(syntax(span))
             }
         }
         SyntaxKind::PrefixExpr => match node.children() {
@@ -2588,9 +2638,9 @@ fn array_element(node: &SyntaxNode) -> Result<Literal, CompileError> {
                 };
                 Ok(Literal::Number(signed.to_bits()))
             }
-            _ => Err(CompileError::Syntax { span }),
+            _ => Err(syntax(span)),
         },
-        _ => Err(CompileError::Syntax { span }),
+        _ => Err(syntax(span)),
     }
 }
 
@@ -2605,10 +2655,9 @@ fn carries_final_sum(demand: ArgumentDemand, index: usize) -> bool {
 }
 
 fn unsupported(span: TextSpan, construct: &'static str, owner: &'static str) -> CompileError {
-    CompileError::Unsupported {
+    CompileError::NotModelled {
         span,
-        construct,
-        owner,
+        gap: Gap::Construct { construct, owner },
     }
 }
 
@@ -2636,10 +2685,7 @@ fn target(notation: Notation, token: &Token) -> Result<Target, CompileError> {
     catalogue()
         .resolve_surface(notation, token.text())
         .map(Target)
-        .map_err(|_| CompileError::UnknownFunction {
-            span: token.span(),
-            spelling: token.text().to_owned(),
-        })
+        .map_err(|_| unknown(token.span(), token.text().to_owned()))
 }
 
 /// The catalogue entry a named call written `name` calls: the entry of its spelling after the
@@ -2649,17 +2695,14 @@ fn call_target(name: &Token) -> Result<Target, CompileError> {
     catalogue()
         .resolve_surface(Notation::Call, file_function(name.text()))
         .map(Target)
-        .map_err(|_| CompileError::UnknownFunction {
-            span: name.span(),
-            spelling: name.text().to_owned(),
-        })
+        .map_err(|_| unknown(name.span(), name.text().to_owned()))
 }
 
 /// Whether a file's call written `spelling`, of the catalogue entry `target`, names a function a
 /// file stores with a prefix without that prefix: Excel's load reads such a name as an unknown
 /// one. A spelling with `_xlfn.` names the function whatever prefix a file stores it with
 /// ([`file_unprefixed`]). An entry whose file prefix is not known is read by its plain name.
-fn unknown_on_load(spelling: &str, target: Target) -> bool {
+pub(super) fn unknown_on_load(spelling: &str, target: Target) -> bool {
     !spelling.eq_ignore_ascii_case(FIELD_ACCESS)
         && without_prefix(spelling, "_xlfn.").is_none()
         && match target.0.file_prefix() {
@@ -2684,7 +2727,7 @@ const FIELD_ACCESS: &str = "_FV";
 
 /// The catalogue spelling a file's call written `spelling` names: FIELDVALUE for a field access
 /// ([`FIELD_ACCESS`]), otherwise the spelling without its file prefixes ([`file_unprefixed`]).
-fn file_function(spelling: &str) -> &str {
+pub(super) fn file_function(spelling: &str) -> &str {
     if spelling.eq_ignore_ascii_case(FIELD_ACCESS) {
         "FIELDVALUE"
     } else {
@@ -2723,7 +2766,7 @@ pub(crate) fn file_unprefixed(spelling: &str) -> &str {
 
 /// The rest of `text` when its first bytes are the ASCII `prefix` in any ASCII case. Bytes equal
 /// to ASCII bytes are ASCII themselves, so the rest starts on a character boundary.
-fn without_prefix<'t>(text: &'t str, prefix: &str) -> Option<&'t str> {
+pub(super) fn without_prefix<'t>(text: &'t str, prefix: &str) -> Option<&'t str> {
     let n = prefix.len();
     let starts = text.len() >= n && text.as_bytes()[..n].eq_ignore_ascii_case(prefix.as_bytes());
     starts.then(|| &text[n..])
@@ -2739,10 +2782,7 @@ fn final_sum_check(operator: &Token, out: &mut Vec<Instruction>) -> Result<(), C
     let negate = catalogue()
         .resolve_surface(Notation::Prefix, "-")
         .map(Target)
-        .map_err(|_| CompileError::UnknownFunction {
-            span: operator.span(),
-            spelling: "-".to_owned(),
-        })?;
+        .map_err(|_| unknown(operator.span(), "-".to_owned()))?;
     let negation = Instruction::Call {
         target: negate,
         argc: 1,
@@ -2765,7 +2805,7 @@ fn final_sum_check(operator: &Token, out: &mut Vec<Instruction>) -> Result<(), C
 }
 
 /// The token of a node that holds exactly one.
-fn only_token(node: &SyntaxNode) -> Option<&Token> {
+pub(super) fn only_token(node: &SyntaxNode) -> Option<&Token> {
     match node.children() {
         [SyntaxChild::Token(token)] => Some(token),
         _ => None,
@@ -2783,7 +2823,10 @@ const SIGNIFICANT_DIGITS: usize = 15;
 /// `1234567890123450`, 384 of 384 such literals in the catalogue oracle's dcuar_text rows).
 fn number(node: &SyntaxNode) -> Result<Literal, CompileError> {
     let span = node.span();
-    let refused = CompileError::NumberLiteral { span };
+    let refused = CompileError::NotModelled {
+        span,
+        gap: Gap::NumberLiteral,
+    };
     let text = only_token(node).map(Token::text).ok_or(refused.clone())?;
     let (digits, nonzero) = significant_digits(text);
     let kept;
@@ -2838,11 +2881,11 @@ fn text(node: &SyntaxNode) -> Result<Literal, CompileError> {
     let span = node.span();
     let quoted = only_token(node)
         .map(Token::text)
-        .ok_or(CompileError::Syntax { span })?;
+        .ok_or(syntax(span))?;
     let inner = quoted
         .strip_prefix('"')
         .and_then(|rest| rest.strip_suffix('"'))
-        .ok_or(CompileError::Syntax { span })?;
+        .ok_or(syntax(span))?;
     let units = inner.replace("\"\"", "\"").encode_utf16().collect();
     Ok(Literal::Text(ExcelText::from_utf16_code_units(units)))
 }
@@ -3019,7 +3062,10 @@ mod tests {
 
     fn owner(formula: &str) -> &'static str {
         match refusal(formula) {
-            CompileError::Unsupported { owner, .. } => owner,
+            CompileError::NotModelled {
+                gap: Gap::Construct { owner, .. },
+                ..
+            } => owner,
             other => panic!("{formula}: {other:?}"),
         }
     }
@@ -3049,7 +3095,10 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn refusals_are_typed() {
-        assert!(matches!(refusal("=1+"), CompileError::Syntax { .. }));
+        assert_eq!(
+            refusal("=1+").rejection(),
+            Some(Rejection::Grammar(GrammarRule::Syntax))
+        );
         assert!(matches!(
             refusal("=Nope!A1"),
             CompileError::Reference {
@@ -3066,22 +3115,41 @@ mod tests {
         ));
         assert_eq!(
             refusal("=NOSUCH(1)"),
-            CompileError::UnknownFunction {
-                span: TextSpan::new(1, 6),
-                spelling: "NOSUCH".to_owned()
-            }
+            unknown(TextSpan::new(1, 6), "NOSUCH".to_owned())
         );
-        assert!(matches!(
-            refusal("=IF(1)"),
-            CompileError::Arity { supplied: 1, .. }
-        ));
-        assert!(matches!(
-            refusal("=SUM()"),
-            CompileError::Arity { supplied: 0, .. }
-        ));
+        let function = |spelling: &str, rule| {
+            Some(Rejection::Function {
+                function: catalogue()
+                    .resolve_surface(Notation::Call, spelling)
+                    .unwrap()
+                    .id(),
+                rule,
+            })
+        };
+        assert_eq!(
+            refusal("=IF(1)").rejection(),
+            function("IF", calc_func::EntryRule::TooFewArguments)
+        );
+        assert_eq!(
+            refusal("=SUM()").rejection(),
+            function("SUM", calc_func::EntryRule::TooFewArguments)
+        );
+        assert_eq!(
+            refusal("=COUNTBLANK(2)").rejection(),
+            function(
+                "COUNTBLANK",
+                calc_func::EntryRule::ReferenceRequired { index: 0 }
+            )
+        );
         for literal in ["=1E400", "=1E-310", "=1E-400"] {
             assert!(
-                matches!(refusal(literal), CompileError::NumberLiteral { .. }),
+                matches!(
+                    refusal(literal),
+                    CompileError::NotModelled {
+                        gap: Gap::NumberLiteral,
+                        ..
+                    }
+                ),
                 "{literal}"
             );
         }
@@ -3114,10 +3182,7 @@ mod tests {
         }
         assert_eq!(
             refusal("=_xlfn.NOSUCH(1)"),
-            CompileError::UnknownFunction {
-                span: TextSpan::new(1, 12),
-                spelling: "_xlfn.NOSUCH".to_owned()
-            }
+            unknown(TextSpan::new(1, 12), "_xlfn.NOSUCH".to_owned())
         );
     }
 
@@ -3172,17 +3237,20 @@ mod tests {
         );
         assert_eq!(
             loaded("=_xlfn.MAXIFS(A1)"),
-            Err(CompileError::Arity {
+            Err(CompileError::Rejected {
                 span: TextSpan::new(1, 16),
-                supplied: 1
+                rule: Rejection::Function {
+                    function: catalogue()
+                        .resolve_surface(Notation::Call, "MAXIFS")
+                        .unwrap()
+                        .id(),
+                    rule: calc_func::EntryRule::TooFewArguments,
+                },
             })
         );
         assert_eq!(
             loaded("=NOSUCH(1)"),
-            Err(CompileError::UnknownFunction {
-                span: TextSpan::new(1, 6),
-                spelling: "NOSUCH".to_owned()
-            })
+            Err(unknown(TextSpan::new(1, 6), "NOSUCH".to_owned()))
         );
     }
 

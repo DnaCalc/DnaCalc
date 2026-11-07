@@ -38,18 +38,20 @@ pub(crate) use builtins::is_builtin;
 mod cells;
 mod closure;
 mod compile;
+mod entry;
 mod legacy;
 mod lift;
 mod refops;
 mod run;
 
 pub use compile::{
-    CompileError, NameAnalysis, analyze_loaded_names, compile, compile_loaded, compile_loaded_with,
+    CompileError, Gap, NameAnalysis, analyze_loaded_names, compile, compile_loaded, compile_loaded_with,
     compile_loaded_with_bindings, compile_loaded_with_functions, compile_with,
     compile_with_functions,
 };
 /// The spelling a named call resolves by in the catalogue; the editor assistance resolves by it too.
 pub(crate) use compile::{binding_call, file_unprefixed};
+pub use entry::{EntryRejection, GrammarRule, Rejection, check_entry};
 pub use run::{
     ContinuationProgress, EvalContinuation, EvalFault, EvalStep, MAX_CALL_DEPTH, evaluate,
 };

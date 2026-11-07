@@ -824,10 +824,43 @@ pub enum Observation {
     /// A cache whose freshness is unknown: a package not known to have been saved by Excel after a
     /// full recalculation.
     UnknownFreshnessCache(SavedCache),
+    /// Excel refused to enter the cell's formula in the form `form`: COM's `0x800A03EC` (the
+    /// "There's a problem with this formula" dialog), so the cell holds nothing. A rejection is a
+    /// claim about Excel as a value is, and a rejection by the code under test is judged against
+    /// it ([`crate::Verdict::AgreedRejection`]). The JSON form is
+    /// `{"entry_rejected": {"form": "legacy" | "dynamic"}}`; a capture failure at stage `entry`
+    /// with that exception becomes one when the record is read
+    /// ([`CaptureRecord::observe_entry_rejections`]).
+    EntryRejected { form: EntryForm },
 }
 
-const OBSERVATION_ORIGINS: [&str; 3] =
-    ["excel_raw", "excel_saved_cache", "unknown_freshness_cache"];
+/// The form a formula was entered in: `Range.Formula` (legacy) or `Range.Formula2` (dynamic).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum EntryForm {
+    Legacy,
+    Dynamic,
+}
+
+impl EntryForm {
+    pub fn name(self) -> &'static str {
+        match self {
+            EntryForm::Legacy => "legacy",
+            EntryForm::Dynamic => "dynamic",
+        }
+    }
+}
+
+const OBSERVATION_ORIGINS: [&str; 4] = [
+    "excel_raw",
+    "excel_saved_cache",
+    "unknown_freshness_cache",
+    "entry_rejected",
+];
+
+/// The stage of the capture failure an authored formula entry Excel refused records.
+pub const STAGE_ENTRY: &str = "entry";
+/// The COM error of Excel's refusal of a formula entry.
+const ENTRY_REFUSED: &str = "0x800A03EC";
 
 impl Observation {
     fn decode(fields: &Fields<'_>, path: &str) -> Result<Observation, DecodeError> {
@@ -848,7 +881,23 @@ impl Observation {
         Ok(match origin {
             "excel_raw" => Self::ExcelRaw(decode_value(node, &at)?),
             "excel_saved_cache" => Self::ExcelSavedCache(SavedCache::decode(node, &at)?),
-            _ => Self::UnknownFreshnessCache(SavedCache::decode(node, &at)?),
+            "unknown_freshness_cache" => {
+                Self::UnknownFreshnessCache(SavedCache::decode(node, &at)?)
+            }
+            _ => {
+                let rejected = Fields::new(node, &at, &["form"])?;
+                let form = match json::text(rejected.required("form")?, &rejected.at("form"))? {
+                    "legacy" => EntryForm::Legacy,
+                    "dynamic" => EntryForm::Dynamic,
+                    other => {
+                        return Err(DecodeError::new(
+                            &rejected.at("form"),
+                            format!("is {other:?}, expected legacy or dynamic"),
+                        ));
+                    }
+                };
+                Self::EntryRejected { form }
+            }
         })
     }
 
@@ -857,16 +906,19 @@ impl Observation {
             Observation::ExcelRaw(_) => "excel_raw",
             Observation::ExcelSavedCache(_) => "excel_saved_cache",
             Observation::UnknownFreshnessCache(_) => "unknown_freshness_cache",
+            Observation::EntryRejected { .. } => "entry_rejected",
         }
     }
 
-    /// The value the observation says the cell holds.
-    pub fn expected(&self) -> &CalcValue {
+    /// The value the observation says the cell holds; `None` for a refused entry, after which
+    /// the cell holds nothing.
+    pub fn expected(&self) -> Option<&CalcValue> {
         match self {
-            Observation::ExcelRaw(value) => value,
+            Observation::ExcelRaw(value) => Some(value),
             Observation::ExcelSavedCache(cache) | Observation::UnknownFreshnessCache(cache) => {
-                cache.value()
+                Some(cache.value())
             }
+            Observation::EntryRejected { .. } => None,
         }
     }
 
@@ -875,6 +927,9 @@ impl Observation {
             Observation::ExcelRaw(value) => value_out(value),
             Observation::ExcelSavedCache(cache) | Observation::UnknownFreshnessCache(cache) => {
                 cache.out()
+            }
+            Observation::EntryRejected { form } => {
+                Out::Object(vec![("form", Out::text(form.name()))])
             }
         }
     }
@@ -1118,7 +1173,7 @@ impl CaptureRecord {
             Some(CaptureSession::decode(&fields)?)
         };
 
-        Ok(CaptureRecord {
+        let mut record = CaptureRecord {
             case,
             source,
             acquisition,
@@ -1127,7 +1182,47 @@ impl CaptureRecord {
             formulas,
             observations,
             session,
-        })
+        };
+        record.observe_entry_rejections();
+        Ok(record)
+    }
+
+    /// Turns each capture failure at stage [`STAGE_ENTRY`] whose exception is Excel's refusal of
+    /// the entry (`0x800A03EC`) into an [`Observation::EntryRejected`] of its cell, in the form
+    /// its message names (the worker writes `Dynamic formula entry refused for ...` or `Legacy
+    /// ...`), when the cell is in the inventory and has no other observation. Every other failure
+    /// stays a failure. Reading a record does this, so it holds for every committed capture.
+    pub fn observe_entry_rejections(&mut self) {
+        let Some(session) = &mut self.session else {
+            return;
+        };
+        let mut kept = Vec::with_capacity(session.failures.len());
+        for failure in std::mem::take(&mut session.failures) {
+            let form = if failure.message.starts_with("Dynamic formula entry refused") {
+                Some(EntryForm::Dynamic)
+            } else if failure.message.starts_with("Legacy formula entry refused") {
+                Some(EntryForm::Legacy)
+            } else {
+                None
+            };
+            let observable = failure.stage == STAGE_ENTRY
+                && failure.message.contains(ENTRY_REFUSED)
+                && failure.cell.as_ref().is_some_and(|cell| {
+                    self.formulas.iter().any(|formula| formula.cell == *cell)
+                        && !self
+                            .observations
+                            .iter()
+                            .any(|observed| observed.cell == *cell)
+                });
+            match (form, observable, &failure.cell) {
+                (Some(form), true, Some(cell)) => self.observations.push(CellObservation {
+                    cell: cell.clone(),
+                    observation: Observation::EntryRejected { form },
+                }),
+                _ => kept.push(failure),
+            }
+        }
+        session.failures = kept;
     }
 
     /// The record as a version 2 JSON document (this module's documentation), members in the

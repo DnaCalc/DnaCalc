@@ -20,13 +20,15 @@
 //!                           | {"file_cached": {"source": "..."}}
 //!                           | {"stale": {"last_calculated": t | null, "cause": "..."}}
 //!                           | {"not_modeled": {"feature": "...", "diagnostic": "..."}}
+//!                           | {"rejected": {"rule": "..."}}
 //!                           | {"missing": {"reason": "..."}}
 //!                           | {"failed": {"fault": "..."}},
 //!               "value": <value>}, ...]}
 //! ```
 //!
-//! A calculated or file-cached result carries a value; a stale one may; a not-modeled, missing or
-//! failed one carries none. A calculated result's `external_links` member, written only when
+//! A calculated or file-cached result carries a value; a stale one may; a not-modeled, rejected,
+//! missing or failed one carries none. A rejected result is a claim (dc-mx3x): the code under test
+//! says Excel refuses to enter the cell's formula, by the rule it names. A calculated result's `external_links` member, written only when
 //! `true` (dc-ylr), says that the calculation read values another workbook's link caches in the
 //! file hold, directly or through the formulas it read: calculated, from inputs that are the file's
 //! cache of the other book rather than live ones. The verdict counts such cells apart
@@ -79,6 +81,8 @@ pub enum Provenance {
     /// A typed not-modeled result: the formula uses `feature`, which the code under test does not
     /// model.
     NotModeled { feature: String, diagnostic: String },
+    /// The code under test rejects the formula, as it says Excel's formula entry does, by `rule`.
+    Rejected { rule: String },
     /// The code under test published nothing for the cell, for `reason`.
     Missing { reason: String },
     /// The evaluation failed with an infrastructure or admission fault (not a worksheet error
@@ -86,12 +90,13 @@ pub enum Provenance {
     Failed { fault: String },
 }
 
-const PROVENANCES: [&str; 7] = [
+const PROVENANCES: [&str; 8] = [
     "calculated",
     "circular_rule",
     "file_cached",
     "stale",
     "not_modeled",
+    "rejected",
     "missing",
     "failed",
 ];
@@ -159,6 +164,12 @@ impl Provenance {
                     diagnostic: string(&fields, "diagnostic")?,
                 })
             }
+            "rejected" => {
+                let fields = Fields::new(inner, &at, &["rule"])?;
+                Ok(Self::Rejected {
+                    rule: string(&fields, "rule")?,
+                })
+            }
             "missing" => {
                 let fields = Fields::new(inner, &at, &["reason"])?;
                 Ok(Self::Missing {
@@ -181,6 +192,7 @@ impl Provenance {
             Provenance::FileCached { .. } => "file_cached",
             Provenance::Stale { .. } => "stale",
             Provenance::NotModeled { .. } => "not_modeled",
+            Provenance::Rejected { .. } => "rejected",
             Provenance::Missing { .. } => "missing",
             Provenance::Failed { .. } => "failed",
         }
@@ -195,6 +207,7 @@ impl Provenance {
             | Provenance::FileCached { .. } => Some(true),
             Provenance::Stale { .. } => None,
             Provenance::NotModeled { .. }
+            | Provenance::Rejected { .. }
             | Provenance::Missing { .. }
             | Provenance::Failed { .. } => Some(false),
         }

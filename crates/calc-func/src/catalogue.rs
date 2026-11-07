@@ -3,7 +3,10 @@
 //!
 //! Each family fragment (the child modules declared below, one file per family) declares its
 //! entries with explicit stable [`FunctionId`]s: an entry's spelling and [`Notation`], arity,
-//! parameters, [`ArgumentDemand`] and kernel, and holds the kernels themselves. At compile time
+//! repeating groups, parameters (each with its [`ParameterClass`] and [`EntryClass`]), result
+//! form, [`ArgumentDemand`] and kernel, and holds the kernels themselves. What Excel's formula
+//! entry accepts ([`entry`]) is declared next to the kernel, each fact that is not the default
+//! with its Excel evidence. At compile time
 //! the generator below combines the fragments into an ID-ordered dispatch table and a
 //! surface-ordered name table, and the build fails when two entries share an ID or a surface, or
 //! when an entry's declaration contradicts itself. Signature help and the oracle formula are
@@ -30,6 +33,8 @@ mod database;
 mod dates;
 mod distributions;
 mod engineering;
+mod entry;
+pub use entry::{ArgumentGroups, EntryClass, EntryRule, OperandForm, ResultForm};
 mod error_fallback;
 mod euro_tools;
 mod fetching;
@@ -207,33 +212,41 @@ impl ArgumentDemand {
     }
 }
 
-/// One declared parameter: its name, as signature help shows it, and its class.
+/// One declared parameter: its name, as signature help shows it, its class (how the evaluator
+/// passes it) and its entry class (what Excel's formula entry accepts there).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Parameter {
     pub(crate) name: &'static str,
     pub(crate) class: ParameterClass,
+    pub(crate) entry: EntryClass,
 }
 
 impl Parameter {
-    pub(crate) const fn value(name: &'static str) -> Self {
+    /// A parameter of class `class` whose entry takes every operand.
+    pub(crate) const fn of(name: &'static str, class: ParameterClass) -> Self {
         Parameter {
             name,
-            class: ParameterClass::Value,
+            class,
+            entry: EntryClass::Any,
         }
+    }
+
+    pub(crate) const fn value(name: &'static str) -> Self {
+        Self::of(name, ParameterClass::Value)
     }
 
     pub(crate) const fn value_or_reference(name: &'static str) -> Self {
-        Parameter {
-            name,
-            class: ParameterClass::ValueOrReference,
-        }
+        Self::of(name, ParameterClass::ValueOrReference)
     }
 
     pub(crate) const fn reference(name: &'static str) -> Self {
-        Parameter {
-            name,
-            class: ParameterClass::Reference,
-        }
+        Self::of(name, ParameterClass::Reference)
+    }
+
+    /// This parameter with the entry class `entry`.
+    pub(crate) const fn entry(mut self, entry: EntryClass) -> Self {
+        self.entry = entry;
+        self
     }
 }
 
@@ -246,9 +259,13 @@ pub(crate) struct CatalogueEntry {
     pub(crate) spelling: &'static str,
     pub(crate) notation: Notation,
     pub(crate) arity: CallableArityShape,
+    /// The repeating groups of the arguments, when they come in groups (IFS's pairs).
+    pub(crate) groups: Option<ArgumentGroups>,
     /// The named parameters. When the arity admits more arguments than there are names, the last
-    /// parameter repeats.
+    /// parameter repeats, or the group's parameters repeat where `groups` declares groups.
     pub(crate) parameters: &'static [Parameter],
+    /// What a call may give, as formula entry reads it.
+    pub(crate) result: ResultForm,
     pub(crate) demand: ArgumentDemand,
     /// The kernel: eager for an eager entry and lazy for a lazy one.
     pub(crate) kernel: Kernel,
@@ -278,6 +295,19 @@ impl CatalogueEntry {
         }
         self
     }
+
+    /// This entry with the repeating groups `groups`.
+    pub(crate) const fn with_groups(mut self, groups: ArgumentGroups) -> Self {
+        self.groups = Some(groups);
+        self
+    }
+
+    /// This entry with the result form `result`.
+    pub(crate) const fn with_result(mut self, result: ResultForm) -> Self {
+        self.result = result;
+        self
+    }
+
     /// An eager operator, whose arity is its parameter count.
     pub(crate) const fn operator(
         id: FunctionId,
@@ -291,7 +321,9 @@ impl CatalogueEntry {
             spelling,
             notation,
             arity: CallableArityShape::exact(parameters.len()),
+            groups: None,
             parameters,
+            result: ResultForm::Value,
             demand: ArgumentDemand::Eager,
             kernel: Kernel::Eager(kernel),
         }
@@ -301,6 +333,17 @@ impl CatalogueEntry {
     pub(crate) fn parameter_class(&self, index: usize) -> ParameterClass {
         let last = self.parameters.len().saturating_sub(1);
         self.parameters[index.min(last)].class
+    }
+
+    /// The entry class of argument `index`, which the arity admits: its group's parameter's when
+    /// it lies in a repeating group beyond the named parameters, else the last named one's.
+    pub(crate) fn entry_class(&self, index: usize) -> EntryClass {
+        let named = self.parameters.len();
+        let at = match self.groups.and_then(|groups| groups.parameter(index)) {
+            Some(at) if index >= named => at,
+            _ => index.min(named.saturating_sub(1)),
+        };
+        self.parameters[at].entry
     }
 }
 
@@ -415,6 +458,21 @@ const fn check_declaration(family: u16, entry: &CatalogueEntry) {
     }
     if arity.max > 0 && named == 0 {
         panic!("a catalogue entry that takes arguments names no parameter");
+    }
+    if let Some(groups) = entry.groups
+        && (groups.size == 0 || groups.from + groups.size > named || groups.tail >= groups.size)
+    {
+        panic!("a catalogue entry's repeating groups do not lie in its named parameters");
+    }
+    let mut p = 0;
+    while p < named {
+        let parameter = entry.parameters[p];
+        if matches!(parameter.entry, EntryClass::Reference)
+            && matches!(parameter.class, ParameterClass::Value)
+        {
+            panic!("a reference-only entry place has a value parameter, which a call dereferences");
+        }
+        p += 1;
     }
     if let Some(first) = entry.demand.discriminator()
         && first >= arity.min

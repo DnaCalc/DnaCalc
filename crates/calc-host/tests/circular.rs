@@ -1578,7 +1578,7 @@ fn dc_hsa5_11__recorded_iteration_is_independent_of_owner_budget() {
                     ProjectedValue::Calculated { value, calculation } => {
                         assert_eq!(
                             value,
-                            expected.observation.expected(),
+                            expected.observation.expected().expect("a value observation"),
                             "{} {:?}, budget {budget}",
                             record.case,
                             formula.cell

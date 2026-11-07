@@ -43,6 +43,9 @@ const MARKDOWN_CAUSES: usize = 40;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Bucket {
     Pass,
+    /// Excel and DNA Calc both refuse the formula's entry (dc-mx3x): a pass, also counted on its
+    /// own line.
+    AgreedRejection,
     Mismatched,
     Refused,
     FailedOrMissing,
@@ -52,7 +55,8 @@ pub(crate) enum Bucket {
 pub(crate) fn bucket(verdict: &str) -> Bucket {
     match verdict {
         "matched" => Bucket::Pass,
-        "mismatched" => Bucket::Mismatched,
+        "agreed_rejection" => Bucket::AgreedRejection,
+        "mismatched" | "entry_accepted" | "entry_rejected_wrongly" => Bucket::Mismatched,
         "not_modeled" => Bucket::Refused,
         _ => Bucket::FailedOrMissing,
     }
@@ -93,6 +97,9 @@ pub(crate) struct Counts {
     pub(crate) saved_excel: BTreeMap<String, u64>,
     pub(crate) formula_cells: u64,
     pub(crate) pass: u64,
+    /// The passes where Excel and DNA Calc both refuse the formula's entry (dc-mx3x): part of
+    /// `pass`, stated apart so a round of broken formulas cannot hide value mismatches.
+    pub(crate) agreed_rejections: u64,
     pub(crate) source_cache_classes: BTreeMap<String, u64>,
     /// Matched cells whose calculation read another workbook's link caches: neither pass nor
     /// still a counted failure (dc-ylr).
@@ -112,7 +119,7 @@ pub(crate) struct Counts {
 impl Counts {
     pub(crate) fn json(&self) -> Value {
         json!({
-            "formula_cells":self.formula_cells,"pass":self.pass,"fail":self.fail(),
+            "formula_cells":self.formula_cells,"pass":self.pass,"agreed_rejections":self.agreed_rejections,"fail":self.fail(),
             "external_links":self.external_links,"circular_rule":self.circular_rule,"awaiting_capture":self.awaiting_capture,
             "mismatched":self.mismatched,"refused":self.refused,"failed_or_missing":self.failed_or_missing,
             "failed_or_missing_by_verdict":self.failed_or_missing_by_verdict,"source_cache_classes":self.source_cache_classes,
@@ -133,6 +140,7 @@ impl Counts {
         for (key,count) in &other.saved_excel { *self.saved_excel.entry(key.clone()).or_default() += count; }
         self.formula_cells += other.formula_cells;
         self.pass += other.pass;
+        self.agreed_rejections += other.agreed_rejections;
         for (class, count) in &other.source_cache_classes {
             *self.source_cache_classes.entry(class.clone()).or_default() += count;
         }
@@ -373,6 +381,11 @@ pub(crate) fn read_triage(triage: &Value) -> Result<Compared, String> {
             }
             Bucket::Pass => {
                 counts.pass += 1;
+                continue;
+            }
+            Bucket::AgreedRejection => {
+                counts.pass += 1;
+                counts.agreed_rejections += 1;
                 continue;
             }
             Bucket::Mismatched => counts.mismatched += 1,
@@ -759,6 +772,13 @@ impl Summary {
             &format!(
                 "- pass rate over all formula cells: {}",
                 rate(c.pass, c.formula_cells)
+            ),
+        );
+        line(
+            &mut out,
+            &format!(
+                "- agreed rejections (in pass: Excel and DNA Calc both refuse the entry): {}",
+                c.agreed_rejections
             ),
         );
         let unknown = self

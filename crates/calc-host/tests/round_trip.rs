@@ -898,7 +898,7 @@ fn recorded_overflow_round_trip(capture_bytes: &[u8], fixture: &[u8], observatio
                 panic!("actual calculation required at {key:?}: {:?}", page.cells()[0]);
             };
             // The canonical verdict compares number bits, including raw observed NaNs.
-            assert_eq!(calc_verdict::compare(observed.observation.expected(), value), None,
+            assert_eq!(calc_verdict::compare(observed.observation.expected().expect("a value observation"), value), None,
                 "{}!{}", observed.cell.sheet(), observed.cell.a1());
             let stamp = calculation.stamp().unwrap();
             assert!(matches!(stamp.computed_by, calc_engine::contract::ComputationOrigin::Evaluated { .. }));
@@ -921,7 +921,7 @@ fn recorded_overflow_round_trip(capture_bytes: &[u8], fixture: &[u8], observatio
         let mut reopened = open(saved);
         let mut changed = 0;
         for observed in &capture.observations {
-            if !observed.observation.expected().as_number().is_some_and(|n| !n.is_finite()) { continue; }
+            if !observed.observation.expected().expect("a value observation").as_number().is_some_and(|n| !n.is_finite()) { continue; }
             let s = sheet(reopened.host(), observed.cell.sheet());
             let key = CellKey::new(s, observed.cell.row(), observed.cell.column()).unwrap();
             let page = project(reopened.host(), &ProjectionRequest { cells: vec![key] }).unwrap();

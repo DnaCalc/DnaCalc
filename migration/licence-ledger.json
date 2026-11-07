@@ -505,6 +505,11 @@
    "surveyed_bytes": 12769
   },
   {
+   "path": "crates/calc-func/src/catalogue/entry.rs",
+   "class": "own-work",
+   "reason": "written here (dc-mx3x): the formula entry rules, measured in Excel"
+  },
+  {
    "path": "crates/calc-func/src/catalogue/error_fallback.rs",
    "class": "own-work",
    "reason": "ported from this project's legacy repositories or written here",

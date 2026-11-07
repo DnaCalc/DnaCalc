@@ -2139,13 +2139,15 @@ fn ceng_m1_2__wrong_cache_not_pass() {
             set(c(6, 1), formula("SUM([1]Data!A1)")),
             set(c(7, 1), unpaired),
             set(c(8, 1), formula("0.1+0.2-0.3")),
-            // A range where a legacy formula takes one value at a place whose evaluation is not
-            // measured (COUNTIFS's range, which takes only a reference: Excel refuses to enter the
-            // formula; XLOOKUP's lookup array and CHISQ.TEST's ranges, which this row used
-            // before, were measured by L3 and dc-10y and lift): a typed refusal. (A range at the
-            // formula's root is intersected with its row, as Excel does: `=Data!A1:A2` in row 9
-            // is #VALUE!.)
-            set(c(9, 1), formula("COUNTIFS(Data!A1:A2*1,1)")),
+            // A formula that reads Data!A1 and Data!A2 and is refused when it runs: Calc!A4's
+            // difference below the normal range. (`COUNTIFS(Data!A1:A2*1,1)`, which this row held before, is one
+            // Excel refuses to enter, since COUNTIFS's range takes only a reference (dc-mx3x);
+            // XLOOKUP's lookup array and CHISQ.TEST's ranges, before that, were measured by L3
+            // and dc-10y and lift.)
+            set(
+                c(9, 1),
+                formula("Data!A1*Data!A2*0+(2.2250738585075E-308-2.2250738585073E-308)"),
+            ),
             set(c(1, 3), formula("A2*2")),
         ],
     );
@@ -2353,12 +2355,10 @@ fn ceng_m1_2__wrong_cache_not_pass() {
     // 0.30000000000000004, that minus 0.3 is 5.551115123125783e-17, 52 binary exponents below the
     // left operand, so Excel's 0; the cache's 999 is not what is published.
     assert_eq!(calculated(&state, c(8, 1)), (CalcValue::number(0.0), 1, 3));
-    assert_eq!(
+    assert!(matches!(
         refusal(&state, c(9, 1), 1, 3),
-        NotModeled::Evaluation(EvalFault::AreaAsValue {
-            area: area(data, 1, 1, 2, 1)
-        })
-    );
+        NotModeled::Evaluation(EvalFault::Function(_))
+    ));
     assert_eq!(
         calculated_cells(&state),
         [c(1, 1), c(1, 3), c(2, 1), c(3, 1), c(8, 1)]
@@ -2386,7 +2386,7 @@ fn ceng_m1_2__wrong_cache_not_pass() {
     assert!(reads.contains(&read(c(1, 3), cell_area(c(2, 1)), vec![values(&[15.0])])));
     assert!(reads.contains(&read(c(5, 1), cell_area(c(4, 1)), vec![Run::Missing(1)])));
     note!(
-        "{CASE}: 10 formulas opened with wrong FileCached results; 0 counted calculated before the first recalculation, 4 after it (the hand-derived 12, 15, \"big\" and 30), 6 typed refusals with no value (a final sum near zero and a range as a value among them), and no read handed over a cache"
+        "{CASE}: 10 formulas opened with wrong FileCached results; 0 counted calculated before the first recalculation, 4 after it (the hand-derived 12, 15, \"big\" and 30), 6 typed refusals with no value (two differences below the normal range among them), and no read handed over a cache"
     );
     note!(
         "ACCEPT-NOTE: {CASE}: NotModeled::Result (an array, callable, reference, empty or non-finite result) is not reachable through CalcFml's evaluator today (IF gives 0 for an omitted branch, and arithmetic overflow is calc-func's #NUM!); calc-engine's unit test result::tests::only_scalar_values_are_published exercises it"
@@ -2468,7 +2468,7 @@ fn ceng_m1_2__wrong_cache_not_pass() {
     assert_eq!(calculated(&state, c(1, 3)), (CalcValue::number(50.0), 2, 5));
     assert!(matches!(
         refusal(&state, c(9, 1), 2, 5),
-        NotModeled::Evaluation(EvalFault::AreaAsValue { .. })
+        NotModeled::Evaluation(EvalFault::Function(_))
     ));
 
     // 5. A cycle in the dirty closure: Calc!B1 and Calc!B2 read each other and Calc!B3 reads

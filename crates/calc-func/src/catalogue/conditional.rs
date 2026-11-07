@@ -63,7 +63,10 @@
 
 use super::aggregate::{read_reference, reader};
 use super::comparison::{self, Want};
-use super::{ArgumentDemand, CatalogueEntry, Family, FunctionId, Kernel, Notation, Parameter};
+use super::{
+    ArgumentDemand, ArgumentGroups, CatalogueEntry, EntryClass, Family, FunctionId, Kernel,
+    Notation, Parameter,
+};
 use crate::call::{EagerKernel, EvalServices, FunctionFault};
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
@@ -89,54 +92,61 @@ const MINIFS: FunctionId = FunctionId::new(CODE, 8);
 /// SUMIF and COUNTIF say they return incorrect results beyond 255 characters.
 const LONGEST_TEXT: usize = 255;
 
+// Formula entry (dc-mx3x, Excel 16.0.20527, 2026-11-07, Formula2 and Formula alike): every range
+// below takes only an operand that may give a reference. `=COUNTIF(2,1)`, `=COUNTIF({1,2},1)`,
+// `=COUNTIF(1+1,1)` and `=COUNTIF(,1)` are refused and `=COUNTIF(B1:B3,1)` and
+// `=COUNTIF(INDEX(B1:B3,0),1)` enter; so for SUMIF's and AVERAGEIF's range and sum or average
+// range, each criteria range of COUNTIFS (`=COUNTIFS(B1:B3,1,2,1)` is refused), and the first
+// range and each criteria range of SUMIFS, AVERAGEIFS, MAXIFS and MINIFS
+// (`=SUMIFS(B1:B3,B1:B3,1,2,1)` is refused). A criterion takes any operand.
 const RANGE_CRITERIA: &[Parameter] = &[
-    Parameter::reference("range"),
+    Parameter::reference("range").entry(EntryClass::Reference),
     Parameter::value_or_reference("criteria"),
 ];
 const SUM_RANGE: &[Parameter] = &[
-    Parameter::reference("range"),
+    Parameter::reference("range").entry(EntryClass::Reference),
     Parameter::value_or_reference("criteria"),
-    Parameter::reference("sum_range"),
+    Parameter::reference("sum_range").entry(EntryClass::Reference),
 ];
 const AVERAGE_RANGE: &[Parameter] = &[
-    Parameter::reference("range"),
+    Parameter::reference("range").entry(EntryClass::Reference),
     Parameter::value_or_reference("criteria"),
-    Parameter::reference("average_range"),
+    Parameter::reference("average_range").entry(EntryClass::Reference),
 ];
 // The catalogue repeats only the last named parameter, so arguments past these names take its
 // class, ValueOrReference: a criteria range there reaches the kernel, which requires a reference.
 const COUNT_PAIRS: &[Parameter] = &[
-    Parameter::reference("criteria_range1"),
+    Parameter::reference("criteria_range1").entry(EntryClass::Reference),
     Parameter::value_or_reference("criteria1"),
-    Parameter::reference("criteria_range2"),
+    Parameter::reference("criteria_range2").entry(EntryClass::Reference),
     Parameter::value_or_reference("criteria2"),
 ];
 const SUM_PAIRS: &[Parameter] = &[
-    Parameter::reference("sum_range"),
-    Parameter::reference("criteria_range1"),
+    Parameter::reference("sum_range").entry(EntryClass::Reference),
+    Parameter::reference("criteria_range1").entry(EntryClass::Reference),
     Parameter::value_or_reference("criteria1"),
-    Parameter::reference("criteria_range2"),
+    Parameter::reference("criteria_range2").entry(EntryClass::Reference),
     Parameter::value_or_reference("criteria2"),
 ];
 const AVERAGE_PAIRS: &[Parameter] = &[
-    Parameter::reference("average_range"),
-    Parameter::reference("criteria_range1"),
+    Parameter::reference("average_range").entry(EntryClass::Reference),
+    Parameter::reference("criteria_range1").entry(EntryClass::Reference),
     Parameter::value_or_reference("criteria1"),
-    Parameter::reference("criteria_range2"),
+    Parameter::reference("criteria_range2").entry(EntryClass::Reference),
     Parameter::value_or_reference("criteria2"),
 ];
 const MAX_PAIRS: &[Parameter] = &[
-    Parameter::reference("max_range"),
-    Parameter::reference("criteria_range1"),
+    Parameter::reference("max_range").entry(EntryClass::Reference),
+    Parameter::reference("criteria_range1").entry(EntryClass::Reference),
     Parameter::value_or_reference("criteria1"),
-    Parameter::reference("criteria_range2"),
+    Parameter::reference("criteria_range2").entry(EntryClass::Reference),
     Parameter::value_or_reference("criteria2"),
 ];
 const MIN_PAIRS: &[Parameter] = &[
-    Parameter::reference("min_range"),
-    Parameter::reference("criteria_range1"),
+    Parameter::reference("min_range").entry(EntryClass::Reference),
+    Parameter::reference("criteria_range1").entry(EntryClass::Reference),
     Parameter::value_or_reference("criteria1"),
-    Parameter::reference("criteria_range2"),
+    Parameter::reference("criteria_range2").entry(EntryClass::Reference),
     Parameter::value_or_reference("criteria2"),
 ];
 
@@ -153,19 +163,27 @@ const fn conditional(
         spelling,
         notation: Notation::Call,
         arity: CallableArityShape::range(min, max),
+        groups: None,
         parameters,
+        result: super::ResultForm::Value,
         demand: ArgumentDemand::Eager,
         kernel: Kernel::Eager(kernel),
     }
 }
 
+// The criteria pairs are groups (dc-mx3x, both forms): `=COUNTIFS(B1:B3,1,B1:B3)` and
+// `=SUMIFS(B1:B3,B1:B3,1,B1:B3)` are refused, `=COUNTIFS(B1:B3,1,B1:B3,1)` and
+// `=SUMIFS(B1:B3,B1:B3,1,B1:B3,1)` enter: COUNTIFS takes 2, 4, 6 and 8 arguments of 1 to 8, and
+// SUMIFS, AVERAGEIFS, MAXIFS and MINIFS 3, 5 and 7.
 pub(super) const FAMILY: Family = Family {
     code: CODE,
     entries: &[
         conditional(COUNTIF, "COUNTIF", (2, 2), RANGE_CRITERIA, countif),
-        conditional(COUNTIFS, "COUNTIFS", (2, 254), COUNT_PAIRS, countifs),
+        conditional(COUNTIFS, "COUNTIFS", (2, 254), COUNT_PAIRS, countifs)
+            .with_groups(ArgumentGroups::new(0, 2, 0)),
         conditional(SUMIF, "SUMIF", (2, 3), SUM_RANGE, sumif),
-        conditional(SUMIFS, "SUMIFS", (3, 255), SUM_PAIRS, sumifs),
+        conditional(SUMIFS, "SUMIFS", (3, 255), SUM_PAIRS, sumifs)
+            .with_groups(ArgumentGroups::new(1, 2, 0)),
         conditional(AVERAGEIF, "AVERAGEIF", (2, 3), AVERAGE_RANGE, averageif),
         conditional(
             AVERAGEIFS,
@@ -173,9 +191,12 @@ pub(super) const FAMILY: Family = Family {
             (3, 255),
             AVERAGE_PAIRS,
             averageifs,
-        ),
-        conditional(MAXIFS, "MAXIFS", (3, 255), MAX_PAIRS, maxifs),
-        conditional(MINIFS, "MINIFS", (3, 255), MIN_PAIRS, minifs),
+        )
+        .with_groups(ArgumentGroups::new(1, 2, 0)),
+        conditional(MAXIFS, "MAXIFS", (3, 255), MAX_PAIRS, maxifs)
+            .with_groups(ArgumentGroups::new(1, 2, 0)),
+        conditional(MINIFS, "MINIFS", (3, 255), MIN_PAIRS, minifs)
+            .with_groups(ArgumentGroups::new(1, 2, 0)),
     ],
 };
 

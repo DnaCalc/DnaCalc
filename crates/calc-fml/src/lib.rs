@@ -38,15 +38,17 @@ pub mod reference;
 pub mod syntax;
 pub use file_function_ids::EXCEL_FUNCTION_IDS;
 
+pub use calc_func::{EntryRule, OperandForm};
 pub use eval::{
-    CompileError, CompiledPlan, ContinuationProgress, EvalContinuation, EvalFault, EvalFrame,
-    EvalScratch, EvalStep, EvaluationObserver, EvaluationReport, ExecutedCall, FactInvalidation,
-    FactRead, FactSubject, FormulaEvaluationContext, FormulaForm, FormulaInstance, MAX_CALL_DEPTH,
+    CompileError, CompiledPlan, ContinuationProgress, EntryRejection, EvalContinuation, EvalFault,
+    EvalFrame, EvalScratch, EvalStep, EvaluationObserver, EvaluationReport, ExecutedCall,
+    FactInvalidation, FactRead, FactSubject, FormulaEvaluationContext, FormulaForm,
+    FormulaInstance, Gap, GrammarRule, MAX_CALL_DEPTH,
     MAX_RECORDED_NAME_INVOCATIONS, NameAnalysis, NameInvocation, NameMemoBlocker,
     NameMemoCandidate, NameMemoEligibility, NameResultKind, ObservableFacets, PassServices,
     PlanCache, PlanCacheStats, ReadDenial, ReadPolicy, ReadPurpose, ReadRequest, ResolvedReference,
     SemanticEnvironment, UserCallRecord, UserFunctionEffects, UserFunctionSource,
-    analyze_loaded_names, compile, compile_loaded, compile_loaded_with,
+    Rejection, analyze_loaded_names, check_entry, compile, compile_loaded, compile_loaded_with,
     compile_loaded_with_bindings, compile_loaded_with_functions, compile_with,
     compile_with_functions, evaluate, instantiate,
 };

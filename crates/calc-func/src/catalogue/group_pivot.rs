@@ -23,10 +23,12 @@ pub(super) const FAMILY: Family = Family {
         spelling: "PERCENTOF",
         notation: Notation::Call,
         arity: CallableArityShape::exact(2),
+        groups: None,
         parameters: &[
             Parameter::value_or_reference("data_subset"),
             Parameter::value_or_reference("data_all"),
         ],
+        result: super::ResultForm::Value,
         demand: ArgumentDemand::Eager,
         kernel: Kernel::Eager(percentof),
     }],

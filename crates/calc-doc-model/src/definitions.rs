@@ -191,6 +191,14 @@ pub enum UnloadedCell {
     /// language (commands, `RETURN`, `GOTO`), which no engine here runs, so it is not calculated;
     /// what the file cached for it is kept, and the sheet's part is saved as it was read.
     MacroSheet,
+    /// A formula cell whose formula Excel's formula entry refuses, by `rule` (dc-mx3x): Excel
+    /// opens such a file only by repairing it, which removes the formula and keeps the value the
+    /// file cached as a constant (measured on Excel 16.0.20527, 2026-11-07: a stored `IRR()` or
+    /// `COUNTBLANK(2)` makes `Workbooks.Open` fail with 0x800A03EC, and with `CorruptLoad`
+    /// repair the cell is blank, or holds its cached `<v>`, and `=A1` reads it so). The cell
+    /// holds no formula here either: a calculation reads it as blank when the file cached
+    /// nothing, and does not read a cached value (`cached`). The codec keeps its bytes.
+    RejectedFormula { rule: String, cached: bool },
 }
 
 /// A workbook's iterative-calculation settings: the workbook part's `calcPr` attributes

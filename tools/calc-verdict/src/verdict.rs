@@ -19,7 +19,18 @@
 //!   compared with the observation                    -> matched | mismatched
 //! provenance circular_rule                           -> as calculated, with no evaluation
 //!                                                       asked for (none ran), counted apart
+//! provenance rejected, Excel refused the entry too   -> agreed_rejection
+//!   Excel took the entry                             -> entry_rejected_wrongly
+//!   nothing observed                                 -> rejection_not_run
 //! ```
+//!
+//! A rejection is a claim, judged like a value (dc-mx3x): the code under test says Excel refuses
+//! to enter the cell's formula. Where Excel refused too ([`Observation::EntryRejected`]) the
+//! verdict is `agreed_rejection`, which a report counts with the matches and also states on a
+//! line of its own, so that broken formulas cannot hide value mismatches; where Excel took the
+//! formula it is `entry_rejected_wrongly`, a mismatch. A calculated cell whose formula Excel
+//! refused is `entry_accepted`, a mismatch too. A not-modeled result stays a refusal, whatever
+//! Excel did.
 //!
 //! "Another revision" and "another context" are measured against the run the result set declares
 //! and, for a version 2 capture record, also against the authored revision and the context
@@ -236,6 +247,14 @@ pub enum Verdict {
     Missing {
         reason: Option<String>,
     },
+    /// Calculated, and Excel refused to enter the cell's formula: a mismatch.
+    EntryAccepted { actual: CalcValue },
+    /// The code under test rejects the formula by `rule`, and Excel refused it too.
+    AgreedRejection { rule: String },
+    /// The code under test rejects the formula by `rule`, and Excel took it: a mismatch.
+    EntryRejectedWrongly { rule: String },
+    /// The code under test rejects the formula by `rule`, and nothing was observed for the cell.
+    RejectionNotRun { rule: String },
 }
 
 impl Verdict {
@@ -250,6 +269,10 @@ impl Verdict {
             Verdict::NotModeled { .. } => "not_modeled",
             Verdict::Failed { .. } => "failed",
             Verdict::Missing { .. } => "missing",
+            Verdict::EntryAccepted { .. } => "entry_accepted",
+            Verdict::AgreedRejection { .. } => "agreed_rejection",
+            Verdict::EntryRejectedWrongly { .. } => "entry_rejected_wrongly",
+            Verdict::RejectionNotRun { .. } => "rejection_not_run",
         }
     }
 
@@ -257,7 +280,10 @@ impl Verdict {
     pub fn is_calculated(&self) -> bool {
         matches!(
             self,
-            Verdict::Matched { .. } | Verdict::Mismatched { .. } | Verdict::NotRun
+            Verdict::Matched { .. }
+                | Verdict::Mismatched { .. }
+                | Verdict::NotRun
+                | Verdict::EntryAccepted { .. }
         )
     }
 }
@@ -293,8 +319,9 @@ pub struct OutsideResult {
 }
 
 /// The counts of a report. `denominator` is the inventory's size and equals the sum of
-/// `calculated`, `unproven`, `stale`, `file_cached`, `not_modeled`, `failed` and `missing`;
-/// `calculated` is `matched + mismatched + not_run`; `matched + mismatched` is
+/// `calculated`, `agreed_rejection`, `entry_rejected_wrongly`, `rejection_not_run`, `unproven`,
+/// `stale`, `file_cached`, `not_modeled`, `failed` and `missing`; `calculated` is
+/// `matched + mismatched + not_run + entry_accepted`; `matched + mismatched` is
 /// `strict_certified + uncertified`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Counts {
@@ -334,6 +361,15 @@ pub struct Counts {
     pub circular_rule: u64,
     /// The matched cells among `circular_rule`: part of `matched`.
     pub matched_circular_rule: u64,
+    /// Calculated cells whose formula Excel refused to enter: part of `calculated`, apart from
+    /// `mismatched`, which counts value comparisons.
+    pub entry_accepted: u64,
+    /// Cells the code under test rejects, as Excel did.
+    pub agreed_rejection: u64,
+    /// Cells the code under test rejects and Excel took.
+    pub entry_rejected_wrongly: u64,
+    /// Cells the code under test rejects, with nothing observed.
+    pub rejection_not_run: u64,
 }
 
 /// How the denominator divides by sheet visibility, by formula kind and by what was observed.
@@ -436,7 +472,7 @@ fn certainty_of(observation: &Observation, raw: Certainty, capture_failed: bool)
         return Certainty::Uncertified(UncertifiedReason::CaptureFailure);
     }
     match observation {
-        Observation::ExcelRaw(_) => raw,
+        Observation::ExcelRaw(_) | Observation::EntryRejected { .. } => raw,
         Observation::ExcelSavedCache(_) => Certainty::Uncertified(UncertifiedReason::SavedCache),
         Observation::UnknownFreshnessCache(_) => {
             Certainty::Uncertified(UncertifiedReason::UnknownFreshness)
@@ -833,8 +869,9 @@ pub fn judge<'e>(
         let value = result.and_then(|result| result.value.as_ref());
         let equals = || {
             observation
+                .and_then(Observation::expected)
                 .zip(value)
-                .map(|(observation, value)| compare(observation.expected(), value).is_none())
+                .map(|(expected, value)| compare(expected, value).is_none())
         };
         let (verdict, value_equals_expectation) = match result.map(|result| &result.provenance) {
             None => (Verdict::Missing { reason: None }, None),
@@ -866,6 +903,19 @@ pub fn judge<'e>(
                 },
                 equals(),
             ),
+            Some(Provenance::Rejected { rule }) => {
+                let rule = rule.clone();
+                (
+                    match observation {
+                        Some(Observation::EntryRejected { .. }) => {
+                            Verdict::AgreedRejection { rule }
+                        }
+                        Some(_) => Verdict::EntryRejectedWrongly { rule },
+                        None => Verdict::RejectionNotRun { rule },
+                    },
+                    None,
+                )
+            }
             Some(Provenance::Stale {
                 last_calculated,
                 cause,
@@ -969,18 +1019,23 @@ pub fn judge<'e>(
                 } else {
                     let verdict = match observation.zip(value) {
                         None => Verdict::NotRun,
-                        Some((observation, value)) => {
-                            let certainty = certainty_of(observation, raw, capture_failed);
-                            match compare(observation.expected(), value) {
-                                None => Verdict::Matched { certainty },
-                                Some(class) => Verdict::Mismatched {
-                                    certainty,
-                                    class,
-                                    expected: observation.expected().clone(),
-                                    actual: value.clone(),
-                                },
+                        Some((observation, value)) => match observation.expected() {
+                            None => Verdict::EntryAccepted {
+                                actual: value.clone(),
+                            },
+                            Some(expected) => {
+                                let certainty = certainty_of(observation, raw, capture_failed);
+                                match compare(expected, value) {
+                                    None => Verdict::Matched { certainty },
+                                    Some(class) => Verdict::Mismatched {
+                                        certainty,
+                                        class,
+                                        expected: expected.clone(),
+                                        actual: value.clone(),
+                                    },
+                                }
                             }
-                        }
+                        },
                     };
                     (verdict, None)
                 }
@@ -1061,6 +1116,22 @@ pub fn judge<'e>(
                 counts.missing += 1;
                 None
             }
+            Verdict::EntryAccepted { .. } => {
+                counts.entry_accepted += 1;
+                None
+            }
+            Verdict::AgreedRejection { .. } => {
+                counts.agreed_rejection += 1;
+                None
+            }
+            Verdict::EntryRejectedWrongly { .. } => {
+                counts.entry_rejected_wrongly += 1;
+                None
+            }
+            Verdict::RejectionNotRun { .. } => {
+                counts.rejection_not_run += 1;
+                None
+            }
         };
         match certainty {
             Some(Certainty::StrictBits) => counts.strict_certified += 1,
@@ -1104,7 +1175,10 @@ pub fn judge<'e>(
         }
         if let Some(observation) = &cell.observation {
             strata.observed += 1;
-            if matches!(observation.expected().core(), CoreValue::Error(_)) {
+            if observation
+                .expected()
+                .is_some_and(|expected| matches!(expected.core(), CoreValue::Error(_)))
+            {
                 strata.error_expected += 1;
             }
         }
@@ -1375,6 +1449,10 @@ fn cell_out(cell: &CellVerdict) -> Out {
                 .as_ref()
                 .map_or(Out::Null, |reason| Out::text(reason.as_str())),
         )),
+        Verdict::EntryAccepted { actual } => members.push(("actual", value_out(actual))),
+        Verdict::AgreedRejection { rule }
+        | Verdict::EntryRejectedWrongly { rule }
+        | Verdict::RejectionNotRun { rule } => members.push(("rule", Out::text(rule.as_str()))),
     }
     if let Some(equal) = cell.value_equals_expectation {
         members.push(("value_equals_expectation", Out::Bool(equal)));
@@ -1574,6 +1652,28 @@ impl VerdictReport {
                             .into_iter()
                             .flatten(),
                     )
+                    // Written only when a formula entry was refused by Excel or rejected by the
+                    // code under test (dc-mx3x).
+                    .chain(
+                        (c.entry_accepted
+                            + c.agreed_rejection
+                            + c.entry_rejected_wrongly
+                            + c.rejection_not_run
+                            > 0)
+                        .then(|| {
+                            [
+                                ("entry_accepted", Out::Unsigned(c.entry_accepted)),
+                                ("agreed_rejection", Out::Unsigned(c.agreed_rejection)),
+                                (
+                                    "entry_rejected_wrongly",
+                                    Out::Unsigned(c.entry_rejected_wrongly),
+                                ),
+                                ("rejection_not_run", Out::Unsigned(c.rejection_not_run)),
+                            ]
+                        })
+                        .into_iter()
+                        .flatten(),
+                    )
                     .collect(),
                 ),
             ),
@@ -1679,6 +1779,19 @@ impl VerdictReport {
             .com_add_ins_connected
             .map(|connected| format!("; {connected} COM add-ins connected during the capture"))
             .unwrap_or_default();
+        let entries = if c.entry_accepted
+            + c.agreed_rejection
+            + c.entry_rejected_wrongly
+            + c.rejection_not_run
+            > 0
+        {
+            format!(
+                "; entries: agreed rejections {}, accepted where Excel refused {}, rejected where Excel took them {}, rejected and not observed {}",
+                c.agreed_rejection, c.entry_accepted, c.entry_rejected_wrongly, c.rejection_not_run
+            )
+        } else {
+            String::new()
+        };
         format!(
             "{}: calculated {} of {} formula cells; matched {} of {} calculated, mismatched {}, not run {}; of the {} compared, strict-bit certified {}, uncertified {}{}; not calculated: unproven {}, stale {}, file-cached {}, not modeled {}, failed {}, missing {}; {} not-calculated values equal their expectation; {} results outside the inventory; {} evaluator calls (evaluation record version {}, {} calculated without a value check){}{}",
             self.case,
@@ -1705,7 +1818,7 @@ impl VerdictReport {
             c.calculated_without_value_check,
             capture_failures,
             com_add_ins
-        )
+        ) + &entries
     }
 }
 
@@ -1838,6 +1951,126 @@ mod tests {
     }
 
     const LIVE: &str = r#"{"kind": "live_capture"}"#;
+
+    /// dc-mx3x: a rejection is judged like a value. Excel refused rows 1, 3 and 5 and took 2 and
+    /// 4; row 6 is not observed. Both refuse row 1, an agreed rejection; the run calculates row 3,
+    /// which Excel refused, and rejects row 2, which Excel took, both mismatches; row 5 is not
+    /// modelled and stays a refusal.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_rejection_is_judged_against_excel_s_entry() {
+        const REFUSED: &str = r#""entry_rejected": {"form": "dynamic"}"#;
+        const TAKEN: &str = r#""excel_raw": {"number": "4000000000000000"}"#;
+        const REJECTED: &str = r#"{"rejected": {"rule": "COUNTBLANK: argument 1 requires a reference"}}"#;
+        const CALCULATED: &str = r#"{"calculated": {"tick": 7, "revision": 3, "context": "k"}}"#;
+        let capture = column_capture(&[REFUSED, TAKEN, REFUSED, TAKEN, REFUSED, ""]);
+        let results = column_results(&[
+            (REJECTED, ""),
+            (REJECTED, ""),
+            (CALCULATED, TWO),
+            (CALCULATED, TWO),
+            (r#"{"not_modeled": {"feature": "f", "diagnostic": "d"}}"#, ""),
+            (REJECTED, ""),
+        ]);
+        let record = record_of(&[(3, 1, 7, 3, "k"), (4, 1, 7, 3, "k")]);
+        let report = judge(&capture, &results, &record, &VerdictPolicy::default()).unwrap();
+        let names: Vec<&str> = report.cells.iter().map(|c| c.verdict.name()).collect();
+        assert_eq!(
+            names,
+            [
+                "agreed_rejection",
+                "entry_rejected_wrongly",
+                "entry_accepted",
+                "matched",
+                "not_modeled",
+                "rejection_not_run"
+            ]
+        );
+        let c = &report.counts;
+        assert_eq!(
+            (
+                c.agreed_rejection,
+                c.entry_rejected_wrongly,
+                c.entry_accepted,
+                c.rejection_not_run,
+                c.matched,
+                c.mismatched,
+                c.calculated,
+                c.not_modeled
+            ),
+            (1, 1, 1, 1, 1, 0, 2, 1)
+        );
+        assert!(report.summary().ends_with(
+            "; entries: agreed rejections 1, accepted where Excel refused 1, rejected where Excel took them 1, rejected and not observed 1"
+        ));
+        let encoded: serde_json::Value = serde_json::from_str(&report.encode()).unwrap();
+        assert_eq!(encoded["counts"]["agreed_rejection"], 1);
+        assert_eq!(encoded["cells"][0]["observation"], "entry_rejected");
+        assert_eq!(
+            encoded["cells"][0]["rule"],
+            "COUNTBLANK: argument 1 requires a reference"
+        );
+    }
+
+    /// dc-mx3x: a capture failure at stage `entry` with Excel's refusal becomes an observation of
+    /// the refused entry; another exception, or a failure at another stage, stays a failure.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_refused_entry_is_observed() {
+        let text = r#"{"format": "dnacalc-capture-record", "version": 2, "case": "c", "source": "s",
+            "acquisition": {"kind": "live_capture"}, "environment": null,
+            "session": {"revision": 0, "operations": [], "context": "k", "tool": "t",
+                        "packages": {"input": "s", "output": null},
+                        "failures": [
+                            {"stage": "entry", "sheet": "Sheet1", "row": 1, "column": 1,
+                             "message": "Dynamic formula entry refused for =COUNTBLANK(2): System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC"},
+                            {"stage": "entry", "sheet": "Sheet1", "row": 2, "column": 1,
+                             "message": "Legacy formula entry refused for =IRR(): System.Runtime.InteropServices.COMException (0x800A03EC): 0x800A03EC"},
+                            {"stage": "entry", "sheet": "Sheet1", "row": 3, "column": 1,
+                             "message": "Dynamic formula entry refused for =X(): System.Runtime.InteropServices.COMException (0x80010001)"},
+                            {"stage": "save", "sheet": "Sheet1", "row": 4, "column": 1,
+                             "message": "0x800A03EC"}]},
+            "sheets": [{"name": "Sheet1", "visibility": "visible"}],
+            "formulas": [{"sheet": "Sheet1", "row": 1, "column": 1, "kind": "ordinary"},
+                         {"sheet": "Sheet1", "row": 2, "column": 1, "kind": "ordinary"},
+                         {"sheet": "Sheet1", "row": 3, "column": 1, "kind": "ordinary"},
+                         {"sheet": "Sheet1", "row": 4, "column": 1, "kind": "ordinary"}],
+            "shared_ranges": [], "observations": [], "saved": [], "reopened": []}"#;
+        let record = CaptureRecord::decode(text.as_bytes()).unwrap();
+        let observed: Vec<(u32, &Observation)> = record
+            .observations
+            .iter()
+            .map(|o| (o.cell.row(), &o.observation))
+            .collect();
+        assert_eq!(
+            observed,
+            [
+                (
+                    1,
+                    &Observation::EntryRejected {
+                        form: crate::EntryForm::Dynamic
+                    }
+                ),
+                (
+                    2,
+                    &Observation::EntryRejected {
+                        form: crate::EntryForm::Legacy
+                    }
+                )
+            ]
+        );
+        let failures: Vec<u32> = record
+            .session
+            .as_ref()
+            .unwrap()
+            .failures
+            .iter()
+            .map(|f| f.cell.as_ref().unwrap().row())
+            .collect();
+        assert_eq!(failures, [3, 4]);
+        let again = CaptureRecord::decode(record.encode().unwrap().as_bytes()).unwrap();
+        assert_eq!(again, record);
+    }
     const TWO: &str = r#"{"number": "4000000000000000"}"#;
     const RAW_TWO: &str = r#""excel_raw": {"number": "4000000000000000"}"#;
     const CALCULATED: &str = r#"{"calculated": {"tick": 7, "revision": 3, "context": "k"}}"#;
@@ -2645,6 +2878,10 @@ mod tests {
                 matched_external_links: 0,
                 circular_rule: 0,
                 matched_circular_rule: 0,
+                entry_accepted: 0,
+                agreed_rejection: 0,
+                entry_rejected_wrongly: 0,
+                rejection_not_run: 0,
             }
         );
         assert_eq!(report.evaluation_record_version, 1);

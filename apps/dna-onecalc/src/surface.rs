@@ -274,7 +274,10 @@ fn recalculate(
     } else if calculation.diagnostics.iter().any(|d| {
         matches!(
             d,
-            crate::Diagnostic::Compile(calc_fml::CompileError::UnknownFunction { .. })
+            crate::Diagnostic::Compile(calc_fml::CompileError::NotModelled {
+                gap: calc_fml::Gap::UnknownFunction { .. },
+                ..
+            })
         )
     }) {
         "Unknown function"
@@ -340,15 +343,7 @@ fn recalculate(
 
 /// Where in the formula text a compile error points.
 fn compile_span(error: &calc_fml::CompileError) -> TextSpan {
-    use calc_fml::CompileError as E;
-    match error {
-        E::Syntax { span }
-        | E::Reference { span, .. }
-        | E::Unsupported { span, .. }
-        | E::UnknownFunction { span, .. }
-        | E::Arity { span, .. }
-        | E::NumberLiteral { span } => *span,
-    }
+    error.span()
 }
 
 /// Gives the session one row's input and says what became of it.

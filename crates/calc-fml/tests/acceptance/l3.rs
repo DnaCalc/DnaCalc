@@ -343,8 +343,11 @@ fn three_d_references_reach_the_functions_that_take_them() {
     // 3-D reference and #REF! both match nothing): refused.
     assert!(matches!(
         book.refusal("=SUMIF(A1:A3,Ja:Ma!A1)", "B1"),
-        CompileError::Unsupported {
-            owner: "dc-10y",
+        CompileError::NotModelled {
+            gap: calc_fml::Gap::Construct {
+                owner: "dc-10y",
+                ..
+            },
             ..
         }
     ));
@@ -431,7 +434,7 @@ fn relative_names_unknown_calls_and_indirect_names() {
     book.catalog.no_macros = false;
     assert!(matches!(
         book.refusal("=FOO(1)", "F1"),
-        CompileError::UnknownFunction { .. }
+        CompileError::NotModelled { gap: calc_fml::Gap::UnknownFunction { .. }, .. }
     ));
 }
 

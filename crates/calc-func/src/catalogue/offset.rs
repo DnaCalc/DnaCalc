@@ -35,18 +35,25 @@ const TRIMRANGE: FunctionId = FunctionId::new(CODE, 3);
 pub(super) const FAMILY: Family = Family {
     code: CODE,
     entries: &[
+        // Formula entry (dc-mx3x, Excel 16.0.20527, 2026-11-07, Formula2 and Formula alike): the
+        // reference takes only an operand that may give one (`=OFFSET(2,0,0)`, `=OFFSET({1,2},0,0)`,
+        // `=OFFSET(1+1,0,0)` and `=OFFSET(,0,0)` are refused, `=OFFSET(B1:B3,0,0)` and
+        // `=OFFSET(INDEX(B1:B3,0),0,0)` enter), and a call may give a reference:
+        // `=COUNTBLANK(OFFSET(A1,0,0))` enters, and so does `=OFFSET(A1,0,0)(3)` (#REF!).
         CatalogueEntry {
             id: OFFSET,
             spelling: "OFFSET",
             notation: Notation::Call,
             arity: CallableArityShape::range(3, 5),
+            groups: None,
             parameters: &[
-                Parameter::reference("reference"),
+                Parameter::reference("reference").entry(super::EntryClass::Reference),
                 Parameter::value("rows"),
                 Parameter::value("cols"),
                 Parameter::value("height"),
                 Parameter::value("width"),
             ],
+            result: super::ResultForm::MayBeReference,
             demand: ArgumentDemand::Eager,
             kernel: Kernel::Eager(offset),
         },
@@ -55,20 +62,26 @@ pub(super) const FAMILY: Family = Family {
             spelling: "ISOMITTED",
             notation: Notation::Call,
             arity: CallableArityShape::exact(1),
+            groups: None,
             parameters: &[Parameter::value_or_reference("argument")],
+            result: super::ResultForm::Value,
             demand: ArgumentDemand::Eager,
             kernel: Kernel::Eager(isomitted),
         },
+        // A call may give a reference (dc-mx3x): `=COUNTBLANK(TRIMRANGE(B1))` and
+        // `=TRIMRANGE(B1)(3)` enter. Its range takes any operand: `=TRIMRANGE(2)` enters.
         CatalogueEntry {
             id: TRIMRANGE,
             spelling: "TRIMRANGE",
             notation: Notation::Call,
             arity: CallableArityShape::range(1, 3),
+            groups: None,
             parameters: &[
                 Parameter::value_or_reference("range"),
                 Parameter::value("trim_rows"),
                 Parameter::value("trim_cols"),
             ],
+            result: super::ResultForm::MayBeReference,
             demand: ArgumentDemand::Eager,
             kernel: Kernel::Eager(trimrange),
         },

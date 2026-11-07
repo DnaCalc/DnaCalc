@@ -3076,7 +3076,7 @@ mod tests {
             &'c [&'c str],
             Result<CalcValue, EvalFault>,
         );
-        let cases: [Case<'_>; 10] = [
+        let cases: [Case<'_>; 9] = [
             // A bare reference: the cell's value, not the reference.
             ("=A1", three.clone(), &[], Ok(CalcValue::number(3.0))),
             // A blank cell's value is the number 0.
@@ -3124,15 +3124,6 @@ mod tests {
                 &["Infix +", "Call IF"],
                 Ok(CalcValue::number(4.0)),
             ),
-            // An argument the evaluation cannot supply stops the call before its function runs: a
-            // range at a place of a legacy formula whose evaluation is not modelled (COUNTIFS's
-            // range, which takes only a reference: Excel refuses to enter the formula).
-            (
-                "=COUNTIFS(A1:A2+1,1)",
-                three.clone(),
-                &[],
-                evaluated("=COUNTIFS(A1:A2+1,1)", three.clone()),
-            ),
             // A product below the normal range, which Excel gives as 0 (dc-b1l).
             (
                 "=1E-300*1E-10",
@@ -3141,9 +3132,21 @@ mod tests {
                 evaluated("=1E-300*1E-10", CalcValue::empty()),
             ),
         ];
-        assert!(matches!(cases[8].3, Err(EvalFault::AreaAsValue { .. })));
+        // COUNTIFS's range takes only a reference, so Excel refuses to enter
+        // `=COUNTIFS(A1:A2+1,1)`, and so does compile (dc-mx3x); the case this table held for it
+        // before, an argument the evaluation could not supply, is no longer evaluated.
+        assert!(matches!(
+            compile(
+                &parse_formula("=COUNTIFS(A1:A2+1,1)"),
+                ReferenceNotation::A1,
+                FormulaAnchor::new(CellKey::new(IdAllocator::<SheetId>::new().issue().unwrap(), 5, 5).unwrap()),
+                &NoSheets,
+                &mut PlanCache::new(),
+            ),
+            Err(crate::CompileError::Rejected { .. })
+        ));
         // A product below the normal range is 0, as Excel gives it.
-        assert_eq!(cases[9].3, Ok(CalcValue::number(0.0)));
+        assert_eq!(cases[8].3, Ok(CalcValue::number(0.0)));
         for (formula, cells, calls, expected) in cases {
             let (outcome, shown) = observed(formula, cells.clone());
             assert_eq!(outcome, expected, "{formula}");

@@ -183,7 +183,11 @@ fn compute(site: &Site<'_>, number: i64, values: &[CalcValue]) -> Step<CalcValue
 
 ported_family! {
     code: CODE;
-    1 subtotal "SUBTOTAL" (2, 255) [V "function_num", F "ref1", F "ref2"] |s, a, sv| {
+    // Formula entry (dc-mx3x, Excel 16.0.20527, 2026-11-07, Formula2 and Formula alike): each
+    // ref takes only an operand that may give a reference: `=SUBTOTAL(9,2)`, `=SUBTOTAL(9,{1,2})`,
+    // `=SUBTOTAL(9,1+1)` and `=SUBTOTAL(9,B1,2)` are refused, `=SUBTOTAL(9,B1:B3)` and
+    // `=SUBTOTAL(9,INDEX(B1:B3,0))` enter.
+    1 subtotal "SUBTOTAL" (2, 255) [V "function_num", F "ref1" @Reference, F "ref2" @Reference] |s, a, sv| {
         let number = num(s, a, 0)?.trunc() as i64;
         let (function, hidden) = match number {
             1..=11 => (number, false),
@@ -194,7 +198,12 @@ ported_family! {
         let values = held_values(s, a, 1, sv, rule)?;
         compute(s, function, &values)
     }
-    2 aggregate_fn "AGGREGATE" (3, 253) [V "function_num", V "options", R "ref1", R "ref2"] |s, a, sv| {
+    // AGGREGATE's third and fourth arguments take any operand, being the array form's array and
+    // k as well as the reference form's ref1 and ref2, and every later one only an operand that
+    // may give a reference (dc-mx3x, both forms): `=AGGREGATE(9,0,2)`,
+    // `=AGGREGATE(9,0,{1,2},2)` and `=AGGREGATE(9,0,B1,2)` enter; `=AGGREGATE(9,0,B1,B1,2)`,
+    // `=AGGREGATE(9,0,B1,B1,{1,2})` and `=AGGREGATE(9,0,B1,B1,B1,2)` are refused.
+    2 aggregate_fn "AGGREGATE" (3, 253) [V "function_num", V "options", R "ref1", R "ref2", R "ref3" @Reference] |s, a, sv| {
         let function = num(s, a, 0)?.trunc() as i64;
         let options = if a[1].is_missing() { 0 } else { num(s, a, 1)?.trunc() as i64 };
         if !(0..=7).contains(&options) || !(1..=19).contains(&function) {

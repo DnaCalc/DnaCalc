@@ -64,13 +64,13 @@ fn dc_b1l__nested_matrix_arguments_use_the_full_array() {
                 // error cannot satisfy their admission check. Numeric roots
                 // retain the corpus's complete value comparison.
                 if expected_count == 64 || (expected_count == 38 && [63, 64, 67, 68, 88, 89].contains(&at.row())) {
-                    assert!(observed.observation.expected().as_number().is_some());
+                    assert!(observed.observation.expected().expect("a value observation").as_number().is_some());
                     assert!(value.as_number().is_some(), "two predictor columns at {at:?}: {value:?}");
                 }
                 if expected_count == 64 && at.row() == 3829 {
                     // [[1.3,1],[1,2]] has the recorded top-left inverse 1.25;
                     // intersecting to one value cannot satisfy this control.
-                    assert_eq!(calc_verdict::compare(observed.observation.expected(), value), None);
+                    assert_eq!(calc_verdict::compare(observed.observation.expected().expect("a value observation"), value), None);
                 }
                 let stamp = calculation.stamp().expect("ordinary execution needs its result certificate");
                 assert!(!stamp.reads.uses_imported_cache && !stamp.reads.uses_boundary_cache);
@@ -114,7 +114,7 @@ fn dc_b1l34_dc_ejvk5__legacy_argument_and_selected_result_origins() {
         let ProjectedValue::Calculated { value, .. } = page.cells()[0].value() else {
             panic!("the recorded result must calculate: {:?}", page.cells()[0]);
         };
-        assert_eq!(value, observed.observation.expected(), "{}!{}",
+        assert_eq!(value, observed.observation.expected().expect("a value observation"), "{}!{}",
             observed.cell.sheet(), observed.cell.a1());
     }
 }
@@ -138,7 +138,7 @@ fn dc_b1l__retained_legacy_mround_and_quotient_reference_controls() {
         let at = CellKey::new(sheet,observed.cell.row(),observed.cell.column()).unwrap();
         let page = project(book.host(),&ProjectionRequest {cells:vec![at]}).unwrap();
         let ProjectedValue::Calculated {value,..} = page.cells()[0].value() else { panic!("the recorded control must calculate: {:?}",page.cells()[0]); };
-        assert_eq!(value,observed.observation.expected(),"{}!{}",observed.cell.sheet(),observed.cell.a1());
+        assert_eq!(value,observed.observation.expected().expect("a value observation"),"{}!{}",observed.cell.sheet(),observed.cell.a1());
         checked+=1;
     }
     assert_eq!(checked,16);
@@ -268,7 +268,7 @@ fn check_captured_book(
             .unwrap()
             .id();
         let at = CellKey::new(sheet, observed.cell.row(), observed.cell.column()).unwrap();
-        let expected = observed.observation.expected();
+        let expected = observed.observation.expected().expect("a value observation");
         let mut expected_cells = vec![(at, expected)];
         if let Some(array) = expected.as_array() {
             let extent = book

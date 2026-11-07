@@ -460,11 +460,16 @@ fn getpivotdata(site:&Site<'_>,a:&[CalcValue],sv:&mut EvalServices<'_>)->Step<Ca
 
 ported_family! {
     code: CODE;
-    1 cell_fn "CELL" (1, 2) [V "info_type", F "reference"] |s, a, sv| { cell(s, a, sv) }
+    // CELL's and FORMULATEXT's reference takes only an operand that may give one (dc-mx3x, Excel
+    // 16.0.20527, 2026-11-07, Formula2 and Formula alike): `=CELL("row",2)`, `=CELL("row",{1,2})`,
+    // `=CELL("row",1+1)` and `=FORMULATEXT(2)` are refused, `=CELL("row",B1)`,
+    // `=CELL("row",INDEX(B1:B3,0))`, `=CELL("row")` and `=FORMULATEXT(B1)` enter. SHEET's and
+    // SHEETS's take any operand: `=SHEET(2)` and `=SHEETS(2)` enter.
+    1 cell_fn "CELL" (1, 2) [V "info_type", F "reference" @Reference] |s, a, sv| { cell(s, a, sv) }
     2 info_fn "INFO" (1, 1) [V "type_text"] |s, a, sv| { info(s, a, sv) }
     3 sheet_fn "SHEET" (0, 1) [R "value"] |s, a, sv| { sheet(s, a, sv) }
     4 sheets_fn "SHEETS" (0, 1) [R "reference"] |s, a, sv| { sheets(s, a, sv) }
-    5 formulatext_fn "FORMULATEXT" (1, 1) [F "reference"] |s, a, sv| { formulatext(s, a, sv) }
+    5 formulatext_fn "FORMULATEXT" (1, 1) [F "reference" @Reference] |s, a, sv| { formulatext(s, a, sv) }
     6 address_entry "ADDRESS" (2, 5) [V "row_num", V "column_num", V "abs_num", V "a1", V "sheet_text"] |s, a, sv| { address_fn(s, a) }
     7 getpivotdata_fn "GETPIVOTDATA" (2, 254) [V "data_field", F "pivot_table", V "field1", V "item1"] |s, a, sv| {
         getpivotdata(s,a,sv)

@@ -343,6 +343,40 @@ impl Sheet<'_> {
             .map_err(|_| CellError::EmptyFormula)
     }
 
+    /// Whether Excel's formula entry refuses `text`, the formula of the cell at `row` and
+    /// `column` as the file stores it, by a measured rule ([`calc_fml::check_entry`]; a parser
+    /// diagnostic, which may be syntax this parser does not hold, is left to the compiler). Such
+    /// a cell is recorded as unloaded ([`calc_doc_model::UnloadedCell::RejectedFormula`]), with
+    /// what the file cached for it, and given no input.
+    fn rejected(
+        &mut self,
+        row: u32,
+        column: u32,
+        text: &FormulaText,
+        cache: &Option<CachedValue>,
+    ) -> bool {
+        let tree = calc_fml::parse_formula(&text.text().to_string_lossy());
+        let Err(rejection) = calc_fml::check_entry(&tree, true) else {
+            return false;
+        };
+        if !rejection.rule.is_measured() {
+            return false;
+        }
+        let key = self.key(row, column);
+        if let Some(cached) = cache {
+            let cached = FileCached::new(cached.clone(), Arc::clone(&self.part));
+            self.load.value_caches.insert((row, column), cached);
+        }
+        self.load.unloaded.push((
+            key,
+            calc_doc_model::UnloadedCell::RejectedFormula {
+                rule: rejection.rule.to_string(),
+                cached: cache.is_some(),
+            },
+        ));
+        true
+    }
+
     fn record(
         &mut self,
         row: u32,
@@ -690,6 +724,12 @@ impl Sheet<'_> {
                 let CellInput::Formula(text) = Self::formula_input(&formula.text)? else {
                     unreachable!()
                 };
+                // A formula of one cell that Excel's entry refuses holds nothing (dc-mx3x). A
+                // larger array formula's area keeps its formula, which compiles to the same
+                // rejection.
+                if (top, left) == (bottom, right) && self.rejected(row, column, &text, &cache) {
+                    return Ok(());
+                }
                 let input = CellInput::Formula(
                     FormulaText::with_form(text.text().clone(), FormulaForm::Dynamic)
                         .expect("a validated nonempty array source"),
@@ -711,6 +751,11 @@ impl Sheet<'_> {
             }
             None | Some("normal") => {
                 let input = Self::formula_input(&formula.text)?;
+                if let CellInput::Formula(text) = &input
+                    && self.rejected(row, column, text, &cache)
+                {
+                    return Ok(());
+                }
                 let key = self.key(row, column);
                 self.load.inputs.push((key, input));
                 self.record(row, column, None, cache);

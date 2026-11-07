@@ -942,6 +942,7 @@ fn engine_capture_losses_retain_all_three_original_phases() {
                     .as_ref()
                     .unwrap()
                     .expected()
+                    .unwrap()
                     .as_number()
                     .unwrap();
                 assert!(!immediate.is_finite());

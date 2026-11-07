@@ -1297,8 +1297,14 @@ impl<'a> WorkbookReader<'a> {
                 None => Overlay::Missing,
             };
         }
-        if definitions.unloaded(at).is_some() {
-            return Overlay::Missing;
+        match definitions.unloaded(at) {
+            // A formula Excel's entry refuses holds nothing (dc-mx3x), as Excel's repaired cell
+            // does when the file cached nothing for it.
+            Some(calc_doc_model::UnloadedCell::RejectedFormula { cached: false, .. }) => {
+                return Overlay::Blank;
+            }
+            Some(_) => return Overlay::Missing,
+            None => {}
         }
         match view.spill_at(at) {
             Ok(Some(spill)) => {

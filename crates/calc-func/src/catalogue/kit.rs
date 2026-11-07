@@ -3,8 +3,10 @@
 //! other kernel, and the publication of a ported kernel's result.
 //!
 //! A ported family declares each entry with its member number, kernel name, spelling, arity,
-//! parameters (`V` for a value, `R` for a value or reference, `F` for a reference) and body. The
-//! macro generates the entry and its eager kernel. Every generated kernel refuses an array given
+//! parameters (`V` for a value, `R` for a value or reference, `F` for a reference, each followed
+//! by `@Reference` where Excel's formula entry takes only an operand that may give a reference),
+//! optionally its repeating groups (`groups (from, size, tail);`) and result form
+//! (`result MayBeReference;`), and body. The macro generates the entry and its eager kernel. Every generated kernel refuses an array given
 //! to a value parameter, since a function of single values applied to an array lifts over its
 //! elements, which is not modelled here (L1 owns array lifting), and then reaches one binary64
 //! arithmetic site, so a call under the Exact numeric mode is refused, as for every other kernel.
@@ -41,7 +43,9 @@ pub(super) const fn entry(
         spelling,
         notation: Notation::Call,
         arity: CallableArityShape::range(min, max),
+        groups: None,
         parameters,
+        result: super::ResultForm::Value,
         demand: ArgumentDemand::Eager,
         kernel: Kernel::Eager(kernel),
     }
@@ -54,7 +58,9 @@ macro_rules! ported_family {
         code: $code:expr;
         $(
             $member:literal $fname:ident $spelling:literal ($min:literal, $max:literal)
-            [$($class:ident $pname:literal),*]
+            [$($class:ident $pname:literal $(@ $entry:ident)?),*]
+            $(groups ($gfrom:literal, $gsize:literal, $gtail:literal);)?
+            $(result $result:ident;)?
             $(resume $resumer:ident => $resume:path;)?
             |$s:ident, $a:ident, $sv:ident| $body:block
         )*
@@ -68,9 +74,11 @@ macro_rules! ported_family {
                         $spelling,
                         $min,
                         $max,
-                        &[$(super::Parameter { name: $pname, class: super::kit::$class }),*],
+                        &[$(super::Parameter::of($pname, super::kit::$class)$(.entry(super::EntryClass::$entry))?),*],
                         $fname,
-                    ).with_continuation(ported_family!(@resume $($resumer)?)),
+                    ).with_continuation(ported_family!(@resume $($resumer)?))
+                    $(.with_groups(super::ArgumentGroups::new($gfrom, $gsize, $gtail)))?
+                    $(.with_result(super::ResultForm::$result))?,
                 )*
             ],
         };
@@ -105,7 +113,7 @@ macro_rules! ported_family {
                     $sv: &mut crate::call::EvalServices<'_>,
                 ) -> crate::kernel::Step<crate::value::CalcValue> {
                     const PARAMETERS: &[super::Parameter] =
-                        &[$(super::Parameter { name: $pname, class: super::kit::$class }),*];
+                        &[$(super::Parameter::of($pname, super::kit::$class)$(.entry(super::EntryClass::$entry))?),*];
                     super::kit::scalars($s, $a, PARAMETERS)?;
                     $s.binary64()?;
                     $body

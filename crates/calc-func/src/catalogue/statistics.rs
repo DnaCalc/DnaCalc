@@ -296,9 +296,13 @@ ported_family! {
     }
     9 large "LARGE" (2, 2) [R "array", V "k"] |s, a, sv| { nth(s, a, sv, true) }
     10 small "SMALL" (2, 2) [R "array", V "k"] |s, a, sv| { nth(s, a, sv, false) }
-    11 rank_legacy "RANK" (2, 3) [V "number", F "ref", V "order"] |s, a, sv| { rank(s, a, sv, false) }
-    12 rank_eq_fn "RANK.EQ" (2, 3) [V "number", F "ref", V "order"] |s, a, sv| { rank(s, a, sv, false) }
-    13 rank_avg_fn "RANK.AVG" (2, 3) [V "number", F "ref", V "order"] |s, a, sv| { rank(s, a, sv, true) }
+    // The ref of RANK, RANK.EQ and RANK.AVG takes only an operand that may give a reference
+    // (dc-mx3x, Excel 16.0.20527, 2026-11-07, Formula2 and Formula alike): `=RANK(1,2)`,
+    // `=RANK(1,{1,2})` and `=RANK(1,1+1)` are refused, `=RANK(1,B1:B3)` and
+    // `=RANK(1,INDEX(B1:B3,0))` enter.
+    11 rank_legacy "RANK" (2, 3) [V "number", F "ref" @Reference, V "order"] |s, a, sv| { rank(s, a, sv, false) }
+    12 rank_eq_fn "RANK.EQ" (2, 3) [V "number", F "ref" @Reference, V "order"] |s, a, sv| { rank(s, a, sv, false) }
+    13 rank_avg_fn "RANK.AVG" (2, 3) [V "number", F "ref" @Reference, V "order"] |s, a, sv| { rank(s, a, sv, true) }
     14 percentile_legacy "PERCENTILE" (2, 2) [R "array", V "k"] |s, a, sv| { percentile(s, a, sv, false) }
     15 percentile_inc "PERCENTILE.INC" (2, 2) [R "array", V "k"] |s, a, sv| { percentile(s, a, sv, false) }
     16 percentile_exc "PERCENTILE.EXC" (2, 2) [R "array", V "k"] |s, a, sv| { percentile(s, a, sv, true) }

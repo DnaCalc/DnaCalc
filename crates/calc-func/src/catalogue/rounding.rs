@@ -92,7 +92,9 @@ const fn call(
         spelling,
         notation: Notation::Call,
         arity: CallableArityShape::range(min, parameters.len()),
+        groups: None,
         parameters,
+        result: super::ResultForm::Value,
         demand: ArgumentDemand::Eager,
         kernel: Kernel::Eager(kernel),
     }

@@ -2636,12 +2636,35 @@ fn cfml_m1_3__reuse_plan() {
         )
         .map(|plan| format!("{plan:?}"));
         let kind = match &refusal {
-            Err(CompileError::Syntax { .. }) => "syntax".to_owned(),
+            Err(CompileError::Rejected {
+                rule: calc_fml::Rejection::Grammar(calc_fml::GrammarRule::Syntax),
+                ..
+            }) => "syntax".to_owned(),
+            Err(CompileError::Rejected {
+                rule:
+                    calc_fml::Rejection::Grammar(calc_fml::GrammarRule::BindingArguments)
+                    | calc_fml::Rejection::Function {
+                        rule:
+                            calc_fml::EntryRule::TooFewArguments
+                            | calc_fml::EntryRule::TooManyArguments,
+                        ..
+                    },
+                ..
+            }) => "arity".to_owned(),
+            Err(CompileError::Rejected { rule, .. }) => format!("rejected {rule}"),
             Err(CompileError::Reference { .. }) => "reference".to_owned(),
-            Err(CompileError::Unsupported { owner, .. }) => format!("unsupported {owner}"),
-            Err(CompileError::UnknownFunction { .. }) => "unknown function".to_owned(),
-            Err(CompileError::Arity { .. }) => "arity".to_owned(),
-            Err(CompileError::NumberLiteral { .. }) => "number literal".to_owned(),
+            Err(CompileError::NotModelled {
+                gap: calc_fml::Gap::Construct { owner, .. },
+                ..
+            }) => format!("unsupported {owner}"),
+            Err(CompileError::NotModelled {
+                gap: calc_fml::Gap::UnknownFunction { .. },
+                ..
+            }) => "unknown function".to_owned(),
+            Err(CompileError::NotModelled {
+                gap: calc_fml::Gap::NumberLiteral,
+                ..
+            }) => "number literal".to_owned(),
             Ok(plan) => panic!("{formula} compiled: {plan}"),
         };
         assert_eq!(kind, expected, "{formula}");
@@ -2869,7 +2892,10 @@ fn shown(value: &CalcValue) -> String {
 /// A refusal as the case compares it: its variant and, where it has one, its owner or bind error.
 fn refusal_kind(refusal: &CompileError) -> String {
     match refusal {
-        CompileError::Unsupported { owner, .. } => format!("Unsupported {owner}"),
+        CompileError::NotModelled {
+            gap: calc_fml::Gap::Construct { owner, .. },
+            ..
+        } => format!("Unsupported {owner}"),
         CompileError::Reference { error, .. } => format!("Reference {error:?}"),
         other => format!("{other:?}"),
     }
@@ -3036,14 +3062,14 @@ fn maximum_length_formulas() {
             format!("={}1{}", "{".repeat(4095), "}".repeat(4095)),
             4096,
             0,
-            "Syntax { span: TextSpan { start: 2, len: 8189 } }",
+            "Rejected { span: TextSpan { start: 2, len: 8189 }, rule: Grammar(Syntax) }",
         ),
         (
             "invocation chain",
             format!("=A{}", "(1)".repeat(2730)),
             2732,
             0,
-            "UnknownFunction { span: TextSpan { start: 1, len: 1 }, spelling: \"A\" }",
+            "NotModelled { span: TextSpan { start: 1, len: 1 }, gap: UnknownFunction { spelling: \"A\" } }",
         ),
     ];
     for (name, formula, depth, references, refusal) in &refused {
@@ -3110,10 +3136,13 @@ fn maximum_length_formulas() {
     assert_eq!(nesting(tree.expression().expect("an expression")).1, 65);
     assert_eq!(
         compile(&tree, ReferenceNotation::A1, c10, &catalog, &mut cache).err(),
-        Some(CompileError::Syntax { span: name })
+        Some(CompileError::Rejected {
+            span: name,
+            rule: calc_fml::Rejection::Grammar(calc_fml::GrammarRule::Syntax)
+        })
     );
     note!(
-        "ACCEPT-NOTE: dc_2mlz__maximum_length: 65 nested IFs ({} characters): one parse diagnostic, at the 65th IF ({}..{}): {:?}; compile refused it as CompileError::Syntax at that span",
+        "ACCEPT-NOTE: dc_2mlz__maximum_length: 65 nested IFs ({} characters): one parse diagnostic, at the 65th IF ({}..{}): {:?}; compile rejected it by the grammar's syntax rule at that span",
         too_deep.len(),
         name.start,
         name.end(),
@@ -3177,15 +3206,27 @@ fn dc_besk__prefixed_calls_evaluate() {
         let start = formula
             .find(spelling)
             .expect("the spelling is in the formula");
-        CompileError::UnknownFunction {
+        CompileError::NotModelled {
             span: TextSpan::new(start, spelling.len()),
-            spelling: spelling.to_owned(),
+            gap: calc_fml::Gap::UnknownFunction {
+                spelling: spelling.to_owned(),
+            },
         }
     };
-    // The refusal of `formula`, one call after its `=`, for supplying `supplied` arguments.
-    let arity = |formula: &str, supplied: usize| CompileError::Arity {
-        span: TextSpan::new(1, formula.len() - 1),
-        supplied,
+    // The rejection of `formula`, one call of MAXIFS after its `=`, for supplying too few
+    // arguments (`supplied`, below MAXIFS's 3).
+    let arity = |formula: &str, supplied: usize| {
+        assert!(supplied < 3);
+        CompileError::Rejected {
+            span: TextSpan::new(1, formula.len() - 1),
+            rule: calc_fml::Rejection::Function {
+                function: calc_func::catalogue()
+                    .resolve_surface(calc_func::Notation::Call, "MAXIFS")
+                    .unwrap()
+                    .id(),
+                rule: calc_fml::EntryRule::TooFewArguments,
+            },
+        }
     };
     let value = |value: CalcValue| (Outcome::Value(value.clone()), Outcome::Value(value));
 
@@ -4355,11 +4396,23 @@ fn dc_ibp2__error_fallback() {
     let compiled = |book: &mut FallbackBook, formula: &str| book.compile(formula, at).err();
     assert!(matches!(
         compiled(&mut book, "=IFERROR(1)"),
-        Some(CompileError::Arity { supplied: 1, .. })
+        Some(CompileError::Rejected {
+            rule: calc_fml::Rejection::Function {
+                rule: calc_fml::EntryRule::TooFewArguments,
+                ..
+            },
+            ..
+        })
     ));
     assert!(matches!(
         compiled(&mut book, "=IFNA(1,2,3)"),
-        Some(CompileError::Arity { supplied: 3, .. })
+        Some(CompileError::Rejected {
+            rule: calc_fml::Rejection::Function {
+                rule: calc_fml::EntryRule::TooManyArguments,
+                ..
+            },
+            ..
+        })
     ));
     // The package form of IFNA, as a workbook file stores it, compiles to IFNA (compile reads
     // `_xlfn.` names as the catalogued function, bead dc-besk) and gives IFNA's result.
@@ -5736,8 +5789,9 @@ fn engine_documents(
             Err(refusal) => (
                 Provenance::NotModeled {
                     feature: match refusal {
-                        CompileError::Unsupported {
-                            construct, owner, ..
+                        CompileError::NotModelled {
+                            gap: calc_fml::Gap::Construct { construct, owner },
+                            ..
                         } => format!("{owner}: {construct}"),
                         other => format!("a formula calc_fml::compile refuses ({other:?})"),
                     },
@@ -5865,8 +5919,9 @@ fn engine_comparison(
             (None, Ok(_), Verdict::Matched { .. }) => {}
             (
                 Some(listed),
-                Err(CompileError::Unsupported {
-                    construct, owner, ..
+                Err(CompileError::NotModelled {
+                    gap: calc_fml::Gap::Construct { construct, owner },
+                    ..
                 }),
                 Verdict::NotModeled { .. },
             ) if *construct == listed.construct && *owner == listed.owner => {}
@@ -6029,8 +6084,9 @@ fn judge_oracle(case: &str, oracle: &Oracle, others: &str, run: &[EngineRun]) ->
             Err(_) => String::new(),
         };
         let owner = match &row.outcome {
-            Err(CompileError::Unsupported {
-                construct, owner, ..
+            Err(CompileError::NotModelled {
+                gap: calc_fml::Gap::Construct { construct, owner },
+                ..
             }) => format!(", owned by {owner}: {construct}"),
             _ => String::new(),
         };

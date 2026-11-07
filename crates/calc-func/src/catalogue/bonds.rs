@@ -160,7 +160,9 @@ ported_family! {
         let calc_method = if given(a, 7) { num(s, a, 7)?.trunc() != 0.0 } else { true };
         bond_out(s, bond::accrint_kernel(issue, first, settlement, num(s, a, 3)?, Some(par), num(s, a, 5)?, Some(or(s, a, 6, 0.0)?), Some(calc_method)))
     }
-    9 accrintm_fn "ACCRINTM" (3, 5) [V "issue", V "settlement", V "rate", V "par", V "basis"] |s, a, sv| {
+    // ACCRINTM takes 4 or 5 arguments (dc-mx3x, Excel 16.0.20527, 2026-11-07, Formula2 and Formula
+    // alike): `=ACCRINTM(B1,B1,B1)` is refused and `=ACCRINTM(B1,B1,B1,B1)` enters.
+    9 accrintm_fn "ACCRINTM" (4, 5) [V "issue", V "settlement", V "rate", V "par", V "basis"] |s, a, sv| {
         let (issue, settlement) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
         bond_out(s, bond::accrintm_kernel(issue, settlement, num(s, a, 2)?, Some(or(s, a, 3, 1000.0)?), Some(or(s, a, 4, 0.0)?)))
     }

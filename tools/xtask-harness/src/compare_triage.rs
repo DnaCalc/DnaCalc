@@ -62,7 +62,7 @@
 
 use crate::owners::function_owner;
 use calc_engine::NotModeled;
-use calc_fml::{CompileError, EvalFault};
+use calc_fml::{CompileError, EvalFault, Gap};
 use calc_func::{FunctionFault, FunctionId, catalogue};
 use calc_host::value::{CalcValue, CellKey, CoreValue, GridArea, SheetId};
 use calc_verdict::{
@@ -158,6 +158,8 @@ pub(crate) enum Dna {
     Empty,
     /// The loaded workbook holds a literal at the cell.
     Literal,
+    /// The run rejects the cell's formula, as it says Excel's entry does (dc-mx3x).
+    Rejected,
     FileCached,
     Calculated,
     /// The engine published a typed refusal for the cell.
@@ -270,7 +272,10 @@ pub(crate) fn refusal_of(
             Refusal::new(Class::Formula, "FormulaText", "FormulaText").owned_by(CALC_ENGINE)
         }
         NotModeled::Compile(error) => match error {
-            CompileError::UnknownFunction { spelling, .. } => {
+            CompileError::NotModelled {
+                gap: Gap::UnknownFunction { spelling },
+                ..
+            } => {
                 let spelling = spelling.to_ascii_uppercase();
                 Refusal::new(
                     Class::FunctionMissing,
@@ -280,8 +285,9 @@ pub(crate) fn refusal_of(
                 .owned_by_function(&spelling)
                 .about(spelling)
             }
-            CompileError::Unsupported {
-                construct, owner, ..
+            CompileError::NotModelled {
+                gap: Gap::Construct { construct, owner },
+                ..
             } => Refusal::new(
                 Class::Formula,
                 format!("Compile:Unsupported:{construct} ({owner})"),
@@ -293,14 +299,17 @@ pub(crate) fn refusal_of(
                 let key = format!("Compile:Reference:{}", variant(error));
                 Refusal::new(Class::Formula, key.clone(), key).owned_by(CALC_FML)
             }
-            CompileError::NumberLiteral { .. } => Refusal::new(
+            CompileError::NotModelled {
+                gap: Gap::NumberLiteral,
+                ..
+            } => Refusal::new(
                 Class::Formula,
                 "Compile:NumberLiteral",
                 "Compile:NumberLiteral",
             )
             .owned_by(NUMBER_LITERAL_OWNER),
-            other => {
-                let key = format!("Compile:{}", variant(other));
+            CompileError::Rejected { rule, .. } => {
+                let key = format!("Compile:Rejected:{rule}");
                 Refusal::new(Class::Formula, key.clone(), key).owned_by(CALC_FML)
             }
         },
@@ -831,6 +840,21 @@ fn own_triage(
         Verdict::Failed { fault } => {
             CellTriage::root(Class::Engine, "failed").with_detail(fault.clone())
         }
+        Verdict::AgreedRejection { .. } => {
+            CellTriage::new(Class::Matched, "agreed rejection", None)
+        }
+        Verdict::EntryAccepted { .. } => {
+            CellTriage::root(Class::Formula, "entry accepted where Excel refused it")
+                .with_detail("calculated, and Excel refused to enter the formula")
+        }
+        Verdict::EntryRejectedWrongly { rule } => {
+            CellTriage::root(Class::Formula, "entry rejected where Excel took it")
+                .with_detail(format!("rejected by {rule}, and Excel took the formula"))
+        }
+        Verdict::RejectionNotRun { rule } => CellTriage::root(Class::Capture, "not observed")
+            .with_detail(format!(
+                "rejected by {rule}, and the capture holds no observation for the cell"
+            )),
         Verdict::Missing { reason } => {
             let (class, key) = match dna {
                 Dna::SheetNotLoaded => (Class::Doc, "sheet not loaded"),
@@ -1906,35 +1930,44 @@ mod tests {
                 CALC_ENGINE,
             ),
             (
-                NotModeled::Compile(CompileError::UnknownFunction {
+                NotModeled::Compile(CompileError::NotModelled {
                     span,
-                    spelling: "NoSuch".to_owned(),
+                    gap: Gap::UnknownFunction {
+                        spelling: "NoSuch".to_owned(),
+                    },
                 }),
                 Class::FunctionMissing,
                 "NOSUCH",
                 crate::owners::UNASSIGNED,
             ),
             (
-                NotModeled::Compile(CompileError::UnknownFunction {
+                NotModeled::Compile(CompileError::NotModelled {
                     span,
-                    spelling: "_xlfn.XLookup".to_owned(),
+                    gap: Gap::UnknownFunction {
+                        spelling: "_xlfn.XLookup".to_owned(),
+                    },
                 }),
                 Class::FunctionMissing,
                 "_XLFN.XLOOKUP",
                 "exactness dc-uar",
             ),
             (
-                NotModeled::Compile(CompileError::Unsupported {
+                NotModeled::Compile(CompileError::NotModelled {
                     span,
-                    construct: "a defined name",
-                    owner: "dc-10y",
+                    gap: Gap::Construct {
+                        construct: "a defined name",
+                        owner: "dc-10y",
+                    },
                 }),
                 Class::Formula,
                 "Compile:Unsupported:a defined name (dc-10y)",
                 "dc-10y",
             ),
             (
-                NotModeled::Compile(CompileError::NumberLiteral { span }),
+                NotModeled::Compile(CompileError::NotModelled {
+                    span,
+                    gap: Gap::NumberLiteral,
+                }),
                 Class::Formula,
                 "Compile:NumberLiteral",
                 NUMBER_LITERAL_OWNER,
@@ -2028,9 +2061,11 @@ mod tests {
             )
         );
         let unknown = refusal_of(
-            &NotModeled::Compile(CompileError::UnknownFunction {
+            &NotModeled::Compile(CompileError::NotModelled {
                 span,
-                spelling: "NoSuch".to_owned(),
+                gap: Gap::UnknownFunction {
+                    spelling: "NoSuch".to_owned(),
+                },
             }),
             &address,
         );

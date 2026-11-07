@@ -45,8 +45,9 @@ pub use call::{
     WorkbookFacts, WorkbookFile, invoke, invoke_slice,
 };
 pub use catalogue::{
-    ArgumentDemand, Catalogue, FunctionCallTarget, FunctionId, HelpParameter, Notation,
-    ParameterClass, RegistrationError, SignatureHelp, catalogue,
+    ArgumentDemand, ArgumentGroups, Catalogue, EntryClass, EntryRule, FunctionCallTarget,
+    FunctionId, HelpParameter, Notation, OperandForm, ParameterClass, RegistrationError,
+    ResultForm, SignatureHelp, catalogue,
 };
 pub use cube::{CubeColumn, CubeFailure, CubeLookup, CubeMeasure, CubeMember, CubeModel, CubeTable};
 pub use fetch::{

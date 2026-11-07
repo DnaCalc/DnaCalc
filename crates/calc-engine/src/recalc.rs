@@ -1468,9 +1468,10 @@ fn begin_with_scope(
                 parallel |= allowed && instance.plan().has_user_calls();
                 instance.plan().has_user_calls() && !allowed
             }
-            Some(Binding::Refused(NotModeled::Compile(
-                calc_fml::CompileError::UnknownFunction { .. },
-            ))) => inputs.definitions().macro_enabled(),
+            Some(Binding::Refused(NotModeled::Compile(calc_fml::CompileError::NotModelled {
+                gap: calc_fml::Gap::UnknownFunction { .. },
+                ..
+            }))) => inputs.definitions().macro_enabled(),
             _ => false,
         };
         if fence {
@@ -3681,9 +3682,10 @@ fn full_observation_order(
                             && !instance.plan().permits_early_execution(&state.callables),
                     )
                 }
-                Some(Binding::Refused(NotModeled::Compile(
-                    calc_fml::CompileError::UnknownFunction { .. },
-                ))) => (false, inputs.definitions().macro_enabled()),
+                Some(Binding::Refused(NotModeled::Compile(calc_fml::CompileError::NotModelled {
+                    gap: calc_fml::Gap::UnknownFunction { .. },
+                    ..
+                }))) => (false, inputs.definitions().macro_enabled()),
                 _ => (false, false),
             };
             observers |= observer;

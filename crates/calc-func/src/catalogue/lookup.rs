@@ -95,7 +95,9 @@ const fn eager(
         spelling,
         notation: Notation::Call,
         arity,
+        groups: None,
         parameters,
+        result: super::ResultForm::Value,
         demand: ArgumentDemand::Eager,
         kernel: Kernel::Eager(kernel),
     }
@@ -104,6 +106,9 @@ const fn eager(
 pub(super) const FAMILY: Family = Family {
     code: CODE,
     entries: &[
+        // A call may give a reference (dc-mx3x, Excel 16.0.20527, 2026-11-07, Formula2 and
+        // Formula alike): `=COUNTBLANK(INDEX(A1:A2,1))` enters, and so does `=INDEX(A1:A2,1)(3)`
+        // (#REF!). Its array takes any operand: `=INDEX(2,1)` enters.
         eager(
             INDEX,
             "INDEX",
@@ -115,7 +120,8 @@ pub(super) const FAMILY: Family = Family {
                 Parameter::value("area_num"),
             ],
             index,
-        ),
+        )
+        .with_result(super::ResultForm::MayBeReference),
         eager(
             MATCH,
             "MATCH",
@@ -152,7 +158,10 @@ pub(super) const FAMILY: Family = Family {
                 Parameter::value("search_mode"),
             ],
             xlookup,
-        ),
+        )
+        // A call may give a reference (dc-mx3x): `=COUNTBLANK(XLOOKUP(1,B1:B3,B1:B3))` and
+        // `=XLOOKUP(1,B1:B3,B1:B3)(3)` (#REF!) enter.
+        .with_result(super::ResultForm::MayBeReference),
         eager(
             VLOOKUP,
             "VLOOKUP",
@@ -188,31 +197,39 @@ pub(super) const FAMILY: Family = Family {
             ],
             lookup,
         ),
+        // A call gives one of its values, which may be a reference or a LAMBDA (dc-mx3x):
+        // `=COUNTBLANK(CHOOSE(1,A1))` enters, and `=CHOOSE(1,LAMBDA(x,x))(3)` is 3.
         CatalogueEntry {
             id: CHOOSE,
             spelling: "CHOOSE",
             notation: Notation::Call,
             arity: CallableArityShape::range(2, 255),
+            groups: None,
             parameters: &[
                 Parameter::value("index_num"),
                 Parameter::value_or_reference("value1"),
                 Parameter::value_or_reference("value2"),
             ],
+            result: super::ResultForm::MayBeEither,
             demand: ArgumentDemand::BranchOnCondition,
             kernel: Kernel::Lazy(choose),
         },
+        // ROW's, COLUMN's and AREAS's reference takes only an operand that may give one
+        // (dc-mx3x, both forms): `=ROW(2)`, `=ROW({1,2})`, `=ROW(1+1)`, `=COLUMN(2)` and `=AREAS(2)`
+        // are refused, `=ROW(B1:B3)`, `=ROW(INDEX(B1:B3,0))` and `=AREAS(B1:B3)` enter. ROWS's
+        // and COLUMNS's array takes any operand: `=ROWS(2)` and `=ROWS({1,2})` enter.
         eager(
             ROW,
             "ROW",
             CallableArityShape::range(0, 1),
-            &[Parameter::value_or_reference("reference")],
+            &[Parameter::value_or_reference("reference").entry(super::EntryClass::Reference)],
             row,
         ),
         eager(
             COLUMN,
             "COLUMN",
             CallableArityShape::range(0, 1),
-            &[Parameter::value_or_reference("reference")],
+            &[Parameter::value_or_reference("reference").entry(super::EntryClass::Reference)],
             column,
         ),
         eager(
@@ -233,7 +250,7 @@ pub(super) const FAMILY: Family = Family {
             AREAS,
             "AREAS",
             CallableArityShape::exact(1),
-            &[Parameter::value_or_reference("reference")],
+            &[Parameter::value_or_reference("reference").entry(super::EntryClass::Reference)],
             areas,
         ),
     ],

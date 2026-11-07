@@ -27,6 +27,14 @@ pub enum EntryRefusal {
     /// as a formula. That reading is not modelled (dc-b1l): with no locale profile, or where the
     /// profile's reading is not modelled ([`interpret_entry_in`]).
     NumberShaped { text: String },
+    /// Excel's formula entry refuses the formula by `rule` ([`calc_fml::check_entry`]), at `span`
+    /// of the entered text: the grid shows Excel's "There's a problem with this
+    /// formula" and stores nothing (dc-mx3x). The file loader and the corpus verdict ask the same
+    /// check.
+    Rejected {
+        span: calc_fml::syntax::TextSpan,
+        rule: calc_fml::Rejection,
+    },
 }
 
 impl fmt::Display for EntryRefusal {
@@ -43,6 +51,9 @@ impl fmt::Display for EntryRefusal {
                 f,
                 "Excel may read {text:?} as a number, date, time or formula under its locale; that reading is not modelled (dc-b1l)"
             ),
+            EntryRefusal::Rejected { rule, .. } => {
+                write!(f, "there's a problem with this formula: {rule}")
+            }
         }
     }
 }
@@ -52,8 +63,10 @@ impl std::error::Error for EntryRefusal {}
 /// What a cell holds after `text` is entered into it: `None` for an empty text, which clears the
 /// cell (Excel's empty commit), or the authored input.
 ///
-/// - A text starting with `=` is a formula, its text what follows the `=`. Whether the formula is
-///   valid is the edit's to decide ([`crate::CommandError::Document`]).
+/// - A text starting with `=` is a formula, its text what follows the `=`. A formula Excel's
+///   entry refuses by a measured rule ([`calc_fml::check_entry`]) is refused
+///   ([`EntryRefusal::Rejected`]); whether another formula is valid is the edit's to decide
+///   ([`crate::CommandError::Document`]).
 /// - A text starting with `'` is the text after it.
 /// - `TRUE` and `FALSE`, in any case, are logicals.
 /// - A classic error literal (`#DIV/0!`, `#N/A` and the others, in any case) is that error;
@@ -92,6 +105,17 @@ pub fn interpret_entry_in(
             formula.encode_utf16().collect(),
         ))
         .map_err(|_| EntryRefusal::EmptyFormula)?;
+        // The text is stored as typed, and read as a file stores it (calc_fml::compile_loaded),
+        // so it is checked as that. A parser diagnostic may be syntax this parser does not hold:
+        // the compiler reports it.
+        if let Err(rejection) = calc_fml::check_entry(&calc_fml::parse_formula(text), true)
+            && rejection.rule.is_measured()
+        {
+            return Err(EntryRefusal::Rejected {
+                span: rejection.span,
+                rule: rejection.rule,
+            });
+        }
         return Ok(Some(CellInput::Formula(formula)));
     }
     if let Some(forced) = text.strip_prefix('\'') {
@@ -292,6 +316,36 @@ mod tests {
             Ok(number(123456789012345.0))
         );
         assert_eq!(interpret_entry("1.50000000000000000"), Ok(number(1.5)));
+    }
+
+    /// dc-mx3x: the grid refuses a formula Excel's entry refuses, and stores nothing; a near
+    /// neighbour Excel takes enters.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn formulas_excel_refuses_are_refused() {
+        for refused in [
+            "=IRR()",
+            "=COUNTBLANK(2)",
+            "=LET(xx,1,XX,2,xx)",
+            "=LAMBDA(xx,XX,xx)(1,2)",
+            "=IFERROR(#N/A,LAMBDA(xx,xx))(3)",
+        ] {
+            assert!(
+                matches!(interpret_entry(refused), Err(EntryRefusal::Rejected { .. })),
+                "{refused}"
+            );
+        }
+        for taken in [
+            "=IRR({-1,2})",
+            "=COUNTBLANK(A1:A2)",
+            "=LET(x,1,LET(x,2,x))",
+            "=IF(TRUE,LAMBDA(x,x))(3)",
+        ] {
+            assert!(
+                matches!(interpret_entry(taken), Ok(Some(CellInput::Formula(_)))),
+                "{taken}"
+            );
+        }
     }
 
     /// Cell entries under en-ZA (decimal point, space between thousands), against Excel

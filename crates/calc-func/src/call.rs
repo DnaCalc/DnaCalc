@@ -718,22 +718,22 @@ mod tests {
 
     const TEST_ID: FunctionId = FunctionId::new(0xFFFF, 1);
 
+    const REFERENCE: &[Parameter] = &[Parameter::of("reference", ParameterClass::Reference)];
+    const VALUE_OR_REFERENCE: &[Parameter] =
+        &[Parameter::of("value", ParameterClass::ValueOrReference)];
+
     const fn entry(class: ParameterClass, kernel: crate::call::EagerKernel) -> CatalogueEntry {
         CatalogueEntry {
             id: TEST_ID,
             spelling: "TEST.BOUNDARY",
             notation: Notation::Call,
             arity: CallableArityShape::exact(1),
+            groups: None,
             parameters: match class {
-                ParameterClass::Reference => &[Parameter {
-                    name: "reference",
-                    class: ParameterClass::Reference,
-                }],
-                _ => &[Parameter {
-                    name: "value",
-                    class: ParameterClass::ValueOrReference,
-                }],
+                ParameterClass::Reference => REFERENCE,
+                _ => VALUE_OR_REFERENCE,
             },
+            result: crate::catalogue::ResultForm::Value,
             demand: ArgumentDemand::Eager,
             kernel: Kernel::Eager(kernel),
         }

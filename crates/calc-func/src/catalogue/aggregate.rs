@@ -69,7 +69,18 @@ const ARRAYS: &[Parameter] = &[
     Parameter::value_or_reference("array1"),
     Parameter::value_or_reference("array2"),
 ];
-const RANGE: &[Parameter] = &[Parameter::value_or_reference("range")];
+/// COUNTBLANK's range takes only an operand that may give a reference (dc-mx3x, Excel 16.0.20527,
+/// 2026-11-07, Formula2 and Formula alike). Refused: `=COUNTBLANK(2)`, `=COUNTBLANK({"",1,#N/A})`,
+/// `=COUNTBLANK("")`, `=COUNTBLANK(TRUE)`, `=COUNTBLANK(#N/A)`, `=COUNTBLANK((2))`,
+/// `=COUNTBLANK(1+1)`, `=COUNTBLANK(-A1)`, `=COUNTBLANK(A1:A2+0)`, `=COUNTBLANK(A1&"")`,
+/// `=COUNTBLANK(SUM(A1:A2))`, `=COUNTBLANK(TRUE())`, `=COUNTBLANK(IFERROR(A1,1))`. Entered:
+/// `=COUNTBLANK(A1:A2)` (1), `=COUNTBLANK((A1:A2))`, `=COUNTBLANK(A1:A2 A1)`,
+/// `=COUNTBLANK((A1,A2))` (#VALUE!), `=COUNTBLANK(INDEX(A1:A2,1))`, `=COUNTBLANK(OFFSET(A1,0,0))`,
+/// `=COUNTBLANK(IF(TRUE,A1:A2))`, `=COUNTBLANK(IF(TRUE,1))` (#VALUE!), `=COUNTBLANK(LET(x,1,x))`
+/// (#VALUE!), `=COUNTBLANK(LAMBDA(x,x))` (#VALUE!), `=COUNTBLANK(@A1:A2)`, `=COUNTBLANK(B1#)`
+/// and `=COUNTBLANK(nm)` for a name `nm` defined as `=1` (#VALUE!) or not defined (#NAME?).
+const RANGE: &[Parameter] =
+    &[Parameter::value_or_reference("range").entry(super::EntryClass::Reference)];
 
 
 /// An eager named call that takes 1 to 255 arguments, the last parameter repeating.
@@ -84,7 +95,9 @@ const fn aggregate(
         spelling,
         notation: Notation::Call,
         arity: CallableArityShape::range(1, 255),
+        groups: None,
         parameters,
+        result: super::ResultForm::Value,
         demand: ArgumentDemand::Eager,
         kernel: Kernel::Eager(kernel),
     }
@@ -104,7 +117,9 @@ pub(super) const FAMILY: Family = Family {
             spelling: "COUNTBLANK",
             notation: Notation::Call,
             arity: CallableArityShape::exact(1),
+            groups: None,
             parameters: RANGE,
+            result: super::ResultForm::Value,
             demand: ArgumentDemand::Eager,
             kernel: Kernel::Eager(countblank),
         },

@@ -65,7 +65,12 @@ const ERROR_TYPE: FunctionId = FunctionId::new(CODE, 16);
 const VALUE: &[Parameter] = &[Parameter::value("value")];
 const VALUE_OR_REFERENCE: &[Parameter] = &[Parameter::value_or_reference("value")];
 const NUMBER: &[Parameter] = &[Parameter::value_or_reference("number")];
-const REFERENCE: &[Parameter] = &[Parameter::reference("reference")];
+/// ISFORMULA's reference takes only an operand that may give one (dc-mx3x, Excel 16.0.20527,
+/// 2026-11-07, Formula2 and Formula alike): `=ISFORMULA(2)`, `=ISFORMULA({1,2})` and
+/// `=ISFORMULA(1+1)` are refused, `=ISFORMULA(B1:B3)` and `=ISFORMULA(INDEX(B1:B3,0))` enter.
+/// ISREF's value takes any operand: `=ISREF(2)` enters.
+const REFERENCE: &[Parameter] =
+    &[Parameter::reference("reference").entry(super::EntryClass::Reference)];
 const ERROR_VAL: &[Parameter] = &[Parameter::value("error_val")];
 
 /// An eager named call of one argument.
@@ -80,7 +85,9 @@ const fn unary(
         spelling,
         notation: Notation::Call,
         arity: CallableArityShape::exact(1),
+        groups: None,
         parameters,
+        result: super::ResultForm::Value,
         demand: ArgumentDemand::Eager,
         kernel: Kernel::Eager(kernel),
     }
@@ -108,7 +115,9 @@ pub(super) const FAMILY: Family = Family {
             spelling: "NA",
             notation: Notation::Call,
             arity: CallableArityShape::exact(0),
+            groups: None,
             parameters: &[],
+            result: super::ResultForm::Value,
             demand: ArgumentDemand::Eager,
             kernel: Kernel::Eager(na),
         },

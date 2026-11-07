@@ -205,7 +205,7 @@ mod arrays {
             assert!(
                 matches!(
                     book.eval_in(FormulaForm::Dynamic, refused, "Z100"),
-                    Err(CompileError::Syntax { .. } | CompileError::Reference { .. })
+                    Err(CompileError::Rejected { .. } | CompileError::Reference { .. })
                 ),
                 "{refused}"
             );
@@ -862,14 +862,22 @@ mod arrays {
     fn legacy_formulas_refuse_unmeasured_places() {
         let mut book = data();
         // XLOOKUP's lookup array and CHISQ.TEST's ranges, which this row used before, were
-        // measured by L3 (dc-m3u) and dc-10y and lift; COUNTIFS's range, which takes only a
-        // reference, is not measured (Excel refuses to enter the formula). COUNTIF's lifts an
-        // array of references (dc-b1l).
-        let outcome = book
-            .eval_in(FormulaForm::Legacy, "=COUNTIFS(A1:A3*1,1)", "I2")
-            .unwrap();
+        // measured by L3 (dc-m3u) and dc-10y and lift. COUNTIFS's range takes only a reference,
+        // so Excel refuses to enter this formula, and so does compile (dc-mx3x: `=COUNTIFS(1+1,1)`
+        // and `=COUNTBLANK(A1:A2+0)` are refused). COUNTIF's lifts an array of references
+        // (dc-b1l).
+        let outcome = book.eval_in(FormulaForm::Legacy, "=COUNTIFS(A1:A3*1,1)", "I2");
         assert!(
-            matches!(outcome, Err(EvalFault::AreaAsValue { .. })),
+            matches!(
+                outcome,
+                Err(CompileError::Rejected {
+                    rule: calc_fml::Rejection::Function {
+                        rule: calc_fml::EntryRule::ReferenceRequired { index: 0 },
+                        ..
+                    },
+                    ..
+                })
+            ),
             "{outcome:?}"
         );
     }
@@ -979,10 +987,15 @@ mod references {
         let anchor = book.at("A1");
         book.spill(anchor, spilled);
         assert_eq!(book.dynamic("=SUM(A1#)"), n(101.0 + 201.0 + 301.0));
-        assert_eq!(
-            book.dynamic("=SUM(_xlfn.ANCHORARRAY(A1))"),
-            n(101.0 + 201.0 + 301.0)
-        );
+        // `_xlfn.ANCHORARRAY` is the file's spelling of `#`; typed, Excel refuses it (dc-mx3x:
+        // `=SUM(_xlfn.ANCHORARRAY(B1))` and `=ANCHORARRAY(B1)` are refused at entry).
+        assert!(matches!(
+            book.eval_in(FormulaForm::Dynamic, "=SUM(_xlfn.ANCHORARRAY(A1))", "Z100"),
+            Err(CompileError::Rejected {
+                rule: calc_fml::Rejection::Grammar(calc_fml::GrammarRule::OperatorCall),
+                ..
+            })
+        ));
         assert_eq!(book.dynamic("=ROWS(B1#)"), e(W::Ref));
         // A reader that does not know spills refuses the reference, naming L3.
         book.reader.spills = None;
@@ -1102,19 +1115,20 @@ mod names {
         // A call of a name no defined name holds could be a VBA or add-in function: refused.
         assert!(matches!(
             book.eval_in(FormulaForm::Dynamic, "=ISERROR(NoSuchFunction(1))", "Z100"),
-            Err(CompileError::UnknownFunction { .. })
+            Err(CompileError::NotModelled { gap: calc_fml::Gap::UnknownFunction { .. }, .. })
         ));
         // A catalogue that does not carry names: every name is refused, naming L3.
         book.catalog.names = None;
         match book.eval_in(FormulaForm::Dynamic, "=TaxRate*2", "Z100") {
-            Err(CompileError::Unsupported {
-                construct, owner, ..
+            Err(CompileError::NotModelled {
+                gap: calc_fml::Gap::Construct { construct, owner },
+                ..
             }) => assert_eq!((construct, owner), ("a defined name", "dc-10y")),
             other => panic!("{other:?}"),
         }
         assert!(matches!(
             book.eval_in(FormulaForm::Dynamic, "=NoSuchFunction(1)", "Z100"),
-            Err(CompileError::UnknownFunction { .. })
+            Err(CompileError::NotModelled { gap: calc_fml::Gap::UnknownFunction { .. }, .. })
         ));
     }
 
@@ -1228,7 +1242,7 @@ mod lambda {
             assert!(
                 matches!(
                     book.eval_in(FormulaForm::Dynamic, refused, "Z100"),
-                    Err(CompileError::Syntax { .. } | CompileError::Arity { .. })
+                    Err(CompileError::Rejected { .. })
                 ),
                 "{refused}"
             );
@@ -1320,7 +1334,10 @@ mod lambda {
             "Z100",
         ) {
             Ok(Ok(value)) => assert_eq!(value, n(12.0)),
-            Err(CompileError::UnknownFunction { spelling, .. }) => assert_eq!(spelling, "gcd"),
+            Err(CompileError::NotModelled {
+                gap: calc_fml::Gap::UnknownFunction { spelling },
+                ..
+            }) => assert_eq!(spelling, "gcd"),
             other => panic!("{other:?}"),
         }
         assert_eq!(
@@ -1338,7 +1355,7 @@ mod lambda {
                 "=LET(F,LAMBDA(n,IF(n<=0,0,1+F(n-1))),F(5))",
                 "Z100"
             ),
-            Err(CompileError::UnknownFunction { .. })
+            Err(CompileError::NotModelled { gap: calc_fml::Gap::UnknownFunction { .. }, .. })
         ));
         assert_eq!(
             book.dynamic("=LET(f,LAMBDA(self,n,IF(n<=0,0,1+self(self,n-1))),f(f,3))"),

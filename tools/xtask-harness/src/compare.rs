@@ -820,7 +820,7 @@ fn run_workbook_with_code(
     let expected: HashMap<CellKey, &CalcValue> = capture
         .observations
         .iter()
-        .filter_map(|observed| Some((key_of(&observed.cell)?, observed.observation.expected())))
+        .filter_map(|observed| Some((key_of(&observed.cell)?, observed.observation.expected()?)))
         .collect();
 
     let mut instrument = Instrument::new(expected);
@@ -940,6 +940,19 @@ fn run_workbook_with_code(
         let projected = projected
             .next()
             .expect("the projection returns one cell per requested cell");
+        // A formula Excel's entry refuses, which the loader left without input (dc-mx3x): the
+        // run's claim that Excel refuses it, judged against Excel's entry.
+        if let Some(calc_host::UnloadedCell::RejectedFormula { rule, .. }) = key
+            .and_then(|at| host.model().definitions().unloaded(at).cloned())
+        {
+            results.push(CellResult {
+                cell,
+                provenance: Provenance::Rejected { rule },
+                value: None,
+            });
+            dna.push(Dna::Rejected);
+            continue;
+        }
         let (provenance, value, fact) = match projected.value() {
             ProjectedValue::Empty => (
                 Provenance::Missing {
@@ -991,6 +1004,16 @@ fn run_workbook_with_code(
                     _ => value.clone(),
                 }),
                 Dna::Calculated,
+            ),
+            ProjectedValue::NotModeled {
+                refusal: calc_host::NotModeled::Compile(calc_fml::CompileError::Rejected { rule, .. }),
+                ..
+            } => (
+                Provenance::Rejected {
+                    rule: rule.to_string(),
+                },
+                None,
+                Dna::Rejected,
             ),
             ProjectedValue::NotModeled { refusal, .. } => {
                 let triaged = refusal_of(refusal, &address);
@@ -1569,24 +1592,28 @@ mod tests {
     }
 
     #[test]
-    fn refused_excel_entry_owns_value_and_shape_only_observer_mismatches() {
+    fn refused_excel_entries_are_agreed_rejections_and_their_observers_read_a_blank() {
         let bytes = include_bytes!("../../../crates/calc-func/tests/fixtures/fn2_questions/oracle.xlsx");
         let capture = CaptureRecord::decode(include_bytes!("../../../crates/calc-func/tests/captures/fn2_questions/oracle.capture.json")).unwrap();
         let run = run_workbook(bytes,Some("oracle.xlsx"),None,&capture,NumericMode::Fast,false).unwrap();
         let report = judge(&capture,&run.results,&run.record,&VerdictPolicy::default()).unwrap();
-        let triage = compare_triage::triage(&capture,&report,&run.dna,&run.retained,run.workbook.as_ref(),run.declared.as_deref());
-        let mut checked = 0;
-        for (i,cell) in report.cells.iter().enumerate() {
-            if !["fn2_o123","fn2_o124","fn2_o184","fn2_o185"].contains(&cell.formula.cell.sheet()) { continue; }
-            assert!(matches!(cell.verdict,calc_verdict::Verdict::Mismatched {..}));
-            assert_eq!(triage.cells[i].class,Class::Capture,"{}",cell.formula.cell.sheet());
-            assert_eq!(triage.cells[i].role,Some(compare_triage::Role::ReadsRoot));
-            assert_eq!(triage.cells[i].key,"capture failure at stage entry");
-            let root = triage.cells[i].root.unwrap();
-            assert_eq!(report.cells[root].formula.cell.sheet(),cell.formula.cell.sheet().replace("_o","_q"));
-            checked+=1;
+        // dc-mx3x: Excel refused each of these entries and so does the run; the loader leaves each
+        // without input, as Excel's cell holds nothing, so the observers, which Excel took, read a
+        // blank cell and match Excel's values and spill shapes.
+        let sources = ["fn2_q123","fn2_q124","fn2_q125","fn2_q184","fn2_q185","fn2_q196","fn2_q197"];
+        let mut checked = (0, 0);
+        for cell in &report.cells {
+            let sheet = cell.formula.cell.sheet();
+            if sources.contains(&sheet) {
+                assert!(matches!(cell.verdict,calc_verdict::Verdict::AgreedRejection {..}),"{sheet}: {:?}",cell.verdict);
+                checked.0 += 1;
+            } else if sources.contains(&sheet.replace("_o","_q").as_str()) {
+                assert!(matches!(cell.verdict,calc_verdict::Verdict::Matched {..}),"{sheet}: {:?}",cell.verdict);
+                checked.1 += 1;
+            }
         }
-        assert_eq!(checked,12);
+        assert_eq!(checked,(7,21));
+        assert_eq!(report.counts.agreed_rejection,7);
     }
 
     #[test]

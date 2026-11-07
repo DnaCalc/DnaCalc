@@ -85,10 +85,7 @@ mod user_function_diagnostic_tests {
 
 /// A compile refusal, in words.
 pub fn compile_owner(error: &CompileError) -> Option<&str> {
-    match error {
-        CompileError::Unsupported { owner, .. } => Some(owner),
-        _ => None,
-    }
+    error.owner()
 }
 
 /// A work package carried by the typed fault; never inferred from display text.
@@ -118,16 +115,19 @@ mod ownership_tests {
             None
         );
         assert_eq!(
-            compile_owner(&CompileError::Unsupported {
+            compile_owner(&CompileError::NotModelled {
                 span: TextSpan::new(0, 1),
-                construct: "example",
-                owner: "dc-example"
+                gap: calc_fml::Gap::Construct {
+                    construct: "example",
+                    owner: "dc-example"
+                }
             }),
             Some("dc-example")
         );
         assert_eq!(
-            compile_owner(&CompileError::NumberLiteral {
-                span: TextSpan::new(0, 1)
+            compile_owner(&CompileError::NotModelled {
+                span: TextSpan::new(0, 1),
+                gap: calc_fml::Gap::NumberLiteral
             }),
             None
         );
@@ -136,28 +136,35 @@ mod ownership_tests {
 
 pub fn compile_error(error: &CompileError) -> String {
     match error {
-        CompileError::Syntax { span: at } => {
+        CompileError::Rejected {
+            span: at,
+            rule: calc_fml::Rejection::Grammar(calc_fml::GrammarRule::Syntax),
+        } => {
             format!("syntax at {}: the formula does not parse", span(*at))
+        }
+        CompileError::Rejected { span: at, rule } => {
+            format!("Excel refuses this formula at {}: {rule}", span(*at))
         }
         CompileError::Reference { span: at, error } => {
             format!("reference at {} refused: {}", span(*at), bind_error(error))
         }
-        CompileError::Unsupported {
+        CompileError::NotModelled {
             span: at,
-            construct,
-            owner,
+            gap: calc_fml::Gap::Construct { construct, owner },
         } => format!(
             "not compiled yet at {}: {construct} (bead {owner})",
             span(*at)
         ),
-        CompileError::UnknownFunction { span: at, spelling } => {
+        CompileError::NotModelled {
+            span: at,
+            gap: calc_fml::Gap::UnknownFunction { spelling },
+        } => {
             format!("unknown function at {}: {spelling}", span(*at))
         }
-        CompileError::Arity { span: at, supplied } => format!(
-            "arity at {}: {supplied} arguments, which the function does not admit",
-            span(*at)
-        ),
-        CompileError::NumberLiteral { span: at } => format!(
+        CompileError::NotModelled {
+            span: at,
+            gap: calc_fml::Gap::NumberLiteral,
+        } => format!(
             "number at {}: its Excel value is not modelled (bead dc-10y)",
             span(*at)
         ),

@@ -199,6 +199,11 @@ fn by_task(
     // unswept-00087/00093: direct scalar errors precede an invalid final argument. A reference
     // held error still follows the existing preparation and LAMBDA validation order below.
     scalar_error(&a[0])?;
+    // No LAMBDA at all: #CALC! (dc-mx3x: `=BYROW(B1:B3)`), as an omitted one is #VALUE!
+    // (`=BYROW(B1:B3,)`).
+    if a.len() < 2 {
+        return fail(W::Calc);
+    }
     let source = prepared(site, a, 0, sv)?;
     let f = lambda(a, 1, 1)?;
     // Direct errors were handled above. Fn5 helper018/019 keep held errors
@@ -447,9 +452,15 @@ fn run(
 ported_family! {
     code: CODE;
     1 map_fn "MAP" (2, 254) [R "array1", R "lambda_or_array2"] resume map_resume => map_task; |s, a, sv| { run(s, map_task(s, a, sv), sv) }
-    2 reduce_fn "REDUCE" (3, 3) [R "initial_value", R "array", R "lambda"] resume reduce_resume => reduce_start; |s, a, sv| { run(s, reduce_start(s, a, sv), sv) }
+    // A call of REDUCE gives what its LAMBDA gives, which may be a reference or a LAMBDA
+    // (dc-mx3x, Excel 16.0.20527, 2026-11-07): `=COUNTBLANK(REDUCE(B1,B1,B1))` and
+    // `=REDUCE(B1,B1,B1)(3)` enter; MAP's, SCAN's, BYROW's, BYCOL's and MAKEARRAY's do not.
+    2 reduce_fn "REDUCE" (3, 3) [R "initial_value", R "array", R "lambda"] result MayBeEither; resume reduce_resume => reduce_start; |s, a, sv| { run(s, reduce_start(s, a, sv), sv) }
     3 scan_fn "SCAN" (3, 3) [R "initial_value", R "array", R "lambda"] resume scan_resume => scan_start; |s, a, sv| { run(s, scan_start(s, a, sv), sv) }
-    4 byrow_fn "BYROW" (2, 2) [R "array", R "lambda"] resume byrow_resume => byrow_start; |s, a, sv| { run(s, byrow_start(s, a, sv), sv) }
-    5 bycol_fn "BYCOL" (2, 2) [R "array", R "lambda"] resume bycol_resume => bycol_start; |s, a, sv| { run(s, bycol_start(s, a, sv), sv) }
+    // BYROW and BYCOL take 1 or 2 arguments (dc-mx3x, Excel 16.0.20527, 2026-11-07, Formula2 and
+    // Formula alike): `=BYROW(B1:B3)` and `=BYCOL(B1:B3)` enter and give #CALC!, while
+    // `=MAP({1})`, `=REDUCE(0,{1})`, `=SCAN(0,{1})` and `=MAKEARRAY(1,1)` are refused.
+    4 byrow_fn "BYROW" (1, 2) [R "array", R "lambda"] resume byrow_resume => byrow_start; |s, a, sv| { run(s, byrow_start(s, a, sv), sv) }
+    5 bycol_fn "BYCOL" (1, 2) [R "array", R "lambda"] resume bycol_resume => bycol_start; |s, a, sv| { run(s, bycol_start(s, a, sv), sv) }
     6 makearray_fn "MAKEARRAY" (3, 3) [V "rows", V "cols", R "lambda"] resume makearray_resume => makearray_task; |s, a, sv| { run(s, makearray_task(s, a, sv), sv) }
 }

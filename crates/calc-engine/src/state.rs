@@ -613,9 +613,10 @@ impl EngineState {
                         .callable_bindings()
                         .iter()
                         .any(|proof| !next.validates(proof)),
-                    Binding::Refused(NotModeled::Compile(
-                        calc_fml::CompileError::UnknownFunction { .. },
-                    )) => true,
+                    Binding::Refused(NotModeled::Compile(calc_fml::CompileError::NotModelled {
+                        gap: calc_fml::Gap::UnknownFunction { .. },
+                        ..
+                    })) => true,
                     _ => false,
                 };
                 (changed
