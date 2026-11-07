@@ -2,7 +2,7 @@
 //! WebDriver session, upload route and committed RenderPlan; never synthesize painted values.
 use super::*;
 
-const HELP: &str = "cargo xtask app paint-compare calc --out DIR [--bundle DIR] [--workbook FILE] [--reference DIR] [--zooms 75,100,150] [--normal-font FAMILY,POINTS] [--excel EXE]";
+const HELP: &str = "cargo xtask app paint-compare calc --out DIR [--bundle DIR] [--workbook FILE] [--reference DIR] [--zooms 75,100,150] [--normal-font FAMILY,POINTS] [--locale TAG] [--browser chromium|firefox] [--decimal-separator TEXT] [--thousands-separator TEXT] [--sheet-height PX] [--excel EXE]";
 
 fn python() -> Command {
     Command::new(std::env::var_os("DNACALC_PAINT_PYTHON").unwrap_or_else(|| "python".into()))
@@ -28,6 +28,11 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
     let mut reference = None;
     let mut excel_path = None;
     let mut normal_font = None;
+    let mut locale=None;
+    let mut decimal_separator=None;
+    let mut thousands_separator=None;
+    let mut browser=&BROWSERS[0];
+    let mut sheet_height=None;
     let mut zooms = vec![100, 75, 150];
     let mut args = raw.iter();
     while let Some(flag) = args.next() {
@@ -38,6 +43,18 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
             "--workbook" => workbook = Some(PathBuf::from(value)),
             "--reference" => reference = Some(PathBuf::from(value)),
             "--excel" => excel_path = Some(PathBuf::from(value)),
+            "--locale" => {
+                if value.is_empty() || !value.bytes().all(|c|c.is_ascii_alphanumeric()||c==b'-') {return Err("Locale needs a BCP 47 language tag".into());}
+                locale=Some(value.clone());
+            },
+            "--decimal-separator"=>decimal_separator=Some(value.clone()),
+            "--thousands-separator"=>thousands_separator=Some(value.clone()),
+            "--browser"=>browser=BROWSERS.iter().find(|b|b.name==value.as_str()).ok_or_else(||format!("Unknown browser {value}; choose chromium or firefox"))?,
+            "--sheet-height" => {
+                let height=value.parse::<u32>().map_err(|e|e.to_string())?;
+                if !(256..=4096).contains(&height) {return Err("Sheet height must be 256..4096 CSS pixels".into());}
+                sheet_height=Some(height);
+            }
             "--normal-font" => {
                 let (family,points)=value.rsplit_once(',').ok_or("--normal-font needs FAMILY,POINTS")?;
                 let points=points.parse::<f64>().map_err(|e|e.to_string())?;
@@ -54,6 +71,12 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
                 }
             }
             _ => return Err(format!("unknown option {flag}")),
+        }
+    }
+    if decimal_separator.is_some()||thousands_separator.is_some() {
+        let profile=calc_func::locale::FormatProfile::for_culture(locale.as_deref().unwrap_or("en-US")).ok_or("Unsupported regional locale")?;
+        if profile.with_separators(decimal_separator.as_deref().unwrap_or(profile.decimal_separator),thousands_separator.as_deref().unwrap_or(profile.thousands_separator)).is_none() {
+            return Err("Invalid regional separators".into());
         }
     }
     let out = out.ok_or("--out is required")?;
@@ -89,7 +112,7 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
     let bootstrap = out.join("paint-bootstrap.xlsx");
     let bootstrap_bytes = calc_doc::blank_package();
     fs::write(&bootstrap, &bootstrap_bytes).map_err(|e| e.to_string())?;
-    let request = json!({"books":inputs,"zooms":zooms,"out":out,"rows":18,"columns":10,"bootstrap":{"path":bootstrap,"sha256":calc_verdict::sha256_hex(&bootstrap_bytes)}});
+    let request = json!({"books":inputs,"zooms":zooms,"out":out,"rows":18,"columns":10,"sheet_height":sheet_height,"bootstrap":{"path":bootstrap,"sha256":calc_verdict::sha256_hex(&bootstrap_bytes)}});
     fs::write(out.join("request.json"), request.to_string()).map_err(|e| e.to_string())?;
     let source = ws.root.join("tools/xtask-harness/src/paint");
     let reference_dir = reference
@@ -138,24 +161,47 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
         }
     }
     let port = serve(bundle_dir.clone(), None)?;
-    let url = format!("http://127.0.0.1:{port}/index.html");
+    let mut url = format!("http://127.0.0.1:{port}/index.html?");
+    let regional=[("locale",locale.as_ref()),("decimal-separator",decimal_separator.as_ref()),("thousands-separator",thousands_separator.as_ref())];
+    for (key,value) in regional {if let Some(value)=value {
+        let encoded=value.bytes().map(|b|format!("%{b:02X}")).collect::<String>();
+        url.push_str(&format!("{key}={encoded}&"));
+    }}
     let mut captures = Vec::new();
     for mode in ["dom", "canvas"] {
-        let (_driver, session) = open(&BROWSERS[0], &out.join("downloads"))?;
+        let (_driver, session) = open_locale(browser, &out.join("downloads"),locale.as_deref())?;
         let result = (|| {
             for (book, input) in books.iter().zip(&inputs) {
                 start_group(app, &session, &renderer::page(&url, Some(mode)))?;
+                let browser_locale=session.script("return navigator.language;")?;
+                if locale.as_deref().is_some_and(|expected|browser_locale.as_str().is_none_or(|actual|!actual.eq_ignore_ascii_case(expected))) {return Err(format!("Browser locale differs from requested locale: {browser_locale}"));}
                 let reference = refs
                     .iter()
                     .find(|r| r["sha256"] == input["sha256"])
                     .ok_or("missing reference")?;
                 let dpr = reference["dpi"].as_f64().ok_or("missing DPI")? / 96.;
-                session.post("/goog/cdp/execute",json!({"cmd":"Emulation.setDeviceMetricsOverride","params":{"width":1760,"height":1200,"deviceScaleFactor":dpr,"mobile":false}}))?;
+                if browser.name=="firefox" {
+                    let actual=session.script("return devicePixelRatio;")?.as_f64().ok_or("Missing browser display scale")?;
+                    if (actual-dpr).abs()>1e-6 {return Err("Firefox and reference display scales differ; refusing resampling".into());}
+                }
+                capture_viewport(&session,browser,1200,dpr)?;
                 upload(app, &session, "open-file", book)?;
                 settled(
                     &session,
                     "return document.querySelector('[data-dnacalc=status]').textContent.startsWith('Opened ')",
                 )?;
+                if let Some(target)=sheet_height {
+                    for _ in 0..3 {
+                        let size=session.script("return [innerHeight,document.querySelector('[data-dnacalc=grid][data-grid-active=true]').clientHeight];")?;
+                        let actual=size[1].as_i64().ok_or("Missing sheet height")?;
+                        if actual==i64::from(target) {break;}
+                        let height=size[0].as_i64().ok_or("Missing viewport height")?+i64::from(target)-actual;
+                        if !(480..=8192).contains(&height) {return Err(format!("Requested sheet area needs an unsupported viewport height: {height}"));}
+                        capture_viewport(&session,browser,height as u32,dpr)?;
+                        paint_frames(&session)?;
+                    }
+                    settled(&session,&format!("const g=document.querySelector('[data-dnacalc=grid][data-grid-active=true]'),p=Object.values(window.__dnacalcRenderPlans||{{}}).map(f=>JSON.parse(f())).find(p=>p.active);return g&&g.clientHeight==={target}&&p&&p.pending===0&&p.plan.viewport.height==={target};"))?;
+                }
                 let visible = session.script("return [...document.querySelectorAll('[data-dnacalc=sheet-tab]')].map(t=>t.dataset.sheet);")?;
                 let sheets = visible
                     .as_array()
@@ -198,12 +244,16 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
                             "const p=Object.values(window.__dnacalcRenderPlans).map(f=>JSON.parse(f())).find(p=>p.active);return p&&p.plan.viewport.scroll_x===0&&p.plan.viewport.scroll_y===0;",
                         )?;
                         // Two animation frames after the committed plan; read-only inspection.
-                        session.post("/execute/async",json!({"script":"const done=arguments[arguments.length-1];document.fonts.ready.then(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>done(true))));","args":[]}))?;
+                        paint_frames(&session)?;
                         let mut plan=session.script("const p=Object.values(window.__dnacalcRenderPlans).map(f=>JSON.parse(f())).find(p=>p.active);p.layer_rect=document.querySelector('[data-dnacalc=grid][data-grid-active=true] .dc-layer').getBoundingClientRect().toJSON();p.dpr=devicePixelRatio;p.fonts=[...new Set(p.plan.cells.map(c=>c.shown.style.family))].map(f=>({family:f,loaded:!f||document.fonts.check('11px '+JSON.stringify(f))}));return p;")?;
-                        plan["browser"] = session.post(
+                        plan["browser"] = if browser.name=="firefox" {
+                            session.script("return {userAgent:navigator.userAgent,platform:navigator.platform};")?
+                        }else{session.post(
                             "/goog/cdp/execute",
                             json!({"cmd":"Browser.getVersion","params":{}}),
-                        )?;
+                        )?};
+                        plan["locale"]=browser_locale.clone();
+                        plan["regional_overrides"]=json!({"locale":locale,"decimal_separator":decimal_separator,"thousands_separator":thousands_separator});
                         let prefix = format!(
                             "{}-{}-{}-{}",
                             book.file_stem().unwrap().to_string_lossy(),
@@ -256,6 +306,22 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+fn capture_viewport(session:&Session,browser:&Browser,height:u32,dpr:f64)->Result<(),String> {
+    if browser.name=="firefox" {
+        session.viewport(1760,height)?;
+    } else {
+        session.post("/goog/cdp/execute",json!({"cmd":"Emulation.setDeviceMetricsOverride","params":{"width":1760,"height":height,"deviceScaleFactor":dpr,"mobile":false}}))?;
+    }
+    let actual=session.script("return [innerWidth,innerHeight];")?;
+    if actual!=json!([1760,height]) {return Err(format!("Capture viewport differs from the requested size: {actual}"));}
+    Ok(())
+}
+
+fn paint_frames(session:&Session)->Result<(),String> {
+    session.post("/execute/async",json!({"script":"const done=arguments[arguments.length-1];document.fonts.ready.then(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>done(true))));","args":[]}))?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -286,7 +352,8 @@ fn runtime_source(ws: &Workspace) -> Result<Value, String> {
         ],
     )?;
     Ok(
-        json!({"status":"built_by_this_command","head":cargo::git(&ws.root,&["rev-parse","HEAD"] )?.trim(),"diff_sha256":calc_verdict::sha256_hex(diff.as_bytes())}),
+        json!({"status":"built_by_this_command","head":cargo::git(&ws.root,&["rev-parse","HEAD"] )?.trim(),"diff_sha256":calc_verdict::sha256_hex(diff.as_bytes()),
+            "profile":{"name":"web","opt_level_override":std::env::var("CARGO_PROFILE_WEB_OPT_LEVEL").ok(),"lto_override":std::env::var("CARGO_PROFILE_WEB_LTO").ok(),"codegen_units_override":std::env::var("CARGO_PROFILE_WEB_CODEGEN_UNITS").ok()}}),
     )
 }
 

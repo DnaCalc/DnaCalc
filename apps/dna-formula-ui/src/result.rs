@@ -431,7 +431,7 @@ pub fn formatted_view(
         if !matches!(value.core(), CoreValue::Number(_) | CoreValue::Text(_)) {
             return Ok(shown(value, Some(profile)));
         }
-        calc_func::cell_text(
+        calc_func::cell_text_localized(
             profile,
             calc_func::locale::DateSystem::System1900,
             value,
