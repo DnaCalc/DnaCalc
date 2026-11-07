@@ -528,7 +528,7 @@ fn dc_rif__a_new_workbook_is_edited_through_the_session_and_its_subscription() {
         ("A1", "2"),
         ("A2", "3"),
         ("A3", "=A1*A2+1"),
-        ("B1", "=WEBSERVICE(\"http://example.com\")"),
+        ("B1", "=CALL(\"a\",\"b\",\"c\")"),
         ("C1", "={1;2;3}"),
     ] {
         let receipt = book.enter(at(sheet1, address), text);
@@ -549,7 +549,7 @@ fn dc_rif__a_new_workbook_is_edited_through_the_session_and_its_subscription() {
         (a3.text.as_str(), a3.provenance, a3.formula),
         ("7", Provenance::Calculated, true)
     );
-    // A web function is refused (no web access is modelled), and shows as refused.
+    // A function nothing models is refused, and shows as refused.
     let b1 = seen(&mirror, "B1");
     assert_eq!(
         (b1.text.as_str(), b1.provenance),
@@ -2168,7 +2168,7 @@ mod workbook_commands {
             (4, 1, "TRUE"),
             (1, 2, "=SUM(A1:A2)"),
             (2, 2, "=1/0"),
-            (3, 2, "=WEBSERVICE(\"https://example.com\")"),
+            (3, 2, "=CALL(\"a\",\"b\",\"c\")"),
             (4, 2, "=\"\""),
         ] {
             set(&mut server, at(r, c), text);

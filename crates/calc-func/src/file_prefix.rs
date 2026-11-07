@@ -34,7 +34,7 @@ impl FilePrefix {
 
 /// Each named function of the catalogue by its spelling, in byte order of the spelling (checked
 /// below, since the lookup is a binary search), with the prefix a file writes before it.
-const FILE_PREFIXES: [(&str, FilePrefix); 500] = [
+const FILE_PREFIXES: [(&str, FilePrefix); 502] = [
     ("ABS", FilePrefix::Bare),
     ("ACCRINT", FilePrefix::Bare),
     ("ACCRINTM", FilePrefix::Bare),
@@ -245,6 +245,7 @@ const FILE_PREFIXES: [(&str, FilePrefix); 500] = [
     ("IFNA", FilePrefix::Xlfn),
     ("IFS", FilePrefix::Xlfn),
     ("IMABS", FilePrefix::Bare),
+    ("IMAGE", FilePrefix::Xlfn),
     ("IMAGINARY", FilePrefix::Bare),
     ("IMARGUMENT", FilePrefix::Bare),
     ("IMCONJUGATE", FilePrefix::Bare),
@@ -515,6 +516,7 @@ const FILE_PREFIXES: [(&str, FilePrefix); 500] = [
     ("VDB", FilePrefix::Bare),
     ("VLOOKUP", FilePrefix::Bare),
     ("VSTACK", FilePrefix::Xlfn),
+    ("WEBSERVICE", FilePrefix::Xlfn),
     ("WEEKDAY", FilePrefix::Bare),
     ("WEEKNUM", FilePrefix::Bare),
     ("WEIBULL", FilePrefix::Bare),

@@ -434,6 +434,110 @@ pub enum CoreValue {
     Reference(ReferenceLike),
 }
 
+/// The picture formats a cell's image holds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ImageFormat {
+    Png,
+    Jpeg,
+    Gif,
+    Bmp,
+    Tiff,
+    Ico,
+    Webp,
+}
+
+impl ImageFormat {
+    /// The format `bytes` start with, or `None` when they start no picture.
+    pub fn sniff(bytes: &[u8]) -> Option<Self> {
+        let starts = |prefix: &[u8]| bytes.starts_with(prefix);
+        if starts(b"\x89PNG\r\n\x1a\n") {
+            Some(Self::Png)
+        } else if starts(&[0xff, 0xd8, 0xff]) {
+            Some(Self::Jpeg)
+        } else if starts(b"GIF87a") || starts(b"GIF89a") {
+            Some(Self::Gif)
+        } else if starts(b"BM") {
+            Some(Self::Bmp)
+        } else if starts(b"II*\0") || starts(b"MM\0*") {
+            Some(Self::Tiff)
+        } else if starts(&[0, 0, 1, 0]) {
+            Some(Self::Ico)
+        } else if starts(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") {
+            Some(Self::Webp)
+        } else {
+            None
+        }
+    }
+
+    /// The file extension of a media part holding this format.
+    pub const fn extension(self) -> &'static str {
+        match self {
+            Self::Png => "png",
+            Self::Jpeg => "jpeg",
+            Self::Gif => "gif",
+            Self::Bmp => "bmp",
+            Self::Tiff => "tiff",
+            Self::Ico => "ico",
+            Self::Webp => "webp",
+        }
+    }
+
+    pub const fn content_type(self) -> &'static str {
+        match self {
+            Self::Png => "image/png",
+            Self::Jpeg => "image/jpeg",
+            Self::Gif => "image/gif",
+            Self::Bmp => "image/bmp",
+            Self::Tiff => "image/tiff",
+            Self::Ico => "image/x-icon",
+            Self::Webp => "image/webp",
+        }
+    }
+}
+
+/// A picture in a cell, with what IMAGE was given for it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ImageValue {
+    /// The URL the formula named.
+    pub source: String,
+    pub alt_text: Option<String>,
+    /// 0 fit, 1 fill, 2 original size, 3 custom size.
+    pub sizing: u8,
+    pub height: Option<f64>,
+    pub width: Option<f64>,
+    pub format: ImageFormat,
+    pub bytes: Arc<[u8]>,
+}
+
+impl Eq for ImageValue {}
+
+impl std::hash::Hash for ImageValue {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.source.hash(state);
+        self.alt_text.hash(state);
+        self.sizing.hash(state);
+        self.height.map(f64::to_bits).hash(state);
+        self.width.map(f64::to_bits).hash(state);
+        self.format.hash(state);
+        self.bytes.hash(state);
+    }
+}
+
+impl ImageValue {
+    /// Picture bytes alone, as a fetch delivers them.
+    pub fn picture(format: ImageFormat, bytes: Arc<[u8]>) -> Self {
+        Self {
+            source: String::new(),
+            alt_text: None,
+            sizing: 0,
+            height: None,
+            width: None,
+            format,
+            bytes,
+        }
+    }
+}
+
 /// A view of a value's worksheet-visible part, returned by value from [`CalcValue::core_ref`]
 /// (dc-dxm, compact value type step 1): a caller that matches on it does not depend on how a
 /// value is stored, so the storage can change (a smaller layout, step 2) without touching it.
@@ -466,12 +570,16 @@ pub struct CalcValue {
 enum ValueMetadata {
     Callable(CallableValue),
     ExcelOverflow,
+    Image(ImageValue),
 }
 
 impl fmt::Debug for CalcValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut out = f.debug_struct("CalcValue");
         out.field("core", &self.core).field("callable", &self.callable_value());
+        if let Some(image) = self.image_value() {
+            out.field("image", image);
+        }
         if self.is_excel_overflow() {
             out.field("excel_overflow", &true);
         }
@@ -485,7 +593,9 @@ impl PartialEq for CalcValue {
             self.is_excel_overflow() == other.is_excel_overflow()
                 && self.as_number().map(f64::to_bits) == other.as_number().map(f64::to_bits)
         } else {
-            self.core == other.core && self.callable_value() == other.callable_value()
+            self.core == other.core
+                && self.callable_value() == other.callable_value()
+                && self.image_value() == other.image_value()
         }
     }
 }
@@ -627,7 +737,24 @@ impl CalcValue {
     pub fn callable_value(&self) -> Option<&CallableValue> {
         match self.metadata.as_deref() {
             Some(ValueMetadata::Callable(callable)) => Some(callable),
-            Some(ValueMetadata::ExcelOverflow) | None => None,
+            Some(ValueMetadata::ExcelOverflow | ValueMetadata::Image(_)) | None => None,
+        }
+    }
+
+    /// A picture in a cell, as IMAGE gives it. Excel reads it as #VALUE! wherever one worksheet
+    /// value is taken (`Range.Value2`, a file's `<v>`), so that is its core; TYPE gives 128 and
+    /// ISERROR FALSE, and the value keeps its picture when it is copied.
+    pub fn image(image: ImageValue) -> Self {
+        Self {
+            core: CoreValue::Error(WorksheetErrorCode::Value),
+            metadata: Some(Arc::new(ValueMetadata::Image(image))),
+        }
+    }
+
+    pub fn image_value(&self) -> Option<&ImageValue> {
+        match self.metadata.as_deref() {
+            Some(ValueMetadata::Image(image)) => Some(image),
+            _ => None,
         }
     }
 }

@@ -503,7 +503,7 @@ impl UserFunctionEffects {
 }
 
 /// The functions [`CompiledPlan::volatile`] counts as volatile.
-const VOLATILE_FUNCTIONS: [&str; 9] = [
+const VOLATILE_FUNCTIONS: [&str; 10] = [
     "RAND",
     "RANDBETWEEN",
     "RANDARRAY",
@@ -513,6 +513,7 @@ const VOLATILE_FUNCTIONS: [&str; 9] = [
     "INDIRECT",
     "CELL",
     "INFO",
+    "WEBSERVICE",
 ];
 
 /// A catalogue spelling without the file form's `_XLFN.` prefix.

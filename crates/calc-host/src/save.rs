@@ -168,6 +168,9 @@ impl fmt::Debug for PreparedSave {
 
 /// The cached value a calculated value is saved as; `None` for a value no cell holds as a cache.
 fn cached(value: &calc_value::CalcValue) -> Option<CachedValue> {
+    if let Some(image) = value.image_value() {
+        return Some(CachedValue::Image(image.clone()));
+    }
     match value.core_ref() {
         CoreRef::Number(_) if value.is_excel_overflow() => Some(CachedValue::Error(calc_value::WorksheetErrorCode::Num)),
         CoreRef::Number(number) => FiniteNumber::new(number).map(CachedValue::Number),

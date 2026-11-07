@@ -1013,9 +1013,30 @@ impl<'c> Lowering<'c> {
                 supplied: argc,
             });
         }
+        let spelled = target.0.spelling();
+        if calc_func::FETCH_FUNCTIONS.contains(&spelled) {
+            // A host's fetch route takes these names; a change of route rebinds this plan.
+            let provider = calc_func::FETCH_PROVIDER;
+            self.watch_callable(Some(provider), spelled);
+            if self
+                .functions
+                .is_some_and(|f| f.contains_for(Some(provider), spelled))
+            {
+                self.user_call(
+                    spelled,
+                    Some(UserFunctionSource {
+                        book: ExternalBookRef::Number(0),
+                        target: Some(provider.to_owned()),
+                    }),
+                    &arguments,
+                    block,
+                    tasks,
+                );
+                return Ok(());
+            }
+        }
         let demand = target.0.argument_demand();
         let lazy = demand.is_lazy();
-        let spelled = target.0.spelling();
         let value_place = place.argument(spelled, 0, Some(ParameterClass::Value), lazy);
         let admission = self.admission(value_place);
         let mut three_d: Vec<Option<Vec<Instruction>>> = Vec::with_capacity(argc);

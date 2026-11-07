@@ -398,6 +398,17 @@ impl HostSession {
         );
     }
 
+    /// Bind WEBSERVICE and IMAGE to a host's fetch route.
+    pub fn set_fetch_route(&mut self, route: std::rc::Rc<dyn calc_func::FetchRoute>) {
+        self.host.set_fetch_route(route);
+        self.deliver_changes(
+            DeltaCause::CallablesChanged {
+                revision: self.host.revision(),
+            },
+            false,
+        );
+    }
+
     /// Publish the file identity of a successful Save As without adding an undo step.
     pub fn set_file_identity(&mut self,name:&str,macro_enabled:bool) {
         if self.host.model.definitions().workbook_name()==Some(name) && self.host.model.definitions().macro_enabled()==macro_enabled {return;}

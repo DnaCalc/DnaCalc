@@ -78,6 +78,8 @@ pub struct Server {
     commands: calc_host::CommandJournal<(Result<Reply, String>, Option<Vec<u8>>)>,
     validation_pending: Option<(u64, u64, Selection, SkinIntent)>,
     book: Workbook,
+    /// The browser's way to fetch what WEBSERVICE and IMAGE name; it outlives a workbook.
+    fetch_route: Option<std::rc::Rc<dyn calc_func::FetchRoute>>,
     /// The page's subscriptions: its number for each, and calc-host's.
     subscriptions: BTreeMap<u64, SubscriptionId>,
     subscription_interests: BTreeMap<u64, calc_host::Interest>,
@@ -264,6 +266,7 @@ impl Server {
             commands: calc_host::CommandJournal::new(128, 16 * 1024 * 1024),
             validation_pending: None,
             book,
+            fetch_route: None,
             subscriptions: BTreeMap::new(),
             subscription_interests: BTreeMap::new(),
             last_subscription: None,
@@ -1144,7 +1147,30 @@ impl Server {
     }
 
     /// A new workbook in place of the open one: the page's subscriptions end with it.
+    /// Bind WEBSERVICE and IMAGE of this and every later workbook to `route`.
+    pub fn set_fetch_route(&mut self, route: std::rc::Rc<dyn calc_func::FetchRoute>) {
+        self.book.set_fetch_route(route.clone());
+        self.fetch_route = Some(route);
+        self.collect();
+    }
+
+    /// A fetch has its reply: resumes the waiting cell, or does nothing when the calculation
+    /// that asked has been superseded.
+    pub fn complete_fetch(&mut self, request: u64, value: calc_host::value::CalcValue) -> bool {
+        let token = self
+            .pending_async()
+            .into_iter()
+            .find(|token| token.request == request);
+        match token {
+            Some(token) => self.complete_async(&token, value) == calc_host::AsyncDisposition::Accepted,
+            None => false,
+        }
+    }
+
     fn install(&mut self, mut book: Workbook) {
+        if let Some(route) = &self.fetch_route {
+            book.set_fetch_route(route.clone());
+        }
         self.pending_name = None;
         self.pending_save = None;
         self.save_as_target = None;
@@ -4614,6 +4640,121 @@ mod async_contract_tests {
     use super::async_provider::{Counts, Echo};
     use super::*;
     use std::{cell::RefCell, rc::Rc};
+    #[derive(Debug, Default)]
+    struct MockFetch(RefCell<Vec<calc_func::FetchRequest>>);
+    impl calc_func::FetchRoute for MockFetch {
+        fn begin(&self, request: calc_func::FetchRequest) -> u64 {
+            let mut seen = self.0.borrow_mut();
+            seen.push(request);
+            seen.len() as u64
+        }
+    }
+
+    /// A formula entered in the worker fetches through the server's route, parks, and takes its
+    /// reply; a replacement workbook keeps the route.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_fetch_f0tp__a_formula_fetches_through_the_server() {
+        let mut server = Server::new();
+        let route = Rc::new(MockFetch::default());
+        server.set_fetch_route(route.clone());
+        let s = server.book.host().sheets()[0].id();
+        let b = CellKey::new(s, 1, 2).unwrap();
+        server
+            .execute_current(
+                Request::Intent(Intent::EnterCell {
+                    at: Key::of(b),
+                    text: "=LEN(WEBSERVICE(\"http://mock/x\"))".into(),
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        drain(&mut server);
+        assert_eq!(route.0.borrow().len(), 1);
+        assert_eq!(route.0.borrow()[0].url, "http://mock/x");
+        let reply = calc_func::FetchReply::Body(b"abc".to_vec()).into_value(calc_func::FetchKind::Text);
+        assert!(server.complete_fetch(1, reply.clone()));
+        assert!(!server.complete_fetch(1, reply), "one reply per request");
+        drain(&mut server);
+        let projection = calc_host::project(
+            server.book().host(),
+            &calc_host::ProjectionRequest { cells: vec![b] },
+        )
+        .unwrap();
+        match projection.cells()[0].value() {
+            calc_host::ProjectedValue::Calculated { value, .. } => {
+                assert_eq!(value, &calc_host::value::CalcValue::number(3.0));
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    /// `=FILTERXML(WEBSERVICE(url),xpath)` over the body Excel fetched from a public URL
+    /// (https://httpbin.org/xml) gives Excel's spill: its two titles, and the author attribute.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_fetch_f0tp__filterxml_over_webservice_matches_live_excel() {
+        const BODY: &str = include_str!("../tests/fixtures/httpbin-xml.txt");
+        let mut server = Server::new();
+        let route = Rc::new(MockFetch::default());
+        server.set_fetch_route(route.clone());
+        let s = server.book.host().sheets()[0].id();
+        let enter = |server: &mut Server, column: u32, formula: &str| {
+            server
+                .execute_current(
+                    Request::Intent(Intent::EnterCell {
+                        at: Key::of(CellKey::new(s, 1, column).unwrap()),
+                        text: formula.into(),
+                    }),
+                    None,
+                )
+                .reply
+                .unwrap();
+            for _ in 0..100 {
+                drain(server);
+                let Some(token) = server.pending_async().into_iter().next() else {
+                    return;
+                };
+                let reply = calc_func::FetchReply::Body(BODY.as_bytes().to_vec())
+                    .into_value(calc_func::FetchKind::Text);
+                assert_eq!(
+                    server.complete_async(&token, reply),
+                    calc_host::AsyncDisposition::Accepted
+                );
+            }
+            panic!("the fetches did not settle");
+        };
+        enter(
+            &mut server,
+            1,
+            "=FILTERXML(WEBSERVICE(\"http://mock/xml\"),\"//slide/title\")",
+        );
+        enter(
+            &mut server,
+            3,
+            "=FILTERXML(WEBSERVICE(\"http://mock/xml\"),\"/slideshow/@author\")",
+        );
+        let cells = [(1, 1), (2, 1), (1, 3)]
+            .map(|(row, column)| CellKey::new(s, row, column).unwrap())
+            .to_vec();
+        let projection = calc_host::project(
+            server.book().host(),
+            &calc_host::ProjectionRequest { cells },
+        )
+        .unwrap();
+        let text = |at: usize| match projection.cells()[at].value() {
+            calc_host::ProjectedValue::Calculated { value, .. } => match value.core_ref() {
+                calc_host::value::CoreRef::Text(text) => text.to_string_lossy(),
+                other => format!("{other:?}"),
+            },
+            other => format!("{other:?}"),
+        };
+        assert_eq!(text(0), "Wake up to WonderWidgets!");
+        assert_eq!(text(1), "Overview");
+        assert_eq!(text(2), "Yours Truly");
+    }
+
     fn configured(formula: &str) -> (Server, CellKey, Rc<RefCell<Counts>>) {
         let mut server = Server::new();
         let s = server.book.host().sheets()[0].id();
