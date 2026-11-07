@@ -335,10 +335,13 @@ pub(crate) fn excel_expm1_spilled(t: f64) -> f64 {
 }
 
 fn expm1_internal_graph(t: f64, spilled: bool) -> f64 {
-    let u = excel_exp(t);
-    if u == 1.0 {
+    // Up to and including DBL_EPSILON the answer is t, where u == 1 alone would run the correction
+    // on 1.1e-16 to 2.2e-16: consecutive doubles around 2^-52 show the edge through SINH, the last t
+    // at 2^-52 itself, the correction's alternating unit from the next double up.
+    if t.abs() <= f64::EPSILON {
         return t;
     }
+    let u = excel_exp(t);
     let difference = if spilled { excel_x87_sub(u, 1.0) } else { u - 1.0 };
     if t.abs() < 1.0 {
         if spilled {

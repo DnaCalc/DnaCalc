@@ -96,7 +96,7 @@
     {"args":["0xdf38e6b9166f7d1f"],"expected_bits":"error:Num","id":"w111inthyp-heldout-SINH-022874","reading":"r1"},
     {"args":["0xea31e5f41f2c1c65"],"expected_bits":"error:Num","id":"w111inthyp-heldout-SINH-019289","reading":"r1"},
     {"args":["0xf5980b650c1b999d"],"expected_bits":"error:Num","id":"w111inthyp-heldout-SINH-022701","reading":"r1"},
-    {"args":["0x3ca06c91e834ff0b"],"calc_func":"0x3ca06c91e834ff0c","expected_bits":"0x3ca06c91e834ff0b","id":"sinh-tanh-dependency-00194-adjacent-control","reading":"r2"},
+    {"args":["0x3ca06c91e834ff0b"],"expected_bits":"0x3ca06c91e834ff0b","id":"sinh-tanh-dependency-00194-adjacent-control","reading":"r2"},
     {"args":["0x0014012694c20ac1"],"expected_bits":"0x0014012694c20ac1","id":"w111trunchyp-SINH-008506","reading":"r3"},
     {"args":["0x001787573a20ee08"],"expected_bits":"0x001787573a20ee08","id":"w111trunchyp-SINH-007320","reading":"r3"},
     {"args":["0x001924b38bef4855"],"expected_bits":"0x001924b38bef4855","id":"w111trunchyp-SINH-008112","reading":"r3"},

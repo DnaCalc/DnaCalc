@@ -86,7 +86,7 @@
     {"args":["0x008416125a2204a4"],"expected_bits":"0x008416125a2204a4","id":"tanh-composition-heldout-03815-fresh-tiny","reading":"r1"},
     {"args":["0x1b2570850cfd8dbf"],"expected_bits":"0x1b2570850cfd8dbf","id":"tanh-composition-heldout-03483-fresh-tiny","reading":"r1"},
     {"args":["0x32ef1239ddeb4615"],"expected_bits":"0x32ef1239ddeb4615","id":"tanh-composition-heldout-03713-fresh-tiny","reading":"r1"},
-    {"args":["0x3ca82d06ab79fb53"],"calc_func":"0x3ca82d06ab79fb54","expected_bits":"0x3ca82d06ab79fb53","id":"tanh-composition-heldout-04663-expm1-near-one","reading":"r1"},
+    {"args":["0x3ca82d06ab79fb53"],"expected_bits":"0x3ca82d06ab79fb53","id":"tanh-composition-heldout-04663-expm1-near-one","reading":"r1"},
     {"args":["0x3fc5389b03e9c1c8"],"expected_bits":"0x3fc5075f662d5c02","id":"tanh-composition-heldout-02247-fresh-small","reading":"r1"},
     {"args":["0x3fdc7846331cdc98"],"expected_bits":"0x3fdabac316986f79","id":"tanh-composition-heldout-01711-fresh-small","reading":"r1"},
     {"args":["0x3fe7c53efe877158"],"expected_bits":"0x3fe42fedbcb01fcc","id":"tanh-composition-heldout-02917-fresh-small","reading":"r1"},
