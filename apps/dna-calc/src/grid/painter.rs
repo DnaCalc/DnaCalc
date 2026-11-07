@@ -67,8 +67,12 @@ pub(super) fn paint(
     panes: Panes,
     metrics: &GridMetrics,
 ) {
+    // The painter fills every pixel, and only an opaque context gets the LCD text
+    // antialiasing the DOM painter and Excel's raster have.
+    let options = js_sys::Object::new();
+    let _ = js_sys::Reflect::set(&options, &"alpha".into(), &false.into());
     let Some(ctx) = canvas
-        .get_context("2d")
+        .get_context_with_context_options("2d", &options)
         .ok()
         .flatten()
         .and_then(|v| v.dyn_into::<Context>().ok())
@@ -263,7 +267,8 @@ pub(super) fn paint(
         ctx.begin_path();
         rect(&ctx, clip);
         ctx.clip();
-        for line in super::decoration::edges(cell, plan.scale).into_iter().chain(super::decoration::strokes(cell, plan.scale)) {
+        let shift = super::decoration::dash_shift(metrics);
+        for line in super::decoration::edges(cell, plan.scale, shift).into_iter().chain(super::decoration::strokes(cell, plan.scale, shift)) {
             ctx.set_stroke_style_str(&line.color);
             ctx.set_line_width(line.width);
             let dashes = js_sys::Array::new();
@@ -371,7 +376,7 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
     let double = autofit::double_underline(s,Some(&c));
     let integer = autofit::integer_text(&cell.shown, &shown);
     let advance = |line: &str| -> f64 {
-        if integer { alignment::graphemes(line).into_iter().map(|part| width(ctx,&part).round()).sum() }
+        if integer { alignment::graphemes(line).into_iter().map(|part| autofit::integer_advance(s,Some(&c),italic,scale,&part,width(ctx,&part))).sum() }
         else { width(ctx,line) }
     };
     let decorate = |x: f64, y: f64, advance: f64| {
@@ -483,7 +488,7 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
             let mut pen = x;
             for part in alignment::graphemes(line) {
                 let _ = ctx.fill_text(&part, pen, paint_y + baseline);
-                pen += width(ctx, &part).round();
+                pen += autofit::integer_advance(s, Some(&c), italic, scale, &part, width(ctx, &part));
             }
             decorate(x, paint_y, w);
         } else {

@@ -23,6 +23,7 @@
 //! intents.
 
 mod alignment;
+mod gdi_advances;
 pub mod autofit;
 pub mod axis;
 mod decoration;
@@ -1576,8 +1577,9 @@ fn grid_pane(controller: Controller, ctx: PaneContext) -> impl IntoView {
                 else {style.push_str(&format!(";background-image:linear-gradient(to right,{color},{end});background-size:{:.1}% 72%;background-position:left center;background-repeat:no-repeat",share*100.));}
             }
             let strokes=if borders {
-                let mut strokes=decoration::strokes(cell,plan.scale);
-                if expanded {strokes.extend(decoration::edges(cell,plan.scale).into_iter().filter(|line|!line.dash.is_empty()));}
+                let shift=decoration::dash_shift(&metrics.get());
+                let mut strokes=decoration::strokes(cell,plan.scale,shift);
+                if expanded {strokes.extend(decoration::edges(cell,plan.scale,shift).into_iter().filter(|line|!line.dash.is_empty()));}
                 strokes
             }else {Vec::new()};
             let lines=(!strokes.is_empty()).then(|| {
