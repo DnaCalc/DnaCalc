@@ -307,8 +307,8 @@ INTRATE	full	20430	2400	2400	-	exact	9b6d452f27+changes
 INTRATE	pinned	20430	120	120	-	exact	919dd43269+changes
 IPMT	full	20131,20527,?	57	54	2	last_bit	9b6d452f27+changes
 IPMT	pinned	20131,20527	191	191	-	exact	bab456b6f8+changes
-IRR	full	20131,20228,?	734	323	9195100997775460447	structural	9b6d452f27+changes
-IRR	pinned	20131,20228,?	120	42	1860672	structural	919dd43269+changes
+IRR	full	20131,20228,?	734	533	1024	structural	c31226fe39+changes
+IRR	pinned	20131,20228,?	120	86	1024	numeric	c31226fe39+changes
 ISBLANK	full	20430	1227	1227	-	exact	9b6d452f27+changes
 ISBLANK	pinned	20430	120	120	-	exact	919dd43269+changes
 ISERR	full	20430	1227	1227	-	exact	9b6d452f27+changes
@@ -447,8 +447,8 @@ QUOTIENT	full	20430	1362	1350	-	structural	9b6d452f27+changes
 QUOTIENT	pinned	20430	120	119	-	structural	919dd43269+changes
 RADIANS	full	20430	32925	32923	-	structural	9b6d452f27+changes
 RADIANS	pinned	20430	120	119	-	structural	919dd43269+changes
-RATE	full	20131,20228,20527,?	377	5	8956533079650969310	structural	9b6d452f27+changes
-RATE	pinned	20131,20228	120	3	5776069115874796	structural	919dd43269+changes
+RATE	full	20131,20228,20527,?	377	376	1333068467558	gross	c31226fe39+changes
+RATE	pinned	20131,20228	120	120	-	exact	c31226fe39+changes
 RECEIVED	full	20430	2400	2400	-	exact	9b6d452f27+changes
 RECEIVED	pinned	20430	120	120	-	exact	919dd43269+changes
 REGEXTEST	full	20527	6	6	-	exact	9b6d452f27+changes
