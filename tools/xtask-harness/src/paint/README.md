@@ -28,6 +28,10 @@ Every category gives pass, fail, measured and unmeasured/not-applicable counts. 
 several checks. The viewer sorts by failed checks and never by pixel difference rate.
 Display text retains its value provenance; a literal or cached value is not a calculation pass.
 
+`gdi-advances.ps1 -Out FILE` rewrites `apps/dna-calc/src/grid/gdi-advances.bin`, the whole-pixel
+GDI advances of printable ASCII that both painters place Western text with. It reads installed
+fonts and opens no application.
+
 Ink boxes use core foreground pixels with a one-pixel edge tolerance. Baseline displacement
 is estimated by vertically registering ink-row profiles for identical text and matching visible
 line counts, with zero displacement allowed. The strongest match needs similarity at least

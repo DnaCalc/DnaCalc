@@ -23,6 +23,7 @@
 //! intents.
 
 mod alignment;
+mod gdi_advances;
 pub mod autofit;
 pub mod axis;
 mod decoration;

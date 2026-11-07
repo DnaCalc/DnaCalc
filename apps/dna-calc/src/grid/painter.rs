@@ -372,7 +372,7 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
     let double = autofit::double_underline(s,Some(&c));
     let integer = autofit::integer_text(&cell.shown, &shown);
     let advance = |line: &str| -> f64 {
-        if integer { alignment::graphemes(line).into_iter().map(|part| width(ctx,&part).round()).sum() }
+        if integer { alignment::graphemes(line).into_iter().map(|part| autofit::integer_advance(s,Some(&c),italic,scale,&part,width(ctx,&part))).sum() }
         else { width(ctx,line) }
     };
     let decorate = |x: f64, y: f64, advance: f64| {
@@ -484,7 +484,7 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
             let mut pen = x;
             for part in alignment::graphemes(line) {
                 let _ = ctx.fill_text(&part, pen, paint_y + baseline);
-                pen += width(ctx, &part).round();
+                pen += autofit::integer_advance(s, Some(&c), italic, scale, &part, width(ctx, &part));
             }
             decorate(x, paint_y, w);
         } else {
