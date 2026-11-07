@@ -274,9 +274,9 @@ fn preflight(xml: &XmlPart, containers: &[&str]) -> Result<(), SaveRefusal> {
                         "pivotCacheDefinition" => local == "cacheFields",
                         "cacheFields" => local == "cacheField",
                         "cacheField" => local == "sharedItems",
-                        "sharedItems" => matches!(local, "n" | "s" | "b" | "e" | "m"),
+                        "sharedItems" => matches!(local, "n" | "s" | "b" | "e" | "m" | "d"),
                         "pivotCacheRecords" => local == "r",
-                        "r" => matches!(local, "x" | "n" | "s" | "b" | "e" | "m"),
+                        "r" => matches!(local, "x" | "n" | "s" | "b" | "e" | "m" | "d"),
                         _ => false,
                     };
                     if !allowed || e.name.namespace.as_deref() != Some(M) {
@@ -304,17 +304,22 @@ fn preflight(xml: &XmlPart, containers: &[&str]) -> Result<(), SaveRefusal> {
                                     | "containsInteger"
                                     | "minValue"
                                     | "maxValue"
+                                    | "minDate"
+                                    | "maxDate"
                                     | "longText"
                             ),
                             "item" => matches!(a.name.local.as_str(), "x" | "t" | "h"),
                             "i" => matches!(a.name.local.as_str(), "t" | "r" | "i"),
-                            "x" | "n" | "s" | "b" | "e" => a.name.local.as_str() == "v",
+                            "x" | "n" | "s" | "b" | "e" | "d" => a.name.local.as_str() == "v",
                             _ => false,
                         };
                         if !allowed || a.name.namespace.is_some() {
                             return Err(bad(
                                 xml.name(),
-                                "Nested pivot attributes cannot be discarded during refresh",
+                                &format!(
+                                    "Nested pivot attribute {}@{} cannot be discarded during refresh",
+                                    local, a.name.local
+                                ),
                             ));
                         }
                     }
