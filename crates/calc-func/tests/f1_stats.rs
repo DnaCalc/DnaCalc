@@ -617,6 +617,39 @@ fn mod_reports_a_subnormal_remainder_as_num() {
     exact(call("MOD", vec![n(f64::from_bits(0x0020800000000000)), n(f64::from_bits(0x8020000000000000))]), f64::from_bits(0x801f_0000_0000_0000));
 }
 
+/// R33 Excel20527 Value2 logarithm discriminants, with both public aliases.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gammaln_lower_band_uses_worksheet_log() {
+    for (input, expected) in [
+        (0x3f23_7410_0d8d_21f7, 0x4021_a17b_990b_2f65),
+        (0x3eeb_cef4_c976_37f7, 0x4026_7624_1a3b_ff0f),
+        (0x3fb3_e222_d4ab_0ead, 0x4004_1f39_682a_2fff),
+        (0x3cb6_4fc2_de20_2148, 0x4041_db06_8858_611a),
+        (0x3dfb_e7c7_e68d_a078, 0x4035_9fdd_d2a0_ae3e),
+    ] {
+        for function in ["GAMMALN", "GAMMALN.PRECISE"] {
+            exact(call(function, vec![n(f64::from_bits(input))]), f64::from_bits(expected));
+        }
+    }
+}
+
+/// R33 Excel20527 Value2 control: normalization and fourth-power sums are exact.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn kurt_stores_the_leading_coefficient_before_the_fourth_moment() {
+    let values: Vec<_> = [0.0, 0.0, 0.0, -1.0, -2.0, 0.0, 0.0, 0.0, 0.0, 1.0, 2.0]
+        .into_iter().map(n).collect();
+    exact(call("AVERAGE", values.clone()), 0.0);
+    exact(call("STDEV.S", values.clone()), 1.0);
+    let expected = f64::from_bits(0x4000_8888_8888_8886);
+    exact(call("KURT", values.clone()), expected);
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, values);
+    let range = sheet.area(1, 1, 11, 1);
+    exact(call_on(&mut sheet, "KURT", vec![range]), expected);
+}
+
 /// Recorded subnormal inputs reach the measured policies of these functions.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

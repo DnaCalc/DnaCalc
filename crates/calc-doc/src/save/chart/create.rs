@@ -3,7 +3,7 @@ use super::super::parts;
 use super::*;
 use crate::load::{LoadedSheet, MAIN_NAMESPACE};
 use crate::opc::TargetMode;
-use calc_doc_model::{ChartAnchor, DrawingPoint};
+use calc_doc_model::{ChartAnchor, ChartAxis, DrawingPoint};
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 const XDR: &str = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing";
@@ -54,7 +54,7 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
         return Err(fail("Use at most 255 series"));
     }
     let mut indices = BTreeSet::new();
-    for (plot_index, p) in chart.plots.iter().enumerate() {
+    for p in chart.plots.iter() {
         let pie = pie_kind(&p.kind);
         let scatter = p.kind == "scatterChart";
         if !category_kind(&p.kind) && !pie && !scatter {
@@ -137,16 +137,12 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
                 ));
             }
             let horizontal = p.kind == "barChart" && p.bar_direction.as_deref() == Some("bar");
-            if a.position.as_deref()
-                != Some(if combo && plot_index == 1 {
-                    "t"
-                } else if horizontal {
-                    "l"
-                } else {
-                    "b"
-                })
+            // The secondary pair of a combination is the one whose value axis sits on the right;
+            // Excel keeps its category axis, deleted, at the bottom (UI28 combos-created.xlsx).
+            let secondary = combo && b.position.as_deref() == Some("r");
+            if a.position.as_deref() != Some(if horizontal { "l" } else { "b" })
                 || b.position.as_deref()
-                    != Some(if combo && plot_index == 1 {
+                    != Some(if secondary {
                         "r"
                     } else if horizontal {
                         "b"
@@ -203,7 +199,6 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
         if chart.auto_title_deleted { "1" } else { "0" },
     ));
     bytes.extend(b"<c:plotArea><c:layout/>");
-    let mut order = 0u32;
     for p in &chart.plots {
         let scatter = p.kind == "scatterChart";
         bytes.extend(format!("<c:{}>", p.kind).as_bytes());
@@ -223,8 +218,7 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
         for s in &p.series {
             bytes.extend(b"<c:ser>");
             bytes.extend(fresh_number("idx", &s.index.to_string()));
-            bytes.extend(fresh_number("order", &order.to_string()));
-            order += 1;
+            bytes.extend(fresh_number("order", &s.index.to_string()));
             bytes.extend(data_xml("tx", s.name.as_ref()));
             bytes.extend(colour::fresh(s.fill.as_deref()));
             for (slot, data) in [
@@ -237,14 +231,10 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
         }
         if p.kind == "barChart" {
             bytes.extend(fresh_number("gapWidth", "150"));
-            bytes.extend(fresh_number(
-                "overlap",
-                if p.grouping.as_deref() == Some("stacked") {
-                    "100"
-                } else {
-                    "0"
-                },
-            ));
+            // Excel writes overlap only for a stacked bar plot (UI28).
+            if p.grouping.as_deref() == Some("stacked") {
+                bytes.extend(fresh_number("overlap", "100"));
+            }
         }
         if p.kind == "doughnutChart" {
             bytes.extend(fresh_number("holeSize", "50"));
@@ -254,24 +244,57 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
         }
         bytes.extend(format!("</c:{}>", p.kind).as_bytes());
     }
-    for a in &chart.axes {
+    // Excel writes the primary pair, then the secondary value axis, then the secondary category
+    // axis, which is deleted and sits at the bottom (UI28 combos-created.xlsx).
+    let secondary_values: BTreeSet<u32> = chart
+        .axes
+        .iter()
+        .filter(|a| a.kind == "valAx" && matches!(a.position.as_deref(), Some("t" | "r")))
+        .map(|a| a.id)
+        .collect();
+    let is_secondary = |a: &ChartAxis| {
+        combo
+            && (secondary_values.contains(&a.id)
+                || a.cross_axis.is_some_and(|c| secondary_values.contains(&c)))
+    };
+    let secondary_axis = |a: &&ChartAxis| is_secondary(a);
+    let mut axes: Vec<&ChartAxis> = chart.axes.iter().collect();
+    axes.sort_by_key(|a| {
+        if !secondary_axis(a) {
+            0
+        } else if a.kind == "valAx" {
+            1
+        } else {
+            2
+        }
+    });
+    for a in axes {
         bytes.extend(format!("<c:{}>", a.kind).as_bytes());
         bytes.extend(fresh_number("axId", &a.id.to_string()));
         bytes.extend(fresh_scaling(a));
-        let secondary = combo && matches!(a.position.as_deref(), Some("t" | "r"));
+        let secondary = is_secondary(a);
         if secondary && a.kind == "catAx" {
             bytes.extend(fresh_number("delete", "1"));
         }
-        bytes.extend(fresh_number("axPos", a.position.as_deref().unwrap()));
+        bytes.extend(fresh_number(
+            "axPos",
+            if secondary && a.kind == "catAx" {
+                "b"
+            } else {
+                a.position.as_deref().unwrap()
+            },
+        ));
         if a.kind == "valAx" && !secondary {
             bytes.extend(b"<c:majorGridlines/>");
         }
         bytes.extend(b"<c:numFmt formatCode=\"General\" sourceLinked=\"1\"/><c:majorTickMark val=\"none\"/><c:minorTickMark val=\"none\"/><c:tickLblPos val=\"nextTo\"/>");
         bytes.extend(fresh_number("crossAx", &a.cross_axis.unwrap().to_string()));
-        bytes.extend(fresh_number(
-            "crosses",
-            if secondary { "max" } else { "autoZero" },
-        ));
+        if !(secondary && a.kind == "catAx") {
+            bytes.extend(fresh_number(
+                "crosses",
+                if secondary { "max" } else { "autoZero" },
+            ));
+        }
         if a.kind == "catAx" {
             bytes.extend(b"<c:auto val=\"1\"/><c:lblAlgn val=\"ctr\"/><c:lblOffset val=\"100\"/>");
         } else {

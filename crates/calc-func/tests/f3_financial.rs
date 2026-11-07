@@ -623,16 +623,58 @@ fn yield_at_par_on_a_coupon_date_returns_the_recorded_coupon_rate() {
     }
 }
 
-/// Documented one-period formula: DSR is184 days, while E is180 or182.5.
-/// This is a mathematical control, not a new Excel capture.
+/// R33 original Excel20527 scalar readings, including normalized-price and
+/// PC64 division ties. Public coupon/date controls are retained in Research.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn single_period_actual_day_counts_keep_their_own_yield_formula() {
-    for basis in [2.0, 3.0] {
-        let result = dated("YIELD", vec![n(44013.0), n(44197.0), n(0.05), n(100.0), n(100.0), n(2.0), n(basis)]).unwrap();
-        let yield_ = result.as_number().unwrap();
-        assert!(yield_ > 0.0 && yield_ < 0.05, "basis {basis}: {yield_}");
+fn single_period_yield_normalizes_prices_and_stores_the_documented_formula() {
+    for (settlement, maturity, rate, price, frequency, basis, expected) in [
+        (43831.0, 44197.0, 0.0, 95.0, 1.0, 0.0, 0x3faaf286bca1af30),
+        (44013.0, 44197.0, 0.05, 100.0, 2.0, 2.0, 0x3fa9999999999980),
+        (44013.0, 44197.0, 0.05, 100.0, 2.0, 3.0, 0x3fa9999999999980),
+        (44014.0, 44197.0, 0.05, 105.0, 1.0, 0.0, 0xbfa813b10f4d56fe),
+        (44043.0, 44197.0, 0.04125, 95.0, 1.0, 0.0, 0x3fc50c9d68d060ce),
+        (45807.0, 45808.0, f64::from_bits(0x3fa9999999999999), 64.0, 1.0, 0.0, 0x0000000000000000),
+    ] {
+        exact(dated("YIELD", vec![n(settlement), n(maturity), n(rate), n(price),
+            n(100.0), n(frequency), n(basis)]), f64::from_bits(expected));
     }
+}
+
+/// R33 original two-coupon scalar controls: the coupon contributions and
+/// their weighted sum are exact dyadics; only the redemption divisions differ.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn bond_redemption_divisions_store_from_pc64() {
+    let coupon = f64::from_bits(0x3f90b64f83e1c620);
+    let yield_ = f64::from_bits(0x3fe9d05230000000);
+    exact(dated("DURATION", vec![n(43831.0), n(44562.0), n(coupon), n(yield_), n(1.0), n(0.0)]),
+        f64::from_bits(0x3fff8c8410a1aec1));
+    exact(dated("PRICE", vec![n(43831.0), n(44562.0), n(coupon), n(yield_), n(100.0), n(1.0), n(0.0)]),
+        f64::from_bits(0x40400515edc6dc14));
+}
+
+/// R33 zero-coupon division tie. Public DURATION is exactly3 here; the final
+/// MDURATION division distinguishes strict arithmetic from a PC64 store.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn modified_duration_division_stores_from_pc64() {
+    let yield_ = f64::from_bits(0x3fefffffffffffe3);
+    exact(dated("DURATION", vec![n(43831.0), n(44927.0), n(0.0), n(yield_), n(1.0), n(0.0)]), 3.0);
+    exact(dated("MDURATION", vec![n(43831.0), n(44927.0), n(0.0), n(yield_), n(1.0), n(0.0)]),
+        f64::from_bits(0x3ff800000000000a));
+}
+
+/// R33 original POWER/PRICE/DURATION readings at an integer-product tie.
+/// The measured duration differs from the exact three-year time by one ULP.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn bond_integer_powers_keep_their_product_stores() {
+    let yield_ = f64::from_bits(0x3fc000000000000c);
+    exact(dated("DURATION", vec![n(43831.0), n(44927.0), n(0.0), n(yield_), n(1.0), n(0.0)]),
+        f64::from_bits(0x4008000000000001));
+    exact(dated("PRICE", vec![n(43831.0), n(44927.0), n(0.0), n(yield_), n(100.0), n(1.0), n(0.0)]),
+        f64::from_bits(0x40518eecaf953ed6));
 }
 
 /// Original Excel 16.0 build20430 bank observations, cache/oracle-20430:

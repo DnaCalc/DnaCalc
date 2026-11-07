@@ -17,6 +17,8 @@ const M: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 pub(crate) fn missing_output(detail: &str) -> SaveRefusal {
     bad("pivot outputs", detail)
 }
+const X14: &str = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main";
+const FILL_DOWN_URI: &str = "{2946ED86-A175-432a-8AC1-64E0C546D7DE}";
 fn bad(part: &str, detail: impl Into<String>) -> SaveRefusal {
     SaveRefusal::PivotNotModelled {
         part: part.into(),
@@ -181,9 +183,27 @@ fn fields(table: &PivotTable) -> Vec<u8> {
     .into_bytes();
     for field in &table.fields {
         out.extend_from_slice(b"<pivotField");
-        attrs(&field.attributes, &mut out);
+        let mut a = field.attributes.clone();
+        let fill_down = a.remove("fillDownLabels");
+        attrs(&a, &mut out);
+        let extension = fill_down.map(|v| {
+            let mut ext = format!(
+                "<extLst><ext uri=\"{FILL_DOWN_URI}\" xmlns:x14=\"{X14}\"><x14:pivotField"
+            )
+            .into_bytes();
+            attr("fillDownLabels", &v, &mut ext);
+            ext.extend_from_slice(b"/></ext></extLst>");
+            ext
+        });
         if field.items.is_empty() {
-            out.extend_from_slice(b"/>");
+            match extension {
+                Some(ext) => {
+                    out.push(b'>');
+                    out.extend_from_slice(&ext);
+                    out.extend_from_slice(b"</pivotField>");
+                }
+                None => out.extend_from_slice(b"/>"),
+            }
             continue;
         }
         out.extend_from_slice(format!("><items count=\"{}\">", field.items.len()).as_bytes());
@@ -200,9 +220,43 @@ fn fields(table: &PivotTable) -> Vec<u8> {
             }
             out.extend_from_slice(b"/>");
         }
-        out.extend_from_slice(b"</items></pivotField>");
+        out.extend_from_slice(b"</items>");
+        if let Some(ext) = extension {
+            out.extend_from_slice(&ext);
+        }
+        out.extend_from_slice(b"</pivotField>");
     }
     out.extend_from_slice(b"</pivotFields>");
+    out
+}
+fn col_items(table: &PivotTable) -> Vec<u8> {
+    let mut out = format!(
+        "<colItems xmlns=\"{M}\" count=\"{}\">",
+        table.col_items.len()
+    )
+    .into_bytes();
+    for item in &table.col_items {
+        out.extend_from_slice(b"<i");
+        if item.kind != "data" {
+            attr("t", &item.kind, &mut out);
+        }
+        if item.repeat != 0 {
+            attr("r", &item.repeat.to_string(), &mut out);
+        }
+        if item.data_index != 0 {
+            attr("i", &item.data_index.to_string(), &mut out);
+        }
+        if item.indexes.is_empty() {
+            out.extend_from_slice(b"/>");
+            continue;
+        }
+        out.push(b'>');
+        for x in &item.indexes {
+            out.extend_from_slice(format!("<x v=\"{x}\"/>").as_bytes());
+        }
+        out.extend_from_slice(b"</i>");
+    }
+    out.extend_from_slice(b"</colItems>");
     out
 }
 fn row_items(table: &PivotTable) -> Vec<u8> {
@@ -259,17 +313,29 @@ fn preflight(xml: &XmlPart, containers: &[&str]) -> Result<(), SaveRefusal> {
                     active = e.name.namespace.as_deref() == Some(M)
                         && containers.contains(&e.name.local.as_str());
                 }
-                if active {
+                let in_field_ext = active
+                    && path.len() >= 3
+                    && path[path.len() - 1] == "ext"
+                    && path[path.len() - 2] == "extLst"
+                    && path[path.len() - 3] == "pivotField"
+                    && e.name.namespace.as_deref() == Some(X14)
+                    && e.name.local == "pivotField"
+                    && e.attributes.iter().all(|a| a.name.local == "fillDownLabels");
+                if active && !in_field_ext {
                     let local = e.name.local.as_str();
                     let parent = path.last().map(String::as_str).unwrap_or("");
                     let allowed = match parent {
                         "pivotTableDefinition" => {
-                            local == "location" || local == "pivotFields" || local == "rowItems"
+                            local == "location"
+                                || local == "pivotFields"
+                                || local == "rowItems"
+                                || local == "colItems"
                         }
                         "pivotFields" => local == "pivotField",
-                        "pivotField" => local == "items",
+                        "pivotField" => local == "items" || local == "extLst",
+                        "extLst" => local == "ext",
                         "items" => local == "item",
-                        "rowItems" => local == "i",
+                        "rowItems" | "colItems" => local == "i",
                         "i" => local == "x",
                         "pivotCacheDefinition" => local == "cacheFields",
                         "cacheFields" => local == "cacheField",
@@ -288,7 +354,7 @@ fn preflight(xml: &XmlPart, containers: &[&str]) -> Result<(), SaveRefusal> {
                     for a in &e.attributes {
                         let allowed = match local {
                             "location" | "pivotField" | "cacheField" => true,
-                            "pivotFields" | "rowItems" | "items" | "cacheFields" => {
+                            "pivotFields" | "rowItems" | "colItems" | "items" | "cacheFields" => {
                                 a.name.local.as_str() == "count"
                             }
                             "sharedItems" => matches!(
@@ -308,6 +374,8 @@ fn preflight(xml: &XmlPart, containers: &[&str]) -> Result<(), SaveRefusal> {
                                     | "maxDate"
                                     | "longText"
                             ),
+                            "ext" => a.name.local.as_str() == "uri" && a.value == FILL_DOWN_URI,
+                            "extLst" => false,
                             "item" => matches!(a.name.local.as_str(), "x" | "t" | "h"),
                             "i" => matches!(a.name.local.as_str(), "t" | "r" | "i"),
                             "x" | "n" | "s" | "b" | "e" | "d" => a.name.local.as_str() == "v",
@@ -527,7 +595,7 @@ pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
         {
             preflight(
                 &read_part(package, &table.part)?,
-                &["location", "pivotFields", "rowItems"],
+                &["location", "pivotFields", "rowItems", "colItems"],
             )?;
         }
         if old == table {
@@ -538,6 +606,7 @@ pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
         retained.location = old.location.clone();
         retained.fields = old.fields.clone();
         retained.row_items = old.row_items.clone();
+        retained.col_items = old.col_items.clone();
         if &retained != old {
             return Err(bad(
                 &table.part,
@@ -545,12 +614,16 @@ pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
             ));
         }
         let xml = read_part(package, &table.part)?;
-        preflight(&xml, &["location", "pivotFields", "rowItems"])?;
-        let replacements = BTreeMap::from([
+        preflight(&xml, &["location", "pivotFields", "rowItems", "colItems"])?;
+        let mut replacements = BTreeMap::from([
             ("location", location(table)),
             ("pivotFields", fields(table)),
             ("rowItems", row_items(table)),
         ]);
+        // Older and synthetic definitions can lack the container; leave such a part alone.
+        if !old.col_items.is_empty() || !table.col_items.is_empty() {
+            replacements.insert("colItems", col_items(table));
+        }
         out.rewritten.insert(
             table.part.clone(),
             rewrite(&xml, "pivotTableDefinition", &[], &replacements)?,

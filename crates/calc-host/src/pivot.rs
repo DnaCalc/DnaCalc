@@ -42,10 +42,13 @@ fn item(value: &CalcValue) -> Result<PivotItem, String> {
 fn key(item: &PivotItem) -> Result<(u8, String), String> {
     Ok(match item {
         PivotItem::Missing => (0, String::new()),
-        PivotItem::Number(s) => (
+        PivotItem::Number(_) | PivotItem::Date(_) => (
             1,
-            s.parse::<f64>()
-                .ok()
+            match item {
+                PivotItem::Date(_) => item.date_serial(),
+                PivotItem::Number(s) => s.parse::<f64>().ok(),
+                _ => None,
+            }
                 .filter(|n| n.is_finite())
                 .map(|n| format!("{:016x}", if n == 0. { 0 } else { n.to_bits() }))
                 .ok_or_else(|| fail("Invalid saved numeric cache item"))?,
@@ -347,7 +350,7 @@ pub(crate) fn prepare_create(host:&HostState,revision:u64,source:GridArea,destin
     let cache=Arc::new(snapshot(host,&cache,source)?);
     let fields=(0..names.len()).map(|i|{let mut attributes=BTreeMap::from([("showAll".into(),"0".into())]);if i==row as usize{attributes.insert("axis".into(),"axisRow".into());}if i==value as usize{attributes.insert("dataField".into(),"1".into());}PivotField{attributes,items:Vec::new()}}).collect();
     let caption=format!("{operation} of {}",names[value as usize]);let data=PivotDataField{name:Some(caption.clone()),field:value,subtotal:subtotal.into(),attributes:BTreeMap::from([("name".into(),caption),("fld".into(),value.to_string()),("subtotal".into(),subtotal.into())])};
-    let table=PivotTable{name:name.clone(),part,cache_id,area:GridArea::cell(destination),row_fields:vec![row as i32],column_fields:Vec::new(),page_fields:Vec::new(),data_fields:vec![data],attributes:BTreeMap::from([("name".into(),name),("cacheId".into(),cache_id.to_string()),("dataCaption".into(),"Values".into()),("compact".into(),"1".into()),("outline".into(),"0".into()),("rowGrandTotals".into(),"1".into()),("colGrandTotals".into(),"1".into())]),location:BTreeMap::from([("firstHeaderRow".into(),"1".into()),("firstDataRow".into(),"1".into()),("firstDataCol".into(),"1".into())]),fields,row_items:Vec::new(),unsupported:Vec::new()};
+    let table=PivotTable{name:name.clone(),part,cache_id,area:GridArea::cell(destination),row_fields:vec![row as i32],column_fields:Vec::new(),page_fields:Vec::new(),data_fields:vec![data],attributes:BTreeMap::from([("name".into(),name),("cacheId".into(),cache_id.to_string()),("dataCaption".into(),"Values".into()),("compact".into(),"1".into()),("outline".into(),"0".into()),("rowGrandTotals".into(),"1".into()),("colGrandTotals".into(),"1".into())]),location:BTreeMap::from([("firstHeaderRow".into(),"1".into()),("firstDataRow".into(),"1".into()),("firstDataCol".into(),"1".into())]),fields,col_items:Vec::new(),row_items:Vec::new(),unsupported:Vec::new()};
     let table=calc_engine::pivot::layout(&table,&cache).map_err(|e|fail(e.detail))?.table;
     let mut after=(**before).clone();after.caches.caches.insert(cache_id,cache);after.sheets.entry(destination.sheet()).or_default().tables.push(table);
     preflight_output(host,before,&after,source,cache_id)?;host.loaded().check_pivot_state(&after).map_err(|e|e.to_string())?;

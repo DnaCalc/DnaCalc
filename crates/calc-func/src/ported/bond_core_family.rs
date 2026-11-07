@@ -278,9 +278,10 @@ fn period(c: Ctx) -> Result<Period, BondCoreEvalError> {
 /// Two staged cases, both live-Excel identified:
 /// * **Non-negative integer exponent** (on-coupon settlement, where `off = dsc/e = 1`,
 ///   so every `off+k` is an integer) → the C-runtime `pow` integer special case =
-///   **binary exponentiation** (square-and-multiply, plain `f64` multiply). Rust's
-///   `f64::powf` uses `exp·ln` even for integers, so on-coupon PRICE drifts 1–2 ULP
-///   without this. Held-out validated 25/25 across 5 live-Excel bonds (build 20131).
+///   **binary exponentiation** with products stored from PC64. The initial 25
+///   pilot controls did not distinguish the product word. R33 adjacent windows
+///   separate it from strict multiplication on 961 of 10,752 public POWER controls;
+///   the paired weighted-redemption and PRICE compositions match all 10,752.
 /// * **Fractional exponent** (off-coupon) → the `pow` chain
 ///   `exp(RN53(RN64(exp·ln base)))` via the x87 `ln`/`mul`/`exp`, i.e.
 ///   [`crate::ported::excel_numeric::excel_pow_chain`] — NOT the platform `f64::powf`. The two
@@ -294,19 +295,10 @@ fn period(c: Ctx) -> Result<Period, BondCoreEvalError> {
 /// `work/w109/G6-b2b3/agentV_results.md`.
 fn excel_bond_pow(base: f64, exp: f64) -> f64 {
     if exp >= 0.0 && exp < 1024.0 && exp.fract() == 0.0 {
-        let mut n = exp as u64;
-        let mut r = 1.0_f64;
-        let mut b = base;
-        while n > 0 {
-            if n & 1 == 1 {
-                r *= b;
-            }
-            n >>= 1;
-            if n > 0 {
-                b *= b;
-            }
-        }
-        r
+        // R33 on-coupon POWER/PRICE/DURATION controls distinguish the
+        // stored-PC64 products. Reuse the shared integer-power loop directly;
+        // the worksheet POWER wrapper's base-ten policy is a separate rule.
+        crate::ported::power_fn::binexp_positive(base, exp as u64)
     } else {
         crate::ported::excel_numeric::excel_pow_chain(base, exp)
     }
@@ -370,7 +362,13 @@ fn pcomp_disc(
         for k in 0..p.n {
             pv += coup / pw(base, off + k as f64);
         }
-        pv + red / pw(base, off + (p.n - 1) as f64)
+        let redemption_discount = pw(base, off + (p.n - 1) as f64);
+        let redemption_value = if binexp {
+            excel_x87_div(red, redemption_discount)
+        } else {
+            red / redemption_discount
+        };
+        pv + redemption_value
     };
     let accr = coup * a / e;
     Ok((dirty - accr, dirty, coup, a, e))
@@ -581,11 +579,34 @@ pub fn yield_kernel(
         return Ok(rate_);
     }
     if p.n == 1 {
-        let coup = 100.0 * rate_ / c.frequency as f64;
-        let e = dc(p.prev, p.next, c.basis, c.frequency)?;
-        let a = dd(p.prev, c.settlement, c.basis)?;
-        let dsc = dd(c.settlement, p.next, c.basis)?;
-        return Ok((((red + coup) / (price + coup * a / e)) - 1.0) * c.frequency as f64 * e / dsc);
+        // R33 paired COUP/DAYS360 controls isolate the documented normalized
+        // formula. A and DSR share the existing numerator-position day rule;
+        // Actual/360 and Actual/365 use the actual coupon length here. The
+        // public COUPDAYS constants for those two bases are separate results.
+        let f = c.frequency as f64;
+        let e = match c.basis {
+            DayCountBasis::Us30_360 | DayCountBasis::European30_360 => 360.0 / f,
+            _ => act(p.prev, p.next),
+        };
+        let a = days_between_num(p.prev, c.settlement, c.basis)?;
+        let dsc = days_between_num(c.settlement, p.next, c.basis)?;
+        // A positive calendar interval can have zero remaining 30/360 days.
+        // Original last-day controls across prices/rates publish zero there.
+        if dsc == 0.0 {
+            return Ok(0.0);
+        }
+        // Each named arithmetic result stores RN53(RN64(operation)). The
+        // division ties distinguish this word from strict binary64; the
+        // fixed ordinary, month-end and fresh redemption cohorts all agree.
+        let coupon = excel_x87_div(rate_, f);
+        let normalized_price = excel_x87_div(price, 100.0);
+        let normalized_redemption = excel_x87_div(red, 100.0);
+        let accrued = excel_x87_mul(excel_x87_div(a, e), coupon);
+        let dirty = excel_x87_add(normalized_price, accrued);
+        let cash = excel_x87_add(normalized_redemption, coupon);
+        let relative_gain = excel_x87_div(excel_x87_sub(cash, dirty), dirty);
+        let annualization = excel_x87_div(excel_x87_mul(f, e), dsc);
+        return Ok(excel_x87_mul(relative_gain, annualization));
     }
     // Solve over candidate yields with `pcomp` directly. `price_kernel` rejects
     // `yld < 0` via `rate(yld)`, but the root-finder must probe negative candidate
@@ -616,10 +637,12 @@ pub fn duration_kernel(
     // discount factor is Excel's C-runtime `pow` staging (`excel_bond_pow`:
     // binary exponentiation on the on-coupon integer exponents, the legacy x87
     // `exp(RN53(RN64(exp*ln)))` chain off-coupon) — the SAME substrate PRICE
-    // uses. The Macaulay body op-graph is a plain-`f64` (SSE2) accrual with the
-    // redemption as a SEPARATE term and the numerator weight grouped
+    // uses. Coupon terms and their running sums use binary64. Redemption is a
+    // separate term, with the numerator weight grouped
     // `(diff*cash)/disc` (left-assoc), NOT `diff*(cash/disc)`; the final
-    // `num/den/f` association. This is the one internally-consistent kernel:
+    // `num/den/f` association. R33 exact-dyadic nonzero coupons and zero-coupon
+    // controls identify stored-PC64 redemption quotients separately from the
+    // unresolved off-coupon producer. In this kernel,
     // numerator and denominator discount the SAME cashflows with the SAME `off`.
     let coup = 100.0 * coupon / f;
     let e = dc(p.prev, p.next, c.basis, c.frequency)?;
@@ -645,8 +668,8 @@ pub fn duration_kernel(
         num += diff * coup / disc;
         den += coup / disc;
         if k + 1 == p.n {
-            num += diff * 100.0 / disc;
-            den += 100.0 / disc;
+            num += excel_x87_div(diff * 100.0, disc);
+            den += excel_x87_div(100.0, disc);
         }
     }
     Ok(num / den / f)
@@ -660,10 +683,8 @@ pub fn mduration_kernel(
     basis_: Option<f64>,
 ) -> Result<f64, BondCoreEvalError> {
     let f = freq(frequency)? as f64;
-    Ok(
-        duration_kernel(settlement, maturity, coupon, yld, frequency, basis_)?
-            / (1.0 + rate(yld)? / f),
-    )
+    let duration = duration_kernel(settlement, maturity, coupon, yld, frequency, basis_)?;
+    Ok(excel_x87_div(duration, 1.0 + rate(yld)? / f))
 }
 fn is_month_end(s: i64) -> bool {
     ymd_from_excel_serial(WorkbookDateSystem::System1900, s as f64)

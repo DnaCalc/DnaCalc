@@ -14,8 +14,6 @@
 //! of `[1.5,2)` and `[0.7,1.5)` are not identified, and `[1.5,2)` and `[2,3]` are separate bands.
 //!
 //! The x87 operations run on `super::x87::raw` on `x86_64`, and on `super::soft87` elsewhere.
-use crate::ported::excel_numeric::crt_log;
-
 // ---- band anchors (correctly-rounded transcendentals) --------------------
 const D2: f64 = f64::from_bits(0x3FDB_0EE6_0720_93CE); // 1 - EulerGamma
 const D4: f64 = f64::from_bits(0x3FFC_AB0B_FA2A_2002); // ln 6
@@ -298,7 +296,12 @@ pub(crate) fn gammaln_excel(x: f64) -> f64 {
     if x < THR07 {
         let xp = x + 1.0;
         let inner = if xp < 8.0 { core(xp) } else { stirl8(xp) };
-        inner - crt_log(x)
+        // R33 paired public calls below .7: the public upper-band result minus
+        // worksheet LN matches all 1217 adjacent/exponent controls. Another
+        // 257 primitive LN disagreements reject the runtime-log composition.
+        // The upper table remains approximate; subtraction precision was
+        // indistinguishable in those controls and is unchanged here.
+        inner - super::excel_log(x)
     } else if x < 8.0 {
         core(x)
     } else {

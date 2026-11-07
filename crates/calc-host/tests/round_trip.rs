@@ -16880,7 +16880,8 @@ fn dc_8wp_2__refresh_refuses_stale_source_overwrite_and_unmeasured_layouts_atomi
     assert!(book.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual)).accepted());assert!(enter(&mut book,at(sheet,"B2"),"=6+6").accepted());refresh(&mut book);
     assert!(book.dispatch(SkinIntent::Recalculate).accepted());assert!(book.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Automatic)).accepted());
     assert!(enter(&mut book,at(sheet,"A4"),"North").accepted());assert!(enter(&mut book,at(sheet,"D7"),"keep").accepted());refresh(&mut book);assert_eq!(session_value(&book,at(sheet,"D7")),ProjectedValue::Literal(CalcValue::text(calc_value::ExcelText::from_utf16_code_units("keep".encode_utf16().collect()))));
-    let unsupported=package_with_part_from(bytes,"xl/pivotTables/summary.xml",|xml|xml.replace("<rowFields count=\"1\"><field x=\"0\"/></rowFields>","<rowFields count=\"2\"><field x=\"0\"/><field x=\"1\"/></rowFields>"));let mut other=session(&unsupported);refresh(&mut other);
+    let unsupported=package_with_part_from(bytes,"xl/pivotTables/summary.xml",|xml|xml.replace("<dataFields count=\"1\">","<pageFields count=\"1\"><pageField fld=\"1\"/></pageFields><dataFields count=\"1\">"));// Two row fields became measured layouts in UI28; a page field is still unmeasured.
+    let mut other=session(&unsupported);refresh(&mut other);
 }
 
 #[cfg_attr(not(target_arch="wasm32"),test)]

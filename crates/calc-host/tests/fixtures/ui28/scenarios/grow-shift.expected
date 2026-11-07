@@ -1,0 +1,69 @@
+P	A3	s	Region
+P	B3	s	Product
+P	C3	s	Sum Amount
+P	A4	s	East
+P	B4	s	Alpha
+P	C4	n	548
+P	B5	s	Beta
+P	C5	n	606
+P	H5	s	RIGHT SENTINEL
+P	B6	s	Gamma
+P	C6	n	490
+P	B7	s	New4
+P	C7	n	114.5
+P	B8	s	New8
+P	C8	n	143.5
+P	B9	s	New12
+P	C9	n	172.5
+P	A10	s	East Total
+P	C10	n	2074.5
+P	A11	s	North
+P	B11	s	Alpha
+P	C11	n	100
+P	B12	s	Beta
+P	C12	n	227.5
+P	B13	s	Gamma
+P	C13	n	332
+P	B14	s	New14
+P	A15	s	North Total
+P	C15	n	659.5
+P	A16	s	South
+P	B16	s	Alpha
+P	C16	n	591.5
+P	B17	s	Beta
+P	C17	n	475.5
+P	B18	s	Gamma
+P	C18	n	533.5
+P	B19	s	New3
+P	C19	n	107.25
+P	B20	s	New7
+P	C20	n	136.25
+P	B21	s	New11
+P	C21	n	165.25
+P	A22	s	South Total
+P	C22	n	2009.25
+P	A23	s	West
+P	B23	s	Alpha
+P	C23	n	504.5
+P	B24	s	Beta
+P	C24	n	562.5
+P	B25	s	Gamma
+P	C25	n	620.5
+P	B26	s	New5
+P	C26	n	121.75
+P	B27	s	New6
+P	C27	n	121.75
+P	B28	s	New9
+P	C28	n	150.75
+P	B29	s	New13
+P	C29	n	179.75
+P	A30	s	West Total
+P	C30	n	2261.5
+P	A31	s	(blank)
+P	B31	s	New10
+P	C31	n	158
+P	A32	s	(blank) Total
+P	C32	n	158
+P	A33	s	Grand Total
+P	C33	n	7162.75
+P	A100	s	FAR SENTINEL
