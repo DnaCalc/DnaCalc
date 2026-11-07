@@ -175,6 +175,12 @@ impl StyleTable {
     /// of the built-in formats every workbook has; `None` when the cell format does not exist or
     /// names a format neither declares.
     pub fn number_format_code(&self, style: u32) -> Option<&str> {
+        self.number_format_code_with(style, |_| None)
+    }
+
+    /// Resolve undeclared built-ins in the host's regional context. A format explicitly
+    /// declared in the workbook always wins, including one with a built-in ID.
+    pub fn number_format_code_with<'a>(&'a self, style:u32, builtin:impl FnOnce(u32)->Option<&'a str>)->Option<&'a str> {
         let id = self
             .cell_formats
             .get(usize::try_from(style).ok()?)?
@@ -184,6 +190,7 @@ impl StyleTable {
             .iter()
             .find(|format| format.id == id)
             .map(|format| format.code.as_str())
+            .or_else(|| builtin(id))
             .or_else(|| builtin_number_format(id))
     }
 }

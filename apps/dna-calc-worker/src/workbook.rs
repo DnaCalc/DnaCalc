@@ -24,19 +24,55 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
-/// The locale DNA Calc reads entries and shows numbers in.
+/// Native embeddings' fallback locale. Browser workbooks use the browser's regional profile.
 pub const LOCALE: &str = "en-US";
 
 /// The name a new workbook gets until it is saved under another.
 pub const NEW_WORKBOOK_NAME: &str = "Book1.xlsx";
 
-/// The options every workbook is opened with: the en-US locale profile, and the calculation mode
-/// the package declares.
+/// Every workbook uses the same regional context for entry, formulas and displayed values.
+/// An unsupported browser locale retains the en-US fallback; native callers keep that default.
 pub fn host_options() -> HostOptions {
+    #[cfg(target_arch = "wasm32")]
+    let locale=browser_profile().or_else(||FormatProfile::for_culture(LOCALE));
+    #[cfg(not(target_arch = "wasm32"))]
+    let locale=FormatProfile::for_culture(LOCALE);
     HostOptions {
-        locale: FormatProfile::for_culture(LOCALE),
+        locale,
         ..HostOptions::default()
     }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn browser_profile()->Option<FormatProfile> {
+    use wasm_bindgen::{JsCast,JsValue};
+    let get=|value:&JsValue,key:&str|js_sys::Reflect::get(value,&JsValue::from_str(key)).ok();
+    let location=get(&js_sys::global(),"location")?;
+    let url=web_sys::Url::new(&get(&location,"href")?.as_string()?).ok()?;
+    let settings=url.search_params();
+    let navigator=get(&js_sys::global(),"navigator")?;
+    let language=settings.get("locale").or_else(||get(&navigator,"language")?.as_string())?;
+    let profile=FormatProfile::for_culture(&language)?;
+    let intl=get(&js_sys::global(),"Intl")?;
+    let constructor=get(&intl,"NumberFormat")?.dyn_into::<js_sys::Function>().ok()?;
+    let formatter=js_sys::Reflect::construct(&constructor,&js_sys::Array::of1(&JsValue::from_str(&language))).ok()?;
+    let parts=get(&formatter,"formatToParts")?.dyn_into::<js_sys::Function>().ok()?.call1(&formatter,&JsValue::from_f64(12345.6)).ok()?;
+    let mut decimal=None;let mut group=None;
+    for part in js_sys::Array::from(&parts).iter() {
+        match get(&part,"type")?.as_string()?.as_str() {
+            "decimal"=>decimal=get(&part,"value")?.as_string(),
+            "group"=>group=get(&part,"value")?.as_string(),
+            _=>{},
+        }
+    }
+    let decimal=decimal?;let mut group=group?;
+    // Excel's measured en-ZA number-format codes use ordinary-space grouping.
+    if profile.id==calc_func::locale::LocaleId::EnZa && group.chars().all(char::is_whitespace) {
+        group=" ".into();
+    }
+    let decimal=settings.get("decimal-separator").unwrap_or(decimal);
+    let group=settings.get("thousands-separator").unwrap_or(group);
+    profile.with_separators(&decimal,&group)
 }
 
 // A stable clock snapshot belongs to opening or Calculate Now. Sampling during

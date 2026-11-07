@@ -485,8 +485,8 @@ enum Item {
 
 /// A section's items, with quoted text, escapes, `_x` (a space) and `*x` (nothing) resolved.
 fn items(section: &str, profile: &FormatProfile) -> Result<Vec<Item>, Failure> {
-    let decimal = profile.decimal_separator;
-    let group = profile.thousands_separator;
+    let decimal = profile.format_code_decimal_token;
+    let group = profile.format_code_group_token;
     let chars: Vec<char> = section.chars().collect();
     let mut out = Vec::new();
     let mut at = 0;
@@ -1052,7 +1052,7 @@ impl FractionCode {
 /// such code it was given (`# ?/?`, `# ??/??`, `# ???/???`, `# ?/8`, `# ?/100`, `0 ?/?`,
 /// `#,##0 ?/?`; dc-uar, the catalogue oracle's sheet dcuar_text).
 fn mixed_fraction_under_space_grouping(section: &str, profile: &FormatProfile) -> bool {
-    if profile.thousands_separator != " " {
+    if profile.format_code_group_token != " " {
         return false;
     }
     let Some((whole, fraction)) = section.rsplit_once(' ') else {
@@ -1109,6 +1109,34 @@ pub fn cell_text(
     value: &crate::value::CalcValue,
     code: &str,
 ) -> Result<String, CellFormatError> {
+    // OOXML cell formats use invariant punctuation. Their output separators still
+    // come from the host. Formula TEXT retains its separate localized-code contract.
+    let profile=&FormatProfile {
+        format_code_decimal_token:".",
+        format_code_group_token:",",
+        format_code_token_policy:crate::locale::FormatCodeTokenPolicy::InvariantExcel,
+        ..*profile
+    };
+    render_cell_text(profile, system, value, code)
+}
+
+/// A cell value under a format entered using the selected locale's punctuation.
+/// Uses the same value renderer as workbook formats and formula TEXT.
+pub fn cell_text_localized(
+    profile: &FormatProfile,
+    system: DateSystem,
+    value: &crate::value::CalcValue,
+    code: &str,
+) -> Result<String, CellFormatError> {
+    render_cell_text(&localized_code_profile(profile), system, value, code)
+}
+
+fn render_cell_text(
+    profile: &FormatProfile,
+    system: DateSystem,
+    value: &crate::value::CalcValue,
+    code: &str,
+) -> Result<String, CellFormatError> {
     use crate::value::CoreRef;
     let failure = |failure: Failure| match failure {
         Failure::Value => CellFormatError::Unshowable,
@@ -1124,9 +1152,9 @@ pub fn cell_text(
                 Err(CellFormatError::NotModelled)
             }
         }
-        CoreRef::Number(number) => text(profile, system, number, code).map_err(failure),
+        CoreRef::Number(number) => render_text(profile, system, number, code).map_err(failure),
         CoreRef::Text(text) => {
-            text_of_text(&text.to_string_lossy(), code, profile).map_err(failure)
+            render_text_of_text(&text.to_string_lossy(), code, profile).map_err(failure)
         }
         CoreRef::Logical(true) => Ok("TRUE".to_owned()),
         CoreRef::Logical(false) => Ok("FALSE".to_owned()),
@@ -1243,6 +1271,18 @@ pub(crate) fn text_declared_date_locale(system: DateSystem, value: f64, code: &s
 
 /// TEXT of a number under `code`.
 pub(crate) fn text(profile: &FormatProfile, system: DateSystem, value: f64, code: &str) -> Rendered {
+    render_text(&localized_code_profile(profile),system,value,code)
+}
+
+// Formula TEXT reads host punctuation in its code; cell_text supplies invariant tokens.
+// Both call the same section parser and value renderer.
+fn localized_code_profile(profile:&FormatProfile)->FormatProfile {
+    FormatProfile{format_code_decimal_token:profile.decimal_separator,
+        format_code_group_token:profile.thousands_separator,
+        format_code_token_policy:crate::locale::FormatCodeTokenPolicy::LocalizedExcel,..*profile}
+}
+
+fn render_text(profile: &FormatProfile, system: DateSystem, value: f64, code: &str) -> Rendered {
     if !value.is_finite() {
         return Err(Failure::Value);
     }
@@ -1285,7 +1325,7 @@ pub(crate) fn text(profile: &FormatProfile, system: DateSystem, value: f64, code
     if !items.iter().any(|i| matches!(i, Item::Digit(_))) {
         // Fn8 literal-only controls: a run of ordinary-space grouping tokens
         // writes one space. Numeric grouping and trailing scaling stay below.
-        if measured_host(profile) && profile.thousands_separator == " " {
+        if measured_host(profile) && profile.format_code_group_token == " " {
             items.dedup_by(|a, b| *a == Item::Group && *b == Item::Group);
             for item in &mut items {
                 if *item == Item::Group { *item = Item::Literal(" ".to_owned()); }
@@ -1321,6 +1361,9 @@ pub(crate) fn text(profile: &FormatProfile, system: DateSystem, value: f64, code
 /// TEXT of a text value under `code`: the fourth section, or a first section holding `@`, with
 /// `@` written as the text; otherwise the text as it is.
 pub(crate) fn text_of_text(text: &str, code: &str, profile: &FormatProfile) -> Rendered {
+    render_text_of_text(text,code,&localized_code_profile(profile))
+}
+fn render_text_of_text(text: &str, code: &str, profile: &FormatProfile) -> Rendered {
     let sections = sections(code);
     let section = match sections.get(3) {
         Some(section) => section.clone(),
@@ -1354,6 +1397,18 @@ mod tests {
 
     fn t(value: f64, code: &str) -> Rendered {
         text(&host(), DateSystem::System1900, value, code)
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn stored_cell_formats_keep_invariant_tokens_under_localized_formula_separators() {
+        let value=crate::value::CalcValue::number(1234567.891);
+        assert_eq!(cell_text(&host(),DateSystem::System1900,&value,"#,##0.00"),Ok("1 234 567.89".into()));
+        assert_eq!(t(1234567.891,"#,##0"),Ok("1234,568".into()));
+        let german=format_profile(LocaleId::DeDe).with_separators(",",".").unwrap();
+        assert_eq!(cell_text(&german,DateSystem::System1900,&value,"#,##0.00"),Ok("1.234.567,89".into()));
+        assert_eq!(cell_text(&german,DateSystem::System1900,&crate::value::CalcValue::number(45234.567),"dd.mm.yyyy"),Ok("04.11.2023".into()));
+        assert_eq!(cell_text(&german,DateSystem::System1900,&crate::value::CalcValue::number(12.5),"\"v1.2,3 \"0.00"),Ok("v1.2,3 12,50".into()));
     }
 
     /// Every row is Excel's TEXT, FIXED or DOLLAR on this machine (16.0.20430, en-ZA with `.` and

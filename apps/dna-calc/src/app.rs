@@ -269,13 +269,24 @@ pub fn app_with_transport(
     });
 
     let name_box = RwSignal::new(String::new());
-    let name_box_focused = RwSignal::new(false);
+    let name_box_field = NodeRef::<leptos::html::Input>::new();
     let name_box_epoch = StoredValue::new(0u64);
+    // The field owns its text only while it holds native focus. A stored flag cannot answer
+    // this: in a window without system focus, Firefox moves focus without a blur event.
+    let name_box_owns = move || name_box_field.get_untracked().is_some_and(|field| {
+        let field: &web_sys::Element = field.as_ref();
+        field.owner_document().and_then(|page| page.active_element()).as_ref() == Some(field)
+    });
     // A delayed selection reply must not replace a focused native draft or collapse
-    // its Ctrl+A selection before the next key (dc-971p.53).
-    Effect::new(move |_| {
+    // its Ctrl+A selection before the next key (dc-971p.53). A draft belongs to its
+    // workbook, so a replacement retires it and any address still on its way.
+    Effect::new(move |opened: Option<u64>| {
         let (row, col) = controller.active.get();
-        if !name_box_focused.get() { name_box.set(cells::address(row, col)); }
+        let generation = controller.generation.get();
+        let replaced = opened.is_some_and(|opened| opened != generation);
+        if replaced { name_box_epoch.update_value(|n| *n += 1); }
+        if replaced || !name_box_owns() { name_box.set(cells::address(row, col)); }
+        generation
     });
     let go_to = move |text: String| {
         let epoch = name_box_epoch.get_value();
@@ -284,7 +295,6 @@ pub fn app_with_transport(
             // Invalid submissions still restore the address unless newer native input owns it.
             if name_box_epoch.get_value() == epoch { name_box.set(cells::address(row, col)); }
             if accepted && name_box_epoch.get_value() == epoch {
-                name_box_focused.set(false);
                 controller.focus_active_skin();
             }
         })
@@ -741,16 +751,20 @@ pub fn app_with_transport(
                     class="dc-namebox"
                     data-dnacalc="name-box"
                     aria-label="Name box"
-                    on:pointerdown=move |_| { name_box_focused.set(true); name_box_epoch.update_value(|n| *n += 1); }
-                    on:beforeinput=move |_| { name_box_focused.set(true); name_box_epoch.update_value(|n| *n += 1); }
-                    on:compositionstart=move |_| { name_box_focused.set(true); name_box_epoch.update_value(|n| *n += 1); }
-                    on:focus=move |_| { name_box_epoch.update_value(|n| *n += 1); name_box_focused.set(true); }
-                    on:blur=move |_| { name_box_epoch.update_value(|n| *n += 1); name_box_focused.set(false); }
+                    node_ref=name_box_field
+                    on:pointerdown=move |_| name_box_epoch.update_value(|n| *n += 1)
+                    on:beforeinput=move |_| name_box_epoch.update_value(|n| *n += 1)
+                    on:compositionstart=move |_| name_box_epoch.update_value(|n| *n += 1)
+                    on:focus=move |_| name_box_epoch.update_value(|n| *n += 1)
+                    on:blur=move |_| {
+                        name_box_epoch.update_value(|n| *n += 1);
+                        // An abandoned draft gives way to the active cell's address.
+                        let (row, col) = controller.active.get_untracked();
+                        name_box.set(cells::address(row, col));
+                    }
                     prop:value=move || name_box.get()
-                    on:input=move |ev| { name_box_focused.set(true); name_box_epoch.update_value(|n| *n += 1); name_box.set(event_target_value(&ev)); }
+                    on:input=move |ev| { name_box_epoch.update_value(|n| *n += 1); name_box.set(event_target_value(&ev)); }
                     on:keydown=move |ev: leptos::ev::KeyboardEvent| {
-                        // Firefox can deliver native input without a fresh focus event.
-                        name_box_focused.set(true);
                         name_box_epoch.update_value(|n| *n += 1);
                         if ev.key() == "Enter" {
                             ev.prevent_default();

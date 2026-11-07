@@ -216,12 +216,7 @@ pub(super) fn paint(
     // Paint all glyphs after all physical backgrounds. An adjacent styled blank must not
     // erase an earlier cell's overflowing text, and merged fragments use their own clip.
     for cell in &plan.cells {
-        let Some(clip) = cell.clip.or_else(|| {
-            panes::intersection(
-                cell.rect,
-                panes.bounds(metrics, &plan.viewport, cell.row, cell.col),
-            )
-        }) else {
+        let Some(clip) = panes.text_clip(cell, metrics, &plan.viewport) else {
             continue;
         };
         ctx.save();
@@ -482,9 +477,9 @@ fn text(ctx: &Context, cell: &PlannedCell, scale: f64) {
                 decorate(x, y, w);
             }
         } else if integer {
-            // GDI's unwrapped Western baselines occupy whole display pixels. Canvas
-            // otherwise rounds the half-pixel at 150% below the DOM text baseline.
-            let paint_y=if matches!(vertical,"top"|"bottom") {(y+baseline).floor()-baseline}else{y};
+            // Use the nearest baseline pixel; an exact half-pixel belongs to the
+            // preceding pixel, as in the DOM line box. Other fractions round normally.
+            let paint_y=if matches!(vertical,"top"|"bottom") {(y+baseline-0.5).ceil()-baseline}else{y};
             let mut pen = x;
             for part in alignment::graphemes(line) {
                 let _ = ctx.fill_text(&part, pen, paint_y + baseline);

@@ -93,10 +93,12 @@ fn exp_compensated<F: Fpu>(start: f64, terms: &[f64]) -> f64 {
     let mut stored = start;
     let mut factors = [1.0_f64; 2];
     for (term, factor) in terms.iter().zip(factors.iter_mut()) {
-        let difference = F::sub(&load(stored), &load(*term), CW);
-        stored = F::store(&difference, CW);
-        let dropped = F::store(&F::sub(&difference, &load(stored), CW), CW);
+        let next = F::store(&F::sub(&load(stored), &load(*term), CW), CW);
+        // `(a - s) - b`, not `(a - b) - s`: a row whose register difference lost `b`'s low bits sits
+        // on a tie of `1 + dropped`, and Excel's answer there is not that tie's.
+        let dropped = F::store(&F::sub(&F::sub(&load(stored), &load(next), CW), &load(*term), CW), CW);
         *factor = F::store(&F::add(&ext_one(), &load(dropped), CW), CW);
+        stored = next;
     }
     let mut value = exp_with::<F>(stored, CW);
     for factor in &factors[..terms.len()] {
@@ -223,6 +225,47 @@ fn in_series<F: Fpu>(x: f64, np: f64) -> bool {
     let d = if d.0[9] & 0x80 != 0 { ext_chs(&d, CW) } else { d };
     let gap = F::sub(&F::mul(&load(0.2), &F::add(&fx, &fnp, CW), CW), &d, CW);
     gap.0[9] & 0x80 == 0 && gap.0[..8].iter().any(|&byte| byte != 0)
+}
+
+/// The upper tail's continued fraction as Moshier's Cephes writes igamc, in the 64-bit registers,
+/// the answer stored once: `Q(a, x) = r` times this, with `r = x^a exp(-x) / Gamma(a)`.
+pub(crate) fn excel_gamma_fraction(a: f64, x: f64) -> f64 {
+    gamma_fraction::<Native>(a, x)
+}
+
+fn gamma_fraction<F: Fpu>(a: f64, x: f64) -> f64 {
+    const BIG: f64 = 4_503_599_627_370_496.0;
+    const BIG_INVERSE: f64 = 2.220_446_049_250_313e-16;
+    let (mut y, mut c) = (1.0 - a, 0.0);
+    let mut z = x + y + 1.0;
+    let (mut pkm2, mut qkm2) = (ext_one(), load(x));
+    let mut pkm1 = F::add(&load(x), &ext_one(), CW);
+    let mut qkm1 = F::mul(&load(z), &load(x), CW);
+    let mut ans = F::div(&pkm1, &qkm1, CW);
+    loop {
+        c += 1.0;
+        y += 1.0;
+        z += 2.0;
+        let yc = F::mul(&load(y), &load(c), CW);
+        let pk = F::sub(&F::mul(&pkm1, &load(z), CW), &F::mul(&pkm2, &yc, CW), CW);
+        let qk = F::sub(&F::mul(&qkm1, &load(z), CW), &F::mul(&qkm2, &yc, CW), CW);
+        let mut t = 1.0;
+        if qk.0[..8].iter().any(|&byte| byte != 0) {
+            let next = F::div(&pk, &qk, CW);
+            t = F::store(&F::div(&F::sub(&ans, &next, CW), &next, CW), CW).abs();
+            ans = next;
+        }
+        (pkm2, qkm2) = (pkm1, qkm1);
+        (pkm1, qkm1) = (pk, qk);
+        if F::store(&pk, CW).abs() > BIG {
+            let inverse = load(BIG_INVERSE);
+            (pkm2, pkm1) = (F::mul(&pkm2, &inverse, CW), F::mul(&pkm1, &inverse, CW));
+            (qkm2, qkm1) = (F::mul(&qkm2, &inverse, CW), F::mul(&qkm1, &inverse, CW));
+        }
+        if t <= 1.110_223_024_625_156_5e-16 {
+            return F::store(&ans, CW);
+        }
+    }
 }
 
 /// The deviance `x ln(x/np) + np - x` inside its series range. With `d = x - np` and `x + np` stored
