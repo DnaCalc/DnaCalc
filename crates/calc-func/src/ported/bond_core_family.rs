@@ -260,12 +260,21 @@ fn ctx(
         basis,
     })
 }
+/// The coupon period holding settlement. Each coupon date is counted back from maturity itself,
+/// `n` periods at once, never from the coupon after it: a maturity on the 29th or 30th keeps its
+/// day in every month long enough for it, and only a month-end maturity has month-end coupons.
+/// Counting back one period at a time turned a coupon clamped to February 28 into a month end,
+/// and every earlier coupon with it (Excel 16.0.20527, 2026-11-07: settlement 44617, maturity
+/// 45899 (2025-08-30), semiannual, Actual/actual has COUPPCD 44438 (2021-08-30) and PRICE at a
+/// 5% yield of 112.56619226472357; quarterly, Actual/360, 36417 to 37769 (2003-05-28): COUPPCD
+/// 36400, PRICE 118.45016379152898). COUPPCD and its family already count from maturity.
 fn period(c: Ctx) -> Result<Period, BondCoreEvalError> {
     let mpc = 12 / c.frequency;
     let mut next = c.maturity;
     let mut n = 1i64;
     loop {
-        let prev = addm(next, -mpc).ok_or(derr(WorksheetErrorCode::Num))?;
+        let back = mpc.checked_mul(n).ok_or(derr(WorksheetErrorCode::Num))?;
+        let prev = addm(c.maturity, -back).ok_or(derr(WorksheetErrorCode::Num))?;
         if prev <= c.settlement {
             return Ok(Period { prev, next, n });
         }
@@ -1724,6 +1733,22 @@ mod tests {
                 "pin {i}: got 0x{:016x} want 0x{excel:016x}",
                 got.to_bits()
             );
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn price_counts_coupon_dates_back_from_maturity() {
+        // Excel 16.0.20527, 2026-11-07: PRICE at a 5% yield for maturities on the 30th and the
+        // 28th, where the coupon before them falls in February.
+        let cases = [
+            (44617.0, 45899.0, 0.0895, 100.0, 2.0, 1.0, 112.56619226472357),
+            (37099.0, 39081.0, 0.046, 100.0, 2.0, 1.0, 98.11585064820228),
+            (36417.0, 37769.0, 0.1049, 100.0, 4.0, 2.0, 118.45016379152898),
+        ];
+        for (s, m, rate, red, f, b, excel) in cases {
+            let price = price_kernel(s, m, rate, 0.05, red, f, Some(b)).unwrap();
+            assert_eq!(price.to_bits(), f64::to_bits(excel), "PRICE({s},{m}) = {price}, Excel {excel}");
         }
     }
 
