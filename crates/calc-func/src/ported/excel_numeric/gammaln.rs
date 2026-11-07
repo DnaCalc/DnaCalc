@@ -397,6 +397,26 @@ fn gamma_stirling(x: f64) -> f64 {
     super::excel_x87_mul(body, super::excel_exp(super::excel_stirling_series(x)))
 }
 
+/// `GAMMA(-m)` for `m >= 10`: `pi / (GAMMA(m) z)` with `z = m sin(pi t)`, where `t` is the fraction of
+/// `m` folded to at most 1/2. `pi t`, the sine and `z` are stored; the double `pi` is divided by
+/// `GAMMA(m) z` in the registers. On 6,000 Excel 16.0.20527 answers from -170 to -10, 75% agree in
+/// every bit, where the seed chain this replaces was tens of units away; the misses are one unit,
+/// and the spectrum of Excel minus this form at -50.3 has no line standing out.
+fn gamma_reflected(m: f64) -> f64 {
+    use super::soft87::ext_from_f64 as ext;
+    use super::{CW, Fpu, Native};
+
+    let whole = m.floor();
+    let fraction = m - whole;
+    let folded = if fraction > 0.5 { 1.0 - fraction } else { fraction };
+    let sine = super::crt_sin(super::excel_x87_mul(core::f64::consts::PI, folded));
+    let z = super::excel_x87_mul(sine, m);
+    let g = gamma_stirling(m);
+    let product = Native::mul(&ext(g), &ext(z), CW);
+    let value = Native::store(&Native::div(&ext(core::f64::consts::PI), &product, CW), CW);
+    if whole % 2.0 == 0.0 { -value } else { value }
+}
+
 /// `(x-1)(x-2)...(1+y) * seed`, the product from the top, every step stored.
 fn product_times_seed(x: f64, seed: f64) -> f64 {
     let floor = x.floor();
@@ -421,6 +441,9 @@ pub(crate) fn gamma_excel(x: f64) -> f64 {
 
     if x >= 10.0 {
         return gamma_stirling(x);
+    }
+    if x <= -10.0 {
+        return gamma_reflected(-x);
     }
     // Recorded on the decade grid from 1e-307 and on the 27 doubles below 1e-16; 2e-16 misses.
     if x > 0.0 && x <= 1e-16 {

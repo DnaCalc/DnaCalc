@@ -631,14 +631,15 @@ fn gratio_after40(
         // the residual is Excel's statically-linked legacy-CRT exp (one-sided
         // low, fdlibm-proxy 28/45).
         let _ = acc;
+        use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul};
         let mut rr = a;
         let mut c = 1.0f64;
         let mut ans = 1.0f64;
         loop {
             rr += 1.0;
-            c *= x / rr;
-            ans += c;
-            if c / ans <= 1.110_223_024_625_156_5e-16 {
+            c = excel_x87_mul(c, excel_x87_div(x, rr));
+            ans = excel_x87_add(ans, c);
+            if excel_x87_div(c, ans) <= 1.110_223_024_625_156_5e-16 {
                 break;
             }
         }
@@ -684,29 +685,12 @@ fn gratio_after40(
     (0.5 + (0.5 - qans), qans)
 }
 
-/// statement 250: unnormalized continued fraction (two-term recurrences).
-fn gratio_cf(a: f64, x: f64, r: f64, e: f64, acc: f64) -> (f64, f64) {
-    let tol = (5.0 * e).max(acc);
-    let mut a2nm1 = 1.0;
-    let mut a2n = 1.0;
-    let mut b2nm1 = x;
-    let mut b2n = x + (1.0 - a);
-    let mut c = 1.0;
-    let mut an0;
-    loop {
-        a2nm1 = x * a2n + c * a2nm1;
-        b2nm1 = x * b2n + c * b2nm1;
-        let am0 = a2nm1 / b2nm1;
-        c += 1.0;
-        let cma = c - a;
-        a2n = a2nm1 + cma * a2n;
-        b2n = b2nm1 + cma * b2n;
-        an0 = a2n / b2n;
-        if !((an0 - am0).abs() >= tol * an0) {
-            break;
-        }
-    }
-    let qans = r * an0;
+/// The upper tail's continued fraction, in place of Morris's statement 250. In the registers and
+/// stored once, 4,366 of 6,000 adjacent answers at (5.3, 2.3), where every stage stored takes 3,906
+/// and Morris's fewer. The last stages are not read: the misses are one unit.
+fn gratio_cf(a: f64, x: f64, r: f64, _e: f64, _acc: f64) -> (f64, f64) {
+    use crate::ported::excel_numeric::{excel_gamma_fraction, excel_x87_mul};
+    let qans = excel_x87_mul(r, excel_gamma_fraction(a, x));
     (0.5 + (0.5 - qans), qans)
 }
 

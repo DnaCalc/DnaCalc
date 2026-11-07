@@ -41,7 +41,8 @@ param(
     [Parameter(Mandatory = $true)][string]$OutDir,
     [string]$Fn2IndexShapes,
     [string]$QuestionSectionFile = '',
-    [string]$QuestionCase = ''
+    [string]$QuestionCase = '',
+    [string]$QuestionSetupFile = ''
 )
 
 Set-StrictMode -Version 2.0
@@ -141,17 +142,17 @@ function Split-Ref([string]$Ref) {
 # dynamic-array formula over its one cell (cm="1", the metadata part's one cell metadata block, so
 # the workbook must be written with -DynamicArrays). Rows are written in order, each row's cells in
 # column order. $Before is written before sheetData (sheetViews, cols), as the schema orders it.
-function New-OracleSheet($Inputs, $Formulas, $Sources = @(), [string]$Before = '') {
+function New-OracleSheet($Inputs, $Formulas, $Sources = @(), [string]$Before = '', [string]$FormulaColumn = 'D') {
     $rows = @{}
     foreach ($cell in $Inputs) {
         $place = Split-Ref $cell[0]
-        if ($place[1] -eq 'D') { throw "input cell $($cell[0]) is in the formula column D" }
+        if ($place[1] -eq $FormulaColumn) { throw "input cell $($cell[0]) is in the formula column D" }
         if (-not $rows.ContainsKey($place[0])) { $rows[$place[0]] = @{} }
         $rows[$place[0]][$place[1]] = $cell[1]
     }
     foreach ($source in $Sources) {
         $place = Split-Ref $source[0]
-        if ($place[1] -eq 'D') { throw "source cell $($source[0]) is in the formula column D" }
+        if ($place[1] -eq $FormulaColumn) { throw "source cell $($source[0]) is in the formula column D" }
         if (-not $rows.ContainsKey($place[0])) { $rows[$place[0]] = @{} }
         if ($rows[$place[0]].ContainsKey($place[1])) { throw "cell $($source[0]) is written twice" }
         $rows[$place[0]][$place[1]] = '<c r="' + $source[0] + '" cm="1"><f t="array" ref="' + $source[0] + '">' + (Get-Escaped $source[1]) + '</f></c>'
@@ -160,7 +161,7 @@ function New-OracleSheet($Inputs, $Formulas, $Sources = @(), [string]$Before = '
     foreach ($formula in $Formulas) {
         $number += 1
         if (-not $rows.ContainsKey($number)) { $rows[$number] = @{} }
-        $rows[$number]['D'] = '<c r="D' + $number + '"><f>' + (Get-Escaped $formula) + '</f></c>'
+        $rows[$number][$FormulaColumn] = '<c r="' + $FormulaColumn + $number + '"><f>' + (Get-Escaped $formula) + '</f></c>'
     }
     $text = $Decl + '<worksheet xmlns="' + $Main + '" xmlns:r="' + $Rel + '">' + $Before + '<sheetData>'
     foreach ($row in ($rows.Keys | Sort-Object)) {
@@ -297,7 +298,22 @@ if ($QuestionSectionFile -ne '' -or $QuestionCase -ne '') {
         $_.Trim() -ne '' -and -not $_.TrimStart().StartsWith('#')
     })
     if ($questionFormulas.Count -eq 0) { throw 'Question section contains no formulas.' }
-    $questionSheets = @(, @($QuestionCase, (New-OracleSheet @() $questionFormulas)))
+    $questionInputs = @(); $questionColumn = 'D'
+    if ($QuestionSetupFile -ne '') {
+        $setup = Get-Content -LiteralPath $QuestionSetupFile -Raw -Encoding utf8 | ConvertFrom-Json
+        $questionColumn = 'F'
+        foreach ($entry in $setup.PSObject.Properties) {
+            $at = [string]$entry.Name; $value = $entry.Value
+            if ($value.PSObject.Properties['number_bits']) {
+                $number = [BitConverter]::Int64BitsToDouble([Convert]::ToInt64([string]$value.number_bits,16))
+                if ([double]::IsNaN($number) -or [double]::IsInfinity($number)) { throw 'Question input must be finite' }
+                $questionInputs += ,(New-Number $at ($number.ToString('R',[Globalization.CultureInfo]::InvariantCulture)))
+            } elseif ($value.PSObject.Properties['formula']) {
+                $questionInputs += ,@($at, ('<c r="' + $at + '"><f>' + (Get-Escaped ([string]$value.formula).TrimStart('=')) + '</f></c>'))
+            } else { throw ('Unknown authored setup cell ' + $at) }
+        }
+    }
+    $questionSheets = @(, @($QuestionCase, (New-OracleSheet $questionInputs $questionFormulas -FormulaColumn $questionColumn)))
     Write-Workbook $questionPath $questionSheets
     return
 }

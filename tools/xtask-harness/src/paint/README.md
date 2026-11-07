@@ -5,6 +5,13 @@ inputs through the existing fixture writer, captures Excel at 100/75/150%, close
 process, and captures both DOM and Canvas in headless Chrome through the app's upload route.
 Use `--bundle DIR`, `--workbook FILE`, `--zooms 100` or `--excel EXE` to select existing inputs.
 `--normal-font "Arial,10"` changes Normal in generated inputs; imported workbooks keep their font.
+`--locale en-ZA` sets the headless browser's language before the worker opens a workbook.
+The capture records its actual language; Excel's regional context is recorded independently.
+Chrome is the default; `--browser firefox` uses the same capture and comparison route.
+Firefox needs the reference display scale; a different scale is rejected without resampling.
+`--sheet-height 734` keeps the same visible sheet area when application controls occupy more
+space. The command checks the actual CSS viewport and sheet height. Original reference bounds
+still determine which cells can be compared; the requested height is recorded with the inputs.
 Python with Pillow and NumPy, ChromeDriver and installed Excel are required. Nothing is installed.
 `DNACALC_PAINT_PYTHON` selects an installed interpreter; the default is `python` on PATH.
 No workbook with merged cells is authored. An existing workbook can supply merged-cell input.
@@ -36,10 +43,10 @@ and strike-through do not supply baseline measurements. Colour classes group dar
 and broad hues; they do not require identical antialiasing or RGB fringes.
 
 Border positions, widths and dash lengths come from strips across physical cell boundaries.
-Pen bands use a strict colour distance so ClearType text fringes cannot add a false band.
-Dash lengths use complete runs; runs cut by either strip limit are excluded, while interior
-gaps remain. Two missing lengths never establish a match. The median complete dash and gap
-lengths are measured; dash phase and exact waveform identity remain unmeasured.
+Pen samples use a 16-channel-unit colour tolerance so nearby ClearType fringes do not become
+extra border bands. Text retains its wider foreground tolerance. Dash and gap samples exclude
+only runs that touch a strip's limits; a complete first or last interior gap remains measured.
+Missing complete lengths remain unmeasured, while a solid line replacing visible gaps fails.
 Joins compare occupied quadrants at the original corners. All tolerances and original
 observations are retained. Selection requires visible reference edges; an inactive Excel
 capture without an outline establishes no selection-focus parity. Hidden bands, partial cells
@@ -67,3 +74,7 @@ The default four inputs measure Calibri 11 Normal at 96 DPI, the requested text/
 and unscrolled frozen panes. Other Normal fonts, automatic heights, merged inputs and scrolled
 freeze panes require their own recorded captures. Desktop painter comparison remains unmeasured:
 `dna-calc-desktop` hosts XLL/COM and has no worksheet painter. Chrome establishes no desktop parity.
+
+Regional overrides can be passed with `--decimal-separator` and `--thousands-separator`.
+These use the application URL settings, copied to its workbook worker; the capture records them.
+Use the recorded Excel separators when the reference has host overrides that differ from browser defaults.
