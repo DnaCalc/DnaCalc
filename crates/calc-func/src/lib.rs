@@ -38,7 +38,7 @@ mod value_text;
 
 pub use call::{
     ApplicationFacts, CalculationMode, CallAbandoned, CallableInvoker, CellFormatFacts, CellReader,
-    ColumnWidth, EvalServices, FunctionCallScratch, FunctionFault, HorizontalAlignment, HostFacts,
+    ColumnWidth, EvalServices, FunctionCallScratch, FunctionFault, HorizontalAlignment, HostFacts, PivotLookup,
     PreparedArguments, RandomSource, ReferenceText, SubtotalExclusions, TextReference, Unreadable,
     WorkbookFacts, WorkbookFile, invoke, invoke_slice,
 };

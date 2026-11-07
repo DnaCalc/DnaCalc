@@ -30,6 +30,7 @@ mod dates;
 mod distributions;
 mod engineering;
 mod error_fallback;
+mod euro_tools;
 mod financial;
 mod group_pivot;
 mod grouping;
@@ -53,7 +54,7 @@ mod text_functions;
 
 /// The family fragments that make up the catalogue. A new family adds its module above and one
 /// line here; its entries stay in its own file.
-const FAMILIES: [&Family; 31] = [
+const FAMILIES: [&Family; 32] = [
     &arithmetic::FAMILY,
     &comparison::FAMILY,
     &text::FAMILY,
@@ -62,6 +63,7 @@ const FAMILIES: [&Family; 31] = [
     &rounding::FAMILY,
     &conditional::FAMILY,
     &error_fallback::FAMILY,
+    &euro_tools::FAMILY,
     &lookup::FAMILY,
     &information::FAMILY,
     &reference_text::FAMILY,
@@ -505,6 +507,12 @@ impl Catalogue {
         notation: Notation,
         spelling: &str,
     ) -> Result<FunctionCallTarget<'_>, RegistrationError> {
+        if spelling == euro_tools::SURFACE {
+            return Err(RegistrationError::UnknownSurface {
+                notation,
+                spelling: spelling.to_owned(),
+            });
+        }
         self.by_surface
             .binary_search_by(|entry| surface_order(entry, notation, spelling))
             .map(|at| FunctionCallTarget {
@@ -516,15 +524,31 @@ impl Catalogue {
             })
     }
 
-    /// Every entry of the dispatch table, in ID order.
+    /// EUROCONVERT, which only a call qualified by a library link to the Euro Currency Tools
+    /// add-in reaches. No bare spelling resolves to it and [`Catalogue::surfaces`] omits it.
+    pub fn euro_tool_call(&self) -> FunctionCallTarget<'_> {
+        let at = self
+            .by_surface
+            .binary_search_by(|entry| surface_order(entry, Notation::Call, euro_tools::SURFACE))
+            .expect("the add-in's entry");
+        FunctionCallTarget {
+            entry: self.by_surface[at],
+        }
+    }
+
+    /// Every worksheet entry of the dispatch table, in ID order: all but the add-in's.
     pub fn targets(&self) -> impl Iterator<Item = FunctionCallTarget<'_>> + '_ {
-        self.by_id.iter().map(|entry| FunctionCallTarget { entry })
+        self.by_id
+            .iter()
+            .filter(|entry| entry.spelling != euro_tools::SURFACE)
+            .map(|entry| FunctionCallTarget { entry })
     }
 
     /// Every entry of the name table, ordered by notation and then by spelling.
     pub fn surfaces(&self) -> impl Iterator<Item = FunctionCallTarget<'_>> + '_ {
         self.by_surface
             .iter()
+            .filter(|entry| entry.spelling != euro_tools::SURFACE)
             .map(|entry| FunctionCallTarget { entry })
     }
 }

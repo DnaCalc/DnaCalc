@@ -9041,6 +9041,17 @@ Case {
         Action::Click("[data-pivot=Summary] [data-dnacalc=pivot-refresh]"),Action::Wait(Check::PlanCell("E6","text","19")),Action::ClearDownloads,Action::Click("save"),Action::UploadDownload("pivot-saved.xlsx"),Action::DiscardReplacement,Action::OpenDetails("pivot-tools"),Action::Wait(Check::Count("[data-dnacalc=saved-pivot]",2))
     ],checks:&[Check::PlanCell("E6","text","19"),Check::PlanCell("E13","text","19"),Check::PlanCell("E6","provenance","literal"),Check::TextContains("pivot-state","No pivot refresh has run")]},
 
+    Case{name:"GETPIVOTDATA: caption and root field names read actual visible pivot cells",actions:&[
+        Action::Into("name-box","J1\u{E007}"),Action::Into(BAR,"=GETPIVOTDATA(\"Amount\",D3)\u{E007}"),Action::Wait(Check::PlanCell("J1","text","19")),
+        Action::Into("name-box","J2\u{E007}"),Action::Into(BAR,"=GETPIVOTDATA(\"Sum of Amount\",D3,\"Region\",\"East\")\u{E007}"),Action::Wait(Check::PlanCell("J2","text","11"))
+    ],checks:&[Check::PlanCell("J1","provenance","calculated"),Check::PlanCell("J2","provenance","calculated")]},
+    Case{name:"GETPIVOTDATA: source changes wait for refresh and both existing queries update",actions:&[
+        Action::Into("name-box","B2\u{E007}"),Action::Into(BAR,"50\u{E007}"),Action::Wait(Check::PlanCell("H1","text","62")),Action::Wait(Check::PlanCell("J1","text","19")),Action::Wait(Check::Count("[data-dnacalc=saved-pivot]",2)),Action::Click("[data-pivot=Summary] [data-dnacalc=pivot-refresh]"),Action::Wait(Check::PlanCell("J1","text","62"))
+    ],checks:&[Check::PlanCell("J2","text","54"),Check::PlanCell("E6","text","62")]},
+    Case{name:"GETPIVOTDATA: undo and redo restore query dependencies without entering formulas again",actions:&[
+        Action::Click("undo"),Action::Wait(Check::PlanCell("J1","text","19")),Action::Click("redo"),Action::Wait(Check::PlanCell("J1","text","62"))
+    ],checks:&[Check::PlanCell("J2","text","54"),Check::PlanCell("J1","provenance","calculated")]},
+
 ];
 
 /// The script that reads what one check looks at.
@@ -9944,5 +9955,5 @@ CaseGroup {
     CaseGroup {name:"chart-formatting",start:802,end:808,core:6,setup:&[]},
     CaseGroup{name:"chart-text",start:808,end:813,core:5,setup:&[]},
     CaseGroup{name:"chart-category-combos",start:813,end:816,core:3,setup:&[]},
-    CaseGroup{name:"saved-pivots",start:816,end:825,core:9,setup:&[]},
+    CaseGroup{name:"saved-pivots",start:816,end:828,core:12,setup:&[]},
 ];
