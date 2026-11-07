@@ -7,8 +7,9 @@ A better match count does not identify it. No residual cutoffs, answer tables or
 switches chosen by disagreement belong in the implementation.
 Published methods remain generic fallbacks until Excel's actual program is identified.
 
-Owner guidance, 2026-11-07. This is a preference about approach, not a strict rule, and it
-replaces the earlier ban on fitted coefficients. Prefer the small algorithm. Find the shape
+Owner method, 2026-11-07. This replaces the earlier ban on fitted coefficients and the old
+"no tolerance" wording. Tolerances may be part of Excel's own solver; comparisons with recorded
+answers remain exact. Prefer the small algorithm someone would have typed in the 1990s. Find the shape
 by probing the mapping (single-bit-stepped regions, exponent edges, adjacent doubles,
 inverses) and from theory, not by steering on match percentage. A small polynomial extending
 a range is plausible author behaviour. Once the shape is known, recover its exact constants
@@ -189,6 +190,9 @@ For this work, these rules replace conflicting instructions in historical search
 appendices and the witness-fit ranking instruction in `RESEARCH_SOURCES.md`:
 
 - Order proposals by published provenance, size, coherent precision regions and cost.
+  Prefer plausible hand-written trees. Once mapping probes establish the shape, recover
+  its constants by bisection or fitting all known samples, then test fresh answers. Search
+  adjacent constant loads for separating inputs; keep inseparable values undetermined.
   Complete programs survive only exact applicable observations; never rank them by
   match count or keep a beam by numerical closeness. Resource-pruned programs remain
   unsearched. Residuals diagnose failures; regional patterns only propose experiments.
@@ -240,8 +244,10 @@ explicit store, predicate, branch, fold and, later, recurrence/solver nodes.
 Each arithmetic node specifies strict binary64 or an x87 precision/control word;
 extended values remain extended until an explicit binary64 store or final publication.
 Distinguish sharing an intermediate from recomputing it, and FMA from separate operations.
-Constants carry their published source and loading rule: binary64 bits, extended ROM,
-or an explicitly specified derivation. Do not optimize their bits against answer counts.
+Constants carry their published source or measurement and loading rule: binary64 bits,
+extended ROM, an explicitly specified derivation, or recovery from all known samples of a
+separately identified shape. Record the fitting/bisection inputs, neighboring alternatives,
+separating questions and fresh validation. Do not optimize their bits against answer counts.
 Branches require a mathematical/domain condition or independently distinguished exact
 transition; a convenient boundary between regions where two approximations win is insufficient.
 
@@ -258,6 +264,22 @@ adjacent-value probes around independently suspected branches. Freeze questions/
 before answers, then use the existing `witness read --inputs` route on Windows and cache them.
 Hold discovery, fresh validation and previously assumed substrate controls separately.
 Existing round-3/4 validation groups have been inspected and are not fresh validation.
+
+`DnaCalc-Research/racer/plateau_probe.py` uses the existing arithmetic DAG and scalar
+question service to step every named constant to both adjacent doubles. It emits frozen
+predictions and questions wherever public outputs differ. A finite unsuccessful search
+reports "undetermined within search". Its ERFC adapter also checks exact absorption at a
+stored positive Horner sum across the declared domain; that stronger result has a separate
+label and does not determine the original literal. Run from the research checkout:
+
+```sh
+python3 racer/plateau_probe.py erfc ../DnaCalc /path/to/new-run /path/to/cache
+python3 racer/plateau_probe.py probe shape.json inputs.json native.so questions.json
+```
+
+The ERFC search includes mapping samples, consecutive doubles and exponent edges of each
+Horner product. Independently observed EXP leaves replace host estimates before public
+predictions are frozen. Each comparison retains the original typed input readbacks.
 
 ## OxFunc material to adapt
 

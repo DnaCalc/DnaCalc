@@ -2,10 +2,10 @@
   "format": "dnacalc-problem-functions/1",
   "complete": true,
   "application": {
-    "revision": "15e41f862626a767c914246dc59f36a3ce5b7dde",
-    "source_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    "revision": "317178fcf8ee3e8e70a37bf3f7eb5f2254e3ae4f",
+    "source_diff_sha256": "9ec749dbfac41415162ac7f271956c761075f880fa42425c0249da7c77901e40"
   },
-  "executable_sha256": "8ee96a487cfb7616922ac7219f6f5761c5691f82d2bffad50de6041d1c9139c4",
+  "executable_sha256": "b858f071c9e00c02a274d9b984777b2c340c85f6247ebfc537150558a3809e98",
   "bank_source": {
     "revision": "4cb48d15eb9cb2a06becb443b306d637d84e6092",
     "status": "",
@@ -98,67 +98,36 @@
   },
   "corpus": {
     "formula_cells": 54794,
-    "matched": 53255,
-    "inclusive_failed": 1539,
+    "matched": 54094,
+    "inclusive_failed": 700,
     "awaiting_capture": 100,
-    "pass_rate": 0.9719129831733402,
+    "pass_rate": 0.987224878636347,
     "other_failed_verdicts": {
-      "not_run": 7,
-      "not_modeled": 305
+      "not_run": 1
     },
-    "mismatches": 1040,
+    "mismatches": 512,
     "counts": {
-      "larger_numeric": 486,
-      "last_bit": 374,
-      "other_mismatch": 180
+      "larger_numeric": 124,
+      "last_bit": 343,
+      "other_mismatch": 45
     }
   },
   "bank": {
     "rows": 3910007,
-    "matched": 3887320,
-    "failed": 22687,
+    "matched": 3887443,
+    "failed": 22564,
     "counts": {
-      "matched": 3887320,
+      "matched": 3887443,
       "refused": 994,
-      "last_bit": 19306,
+      "last_bit": 19183,
       "larger_numeric": 1747,
       "other_mismatch": 524,
       "unread": 116
     },
-    "pass_rate": 0.9941977085974526,
-    "canonical_trace_sha256": "0012be8eebeea8beaf4cc0d3edd7b94670d8a87160fabcf42d7a738e4e792e97"
+    "pass_rate": 0.9942291663416459,
+    "canonical_trace_sha256": "5ed8af3a3f8e335f70a05c4dbf46d926c500ed304b0230baeac138c6db234da9"
   },
   "functions": [
-    {
-      "function": "LINEST",
-      "corpus": {
-        "larger_numeric": 208,
-        "last_bit": 19,
-        "other_mismatch": 26
-      },
-      "bank": {
-        "larger_numeric": 0,
-        "last_bit": 0,
-        "other_mismatch": 0,
-        "refused": 0,
-        "unread": 0
-      }
-    },
-    {
-      "function": "LOGEST",
-      "corpus": {
-        "larger_numeric": 150,
-        "last_bit": 12,
-        "other_mismatch": 81
-      },
-      "bank": {
-        "larger_numeric": 0,
-        "last_bit": 0,
-        "other_mismatch": 0,
-        "refused": 0,
-        "unread": 0
-      }
-    },
     {
       "function": "CUMPRINC",
       "corpus": {
@@ -169,21 +138,6 @@
       "bank": {
         "larger_numeric": 0,
         "last_bit": 356,
-        "other_mismatch": 0,
-        "refused": 0,
-        "unread": 0
-      }
-    },
-    {
-      "function": "BINOM.DIST",
-      "corpus": {
-        "larger_numeric": 27,
-        "last_bit": 25,
-        "other_mismatch": 0
-      },
-      "bank": {
-        "larger_numeric": 8,
-        "last_bit": 21,
         "other_mismatch": 0,
         "refused": 0,
         "unread": 0
@@ -205,15 +159,15 @@
       }
     },
     {
-      "function": "PPMT",
+      "function": "BINOM.DIST",
       "corpus": {
-        "larger_numeric": 18,
-        "last_bit": 31,
+        "larger_numeric": 27,
+        "last_bit": 24,
         "other_mismatch": 0
       },
       "bank": {
-        "larger_numeric": 0,
-        "last_bit": 8,
+        "larger_numeric": 8,
+        "last_bit": 21,
         "other_mismatch": 0,
         "refused": 0,
         "unread": 0
@@ -239,6 +193,21 @@
       "corpus": {
         "larger_numeric": 30,
         "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
+      "function": "LINEST",
+      "corpus": {
+        "larger_numeric": 7,
+        "last_bit": 19,
         "other_mismatch": 0
       },
       "bank": {
@@ -280,6 +249,21 @@
       }
     },
     {
+      "function": "LOGEST",
+      "corpus": {
+        "larger_numeric": 7,
+        "last_bit": 12,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
       "function": "BETADIST",
       "corpus": {
         "larger_numeric": 0,
@@ -289,21 +273,6 @@
       "bank": {
         "larger_numeric": 17,
         "last_bit": 137,
-        "other_mismatch": 0,
-        "refused": 0,
-        "unread": 0
-      }
-    },
-    {
-      "function": "RATE",
-      "corpus": {
-        "larger_numeric": 0,
-        "last_bit": 0,
-        "other_mismatch": 10
-      },
-      "bank": {
-        "larger_numeric": 1,
-        "last_bit": 0,
         "other_mismatch": 0,
         "refused": 0,
         "unread": 0
@@ -320,51 +289,6 @@
         "larger_numeric": 28,
         "last_bit": 171,
         "other_mismatch": 2,
-        "refused": 0,
-        "unread": 0
-      }
-    },
-    {
-      "function": "COLUMNS",
-      "corpus": {
-        "larger_numeric": 0,
-        "last_bit": 0,
-        "other_mismatch": 6
-      },
-      "bank": {
-        "larger_numeric": 0,
-        "last_bit": 0,
-        "other_mismatch": 0,
-        "refused": 0,
-        "unread": 0
-      }
-    },
-    {
-      "function": "Cell reference (unresolved)",
-      "corpus": {
-        "larger_numeric": 0,
-        "last_bit": 0,
-        "other_mismatch": 6
-      },
-      "bank": {
-        "larger_numeric": 0,
-        "last_bit": 0,
-        "other_mismatch": 0,
-        "refused": 0,
-        "unread": 0
-      }
-    },
-    {
-      "function": "ROWS",
-      "corpus": {
-        "larger_numeric": 0,
-        "last_bit": 0,
-        "other_mismatch": 6
-      },
-      "bank": {
-        "larger_numeric": 0,
-        "last_bit": 0,
-        "other_mismatch": 0,
         "refused": 0,
         "unread": 0
       }
@@ -453,7 +377,7 @@
       },
       "bank": {
         "larger_numeric": 16,
-        "last_bit": 52,
+        "last_bit": 50,
         "other_mismatch": 0,
         "refused": 0,
         "unread": 0
@@ -483,7 +407,7 @@
       },
       "bank": {
         "larger_numeric": 13,
-        "last_bit": 3745,
+        "last_bit": 3733,
         "other_mismatch": 0,
         "refused": 0,
         "unread": 0
@@ -513,7 +437,7 @@
       },
       "bank": {
         "larger_numeric": 2,
-        "last_bit": 66,
+        "last_bit": 62,
         "other_mismatch": 0,
         "refused": 0,
         "unread": 0
@@ -543,7 +467,7 @@
       },
       "bank": {
         "larger_numeric": 3,
-        "last_bit": 27,
+        "last_bit": 26,
         "other_mismatch": 0,
         "refused": 0,
         "unread": 0
@@ -648,7 +572,7 @@
       },
       "bank": {
         "larger_numeric": 574,
-        "last_bit": 1363,
+        "last_bit": 1277,
         "other_mismatch": 0,
         "refused": 0,
         "unread": 0
@@ -895,6 +819,21 @@
       }
     },
     {
+      "function": "T.INV",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 1,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
       "function": "T.INV.2T",
       "corpus": {
         "larger_numeric": 0,
@@ -1053,7 +992,7 @@
       },
       "bank": {
         "larger_numeric": 0,
-        "last_bit": 197,
+        "last_bit": 189,
         "other_mismatch": 0,
         "refused": 0,
         "unread": 0
@@ -1128,7 +1067,7 @@
       },
       "bank": {
         "larger_numeric": 13,
-        "last_bit": 48,
+        "last_bit": 46,
         "other_mismatch": 0,
         "refused": 0,
         "unread": 0
@@ -1900,6 +1839,21 @@
       }
     },
     {
+      "function": "RATE",
+      "corpus": {
+        "larger_numeric": 0,
+        "last_bit": 0,
+        "other_mismatch": 0
+      },
+      "bank": {
+        "larger_numeric": 1,
+        "last_bit": 0,
+        "other_mismatch": 0,
+        "refused": 0,
+        "unread": 0
+      }
+    },
+    {
       "function": "BESSELJ",
       "corpus": {
         "larger_numeric": 0,
@@ -2021,185 +1975,185 @@
     }
   ],
   "corpus_inputs_sha256": {
-    "/home/ubuntu/codex-runs/r34/published-corpus/summary.json": "666fbec5f11c3eb93142abc82d3c54b935b4c5576d6e866f2a3378f8f5d8d3e1",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/summary.json": "a7253b54141edf025e6158c7b2a5b0b033781b5a5e849de6a90b04d46b2fcc94",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-engine/tests/captures/dc_10y/oracle.capture.json": "9431eac30d0e8b2e779356fecd1a57217a94f29c390f111f07f05d9f33697b03",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-engine_dc_10y_oracle.xlsx-c85ad10a6fbceb8d4230fcadd6d1fbba7a95272ecdf5cc6aa2c95ccef4764f6f/evaluations.json": "71873d777c34a83f621396c349cf970bacc3616d4dccc98194ed1a1bdd372ed9",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-engine_dc_10y_oracle.xlsx-c85ad10a6fbceb8d4230fcadd6d1fbba7a95272ecdf5cc6aa2c95ccef4764f6f/triage.json": "d43dc8ea19642cac56664ed8db8a7fd3c17e67841084d61ec4f5dcda5417758b",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-engine_dc_10y_oracle.xlsx-c85ad10a6fbceb8d4230fcadd6d1fbba7a95272ecdf5cc6aa2c95ccef4764f6f/evaluations.json": "71873d777c34a83f621396c349cf970bacc3616d4dccc98194ed1a1bdd372ed9",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-engine_dc_10y_oracle.xlsx-c85ad10a6fbceb8d4230fcadd6d1fbba7a95272ecdf5cc6aa2c95ccef4764f6f/triage.json": "0602af574ace0f84e19124ddbfeedebc43d2f707013a2233dd33d48a629e4a37",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-engine/tests/captures/dc_10y_iteration/oracle.capture.json": "3c32c4b1436186295b6db03e2e6362b311ef4ad9b78b8de769a196b4de638fbe",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-engine_dc_10y_iteration_oracle.xlsx-dd3d66a85327aaa2cfef12f54607821482babdb4947655ba31aa0fccd9fce87f/evaluations.json": "7b61ab1fd6191bd8b711591465913eba631fcf166f28c7d5bf40cdfd66515b48",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-engine_dc_10y_iteration_oracle.xlsx-dd3d66a85327aaa2cfef12f54607821482babdb4947655ba31aa0fccd9fce87f/triage.json": "fd96ffc60fb1ec3589944039bf620e0595f693ad21d1c6f24b14de1a63ea7ced",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-engine_dc_10y_iteration_oracle.xlsx-dd3d66a85327aaa2cfef12f54607821482babdb4947655ba31aa0fccd9fce87f/evaluations.json": "7b61ab1fd6191bd8b711591465913eba631fcf166f28c7d5bf40cdfd66515b48",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-engine_dc_10y_iteration_oracle.xlsx-dd3d66a85327aaa2cfef12f54607821482babdb4947655ba31aa0fccd9fce87f/triage.json": "872e6f64bffdc758d9b8bb01f84d6528d2bf226ed6b32e9c081e745d53ab826e",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-engine/tests/captures/dc_86f/oracle.capture.json": "2b9a0af9c8af9d2a1b92d48b364120b8c28c1cb8654ad3a2b2a88a0c7e2c8ee8",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-engine_dc_86f_oracle.xlsx-7c8887848b182706ca8aefb53418ce66a234d768fec1bd48acfa39a525935da9/evaluations.json": "033ec0ea448c28176de15214412e81e05e002e7378a40a785483ce7f6a85994f",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-engine_dc_86f_oracle.xlsx-7c8887848b182706ca8aefb53418ce66a234d768fec1bd48acfa39a525935da9/triage.json": "4caa2f9c506eefe1d0807c2b849bbc684aead5fba06c4d04a5472be416ad02e3",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-engine_dc_86f_oracle.xlsx-7c8887848b182706ca8aefb53418ce66a234d768fec1bd48acfa39a525935da9/evaluations.json": "033ec0ea448c28176de15214412e81e05e002e7378a40a785483ce7f6a85994f",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-engine_dc_86f_oracle.xlsx-7c8887848b182706ca8aefb53418ce66a234d768fec1bd48acfa39a525935da9/triage.json": "de015809623e0ae8b322c5a8b2a1eeb79308c41f1dfd9318995978efa01cd677",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-engine/tests/captures/dc_y2o/oracle.capture.json": "b7933c0c8dca059c77c2409d0b78497e1cbe85c7257248e8718a06cbb2e7bae9",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-engine_dc_y2o_oracle.xlsx-a96155346bd3ce9df1ff00adb646d79770d0b83ab60a0b1db33bb816c2df69f9/evaluations.json": "f43f8a2cdcc8256d4921e703e0c670e7fa068b016b23b4b96a27538597630ea9",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-engine_dc_y2o_oracle.xlsx-a96155346bd3ce9df1ff00adb646d79770d0b83ab60a0b1db33bb816c2df69f9/triage.json": "87688f5f86934019eeaeab7531e12c04522712f4fde473630f6dc1ff860fb36c",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-engine_dc_y2o_oracle.xlsx-a96155346bd3ce9df1ff00adb646d79770d0b83ab60a0b1db33bb816c2df69f9/evaluations.json": "f43f8a2cdcc8256d4921e703e0c670e7fa068b016b23b4b96a27538597630ea9",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-engine_dc_y2o_oracle.xlsx-a96155346bd3ce9df1ff00adb646d79770d0b83ab60a0b1db33bb816c2df69f9/triage.json": "1635ee04a5a05336e57f3786202752a0442fa5f3c878de28fdc64f14d0bdb56e",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-engine/tests/captures/eng14-raw-nonfinite/oracle.capture.json": "d10b3affe03422b0174701be24ce39b32bd018153369057442b22a40b476b706",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-engine_eng14-raw-nonfinite_oracle.xlsx-240bd72aba9f1471a99d4de4208a75015a53f0d627019b7a15aef08cff055ac3/evaluations.json": "1e32bfbba6af62f9073b12d5938c083a84e0b12816ca61475e112b1bbce655e6",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-engine_eng14-raw-nonfinite_oracle.xlsx-240bd72aba9f1471a99d4de4208a75015a53f0d627019b7a15aef08cff055ac3/triage.json": "c8da122c8157d34edfd8648df9fe41114ad2d33c1fb180f2ceca879a86709a57",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-engine_eng14-raw-nonfinite_oracle.xlsx-240bd72aba9f1471a99d4de4208a75015a53f0d627019b7a15aef08cff055ac3/evaluations.json": "1e32bfbba6af62f9073b12d5938c083a84e0b12816ca61475e112b1bbce655e6",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-engine_eng14-raw-nonfinite_oracle.xlsx-240bd72aba9f1471a99d4de4208a75015a53f0d627019b7a15aef08cff055ac3/triage.json": "52fa8bd0c7124aed965e17b118134502fc16299c5bc87cfe5aa314189b062e04",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-engine/tests/captures/eng15-overflow/oracle.capture.json": "e5eb08956a4ac0c4f8806f598ff0fec8fde7cfe2e25c7765f46e0c0cc71866d5",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-engine_eng15-overflow_oracle.xlsx-603ce07db6e424a5bc457c8edc272440b283bf50d08f2ff6802046d69be3e149/evaluations.json": "74398f26113d4da00a3cf4caa0c29a4632cd298cd1d190e1284c5c2a0dde67b4",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-engine_eng15-overflow_oracle.xlsx-603ce07db6e424a5bc457c8edc272440b283bf50d08f2ff6802046d69be3e149/triage.json": "a6d33c89408f1ad018fbf7d37f25d24dc681adfed6e77ae8e20ce7b6eabb3ffb",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-engine_eng15-overflow_oracle.xlsx-603ce07db6e424a5bc457c8edc272440b283bf50d08f2ff6802046d69be3e149/evaluations.json": "74398f26113d4da00a3cf4caa0c29a4632cd298cd1d190e1284c5c2a0dde67b4",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-engine_eng15-overflow_oracle.xlsx-603ce07db6e424a5bc457c8edc272440b283bf50d08f2ff6802046d69be3e149/triage.json": "6fe06c9c20b15da1e485b30e992a6ab3e1f24855a16af15e0bed1b06dbe3f7e2",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-engine/tests/captures/l3/oracle.capture.json": "89db0e6557207f3f70463d0a765df4b8c3684830c4428dfb00f7cd0af35d0749",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-engine_l3_oracle.xlsx-96830c147c9f3a6cd5fe91dfb1910db59aeffa41a9f8995f9fb1130b698c808a/evaluations.json": "6989737aab4e0206ed2dfffcaf6ff82f3df002af2eafba87cc86b7b4b0911598",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-engine_l3_oracle.xlsx-96830c147c9f3a6cd5fe91dfb1910db59aeffa41a9f8995f9fb1130b698c808a/triage.json": "e8d82258ee644303f0f93f359500ce805da9e1dd2c644ac6ae4fc46de3cbdf09",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-engine_l3_oracle.xlsx-96830c147c9f3a6cd5fe91dfb1910db59aeffa41a9f8995f9fb1130b698c808a/evaluations.json": "6989737aab4e0206ed2dfffcaf6ff82f3df002af2eafba87cc86b7b4b0911598",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-engine_l3_oracle.xlsx-96830c147c9f3a6cd5fe91dfb1910db59aeffa41a9f8995f9fb1130b698c808a/triage.json": "11f1b0217f848436212eda873a8ff1781a026d3f39c9d9253e2360ff40e9b35a",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-fml/tests/captures/dc_51ka/oracle.capture.json": "29855d38aad3adbcbecfd48adc9ecf5ea9591d40ccd43300b5911e66c343bcd0",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-fml_dc_51ka_oracle.xlsx-7a7fd9aa13bb8310d82e17977b434006b6ab41c1abd1591baf1129b4e76b34a1/evaluations.json": "bfc695363600b20462806854aead22b1e792fb16f9c34b01b1058dbb73a96b04",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-fml_dc_51ka_oracle.xlsx-7a7fd9aa13bb8310d82e17977b434006b6ab41c1abd1591baf1129b4e76b34a1/triage.json": "6bc4e2ae8339a4f2c4cf4dd9a0fd0d0d33689ef3fce9fdd67e0d1368e5591f70",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-fml_dc_51ka_oracle.xlsx-7a7fd9aa13bb8310d82e17977b434006b6ab41c1abd1591baf1129b4e76b34a1/evaluations.json": "bfc695363600b20462806854aead22b1e792fb16f9c34b01b1058dbb73a96b04",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-fml_dc_51ka_oracle.xlsx-7a7fd9aa13bb8310d82e17977b434006b6ab41c1abd1591baf1129b4e76b34a1/triage.json": "779f26d4baf8347e5a9a071d0ba4b3a8547aa91f898d75408b86ba1066bc55ce",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-fml/tests/captures/dc_ibp2/oracle.capture.json": "86820e9865002f37365900d62255f2457e6559bb35648d21c7961e3074251570",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-fml_dc_ibp2_oracle.xlsx-59082b145c9a0aa0096dcdd596a54d4b222abea54377c8b575372cc54044dec0/evaluations.json": "b70153a4c8a6d2925b9dfb3cd11dddc8baeab73d22b11ff1b7a55e9cf425c218",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-fml_dc_ibp2_oracle.xlsx-59082b145c9a0aa0096dcdd596a54d4b222abea54377c8b575372cc54044dec0/triage.json": "7e98994fc2d446473c7577000dc0dca6888668f6b642fcf784b8e450b6fb5374",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-fml_dc_ibp2_oracle.xlsx-59082b145c9a0aa0096dcdd596a54d4b222abea54377c8b575372cc54044dec0/evaluations.json": "b70153a4c8a6d2925b9dfb3cd11dddc8baeab73d22b11ff1b7a55e9cf425c218",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-fml_dc_ibp2_oracle.xlsx-59082b145c9a0aa0096dcdd596a54d4b222abea54377c8b575372cc54044dec0/triage.json": "9f1c9c04273e016f0c17a5ae8719b5b297c1394cb29bac795d4bcbb6889b5807",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-fml/tests/captures/dc_l10u/oracle.capture.json": "cd49400b593455c995cbab364301654f5b71abff75d8cf3b9136ab265cb54f33",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-fml_dc_l10u_oracle.xlsx-9e65fa7e8567ae06d19fb45ac5cdb57bfe7b50f646470ef3b0d6ef7d719673a2/evaluations.json": "dd154932723312d9706fbd5c75cf7afacd3e7edf17f098e5db0d11f3f88d6e1f",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-fml_dc_l10u_oracle.xlsx-9e65fa7e8567ae06d19fb45ac5cdb57bfe7b50f646470ef3b0d6ef7d719673a2/triage.json": "28726c050a6a8cc6077f51630d43d3a83ac00cdee98a93a284a9da5fdf75a4ab",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-1.capture.json": "5ce32a05b28d63da006a842a98c78ade8b526050b15bc9c1fd351d27bfd1087b",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-1/evaluations.json": "856492256ceee6a75feeaddf8501b60a4b0cb1997dd9ca6d8ba5754c3500659c",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-1/triage.json": "fc11ae268704b5064907a261b328a35b148334146e0a6c006e181f103c7c2cb8",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-2.capture.json": "59a567927936be915693e2bc58ae047e8aad14512773abf9a3f83d0eebff4c54",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-2/evaluations.json": "a3fcef59a9f531e738f6a9baa11f1c78c85571970875a50e464f6a45ea7ff186",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-2/triage.json": "3476d612e3ae761e7f46a0589a422a7a6930c8e9221a1691e16d6712bfa56d20",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-3.capture.json": "a2e07ca8bb7175326f1c4caec6ff9b1ceffbe73024ea0f2beda91c681deec079",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-3/evaluations.json": "2dacb02bc63d55722f03aa2a5e0ee7ac61442abd7905b4723c9b7a994a6c4af4",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-3/triage.json": "1781320fa04a0c469977041c88217034ab4c5c254bdfbd32d1fd9c0bb74f5814",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-4.capture.json": "25ff7e1febf24a2b006d8edad6ca2a8cd066cc28cf51d0f23b091dc7f6dff5ab",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-4/evaluations.json": "a3c2088a4317253c3443996be97d254fa177c0fb2607ecd2540489a2424ec4d6",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-4/triage.json": "ba323972e62614b927decc5ab39016bc71c7d02036127dac5ad91b8d5f0c2a3b",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-5.capture.json": "17cdfb5723921f8adb5d381086c0b3f3979cbd2e0e8b3260cdc599b49062182f",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-5/evaluations.json": "ed0d69c2dd90250a366dc14863a6c0899fb0cee24cdc2764340e83f4318f477e",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-5/triage.json": "249b2593b918f3ae1cc6175b6e5642e6ae923e04918d03ea9c08893862a731dd",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-fml_dc_l10u_oracle.xlsx-9e65fa7e8567ae06d19fb45ac5cdb57bfe7b50f646470ef3b0d6ef7d719673a2/evaluations.json": "dd154932723312d9706fbd5c75cf7afacd3e7edf17f098e5db0d11f3f88d6e1f",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-fml_dc_l10u_oracle.xlsx-9e65fa7e8567ae06d19fb45ac5cdb57bfe7b50f646470ef3b0d6ef7d719673a2/triage.json": "d33ac928a1e7aa11d3e4c9009955aa0ae314e81d299b22050ba988a49a13ec3e",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-1.capture.json": "5ce32a05b28d63da006a842a98c78ade8b526050b15bc9c1fd351d27bfd1087b",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-1/evaluations.json": "cccee5846c460cb2c400b0a8ff2e7a9da92b0dc71bba3f4af7671cc6b03f3b3a",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-1/triage.json": "e918807e0983f1d5a46f9b72400b08787f7512d7ca9f3b055f069329117da9c0",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-2.capture.json": "59a567927936be915693e2bc58ae047e8aad14512773abf9a3f83d0eebff4c54",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-2/evaluations.json": "d773efbf8cd6347fcbb8d0fb682286fe361d42221c763e36cd0fc86cba5f26dc",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-2/triage.json": "264d9f575d33413b821f2f2aca3a491807a069a2a9bf319704b1494cf23a5509",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-3.capture.json": "a2e07ca8bb7175326f1c4caec6ff9b1ceffbe73024ea0f2beda91c681deec079",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-3/evaluations.json": "3afd5c4fb804ed01fa2994068fdaf04b95d5aa9433fdca220f1213ab015eadd9",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-3/triage.json": "140c2249a8fe82b64f32993b1b824cdd5ae0279524d628dc5fb62a6a167d9dab",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-4.capture.json": "25ff7e1febf24a2b006d8edad6ca2a8cd066cc28cf51d0f23b091dc7f6dff5ab",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-4/evaluations.json": "5056883a3e996f8871d870f2d6971c2b8b58a9b37c85c6d02ad28dfd8533aed8",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-4/triage.json": "d782575f03efb2c4688a2896300414db2386b9782fea5c9bbfe9001d9fbe6d88",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-5.capture.json": "17cdfb5723921f8adb5d381086c0b3f3979cbd2e0e8b3260cdc599b49062182f",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-5/evaluations.json": "55d126e7a2fd32cf9b5311cf6f10bf8a4bdfd9bd5465cb7d6fa8abfd9771a4ce",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_catalogue_oracle.xlsx-ca0cce8580aebe2c88e50b145d17a115df942d25a9f3f90e9dfd6d922430c10a/session-5/triage.json": "54ed515d81a143982012bcb1c520eef89a931f6c8add668c8492ca7cb40e79bf",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/cdoc_jpha/oracle.capture.json": "0715f78c10c025d3ddd5ae94c00638603bf4b83b6cef3d68ece9d1492a21e66d",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_cdoc_jpha_oracle.xlsx-3174ffda41b22f19274f53baf66d60b742c1c0a8ec8ae8ca453f2707198df760/evaluations.json": "e80822bf51f3909882c3e18d349765be29ac60d1fdb350773ffa2cebecc874cd",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_cdoc_jpha_oracle.xlsx-3174ffda41b22f19274f53baf66d60b742c1c0a8ec8ae8ca453f2707198df760/triage.json": "5368cfd98ccd6d77bdc91e201c739f54ee66a17b0dde3cb50e0c270304778930",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_cdoc_jpha_oracle.xlsx-3174ffda41b22f19274f53baf66d60b742c1c0a8ec8ae8ca453f2707198df760/evaluations.json": "e80822bf51f3909882c3e18d349765be29ac60d1fdb350773ffa2cebecc874cd",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_cdoc_jpha_oracle.xlsx-3174ffda41b22f19274f53baf66d60b742c1c0a8ec8ae8ca453f2707198df760/triage.json": "cf463b1cc5a1f13fa99b93fa7b53dcbc66a168e4befc0d2d9dec8de00cf45965",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/cfunc_m1_2/oracle.capture.json": "90e9682f9167a21bc2f09b98bf591d741c32bb4836e4c4d15964a3e35435a2f5",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_cfunc_m1_2_oracle.xlsx-f37656d9c0a1f2cebc11d82eab48fd932a68bfcb29a852780ce7a1b45a6e4d7f/evaluations.json": "f61ca3d65f7686038a79b99600d3c843858bdf75e1ee72597493ea62efa7ebb8",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_cfunc_m1_2_oracle.xlsx-f37656d9c0a1f2cebc11d82eab48fd932a68bfcb29a852780ce7a1b45a6e4d7f/triage.json": "af4c659fb1210d3cba625be5db07ff657ba0b1a79cb250c22fbac578d43dfc37",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_cfunc_m1_2_oracle.xlsx-f37656d9c0a1f2cebc11d82eab48fd932a68bfcb29a852780ce7a1b45a6e4d7f/evaluations.json": "f61ca3d65f7686038a79b99600d3c843858bdf75e1ee72597493ea62efa7ebb8",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_cfunc_m1_2_oracle.xlsx-f37656d9c0a1f2cebc11d82eab48fd932a68bfcb29a852780ce7a1b45a6e4d7f/triage.json": "ed289d02ffd997095b18cedeafba1d8d4a3a8d48db995ae4d82e976f70091fcb",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/cfunc_m3_2/oracle.capture.json": "7979d864021b393e3ed8878bf054081347a819e9b6268b9a45076cde2a37512c",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_cfunc_m3_2_oracle.xlsx-1e3fb218fe5ca44271799b8befe850e34fa12bc9b15e44b4007f19104fb64724/evaluations.json": "b871d83cdf8e954e49d3f6db7f06d128f05acf33205faba8a5f762bc447578ec",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_cfunc_m3_2_oracle.xlsx-1e3fb218fe5ca44271799b8befe850e34fa12bc9b15e44b4007f19104fb64724/triage.json": "6f8d6ad5f042b8bd9d46520b9199fd5233372a4f65c6f8f1b91e8eabffa65e22",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_cfunc_m3_2_oracle.xlsx-1e3fb218fe5ca44271799b8befe850e34fa12bc9b15e44b4007f19104fb64724/evaluations.json": "b871d83cdf8e954e49d3f6db7f06d128f05acf33205faba8a5f762bc447578ec",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_cfunc_m3_2_oracle.xlsx-1e3fb218fe5ca44271799b8befe850e34fa12bc9b15e44b4007f19104fb64724/triage.json": "1bf685dc07205bd454d86f357491c93a303b97f25eef3bd18fb63f2344aa034f",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/cfunc_m3_4/oracle.capture.json": "4f95169adf07860a0733f3fbeb112bd89c6e6f7c6c5b9b720a1948a0a6c52e84",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_cfunc_m3_4_oracle.xlsx-bcafc5cd895033e2a6cd386a4b89638128a689523e00530ebcd5b4a663692200/evaluations.json": "ea1a3b6b81b2055fdf89ab53229a4c96437cedbd872ff414d5526e085a195a8f",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_cfunc_m3_4_oracle.xlsx-bcafc5cd895033e2a6cd386a4b89638128a689523e00530ebcd5b4a663692200/triage.json": "069f369310c18ce792e487b5fa701bae94471da4f020148d72485f9f93707288",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_cfunc_m3_4_oracle.xlsx-bcafc5cd895033e2a6cd386a4b89638128a689523e00530ebcd5b4a663692200/evaluations.json": "ea1a3b6b81b2055fdf89ab53229a4c96437cedbd872ff414d5526e085a195a8f",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_cfunc_m3_4_oracle.xlsx-bcafc5cd895033e2a6cd386a4b89638128a689523e00530ebcd5b4a663692200/triage.json": "3ffcc5e1331d44f1c1178e734490a4ecbe0aa911afbcb632f7d7491eb9a8438a",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/cfunc_m3_5/oracle.capture.json": "a081c92bc67686fb02dee651fd192041c519bf37324319c41a8a3bf3bcd86a44",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_cfunc_m3_5_oracle.xlsx-3be4a5eb6556cd7ef3f0eaced4d6f0fc68382ca9cfdeb76d767e844b3686b40d/evaluations.json": "8ece82e9512dec40a1e64639409b27597f286a90979d825cb483e3c268be55c4",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_cfunc_m3_5_oracle.xlsx-3be4a5eb6556cd7ef3f0eaced4d6f0fc68382ca9cfdeb76d767e844b3686b40d/triage.json": "48675d66a0624f0e6c1c12a4939d13205acfc15d9bd868219527d5103ab3f946",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_cfunc_m3_5_oracle.xlsx-3be4a5eb6556cd7ef3f0eaced4d6f0fc68382ca9cfdeb76d767e844b3686b40d/evaluations.json": "8ece82e9512dec40a1e64639409b27597f286a90979d825cb483e3c268be55c4",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_cfunc_m3_5_oracle.xlsx-3be4a5eb6556cd7ef3f0eaced4d6f0fc68382ca9cfdeb76d767e844b3686b40d/triage.json": "82ee3fa38f76e1df6a6eb32c2976ad71c130b5ea38577c75ffa4d57834d23e75",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/cfunc_m3_6/oracle.capture.json": "5c4fed308a0637f2fe8968a377945aa203b1f2f3f9f0c580f91a0586ac15b482",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_cfunc_m3_6_oracle.xlsx-caa237a0a87d04fd4036dee6e0ca1b84bdd285aa237ccc93d362503494ce0e8b/evaluations.json": "55abaabcb36a1aaf3bfd71253b5d646d92e1d1b9f416874813f5f5f001ad2212",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_cfunc_m3_6_oracle.xlsx-caa237a0a87d04fd4036dee6e0ca1b84bdd285aa237ccc93d362503494ce0e8b/triage.json": "36af26501da0e69951155da57f49d7c1c64323d0086175c9f4eb35159ace77ae",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_cfunc_m3_6_oracle.xlsx-caa237a0a87d04fd4036dee6e0ca1b84bdd285aa237ccc93d362503494ce0e8b/evaluations.json": "55abaabcb36a1aaf3bfd71253b5d646d92e1d1b9f416874813f5f5f001ad2212",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_cfunc_m3_6_oracle.xlsx-caa237a0a87d04fd4036dee6e0ca1b84bdd285aa237ccc93d362503494ce0e8b/triage.json": "eadc09755b7a392fc4cf9f1b79bdb18e2568c5eed3dbec1c705bb778a864f184",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/dc_e00t/oracle.capture.json": "c1d6bab21e84382c38687ce52291f2df34a2745add2d2bd26ec73376c60b7dc1",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dc_e00t_oracle.xlsx-88538be54c1ff8759661981fb415a7f46d2cc5f76c4c6b46631f2886d9fdff3c/evaluations.json": "0225c8790f638eb1dcd62eb31846bc38e24808b69d2fca7c49fcaff3c344d24a",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dc_e00t_oracle.xlsx-88538be54c1ff8759661981fb415a7f46d2cc5f76c4c6b46631f2886d9fdff3c/triage.json": "12fb61dad5019e0ea0ddf9607fe92778cd26527da0a45d6545e7bbc929ae1901",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dc_e00t_oracle.xlsx-88538be54c1ff8759661981fb415a7f46d2cc5f76c4c6b46631f2886d9fdff3c/evaluations.json": "0225c8790f638eb1dcd62eb31846bc38e24808b69d2fca7c49fcaff3c344d24a",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dc_e00t_oracle.xlsx-88538be54c1ff8759661981fb415a7f46d2cc5f76c4c6b46631f2886d9fdff3c/triage.json": "b7e64488c7f130ffb2b7fd856591e5573ed37a19e88242825a0ce680c25c8c67",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/dc_fwpz/oracle.capture.json": "cd43e5aa173f292a67935ee01a2fde3f70066b308c1c0cdaded5dc09f47f4eb3",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dc_fwpz_oracle.xlsx-8c72b027a901d5263eed14b8aa26c773e39645bd236c3cde0c61aad8c7a1776e/evaluations.json": "b59a8bb4cd021367c3075599508bfceaaf0d1e2c077bef90e977ad639cfb6492",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dc_fwpz_oracle.xlsx-8c72b027a901d5263eed14b8aa26c773e39645bd236c3cde0c61aad8c7a1776e/triage.json": "724544c7ed3b7f20a816dd5ee0ee3c687313e6b79f0d861b151fe806d6ccf6d6",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dc_fwpz_oracle.xlsx-8c72b027a901d5263eed14b8aa26c773e39645bd236c3cde0c61aad8c7a1776e/evaluations.json": "b59a8bb4cd021367c3075599508bfceaaf0d1e2c077bef90e977ad639cfb6492",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dc_fwpz_oracle.xlsx-8c72b027a901d5263eed14b8aa26c773e39645bd236c3cde0c61aad8c7a1776e/triage.json": "ee2cec561537a29a1e614be644aab45bc9d9ca9ea6867760b228812950ccef96",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/dc_nzpw/oracle.capture.json": "350617950d36906deedf6caa9e9d2f093f6c30b053bfb6770125f5f0af4231ab",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dc_nzpw_oracle.xlsx-a00beb0092961e06082007939d1d8d92c53e7f7f6f2f73e8d7048ec9b3875460/evaluations.json": "9ecf726b00e5abafecd6f9c59c3724f6bee2b9f8b809499c0ca2d6bc0ef5aaa7",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dc_nzpw_oracle.xlsx-a00beb0092961e06082007939d1d8d92c53e7f7f6f2f73e8d7048ec9b3875460/triage.json": "37cd13d0ed5d5eb7e354b50a4ca079ed783b62fc6b3979921fca28a9ce8945b3",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dc_nzpw_oracle.xlsx-a00beb0092961e06082007939d1d8d92c53e7f7f6f2f73e8d7048ec9b3875460/evaluations.json": "9ecf726b00e5abafecd6f9c59c3724f6bee2b9f8b809499c0ca2d6bc0ef5aaa7",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dc_nzpw_oracle.xlsx-a00beb0092961e06082007939d1d8d92c53e7f7f6f2f73e8d7048ec9b3875460/triage.json": "1c1380959040d6a3ff8060577ebf8e01d19be65027ea596535a0b078bcc9ca84",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/dc_q9rb/oracle.capture.json": "bf204ead52b4691069c69b5595bd6041c23e7fb954287837fd09324ee88bd779",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dc_q9rb_oracle.xlsx-fae71399bb394a4782cdf69bf96557984ac46123f5e36bcfd7bdfe398331f844/evaluations.json": "30b4b00b733dd130aecf5ebf7bdb6258b4a6c0de01affaa95453ffef46be3897",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dc_q9rb_oracle.xlsx-fae71399bb394a4782cdf69bf96557984ac46123f5e36bcfd7bdfe398331f844/triage.json": "2e37d938161170880392a20210d75a4a2ae29bdc2a8fb53167bb38a53dfa58bf",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dc_q9rb_oracle.xlsx-fae71399bb394a4782cdf69bf96557984ac46123f5e36bcfd7bdfe398331f844/evaluations.json": "30b4b00b733dd130aecf5ebf7bdb6258b4a6c0de01affaa95453ffef46be3897",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dc_q9rb_oracle.xlsx-fae71399bb394a4782cdf69bf96557984ac46123f5e36bcfd7bdfe398331f844/triage.json": "465d5335b530a8bacd0a79130e0dd338ccfa755f4ab7861040820948d24b111f",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/dc_xrxb/oracle.capture.json": "0e4814baa16e714e350e4180fe54edd21dc563e953fd5a42f1a6ad76edb7296a",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dc_xrxb_oracle.xlsx-573037bf3f1d1bda3dd67b5d2724e257e7a80f43e97571fc8b20ad3c6230fdde/evaluations.json": "48a568ea8fc909821f7cdebd3c39cc7301cadbaaf7a5ee3cb23dbddedd1e190b",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dc_xrxb_oracle.xlsx-573037bf3f1d1bda3dd67b5d2724e257e7a80f43e97571fc8b20ad3c6230fdde/triage.json": "2a272d9c831b616848dd45535bb65f414c8a3f4bc1c121b40552d62167e5b787",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dc_xrxb_oracle.xlsx-573037bf3f1d1bda3dd67b5d2724e257e7a80f43e97571fc8b20ad3c6230fdde/evaluations.json": "48a568ea8fc909821f7cdebd3c39cc7301cadbaaf7a5ee3cb23dbddedd1e190b",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dc_xrxb_oracle.xlsx-573037bf3f1d1bda3dd67b5d2724e257e7a80f43e97571fc8b20ad3c6230fdde/triage.json": "5b963082dc4244a07b4f55730a5160239135602a5a1b4d3deb787c309533ee3a",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/dcj9k_r21/oracle.capture.json": "ccf890e6c517279b9d9290d95f7c52beeddd6e95937f4774f4fb9af9e6c4d3f2",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcj9k_r21_oracle.xlsx-d3e3f469aad6dcad09edd92021aad4e71157e5b62ba92a99399872f725bfdf53/evaluations.json": "492a55be7b1b039dd3e9d0508352901aac6c57fe8585cb63f5c9ac24e0994cec",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcj9k_r21_oracle.xlsx-d3e3f469aad6dcad09edd92021aad4e71157e5b62ba92a99399872f725bfdf53/triage.json": "219e12ea3cfd01f4661bca735dd65b78bcbbebaccd87f0ec3ddb37df899231ba",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcj9k_r21_oracle.xlsx-d3e3f469aad6dcad09edd92021aad4e71157e5b62ba92a99399872f725bfdf53/evaluations.json": "aa757afca73e87f0f845d72b5447fee68b72bd38b07310b2b2336c6b1a7c9af1",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcj9k_r21_oracle.xlsx-d3e3f469aad6dcad09edd92021aad4e71157e5b62ba92a99399872f725bfdf53/triage.json": "d0299f5fe9ed16f377e69294e2336da0cc209b6e57a54b777e897af560ee4886",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/dcj9k_r22/oracle.capture.json": "2be09699521c71267aa0e817d8c3473472d5a90ba26d07c3fb7187da2d870577",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcj9k_r22_oracle.xlsx-7c97260e239506e0255c9c6930229ce97b4678ef805d0945380a00fc56309317/evaluations.json": "0cbaf454a41d4a9d71e3b3d33a7c6427ac2ef3e65d8adc36c29ac9fb01cb4f20",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcj9k_r22_oracle.xlsx-7c97260e239506e0255c9c6930229ce97b4678ef805d0945380a00fc56309317/triage.json": "e6fe0b10500ba01183e8b5e2b086e0ce155c290801e5b6bbb91d3be8523af1c2",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcj9k_r22_oracle.xlsx-7c97260e239506e0255c9c6930229ce97b4678ef805d0945380a00fc56309317/evaluations.json": "0cbaf454a41d4a9d71e3b3d33a7c6427ac2ef3e65d8adc36c29ac9fb01cb4f20",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcj9k_r22_oracle.xlsx-7c97260e239506e0255c9c6930229ce97b4678ef805d0945380a00fc56309317/triage.json": "853e8c502f59eb93d93705f6e549b1c9d3266b0840dbdb69be7cc6c3e99d7459",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/dcj9k_r25_bessel/oracle.capture.json": "279ac866121fd3f2225498a9d732db50fd17ed61a9fccca139469ba3250c0516",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcj9k_r25_bessel_oracle.xlsx-45d0006cf4068fb997f83e61ca51131dd55e0c020b44c11de79c28db95389f36/evaluations.json": "46db1f2b3cf5565d53f8c0647eecb3ff24a95d8d7d9be3750b2d6a6fdcc5a622",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcj9k_r25_bessel_oracle.xlsx-45d0006cf4068fb997f83e61ca51131dd55e0c020b44c11de79c28db95389f36/triage.json": "46ff96c43ee7fdab667ac3b062cb0c72f9a42d9129f4909c829a861f229997bd",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcj9k_r25_bessel_oracle.xlsx-45d0006cf4068fb997f83e61ca51131dd55e0c020b44c11de79c28db95389f36/evaluations.json": "46db1f2b3cf5565d53f8c0647eecb3ff24a95d8d7d9be3750b2d6a6fdcc5a622",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcj9k_r25_bessel_oracle.xlsx-45d0006cf4068fb997f83e61ca51131dd55e0c020b44c11de79c28db95389f36/triage.json": "7d4c52d58d67c7fbad27701e49bba6ba5cdb8c85f0b44f7dbbb3db75b18e993e",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/dcj9k_r25_discrete/oracle.capture.json": "caa3674b8518b49cc08a02be09bb63304ce01b1922ba37e750ec7b18f2e0794b",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcj9k_r25_discrete_oracle.xlsx-5dc95ca7ab30a0adc77658cae357fe51bf1931712be3a11f2c80fbbdde0b7dec/evaluations.json": "5faee762c515477129909c642dcbc1f6dffb00a80d5f6e98cbbdb6877622e95e",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcj9k_r25_discrete_oracle.xlsx-5dc95ca7ab30a0adc77658cae357fe51bf1931712be3a11f2c80fbbdde0b7dec/triage.json": "917f232aabe4989b1f97ecbcbc65c9dbd36faf9696a6793998cecbbd876ca084",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcj9k_r25_discrete_oracle.xlsx-5dc95ca7ab30a0adc77658cae357fe51bf1931712be3a11f2c80fbbdde0b7dec/evaluations.json": "5faee762c515477129909c642dcbc1f6dffb00a80d5f6e98cbbdb6877622e95e",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcj9k_r25_discrete_oracle.xlsx-5dc95ca7ab30a0adc77658cae357fe51bf1931712be3a11f2c80fbbdde0b7dec/triage.json": "fad2f5127a29ebe5ee598fab632d00f1253305867fe882934219233d8b87eacc",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/dcj9k_r25_geomean/oracle.capture.json": "f9a99918a24a5fb8627551c2a8aea8b3a0b7a285e35a8070bba5b84621b4ec81",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcj9k_r25_geomean_oracle.xlsx-f1807f921c34ef82b146d918dbaf94aa82e4c67c739ad8a42cd969df0b428fec/evaluations.json": "843ce5d4f894129d5625922793a9e3ed698815c89ec15da1bfeff4c14116b1aa",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcj9k_r25_geomean_oracle.xlsx-f1807f921c34ef82b146d918dbaf94aa82e4c67c739ad8a42cd969df0b428fec/triage.json": "68903c3a553ec415e3ff3fbed87745f0aa71abea91c74d4da90d15acdd74d848",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcj9k_r25_geomean_oracle.xlsx-f1807f921c34ef82b146d918dbaf94aa82e4c67c739ad8a42cd969df0b428fec/evaluations.json": "843ce5d4f894129d5625922793a9e3ed698815c89ec15da1bfeff4c14116b1aa",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcj9k_r25_geomean_oracle.xlsx-f1807f921c34ef82b146d918dbaf94aa82e4c67c739ad8a42cd969df0b428fec/triage.json": "ae1094c801ac4d53577bd28aba6d42c91195d1e4d5cd8a04816e1bed49156a40",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/dcj9k_r25_guard_transfer/oracle.capture.json": "8a3b3de6d0e262e75fe8222353252eb5b3e190931fdbdc71011f21e0e492288d",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcj9k_r25_guard_transfer_oracle.xlsx-279077b0ed145ce4cf45035cedad0a7df5f74bec2fd4312b79c4526ba396c62c/evaluations.json": "4465938f095beee9f9520b6f40574c63584dfd62d7f07ed7ff029868ab64756e",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcj9k_r25_guard_transfer_oracle.xlsx-279077b0ed145ce4cf45035cedad0a7df5f74bec2fd4312b79c4526ba396c62c/triage.json": "f3fa17755f41e370953f07a4bd069c21387e1a89b90093eaffe2e61dbf7c9c3a",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcj9k_r25_guard_transfer_oracle.xlsx-279077b0ed145ce4cf45035cedad0a7df5f74bec2fd4312b79c4526ba396c62c/evaluations.json": "4465938f095beee9f9520b6f40574c63584dfd62d7f07ed7ff029868ab64756e",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcj9k_r25_guard_transfer_oracle.xlsx-279077b0ed145ce4cf45035cedad0a7df5f74bec2fd4312b79c4526ba396c62c/triage.json": "37881ac8d53748d12a8fd1c7120b61830b3b1d3a17956f7e3b714d9cd6006057",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/dcj9k_r25_qr_stores/oracle.capture.json": "f890edf79266855961b828c1868e4917c63cb8bdcae9bcc8858eb8c850a489ed",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcj9k_r25_qr_stores_oracle.xlsx-4e4c807e554b36d9765411f3c6d6638fcfdf7e1ecf2a45bd056b806b80c174aa/evaluations.json": "073e4c479a571bab04dbe9b205fd3599ca379a2b55934b17fe3f97e70c4bec76",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcj9k_r25_qr_stores_oracle.xlsx-4e4c807e554b36d9765411f3c6d6638fcfdf7e1ecf2a45bd056b806b80c174aa/triage.json": "dabe7f1067608ed5ac0bc13d3ba535fef9f52be5870544ba0ec2407fc7e2a771",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcj9k_r25_qr_stores_oracle.xlsx-4e4c807e554b36d9765411f3c6d6638fcfdf7e1ecf2a45bd056b806b80c174aa/evaluations.json": "073e4c479a571bab04dbe9b205fd3599ca379a2b55934b17fe3f97e70c4bec76",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcj9k_r25_qr_stores_oracle.xlsx-4e4c807e554b36d9765411f3c6d6638fcfdf7e1ecf2a45bd056b806b80c174aa/triage.json": "f82b323efe34cc5fc16a43e17741f8aaf170e1323f71ae99626cebe54a911221",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/dcj9k_r25_regression/oracle.capture.json": "f476117fb7d9a0b2f629240367b26566ba8345d3e25dddbeaccb5368f1ba0ff9",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcj9k_r25_regression_oracle.xlsx-76d56d5636f3081372a1c19f27b5b03ddc0ad6e480bb11d76a1897f3fdd0cdb7/evaluations.json": "3c65a6602c88f5d039b35810e1dbf389ca1b941a957fc9f5c6be6bf8a42eb8b1",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcj9k_r25_regression_oracle.xlsx-76d56d5636f3081372a1c19f27b5b03ddc0ad6e480bb11d76a1897f3fdd0cdb7/triage.json": "412db5d4b56234b23f1337d1514a4c6a289ba19e2febc945eb0b2b4d2d595b65",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcj9k_r25_regression_oracle.xlsx-76d56d5636f3081372a1c19f27b5b03ddc0ad6e480bb11d76a1897f3fdd0cdb7/evaluations.json": "3f4376732a250cf67b244a5268d77a93bd1b27445f15f9df1c79fca48264f0f1",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcj9k_r25_regression_oracle.xlsx-76d56d5636f3081372a1c19f27b5b03ddc0ad6e480bb11d76a1897f3fdd0cdb7/triage.json": "e02a36ae84ce997ddb0af2b5be9139a6e88fa51fc41ea110ff962f918466d68c",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/dcj9k_r25_variance/oracle.capture.json": "cc75ef55e80c68402fcb267b2a3dfbd243b5f0c0af6687a23cf0f18d421af5e9",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcj9k_r25_variance_oracle.xlsx-dbe41c03b3c8633132cc8206989a818a3d8e218dae2d4075790228e1752dd413/evaluations.json": "d1b6facbeacbf33049fc4e9cfa9b9dd317fe4571680717f07434e1f1ff76902c",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcj9k_r25_variance_oracle.xlsx-dbe41c03b3c8633132cc8206989a818a3d8e218dae2d4075790228e1752dd413/triage.json": "58bb0ed9e85f12a156b5bec9492024affb5ded593681c4b4a9761cd7c7c17656",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcj9k_r25_variance_oracle.xlsx-dbe41c03b3c8633132cc8206989a818a3d8e218dae2d4075790228e1752dd413/evaluations.json": "d1b6facbeacbf33049fc4e9cfa9b9dd317fe4571680717f07434e1f1ff76902c",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcj9k_r25_variance_oracle.xlsx-dbe41c03b3c8633132cc8206989a818a3d8e218dae2d4075790228e1752dd413/triage.json": "709d40f370a22af31b8136eaec36d2154693ee687bf006ae54f72d6d3b6c113a",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/dcj9k_r26_regression/oracle.capture.json": "4073f638d3e2b8c0f71d58d5237c6e207a2006ecb3c6f1cea8bdcc69705be03c",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcj9k_r26_regression_oracle.xlsx-52ab13a3a5eb860c007efdd637573a517918f137c2db5afcc1be17807a70bd54/evaluations.json": "f8a1cde2640ef4516b323a955059fa21d83bb4564dd24e73180c356e048b732a",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcj9k_r26_regression_oracle.xlsx-52ab13a3a5eb860c007efdd637573a517918f137c2db5afcc1be17807a70bd54/triage.json": "86bf23edeb2c2bb44446855a49fcd7da18e8f05f88e4ca3984dd9e775a5bad7e",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcj9k_r26_regression_oracle.xlsx-52ab13a3a5eb860c007efdd637573a517918f137c2db5afcc1be17807a70bd54/evaluations.json": "7c6079881f39f32cf19b0a5e66cbdc5c9d370f4857e4ae1082519b81d41f18ee",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcj9k_r26_regression_oracle.xlsx-52ab13a3a5eb860c007efdd637573a517918f137c2db5afcc1be17807a70bd54/triage.json": "1ec7a3bb880f1ec815d0ebe89d8ee7ff1a73c5c6e53f8f3d6b775073163a5fd2",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/dcj9k_r26_root_transfer/oracle.capture.json": "5e8b0b5ff7762a7bfdf162b16731d7e2269948f023a061388daa98181552e521",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcj9k_r26_root_transfer_oracle.xlsx-0a8a34107861200e7e535a0f2d184899f8bd0475096f492d816b3d1d490fd9fc/evaluations.json": "8cff286010ea9098120128c5bc06c2f5f4a9509a8c05d010f53295c24ff92427",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcj9k_r26_root_transfer_oracle.xlsx-0a8a34107861200e7e535a0f2d184899f8bd0475096f492d816b3d1d490fd9fc/triage.json": "0c263a90f3dd0e5742a7c07a792ced3af57002022c94bb6baa4b31c20b1cbd44",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcj9k_r26_root_transfer_oracle.xlsx-0a8a34107861200e7e535a0f2d184899f8bd0475096f492d816b3d1d490fd9fc/evaluations.json": "8cff286010ea9098120128c5bc06c2f5f4a9509a8c05d010f53295c24ff92427",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcj9k_r26_root_transfer_oracle.xlsx-0a8a34107861200e7e535a0f2d184899f8bd0475096f492d816b3d1d490fd9fc/triage.json": "ee1865694bf94d40ff2f60d9e6dc31a7f0eb1c5428feccf8af55e7d98e758b5a",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/dcj9k_r26_scalar/oracle.capture.json": "a6432ad53e47cec104a65cde2817130434d58fbe82915244cf0620a9583c2200",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcj9k_r26_scalar_oracle.xlsx-3ed9e3f14269b9c073d6537fbc40d0709e447b6607a707e5333aa455bd8de1f7/evaluations.json": "32c3f0c7c4fff76fe23f6289ddce90939cf56ac513766fe53510678efa1c75c1",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcj9k_r26_scalar_oracle.xlsx-3ed9e3f14269b9c073d6537fbc40d0709e447b6607a707e5333aa455bd8de1f7/triage.json": "09d3344f810cdd96cd868bfe7baf62ab16da70649382afab1c01899df1317c8a",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcj9k_r26_scalar_oracle.xlsx-3ed9e3f14269b9c073d6537fbc40d0709e447b6607a707e5333aa455bd8de1f7/evaluations.json": "32c3f0c7c4fff76fe23f6289ddce90939cf56ac513766fe53510678efa1c75c1",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcj9k_r26_scalar_oracle.xlsx-3ed9e3f14269b9c073d6537fbc40d0709e447b6607a707e5333aa455bd8de1f7/triage.json": "da6335c578513409a7dc882b94442d95a302fd527a280b1895b7c5be26a77ee1",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/dcztvv_r23/oracle.capture.json": "4b56b0cade48e84ab2a9e74c0bb79978b9cb8df58322a75fc07b625fb645c010",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcztvv_r23_oracle.xlsx-3dc7ec2b5c4cdbe36a357a329ee80bd3f66295a4a6d5ff8ba81051acefecaac0/evaluations.json": "959a338325f79adf656d7a746715d0fc883757d50cdcb3a05b685111b5795d00",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcztvv_r23_oracle.xlsx-3dc7ec2b5c4cdbe36a357a329ee80bd3f66295a4a6d5ff8ba81051acefecaac0/triage.json": "a546c890ecab5b672258890408f3bb2dd32b8a01be152b06d43649f75caede68",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcztvv_r23_oracle.xlsx-3dc7ec2b5c4cdbe36a357a329ee80bd3f66295a4a6d5ff8ba81051acefecaac0/evaluations.json": "bb1f5728139af587570647be8c8639e17fb9c66f7679dee57c49014001b230b2",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcztvv_r23_oracle.xlsx-3dc7ec2b5c4cdbe36a357a329ee80bd3f66295a4a6d5ff8ba81051acefecaac0/triage.json": "8e8b22d541655c123d790e1ce8c02ec350bcf5e9a5ca301c449d4604be1a44c7",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/dcztvv_r24/oracle.capture.json": "0cff9111666b7e647e1cb98021a4e8d8d5d8b31c9395a62791889029628f4e7a",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcztvv_r24_oracle.xlsx-748c64dfaabd37bf0ae8f321dc3905add1f64102620355ac8fe0a69c81e0a4cf/evaluations.json": "f6a2fd2153556fca4b28d9ec1e461040752ba44032bd3ab43af2640a7c927962",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_dcztvv_r24_oracle.xlsx-748c64dfaabd37bf0ae8f321dc3905add1f64102620355ac8fe0a69c81e0a4cf/triage.json": "13cfd0bd34a2baaafdb2fc09c5309b6c2bb582877317072a1a6761756635e066",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcztvv_r24_oracle.xlsx-748c64dfaabd37bf0ae8f321dc3905add1f64102620355ac8fe0a69c81e0a4cf/evaluations.json": "c2776d3f9b29aa04375366f67dd23410d6db84c288f814e3176c6117a23bc4d0",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_dcztvv_r24_oracle.xlsx-748c64dfaabd37bf0ae8f321dc3905add1f64102620355ac8fe0a69c81e0a4cf/triage.json": "40d3fbc624ee34fe539ac9fca9d68c85fdcde21cae626fad330ae135a27161ad",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/fn2_questions/oracle.capture.json": "ad979af4750348b9fc1bf1e7597d35f4f6b94fee52b0caf87d94d17dc5d2f21f",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn2_questions_oracle.xlsx-c5d039de7df3898ba23938d1fd3ce0185d4aadb0162fed571419322cb04adfbc/evaluations.json": "06984eac73239ebbab545d6f61b5c0e53993e63ac7d15b62fdc9573b80623734",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn2_questions_oracle.xlsx-c5d039de7df3898ba23938d1fd3ce0185d4aadb0162fed571419322cb04adfbc/triage.json": "16a8fb6b5ecc2adfdd5ef29ffc463db9496e5cfdd2734d92b99b2ac183bb12c5",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn2_questions_oracle.xlsx-c5d039de7df3898ba23938d1fd3ce0185d4aadb0162fed571419322cb04adfbc/evaluations.json": "1ce3237479da17c8cef328410cb6de8bf6184b2561ef37066a979eb1a7ec0393",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn2_questions_oracle.xlsx-c5d039de7df3898ba23938d1fd3ce0185d4aadb0162fed571419322cb04adfbc/triage.json": "e47640273c035899461f083a011a2339998144a30cec010f815da9d406656c9e",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/fn3_questions/oracle.capture.json": "8720d91dc9912d218a1e0359b2252da0ec5b2a581885937bbf6326e382781b2b",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn3_questions_oracle.xlsx-49e3f891055b7b1b2120fb05c566401ec77bda39d12801f19296caa6203a12d2/evaluations.json": "8f28cefab548fc20c569b46427c5bc3964fd1f8dfcd7518473ce4ad931872ba9",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn3_questions_oracle.xlsx-49e3f891055b7b1b2120fb05c566401ec77bda39d12801f19296caa6203a12d2/triage.json": "57baf328480a2d3ec3d1cc633caab974c4f007b3aba6cca94b83d00c7777a87f",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn3_questions_oracle.xlsx-49e3f891055b7b1b2120fb05c566401ec77bda39d12801f19296caa6203a12d2/evaluations.json": "8f28cefab548fc20c569b46427c5bc3964fd1f8dfcd7518473ce4ad931872ba9",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn3_questions_oracle.xlsx-49e3f891055b7b1b2120fb05c566401ec77bda39d12801f19296caa6203a12d2/triage.json": "ac66912c89400acbae7bc925075549dedabcc062636c80bdeb242dd09584282f",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/fn5_dates_1900/oracle.capture.json": "4272ef942366e1fa9d020132fad0b9d2c410495b91245a6708adb7db45705ade",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn5_dates_1900_oracle.xlsx-a73ea4711618b0d57f03adf9f2cfaca3be6177929722982d1ff09d66619e686a/evaluations.json": "57677e9b51fdd62ae081bc63334f6a8e50798c57dcf4b25ce744a81237e70064",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn5_dates_1900_oracle.xlsx-a73ea4711618b0d57f03adf9f2cfaca3be6177929722982d1ff09d66619e686a/triage.json": "e22534991d47b68ef09f48c85c5a77e491f62d5f47ddd4f58f6674dfc575d24e",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn5_dates_1900_oracle.xlsx-a73ea4711618b0d57f03adf9f2cfaca3be6177929722982d1ff09d66619e686a/evaluations.json": "57677e9b51fdd62ae081bc63334f6a8e50798c57dcf4b25ce744a81237e70064",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn5_dates_1900_oracle.xlsx-a73ea4711618b0d57f03adf9f2cfaca3be6177929722982d1ff09d66619e686a/triage.json": "88c7ca3ce715be3fda2113402a3e4f94f4ec9c508c1e88f5d5c63b5afd94ad77",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/fn5_digits_zero/oracle.capture.json": "ef401deae12fbf6c846bea4d4bf14c065461a486ad92fc4573a0fd98a4d02bff",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn5_digits_zero_oracle.xlsx-af27a476db02ac72b310c854e9f807fb717b3f8ace920a0e6eb40bcfbba2bfd3/evaluations.json": "fba3f5f90a6baeb2ee947cb6124f4c78da77221135ee443213976b4951e95b57",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn5_digits_zero_oracle.xlsx-af27a476db02ac72b310c854e9f807fb717b3f8ace920a0e6eb40bcfbba2bfd3/triage.json": "c391063a789f752906ee3d051676bc95cd837c3bdc83ca8f920650a68725767f",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn5_digits_zero_oracle.xlsx-af27a476db02ac72b310c854e9f807fb717b3f8ace920a0e6eb40bcfbba2bfd3/evaluations.json": "fba3f5f90a6baeb2ee947cb6124f4c78da77221135ee443213976b4951e95b57",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn5_digits_zero_oracle.xlsx-af27a476db02ac72b310c854e9f807fb717b3f8ace920a0e6eb40bcfbba2bfd3/triage.json": "01795789bc0699ced845a4227f7095d3e82313688f0fc15bc7f28cf627e5b280",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/fn5_helper_boundaries/oracle.capture.json": "a0074fa3fad38ef8153361b4f5fc6dfabcd81c8a1a61df116e1f58507fffea1b",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn5_helper_boundaries_oracle.xlsx-e2595564c88dd5b5d9f99cc17d17129d90fda92fbc2cef90cead08eb0f70d6f9/evaluations.json": "45b59969fa3e4341891e18e2fcab5a8cae98f67390243c65e8eb2f68a7af9602",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn5_helper_boundaries_oracle.xlsx-e2595564c88dd5b5d9f99cc17d17129d90fda92fbc2cef90cead08eb0f70d6f9/triage.json": "f75787dda8fbd74eb1ce6cb18ec2ce5c91af6b1ab9c331dbbbf96bd0223ddda4",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn5_helper_boundaries_oracle.xlsx-e2595564c88dd5b5d9f99cc17d17129d90fda92fbc2cef90cead08eb0f70d6f9/evaluations.json": "45b59969fa3e4341891e18e2fcab5a8cae98f67390243c65e8eb2f68a7af9602",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn5_helper_boundaries_oracle.xlsx-e2595564c88dd5b5d9f99cc17d17129d90fda92fbc2cef90cead08eb0f70d6f9/triage.json": "0a8ff2479fca08263569452affccd8d22946767e49d14435fa90f17b68069dbf",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/fn5_regex_results/oracle.capture.json": "87d39e7553d53335e1ac879da1c78705b55cac96fede1b4cb04e8a3dd7a801f4",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn5_regex_results_oracle.xlsx-cbc209818933a243de35d5a0d0b700d92308a280b3326c560cdb7987a07e6bc3/evaluations.json": "0b8339c8291b6637dbf6fdba29074da30cd9b116e4c609e522f8a6ffe349d415",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn5_regex_results_oracle.xlsx-cbc209818933a243de35d5a0d0b700d92308a280b3326c560cdb7987a07e6bc3/triage.json": "fb96f0b2f60f0911dd0c51373e4b45ca88b5fb44fce751b8327e6e0cf302a7f2",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn5_regex_results_oracle.xlsx-cbc209818933a243de35d5a0d0b700d92308a280b3326c560cdb7987a07e6bc3/evaluations.json": "0b8339c8291b6637dbf6fdba29074da30cd9b116e4c609e522f8a6ffe349d415",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn5_regex_results_oracle.xlsx-cbc209818933a243de35d5a0d0b700d92308a280b3326c560cdb7987a07e6bc3/triage.json": "5df80ca904aa5233a54bbe8a564b0158122b0fe6537df142ba452031a4ffdc8f",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/fn5_selection_boundaries/oracle.capture.json": "2f7e1025fd38e5a2d53e627652b0abcd86cd4ae906e64e0e80892833bb851fb7",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn5_selection_boundaries_oracle.xlsx-44859955bf386f1d44af13ec2b59442af19b06d22cec16cdc1f9f43914f834fe/evaluations.json": "cb88c65f949851659c7a025763675524b0c588e5019a6905baa885ed886091a0",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn5_selection_boundaries_oracle.xlsx-44859955bf386f1d44af13ec2b59442af19b06d22cec16cdc1f9f43914f834fe/triage.json": "7ff89786eea8b671c60203a01a65fa66fea039e734a507c429752ea52c8e0324",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn5_selection_boundaries_oracle.xlsx-44859955bf386f1d44af13ec2b59442af19b06d22cec16cdc1f9f43914f834fe/evaluations.json": "cb88c65f949851659c7a025763675524b0c588e5019a6905baa885ed886091a0",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn5_selection_boundaries_oracle.xlsx-44859955bf386f1d44af13ec2b59442af19b06d22cec16cdc1f9f43914f834fe/triage.json": "916227a3b89c88093518c451f59fcbf0346b2e20a6b757aa287fba0676640b30",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/fn6_iteration_primary/oracle.capture.json": "8cc8cd8b440e4ef579b940bc2b6e80f56c8bdd0893efe8a0db032e791231d386",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn6_iteration_primary_oracle.xlsx-a37c6a1b10992b9132a29bacb5c0237a6b30814d1bc5e61703defd129420c8db/evaluations.json": "96f2afd5cd578bb92d378fbf8de5949f971b56e628aa1aa3d3a9690380e2ac3f",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn6_iteration_primary_oracle.xlsx-a37c6a1b10992b9132a29bacb5c0237a6b30814d1bc5e61703defd129420c8db/triage.json": "ab91d750a4866e46bc33d4c5f1cef1b3d6b5009754c9196d1f6c0c20faf342e5",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn6_iteration_primary_oracle.xlsx-a37c6a1b10992b9132a29bacb5c0237a6b30814d1bc5e61703defd129420c8db/evaluations.json": "96f2afd5cd578bb92d378fbf8de5949f971b56e628aa1aa3d3a9690380e2ac3f",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn6_iteration_primary_oracle.xlsx-a37c6a1b10992b9132a29bacb5c0237a6b30814d1bc5e61703defd129420c8db/triage.json": "9127e5c90a8e245fb882c01e0c0cad8ac79457ef68452d7ba4948674b16fcc27",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/fn6_jamo_suffix/oracle.capture.json": "2b319c8fbf5efdba87b77bfc284452f14b56cc470c666d7fa4a706cd9d2f16bf",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn6_jamo_suffix_oracle.xlsx-c1d641e57150dcd6de4331dabeb06c7082207d9edd225a724a15be4e533fa922/evaluations.json": "f0abb6abcd9ec37101fb407016e46fced42b816e3f3c31fdfb7771c70644705a",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn6_jamo_suffix_oracle.xlsx-c1d641e57150dcd6de4331dabeb06c7082207d9edd225a724a15be4e533fa922/triage.json": "ce975ddc91180a55b0e0bc8443c4d6258c76dd262a6587a184b402fa3c76f3d9",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn6_jamo_suffix_oracle.xlsx-c1d641e57150dcd6de4331dabeb06c7082207d9edd225a724a15be4e533fa922/evaluations.json": "f0abb6abcd9ec37101fb407016e46fced42b816e3f3c31fdfb7771c70644705a",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn6_jamo_suffix_oracle.xlsx-c1d641e57150dcd6de4331dabeb06c7082207d9edd225a724a15be4e533fa922/triage.json": "c49d6622d077235cf8a7d34e99ff8a3ab185a4f552415f21f0dc958fb509aed3",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/fn6_utf16_needles/oracle.capture.json": "18d1f280d87a46b203536aa79abbef4434f7168290bae77198382f8803dc566d",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn6_utf16_needles_oracle.xlsx-cba2a74fb563c1b27ec2184437c794532b7e5c671ca5957a9ac23bd1f258c5b2/evaluations.json": "fc2b1459b0a323fea66ac1b6042b61ed930a9357e78bccc71c1d9a1c5637b6e1",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn6_utf16_needles_oracle.xlsx-cba2a74fb563c1b27ec2184437c794532b7e5c671ca5957a9ac23bd1f258c5b2/triage.json": "ebbe7474de21d1dd41f92900392adc439e4cfd6f351faceb6f7d40a5e029efef",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn6_utf16_needles_oracle.xlsx-cba2a74fb563c1b27ec2184437c794532b7e5c671ca5957a9ac23bd1f258c5b2/evaluations.json": "fc2b1459b0a323fea66ac1b6042b61ed930a9357e78bccc71c1d9a1c5637b6e1",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn6_utf16_needles_oracle.xlsx-cba2a74fb563c1b27ec2184437c794532b7e5c671ca5957a9ac23bd1f258c5b2/triage.json": "32b3c72f0833bc32d563e031854448e21d64a88448f99c808f1b5172ab1092ba",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/fn6_utf16_needles_compat1/oracle.capture.json": "8d5d951adee1198d8177c980adda9e48033de88cbb484d75d9433e7e3e147fb2",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn6_utf16_needles_compat1_oracle.xlsx-e6f7528044f964fb88a32e6a411c33ee5e826e97daabdb570d5461c4e59863d6/evaluations.json": "1d25e23fa50bd0ce397338229b366679f5d1160a71ba92cb1fcb054019c0781a",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn6_utf16_needles_compat1_oracle.xlsx-e6f7528044f964fb88a32e6a411c33ee5e826e97daabdb570d5461c4e59863d6/triage.json": "051ebebcaea5e0182289d3bf4bc7be344bfd02ac908e0eb3f1c7a3a0207ec265",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn6_utf16_needles_compat1_oracle.xlsx-e6f7528044f964fb88a32e6a411c33ee5e826e97daabdb570d5461c4e59863d6/evaluations.json": "1d25e23fa50bd0ce397338229b366679f5d1160a71ba92cb1fcb054019c0781a",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn6_utf16_needles_compat1_oracle.xlsx-e6f7528044f964fb88a32e6a411c33ee5e826e97daabdb570d5461c4e59863d6/triage.json": "ba2aa7acff027155b587687743af1c07e4c7d1e653b240f6687f10a79794b7e6",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/fn6_utf16_needles_compat2/oracle.capture.json": "47d4968b2f6c34c31a6ac960119aa31a937edb2486bae20792e02985ebe9cc48",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn6_utf16_needles_compat2_oracle.xlsx-c40902dc4fe2e84131a6de577817ddee8e701c64d060a02f88bb23547a6566a7/evaluations.json": "09f5692734940dbabecc44fe19d4a2f18d32187fdce821d31d7711fa10b48dd7",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn6_utf16_needles_compat2_oracle.xlsx-c40902dc4fe2e84131a6de577817ddee8e701c64d060a02f88bb23547a6566a7/triage.json": "de2e45d61a4227ff35ad5c5ab50981227b680e1b3a6215107cdd6dbd17017860",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn6_utf16_needles_compat2_oracle.xlsx-c40902dc4fe2e84131a6de577817ddee8e701c64d060a02f88bb23547a6566a7/evaluations.json": "09f5692734940dbabecc44fe19d4a2f18d32187fdce821d31d7711fa10b48dd7",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn6_utf16_needles_compat2_oracle.xlsx-c40902dc4fe2e84131a6de577817ddee8e701c64d060a02f88bb23547a6566a7/triage.json": "41f84ea684d2d20b24d2e3501feec5f00fbb18ba4fbf0030f16ff378e34c9942",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/fn7_argument_origins/oracle.capture.json": "95c163725f22ab8ab3953bf055d2aeac8654847562ec1585bcf7a269a5c2d5ee",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn7_argument_origins_oracle.xlsx-e4acfbdb26a9e6b674d8219b82c50ea353638c5436a2c0e91bafa6211789442a/evaluations.json": "65f2d34e27ffa6a02fcf835c6f475906e8b687435b4ba094db0066c863b521bf",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn7_argument_origins_oracle.xlsx-e4acfbdb26a9e6b674d8219b82c50ea353638c5436a2c0e91bafa6211789442a/triage.json": "293aa457ee1d5df364991a154b1a5daf9c0b8c6cba612fab6c348e7f71178473",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn7_argument_origins_oracle.xlsx-e4acfbdb26a9e6b674d8219b82c50ea353638c5436a2c0e91bafa6211789442a/evaluations.json": "65f2d34e27ffa6a02fcf835c6f475906e8b687435b4ba094db0066c863b521bf",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn7_argument_origins_oracle.xlsx-e4acfbdb26a9e6b674d8219b82c50ea353638c5436a2c0e91bafa6211789442a/triage.json": "76346edae67e0e1212101848aaf7cad9e9dc61d4176897bd76d30bcb9536b2f0",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/fn7_collation_context/oracle.capture.json": "fb34e70ba3796df2627a9e443178b2a4fcc66c9eba6cc9bf74b4211f32e45e14",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn7_collation_context_oracle.xlsx-224686b5aaf5808b413fbb803fcc0dcfba6589ed241c9629fbd9887157709765/evaluations.json": "6e2e49e4c886d0573c593a47aacde678932edc8d1b04af75c020427f0c70922f",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn7_collation_context_oracle.xlsx-224686b5aaf5808b413fbb803fcc0dcfba6589ed241c9629fbd9887157709765/triage.json": "429911d849687c87b5331746b41a3e2f278d6a1ad50b1aacd336bab5b6f5985a",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn7_collation_context_oracle.xlsx-224686b5aaf5808b413fbb803fcc0dcfba6589ed241c9629fbd9887157709765/evaluations.json": "6e2e49e4c886d0573c593a47aacde678932edc8d1b04af75c020427f0c70922f",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn7_collation_context_oracle.xlsx-224686b5aaf5808b413fbb803fcc0dcfba6589ed241c9629fbd9887157709765/triage.json": "f1a871e6d74f70a62547e760d609f616a2cdce80ed776f5e96830bdbfdacbcbd",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/fn7_collation_contractions/oracle.capture.json": "3aa1d66286b7952a318aef6345d5f6d7f8784cc52c7a4ff7c2f91e15901b1edb",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn7_collation_contractions_oracle.xlsx-5b3d420e80fa3dbc66a7e56c5769568d450e6edae00bc48ca66b7e018ed93fab/evaluations.json": "10282f0811b9ebcfbfee640504b5d147584476cdba304f7098c1e406f2b551c5",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn7_collation_contractions_oracle.xlsx-5b3d420e80fa3dbc66a7e56c5769568d450e6edae00bc48ca66b7e018ed93fab/triage.json": "78faa83d0b3842b75725502709dc0628b7d48776efb11cd599180dead7d88f07",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn7_collation_contractions_oracle.xlsx-5b3d420e80fa3dbc66a7e56c5769568d450e6edae00bc48ca66b7e018ed93fab/evaluations.json": "1232817105811da6e7854c11aaf330d6061e19e97415a11cf82700d0dca0aa3f",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn7_collation_contractions_oracle.xlsx-5b3d420e80fa3dbc66a7e56c5769568d450e6edae00bc48ca66b7e018ed93fab/triage.json": "3a1f3e5ceea9dc60a25cdc69d13f4e6c820d92fb5e80fd4555a3b8e184d58c01",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/fn7_date_argument_origins/oracle.capture.json": "01a562bb25250f31e5a2442115fa5aaef8fdae9473746401c814564258925634",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn7_date_argument_origins_oracle.xlsx-0cf95c91e645a79a50770c44785b8a74b090705a568ae9d983df8062502b4abf/evaluations.json": "56a4a86eb45d0d4c30442a1cc25771f75db9156e579b866bd6b035783ee8b984",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn7_date_argument_origins_oracle.xlsx-0cf95c91e645a79a50770c44785b8a74b090705a568ae9d983df8062502b4abf/triage.json": "55889ae412be26ff631d11e8518c743c8b36557fc39bb3c6f87d0103c2eb0f65",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn7_date_argument_origins_oracle.xlsx-0cf95c91e645a79a50770c44785b8a74b090705a568ae9d983df8062502b4abf/evaluations.json": "56a4a86eb45d0d4c30442a1cc25771f75db9156e579b866bd6b035783ee8b984",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn7_date_argument_origins_oracle.xlsx-0cf95c91e645a79a50770c44785b8a74b090705a568ae9d983df8062502b4abf/triage.json": "af96c7e26ae77f2d5f4c0ef494f52eec4286076d786ddb787bbc1d221002e785",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-func/tests/captures/fn7_format_context/oracle.capture.json": "025a6832b923c009d75b4d1803e6946204f97e5182bf2caf23005264b39f3f43",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn7_format_context_oracle.xlsx-523e67060ace83b9388785e51be693616de310823d7e1ce2873940059c6e4f82/evaluations.json": "40fd4ede8bd8a72ce091d426486d3af90b8f4ee2f78383ba65792403ee045580",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-func_fn7_format_context_oracle.xlsx-523e67060ace83b9388785e51be693616de310823d7e1ce2873940059c6e4f82/triage.json": "81889b9b6ace4ffefd62d51f57c210d12622fc7984da5e625fc30f157ba6fd55",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn7_format_context_oracle.xlsx-523e67060ace83b9388785e51be693616de310823d7e1ce2873940059c6e4f82/evaluations.json": "40fd4ede8bd8a72ce091d426486d3af90b8f4ee2f78383ba65792403ee045580",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-func_fn7_format_context_oracle.xlsx-523e67060ace83b9388785e51be693616de310823d7e1ce2873940059c6e4f82/triage.json": "e32b8fae9cce59205b391e58c3e37499d109666dae697324cacf21fb2f6efde5",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-host/tests/captures/dc_ylr/oracle.capture.json": "fbb227e14cc2f4f14fef5feb07f6353831d875417604a4f3720e40ef6a3245cc",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-host_dc_ylr_oracle.xlsx-5265fccb7365b8828c74c46b774a807d9e6a45bdfbf9b05967e151465b7b502d/evaluations.json": "0d4f14707c6b3bd3f2303619780c493e61ed9f21d56639ff20c775f9e4766614",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-host_dc_ylr_oracle.xlsx-5265fccb7365b8828c74c46b774a807d9e6a45bdfbf9b05967e151465b7b502d/triage.json": "8206c4c0591ad7cf913ee8e266981c7f53dd1f808f785f8513b3fb367cbf2bcd",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-host_dc_ylr_oracle.xlsx-5265fccb7365b8828c74c46b774a807d9e6a45bdfbf9b05967e151465b7b502d/evaluations.json": "0d4f14707c6b3bd3f2303619780c493e61ed9f21d56639ff20c775f9e4766614",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-host_dc_ylr_oracle.xlsx-5265fccb7365b8828c74c46b774a807d9e6a45bdfbf9b05967e151465b7b502d/triage.json": "109d6539e97220e0174c315800668afb0f5d4bc12be69d62284061ee9b618927",
     "/home/ubuntu/projects/DnaCalc/DnaCalc/crates/calc-host/tests/captures/eng13_legacy/oracle.capture.json": "e56b5ed6240610e6fc2172aaea51ef86153204d6673a51dd3b1cf78c34fb6fe8",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-host_eng13_legacy_oracle.xlsx-a6693aa8643841a8505e310472ed4cd9bf99d520ee217327231d2a7afdb0a3ed/evaluations.json": "ccdfc506db39a33b2a32c615030b7745b39e6f65e778cb759f5372aa7929a57c",
-    "/home/ubuntu/codex-runs/r34/published-corpus/workbooks/calc-host_eng13_legacy_oracle.xlsx-a6693aa8643841a8505e310472ed4cd9bf99d520ee217327231d2a7afdb0a3ed/triage.json": "1fe82f1662eddef3955a7332abcee7b37a307b47bdf77b9943e1281e9eaaa832"
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-host_eng13_legacy_oracle.xlsx-a6693aa8643841a8505e310472ed4cd9bf99d520ee217327231d2a7afdb0a3ed/evaluations.json": "ccdfc506db39a33b2a32c615030b7745b39e6f65e778cb759f5372aa7929a57c",
+    "/home/ubuntu/codex-runs/r35/retained-corpus/workbooks/calc-host_eng13_legacy_oracle.xlsx-a6693aa8643841a8505e310472ed4cd9bf99d520ee217327231d2a7afdb0a3ed/triage.json": "b204fba350409cd8344008750d89e2185dea0f415191724d4b4c5b9d5b0921f4"
   },
-  "generator_sha256": "d3b59ed66eea77fc99da09d7851fe16e4e32b8bdafc221ed4c551b12e22d300e",
+  "generator_sha256": "a8aed2da3534efe6c72c5bf7c54d23160c0b7e84e6b9587df8f33c857ec41c20",
   "rule": "Last-bit: finite numeric mismatches <=16 ULP; larger numeric: >16 ULP. This split is triage, not a relaxed verdict. Every mismatch, refusal, unread, missing, pending, external and circular-policy cell remains an inclusive failure. Corpus labels follow exact single-cell aliases, infer calls from formula spelling and unwrap INDEX selections; unresolved references and infix operators remain explicit. Bank functions use canonical judge identities. Counts are observations per source; corpus and bank may overlap and must not be added as unique calls. Bank reference/locale context gaps remain failures, not proven numerical defects. Rows are ordered by corpus mismatch count, then corpus larger differences, then bank nonpasses."
 }

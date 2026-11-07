@@ -725,7 +725,10 @@ pub fn ppmt(
     // dc-j9k.12: payments at the end of a period take Excel's own pieces: the principal is
     // RN(RN(RN(q - fv) * u) * rate) with u = exp(-(m * L)), not a payment less interest.
     // Catalogue oracle, bank and fresh Excel rows: 138 of 138 with fv 0, 25 of 27 with fv.
-    if matches!(timing, PaymentTiming::EndOfPeriod)
+    // For positive beginning payments the same stored component takes the
+    // reciprocal coefficient already shared by PMT/IPMT. R35's576 independent
+    // end/beginning pairs distinguish that finish; all1152 fresh public calls match.
+    if (matches!(timing, PaymentTiming::EndOfPeriod) || periodic_rate > 0.0)
         && let Some((log_growth, quotient)) =
             end_payment_quotient(periodic_rate, periods, present_value, future_value)
     {
@@ -740,6 +743,28 @@ pub fn ppmt(
     // net of the future value's interest, discounted over the m = periods - period_index + 1
     // periods left: v^m * (pmt - fv*r), and v^m * (pmt - fv*r/(1 + r)) for payments at the
     // start of a period. The catalogue oracle's PPMT readings hold it.
+    let result = discounted_payment_principal(
+        periodic_rate, period_index, periods, payment, future_value, timing,
+    );
+    if result.is_finite() {
+        Ok(result)
+    } else {
+        Err(FinancialError::Num)
+    }
+}
+
+/// The discounted-payment principal expression. The cumulative beginning-payment
+/// fallback still uses it: its singletons differ from public PPMT, whose measured
+/// positive-rate finish uses the shared period component above. The cumulative
+/// summation is not yet identified; changing PPMT must not change that fallback.
+pub(crate) fn discounted_payment_principal(
+    periodic_rate: f64,
+    period_index: f64,
+    periods: f64,
+    payment: f64,
+    future_value: f64,
+    timing: PaymentTiming,
+) -> f64 {
     let remaining = periods - period_index + 1.0;
     let discount = exp_portable(-(remaining * excel_log1p(periodic_rate)));
     let carried = if matches!(timing, PaymentTiming::BeginningOfPeriod) {
@@ -747,12 +772,7 @@ pub fn ppmt(
     } else {
         future_value * periodic_rate
     };
-    let result = discount * (payment - carried);
-    if result.is_finite() {
-        Ok(result)
-    } else {
-        Err(FinancialError::Num)
-    }
+    discount * (payment - carried)
 }
 
 pub fn ispmt(

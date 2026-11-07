@@ -108,6 +108,21 @@ fn beginning_interest_uses_the_stored_period_component() {
     }
 }
 
+/// Fresh Excel20527 pairs distinguish the principal component's timing finish.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn beginning_principal_uses_the_stored_period_component() {
+    for (args, principal) in [
+        ([0.007, 2.5, 5.0, 1.25, 0.0, 1.0], 0xbfcf_aa56_09e2_3691),
+        ([0.007, 4.0, 5.0, 1.25, 0.0, 1.0], 0xbfcf_ff99_f535_783c),
+        ([0.007, 5.0, 5.0, 1.25, 0.875, 1.0], 0xbfdb_6399_e952_c5ad),
+        ([0.03125, 4.0, 5.0, 1.25, 0.875, 1.0], 0xbfdb_2c9c_6def_43b1),
+        ([0.1875, 2.5, 5.0, 1.25, 0.875, 1.0], 0xbfd4_6954_933a_ea24),
+    ] {
+        exact(call("PPMT", args.into_iter().map(n).collect()), f64::from_bits(principal));
+    }
+}
+
 /// Original Excel20430 Value2 readings, cache/oracle-20430/COUPDAYS.jsonl.
 /// All expectations below are retained observations; the full bank supplies
 /// coverage of the other calendar intervals and domain cases.

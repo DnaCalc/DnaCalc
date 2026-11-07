@@ -180,6 +180,11 @@ const ERFC_TAIL_D: [u64; 10] = [
 /// over 140 windows. The low bits were not derived: a search of chained moves over the coefficients,
 /// on the squared last-bit error of 1,076,000 Excel answers, fixed them. That the search ended on
 /// the table rather than on a fit is shown by answers it did not see, not by its count.
+/// R35's adjacent-load probe leaves original tail literals undetermined: over
+/// `4 < x <= 26.5`, both neighboring loads of N0--N2, D1--D2 and D4 are absorbed at
+/// their first stored sum. N3 and D3 absorb the upward neighbor only;163 fresh
+/// separating questions reject their downward neighbors and the other tested
+/// changes. This identifies equivalent loads, not unique historical literals.
 pub fn erfc_upper(x: f64) -> f64 {
     use crate::ported::excel_numeric::{excel_exp, excel_x87_mul};
     let z = excel_x87_mul(x, x);

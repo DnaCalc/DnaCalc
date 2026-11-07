@@ -1,5 +1,5 @@
-// CUMIPMT and CUMPRINC sum the worksheet IPMT/PPMT kernels of `financial_time_value_family`
-// rather than a copy of the annuity math.
+// CUMIPMT and CUMPRINC share the time-value primitives. Their summation remains
+// a fallback: Excel's cumulative singletons differ from public PPMT's bits.
 use crate::ported::financial_time_value_family::{self as time_value, FinancialError};
 pub use crate::ported::financial_time_value_family::PaymentTiming;
 use crate::value::CalcValue;
@@ -59,7 +59,7 @@ fn kernel_error(error: FinancialError) -> CumulativeFinanceEvalError {
     })
 }
 
-/// The principal repaid over `start..=end`: PPMT summed left to right.
+/// The existing principal-sum fallback, independent of public PPMT's timing finish.
 fn principal_sum(
     rate: f64,
     periods: i32,
@@ -68,12 +68,40 @@ fn principal_sum(
     end_period: i32,
     timing: PaymentTiming,
 ) -> Result<f64, CumulativeFinanceEvalError> {
+    let beginning_payment = if timing == PaymentTiming::BeginningOfPeriod {
+        Some(time_value::pmt(rate, periods as f64, pv, 0.0, timing).map_err(kernel_error)?)
+    } else {
+        None
+    };
     let mut total = 0.0;
     for period in start_period..=end_period {
-        total += time_value::ppmt(rate, period as f64, periods as f64, pv, 0.0, timing)
-            .map_err(kernel_error)?;
+        let principal = if let Some(payment) = beginning_payment {
+            // Keep the previous numeric admission as well as its expression.
+            // CUMPRINC is not a sum of the public PPMT publications in Excel.
+            let interest = time_value::ipmt(rate, period as f64, periods as f64, pv, 0.0, timing)
+                .map_err(kernel_error)?;
+            if period == 1 { payment - interest } else {
+                time_value::discounted_payment_principal(
+                    rate, period as f64, periods as f64, payment, 0.0, timing,
+                )
+            }
+        } else {
+            time_value::ppmt(rate, period as f64, periods as f64, pv, 0.0, timing)
+                .map_err(kernel_error)?
+        };
+        if !principal.is_finite() {
+            return Err(CumulativeFinanceEvalError::Domain(WorksheetErrorCode::Num));
+        }
+        total += principal;
     }
     Ok(total)
+}
+
+/// CUMIPMT's count-times-payment result is stored from PC64 before subtraction.
+/// Eleven fresh count-product ties (3665 and above) distinguish it from strict
+/// multiplication, conditioned on independent public PMT and CUMPRINC operands.
+fn interest_finish(count: f64, payment: f64, principal: f64) -> f64 {
+    crate::ported::excel_numeric::excel_x87_mul(count, payment) - principal
 }
 
 fn validate_cumulative_inputs(
@@ -126,7 +154,7 @@ pub fn cumipmt_kernel(
         return Ok(0.0);
     }
     let principal = principal_sum(rate, periods, pv, start_period, end_period, timing)?;
-    let total = (end_period - start_period + 1) as f64 * payment - principal;
+    let total = interest_finish((end_period - start_period + 1) as f64, payment, principal);
     if total.is_finite() {
         Ok(total)
     } else {
@@ -184,6 +212,23 @@ mod tests {
             expected.to_bits(),
             "{actual} vs {expected}"
         );
+    }
+
+    /// Recorded public PMT and CUMPRINC operands isolate the finish; the
+    /// principal producer remains a separate, unresolved calculation.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn cumulative_interest_finish_stores_its_count_product() {
+        for (count, payment, principal, interest) in [
+            (5275.0, 0xbff4_51a5_7553_a993u64, 0xc0a0_fac2_640c_097e, 0xc0b1_ad84_9383_29b3),
+            (3665.0, 0xbfb4_54e1_e6d9_c2b1, 0xc055_351e_1a7d_fb0e, 0xc069_c7d7_b5ff_7401),
+            (4527.0, 0xbfb4_54e1_e6d9_c2b1, 0xc05b_bb33_94ab_0301, 0xc06f_1387_0dd3_17bc),
+        ] {
+            let payment = f64::from_bits(payment);
+            let principal = f64::from_bits(principal);
+            assert_ne!((count * payment - principal).to_bits(), interest);
+            assert_eq!(interest_finish(count, payment, principal).to_bits(), interest);
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
