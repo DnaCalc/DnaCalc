@@ -342,7 +342,7 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
                         (["colItems"],"i") => col_items.push(PivotAxisItem {kind:e.attribute("t").unwrap_or("data").into(),repeat:optional_integer(&e,"r",&events)?.unwrap_or(0),data_index:optional_integer(&e,"i",&events)?.unwrap_or(0),indexes:Vec::new()}),
                         (["colItems","i"],"x") => {if let Some(item)=col_items.last_mut(){item.indexes.push(optional_integer(&e,"v",&events)?.unwrap_or(0));}}
                         (["rowItems","i"],"x") => {if let Some(item)=row_items.last_mut(){item.indexes.push(optional_integer(&e,"v",&events)?.unwrap_or(0));}}
-                        ([],"filters"|"formats"|"conditionalFormats"|"rowHierarchies"|"colHierarchies"|"calculatedMembers")
+                        ([],"filters"|"conditionalFormats"|"rowHierarchies"|"colHierarchies"|"calculatedMembers")
                         | (["pivotFields","pivotField"],"autoSortScope"|"memberProperties") => unsupported.push(e.name.local.to_string()),
                         (["pivotFields","pivotField"],"extLst") => {}
                         (["pivotFields","pivotField","extLst"],"ext") => {

@@ -98,3 +98,53 @@ fn automatic_page_boundaries_match_the_excel_ui27_pdfs() {
     }
     assert!(wrong.is_empty(), "{} of {} cases differ:\n{}", wrong.len(), CASES.len(), wrong.join("\n"));
 }
+
+/// The header and footer strings of UI27 q7-headers (Excel 16.0.20527), six pages numbered from
+/// 4, a different first page and different odd and even pages: what each page printed.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn headers_and_footers_print_what_excel_printed_in_q7() {
+    let mut s = PageSettings::default();
+    set(&mut s, "headerFooter", "differentFirst", "1");
+    set(&mut s, "headerFooter", "differentOddEven", "1");
+    let strings = [
+        ("firstHeader", "&LFIRST &P / &N"),
+        ("firstFooter", "&CFIRSTFOOT &P"),
+        ("evenHeader", "&LEVEN &P / &N"),
+        ("evenFooter", "&CEVENFOOT &P"),
+        (
+            "oddHeader",
+            "&LODD &P / &N && &A&C&\"Calibri,Bold\"&12&KFF0000RED &UUNDER&U",
+        ),
+        ("oddFooter", "&CFOOT &[Page] / &[Pages]"),
+    ];
+    for (name, text) in strings {
+        s.headers.insert(name.into(), text.into());
+    }
+    let expected = [
+        ("FIRST 4 / 6", "", "FIRSTFOOT 4"),
+        ("EVEN 5 / 6", "", "EVENFOOT 5"),
+        ("ODD 6 / 6 & Pagination", "RED UNDER", "FOOT Page] / Pages]"),
+        ("EVEN 7 / 6", "", "EVENFOOT 7"),
+        ("ODD 8 / 6 & Pagination", "RED UNDER", "FOOT Page] / Pages]"),
+        ("EVEN 9 / 6", "", "EVENFOOT 9"),
+    ];
+    for (index, (left, centre, footer)) in expected.iter().enumerate() {
+        let number = 4 + index as u32;
+        let context = HeaderContext {
+            page: number,
+            pages: 6,
+            sheet: "Pagination",
+            book: "saved.xlsx",
+            date: "",
+            time: "",
+        };
+        let text = |footer: bool, section: usize| {
+            let runs = header_runs(page_header(&s, index, number, footer), &context).unwrap();
+            runs[section].iter().map(|r| r.text.as_str()).collect::<String>()
+        };
+        assert_eq!(text(false, 0), *left, "page {}", index + 1);
+        assert_eq!(text(false, 1), *centre, "page {}", index + 1);
+        assert_eq!(text(true, 1), *footer, "page {}", index + 1);
+    }
+}

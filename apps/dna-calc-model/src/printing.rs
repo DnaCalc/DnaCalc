@@ -717,6 +717,9 @@ pub fn header_runs(text: &str, context: &HeaderContext<'_>) -> Result<[Vec<Heade
                     .filter(|v| (1.0..=409.0).contains(v))
                     .ok_or_else(|| fail("Invalid header font size"))?;
             }
+            // UI27 q7-headers: Excel prints "FOOT &[Page] / &[Pages]" as "FOOT Page] / Pages]":
+            // the ampersand and the bracket vanish and the rest stays.
+            '[' => {}
             'G' => {
                 return Err(fail(
                     "Header/footer pictures are preserved; printing them is not yet modelled",
@@ -739,12 +742,15 @@ pub fn header_runs(text: &str, context: &HeaderContext<'_>) -> Result<[Vec<Heade
 pub fn page_header<'a>(
     settings: &'a PageSettings,
     page_index: usize,
-    page_number: u32,
+    _page_number: u32,
     footer: bool,
 ) -> &'a str {
     let kind = if page_index == 0 && settings.flag("headerFooter", "differentFirst", false) {
         "first"
-    } else if page_number % 2 == 0 && settings.flag("headerFooter", "differentOddEven", false) {
+    } else if (page_index + 1) % 2 == 0 && settings.flag("headerFooter", "differentOddEven", false)
+    {
+        // UI27 q7-headers: odd and even follow the position in the printout, not the printed
+        // number (first page number 4: the second page, numbered 5, takes the even header).
         "even"
     } else {
         "odd"
