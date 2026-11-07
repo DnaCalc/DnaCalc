@@ -21,6 +21,15 @@ unsafe extern "system" fn window(hwnd: HWND, message: u32, w: WPARAM, l: LPARAM)
             return unsafe { &*pointer }.get_object(w, l);
         }
     }
+    if message == WM_SIZE {
+        // The Excel window chain (XLMAIN > XLDESK > EXCEL7) fills its parent, as Excel's does.
+        let child = unsafe { GetWindow(hwnd, GW_CHILD) };
+        if !child.is_null() {
+            let (width, height) = ((l & 0xffff) as i32, ((l >> 16) & 0xffff) as i32);
+            unsafe { MoveWindow(child, 0, 0, width, height, 1) };
+        }
+        return 0;
+    }
     unsafe { DefWindowProcW(hwnd, message, w, l) }
 }
 fn wide(text: &str) -> Vec<u16> {
@@ -133,6 +142,28 @@ impl Shell {
                 break;
             }
             std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+    /// The innermost window (EXCEL7), where the app mode puts the page.
+    pub fn workbook_hwnd(&self) -> HWND {
+        self.workbook
+    }
+    /// Sizes the window chain to `width` by `height` client pixels and shows it without taking
+    /// the focus.
+    pub fn show(&self, width: i32, height: i32) {
+        unsafe {
+            let mut frame = RECT { left: 0, top: 0, right: width, bottom: height };
+            AdjustWindowRect(&mut frame, WS_OVERLAPPEDWINDOW, 0);
+            SetWindowPos(
+                self.root,
+                std::ptr::null_mut(),
+                0,
+                0,
+                frame.right - frame.left,
+                frame.bottom - frame.top,
+                SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE,
+            );
+            ShowWindow(self.root, SW_SHOWNOACTIVATE);
         }
     }
     pub fn hwnd(&self) -> usize {

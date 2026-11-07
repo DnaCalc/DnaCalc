@@ -1,9 +1,15 @@
 #[cfg(target_arch = "wasm32")]
 compile_error!("dna-calc-desktop is native-only");
 #[cfg(windows)]
+mod app;
+#[cfg(windows)]
 mod engine;
 #[cfg(windows)]
+mod fetch;
+#[cfg(windows)]
 mod shell;
+#[cfg(windows)]
+mod winhttp;
 
 #[cfg(windows)]
 #[unsafe(no_mangle)]
@@ -19,6 +25,10 @@ pub unsafe extern "system" fn MdCallBack12(
 #[cfg(windows)]
 fn run() -> Result<(), String> {
     use std::path::PathBuf;
+    let all: Vec<String> = std::env::args().skip(1).collect();
+    if all.iter().any(|arg| arg == "--app") {
+        return app::run(&all);
+    }
     let mut xlls = Vec::new();
     let mut formula = "=MyAdd(1,2)".to_owned();
     let mut self_test = false;

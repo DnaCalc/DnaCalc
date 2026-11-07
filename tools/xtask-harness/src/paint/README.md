@@ -76,8 +76,12 @@ and cleanup. Security settings, Excel registrations and other Excel processes ar
 
 The default four inputs measure Calibri 11 Normal at 96 DPI, the requested text/style cases
 and unscrolled frozen panes. Other Normal fonts, automatic heights, merged inputs and scrolled
-freeze panes require their own recorded captures. Desktop painter comparison remains unmeasured:
-`dna-calc-desktop` hosts XLL/COM and has no worksheet painter. Chrome establishes no desktop parity.
+freeze panes require their own recorded captures. `--desktop EXE` adds the desktop: the same two painters inside the WebView2 of `dna-calc-desktop --app`, with
+the native workbook worker behind the page, as `desktop-dom` and `desktop-canvas` captures (the app is
+started and stopped by the command). chromedriver refuses WebView2's `Edg/` product string, so a proxy in
+front of the app's DevTools port rewrites that one field of `/json/version`; every other byte is relayed.
+The record's `desktop` entry names the executable, its hash and this substitution. Run the whole command on
+a private desktop (`tools/excel-session/on-private-desktop.ps1`) to keep the window off the owner's.
 
 Regional overrides can be passed with `--decimal-separator` and `--thousands-separator`.
 These use the application URL settings, copied to its workbook worker; the capture records them.

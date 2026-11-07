@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 license.workspace = true
-description = "Minimal Windows STA shell for the DNA Calc XLL host."
+description = "Windows STA shell for the DNA Calc XLL host, and (--app) the page in WebView2 over the native workbook worker."
 
 [package.metadata.dnacalc]
 portability = "native-only"
@@ -17,8 +17,14 @@ calc-value = { path = "../../crates/calc-value" }
 calc-host = { path = "../../crates/calc-host" }
 dna-onecalc = { path = "../dna-onecalc" }
 serde_json = "=1.0.154"
+calc-func = { path = "../../crates/calc-func" }
+# The app mode hosts the page in WebView2 over the native workbook worker (M2 of the grid design).
+dna-calc-worker = { path = "../dna-calc-worker" }
+dna-calc-protocol = { path = "../dna-calc-protocol" }
+webview2-com = "=0.38.2"
+windows = { version = "=0.61.3", features = ["Win32_Foundation", "Win32_System_Com", "Win32_UI_WindowsAndMessaging"] }
 
-windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_System_Com", "Win32_System_LibraryLoader", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi"] }
+windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_System_Com", "Win32_System_LibraryLoader", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi", "Win32_Networking_WinHttp", "Win32_UI_HiDpi", "Win32_System_Threading"] }
 
 [target.'cfg(windows)'.dev-dependencies]
 calc-xll-fixture = { path = "../../crates/calc-xll-fixture" }

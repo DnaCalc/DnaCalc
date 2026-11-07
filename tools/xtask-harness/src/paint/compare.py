@@ -618,7 +618,7 @@ const data=JSON.parse(document.getElementById('observations').textContent),get=i
 const address=c=>{let n=c.col,s='';while(n){n--;s=String.fromCharCode(65+n%26)+s;n=Math.floor(n/26)}return s+c.row};
 const label=s=>s.replaceAll('_',' '),failed=c=>Object.values(c.parity).filter(v=>v.status==='fail').length;
 function row(target,values,cls=''){const tr=document.createElement('tr');tr.className=cls;for(const v of values){const td=document.createElement('td');td.textContent=v;tr.append(td)}target.append(tr);return tr}
-get('desktop').textContent='Desktop: '+data.desktop.status+'. '+data.desktop.reason;
+get('desktop').textContent='Desktop: '+data.desktop.status+'. '+(data.desktop.reason||data.desktop.host||'');
 data.results.forEach((r,i)=>{const o=document.createElement('option');o.value=i;o.textContent=r.prefix;get('capture').append(o)});
 for(const k of Object.keys(data.parity_summary)){const o=document.createElement('option');o.value=k;o.textContent=label(k);get('metric').append(o)}
 let pictureKey='';

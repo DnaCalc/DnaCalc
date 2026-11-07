@@ -927,6 +927,13 @@ fn open(browser: &Browser, download_root: &Path) -> Result<(DriverProcess, Sessi
 }
 
 fn open_locale(browser:&Browser,download_root:&Path,locale:Option<&str>)->Result<(DriverProcess,Session),String> {
+    open_attached(browser,download_root,locale,None)
+}
+
+/// Like [`open_locale`]; with `attach` (a `host:port` DevTools address) the driver attaches to the
+/// browser already running there, as the WebView2 of `dna-calc-desktop --app --debug-port` is,
+/// instead of starting a headless one.
+fn open_attached(browser:&Browser,download_root:&Path,locale:Option<&str>,attach:Option<&str>)->Result<(DriverProcess,Session),String> {
     let program = variable_file(browser.variable)
         .or_else(|| find_on_path(browser.program))
         .ok_or_else(|| {
@@ -999,6 +1006,9 @@ fn open_locale(browser:&Browser,download_root:&Path,locale:Option<&str>)->Result
             "goog:chromeOptions": { "args": ["--headless=new", "--disable-gpu", "--window-size=1280,1000"], "prefs": {"download.default_directory":downloads,"download.prompt_for_download":false} }
         }),
     };
+    if let Some(address)=attach {
+        capabilities=json!({"browserName":"chrome","goog:chromeOptions":{"debuggerAddress":address}});
+    }
     if let Some(locale)=locale {
         let options=if browser.name=="firefox" {"moz:firefoxOptions"}else{"goog:chromeOptions"};
         capabilities[options]["prefs"]["intl.accept_languages"]=json!(locale);

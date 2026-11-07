@@ -2,11 +2,78 @@
 //! WebDriver session, upload route and committed RenderPlan; never synthesize painted values.
 use super::*;
 
-const HELP: &str = "cargo xtask app paint-compare calc --out DIR [--bundle DIR] [--workbook FILE] [--reference DIR] [--zooms 75,100,150] [--normal-font FAMILY,POINTS] [--locale TAG] [--browser chromium|firefox] [--decimal-separator TEXT] [--thousands-separator TEXT] [--sheet-height PX] [--excel EXE]";
+const HELP: &str = "cargo xtask app paint-compare calc --out DIR [--bundle DIR] [--workbook FILE] [--reference DIR] [--zooms 75,100,150] [--normal-font FAMILY,POINTS] [--locale TAG] [--browser chromium|firefox] [--decimal-separator TEXT] [--thousands-separator TEXT] [--sheet-height PX] [--excel EXE] [--desktop EXE]";
 
 fn python() -> Command {
     Command::new(std::env::var_os("DNACALC_PAINT_PYTHON").unwrap_or_else(|| "python".into()))
 }
+
+/// chromedriver reads the product string of `/json/version` and refuses WebView2's `Edg/156...`.
+/// A pass-through TCP proxy to the app's DevTools port rewrites that one field to the driver's own
+/// version and relays every other byte (HTTP and WebSocket) untouched. The page, its protocol and
+/// the pixels are the real WebView2's; the capture record names the substitution.
+fn devtools_proxy(upstream: u16, product: String) -> Result<u16, String> {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).map_err(|e| e.to_string())?;
+    let port = listener.local_addr().map_err(|e| e.to_string())?.port();
+    thread::spawn(move || {
+        for client in listener.incoming().flatten() {
+            let product = product.clone();
+            thread::spawn(move || {
+                let Ok(mut up) = TcpStream::connect(("127.0.0.1", upstream)) else { return };
+                let mut head = [0u8; 4096];
+                let Ok(n) = client.peek(&mut head) else { return };
+                let version = head[..n].starts_with(b"GET /json/version");
+                if version {
+                    // One plain request; answer it by hand with the product string replaced.
+                    let mut client = client;
+                    let mut request = vec![0u8; n];
+                    let _ = client.read_exact(&mut request);
+                    let _ = up.write_all(&request);
+                    // Read the one response by its Content-Length: the server keeps the connection open.
+                    let mut reply = Vec::new();
+                    let mut chunk = [0u8; 4096];
+                    loop {
+                        let Ok(read) = up.read(&mut chunk) else { break };
+                        if read == 0 { break }
+                        reply.extend_from_slice(&chunk[..read]);
+                        let text = String::from_utf8_lossy(&reply);
+                        if let Some((head, body)) = text.split_once("\r\n\r\n") {
+                            let wanted = head.lines().find_map(|l| l.to_ascii_lowercase().strip_prefix("content-length:").and_then(|v| v.trim().parse::<usize>().ok())).unwrap_or(0);
+                            if body.len() >= wanted { break }
+                        }
+                    }
+                    let text = String::from_utf8_lossy(&reply).into_owned();
+                    let text = rewrite_product(&text, &product);
+                    let _ = client.write_all(text.as_bytes());
+                    return;
+                }
+                let (mut a, mut b) = (client.try_clone().unwrap(), up.try_clone().unwrap());
+                let forward = thread::spawn(move || { let _ = std::io::copy(&mut a, &mut b); let _ = b.shutdown(std::net::Shutdown::Write); });
+                let (mut up, mut client) = (up, client);
+                let _ = std::io::copy(&mut up, &mut client);
+                let _ = forward.join();
+            });
+        }
+    });
+    Ok(port)
+}
+
+/// `"Browser": "Edg/156..."` becomes the given product, with Content-Length corrected.
+fn rewrite_product(response: &str, product: &str) -> String {
+    const BLANK: &str = "\r\n\r\n";
+    let Some((head, body)) = response.split_once(BLANK) else { return response.to_owned() };
+    let mut value: Value = serde_json::from_str(body).unwrap_or(Value::Null);
+    if value.get("Browser").is_none() {
+        return response.to_owned();
+    }
+    value["Browser"] = json!(product);
+    let body = value.to_string();
+    let status = head.lines().next().unwrap_or("HTTP/1.1 200 OK");
+    let headers = ["Content-Type: application/json; charset=UTF-8".to_owned(), format!("Content-Length: {}", body.len()), "Connection: close".to_owned()];
+    format!("{status}{CRLF}{}{BLANK}{body}", headers.join(CRLF))
+}
+
+const CRLF: &str = "\r\n";
 
 pub(super) fn run(ws: &Workspace, app: &App, raw: &[String]) -> ExitCode {
     match execute(ws, app, raw) {
@@ -33,6 +100,7 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
     let mut thousands_separator=None;
     let mut browser=&BROWSERS[0];
     let mut sheet_height=None;
+    let mut desktop_exe=None;
     let mut zooms = vec![100, 75, 150];
     let mut args = raw.iter();
     while let Some(flag) = args.next() {
@@ -43,6 +111,7 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
             "--workbook" => workbook = Some(PathBuf::from(value)),
             "--reference" => reference = Some(PathBuf::from(value)),
             "--excel" => excel_path = Some(PathBuf::from(value)),
+            "--desktop" => desktop_exe = Some(PathBuf::from(value)),
             "--locale" => {
                 if value.is_empty() || !value.bytes().all(|c|c.is_ascii_alphanumeric()||c==b'-') {return Err("Locale needs a BCP 47 language tag".into());}
                 locale=Some(value.clone());
@@ -168,8 +237,43 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
         url.push_str(&format!("{key}={encoded}&"));
     }}
     let mut captures = Vec::new();
-    for mode in ["dom", "canvas"] {
-        let (_driver, session) = open_locale(browser, &out.join("downloads"),locale.as_deref())?;
+    // The same two painters, then again inside the WebView2 of `dna-calc-desktop --app` (the native
+    // worker behind the page), attached to over its DevTools port. Only `--desktop EXE` runs it.
+    let mut passes: Vec<(String, &str, Option<String>)> = ["dom", "canvas"].iter().map(|m| (m.to_string(), *m, None)).collect();
+    let mut desktop_app = None;
+    let mut desktop = json!({"status":"not_run","reason":"--desktop was not given"});
+    if let Some(exe) = &desktop_exe {
+        let port = free_port()?;
+        let child = Command::new(exe)
+            .args(["--app", "--url", "about:blank", "--debug-port", &port.to_string(), "--size", "1760x1100"])
+            .stdin(Stdio::null())
+            .spawn()
+            .map_err(|e| format!("cannot start {}: {e}", exe.display()))?;
+        desktop_app = Some(DriverProcess { child, port });
+        let driver_version = {
+            let driver = variable_file(browser.variable).or_else(|| find_on_path(browser.program)).ok_or("no chromedriver")?;
+            let text = cargo::text(&cargo::output(Command::new(driver).arg("--version"))?.stdout);
+            text.split_whitespace().nth(1).ok_or("no chromedriver version")?.to_owned()
+        };
+        let upstream = port;
+        let port = devtools_proxy(upstream, format!("Chrome/{driver_version}"))?;
+        let started = Instant::now();
+        while TcpStream::connect(("127.0.0.1", upstream)).is_err() {
+            if started.elapsed() > Duration::from_secs(30) {
+                return Err("the desktop app did not open its DevTools port".into());
+            }
+            thread::sleep(Duration::from_millis(200));
+        }
+        for mode in ["dom", "canvas"] {
+            passes.push((format!("desktop-{mode}"), mode, Some(format!("127.0.0.1:{port}"))));
+        }
+        desktop = json!({"status":"captured","host":"dna-calc-desktop --app (WebView2, native workbook worker)","executable":exe,
+            "executable_sha256":calc_verdict::sha256_hex(&fs::read(exe).map_err(|e|e.to_string())?),
+            "driver":"chromedriver attached to the app's DevTools port through a proxy that only rewrites the product string of /json/version",
+            "driver_version":driver_version,"webview2_product":"read from /json/version of the running runtime"});
+    }
+    for (label, mode, attach) in passes {
+        let (_driver, session) = open_attached(browser, &out.join("downloads"), locale.as_deref(), attach.as_deref())?;
         let result = (|| {
             for (book, input) in books.iter().zip(&inputs) {
                 start_group(app, &session, &renderer::page(&url, Some(mode)))?;
@@ -245,7 +349,7 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
                         )?;
                         // Two animation frames after the committed plan; read-only inspection.
                         paint_frames(&session)?;
-                        let mut plan=session.script("const p=Object.values(window.__dnacalcRenderPlans).map(f=>JSON.parse(f())).find(p=>p.active);p.layer_rect=document.querySelector('[data-dnacalc=grid][data-grid-active=true] .dc-layer').getBoundingClientRect().toJSON();p.dpr=devicePixelRatio;p.fonts=[...new Set(p.plan.cells.map(c=>c.shown.style.family))].map(f=>({family:f,loaded:!f||document.fonts.check('11px '+JSON.stringify(f))}));return p;")?;
+                        let mut plan=session.script("const p=Object.values(window.__dnacalcRenderPlans).map(f=>JSON.parse(f())).find(p=>p.active);p.layer_rect=document.querySelector('[data-dnacalc=grid][data-grid-active=true] .dc-layer').getBoundingClientRect().toJSON();p.dpr=devicePixelRatio;p.desktop_bridge=!!window.__dnacalcDesktop;p.fonts=[...new Set(p.plan.cells.map(c=>c.shown.style.family))].map(f=>({family:f,loaded:!f||document.fonts.check('11px '+JSON.stringify(f))}));return p;")?;
                         plan["browser"] = if browser.name=="firefox" {
                             session.script("return {userAgent:navigator.userAgent,platform:navigator.platform};")?
                         }else{session.post(
@@ -258,7 +362,7 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
                             "{}-{}-{}-{}",
                             book.file_stem().unwrap().to_string_lossy(),
                             sheet.as_str().unwrap_or("sheet"),
-                            mode,
+                            label,
                             zoom
                         );
                         let screenshot = webdriver(
@@ -275,7 +379,7 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
                         plan["sha256"] = input["sha256"].clone();
                         plan["sheet"] = sheet.clone();
                         plan["zoom"] = json!(zoom);
-                        plan["painter"] = json!(mode);
+                        plan["painter"] = json!(label);
                         plan["prefix"] = json!(prefix);
                         plan["png_base64_sha256"] = json!(calc_verdict::sha256_hex(
                             screenshot.as_str().ok_or("no screenshot")?.as_bytes()
@@ -293,7 +397,8 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
         result?;
     }
     let bundle_hashes: Vec<_>=fs::read_dir(&bundle_dir).map_err(|e|e.to_string())?.filter_map(Result::ok).filter(|e|e.path().is_file()).map(|e|Ok(json!({"name":e.file_name().to_string_lossy(),"sha256":calc_verdict::sha256_hex(&fs::read(e.path()).map_err(|e|e.to_string())?)}))).collect::<Result<_,String>>()?;
-    let record = json!({"schema":"dnacalc-paint/1","captures":captures,"reference":reference_dir,"bundle_source":built_source,"workspace_head_at_capture":cargo::git(&ws.root,&["rev-parse","HEAD"])? .trim(),"workspace_diff_sha256":calc_verdict::sha256_hex(cargo::git(&ws.root,&["diff","HEAD"] )?.as_bytes()),"bundle":bundle_hashes,"desktop":{"status":"not_run","reason":"dna-calc-desktop currently hosts XLL/COM; it has no worksheet painter"}});
+    let record = json!({"schema":"dnacalc-paint/1","captures":captures,"reference":reference_dir,"bundle_source":built_source,"workspace_head_at_capture":cargo::git(&ws.root,&["rev-parse","HEAD"])? .trim(),"workspace_diff_sha256":calc_verdict::sha256_hex(cargo::git(&ws.root,&["diff","HEAD"] )?.as_bytes()),"bundle":bundle_hashes,"desktop":desktop});
+    drop(desktop_app);
     fs::write(out.join("browser.json"), record.to_string()).map_err(|e| e.to_string())?;
     let status = python()
         .arg(source.join("compare.py"))

@@ -80,6 +80,8 @@ pub struct Server {
     book: Workbook,
     /// The browser's way to fetch what WEBSERVICE and IMAGE name; it outlives a workbook.
     fetch_route: Option<std::rc::Rc<dyn calc_func::FetchRoute>>,
+    /// A native host's user functions, applied to every workbook this server installs.
+    user_functions: Option<calc_host::CallableTable>,
     /// The page's subscriptions: its number for each, and calc-host's.
     subscriptions: BTreeMap<u64, SubscriptionId>,
     subscription_interests: BTreeMap<u64, calc_host::Interest>,
@@ -267,6 +269,7 @@ impl Server {
             validation_pending: None,
             book,
             fetch_route: None,
+            user_functions: None,
             subscriptions: BTreeMap::new(),
             subscription_interests: BTreeMap::new(),
             last_subscription: None,
@@ -1193,6 +1196,13 @@ impl Server {
         self.collect();
     }
 
+    /// Bind a native host's user functions (an XLL's) to this and every later workbook.
+    pub fn set_user_functions(&mut self, functions: calc_host::CallableTable) {
+        self.book.set_user_functions(functions.clone());
+        self.user_functions = Some(functions);
+        self.collect();
+    }
+
     /// A fetch has its reply: resumes the waiting cell, or does nothing when the calculation
     /// that asked has been superseded.
     pub fn complete_fetch(&mut self, request: u64, value: calc_host::value::CalcValue) -> bool {
@@ -1209,6 +1219,9 @@ impl Server {
     fn install(&mut self, mut book: Workbook) {
         if let Some(route) = &self.fetch_route {
             book.set_fetch_route(route.clone());
+        }
+        if let Some(functions) = &self.user_functions {
+            book.set_user_functions(functions.clone());
         }
         self.pending_name = None;
         self.pending_save = None;
