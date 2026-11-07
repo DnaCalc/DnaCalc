@@ -17,6 +17,27 @@ fn dated(spelling: &str, args: Vec<calc_func::value::CalcValue>) -> Result<calc_
     call_in(&CalcEnvironment::dates(System1900), None, None, spelling, args)
 }
 
+/// Original corpus and independent adjacent-period/exponent controls.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn period_parts_check_the_stored_zero_based_index() {
+    for (per, periods) in [(378.0_f64.next_up(), 378.0), (378.0, 378.0_f64.next_down())] {
+        exact(call("IPMT", vec![n(0.0878), n(per), n(periods), n(-55838.87), n(-4590.2), n(0.0)]),
+            f64::from_bits(0x4039_3817_fff2_4681));
+    }
+    exact(call("IPMT", vec![n(0.125), n(2.125), n(2.0), n(1000.0), n(0.0), n(0.0)]),
+        f64::from_bits(0xc04d_2984_199b_6e05));
+    exact(call("IPMT", vec![n(0.125), n(1.0), n(2.0_f64.powi(-60)), n(1000.0)]), 0.0);
+    error(call("IPMT", vec![n(0.125), n(18014398509481984.0), n(18014398509481984.0), n(1000.0)]), Num);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn positive_period_parts_use_the_shared_pmt_logarithm_above_half() {
+    exact(call("IPMT", vec![n(1.0), n(378.0), n(378.0), n(-55838.87), n(-4590.2), n(0.0)]),
+        f64::from_bits(0x40d9_0615_70a3_d70a));
+}
+
 /// Excel20527 paired parts keep the total-balance quotient before adding fv.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -143,8 +164,10 @@ fn annuity_beginning_reciprocal_pole_keeps_first_interest_zero() {
     }
     error(call("PPMT", vec![n(rate), n(1.0), n(17.0), n(3.7), n(0.9), n(1.0)]), Num);
     error(call("IPMT", vec![n(rate), n(2.0), n(17.0), n(3.7), n(0.9), n(1.0)]), Num);
-    // Existing period-range contract controls precede the first-interest shortcut.
-    error(call("IPMT", vec![n(rate), n(1.0), n(0.5), n(3.7), n(0.9), n(1.0)]), Num);
+    // R34 fresh Value2 readings correct the old unmeasured nper=0.5
+    // range assumption: zero-based period0 is admitted, before the pole.
+    exact(call("IPMT", vec![n(rate), n(1.0), n(0.5), n(3.7), n(0.9), n(1.0)]), 0.0);
+    error(call("IPMT", vec![n(rate), n(1.0), n(0.0), n(3.7), n(0.9), n(1.0)]), Num);
     error(call("IPMT", vec![n(rate), n(0.5), n(17.0), n(3.7), n(0.9), n(1.0)]), Num);
     // Original R31 overflow readings; the second rate has no timing-coefficient pole.
     for rate in [rate, f64::from_bits(0xbfeffffffffffffe)] {

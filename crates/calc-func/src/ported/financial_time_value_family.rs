@@ -537,14 +537,14 @@ fn fv_exp(rate: f64, m: f64, payment: f64, present_value: f64, tf: f64) -> f64 {
 /// The existing period logarithm and stored balance operand. Positive rates
 /// retain h=RN((pv+fv)/em_n) before PMT's final addition of fv; negative rates
 /// retain the earlier quotient producer. None marks the existing fallback
-/// domain: rates outside the series bound, opposite balances or zero em.
+/// domain: negative rates below the prior bound, opposite balances or zero em.
 fn end_payment_quotient(
     periodic_rate: f64,
     periods: f64,
     present_value: f64,
     future_value: f64,
 ) -> Option<(f64, f64)> {
-    if periodic_rate == 0.0 || !(-1.0 / 3.0..=0.5).contains(&periodic_rate) {
+    if !periodic_rate.is_finite() || periodic_rate == 0.0 || periodic_rate < -1.0 / 3.0 {
         return None;
     }
     if present_value != 0.0 && future_value == -present_value {
@@ -628,7 +628,9 @@ pub fn ipmt(
         present_value,
         future_value,
     ])?;
-    if period_index < 1.0 || period_index > periods {
+    // Excel checks the stored zero-based index. A fractional last period
+    // remains admitted until per-1 reaches nper; it is not per<=nper.
+    if period_index < 1.0 || period_index - 1.0 >= periods {
         return Err(FinancialError::Num);
     }
     // R31 public IPMT calls return zero here even at rate -1 and below.
