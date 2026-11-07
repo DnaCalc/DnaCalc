@@ -26,6 +26,7 @@
 //! give a save any revision of its model together with the records the save rewrites from.
 
 pub(crate) mod address;
+mod data_model;
 mod chart;
 pub mod pivot;
 pub(crate) mod page_setup;
@@ -1537,6 +1538,7 @@ pub fn load_preserving_sheet_ids(
         None => Vec::new(),
     };
     let metadata = metadata::read(package, &workbook)?;
+    let data_model = data_model::read(package, &workbook)?;
 
     let mut issued = Vec::with_capacity(declared.len());
     let release = |ids: &mut IdAllocator<SheetId>, issued: &[SheetId]| {
@@ -1714,6 +1716,7 @@ pub fn load_preserving_sheet_ids(
     let styles = Arc::new(styles);
     let mut definitions = Definitions::new(arrays, names, tables, unloaded)
         .with_pivots(pivot_state)
+        .with_data_model(data_model)
         .with_styles(Arc::clone(&styles))
         .with_axis_layouts(axis_layouts)
         .with_pane_layouts(sheets.iter().filter_map(|s|s.view.pane_layout().map(|p|(s.id,p))))

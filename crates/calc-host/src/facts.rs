@@ -137,7 +137,92 @@ impl HostFacts {
     }
 }
 
+impl HostFacts {
+    /// A model table's rows as a table of the workbook holds them, with each cell read from the
+    /// model: the data model's snapshot, so reading it is no dependency. A formula in a column
+    /// is beyond this reader.
+    fn cube_table(&self, name: &str) -> Option<calc_func::CubeTable> {
+        let definitions = self.model.definitions();
+        let table = definitions.tables().iter().find(|table| {
+            calc_value::workbook_names_equal(&table.name, name)
+                || calc_value::workbook_names_equal(&table.display_name, name)
+        })?;
+        let first = table.area.first();
+        let last_row = table.area.last().row() - table.totals_rows;
+        let mut columns = Vec::with_capacity(table.columns.len());
+        for (offset, column) in table.columns.iter().enumerate() {
+            let mut cells = Vec::new();
+            for row in first.row() + table.header_rows..=last_row {
+                let at = CellKey::new(table.sheet, row, first.column() + offset as u32).ok()?;
+                cells.push(match self.model.cell(at) {
+                    None => calc_value::CalcValue::empty(),
+                    Some(calc_doc_model::CellInput::Number(number)) => {
+                        calc_value::CalcValue::number(number.get())
+                    }
+                    Some(calc_doc_model::CellInput::Text(text)) => {
+                        calc_value::CalcValue::text(text.text().clone())
+                    }
+                    Some(calc_doc_model::CellInput::Logical(logical)) => {
+                        calc_value::CalcValue::logical(*logical)
+                    }
+                    Some(_) => return None,
+                });
+            }
+            columns.push(calc_func::CubeColumn {
+                name: column.clone(),
+                cells,
+            });
+        }
+        Some(calc_func::CubeTable {
+            name: name.to_owned(),
+            columns,
+        })
+    }
+}
+
 impl WorkbookFacts for HostFacts {
+    fn cube_model(&self, connection: &str) -> calc_func::CubeLookup {
+        use calc_func::CubeLookup;
+        let Some(model) = self.model.definitions().data_model() else {
+            return CubeLookup::NoConnection;
+        };
+        let names = |held: &String| calc_value::workbook_names_equal(held, connection);
+        if !model.connections.iter().any(names) {
+            return CubeLookup::NoConnection;
+        }
+        if model.model_connection.as_ref().is_none_or(|held| !names(held)) {
+            return CubeLookup::NotReadable;
+        }
+        let fed = |name: &String| {
+            model
+                .tables
+                .iter()
+                .any(|table| calc_value::workbook_names_equal(table, name))
+        };
+        if model.tables.is_empty() || !model.model_tables.iter().all(fed) {
+            return CubeLookup::NotReadable;
+        }
+        let mut tables = Vec::with_capacity(model.tables.len());
+        for name in &model.tables {
+            match self.cube_table(name) {
+                Some(table) => tables.push(table),
+                None => return CubeLookup::NotReadable,
+            }
+        }
+        CubeLookup::Model(Arc::new(calc_func::CubeModel {
+            connection: connection.to_owned(),
+            tables,
+            measures: model
+                .measures
+                .iter()
+                .map(|measure| calc_func::CubeMeasure {
+                    name: measure.name.clone(),
+                    expression: measure.expression.clone(),
+                })
+                .collect(),
+        }))
+    }
+
     fn cell_format(&self, cell: CellKey) -> Option<CellFormatFacts> {
         let style = self.style(cell);
         let number_format = self.styles.number_format_code(style)?.to_owned();

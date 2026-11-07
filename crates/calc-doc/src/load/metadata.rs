@@ -41,6 +41,8 @@ pub(crate) enum ValueMeta {
     Error(WorksheetErrorCode),
     /// An `_error` rich value whose `errorType` names no worksheet error the model holds.
     UnknownErrorType { error_type: u32 },
+    /// An `mdxMetadata` record: a CUBE function's value, whose `<v>` is the value shown.
+    Mdx,
     /// A `_webimage` rich value: IMAGE's picture, with the media part's bytes.
     Image(ImageValue),
     /// A rich value of another structure (a linked data type, a picture placed in a cell).
@@ -414,6 +416,9 @@ fn resolve_value(
             "valueMetadata rc t={type_index} names no metadataType"
         ));
     };
+    if type_name == "XLMDX" {
+        return ValueMeta::Mdx;
+    }
     if type_name != "XLRICHVALUE" {
         return unresolved(format!(
             "valueMetadata record is of metadata type {type_name}, not XLRICHVALUE"

@@ -167,6 +167,11 @@ pub trait WorkbookFacts: Send + Sync + fmt::Debug {
 
     /// The facts about the application and its platform that INFO reads.
     fn application(&self) -> Option<ApplicationFacts>;
+
+    /// What a CUBE function's connection name reaches.
+    fn cube_model(&self, _connection: &str) -> crate::cube::CubeLookup {
+        crate::cube::CubeLookup::NoConnection
+    }
 }
 
 /// A cell's format as CELL reads it.

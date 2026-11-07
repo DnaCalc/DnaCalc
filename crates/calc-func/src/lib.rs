@@ -24,6 +24,7 @@ pub use udf::{
 };
 mod catalogue;
 mod coerce;
+mod cube;
 mod decimal;
 mod fetch;
 mod file_prefix;
@@ -47,6 +48,7 @@ pub use catalogue::{
     ArgumentDemand, Catalogue, FunctionCallTarget, FunctionId, HelpParameter, Notation,
     ParameterClass, RegistrationError, SignatureHelp, catalogue,
 };
+pub use cube::{CubeColumn, CubeFailure, CubeLookup, CubeMeasure, CubeMember, CubeModel, CubeTable};
 pub use fetch::{
     FETCH_FUNCTIONS, FETCH_PROVIDER, FetchFunction, FetchKind, FetchReply, FetchRequest,
     FetchRoute, decode_body, wire_url,

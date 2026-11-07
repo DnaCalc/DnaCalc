@@ -526,6 +526,30 @@
    ]
   },
   {
+   "path": "crates/calc-func/src/catalogue/cube_functions.rs",
+   "class": "own-work",
+   "reason": "written here from measurements of Excel",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The seven CUBE functions as the catalogue holds them"
+    }
+   ]
+  },
+  {
+   "path": "crates/calc-func/src/cube.rs",
+   "class": "own-work",
+   "reason": "written here from measurements of Excel",
+   "evidence": [
+    {
+     "kind": "header",
+     "line": 1,
+     "quote": "The seven CUBE functions, evaluated against a workbook data model"
+    }
+   ]
+  },
+  {
    "path": "crates/calc-func/src/catalogue/euro_tools.rs",
    "class": "own-work",
    "reason": "written here from measurements of Excel; the add-in's code was not read",
