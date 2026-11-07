@@ -2288,6 +2288,19 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
         return (0.0, 1.0);
     }
     let eps = eps0.max(1.0e-15);
+    // The unit-shape arms, read from single-bit-stepped public calls (Excel 16.0 b20527). With
+    // b = 1 and x <= 0.9 the answer is exp(a * log x), one rounding of each, on every x and shape
+    // asked; b = 1 +- 1 ulp leaves this arm, and just above 0.9 the answer is the complement of
+    // I_{1-x}(1, a). With a = 1 and x >= 0.1 it is that complement's own arm,
+    // 0.5 + (0.5 - exp(b * log y)); just below 0.1 it is not.
+    if b == 1.0 && x <= 0.9 {
+        let w = crate::ported::excel_numeric::excel_exp(a * crt_log(x));
+        return (w, 0.5 + (0.5 - w));
+    }
+    if a == 1.0 && x >= 0.1 {
+        let w1 = crate::ported::excel_numeric::excel_exp(b * crt_log(y));
+        return (0.5 + (0.5 - w1), w1);
+    }
     if a.max(b) < 1.0e-3 * eps {
         return (b / (a + b), a / (a + b));
     }

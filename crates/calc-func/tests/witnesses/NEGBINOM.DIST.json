@@ -40,7 +40,7 @@
     {"args":["0x3ff0000000000000","0x0000000000000000","0x3ff0000000000000","0x0000000000000000"],"expected_bits":"error:Num","id":"negbinom.dist-domain-00086-unit-endpoints","reading":"r1"},
     {"args":["0x3ff0000000000000","0x0000000000000000","0xbcb0000000000000","0x3ff0000000000000"],"expected_bits":"error:Num","id":"negbinom.dist-domain-00073-unit-endpoints","reading":"r1"},
     {"args":["0x3ff0000000000000","0x3ff0000000000000","0x0010000000000000","0x3ff0000000000000"],"calc_func":"0x001fffffffffff08","expected_bits":"0x0020000000000000","id":"negbinom.dist-domain-00095-unit-endpoints","reading":"r1"},
-    {"args":["0x3ff0000000000000","0x3ff0000000000000","0x3fd0000000000000","0x3ff0000000000000"],"calc_func":"0x3fdbfffffffffffe","expected_bits":"0x3fdc000000000000","id":"negbinom.dist-domain-00099-unit-endpoints","reading":"r1"},
+    {"args":["0x3ff0000000000000","0x3ff0000000000000","0x3fd0000000000000","0x3ff0000000000000"],"expected_bits":"0x3fdc000000000000","id":"negbinom.dist-domain-00099-unit-endpoints","reading":"r1"},
     {"args":["0x3ff0000000000000","0x3ff0000000000000","0x3ff0000000000000","0x0000000000000000"],"expected_bits":"error:Num","id":"negbinom.dist-domain-00104-unit-endpoints","reading":"r1"},
     {"args":["0x3ff0000000000000","0x3ff0000000000000","0xbcb0000000000000","0x0000000000000000"],"expected_bits":"error:Num","id":"negbinom.dist-domain-00090-unit-endpoints","reading":"r1"},
     {"args":["0x3ff0000000000000","0x4000000000000000","0x0010000000000000","0x3ff0000000000000"],"expected_bits":"0x0000000000000000","id":"negbinom.dist-domain-00113-unit-endpoints","reading":"r1"},

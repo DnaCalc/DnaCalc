@@ -208,6 +208,31 @@ mod tests {
         );
     }
 
+    /// BETA.DIST(x, a, b, TRUE) answers read from Excel 16.0 build 20527 (the question service,
+    /// 2026-11-07): the b = 1 arm exp(a * log x) up to x = 0.9 and the a = 1 arm
+    /// 0.5 + (0.5 - exp(b * log(1 - x))) from x = 0.1, at tiny x and at both edges.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn beta_dist_unit_shape_arms_match_recorded_answers() {
+        let rows: [(u64, u64, u64, u64); 10] = [
+            (0x3f20000000000000, 0x4000000000000000, 0x3ff0000000000000, 0x3e50000000000006),
+            (0x3d00000000000000, 0x4000000000000000, 0x3ff0000000000000, 0x3a0fffffffffffd6),
+            (0x3c40000000000000, 0x4008000000000000, 0x3ff0000000000000, 0x34dfffffffffff64),
+            (0x3e10000000000000, 0x3ff0000000000000, 0x3ff0000000000000, 0x3e10000000000004),
+            (0x3feccccccccccccd, 0x401c000000000000, 0x3ff0000000000000, 0x3fde9c6a99d1cdbf),
+            (0x3feccccccccccccd, 0x4047800000000000, 0x3ff0000000000000, 0x3f7cf510da63bbeb),
+            (0x3fb999999999999a, 0x3ff0000000000000, 0x401c000000000000, 0x3fe0b1cab3171920),
+            (0x3fb999999999999a, 0x3ff0000000000000, 0x3fb999999999999a, 0x3f8576ed59efe180),
+            (0x3fe1667d2c686bfa, 0x3ff0000000000000, 0x401c000000000000, 0x3fefde4aa862bc76),
+            (0x3fdecc4833c7c22e, 0x3ff0000000000000, 0x4044000000000000, 0x3fefffffffff7420),
+        ];
+        for (x, a, b, expected) in rows {
+            let (x, a, b) = (f64::from_bits(x), f64::from_bits(a), f64::from_bits(b));
+            let got = beta_dist_kernel(x, a, b, true, 0.0, 1.0).unwrap();
+            assert_eq!(got.to_bits(), expected, "BETA.DIST({x:e},{a},{b},TRUE)");
+        }
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn gamma_dist_half_shape_scale_two_matches_erf_sqrt_half_x() {
