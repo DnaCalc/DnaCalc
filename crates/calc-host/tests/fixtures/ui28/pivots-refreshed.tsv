@@ -1,0 +1,669 @@
+P1	A3	s	Row Labels
+P1	B3	s	Sum Amount
+P1	A4	s	East
+P1	B4	n	2074.5
+P1	A5	s	North
+P1	B5	n	659.5
+P1	A6	s	South
+P1	B6	n	3136.5
+P1	A7	s	West
+P1	B7	n	2261.5
+P1	A8	s	(blank)
+P1	B8	n	158
+P1	A9	s	Grand Total
+P1	B9	n	8290
+P2	A3	s	Row Labels
+P2	B3	s	Sum Amount
+P2	A4	s	East
+P2	B4	n	2074.5
+P2	A5	s	Alpha
+P2	B5	n	691.5
+P2	A6	s	Beta
+P2	B6	n	778.5
+P2	A7	s	Gamma
+P2	B7	n	604.5
+P2	A8	s	North
+P2	B8	n	659.5
+P2	A9	s	Alpha
+P2	B9	n	100
+P2	A10	s	Beta
+P2	B10	n	227.5
+P2	A11	s	Gamma
+P2	B11	n	332
+P2	A12	s	South
+P2	B12	n	3136.5
+P2	A13	s	Alpha
+P2	B13	n	756.75
+P2	A14	s	Beta
+P2	B14	n	1710
+P2	A15	s	Gamma
+P2	B15	n	669.75
+P2	A16	s	West
+P2	B16	n	2261.5
+P2	A17	s	Alpha
+P2	B17	n	748
+P2	A18	s	Beta
+P2	B18	n	713.25
+P2	A19	s	Gamma
+P2	B19	n	800.25
+P2	A20	s	(blank)
+P2	B20	n	158
+P2	A21	s	Gamma
+P2	B21	n	158
+P2	A22	s	Grand Total
+P2	B22	n	8290
+P3	A3	s	Region
+P3	B3	s	Product
+P3	C3	s	Sum Amount
+P3	A4	s	East
+P3	C4	n	2074.5
+P3	B5	s	Alpha
+P3	C5	n	691.5
+P3	B6	s	Beta
+P3	C6	n	778.5
+P3	B7	s	Gamma
+P3	C7	n	604.5
+P3	A8	s	North
+P3	C8	n	659.5
+P3	B9	s	Alpha
+P3	C9	n	100
+P3	B10	s	Beta
+P3	C10	n	227.5
+P3	B11	s	Gamma
+P3	C11	n	332
+P3	A12	s	South
+P3	C12	n	3136.5
+P3	B13	s	Alpha
+P3	C13	n	756.75
+P3	B14	s	Beta
+P3	C14	n	1710
+P3	B15	s	Gamma
+P3	C15	n	669.75
+P3	A16	s	West
+P3	C16	n	2261.5
+P3	B17	s	Alpha
+P3	C17	n	748
+P3	B18	s	Beta
+P3	C18	n	713.25
+P3	B19	s	Gamma
+P3	C19	n	800.25
+P3	A20	s	(blank)
+P3	C20	n	158
+P3	B21	s	Gamma
+P3	C21	n	158
+P3	A22	s	Grand Total
+P3	C22	n	8290
+P4	A3	s	Region
+P4	B3	s	Product
+P4	C3	s	Sum Amount
+P4	A4	s	East
+P4	B4	s	Alpha
+P4	C4	n	691.5
+P4	B5	s	Beta
+P4	C5	n	778.5
+P4	B6	s	Gamma
+P4	C6	n	604.5
+P4	A7	s	East Total
+P4	C7	n	2074.5
+P4	A8	s	North
+P4	B8	s	Alpha
+P4	C8	n	100
+P4	B9	s	Beta
+P4	C9	n	227.5
+P4	B10	s	Gamma
+P4	C10	n	332
+P4	A11	s	North Total
+P4	C11	n	659.5
+P4	A12	s	South
+P4	B12	s	Alpha
+P4	C12	n	756.75
+P4	B13	s	Beta
+P4	C13	n	1710
+P4	B14	s	Gamma
+P4	C14	n	669.75
+P4	A15	s	South Total
+P4	C15	n	3136.5
+P4	A16	s	West
+P4	B16	s	Alpha
+P4	C16	n	748
+P4	B17	s	Beta
+P4	C17	n	713.25
+P4	B18	s	Gamma
+P4	C18	n	800.25
+P4	A19	s	West Total
+P4	C19	n	2261.5
+P4	A20	s	(blank)
+P4	B20	s	Gamma
+P4	C20	n	158
+P4	A21	s	(blank) Total
+P4	C21	n	158
+P4	A22	s	Grand Total
+P4	C22	n	8290
+P5	A3	s	Sum Amount
+P5	B3	s	Column Labels
+P5	A4	s	Row Labels
+P5	B4	s	Alpha
+P5	C4	s	Beta
+P5	D4	s	Gamma
+P5	E4	s	Grand Total
+P5	A5	s	East
+P5	B5	n	691.5
+P5	C5	n	778.5
+P5	D5	n	604.5
+P5	E5	n	2074.5
+P5	A6	s	North
+P5	B6	n	100
+P5	C6	n	227.5
+P5	D6	n	332
+P5	E6	n	659.5
+P5	A7	s	South
+P5	B7	n	756.75
+P5	C7	n	1710
+P5	D7	n	669.75
+P5	E7	n	3136.5
+P5	A8	s	West
+P5	B8	n	748
+P5	C8	n	713.25
+P5	D8	n	800.25
+P5	E8	n	2261.5
+P5	A9	s	(blank)
+P5	D9	n	158
+P5	E9	n	158
+P5	A10	s	Grand Total
+P5	B10	n	2296.25
+P5	C10	n	3429.25
+P5	D10	n	2564.5
+P5	E10	n	8290
+P6	A3	s	Sum Amount
+P6	B3	s	Column Labels
+P6	A4	s	Row Labels
+P6	B4	n	45306
+P6	C4	n	45337
+P6	D4	n	45366
+P6	E4	n	45397
+P6	F4	n	45458
+P6	G4	n	45488
+P6	H4	n	45519
+P6	I4	n	45550
+P6	J4	n	45580
+P6	K4	n	45611
+P6	L4	n	45641
+P6	M4	n	45672
+P6	N4	n	45703
+P6	O4	n	45731
+P6	P4	n	45762
+P6	Q4	n	45792
+P6	R4	n	45823
+P6	S4	n	45853
+P6	T4	n	45884
+P6	U4	n	45915
+P6	V4	n	45945
+P6	W4	n	45976
+P6	X4	n	46006
+P6	Y4	n	46037
+P6	Z4	n	46068
+P6	AA4	n	46096
+P6	AB4	n	46127
+P6	AC4	n	46157
+P6	AD4	n	46188
+P6	AE4	n	46218
+P6	AF4	n	46249
+P6	AG4	n	46280
+P6	AH4	n	46310
+P6	AI4	n	46341
+P6	AJ4	n	46371
+P6	AK4	s	Grand Total
+P6	A5	s	East
+P6	D5	n	114.5
+P6	G5	n	143.5
+P6	K5	n	172.5
+P6	O5	n	201.5
+P6	S5	n	230.5
+P6	W5	n	259.5
+P6	AA5	n	288.5
+P6	AE5	n	317.5
+P6	AI5	n	346.5
+P6	AK5	n	2074.5
+P6	A6	s	North
+P6	B6	n	100
+P6	Q6	n	-75.5
+P6	U6	n	0
+P6	Y6	n	0
+P6	AC6	n	303
+P6	AG6	n	332
+P6	AK6	n	659.5
+P6	A7	s	South
+P6	C7	n	1234.5
+P6	F7	n	136.25
+P6	J7	n	165.25
+P6	N7	n	194.25
+P6	R7	n	223.25
+P6	V7	n	252.25
+P6	Z7	n	281.25
+P6	AD7	n	310.25
+P6	AH7	n	339.25
+P6	AK7	n	3136.5
+P6	A8	s	West
+P6	E8	n	243.5
+P6	H8	n	150.75
+P6	L8	n	179.75
+P6	P8	n	208.75
+P6	T8	n	237.75
+P6	X8	n	266.75
+P6	AB8	n	295.75
+P6	AF8	n	324.75
+P6	AJ8	n	353.75
+P6	AK8	n	2261.5
+P6	A9	s	(blank)
+P6	I9	n	158
+P6	AK9	n	158
+P6	A10	s	Grand Total
+P6	B10	n	100
+P6	C10	n	1234.5
+P6	D10	n	114.5
+P6	E10	n	243.5
+P6	F10	n	136.25
+P6	G10	n	143.5
+P6	H10	n	150.75
+P6	I10	n	158
+P6	J10	n	165.25
+P6	K10	n	172.5
+P6	L10	n	179.75
+P6	N10	n	194.25
+P6	O10	n	201.5
+P6	P10	n	208.75
+P6	Q10	n	-75.5
+P6	R10	n	223.25
+P6	S10	n	230.5
+P6	T10	n	237.75
+P6	U10	n	0
+P6	V10	n	252.25
+P6	W10	n	259.5
+P6	X10	n	266.75
+P6	Y10	n	0
+P6	Z10	n	281.25
+P6	AA10	n	288.5
+P6	AB10	n	295.75
+P6	AC10	n	303
+P6	AD10	n	310.25
+P6	AE10	n	317.5
+P6	AF10	n	324.75
+P6	AG10	n	332
+P6	AH10	n	339.25
+P6	AI10	n	346.5
+P6	AJ10	n	353.75
+P6	AK10	n	8290
+P7	A3	s	Row Labels
+P7	B3	s	Sum Amount
+P7	C3	s	Sum Units
+P7	A4	s	East
+P7	B4	n	2074.5
+P7	C4	n	26
+P7	A5	s	North
+P7	B5	n	659.5
+P7	C5	n	19
+P7	A6	s	South
+P7	B6	n	3136.5
+P7	C6	n	27
+P7	A7	s	West
+P7	B7	n	2261.5
+P7	C7	n	29
+P7	A8	s	(blank)
+P7	B8	n	158
+P7	C8	n	4
+P7	A9	s	Grand Total
+P7	B9	n	8290
+P7	C9	n	105
+P8	A1	s	Product
+P8	B1	s	(All)
+P8	A3	s	Row Labels
+P8	B3	s	Sum Amount
+P8	A4	s	East
+P8	B4	n	2074.5
+P8	A5	s	North
+P8	B5	n	659.5
+P8	A6	s	South
+P8	B6	n	3136.5
+P8	A7	s	West
+P8	B7	n	2261.5
+P8	A8	s	(blank)
+P8	B8	n	158
+P8	A9	s	Grand Total
+P8	B9	n	8290
+P9	A3	s	Row Labels
+P9	B3	s	Count Amount
+P9	A4	s	East
+P9	B4	n	9
+P9	A5	s	North
+P9	B5	n	6
+P9	A6	s	South
+P9	B6	n	9
+P9	A7	s	West
+P9	B7	n	10
+P9	A8	s	(blank)
+P9	B8	n	1
+P9	A9	s	Grand Total
+P9	B9	n	35
+P10	A3	s	Row Labels
+P10	B3	s	Average Amount
+P10	A4	s	East
+P10	B4	n	230.5
+P10	A5	s	North
+P10	B5	n	131.9
+P10	A6	s	South
+P10	B6	n	348.5
+P10	A7	s	West
+P10	B7	n	226.15
+P10	A8	s	(blank)
+P10	B8	n	158
+P10	A9	s	Grand Total
+P10	B9	n	243.8235294117647
+P11	A3	s	Row Labels
+P11	B3	s	Min Amount
+P11	A4	s	East
+P11	B4	n	114.5
+P11	A5	s	North
+P11	B5	n	-75.5
+P11	A6	s	South
+P11	B6	n	136.25
+P11	A7	s	West
+P11	B7	n	121.75
+P11	A8	s	(blank)
+P11	B8	n	158
+P11	A9	s	Grand Total
+P11	B9	n	-75.5
+P12	A3	s	Row Labels
+P12	B3	s	Max Amount
+P12	A4	s	East
+P12	B4	n	346.5
+P12	A5	s	North
+P12	B5	n	332
+P12	A6	s	South
+P12	B6	n	1234.5
+P12	A7	s	West
+P12	B7	n	353.75
+P12	A8	s	(blank)
+P12	B8	n	158
+P12	A9	s	Grand Total
+P12	B9	n	1234.5
+P13	A3	s	Sum Amount
+P13	B3	s	Column Labels
+P13	A4	s	Row Labels
+P13	B4	s	Alpha
+P13	C4	s	Beta
+P13	D4	s	Gamma
+P13	A5	s	East
+P13	B5	n	691.5
+P13	C5	n	778.5
+P13	D5	n	604.5
+P13	A6	s	North
+P13	B6	n	100
+P13	C6	n	227.5
+P13	D6	n	332
+P13	A7	s	South
+P13	B7	n	756.75
+P13	C7	n	1710
+P13	D7	n	669.75
+P13	A8	s	West
+P13	B8	n	748
+P13	C8	n	713.25
+P13	D8	n	800.25
+P13	A9	s	(blank)
+P13	D9	n	158
+P14	A3	s	Region
+P14	B3	s	Product
+P14	C3	s	Sum Amount
+P14	A4	s	East
+P14	C4	n	2074.5
+P14	B5	s	Alpha
+P14	C5	n	691.5
+P14	B6	s	Beta
+P14	C6	n	778.5
+P14	B7	s	Gamma
+P14	C7	n	604.5
+P14	A8	s	North
+P14	C8	n	659.5
+P14	B9	s	Alpha
+P14	C9	n	100
+P14	B10	s	Beta
+P14	C10	n	227.5
+P14	B11	s	Gamma
+P14	C11	n	332
+P14	A12	s	South
+P14	C12	n	3136.5
+P14	B13	s	Alpha
+P14	C13	n	756.75
+P14	B14	s	Beta
+P14	C14	n	1710
+P14	B15	s	Gamma
+P14	C15	n	669.75
+P14	A16	s	West
+P14	C16	n	2261.5
+P14	B17	s	Alpha
+P14	C17	n	748
+P14	B18	s	Beta
+P14	C18	n	713.25
+P14	B19	s	Gamma
+P14	C19	n	800.25
+P14	A20	s	(blank)
+P14	C20	n	158
+P14	B21	s	Gamma
+P14	C21	n	158
+P14	A22	s	Grand Total
+P14	C22	n	8290
+P15	A3	s	Region
+P15	B3	s	Product
+P15	C3	s	Sum Amount
+P15	A4	s	East
+P15	B5	s	Alpha
+P15	C5	n	691.5
+P15	B6	s	Beta
+P15	C6	n	778.5
+P15	B7	s	Gamma
+P15	C7	n	604.5
+P15	A8	s	East Total
+P15	C8	n	2074.5
+P15	A9	s	North
+P15	B10	s	Alpha
+P15	C10	n	100
+P15	B11	s	Beta
+P15	C11	n	227.5
+P15	B12	s	Gamma
+P15	C12	n	332
+P15	A13	s	North Total
+P15	C13	n	659.5
+P15	A14	s	South
+P15	B15	s	Alpha
+P15	C15	n	756.75
+P15	B16	s	Beta
+P15	C16	n	1710
+P15	B17	s	Gamma
+P15	C17	n	669.75
+P15	A18	s	South Total
+P15	C18	n	3136.5
+P15	A19	s	West
+P15	B20	s	Alpha
+P15	C20	n	748
+P15	B21	s	Beta
+P15	C21	n	713.25
+P15	B22	s	Gamma
+P15	C22	n	800.25
+P15	A23	s	West Total
+P15	C23	n	2261.5
+P15	A24	s	(blank)
+P15	B25	s	Gamma
+P15	C25	n	158
+P15	A26	s	(blank) Total
+P15	C26	n	158
+P15	A27	s	Grand Total
+P15	C27	n	8290
+P16	A3	s	Region
+P16	B3	s	Product
+P16	C3	s	Sum Amount
+P16	A4	s	East
+P16	B4	s	Alpha
+P16	C4	n	691.5
+P16	A5	s	East
+P16	B5	s	Beta
+P16	C5	n	778.5
+P16	A6	s	East
+P16	B6	s	Gamma
+P16	C6	n	604.5
+P16	A7	s	East Total
+P16	C7	n	2074.5
+P16	A8	s	North
+P16	B8	s	Alpha
+P16	C8	n	100
+P16	A9	s	North
+P16	B9	s	Beta
+P16	C9	n	227.5
+P16	A10	s	North
+P16	B10	s	Gamma
+P16	C10	n	332
+P16	A11	s	North Total
+P16	C11	n	659.5
+P16	A12	s	South
+P16	B12	s	Alpha
+P16	C12	n	756.75
+P16	A13	s	South
+P16	B13	s	Beta
+P16	C13	n	1710
+P16	A14	s	South
+P16	B14	s	Gamma
+P16	C14	n	669.75
+P16	A15	s	South Total
+P16	C15	n	3136.5
+P16	A16	s	West
+P16	B16	s	Alpha
+P16	C16	n	748
+P16	A17	s	West
+P16	B17	s	Beta
+P16	C17	n	713.25
+P16	A18	s	West
+P16	B18	s	Gamma
+P16	C18	n	800.25
+P16	A19	s	West Total
+P16	C19	n	2261.5
+P16	A20	s	(blank)
+P16	B20	s	Gamma
+P16	C20	n	158
+P16	A21	s	(blank) Total
+P16	C21	n	158
+P16	A22	s	Grand Total
+P16	C22	n	8290
+P17	A3	s	Region
+P17	B3	s	Product
+P17	C3	s	Sum Amount
+P17	A4	s	East
+P17	B4	s	Alpha
+P17	C4	n	691.5
+P17	B5	s	Beta
+P17	C5	n	778.5
+P17	B6	s	Gamma
+P17	C6	n	604.5
+P17	A7	s	East Total
+P17	C7	n	2074.5
+P17	A8	s	North
+P17	B8	s	Alpha
+P17	C8	n	100
+P17	B9	s	Beta
+P17	C9	n	227.5
+P17	B10	s	Gamma
+P17	C10	n	332
+P17	A11	s	North Total
+P17	C11	n	659.5
+P17	A12	s	South
+P17	B12	s	Alpha
+P17	C12	n	756.75
+P17	B13	s	Beta
+P17	C13	n	1710
+P17	B14	s	Gamma
+P17	C14	n	669.75
+P17	A15	s	South Total
+P17	C15	n	3136.5
+P17	A16	s	West
+P17	B16	s	Alpha
+P17	C16	n	748
+P17	B17	s	Beta
+P17	C17	n	713.25
+P17	B18	s	Gamma
+P17	C18	n	800.25
+P17	A19	s	West Total
+P17	C19	n	2261.5
+P17	A20	s	(blank)
+P17	B20	s	Gamma
+P17	C20	n	158
+P17	A21	s	(blank) Total
+P17	C21	n	158
+P17	A22	s	Grand Total
+P17	C22	n	8290
+P18	A3	s	Row Labels
+P18	B3	s	Sum Amount
+P18	A4	s	East
+P18	B4	n	2074.5
+P18	A5	s	North
+P18	B5	n	659.5
+P18	A6	s	South
+P18	B6	n	3136.5
+P18	A7	s	West
+P18	B7	n	2261.5
+P18	A8	s	(blank)
+P18	B8	n	158
+P18	A9	s	Grand Total
+P18	B9	n	8290
+P19	A3	s	Row Labels
+P19	B3	s	Sum Amount
+P19	A4	s	(blank)
+P19	B4	n	158
+P19	A5	s	West
+P19	B5	n	2261.5
+P19	A6	s	South
+P19	B6	n	3136.5
+P19	A7	s	North
+P19	B7	n	659.5
+P19	A8	s	East
+P19	B8	n	2074.5
+P19	A9	s	Grand Total
+P19	B9	n	8290
+P20	A3	s	Row Labels
+P20	B3	s	Sum Amount
+P20	A4	s	West
+P20	B4	n	2261.5
+P20	A5	s	North
+P20	B5	n	659.5
+P20	A6	s	East
+P20	B6	n	2074.5
+P20	A7	s	South
+P20	B7	n	3136.5
+P20	A8	s	(blank)
+P20	B8	n	158
+P20	A9	s	Grand Total
+P20	B9	n	8290
+PName	A3	s	Row Labels
+PName	B3	s	Sum Amount
+PName	A4	s	East
+PName	B4	n	2074.5
+PName	A5	s	North
+PName	B5	n	659.5
+PName	A6	s	South
+PName	B6	n	3136.5
+PName	A7	s	West
+PName	B7	n	2261.5
+PName	A8	s	(blank)
+PName	B8	n	158
+PName	A9	s	Grand Total
+PName	B9	n	8290
+PTable	A3	s	Row Labels
+PTable	B3	s	Sum Amount
+PTable	A4	s	East
+PTable	B4	n	2074.5
+PTable	A5	s	North
+PTable	B5	n	659.5
+PTable	A6	s	South
+PTable	B6	n	3136.5
+PTable	A7	s	West
+PTable	B7	n	2261.5
+PTable	A8	s	(blank)
+PTable	B8	n	158
+PTable	A9	s	Grand Total
+PTable	B9	n	8290

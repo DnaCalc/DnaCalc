@@ -1,6 +1,6 @@
 //! One bounded pagination plan for worksheet page views, preview and browser print.
 //! Consumes existing sheet metrics and projected values; it never evaluates workbook formulas.
-use crate::geometry::{GridMetrics, sheet_metrics};
+use crate::geometry::{GridMetrics, Sizes, sheet_metrics};
 use crate::projection::{Area, Cell, Chart, Geometry, Sheet};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -117,14 +117,62 @@ struct Slice {
     length: f64,
     manual: bool,
 }
+// UI27 (Excel 16.0.20527, Microsoft Print to PDF at 600 dpi): printed bands are whole device
+// pixels, and a band is a little larger than its nominal size. A 15 pt row (20 px) prints as 127
+// device pixels and a 10.7109375-character column (75 px) as 504; widths and heights are rounded
+// after the print scale is applied (q2-*, q3-fit-*). The column factor is calibrated at one
+// width; other widths are open questions (excel-questions-ui30).
+const COLUMN_DEVICE_PER_PX: f64 = 504. / 75.;
+const ROW_DEVICE_PER_POINT: f64 = 127. / 15.;
+/// Page and margin sizes: 600 dpi device pixels per CSS pixel.
+const PAGE_DEVICE_PER_PX: f64 = 600. / 96.;
+/// Bands in device pixels at one print scale, indexed like the pixel metrics.
+fn device_metrics(m: &GridMetrics, geometry: &Geometry, scale: f64) -> GridMetrics {
+    let round = |v: f64| (v * scale).round();
+    let row_default = geometry.default_row_height.unwrap_or(15.) * ROW_DEVICE_PER_POINT;
+    let col_default = m.col_width * COLUMN_DEVICE_PER_PX;
+    let rows = geometry.rows.iter().map(|&(row, height, hidden)| {
+        (
+            row,
+            if hidden {
+                0.
+            } else {
+                round(height.map_or(row_default, |h| h * ROW_DEVICE_PER_POINT))
+            },
+        )
+    });
+    let mut columns = Vec::new();
+    for &(first, last, _, hidden) in &geometry.columns {
+        for column in first..=last.min(16_384) {
+            let size = if hidden {
+                0.
+            } else {
+                round((m.col_start(column + 1) - m.col_start(column)) * COLUMN_DEVICE_PER_PX)
+            };
+            columns.push((column, size));
+        }
+    }
+    GridMetrics {
+        scale: 1.,
+        row_height: round(row_default),
+        col_width: round(col_default),
+        header_h: round(m.header_h * ROW_DEVICE_PER_POINT * 0.75),
+        header_w: round(m.header_w * COLUMN_DEVICE_PER_PX),
+        rows: Sizes::new(round(row_default), rows),
+        cols: Sizes::new(round(col_default), columns),
+    }
+}
+#[allow(clippy::too_many_arguments)]
 fn slices(
     m: &GridMetrics,
+    d: &GridMetrics,
     rows: bool,
     first: u32,
     last: u32,
     title: Option<(u32, u32)>,
     capacity: f64,
     breaks: &BTreeSet<u32>,
+    titles_everywhere: bool,
 ) -> Result<Vec<Slice>, String> {
     let mut start = first;
     let mut out = Vec::new();
@@ -139,17 +187,29 @@ fn slices(
         } else {
             m.visible_col(start, true, last)
         };
-        if visible < start || visible > last || length(m, rows, visible, last) <= 0. {
+        if visible < start || visible > last || length(d, rows, visible, last) <= 0. {
             break;
         }
         start = visible;
-        let repeat = title.filter(|(_, b)| start > *b);
-        let repeated = repeat.map_or(0., |(a, b)| length(m, rows, a, b));
+        // UI27 q6-titles-break: a page that begins inside the title band repeats the whole band
+        // and carries on after it (title 1:22, break after row 20: page two is rows 1..22, 23...).
+        if let Some((a, b)) = title.filter(|_| !out.is_empty()) {
+            if (a..=b).contains(&start) {
+                start = b + 1;
+                if start > last {
+                    break;
+                }
+                continue;
+            }
+        }
+        let repeat = title.filter(|(_, b)| titles_everywhere || start > *b);
+        let repeated = repeat.map_or(0., |(a, b)| length(d, rows, a, b));
         let available = capacity - repeated;
         if !available.is_finite() || available <= 0. {
             return Err(fail("Print titles leave no room for worksheet content"));
         }
-        if length(m, rows, start, start) > available + 1e-7 {
+        // UI27 q3-fit-two, q4-fit-manual: content that exactly fills a page does not fit.
+        if length(d, rows, start, start) >= available {
             return Err(fail(
                 "A row or column is larger than the printable page; reduce the scale",
             ));
@@ -158,7 +218,7 @@ fn slices(
         let (mut lo, mut hi) = (start, limit);
         while lo < hi {
             let mid = lo + (hi - lo).div_ceil(2);
-            if length(m, rows, start, mid) <= available + 1e-7 {
+            if length(d, rows, start, mid) < available {
                 lo = mid;
             } else {
                 hi = mid - 1;
@@ -168,7 +228,7 @@ fn slices(
             first: start,
             last: lo,
             title: repeat,
-            length: repeated + length(m, rows, start, lo),
+            length: repeat.map_or(0., |(a, b)| length(m, rows, a, b)) + length(m, rows, start, lo),
             manual: breaks.contains(&lo),
         });
         start = lo + 1;
@@ -262,8 +322,8 @@ pub fn paginate(
         return Err(fail("Margins leave no printable page"));
     }
     let headings = settings.flag("printOptions", "headings", false);
-    let hw = if headings { m.header_w } else { 0. };
-    let hh = if headings { m.header_h } else { 0. };
+    let page_w = width * PAGE_DEVICE_PER_PX;
+    let page_h = height * PAGE_DEVICE_PER_PX;
     let fit = settings.flag("pageSetUpPr", "fitToPage", false);
     // UI27 q4-manual: Excel 16.0.20527 stores row max=15 and column max=119
     // for A1:P120. A break spanning the complete printed area is not a partial cut.
@@ -336,24 +396,30 @@ pub fn paginate(
         }
         let rb = breaks(true, area)?;
         let cb = breaks(false, area)?;
+        let d = device_metrics(&m, geometry, scale);
+        let (hw, hh) = if headings { (d.header_w, d.header_h) } else { (0., 0.) };
         Ok((
             slices(
                 &m,
+                &d,
                 true,
                 a.first().row(),
                 a.last().row(),
                 title_rows,
-                height / scale - hh,
+                page_h - hh,
                 &rb,
+                false,
             )?,
             slices(
                 &m,
+                &d,
                 false,
                 a.first().column(),
                 a.last().column(),
                 title_columns,
-                width / scale - hw,
+                page_w - hw,
                 &cb,
+                false,
             )?,
         ))
     };
@@ -371,6 +437,8 @@ pub fn paginate(
             .rev()
             .find_map(|p| {
                 let s = f64::from(p) / 100.;
+                let d = device_metrics(&m, geometry, s);
+                let (hw, hh) = if headings { (d.header_w, d.header_h) } else { (0., 0.) };
                 areas
                     .iter()
                     .all(|a| {
@@ -378,26 +446,32 @@ pub fn paginate(
                             return false;
                         };
                         // Automatic axes must not constrain fit, including through preview limits.
+                        // UI27 q3-fit-large-titles: fit counts the print titles on every page,
+                        // the first included.
                         (wide == 0.
                             || slices(
                                 &m,
+                                &d,
                                 false,
                                 a.first().column(),
                                 a.last().column(),
                                 title_columns,
-                                width / s - hw,
+                                page_w - hw,
                                 &cb,
+                                true,
                             )
                             .is_ok_and(|c| c.len() as f64 <= wide))
                             && (tall == 0.
                                 || slices(
                                     &m,
+                                    &d,
                                     true,
                                     a.first().row(),
                                     a.last().row(),
                                     title_rows,
-                                    height / s - hh,
+                                    page_h - hh,
                                     &rb,
+                                    true,
                                 )
                                 .is_ok_and(|r| r.len() as f64 <= tall))
                     })
@@ -410,6 +484,8 @@ pub fn paginate(
     if !(0.1..=4.).contains(&scale) {
         return Err(fail("Scale must be between 10% and 400%"));
     }
+    let hw = if headings { m.header_w } else { 0. };
+    let hh = if headings { m.header_h } else { 0. };
     let mut pages = Vec::new();
     let mut drawing_pixels = 0.;
     let first = if settings.flag("pageSetup", "useFirstPageNumber", false) {
@@ -904,3 +980,8 @@ mod tests {
         assert!(header_runs("&Z", &c).is_err());
     }
 }
+
+#[cfg(test)]
+mod ui27_cases;
+#[cfg(test)]
+mod ui27;
