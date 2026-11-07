@@ -32,8 +32,12 @@ pub(crate) fn kurt_kernel(values: &[f64]) -> Result<f64, WorksheetErrorCode> {
         })
         .sum::<f64>();
     let n = n as f64;
+    // R33 exact-normalization controls separate this coefficient from the
+    // fourth-moment numerator. Both strict and stored-PC64 arithmetic give
+    // the recorded results here; this change preserves the existing word.
+    let coefficient = (n * (n + 1.0)) / ((n - 1.0) * (n - 2.0) * (n - 3.0));
     Ok(
-        (n * (n + 1.0) * standardized_sum) / ((n - 1.0) * (n - 2.0) * (n - 3.0))
+        coefficient * standardized_sum
             - (3.0 * (n - 1.0).powi(2)) / ((n - 2.0) * (n - 3.0)),
     )
 }
