@@ -26,6 +26,17 @@ VALUETOTEXT, ASC and DBCS; this does not admit array-producing or hyperlink entr
 `text(..., literal=True)` and `boolean(..., literal=True)` select direct literals;
 numbers always travel through Value2 cells. `error("#DIV/0!")` and `blank()` use cells.
 Helpers vary one nonnegative finite argument; `arguments=` supplies the other arguments.
+LINEST and LOGEST accept numeric arrays of at most128 cells each (up to32 rows/columns).
+Select one scalar output with `result_index=(row, column)`; no request formula is accepted:
+```python
+from client import number_array
+reply = excel.ask("LINEST", [[number_array([[2.0], [4.0], [6.0]]),
+                            number_array([[1.0], [2.0], [3.0]]),
+                            boolean(False), boolean(True)]], result_index=(4, 2))
+```
+The service flattens each array into audited Value2 cells and constructs its shape with CHOOSE.
+Other array-producing functions stay outside the service. An existing Windows loop must be
+stopped and started after pulling this protocol extension.
 Failures raise `ServiceError` with its retained `.response`; timeouts retain the request.
 On this Windows clone, start and stop explicitly:
 ```powershell

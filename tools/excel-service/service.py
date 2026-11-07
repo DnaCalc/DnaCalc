@@ -91,13 +91,27 @@ def witness_request(request):
     rows = []
     for i, row in enumerate(request["rows"]):
         args, references = [], []
-        for c, arg in enumerate(row, 1):
+        modes = []
+        for arg in row:
+            if arg["type"] == "array":
+                values = arg["values"]
+                leaves = [v for r in values for v in r]
+                offset = len(args)+1
+                cells = [f"RC[{offset+k}]" for k in range(len(leaves))]
+                indices = "{" + ";".join(",".join(str(r*len(values[0])+c+1)
+                    for c in range(len(values[0]))) for r in range(len(values))) + "}"
+                references.append("CHOOSE(" + indices + "," + ",".join(cells) + ")")
+                args.extend({"number": v["bits"]} for v in leaves)
+                modes.extend(["cell"]*len(leaves))
+                continue
+            c = len(args)+1
             kind = arg["type"]
             value = ({"number": arg["bits"]} if kind == "number" else
                      {"text": arg["value"]} if kind == "text" else
                      {"logical": arg["value"]} if kind == "boolean" else
                      {"empty": True} if kind == "blank" else {"error_code": ERRORS[arg["code"]]})
             args.append(value)
+            modes.append(arg.get("mode", "cell"))
             if arg.get("mode", "cell") == "cell":
                 references.append(f"RC[{c}]")
             elif kind == "text":
@@ -106,10 +120,32 @@ def witness_request(request):
                 references.append("TRUE" if arg["value"] else "FALSE")
             else:
                 references.append(arg["code"])
-        rows.append({"id": str(i), "args": args,
-                     "argument_modes": [arg.get("mode", "cell") for arg in row],
-                     "formula": "=" + request["function"] + "(" + ",".join(references) + ")"})
+        formula = request["function"] + "(" + ",".join(references) + ")"
+        if "result_index" in request:
+            r, c = request["result_index"]
+            formula = f"INDEX({formula},{r},{c})"
+        rows.append({"id": str(i), "args": args, "argument_modes": modes,
+                     "formula": "=" + formula})
     return {"rows": rows}
+
+
+def typed_inputs(original, read_back):
+    """Restore numeric array shapes after the worker audits every physical cell."""
+    result, offset = [], 0
+    for arg in original:
+        if arg["type"] == "array":
+            values = arg["values"]
+            width = len(values[0])
+            result.append({"type": "array", "values": [
+                [typed(v) for v in read_back[offset+r*width:offset+(r+1)*width]]
+                for r in range(len(values))]})
+            offset += len(values)*width
+        else:
+            result.append(typed(read_back[offset]))
+            offset += 1
+    if offset != len(read_back):
+        raise ValueError("input audit length changed")
+    return result
 
 
 class Service:
@@ -196,7 +232,8 @@ class Service:
             raise RuntimeError("Excel changed an input; no answer is qualified (see retained input audit)")
         return {"version": 1, "id": request["id"], "ok": True,
                 "rows": [typed(row["value"]) for row in raw["rows"]],
-                "inputs": [[typed(v) for v in row["input_audit"]["read_back"]] for row in raw["rows"]],
+                "inputs": [typed_inputs(original, row["input_audit"]["read_back"])
+                           for original, row in zip(request["rows"], raw["rows"])],
                 "excel_version": raw["excel_version"], "excel_build": raw["excel_build"],
                 "excel_file_version": raw["excel_file_version"], "excel_pid": raw["excel_pid"],
                 "calculation_settings": raw.get("calculation_settings"),
