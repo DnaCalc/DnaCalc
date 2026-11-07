@@ -160,10 +160,10 @@ try {
         if($settings.Calculation -ne -4135 -or $settings.Iteration -or $settings.mtc_enabled -or $settings.EnableEvents){throw 'Named-condition settings differ'}
         Stage 'before-CalculateFull' $book;$excel.CalculateFull();Stage 'after-CalculateFull' $book
         $excel.CalculateFullRebuild();Stage 'after-CalculateFullRebuild' $book
-        if($condition.id -eq 'eng19-P12-shadowed-explicit-evaluate'){
+        if($condition.id -eq 'eng19-P12-shadowed-explicit-evaluate' -or $condition.PSObject.Properties['evaluate_formula']){
             foreach($sheetName in 'Sheet1','Other'){
                 $sheet=$book.Worksheets.Item($sheetName);$sheet.Activate();Stage ('evaluate-context-'+$sheetName) $book
-                $evaluations=@('=Choice','=Alias','=Sheet1!Choice' | ForEach-Object {@{expression=$_;selected_name=$null;selected_refers_to=$null}})
+                $evaluations=@($(if($condition.PSObject.Properties['evaluate_formula']){@($condition.evaluate_formula)}else{'=Choice','=Alias','=Sheet1!Choice'}) | ForEach-Object {@{expression=$_;selected_name=$null;selected_refers_to=$null}})
                 foreach($selected in $book.Names){$evaluations+=@{expression=[string]$selected.RefersTo;selected_name=[string]$selected.Name;selected_refers_to=[string]$selected.RefersTo}}
                 foreach($evaluation in $evaluations){
                     $expression=[string]$evaluation.expression
