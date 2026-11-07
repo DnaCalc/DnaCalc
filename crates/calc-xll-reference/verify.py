@@ -46,6 +46,20 @@ def rewritten_source(root, relative, expected):
     return None
 
 
+def ident(row):
+    """The identity of one RTD admission, input read or retirement in the host's evidence: the
+    topic and lease (dc-snz.23.2), or the provider and subscription of earlier captures."""
+    if "topic" in row:
+        return (row["topic"], row["lease"])
+    return (row["provider"], row["subscription"])
+
+
+def ident_fields(row):
+    if "topic" in row:
+        return {"topic": row["topic"], "lease": row["lease"]}
+    return {"provider": row["provider"], "subscription": row["subscription"]}
+
+
 def jsonl(path):
     return [json.loads(line) for line in path.read_text(encoding="utf-8-sig").splitlines() if line]
 
@@ -1053,7 +1067,7 @@ def verify_rtd_extended(excel, excel_control, host, host_control, cases_path, pu
         require([(r["formula"], r["value"], r["dependent"]) for r in output["results"]] == [(c["formula"], c["value"], c.get("dependent_value")) for c in cases], "Ordered host RTD outcomes differ")
         latest = {}
         for update in output["rtd_updates"]:
-            key = (update["provider"], update["subscription"])
+            key = ident(update)
             require(update["disposition"] == "Accepted" and update["sequence"] == latest.get(key, 0) + 1, "RTD input was rejected or its sequence skipped/rewound")
             latest[key] = update["sequence"]
         for case, row in zip(cases,output["results"],strict=True):
@@ -1064,27 +1078,27 @@ def verify_rtd_extended(excel, excel_control, host, host_control, cases_path, pu
                 require(len(row["dependent_provenance"]["rtd_inputs"]) == case["expected_dependent_rtd_inputs"] and row["dependent_provenance"]["completed_invocations"] == case["expected_dependent_completed_invocations"], "RTD dependent lacks its expected producing invocations/inputs")
             through = row["rtd_updates_through"]
             require(isinstance(through, int) and 0 <= through <= len(output["rtd_updates"]), "Invalid RTD producing cut index")
-            cut = {(u["provider"], u["subscription"]): u["sequence"] for u in output["rtd_updates"][:through]}
+            cut = {ident(u): u["sequence"] for u in output["rtd_updates"][:through]}
             for proof in (row["provenance"], row.get("dependent_provenance")):
                 if proof:
                     for read in proof["rtd_inputs"]:
-                        require(cut.get((read["provider"], read["subscription"])) == read["sequence"], "RTD certificate does not name its latest admitted cut")
+                        require(cut.get(ident(read)) == read["sequence"], "RTD certificate does not name its latest admitted cut")
         require(all(r["disposition"] == "Accepted" for r in output["rtd_retired"]), "RTD retirement failed")
         require(not output["async_returns"] and not output["revoked_tokens"], "RTD used native async completion")
         if any(c.get("keep_formula") for c in cases):
-            require([(u["subscription"], u["sequence"], u["value"]) for u in output["rtd_updates"]] == [(1, 1, 1), (1, 2, 42), (1, 3, 1), (1, 4, 42)], "Completed-topic reuse did not preserve ID and advance the input sequence")
+            require([(ident(u)[1], u["sequence"], u["value"]) for u in output["rtd_updates"]] == [(1, 1, 1), (1, 2, 42), (1, 3, 1), (1, 4, 42)], "Completed-topic reuse did not preserve ID and advance the input sequence")
             require([len(r["provenance"]["rtd_inputs"]) for r in output["results"]] == [1, 0, 1, 0], "RTD branch/reuse certificates differ")
         if any(c.get("rtd_variant_array") for c in cases):
             require(len(cases) == 1, "Unqualified mixed array RTD profile")
             updates = output["rtd_updates"]
             require(len(updates) == 2
-                    and len({(u["provider"], u["subscription"]) for u in updates}) == 1
+                    and len({ident(u) for u in updates}) == 1
                     and [(u["sequence"], u["value"], u["disposition"]) for u in updates]
                         == [(1, {"error":"#N/A"}, "Accepted"), (2, {"error":"#N/A"}, "Accepted")], "Array RTD lacks its initial and refreshed admitted #N/A cuts")
             last = updates[-1]
             require(output["results"][0]["rtd_updates_through"] == 2
                     and output["results"][0]["provenance"]["rtd_inputs"]
-                        == [{"provider":last["provider"], "subscription":last["subscription"], "sequence":2}], "Array RTD certificate does not select the refreshed input")
+                        == [{**ident_fields(last), "sequence":2}], "Array RTD certificate does not select the refreshed input")
         outputs.append(output)
     protocols, native, internal, identities = [], [], [], []
     methods = {10: "ServerStart", 11: "ConnectData", 12: "RefreshData", 13: "DisconnectData", 14: "Heartbeat", 15: "ServerTerminate"}
@@ -1217,7 +1231,10 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
     require(environments[0]["tracer_sha256"] == environments[2]["tracer_sha256"], "Different RTD tracers")
     for directory, env in zip(directories[:2], environments[:2]):
         observed = controller(directory)
-        require(env["pid"] != 3144 and env["pid"] not in env["preexisting_excel_pids"], "Unowned RTD Excel PID")
+        if excel_session_directory is not None:
+            verify_excel_ownership(directory, env)
+        else:
+            require(env["pid"] != 3144 and env["pid"] not in env["preexisting_excel_pids"], "Unowned RTD Excel PID")
         require(observed["AutomationSecurity unchanged"] and observed["RTD termination before detach"], "RTD cleanup/security control failed")
         for case in cases:
             require(observed[case["formula"]] == case["value"], "Excel RTD formula differs")
@@ -1236,12 +1253,12 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
         updates = output["rtd_updates"]
         if signaling:
             require(len(updates) >= 2 and [(v["sequence"], v["value"], v["disposition"]) for v in updates] == [(i + 1, None, "Accepted") for i in range(len(updates))], "Empty RTD signals were not admitted as ordered inputs")
-            require(len({(v["provider"], v["subscription"]) for v in updates}) == 1, "Signaling RTD changed subscription identity")
+            require(len({ident(v) for v in updates}) == 1, "Signaling RTD changed subscription identity")
         else:
             require([(v["sequence"], v["value"], v["disposition"]) for v in updates] == [(1, 1, "Accepted"), (2, 42, "Accepted")], "RTD admissions differ")
-        require(output["results"][0]["provenance"]["rtd_inputs"] == [{"provider": updates[-1]["provider"], "subscription": updates[-1]["subscription"], "sequence": updates[-1]["sequence"]}], "RTD final certificate lacks its exact admitted input")
+        require(output["results"][0]["provenance"]["rtd_inputs"] == [{**ident_fields(updates[-1]), "sequence": updates[-1]["sequence"]}], "RTD final certificate lacks its exact admitted input")
         require(not output["results"][-1]["provenance"]["rtd_inputs"], "Replacement retained an RTD input")
-        require(output["rtd_retired"] == [{"provider": updates[-1]["provider"], "subscription": updates[-1]["subscription"], "disposition": "Accepted"}], "RTD retirement differs")
+        require(output["rtd_retired"] == [{**ident_fields(updates[-1]), "disposition": "Accepted"}], "RTD retirement differs")
         require(not output["async_returns"] and not output["revoked_tokens"], "RTD used the async-completion route")
         outputs.append(output)
     traces = [boundary(p) for p in (excel, host)]
@@ -1365,7 +1382,7 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
             protocols[-1] = normalized
             if index == 1:
                 updates = outputs[0]["rtd_updates"]
-                require(updates[0]["subscription"] == topic and len(updates) == 1 + sum(r["count"] for r in protocol if r["method"] == "RefreshData"), "An observed empty RTD signal is missing from P07 admissions")
+                require(ident(updates[0])[1] == topic and len(updates) == 1 + sum(r["count"] for r in protocol if r["method"] == "RefreshData"), "An observed empty RTD signal is missing from P07 admissions")
             native.append(records)
             continue
         for record in records:
