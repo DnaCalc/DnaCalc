@@ -57,7 +57,7 @@ BIN2OCT	pinned	20430	120	120	-	exact	919dd43269+changes
 BINOM.DIST	full	20131,20527,?	70349	70231	491	numeric	9b6d452f27+changes
 BINOM.DIST	pinned	20131	120	120	-	exact	d711d51236+changes
 BINOM.DIST.RANGE	full	20430	1224	1210	19	numeric	9b6d452f27+changes
-BINOM.DIST.RANGE	pinned	20430	120	119	9	numeric	d84eb1c9e5+changes
+BINOM.DIST.RANGE	pinned	20430	120	120	-	exact	d3b996ee19+changes
 BINOM.INV	full	20430	2152	2149	4607182418800017408	gross	9b6d452f27+changes
 BINOM.INV	pinned	20430	120	120	-	exact	d711d51236+changes
 BITAND	full	20430	5989	5989	-	exact	9b6d452f27+changes
