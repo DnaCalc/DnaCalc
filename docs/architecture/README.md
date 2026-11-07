@@ -9,6 +9,8 @@ Current documents (start with the summary):
 - `RECALC_CONTRACT.md`: the recalculation contract for the first end-to-end slice.
 - `EXCEL_CALC_PROBES.md`: Excel calculation experiments that decide open points of the contract.
 - `XLL_COM_HOSTING.md`: hosting .xll add-ins and the COM object model.
+- `FUNCTION_CATALOGUE.md`: what the function catalogue declares, the name space, entry checking and
+  localised names.
 
 `review-2026-10/` keeps the record of how the synthesis was reached: the foundation risk audit
 (`risk-*.md`), library research, ideas recovered from the early Foundation plans, four independent
