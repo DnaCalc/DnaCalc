@@ -591,6 +591,32 @@ impl<'c> Lowering<'c> {
                         self.blocks[block].push(Instruction::Function(target));
                     } else {
                         let scope = NameScope::Formula(self.name_context.lookup_sheet());
+                        // A function typed bare where a LAMBDA value is taken (Excel 16.0.20527,
+                        // UI30: `=MAP({1,2,3},SUM)`, `=BYROW(A1:B2,SUM)`) is the function's value
+                        // when no defined name has the text; a VBA or add-in function of that
+                        // name, or of any bare name, is #VALUE! there, and one named like a
+                        // built-in shadows it. A file stores the value as `_xleta.SUM`, so a
+                        // bare identifier of a loaded formula stays a name.
+                        if !self.loaded
+                            && matches!(
+                                self.lookup_name(text, scope, span),
+                                NameDefinition::Unknown
+                            )
+                            && !matches!(self.catalog.table(text), TableLookup::Found(_))
+                        {
+                            if self.functions.is_some_and(|f| f.contains(text)) {
+                                self.blocks[block].push(Instruction::Literal(Literal::Error(
+                                    WorksheetErrorCode::Value,
+                                )));
+                                return Ok(());
+                            }
+                            if let Ok(target) =
+                                catalogue().resolve_surface(Notation::Call, text)
+                            {
+                                self.blocks[block].push(Instruction::Function(Target(target)));
+                                return Ok(());
+                            }
+                        }
                         self.defined_name(text, scope, span, block)?;
                     }
                 }

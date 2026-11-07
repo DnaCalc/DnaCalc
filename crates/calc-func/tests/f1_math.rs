@@ -23,6 +23,23 @@ fn roundup_publishes_its_power_of_ten_unit_from_pc64() {
     }
 }
 
+/// Fresh Excel20527 controls distinguish normalized radix16 scaling from both
+/// direct decimal conversion and an integer coefficient padded to15 digits.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn rounding_publishes_normalized_decimal_coefficients_in_radix16_steps() {
+    for function in ["ROUND", "ROUNDUP", "ROUNDDOWN", "TRUNC"] {
+        for (input, expected) in [
+            (0x00cf_63b0_3545_19d2u64, 0x00cf_63b0_3545_19d1),
+            (0x123f_0cf4_0240_a183, 0x123f_0cf4_0240_a182),
+            (0x80cf_63b0_3545_19d2, 0x80cf_63b0_3545_19d1),
+        ] {
+            exact(call(function, vec![n(f64::from_bits(input)), n(32000.0)]),
+                f64::from_bits(expected));
+        }
+    }
+}
+
 /// Original Excel20430 observations oc1418, oc1065 and oc1762.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

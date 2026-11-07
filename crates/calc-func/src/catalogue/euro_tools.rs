@@ -15,10 +15,11 @@
 //!   eleven original members, GRD, SIT, MTL, CYP, SKK and EEK. LVL, LTL, HRK, BGN, XEU and others
 //!   are #VALUE!. [`UNITS`] holds each fixed rate and its rounding places.
 //! - **The calculation.** The same unit gives the number unchanged. Otherwise the amount in euro
-//!   is the number itself from EUR, and otherwise `ROUND(number / rate, 19)`, which keeps 15
+//!   is the number itself from EUR, and otherwise rounding of number / rate to19 places, which keeps15
 //!   significant digits and at most 19 places; a triangulation precision rounds that to its
 //!   places (not when the source is EUR). The target amount is the euro amount times the target's
-//!   rate. Full precision returns it; else it is ROUND of it to the target's places.
+//!   rate. Full precision returns it; else it is rounded to the target's places.
+//!   Its decimal publication is direct, unlike worksheet ROUND's radix16 scaling.
 //! - **Overflow.** A number / rate beyond binary64 gives 0; a target amount beyond binary64 gives
 //!   #NUM! at full precision and 0 otherwise.
 //! - **Arguments.** Every argument is read once as the add-in reads a single value, so nothing
@@ -26,7 +27,7 @@
 //!   fewer than three or more than five arguments. See [`amount`], [`flag`] and [`places`].
 
 use super::kit::{R, grid};
-use super::rounding::nearest_digits;
+use super::rounding::nearest_digits_exact as nearest_digits;
 use super::{ArgumentDemand, CatalogueEntry, Family, FunctionId, Kernel, Notation, Parameter};
 use crate::call::{EvalServices, FunctionFault};
 use crate::kernel::{Exit, Site, Step};
@@ -83,7 +84,7 @@ const UNITS: [(&str, f64, i32); 18] = [
 /// The index of EUR in [`UNITS`].
 const EURO: usize = 17;
 
-/// A quotient is rounded as `ROUND(quotient,19)`: 15 significant digits, at most 19 places.
+/// A quotient keeps15 significant digits and at most19 places, published directly.
 const QUOTIENT_PLACES: f64 = 19.0;
 
 fn value_error<T>() -> Step<T> {

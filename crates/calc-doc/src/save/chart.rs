@@ -821,5 +821,5 @@ mod colour_order_tests {
 }
 
 fn category_combination(plots:&[ChartPlot])->bool{
-    (2..=3).contains(&plots.len()) && plots.iter().enumerate().all(|(i,p)|plots[..i].iter().all(|old|old.kind!=p.kind)) && plots.iter().all(|p|category_kind(&p.kind)&&(p.kind!="barChart"||p.bar_direction.as_deref()==Some("col"))&&p.grouping.as_deref()!=Some("percentStacked"))
+    (2..=3).contains(&plots.len()) && plots.iter().enumerate().all(|(i,p)|plots[..i].iter().all(|old|old.kind!=p.kind)) && plots.iter().all(|p|category_kind(&p.kind)&&(p.kind!="barChart"||p.bar_direction.as_deref()==Some("col")))
 }

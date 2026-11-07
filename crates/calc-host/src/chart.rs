@@ -753,6 +753,9 @@ fn range_data(host:&HostState,origin:CellKey,text:&str,numeric:bool,single:bool)
 pub(crate) fn prepare_create(host:&HostState,revision:u64,area:calc_value::GridArea,kind:&str,rows:bool,headers:bool,categories:bool)->Result<Vec<crate::CellEdit>,String>{
     use calc_doc_model::{Chart,ChartAxis,ChartPlot,ChartSeries};
     let fail=|s:&str|format!("{s} (dc-971p.49)");
+    // UI30 P10: `column-percent`, `bar-percent`, `line-percent` and `area-percent` are the
+    // 100% stacked plots (grouping percentStacked) of the same kinds.
+    let (kind,percent)=match kind.strip_suffix("-percent"){Some(base@("column"|"bar"|"line"|"area"))=>(base,true),_=>(kind,false)};
     if revision!=host.revision().get(){return Err(fail("The workbook changed; select the chart data again"));}
     let sheet=area.sheet();
     let source=host.loaded().sheet(sheet).ok_or_else(||fail("Save and reopen the new worksheet before creating a chart"))?;
@@ -781,7 +784,7 @@ pub(crate) fn prepare_create(host:&HostState,revision:u64,area:calc_value::GridA
     }
     let mut axes=if pie{Vec::new()}else{vec![
         ChartAxis{id:1,cross_axis:Some(2),kind:if kind=="scatter"{"valAx"}else{"catAx"}.into(),position:Some(if kind=="bar"{"l"}else{"b"}.into()),..Default::default()},
-        ChartAxis{id:2,cross_axis:Some(1),kind:"valAx".into(),position:Some(if kind=="bar"{"b"}else{"l"}.into()),cross_between:Some("between".into()),..Default::default()},
+        ChartAxis{id:2,cross_axis:Some(1),kind:"valAx".into(),position:Some(if kind=="bar"{"b"}else{"l"}.into()),cross_between:Some(if kind=="area"{"midCat"}else{"between"}.into()),..Default::default()},
     ]};
     if kind=="scatter"{axes[0].cross_between=Some("between".into());}
     if combo{
@@ -790,7 +793,7 @@ pub(crate) fn prepare_create(host:&HostState,revision:u64,area:calc_value::GridA
         axes.push(ChartAxis{id:4,cross_axis:Some(3),kind:"valAx".into(),position:Some("r".into()),cross_between:Some("between".into()),..Default::default()});
         axes.push(ChartAxis{id:3,cross_axis:Some(4),kind:"catAx".into(),position:Some("b".into()),..Default::default()});
     }
-    let mut plots=vec![ChartPlot{kind:plot_kind.into(),bar_direction:dir.map(str::to_owned),grouping:(!pie&&kind!="scatter").then(||if plot_kind=="barChart"{"clustered"}else{"standard"}.into()),vary_colors:pie,series,axis_ids:if pie{Vec::new()}else{vec![1,2]}}];
+    let mut plots=vec![ChartPlot{kind:plot_kind.into(),bar_direction:dir.map(str::to_owned),grouping:(!pie&&kind!="scatter").then(||if percent{"percentStacked"}else if plot_kind=="barChart"{"clustered"}else{"standard"}.into()),vary_colors:pie,series,axis_ids:if pie{Vec::new()}else{vec![1,2]}}];
     if kind=="combo-three"{
         let area=plots[0].series.pop().unwrap();let line=plots[0].series.pop().unwrap();
         for (kind,series,axis_ids)in [("lineChart",line,vec![3,4]),("areaChart",area,vec![1,2])]{plots.push(ChartPlot{kind:kind.into(),grouping:Some("standard".into()),series:vec![series],axis_ids,..Default::default()});}

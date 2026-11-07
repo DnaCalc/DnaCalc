@@ -266,3 +266,80 @@ fn ui28__pivot_refresh_against_excel() {
 const MUST_MATCH: &[&str] = &["P1", "P10", "P11", "P12", "P13", "P14", "P15", "P16", "P17", "P18", "P19", "P2", "P20", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "PName", "PTable"];
 // All 22 pivot definitions saved and reopened equal Excel's.
 const MUST_MATCH_SAVED: &[&str] = &["pvt_average", "pvt_count", "pvt_grand_off", "pvt_max", "pvt_min", "pvt_named", "pvt_one_row_sum", "pvt_repeat_off", "pvt_repeat_on", "pvt_report_filter", "pvt_row_col", "pvt_row_col_dates", "pvt_sort_ascending", "pvt_sort_descending", "pvt_sort_manual", "pvt_subtotal_bottom", "pvt_subtotal_top", "pvt_table", "pvt_two_data", "pvt_two_row_compact", "pvt_two_row_outline", "pvt_two_row_tabular"];
+
+const UI30: &[u8] = include_bytes!("fixtures/ui30/pivots-ui30-excel.xlsx");
+
+/// UI30 P8: pivots Excel built over the Source sheet of the UI28 workbook (report filters with
+/// chosen items, two data fields, two column fields, three row fields in each layout with the
+/// automatic subtotals on and off, a date field grouped by month and year, percent of column,
+/// top 10, a values filter and three data number formats). The workbook holds Excel's cells; each
+/// pivot is refreshed and must give the same cells. A refused or different pivot is a failure in
+/// the report; the list below is what must match.
+#[test]
+/// Native-only: the report test prints every outcome; the tracked list below is asserted.
+fn ui30__pivot_layouts_refresh_to_the_cells_excel_held() {
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(UI30.to_vec()));
+    let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default())
+        .expect("it opens");
+    let sheets: Vec<_> = book
+        .host()
+        .sheets()
+        .iter()
+        .map(|s| (s.id(), String::from_utf16_lossy(s.name().text().utf16_code_units())))
+        .collect();
+    let mut outcomes = BTreeMap::new();
+    for (sheet, name) in sheets.iter().filter(|s| s.1.starts_with('N')) {
+        let tables: Vec<(String, String)> = book
+            .host()
+            .model()
+            .definitions()
+            .pivots()
+            .sheets
+            .get(sheet)
+            .map(|p| p.tables.iter().map(|t| (t.part.clone(), t.name.clone())).collect())
+            .unwrap_or_default();
+        let want = held(&book, *sheet, 60, 80);
+        let mut verdict = None;
+        for (part, _) in &tables {
+            let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+                sheet: *sheet,
+                revision: book.host().revision().get(),
+                part: part.clone(),
+            }));
+            if !receipt.accepted() {
+                verdict = Some(format!("refused: {receipt:?}"));
+            }
+        }
+        let verdict = verdict.unwrap_or_else(|| {
+            let got = held(&book, *sheet, 60, 80);
+            if got == want {
+                "matched".to_owned()
+            } else {
+                let diff: Vec<_> = want
+                    .iter()
+                    .filter(|(k, v)| got.get(*k) != Some(*v))
+                    .map(|(k, v)| format!("{k}: want {v:?} got {:?}", got.get(k)))
+                    .chain(got.keys().filter(|k| !want.contains_key(*k)).map(|k| format!("{k}: unexpected")))
+                    .take(3)
+                    .collect();
+                format!("mismatched: {}", diff.join("; "))
+            }
+        });
+        let label = tables.first().map_or(name.clone(), |t| t.1.clone());
+        outcomes.insert(label, verdict);
+    }
+    for (name, verdict) in &outcomes {
+        println!("{name}: {}", &verdict[..verdict.len().min(400)]);
+    }
+    let matched: Vec<_> = outcomes
+        .iter()
+        .filter(|(_, v)| *v == "matched")
+        .map(|(n, _)| n.as_str())
+        .collect();
+    println!("matched {} of {}: {matched:?}", matched.len(), outcomes.len());
+    assert_eq!(outcomes.len(), 16, "{outcomes:#?}");
+    assert_eq!(matched, UI30_MUST_MATCH, "{outcomes:#?}");
+}
+// Data number formats refresh. Report filters with chosen items, two column fields, three row
+// fields, grouped dates, percent of column, top 10 and values filters still refuse (dc-8wp).
+const UI30_MUST_MATCH: &[&str] = &["pvt_fmt_0_00", "pvt_fmt_currency", "pvt_fmt_percent"];

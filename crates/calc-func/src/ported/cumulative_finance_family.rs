@@ -114,6 +114,17 @@ pub fn cumipmt_kernel(
     // types) it matches 131 of 195 CUMIPMT bit for bit against 53 for the sum of IPMT, and the
     // others are within a few ulp.
     let payment = time_value::pmt(rate, periods as f64, pv, 0.0, timing).map_err(kernel_error)?;
+    // Beginning payments have no first-period interest. Excel omits that
+    // period from both the payment count and the principal sum: all252
+    // eight-period pairs and216 independent longer-loan pairs agree.
+    let start_period = if timing == PaymentTiming::BeginningOfPeriod && start_period == 1 {
+        2
+    } else {
+        start_period
+    };
+    if start_period > end_period {
+        return Ok(0.0);
+    }
     let principal = principal_sum(rate, periods, pv, start_period, end_period, timing)?;
     let total = (end_period - start_period + 1) as f64 * payment - principal;
     if total.is_finite() {
