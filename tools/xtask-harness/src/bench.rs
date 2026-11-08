@@ -2,9 +2,9 @@
 //! <workbook>=<sheet>!<cell>]... [--excel] [--no-dna] [--timeout <s>]`: the time and memory DNA
 //! Calc and Excel take to open and calculate each workbook of a folder (bead dc-10d9), built on
 //! `cargo xtask corpus`: the same listing of workbooks, the same cached captures, and the same
-//! release xtask, in which each DNA Calc run is its own process.
+//! perf-profile xtask, in which each DNA Calc run is its own process.
 //!
-//! **DNA Calc**, `--runs` times per workbook (default 5), each run in a new release xtask process
+//! **DNA Calc**, `--runs` times per workbook (default 5), each run in a new perf-profile xtask process
 //! (`bench --one`), through calc-host's product calls with no read observer
 //! ([`calc_host::Unobserved`]), recalculating on `--threads` threads (default
 //! `calc_platform_desktop::default_threads`: the physical cores, at most eight); with
@@ -56,7 +56,7 @@
 //!
 //! It writes `bench.json` (every sample) and `bench.md` (per workbook and metric: the median, the
 //! lowest and highest sample, and the number of samples) to `--out`, by default `target/bench`.
-//! Exit codes: 0 when both were written; 1 when they cannot be, or the release build fails; 2 on
+//! Exit codes: 0 when both were written; 1 when they cannot be, or the perf build fails; 2 on
 //! a usage error.
 
 use crate::corpus::{Cache, DEFAULT_CACHE, Entry, compare_program, excel_build, folder_workbooks};
@@ -1058,7 +1058,7 @@ fn run_bench(args: &Args) -> u8 {
         return EXIT_FAILED;
     }
     let (program, program_note) = if args.dna {
-        match compare_program() {
+        match compare_program(Some("perf")) {
             Ok(program) => program,
             Err(e) => {
                 eprintln!("xtask bench: {e}");
@@ -1068,6 +1068,7 @@ fn run_bench(args: &Args) -> u8 {
     } else {
         (PathBuf::new(), "none run".to_owned())
     };
+    let _copy = args.dna.then(|| xtask::harness::CopyCleanup(program.clone()));
     let cache = Cache {
         root: args.cache.clone(),
     };

@@ -42,6 +42,18 @@ edition = "2024"
 publish = false
 license = "MIT"
 
+[profile.dev]
+debug = false
+
+# Speed up dependency parsing and compression without optimising calculation crates.
+[profile.dev.package."*"]
+opt-level = 2
+
+# Corpus hashes its executable and workbook records through this small crate. Optimising it
+# avoids making hashing dominate debug runs; calculation crates retain fast unoptimised builds.
+[profile.dev.package.calc-verdict]
+opt-level = 2
+
 # The browser bundles of DNA OneCalc and DNA Calc (`cargo xtask app bundle`): release code
 # optimised for speed (opt-level 3), with link-time optimisation in one codegen unit. Speed over
 # download size (decided for dc-09v, 2026-10-25); the sizes and open times are in the commit that
@@ -51,3 +63,8 @@ inherits = "release"
 opt-level = 3
 lto = true
 codegen-units = 1
+
+# Native performance measurements retain line tables for profilers.
+[profile.perf]
+inherits = "release"
+debug = "line-tables-only"

@@ -283,7 +283,7 @@ fn resolved_targets(ws: &Workspace) -> ResolvedTargets {
     resolved
 }
 
-/// Runs the five checks in order. Logs of the cargo runs they start go to `log_dir`.
+/// Runs the four checks in order. Logs of the cargo runs they start go to `log_dir`.
 pub fn run_all(ws: &Workspace, log_dir: &Path) -> Vec<CheckResult> {
     let config = Config::load(&ws.root);
     let resolved = resolved_targets(ws);

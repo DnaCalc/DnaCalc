@@ -1,6 +1,6 @@
 //! The product-independent command. Checks run here; other commands use the separately built
 //! harness in the same target directory as the workspace builds and tests.
-mod harness;
+use xtask::harness;
 
 use std::process::ExitCode;
 

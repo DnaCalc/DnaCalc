@@ -59,14 +59,14 @@
 //! `cargo xtask corpus [<dir>] [--oracle] [--out <dir>] [--cache <dir>] [--import
 //! <capture.json>]... [--no-capture] [--timeout <s>]` compares every workbook of a folder, and with
 //! `--oracle` the oracle workbooks committed here, with Excel: each captured once and cached
-//! outside the repository by workbook hash and Excel build, compared by a release `cargo xtask
-//! compare` process, and summarised in `summary.md` and `summary.json` with the failures grouped
+//! outside the repository by workbook hash and Excel build, compared by a debug `cargo xtask
+//! compare` process by default (`--release` for speed), and summarised in `summary.md` and `summary.json` with the failures grouped
 //! by root cause across the corpus (`corpus.rs`, `corpus_summary.rs`).
 //!
 //! `cargo xtask bench <dir> [--runs <n>] [--out <dir>] [--cache <dir>] [--edit
 //! <workbook>=<sheet>!<cell>]... [--excel] [--no-dna] [--timeout <s>]` times DNA Calc's open, full
 //! rebuild, full recalculation and a one-cell edit's recalculation of every workbook of a folder,
-//! each run in its own release process through calc-host, and with `--excel` Excel's own open,
+//! each run in its own perf-profile process through calc-host, and with `--excel` Excel's own open,
 //! `CalculateFullRebuild`, `CalculateFull` and the same edit in an isolated Excel instance, with
 //! peak memory and the machine's load, writing the medians and spreads to `bench.md` and every
 //! sample to `bench.json` (`bench.rs`, bead dc-10d9).
