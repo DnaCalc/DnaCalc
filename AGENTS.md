@@ -165,3 +165,17 @@ what, or "production ready": say concretely what is done, what blocks what, and 
   owner's own Excel stays. Never change a Trust Center, macro-security or registry setting.
   Excel lock files are never committed, and a workbook from outside the repository keeps its
   provenance and licence record before its capture is committed.
+
+## R2 storage (large evidence)
+
+- Two private buckets on Cloudflare account `5514060cba509f0d9a72a45cdfb8ff1e` (endpoint
+  `https://5514060cba509f0d9a72a45cdfb8ff1e.r2.cloudflarestorage.com`): `dnacalc-corpus`
+  (`windows/corpus/`, `runs/<host>/<YYYYMMDD>-<label>/`) and `dnacalc-evidence`
+  (`research/round<NN>/`, `excel/<capture-set>/`, `_setup/` for verification only).
+- Use `rclone --config <file>` with remote `r2`: Windows `%APPDATA%\dnacalc\rclone.conf`, Linux
+  `~/.config/dnacalc/rclone.conf`.
+- Copy only, to a new dated prefix, with `--checksum`; afterwards `rclone check --one-way` and record
+  the prefix with its file and byte counts. Never `sync`, `move`, `delete` or `purge` on R2.
+- Never read, print, log or pass the keys (no `cat` of the config, no `rclone config show`, no keys
+  on a command line or in the environment). If a key is shown to you, stop and tell the owner.
+- Large raw run outputs go to R2 and are cited by prefix and counts in reports, not committed.

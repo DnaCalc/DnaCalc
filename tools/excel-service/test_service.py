@@ -4,6 +4,7 @@ import os
 import base64
 import hashlib
 from pathlib import Path
+import subprocess
 import tempfile
 import threading
 import time
@@ -294,6 +295,56 @@ class ProtocolTests(unittest.TestCase):
                     service.stop_requested(stop)
             stop.touch()
             self.assertTrue(service.stop_requested(stop))
+
+
+class SessionShutdownRequestTests(unittest.TestCase):
+    """The session host in a private temporary directory; no Excel process is launched."""
+
+    def submit(self, directory, *args):
+        return subprocess.run(["pwsh", "-NoLogo", "-NoProfile", "-NonInteractive", "-File",
+                               str(ROOT / "tools/excel-session/submit.ps1"), "-SessionDirectory",
+                               str(directory), *args], capture_output=True, encoding="utf-8",
+                              errors="replace", timeout=120, creationflags=subprocess.CREATE_NO_WINDOW)
+
+    def test_start_removes_a_stale_request_and_stop_consumes_its_own(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            request = directory / "shutdown.request"
+            request.write_text("stop")
+            started = self.submit(directory, "-Start")
+            try:
+                self.assertEqual(started.returncode, 0, started.stdout + started.stderr)
+                self.assertFalse(request.exists())
+                self.assertIsNone(json.loads(started.stdout)["excel"])
+            finally:
+                stopped = self.submit(directory, "-Stop")
+            self.assertEqual(stopped.returncode, 0, stopped.stdout + stopped.stderr)
+            self.assertFalse(request.exists(), "-Stop must wait for the host and consume the request")
+            again = self.submit(directory, "-Stop")
+            self.assertEqual(again.returncode, 0, again.stdout + again.stderr)
+            self.assertFalse(request.exists(), "-Stop with no live host must leave no request")
+
+    def test_start_fails_loudly_naming_the_path_when_the_request_cannot_be_removed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            request = directory / "shutdown.request"
+            request.write_text("stop")
+            # An open handle without delete sharing blocks removal on Windows.
+            holder = subprocess.Popen(["pwsh", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
+                                       f"$s=[IO.File]::Open('{request}','Open','Read','Read');"
+                                       "'held';Start-Sleep 25"],
+                                      stdout=subprocess.PIPE, encoding="utf-8",
+                                      creationflags=subprocess.CREATE_NO_WINDOW)
+            try:
+                self.assertEqual(holder.stdout.readline().strip(), "held")
+                started = self.submit(directory, "-Start")
+            finally:
+                holder.kill()
+                holder.wait()
+            self.assertNotEqual(started.returncode, 0)
+            output = started.stdout + started.stderr
+            self.assertIn("Leftover shutdown request could not be removed", output)
+            self.assertIn(str(request.resolve()), output)
 
 
 if __name__ == "__main__":

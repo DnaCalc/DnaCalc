@@ -410,4 +410,4 @@ try {
             Status
         }
     }
-} finally { [DnaSessionDeadline]::Disarm(); Stop-Owned 'host shutdown'; Event 'host-stop' $PID; [DnaSessionDeadline]::Stop(); $lock.Dispose() }
+} finally { [DnaSessionDeadline]::Disarm(); Stop-Owned 'host shutdown'; Remove-Item -LiteralPath (Join-Path $root 'shutdown.request') -Force -ErrorAction SilentlyContinue; Event 'host-stop' $PID; [DnaSessionDeadline]::Stop(); $lock.Dispose() }
