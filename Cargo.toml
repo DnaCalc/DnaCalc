@@ -63,3 +63,8 @@ inherits = "release"
 opt-level = 3
 lto = true
 codegen-units = 1
+
+# Native performance measurements retain line tables for profilers.
+[profile.perf]
+inherits = "release"
+debug = "line-tables-only"

@@ -8,6 +8,7 @@
 .oc-r-text{color:var(--dna-prov-const)}.oc-r-error{color:var(--dna-red-ink);font-weight:600}.oc-r-operator{color:var(--dna-prov-ext)}
 .oc-r-delimiter{color:var(--dna-ink-3)}.oc-r-unknown{color:var(--dna-red-ink);text-decoration:underline wavy}
 .oc-diag{text-decoration:underline wavy var(--dna-red-ink);text-decoration-skip-ink:none}
+.oc-focus{background:var(--dna-amber-soft);outline:1px solid var(--dna-ink-3);border-radius:2px}
 .oc-bracket{background:var(--dna-accent-soft);outline:1px solid var(--dna-accent);border-radius:2px}
 .oc-pop{list-style:none;margin:4px 0 0;padding:2px;border:1px solid var(--dna-ink-3);border-radius:6px;max-height:220px;overflow:auto;background:var(--dna-paper);font:13px ui-monospace,Consolas,monospace;box-shadow:0 4px 12px #0002}
 .oc-pop li{padding:2px 8px;cursor:pointer;display:flex;justify-content:space-between;gap:12px}

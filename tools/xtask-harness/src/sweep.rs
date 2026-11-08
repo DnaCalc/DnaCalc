@@ -3,9 +3,8 @@
 //! earlier one fails, then prints one summary line per step and one result line.
 //!
 //! The steps, by the name `--skip` takes:
-//! - `architecture`: the five architecture checks (`arch::run_all`: dependencies, os-imports,
-//!   wasm-refusal, tree-reference-tokens and the word scan over all text and history against its
-//!   baseline);
+//! - `architecture`: four checks (`arch::run_all`): dependencies, os-imports,
+//!   wasm-refusal and tree-reference-tokens;
 //! - `provenance`: the whole provenance scan (`licence::check`): every file under calc-func and
 //!   calc-value has a licence-ledger entry, and no marker of a removed source reappears;
 //! - `ceiling`: the dependency ceiling on the host and wasm32: the resolved closures (normal and
@@ -23,6 +22,9 @@
 //!   acceptance`, one case at a time), which builds copies of the workspace and lane clones and
 //!   takes hours. `infra_m0_1__independent_lanes` refuses a tree with uncommitted files, so run
 //!   the sweep on a clean tree.
+//! - `release`: one workspace release test run, plus oracle corpus and full function-bank runs
+//!   in debug and release; per-workbook and per-function counts must be identical. Reports stay
+//!   under `target/sweep/release`; committed evidence is untouched.
 //!
 //! Logs go to `target/sweep/`. The exit code is 1 when a step failed, 2 for a usage error.
 
@@ -30,21 +32,22 @@ use crate::arch;
 use crate::cargo::{self, Resolved, Workspace};
 use crate::ci;
 use crate::licence;
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::fs;
 use std::path::Path;
 use std::process::{Command, ExitCode};
 use std::time::Instant;
 
-pub const USAGE: &str = "usage: cargo xtask sweep [--skip architecture|provenance|ceiling|wasm|app-smoke|acceptance]...";
+pub const USAGE: &str = "usage: cargo xtask sweep [--skip architecture|provenance|ceiling|wasm|app-smoke|acceptance|release]...";
 
-const STEPS: [&str; 6] = [
+const STEPS: [&str; 7] = [
     "architecture",
     "provenance",
     "ceiling",
     "wasm",
     "app-smoke",
     "acceptance",
+    "release",
 ];
 
 /// The packages DNA OneCalc's ceiling covers, and the packages none of them may reach.
@@ -211,6 +214,178 @@ fn acceptance(ws: &Workspace, log: &Path) -> (bool, String) {
     )
 }
 
+/// Counts and workbook identities, without timings or executable provenance. Compare each
+/// workbook as well as the totals so opposite changes cannot cancel each other out.
+pub(crate) fn corpus_counts(report: &Value) -> Result<Value, String> {
+    let mut totals = report
+        .get("totals")
+        .filter(|v| v.is_object())
+        .cloned()
+        .ok_or("corpus report has no totals")?;
+    if totals["workbooks"].as_u64().unwrap_or(0) == 0
+        || totals["counts"]["formula_cells"].as_u64().unwrap_or(0) == 0
+    {
+        return Err("corpus report contains no counted workbooks/formulas".into());
+    }
+    totals.as_object_mut().unwrap().remove("wall_time_s");
+    let workbooks = report["workbooks"]
+        .as_array()
+        .ok_or("corpus report has no workbooks")?;
+    let rows: Vec<Value> = workbooks
+        .iter()
+        .map(|w| {
+            json!({
+                "name": w["name"], "sha256": w["sha256"], "status": w["status"],
+                "inventory_formula_cells": w["inventory_formula_cells"], "counts": w["counts"],
+            })
+        })
+        .collect();
+    Ok(json!({"totals": totals, "workbooks": rows}))
+}
+
+fn read_report(path: &Path) -> Result<Value, String> {
+    let bytes = fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    serde_json::from_slice(&bytes).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+fn run_release_command(
+    ws: &Workspace,
+    command: &mut Command,
+    log: &Path,
+) -> Result<String, String> {
+    command.current_dir(&ws.root);
+    let out = cargo::output(command)?;
+    let text = format!("{}{}", cargo::text(&out.stdout), cargo::text(&out.stderr));
+    fs::write(log, &text).map_err(|e| format!("cannot write {}: {e}", log.display()))?;
+    if !out.status.success() {
+        return Err(format!(
+            "{:?} exited with {}; log {}\n{}",
+            cargo::argv(command),
+            out.status,
+            ws.rel(log),
+            text.lines()
+                .rev()
+                .take(20)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect::<Vec<_>>()
+                .join("\n")
+        ));
+    }
+    Ok(text)
+}
+
+/// The periodic release test run and the same corpus and full function bank in both profiles.
+/// Bank reports are read-only; none of the committed witness records are refreshed here.
+fn release_checks(ws: &Workspace, dir: &Path) -> Result<String, String> {
+    if dir.exists() {
+        fs::remove_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    let mut problems = Vec::new();
+    let mut test = Command::new(cargo::cargo_program());
+    test.args([
+        "test",
+        "--workspace",
+        "--release",
+        "--locked",
+        "--no-fail-fast",
+        "--",
+        "--show-output",
+    ]);
+    let test_counts = match run_release_command(ws, &mut test, &dir.join("tests.log")) {
+        Ok(text) => {
+            let report = xtask::test_output::summarize(&text);
+            println!(
+                "SWEEP release tests: {} passed, {} failed, {} ignored, {} not run in {} harnesses",
+                report.counts.passed,
+                report.counts.failed,
+                report.counts.ignored,
+                report.not_run,
+                report.harnesses
+            );
+            if report.counts.failed != 0 || report.counts.passed == 0 {
+                problems.push("release tests did not pass a nonempty test inventory".to_owned());
+            }
+            json!({"passed": report.counts.passed, "failed": report.counts.failed,
+                "ignored": report.counts.ignored, "not_run": report.not_run, "harnesses": report.harnesses})
+        }
+        Err(e) => {
+            problems.push(e);
+            Value::Null
+        }
+    };
+    let mut reports = serde_json::Map::new();
+    for (mode, profile) in [("debug", "dev"), ("release", "release")] {
+        let program = xtask::harness::profile_executable(ws, profile)?;
+        let _copy = xtask::harness::CopyCleanup(program.clone());
+        let mode_dir = dir.join(mode);
+        fs::create_dir_all(&mode_dir).map_err(|e| e.to_string())?;
+        let mut corpus = Command::new(&program);
+        corpus
+            .args(["corpus", "--oracle", "--no-capture", "--out"])
+            .arg(mode_dir.join("corpus"))
+            .arg("--cache")
+            .arg(dir.join("capture-cache"));
+        match run_release_command(ws, &mut corpus, &mode_dir.join("corpus.log"))
+            .and_then(|_| read_report(&mode_dir.join("corpus/summary.json")))
+            .and_then(|v| corpus_counts(&v))
+        {
+            Ok(counts) => {
+                println!("SWEEP {mode} corpus: {}", counts["totals"]);
+                reports.insert(format!("{mode}_corpus"), counts);
+            }
+            Err(e) => problems.push(format!("{mode} corpus: {e}")),
+        }
+        let mut bank = Command::new(&program);
+        bank.args(["witness", "judge", "--bank", "full", "--report"])
+            .arg(mode_dir.join("bank.json"));
+        match run_release_command(ws, &mut bank, &mode_dir.join("bank.log"))
+            .and_then(|_| read_report(&mode_dir.join("bank.json")))
+        {
+            Ok(counts) if counts["totals"]["rows"].as_u64().unwrap_or(0) > 0 => {
+                println!("SWEEP {mode} function bank: {}", counts["totals"]);
+                reports.insert(format!("{mode}_bank"), counts);
+            }
+            Ok(_) => problems.push(format!("{mode} bank: report contains no counted rows")),
+            Err(e) => problems.push(format!("{mode} bank: {e}")),
+        }
+    }
+    for name in ["corpus", "bank"] {
+        let debug = reports.get(&format!("debug_{name}"));
+        let release = reports.get(&format!("release_{name}"));
+        let identical = debug.is_some() && release.is_some() && debug == release;
+        println!(
+            "SWEEP release {name}: debug/release counts {}",
+            if identical {
+                "identical"
+            } else {
+                "differ or missing"
+            }
+        );
+        reports.insert(format!("{name}_identical"), json!(identical));
+        if !identical {
+            problems.push(format!("{name} debug/release counts differ or are missing"));
+        }
+    }
+    reports.insert("release_tests".into(), test_counts);
+    reports.insert("problems".into(), json!(problems));
+    fs::write(
+        dir.join("comparison.json"),
+        serde_json::to_vec_pretty(&reports).unwrap(),
+    )
+    .map_err(|e| e.to_string())?;
+    if problems.is_empty() {
+        Ok(format!(
+            "workspace release tests passed; corpus and full function bank counts identical to debug; reports {}",
+            ws.rel(dir)
+        ))
+    } else {
+        Err(problems.join("; "))
+    }
+}
+
 pub fn run(raw: &[String]) -> ExitCode {
     let mut skip = Vec::new();
     let mut args = raw.iter();
@@ -300,6 +475,10 @@ pub fn run(raw: &[String]) -> ExitCode {
                     "Full app suites; group timings printed above".into(),
                 )
             }
+            "release" => match release_checks(&ws, &log_dir.join("release")) {
+                Ok(summary) => (true, summary),
+                Err(why) => (false, why),
+            },
             _ => acceptance(&ws, &log_dir.join("acceptance.log")),
         };
         steps.push(Step {

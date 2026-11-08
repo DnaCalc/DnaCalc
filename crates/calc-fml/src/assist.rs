@@ -18,12 +18,9 @@ use calc_func::{FunctionCallTarget, Notation, catalogue};
 /// Tokens keep their syntax roles: strings, sheet/table names and defined names are retained.
 /// Incomplete or unsupported syntax stays exactly as authored.
 pub fn display_formula(text: &str) -> String {
-    if !text.trim_start().starts_with('=')
-        || !text
-            .as_bytes()
-            .windows(6)
-            .any(|v| v.eq_ignore_ascii_case(b"_xlfn."))
-    {
+    let bytes = text.as_bytes();
+    let has = |prefix: &[u8]| bytes.windows(prefix.len()).any(|v| v.eq_ignore_ascii_case(prefix));
+    if !text.trim_start().starts_with('=') || !(has(b"_xlfn.") || has(b"_xlpm.") || has(b"_xlws.")) {
         return text.to_owned();
     }
     let tree = crate::parse_formula(text);
@@ -37,15 +34,27 @@ pub fn display_formula(text: &str) -> String {
             && let Some(SyntaxChild::Token(token)) = node.children().first()
         {
             let spelling = token.text();
-            let friendly = crate::eval::file_unprefixed(spelling);
+            // `_xlws.` can also stand alone before a worksheet function the file stores with it.
+            let named = crate::eval::file_unprefixed(spelling);
+            let friendly = crate::eval::without_prefix(named, "_xlws.").unwrap_or(named);
             if friendly != spelling
-                && (function_named(spelling).is_some()
+                && (function_named(friendly).is_some()
                     || crate::eval::binding_call(friendly).is_some())
             {
                 changes.insert(token.span().start, friendly.to_owned());
             }
         }
         pending.extend(node.child_nodes());
+    }
+    // A LET name or LAMBDA parameter a file stores as `_xlpm.name` is shown as `name`.
+    for token in tree.tokens() {
+        if token.kind() == TokenKind::Identifier
+            && let Some(name) = crate::eval::without_prefix(token.text(), "_xlpm.")
+            && !name.is_empty()
+            && !changes.contains_key(&token.span().start)
+        {
+            changes.insert(token.span().start, name.to_owned());
+        }
     }
     let mut shown = String::with_capacity(text.len());
     for token in tree.tokens() {
@@ -80,12 +89,15 @@ mod formula_display_tests {
             ),
             (
                 "=_xlfn.LET(_xlpm.x,2,_xlpm.x+_xlfn.SEQUENCE(2))",
-                "=LET(_xlpm.x,2,_xlpm.x+SEQUENCE(2))",
+                "=LET(x,2,x+SEQUENCE(2))",
             ),
             (
                 "=_xlfn.LAMBDA(_xlpm.x,_xlpm.x+1)(2)",
-                "=LAMBDA(_xlpm.x,_xlpm.x+1)(2)",
+                "=LAMBDA(x,x+1)(2)",
             ),
+            ("=LET(_xlpm.x,2,_XLPM.X+1)", "=LET(x,2,X+1)"),
+            ("=_xlws.SORT(A1:A3)+'_xlpm.x'!A1", "=SORT(A1:A3)+'_xlpm.x'!A1"),
+            ("=_xlws.NOSUCH(1)", "=_xlws.NOSUCH(1)"),
             ("=_xlfn.SUM+_xlfn.SEQUENCE", "=_xlfn.SUM+_xlfn.SEQUENCE"),
             ("=SUM(_xlfn.Table[_xlfn.SEQUENCE])", "=SUM(_xlfn.Table[_xlfn.SEQUENCE])"),
             ("=_xlfn.UNKNOWN(1)", "=_xlfn.UNKNOWN(1)"),
@@ -205,26 +217,82 @@ pub fn function_named(spelling: &str) -> Option<FunctionCallTarget<'static>> {
         .ok()
 }
 
-/// One completion: a catalogue function whose name starts with the typed prefix.
+/// A call's name without the prefixes a file stores before it (`_xlfn.`, then `_xlws.`).
+pub fn unprefixed(spelling: &str) -> &str {
+    crate::eval::file_unprefixed(spelling)
+}
+
+/// What a proposal is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProposalKind {
+    /// A function of calc-func's catalogue.
+    Function,
+    /// A function the caller registered (an add-in's or a VBA module's), in [`Scope::functions`].
+    Registered,
+    /// A defined name, in [`Scope::names`].
+    Name,
+    /// A LET name or LAMBDA parameter in scope at the caret.
+    Local,
+}
+
+/// What the caller owns that completion offers besides the catalogue: defined names and registered
+/// functions. LET names and LAMBDA parameters come from the formula text itself.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Scope {
+    pub names: Vec<String>,
+    pub functions: Vec<String>,
+}
+
+/// One completion: a function, a name or a local whose spelling starts with the typed prefix.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Proposal {
-    pub target: FunctionCallTarget<'static>,
+    pub kind: ProposalKind,
+    /// The catalogue entry, for [`ProposalKind::Function`].
+    pub target: Option<FunctionCallTarget<'static>>,
+    label: String,
 }
 
 impl Proposal {
-    /// The function's name, as the list shows it.
-    pub fn label(self) -> &'static str {
-        self.target.spelling()
+    fn function(target: FunctionCallTarget<'static>) -> Proposal {
+        Proposal {
+            kind: ProposalKind::Function,
+            label: target.spelling().to_owned(),
+            target: Some(target),
+        }
     }
 
-    /// The text that replaces the prefix: the name and its opening parenthesis.
-    pub fn insert_text(self) -> String {
-        format!("{}(", self.target.spelling())
+    /// The spelling the list shows.
+    pub fn label(&self) -> &str {
+        &self.label
+    }
+
+    /// Whether accepting it writes a call (the name and its opening parenthesis).
+    pub fn is_call(&self) -> bool {
+        matches!(self.kind, ProposalKind::Function | ProposalKind::Registered)
+    }
+
+    /// The text that replaces the prefix: a call's name and its opening parenthesis, or a name.
+    pub fn insert_text(&self) -> String {
+        if self.is_call() {
+            format!("{}(", self.label)
+        } else {
+            self.label.clone()
+        }
+    }
+
+    /// What the list says the proposal is, besides its label.
+    pub fn kind_name(&self) -> &'static str {
+        match self.kind {
+            ProposalKind::Function => "function",
+            ProposalKind::Registered => "registered function",
+            ProposalKind::Name => "defined name",
+            ProposalKind::Local => "local name",
+        }
     }
 }
 
-/// The completions at a caret: the span of the name being typed and the catalogue's named
-/// functions that start with it, in name order.
+/// The completions at a caret: the span of the name being typed and the functions, names and
+/// locals that start with it, in name order.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Completion {
     /// The typed prefix's span, which an accepted proposal replaces.
@@ -236,7 +304,7 @@ pub struct Completion {
 impl Completion {
     /// Replace the name being edited, retaining an existing opening parenthesis and arguments.
     /// `replace` records the typed prefix; acceptance also consumes the token's remaining suffix.
-    pub fn apply(&self, text: &str, proposal: Proposal) -> (String, usize) {
+    pub fn apply(&self, text: &str, proposal: &Proposal) -> (String, usize) {
         let units: Vec<u16> = text.encode_utf16().collect();
         let start = self.replace.start.min(units.len());
         let end = lex(text)
@@ -250,10 +318,11 @@ impl Completion {
             .min(units.len());
         let spaces = units[end..].iter().take_while(|u| matches!(**u, 9 | 10 | 12 | 13 | 32)).count();
         let has_open = units.get(end + spaces) == Some(&(b'(' as u16));
-        let insert = if has_open { proposal.label().to_owned() } else { proposal.insert_text() };
+        let reuse = has_open && proposal.is_call();
+        let insert = if reuse || !proposal.is_call() { proposal.label().to_owned() } else { proposal.insert_text() };
         let mut out: Vec<u16> = units[..start].to_vec();
         out.extend(insert.encode_utf16());
-        let caret = out.len() + if has_open { spaces + 1 } else { 0 };
+        let caret = out.len() + if reuse { spaces + 1 } else { 0 };
         out.extend_from_slice(&units[end..]);
         (String::from_utf16_lossy(&out), caret)
     }
@@ -263,8 +332,15 @@ impl Completion {
 /// the end of a name being typed: the caret must lie inside or just after an unquoted name token
 /// of calc-fml's lexer that begins with a letter, `_` or `\`, holds no `$`, and starts at the
 /// formula's `=` or after an operator, delimiter or whitespace. The prefix is the token's text up
-/// to the caret; a function matches when its name starts with the prefix in any ASCII case.
+/// to the caret; a function matches when its name starts with the prefix in any ASCII case. The
+/// LET names and LAMBDA parameters in scope at the caret are offered too ([`complete_in`] adds the
+/// caller's defined names and registered functions).
 pub fn complete(text: &str, caret: usize) -> Option<Completion> {
+    complete_in(text, caret, &Scope::default())
+}
+
+/// [`complete`] with the caller's defined names and registered functions.
+pub fn complete_in(text: &str, caret: usize, scope: &Scope) -> Option<Completion> {
     if !text.trim_start().starts_with('=') {
         return None;
     }
@@ -295,18 +371,167 @@ pub fn complete(text: &str, caret: usize) -> Option<Completion> {
         return None;
     }
     let wanted = crate::eval::file_unprefixed(&prefix).to_ascii_uppercase();
-    let proposals: Vec<Proposal> = catalogue()
+    let starts = |name: &str| name.to_ascii_uppercase().starts_with(&wanted);
+    let mut proposals: Vec<Proposal> = catalogue()
         .entries()
         .filter(|target| target.notation() == Notation::Call)
         .filter(|target| function_named(target.spelling()).is_some())
         .filter(|target| target.spelling().starts_with(wanted.as_str()))
-        .map(|target| Proposal { target })
+        .map(Proposal::function)
         .collect();
+    let mut extra = |kind: ProposalKind, name: &str| {
+        let duplicate = proposals
+            .iter()
+            .any(|have| have.kind == kind && have.label.eq_ignore_ascii_case(name));
+        if !duplicate && !name.is_empty() && starts(name) {
+            proposals.push(Proposal {
+                kind,
+                target: None,
+                label: name.to_owned(),
+            });
+        }
+    };
+    let tree = crate::parse_formula(text);
+    for local in locals_at(&tree, text, caret) {
+        // The name being declared is not its own completion.
+        if !(local.eq_ignore_ascii_case(&prefix) && prefix_units.len() == token.span().len) {
+            extra(ProposalKind::Local, &local);
+        }
+    }
+    for name in &scope.names {
+        extra(ProposalKind::Name, name);
+    }
+    for name in &scope.functions {
+        extra(ProposalKind::Registered, name);
+    }
+    proposals.sort_by_cached_key(|p| (p.label.to_ascii_uppercase(), p.kind as u8));
     Some(Completion {
         replace: TextSpan::new(token.span().start, prefix_units.len()),
         prefix,
         proposals,
     })
+}
+
+/// A name in scope at a caret: a LET name with the source text of its value, or a LAMBDA parameter
+/// (no value until the LAMBDA is called).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LocalBinding {
+    pub name: String,
+    /// The source text of the LET name's value; `None` for a LAMBDA parameter.
+    pub value: Option<String>,
+}
+
+/// The LET names and LAMBDA parameters visible at the caret, innermost first: the names of a LET
+/// whose value the caret is past, and the parameters of a LAMBDA the caret is in the body of.
+pub fn locals_at(tree: &SyntaxTree, text: &str, caret: usize) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    for binding in local_bindings_at(tree, text, caret).into_iter().rev() {
+        if !found.iter().any(|have| have.eq_ignore_ascii_case(&binding.name)) {
+            found.push(binding.name);
+        }
+    }
+    found
+}
+
+/// The bindings in scope at the caret, outermost enclosing call first and in declaration order
+/// within it, so a shadowed name comes before the binding that shadows it.
+pub fn local_bindings_at(tree: &SyntaxTree, text: &str, caret: usize) -> Vec<LocalBinding> {
+    let units: Vec<u16> = text.encode_utf16().collect();
+    let mut calls: Vec<&SyntaxNode> = Vec::new();
+    let mut pending: Vec<&SyntaxNode> = vec![tree.root()];
+    while let Some(node) = pending.pop() {
+        let span = node.span();
+        if !(caret >= span.start && caret <= span.end() + 1) {
+            continue;
+        }
+        if node.kind() == SyntaxKind::CallExpr
+            && let Some(arguments) = argument_list(node)
+        {
+            let open_end = arguments.children().first().and_then(|child| match child {
+                SyntaxChild::Token(token) if token.kind() == TokenKind::LParen => {
+                    Some(token.span().end())
+                }
+                _ => None,
+            });
+            let close = closing_paren(arguments);
+            if open_end.is_some_and(|end| caret >= end)
+                && close.is_none_or(|close| caret <= close.start)
+            {
+                calls.push(node);
+            }
+        }
+        pending.extend(node.child_nodes());
+    }
+    // Outermost first: the widest call has the largest span.
+    calls.sort_by_key(|node| std::cmp::Reverse(node.span().len));
+    let mut found: Vec<LocalBinding> = Vec::new();
+    for call in calls {
+        let Some(SyntaxChild::Token(callee)) = call.children().first() else {
+            continue;
+        };
+        let unprefixed = crate::eval::file_unprefixed(callee.text());
+        let is_let = unprefixed.eq_ignore_ascii_case("LET");
+        if !is_let && !unprefixed.eq_ignore_ascii_case("LAMBDA") {
+            continue;
+        }
+        let Some(arguments) = argument_list(call) else {
+            continue;
+        };
+        // The argument slices: from the opening parenthesis or a comma to the next comma or the
+        // closing parenthesis.
+        let mut starts = Vec::new();
+        let mut ends = Vec::new();
+        for child in arguments.children() {
+            if let SyntaxChild::Token(token) = child {
+                match token.kind() {
+                    TokenKind::LParen if starts.is_empty() => starts.push(token.span().end()),
+                    TokenKind::Comma => {
+                        ends.push(token.span().start);
+                        starts.push(token.span().end());
+                    }
+                    _ => {}
+                }
+            }
+        }
+        ends.push(closing_paren(arguments).map_or(units.len(), |close| close.start));
+        let count = starts.len().min(ends.len());
+        let active = arguments
+            .children()
+            .iter()
+            .filter(|child| {
+                matches!(child, SyntaxChild::Token(token)
+                    if token.kind() == TokenKind::Comma && token.span().start < caret)
+            })
+            .count();
+        let slice = |index: usize| -> Option<String> {
+            let range = units.get(starts[index].min(units.len())..ends[index].min(units.len()))?;
+            String::from_utf16(range).ok()
+        };
+        let name_of = |index: usize| -> Option<String> {
+            let raw = slice(index)?;
+            let raw = raw.trim().trim_start_matches('[').trim_end_matches(']').trim();
+            let raw = crate::eval::without_prefix(raw, "_xlpm.")
+                .or_else(|| crate::eval::without_prefix(raw, "_xlop."))
+                .unwrap_or(raw);
+            let valid = raw.chars().next().is_some_and(|c| c.is_alphabetic() || c == '_')
+                && raw.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '.');
+            valid.then(|| raw.to_owned())
+        };
+        if is_let {
+            for name in (0..count).step_by(2).filter(|name| name + 1 < active && name + 1 < count) {
+                if let (Some(n), Some(value)) = (name_of(name), slice(name + 1)) {
+                    found.push(LocalBinding { name: n, value: Some(value.trim().to_owned()) });
+                }
+            }
+        } else if active + 1 == count && active >= 1 {
+            for index in 0..active {
+                if let Some(n) = name_of(index) {
+                    found.push(LocalBinding { name: n, value: None });
+                }
+            }
+        }
+    }
+    found
 }
 
 /// The named call the caret is inside, for signature help.
@@ -452,10 +677,10 @@ mod tests {
         let sum = completion
             .proposals
             .iter()
-            .copied()
+            .cloned()
             .find(|p| p.label() == "SUM")
             .expect("SUM");
-        assert_eq!(completion.apply("=SU", sum), ("=SUM(".to_owned(), 5));
+        assert_eq!(completion.apply("=SU", &sum), ("=SUM(".to_owned(), 5));
 
         // Case does not matter, and the rest of the text stays.
         let completion = complete("=1+su*2", 5).expect("a name");
@@ -463,11 +688,11 @@ mod tests {
         let sum = completion
             .proposals
             .iter()
-            .copied()
+            .cloned()
             .find(|p| p.label() == "SUM")
             .expect("SUM");
         assert_eq!(
-            completion.apply("=1+su*2", sum),
+            completion.apply("=1+su*2", &sum),
             ("=1+SUM(*2".to_owned(), 7)
         );
 
@@ -484,7 +709,7 @@ mod tests {
             if function_named(target.spelling()).is_none() { continue; }
             let text = format!("={}", target.spelling());
             let found = complete(&text, text.encode_utf16().count()).unwrap();
-            assert!(found.proposals.iter().any(|p| p.target == target), "{}", target.spelling());
+            assert!(found.proposals.iter().any(|p| p.target == Some(target)), "{}", target.spelling());
         }
     }
 
@@ -513,9 +738,84 @@ mod tests {
             ("=IF(TRUE,\"😀\",SUMX(1,2))", 17, "=IF(TRUE,\"😀\",SUM(1,2))", 18),
         ] {
             let completion = complete(text, caret).expect(text);
-            let sum = completion.proposals.iter().copied().find(|p| p.label() == "SUM").unwrap();
-            assert_eq!(completion.apply(text, sum), (expected.to_owned(), after), "{text}");
+            let sum = completion.proposals.iter().cloned().find(|p| p.label() == "SUM").unwrap();
+            assert_eq!(completion.apply(text, &sum), (expected.to_owned(), after), "{text}");
         }
+    }
+
+    fn labels_of(completion: &Completion) -> Vec<(String, ProposalKind)> {
+        completion
+            .proposals
+            .iter()
+            .map(|p| (p.label().to_owned(), p.kind))
+            .collect()
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn let_names_and_lambda_parameters_complete_where_they_are_in_scope() {
+        let local = |text: &str, caret: usize| {
+            complete(text, caret)
+                .map(|c| labels_of(&c))
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|(_, kind)| *kind == ProposalKind::Local)
+                .map(|(label, _)| label)
+                .collect::<Vec<_>>()
+        };
+        // In the body, and in a later value, a LET name is offered; in its own value it is not.
+        assert_eq!(local("=LET(alpha,1,al", 15), ["alpha"]);
+        assert_eq!(local("=LET(alpha,1,beta,al", 20), ["alpha"]);
+        assert_eq!(local("=LET(alpha,al", 13), Vec::<String>::new());
+        assert_eq!(local("=LET(alpha,1,beta,2,be", 22), ["beta"]);
+        // The file's prefix is not part of the name.
+        assert_eq!(local("=_xlfn.LET(_xlpm.alpha,1,al", 27), ["alpha"]);
+        // A LAMBDA parameter is offered in the body only; an optional one without its brackets.
+        assert_eq!(local("=LAMBDA(x,[yy],y", 16), ["yy"]);
+        assert_eq!(local("=LAMBDA(xx,xx+1)(x", 18), Vec::<String>::new());
+        assert_eq!(local("=LAMBDA(xx,x", 12), ["xx"]);
+        // Nested: the inner binding first, the outer ones still visible, and after the call none.
+        assert_eq!(
+            local("=LET(aa,1,MAP({1},LAMBDA(ab,a)))", 29),
+            ["aa", "ab"],
+            "the list is in name order"
+        );
+        let text = "=LET(aa,1,MAP({1},LAMBDA(ab,a)))";
+        assert_eq!(locals_at(&parse_formula(text), text, 29), ["ab", "aa"], "innermost first");
+        assert_eq!(local("=LET(aa,1,aa)+a", 15), Vec::<String>::new());
+        // A local accepted keeps no parenthesis.
+        let completion = complete("=LET(alpha,1,al", 15).unwrap();
+        let alpha = completion.proposals.iter().find(|p| p.label() == "alpha").unwrap();
+        assert_eq!(alpha.insert_text(), "alpha");
+        assert_eq!(completion.apply("=LET(alpha,1,al", alpha), ("=LET(alpha,1,alpha".to_owned(), 18));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn defined_names_and_registered_functions_complete_beside_the_catalogue() {
+        let scope = Scope {
+            names: vec!["Sales".into(), "SumRange".into()],
+            functions: vec!["SUMTHING".into(), "Module1.Add2".into()],
+        };
+        let completion = complete_in("=SUM+Sal", 8, &scope).unwrap();
+        assert_eq!(labels_of(&completion), [("Sales".to_owned(), ProposalKind::Name)]);
+        let completion = complete_in("=SUM", 4, &scope).unwrap();
+        let found = labels_of(&completion);
+        assert!(found.contains(&("SUM".to_owned(), ProposalKind::Function)));
+        assert!(found.contains(&("SumRange".to_owned(), ProposalKind::Name)));
+        assert!(found.contains(&("SUMTHING".to_owned(), ProposalKind::Registered)));
+        let mut sorted: Vec<String> = found.iter().map(|(label, _)| label.to_ascii_uppercase()).collect();
+        let before = sorted.clone();
+        sorted.sort();
+        assert_eq!(before, sorted, "name order across kinds");
+        let thing = completion.proposals.iter().find(|p| p.label() == "SUMTHING").unwrap();
+        assert_eq!(completion.apply("=SUM", thing), ("=SUMTHING(".to_owned(), 10));
+        let name = completion.proposals.iter().find(|p| p.label() == "SumRange").unwrap();
+        assert_eq!(completion.apply("=SUM", name), ("=SumRange".to_owned(), 9));
+        let completion = complete_in("=Mod", 4, &scope).unwrap();
+        assert!(labels_of(&completion).contains(&("Module1.Add2".to_owned(), ProposalKind::Registered)));
+        let completion = complete_in("=Module1.A", 10, &scope);
+        assert!(completion.is_none_or(|c| c.proposals.iter().all(|p| p.label().starts_with("Module1.A"))));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

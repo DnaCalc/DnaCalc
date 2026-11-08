@@ -2711,6 +2711,38 @@ impl Controller {
         self.model
             .update(|m| m.edit.begin(origin, target, original.clone(), seed, areas));
         self.assist.start_edit(original);
+        self.offer_defined_names();
+    }
+
+    /// Asks the workbook for its defined names (no sheet rows) and offers them to the formula
+    /// field's completion beside the catalogue's functions.
+    fn offer_defined_names(&self) {
+        let controller = *self;
+        let generation = self.generation.get_untracked();
+        let shown = self.summary.with_untracked(|s| {
+            s.sheets.iter().map(|(sheet, _)| (*sheet, 0)).collect()
+        });
+        self.ask(
+            wire::Request::Outline {
+                shown,
+                open: Vec::new(),
+                reveal: None,
+                query: String::new(),
+            },
+            move |reply| {
+                if controller.generation.get_untracked() != generation {
+                    return;
+                }
+                if let wire::Reply::Outline(found) = reply {
+                    let names: Vec<String> = found
+                        .names
+                        .iter()
+                        .map(|text| text.split(" = ").next().unwrap_or(text).trim().to_owned())
+                        .collect();
+                    controller.assist.scope.try_update(|scope| scope.names = names);
+                }
+            },
+        );
     }
 
     pub fn activate_editor(&self, origin: EditOrigin, assist: FormulaAssist) {

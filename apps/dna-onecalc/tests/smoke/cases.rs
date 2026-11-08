@@ -626,6 +626,277 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
         checks: &[Check::Value("formula", "=SUM(6,7)"), Check::Text("active-parameter", "number1"), Check::Text("result", "number 13")],
     },
 
+    // Milestone 3, formula work: completion over names, locals and registered functions, function
+    // status, F9 on a part, the evaluation trace and point mode.
+    Case {
+        name: "completion: a LET name is offered in the body and accepted without a parenthesis",
+        actions: &[Action::Formula("=LET(alpha,1,al")],
+        checks: &[Check::Contains("completions", "alpha")],
+    },
+    Case {
+        name: "completion accepted: the LET name replaces the prefix",
+        actions: &[Action::Keys("formula", TAB)],
+        checks: &[Check::Value("formula", "=LET(alpha,1,alpha"), Check::Absent("completions")],
+    },
+    Case {
+        name: "completion: a LAMBDA parameter is offered in its body, not after the call",
+        actions: &[Action::Formula("=LAMBDA(width,wi")],
+        checks: &[Check::Contains("completions", "width")],
+    },
+    Case {
+        name: "completion: a registered function is offered beside the catalogue's",
+        actions: &[
+            Action::Click("vba-tools"),
+            Action::Click("[data-onecalc=\"vba-load\"]"),
+            Action::Formula("=Module1.Ad"),
+        ],
+        checks: &[Check::Contains("completions", "MODULE1.ADD2")],
+    },
+    Case {
+        name: "function status: a held function says so with its availability",
+        actions: &[Action::Formula("=SUM")],
+        checks: &[Check::Starts("help-status", "Held; Availability not established")],
+    },
+    Case {
+        name: "function status: a function this build does not hold names its owner",
+        actions: &[Action::Formula("=RTD")],
+        checks: &[Check::Starts("help-status", "Not held; owned by")],
+    },
+    Case {
+        name: "F9: the selected part is replaced by its value, selected, and the result follows",
+        actions: &[
+            Action::Formula("=SUM(1,2)+3"),
+            Action::Keys(
+                "formula",
+                "\u{E011}\u{E014}\u{E008}\u{E014}\u{E014}\u{E014}\u{E014}\u{E014}\u{E014}\u{E014}\u{E014}\u{E000}\u{E039}",
+            ),
+        ],
+        checks: &[
+            Check::Value("formula", "=3+3"),
+            Check::SelectedText("formula", "3"),
+            Check::Text("result", "number 6"),
+            Check::TextContains("part-status", "SUM(1,2) evaluated to 3"),
+        ],
+    },
+    Case {
+        name: "F9: Escape restores the formula and selects the part again",
+        actions: &[Action::Keys("formula", ESCAPE)],
+        checks: &[
+            Check::Value("formula", "=SUM(1,2)+3"),
+            Check::SelectedText("formula", "SUM(1,2)"),
+            Check::Text("part-status", "Formula restored."),
+            Check::Text("result", "number 6"),
+        ],
+    },
+    Case {
+        name: "F9: with nothing selected the page says to select a part, and the formula is unchanged",
+        actions: &[
+            Action::Formula("=1+1/0"),
+            Action::Keys("formula", "\u{E039}"),
+        ],
+        checks: &[
+            Check::Value("formula", "=1+1/0"),
+            Check::TextContains("part-status", "Select the part"),
+        ],
+    },
+    Case {
+        name: "F9: a part inside LET sees the bindings before it",
+        actions: &[
+            Action::Formula("=LET(a,2,b,a*10,b+a)"),
+            Action::Keys(
+                "formula",
+                "\u{E012}\u{E008}\u{E012}\u{E012}\u{E012}\u{E000}\u{E039}",
+            ),
+        ],
+        checks: &[
+            Check::Value("formula", "=LET(a,2,b,a*10,22)"),
+            Check::Text("result", "number 22"),
+        ],
+    },
+    Case {
+        name: "trace: every part of the formula is a step, innermost first, with its value",
+        actions: &[
+            Action::Grid("A1", "1.5"),
+            Action::Grid("A2", "2"),
+            Action::Formula("=SUM(A1:A2)*2"),
+            Action::Click("trace-start"),
+        ],
+        checks: &[
+            Check::Items(
+                "trace-steps",
+                &["A1:A2 = {1.5;2}", "SUM(A1:A2) = 3.5", "SUM(A1:A2)*2 = 7"],
+            ),
+            Check::Text("trace-status", "Step 1 of 3"),
+            Check::Count("[data-onecalc=highlight] .oc-focus", 3),
+        ],
+    },
+    Case {
+        name: "trace: Next step moves the formula's highlight to the part and its value",
+        actions: &[Action::Click("trace-next")],
+        checks: &[
+            Check::Text("trace-status", "Step 2 of 3"),
+            Check::Count("[data-onecalc=highlight] .oc-trace-current", 0),
+            Check::Count("[data-onecalc=trace-steps] .oc-trace-current", 1),
+        ],
+    },
+    Case {
+        name: "trace: editing the formula marks the trace stale",
+        actions: &[Action::Formula("=1+2")],
+        checks: &[
+            Check::TextContains("trace-status", "changed since this trace"),
+            Check::Count("[data-onecalc=trace-step]", 0),
+            Check::Count("[data-onecalc=highlight] .oc-focus", 0),
+        ],
+    },
+    Case {
+        name: "point mode: arrow keys after = insert the cell next to the formula's cell, and keep moving it",
+        actions: &[
+            Action::Formula("="),
+            Action::Keys("formula", "\u{E012}"),
+        ],
+        checks: &[Check::Value("formula", "=G1"), Check::Count("[data-onecalc=grid] td.oc-pointed", 1)],
+    },
+    Case {
+        name: "point mode: Down moves it, Shift+Down extends it to a range, and the grid marks the cells",
+        actions: &[
+            Action::Keys("formula", "\u{E015}"),
+            Action::Keys("formula", "\u{E008}\u{E015}\u{E000}"),
+        ],
+        checks: &[
+            Check::Value("formula", "=G2:G3"),
+            Check::Count("[data-onecalc=grid] td.oc-pointed", 2),
+        ],
+    },
+    Case {
+        name: "point mode: typing an operator ends it, and a click on a grid cell then adds that cell",
+        actions: &[
+            Action::Keys("formula", "+"),
+            Action::Click("[data-onecalc=grid-cell][data-cell=B3]"),
+        ],
+        checks: &[
+            Check::Value("formula", "=G2:G3+B3"),
+            Check::Focused("formula"),
+            Check::Value("[data-onecalc=grid-cell][data-cell=B3]", ""),
+        ],
+    },
+    Case {
+        name: "point mode: a second click replaces the pointed cell, and Shift+click extends it",
+        actions: &[
+            Action::Click("[data-onecalc=grid-cell][data-cell=C2]"),
+        ],
+        checks: &[Check::Value("formula", "=G2:G3+C2"), Check::Count("[data-onecalc=grid] td.oc-pointed", 1)],
+    },
+    Case {
+        name: "point mode: a click on a cell where no reference belongs edits the cell",
+        actions: &[
+            Action::Formula("=1"),
+            Action::Into("[data-onecalc=grid-cell][data-cell=A1]", "7"),
+        ],
+        checks: &[
+            Check::Value("formula", "=1"),
+            Check::Value("[data-onecalc=grid-cell][data-cell=A1]", "7"),
+        ],
+    },
+
+    Case {
+        name: "entry: a formula Excel refuses on entry is refused with the reason, and one it takes is not",
+        actions: &[Action::Formula("=ABS(3)(1)")],
+        checks: &[
+            Check::Contains("diagnostics", "Excel refuses this formula at"),
+            Check::Text("result", "not calculated"),
+        ],
+    },
+    // Format picker and date system.
+    Case {
+        name: "format picker: choosing a format sets the format box and the result shows it",
+        actions: &[
+            Action::Formula("=1234.5678"),
+            Action::Click("format-tools"),
+            Action::Choose("format-picker", "#,##0.00"),
+        ],
+        checks: &[
+            Check::Value("number-format", "#,##0.00"),
+            Check::Text("result-value", "1,234.57"),
+            Check::Value("format-picker", "#,##0.00"),
+        ],
+    },
+    Case {
+        name: "format picker: another locale offers its own separators",
+        actions: &[Action::Choose("locale", "de-DE")],
+        checks: &[Check::Value("format-picker", "custom")],
+    },
+    Case {
+        name: "format picker: the German choice formats with its own separators; the date system moves the date",
+        actions: &[
+            Action::Choose("format-picker", "#.##0,00"),
+            Action::Formula("=DATE(2024,1,31)"),
+            Action::Choose("format-picker", "yyyy-mm-dd"),
+            Action::Choose("date-system", "1904"),
+        ],
+        checks: &[
+            Check::Value("number-format", "yyyy-mm-dd"),
+            Check::Text("result", "number 43860"),
+            Check::Text("result-value", "2024-01-31"),
+            Check::Value("date-system", "1904"),
+        ],
+    },
+    // A plain <f> in a file is the legacy form (implicit intersection).
+    Case {
+        name: "files: a plain formula of a file is the legacy form, shown without braces and calculated by implicit intersection",
+        actions: &[
+            Action::WritePlainSession("plain.xlsx", "A1:A2*2"),
+            Action::OpenDetails("file-controls"),
+            Action::UploadDownload("plain.xlsx"),
+            Action::Wait(Check::Rendered("file-dialog", true)),
+            Action::Click("file-replace"),
+            Action::Wait(Check::Text("result-state", "Calculated")),
+        ],
+        checks: &[
+            Check::Value("formula", "=A1:A2*2"),
+            Check::Text("result", "number 6"),
+            Check::Rendered("plain-formula", true),
+            Check::Rendered("array-formula", false),
+        ],
+    },
+    Case {
+        name: "files: editing a plain file formula enters it in the dynamic form, which spills",
+        actions: &[Action::Formula("=A1:A2*2")],
+        checks: &[
+            Check::Array(&[&["6"], &["8"]]),
+            Check::Rendered("plain-formula", false),
+        ],
+    },
+    Case {
+        name: "format files: Save keeps the 1904 date system and the format in the workbook",
+        actions: &[
+            Action::Click("format-tools"),
+            Action::Choose("date-system", "1904"),
+            Action::Formula("=DATE(2024,1,31)"),
+            Action::Into("number-format", "yyyy-mm-dd"),
+            Action::OpenDetails("file-controls"),
+            Action::ClearDownloads,
+            Action::Click("file-save"),
+        ],
+        checks: &[
+            Check::DownloadedSession("onecalc-session.xlsx", "/date-system", "1904"),
+            Check::DownloadedSession("onecalc-session.xlsx", "/number-format", "yyyy-mm-dd"),
+            Check::DownloadedSession("onecalc-session.xlsx", "/formula", "DATE(2024,1,31)"),
+        ],
+    },
+    Case {
+        name: "format files: opening that workbook restores the 1904 date system",
+        actions: &[
+            Action::Choose("date-system", "1900"),
+            Action::UploadDownload("onecalc-session.xlsx"),
+            Action::Wait(Check::Rendered("file-dialog", true)),
+            Action::Click("file-replace"),
+        ],
+        checks: &[
+            Check::Value("date-system", "1904"),
+            Check::Text("result", "number 43860"),
+            Check::Text("result-value", "2024-01-31"),
+        ],
+    },
 ];
 
 /// Groups whose name ends in `-browser` need the browser's own download (Save writes a file the
@@ -669,4 +940,32 @@ pub(crate) const ONECALC_GROUPS: &[CaseGroup] = &[
     },
     CaseGroup {name:"friendly-functions-browser",start:52,end:55,core:3,setup:&[]},
     CaseGroup {name:"completion-repair",start:55,end:57,core:2,setup:&[]},
+    CaseGroup {
+        name: "formula-work",
+        start: 57,
+        end: 76,
+        core: 0,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "format-work",
+        start: 76,
+        end: 79,
+        core: 0,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "file-forms",
+        start: 79,
+        end: 81,
+        core: 0,
+        setup: &[Action::Grid("A1", "7")],
+    },
+    CaseGroup {
+        name: "format-files-browser",
+        start: 81,
+        end: 83,
+        core: 0,
+        setup: &[],
+    },
 ];

@@ -28,7 +28,7 @@ const PACKAGE_RELATIONSHIPS: &str = concat!(
 const WORKBOOK: &str = concat!(
     r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#,
     r#"<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">"#,
-    r#"<sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets>"#,
+    r#"<DATEPR/><sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets>"#,
     r#"<calcPr calcId="191029"/>"#,
     r#"</workbook>"#
 );
@@ -76,6 +76,12 @@ pub fn blank_package() -> Vec<u8> {
 /// The package of a new workbook with one empty worksheet named `sheet`, which the caller has
 /// checked is a sheet name Excel accepts (`calc_doc_model::SheetName`).
 pub fn blank_package_named(sheet: &str) -> Vec<u8> {
+    blank_package_named_in(sheet, false)
+}
+
+/// [`blank_package_named`] counting serial dates from 1904 (`workbookPr date1904="1"`) when
+/// `date_1904`, as Excel's date system option writes it.
+pub fn blank_package_named_in(sheet: &str, date_1904: bool) -> Vec<u8> {
     let mut name = String::new();
     for c in sheet.chars() {
         match c {
@@ -86,7 +92,9 @@ pub fn blank_package_named(sheet: &str) -> Vec<u8> {
             c => name.push(c),
         }
     }
-    let workbook = WORKBOOK.replace(r#"name="Sheet1""#, &format!(r#"name="{name}""#));
+    let workbook = WORKBOOK
+        .replace(r#"name="Sheet1""#, &format!(r#"name="{name}""#))
+        .replace("<DATEPR/>", if date_1904 { r#"<workbookPr date1904="1"/>"# } else { "" });
     crate::save::new_archive(&[
         ("[Content_Types].xml", CONTENT_TYPES.as_bytes()),
         ("_rels/.rels", PACKAGE_RELATIONSHIPS.as_bytes()),

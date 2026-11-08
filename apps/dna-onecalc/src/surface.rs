@@ -105,8 +105,11 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
     // Ctrl+Shift+Enter entered the formula as a legacy array formula (the text it was entered
     // with); any edit of the text leaves that form, as editing a formula in Excel does.
     let array_entry = RwSignal::new(None::<String>);
+    // A plain formula read from a file: the legacy form without braces (implicit intersection).
+    let plain_entry = RwSignal::new(false);
     let assist = FormulaAssist::new(TextBinding::new(formula.into(), move |text| {
         array_entry.set(None);
+        plain_entry.set(false);
         formula.set(text);
     }));
     assist.start_edit(formula.get_untracked());
@@ -114,18 +117,80 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
     let entries: RwSignal<Vec<String>> = RwSignal::new(initial.grid.clone());
     let locale = RwSignal::new(initial.locale.clone());
     let number_format = RwSignal::new(initial.number_format.clone());
+    let date_1904 = RwSignal::new(initial.date_1904);
     let shown = RwSignal::new(Shown::default());
 
-    let legacy = move || array_entry.with(Option::is_some);
+    let braces = move || array_entry.with(Option::is_some);
+    let legacy = move || braces() || plain_entry.get();
     let authored = Memo::new(move |_| Authored {
         formula: formula.get(),
         formula_cell: formula_cell.get(),
         legacy: legacy(),
+        plain: plain_entry.get() && !braces(),
         grid: entries.get(),
         locale: locale.get(),
         number_format: number_format.get(),
+        date_1904: date_1904.get(),
         now: None,
     });
+
+    // F9 on a selected part asks the session for that part's value over the authored state;
+    // arrow keys and clicks on the scratch grid insert references at the caret (point mode).
+    assist.enable_part_evaluation(move |start, len, done| {
+        call(
+            Request::EvaluatePart {
+                authored: authored.get_untracked(),
+                start,
+                len,
+            },
+            Box::new(move |reply| {
+                done(match reply {
+                    Reply::Part(part) => Ok(part.literal),
+                    Reply::Refused { message } => Err(message),
+                    other => Err(format!("Unexpected answer: {other:?}")),
+                })
+            }),
+        );
+    });
+    assist.enable_point_mode(grid::ROWS, grid::COLUMNS, move || {
+        formula_cell
+            .with_untracked(|text| dna_formula_ui::display::parse_address(text))
+            .unwrap_or((1, grid::COLUMNS))
+    });
+
+    // The evaluation trace: the steps the session listed for the authored state it was asked
+    // about, and the step shown. It is stale once the authored state differs from that one.
+    let trace = RwSignal::new(None::<(Authored, crate::trace::Trace)>);
+    let trace_at = RwSignal::new(0usize);
+    let show_step = move |index: usize| {
+        trace.with_untracked(|trace| {
+            if let Some((_, trace)) = trace
+                && let Some(step) = trace.steps.get(index)
+            {
+                assist.focus.set(Some(TextSpan::new(step.start, step.len)));
+                trace_at.set(index);
+            }
+        });
+    };
+    let start_trace = move |_| {
+        let state = authored.get_untracked();
+        call(
+            Request::Trace {
+                authored: state.clone(),
+            },
+            Box::new(move |reply| {
+                if let Reply::Trace(found) = reply {
+                    let first = found.steps.first().map(|s| TextSpan::new(s.start, s.len));
+                    trace.set(Some((state, found)));
+                    trace_at.set(0);
+                    assist.focus.set(first);
+                }
+            }),
+        );
+    };
+    let trace_fresh = move || {
+        trace.with(|trace| trace.as_ref().is_some_and(|(state, _)| *state == authored.get()))
+    };
 
     // The VBA module: its source, and what the session said of loading it.
     let vba_source = RwSignal::new(calc_vba::EXAMPLE_MODULE.to_owned());
@@ -160,6 +225,14 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
         );
     };
 
+    // The registered functions the formula field completes beside the catalogue.
+    let complete_with = Callback::new(move |functions: Vec<String>| {
+        assist.scope.update(|scope| {
+            if scope.functions != functions {
+                scope.functions = functions;
+            }
+        });
+    });
     // Each edit sends the authored state and draws the answer. The clock is the page's.
     Effect::new(move |_| {
         let mut state = authored.get();
@@ -169,6 +242,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
             Request::Evaluate(state),
             Box::new(move |reply| {
                 if let Reply::Shown(next) = reply {
+                    complete_with.run(next.functions.clone());
                     shown.set(*next);
                 }
             }),
@@ -189,13 +263,15 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
     // Gives the surface's fields an authored state, as an opened file or an example does.
     let apply = move |state: Authored| {
         batch(move || {
-            array_entry.set(state.legacy.then(|| state.formula.clone()));
+            array_entry.set((state.legacy && !state.plain).then(|| state.formula.clone()));
+            plain_entry.set(state.legacy && state.plain);
             formula.set(state.formula.clone());
             assist.start_edit(state.formula.clone());
             formula_cell.set(state.formula_cell);
             entries.set(state.grid);
             locale.set(state.locale);
             number_format.set(state.number_format);
+            date_1904.set(state.date_1904);
         });
     };
     let apply_opened = move |opened: Opened| {
@@ -209,6 +285,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
         batch(move || {
             baseline.set(Some(state.clone()));
             apply(state);
+            complete_with.run(answer.functions.clone());
             shown.set(answer);
             addins.set(listed);
             loaded.set(running);
@@ -479,10 +556,16 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                     let index = ((row - 1) * grid::COLUMNS + (column - 1)) as usize;
                     let address = grid::address(row, column);
                     let cell = move || shown.with(|shown| shown.cell(index));
-                    let class = move || match cell().kind.as_str() {
-                        "formula" => "oc-formula",
-                        "refused" => "oc-refused",
-                        _ => "",
+                    let class = move || {
+                        let pointed = assist.pointed_cells().is_some_and(|(r1, c1, r2, c2)| {
+                            (r1..=r2).contains(&row) && (c1..=c2).contains(&column)
+                        });
+                        let base = match cell().kind.as_str() {
+                            "formula" => "oc-formula",
+                            "refused" => "oc-refused",
+                            _ => "",
+                        };
+                        if pointed { format!("{base} oc-pointed") } else { base.to_owned() }
                     };
                     let value = move || {
                         let shown = cell();
@@ -497,6 +580,11 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                             <input
                                 type="text"
                                 data-onecalc="grid-cell"
+                                on:mousedown=move |ev: leptos::ev::MouseEvent| {
+                                    if assist.point_click(row, column, ev.shift_key()) {
+                                        ev.prevent_default();
+                                    }
+                                }
                                 data-cell=address.clone()
                                 aria-label=address
                                 data-kind=move || cell().kind
@@ -614,9 +702,13 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                         )}
                     {assist.popup()}
                     {assist.signature()}
+                    <p class="oc-prov" role="status" data-onecalc="part-status">{move || assist.part_status.get()}</p>
                     <p>
-                        <span class="oc-prov" data-onecalc="array-formula" hidden=move || !legacy()>
+                        <span class="oc-prov" data-onecalc="array-formula" hidden=move || !braces()>
                             {move || format!("{{{}}}", formula.get())}
+                        </span>
+                        <span class="oc-prov" data-onecalc="plain-formula" hidden=move || !plain_entry.get()>
+                            "A plain formula from a file: the legacy form, with implicit intersection. Editing it enters it in the dynamic form."
                         </span>
                         " entered in "
                         <input
@@ -639,12 +731,63 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                         <details class="oc-calculation-details" data-onecalc="result-details"><summary>"Calculation details"</summary>
                             <p>"Raw result: "<output data-onecalc="result">{move ||shown.with(|s|s.result.clone())}</output></p>
                             <p class="oc-prov" data-onecalc="provenance">{move ||shown.with(|s|s.provenance.clone())}</p>
-                            <p class="oc-prov" data-onecalc="environment">{move ||format!("Dates use the 1900 system; {} numbers in {} format. NOW and TODAY read the page's clock. Evaluation uses calc-fml and calc-func.",locale.get(),number_format.get())}</p>
+                            <p class="oc-prov" data-onecalc="environment">{move ||format!("Dates use the {} system; {} numbers in {} format. NOW and TODAY read the page's clock. Evaluation uses calc-fml and calc-func.",if date_1904.get(){"1904"}else{"1900"},locale.get(),number_format.get())}</p>
                             <ol class="oc-reads" data-onecalc="reads">{move ||shown.with(|s|s.reads.clone()).into_iter().map(|line|view!{<li>{line}</li>}).collect_view()}</ol>
                         </details>
                     </section>
+                    <section class="oc-trace" data-onecalc="trace-panel" aria-labelledby="oc-trace-title">
+                        <header><h2 id="oc-trace-title">"Evaluation trace"</h2>
+                            <button type="button" data-onecalc="trace-start" on:click=start_trace>"Trace the formula"</button>
+                            <button type="button" data-onecalc="trace-previous" on:click=move |_| show_step(trace_at.get_untracked().saturating_sub(1))>"Previous step"</button>
+                            <button type="button" data-onecalc="trace-next" on:click=move |_| show_step(trace_at.get_untracked() + 1)>"Next step"</button>
+                        </header>
+                        <p class="oc-prov" role="status" data-onecalc="trace-status">{move || if trace.with(Option::is_none) {
+                            "Select part of the formula and press F9 to see its value; Escape restores the formula. Or trace the whole formula, part by part.".to_owned()
+                        } else if !trace_fresh() {
+                            "The formula or its inputs changed since this trace. Trace it again.".to_owned()
+                        } else {
+                            trace.with(|trace| trace.as_ref().map(|(_, t)| format!("Step {} of {}", trace_at.get() + 1, t.steps.len())).unwrap_or_default())
+                        }}</p>
+                        <ol class="oc-trace-steps" data-onecalc="trace-steps">{move || {
+                            if !trace_fresh() { return Vec::new(); }
+                            let current = trace_at.get();
+                            trace.with(|trace| trace.as_ref().map(|(_, t)| t.steps.iter().enumerate().map(|(index, step)| {
+                                let class = format!(
+                                    "oc-depth-{}{}",
+                                    step.depth.min(8),
+                                    if index == current { " oc-trace-current" } else { "" }
+                                );
+                                let (text, kind, value) = (step.text.clone(), step.kind.clone(), step.value.clone());
+                                view! { <li class=class data-onecalc="trace-step" on:click=move |_| show_step(index)>
+                                    <code data-onecalc="trace-part">{text}</code>" = "<span data-onecalc="trace-value" data-kind=kind>{value}</span>
+                                </li> }
+                            }).collect::<Vec<_>>()).unwrap_or_default())
+                        }}</ol>
+                        <p class="oc-prov" data-onecalc="trace-note">{move || trace.with(|trace| trace.as_ref().map(|(_, t)| t.note.clone()).unwrap_or_default())}</p>
+                    </section>
                     <details class="oc-format-controls" data-onecalc="format-controls"><summary data-onecalc="format-tools">"Format & locale"</summary>
                         <label>"Locale"<select data-onecalc="locale" prop:value=move ||locale.get() on:change=move |ev|locale.set(event_target_value(&ev))>{SessionOptions::LOCALES.into_iter().map(|name|view!{<option value=name>{name}</option>}).collect_view()}</select></label>
+                        <label>"Format"<select data-onecalc="format-picker" prop:value=move || {
+                            let current = number_format.get();
+                            let profile = FormatProfile::for_culture(&locale.get()).expect("listed locale");
+                            if dna_formula_ui::result::format_choices(&profile).iter().any(|choice| choice.code == current) { current } else { "custom".to_owned() }
+                        } on:change=move |ev| {
+                            let code = event_target_value(&ev);
+                            if code != "custom" { number_format.set(code); }
+                        }>
+                            <option value="custom" disabled=true>"Custom (type it below)"</option>
+                            {move || {
+                                let profile = FormatProfile::for_culture(&locale.get()).expect("listed locale");
+                                dna_formula_ui::result::format_choices(&profile).into_iter().map(|choice| {
+                                    let text = format!("{}: {} ({})", choice.group, choice.label, choice.code);
+                                    view! { <option value=choice.code>{text}</option> }
+                                }).collect_view()
+                            }}
+                        </select></label>
+                        <label>"Date system"<select data-onecalc="date-system" prop:value=move || if date_1904.get() { "1904" } else { "1900" } on:change=move |ev| date_1904.set(event_target_value(&ev) == "1904")>
+                            <option value="1900">"1900 (Excel for Windows, and the default)"</option>
+                            <option value="1904">"1904 (older Excel for Mac)"</option>
+                        </select></label>
                         <label>"Number format (selected locale)"<input data-onecalc="number-format" list="oc-number-formats" prop:value=move ||number_format.get() on:input=move |ev|number_format.set(event_target_value(&ev))/></label>
                         <datalist id="oc-number-formats">{move || {
                             let p=FormatProfile::for_culture(&locale.get()).expect("listed locale");

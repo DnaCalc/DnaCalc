@@ -2191,7 +2191,7 @@ pub(crate) fn file_unprefixed(spelling: &str) -> &str {
 
 /// The rest of `text` when its first bytes are the ASCII `prefix` in any ASCII case. Bytes equal
 /// to ASCII bytes are ASCII themselves, so the rest starts on a character boundary.
-pub(super) fn without_prefix<'t>(text: &'t str, prefix: &str) -> Option<&'t str> {
+pub(crate) fn without_prefix<'t>(text: &'t str, prefix: &str) -> Option<&'t str> {
     let n = prefix.len();
     let starts = text.len() >= n && text.as_bytes()[..n].eq_ignore_ascii_case(prefix.as_bytes());
     starts.then(|| &text[n..])

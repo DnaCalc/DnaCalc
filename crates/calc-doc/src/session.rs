@@ -26,7 +26,7 @@
 //! is never read as a value).
 
 use crate::{
-    CustomXmlItem, LoadedWorkbook, MemorySource, OpenPolicy, PackageRead, SavePolicy, blank_package_named,
+    CustomXmlItem, LoadedWorkbook, MemorySource, OpenPolicy, PackageRead, SavePolicy,
     load, open, prepare_edit, prepare_save, write,
 };
 use calc_doc_model::value::{CellKey, ExcelText, GridArea, IdAllocator, SheetId, WorksheetErrorCode};
@@ -41,7 +41,9 @@ use std::sync::Arc;
 /// How the session's formula is stored.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SessionArray {
-    /// An ordinary formula: Excel 365 stores one that cannot give several values this way.
+    /// An ordinary formula, written with no array marker: Excel 365 stores one that cannot give
+    /// several values this way, and any other formula stored this way is a legacy formula (implicit
+    /// intersection, [`plain_formula_needs_legacy`]).
     Plain,
     /// A dynamic-array formula.
     Dynamic,
@@ -58,6 +60,22 @@ pub struct SessionFormula {
     /// [`write_session`], it is the entry spelling and gets the prefixes Excel writes.
     pub text: String,
     pub array: SessionArray,
+}
+
+/// Whether the plain formula `text` (the text after the `=`, as a file stores it) gives a different
+/// result entered in the dynamic form than in the legacy form of an older Excel (implicit
+/// intersection). Excel 365 stores a formula that cannot give several values as a plain formula
+/// (`=SUM(A1:A3)`), where the two forms agree; one that can is stored as a dynamic-array formula.
+/// A plain formula of the second kind in a file is a legacy formula, which the dynamic form would
+/// read differently.
+pub fn plain_formula_needs_legacy(text: &str) -> bool {
+    let Ok(entered) = FormulaText::with_form(
+        ExcelText::from_utf16_code_units(text.encode_utf16().collect()),
+        FormulaForm::Dynamic,
+    ) else {
+        return false;
+    };
+    crate::file_form(&entered, &[]).is_ok_and(|form| form.dynamic)
 }
 
 /// A constant a cell holds.
@@ -88,6 +106,8 @@ pub struct SessionFile {
     /// What the application keeps in its own custom XML item, when the file holds one (on a read)
     /// or when a save should write one.
     pub custom: Option<CustomXmlItem>,
+    /// Whether the workbook counts serial dates from 1904 (`workbookPr date1904`) rather than 1900.
+    pub date_1904: bool,
     /// The calculated result to store as the formula's cached result, which no reader takes as a
     /// value; only a number, text, logical or error. [`read_session`] leaves it `None`.
     pub cached: Option<SessionValue>,
@@ -281,6 +301,7 @@ pub fn read_session(bytes: Vec<u8>, namespace: &str) -> Result<SessionFile, Sess
         formula,
         constants,
         custom,
+        date_1904: loaded.date_system() == crate::DateSystem::Date1904,
         cached: None,
     })
 }
@@ -310,7 +331,7 @@ pub fn write_session(session: &SessionFile) -> Result<Vec<u8>, SessionRefusal> {
     // The sheet name is checked as the model checks it before it goes into the new package.
     SheetName::new(ExcelText::from_utf16_code_units(session.sheet.encode_utf16().collect()))
         .map_err(|error| write_refused(format!("the sheet name: {error:?}")))?;
-    let loaded = open_bytes(blank_package_named(&session.sheet))?;
+    let loaded = open_bytes(crate::blank::blank_package_named_in(&session.sheet, session.date_1904))?;
     let model = loaded.model();
     let sheet = model.sheets()[0].id();
     let cell = |row: u32, column: u32| {
@@ -340,8 +361,10 @@ pub fn write_session(session: &SessionFile) -> Result<Vec<u8>, SessionRefusal> {
         let text = ExcelText::from_utf16_code_units(form.text);
         let kind = match formula.array {
             SessionArray::Legacy => Some(ArrayKind::Legacy),
-            _ if form.dynamic => Some(ArrayKind::Dynamic { collapsed: false }),
-            _ => None,
+            // A plain formula stays plain: a legacy formula, even when it could give several values.
+            SessionArray::Plain => None,
+            SessionArray::Dynamic if form.dynamic => Some(ArrayKind::Dynamic { collapsed: false }),
+            SessionArray::Dynamic => None,
         };
         let input = CellInput::Formula(
             FormulaText::with_form(
@@ -429,6 +452,7 @@ mod tests {
                 SessionConstant { row: 3, column: 2, value: SessionValue::Error(WorksheetErrorCode::NA) },
             ],
             custom: custom("<locale>de-DE</locale>"),
+            date_1904: false,
             cached: None,
         }
     }
@@ -519,8 +543,22 @@ mod tests {
             formula: None,
             constants: vec![],
             custom: None,
+            date_1904: false,
             cached: None,
         };
         assert_eq!(read_session(write_session(&empty).unwrap(), NAMESPACE).unwrap(), empty);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn the_1904_date_system_is_the_workbooks_own_setting_and_survives_the_file() {
+        let mut original = session();
+        original.date_1904 = true;
+        let bytes = write_session(&original).expect("written");
+        let read = read_session(bytes, NAMESPACE).expect("read back");
+        assert!(read.date_1904);
+        assert_eq!(read, original);
+        original.date_1904 = false;
+        assert!(!read_session(write_session(&original).unwrap(), NAMESPACE).unwrap().date_1904);
     }
 }

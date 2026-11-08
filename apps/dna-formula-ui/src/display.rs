@@ -38,6 +38,56 @@ pub fn value(value: &CalcValue) -> String {
     }
 }
 
+/// A value as formula text that gives it back: `7`, `"ax"` (quotes doubled), `TRUE`, `#N/A`, and an
+/// array as an array constant, `{1,2;3,4}`. A number is the shortest decimal that round-trips its
+/// binary64. A blank inside an array is `0`, as Excel's F9 shows it. A reference, an omitted
+/// argument and a number a formula cannot write have no literal.
+pub fn formula_literal(value: &CalcValue) -> Result<String, String> {
+    fn scalar(value: &CalcValue, in_array: bool) -> Result<String, String> {
+        match value.core() {
+            CoreValue::Number(number) if number.is_finite() => {
+                let abs = number.abs();
+                Ok(if abs != 0.0 && !(1e-5..1e15).contains(&abs) {
+                    format!("{number:e}")
+                } else {
+                    format!("{number}")
+                })
+            }
+            CoreValue::Number(_) => Err("a number a formula cannot write".to_owned()),
+            CoreValue::Text(text) => Ok(format!("\"{}\"", text.to_string_lossy().replace('"', "\"\""))),
+            CoreValue::Logical(true) => Ok("TRUE".to_owned()),
+            CoreValue::Logical(false) => Ok("FALSE".to_owned()),
+            CoreValue::Error(code) => Ok(error_spelling(*code).to_owned()),
+            CoreValue::Empty if in_array => Ok("0".to_owned()),
+            CoreValue::Empty => Ok("0".to_owned()),
+            CoreValue::Missing => Err("an omitted argument has no value".to_owned()),
+            CoreValue::Reference(_) => Err("a reference has no value to write".to_owned()),
+            CoreValue::Array(_) => Err("an array inside an array".to_owned()),
+        }
+    }
+    match value.core() {
+        CoreValue::Array(array) => {
+            let shape = array.shape();
+            let mut out = String::from("{");
+            for row in 0..shape.rows {
+                if row > 0 {
+                    out.push(';');
+                }
+                for col in 0..shape.cols {
+                    if col > 0 {
+                        out.push(',');
+                    }
+                    let cell = array.get(row, col).ok_or("a cell outside the array")?;
+                    out.push_str(&scalar(cell, true)?);
+                }
+            }
+            out.push('}');
+            Ok(out)
+        }
+        _ => scalar(value, false),
+    }
+}
+
 /// The spelling Excel gives a worksheet error.
 pub fn error_spelling(code: WorksheetErrorCode) -> &'static str {
     code.excel_spelling()

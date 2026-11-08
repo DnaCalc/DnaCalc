@@ -221,6 +221,14 @@ fn arguments_have_their_defaults_and_refusals() {
     assert_eq!(parse_args(&args("--oracle --profile dev")).unwrap().profile.as_deref(), Some("dev"));
     assert!(parse_args(&args("--oracle --release --profile dev")).is_err());
     assert!(parse_args(&args("--oracle --profile unknown")).is_err());
+    assert!(crate::sweep::corpus_counts(&serde_json::Value::Null).is_err());
+    let report = json!({"totals":{"workbooks":1,"counts":{"formula_cells":2,"pass":1,"fail":1},"wall_time_s":1},
+        "workbooks":[{"name":"one","counts":{"formula_cells":2,"pass":1,"fail":1}}]});
+    let mut other = report.clone();
+    other["totals"]["wall_time_s"] = json!(99);
+    assert_eq!(crate::sweep::corpus_counts(&report).unwrap(), crate::sweep::corpus_counts(&other).unwrap());
+    other["workbooks"][0]["counts"]["pass"] = json!(2);
+    assert_ne!(crate::sweep::corpus_counts(&report).unwrap(), crate::sweep::corpus_counts(&other).unwrap());
     for (bad, refusal) in [
         ("", "give a workbook folder, --oracle or --import"),
         ("--out o", "give a workbook folder"),

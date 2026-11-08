@@ -117,7 +117,7 @@ pub use save::{
 };
 pub use session::{
     SessionArray, SessionConstant, SessionFile, SessionFormula, SessionRefusal, SessionValue,
-    read_session, write_session,
+    plain_formula_needs_legacy, read_session, write_session,
 };
 pub use source::{MemorySource, PackageRead, PackageWrite, SinkError, SourceError};
 pub use vba::{VbaModuleKind, VbaModuleSource, VbaProjectSource, VbaReadError, VbaReadPolicy};

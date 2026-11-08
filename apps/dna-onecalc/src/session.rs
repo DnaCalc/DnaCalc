@@ -139,6 +139,9 @@ pub struct SessionOptions {
     pub locale: String,
     /// The number format text the result is shown with, in the locale's separators.
     pub number_format: String,
+    /// Whether serial dates count from 1904 rather than 1900 (the workbook's `date1904`).
+    #[serde(default)]
+    pub date_1904: bool,
 }
 
 impl Default for SessionOptions {
@@ -146,6 +149,7 @@ impl Default for SessionOptions {
         SessionOptions {
             locale: "en-US".to_owned(),
             number_format: "General".to_owned(),
+            date_1904: false,
         }
     }
 }
@@ -185,6 +189,8 @@ pub struct Session {
     /// The form the formula is entered in: dynamic-array, as Excel 365 enters a formula, unless
     /// set otherwise.
     form: FormulaForm,
+    /// Whether the legacy form is a plain formula read from a file (no `{=...}` array braces).
+    plain: bool,
     options: SessionOptions,
     addins: Vec<AddinRef>,
     /// Whether a VBA standard module is loaded (its source is not kept: the session file holds no
@@ -219,6 +225,7 @@ impl Session {
             environment: None,
             numeric: NumericMode::Fast,
             form: FormulaForm::Dynamic,
+            plain: false,
             options: SessionOptions::default(),
             addins: Vec::new(),
             vba_loaded: false,
@@ -340,6 +347,19 @@ impl Session {
     /// [`FormulaForm::Legacy`] as an older Excel does (implicit intersection, one value).
     pub fn set_form(&mut self, form: FormulaForm) {
         self.form = form;
+        self.plain = false;
+    }
+
+    /// Whether the formula is a plain formula of a file: the legacy form (implicit intersection)
+    /// without array braces. A plain `<f>` in a file is this, not the dynamic form.
+    pub fn is_plain(&self) -> bool {
+        self.plain && self.form == FormulaForm::Legacy
+    }
+
+    /// Enters the formula as a plain legacy formula, as a file's plain `<f>` is read.
+    pub fn set_plain_legacy(&mut self) {
+        self.form = FormulaForm::Legacy;
+        self.plain = true;
     }
 
     pub fn formula(&self) -> &str {
@@ -432,7 +452,14 @@ impl Session {
     /// normal form), place at the formula cell, and evaluate over the session's inputs, recording
     /// every read.
     pub fn calculate(&mut self) -> Calculation {
-        let tree = parse_formula(&self.formula);
+        let formula = self.formula.clone();
+        self.calculate_text(&formula)
+    }
+
+    /// [`Session::calculate`] for `formula` in place of the session's own: the same inputs, form,
+    /// environment and functions. A part of a formula is evaluated this way (F9, the trace).
+    pub fn calculate_text(&mut self, formula: &str) -> Calculation {
+        let tree = parse_formula(formula);
         let syntax: Vec<Diagnostic> = tree
             .diagnostics()
             .iter()
