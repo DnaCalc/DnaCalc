@@ -25,6 +25,10 @@ pub struct Authored {
     pub formula_cell: String,
     /// Entered with Ctrl+Shift+Enter: Excel's legacy array formula, `{=...}`.
     pub legacy: bool,
+    /// With `legacy`: a plain legacy formula as a file stores it (implicit intersection), shown
+    /// without array braces. Any edit of the text leaves it.
+    #[serde(default)]
+    pub plain: bool,
     /// The scratch grid's entries, row by row ([`grid::ROWS`] x [`grid::COLUMNS`]).
     pub grid: Vec<String>,
     pub locale: String,
@@ -40,6 +44,7 @@ impl Default for Authored {
             formula: String::new(),
             formula_cell: "H1".to_owned(),
             legacy: false,
+            plain: false,
             grid: vec![String::new(); (grid::ROWS * grid::COLUMNS) as usize],
             locale: options.locale,
             number_format: options.number_format,
@@ -176,6 +181,7 @@ pub fn evaluate(session: &mut Session, authored: &Authored) -> Shown {
         formula,
         formula_cell,
         legacy,
+        plain,
         grid: entries,
         locale,
         number_format,
@@ -186,6 +192,9 @@ pub fn evaluate(session: &mut Session, authored: &Authored) -> Shown {
     } else {
         FormulaForm::Dynamic
     });
+    if *legacy && *plain {
+        session.set_plain_legacy();
+    }
     session.set_environment(Some(crate::port::environment(locale, *now)));
     session.set_options(SessionOptions {
         locale: locale.clone(),
@@ -367,6 +376,7 @@ pub fn authored_of(session: &Session) -> Authored {
     let cell = session.formula_cell();
     authored.formula_cell = crate::file::a1(cell.row(), cell.column());
     authored.legacy = session.form() == FormulaForm::Legacy;
+    authored.plain = session.is_plain();
     for index in 0..authored.grid.len() {
         if let Some(cell) = grid_cell(session, index)
             && let Some(input) = session.input(cell)

@@ -18,12 +18,9 @@ use calc_func::{FunctionCallTarget, Notation, catalogue};
 /// Tokens keep their syntax roles: strings, sheet/table names and defined names are retained.
 /// Incomplete or unsupported syntax stays exactly as authored.
 pub fn display_formula(text: &str) -> String {
-    if !text.trim_start().starts_with('=')
-        || !text
-            .as_bytes()
-            .windows(6)
-            .any(|v| v.eq_ignore_ascii_case(b"_xlfn."))
-    {
+    let bytes = text.as_bytes();
+    let has = |prefix: &[u8]| bytes.windows(prefix.len()).any(|v| v.eq_ignore_ascii_case(prefix));
+    if !text.trim_start().starts_with('=') || !(has(b"_xlfn.") || has(b"_xlpm.") || has(b"_xlws.")) {
         return text.to_owned();
     }
     let tree = crate::parse_formula(text);
@@ -37,15 +34,27 @@ pub fn display_formula(text: &str) -> String {
             && let Some(SyntaxChild::Token(token)) = node.children().first()
         {
             let spelling = token.text();
-            let friendly = crate::eval::file_unprefixed(spelling);
+            // `_xlws.` can also stand alone before a worksheet function the file stores with it.
+            let named = crate::eval::file_unprefixed(spelling);
+            let friendly = crate::eval::without_prefix(named, "_xlws.").unwrap_or(named);
             if friendly != spelling
-                && (function_named(spelling).is_some()
+                && (function_named(friendly).is_some()
                     || crate::eval::binding_call(friendly).is_some())
             {
                 changes.insert(token.span().start, friendly.to_owned());
             }
         }
         pending.extend(node.child_nodes());
+    }
+    // A LET name or LAMBDA parameter a file stores as `_xlpm.name` is shown as `name`.
+    for token in tree.tokens() {
+        if token.kind() == TokenKind::Identifier
+            && let Some(name) = crate::eval::without_prefix(token.text(), "_xlpm.")
+            && !name.is_empty()
+            && !changes.contains_key(&token.span().start)
+        {
+            changes.insert(token.span().start, name.to_owned());
+        }
     }
     let mut shown = String::with_capacity(text.len());
     for token in tree.tokens() {
@@ -80,12 +89,15 @@ mod formula_display_tests {
             ),
             (
                 "=_xlfn.LET(_xlpm.x,2,_xlpm.x+_xlfn.SEQUENCE(2))",
-                "=LET(_xlpm.x,2,_xlpm.x+SEQUENCE(2))",
+                "=LET(x,2,x+SEQUENCE(2))",
             ),
             (
                 "=_xlfn.LAMBDA(_xlpm.x,_xlpm.x+1)(2)",
-                "=LAMBDA(_xlpm.x,_xlpm.x+1)(2)",
+                "=LAMBDA(x,x+1)(2)",
             ),
+            ("=LET(_xlpm.x,2,_XLPM.X+1)", "=LET(x,2,X+1)"),
+            ("=_xlws.SORT(A1:A3)+'_xlpm.x'!A1", "=SORT(A1:A3)+'_xlpm.x'!A1"),
+            ("=_xlws.NOSUCH(1)", "=_xlws.NOSUCH(1)"),
             ("=_xlfn.SUM+_xlfn.SEQUENCE", "=_xlfn.SUM+_xlfn.SEQUENCE"),
             ("=SUM(_xlfn.Table[_xlfn.SEQUENCE])", "=SUM(_xlfn.Table[_xlfn.SEQUENCE])"),
             ("=_xlfn.UNKNOWN(1)", "=_xlfn.UNKNOWN(1)"),

@@ -50,7 +50,7 @@ pub use compile::{
     compile_with_functions,
 };
 /// The spelling a named call resolves by in the catalogue; the editor assistance resolves by it too.
-pub(crate) use compile::{binding_call, file_unprefixed};
+pub(crate) use compile::{binding_call, file_unprefixed, without_prefix};
 pub use entry::{EntryRejection, GrammarRule, Rejection, check_entry};
 pub use run::{
     ContinuationProgress, EvalContinuation, EvalFault, EvalStep, MAX_CALL_DEPTH, evaluate,

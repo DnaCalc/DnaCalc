@@ -105,8 +105,11 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
     // Ctrl+Shift+Enter entered the formula as a legacy array formula (the text it was entered
     // with); any edit of the text leaves that form, as editing a formula in Excel does.
     let array_entry = RwSignal::new(None::<String>);
+    // A plain formula read from a file: the legacy form without braces (implicit intersection).
+    let plain_entry = RwSignal::new(false);
     let assist = FormulaAssist::new(TextBinding::new(formula.into(), move |text| {
         array_entry.set(None);
+        plain_entry.set(false);
         formula.set(text);
     }));
     assist.start_edit(formula.get_untracked());
@@ -116,11 +119,13 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
     let number_format = RwSignal::new(initial.number_format.clone());
     let shown = RwSignal::new(Shown::default());
 
-    let legacy = move || array_entry.with(Option::is_some);
+    let braces = move || array_entry.with(Option::is_some);
+    let legacy = move || braces() || plain_entry.get();
     let authored = Memo::new(move |_| Authored {
         formula: formula.get(),
         formula_cell: formula_cell.get(),
         legacy: legacy(),
+        plain: plain_entry.get() && !braces(),
         grid: entries.get(),
         locale: locale.get(),
         number_format: number_format.get(),
@@ -189,7 +194,8 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
     // Gives the surface's fields an authored state, as an opened file or an example does.
     let apply = move |state: Authored| {
         batch(move || {
-            array_entry.set(state.legacy.then(|| state.formula.clone()));
+            array_entry.set((state.legacy && !state.plain).then(|| state.formula.clone()));
+            plain_entry.set(state.legacy && state.plain);
             formula.set(state.formula.clone());
             assist.start_edit(state.formula.clone());
             formula_cell.set(state.formula_cell);
@@ -615,8 +621,11 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                     {assist.popup()}
                     {assist.signature()}
                     <p>
-                        <span class="oc-prov" data-onecalc="array-formula" hidden=move || !legacy()>
+                        <span class="oc-prov" data-onecalc="array-formula" hidden=move || !braces()>
                             {move || format!("{{{}}}", formula.get())}
+                        </span>
+                        <span class="oc-prov" data-onecalc="plain-formula" hidden=move || !plain_entry.get()>
+                            "A plain formula from a file: the legacy form, with implicit intersection. Editing it enters it in the dynamic form."
                         </span>
                         " entered in "
                         <input

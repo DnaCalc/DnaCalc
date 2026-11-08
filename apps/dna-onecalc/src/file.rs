@@ -101,10 +101,16 @@ pub fn open(bytes: &[u8]) -> Result<Session, OpenRefusal> {
     })?;
     if let Some(formula) = &file.formula {
         session.set_formula(&format!("={}", formula.text));
-        session.set_form(match formula.array {
-            SessionArray::Legacy => FormulaForm::Legacy,
-            SessionArray::Plain | SessionArray::Dynamic => FormulaForm::Dynamic,
-        });
+        match formula.array {
+            SessionArray::Legacy => session.set_form(FormulaForm::Legacy),
+            // A plain `<f>` is a legacy formula: implicit intersection, not the dynamic form.
+            // (Excel 365 itself stores a formula that cannot give several values this way, where
+            // the two forms agree; that one stays in the dynamic form.)
+            SessionArray::Plain if calc_doc::plain_formula_needs_legacy(&formula.text) => {
+                session.set_plain_legacy()
+            }
+            SessionArray::Plain | SessionArray::Dynamic => session.set_form(FormulaForm::Dynamic),
+        }
     }
     for SessionConstant { row, column, value } in &file.constants {
         if *row > grid::ROWS || *column > grid::COLUMNS {
@@ -172,6 +178,7 @@ pub fn save(session: &mut Session) -> Result<Vec<u8>, String> {
         column: formula_cell.column(),
         text: text.strip_prefix('=').unwrap_or(text).to_owned(),
         array: match session.form() {
+            FormulaForm::Legacy if session.is_plain() => SessionArray::Plain,
             FormulaForm::Legacy => SessionArray::Legacy,
             FormulaForm::Dynamic => SessionArray::Dynamic,
         },
@@ -371,6 +378,41 @@ mod tests {
         let reopened = open(&save(&mut original).unwrap()).unwrap();
         assert_eq!(reopened.form(), FormulaForm::Legacy);
         assert_eq!(reopened.formula(), "=A1:A2*2");
+    }
+
+    // A plain `<f>` (no array attribute, no dynamic marker) is a legacy formula: implicit
+    // intersection. It is not the dynamic form, and it saves back as plain.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_plain_file_formula_is_the_legacy_form_and_saves_as_plain() {
+        let file = SessionFile {
+            sheet: "Sheet1".into(),
+            formula: Some(SessionFormula {
+                row: 1,
+                column: 8,
+                text: "A1:A2*2".into(),
+                array: SessionArray::Plain,
+            }),
+            constants: vec![
+                SessionConstant { row: 1, column: 1, value: SessionValue::Number(3.0) },
+                SessionConstant { row: 2, column: 1, value: SessionValue::Number(4.0) },
+            ],
+            custom: None,
+            cached: None,
+        };
+        let mut plain = open(&write_session(&file).unwrap()).unwrap();
+        assert_eq!(plain.form(), FormulaForm::Legacy);
+        assert!(plain.is_plain());
+        // H1 is on the rows of A1:A2: implicit intersection takes A1, and the dynamic form spills.
+        let value = plain.calculate().result.unwrap();
+        assert_eq!(value.core(), &CoreValue::Number(6.0));
+        let state = crate::shown::authored_of(&plain);
+        assert!(state.legacy && state.plain);
+        let again = open(&save(&mut plain).unwrap()).unwrap();
+        assert!(again.is_plain(), "saved as a plain formula");
+        // Entering it as an array formula, or as the dynamic form, leaves the plain form.
+        plain.set_form(FormulaForm::Legacy);
+        assert!(!plain.is_plain());
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

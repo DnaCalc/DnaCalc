@@ -41,7 +41,9 @@ use std::sync::Arc;
 /// How the session's formula is stored.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SessionArray {
-    /// An ordinary formula: Excel 365 stores one that cannot give several values this way.
+    /// An ordinary formula, written with no array marker: Excel 365 stores one that cannot give
+    /// several values this way, and any other formula stored this way is a legacy formula (implicit
+    /// intersection, [`plain_formula_needs_legacy`]).
     Plain,
     /// A dynamic-array formula.
     Dynamic,
@@ -58,6 +60,22 @@ pub struct SessionFormula {
     /// [`write_session`], it is the entry spelling and gets the prefixes Excel writes.
     pub text: String,
     pub array: SessionArray,
+}
+
+/// Whether the plain formula `text` (the text after the `=`, as a file stores it) gives a different
+/// result entered in the dynamic form than in the legacy form of an older Excel (implicit
+/// intersection). Excel 365 stores a formula that cannot give several values as a plain formula
+/// (`=SUM(A1:A3)`), where the two forms agree; one that can is stored as a dynamic-array formula.
+/// A plain formula of the second kind in a file is a legacy formula, which the dynamic form would
+/// read differently.
+pub fn plain_formula_needs_legacy(text: &str) -> bool {
+    let Ok(entered) = FormulaText::with_form(
+        ExcelText::from_utf16_code_units(text.encode_utf16().collect()),
+        FormulaForm::Dynamic,
+    ) else {
+        return false;
+    };
+    crate::file_form(&entered, &[]).is_ok_and(|form| form.dynamic)
 }
 
 /// A constant a cell holds.
@@ -340,8 +358,10 @@ pub fn write_session(session: &SessionFile) -> Result<Vec<u8>, SessionRefusal> {
         let text = ExcelText::from_utf16_code_units(form.text);
         let kind = match formula.array {
             SessionArray::Legacy => Some(ArrayKind::Legacy),
-            _ if form.dynamic => Some(ArrayKind::Dynamic { collapsed: false }),
-            _ => None,
+            // A plain formula stays plain: a legacy formula, even when it could give several values.
+            SessionArray::Plain => None,
+            SessionArray::Dynamic if form.dynamic => Some(ArrayKind::Dynamic { collapsed: false }),
+            SessionArray::Dynamic => None,
         };
         let input = CellInput::Formula(
             FormulaText::with_form(
