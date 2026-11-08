@@ -322,6 +322,9 @@ impl Workbook {
     pub fn set_fetch_route(&mut self, route: std::rc::Rc<dyn calc_func::FetchRoute>) {
         self.session.set_fetch_route(route);
     }
+    pub fn set_import_route(&mut self, route: std::rc::Rc<dyn calc_func::ImportRoute>) {
+        self.session.set_import_route(route);
+    }
 
     pub fn complete_async(
         &mut self,

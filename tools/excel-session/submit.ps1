@@ -42,13 +42,26 @@ function Stop-Orphan($State) {
         } finally { $process.Dispose() }
     }
 }
+function Clear-ShutdownRequest {
+    # A shutdown request belongs to one host. Once no host is live nothing reads it, and a
+    # leftover file makes the next host's loop exit at once, so it is removed and checked.
+    $request=Join-Path $root 'shutdown.request'
+    if (-not (Test-Path -LiteralPath $request)) { return }
+    try { Remove-Item -LiteralPath $request -Force -ErrorAction Stop }
+    catch { throw "Leftover shutdown request could not be removed: $request ($($_.Exception.Message))" }
+    if (Test-Path -LiteralPath $request) { throw "Leftover shutdown request could not be removed: $request" }
+}
 if ($Status) { Read-Status|ConvertTo-Json -Depth 15; return }
 if ($Stop) {
-    [IO.File]::WriteAllText((Join-Path $root 'shutdown.request'),'stop')
-    $deadline=[DateTime]::UtcNow.AddSeconds(30)
-    while ((Live (Read-Status)) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 100 }
-    if (Live (Read-Status)) { throw 'Session host has not completed shutdown.' }
+    # Only a live host reads the request; with none live the request would be left behind.
+    if (Live (Read-Status)) {
+        [IO.File]::WriteAllText((Join-Path $root 'shutdown.request'),'stop')
+        $deadline=[DateTime]::UtcNow.AddSeconds(30)
+        while ((Live (Read-Status)) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 100 }
+        if (Live (Read-Status)) { throw 'Session host has not completed shutdown.' }
+    }
     Stop-Orphan (Read-Status)
+    Clear-ShutdownRequest
     return
 }
 if (-not $Script -and -not $Start) { throw '-Script is required.' }
@@ -63,7 +76,7 @@ try {
     if (-not (Live $state)) {
         # Recover only a process with the exact ownership tuple from this host.
         Stop-Orphan $state
-        Remove-Item -LiteralPath (Join-Path $root 'shutdown.request') -ErrorAction SilentlyContinue
+        Clear-ShutdownRequest
         $hostScript=Join-Path $PSScriptRoot 'host.ps1'
         # ShellExecute creates a detached hidden console without inheriting the client's pipes.
         # RedirectStandardOutput on Start-Process made Rust's wait-for-EOF outlive the client.

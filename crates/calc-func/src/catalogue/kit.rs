@@ -72,6 +72,7 @@ macro_rules! ported_family {
             $(traits $($traits:ident),+;)?
             $(volatile $volatility:literal;)?
             $(host_route ($provider:expr, $fetch_kind:expr);)?
+            $(import_route ($iprovider:expr, $import_kind:expr);)?
             $(three_d ($take:expr, $value:expr, $reference:expr);)?
             $(resume $resumer:ident => $resume:path;)?
             |$s:ident, $a:ident, $sv:ident| $body:block
@@ -95,6 +96,7 @@ macro_rules! ported_family {
                     $(.with_traits(super::EntryTraits::NONE$(.$traits())+))?
                     $(.with_volatile_if($volatility))?
                     $(.with_kind(super::EntryKind::HostRoute { provider: $provider, route: super::HostRouteKind::Fetch($fetch_kind) }))?
+                    $(.with_kind(super::EntryKind::HostRoute { provider: $iprovider, route: super::HostRouteKind::Import($import_kind) }))?
                     $(.with_three_d(super::ThreeD::new($take, $value, $reference)))?,
                 )*
             ],

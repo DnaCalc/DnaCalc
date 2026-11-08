@@ -34,7 +34,7 @@ impl FilePrefix {
 
 /// Each named function of the catalogue by its spelling, in byte order of the spelling (checked
 /// below, since the lookup is a binary search), with the prefix a file writes before it.
-const FILE_PREFIXES: [(&str, FilePrefix); 509] = [
+const FILE_PREFIXES: [(&str, FilePrefix); 511] = [
     ("ABS", FilePrefix::Bare),
     ("ACCRINT", FilePrefix::Bare),
     ("ACCRINTM", FilePrefix::Bare),
@@ -266,6 +266,8 @@ const FILE_PREFIXES: [(&str, FilePrefix); 509] = [
     ("IMLN", FilePrefix::Bare),
     ("IMLOG10", FilePrefix::Bare),
     ("IMLOG2", FilePrefix::Bare),
+    ("IMPORTCSV", FilePrefix::Xlfn),
+    ("IMPORTTEXT", FilePrefix::Xlfn),
     ("IMPOWER", FilePrefix::Bare),
     ("IMPRODUCT", FilePrefix::Bare),
     ("IMREAL", FilePrefix::Bare),

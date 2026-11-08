@@ -80,6 +80,8 @@ pub struct Server {
     book: Workbook,
     /// The browser's way to fetch what WEBSERVICE and IMAGE name; it outlives a workbook.
     fetch_route: Option<std::rc::Rc<dyn calc_func::FetchRoute>>,
+    /// A native host's way to read the file IMPORTCSV and IMPORTTEXT name; the browser has none.
+    import_route: Option<std::rc::Rc<dyn calc_func::ImportRoute>>,
     /// A native host's user functions, applied to every workbook this server installs.
     user_functions: Option<calc_host::CallableTable>,
     rtd_connector: Option<std::rc::Rc<dyn calc_host::RtdConnector>>,
@@ -272,6 +274,7 @@ impl Server {
             validation_pending: None,
             book,
             fetch_route: None,
+            import_route: None,
             user_functions: None,
             rtd_connector: None,
             subscriptions: BTreeMap::new(),
@@ -1208,6 +1211,13 @@ impl Server {
         self.collect();
     }
 
+    /// Bind IMPORTCSV and IMPORTTEXT of this and every later workbook to `route`.
+    pub fn set_import_route(&mut self, route: std::rc::Rc<dyn calc_func::ImportRoute>) {
+        self.book.set_import_route(route.clone());
+        self.import_route = Some(route);
+        self.collect();
+    }
+
     /// Bind a native host's user functions (an XLL's) to this and every later workbook.
     pub fn set_user_functions(&mut self, functions: calc_host::CallableTable) {
         self.book.set_user_functions(functions.clone());
@@ -1237,6 +1247,9 @@ impl Server {
     fn install(&mut self, mut book: Workbook) {
         if let Some(route) = &self.fetch_route {
             book.set_fetch_route(route.clone());
+        }
+        if let Some(route) = &self.import_route {
+            book.set_import_route(route.clone());
         }
         if let Some(functions) = &self.user_functions {
             book.set_user_functions(functions.clone());

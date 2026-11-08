@@ -1,0 +1,11460 @@
+{
+ "excel": "16.0.20527 64-bit (Windows)",
+ "taken": "2026-11-08",
+ "bead": "dc-z8c1",
+ "how": "tools/excel-session/host-function-jobs/import-job.ps1 over the files in files/; path C:\\data\\ stands for the folder the files were in",
+ "cases": [
+  {
+   "id": "i1.1",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": 4.0
+     },
+     {
+      "n": 5.0
+     },
+     {
+      "n": 6.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\")"
+  },
+  {
+   "id": "i1.2",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\crlf.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": 4.0
+     },
+     {
+      "n": 5.0
+     },
+     {
+      "n": 6.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\crlf.csv\")"
+  },
+  {
+   "id": "i1.3",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\nonl.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\nonl.csv\")"
+  },
+  {
+   "id": "i1.4",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\quotes.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "n"
+     },
+     {
+      "s": "t"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "s": "x,y"
+     }
+    ],
+    [
+     {
+      "n": 2.0
+     },
+     {
+      "s": "he said \"hi\""
+     }
+    ],
+    [
+     {
+      "n": 3.0
+     },
+     {
+      "s": "line1\nline2"
+     }
+    ],
+    [
+     {
+      "n": 4.0
+     },
+     {
+      "s": "unclosed\n"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\quotes.csv\")"
+  },
+  {
+   "id": "i1.6",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\ragged.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "s": ""
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "n": 3.0
+     },
+     {
+      "n": 4.0
+     },
+     {
+      "n": 5.0
+     },
+     {
+      "e": "#VALUE!"
+     }
+    ],
+    [
+     {
+      "s": ""
+     },
+     {
+      "s": ""
+     },
+     {
+      "s": ""
+     },
+     {
+      "s": ""
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\ragged.csv\")"
+  },
+  {
+   "id": "i1.7",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\blank.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "s": ""
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     }
+    ],
+    [
+     {
+      "s": ""
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": ""
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "n": 3.0
+     },
+     {
+      "n": 4.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\blank.csv\")"
+  },
+  {
+   "id": "i1.8",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\bom.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\bom.csv\")"
+  },
+  {
+   "id": "i1.9",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\utf16.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "s": "é"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\utf16.csv\")"
+  },
+  {
+   "id": "i1.10",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\utf16be.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "s": "é"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\utf16be.csv\")"
+  },
+  {
+   "id": "i1.11",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\latin1.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "s": "��"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\latin1.csv\")"
+  },
+  {
+   "id": "i1.12",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\utf8acc.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "s": "éè中😀"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\utf8acc.csv\")"
+  },
+  {
+   "id": "i1.13",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\empty.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#CALC!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\empty.csv\")"
+  },
+  {
+   "id": "i1.14",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\onlyhdr.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\onlyhdr.csv\")"
+  },
+  {
+   "id": "i1.15",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a;b"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "e": "#VALUE!"
+     }
+    ],
+    [
+     {
+      "n": 3.0
+     },
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de.csv\")"
+  },
+  {
+   "id": "i1.17",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\spaces.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a "
+     },
+     {
+      "s": " b"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     }
+    ],
+    [
+     {
+      "n": 3.0
+     },
+     {
+      "s": " \"4\""
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\spaces.csv\")"
+  },
+  {
+   "id": "i1.18",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\quoted_hdr.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\quoted_hdr.csv\")"
+  },
+  {
+   "id": "i1.19",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\lonelyquote.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "s": "x\"y"
+     }
+    ],
+    [
+     {
+      "n": 2.0
+     },
+     {
+      "s": "zw"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\lonelyquote.csv\")"
+  },
+  {
+   "id": "i1.20",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\wide.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     },
+     {
+      "s": "d"
+     },
+     {
+      "s": "e"
+     },
+     {
+      "s": "f"
+     },
+     {
+      "s": "g"
+     },
+     {
+      "s": "h"
+     },
+     {
+      "s": "i"
+     },
+     {
+      "s": "j"
+     },
+     {
+      "s": "k"
+     },
+     {
+      "s": "l"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     },
+     {
+      "n": 4.0
+     },
+     {
+      "n": 5.0
+     },
+     {
+      "n": 6.0
+     },
+     {
+      "n": 7.0
+     },
+     {
+      "n": 8.0
+     },
+     {
+      "n": 9.0
+     },
+     {
+      "n": 10.0
+     },
+     {
+      "n": 11.0
+     },
+     {
+      "n": 12.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\wide.csv\")"
+  },
+  {
+   "id": "i1.21",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\trail.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "s": ""
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\trail.csv\")"
+  },
+  {
+   "id": "i1.23",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\semi.txt"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a;b;c"
+     }
+    ],
+    [
+     {
+      "s": "1;2;3"
+     }
+    ],
+    [
+     {
+      "s": "4;5;6"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\semi.txt\")"
+  },
+  {
+   "id": "i1.24",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\nosuch.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\nosuch.csv\")"
+  },
+  {
+   "id": "i1.25",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\tab.txt"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": 4.0
+     },
+     {
+      "n": 5.0
+     },
+     {
+      "n": 6.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\tab.txt\")"
+  },
+  {
+   "id": "i1.27",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\semi.txt"
+    },
+    {
+     "s": ";"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": 4.0
+     },
+     {
+      "n": 5.0
+     },
+     {
+      "n": 6.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\semi.txt\",\";\")"
+  },
+  {
+   "id": "i1.28",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\pipe2.txt"
+    },
+    {
+     "s": "||"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\pipe2.txt\",\"||\")"
+  },
+  {
+   "id": "i1.29",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\fixed.txt"
+    },
+    {
+     "a": [
+      [
+       {
+        "n": 1.0
+       },
+       {
+        "n": 3.0
+       }
+      ]
+     ]
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "bc"
+     },
+     {
+      "s": "def"
+     }
+    ],
+    [
+     {
+      "n": 23.0
+     },
+     {
+      "n": 456.0
+     }
+    ],
+    [
+     {
+      "s": "yz"
+     },
+     {
+      "s": "uvw"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\fixed.txt\",{1,3})"
+  },
+  {
+   "id": "i1.30",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "s": ","
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": 4.0
+     },
+     {
+      "n": 5.0
+     },
+     {
+      "n": 6.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\basic.csv\",\",\")"
+  },
+  {
+   "id": "i2.1",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "n": 0.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": 4.0
+     },
+     {
+      "n": 5.0
+     },
+     {
+      "n": 6.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\",0)"
+  },
+  {
+   "id": "i2.2",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "n": 1.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": 4.0
+     },
+     {
+      "n": 5.0
+     },
+     {
+      "n": 6.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\",1)"
+  },
+  {
+   "id": "i2.3",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "n": 2.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "n": 4.0
+     },
+     {
+      "n": 5.0
+     },
+     {
+      "n": 6.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\",2)"
+  },
+  {
+   "id": "i2.4",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "n": 3.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#CALC!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\",3)"
+  },
+  {
+   "id": "i2.5",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "n": 4.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#CALC!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\",4)"
+  },
+  {
+   "id": "i2.6",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "n": -1.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\",-1)"
+  },
+  {
+   "id": "i2.7",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "n": -2.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\",-2)"
+  },
+  {
+   "id": "i2.8",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "n": -3.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#CALC!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\",-3)"
+  },
+  {
+   "id": "i2.9",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "n": -4.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#CALC!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\",-4)"
+  },
+  {
+   "id": "i2.10",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "n": 1.5
+    }
+   ],
+   "excel": [
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": 4.0
+     },
+     {
+      "n": 5.0
+     },
+     {
+      "n": 6.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\",1.5)"
+  },
+  {
+   "id": "i2.11",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "s": "x"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\",\"x\")"
+  },
+  {
+   "id": "i2.12",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": 4.0
+     },
+     {
+      "n": 5.0
+     },
+     {
+      "n": 6.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\",TRUE)"
+  },
+  {
+   "id": "i2.13",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "s": ""
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\",\"\")"
+  },
+  {
+   "id": "i2.14",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 0.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#CALC!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\",,0)"
+  },
+  {
+   "id": "i2.15",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 1.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\",,1)"
+  },
+  {
+   "id": "i2.16",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 2.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\",,2)"
+  },
+  {
+   "id": "i2.17",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 3.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": 4.0
+     },
+     {
+      "n": 5.0
+     },
+     {
+      "n": 6.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\",,3)"
+  },
+  {
+   "id": "i2.18",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 4.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": 4.0
+     },
+     {
+      "n": 5.0
+     },
+     {
+      "n": 6.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\",,4)"
+  },
+  {
+   "id": "i2.19",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": -1.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "n": 4.0
+     },
+     {
+      "n": 5.0
+     },
+     {
+      "n": 6.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\",,-1)"
+  },
+  {
+   "id": "i2.20",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": -2.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": 4.0
+     },
+     {
+      "n": 5.0
+     },
+     {
+      "n": 6.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\",,-2)"
+  },
+  {
+   "id": "i2.21",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": -3.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": 4.0
+     },
+     {
+      "n": 5.0
+     },
+     {
+      "n": 6.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\",,-3)"
+  },
+  {
+   "id": "i2.22",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": -4.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": 4.0
+     },
+     {
+      "n": 5.0
+     },
+     {
+      "n": 6.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\",,-4)"
+  },
+  {
+   "id": "i2.23",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 1.5
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\",,1.5)"
+  },
+  {
+   "id": "i2.24",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "x"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\",,\"x\")"
+  },
+  {
+   "id": "i2.25",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv\",,TRUE)"
+  },
+  {
+   "id": "i2.26",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\big.csv"
+    },
+    {
+     "n": 5.0
+    },
+    {
+     "n": 3.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "n": 5.0
+     }
+    ],
+    [
+     {
+      "n": 6.0
+     }
+    ],
+    [
+     {
+      "n": 7.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\big.csv\",5,3)"
+  },
+  {
+   "id": "i2.27",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\big.csv"
+    },
+    {
+     "n": -3.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "h"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     }
+    ],
+    [
+     {
+      "n": 2.0
+     }
+    ],
+    [
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": 4.0
+     }
+    ],
+    [
+     {
+      "n": 5.0
+     }
+    ],
+    [
+     {
+      "n": 6.0
+     }
+    ],
+    [
+     {
+      "n": 7.0
+     }
+    ],
+    [
+     {
+      "n": 8.0
+     }
+    ],
+    [
+     {
+      "n": 9.0
+     }
+    ],
+    [
+     {
+      "n": 10.0
+     }
+    ],
+    [
+     {
+      "n": 11.0
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "n": 13.0
+     }
+    ],
+    [
+     {
+      "n": 14.0
+     }
+    ],
+    [
+     {
+      "n": 15.0
+     }
+    ],
+    [
+     {
+      "n": 16.0
+     }
+    ],
+    [
+     {
+      "n": 17.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\big.csv\",-3)"
+  },
+  {
+   "id": "i2.28",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\big.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": -3.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "n": 18.0
+     }
+    ],
+    [
+     {
+      "n": 19.0
+     }
+    ],
+    [
+     {
+      "n": 20.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\big.csv\",,-3)"
+  },
+  {
+   "id": "i2.29",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\big.csv"
+    },
+    {
+     "n": 2.0
+    },
+    {
+     "n": -3.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "n": 18.0
+     }
+    ],
+    [
+     {
+      "n": 19.0
+     }
+    ],
+    [
+     {
+      "n": 20.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\big.csv\",2,-3)"
+  },
+  {
+   "id": "i2.30",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\big.csv"
+    },
+    {
+     "n": -5.0
+    },
+    {
+     "n": 2.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "h"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\big.csv\",-5,2)"
+  },
+  {
+   "id": "i2.31",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\big.csv"
+    },
+    {
+     "n": 1.0
+    },
+    {
+     "n": 0.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#CALC!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\big.csv\",1,0)"
+  },
+  {
+   "id": "i2.32",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\big.csv"
+    },
+    {
+     "n": 0.0
+    },
+    {
+     "n": 0.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#CALC!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\big.csv\",0,0)"
+  },
+  {
+   "id": "i2.33",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\big.csv"
+    },
+    {
+     "n": 30.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#CALC!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\big.csv\",30)"
+  },
+  {
+   "id": "i2.34",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\big.csv"
+    },
+    {
+     "n": -30.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#CALC!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\big.csv\",-30)"
+  },
+  {
+   "id": "i2.35",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\big.csv"
+    },
+    {
+     "a": [
+      [
+       {
+        "n": 1.0
+       },
+       {
+        "n": 2.0
+       }
+      ]
+     ]
+    }
+   ],
+   "excel": [
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\big.csv\",{1,2})"
+  },
+  {
+   "id": "i2.36",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\big.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "a": [
+      [
+       {
+        "n": 1.0
+       },
+       {
+        "n": 2.0
+       }
+      ]
+     ]
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "h"
+     },
+     {
+      "s": "h"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\big.csv\",,{1,2})"
+  },
+  {
+   "id": "i2.37",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "en-US"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2.csv\",,,\"en-US\")"
+  },
+  {
+   "id": "i2.38",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "de-DE"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2.csv\",,,\"de-DE\")"
+  },
+  {
+   "id": "i2.39",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "fr-FR"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2.csv\",,,\"fr-FR\")"
+  },
+  {
+   "id": "i2.40",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "nl-NL"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2.csv\",,,\"nl-NL\")"
+  },
+  {
+   "id": "i2.41",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "en-ZA"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2.csv\",,,\"en-ZA\")"
+  },
+  {
+   "id": "i2.42",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "xx"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2.csv\",,,\"xx\")"
+  },
+  {
+   "id": "i2.43",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": ""
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2.csv\",,,\"\")"
+  },
+  {
+   "id": "i2.44",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 1031.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2.csv\",,,1031)"
+  },
+  {
+   "id": "i2.45",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "de"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2.csv\",,,\"de\")"
+  },
+  {
+   "id": "i2.46",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "EN-us"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2.csv\",,,\"EN-us\")"
+  },
+  {
+   "id": "i2.47",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "de_DE"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2.csv\",,,\"de_DE\")"
+  },
+  {
+   "id": "i2.48",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "s": "1,5"
+     },
+     {
+      "s": "2.000,25"
+     }
+    ],
+    [
+     {
+      "s": "3,25"
+     },
+     {
+      "s": "4"
+     }
+    ],
+    [
+     {
+      "s": "05.01.2024"
+     },
+     {
+      "s": "1.5"
+     }
+    ],
+    [
+     {
+      "s": "1 000,5"
+     },
+     {
+      "s": "12%"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2.csv\",,,TRUE)"
+  },
+  {
+   "id": "i2.49",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\fr.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "fr-FR"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\fr.csv\",,,\"fr-FR\")"
+  },
+  {
+   "id": "i2.50",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\fr.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "en-US"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\fr.csv\",,,\"en-US\")"
+  },
+  {
+   "id": "i2.51",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\dates.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "en-US"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\dates.csv\",,,\"en-US\")"
+  },
+  {
+   "id": "i2.52",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\dates.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "en-GB"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\dates.csv\",,,\"en-GB\")"
+  },
+  {
+   "id": "i2.53",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\dates.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "de-DE"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\dates.csv\",,,\"de-DE\")"
+  },
+  {
+   "id": "i2.54",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\dates.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "ja-JP"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\dates.csv\",,,\"ja-JP\")"
+  },
+  {
+   "id": "i2.55",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\types.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "en-US"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\types.csv\",,,\"en-US\")"
+  },
+  {
+   "id": "i2.56",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\types.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "de-DE"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\types.csv\",,,\"de-DE\")"
+  },
+  {
+   "id": "i3.3",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\types.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 1.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "v"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "12"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": " 12 "
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1e3"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "0012"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "-5"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1.5"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1"
+     },
+     {
+      "e": "#VALUE!"
+     }
+    ],
+    [
+     {
+      "s": "5%"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "$7"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "TRUE"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "true"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "FALSE"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "#N/A"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "#DIV/0!"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "2024-01-05"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1/5/2024"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "13:45"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "abc"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": ""
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "0x10"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "=1+1"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "+3"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": ".5"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1."
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "(4)"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1 000"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1E+400"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "-0"
+     },
+     {
+      "s": ""
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\types.csv\",,,1)"
+  },
+  {
+   "id": "i3.4",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\types.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 2.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\types.csv\",,,2)"
+  },
+  {
+   "id": "i3.5",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\types.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 3.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\types.csv\",,,3)"
+  },
+  {
+   "id": "i3.6",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\types.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": -1.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\types.csv\",,,-1)"
+  },
+  {
+   "id": "i3.7",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\types.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "utf-8"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\types.csv\",,,\"utf-8\")"
+  },
+  {
+   "id": "i3.8",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\types.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "UTF-8"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\types.csv\",,,\"UTF-8\")"
+  },
+  {
+   "id": "i3.9",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\types.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 65001.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\types.csv\",,,65001)"
+  },
+  {
+   "id": "i3.10",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\types.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 1252.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\types.csv\",,,1252)"
+  },
+  {
+   "id": "i3.11",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\types.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "ascii"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\types.csv\",,,\"ascii\")"
+  },
+  {
+   "id": "i3.12",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\types.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "x"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\types.csv\",,,\"x\")"
+  },
+  {
+   "id": "i3.13",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\types.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "utf-16"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\types.csv\",,,\"utf-16\")"
+  },
+  {
+   "id": "i3.14",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\types.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 1200.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\types.csv\",,,1200)"
+  },
+  {
+   "id": "i3.15",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\types.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "iso-8859-1"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\types.csv\",,,\"iso-8859-1\")"
+  },
+  {
+   "id": "i3.16",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\types.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 28591.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\types.csv\",,,28591)"
+  },
+  {
+   "id": "i3.17",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\types.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 437.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\types.csv\",,,437)"
+  },
+  {
+   "id": "i3.18",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\types.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 20127.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\types.csv\",,,20127)"
+  },
+  {
+   "id": "i3.19",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\types.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": ""
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\types.csv\",,,\"\")"
+  },
+  {
+   "id": "i3.20",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    },
+    {
+     "s": "en-US"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2.csv\",,,TRUE,\"en-US\")"
+  },
+  {
+   "id": "i3.21",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    },
+    {
+     "s": "de-DE"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2.csv\",,,TRUE,\"de-DE\")"
+  },
+  {
+   "id": "i3.22",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": false
+    },
+    {
+     "s": "de-DE"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 1.5
+     },
+     {
+      "n": 2000.25
+     }
+    ],
+    [
+     {
+      "n": 3.25
+     },
+     {
+      "n": 4.0
+     }
+    ],
+    [
+     {
+      "n": 5012024.0
+     },
+     {
+      "n": 15.0
+     }
+    ],
+    [
+     {
+      "s": "1 000,5"
+     },
+     {
+      "n": 0.12
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2.csv\",,,FALSE,\"de-DE\")"
+  },
+  {
+   "id": "i3.23",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "utf-8"
+    },
+    {
+     "s": "de-DE"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2.csv\",,,\"utf-8\",\"de-DE\")"
+  },
+  {
+   "id": "i3.24",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "utf-8"
+    },
+    {
+     "s": "en-US"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2.csv\",,,\"utf-8\",\"en-US\")"
+  },
+  {
+   "id": "i3.25",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 65001.0
+    },
+    {
+     "s": "de-DE"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2.csv\",,,65001,\"de-DE\")"
+  },
+  {
+   "id": "i3.26",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 65001.0
+    },
+    {
+     "s": "en-US"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2.csv\",,,65001,\"en-US\")"
+  },
+  {
+   "id": "i3.27",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 65001.0
+    },
+    {
+     "n": 1031.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2.csv\",,,65001,1031)"
+  },
+  {
+   "id": "i3.29",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "de-DE"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 1.5
+     },
+     {
+      "n": 2000.25
+     }
+    ],
+    [
+     {
+      "n": 3.25
+     },
+     {
+      "n": 4.0
+     }
+    ],
+    [
+     {
+      "n": 5012024.0
+     },
+     {
+      "n": 15.0
+     }
+    ],
+    [
+     {
+      "s": "1 000,5"
+     },
+     {
+      "n": 0.12
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2.csv\",,,,\"de-DE\")"
+  },
+  {
+   "id": "i3.32",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "nl-NL"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 1.5
+     },
+     {
+      "n": 2000.25
+     }
+    ],
+    [
+     {
+      "n": 3.25
+     },
+     {
+      "n": 4.0
+     }
+    ],
+    [
+     {
+      "n": 5012024.0
+     },
+     {
+      "n": 15.0
+     }
+    ],
+    [
+     {
+      "s": "1 000,5"
+     },
+     {
+      "n": 0.12
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2.csv\",,,,\"nl-NL\")"
+  },
+  {
+   "id": "i3.33",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "xx-XX"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2.csv\",,,,\"xx-XX\")"
+  },
+  {
+   "id": "i5.1",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\types.csv"
+    },
+    {
+     "s": ","
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "v"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "12"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": " 12 "
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1e3"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "0012"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "-5"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1.5"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1"
+     },
+     {
+      "e": "#VALUE!"
+     }
+    ],
+    [
+     {
+      "s": "5%"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "$7"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "TRUE"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "true"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "FALSE"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "#N/A"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "#DIV/0!"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "2024-01-05"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1/5/2024"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "13:45"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "abc"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": ""
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "0x10"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "=1+1"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "+3"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": ".5"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1."
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "(4)"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1 000"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1E+400"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "-0"
+     },
+     {
+      "s": ""
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\types.csv\",\",\",,,,TRUE)"
+  },
+  {
+   "id": "i5.4",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\types.csv"
+    },
+    {
+     "s": ","
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 1.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "v"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "12"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": " 12 "
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1e3"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "0012"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "-5"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1.5"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1"
+     },
+     {
+      "e": "#VALUE!"
+     }
+    ],
+    [
+     {
+      "s": "5%"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "$7"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "TRUE"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "true"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "FALSE"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "#N/A"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "#DIV/0!"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "2024-01-05"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1/5/2024"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "13:45"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "abc"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": ""
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "0x10"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "=1+1"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "+3"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": ".5"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1."
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "(4)"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1 000"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1E+400"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "-0"
+     },
+     {
+      "s": ""
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\types.csv\",\",\",,,,1)"
+  },
+  {
+   "id": "i5.5",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\types.csv"
+    },
+    {
+     "s": ","
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 2.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\types.csv\",\",\",,,,2)"
+  },
+  {
+   "id": "i5.6",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\types.csv"
+    },
+    {
+     "s": ","
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": ""
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\types.csv\",\",\",,,,\"\")"
+  },
+  {
+   "id": "i5.7",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\types.csv"
+    },
+    {
+     "s": ","
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "x"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\types.csv\",\",\",,,,\"x\")"
+  },
+  {
+   "id": "i5.8",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "s": ","
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": false
+    },
+    {
+     "s": "de-DE"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 1.5
+     },
+     {
+      "n": 2000.25
+     }
+    ],
+    [
+     {
+      "n": 3.25
+     },
+     {
+      "n": 4.0
+     }
+    ],
+    [
+     {
+      "n": 5012024.0
+     },
+     {
+      "n": 15.0
+     }
+    ],
+    [
+     {
+      "s": "1 000,5"
+     },
+     {
+      "n": 0.12
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\de2.csv\",\",\",,,,FALSE,\"de-DE\")"
+  },
+  {
+   "id": "i5.9",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "s": ","
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    },
+    {
+     "s": "de-DE"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\de2.csv\",\",\",,,,TRUE,\"de-DE\")"
+  },
+  {
+   "id": "i5.12",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "s": ","
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 65001.0
+    },
+    {
+     "n": 0.0
+    },
+    {
+     "s": "de-DE"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 1.5
+     },
+     {
+      "n": 2000.25
+     }
+    ],
+    [
+     {
+      "n": 3.25
+     },
+     {
+      "n": 4.0
+     }
+    ],
+    [
+     {
+      "n": 5012024.0
+     },
+     {
+      "n": 15.0
+     }
+    ],
+    [
+     {
+      "s": "1 000,5"
+     },
+     {
+      "n": 0.12
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\de2.csv\",\",\",,,65001,0,\"de-DE\")"
+  },
+  {
+   "id": "i5.13",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "s": ","
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "de-DE"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 1.5
+     },
+     {
+      "n": 2000.25
+     }
+    ],
+    [
+     {
+      "n": 3.25
+     },
+     {
+      "n": 4.0
+     }
+    ],
+    [
+     {
+      "n": 5012024.0
+     },
+     {
+      "n": 15.0
+     }
+    ],
+    [
+     {
+      "s": "1 000,5"
+     },
+     {
+      "n": 0.12
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\de2.csv\",\",\",,,,,\"de-DE\")"
+  },
+  {
+   "id": "i5.15",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "s": ","
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "bogus"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\de2.csv\",\",\",,,,,\"bogus\")"
+  },
+  {
+   "id": "i5.16",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "s": ","
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 1031.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\de2.csv\",\",\",,,,,1031)"
+  },
+  {
+   "id": "i5.17",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\de2.csv"
+    },
+    {
+     "s": ","
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "de"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 1.5
+     },
+     {
+      "n": 2000.25
+     }
+    ],
+    [
+     {
+      "n": 3.25
+     },
+     {
+      "n": 4.0
+     }
+    ],
+    [
+     {
+      "n": 5012024.0
+     },
+     {
+      "n": 15.0
+     }
+    ],
+    [
+     {
+      "s": "1 000,5"
+     },
+     {
+      "n": 0.12
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\de2.csv\",\",\",,,,,\"de\")"
+  },
+  {
+   "id": "i5.18",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "files\basic.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"files\basic.csv\")"
+  },
+  {
+   "id": "i5.19",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "basic.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"basic.csv\")"
+  },
+  {
+   "id": "i5.20",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\sub"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\sub\")"
+  },
+  {
+   "id": "i5.21",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\\")"
+  },
+  {
+   "id": "i5.22",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": ""
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"\")"
+  },
+  {
+   "id": "i5.23",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "n": 1.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(1)"
+  },
+  {
+   "id": "i5.24",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(TRUE)"
+  },
+  {
+   "id": "i5.25",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "e": "#N/A"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#N/A"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(#N/A)"
+  },
+  {
+   "id": "i5.26",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "file:///C:\\data\\basic.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": 4.0
+     },
+     {
+      "n": 5.0
+     },
+     {
+      "n": 6.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"file:///C:\\data\\basic.csv\")"
+  },
+  {
+   "id": "i5.27",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\*.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\*.csv\")"
+  },
+  {
+   "id": "i5.28",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "a": [
+      [
+       {
+        "s": "C:\\data\\basic.csv"
+       },
+       {
+        "s": "C:\\data\\nonl.csv"
+       }
+      ]
+     ]
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "a"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV({\"C:\\data\\basic.csv\",\"C:\\data\\nonl.csv\"})"
+  },
+  {
+   "id": "i5.29",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\Windows\notepad.exe"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\Windows\notepad.exe\")"
+  },
+  {
+   "id": "i5.30",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv "
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": 4.0
+     },
+     {
+      "n": 5.0
+     },
+     {
+      "n": 6.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\basic.csv \")"
+  },
+  {
+   "id": "i5.31",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": " C:\\data\\basic.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": 4.0
+     },
+     {
+      "n": 5.0
+     },
+     {
+      "n": 6.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\" C:\\data\\basic.csv\")"
+  },
+  {
+   "id": "i5.32",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "\\localhost\\c$\\Work\\DnaCalc\\codex-runs\\host-run\files\basic.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"\\localhost\\c$\\Work\\DnaCalc\\codex-runs\\host-run\files\basic.csv\")"
+  },
+  {
+   "id": "i6.1",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\ragged.csv"
+    },
+    {
+     "n": 1.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "n": 3.0
+     },
+     {
+      "n": 4.0
+     },
+     {
+      "e": "#VALUE!"
+     }
+    ],
+    [
+     {
+      "s": ""
+     },
+     {
+      "s": ""
+     },
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\ragged.csv\",1)"
+  },
+  {
+   "id": "i6.2",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\ragged2.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "n": 3.0
+     },
+     {
+      "n": 4.0
+     },
+     {
+      "e": "#VALUE!"
+     }
+    ],
+    [
+     {
+      "n": 6.0
+     },
+     {
+      "n": 7.0
+     },
+     {
+      "e": "#VALUE!"
+     }
+    ],
+    [
+     {
+      "n": 8.0
+     },
+     {
+      "n": 9.0
+     },
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\ragged2.csv\")"
+  },
+  {
+   "id": "i6.3",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\ragged3.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "s": ""
+     },
+     {
+      "s": ""
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     },
+     {
+      "n": 4.0
+     },
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\ragged3.csv\")"
+  },
+  {
+   "id": "i6.4",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\ragged2.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1"
+     },
+     {
+      "s": "2"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "3"
+     },
+     {
+      "s": "4"
+     },
+     {
+      "e": "#VALUE!"
+     }
+    ],
+    [
+     {
+      "s": "6"
+     },
+     {
+      "s": "7"
+     },
+     {
+      "e": "#VALUE!"
+     }
+    ],
+    [
+     {
+      "s": "8"
+     },
+     {
+      "s": "9"
+     },
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\ragged2.csv\",,,TRUE)"
+  },
+  {
+   "id": "i6.5",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\ragged3.csv"
+    },
+    {
+     "n": 1.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "n": 2.0
+     },
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\ragged3.csv\",1)"
+  },
+  {
+   "id": "i6.6",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\ragged3.csv"
+    },
+    {
+     "n": 2.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     },
+     {
+      "n": 4.0
+     },
+     {
+      "s": "x"
+     },
+     {
+      "s": "y"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\ragged3.csv\",2)"
+  },
+  {
+   "id": "i6.7",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\ragged2.csv"
+    },
+    {
+     "n": 2.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "n": 3.0
+     },
+     {
+      "n": 4.0
+     },
+     {
+      "n": 5.0
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "n": 6.0
+     },
+     {
+      "n": 7.0
+     },
+     {
+      "s": ""
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "n": 8.0
+     },
+     {
+      "n": 9.0
+     },
+     {
+      "s": ""
+     },
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\ragged2.csv\",2)"
+  },
+  {
+   "id": "i6.8",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\tabtest.txt"
+    },
+    {
+     "s": ""
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\tabtest.txt\",\"\")"
+  },
+  {
+   "id": "i6.9",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\tabtest.txt"
+    },
+    {
+     "s": "\t"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\tabtest.txt\",CHAR(9))"
+  },
+  {
+   "id": "i6.10",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\tabtest.txt"
+    },
+    {
+     "missing": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\tabtest.txt\",)"
+  },
+  {
+   "id": "i6.11",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\tabtest.txt"
+    },
+    {
+     "s": "\t"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     },
+     {
+      "n": 3.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\tabtest.txt\",\"\t\")"
+  },
+  {
+   "id": "i6.12",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\cr.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     }
+    ],
+    [
+     {
+      "n": 3.0
+     },
+     {
+      "n": 4.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\cr.csv\")"
+  },
+  {
+   "id": "i6.13",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\mixed_nl.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 2.0
+     }
+    ],
+    [
+     {
+      "n": 3.0
+     },
+     {
+      "n": 4.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\mixed_nl.csv\")"
+  },
+  {
+   "id": "i6.14",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\crlfq.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "s": "x\r\ny"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\crlfq.csv\")"
+  },
+  {
+   "id": "i6.15",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\qq.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     }
+    ],
+    [
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "\"\n\"\"\n"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\qq.csv\")"
+  },
+  {
+   "id": "i6.16",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\spacesq.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "s": " \"x\""
+     },
+     {
+      "s": "y"
+     }
+    ],
+    [
+     {
+      "s": "x "
+     },
+     {
+      "s": "y"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\spacesq.csv\")"
+  },
+  {
+   "id": "i6.19",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\bools.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": false
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": false
+     }
+    ],
+    [
+     {
+      "s": "T"
+     }
+    ],
+    [
+     {
+      "s": "YES"
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "s": "#NAME?"
+     }
+    ],
+    [
+     {
+      "s": "#REF!"
+     }
+    ],
+    [
+     {
+      "s": "#VALUE!"
+     }
+    ],
+    [
+     {
+      "s": "#NUM!"
+     }
+    ],
+    [
+     {
+      "s": "#NULL!"
+     }
+    ],
+    [
+     {
+      "s": "#SPILL!"
+     }
+    ],
+    [
+     {
+      "s": "#CALC!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\bools.csv\")"
+  },
+  {
+   "id": "i6.24",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\bools.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "de-DE"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": false
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": false
+     }
+    ],
+    [
+     {
+      "s": "T"
+     }
+    ],
+    [
+     {
+      "s": "YES"
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "s": "#NAME?"
+     }
+    ],
+    [
+     {
+      "s": "#REF!"
+     }
+    ],
+    [
+     {
+      "s": "#VALUE!"
+     }
+    ],
+    [
+     {
+      "s": "#NUM!"
+     }
+    ],
+    [
+     {
+      "s": "#NULL!"
+     }
+    ],
+    [
+     {
+      "s": "#SPILL!"
+     }
+    ],
+    [
+     {
+      "s": "#CALC!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\bools.csv\",,,,\"de-DE\")"
+  },
+  {
+   "id": "i6.46",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\enc1252.txt"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 20127.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "s": "???"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\enc1252.txt\",,,,20127)"
+  },
+  {
+   "id": "i6.51",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\enc1252.txt"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 65001.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "s": "��"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\enc1252.txt\",,,,65001)"
+  },
+  {
+   "id": "i6.52",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\enc1252.txt"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 437.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "s": "ΘΦÇ"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\enc1252.txt\",,,,437)"
+  },
+  {
+   "id": "i7.1",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "s": ","
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "s": "1"
+     },
+     {
+      "s": "2"
+     },
+     {
+      "s": "3"
+     }
+    ],
+    [
+     {
+      "s": "4"
+     },
+     {
+      "s": "5"
+     },
+     {
+      "s": "6"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\basic.csv\",\",\",,,,TRUE)"
+  },
+  {
+   "id": "i7.2",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "s": ";"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a,b,c"
+     }
+    ],
+    [
+     {
+      "s": "1,2,3"
+     }
+    ],
+    [
+     {
+      "s": "4,5,6"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\basic.csv\",\";\",,,,TRUE)"
+  },
+  {
+   "id": "i7.3",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "s": "\t"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a,b,c"
+     }
+    ],
+    [
+     {
+      "s": "1,2,3"
+     }
+    ],
+    [
+     {
+      "s": "4,5,6"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\basic.csv\",CHAR(9),,,,TRUE)"
+  },
+  {
+   "id": "i7.4",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "s": ""
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a,b,c"
+     }
+    ],
+    [
+     {
+      "s": "1,2,3"
+     }
+    ],
+    [
+     {
+      "s": "4,5,6"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\basic.csv\",\"\",,,,TRUE)"
+  },
+  {
+   "id": "i7.5",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "s": " "
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a,b,c"
+     }
+    ],
+    [
+     {
+      "s": "1,2,3"
+     }
+    ],
+    [
+     {
+      "s": "4,5,6"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\basic.csv\",\" \",,,,TRUE)"
+  },
+  {
+   "id": "i7.6",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "s": "a"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": ""
+     },
+     {
+      "s": ",b,c"
+     }
+    ],
+    [
+     {
+      "s": "1,2,3"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "4,5,6"
+     },
+     {
+      "s": ""
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\basic.csv\",\"a\",,,,TRUE)"
+  },
+  {
+   "id": "i7.7",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "s": "ab"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a,b,c"
+     }
+    ],
+    [
+     {
+      "s": "1,2,3"
+     }
+    ],
+    [
+     {
+      "s": "4,5,6"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\basic.csv\",\"ab\",,,,TRUE)"
+  },
+  {
+   "id": "i7.8",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "s": "|"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a,b,c"
+     }
+    ],
+    [
+     {
+      "s": "1,2,3"
+     }
+    ],
+    [
+     {
+      "s": "4,5,6"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\basic.csv\",\"|\",,,,TRUE)"
+  },
+  {
+   "id": "i7.9",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "s": "1"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a,b,c"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": ""
+     },
+     {
+      "e": "#VALUE!"
+     }
+    ],
+    [
+     {
+      "s": "4,5,6"
+     },
+     {
+      "s": ""
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\basic.csv\",\"1\",,,,TRUE)"
+  },
+  {
+   "id": "i7.10",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "s": ",\"&\","
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a,b,c"
+     }
+    ],
+    [
+     {
+      "s": "1,2,3"
+     }
+    ],
+    [
+     {
+      "s": "4,5,6"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\basic.csv\",\",\"&\",\",,,,TRUE)"
+  },
+  {
+   "id": "i7.11",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "a": [
+      [
+       {
+        "s": ","
+       },
+       {
+        "s": ";"
+       }
+      ]
+     ]
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\basic.csv\",{\",\",\";\"},,,,TRUE)"
+  },
+  {
+   "id": "i7.12",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "a": [
+      [
+       {
+        "n": 0.0
+       }
+      ]
+     ]
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a,b,c"
+     }
+    ],
+    [
+     {
+      "s": "1,2,3"
+     }
+    ],
+    [
+     {
+      "s": "4,5,6"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\basic.csv\",{0},,,,TRUE)"
+  },
+  {
+   "id": "i7.13",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "a": [
+      [
+       {
+        "n": 1.0
+       }
+      ]
+     ]
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": ",b,c"
+     }
+    ],
+    [
+     {
+      "s": ",2,3"
+     }
+    ],
+    [
+     {
+      "s": ",5,6"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\basic.csv\",{1},,,,TRUE)"
+  },
+  {
+   "id": "i7.14",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "a": [
+      [
+       {
+        "n": 1.0
+       },
+       {
+        "n": 3.0
+       },
+       {
+        "n": 5.0
+       }
+      ]
+     ]
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": ",b"
+     },
+     {
+      "s": ",c"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": ",2"
+     },
+     {
+      "s": ",3"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": ",5"
+     },
+     {
+      "s": ",6"
+     },
+     {
+      "s": ""
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\basic.csv\",{1,3,5},,,,TRUE)"
+  },
+  {
+   "id": "i7.15",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "a": [
+      [
+       {
+        "n": 3.0
+       },
+       {
+        "n": 1.0
+       }
+      ]
+     ]
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\basic.csv\",{3,1},,,,TRUE)"
+  },
+  {
+   "id": "i7.16",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "a": [
+      [
+       {
+        "n": 0.0
+       },
+       {
+        "n": 2.0
+       }
+      ]
+     ]
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a,"
+     },
+     {
+      "s": "b,c"
+     }
+    ],
+    [
+     {
+      "s": "1,"
+     },
+     {
+      "s": "2,3"
+     }
+    ],
+    [
+     {
+      "s": "4,"
+     },
+     {
+      "s": "5,6"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\basic.csv\",{0,2},,,,TRUE)"
+  },
+  {
+   "id": "i7.17",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "a": [
+      [
+       {
+        "n": 1.0
+       },
+       {
+        "n": 1.0
+       }
+      ]
+     ]
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\basic.csv\",{1,1},,,,TRUE)"
+  },
+  {
+   "id": "i7.18",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "a": [
+      [
+       {
+        "n": -1.0
+       }
+      ]
+     ]
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\basic.csv\",{-1},,,,TRUE)"
+  },
+  {
+   "id": "i7.19",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "a": [
+      [
+       {
+        "n": 2.0
+       },
+       {
+        "n": 4.0
+       },
+       {
+        "n": 6.0
+       },
+       {
+        "n": 8.0
+       }
+      ]
+     ]
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "b,"
+     },
+     {
+      "s": "c"
+     },
+     {
+      "s": ""
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "2,"
+     },
+     {
+      "s": "3"
+     },
+     {
+      "s": ""
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "5,"
+     },
+     {
+      "s": "6"
+     },
+     {
+      "s": ""
+     },
+     {
+      "s": ""
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\basic.csv\",{2,4,6,8},,,,TRUE)"
+  },
+  {
+   "id": "i7.20",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "b": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": ",b,c"
+     }
+    ],
+    [
+     {
+      "s": ",2,3"
+     }
+    ],
+    [
+     {
+      "s": ",5,6"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\basic.csv\",TRUE,,,,TRUE)"
+  },
+  {
+   "id": "i7.21",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "n": 1.0
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": ",b,c"
+     }
+    ],
+    [
+     {
+      "s": ",2,3"
+     }
+    ],
+    [
+     {
+      "s": ",5,6"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\basic.csv\",1,,,,TRUE)"
+  },
+  {
+   "id": "i7.22",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "s": ",,"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a,b,c"
+     }
+    ],
+    [
+     {
+      "s": "1,2,3"
+     }
+    ],
+    [
+     {
+      "s": "4,5,6"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\basic.csv\",\",,\",,,,TRUE)"
+  },
+  {
+   "id": "i7.23",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "s": "c"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a,b,"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "1,2,3"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "4,5,6"
+     },
+     {
+      "s": ""
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\basic.csv\",\"c\",,,,TRUE)"
+  },
+  {
+   "id": "i7.24",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\basic.csv"
+    },
+    {
+     "s": "b,"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a,"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "s": "1,2,3"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "4,5,6"
+     },
+     {
+      "s": ""
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\basic.csv\",\"b,\",,,,TRUE)"
+  },
+  {
+   "id": "i7.25",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\fixed.txt"
+    },
+    {
+     "a": [
+      [
+       {
+        "n": 1.0
+       },
+       {
+        "n": 3.0
+       }
+      ]
+     ]
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "bc"
+     },
+     {
+      "s": "def"
+     }
+    ],
+    [
+     {
+      "s": "23"
+     },
+     {
+      "s": "456"
+     }
+    ],
+    [
+     {
+      "s": "yz"
+     },
+     {
+      "s": "uvw"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\fixed.txt\",{1,3},,,,TRUE)"
+  },
+  {
+   "id": "i7.26",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\fixed2.txt"
+    },
+    {
+     "a": [
+      [
+       {
+        "n": 1.0
+       },
+       {
+        "n": 3.0
+       }
+      ]
+     ]
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "B1"
+     },
+     {
+      "s": "23XY"
+     }
+    ],
+    [
+     {
+      "s": "D4"
+     },
+     {
+      "s": "56ZW"
+     }
+    ],
+    [
+     {
+      "s": "F7"
+     },
+     {
+      "s": ""
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\fixed2.txt\",{1,3},,,,TRUE)"
+  },
+  {
+   "id": "i7.27",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\fixed2.txt"
+    },
+    {
+     "a": [
+      [
+       {
+        "n": 1.0
+       },
+       {
+        "n": 3.0
+       },
+       {
+        "n": 6.0
+       }
+      ]
+     ]
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "B1"
+     },
+     {
+      "s": "23X"
+     },
+     {
+      "s": "Y"
+     }
+    ],
+    [
+     {
+      "s": "D4"
+     },
+     {
+      "s": "56Z"
+     },
+     {
+      "s": "W"
+     }
+    ],
+    [
+     {
+      "s": "F7"
+     },
+     {
+      "s": ""
+     },
+     {
+      "s": ""
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\fixed2.txt\",{1,3,6},,,,TRUE)"
+  },
+  {
+   "id": "i7.28",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\fixed2.txt"
+    },
+    {
+     "a": [
+      [
+       {
+        "n": 0.0
+       },
+       {
+        "n": 2.0
+       },
+       {
+        "n": 5.0
+       }
+      ]
+     ]
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "AB"
+     },
+     {
+      "s": "123"
+     },
+     {
+      "s": "XY"
+     }
+    ],
+    [
+     {
+      "s": "CD"
+     },
+     {
+      "s": "456"
+     },
+     {
+      "s": "ZW"
+     }
+    ],
+    [
+     {
+      "s": "EF"
+     },
+     {
+      "s": "7"
+     },
+     {
+      "s": ""
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\fixed2.txt\",{0,2,5},,,,TRUE)"
+  },
+  {
+   "id": "i7.29",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\fixed2.txt"
+    },
+    {
+     "a": [
+      [
+       {
+        "n": 3.0
+       }
+      ]
+     ]
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "23XY"
+     }
+    ],
+    [
+     {
+      "s": "56ZW"
+     }
+    ],
+    [
+     {
+      "s": ""
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\fixed2.txt\",{3},,,,TRUE)"
+  },
+  {
+   "id": "i7.30",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\fixed2.txt"
+    },
+    {
+     "a": [
+      [
+       {
+        "n": 1.0
+       },
+       {
+        "n": 100.0
+       }
+      ]
+     ]
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "B123XY"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "D456ZW"
+     },
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "F7"
+     },
+     {
+      "s": ""
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\fixed2.txt\",{1,100},,,,TRUE)"
+  },
+  {
+   "id": "i7.31",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\fixed2.txt"
+    },
+    {
+     "a": [
+      [
+       {
+        "n": 1.0
+       }
+      ],
+      [
+       {
+        "n": 3.0
+       }
+      ]
+     ]
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "e": "#VALUE!"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\fixed2.txt\",{1;3},,,,TRUE)"
+  },
+  {
+   "id": "i7.32",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\fixed2.txt"
+    },
+    {
+     "a": [
+      [
+       {
+        "n": 1.0
+       },
+       {
+        "n": 3.0
+       }
+      ]
+     ]
+    },
+    {
+     "n": 1.0
+    },
+    {
+     "n": 1.0
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "D4"
+     },
+     {
+      "s": "56ZW"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\fixed2.txt\",{1,3},1,1,,TRUE)"
+  },
+  {
+   "id": "i7.33",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\fixed2.txt"
+    },
+    {
+     "a": [
+      [
+       {
+        "n": 0.0
+       },
+       {
+        "n": 2.0
+       },
+       {
+        "n": 5.0
+       }
+      ]
+     ]
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": false
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "AB"
+     },
+     {
+      "n": 123.0
+     },
+     {
+      "s": "XY"
+     }
+    ],
+    [
+     {
+      "s": "CD"
+     },
+     {
+      "n": 456.0
+     },
+     {
+      "s": "ZW"
+     }
+    ],
+    [
+     {
+      "s": "EF"
+     },
+     {
+      "n": 7.0
+     },
+     {
+      "s": ""
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\fixed2.txt\",{0,2,5},,,,FALSE)"
+  },
+  {
+   "id": "i7.34",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\fixed2.txt"
+    },
+    {
+     "n": 2.0
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "123XY"
+     }
+    ],
+    [
+     {
+      "s": "456ZW"
+     }
+    ],
+    [
+     {
+      "s": "7"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\fixed2.txt\",2,,,,TRUE)"
+  },
+  {
+   "id": "i7.35",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\semi.txt"
+    },
+    {
+     "s": ";"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "s": "1"
+     },
+     {
+      "s": "2"
+     },
+     {
+      "s": "3"
+     }
+    ],
+    [
+     {
+      "s": "4"
+     },
+     {
+      "s": "5"
+     },
+     {
+      "s": "6"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\semi.txt\",\";\",,,,TRUE)"
+  },
+  {
+   "id": "i7.36",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\tab.txt"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "s": "1"
+     },
+     {
+      "s": "2"
+     },
+     {
+      "s": "3"
+     }
+    ],
+    [
+     {
+      "s": "4"
+     },
+     {
+      "s": "5"
+     },
+     {
+      "s": "6"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\tab.txt\",,,,,TRUE)"
+  },
+  {
+   "id": "i7.37",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\pipe2.txt"
+    },
+    {
+     "s": "||"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     },
+     {
+      "s": "c"
+     }
+    ],
+    [
+     {
+      "s": "1"
+     },
+     {
+      "s": "2"
+     },
+     {
+      "s": "3"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\pipe2.txt\",\"||\",,,,TRUE)"
+  },
+  {
+   "id": "i7.38",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\quotes.csv"
+    },
+    {
+     "s": ","
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "n"
+     },
+     {
+      "s": "t"
+     }
+    ],
+    [
+     {
+      "s": "1"
+     },
+     {
+      "s": "x,y"
+     }
+    ],
+    [
+     {
+      "s": "2"
+     },
+     {
+      "s": "he said \"hi\""
+     }
+    ],
+    [
+     {
+      "s": "3"
+     },
+     {
+      "s": "line1\nline2"
+     }
+    ],
+    [
+     {
+      "s": "4"
+     },
+     {
+      "s": "unclosed\n"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\quotes.csv\",\",\",,,,TRUE)"
+  },
+  {
+   "id": "i7.39",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\quotes.csv"
+    },
+    {
+     "s": ";"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "n,t"
+     }
+    ],
+    [
+     {
+      "s": "1,\"x,y\""
+     }
+    ],
+    [
+     {
+      "s": "2,\"he said \"\"hi\"\"\""
+     }
+    ],
+    [
+     {
+      "s": "3,\"line1"
+     }
+    ],
+    [
+     {
+      "s": "line2\""
+     }
+    ],
+    [
+     {
+      "s": "4,\"unclosed"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\quotes.csv\",\";\",,,,TRUE)"
+  },
+  {
+   "id": "i7.40",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\spaces.csv"
+    },
+    {
+     "s": ","
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a "
+     },
+     {
+      "s": " b"
+     }
+    ],
+    [
+     {
+      "s": " 1 "
+     },
+     {
+      "s": " 2 "
+     }
+    ],
+    [
+     {
+      "s": "3 "
+     },
+     {
+      "s": " \"4\""
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\spaces.csv\",\",\",,,,TRUE)"
+  },
+  {
+   "id": "i7.41",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\lonelyquote.csv"
+    },
+    {
+     "s": ","
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "b": true
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "s": "1"
+     },
+     {
+      "s": "x\"y"
+     }
+    ],
+    [
+     {
+      "s": "2"
+     },
+     {
+      "s": "zw"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\lonelyquote.csv\",\",\",,,,TRUE)"
+  },
+  {
+   "id": "i8.1",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\num_ok.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "v"
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "n": -5.0
+     }
+    ],
+    [
+     {
+      "n": 100000.0
+     }
+    ],
+    [
+     {
+      "n": 7.0
+     }
+    ],
+    [
+     {
+      "n": -4.0
+     }
+    ],
+    [
+     {
+      "n": 0.05
+     }
+    ],
+    [
+     {
+      "n": 0.05
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": false
+     }
+    ],
+    [
+     {
+      "s": "abc"
+     }
+    ],
+    [
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": -1.0
+     }
+    ],
+    [
+     {
+      "s": "- 1"
+     }
+    ],
+    [
+     {
+      "s": "--1"
+     }
+    ],
+    [
+     {
+      "e": "#NUM!"
+     }
+    ],
+    [
+     {
+      "n": 0.0
+     }
+    ],
+    [
+     {
+      "n": 0.0
+     }
+    ],
+    [
+     {
+      "s": "1.5e3"
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "s": "12x"
+     }
+    ],
+    [
+     {
+      "s": "x12"
+     }
+    ],
+    [
+     {
+      "s": "€5"
+     }
+    ],
+    [
+     {
+      "s": "$5"
+     }
+    ],
+    [
+     {
+      "n": 5.0
+     }
+    ],
+    [
+     {
+      "n": 0.5208333333333334
+     }
+    ],
+    [
+     {
+      "n": 45296.0
+     }
+    ],
+    [
+     {
+      "n": 1000.0
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     }
+    ],
+    [
+     {
+      "s": "0.5"
+     }
+    ],
+    [
+     {
+      "s": ".5"
+     }
+    ],
+    [
+     {
+      "s": "1."
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\num_ok.csv\")"
+  },
+  {
+   "id": "i8.2",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2_ok.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 1.5
+     },
+     {
+      "s": "2.000,25"
+     }
+    ],
+    [
+     {
+      "n": 3.25
+     },
+     {
+      "n": 4.0
+     }
+    ],
+    [
+     {
+      "n": 1000.5
+     },
+     {
+      "n": 0.12
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2_ok.csv\")"
+  },
+  {
+   "id": "i8.3",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\dec_ok.csv"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "x"
+     },
+     {
+      "s": "y"
+     }
+    ],
+    [
+     {
+      "n": 1.5
+     },
+     {
+      "n": 2.25
+     }
+    ],
+    [
+     {
+      "s": "1.000"
+     },
+     {
+      "n": 1000.0
+     }
+    ],
+    [
+     {
+      "n": -1.5
+     },
+     {
+      "n": -2.5
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\dec_ok.csv\")"
+  },
+  {
+   "id": "i8.4",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\num_ok.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "en-US"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "v"
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "n": -5.0
+     }
+    ],
+    [
+     {
+      "n": 100000.0
+     }
+    ],
+    [
+     {
+      "n": 7.0
+     }
+    ],
+    [
+     {
+      "n": -4.0
+     }
+    ],
+    [
+     {
+      "n": 0.05
+     }
+    ],
+    [
+     {
+      "n": 0.05
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": false
+     }
+    ],
+    [
+     {
+      "s": "abc"
+     }
+    ],
+    [
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": -1.0
+     }
+    ],
+    [
+     {
+      "s": "- 1"
+     }
+    ],
+    [
+     {
+      "s": "--1"
+     }
+    ],
+    [
+     {
+      "e": "#NUM!"
+     }
+    ],
+    [
+     {
+      "n": 0.0
+     }
+    ],
+    [
+     {
+      "n": 0.0
+     }
+    ],
+    [
+     {
+      "n": 1500.0
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "s": "12x"
+     }
+    ],
+    [
+     {
+      "s": "x12"
+     }
+    ],
+    [
+     {
+      "s": "€5"
+     }
+    ],
+    [
+     {
+      "n": 5.0
+     }
+    ],
+    [
+     {
+      "s": "R5"
+     }
+    ],
+    [
+     {
+      "n": 0.5208333333333334
+     }
+    ],
+    [
+     {
+      "n": 45296.0
+     }
+    ],
+    [
+     {
+      "s": "1 000"
+     }
+    ],
+    [
+     {
+      "n": 1000.0
+     }
+    ],
+    [
+     {
+      "n": 0.5
+     }
+    ],
+    [
+     {
+      "n": 0.5
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\num_ok.csv\",,,,\"en-US\")"
+  },
+  {
+   "id": "i8.5",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2_ok.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "en-US"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 15.0
+     },
+     {
+      "s": "2.000,25"
+     }
+    ],
+    [
+     {
+      "n": 325.0
+     },
+     {
+      "n": 4.0
+     }
+    ],
+    [
+     {
+      "s": "1 000,5"
+     },
+     {
+      "n": 0.12
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2_ok.csv\",,,,\"en-US\")"
+  },
+  {
+   "id": "i8.6",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\dec_ok.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "en-US"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "x"
+     },
+     {
+      "s": "y"
+     }
+    ],
+    [
+     {
+      "n": 15.0
+     },
+     {
+      "n": 225.0
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 1000.0
+     }
+    ],
+    [
+     {
+      "n": -15.0
+     },
+     {
+      "n": -25.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\dec_ok.csv\",,,,\"en-US\")"
+  },
+  {
+   "id": "i8.7",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\num_ok.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "de-DE"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "v"
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "n": -5.0
+     }
+    ],
+    [
+     {
+      "n": 100000.0
+     }
+    ],
+    [
+     {
+      "n": 7.0
+     }
+    ],
+    [
+     {
+      "n": -4.0
+     }
+    ],
+    [
+     {
+      "n": 0.05
+     }
+    ],
+    [
+     {
+      "n": 0.05
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": false
+     }
+    ],
+    [
+     {
+      "s": "abc"
+     }
+    ],
+    [
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": -1.0
+     }
+    ],
+    [
+     {
+      "s": "- 1"
+     }
+    ],
+    [
+     {
+      "s": "--1"
+     }
+    ],
+    [
+     {
+      "e": "#NUM!"
+     }
+    ],
+    [
+     {
+      "n": 0.0
+     }
+    ],
+    [
+     {
+      "n": 0.0
+     }
+    ],
+    [
+     {
+      "n": 15000.0
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "s": "12x"
+     }
+    ],
+    [
+     {
+      "s": "x12"
+     }
+    ],
+    [
+     {
+      "n": 5.0
+     }
+    ],
+    [
+     {
+      "s": "$5"
+     }
+    ],
+    [
+     {
+      "s": "R5"
+     }
+    ],
+    [
+     {
+      "n": 0.5208333333333334
+     }
+    ],
+    [
+     {
+      "n": 45296.0
+     }
+    ],
+    [
+     {
+      "s": "1 000"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     }
+    ],
+    [
+     {
+      "n": 5.0
+     }
+    ],
+    [
+     {
+      "s": ".5"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\num_ok.csv\",,,,\"de-DE\")"
+  },
+  {
+   "id": "i8.8",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2_ok.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "de-DE"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 1.5
+     },
+     {
+      "n": 2000.25
+     }
+    ],
+    [
+     {
+      "n": 3.25
+     },
+     {
+      "n": 4.0
+     }
+    ],
+    [
+     {
+      "s": "1 000,5"
+     },
+     {
+      "n": 0.12
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2_ok.csv\",,,,\"de-DE\")"
+  },
+  {
+   "id": "i8.9",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\dec_ok.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "de-DE"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "x"
+     },
+     {
+      "s": "y"
+     }
+    ],
+    [
+     {
+      "n": 1.5
+     },
+     {
+      "n": 2.25
+     }
+    ],
+    [
+     {
+      "n": 1000.0
+     },
+     {
+      "n": 1000.0
+     }
+    ],
+    [
+     {
+      "n": -1.5
+     },
+     {
+      "n": -2.5
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\dec_ok.csv\",,,,\"de-DE\")"
+  },
+  {
+   "id": "i8.10",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\num_ok.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "fr-FR"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "v"
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "n": -5.0
+     }
+    ],
+    [
+     {
+      "n": 100000.0
+     }
+    ],
+    [
+     {
+      "n": 7.0
+     }
+    ],
+    [
+     {
+      "n": -4.0
+     }
+    ],
+    [
+     {
+      "n": 0.05
+     }
+    ],
+    [
+     {
+      "n": 0.05
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": false
+     }
+    ],
+    [
+     {
+      "s": "abc"
+     }
+    ],
+    [
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": -1.0
+     }
+    ],
+    [
+     {
+      "s": "- 1"
+     }
+    ],
+    [
+     {
+      "s": "--1"
+     }
+    ],
+    [
+     {
+      "e": "#NUM!"
+     }
+    ],
+    [
+     {
+      "n": 0.0
+     }
+    ],
+    [
+     {
+      "n": 0.0
+     }
+    ],
+    [
+     {
+      "s": "1.5e3"
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "s": "12x"
+     }
+    ],
+    [
+     {
+      "s": "x12"
+     }
+    ],
+    [
+     {
+      "n": 5.0
+     }
+    ],
+    [
+     {
+      "s": "$5"
+     }
+    ],
+    [
+     {
+      "s": "R5"
+     }
+    ],
+    [
+     {
+      "n": 0.5208333333333334
+     }
+    ],
+    [
+     {
+      "n": 45296.0
+     }
+    ],
+    [
+     {
+      "s": "1 000"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     }
+    ],
+    [
+     {
+      "s": "0.5"
+     }
+    ],
+    [
+     {
+      "s": ".5"
+     }
+    ],
+    [
+     {
+      "s": "1."
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\num_ok.csv\",,,,\"fr-FR\")"
+  },
+  {
+   "id": "i8.11",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2_ok.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "fr-FR"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 1.5
+     },
+     {
+      "s": "2.000,25"
+     }
+    ],
+    [
+     {
+      "n": 3.25
+     },
+     {
+      "n": 4.0
+     }
+    ],
+    [
+     {
+      "s": "1 000,5"
+     },
+     {
+      "n": 0.12
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2_ok.csv\",,,,\"fr-FR\")"
+  },
+  {
+   "id": "i8.12",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\dec_ok.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "fr-FR"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "x"
+     },
+     {
+      "s": "y"
+     }
+    ],
+    [
+     {
+      "n": 1.5
+     },
+     {
+      "n": 2.25
+     }
+    ],
+    [
+     {
+      "s": "1.000"
+     },
+     {
+      "n": 1000.0
+     }
+    ],
+    [
+     {
+      "n": -1.5
+     },
+     {
+      "n": -2.5
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\dec_ok.csv\",,,,\"fr-FR\")"
+  },
+  {
+   "id": "i8.13",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\num_ok.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "nl-NL"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "v"
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "n": -5.0
+     }
+    ],
+    [
+     {
+      "n": 100000.0
+     }
+    ],
+    [
+     {
+      "n": 7.0
+     }
+    ],
+    [
+     {
+      "n": -4.0
+     }
+    ],
+    [
+     {
+      "n": 0.05
+     }
+    ],
+    [
+     {
+      "n": 0.05
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": false
+     }
+    ],
+    [
+     {
+      "s": "abc"
+     }
+    ],
+    [
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": -1.0
+     }
+    ],
+    [
+     {
+      "s": "- 1"
+     }
+    ],
+    [
+     {
+      "s": "--1"
+     }
+    ],
+    [
+     {
+      "e": "#NUM!"
+     }
+    ],
+    [
+     {
+      "n": 0.0
+     }
+    ],
+    [
+     {
+      "n": 0.0
+     }
+    ],
+    [
+     {
+      "n": 15000.0
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "s": "12x"
+     }
+    ],
+    [
+     {
+      "s": "x12"
+     }
+    ],
+    [
+     {
+      "n": 5.0
+     }
+    ],
+    [
+     {
+      "s": "$5"
+     }
+    ],
+    [
+     {
+      "s": "R5"
+     }
+    ],
+    [
+     {
+      "n": 0.5208333333333334
+     }
+    ],
+    [
+     {
+      "n": 45296.0
+     }
+    ],
+    [
+     {
+      "s": "1 000"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     }
+    ],
+    [
+     {
+      "n": 5.0
+     }
+    ],
+    [
+     {
+      "s": ".5"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\num_ok.csv\",,,,\"nl-NL\")"
+  },
+  {
+   "id": "i8.14",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2_ok.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "nl-NL"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 1.5
+     },
+     {
+      "n": 2000.25
+     }
+    ],
+    [
+     {
+      "n": 3.25
+     },
+     {
+      "n": 4.0
+     }
+    ],
+    [
+     {
+      "s": "1 000,5"
+     },
+     {
+      "n": 0.12
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2_ok.csv\",,,,\"nl-NL\")"
+  },
+  {
+   "id": "i8.15",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\dec_ok.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "nl-NL"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "x"
+     },
+     {
+      "s": "y"
+     }
+    ],
+    [
+     {
+      "n": 1.5
+     },
+     {
+      "n": 2.25
+     }
+    ],
+    [
+     {
+      "n": 1000.0
+     },
+     {
+      "n": 1000.0
+     }
+    ],
+    [
+     {
+      "n": -1.5
+     },
+     {
+      "n": -2.5
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\dec_ok.csv\",,,,\"nl-NL\")"
+  },
+  {
+   "id": "i8.16",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\num_ok.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "en-GB"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "v"
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "n": -5.0
+     }
+    ],
+    [
+     {
+      "n": 100000.0
+     }
+    ],
+    [
+     {
+      "n": 7.0
+     }
+    ],
+    [
+     {
+      "n": -4.0
+     }
+    ],
+    [
+     {
+      "n": 0.05
+     }
+    ],
+    [
+     {
+      "n": 0.05
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": false
+     }
+    ],
+    [
+     {
+      "s": "abc"
+     }
+    ],
+    [
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": -1.0
+     }
+    ],
+    [
+     {
+      "s": "- 1"
+     }
+    ],
+    [
+     {
+      "s": "--1"
+     }
+    ],
+    [
+     {
+      "e": "#NUM!"
+     }
+    ],
+    [
+     {
+      "n": 0.0
+     }
+    ],
+    [
+     {
+      "n": 0.0
+     }
+    ],
+    [
+     {
+      "n": 1500.0
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "s": "12x"
+     }
+    ],
+    [
+     {
+      "s": "x12"
+     }
+    ],
+    [
+     {
+      "s": "€5"
+     }
+    ],
+    [
+     {
+      "s": "$5"
+     }
+    ],
+    [
+     {
+      "s": "R5"
+     }
+    ],
+    [
+     {
+      "n": 0.5208333333333334
+     }
+    ],
+    [
+     {
+      "n": 45296.0
+     }
+    ],
+    [
+     {
+      "s": "1 000"
+     }
+    ],
+    [
+     {
+      "n": 1000.0
+     }
+    ],
+    [
+     {
+      "n": 0.5
+     }
+    ],
+    [
+     {
+      "n": 0.5
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\num_ok.csv\",,,,\"en-GB\")"
+  },
+  {
+   "id": "i8.17",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2_ok.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "en-GB"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 15.0
+     },
+     {
+      "s": "2.000,25"
+     }
+    ],
+    [
+     {
+      "n": 325.0
+     },
+     {
+      "n": 4.0
+     }
+    ],
+    [
+     {
+      "s": "1 000,5"
+     },
+     {
+      "n": 0.12
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2_ok.csv\",,,,\"en-GB\")"
+  },
+  {
+   "id": "i8.18",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\dec_ok.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "en-GB"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "x"
+     },
+     {
+      "s": "y"
+     }
+    ],
+    [
+     {
+      "n": 15.0
+     },
+     {
+      "n": 225.0
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 1000.0
+     }
+    ],
+    [
+     {
+      "n": -15.0
+     },
+     {
+      "n": -25.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\dec_ok.csv\",,,,\"en-GB\")"
+  },
+  {
+   "id": "i8.19",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\num_ok.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "ja-JP"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "v"
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "n": -5.0
+     }
+    ],
+    [
+     {
+      "n": 100000.0
+     }
+    ],
+    [
+     {
+      "n": 7.0
+     }
+    ],
+    [
+     {
+      "n": -4.0
+     }
+    ],
+    [
+     {
+      "n": 0.05
+     }
+    ],
+    [
+     {
+      "n": 0.05
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": false
+     }
+    ],
+    [
+     {
+      "s": "abc"
+     }
+    ],
+    [
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": -1.0
+     }
+    ],
+    [
+     {
+      "s": "- 1"
+     }
+    ],
+    [
+     {
+      "s": "--1"
+     }
+    ],
+    [
+     {
+      "e": "#NUM!"
+     }
+    ],
+    [
+     {
+      "n": 0.0
+     }
+    ],
+    [
+     {
+      "n": 0.0
+     }
+    ],
+    [
+     {
+      "n": 1500.0
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "s": "12x"
+     }
+    ],
+    [
+     {
+      "s": "x12"
+     }
+    ],
+    [
+     {
+      "s": "€5"
+     }
+    ],
+    [
+     {
+      "s": "$5"
+     }
+    ],
+    [
+     {
+      "s": "R5"
+     }
+    ],
+    [
+     {
+      "n": 0.5208333333333334
+     }
+    ],
+    [
+     {
+      "n": 45296.0
+     }
+    ],
+    [
+     {
+      "s": "1 000"
+     }
+    ],
+    [
+     {
+      "n": 1000.0
+     }
+    ],
+    [
+     {
+      "n": 0.5
+     }
+    ],
+    [
+     {
+      "n": 0.5
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\num_ok.csv\",,,,\"ja-JP\")"
+  },
+  {
+   "id": "i8.20",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\de2_ok.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "ja-JP"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "a"
+     },
+     {
+      "s": "b"
+     }
+    ],
+    [
+     {
+      "n": 15.0
+     },
+     {
+      "s": "2.000,25"
+     }
+    ],
+    [
+     {
+      "n": 325.0
+     },
+     {
+      "n": 4.0
+     }
+    ],
+    [
+     {
+      "s": "1 000,5"
+     },
+     {
+      "n": 0.12
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\de2_ok.csv\",,,,\"ja-JP\")"
+  },
+  {
+   "id": "i8.21",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\dec_ok.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "ja-JP"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "x"
+     },
+     {
+      "s": "y"
+     }
+    ],
+    [
+     {
+      "n": 15.0
+     },
+     {
+      "n": 225.0
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     },
+     {
+      "n": 1000.0
+     }
+    ],
+    [
+     {
+      "n": -15.0
+     },
+     {
+      "n": -25.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\dec_ok.csv\",,,,\"ja-JP\")"
+  },
+  {
+   "id": "i8.22",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\num_ok.csv"
+    },
+    {
+     "s": ","
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "de-DE"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "v"
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "n": -5.0
+     }
+    ],
+    [
+     {
+      "n": 100000.0
+     }
+    ],
+    [
+     {
+      "n": 7.0
+     }
+    ],
+    [
+     {
+      "n": -4.0
+     }
+    ],
+    [
+     {
+      "n": 0.05
+     }
+    ],
+    [
+     {
+      "n": 0.05
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": false
+     }
+    ],
+    [
+     {
+      "s": "abc"
+     }
+    ],
+    [
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": -1.0
+     }
+    ],
+    [
+     {
+      "s": "- 1"
+     }
+    ],
+    [
+     {
+      "s": "--1"
+     }
+    ],
+    [
+     {
+      "e": "#NUM!"
+     }
+    ],
+    [
+     {
+      "n": 0.0
+     }
+    ],
+    [
+     {
+      "n": 0.0
+     }
+    ],
+    [
+     {
+      "n": 15000.0
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "s": "12x"
+     }
+    ],
+    [
+     {
+      "s": "x12"
+     }
+    ],
+    [
+     {
+      "n": 5.0
+     }
+    ],
+    [
+     {
+      "s": "$5"
+     }
+    ],
+    [
+     {
+      "s": "R5"
+     }
+    ],
+    [
+     {
+      "n": 0.5208333333333334
+     }
+    ],
+    [
+     {
+      "n": 45296.0
+     }
+    ],
+    [
+     {
+      "s": "1 000"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     }
+    ],
+    [
+     {
+      "n": 5.0
+     }
+    ],
+    [
+     {
+      "s": ".5"
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\num_ok.csv\",\",\",,,,,\"de-DE\")"
+  },
+  {
+   "id": "i8.23",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\num_ok.csv"
+    },
+    {
+     "s": ","
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 0.0
+    },
+    {
+     "s": "en-US"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "v"
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "n": -5.0
+     }
+    ],
+    [
+     {
+      "n": 100000.0
+     }
+    ],
+    [
+     {
+      "n": 7.0
+     }
+    ],
+    [
+     {
+      "n": -4.0
+     }
+    ],
+    [
+     {
+      "n": 0.05
+     }
+    ],
+    [
+     {
+      "n": 0.05
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": false
+     }
+    ],
+    [
+     {
+      "s": "abc"
+     }
+    ],
+    [
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": -1.0
+     }
+    ],
+    [
+     {
+      "s": "- 1"
+     }
+    ],
+    [
+     {
+      "s": "--1"
+     }
+    ],
+    [
+     {
+      "e": "#NUM!"
+     }
+    ],
+    [
+     {
+      "n": 0.0
+     }
+    ],
+    [
+     {
+      "n": 0.0
+     }
+    ],
+    [
+     {
+      "n": 1500.0
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "s": "12x"
+     }
+    ],
+    [
+     {
+      "s": "x12"
+     }
+    ],
+    [
+     {
+      "s": "€5"
+     }
+    ],
+    [
+     {
+      "n": 5.0
+     }
+    ],
+    [
+     {
+      "s": "R5"
+     }
+    ],
+    [
+     {
+      "n": 0.5208333333333334
+     }
+    ],
+    [
+     {
+      "n": 45296.0
+     }
+    ],
+    [
+     {
+      "s": "1 000"
+     }
+    ],
+    [
+     {
+      "n": 1000.0
+     }
+    ],
+    [
+     {
+      "n": 0.5
+     }
+    ],
+    [
+     {
+      "n": 0.5
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\num_ok.csv\",\",\",,,,0,\"en-US\")"
+  },
+  {
+   "id": "i8.24",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\num_ok.csv"
+    },
+    {
+     "s": ","
+    },
+    {
+     "n": 1.0
+    },
+    {
+     "n": 5.0
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 1.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "12"
+     }
+    ],
+    [
+     {
+      "s": " 12 "
+     }
+    ],
+    [
+     {
+      "s": "-5"
+     }
+    ],
+    [
+     {
+      "s": "1e5"
+     }
+    ],
+    [
+     {
+      "s": "007"
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\num_ok.csv\",\",\",1,5,,1)"
+  },
+  {
+   "id": "i8.25",
+   "function": "IMPORTTEXT",
+   "args": [
+    {
+     "s": "C:\\data\\dec_ok.csv"
+    },
+    {
+     "s": ","
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "s": "de"
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "x"
+     },
+     {
+      "s": "y"
+     }
+    ],
+    [
+     {
+      "n": 1.5
+     },
+     {
+      "n": 2.25
+     }
+    ],
+    [
+     {
+      "n": 1000.0
+     },
+     {
+      "n": 1000.0
+     }
+    ],
+    [
+     {
+      "n": -1.5
+     },
+     {
+      "n": -2.5
+     }
+    ]
+   ],
+   "formula": "=IMPORTTEXT(\"C:\\data\\dec_ok.csv\",\",\",,,,,\"de\")"
+  },
+  {
+   "id": "i8.26",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\num_ok.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": 1.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "v"
+     }
+    ],
+    [
+     {
+      "s": "12"
+     }
+    ],
+    [
+     {
+      "s": " 12 "
+     }
+    ],
+    [
+     {
+      "s": "-5"
+     }
+    ],
+    [
+     {
+      "s": "1e5"
+     }
+    ],
+    [
+     {
+      "s": "007"
+     }
+    ],
+    [
+     {
+      "s": "(4)"
+     }
+    ],
+    [
+     {
+      "s": "5%"
+     }
+    ],
+    [
+     {
+      "s": "5 %"
+     }
+    ],
+    [
+     {
+      "s": "TRUE"
+     }
+    ],
+    [
+     {
+      "s": "true"
+     }
+    ],
+    [
+     {
+      "s": "FALSE"
+     }
+    ],
+    [
+     {
+      "s": "abc"
+     }
+    ],
+    [
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "s": "+3"
+     }
+    ],
+    [
+     {
+      "s": "1-"
+     }
+    ],
+    [
+     {
+      "s": "- 1"
+     }
+    ],
+    [
+     {
+      "s": "--1"
+     }
+    ],
+    [
+     {
+      "s": "1E+400"
+     }
+    ],
+    [
+     {
+      "s": "-0"
+     }
+    ],
+    [
+     {
+      "s": "0"
+     }
+    ],
+    [
+     {
+      "s": "1.5e3"
+     }
+    ],
+    [
+     {
+      "s": "12"
+     }
+    ],
+    [
+     {
+      "s": "12x"
+     }
+    ],
+    [
+     {
+      "s": "x12"
+     }
+    ],
+    [
+     {
+      "s": "€5"
+     }
+    ],
+    [
+     {
+      "s": "$5"
+     }
+    ],
+    [
+     {
+      "s": "R5"
+     }
+    ],
+    [
+     {
+      "s": "12:30"
+     }
+    ],
+    [
+     {
+      "s": "2024-01-05"
+     }
+    ],
+    [
+     {
+      "s": "1 000"
+     }
+    ],
+    [
+     {
+      "s": "1,000"
+     }
+    ],
+    [
+     {
+      "s": "0.5"
+     }
+    ],
+    [
+     {
+      "s": ".5"
+     }
+    ],
+    [
+     {
+      "s": "1."
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\num_ok.csv\",,,1)"
+  },
+  {
+   "id": "i8.27",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\num_ok.csv"
+    },
+    {
+     "n": 3.0
+    },
+    {
+     "n": 4.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "n": -5.0
+     }
+    ],
+    [
+     {
+      "n": 100000.0
+     }
+    ],
+    [
+     {
+      "n": 7.0
+     }
+    ],
+    [
+     {
+      "n": -4.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\num_ok.csv\",3,4)"
+  },
+  {
+   "id": "i8.28",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\num_ok.csv"
+    },
+    {
+     "n": -3.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": "v"
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "n": -5.0
+     }
+    ],
+    [
+     {
+      "n": 100000.0
+     }
+    ],
+    [
+     {
+      "n": 7.0
+     }
+    ],
+    [
+     {
+      "n": -4.0
+     }
+    ],
+    [
+     {
+      "n": 0.05
+     }
+    ],
+    [
+     {
+      "n": 0.05
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": true
+     }
+    ],
+    [
+     {
+      "b": false
+     }
+    ],
+    [
+     {
+      "s": "abc"
+     }
+    ],
+    [
+     {
+      "s": ""
+     }
+    ],
+    [
+     {
+      "n": 3.0
+     }
+    ],
+    [
+     {
+      "n": -1.0
+     }
+    ],
+    [
+     {
+      "s": "- 1"
+     }
+    ],
+    [
+     {
+      "s": "--1"
+     }
+    ],
+    [
+     {
+      "e": "#NUM!"
+     }
+    ],
+    [
+     {
+      "n": 0.0
+     }
+    ],
+    [
+     {
+      "n": 0.0
+     }
+    ],
+    [
+     {
+      "s": "1.5e3"
+     }
+    ],
+    [
+     {
+      "n": 12.0
+     }
+    ],
+    [
+     {
+      "s": "12x"
+     }
+    ],
+    [
+     {
+      "s": "x12"
+     }
+    ],
+    [
+     {
+      "s": "€5"
+     }
+    ],
+    [
+     {
+      "s": "$5"
+     }
+    ],
+    [
+     {
+      "n": 5.0
+     }
+    ],
+    [
+     {
+      "n": 0.5208333333333334
+     }
+    ],
+    [
+     {
+      "n": 45296.0
+     }
+    ],
+    [
+     {
+      "n": 1000.0
+     }
+    ],
+    [
+     {
+      "n": 1.0
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\num_ok.csv\",-3)"
+  },
+  {
+   "id": "i8.29",
+   "function": "IMPORTCSV",
+   "args": [
+    {
+     "s": "C:\\data\\num_ok.csv"
+    },
+    {
+     "missing": true
+    },
+    {
+     "n": -2.0
+    }
+   ],
+   "excel": [
+    [
+     {
+      "s": ".5"
+     }
+    ],
+    [
+     {
+      "s": "1."
+     }
+    ]
+   ],
+   "formula": "=IMPORTCSV(\"C:\\data\\num_ok.csv\",,-2)"
+  }
+ ]
+}
