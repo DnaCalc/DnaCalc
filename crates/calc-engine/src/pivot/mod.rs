@@ -12,7 +12,7 @@ pub fn refusal(part: &str, detail: impl Into<String>) -> PivotIssue {
         owner: "dc-8wp",
     }
 }
-pub(super) struct Group {
+struct Group {
     pub(super) key: PivotItem,
     pub(super) shared: u32,
     pub(super) first: usize,
@@ -32,10 +32,10 @@ mod axis;
 mod records;
 mod render;
 use aggregate::Total;
-use axis::{Walk, axis_item};
+use axis::{Walk, axis_item, layout_columns};
 use records::{compare, field_groups, page_field_items, resolve};
 pub use records::item_value;
-use render::{Form, label_text};
+use render::{Form, label_text, truthy};
 pub use render::layout;
 
 #[derive(Clone, Debug, Default)]

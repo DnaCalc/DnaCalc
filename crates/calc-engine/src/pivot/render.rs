@@ -17,6 +17,9 @@ pub fn layout(table: &PivotTable, cache: &PivotCache) -> Result<PivotLayout, Piv
             "Grouped, calculated, filtered or extended pivot layouts are not modelled",
         ));
     }
+    if table.row_fields.len() == 1 && table.column_fields.len() >= 2 {
+        return layout_columns(table, cache, snapshot);
+    }
     if table.row_fields.len() == 1
         && table.column_fields.len() == 1
         && (table.column_fields[0] == -2) == (table.data_fields.len() > 1)
