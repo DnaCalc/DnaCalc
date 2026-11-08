@@ -424,12 +424,33 @@ pub struct FormatChoice {
 }
 
 /// The formats a picker offers for `profile`: General, number, percent, scientific, currency, date, time and text, each code written with the profile's decimal and thousands
-/// separators. Fractions are not offered: calc-func does not model them yet. A person can still
-/// type any code; the picker only names the common ones.
+/// separators, and fractions. A locale whose thousands separator is a space (en-ZA, fr-FR) offers
+/// only the improper fractions: Excel reads the space in `# ?/?` there as the group separator and
+/// refuses the code. A person can still type any code; the picker only names the common ones.
 pub fn format_choices(profile: &FormatProfile) -> Vec<FormatChoice> {
     let (d, t) = (profile.decimal_separator, profile.thousands_separator);
     let choice = |group, label, code: String| FormatChoice { group, label, code };
-    vec![
+    let spaced = t.chars().all(char::is_whitespace);
+    let fractions: Vec<FormatChoice> = if spaced {
+        vec![
+            choice("Fraction", "Improper, up to one digit", "?/?".to_owned()),
+            choice("Fraction", "Improper, up to two digits", "??/??".to_owned()),
+            choice("Fraction", "Improper, eighths", "?/8".to_owned()),
+        ]
+    } else {
+        vec![
+            choice("Fraction", "Up to one digit", "# ?/?".to_owned()),
+            choice("Fraction", "Up to two digits", "# ??/??".to_owned()),
+            choice("Fraction", "Up to three digits", "# ???/???".to_owned()),
+            choice("Fraction", "Halves", "# ?/2".to_owned()),
+            choice("Fraction", "Quarters", "# ?/4".to_owned()),
+            choice("Fraction", "Eighths", "# ?/8".to_owned()),
+            choice("Fraction", "Sixteenths", "# ??/16".to_owned()),
+            choice("Fraction", "Hundredths", "# ?/100".to_owned()),
+            choice("Fraction", "Improper, up to one digit", "?/?".to_owned()),
+        ]
+    };
+    let mut choices = vec![
         choice("General", "General", "General".to_owned()),
         choice("Number", "Integer", "0".to_owned()),
         choice("Number", "Two decimals", format!("0{d}00")),
@@ -449,7 +470,10 @@ pub fn format_choices(profile: &FormatProfile) -> Vec<FormatChoice> {
         choice("Time", "Elapsed hours", "[h]:mm:ss".to_owned()),
         choice("Date and time", "Date and time", "yyyy-mm-dd hh:mm:ss".to_owned()),
         choice("Text", "Text", "@".to_owned()),
-    ]
+    ];
+    let at = choices.iter().position(|c| c.group == "Date").unwrap_or(choices.len());
+    choices.splice(at..at, fractions);
+    choices
 }
 
 /// Applies an Excel number format to the shared scalar/array window. Formatting never evaluates.

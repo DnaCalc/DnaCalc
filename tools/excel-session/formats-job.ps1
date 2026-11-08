@@ -3,7 +3,7 @@
 # Parameters (named, as submit.ps1 passes them): Cases (the TSV this reads), Output (the TSV this
 # writes) and Result (a JSON summary the host reads). A case row is: id, culture, decimal separator, thousands separator (each a literal
 # character, or U+NNNN), LCID prefix for date names (hex, may be empty), date system (1900 or
-# 1904), value kind (number or text), value and format code. The result row repeats the id and
+# 1904), value kind (number, text or fn: the cell holds =TEXT(value, code)), value and format code. The result row repeats the id and
 # adds the displayed text (Range.Text, columns wide enough that no value shows as #####), the
 # invariant NumberFormat Excel read back from the localized code, and any error.
 # The locale axis is what an Excel instance can be told: its decimal and thousands separators
@@ -50,7 +50,11 @@ try {
                 $prefix = ''
                 if ($f[4]) { $prefix = '[$-' + $f[4] + ']' }
                 $code = Literal $f[8]
-                if ($f[6] -eq 'text') {
+                if ($f[6] -eq 'fn') {
+                    # The cell's formula is TEXT(value, code): the code in the culture's separators.
+                    $cell.Formula = '=TEXT(' + $f[7] + ',"' + ($code -replace '"', '""') + '")'
+                    $cell.Calculate() | Out-Null
+                } elseif ($f[6] -eq 'text') {
                     $cell.NumberFormat = '@'
                     $cell.Formula = $f[7]
                     $cell.NumberFormatLocal = $prefix + $code
@@ -71,6 +75,6 @@ try {
     $app.UseSystemSeparators = $before.system
     if (-not $before.system) { $app.DecimalSeparator = $before.decimal; $app.ThousandsSeparator = $before.thousands }
 }
-$sorted = @($out[0]) + @($out | Select-Object -Skip 1 | Sort-Object { ($_ -split "`t")[0] })
+$sorted = @($out[0]) + @($out | Select-Object -Skip 1 | Sort-Object { [int](($_ -split "`t")[0] -replace '^\D+', '') })
 [IO.File]::WriteAllLines($Output, $sorted, (New-Object System.Text.UTF8Encoding($false)))
 @{fatal = $null; rows = @(@{cases = $rows.Count; answered = $out.Count - 1})} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $Result -Encoding utf8NoBOM
