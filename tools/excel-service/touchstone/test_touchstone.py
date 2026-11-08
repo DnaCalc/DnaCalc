@@ -388,5 +388,121 @@ class BrokerTests(unittest.TestCase):
             stop()
 
 
+
+@unittest.skipUnless(sys.platform == "win32", "Native-only: the broker holds a Windows process lock")
+class ClientApiTests(unittest.TestCase):
+    """The v1-compatible Client over the socket transport, against the stand-in worker."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.broker, cls.state, cls.stop = start_broker()
+        sys.path.insert(0, str(HERE.parent))
+        import client as top
+        cls.top = top
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.stop()
+
+    def make(self, **options):
+        return self.top.Client(endpoint=self.state / "endpoint.json", socket_path=self.state / "none.sock", timeout=30, **options)
+
+    def test_ask_submit_ask_many_and_stream_keep_request_order_and_shape(self):
+        c = self.make()
+        try:
+            self.assertTrue(c.uses_socket)
+            rows = [[self.top.number(f"{0x3ff0000000000000 + i:016x}")] for i in range(300)]
+            reply = c.ask("ID", rows, echo_inputs=True)
+            self.assertEqual([r["bits"] for r in reply["rows"]], [r[0]["bits"] for r in rows])
+            self.assertEqual(reply["inputs"][3][0], rows[3][0])
+            future = c.submit("ID", rows[:5])
+            self.assertEqual(len(future.result(30)["rows"]), 5)
+            replies = c.ask_many([("ID", rows[:2]), ("ID", rows[2:6]), ("ID", rows[6:7])])
+            self.assertEqual([len(r["rows"]) for r in replies], [2, 4, 1])
+            seen = dict(c.stream([("ID", rows[:3]), ("ID", rows[3:5])]))
+            self.assertEqual({k: len(v["rows"]) for k, v in seen.items()}, {0: 3, 1: 2})
+        finally:
+            c.close()
+
+    def test_failures_raise_service_error_and_malformed_rows_raise_value_error(self):
+        c = self.make()
+        try:
+            with self.assertRaises(ValueError):
+                c.ask("ID", [[{"type": "bogus"}]])
+            with self.assertRaises(self.top.ServiceError) as caught:
+                c.ask("CRASH", [[self.top.number(1.0)]])
+            self.assertIn("excel-crashed", str(caught.exception))
+        finally:
+            c.close()
+
+    def test_priority_and_order_options_are_accepted(self):
+        c = self.make()
+        try:
+            r = c.ask("ID", [[self.top.number(2.0)]], priority="bulk", order="serial")
+            self.assertEqual(r["rows"][0]["bits"], self.top.bits(2.0))
+            with self.assertRaises(ValueError):
+                c.ask("ID", [[self.top.number(2.0)]], order="sometimes")
+        finally:
+            c.close()
+
+    def test_bisect_edge_needs_about_nine_rounds_for_52_bits(self):
+        c = self.make()
+        try:
+            threshold = 0x3e47bc15e9263272
+            edge = c.bisect_edge("ID", "3e47bc15e9000000", "3e47bc15ea000000",
+                                 lambda x, answer: int(answer["bits"], 16) > threshold)
+            self.assertEqual((edge["low"], edge["high"]), (f"{threshold:016x}", f"{threshold + 1:016x}"))
+            self.assertLessEqual(edge["questions"], 8)     # 2^24 wide bracket: 64 points per round
+            wide = c.bisect_edge("ID", "3000000000000000", "4000000000000000",
+                                 lambda x, answer: int(answer["bits"], 16) > threshold)
+            self.assertEqual(wide["low"], f"{threshold:016x}")
+            self.assertLessEqual(wide["questions"], 12)     # 2^60 wide bracket
+        finally:
+            c.close()
+
+    def test_a_reading_that_cannot_tell_the_sides_is_skipped_not_guessed(self):
+        c = self.make()
+        try:
+            threshold = 0x3e47bc15e9263272
+            edge = c.bisect_edge("ID", "3e47bc15e9263000", "3e47bc15e9263400",
+                                 lambda x, answer: None if x == "3e47bc15e9263270" else int(x, 16) > threshold)
+            self.assertEqual((edge["low"], edge["high"]), (f"{threshold:016x}", f"{threshold + 1:016x}"))
+        finally:
+            c.close()
+
+    def test_async_client(self):
+        async def go():
+            a = self.top.AsyncClient(endpoint=self.state / "endpoint.json", socket_path=self.state / "none.sock", timeout=30)
+            try:
+                one = await a.ask("ID", [[self.top.number(4.0)]])
+                many = await a.ask_many([("ID", [[self.top.number(1.0)]]), ("ID", [[self.top.number(2.0)], [self.top.number(3.0)]])])
+                got = {}
+                async for index, reply in a.as_completed([("ID", [[self.top.number(5.0)]]), ("ID", [[self.top.number(6.0)]])]):
+                    got[index] = reply["rows"][0]["bits"]
+                return one, many, got
+            finally:
+                a.close()
+        one, many, got = asyncio.run(go())
+        self.assertEqual(one["rows"][0]["bits"], self.top.bits(4.0))
+        self.assertEqual([len(r["rows"]) for r in many], [1, 2])
+        self.assertEqual(got, {0: self.top.bits(5.0), 1: self.top.bits(6.0)})
+
+    def test_consecutive_run_beyond_the_v1_limit_works_over_the_socket(self):
+        c = self.make()
+        try:
+            run = c.consecutive_run("ID", "3e47bc15e9000000", 30000)
+            self.assertEqual(len(run["rows"]), 30000)
+            self.assertEqual(run["rows"][29999]["bits"], f"{0x3e47bc15e9000000 + 29999:016x}")
+        finally:
+            c.close()
+
+    def test_the_file_queue_is_used_when_a_queue_is_named(self):
+        c = self.top.Client(queue=self.state / "queue", timeout=30)
+        self.assertFalse(c.uses_socket)
+        r = c.ask("ID", [[self.top.number(7.0)]])
+        self.assertEqual(r["rows"][0]["bits"], self.top.bits(7.0))
+        c.close()
+
+
 if __name__ == "__main__":
     unittest.main()
