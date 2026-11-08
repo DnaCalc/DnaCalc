@@ -415,7 +415,7 @@ pub(crate) fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(Strin
             "{} building {} for {WASM_TARGET} (profile {PROFILE})",
             app.label, entry
         );
-        let target_dir = ws.accept_target_dir();
+        let target_dir = ws.target_dir();
         let mut build = Command::new(cargo::cargo_program());
         build
             .current_dir(&ws.root)
@@ -429,9 +429,7 @@ pub(crate) fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(Strin
                 "--bin",
                 entry,
             ])
-            .args(["--target", WASM_TARGET])
-            .arg("--target-dir")
-            .arg(&target_dir);
+            .args(["--target", WASM_TARGET]);
         let built = cargo::output(&mut build)?;
         if !built.status.success() {
             return Err(format!(
