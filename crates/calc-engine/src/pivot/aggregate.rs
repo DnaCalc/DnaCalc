@@ -60,12 +60,15 @@ impl Total {
         };
         numerator.is_finite() && numerator >= 0.0
     }
+    pub(super) fn source_error(&self) -> Option<WorksheetErrorCode> {
+        self.error
+    }
     pub(super) fn supports_grouped_product(&self, kind: &str) -> bool {
         kind != "product" || self.error.is_some() || !self.unsafe_integer_product
     }
     pub(super) fn result(&self, kind: &str) -> CalcValue {
-        // UI28 P6: a sum over source cells that are all empty is a blank pivot cell, not 0.
-        if kind == "sum" && self.nonempty == 0 {
+        // UI28 P6 and M1 err-keys: an empty set has no displayed sum or count cell.
+        if matches!(kind, "sum" | "count" | "countNums") && self.nonempty == 0 {
             return CalcValue::empty();
         }
         if !matches!(kind, "count" | "countNums")
