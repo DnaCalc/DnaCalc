@@ -991,6 +991,8 @@ def parse_since(text):
     if not text:
         return None
     from datetime import datetime, timedelta, timezone
+    if text.endswith("m") and text[:-1].isdigit():
+        return datetime.now(timezone.utc) - timedelta(minutes=int(text[:-1]))
     if text.endswith("h") and text[:-1].isdigit():
         return datetime.now(timezone.utc) - timedelta(hours=int(text[:-1]))
     if text.endswith("d") and text[:-1].isdigit():

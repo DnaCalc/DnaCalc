@@ -61,9 +61,14 @@ route); they are not part of this service.
 
 ## Running it (Windows)
 ```powershell
-py -3 tools/excel-service/touchstone/broker.py start --hosts dna-firehorse dna-koderbot --relay-v1-queue "~/excel-queue"
+py -3 tools/excel-service/touchstone/broker.py start --hosts dna-firehorse dna-koderbot `
+    --local-queue "$HOME\excel-queue" --relay-v1-queue "~/excel-queue"
 py -3 tools/excel-service/touchstone/broker.py status | stats --since 24h | waits --since 24h | stop
 ```
+Cutover: the v1 loop was stopped on 2026-11-09 at 01:05 and the broker started with the command above, so the existing
+lane clients (the v1 file queue on both Linux hosts and on Windows) are answered by the broker unchanged. Roll back by
+stopping the broker (`broker.py stop`) and starting the old loop under `tools/excel-session/on-private-desktop.ps1`, as
+`run-private.ps1` did (a plain `service.py start` is not on the private desktop).
 The broker and every Excel it starts run on the private desktop `DnaCalcExcelV2` under
 `tools/excel-session/on-private-desktop.ps1`; its guard (`<state>/guard.json`, written at exit) must read
 `windows_on_user_desktop: 0`. State folder: `C:\Work\DnaCalc\codex-runs\excel-service-v2` (`--state`). Three workers
