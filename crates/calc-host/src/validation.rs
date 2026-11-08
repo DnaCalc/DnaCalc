@@ -391,7 +391,9 @@ impl HostState {
         if input.is_none() && rule.allow_blank {return Ok(());}
         // Providers can carry mutable state shared by their Rc. A scratch engine must not call
         // them as a side effect of an entry that may be rejected.
-        if self.functions.registrations().next().is_some() {
+        // The host's own routes (fetch, import, RTD) are registered in every page; only a workbook
+        // that calls a registered function, or a registered add-in or VBA function, is refused.
+        if self.functions.names().next().is_some() || self.engine.has_user_calls() {
             return Err(unavailable("Candidate validation with registered user functions is unavailable."));
         }
         if self.engine.nodes().take(4097).count()>4096 {return Err(unavailable("Candidate validation currently checks workbooks with at most 4,096 formulas."));}
@@ -412,6 +414,7 @@ impl HostState {
         engine.set_workbook_facts(Some(self.workbook_facts()));
         let mut work=calc_engine::begin_recalc(&mut engine,&model,self.options.numeric.clone()).map_err(|_|unavailable("The candidate calculation cannot start."))?
             .with_external_inputs(self.rtd_inputs.clone());
+        if engine.has_user_calls() {return Err(unavailable("Candidate validation with registered user functions is unavailable."));}
         if calc_engine::step(&engine,&model,&mut work,calc_engine::WorkBudget::evaluations(32768),&mut calc_engine::Unobserved)!=calc_engine::RecalcProgress::Complete {
             return Err(unavailable("The candidate calculation needs more work or an external input."));
         }

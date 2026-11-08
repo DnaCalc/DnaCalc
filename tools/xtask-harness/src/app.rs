@@ -84,7 +84,7 @@ pub struct CaseGroup {
 /// the full suite unless `--suite core` is also supplied.
 #[derive(Default, Clone)]
 pub(crate) struct SmokeSelection {
-    /// `--desktop EXE` (OneCalc): drive the page inside the WebView2 of the desktop exe, attached
+    /// `--desktop EXE` (OneCalc, DNA Calc): drive the page inside the WebView2 of the desktop exe, attached
     /// to over its DevTools port, instead of the headless browsers.
     desktop: Option<PathBuf>,
     /// The DevTools address of that running WebView2 (set by the run itself).
@@ -337,7 +337,7 @@ pub fn run(raw: &[String]) -> ExitCode {
                     ("--bundle", Some(dir)) => bundle_dir = Some(PathBuf::from(dir)),
                     ("--url", Some(page)) => url = Some(page.clone()),
                     ("--browser", Some(name)) => only = Some(name.clone()),
-                    ("--desktop", Some(exe)) if app.key == "onecalc" => {
+                    ("--desktop", Some(exe)) if matches!(app.key, "onecalc" | "calc") => {
                         selection.desktop = Some(PathBuf::from(exe))
                     }
                     ("--workbook", Some(path)) if app.key == "calc" => {
@@ -2331,7 +2331,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             Ok(())
         }
         Action::DragSelectionToCell(row, col, copy, cancel) => {
-            let xy = session.script(&format!("var s=document.querySelector('[data-dnacalc=selection]').getBoundingClientRect();var c=document.querySelector('[data-dnacalc=column-header][data-column=\"{col}\"]').getBoundingClientRect();var r=document.querySelector('[data-dnacalc=row-header][data-row=\"{row}\"]').getBoundingClientRect();return [Math.round(s.left+4),Math.round(s.top+1),Math.round(c.left+c.width/2),Math.round(r.top+r.height/2)];"))?;
+            let xy = session.script(&format!("var s=document.querySelector('[data-dnacalc=selection]').getBoundingClientRect();var c=document.querySelector('[data-dnacalc=column-header][data-column=\"{col}\"]').getBoundingClientRect();var r=document.querySelector('[data-dnacalc=row-header][data-row=\"{row}\"]').getBoundingClientRect();return [Math.round(s.left+4),Math.round(s.top+3),Math.round(c.left+c.width/2),Math.round(r.top+r.height/2)];"))?;
             let modifier = if *copy {json!({"type":"keyDown","value":"\u{E009}"})} else {json!({"type":"pause","duration":0})};
             let result = (|| -> Result<(), String> {
                 session.post("/actions",json!({"actions":[

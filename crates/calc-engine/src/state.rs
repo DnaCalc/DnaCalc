@@ -934,6 +934,14 @@ impl EngineState {
         self.by_anchor.len()
     }
 
+    /// Whether any bound formula calls a registered function (an add-in, VBA or a host route such as
+    /// the fetch route). A scratch evaluation of such a workbook would call providers as a side effect.
+    pub fn has_user_calls(&self) -> bool {
+        self.bindings
+            .iter()
+            .any(|(_, binding)| matches!(binding, Binding::Placed(instance, _) if instance.plan().has_user_calls()))
+    }
+
     /// The formula cells the last published recalculation found on a circular reference, in
     /// cell order (dc-y2o.1): those on a cycle of their references (`=IF(C1>5,I1+1,7)` in I1
     /// too, whose evaluation need not meet itself), those on a cycle only their evaluations met,
