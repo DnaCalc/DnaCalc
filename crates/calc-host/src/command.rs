@@ -289,7 +289,26 @@ pub fn dispatch(
         WorkbookOp::Clear{area}=>host.model.definitions().pivots().tables().any(|t|t.area.intersection(*area).is_some()),
         WorkbookOp::SetArray{array,..}=>host.model.definitions().pivots().tables().any(|t|t.area.intersection(array.area()).is_some()),_=>false,
     }){return Err(refuse("Pivot output is owned by its table; edit its source data and refresh"));}
-    if host.model.definitions().pivots().tables().next().is_some() && batch.operations.iter().any(|op|matches!(op,WorkbookOp::EditAxis(_)|WorkbookOp::EditSheet(_))){return Err(refuse("Structural edits of pivot workbooks need measured source and layout transforms"));}
+    let pivots = host.model.definitions().pivots();
+    for op in &batch.operations {
+        let sheet = match op {
+            WorkbookOp::EditAxis(edit) => Some(edit.sheet()),
+            WorkbookOp::EditSheet(calc_doc_model::SheetEdit::Rename { sheet, .. }
+                | calc_doc_model::SheetEdit::Move { sheet, .. }
+                | calc_doc_model::SheetEdit::Remove { sheet }
+                | calc_doc_model::SheetEdit::SetVisibility { sheet, .. }) => Some(*sheet),
+            _ => None,
+        };
+        let Some(sheet) = sheet else { continue; };
+        if !pivots.caches.issues.is_empty() || pivots.sheets.values().any(|s| !s.issues.is_empty())
+            || pivots.tables().any(|table| {
+                table.area.sheet() == sheet || pivots.caches.caches.get(&table.cache_id)
+                    .and_then(|cache| crate::pivot::source_area(host, cache, table.area.first()).ok())
+                    .is_none_or(|area| area.sheet() == sheet)
+            }) {
+            return Err(refuse("Structural edits on pivot output or source sheets need measured transforms"));
+        }
+    }
     for op in &batch.operations {
         if let WorkbookOp::SetDataModel(next) = op {
             let Some(current) = host.model.definitions().data_model() else { return Err(refuse("No data model to refresh")); };

@@ -445,7 +445,8 @@ fn transpose(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Ste
 // Excel documents visible pivot cells, caption or base field names and #REF for absent data:
 // https://support.microsoft.com/en-us/excel/functions/getpivotdata-function
 fn getpivotdata(site:&Site<'_>,a:&[CalcValue],sv:&mut EvalServices<'_>)->Step<CalcValue>{
-    if a.len()%2!=0{return Err(Exit::Error(WorksheetErrorCode::Value));}
+    if a.len()%2!=0{return Err(Exit::Error(WorksheetErrorCode::Ref));}
+    if matches!(a[0].core_ref(), CoreRef::Reference(_)){return Err(Exit::Error(WorksheetErrorCode::NA));}
     let name=String::from_utf16(text_arg(site,a,0)?.utf16_code_units()).map_err(|_|site.not_modelled(Some(0)))?;
     let reference=match a[1].core_ref(){CoreRef::Reference(r)=>r,CoreRef::Error(e)=>return Err(Exit::Error(e)),_=>return Err(Exit::Error(WorksheetErrorCode::Ref))};
     let mut filters=Vec::new();
@@ -472,7 +473,7 @@ ported_family! {
     4 sheets_fn "SHEETS" (0, 1) [R "reference" ~ ArrayAtRoot] three_d (Some(&[0]), None, None); |s, a, sv| { sheets(s, a, sv) }
     5 formulatext_fn "FORMULATEXT" (1, 1) [F "reference" @Reference] three_d (None, Some(&[]), None); |s, a, sv| { formulatext(s, a, sv) }
     6 address_entry "ADDRESS" (2, 5) [V "row_num", V "column_num", V "abs_num", V "a1", V "sheet_text"] three_d (None, None, Some(&[])); |s, a, sv| { address_fn(s, a) }
-    7 getpivotdata_fn "GETPIVOTDATA" (2, 254) [V "data_field", F "pivot_table", V "field1", V "item1"] |s, a, sv| {
+    7 getpivotdata_fn "GETPIVOTDATA" (2, 254) [R "data_field", R "pivot_table", V "field1", V "item1"] |s, a, sv| {
         getpivotdata(s,a,sv)
     }
     // dc-o9r: TRANSPOSE intersects a reference even below an array place.
