@@ -436,11 +436,9 @@ pub struct FetchFunction {
 impl FetchFunction {
     /// The function of [`FETCH_FUNCTIONS`] spelled `spelling`, on `route`.
     pub fn new(spelling: &str, route: Rc<dyn FetchRoute>) -> Option<Self> {
-        let kind = match spelling {
-            "WEBSERVICE" => FetchKind::Text,
-            "IMAGE" => FetchKind::Picture,
-            _ => return None,
-        };
+        let target = crate::catalogue().resolve_surface(crate::Notation::Call, spelling).ok()?;
+        if target.spelling() != spelling { return None; }
+        let crate::EntryKind::HostRoute { route: crate::HostRouteKind::Fetch(kind), .. } = target.kind() else { return None; };
         Some(Self { kind, route })
     }
 }

@@ -31,9 +31,7 @@ pub fn is_cell_callee(
     text: &str,
     notation: ReferenceNotation,
 ) -> bool {
-    if crate::eval::is_builtin(text)
-        || calc_func::catalogue().resolve_surface(calc_func::Notation::Call, text).is_ok()
-    {
+    if crate::eval::is_builtin(text) {
         return false;
     }
     let spelled = match notation {

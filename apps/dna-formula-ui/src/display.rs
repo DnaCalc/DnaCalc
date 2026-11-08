@@ -91,6 +91,8 @@ pub fn compile_owner(error: &CompileError) -> Option<&str> {
 /// A work package carried by the typed fault; never inferred from display text.
 pub fn eval_owner(fault: &EvalFault) -> Option<&str> {
     match fault {
+        EvalFault::Function(FunctionFault::NotHeld { owner, .. }) => Some(owner),
+        EvalFault::Function(FunctionFault::Deferred { class, .. }) => Some(class.owner()),
         EvalFault::NotModelled { owner, .. } => Some(owner),
         _ => None,
     }
@@ -240,6 +242,18 @@ fn function_label(id: FunctionId) -> String {
 
 fn function_fault(fault: &FunctionFault) -> String {
     match fault {
+        FunctionFault::NotHeld { id, owner } => format!(
+            "function fault in {}: not modelled (work package {owner})",
+            function_label(*id)
+        ),
+        FunctionFault::Deferred { id, class } => format!(
+            "function fault in {}: deferred (work package {})",
+            function_label(*id), class.owner()
+        ),
+        FunctionFault::Binding { id } => format!(
+            "function fault in {}: this form requires formula evaluation",
+            function_label(*id)
+        ),
         FunctionFault::ContinuationTarget { expected, received } => format!(
             "function fault: a pending {} call cannot continue as {}",
             function_label(*expected),

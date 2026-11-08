@@ -3000,12 +3000,7 @@ fn bind(
             if plan.volatile() {
                 state.volatile.insert(node);
             }
-            if plan.calls().any(|target| {
-                matches!(
-                    target.spelling(),
-                    "SUBTOTAL" | "AGGREGATE" | "_XLFN.AGGREGATE"
-                )
-            }) {
+            if plan.calls().any(|target| target.traits().is_subtotal) {
                 state.subtotal_cells.insert(at);
             }
             prerequisites(instance)

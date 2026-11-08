@@ -51,6 +51,8 @@ pub enum EntryClass {
 /// place and may be called.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ResultForm {
+    /// No measured result form is held for this entry.
+    Unknown,
     /// A value: never a reference, never a LAMBDA.
     Value,
     /// A value or a reference (INDEX, OFFSET, INDIRECT, XLOOKUP).
@@ -195,6 +197,9 @@ impl FunctionCallTarget<'_> {
     /// What Excel's entry accepts in argument `index`, or `None` when the arity admits no
     /// argument there.
     pub fn entry_class(self, index: usize) -> Option<EntryClass> {
+        if matches!(self.entry.kernel, super::Kernel::NotHeld { .. } | super::Kernel::Deferred { .. }) {
+            return None;
+        }
         (index < self.entry.arity.max).then(|| self.entry.entry_class(index))
     }
 
@@ -202,6 +207,10 @@ impl FunctionCallTarget<'_> {
     /// arity, the repeating groups, then each reference place, the first refused one named.
     pub fn check_entry(self, operands: &[OperandForm]) -> Result<(), EntryRule> {
         let entry = self.entry;
+        // An unheld entry's handbook signature is not an Excel entry measurement.
+        if matches!(entry.kernel, super::Kernel::NotHeld { .. } | super::Kernel::Deferred { .. }) {
+            return Ok(());
+        }
         if operands.len() < entry.arity.min {
             return Err(EntryRule::TooFewArguments);
         }
@@ -226,6 +235,9 @@ impl FunctionCallTarget<'_> {
 
     /// Whether Excel's entry takes a call postfix after a call of this entry.
     pub fn check_called(self) -> Result<(), EntryRule> {
+        if matches!(self.entry.kernel, super::Kernel::NotHeld { .. } | super::Kernel::Deferred { .. }) {
+            return Ok(());
+        }
         if self.entry.result.may_be_reference_or_callable() {
             Ok(())
         } else {
@@ -247,6 +259,24 @@ mod tests {
 
     fn call(spelling: &str) -> OperandForm {
         OperandForm::Call(target(spelling).id())
+    }
+
+    /// Native and browser: unheld signatures do not become claims about Excel's entry rules.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn unheld_entries_do_not_claim_unmeasured_entry_rules() {
+        let rtd = target("RTD");
+        assert_eq!(rtd.implementation(), crate::Implementation::NotHeld { owner: "dc-snz.23.4" });
+        assert_eq!(rtd.result_form(), ResultForm::Unknown);
+        assert_eq!(rtd.parameter_class(0), None);
+        assert_eq!(rtd.entry_class(0), None);
+        assert_eq!(rtd.check_entry(&[]), Ok(()));
+        assert_eq!(rtd.check_called(), Ok(()));
+
+        let has = target("HAS");
+        assert_eq!(has.availability(), crate::Availability::ListsInCellsBeta);
+        assert_eq!(has.implementation(), crate::Implementation::Deferred { class: crate::Deferral::ListsInCells });
+        assert_eq!(has.check_entry(&[]), Ok(()));
     }
 
     /// Native and browser: the measured COUNTBLANK cases of the module documentation.

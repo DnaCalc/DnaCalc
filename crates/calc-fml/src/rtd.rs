@@ -161,7 +161,7 @@ pub const MAX_TOPIC_STRINGS: usize = 253;
 #[derive(Debug)]
 pub struct RtdFunction;
 
-pub(crate) const RTD_PROVIDER: &str = "calc-fml/rtd";
+pub(crate) use calc_func::RTD_PROVIDER;
 
 impl calc_func::UserFunction for RtdFunction {
     fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {

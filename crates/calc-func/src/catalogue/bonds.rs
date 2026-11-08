@@ -119,13 +119,14 @@ fn coupon_args(
     Ok((settlement, maturity, num(site, a, 2)?, basis(site, a, 3)?))
 }
 
+// 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
 ported_family! {
     code: CODE;
-    1 price_fn "PRICE" (6, 7) [V "settlement", V "maturity", V "rate", V "yld", V "redemption", V "frequency", V "basis"] |s, a, sv| {
+    1 price_fn "PRICE" (6, 7) [V "settlement", V "maturity", V "rate", V "yld", V "redemption", V "frequency", V "basis"] three_d (None, Some(&[]), None); |s, a, sv| {
         let (settlement, maturity) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
         bond_out(s, bond::price_kernel(settlement, maturity, num(s, a, 2)?, num(s, a, 3)?, num(s, a, 4)?, num(s, a, 5)?, Some(or(s, a, 6, 0.0)?)))
     }
-    2 yield_fn "YIELD" (6, 7) [V "settlement", V "maturity", V "rate", V "pr", V "redemption", V "frequency", V "basis"] |s, a, sv| {
+    2 yield_fn "YIELD" (6, 7) [V "settlement", V "maturity", V "rate", V "pr", V "redemption", V "frequency", V "basis"] three_d (None, Some(&[]), None); |s, a, sv| {
         let settlement = yield_date(s, a, 0, sv)?;
         let maturity = yield_date(s, a, 1, sv)?;
         let (rate, price, redemption) = (required_num(s, a, 2)?, required_num(s, a, 3)?, required_num(s, a, 4)?);
@@ -134,27 +135,27 @@ ported_family! {
         let frequency = required_num(s, a, 5)?;
         bond_out(s, bond::yield_kernel(settlement, maturity, rate, price, redemption, frequency, Some(basis)))
     }
-    3 duration_fn "DURATION" (5, 6) [V "settlement", V "maturity", V "coupon", V "yld", V "frequency", V "basis"] |s, a, sv| {
+    3 duration_fn "DURATION" (5, 6) [V "settlement", V "maturity", V "coupon", V "yld", V "frequency", V "basis"] three_d (None, Some(&[]), None); |s, a, sv| {
         let (settlement, maturity) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
         bond_out(s, bond::duration_kernel(settlement, maturity, num(s, a, 2)?, num(s, a, 3)?, num(s, a, 4)?, Some(or(s, a, 5, 0.0)?)))
     }
-    4 mduration_fn "MDURATION" (5, 6) [V "settlement", V "maturity", V "coupon", V "yld", V "frequency", V "basis"] |s, a, sv| {
+    4 mduration_fn "MDURATION" (5, 6) [V "settlement", V "maturity", V "coupon", V "yld", V "frequency", V "basis"] three_d (None, Some(&[]), None); |s, a, sv| {
         let (settlement, maturity) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
         bond_out(s, bond::mduration_kernel(settlement, maturity, num(s, a, 2)?, num(s, a, 3)?, num(s, a, 4)?, Some(or(s, a, 5, 0.0)?)))
     }
-    5 pricemat_fn "PRICEMAT" (5, 6) [V "settlement", V "maturity", V "issue", V "rate", V "yld", V "basis"] |s, a, sv| {
+    5 pricemat_fn "PRICEMAT" (5, 6) [V "settlement", V "maturity", V "issue", V "rate", V "yld", V "basis"] three_d (None, Some(&[]), None); |s, a, sv| {
         let (settlement, maturity, issue) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?, date_1900(s, a, 2, sv)?);
         bond_out(s, bond::pricemat_kernel(settlement, maturity, issue, num(s, a, 3)?, num(s, a, 4)?, Some(or(s, a, 5, 0.0)?)))
     }
-    6 yieldmat_fn "YIELDMAT" (5, 6) [V "settlement", V "maturity", V "issue", V "rate", V "pr", V "basis"] |s, a, sv| {
+    6 yieldmat_fn "YIELDMAT" (5, 6) [V "settlement", V "maturity", V "issue", V "rate", V "pr", V "basis"] three_d (None, Some(&[]), None); |s, a, sv| {
         let (settlement, maturity, issue) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?, date_1900(s, a, 2, sv)?);
         bond_out(s, bond::yieldmat_kernel(settlement, maturity, issue, num(s, a, 3)?, num(s, a, 4)?, Some(or(s, a, 5, 0.0)?)))
     }
-    7 yielddisc_fn "YIELDDISC" (4, 5) [V "settlement", V "maturity", V "pr", V "redemption", V "basis"] |s, a, sv| {
+    7 yielddisc_fn "YIELDDISC" (4, 5) [V "settlement", V "maturity", V "pr", V "redemption", V "basis"] three_d (None, Some(&[]), None); |s, a, sv| {
         let (settlement, maturity) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
         bond_out(s, bond::yielddisc_kernel(settlement, maturity, num(s, a, 2)?, num(s, a, 3)?, Some(or(s, a, 4, 0.0)?)))
     }
-    8 accrint_fn "ACCRINT" (6, 8) [V "issue", V "first_interest", V "settlement", V "rate", V "par", V "frequency", V "basis", V "calc_method"] |s, a, sv| {
+    8 accrint_fn "ACCRINT" (6, 8) [V "issue", V "first_interest", V "settlement", V "rate", V "par", V "frequency", V "basis", V "calc_method"] three_d (None, Some(&[]), None); |s, a, sv| {
         let (issue, first, settlement) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?, date_1900(s, a, 2, sv)?);
         let par = or(s, a, 4, 1000.0)?;
         let calc_method = if given(a, 7) { num(s, a, 7)?.trunc() != 0.0 } else { true };
@@ -162,78 +163,78 @@ ported_family! {
     }
     // ACCRINTM takes 4 or 5 arguments (dc-mx3x, Excel 16.0.20527, 2026-11-07, Formula2 and Formula
     // alike): `=ACCRINTM(B1,B1,B1)` is refused and `=ACCRINTM(B1,B1,B1,B1)` enters.
-    9 accrintm_fn "ACCRINTM" (4, 5) [V "issue", V "settlement", V "rate", V "par", V "basis"] |s, a, sv| {
+    9 accrintm_fn "ACCRINTM" (4, 5) [V "issue", V "settlement", V "rate", V "par", V "basis"] three_d (None, Some(&[3]), None); |s, a, sv| {
         let (issue, settlement) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
         bond_out(s, bond::accrintm_kernel(issue, settlement, num(s, a, 2)?, Some(or(s, a, 3, 1000.0)?), Some(or(s, a, 4, 0.0)?)))
     }
-    10 coupdaybs_fn "COUPDAYBS" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] |s, a, sv| {
+    10 coupdaybs_fn "COUPDAYBS" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] three_d (None, Some(&[0, 1]), Some(&[2, 3])); |s, a, sv| {
         let (settlement, maturity, frequency, b) = coupon_args(s, a, sv)?;
         coupon_out(s, coupon::coupdaybs_kernel(settlement, maturity, frequency, b))
     }
-    11 coupdays_fn "COUPDAYS" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] |s, a, sv| {
+    11 coupdays_fn "COUPDAYS" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] three_d (None, Some(&[0, 1]), Some(&[2, 3])); |s, a, sv| {
         let (settlement, maturity, frequency, b) = coupon_args(s, a, sv)?;
         coupon_out(s, coupon::coupdays_kernel(settlement, maturity, frequency, b))
     }
-    12 coupdaysnc_fn "COUPDAYSNC" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] |s, a, sv| {
+    12 coupdaysnc_fn "COUPDAYSNC" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] three_d (None, Some(&[0, 1]), Some(&[2, 3])); |s, a, sv| {
         let (settlement, maturity, frequency, b) = coupon_args(s, a, sv)?;
         coupon_out(s, coupon::coupdaysnc_kernel(settlement, maturity, frequency, b))
     }
-    13 coupncd_fn "COUPNCD" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] |s, a, sv| {
+    13 coupncd_fn "COUPNCD" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] three_d (None, Some(&[0, 1]), Some(&[2, 3])); |s, a, sv| {
         let (settlement, maturity, frequency, b) = coupon_args(s, a, sv)?;
         date_out(s, sv, coupon::coupncd_kernel(settlement, maturity, frequency, b))
     }
-    14 coupnum_fn "COUPNUM" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] |s, a, sv| {
+    14 coupnum_fn "COUPNUM" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] three_d (None, Some(&[0, 1]), Some(&[2, 3])); |s, a, sv| {
         let (settlement, maturity, frequency, b) = coupon_args(s, a, sv)?;
         coupon_out(s, coupon::coupnum_kernel(settlement, maturity, frequency, b))
     }
-    15 couppcd_fn "COUPPCD" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] |s, a, sv| {
+    15 couppcd_fn "COUPPCD" (3, 4) [V "settlement", V "maturity", V "frequency", V "basis"] three_d (None, Some(&[0, 1]), Some(&[2, 3])); |s, a, sv| {
         let (settlement, maturity, frequency, b) = coupon_args(s, a, sv)?;
         date_out(s, sv, coupon::couppcd_kernel(settlement, maturity, frequency, b))
     }
-    16 disc_fn "DISC" (4, 5) [V "settlement", V "maturity", V "pr", V "redemption", V "basis"] |s, a, sv| {
+    16 disc_fn "DISC" (4, 5) [V "settlement", V "maturity", V "pr", V "redemption", V "basis"] three_d (None, Some(&[]), None); |s, a, sv| {
         let (settlement, maturity) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
         bill_out(s, bill::disc_kernel(settlement, maturity, num(s, a, 2)?, num(s, a, 3)?, basis(s, a, 4)?))
     }
-    17 intrate_fn "INTRATE" (4, 5) [V "settlement", V "maturity", V "investment", V "redemption", V "basis"] |s, a, sv| {
+    17 intrate_fn "INTRATE" (4, 5) [V "settlement", V "maturity", V "investment", V "redemption", V "basis"] three_d (None, Some(&[]), None); |s, a, sv| {
         let (settlement, maturity) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
         bill_out(s, bill::intrate_kernel(settlement, maturity, num(s, a, 2)?, num(s, a, 3)?, basis(s, a, 4)?))
     }
-    18 received_fn "RECEIVED" (4, 5) [V "settlement", V "maturity", V "investment", V "discount", V "basis"] |s, a, sv| {
+    18 received_fn "RECEIVED" (4, 5) [V "settlement", V "maturity", V "investment", V "discount", V "basis"] three_d (None, Some(&[]), None); |s, a, sv| {
         let (settlement, maturity) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
         bill_out(s, bill::received_kernel(settlement, maturity, num(s, a, 2)?, num(s, a, 3)?, basis(s, a, 4)?))
     }
-    19 pricedisc_fn "PRICEDISC" (4, 5) [V "settlement", V "maturity", V "discount", V "redemption", V "basis"] |s, a, sv| {
+    19 pricedisc_fn "PRICEDISC" (4, 5) [V "settlement", V "maturity", V "discount", V "redemption", V "basis"] three_d (None, Some(&[]), None); |s, a, sv| {
         let (settlement, maturity) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
         bill_out(s, bill::pricedisc_kernel(settlement, maturity, num(s, a, 2)?, num(s, a, 3)?, basis(s, a, 4)?))
     }
-    20 tbilleq_fn "TBILLEQ" (3, 3) [V "settlement", V "maturity", V "discount"] |s, a, sv| {
+    20 tbilleq_fn "TBILLEQ" (3, 3) [V "settlement", V "maturity", V "discount"] three_d (None, Some(&[]), None); |s, a, sv| {
         let [settlement, maturity, rate] = bill_arguments(s, a, sv)?;
         bill_out(s, bill::tbilleq_kernel(settlement, maturity, rate))
     }
-    21 tbillprice_fn "TBILLPRICE" (3, 3) [V "settlement", V "maturity", V "discount"] |s, a, sv| {
+    21 tbillprice_fn "TBILLPRICE" (3, 3) [V "settlement", V "maturity", V "discount"] three_d (None, Some(&[]), None); |s, a, sv| {
         let [settlement, maturity, rate] = bill_arguments(s, a, sv)?;
         bill_out(s, bill::tbillprice_kernel(settlement, maturity, rate))
     }
-    22 tbillyield_fn "TBILLYIELD" (3, 3) [V "settlement", V "maturity", V "pr"] |s, a, sv| {
+    22 tbillyield_fn "TBILLYIELD" (3, 3) [V "settlement", V "maturity", V "pr"] three_d (None, Some(&[]), None); |s, a, sv| {
         let [settlement, maturity, rate] = bill_arguments(s, a, sv)?;
         bill_out(s, bill::tbillyield_kernel(settlement, maturity, rate))
     }
-    23 oddfprice_fn "ODDFPRICE" (8, 9) [V "settlement", V "maturity", V "issue", V "first_coupon", V "rate", V "yld", V "redemption", V "frequency", V "basis"] |s, a, sv| {
+    23 oddfprice_fn "ODDFPRICE" (8, 9) [V "settlement", V "maturity", V "issue", V "first_coupon", V "rate", V "yld", V "redemption", V "frequency", V "basis"] three_d (None, Some(&[]), None); |s, a, sv| {
         let dates = [date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?, date_1900(s, a, 2, sv)?, date_1900(s, a, 3, sv)?];
         odd_out(s, odd::oddfprice_kernel(dates[0], dates[1], dates[2], dates[3], num(s, a, 4)?, num(s, a, 5)?, num(s, a, 6)?, num(s, a, 7)?, basis(s, a, 8)?))
     }
-    24 oddfyield_fn "ODDFYIELD" (8, 9) [V "settlement", V "maturity", V "issue", V "first_coupon", V "rate", V "pr", V "redemption", V "frequency", V "basis"] |s, a, sv| {
+    24 oddfyield_fn "ODDFYIELD" (8, 9) [V "settlement", V "maturity", V "issue", V "first_coupon", V "rate", V "pr", V "redemption", V "frequency", V "basis"] three_d (None, Some(&[]), None); |s, a, sv| {
         let dates = [yield_date(s, a, 0, sv)?, yield_date(s, a, 1, sv)?, yield_date(s, a, 2, sv)?, yield_date(s, a, 3, sv)?];
         let (rate, price, redemption, frequency) = (required_num(s, a, 4)?, required_num(s, a, 5)?, required_num(s, a, 6)?, required_num(s, a, 7)?);
         // ODDFYIELD keeps frequency before basis, unlike YIELD.
         let basis = if a.len() > 8 { Some(num_without_logical(s, a, 8)?) } else { None };
         odd_out(s, odd::oddfyield_kernel(dates[0], dates[1], dates[2], dates[3], rate, price, redemption, frequency, basis))
     }
-    25 oddlprice_fn "ODDLPRICE" (7, 8) [V "settlement", V "maturity", V "last_interest", V "rate", V "yld", V "redemption", V "frequency", V "basis"] |s, a, sv| {
+    25 oddlprice_fn "ODDLPRICE" (7, 8) [V "settlement", V "maturity", V "last_interest", V "rate", V "yld", V "redemption", V "frequency", V "basis"] three_d (None, Some(&[]), None); |s, a, sv| {
         let dates = [date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?, date_1900(s, a, 2, sv)?];
         odd_out(s, odd::oddlprice_kernel(dates[0], dates[1], dates[2], num(s, a, 3)?, num(s, a, 4)?, num(s, a, 5)?, num(s, a, 6)?, basis(s, a, 7)?))
     }
-    26 oddlyield_fn "ODDLYIELD" (7, 8) [V "settlement", V "maturity", V "last_interest", V "rate", V "pr", V "redemption", V "frequency", V "basis"] |s, a, sv| {
+    26 oddlyield_fn "ODDLYIELD" (7, 8) [V "settlement", V "maturity", V "last_interest", V "rate", V "pr", V "redemption", V "frequency", V "basis"] three_d (None, Some(&[]), None); |s, a, sv| {
         let dates = [date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?, date_1900(s, a, 2, sv)?];
         odd_out(s, odd::oddlyield_kernel(dates[0], dates[1], dates[2], num(s, a, 3)?, num(s, a, 4)?, num(s, a, 5)?, num(s, a, 6)?, basis(s, a, 7)?))
     }

@@ -28,7 +28,6 @@
 //! parameter, `_xlfn.SINGLE(x)` for `@x` and `_xlfn.ANCHORARRAY(x)` for `x#` (OxFml's
 //! `binding/excel_prefix.rs`, measured on Excel 16.0 on 2026-09-15).
 
-use super::builtins::is_builtin;
 use super::entry::{GrammarRule, Rejection, check_entry};
 use super::legacy::Place;
 use super::{
@@ -421,6 +420,19 @@ type Site = (Result<ReferenceOperand, BindError>, bool);
 
 type Sites = HashMap<TextSpan, Site>;
 
+#[derive(Clone, Copy)]
+enum Position { Call, Value }
+
+enum Resolved {
+    BuiltIn(calc_func::FunctionCallTarget<'static>),
+    Local(u32),
+    Defined(NameDefinition),
+    Table(TableLookup),
+    Registered(crate::CallableHandle),
+    Reference,
+    Unknown,
+}
+
 fn sites(
     tree: &SyntaxTree,
     notation: ReferenceNotation,
@@ -514,6 +526,30 @@ enum Task<'t> {
 }
 
 impl<'c> Lowering<'c> {
+    /// Resolve one name through the catalogue and the caller-owned layers in Excel's order.
+    fn resolve(&mut self, text: &str, position: Position, span: TextSpan) -> Resolved {
+        let function = catalogue().resolve_surface(Notation::Call, file_function(text)).ok();
+        if matches!(position, Position::Call) {
+            if let Some(target) = function { return Resolved::BuiltIn(target); }
+            if file_unprefixed(text).len() != text.len() { return Resolved::Unknown; }
+            if self.sites.contains_key(&span) { return Resolved::Reference; }
+        }
+        if let Some(slot) = self.local(&parameter_key(text)) { return Resolved::Local(slot); }
+        let scope = NameScope::Formula(self.name_context.lookup_sheet());
+        let definition = self.lookup_name(text, scope, span);
+        if !matches!(definition, NameDefinition::Unknown) { return Resolved::Defined(definition); }
+        if matches!(position, Position::Value) {
+            let table = self.catalog.table(text);
+            if matches!(table, TableLookup::Found(_)) { return Resolved::Table(table); }
+        }
+        if matches!(position, Position::Call) { self.watch_callable(None, text); }
+        if let Some(handle) = self.functions.and_then(|functions| functions.bind(None, text)) { return Resolved::Registered(handle); }
+        if matches!(position, Position::Value) && !self.loaded {
+            if let Some(target) = function { return Resolved::BuiltIn(target); }
+        }
+        Resolved::Unknown
+    }
+
     /// The local slot the next name brought into scope takes.
     fn depth(&self) -> u32 {
         u32::try_from(self.scope.len() - self.floor).expect("fewer than 2^32 locals")
@@ -653,24 +689,20 @@ impl<'c> Lowering<'c> {
                         // name, or of any bare name, is #VALUE! there, and one named like a
                         // built-in shadows it. A file stores the value as `_xleta.SUM`, so a
                         // bare identifier of a loaded formula stays a name.
-                        if !self.loaded
-                            && matches!(
-                                self.lookup_name(text, scope, span),
-                                NameDefinition::Unknown
-                            )
-                            && !matches!(self.catalog.table(text), TableLookup::Found(_))
-                        {
-                            if self.functions.is_some_and(|f| f.contains(text)) {
-                                self.blocks[block].push(Instruction::Literal(Literal::Error(
-                                    WorksheetErrorCode::Value,
-                                )));
-                                return Ok(());
-                            }
-                            if let Ok(target) =
-                                catalogue().resolve_surface(Notation::Call, text)
-                            {
-                                self.blocks[block].push(Instruction::Function(Target(target)));
-                                return Ok(());
+                        if !self.loaded {
+                            match self.resolve(text, Position::Value, span) {
+                                Resolved::Registered(_) => {
+                                    self.blocks[block].push(Instruction::Literal(Literal::Error(
+                                        WorksheetErrorCode::Value,
+                                    )));
+                                    return Ok(());
+                                }
+                                Resolved::BuiltIn(target) => {
+                                    self.blocks[block].push(Instruction::Function(Target(target)));
+                                    return Ok(());
+                                }
+                                Resolved::Table(table) => { debug_assert!(matches!(table, TableLookup::Found(_))); }
+                                _ => {}
                             }
                         }
                         self.defined_name(text, scope, span, block)?;
@@ -1007,17 +1039,14 @@ impl<'c> Lowering<'c> {
             }
             None => {}
         }
-        if prefixed
-            && (spelling.eq_ignore_ascii_case("SINGLE")
-                || spelling.eq_ignore_ascii_case("ANCHORARRAY"))
-        {
+        if let (true, Some(operator)) = (prefixed, catalogue().resolve_operator_alias(spelling)) {
             let [operand] = arguments[..] else {
                 return Err(syntax(span));
             };
-            let instruction = if spelling.eq_ignore_ascii_case("SINGLE") {
-                Instruction::Implicit
-            } else {
-                Instruction::Spill
+            let instruction = match operator.notation() {
+                Notation::Prefix => Instruction::Implicit,
+                Notation::Postfix => Instruction::Spill,
+                _ => return Err(syntax(span)),
             };
             tasks.push(Task::Emit { block, instruction });
             tasks.push(Task::Lower {
@@ -1071,10 +1100,11 @@ impl<'c> Lowering<'c> {
             });
             return Ok(());
         }
-        let target = match call_target(name) {
-            Ok(target) => target,
-            Err(unknown) => {
-                return self.named_call(name, unknown, &arguments, block, tasks);
+        let resolved = self.resolve(name.text(), Position::Call, name.span());
+        let target = match resolved {
+            Resolved::BuiltIn(target) => Target(target),
+            other => {
+                return self.named_call(name, unknown(name.span(), name.text().to_owned()), other, &arguments, block, tasks);
             }
         };
         if self.loaded && unknown_on_load(name.text(), target) {
@@ -1099,9 +1129,10 @@ impl<'c> Lowering<'c> {
             });
         }
         let spelled = target.0.spelling();
-        if calc_func::FETCH_FUNCTIONS.contains(&spelled) {
-            // A host's fetch route takes these names; a change of route rebinds this plan.
-            let provider = calc_func::FETCH_PROVIDER;
+        if let calc_func::EntryKind::HostRoute { provider, route } = target.0.kind()
+            && (route != calc_func::HostRouteKind::Rtd || !prefixed)
+        {
+            // A change of the host route rebinds this plan.
             self.watch_callable(Some(provider), spelled);
             if self
                 .functions
@@ -1120,6 +1151,8 @@ impl<'c> Lowering<'c> {
                 return Ok(());
             }
         }
+        // A host route without its provider, or a deferred built-in, is a typed refusal.
+        let target = call_target(name)?;
         let demand = target.0.argument_demand();
         let lazy = demand.is_lazy();
         let value_place = place.argument(spelled, 0, Some(ParameterClass::Value), lazy);
@@ -1127,7 +1160,7 @@ impl<'c> Lowering<'c> {
         let mut three_d: Vec<Option<Vec<Instruction>>> = Vec::with_capacity(argc);
         for (index, argument) in arguments.iter().enumerate() {
             match self
-                .three_d_argument(argument, spelled, index, !lazy)
+                .three_d_argument(argument, target, index, !lazy)
                 .transpose()?
             {
                 Some(ThreeD::CallIs(code)) => {
@@ -1148,7 +1181,7 @@ impl<'c> Lowering<'c> {
             // as the first matching node, rather than the sum of all nodes.
             if self.form == FormulaForm::Legacy
                 && place != Place::Array
-                && matches!(spelled, "ROW" | "COLUMN" | "FILTERXML")
+                && target.0.traits().intersect_legacy_result
             {
                 tasks.push(Task::Emit {
                     block,
@@ -1249,37 +1282,17 @@ impl<'c> Lowering<'c> {
         &mut self,
         name: &Token,
         unknown: CompileError,
+        resolved: Resolved,
         arguments: &[&'t SyntaxNode],
         block: usize,
         tasks: &mut Vec<Task<'t>>,
     ) -> Result<(), CompileError> {
         let spelling = file_unprefixed(name.text());
-        if spelling.eq_ignore_ascii_case("RTD") && spelling.len() == name.text().len() {
-            // The built-in RTD is the owner's, registered with its RTD connector (dc-snz.23.4);
-            // a change of registration rebinds this plan.
-            let provider = crate::rtd::RTD_PROVIDER;
-            self.watch_callable(Some(provider), "RTD");
-            if self
-                .functions
-                .is_some_and(|f| f.contains_for(Some(provider), "RTD"))
-            {
-                self.user_call(
-                    "RTD",
-                    Some(UserFunctionSource {
-                        book: ExternalBookRef::Number(0),
-                        target: Some(provider.to_owned()),
-                    }),
-                    arguments,
-                    block,
-                    tasks,
-                );
-                return Ok(());
-            }
-        }
-        if is_builtin(spelling) || spelling.len() != name.text().len() {
+        if spelling.len() != name.text().len() {
             return Err(unknown);
         }
-        if let Some((operand, this_row)) = self.sites.remove(&name.span()) {
+        if let Resolved::Reference = resolved {
+            let (operand, this_row) = self.sites.remove(&name.span()).expect("the resolved reference");
             // Use the existing reference invocation route: it produces #REF!
             // without looking up a same-spelled VBA procedure or dereferencing
             // a cell to seek a closure. Keep the ordinary argument lowering.
@@ -1288,16 +1301,11 @@ impl<'c> Lowering<'c> {
                 error,
             })?;
             self.push_reference(operand, this_row, block);
-        } else if let Some(slot) = self.local(&parameter_key(name.text())) {
+        } else if let Resolved::Local(slot) = resolved {
             self.blocks[block].push(Instruction::Local(slot));
         } else {
-            let scope = NameScope::Formula(self.name_context.lookup_sheet());
-            let definition = self.lookup_name(name.text(), scope, name.span());
-            if matches!(&definition, NameDefinition::Unknown) {
-                self.watch_callable(None, spelling);
-            }
-            match definition {
-                NameDefinition::Formula(definition) => {
+            match resolved {
+                Resolved::Defined(NameDefinition::Formula(definition)) => {
                     let name_block = self.name_block(name.text(), &definition, name.span())?;
                     self.blocks[block].push(Instruction::Name(name_block));
                 }
@@ -1305,11 +1313,12 @@ impl<'c> Lowering<'c> {
                 // own (Excel 16.0, 2026-10-23: `=FOO(1)` is #NAME? and `=IFERROR(FOO(1),3)` is
                 // 3); else a VBA or add-in function might have the name, and the call is refused.
                 // The arguments are not evaluated: Excel's #NAME? comes from the name alone.
-                NameDefinition::Unknown if self.functions.is_some_and(|f| f.contains(spelling)) => {
+                Resolved::Registered(handle) => {
+                    debug_assert_eq!(self.functions.and_then(|functions| functions.bind(None, spelling)), Some(handle));
                     self.user_call(spelling, None, arguments, block, tasks);
                     return Ok(());
                 }
-                NameDefinition::Unknown
+                Resolved::Unknown
                     if self.complete_registry || self.catalog.unknown_calls_are_names() =>
                 {
                     self.blocks[block].push(Instruction::Literal(Literal::Error(
@@ -1317,7 +1326,7 @@ impl<'c> Lowering<'c> {
                     )));
                     return Ok(());
                 }
-                NameDefinition::Unknown | NameDefinition::NotModelled => return Err(unknown),
+                _ => return Err(unknown),
             }
         }
         tasks.push(Task::Emit {
@@ -1461,13 +1470,11 @@ impl<'c> Lowering<'c> {
                 NameDefinition::Unknown => {}
             }
         }
-        if target.as_deref().is_some_and(|target| {
-            is_euro_tool(target) && name.text().eq_ignore_ascii_case("EUROCONVERT")
-        }) {
+        if let Some(addin) = target.as_deref().and_then(|library| catalogue().resolve_addin(library, name.text())) {
             tasks.push(Task::Emit {
                 block,
                 instruction: Instruction::Call {
-                    target: Target(catalogue().euro_tool_call()),
+                    target: Target(addin),
                     argc: arguments.len(),
                     retain: false,
                     synthetic: false,
@@ -1916,7 +1923,7 @@ impl<'c> Lowering<'c> {
     fn three_d_argument(
         &mut self,
         node: &SyntaxNode,
-        spelling: &str,
+        target: Target,
         index: usize,
         may_spread: bool,
     ) -> Option<Result<ThreeD, CompileError>> {
@@ -1929,21 +1936,16 @@ impl<'c> Lowering<'c> {
         };
         let shape = operand.shape;
         self.sites.remove(&span);
-        let name = strip_prefixes(spelling);
-        let at = |table: &[(&str, &[usize])]| {
-            table.iter().any(|(listed, positions)| {
-                listed.eq_ignore_ascii_case(name) && holds_position(positions, index)
-            })
-        };
-        if at(THREE_D_VALUE) {
+        let place = target.0.three_d_place(index);
+        if place == calc_func::ThreeDPlace::ValueError {
             return Some(Ok(ThreeD::CallIs(WorksheetErrorCode::Value)));
         }
-        if at(THREE_D_REF) {
+        if place == calc_func::ThreeDPlace::ReferenceError {
             return Some(Ok(ThreeD::Arguments(vec![Instruction::Literal(
                 Literal::Error(WorksheetErrorCode::Ref),
             )])));
         }
-        if !at(THREE_D_TAKEN) {
+        if place == calc_func::ThreeDPlace::Unknown {
             return Some(Err(unsupported(
                 span,
                 "a 3-D reference given to a function whose handling of it is not measured",
@@ -1967,10 +1969,7 @@ impl<'c> Lowering<'c> {
         // A function that reads every argument alike (SUM's numbers, CONCAT's texts, NPV's values
         // after its rate) reads a 3-D reference there as one argument per sheet, in sheet order;
         // any other is given the reference across its sheets.
-        let spreads = may_spread
-            && THREE_D_TAKEN.iter().any(|(listed, positions)| {
-                listed.eq_ignore_ascii_case(name) && in_tail(positions, index)
-            });
+        let spreads = may_spread && place == calc_func::ThreeDPlace::Spread;
         Some(Ok(ThreeD::Arguments(if spreads {
             (start..start + sheets.len())
                 .map(Instruction::Reference)
@@ -1990,603 +1989,6 @@ enum ThreeD {
     Arguments(Vec<Instruction>),
     /// The call's result is this error, whatever its other arguments.
     CallIs(WorksheetErrorCode),
-}
-
-/// How Excel 16.0.20430 treats a 3-D reference given as each argument of each function, measured
-/// through COM on 2026-10-25 (dc-10y): sheets Ja, Fe and Ma holding 1, 2 and 3 in A1, and for each
-/// function of the catalogue and each of its first argument positions (up to four), the call with
-/// `Ja:Ma!A1` there and the call with `#REF!` there, every other argument 1 (a reference to
-/// A1:A3 where a parameter takes only a reference), entered through `Range.Formula`. Where the two
-/// gave one value, the 3-D reference is the error #REF! there ([`THREE_D_REF`]); where the 3-D
-/// call gave #VALUE! and the other did not, the call is #VALUE! ([`THREE_D_VALUE`]); where it gave
-/// another value, the function takes the reference across its sheets ([`THREE_D_TAKEN`]). Where
-/// the two calls gave one value that is not an error and does not show the argument was read (an
-/// IF branch not taken, a criteria matching nothing), and where Excel refused to enter both, the
-/// position is not measured and a 3-D reference there is refused. The 18 functions of Microsoft's
-/// "Create a 3-D reference" page are among those that take one. dc-10y's oracle workbook holds a
-/// cell for every measured position (sheet ThreeD).
-///
-/// A position list names the argument positions (none: every argument); [`TAIL`] after a position
-/// extends it to every later one, as a function's repeating last parameter takes them.
-const THREE_D_TAKEN: &[(&str, &[usize])] = &[
-    ("AND", &[]),
-    ("AVEDEV", &[]),
-    ("AVERAGE", &[]),
-    ("AVERAGEA", &[]),
-    ("CONCAT", &[]),
-    ("COUNT", &[]),
-    ("COUNTA", &[]),
-    ("DEVSQ", &[]),
-    ("FREQUENCY", &[0, 1]),
-    ("GEOMEAN", &[]),
-    ("HARMEAN", &[]),
-    ("HSTACK", &[]),
-    ("KURT", &[]),
-    ("LARGE", &[0]),
-    ("MAX", &[]),
-    ("MAXA", &[]),
-    ("MEDIAN", &[]),
-    ("MIN", &[]),
-    ("MINA", &[]),
-    ("MIRR", &[0]),
-    ("NPV", &[1, TAIL]),
-    ("OR", &[]),
-    ("PERCENTILE", &[0]),
-    ("PERCENTILE.EXC", &[0]),
-    ("PERCENTILE.INC", &[0]),
-    ("PERCENTRANK", &[0]),
-    ("PERCENTRANK.EXC", &[0]),
-    ("PERCENTRANK.INC", &[0]),
-    ("PRODUCT", &[]),
-    ("QUARTILE", &[0]),
-    ("QUARTILE.EXC", &[0]),
-    ("QUARTILE.INC", &[0]),
-    ("RANK", &[1]),
-    ("RANK.AVG", &[1]),
-    ("RANK.EQ", &[1]),
-    ("SHEET", &[0]),
-    ("SHEETS", &[0]),
-    ("SKEW", &[]),
-    ("SKEW.P", &[]),
-    ("SMALL", &[0]),
-    ("STDEV", &[]),
-    ("STDEV.P", &[]),
-    ("STDEV.S", &[]),
-    ("STDEVA", &[]),
-    ("STDEVP", &[]),
-    ("STDEVPA", &[]),
-    ("SUM", &[]),
-    ("SUMSQ", &[]),
-    ("TEXTJOIN", &[0, 2, TAIL]),
-    ("TOCOL", &[0]),
-    ("TOROW", &[0]),
-    ("TRIMMEAN", &[0]),
-    ("VAR", &[]),
-    ("VAR.P", &[]),
-    ("VAR.S", &[]),
-    ("VARA", &[]),
-    ("VARP", &[]),
-    ("VARPA", &[]),
-    ("VSTACK", &[]),
-    ("XOR", &[]),
-    ("Z.TEST", &[0]),
-    ("ZTEST", &[0]),
-];
-
-/// The end of a position list that runs on to every later argument ([`THREE_D_TAKEN`]).
-const TAIL: usize = usize::MAX;
-
-/// The functions whose call is #VALUE! for a 3-D reference argument at these positions
-/// ([`THREE_D_TAKEN`] says how each was measured): `=INDEX(Ja:Ma!A1,1)`, `=ROWS(Ja:Ma!A1:B2)`,
-/// `=COUNTIF(Ja:Ma!A1,">0")` and the others below.
-const THREE_D_VALUE: &[(&str, &[usize])] = &[
-    ("ACCRINT", &[]),
-    ("ACCRINTM", &[3]),
-    ("AGGREGATE", &[2, TAIL]),
-    ("AMORDEGRC", &[]),
-    ("AMORLINC", &[]),
-    ("AREAS", &[]),
-    ("AVERAGEIF", &[0, 2]),
-    ("AVERAGEIFS", &[0, 1]),
-    ("BESSELI", &[]),
-    ("BESSELJ", &[]),
-    ("BESSELK", &[]),
-    ("BESSELY", &[]),
-    ("BIN2DEC", &[]),
-    ("BIN2HEX", &[]),
-    ("BIN2OCT", &[]),
-    ("BYCOL", &[0]),
-    ("BYROW", &[0]),
-    ("CHOOSECOLS", &[0]),
-    ("CHOOSEROWS", &[0]),
-    ("COLUMN", &[]),
-    ("COLUMNS", &[]),
-    ("COMPLEX", &[]),
-    ("CONVERT", &[]),
-    ("COUNTBLANK", &[]),
-    ("COUNTIF", &[0]),
-    ("COUNTIFS", &[0]),
-    ("COUPDAYBS", &[0, 1]),
-    ("COUPDAYS", &[0, 1]),
-    ("COUPDAYSNC", &[0, 1]),
-    ("COUPNCD", &[0, 1]),
-    ("COUPNUM", &[0, 1]),
-    ("COUPPCD", &[0, 1]),
-    ("CUMIPMT", &[]),
-    ("CUMPRINC", &[]),
-    ("DAVERAGE", &[0]),
-    ("DCOUNT", &[0]),
-    ("DCOUNTA", &[0]),
-    ("DEC2BIN", &[]),
-    ("DEC2HEX", &[]),
-    ("DEC2OCT", &[]),
-    ("DELTA", &[]),
-    ("DGET", &[0]),
-    ("DISC", &[]),
-    ("DMAX", &[0]),
-    ("DMIN", &[0]),
-    ("DOLLARDE", &[]),
-    ("DOLLARFR", &[]),
-    ("DPRODUCT", &[0]),
-    ("DROP", &[0]),
-    ("DSTDEV", &[0]),
-    ("DSTDEVP", &[0]),
-    ("DSUM", &[0]),
-    ("DURATION", &[]),
-    ("DVAR", &[0]),
-    ("DVARP", &[0]),
-    ("EDATE", &[]),
-    ("EFFECT", &[]),
-    ("EOMONTH", &[]),
-    ("ERF", &[]),
-    ("ERF.PRECISE", &[]),
-    ("ERFC", &[]),
-    ("ERFC.PRECISE", &[]),
-    ("FACTDOUBLE", &[]),
-    ("FILTER", &[0, 1]),
-    ("FORMULATEXT", &[]),
-    ("FVSCHEDULE", &[]),
-    ("GCD", &[]),
-    ("GESTEP", &[]),
-    ("GROWTH", &[]),
-    ("HEX2BIN", &[]),
-    ("HEX2DEC", &[]),
-    ("HEX2OCT", &[]),
-    ("HLOOKUP", &[1]),
-    ("IFS", &[1]),
-    ("IMABS", &[]),
-    ("IMAGINARY", &[]),
-    ("IMARGUMENT", &[]),
-    ("IMCONJUGATE", &[]),
-    ("IMCOS", &[]),
-    ("IMCOSH", &[]),
-    ("IMCOT", &[]),
-    ("IMCSC", &[]),
-    ("IMCSCH", &[]),
-    ("IMDIV", &[]),
-    ("IMEXP", &[]),
-    ("IMLN", &[]),
-    ("IMLOG10", &[]),
-    ("IMLOG2", &[]),
-    ("IMPOWER", &[]),
-    ("IMPRODUCT", &[]),
-    ("IMREAL", &[]),
-    ("IMSEC", &[]),
-    ("IMSECH", &[]),
-    ("IMSIN", &[]),
-    ("IMSINH", &[]),
-    ("IMSQRT", &[]),
-    ("IMSUB", &[]),
-    ("IMSUM", &[]),
-    ("IMTAN", &[]),
-    ("INDEX", &[0]),
-    ("INTRATE", &[]),
-    ("IRR", &[0]),
-    ("ISEVEN", &[]),
-    ("ISFORMULA", &[]),
-    ("ISODD", &[]),
-    ("LCM", &[]),
-    ("LINEST", &[]),
-    ("LOGEST", &[]),
-    ("LOOKUP", &[1, 2]),
-    ("MAP", &[0]),
-    ("MATCH", &[1, 2]),
-    ("MAXIFS", &[0, 1]),
-    ("MDURATION", &[]),
-    ("MINIFS", &[0, 1]),
-    ("MROUND", &[]),
-    ("MULTINOMIAL", &[]),
-    ("N", &[]),
-    ("NETWORKDAYS", &[]),
-    ("NETWORKDAYS.INTL", &[0, 1]),
-    ("NOMINAL", &[]),
-    ("OCT2BIN", &[]),
-    ("OCT2DEC", &[]),
-    ("OCT2HEX", &[]),
-    ("ODDFPRICE", &[]),
-    ("ODDFYIELD", &[]),
-    ("ODDLPRICE", &[]),
-    ("ODDLYIELD", &[]),
-    ("OFFSET", &[0]),
-    ("PHONETIC", &[]),
-    ("PRICE", &[]),
-    ("PRICEDISC", &[]),
-    ("PRICEMAT", &[]),
-    ("QUOTIENT", &[]),
-    ("RECEIVED", &[]),
-    ("REDUCE", &[1]),
-    ("ROW", &[]),
-    ("ROWS", &[]),
-    ("SCAN", &[1]),
-    ("SERIESSUM", &[]),
-    ("SQRTPI", &[]),
-    ("SUBTOTAL", &[1, TAIL]),
-    ("SUMIF", &[0, 2]),
-    ("SUMIFS", &[0, 1]),
-    ("SWITCH", &[2]),
-    ("T", &[]),
-    ("TAKE", &[0]),
-    ("TBILLEQ", &[]),
-    ("TBILLPRICE", &[]),
-    ("TBILLYIELD", &[]),
-    ("TREND", &[]),
-    ("VLOOKUP", &[1]),
-    ("WEEKNUM", &[]),
-    ("WORKDAY", &[]),
-    ("WORKDAY.INTL", &[0, 1]),
-    ("XIRR", &[]),
-    ("XLOOKUP", &[1, 2]),
-    ("XMATCH", &[1]),
-    ("XNPV", &[]),
-    ("YEARFRAC", &[]),
-    ("YIELD", &[]),
-    ("YIELDDISC", &[]),
-    ("YIELDMAT", &[]),
-];
-
-/// The functions to which a 3-D reference at these positions is the error #REF! ([`THREE_D_TAKEN`]
-/// says how each was measured): `=ABS(Ja:Ma!A1)` and `=SUMPRODUCT(..)` #REF!,
-/// `=IFERROR(Ja:Ma!A1,"e")` "e", `=ISERROR(..)` TRUE, `=ISREF(..)` FALSE, and the others below.
-const THREE_D_REF: &[(&str, &[usize])] = &[
-    ("ABS", &[]),
-    ("ACOS", &[]),
-    ("ACOSH", &[]),
-    ("ACOT", &[]),
-    ("ACOTH", &[]),
-    ("ADDRESS", &[]),
-    ("AGGREGATE", &[0, 1]),
-    ("ARABIC", &[]),
-    ("ARRAYTOTEXT", &[]),
-    ("ASC", &[]),
-    ("ASIN", &[]),
-    ("ASINH", &[]),
-    ("ATAN", &[]),
-    ("ATAN2", &[]),
-    ("ATANH", &[]),
-    ("AVERAGEIF", &[1]),
-    ("AVERAGEIFS", &[2]),
-    ("BAHTTEXT", &[]),
-    ("BASE", &[]),
-    ("BETA.DIST", &[]),
-    ("BETA.INV", &[]),
-    ("BETADIST", &[]),
-    ("BETAINV", &[]),
-    ("BINOM.DIST", &[]),
-    ("BINOM.DIST.RANGE", &[]),
-    ("BINOM.INV", &[]),
-    ("BINOMDIST", &[]),
-    ("BITAND", &[]),
-    ("BITLSHIFT", &[]),
-    ("BITOR", &[]),
-    ("BITRSHIFT", &[]),
-    ("BITXOR", &[]),
-    ("BYCOL", &[1]),
-    ("BYROW", &[1]),
-    ("CEILING", &[]),
-    ("CEILING.MATH", &[]),
-    ("CEILING.PRECISE", &[]),
-    ("CHAR", &[]),
-    ("CHIDIST", &[]),
-    ("CHIINV", &[]),
-    ("CHISQ.DIST", &[]),
-    ("CHISQ.DIST.RT", &[]),
-    ("CHISQ.INV", &[]),
-    ("CHISQ.INV.RT", &[]),
-    ("CHISQ.TEST", &[]),
-    ("CHITEST", &[]),
-    ("CHOOSE", &[0, 1]),
-    ("CHOOSECOLS", &[1, TAIL]),
-    ("CHOOSEROWS", &[1, TAIL]),
-    ("CLEAN", &[]),
-    ("CODE", &[]),
-    ("COMBIN", &[]),
-    ("COMBINA", &[]),
-    ("CONCATENATE", &[]),
-    ("CONFIDENCE", &[]),
-    ("CONFIDENCE.NORM", &[]),
-    ("CONFIDENCE.T", &[]),
-    ("CORREL", &[]),
-    ("COS", &[]),
-    ("COSH", &[]),
-    ("COT", &[]),
-    ("COTH", &[]),
-    ("COUPDAYBS", &[2, 3]),
-    ("COUPDAYS", &[2, 3]),
-    ("COUPDAYSNC", &[2, 3]),
-    ("COUPNCD", &[2, 3]),
-    ("COUPNUM", &[2, 3]),
-    ("COUPPCD", &[2, 3]),
-    ("COVAR", &[]),
-    ("COVARIANCE.P", &[]),
-    ("COVARIANCE.S", &[]),
-    ("CRITBINOM", &[]),
-    ("CSC", &[]),
-    ("CSCH", &[]),
-    ("DATE", &[]),
-    ("DATEDIF", &[]),
-    ("DATEVALUE", &[]),
-    ("DAY", &[]),
-    ("DAYS", &[]),
-    ("DAYS360", &[]),
-    ("DB", &[]),
-    ("DBCS", &[]),
-    ("DDB", &[]),
-    ("DECIMAL", &[]),
-    ("DEGREES", &[]),
-    ("DOLLAR", &[]),
-    ("DROP", &[1, 2]),
-    ("ERROR.TYPE", &[]),
-    ("EVEN", &[]),
-    ("EXACT", &[]),
-    ("EXP", &[]),
-    ("EXPAND", &[]),
-    ("EXPON.DIST", &[]),
-    ("EXPONDIST", &[]),
-    ("F.DIST", &[]),
-    ("F.DIST.RT", &[]),
-    ("F.INV", &[]),
-    ("F.INV.RT", &[]),
-    ("F.TEST", &[]),
-    ("FACT", &[]),
-    ("FDIST", &[]),
-    ("FIND", &[]),
-    ("FINDB", &[]),
-    ("FINV", &[]),
-    ("FISHER", &[]),
-    ("FISHERINV", &[]),
-    ("FIXED", &[]),
-    ("FLOOR", &[]),
-    ("FLOOR.MATH", &[]),
-    ("FLOOR.PRECISE", &[]),
-    ("FORECAST", &[]),
-    ("FORECAST.LINEAR", &[]),
-    ("FTEST", &[]),
-    ("FV", &[]),
-    ("GAMMA", &[]),
-    ("GAMMA.DIST", &[]),
-    ("GAMMA.INV", &[]),
-    ("GAMMADIST", &[]),
-    ("GAMMAINV", &[]),
-    ("GAMMALN", &[]),
-    ("GAMMALN.PRECISE", &[]),
-    ("GAUSS", &[]),
-    ("HLOOKUP", &[0, 2, 3]),
-    ("HOUR", &[]),
-    ("HYPGEOM.DIST", &[]),
-    ("HYPGEOMDIST", &[]),
-    ("IF", &[0, 1]),
-    ("IFERROR", &[0]),
-    ("IFNA", &[0]),
-    ("IFS", &[0]),
-    ("INDEX", &[1, TAIL]),
-    ("INDIRECT", &[]),
-    ("INT", &[]),
-    ("INTERCEPT", &[]),
-    ("IPMT", &[]),
-    ("IRR", &[1]),
-    ("ISBLANK", &[]),
-    ("ISERR", &[]),
-    ("ISERROR", &[]),
-    ("ISLOGICAL", &[]),
-    ("ISNA", &[]),
-    ("ISNONTEXT", &[]),
-    ("ISNUMBER", &[]),
-    ("ISO.CEILING", &[]),
-    ("ISOMITTED", &[]),
-    ("ISOWEEKNUM", &[]),
-    ("ISPMT", &[]),
-    ("ISREF", &[]),
-    ("ISTEXT", &[]),
-    ("LARGE", &[1]),
-    ("LEFT", &[]),
-    ("LEFTB", &[]),
-    ("LEN", &[]),
-    ("LENB", &[]),
-    ("LN", &[]),
-    ("LOG", &[]),
-    ("LOG10", &[]),
-    ("LOGINV", &[]),
-    ("LOGNORM.DIST", &[]),
-    ("LOGNORM.INV", &[]),
-    ("LOGNORMDIST", &[]),
-    ("LOOKUP", &[0]),
-    ("LOWER", &[]),
-    ("MAKEARRAY", &[]),
-    ("MAP", &[1, TAIL]),
-    ("MATCH", &[0]),
-    ("MDETERM", &[]),
-    ("MID", &[]),
-    ("MIDB", &[]),
-    ("MINUTE", &[]),
-    ("MINVERSE", &[]),
-    ("MIRR", &[1, 2]),
-    ("MMULT", &[]),
-    ("MOD", &[]),
-    ("MODE", &[]),
-    ("MODE.MULT", &[]),
-    ("MODE.SNGL", &[]),
-    ("MONTH", &[]),
-    ("MUNIT", &[]),
-    ("NEGBINOM.DIST", &[]),
-    ("NEGBINOMDIST", &[]),
-    ("NETWORKDAYS.INTL", &[2]),
-    ("NORM.DIST", &[]),
-    ("NORM.INV", &[]),
-    ("NORM.S.DIST", &[]),
-    ("NORM.S.INV", &[]),
-    ("NORMDIST", &[]),
-    ("NORMINV", &[]),
-    ("NORMSDIST", &[]),
-    ("NORMSINV", &[]),
-    ("NOT", &[]),
-    ("NPER", &[]),
-    ("NPV", &[0]),
-    ("NUMBERVALUE", &[]),
-    ("ODD", &[]),
-    ("OFFSET", &[1, TAIL]),
-    ("PDURATION", &[]),
-    ("PEARSON", &[]),
-    ("PERCENTILE", &[1]),
-    ("PERCENTILE.EXC", &[1]),
-    ("PERCENTILE.INC", &[1]),
-    ("PERCENTRANK", &[1, 2]),
-    ("PERCENTRANK.EXC", &[1, 2]),
-    ("PERCENTRANK.INC", &[1, 2]),
-    ("PERMUT", &[]),
-    ("PERMUTATIONA", &[]),
-    ("PHI", &[]),
-    ("PMT", &[]),
-    ("POISSON", &[]),
-    ("POISSON.DIST", &[]),
-    ("POWER", &[]),
-    ("PPMT", &[]),
-    ("PROB", &[]),
-    ("PROPER", &[]),
-    ("PV", &[]),
-    ("QUARTILE", &[1]),
-    ("QUARTILE.EXC", &[1]),
-    ("QUARTILE.INC", &[1]),
-    ("RADIANS", &[]),
-    ("RANK", &[0, 2]),
-    ("RANK.AVG", &[0, 2]),
-    ("RANK.EQ", &[0, 2]),
-    ("RATE", &[]),
-    ("REDUCE", &[0, 2]),
-    ("REGEXEXTRACT", &[]),
-    ("REGEXREPLACE", &[]),
-    ("REGEXTEST", &[]),
-    ("REPLACE", &[]),
-    ("REPLACEB", &[]),
-    ("REPT", &[]),
-    ("RIGHT", &[]),
-    ("RIGHTB", &[]),
-    ("ROMAN", &[]),
-    ("ROUND", &[]),
-    ("ROUNDDOWN", &[]),
-    ("ROUNDUP", &[]),
-    ("RRI", &[]),
-    ("RSQ", &[]),
-    ("SCAN", &[0, 2]),
-    ("SEARCH", &[]),
-    ("SEARCHB", &[]),
-    ("SEC", &[]),
-    ("SECH", &[]),
-    ("SECOND", &[]),
-    ("SEQUENCE", &[]),
-    ("SIGN", &[]),
-    ("SIN", &[]),
-    ("SINH", &[]),
-    ("SLN", &[]),
-    ("SLOPE", &[]),
-    ("SMALL", &[1]),
-    ("SORT", &[]),
-    ("SORTBY", &[]),
-    ("SQRT", &[]),
-    ("STANDARDIZE", &[]),
-    ("STEYX", &[]),
-    ("SUBSTITUTE", &[]),
-    ("SUBTOTAL", &[0]),
-    ("SUMPRODUCT", &[]),
-    ("SUMX2MY2", &[]),
-    ("SUMX2PY2", &[]),
-    ("SUMXMY2", &[]),
-    ("SWITCH", &[0, 1]),
-    ("SYD", &[]),
-    ("T.DIST", &[]),
-    ("T.DIST.2T", &[]),
-    ("T.DIST.RT", &[]),
-    ("T.INV", &[]),
-    ("T.INV.2T", &[]),
-    ("T.TEST", &[]),
-    ("TAKE", &[1, 2]),
-    ("TAN", &[]),
-    ("TANH", &[]),
-    ("TDIST", &[]),
-    ("TEXT", &[]),
-    ("TEXTAFTER", &[]),
-    ("TEXTBEFORE", &[]),
-    ("TEXTJOIN", &[1]),
-    ("TEXTSPLIT", &[]),
-    ("TIME", &[]),
-    ("TIMEVALUE", &[]),
-    ("TINV", &[]),
-    ("TOCOL", &[1]),
-    ("TOROW", &[1]),
-    ("TRANSPOSE", &[]),
-    ("TRIM", &[]),
-    ("TRIMMEAN", &[1]),
-    ("TRUNC", &[]),
-    ("TTEST", &[]),
-    ("TYPE", &[]),
-    ("UNICHAR", &[]),
-    ("UNICODE", &[]),
-    ("UNIQUE", &[]),
-    ("UPPER", &[]),
-    ("VALUE", &[]),
-    ("VALUETOTEXT", &[]),
-    ("VDB", &[]),
-    ("VLOOKUP", &[0, 2, 3]),
-    ("WEEKDAY", &[]),
-    ("WEIBULL", &[]),
-    ("WEIBULL.DIST", &[]),
-    ("WORKDAY.INTL", &[2]),
-    ("WRAPCOLS", &[0, 1]),
-    ("WRAPROWS", &[0, 1]),
-    ("XLOOKUP", &[0]),
-    ("XMATCH", &[0, 2]),
-    ("YEAR", &[]),
-    ("Z.TEST", &[1, 2]),
-    ("ZTEST", &[1, 2]),
-];
-
-/// Whether `positions` (a position list of the 3-D tables) holds argument `index`.
-fn holds_position(positions: &[usize], index: usize) -> bool {
-    match positions {
-        [] => true,
-        [.., start, TAIL] => index >= *start || positions.contains(&index),
-        _ => positions.contains(&index),
-    }
-}
-
-/// Whether argument `index` lies in the repeating tail of `positions` (or `positions` names every
-/// argument): there a 3-D reference spreads into one argument per sheet.
-fn in_tail(positions: &[usize], index: usize) -> bool {
-    match positions {
-        [] => true,
-        [.., start, TAIL] => index >= *start,
-        _ => false,
-    }
-}
-
-/// A catalogue spelling without the file prefixes `_XLFN.` and `_XLWS.`.
-fn strip_prefixes(spelling: &str) -> &str {
-    let mut name = spelling;
-    loop {
-        match without_prefix(name, "_xlfn.").or_else(|| without_prefix(name, "_xlws.")) {
-            Some(rest) => name = rest,
-            None => return name,
-        }
-    }
 }
 
 /// The key a LET name or LAMBDA parameter is matched by: without a leading `_xlpm.` (any ASCII
@@ -2718,10 +2120,18 @@ fn target(notation: Notation, token: &Token) -> Result<Target, CompileError> {
 /// prefixes a file stores before a function's name ([`file_unprefixed`]). A refusal keeps the
 /// spelling as written.
 fn call_target(name: &Token) -> Result<Target, CompileError> {
-    catalogue()
+    let target = catalogue()
         .resolve_surface(Notation::Call, file_function(name.text()))
-        .map(Target)
-        .map_err(|_| unknown(name.span(), name.text().to_owned()))
+        .map_err(|_| unknown(name.span(), name.text().to_owned()))?;
+    let gap = match target.implementation() {
+        calc_func::Implementation::NotHeld { owner } => Some(Gap::Construct { construct: "an unheld built-in function", owner }),
+        calc_func::Implementation::Deferred { class } => Some(Gap::Construct { construct: "a deferred built-in function", owner: class.owner() }),
+        _ => None,
+    };
+    match gap {
+        Some(gap) => Err(CompileError::NotModelled { span: name.span(), gap }),
+        None => Ok(Target(target)),
+    }
 }
 
 /// Whether a file's call written `spelling`, of the catalogue entry `target`, names a function a
@@ -2735,15 +2145,6 @@ pub(super) fn unknown_on_load(spelling: &str, target: Target) -> bool {
             Some(FilePrefix::Xlfn | FilePrefix::XlfnXlws) => true,
             Some(FilePrefix::Bare) | None => false,
         }
-}
-
-/// Whether a library link's target is the Euro Currency Tools add-in, wherever it was installed:
-/// the file form's link may carry a relative name or an absolute `file:///` path.
-fn is_euro_tool(target: &str) -> bool {
-    target
-        .rsplit(['/', '\\'])
-        .next()
-        .is_some_and(|file| file.eq_ignore_ascii_case("EUROTOOL.XLAM"))
 }
 
 /// The name a file stores a field access (`A1.Price`, a linked data type's field) under:
@@ -2768,12 +2169,10 @@ pub(crate) enum BindingCall {
 
 /// Calls which introduce local bindings rather than dispatching through the catalogue.
 pub(crate) fn binding_call(spelling: &str) -> Option<BindingCall> {
-    if spelling.eq_ignore_ascii_case("LET") {
-        Some(BindingCall::Let)
-    } else if spelling.eq_ignore_ascii_case("LAMBDA") {
-        Some(BindingCall::Lambda)
-    } else {
-        None
+    match catalogue().resolve_surface(Notation::Call, spelling).ok()?.kind() {
+        calc_func::EntryKind::Binding(calc_func::BindingForm::Let) => Some(BindingCall::Let),
+        calc_func::EntryKind::Binding(calc_func::BindingForm::Lambda) => Some(BindingCall::Lambda),
+        _ => None,
     }
 }
 

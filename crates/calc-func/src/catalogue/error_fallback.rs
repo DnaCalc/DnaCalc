@@ -27,6 +27,7 @@ const CODE: u16 = 8;
 const IFERROR: FunctionId = FunctionId::new(CODE, 1);
 const IFNA: FunctionId = FunctionId::new(CODE, 2);
 
+// 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
 pub(super) const FAMILY: Family = Family {
     code: CODE,
     entries: &[
@@ -34,6 +35,8 @@ pub(super) const FAMILY: Family = Family {
             id: IFERROR,
             spelling: "IFERROR",
             notation: Notation::Call,
+            kind: super::EntryKind::Worksheet,
+            availability: super::Availability::Unspecified,
             arity: CallableArityShape::exact(2),
             groups: None,
             parameters: &[
@@ -42,19 +45,23 @@ pub(super) const FAMILY: Family = Family {
             ],
             result: super::ResultForm::Value,
             demand: ArgumentDemand::FallbackOnError,
+            traits: super::EntryTraits::NONE,
             kernel: Kernel::Lazy(iferror_selected),
-        },
+        }.with_three_d(super::ThreeD::new(None, None, Some(&[0]))),
         CatalogueEntry {
             id: IFNA,
             spelling: "IFNA",
             notation: Notation::Call,
+            kind: super::EntryKind::Worksheet,
+            availability: super::Availability::Unspecified,
             arity: CallableArityShape::exact(2),
             groups: None,
             parameters: &[Parameter::value("value"), Parameter::value("value_if_na")],
             result: super::ResultForm::Value,
             demand: ArgumentDemand::FallbackOnError,
+            traits: super::EntryTraits::NONE,
             kernel: Kernel::Lazy(ifna_selected),
-        },
+        }.with_three_d(super::ThreeD::new(None, None, Some(&[0]))),
     ],
 };
 

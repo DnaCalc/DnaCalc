@@ -32,6 +32,7 @@ const OFFSET: FunctionId = FunctionId::new(CODE, 1);
 const ISOMITTED: FunctionId = FunctionId::new(CODE, 2);
 const TRIMRANGE: FunctionId = FunctionId::new(CODE, 3);
 
+// 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
 pub(super) const FAMILY: Family = Family {
     code: CODE,
     entries: &[
@@ -44,6 +45,8 @@ pub(super) const FAMILY: Family = Family {
             id: OFFSET,
             spelling: "OFFSET",
             notation: Notation::Call,
+            kind: super::EntryKind::Worksheet,
+            availability: super::Availability::Unspecified,
             arity: CallableArityShape::range(3, 5),
             groups: None,
             parameters: &[
@@ -55,25 +58,31 @@ pub(super) const FAMILY: Family = Family {
             ],
             result: super::ResultForm::MayBeReference,
             demand: ArgumentDemand::Eager,
+            traits: super::EntryTraits::NONE.volatile(),
             kernel: Kernel::Eager(offset),
-        },
+        }.with_three_d(super::ThreeD::new(None, Some(&[0]), Some(&[1, usize::MAX]))),
         CatalogueEntry {
             id: ISOMITTED,
             spelling: "ISOMITTED",
             notation: Notation::Call,
+            kind: super::EntryKind::Worksheet,
+            availability: super::Availability::Unspecified,
             arity: CallableArityShape::exact(1),
             groups: None,
             parameters: &[Parameter::value_or_reference("argument")],
             result: super::ResultForm::Value,
             demand: ArgumentDemand::Eager,
+            traits: super::EntryTraits::NONE,
             kernel: Kernel::Eager(isomitted),
-        },
+        }.with_three_d(super::ThreeD::new(None, None, Some(&[]))),
         // A call may give a reference (dc-mx3x): `=COUNTBLANK(TRIMRANGE(B1))` and
         // `=TRIMRANGE(B1)(3)` enter. Its range takes any operand: `=TRIMRANGE(2)` enters.
         CatalogueEntry {
             id: TRIMRANGE,
             spelling: "TRIMRANGE",
             notation: Notation::Call,
+            kind: super::EntryKind::Worksheet,
+            availability: super::Availability::Unspecified,
             arity: CallableArityShape::range(1, 3),
             groups: None,
             parameters: &[
@@ -83,6 +92,7 @@ pub(super) const FAMILY: Family = Family {
             ],
             result: super::ResultForm::MayBeReference,
             demand: ArgumentDemand::Eager,
+            traits: super::EntryTraits::NONE,
             kernel: Kernel::Eager(trimrange),
         },
     ],

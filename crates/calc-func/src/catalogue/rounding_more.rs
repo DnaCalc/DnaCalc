@@ -31,21 +31,22 @@ fn three(
     out(site, kernel(x, significance, mode))
 }
 
+// 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
 ported_family! {
     code: CODE;
-    1 ceiling_math "CEILING.MATH" (1, 3) [V "number", V "significance", V "mode"] |s, a, sv| {
+    1 ceiling_math "CEILING.MATH" (1, 3) [V "number", V "significance", V "mode"] three_d (None, None, Some(&[])); |s, a, sv| {
         three(s, a, cf::ceiling_math_kernel)
     }
-    2 ceiling_precise "CEILING.PRECISE" (1, 2) [V "number", V "significance"] |s, a, sv| {
+    2 ceiling_precise "CEILING.PRECISE" (1, 2) [V "number", V "significance"] three_d (None, None, Some(&[])); |s, a, sv| {
         two(s, a, cf::ceiling_precise_kernel)
     }
-    3 floor_math "FLOOR.MATH" (1, 3) [V "number", V "significance", V "mode"] |s, a, sv| {
+    3 floor_math "FLOOR.MATH" (1, 3) [V "number", V "significance", V "mode"] three_d (None, None, Some(&[])); |s, a, sv| {
         three(s, a, cf::floor_math_kernel)
     }
-    4 floor_precise "FLOOR.PRECISE" (1, 2) [V "number", V "significance"] |s, a, sv| {
+    4 floor_precise "FLOOR.PRECISE" (1, 2) [V "number", V "significance"] three_d (None, None, Some(&[])); |s, a, sv| {
         two(s, a, cf::floor_precise_kernel)
     }
-    5 iso_ceiling "ISO.CEILING" (1, 2) [V "number", V "significance"] |s, a, sv| {
+    5 iso_ceiling "ISO.CEILING" (1, 2) [V "number", V "significance"] three_d (None, None, Some(&[])); |s, a, sv| {
         two(s, a, cf::iso_ceiling_kernel)
     }
 }

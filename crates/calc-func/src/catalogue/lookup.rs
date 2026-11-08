@@ -94,15 +94,19 @@ const fn eager(
         id,
         spelling,
         notation: Notation::Call,
+        kind: super::EntryKind::Worksheet,
+        availability: super::Availability::Unspecified,
         arity,
         groups: None,
         parameters,
         result: super::ResultForm::Value,
         demand: ArgumentDemand::Eager,
+        traits: super::EntryTraits::NONE,
         kernel: Kernel::Eager(kernel),
     }
 }
 
+// 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
 pub(super) const FAMILY: Family = Family {
     code: CODE,
     entries: &[
@@ -120,8 +124,9 @@ pub(super) const FAMILY: Family = Family {
                 Parameter::value("area_num"),
             ],
             index,
-        )
-        .with_result(super::ResultForm::MayBeReference),
+        ).with_three_d(super::ThreeD::new(None, Some(&[0]), Some(&[1, usize::MAX])))
+        .with_result(super::ResultForm::MayBeReference)
+        .with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
         eager(
             MATCH,
             "MATCH",
@@ -132,7 +137,7 @@ pub(super) const FAMILY: Family = Family {
                 Parameter::value("match_type"),
             ],
             match_,
-        ),
+        ).with_three_d(super::ThreeD::new(None, Some(&[1, 2]), Some(&[0]))),
         eager(
             XMATCH,
             "XMATCH",
@@ -144,7 +149,7 @@ pub(super) const FAMILY: Family = Family {
                 Parameter::value("search_mode"),
             ],
             xmatch,
-        ),
+        ).with_three_d(super::ThreeD::new(None, Some(&[1]), Some(&[0, 2]))),
         eager(
             XLOOKUP,
             "XLOOKUP",
@@ -158,7 +163,7 @@ pub(super) const FAMILY: Family = Family {
                 Parameter::value("search_mode"),
             ],
             xlookup,
-        )
+        ).with_three_d(super::ThreeD::new(None, Some(&[1, 2]), Some(&[0])))
         // A call may give a reference (dc-mx3x): `=COUNTBLANK(XLOOKUP(1,B1:B3,B1:B3))` and
         // `=XLOOKUP(1,B1:B3,B1:B3)(3)` (#REF!) enter.
         .with_result(super::ResultForm::MayBeReference),
@@ -173,7 +178,7 @@ pub(super) const FAMILY: Family = Family {
                 Parameter::value("range_lookup"),
             ],
             vlookup,
-        ),
+        ).with_three_d(super::ThreeD::new(None, Some(&[1]), Some(&[0, 2, 3]))),
         eager(
             HLOOKUP,
             "HLOOKUP",
@@ -185,7 +190,7 @@ pub(super) const FAMILY: Family = Family {
                 Parameter::value("range_lookup"),
             ],
             hlookup,
-        ),
+        ).with_three_d(super::ThreeD::new(None, Some(&[1]), Some(&[0, 2, 3]))),
         eager(
             LOOKUP,
             "LOOKUP",
@@ -196,13 +201,15 @@ pub(super) const FAMILY: Family = Family {
                 Parameter::value_or_reference("result_vector").legacy(super::LegacyPlace::ArrayAtRoot),
             ],
             lookup,
-        ),
+        ).with_three_d(super::ThreeD::new(None, Some(&[1, 2]), Some(&[0]))),
         // A call gives one of its values, which may be a reference or a LAMBDA (dc-mx3x):
         // `=COUNTBLANK(CHOOSE(1,A1))` enters, and `=CHOOSE(1,LAMBDA(x,x))(3)` is 3.
         CatalogueEntry {
             id: CHOOSE,
             spelling: "CHOOSE",
             notation: Notation::Call,
+            kind: super::EntryKind::Worksheet,
+            availability: super::Availability::Unspecified,
             arity: CallableArityShape::range(2, 255),
             groups: None,
             parameters: &[
@@ -212,8 +219,10 @@ pub(super) const FAMILY: Family = Family {
             ],
             result: super::ResultForm::MayBeEither,
             demand: ArgumentDemand::BranchOnCondition,
+            // Dynamic fn2 q193: lifted CHOOSE materializes a selected blank as zero.
+            traits: super::EntryTraits::NONE.choose_blanks(),
             kernel: Kernel::Lazy(choose),
-        },
+        }.with_three_d(super::ThreeD::new(None, None, Some(&[0, 1]))),
         // ROW's, COLUMN's and AREAS's reference takes only an operand that may give one
         // (dc-mx3x, both forms): `=ROW(2)`, `=ROW({1,2})`, `=ROW(1+1)`, `=COLUMN(2)` and `=AREAS(2)`
         // are refused, `=ROW(B1:B3)`, `=ROW(INDEX(B1:B3,0))` and `=AREAS(B1:B3)` enter. ROWS's
@@ -224,35 +233,35 @@ pub(super) const FAMILY: Family = Family {
             CallableArityShape::range(0, 1),
             &[Parameter::value_or_reference("reference").entry(super::EntryClass::Reference).legacy(super::LegacyPlace::ArrayAlways)],
             row,
-        ),
+        ).with_three_d(super::ThreeD::new(None, Some(&[]), None)).with_traits(super::EntryTraits::NONE.intersect_legacy_result().lift_dynamic_references()),
         eager(
             COLUMN,
             "COLUMN",
             CallableArityShape::range(0, 1),
             &[Parameter::value_or_reference("reference").entry(super::EntryClass::Reference)],
             column,
-        ),
+        ).with_three_d(super::ThreeD::new(None, Some(&[]), None)).with_traits(super::EntryTraits::NONE.intersect_legacy_result()),
         eager(
             ROWS,
             "ROWS",
             CallableArityShape::exact(1),
             &[Parameter::value_or_reference("array").legacy(super::LegacyPlace::ArrayAtRoot)],
             rows,
-        ),
+        ).with_three_d(super::ThreeD::new(None, Some(&[]), None)).with_traits(super::EntryTraits::NONE.take_reference_array()),
         eager(
             COLUMNS,
             "COLUMNS",
             CallableArityShape::exact(1),
             &[Parameter::value_or_reference("array").legacy(super::LegacyPlace::ArrayAtRoot)],
             columns,
-        ),
+        ).with_three_d(super::ThreeD::new(None, Some(&[]), None)),
         eager(
             AREAS,
             "AREAS",
             CallableArityShape::exact(1),
             &[Parameter::value_or_reference("reference").entry(super::EntryClass::Reference).legacy(super::LegacyPlace::ArrayAlwaysLiftReferences)],
             areas,
-        ),
+        ).with_three_d(super::ThreeD::new(None, Some(&[]), None)).with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
     ],
 };
 

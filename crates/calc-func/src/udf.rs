@@ -3,6 +3,9 @@
 use crate::value::{CalcValue, CellKey, ReferenceLike};
 use std::{any::Any, fmt, rc::Rc};
 
+/// Provider key for the host-owned built-in real-time-data route.
+pub const RTD_PROVIDER: &str = "calc-fml/rtd";
+
 /// Neutral callable identity; CalcFml alone allocates tables, slots and generations.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct UserCallableIdentity {

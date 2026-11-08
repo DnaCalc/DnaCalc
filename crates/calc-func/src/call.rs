@@ -415,6 +415,12 @@ impl FunctionCallScratch {
 /// a kernel computes. A caller reports a call that ends in a fault as not calculated.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FunctionFault {
+    /// Excel knows this entry, but its implementation belongs to another work package.
+    NotHeld { id: FunctionId, owner: &'static str },
+    /// The owner has deferred this class of entry.
+    Deferred { id: FunctionId, class: crate::Deferral },
+    /// Binding forms are evaluated by the formula language.
+    Binding { id: FunctionId },
     /// Scratch still owns an activation of another catalogue entry. It is preserved for the
     /// original caller rather than silently replaced or executed twice.
     ContinuationTarget {
@@ -533,6 +539,12 @@ pub fn invoke(
         });
     }
     let entry = target.entry;
+    match entry.kernel {
+        Kernel::Binding => return Err(FunctionFault::Binding { id: entry.id }),
+        Kernel::NotHeld { owner } => return Err(FunctionFault::NotHeld { id: entry.id, owner }),
+        Kernel::Deferred { class } => return Err(FunctionFault::Deferred { id: entry.id, class }),
+        _ => {}
+    }
     let supplied = arguments.count();
     if !entry.arity.accepts(supplied) {
         return Err(FunctionFault::ArityMismatch {
@@ -555,6 +567,7 @@ pub fn invoke(
             scratch.arguments.clear();
             result
         }
+        Kernel::Binding | Kernel::NotHeld { .. } | Kernel::Deferred { .. } => unreachable!("handled before admission"),
     }
 }
 
@@ -727,6 +740,8 @@ mod tests {
             id: TEST_ID,
             spelling: "TEST.BOUNDARY",
             notation: Notation::Call,
+            kind: crate::catalogue::EntryKind::Worksheet,
+            availability: crate::catalogue::Availability::Unspecified,
             arity: CallableArityShape::exact(1),
             groups: None,
             parameters: match class {
@@ -735,6 +750,7 @@ mod tests {
             },
             result: crate::catalogue::ResultForm::Value,
             demand: ArgumentDemand::Eager,
+            traits: crate::catalogue::EntryTraits::NONE,
             kernel: Kernel::Eager(kernel),
         }
     }

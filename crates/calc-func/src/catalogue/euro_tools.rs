@@ -45,6 +45,8 @@ pub(super) const FAMILY: Family = Family {
         id: EUROCONVERT,
         spelling: SURFACE,
         notation: Notation::Call,
+        kind: super::EntryKind::AddIn { library: "EUROTOOL.XLAM", export: "EUROCONVERT" },
+        availability: super::Availability::Unspecified,
         // The add-in's own check answers a wrong count: #VALUE!, not a refused entry.
         arity: CallableArityShape::range(0, 255),
         groups: None,
@@ -57,6 +59,7 @@ pub(super) const FAMILY: Family = Family {
         ],
         result: super::ResultForm::Value,
         demand: ArgumentDemand::Eager,
+        traits: super::EntryTraits::NONE,
         kernel: Kernel::Eager(euroconvert),
     }],
 };

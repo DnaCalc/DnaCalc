@@ -12,119 +12,73 @@ evidence for it. CalcFml asks the catalogue and never tests a function's spellin
 grammar: operators, literals (`TRUE`, `FALSE`, the error literals), references, names, and the two binding forms
 LET and LAMBDA as forms, not as spellings.
 
-Facts about the file format rather than a function's behaviour are kept as one generated table each, keyed by
-`FunctionId`:
-- the prefix a file stores (`_xlfn.`, `_xlws.`);
-- the xlsb function number;
-- the localised names.
+File-format mappings are kept apart from function behavior: the stored-prefix table is keyed by
+English spelling, and the xlsb function-number table maps file numbers to names. Localised names are
+an editing and display concern; the shared localised-name table is not yet implemented.
 
-Every built-in Excel knows has a catalogue entry, implemented or not. So "is this a built-in?" and "what does it
-do?" are answered by the same table.
+The catalogue includes the built-in names in the existing Excel census, implemented or not, and
+the separately recorded deferred names. "Is this a built-in?" and "what does it do?" are answered
+by the same table.
 
 ## What an entry declares
 
-```rust
-pub(crate) struct CatalogueEntry {
-    pub(crate) id: FunctionId,
-    pub(crate) spelling: &'static str,          // English, upper case; the token for an operator
-    pub(crate) notation: Notation,              // Call | Prefix | Infix | Postfix
-    pub(crate) kind: EntryKind,
-    pub(crate) availability: Availability,      // which Excel builds and compatibility versions know it
-    pub(crate) arity: CallableArityShape,       // {min, max}; LAMBDA values share this type
-    pub(crate) groups: Option<ArgumentGroups>,  // repeating groups: IFS pairs, SWITCH pairs + default, LET pairs
-    pub(crate) parameters: &'static [Parameter],
-    pub(crate) result: ResultForm,
-    pub(crate) demand: ArgumentDemand,          // Eager | BranchOnCondition | FallbackOnError
-    pub(crate) traits: EntryTraits,             // per-function behaviours with a measured name
-    pub(crate) kernel: Kernel,
-}
+A `CatalogueEntry` holds a stable `FunctionId`, spelling and notation, `EntryKind`,
+`Availability`, arity, optional repeating `ArgumentGroups`, parameters, `ResultForm`,
+`ArgumentDemand`, `EntryTraits` and a kernel. Family fragments declare these with `const fn`
+builders next to the implementation. The generated catalogue provides an ID table and a surface
+table over the same entries. `entries()` includes bindings and unheld or deferred entries;
+`targets()` and `surfaces()` enumerate entries with executable kernels and omit the add-in's
+private surface.
 
-pub(crate) enum EntryKind {
-    Worksheet,                                  // an ordinary built-in
-    Operator { file_spelling: Option<&'static str> },   // `@` stored as _xlfn.SINGLE, `#` as _xlfn.ANCHORARRAY
-    Binding(BindingForm),                       // LET, LAMBDA: arguments are names and bodies, not values
-    AddIn { library: &'static str },            // EUROCONVERT through EUROTOOL.XLAM
-    HostRoute { provider: &'static str },       // WEBSERVICE, IMAGE through the host's fetch route
-}
+`EntryKind` distinguishes worksheet functions, operators with their file spelling, binding forms,
+add-ins with their library and exported name, and host routes with their provider and route kind.
+A kernel is eager, resumable or lazy, or marks a binding, a `NotHeld` entry with its owner, or a
+`Deferred` entry with its deferral class. Availability is `ListsInCellsBeta` for the four list
+functions known to require Insider Beta and workbook compatibility version 3; `Unspecified` says
+the supported builds or versions have not been established here. It is not a claim that an entry
+works in every build.
 
-pub(crate) enum Kernel {
-    Eager(EagerKernel),
-    Resumable { run: EagerKernel, start: StartKernel },
-    Lazy(LazyKernel),
-    Binding,                                    // CalcFml's scope machinery runs it
-    NotHeld { owner: &'static str },            // Excel knows it; not implemented yet: refused, owner named
-    Deferred { class: Deferral },               // by owner policy: services, PY, lists in cells (dc-nk93)
-}
+RTD has a host route when its connector is registered; without that provider the catalogue's
+unheld fallback reports the owning work package. The route and the fallback share one entry.
 
-pub(crate) struct Parameter {
-    pub(crate) name: &'static str,              // as signature help shows it
-    pub(crate) class: ParameterClass,           // how the evaluator passes it: Value | ValueOrReference | Reference
-    pub(crate) entry: EntryClass,               // what Excel's formula entry accepts here
-    pub(crate) legacy: LegacyPlace,             // how a legacy formula treats a range or array here
-}
+Each parameter has its name, `ParameterClass`, `EntryClass` and `LegacyPlace`. The legacy
+declaration records how the place treats a range, an array and an array of references at the root
+and below an array place. Repeated-place variants retain the original measured position rules,
+including positions that do not repeat with the signature's last parameter. CalcFml interprets
+these declarations and the formula's place; it holds no table of function names for those rules.
 
-pub enum EntryClass { Any, Reference }                    // COUNTBLANK's range: Reference
-pub enum ResultForm { Value, MayBeReference, MayBeEither } // INDEX: MayBeReference; IF: MayBeEither
-pub struct ArgumentGroups { from: usize, size: usize, tail: usize }
-```
+`EntryTraits` declares the other measured call behavior: legacy result intersection, multi-cell
+reference refusal, missing-coordinate handling, nested subtotals, reference-array lifting and
+admission, selection and blank handling, volatility, and numerical admission and publication.
+Each entry's 3-D reference declaration records the measured positions that are taken, spread,
+returned as #VALUE! or #REF!, or not measured. CalcFml asks the entry for that result. The 3-D
+positions come from dc-10y's Excel 16.0.20430 measurements and the catalogue oracle's ThreeD
+sheet; the legacy place and entry declarations cite their measurements in the family fragments.
 
-Excel's entry takes any operand in a LAMBDA place (`=MAP({1},1)` enters and gives #VALUE!), so no entry class
-requires a callable. Entry treats both result forms other than `Value` alike: such a call fills a reference place
-and may be called, and no built-in gives a LAMBDA without possibly giving a reference. `ArgumentGroups` says that
-from argument `from` on the arguments come in groups of `size`, each taking its group's declared parameter, with
-at most `tail` arguments after the last complete group (SWITCH's default). The first group's completeness is the
-arity's: SORTBY takes `(array, by_array1)` without its order, but no later pair without one.
-
-`LegacyPlace` holds the measured place rules of the legacy (pre-dynamic-array) form: whether a range is
-intersected, lifted, aggregated or kept as a reference, at the root and below an array place. `EntryTraits` holds
-the remaining measured behaviours, each under its own name, for example:
-- implicit intersection of the result in a legacy formula (ROW, COLUMN, FILTERXML);
-- multi-cell references refused (MROUND, QUOTIENT);
-- nested subtotals skipped (SUBTOTAL, AGGREGATE);
-- missing coordinates padded before the call (ROUNDUP, ROUNDDOWN).
-
-Family fragments declare entries through `const fn` builders, so a declaration stays one readable block:
-
-```rust
-const RANGE: &[Parameter] = &[Parameter::value_or_reference("range").entry(EntryClass::Reference)];
-```
-
-Every fact that is not the default cites its Excel evidence where it is declared, as a doc comment or a named
-test case. The evidence includes cases Excel refuses and near neighbours it accepts.
+Excel's entry takes any operand in a LAMBDA place (`=MAP({1},1)` enters and gives #VALUE!), so no
+entry class requires a callable. Entry treats both measured result forms other than `Value` alike:
+such a call fills a reference place and may be called. `Unknown` records an unmeasured result
+form, and an unheld parameter's class and legacy place are not reported as measured.
+`ArgumentGroups` says that from argument `from`
+on the arguments come in groups of `size`, each taking its group's declared parameter, with at
+most `tail` arguments after the last complete group. The first group's completeness follows the
+arity. Signatures for unheld and deferred entries are handbook seeds; the entry checker does not
+claim their arity or parameter rules were measured.
 
 ## Names
 
-A formula's names are resolved in one name space, built from layers that their owners supply:
+The compiler's `resolve` uses the catalogue and caller-owned local bindings, defined names,
+tables and registered functions. In call position a built-in wins over a local or defined name of
+the same spelling; `=LET(gcd,LAMBDA(a,b,a+b),gcd(48,36))` is 12. In value position a local or
+defined name and a table take precedence over a bare built-in; a registered function is not a
+function value. A file stores a function value as `_xleta.NAME`, so a bare identifier in a loaded
+formula stays a name. The resolver also retains a reference callee and lets the existing reference
+route report its result.
 
-```rust
-pub enum Resolved<'c> {
-    BuiltIn(FunctionCallTarget<'c>),            // from the catalogue: held, not held or deferred
-    Local(LocalBinding),                        // a LET name or LAMBDA parameter in scope
-    Defined(NameDefinition),                    // a workbook or sheet name
-    Table(TableLookup),
-    Registered(RegisteredFunction),             // a UDF, with its source: Xll | Vba | AddIn | Js
-    Unknown,
-}
-
-pub enum Position { Call, Value }               // `F(...)` versus a bare `F`
-
-fn resolve(&self, text: &str, position: Position) -> Resolved<'_>;
-```
-
-The catalogue layer is immutable and generated. The local layer belongs to the compiler's scope. The defined-name,
-table and registration layers belong to the caller: the workbook's catalogue and the host's registries, as
-SYNTHESIS requires ("mutable UDF registries belong to the caller, not a global singleton"). Excel's precedence rules
-are written once, in `resolve`, with their measurements:
-- **Call position:** a built-in wins over a local or defined name of the same spelling.
-  `=LET(gcd,LAMBDA(a,b,a+b),gcd(48,36))` is 12, GCD's value.
-- **Value position:** a defined name or table comes first. A bare built-in is the function's value:
-  `=MAP({1,2,3},ABS)` works. A registered function is not a value: `=MAP({1,2,3},MyFunc)` is #VALUE! even when
-  MyFunc's arity fits. Only built-ins are function values.
-- **Loaded formulas:** a file stores a function value as `_xleta.NAME`, so in a loaded formula a bare identifier
-  stays a name.
-
-Because every Excel built-in has an entry (`NotHeld` and `Deferred` included), "built-in or not" never needs a
-second list.
+The catalogue layer is immutable. Scope belongs to the compiler, while defined names, tables and
+registrations belong to the caller. An unheld built-in is a typed refusal naming its owner; a
+deferred built-in names its deferral's owner. Binding forms are handled by the formula language.
+`is_builtin` asks the catalogue.
 
 ## Entry checking: formulas Excel will not take
 
@@ -218,21 +172,7 @@ A refusal still means only "not modelled".
 
 ## Localised names
 
-Files store formulas in English, so the calculation never sees a localised name. Localised names are a property of
-editing and display: CalcFml's parser and printer read the user's formula through them and through the locale
-profile's list separator (`;` in many locales). They come from one table per locale, keyed by `FunctionId`. Its
-seed is the handbook's 40-locale harvest of Microsoft Support's function index. Excel, through `Range.FormulaLocal`
-with the language installed, decides where the two differ. The handbook reads the same table, so it keeps no copy
-of its own. The grid's localised formula entry and display follow from this table.
-
-## Getting there
-
-These steps lead to milestones, each landing green:
-1. Entry metadata (`EntryClass`, `ResultForm`, `groups`), `check_entry`, the split compile result and the rejection
-   verdict. This step changes scores: agreed rejections become matches, and DNA Calc's acceptances of formulas Excel
-   refuses become named mismatches.
-2. `LegacyPlace` on every parameter, carrying the measured place rules CalcFml holds today. This changes no
-   behaviour: the corpus and the function bank give identical counts before and after.
-3. `EntryKind`, `EntryTraits` and the full entry list (`NotHeld`, `Deferred`, `Availability`), and the name space
-   with `resolve`. This changes no behaviour, by the same test.
-4. The localised-name table, CalcFml's localised parse and print, and the grid's localised entry and display.
+Files store formulas in English, so localised names belong to editing and display. The intended
+table is keyed by `FunctionId` and locale, seeded from the handbook's 40-locale harvest and checked
+against Excel's `Range.FormulaLocal` with each language installed. CalcFml's localised parse and
+print and the grid's localised entry and display still need that table.

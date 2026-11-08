@@ -59,11 +59,14 @@ const fn logicals(
         id,
         spelling,
         notation: Notation::Call,
+        kind: super::EntryKind::Worksheet,
+        availability: super::Availability::Unspecified,
         arity: CallableArityShape::range(1, most),
         groups: None,
         parameters: LOGICALS,
         result: super::ResultForm::Value,
         demand: ArgumentDemand::Eager,
+        traits: super::EntryTraits::NONE,
         kernel: Kernel::Eager(kernel),
     }
 }
@@ -74,15 +77,19 @@ const fn constant(id: FunctionId, spelling: &'static str, kernel: EagerKernel) -
         id,
         spelling,
         notation: Notation::Call,
+        kind: super::EntryKind::Worksheet,
+        availability: super::Availability::Unspecified,
         arity: CallableArityShape::exact(0),
         groups: None,
         parameters: &[],
         result: super::ResultForm::Value,
         demand: ArgumentDemand::Eager,
+        traits: super::EntryTraits::NONE,
         kernel: Kernel::Eager(kernel),
     }
 }
 
+// 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
 pub(super) const FAMILY: Family = Family {
     code: CODE,
     entries: &[
@@ -93,6 +100,8 @@ pub(super) const FAMILY: Family = Family {
             id: IF,
             spelling: "IF",
             notation: Notation::Call,
+            kind: super::EntryKind::Worksheet,
+            availability: super::Availability::Unspecified,
             arity: CallableArityShape::range(2, 3),
             groups: None,
             parameters: &[
@@ -102,24 +111,29 @@ pub(super) const FAMILY: Family = Family {
             ],
             result: super::ResultForm::MayBeEither,
             demand: ArgumentDemand::BranchOnCondition,
+            // W111: IF materializes selected array blanks and lifted blanks as zero.
+            traits: super::EntryTraits::NONE.if_blanks(),
             kernel: Kernel::Lazy(if_selected),
-        },
-        logicals(AND, "AND", 255, and),
-        logicals(OR, "OR", 255, or),
+        }.with_three_d(super::ThreeD::new(None, None, Some(&[0, 1]))),
+        logicals(AND, "AND", 255, and).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
+        logicals(OR, "OR", 255, or).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
         // XOR takes one argument fewer than AND and OR: Microsoft's XOR page gives 1 to 254
         // conditions.
-        logicals(XOR, "XOR", 254, xor),
+        logicals(XOR, "XOR", 254, xor).with_three_d(super::ThreeD::new(Some(&[]), None, None)),
         CatalogueEntry {
             id: NOT,
             spelling: "NOT",
             notation: Notation::Call,
+            kind: super::EntryKind::Worksheet,
+            availability: super::Availability::Unspecified,
             arity: CallableArityShape::exact(1),
             groups: None,
             parameters: &[Parameter::value("logical")],
             result: super::ResultForm::Value,
             demand: ArgumentDemand::Eager,
+            traits: super::EntryTraits::NONE,
             kernel: Kernel::Eager(not),
-        },
+        }.with_three_d(super::ThreeD::new(None, None, Some(&[]))),
         constant(TRUE, "TRUE", true_value),
         constant(FALSE, "FALSE", false_value),
     ],

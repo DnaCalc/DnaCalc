@@ -272,9 +272,13 @@ fn operator_call(written: &str, loaded: bool) -> Option<Operator> {
     if loaded && !prefixed {
         return None;
     }
-    if spelling.eq_ignore_ascii_case("SINGLE") {
-        Some(Operator::Single)
-    } else if ["ANCHORARRAY", "_TRO_LEADING", "_TRO_TRAILING", "_TRO_ALL"]
+    if let Some(operator) = catalogue().resolve_operator_alias(spelling) {
+        match operator.notation() {
+            Notation::Prefix => Some(Operator::Single),
+            Notation::Postfix => Some(Operator::FileOnly),
+            _ => None,
+        }
+    } else if ["_TRO_LEADING", "_TRO_TRAILING", "_TRO_ALL"]
         .iter()
         .any(|operator| spelling.eq_ignore_ascii_case(operator))
     {
@@ -292,6 +296,9 @@ fn catalogue_call(written: &str, loaded: bool) -> Option<FunctionCallTarget<'sta
     let target = catalogue()
         .resolve_surface(Notation::Call, file_function(written))
         .ok()?;
+    if matches!(target.implementation(), calc_func::Implementation::NotHeld { .. } | calc_func::Implementation::Deferred { .. }) {
+        return None;
+    }
     if loaded && unknown_on_load(written, super::Target(target)) {
         return None;
     }

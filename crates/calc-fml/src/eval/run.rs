@@ -583,7 +583,7 @@ fn not_modelled_by(construct: &'static str, owner: &'static str) -> EvalFault {
 // recursive scalar IF frame, including in unoptimised one-megabyte-stack builds.
 #[inline(never)]
 fn zero_if_array_blanks(target: Target, value: CalcValue) -> CalcValue {
-    if target.0.spelling() == "IF" {
+    if target.0.traits().zero_array_blanks {
         zero_array_blanks(value)
     } else {
         value
@@ -1310,10 +1310,10 @@ impl Run<'_, '_> {
             // computed Empty in a paired result from a raw blank reference.
             // Preserve that origin before value admission reads a reference. Only
             // the existing whole scalar-selection route applies this normalization.
-            let paired_result = match target.0.spelling() {
-                "IFS" => index % 2 == 1,
-                "SWITCH" => index >= 2 && index % 2 == 0,
-                _ => false,
+            let paired_result = match target.0.traits().paired_result {
+                calc_func::PairedResult::Odd => index % 2 == 1,
+                calc_func::PairedResult::EvenAfterSelector => index >= 2 && index % 2 == 0,
+                calc_func::PairedResult::None => false,
             };
             if paired_result
                 && value.callable_value().is_none()
@@ -1330,7 +1330,7 @@ impl Run<'_, '_> {
             if reference_array(value)
                 && target.0.parameter_class(index) != Some(ParameterClass::Value)
                 && !lifts_over_references(target, form)
-                && !TAKES_REFERENCE_ARRAYS.contains(&target.0.spelling())
+                && !target.0.traits().take_reference_array
             {
                 return Err(not_modelled_by(
                     "an array of references given to a function whose handling of one is not measured",
@@ -1871,8 +1871,8 @@ impl Run<'_, '_> {
                 // materialize selected blanks into zero.
                 // Scalar calls retain their kernels' blank policy (dc-ibp2 controls).
                 let value = if (target.0.argument_demand() == ArgumentDemand::FallbackOnError
-                    || target.0.spelling() == "IF"
-                    || (target.0.spelling() == "CHOOSE"
+                    || target.0.traits().zero_lifted_blank
+                    || (target.0.traits().zero_dynamic_lifted_blank
                         && self.instance.plan.form == FormulaForm::Dynamic))
                     && value.is_empty()
                 {
@@ -2198,7 +2198,7 @@ fn is_lifted(target: Target, form: FormulaForm, index: usize, value: &CalcValue)
     ((target.0.parameter_class(index) == Some(ParameterClass::Value)
         // COUNTBLANK consumes a reference whole but a computed array cell by cell (the
         // W111 count-family readings and w089-axis-reference-vs-array-variant).
-        || target.0.spelling() == "COUNTBLANK")
+        || target.0.traits().lift_computed_array)
         && lifted_array(value).is_some())
         || (reference_array(value) && lifts_over_references(target, form))
 }
@@ -2206,15 +2206,14 @@ fn is_lifted(target: Target, form: FormulaForm, index: usize, value: &CalcValue)
 /// The measured reference-origin policy of these binary functions (OxFunc-Evidence,
 /// W111 MROUND/QUOTIENT reference controls).
 fn rejects_multi_cell_reference(target: Target) -> bool {
-    matches!(target.0.spelling(), "MROUND" | "QUOTIENT")
+    target.0.traits().reject_multi_cell_reference
 }
 
 /// Whether `target` runs once per reference of an array of references in a formula of `form`.
 fn lifts_over_references(target: Target, form: FormulaForm) -> bool {
-    let spelling = target.0.spelling();
     match form {
         FormulaForm::Legacy => target.0.legacy_lifts_over_references(),
-        _ => LIFTS_OVER_REFERENCES.contains(&spelling),
+        _ => target.0.traits().lift_dynamic_references,
     }
 }
 
@@ -2239,26 +2238,11 @@ fn reference_array(value: &CalcValue) -> bool {
 /// reference (dc-b1l, Excel 16.0.20527 through COM, 2026-10-30: `=SUBTOTAL(9,OFFSET(A1,{0;1;2},0,2))`
 /// spills 3|5|7, `=SUMIF(OFFSET(A1,{0;1},0,3),">2")` 3|7, `=N(OFFSET(A1,{0;1;2},0))` 1|2|3, and
 /// COUNTIF, AVERAGEIF, SUMIFS, AREAS, ROW, CELL, INDEX and T likewise).
-const LIFTS_OVER_REFERENCES: [&str; 11] = [
-    "SUBTOTAL",
-    "SUMIF",
-    "COUNTIF",
-    "AVERAGEIF",
-    "SUMIFS",
-    "AREAS",
-    "ROW",
-    "CELL",
-    "INDEX",
-    "N",
-    "T",
-];
 
 /// The functions measured to take an array of references whole (dc-b1l, 2026-10-30): SUM,
 /// AVERAGE and MAX read each reference's first cell (`=SUM(OFFSET(A1,{0;1;2},0,2))` is 6 over
 /// 1..6 in A1:A6), COUNT counts none of them and COUNTA each, ROWS counts the array's rows and
 /// ISREF is FALSE.
-const TAKES_REFERENCE_ARRAYS: [&str; 7] =
-    ["SUM", "AVERAGE", "MAX", "COUNT", "COUNTA", "ROWS", "ISREF"];
 
 /// The first element of `array`, as one value (a blank as Empty).
 fn first_element(array: &CalcArray) -> CalcValue {
@@ -4012,9 +3996,7 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
             || plan.volatile()
             || plan.blocks.iter().flatten().any(|i| match i {
                 Instruction::Name(_) => true,
-                Instruction::Function(target) => super::VOLATILE_FUNCTIONS.iter().any(|name| {
-                    super::strip_future_prefix(target.0.spelling()).eq_ignore_ascii_case(name)
-                }),
+                Instruction::Function(target) => target.0.traits().volatile,
                 _ => false,
             })
         {

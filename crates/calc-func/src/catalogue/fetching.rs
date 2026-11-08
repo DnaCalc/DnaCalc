@@ -18,7 +18,7 @@ fn without_route(prepared: Prepared) -> Step<CalcValue> {
 
 ported_family! {
     code: CODE;
-    1 webservice_fn "WEBSERVICE" (1, 1) [V "url"] |s, a, sv| { without_route(prepare_text(&a[0])) }
-    2 image_fn "IMAGE" (1, 5) [V "source", V "alt_text", V "sizing", V "height", V "width"]
+    1 webservice_fn "WEBSERVICE" (1, 1) [V "url"] volatile true; host_route (crate::FETCH_PROVIDER, crate::FetchKind::Text); |s, a, sv| { without_route(prepare_text(&a[0])) }
+    2 image_fn "IMAGE" (1, 5) [V "source", V "alt_text", V "sizing", V "height", V "width"] host_route (crate::FETCH_PROVIDER, crate::FetchKind::Picture);
     |s, a, sv| { without_route(prepare_picture(a)) }
 }

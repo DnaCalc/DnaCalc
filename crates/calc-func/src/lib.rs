@@ -19,7 +19,7 @@ mod call;
 mod udf;
 pub use udf::{
     ReferenceHandleError, ReferenceHandles, StoredReference, UserCallableIdentity,
-    RTD_CONNECT_FAILED, RtdConnection, RtdConnector, RtdCut, RtdEntry, RtdLease, RtdRead, RtdTopicRead, TopicKey, UserFunction, UserFunctionContext, UserFunctionInvocation,
+    RTD_CONNECT_FAILED, RTD_PROVIDER, RtdConnection, RtdConnector, RtdCut, RtdEntry, RtdLease, RtdRead, RtdTopicRead, TopicKey, UserFunction, UserFunctionContext, UserFunctionInvocation,
     UserFunctionStep, UserInvocationFrame, UserReevaluationReason,
 };
 mod catalogue;
@@ -45,9 +45,9 @@ pub use call::{
     WorkbookFacts, WorkbookFile, invoke, invoke_slice,
 };
 pub use catalogue::{
-    ArgumentDemand, ArgumentGroups, Catalogue, EntryClass, EntryRule, FunctionCallTarget,
-    FunctionId, HelpParameter, LegacyPlace, Notation, OperandForm, ParameterClass, RegistrationError,
-    ResultForm, SignatureHelp, catalogue,
+    ArgumentDemand, ArgumentGroups, Availability, BindingForm, Catalogue, Deferral, EntryClass, EntryKind, EntryRule, EntryTraits, FunctionCallTarget, HostRouteKind, Implementation,
+    FunctionId, HelpParameter, LegacyPlace, Notation, OperandForm, PairedResult, ParameterClass, RegistrationError,
+    ResultForm, SignatureHelp, ThreeDPlace, WholeResultPolicy, catalogue,
 };
 pub use cube::{CubeColumn, CubeFailure, CubeLookup, CubeMeasure, CubeMember, CubeModel, CubeTable};
 pub use fetch::{

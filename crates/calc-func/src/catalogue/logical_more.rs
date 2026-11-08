@@ -24,20 +24,20 @@ const SWITCH: FunctionId = FunctionId::new(CODE, 2);
 /// Recorded successor cases distinguish valid scalar selectors from invalid IFS conditions:
 /// only valid selectors ignore unused result shapes. Use the kernel's own logical coercion.
 pub(super) fn selects_whole_result(
-    id: FunctionId,
+    policy: super::WholeResultPolicy,
     arguments: &[CalcValue],
     numeric: &NumericMode,
 ) -> bool {
-    match id {
+    match policy {
         // Malformed pairs have no new capture; preserve their existing admission.
-        IFS if !arguments.len().is_multiple_of(2) => arguments
+        super::WholeResultPolicy::Conditions if !arguments.len().is_multiple_of(2) => arguments
             .iter()
             .step_by(2)
             .all(|value| value.callable_value().is_none() && crate::coerce::logical(value).is_ok()),
         // Fn2 root208: once a scalar condition selects a result, later condition
         // arrays do not enlarge it. Invalid conditions still take the lifted route.
-        IFS => ifs_index(&Site::new(IFS, &EvalServices::new(numeric)), arguments).is_ok(),
-        SWITCH => {
+        super::WholeResultPolicy::Conditions => ifs_index(&Site::new(IFS, &EvalServices::new(numeric)), arguments).is_ok(),
+        super::WholeResultPolicy::Selector => {
             // Fn2 root022: a formed scalar expression error is one result, even
             // when an unused case result is an array. Callable cores stay distinct.
             if arguments[0].callable_value().is_none()
@@ -72,6 +72,7 @@ pub(super) fn selects_whole_result(
     }
 }
 
+// 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
 pub(super) const FAMILY: Family = Family {
     code: CODE,
     entries: &[
@@ -84,6 +85,8 @@ pub(super) const FAMILY: Family = Family {
             id: IFS,
             spelling: "IFS",
             notation: Notation::Call,
+            kind: super::EntryKind::Worksheet,
+            availability: super::Availability::Unspecified,
             arity: CallableArityShape::range(2, 254),
             groups: Some(super::ArgumentGroups::new(0, 2, 0)),
             parameters: &[
@@ -92,8 +95,9 @@ pub(super) const FAMILY: Family = Family {
             ],
             result: super::ResultForm::MayBeEither,
             demand: ArgumentDemand::Eager,
+            traits: super::EntryTraits::NONE.paired_result(super::PairedResult::Odd).whole_result(super::WholeResultPolicy::Conditions),
             kernel: Kernel::Eager(ifs),
-        },
+        }.with_three_d(super::ThreeD::new(None, Some(&[1]), Some(&[0]))),
         // The values and results come in pairs, with an optional default after them (dc-mx3x):
         // SWITCH takes every count from 3 to 8 (`=SWITCH(1,1)` is refused, `=SWITCH(1,1,2)` and
         // `=SWITCH(1,1,2,3)` enter), and a call gives one of its results, which may be a
@@ -103,6 +107,8 @@ pub(super) const FAMILY: Family = Family {
             id: SWITCH,
             spelling: "SWITCH",
             notation: Notation::Call,
+            kind: super::EntryKind::Worksheet,
+            availability: super::Availability::Unspecified,
             arity: CallableArityShape::range(3, 254),
             groups: Some(super::ArgumentGroups::new(1, 2, 1)),
             parameters: &[
@@ -112,8 +118,9 @@ pub(super) const FAMILY: Family = Family {
             ],
             result: super::ResultForm::MayBeEither,
             demand: ArgumentDemand::Eager,
+            traits: super::EntryTraits::NONE.paired_result(super::PairedResult::EvenAfterSelector).whole_result(super::WholeResultPolicy::Selector),
             kernel: Kernel::Eager(switch),
-        },
+        }.with_three_d(super::ThreeD::new(None, Some(&[2]), Some(&[0, 1]))),
     ],
 };
 

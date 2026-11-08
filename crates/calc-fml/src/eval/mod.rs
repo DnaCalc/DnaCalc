@@ -150,9 +150,7 @@ impl CompiledPlan {
                         None
                     }
                     Instruction::Call { target, .. } | Instruction::LazyCall { target, .. } => {
-                        if VOLATILE_FUNCTIONS.iter().any(|name| {
-                            strip_future_prefix(target.0.spelling()).eq_ignore_ascii_case(name)
-                        }) {
+                        if target.0.traits().volatile {
                             Some(B::Volatile)
                         } else if target.0.notation() == calc_func::Notation::Call {
                             // Catalogue calls have no complete facility classification yet.
@@ -222,9 +220,7 @@ impl CompiledPlan {
         let mut limit = None;
         for instruction in self.blocks.iter().flatten() {
             if let Instruction::Function(target) = instruction
-                && VOLATILE_FUNCTIONS
-                    .iter()
-                    .any(|name| strip_future_prefix(target.0.spelling()).eq_ignore_ascii_case(name))
+                && target.0.traits().volatile
             {
                 return None;
             }
@@ -366,11 +362,7 @@ impl CompiledPlan {
     /// "Excel Recalculation" page lists these as volatile). A call a lazy function may never ask
     /// for counts too, as it does in Excel.
     pub fn volatile(&self) -> bool {
-        self.calls().any(|target| {
-            VOLATILE_FUNCTIONS
-                .iter()
-                .any(|name| strip_future_prefix(target.spelling()).eq_ignore_ascii_case(name))
-        })
+        self.calls().any(|target| target.traits().volatile)
     }
 
     /// User-function names the plan may call, including untaken lazy branches. A user call
@@ -501,29 +493,6 @@ impl UserFunctionEffects {
     }
     pub fn volatile(&self) -> bool {
         self.volatile
-    }
-}
-
-/// The functions [`CompiledPlan::volatile`] counts as volatile.
-const VOLATILE_FUNCTIONS: [&str; 10] = [
-    "RAND",
-    "RANDBETWEEN",
-    "RANDARRAY",
-    "NOW",
-    "TODAY",
-    "OFFSET",
-    "INDIRECT",
-    "CELL",
-    "INFO",
-    "WEBSERVICE",
-];
-
-/// A catalogue spelling without the file form's `_XLFN.` prefix.
-fn strip_future_prefix(spelling: &str) -> &str {
-    let upper = spelling.get(..6).map(str::to_ascii_uppercase);
-    match upper.as_deref() {
-        Some("_XLFN.") => &spelling[6..],
-        _ => spelling,
     }
 }
 

@@ -183,9 +183,10 @@ fn forecast(site: &Site<'_>, x: f64, pairs: &[(f64, f64)]) -> Step<CalcValue> {
     site.number(a + b * x)
 }
 
+// 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
 ported_family! {
     code: CODE;
-    1 avedev "AVEDEV" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] |s, a, sv| {
+    1 avedev "AVEDEV" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); |s, a, sv| {
         let values = all(s, a, sv, Held::Numbers)?;
         if values.is_empty() {
             return fail(WorksheetErrorCode::Num);
@@ -194,7 +195,7 @@ ported_family! {
         let avedev = values.iter().map(|v| (v - mean).abs()).sum::<f64>() / values.len() as f64;
         s.number(avedev)
     }
-    2 devsq "DEVSQ" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] |s, a, sv| {
+    2 devsq "DEVSQ" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); |s, a, sv| {
         direct_first(s, a)?;
         let values = all(s, a, sv, Held::Numbers)?;
         if values.is_empty() {
@@ -211,7 +212,7 @@ ported_family! {
             .sum::<f64>();
         s.number(devsq)
     }
-    3 geomean "GEOMEAN" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] |s, a, sv| {
+    3 geomean "GEOMEAN" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); |s, a, sv| {
         let values = all(s, a, sv, Held::Numbers)?;
         if values.is_empty() || values.iter().any(|v| *v <= 0.0) {
             return fail(WorksheetErrorCode::Num);
@@ -235,7 +236,7 @@ ported_family! {
             s.number(crt_exp(ln / n))
         }
     }
-    4 harmean "HARMEAN" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] |s, a, sv| {
+    4 harmean "HARMEAN" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); |s, a, sv| {
         direct_first(s, a)?;
         let values = all(s, a, sv, Held::Numbers)?;
         let mut reciprocal_sum = 0.0;
@@ -257,7 +258,7 @@ ported_family! {
         let average = k::excel_numeric::excel_x87_div(reciprocal_sum, values.len() as f64);
         s.number(k::excel_numeric::excel_x87_recip(average))
     }
-    5 median "MEDIAN" (1, 255) [R "number1" ~ AggregateUnderArray, R "number2" ~ AggregateUnderArrayRepeated] |s, a, sv| {
+    5 median "MEDIAN" (1, 255) [R "number1" ~ AggregateUnderArray, R "number2" ~ AggregateUnderArrayRepeated] three_d (Some(&[]), None, None); |s, a, sv| {
         direct_first(s, a)?;
         let values = sorted(all(s, a, sv, Held::Numbers)?);
         if values.is_empty() {
@@ -274,19 +275,19 @@ ported_family! {
         // results. Their input coercion and middle-value arithmetic stay the same.
         out_with_subnormal(s, Ok(result))
     }
-    6 mode "MODE" (1, 255) [R "number1" ~ ArrayAtRoot, R "number2" ~ ArrayAtRootRepeated] |s, a, sv| {
+    6 mode "MODE" (1, 255) [R "number1" ~ ArrayAtRoot, R "number2" ~ ArrayAtRootRepeated] three_d (None, None, Some(&[])); |s, a, sv| {
         match modes(&all(s, a, sv, Held::ModeNumbers)?).first() {
             Some(m) => s.number(*m),
             None => fail(WorksheetErrorCode::NA),
         }
     }
-    7 mode_sngl "MODE.SNGL" (1, 255) [R "number1" ~ ArrayAtRoot, R "number2" ~ ArrayAtRootRepeated] |s, a, sv| {
+    7 mode_sngl "MODE.SNGL" (1, 255) [R "number1" ~ ArrayAtRoot, R "number2" ~ ArrayAtRootRepeated] three_d (None, None, Some(&[])); |s, a, sv| {
         match modes(&all(s, a, sv, Held::ModeNumbers)?).first() {
             Some(m) => s.number(*m),
             None => fail(WorksheetErrorCode::NA),
         }
     }
-    8 mode_mult "MODE.MULT" (1, 255) [R "number1" ~ ArrayAtRoot, R "number2" ~ ArrayAtRootRepeated] |s, a, sv| {
+    8 mode_mult "MODE.MULT" (1, 255) [R "number1" ~ ArrayAtRoot, R "number2" ~ ArrayAtRootRepeated] three_d (None, None, Some(&[])); |s, a, sv| {
         let found = modes(&all(s, a, sv, Held::ModeNumbers)?);
         if found.is_empty() {
             return fail(WorksheetErrorCode::NA);
@@ -294,148 +295,148 @@ ported_family! {
         let rows: Vec<Vec<f64>> = found.into_iter().map(|m| vec![m]).collect();
         out_matrix(s, &rows)
     }
-    9 large "LARGE" (2, 2) [R "array" ~ AggregateAtRoot, V "k"] |s, a, sv| { nth(s, a, sv, true) }
-    10 small "SMALL" (2, 2) [R "array" ~ AggregateAtRoot, V "k"] |s, a, sv| { nth(s, a, sv, false) }
+    9 large "LARGE" (2, 2) [R "array" ~ AggregateAtRoot, V "k"] three_d (Some(&[0]), None, Some(&[1])); |s, a, sv| { nth(s, a, sv, true) }
+    10 small "SMALL" (2, 2) [R "array" ~ AggregateAtRoot, V "k"] three_d (Some(&[0]), None, Some(&[1])); |s, a, sv| { nth(s, a, sv, false) }
     // The ref of RANK, RANK.EQ and RANK.AVG takes only an operand that may give a reference
     // (dc-mx3x, Excel 16.0.20527, 2026-11-07, Formula2 and Formula alike): `=RANK(1,2)`,
     // `=RANK(1,{1,2})` and `=RANK(1,1+1)` are refused, `=RANK(1,B1:B3)` and
     // `=RANK(1,INDEX(B1:B3,0))` enter.
-    11 rank_legacy "RANK" (2, 3) [V "number", F "ref" @Reference, V "order"] |s, a, sv| { rank(s, a, sv, false) }
-    12 rank_eq_fn "RANK.EQ" (2, 3) [V "number", F "ref" @Reference, V "order"] |s, a, sv| { rank(s, a, sv, false) }
-    13 rank_avg_fn "RANK.AVG" (2, 3) [V "number", F "ref" @Reference, V "order"] |s, a, sv| { rank(s, a, sv, true) }
-    14 percentile_legacy "PERCENTILE" (2, 2) [R "array" ~ AggregateAtRoot, V "k"] |s, a, sv| { percentile(s, a, sv, false) }
-    15 percentile_inc "PERCENTILE.INC" (2, 2) [R "array" ~ AggregateAtRoot, V "k"] |s, a, sv| { percentile(s, a, sv, false) }
-    16 percentile_exc "PERCENTILE.EXC" (2, 2) [R "array" ~ AggregateAtRoot, V "k"] |s, a, sv| { percentile(s, a, sv, true) }
-    17 quartile_legacy "QUARTILE" (2, 2) [R "array" ~ AggregateAtRoot, V "quart"] |s, a, sv| { quartile(s, a, sv, false) }
-    18 quartile_inc "QUARTILE.INC" (2, 2) [R "array" ~ AggregateAtRoot, V "quart"] |s, a, sv| { quartile(s, a, sv, false) }
-    19 quartile_exc "QUARTILE.EXC" (2, 2) [R "array" ~ AggregateAtRoot, V "quart"] |s, a, sv| { quartile(s, a, sv, true) }
-    20 percentrank_legacy "PERCENTRANK" (2, 3) [R "array" ~ AggregateAtRoot, V "x", V "significance"] |s, a, sv| {
+    11 rank_legacy "RANK" (2, 3) [V "number", F "ref" @Reference, V "order"] three_d (Some(&[1]), None, Some(&[0, 2])); |s, a, sv| { rank(s, a, sv, false) }
+    12 rank_eq_fn "RANK.EQ" (2, 3) [V "number", F "ref" @Reference, V "order"] three_d (Some(&[1]), None, Some(&[0, 2])); |s, a, sv| { rank(s, a, sv, false) }
+    13 rank_avg_fn "RANK.AVG" (2, 3) [V "number", F "ref" @Reference, V "order"] three_d (Some(&[1]), None, Some(&[0, 2])); |s, a, sv| { rank(s, a, sv, true) }
+    14 percentile_legacy "PERCENTILE" (2, 2) [R "array" ~ AggregateAtRoot, V "k"] three_d (Some(&[0]), None, Some(&[1])); |s, a, sv| { percentile(s, a, sv, false) }
+    15 percentile_inc "PERCENTILE.INC" (2, 2) [R "array" ~ AggregateAtRoot, V "k"] three_d (Some(&[0]), None, Some(&[1])); |s, a, sv| { percentile(s, a, sv, false) }
+    16 percentile_exc "PERCENTILE.EXC" (2, 2) [R "array" ~ AggregateAtRoot, V "k"] three_d (Some(&[0]), None, Some(&[1])); |s, a, sv| { percentile(s, a, sv, true) }
+    17 quartile_legacy "QUARTILE" (2, 2) [R "array" ~ AggregateAtRoot, V "quart"] three_d (Some(&[0]), None, Some(&[1])); |s, a, sv| { quartile(s, a, sv, false) }
+    18 quartile_inc "QUARTILE.INC" (2, 2) [R "array" ~ AggregateAtRoot, V "quart"] three_d (Some(&[0]), None, Some(&[1])); |s, a, sv| { quartile(s, a, sv, false) }
+    19 quartile_exc "QUARTILE.EXC" (2, 2) [R "array" ~ AggregateAtRoot, V "quart"] three_d (Some(&[0]), None, Some(&[1])); |s, a, sv| { quartile(s, a, sv, true) }
+    20 percentrank_legacy "PERCENTRANK" (2, 3) [R "array" ~ AggregateAtRoot, V "x", V "significance"] three_d (Some(&[0]), None, Some(&[1, 2])); |s, a, sv| {
         percent_rank(s, a, sv, PercentRankMode::Inclusive)
     }
-    21 percentrank_inc "PERCENTRANK.INC" (2, 3) [R "array" ~ AggregateAtRoot, V "x", V "significance"] |s, a, sv| {
+    21 percentrank_inc "PERCENTRANK.INC" (2, 3) [R "array" ~ AggregateAtRoot, V "x", V "significance"] three_d (Some(&[0]), None, Some(&[1, 2])); |s, a, sv| {
         percent_rank(s, a, sv, PercentRankMode::Inclusive)
     }
-    22 percentrank_exc "PERCENTRANK.EXC" (2, 3) [R "array" ~ AggregateAtRoot, V "x", V "significance"] |s, a, sv| {
+    22 percentrank_exc "PERCENTRANK.EXC" (2, 3) [R "array" ~ AggregateAtRoot, V "x", V "significance"] three_d (Some(&[0]), None, Some(&[1, 2])); |s, a, sv| {
         percent_rank(s, a, sv, PercentRankMode::Exclusive)
     }
-    23 stdev "STDEV" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] |s, a, sv| {
+    23 stdev "STDEV" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); |s, a, sv| {
         variance(s, a, sv, Held::Numbers, VarianceDivisor::Sample, true)
     }
-    24 stdev_s "STDEV.S" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] |s, a, sv| {
+    24 stdev_s "STDEV.S" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); |s, a, sv| {
         variance(s, a, sv, Held::Numbers, VarianceDivisor::Sample, true)
     }
-    25 stdev_p "STDEV.P" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] |s, a, sv| {
+    25 stdev_p "STDEV.P" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); |s, a, sv| {
         variance(s, a, sv, Held::Numbers, VarianceDivisor::Population, true)
     }
-    26 stdeva "STDEVA" (1, 255) [R "value1" ~ AggregateAtRoot, R "value2" ~ AggregateAtRootRepeated] |s, a, sv| {
+    26 stdeva "STDEVA" (1, 255) [R "value1" ~ AggregateAtRoot, R "value2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); |s, a, sv| {
         variance(s, a, sv, Held::Values, VarianceDivisor::Sample, true)
     }
-    27 stdevp "STDEVP" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] |s, a, sv| {
+    27 stdevp "STDEVP" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); |s, a, sv| {
         variance(s, a, sv, Held::Numbers, VarianceDivisor::Population, true)
     }
-    28 stdevpa "STDEVPA" (1, 255) [R "value1" ~ AggregateAtRoot, R "value2" ~ AggregateAtRootRepeated] |s, a, sv| {
+    28 stdevpa "STDEVPA" (1, 255) [R "value1" ~ AggregateAtRoot, R "value2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); |s, a, sv| {
         variance(s, a, sv, Held::Values, VarianceDivisor::Population, true)
     }
-    29 var "VAR" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] |s, a, sv| {
+    29 var "VAR" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); |s, a, sv| {
         variance(s, a, sv, Held::Numbers, VarianceDivisor::Sample, false)
     }
-    30 var_s "VAR.S" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] |s, a, sv| {
+    30 var_s "VAR.S" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); |s, a, sv| {
         variance(s, a, sv, Held::Numbers, VarianceDivisor::Sample, false)
     }
-    31 var_p "VAR.P" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] |s, a, sv| {
+    31 var_p "VAR.P" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); |s, a, sv| {
         variance(s, a, sv, Held::Numbers, VarianceDivisor::Population, false)
     }
-    32 vara "VARA" (1, 255) [R "value1" ~ AggregateAtRoot, R "value2" ~ AggregateAtRootRepeated] |s, a, sv| {
+    32 vara "VARA" (1, 255) [R "value1" ~ AggregateAtRoot, R "value2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); |s, a, sv| {
         variance(s, a, sv, Held::Values, VarianceDivisor::Sample, false)
     }
-    33 varp "VARP" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] |s, a, sv| {
+    33 varp "VARP" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); |s, a, sv| {
         variance(s, a, sv, Held::Numbers, VarianceDivisor::Population, false)
     }
-    34 varpa "VARPA" (1, 255) [R "value1" ~ AggregateAtRoot, R "value2" ~ AggregateAtRootRepeated] |s, a, sv| {
+    34 varpa "VARPA" (1, 255) [R "value1" ~ AggregateAtRoot, R "value2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); |s, a, sv| {
         variance(s, a, sv, Held::Values, VarianceDivisor::Population, false)
     }
-    35 covar "COVAR" (2, 2) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot] |s, a, sv| {
+    35 covar "COVAR" (2, 2) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot] three_d (None, None, Some(&[])); |s, a, sv| {
         out(s, paired::covariance_from_pairs(&pairs(s, a, 0, 1, PairScalars::SkipNonnumeric, sv)?, CovarianceDivisor::Population))
     }
-    36 covariance_p "COVARIANCE.P" (2, 2) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot] |s, a, sv| {
+    36 covariance_p "COVARIANCE.P" (2, 2) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot] three_d (None, None, Some(&[])); |s, a, sv| {
         out(s, paired::covariance_from_pairs(&pairs(s, a, 0, 1, PairScalars::SkipNonnumeric, sv)?, CovarianceDivisor::Population))
     }
-    37 covariance_s "COVARIANCE.S" (2, 2) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot] |s, a, sv| {
+    37 covariance_s "COVARIANCE.S" (2, 2) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot] three_d (None, None, Some(&[])); |s, a, sv| {
         out(s, paired::covariance_from_pairs(&pairs(s, a, 0, 1, PairScalars::SkipNonnumeric, sv)?, CovarianceDivisor::Sample))
     }
-    38 correl "CORREL" (2, 2) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot] |s, a, sv| {
+    38 correl "CORREL" (2, 2) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot] three_d (None, None, Some(&[])); |s, a, sv| {
         out(s, paired::correlation_from_pairs(&pairs(s, a, 0, 1, PairScalars::SkipNonnumeric, sv)?))
     }
-    39 pearson "PEARSON" (2, 2) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot] |s, a, sv| {
+    39 pearson "PEARSON" (2, 2) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot] three_d (None, None, Some(&[])); |s, a, sv| {
         out(s, paired::correlation_from_pairs(&pairs(s, a, 0, 1, PairScalars::SkipNonnumeric, sv)?))
     }
-    40 rsq "RSQ" (2, 2) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot] |s, a, sv| {
+    40 rsq "RSQ" (2, 2) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot] three_d (None, None, Some(&[])); |s, a, sv| {
         out(s, paired::rsq_from_pairs(&pairs(s, a, 0, 1, PairScalars::SkipNonnumeric, sv)?))
     }
-    41 slope "SLOPE" (2, 2) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot] |s, a, sv| {
+    41 slope "SLOPE" (2, 2) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot] three_d (None, None, Some(&[])); |s, a, sv| {
         out(s, paired::slope_from_pairs(&pairs(s, a, 1, 0, PairScalars::SkipNonnumeric, sv)?))
     }
-    42 intercept "INTERCEPT" (2, 2) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot] |s, a, sv| {
+    42 intercept "INTERCEPT" (2, 2) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot] three_d (None, None, Some(&[])); |s, a, sv| {
         out(s, paired::intercept_from_pairs(&pairs(s, a, 1, 0, PairScalars::SkipNonnumeric, sv)?))
     }
-    43 steyx "STEYX" (2, 2) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot] |s, a, sv| {
+    43 steyx "STEYX" (2, 2) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot] three_d (None, None, Some(&[])); |s, a, sv| {
         out(s, k::moment_stats_family::steyx_kernel(&pairs(s, a, 1, 0, PairScalars::SkipNonnumeric, sv)?))
     }
-    44 forecast_legacy "FORECAST" (3, 3) [V "x", R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot] |s, a, sv| {
+    44 forecast_legacy "FORECAST" (3, 3) [V "x", R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot] three_d (None, None, Some(&[])); |s, a, sv| {
         let x = num(s, a, 0)?;
         forecast(s, x, &pairs(s, a, 2, 1, PairScalars::Coerce, sv)?)
     }
-    45 forecast_linear "FORECAST.LINEAR" (3, 3) [V "x", R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot] |s, a, sv| {
+    45 forecast_linear "FORECAST.LINEAR" (3, 3) [V "x", R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot] three_d (None, None, Some(&[])); |s, a, sv| {
         let x = num(s, a, 0)?;
         forecast(s, x, &pairs(s, a, 2, 1, PairScalars::Coerce, sv)?)
     }
-    46 kurt "KURT" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] |s, a, sv| {
+    46 kurt "KURT" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); |s, a, sv| {
         out(s, k::moment_stats_family::kurt_kernel(&all(s, a, sv, Held::Numbers)?))
     }
-    47 skew "SKEW" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] |s, a, sv| {
+    47 skew "SKEW" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); |s, a, sv| {
         out(s, k::moment_stats_family::skew_kernel(&all(s, a, sv, Held::Numbers)?))
     }
-    48 skew_p "SKEW.P" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] |s, a, sv| {
+    48 skew_p "SKEW.P" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); |s, a, sv| {
         out(s, k::moment_stats_family::skew_p_kernel(&all(s, a, sv, Held::Numbers)?))
     }
-    49 trimmean "TRIMMEAN" (2, 2) [R "array" ~ AggregateAtRoot, V "percent"] |s, a, sv| {
+    49 trimmean "TRIMMEAN" (2, 2) [R "array" ~ AggregateAtRoot, V "percent"] three_d (Some(&[0]), None, Some(&[1])); |s, a, sv| {
         let mut values = list(s, a, 0, sv)?;
         let percent = num(s, a, 1)?;
         out(s, k::moment_stats_family::trimmean_kernel(&mut values, percent))
     }
-    50 standardize "STANDARDIZE" (3, 3) [V "x", V "mean", V "standard_dev"] |s, a, sv| {
+    50 standardize "STANDARDIZE" (3, 3) [V "x", V "mean", V "standard_dev"] three_d (None, None, Some(&[])); |s, a, sv| {
         let (x, mean, sd) = (num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?);
         out(s, k::standardize_fn::standardize_kernel(x, mean, sd))
     }
-    51 fisher "FISHER" (1, 1) [V "x"] |s, a, sv| {
+    51 fisher "FISHER" (1, 1) [V "x"] three_d (None, None, Some(&[])); |s, a, sv| {
         out(s, k::fisher_fn::fisher_kernel(num(s, a, 0)?))
     }
-    52 fisherinv "FISHERINV" (1, 1) [V "y"] |s, a, sv| {
+    52 fisherinv "FISHERINV" (1, 1) [V "y"] three_d (None, None, Some(&[])); |s, a, sv| {
         out(s, k::fisherinv_fn::fisherinv_kernel(num(s, a, 0)?))
     }
-    53 prob "PROB" (3, 4) [R "x_range" ~ ArrayAtRoot, R "prob_range" ~ ArrayAtRoot, V "lower_limit", V "upper_limit"] |s, a, sv| {
+    53 prob "PROB" (3, 4) [R "x_range" ~ ArrayAtRoot, R "prob_range" ~ ArrayAtRoot, V "lower_limit", V "upper_limit"] three_d (None, None, Some(&[])); |s, a, sv| {
         let xs = strict_numbers(s, a, 0, sv)?;
         let ps = strict_numbers(s, a, 1, sv)?;
         let lower = num(s, a, 2)?;
         let upper = if given(a, 3) { Some(num(s, a, 3)?) } else { None };
         out(s, k::lookup_prob_frequency_family::prob_kernel(&xs, &ps, lower, upper))
     }
-    54 frequency "FREQUENCY" (2, 2) [R "data_array" ~ ArrayAtRoot, R "bins_array" ~ ArrayAtRoot] |s, a, sv| {
+    54 frequency "FREQUENCY" (2, 2) [R "data_array" ~ ArrayAtRoot, R "bins_array" ~ ArrayAtRoot] three_d (Some(&[0, 1]), None, None); |s, a, sv| {
         let data = list(s, a, 0, sv)?;
         let bins = list(s, a, 1, sv)?;
         out_matrix(s, &frequency_counts(&data, &bins))
     }
-    55 trend "TREND" (1, 4) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot, R "new_xs", V "const"] |s, a, sv| {
+    55 trend "TREND" (1, 4) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot, R "new_xs", V "const"] three_d (None, Some(&[]), None); |s, a, sv| {
         regression(s, a, sv, k::regression_forecast_family::eval_trend_surface, RegressionNumbers::Standard)
     }
-    56 growth "GROWTH" (1, 4) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot, R "new_xs", V "const"] |s, a, sv| {
+    56 growth "GROWTH" (1, 4) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAtRoot, R "new_xs", V "const"] three_d (None, Some(&[]), None); |s, a, sv| {
         regression(s, a, sv, k::regression_forecast_family::eval_growth_surface, RegressionNumbers::Forecast)
     }
     // R25 legacy INDEX captures retain both predictor columns below LINEST and LOGEST.
-    57 linest "LINEST" (1, 4) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAlways, V "const", V "stats"] |s, a, sv| {
+    57 linest "LINEST" (1, 4) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAlways, V "const", V "stats"] three_d (None, Some(&[]), None); |s, a, sv| {
         regression(s, a, sv, k::regression_forecast_family::eval_linest_surface, RegressionNumbers::Standard)
     }
-    58 logest "LOGEST" (1, 4) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAlways, V "const", V "stats"] |s, a, sv| {
+    58 logest "LOGEST" (1, 4) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAlways, V "const", V "stats"] three_d (None, Some(&[]), None); |s, a, sv| {
         regression(s, a, sv, k::regression_forecast_family::eval_logest_surface, RegressionNumbers::Coefficients)
     }
 }

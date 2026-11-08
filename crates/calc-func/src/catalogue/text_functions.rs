@@ -239,25 +239,26 @@ fn textjoin(site: &Site<'_>, a: &[CalcValue], sv: &mut crate::call::EvalServices
     Ok(CalcValue::text(ExcelText::from_utf16_code_units(joined)))
 }
 
+// 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
 ported_family! {
     code: CODE;
-    1 char_fn "CHAR" (1, 1) [V "number"] |s, a, sv| {
+    1 char_fn "CHAR" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| {
         let n = num(s, a, 0)?;
         out_text(k::char_from_number(n))
     }
-    2 code_fn "CODE" (1, 1) [V "text"] |s, a, sv| {
+    2 code_fn "CODE" (1, 1) [V "text"] three_d (None, None, Some(&[])); |s, a, sv| {
         let text = text_arg(s, a, 0)?;
         out(s, k::code_of_text(&text))
     }
-    3 unichar_fn "UNICHAR" (1, 1) [V "number"] |s, a, sv| {
+    3 unichar_fn "UNICHAR" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| {
         let n = num(s, a, 0)?;
         out_text(k::unichar(n))
     }
-    4 unicode_fn "UNICODE" (1, 1) [V "text"] |s, a, sv| {
+    4 unicode_fn "UNICODE" (1, 1) [V "text"] three_d (None, None, Some(&[])); |s, a, sv| {
         let text = text_arg(s, a, 0)?;
         out(s, k::unicode(&text))
     }
-    5 len_fn "LEN" (1, 1) [V "text"] |s, a, sv| {
+    5 len_fn "LEN" (1, 1) [V "text"] three_d (None, None, Some(&[])); |s, a, sv| {
         let text = text_arg(s, a, 0)?;
         let count = if count_surrogate_pairs(s)? {
             k::len_character_count(&text)
@@ -266,50 +267,50 @@ ported_family! {
         };
         s.number(count as f64)
     }
-    6 left_fn "LEFT" (1, 2) [V "text", V "num_chars"] |s, a, sv| { left(s, a) }
-    7 right_fn "RIGHT" (1, 2) [V "text", V "num_chars"] |s, a, sv| { right(s, a) }
-    8 mid_fn "MID" (3, 3) [V "text", V "start_num", V "num_chars"] |s, a, sv| { mid(s, a, false) }
-    9 lenb_fn "LENB" (1, 1) [V "text"] |s, a, sv| {
+    6 left_fn "LEFT" (1, 2) [V "text", V "num_chars"] three_d (None, None, Some(&[])); |s, a, sv| { left(s, a) }
+    7 right_fn "RIGHT" (1, 2) [V "text", V "num_chars"] three_d (None, None, Some(&[])); |s, a, sv| { right(s, a) }
+    8 mid_fn "MID" (3, 3) [V "text", V "start_num", V "num_chars"] three_d (None, None, Some(&[])); |s, a, sv| { mid(s, a, false) }
+    9 lenb_fn "LENB" (1, 1) [V "text"] three_d (None, None, Some(&[])); |s, a, sv| {
         single_byte(s)?;
         let text = text_arg(s, a, 0)?;
         s.number(text.len_utf16_code_units() as f64)
     }
-    10 leftb_fn "LEFTB" (1, 2) [V "text", V "num_bytes"] |s, a, sv| { single_byte(s)?; left(s, a) }
-    11 rightb_fn "RIGHTB" (1, 2) [V "text", V "num_bytes"] |s, a, sv| { single_byte(s)?; right(s, a) }
-    12 midb_fn "MIDB" (3, 3) [V "text", V "start_num", V "num_bytes"] |s, a, sv| { single_byte(s)?; mid(s, a, true) }
-    13 upper_fn "UPPER" (1, 1) [V "text"] |s, a, sv| { cased(s, a, k::upper) }
-    14 lower_fn "LOWER" (1, 1) [V "text"] |s, a, sv| { cased(s, a, k::lower) }
-    15 proper_fn "PROPER" (1, 1) [V "text"] |s, a, sv| { cased(s, a, k::proper) }
-    16 trim_fn "TRIM" (1, 1) [V "text"] |s, a, sv| {
+    10 leftb_fn "LEFTB" (1, 2) [V "text", V "num_bytes"] three_d (None, None, Some(&[])); |s, a, sv| { single_byte(s)?; left(s, a) }
+    11 rightb_fn "RIGHTB" (1, 2) [V "text", V "num_bytes"] three_d (None, None, Some(&[])); |s, a, sv| { single_byte(s)?; right(s, a) }
+    12 midb_fn "MIDB" (3, 3) [V "text", V "start_num", V "num_bytes"] three_d (None, None, Some(&[])); |s, a, sv| { single_byte(s)?; mid(s, a, true) }
+    13 upper_fn "UPPER" (1, 1) [V "text"] three_d (None, None, Some(&[])); |s, a, sv| { cased(s, a, k::upper) }
+    14 lower_fn "LOWER" (1, 1) [V "text"] three_d (None, None, Some(&[])); |s, a, sv| { cased(s, a, k::lower) }
+    15 proper_fn "PROPER" (1, 1) [V "text"] three_d (None, None, Some(&[])); |s, a, sv| { cased(s, a, k::proper) }
+    16 trim_fn "TRIM" (1, 1) [V "text"] three_d (None, None, Some(&[])); |s, a, sv| {
         let text = text_arg(s, a, 0)?;
         Ok(CalcValue::text(k::trim_ascii_spaces(&text)))
     }
-    17 clean_fn "CLEAN" (1, 1) [V "text"] |s, a, sv| {
+    17 clean_fn "CLEAN" (1, 1) [V "text"] three_d (None, None, Some(&[])); |s, a, sv| {
         let text = text_arg(s, a, 0)?;
         Ok(CalcValue::text(k::clean(&text)))
     }
-    18 rept_fn "REPT" (2, 2) [V "text", V "number_times"] |s, a, sv| {
+    18 rept_fn "REPT" (2, 2) [V "text", V "number_times"] three_d (None, None, Some(&[])); |s, a, sv| {
         let text = text_arg(s, a, 0)?;
         let n = num(s, a, 1)?;
         out_text(k::rept(&text, n))
     }
-    19 exact_fn "EXACT" (2, 2) [V "text1", V "text2"] |s, a, sv| {
+    19 exact_fn "EXACT" (2, 2) [V "text1", V "text2"] three_d (None, None, Some(&[])); |s, a, sv| {
         let left = text_arg(s, a, 0)?;
         let right = text_arg(s, a, 1)?;
         Ok(CalcValue::logical(left.utf16_code_units() == right.utf16_code_units()))
     }
-    20 find_fn "FIND" (2, 3) [V "find_text", V "within_text", V "start_num"] |s, a, sv| { find(s, a, false) }
-    21 findb_fn "FINDB" (2, 3) [V "find_text", V "within_text", V "start_num"] |s, a, sv| { single_byte(s)?; find(s, a, true) }
-    22 search_fn "SEARCH" (2, 3) [V "find_text", V "within_text", V "start_num"] |s, a, sv| { search(s, a, false) }
-    23 searchb_fn "SEARCHB" (2, 3) [V "find_text", V "within_text", V "start_num"] |s, a, sv| { single_byte(s)?; search(s, a, true) }
-    24 replace_fn "REPLACE" (4, 4) [V "old_text", V "start_num", V "num_chars", V "new_text"] |s, a, sv| {
+    20 find_fn "FIND" (2, 3) [V "find_text", V "within_text", V "start_num"] three_d (None, None, Some(&[])); |s, a, sv| { find(s, a, false) }
+    21 findb_fn "FINDB" (2, 3) [V "find_text", V "within_text", V "start_num"] three_d (None, None, Some(&[])); |s, a, sv| { single_byte(s)?; find(s, a, true) }
+    22 search_fn "SEARCH" (2, 3) [V "find_text", V "within_text", V "start_num"] three_d (None, None, Some(&[])); |s, a, sv| { search(s, a, false) }
+    23 searchb_fn "SEARCHB" (2, 3) [V "find_text", V "within_text", V "start_num"] three_d (None, None, Some(&[])); |s, a, sv| { single_byte(s)?; search(s, a, true) }
+    24 replace_fn "REPLACE" (4, 4) [V "old_text", V "start_num", V "num_chars", V "new_text"] three_d (None, None, Some(&[])); |s, a, sv| {
         replace(s, a, false)
     }
-    25 replaceb_fn "REPLACEB" (4, 4) [V "old_text", V "start_num", V "num_bytes", V "new_text"] |s, a, sv| {
+    25 replaceb_fn "REPLACEB" (4, 4) [V "old_text", V "start_num", V "num_bytes", V "new_text"] three_d (None, None, Some(&[])); |s, a, sv| {
         single_byte(s)?;
         replace(s, a, true)
     }
-    26 substitute_fn "SUBSTITUTE" (3, 4) [V "text", V "old_text", V "new_text", V "instance_num"] |s, a, sv| {
+    26 substitute_fn "SUBSTITUTE" (3, 4) [V "text", V "old_text", V "new_text", V "instance_num"] three_d (None, None, Some(&[])); |s, a, sv| {
         let text = text_arg(s, a, 0)?;
         let old = text_arg(s, a, 1)?;
         let new = text_arg(s, a, 2)?;
@@ -323,7 +324,7 @@ ported_family! {
         };
         capped(k::substitute(&text, &old, &new, instance), WorksheetErrorCode::Value)
     }
-    27 t_fn "T" (1, 1) [V "value" ~ LiftReferences] |s, a, sv| {
+    27 t_fn "T" (1, 1) [V "value" ~ LiftReferences] traits lift_dynamic_references; three_d (None, Some(&[]), None); |s, a, sv| {
         match a[0].core_ref() {
             CoreRef::Text(_) => Ok(a[0].clone()),
             CoreRef::Error(code) => fail(code),
@@ -335,9 +336,9 @@ ported_family! {
             _ => Err(s.not_modelled(Some(0))),
         }
     }
-    28 concatenate_fn "CONCATENATE" (1, 255) [V "text1", V "text2"] |s, a, sv| { concatenate(s, a) }
-    29 concat_fn "CONCAT" (1, 254) [R "text1" ~ AggregateAtRoot, R "text2" ~ AggregateAtRootRepeated] |s, a, sv| { concat(s, a, sv) }
-    30 textjoin_fn "TEXTJOIN" (3, 252) [R "delimiter" ~ AggregateAtRoot, V "ignore_empty" ~ AggregateAtRoot, R "text1" ~ AggregateAtRoot, R "text2" ~ AggregateAtRootRepeated] |s, a, sv| {
+    28 concatenate_fn "CONCATENATE" (1, 255) [V "text1", V "text2"] three_d (None, None, Some(&[])); |s, a, sv| { concatenate(s, a) }
+    29 concat_fn "CONCAT" (1, 254) [R "text1" ~ AggregateAtRoot, R "text2" ~ AggregateAtRootRepeated] three_d (Some(&[]), None, None); |s, a, sv| { concat(s, a, sv) }
+    30 textjoin_fn "TEXTJOIN" (3, 252) [R "delimiter" ~ AggregateAtRoot, V "ignore_empty" ~ AggregateAtRoot, R "text1" ~ AggregateAtRoot, R "text2" ~ AggregateAtRootRepeated] three_d (Some(&[0, 2, usize::MAX]), None, Some(&[1])); |s, a, sv| {
         textjoin(s, a, sv)
     }
 }

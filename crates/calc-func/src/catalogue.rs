@@ -58,10 +58,11 @@ mod subtotal;
 mod text;
 mod text_format;
 mod text_functions;
+mod unheld;
 
 /// The family fragments that make up the catalogue. A new family adds its module above and one
 /// line here; its entries stay in its own file.
-const FAMILIES: [&Family; 34] = [
+const FAMILIES: [&Family; 35] = [
     &arithmetic::FAMILY,
     &comparison::FAMILY,
     &text::FAMILY,
@@ -96,6 +97,7 @@ const FAMILIES: [&Family; 34] = [
     &lambda_helpers::FAMILY,
     &group_pivot::FAMILY,
     &grouping::FAMILY,
+    &unheld::FAMILY,
 ];
 
 const ENTRY_COUNT: usize = entry_count(&FAMILIES);
@@ -158,6 +160,185 @@ pub enum Notation {
     Infix,
     /// A postfix operator, as in `50%`.
     Postfix,
+}
+
+/// The owner and syntax of a catalogue entry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EntryKind {
+    Worksheet,
+    Operator { file_spelling: Option<&'static str> },
+    Binding(BindingForm),
+    AddIn { library: &'static str, export: &'static str },
+    HostRoute { provider: &'static str, route: HostRouteKind },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HostRouteKind { Fetch(crate::FetchKind), Rtd }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BindingForm { Let, Lambda }
+
+/// A deferred implementation category and its owner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Deferral { ExternalService, Python, ListsInCells }
+
+impl Deferral {
+    pub const fn owner(self) -> &'static str {
+        match self {
+            Self::ExternalService | Self::Python => "dc-fetch-f0tp",
+            Self::ListsInCells => "dc-nk93",
+        }
+    }
+}
+
+/// Availability supported by the current observations.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Availability {
+    /// The first supported build or compatibility level has not been recorded here.
+    Unspecified,
+    /// Insider Beta with workbook compatibility version 3.
+    ListsInCellsBeta,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Implementation {
+    Held,
+    Binding,
+    NotHeld { owner: &'static str },
+    Deferred { class: Deferral },
+}
+
+/// Positions of result operands whose computed blank origin is retained.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PairedResult {
+    #[default]
+    None,
+    Odd,
+    EvenAfterSelector,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum WholeResultPolicy { #[default] None, Conditions, Selector }
+
+/// The measured treatment of a 3-D reference at an argument position.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ThreeDPlace { Unknown, Take, Spread, ValueError, ReferenceError }
+
+/// dc-10y: Excel 16.0.20430, 2026-10-25, `Range.Formula`, three sheets with 1, 2 and 3 in A1.
+/// `SUM(Ja:Ma!A1)` takes the three sheet values; `INDEX(Ja:Ma!A1,1)` gives #VALUE!;
+/// arithmetic functions at measured scalar places give #REF!. The catalogue oracle's ThreeD
+/// sheet records each measured position and its #REF! control.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ThreeD {
+    take: Option<&'static [usize]>,
+    value: Option<&'static [usize]>,
+    reference: Option<&'static [usize]>,
+}
+
+impl Default for ThreeD {
+    fn default() -> Self { Self::NONE }
+}
+
+impl ThreeD {
+    const NONE: Self = Self { take: None, value: None, reference: None };
+    const fn new(take: Option<&'static [usize]>, value: Option<&'static [usize]>, reference: Option<&'static [usize]>) -> Self {
+        Self { take, value, reference }
+    }
+    fn has(positions: Option<&[usize]>, index: usize) -> bool {
+        match positions {
+            None => false,
+            Some([]) => true,
+            Some([.., start, usize::MAX]) => index >= *start || positions.unwrap().contains(&index),
+            Some(positions) => positions.contains(&index),
+        }
+    }
+    fn is_tail(positions: Option<&[usize]>, index: usize) -> bool {
+        match positions {
+            Some([]) => true,
+            Some([.., start, usize::MAX]) => index >= *start,
+            _ => false,
+        }
+    }
+    fn at(self, index: usize) -> ThreeDPlace {
+        if Self::has(self.value, index) { ThreeDPlace::ValueError }
+        else if Self::has(self.reference, index) { ThreeDPlace::ReferenceError }
+        else if Self::has(self.take, index) {
+            if Self::is_tail(self.take, index) { ThreeDPlace::Spread } else { ThreeDPlace::Take }
+        } else { ThreeDPlace::Unknown }
+    }
+}
+
+/// Measured behavior of a catalogue entry that is independent of its parameter classes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct EntryTraits {
+    /// Intersect the result in a legacy formula outside an array place.
+    pub intersect_legacy_result: bool,
+    /// Refuse a multi-cell reference at a scalar parameter.
+    pub reject_multi_cell_reference: bool,
+    /// Produce missing-coordinate errors before invoking the kernel.
+    pub padding_precedes_call: bool,
+    /// The function can exclude nested subtotal cells; its arguments choose the policy.
+    pub can_skip_nested_subtotals: bool,
+    /// A call to this entry is itself a nested subtotal for another call.
+    pub is_subtotal: bool,
+    /// In a dynamic formula, run once for each reference in an array of references.
+    pub lift_dynamic_references: bool,
+    /// Read an array of references as a whole.
+    pub take_reference_array: bool,
+    /// Lift a computed array even when this entry takes a reference whole.
+    pub lift_computed_array: bool,
+    pub paired_result: PairedResult,
+    pub whole_result_policy: WholeResultPolicy,
+    pub zero_array_blanks: bool,
+    pub zero_lifted_blank: bool,
+    pub zero_dynamic_lifted_blank: bool,
+    pub volatile: bool,
+    pub flush_subnormal_inputs: bool,
+    pub retain_overflow_number: bool,
+    pub retain_subnormal_output: bool,
+    pub strict_number_arguments: bool,
+    pub(crate) three_d: ThreeD,
+}
+
+impl EntryTraits {
+    pub(crate) const NONE: Self = Self {
+        intersect_legacy_result: false,
+        reject_multi_cell_reference: false,
+        padding_precedes_call: false,
+        can_skip_nested_subtotals: false,
+        is_subtotal: false,
+        lift_dynamic_references: false,
+        take_reference_array: false,
+        lift_computed_array: false,
+        paired_result: PairedResult::None,
+        whole_result_policy: WholeResultPolicy::None,
+        zero_array_blanks: false,
+        zero_lifted_blank: false,
+        zero_dynamic_lifted_blank: false,
+        volatile: false,
+        flush_subnormal_inputs: false,
+        retain_overflow_number: false,
+        retain_subnormal_output: false,
+        strict_number_arguments: false,
+        three_d: ThreeD::NONE,
+    };
+
+    const fn intersect_legacy_result(mut self) -> Self { self.intersect_legacy_result = true; self }
+    const fn reject_multi_cell_reference(mut self) -> Self { self.reject_multi_cell_reference = true; self }
+    const fn padding_precedes_call(mut self) -> Self { self.padding_precedes_call = true; self }
+    const fn skip_nested_subtotals(mut self) -> Self { self.can_skip_nested_subtotals = true; self.is_subtotal = true; self.lift_dynamic_references = true; self }
+    const fn lift_dynamic_references(mut self) -> Self { self.lift_dynamic_references = true; self }
+    const fn take_reference_array(mut self) -> Self { self.take_reference_array = true; self }
+    const fn lift_computed_array(mut self) -> Self { self.lift_computed_array = true; self }
+    const fn if_blanks(mut self) -> Self { self.zero_array_blanks = true; self.zero_lifted_blank = true; self }
+    const fn choose_blanks(mut self) -> Self { self.zero_dynamic_lifted_blank = true; self }
+    const fn paired_result(mut self, paired: PairedResult) -> Self { self.paired_result = paired; self }
+    const fn whole_result(mut self, policy: WholeResultPolicy) -> Self { self.whole_result_policy = policy; self }
+    const fn volatile(mut self) -> Self { self.volatile = true; self }
+    const fn flush_subnormal_inputs(mut self) -> Self { self.flush_subnormal_inputs = true; self }
+    const fn retain_overflow_number(mut self) -> Self { self.retain_overflow_number = true; self }
+    const fn retain_subnormal_output(mut self) -> Self { self.retain_subnormal_output = true; self }
+    const fn strict_number_arguments(mut self) -> Self { self.strict_number_arguments = true; self }
 }
 
 /// What a parameter admits at the call interface.
@@ -310,6 +491,8 @@ pub(crate) struct CatalogueEntry {
     /// operator.
     pub(crate) spelling: &'static str,
     pub(crate) notation: Notation,
+    pub(crate) kind: EntryKind,
+    pub(crate) availability: Availability,
     pub(crate) arity: CallableArityShape,
     /// The repeating groups of the arguments, when they come in groups (IFS's pairs).
     pub(crate) groups: Option<ArgumentGroups>,
@@ -319,6 +502,7 @@ pub(crate) struct CatalogueEntry {
     /// What a call may give, as formula entry reads it.
     pub(crate) result: ResultForm,
     pub(crate) demand: ArgumentDemand,
+    pub(crate) traits: EntryTraits,
     /// The kernel: eager for an eager entry and lazy for a lazy one.
     pub(crate) kernel: Kernel,
 }
@@ -334,9 +518,32 @@ pub(crate) enum Kernel {
     },
     /// Asks for the arguments it selects, so an argument it does not select is never evaluated.
     Lazy(LazyKernel),
+    Binding,
+    NotHeld { owner: &'static str },
+    Deferred { class: Deferral },
 }
 
 impl CatalogueEntry {
+    pub(crate) const fn with_kind(mut self, kind: EntryKind) -> Self {
+        self.kind = kind;
+        self
+    }
+    pub(crate) const fn with_traits(mut self, traits: EntryTraits) -> Self {
+        let three_d = self.traits.three_d;
+        self.traits = traits;
+        self.traits.three_d = three_d;
+        self
+    }
+
+    pub(crate) const fn with_three_d(mut self, three_d: ThreeD) -> Self {
+        self.traits.three_d = three_d;
+        self
+    }
+
+    pub(crate) const fn with_volatile_if(mut self, volatile: bool) -> Self {
+        self.traits.volatile = volatile;
+        self
+    }
     pub(crate) const fn with_continuation(mut self, start: Option<StartKernel>) -> Self {
         if let Some(start) = start {
             if let Kernel::Eager(run) = self.kernel {
@@ -372,11 +579,14 @@ impl CatalogueEntry {
             id,
             spelling,
             notation,
+            kind: EntryKind::Operator { file_spelling: None },
+            availability: Availability::Unspecified,
             arity: CallableArityShape::exact(parameters.len()),
             groups: None,
             parameters,
             result: ResultForm::Value,
             demand: ArgumentDemand::Eager,
+            traits: EntryTraits::NONE,
             kernel: Kernel::Eager(kernel),
         }
     }
@@ -538,7 +748,8 @@ const fn check_declaration(family: u16, entry: &CatalogueEntry) {
         Kernel::Lazy(_) if !entry.demand.is_lazy() => {
             panic!("an eager entry has a lazy kernel, against its declared argument demand")
         }
-        Kernel::Eager(_) | Kernel::Resumable { .. } | Kernel::Lazy(_) => {}
+        Kernel::Eager(_) | Kernel::Resumable { .. } | Kernel::Lazy(_) |
+        Kernel::Binding | Kernel::NotHeld { .. } | Kernel::Deferred { .. } => {}
     }
 }
 
@@ -621,7 +832,7 @@ impl Catalogue {
         notation: Notation,
         spelling: &str,
     ) -> Result<FunctionCallTarget<'_>, RegistrationError> {
-        if spelling == euro_tools::SURFACE {
+        if spelling.eq_ignore_ascii_case(euro_tools::SURFACE) {
             return Err(RegistrationError::UnknownSurface {
                 notation,
                 spelling: spelling.to_owned(),
@@ -650,11 +861,29 @@ impl Catalogue {
         }
     }
 
+    /// Resolve a library-qualified add-in call using the entry's declared library.
+    pub fn resolve_addin(&self, library: &str, name: &str) -> Option<FunctionCallTarget<'_>> {
+        let file = library.rsplit(['/', '\\']).next()?;
+        self.by_id.iter().find(|entry| {
+            matches!(entry.kind, EntryKind::AddIn { library, export } if library.eq_ignore_ascii_case(file) && export.eq_ignore_ascii_case(name))
+        }).map(|entry| FunctionCallTarget { entry })
+    }
+
+    /// Resolve a file-form operator name without its file prefix.
+    pub fn resolve_operator_alias(&self, name: &str) -> Option<FunctionCallTarget<'_>> {
+        self.by_id.iter().find(|entry| {
+            match entry.kind {
+                EntryKind::Operator { file_spelling: Some(file) } => file.rsplit('.').next().is_some_and(|alias| alias.eq_ignore_ascii_case(name)),
+                _ => false,
+            }
+        }).map(|entry| FunctionCallTarget { entry })
+    }
+
     /// Every worksheet entry of the dispatch table, in ID order: all but the add-in's.
     pub fn targets(&self) -> impl Iterator<Item = FunctionCallTarget<'_>> + '_ {
         self.by_id
             .iter()
-            .filter(|entry| entry.spelling != euro_tools::SURFACE)
+            .filter(|entry| entry.spelling != euro_tools::SURFACE && matches!(entry.kernel, Kernel::Eager(_) | Kernel::Resumable { .. } | Kernel::Lazy(_)))
             .map(|entry| FunctionCallTarget { entry })
     }
 
@@ -662,8 +891,13 @@ impl Catalogue {
     pub fn surfaces(&self) -> impl Iterator<Item = FunctionCallTarget<'_>> + '_ {
         self.by_surface
             .iter()
-            .filter(|entry| entry.spelling != euro_tools::SURFACE)
+            .filter(|entry| entry.spelling != euro_tools::SURFACE && matches!(entry.kernel, Kernel::Eager(_) | Kernel::Resumable { .. } | Kernel::Lazy(_)))
             .map(|entry| FunctionCallTarget { entry })
+    }
+
+    /// All catalogue entries, including binding forms and entries without a held kernel.
+    pub fn entries(&self) -> impl Iterator<Item = FunctionCallTarget<'_>> + '_ {
+        self.by_surface.iter().map(|entry| FunctionCallTarget { entry })
     }
 }
 
@@ -717,17 +951,41 @@ impl<'c> FunctionCallTarget<'c> {
         self.entry.notation
     }
 
+    pub fn kind(self) -> EntryKind {
+        self.entry.kind
+    }
+
+    pub fn availability(self) -> Availability {
+        self.entry.availability
+    }
+
+    /// The implementation state, including the owner of an unheld entry.
+    pub fn implementation(self) -> Implementation {
+        match self.entry.kernel {
+            Kernel::Binding => Implementation::Binding,
+            Kernel::NotHeld { owner } => Implementation::NotHeld { owner },
+            Kernel::Deferred { class } => Implementation::Deferred { class },
+            _ => Implementation::Held,
+        }
+    }
+
     pub fn arity(self) -> CallableArityShape {
         self.entry.arity
     }
 
-    /// The class of argument `index`, or `None` when the arity admits no argument there.
+    /// The class of argument `index`, or `None` when it is unmeasured or not admitted.
     pub fn parameter_class(self, index: usize) -> Option<ParameterClass> {
+        if matches!(self.entry.kernel, Kernel::NotHeld { .. } | Kernel::Deferred { .. }) {
+            return None;
+        }
         (index < self.entry.arity.max).then(|| self.entry.parameter_class(index))
     }
 
     /// The measured legacy rule for a parameter, including repeated parameters.
     pub fn legacy_place(self, index: usize) -> Option<LegacyPlace> {
+        if matches!(self.entry.kernel, Kernel::NotHeld { .. } | Kernel::Deferred { .. }) {
+            return None;
+        }
         if index >= self.entry.arity.max || self.entry.parameters.is_empty() {
             return None;
         }
@@ -751,6 +1009,16 @@ impl<'c> FunctionCallTarget<'c> {
         self.entry.demand
     }
 
+    /// The entry's measured behavior.
+    pub fn traits(self) -> EntryTraits {
+        self.entry.traits
+    }
+
+    /// How a 3-D reference is handled at `index`.
+    pub fn three_d_place(self, index: usize) -> ThreeDPlace {
+        self.entry.traits.three_d.at(index)
+    }
+
     /// Whether an absent lifted coordinate produces #N/A before the eager kernel runs.
     /// W111's independent padding controls retain this policy for the two directed
     /// rounding functions, whose full validation order differs from argument order. DB,
@@ -759,11 +1027,7 @@ impl<'c> FunctionCallTarget<'c> {
     /// A formed earlier argument error still precedes padding in those named calls.
     /// Operators retain their existing policy until their error/padding order is measured.
     pub fn padding_precedes_call(self) -> bool {
-        self.entry.notation != Notation::Call
-            || matches!(
-                self.entry.spelling,
-                "ROUNDUP" | "ROUNDDOWN"
-            )
+        self.entry.notation != Notation::Call || self.entry.traits.padding_precedes_call
     }
 
     /// Whether a scalar IFS/SWITCH selector returns its chosen result whole instead of
@@ -771,7 +1035,7 @@ impl<'c> FunctionCallTarget<'c> {
     /// This inspects values only; it neither invokes a kernel nor evaluates an argument.
     pub fn selects_whole_result(self, arguments: &[CalcValue], numeric: &NumericMode) -> bool {
         self.entry.arity.accepts(arguments.len())
-            && logical_more::selects_whole_result(self.entry.id, arguments, numeric)
+            && logical_more::selects_whole_result(self.entry.traits.whole_result_policy, arguments, numeric)
     }
 
     pub fn signature_help(self) -> SignatureHelp {

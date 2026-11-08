@@ -162,11 +162,14 @@ const fn conditional(
         id,
         spelling,
         notation: Notation::Call,
+        kind: super::EntryKind::Worksheet,
+        availability: super::Availability::Unspecified,
         arity: CallableArityShape::range(min, max),
         groups: None,
         parameters,
         result: super::ResultForm::Value,
         demand: ArgumentDemand::Eager,
+        traits: super::EntryTraits::NONE,
         kernel: Kernel::Eager(kernel),
     }
 }
@@ -175,27 +178,28 @@ const fn conditional(
 // `=SUMIFS(B1:B3,B1:B3,1,B1:B3)` are refused, `=COUNTIFS(B1:B3,1,B1:B3,1)` and
 // `=SUMIFS(B1:B3,B1:B3,1,B1:B3,1)` enter: COUNTIFS takes 2, 4, 6 and 8 arguments of 1 to 8, and
 // SUMIFS, AVERAGEIFS, MAXIFS and MINIFS 3, 5 and 7.
+// 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
 pub(super) const FAMILY: Family = Family {
     code: CODE,
     entries: &[
-        conditional(COUNTIF, "COUNTIF", (2, 2), RANGE_CRITERIA, countif),
-        conditional(COUNTIFS, "COUNTIFS", (2, 254), COUNT_PAIRS, countifs)
+        conditional(COUNTIF, "COUNTIF", (2, 2), RANGE_CRITERIA, countif).with_three_d(super::ThreeD::new(None, Some(&[0]), None)).with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
+        conditional(COUNTIFS, "COUNTIFS", (2, 254), COUNT_PAIRS, countifs).with_three_d(super::ThreeD::new(None, Some(&[0]), None))
             .with_groups(ArgumentGroups::new(0, 2, 0)),
-        conditional(SUMIF, "SUMIF", (2, 3), SUM_RANGE, sumif),
-        conditional(SUMIFS, "SUMIFS", (3, 255), SUM_PAIRS, sumifs)
-            .with_groups(ArgumentGroups::new(1, 2, 0)),
-        conditional(AVERAGEIF, "AVERAGEIF", (2, 3), AVERAGE_RANGE, averageif),
+        conditional(SUMIF, "SUMIF", (2, 3), SUM_RANGE, sumif).with_three_d(super::ThreeD::new(None, Some(&[0, 2]), None)).with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
+        conditional(SUMIFS, "SUMIFS", (3, 255), SUM_PAIRS, sumifs).with_three_d(super::ThreeD::new(None, Some(&[0, 1]), None))
+            .with_groups(ArgumentGroups::new(1, 2, 0)).with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
+        conditional(AVERAGEIF, "AVERAGEIF", (2, 3), AVERAGE_RANGE, averageif).with_three_d(super::ThreeD::new(None, Some(&[0, 2]), Some(&[1]))).with_traits(super::EntryTraits::NONE.lift_dynamic_references()),
         conditional(
             AVERAGEIFS,
             "AVERAGEIFS",
             (3, 255),
             AVERAGE_PAIRS,
             averageifs,
-        )
+        ).with_three_d(super::ThreeD::new(None, Some(&[0, 1]), Some(&[2])))
         .with_groups(ArgumentGroups::new(1, 2, 0)),
-        conditional(MAXIFS, "MAXIFS", (3, 255), MAX_PAIRS, maxifs)
+        conditional(MAXIFS, "MAXIFS", (3, 255), MAX_PAIRS, maxifs).with_three_d(super::ThreeD::new(None, Some(&[0, 1]), None))
             .with_groups(ArgumentGroups::new(1, 2, 0)),
-        conditional(MINIFS, "MINIFS", (3, 255), MIN_PAIRS, minifs)
+        conditional(MINIFS, "MINIFS", (3, 255), MIN_PAIRS, minifs).with_three_d(super::ThreeD::new(None, Some(&[0, 1]), None))
             .with_groups(ArgumentGroups::new(1, 2, 0)),
     ],
 };

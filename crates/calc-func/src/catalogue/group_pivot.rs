@@ -22,6 +22,8 @@ pub(super) const FAMILY: Family = Family {
         id: PERCENTOF,
         spelling: "PERCENTOF",
         notation: Notation::Call,
+        kind: super::EntryKind::Worksheet,
+        availability: super::Availability::Unspecified,
         arity: CallableArityShape::exact(2),
         groups: None,
         parameters: &[
@@ -30,6 +32,7 @@ pub(super) const FAMILY: Family = Family {
         ],
         result: super::ResultForm::Value,
         demand: ArgumentDemand::Eager,
+        traits: super::EntryTraits::NONE,
         kernel: Kernel::Eager(percentof),
     }],
 };

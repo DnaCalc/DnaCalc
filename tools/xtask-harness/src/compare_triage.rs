@@ -334,6 +334,16 @@ pub(crate) fn refusal_of(
                 }
             }
             EvalFault::Function(fault) => match fault {
+                FunctionFault::NotHeld { id, owner } => Refusal::new(
+                    Class::NotModelled,
+                    spelling(*id),
+                    "Evaluation:Function:NotHeld",
+                ).owned_by(*owner).about(spelling(*id)),
+                FunctionFault::Deferred { id, class } => Refusal::new(
+                    Class::NotModelled,
+                    spelling(*id),
+                    "Evaluation:Function:Deferred",
+                ).owned_by(class.owner()).about(spelling(*id)),
                 // The catalogue holds the function and its kernel refuses this call: not
                 // modelled, under the package that owns the function, never a missing function.
                 FunctionFault::NotImplemented { id, argument } => {

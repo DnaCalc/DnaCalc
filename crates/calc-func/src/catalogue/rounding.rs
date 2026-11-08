@@ -91,32 +91,37 @@ const fn call(
         id,
         spelling,
         notation: Notation::Call,
+        kind: super::EntryKind::Worksheet,
+        availability: super::Availability::Unspecified,
         arity: CallableArityShape::range(min, parameters.len()),
         groups: None,
         parameters,
         result: super::ResultForm::Value,
         demand: ArgumentDemand::Eager,
+        traits: super::EntryTraits::NONE,
         kernel: Kernel::Eager(kernel),
     }
 }
 
+// 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
 pub(super) const FAMILY: Family = Family {
     code: CODE,
     entries: &[
-        call(ABS, "ABS", 1, NUMBER, abs),
-        call(SIGN, "SIGN", 1, NUMBER, sign),
-        call(INT, "INT", 1, NUMBER, int),
-        call(TRUNC, "TRUNC", 1, DIGITS, trunc),
-        call(ROUND, "ROUND", 2, DIGITS, round),
-        call(ROUNDUP, "ROUNDUP", 2, DIGITS, roundup),
-        call(ROUNDDOWN, "ROUNDDOWN", 2, DIGITS, rounddown),
-        call(MROUND, "MROUND", 2, MULTIPLE, mround),
-        call(CEILING, "CEILING", 2, SIGNIFICANCE, ceiling),
-        call(FLOOR, "FLOOR", 2, SIGNIFICANCE, floor),
-        call(MOD, "MOD", 2, DIVISOR, modulo),
-        call(QUOTIENT, "QUOTIENT", 2, FRACTION, quotient),
-        call(EVEN, "EVEN", 1, NUMBER, even),
-        call(ODD, "ODD", 1, NUMBER, odd),
+        call(ABS, "ABS", 1, NUMBER, abs).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
+        call(SIGN, "SIGN", 1, NUMBER, sign).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
+        call(INT, "INT", 1, NUMBER, int).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
+        call(TRUNC, "TRUNC", 1, DIGITS, trunc).with_three_d(super::ThreeD::new(None, None, Some(&[]))).with_traits(super::EntryTraits::NONE.flush_subnormal_inputs().retain_overflow_number().retain_subnormal_output()),
+        call(ROUND, "ROUND", 2, DIGITS, round).with_three_d(super::ThreeD::new(None, None, Some(&[]))).with_traits(super::EntryTraits::NONE.flush_subnormal_inputs().retain_overflow_number()),
+        // W111 directed-rounding padding and multi-cell reference controls.
+        call(ROUNDUP, "ROUNDUP", 2, DIGITS, roundup).with_three_d(super::ThreeD::new(None, None, Some(&[]))).with_traits(super::EntryTraits::NONE.padding_precedes_call().flush_subnormal_inputs().retain_subnormal_output()),
+        call(ROUNDDOWN, "ROUNDDOWN", 2, DIGITS, rounddown).with_three_d(super::ThreeD::new(None, None, Some(&[]))).with_traits(super::EntryTraits::NONE.padding_precedes_call().flush_subnormal_inputs().retain_overflow_number().retain_subnormal_output()),
+        call(MROUND, "MROUND", 2, MULTIPLE, mround).with_three_d(super::ThreeD::new(None, Some(&[]), None)).with_traits(super::EntryTraits::NONE.reject_multi_cell_reference().strict_number_arguments()),
+        call(CEILING, "CEILING", 2, SIGNIFICANCE, ceiling).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
+        call(FLOOR, "FLOOR", 2, SIGNIFICANCE, floor).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
+        call(MOD, "MOD", 2, DIVISOR, modulo).with_three_d(super::ThreeD::new(None, None, Some(&[]))).with_traits(super::EntryTraits::NONE.flush_subnormal_inputs()),
+        call(QUOTIENT, "QUOTIENT", 2, FRACTION, quotient).with_three_d(super::ThreeD::new(None, Some(&[]), None)).with_traits(super::EntryTraits::NONE.reject_multi_cell_reference().strict_number_arguments()),
+        call(EVEN, "EVEN", 1, NUMBER, even).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
+        call(ODD, "ODD", 1, NUMBER, odd).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
         call(ECMA_CEILING, "ECMA.CEILING", 2, SIGNIFICANCE, ecma_ceiling),
     ],
 };
@@ -129,14 +134,14 @@ fn numeric(
     compute: fn(&Site<'_>, &[f64]) -> Step<f64>,
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(id, services);
-    let flush_input = matches!(id, TRUNC | ROUND | ROUNDUP | ROUNDDOWN | MOD);
-    Site::finish(numbers(&site, arguments, flush_input).and_then(|read| {
+    let traits = super::catalogue().resolve(id).expect("declared rounding entry").traits();
+    Site::finish(numbers(&site, arguments, traits).and_then(|read| {
         let result = compute(&site, &read)?;
         // Only `stored` makes a NaN here: Excel's own bit pattern for a result past DBL_MAX,
         // which the worksheet holds as a number.
-        if result.is_nan() && matches!(id, TRUNC | ROUND | ROUNDDOWN) {
+        if result.is_nan() && traits.retain_overflow_number {
             Ok(CalcValue::excel_overflow_number(result).expect("the stored rounding result"))
-        } else if result.is_subnormal() && matches!(id, TRUNC | ROUNDUP | ROUNDDOWN) {
+        } else if result.is_subnormal() && traits.retain_subnormal_output {
             // Only the measured initial-reading return below can reach this publication.
             super::kit::out_with_subnormal(&site, Ok(result))
         } else {
@@ -147,7 +152,7 @@ fn numeric(
 
 /// The arguments as numbers: an array argument is refused first, then each argument is read in
 /// order, so the first one's error is the result.
-fn numbers(site: &Site<'_>, arguments: &[CalcValue], flush_input: bool) -> Step<Vec<f64>> {
+fn numbers(site: &Site<'_>, arguments: &[CalcValue], traits: super::EntryTraits) -> Step<Vec<f64>> {
     site.scalar_operands(arguments)?;
     arguments
         .iter()
@@ -155,14 +160,14 @@ fn numbers(site: &Site<'_>, arguments: &[CalcValue], flush_input: bool) -> Step<
         .map(|(index, argument)| {
             // W111 typed MROUND/QUOTIENT readings: logicals are #VALUE!, an explicit
             // omission #N/A. A referenced blank remains Empty and coerces to zero.
-            if matches!(site.id(), MROUND | QUOTIENT) {
+            if traits.strict_number_arguments {
                 match argument.core_ref() {
                     CoreRef::Logical(_) => return Err(Exit::Error(WorksheetErrorCode::Value)),
                     CoreRef::Missing => return Err(Exit::Error(WorksheetErrorCode::NA)),
                     _ => {}
                 }
             }
-            if flush_input && argument.as_number().is_some_and(f64::is_subnormal) {
+            if traits.flush_subnormal_inputs && argument.as_number().is_some_and(f64::is_subnormal) {
                 Ok(0.0)
             } else {
                 site.number_argument(index, argument)

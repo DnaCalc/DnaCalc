@@ -189,6 +189,7 @@
   "allowed": {}
  },
  "files": [
+  {"path": "crates/calc-func/src/catalogue/unheld.rs", "class": "own-work", "reason": "Catalogue declarations written here from the owner rulings and repository tracker."},
   {"path": "crates/calc-func/tests/fixtures/dcj9k_r25_bessel/oracle.xlsx", "class": "own-work", "reason": "dc-j9k R27: original MIT-authored R25 question workbook/section or unchanged live Excel capture. Original packet, worker values, formulas and operand echoes verified by DnaCalc-Research/evidence/round27/r25-intake.json; no prediction counted as an answer."},
   {"path": "crates/calc-func/tests/fixtures/dcj9k_r25_bessel/sheet-dcj9k_r25_bessel.txt", "class": "own-work", "reason": "dc-j9k R27: original MIT-authored R25 question workbook/section or unchanged live Excel capture. Original packet, worker values, formulas and operand echoes verified by DnaCalc-Research/evidence/round27/r25-intake.json; no prediction counted as an answer."},
   {"path": "crates/calc-func/tests/fixtures/dcj9k_r25_discrete/oracle.xlsx", "class": "own-work", "reason": "dc-j9k R27: original MIT-authored R25 question workbook/section or unchanged live Excel capture. Original packet, worker values, formulas and operand echoes verified by DnaCalc-Research/evidence/round27/r25-intake.json; no prediction counted as an answer."},

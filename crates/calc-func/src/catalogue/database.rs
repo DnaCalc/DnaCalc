@@ -264,18 +264,19 @@ fn published(site: &Site<'_>, result: Result<f64, W>) -> Step<CalcValue> {
 // `=DSUM({1,2},1,B1:B3)` and `=DSUM(1+1,1,B1:B3)` are refused, `=DSUM(B1:B3,1,B1:B3)` and
 // `=DSUM(INDEX(B1:B3,0),1,B1:B3)` enter, and likewise for the other eleven); the field and the
 // criteria take any operand (`=DSUM(B1:B3,1,2)` enters).
+// 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
 ported_family! {
     code: CODE;
-    1 daverage "DAVERAGE" (3, 3) [R "database" @Reference, V "field", R "criteria"] |s, a, sv| { database(s, a, sv, Kind::Average) }
-    2 dcount "DCOUNT" (3, 3) [R "database" @Reference, V "field", R "criteria"] |s, a, sv| { database(s, a, sv, Kind::Count) }
-    3 dcounta "DCOUNTA" (3, 3) [R "database" @Reference, V "field", R "criteria"] |s, a, sv| { database(s, a, sv, Kind::CountA) }
-    4 dget "DGET" (3, 3) [R "database" @Reference, V "field", R "criteria"] |s, a, sv| { database(s, a, sv, Kind::Get) }
-    5 dmax "DMAX" (3, 3) [R "database" @Reference, V "field", R "criteria"] |s, a, sv| { database(s, a, sv, Kind::Max) }
-    6 dmin "DMIN" (3, 3) [R "database" @Reference, V "field", R "criteria"] |s, a, sv| { database(s, a, sv, Kind::Min) }
-    7 dproduct "DPRODUCT" (3, 3) [R "database" @Reference, V "field", R "criteria"] |s, a, sv| { database(s, a, sv, Kind::Product) }
-    8 dstdev "DSTDEV" (3, 3) [R "database" @Reference, V "field", R "criteria"] |s, a, sv| { database(s, a, sv, Kind::Stdev) }
-    9 dstdevp "DSTDEVP" (3, 3) [R "database" @Reference, V "field", R "criteria"] |s, a, sv| { database(s, a, sv, Kind::StdevP) }
-    10 dsum "DSUM" (3, 3) [R "database" @Reference, V "field", R "criteria"] |s, a, sv| { database(s, a, sv, Kind::Sum) }
-    11 dvar "DVAR" (3, 3) [R "database" @Reference, V "field", R "criteria"] |s, a, sv| { database(s, a, sv, Kind::Var) }
-    12 dvarp "DVARP" (3, 3) [R "database" @Reference, V "field", R "criteria"] |s, a, sv| { database(s, a, sv, Kind::VarP) }
+    1 daverage "DAVERAGE" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); |s, a, sv| { database(s, a, sv, Kind::Average) }
+    2 dcount "DCOUNT" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); |s, a, sv| { database(s, a, sv, Kind::Count) }
+    3 dcounta "DCOUNTA" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); |s, a, sv| { database(s, a, sv, Kind::CountA) }
+    4 dget "DGET" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); |s, a, sv| { database(s, a, sv, Kind::Get) }
+    5 dmax "DMAX" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); |s, a, sv| { database(s, a, sv, Kind::Max) }
+    6 dmin "DMIN" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); |s, a, sv| { database(s, a, sv, Kind::Min) }
+    7 dproduct "DPRODUCT" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); |s, a, sv| { database(s, a, sv, Kind::Product) }
+    8 dstdev "DSTDEV" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); |s, a, sv| { database(s, a, sv, Kind::Stdev) }
+    9 dstdevp "DSTDEVP" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); |s, a, sv| { database(s, a, sv, Kind::StdevP) }
+    10 dsum "DSUM" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); |s, a, sv| { database(s, a, sv, Kind::Sum) }
+    11 dvar "DVAR" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); |s, a, sv| { database(s, a, sv, Kind::Var) }
+    12 dvarp "DVARP" (3, 3) [R "database" @Reference, V "field", R "criteria"] three_d (None, Some(&[0]), None); |s, a, sv| { database(s, a, sv, Kind::VarP) }
 }
