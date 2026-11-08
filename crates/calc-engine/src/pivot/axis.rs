@@ -274,15 +274,29 @@ pub(super) fn render_axes(
 ) -> Result<PivotLayout, PivotIssue> {
     use std::collections::{BTreeMap, BTreeSet};
     let bad = |why: &str| refusal(&table.part, why);
-    // usize::MAX denotes the Values pseudo-field; real cache fields cannot use that index.
-    let row_fields = table.row_fields.iter().map(|&field| if field == -2 { Ok(usize::MAX) }
+    // usize::MAX denotes Values; the other sentinel is the root of an empty row axis.
+    const ROOT: usize = usize::MAX - 1;
+    let root_only = table.row_fields.is_empty();
+    let mut row_fields = table.row_fields.iter().map(|&field| if field == -2 { Ok(usize::MAX) }
         else { usize::try_from(field).map_err(|_| bad("Invalid row field")) })
         .collect::<Result<Vec<_>, _>>()?;
+    if root_only {
+        if table.column_fields != [-2] || table.data_fields.len() != 2
+            || table.data_fields[0].subtotal != "sum" || table.data_fields[1].subtotal != "product"
+            || table.data_fields[0].field != table.data_fields[1].field || !table.page_fields.is_empty()
+            || !table.filters.is_empty() || cache.fields.iter().any(|field| field.group.is_some() || field.attributes.contains_key("formula"))
+            || !cache.calculated_items.is_empty() {
+            return Err(bad("This empty row axis is not modelled"));
+        }
+        row_fields.push(ROOT);
+    }
     let row_values = row_fields.iter().position(|&field| field == usize::MAX);
-    let row = row_fields.iter().copied().find(|&field| field != usize::MAX)
-        .ok_or_else(|| bad("A source row field is required"))?;
+    let row = if root_only { table.data_fields[0].field as usize } else {
+        row_fields.iter().copied().find(|&field| field != usize::MAX)
+            .ok_or_else(|| bad("A source row field is required"))?
+    };
     let multiple_rows = row_fields.len() > 1;
-    if row_fields.len() > 64 || row_fields.iter().any(|&field| field != usize::MAX && field >= cache.fields.len())
+    if row_fields.len() > 64 || row_fields.iter().any(|&field| field != usize::MAX && field != ROOT && field >= cache.fields.len())
         || row_fields.iter().enumerate().any(|(i, field)| row_fields[..i].contains(field)) {
         return Err(bad("Invalid or repeated row field"));
     }
@@ -420,7 +434,7 @@ pub(super) fn render_axes(
         })) {
         return Err(bad("This value sort layout is not modelled"));
     }
-    if row_fields.iter().filter(|&&field| field != usize::MAX).any(|&field| (custom_subtotal(field) && !custom)
+    if row_fields.iter().filter(|&&field| field < cache.fields.len()).any(|&field| (custom_subtotal(field) && !custom)
         || (!rows_only && !truthy(table.fields[field].attributes.get("defaultSubtotal"), true)))
         || table.fields.iter().enumerate().any(|(field, _)| custom_subtotal(field) && !row_fields.contains(&field)) {
         return Err(bad("These custom subtotals are not modelled in this layout"));
@@ -444,7 +458,7 @@ pub(super) fn render_axes(
         return Err(bad("Values with two row fields are only modelled in tabular form"));
     }
     if multiple_rows && ((!compact_rows && !tabular_values && !rows_only && !(custom && values_only))
-        || row_fields.iter().filter(|&&field| field != usize::MAX).any(|&field|
+        || row_fields.iter().filter(|&&field| field < cache.fields.len()).any(|&field|
             truthy(table.fields[field].attributes.get("compact"), true) != compact_rows
             || ((rows_only || tabular_values || custom) && truthy(table.fields[field].attributes.get("outline"), true) != outline_rows))) {
         return Err(bad("This multi-field row form is not modelled"));
@@ -452,11 +466,11 @@ pub(super) fn render_axes(
     let form = if compact_rows { Form::Compact } else if outline_rows { Form::Outline } else { Form::Tabular };
     let raw_subtotal_top = truthy(table.fields[row].attributes.get("subtotalTop"), true);
     let subtotal_top = raw_subtotal_top && form != Form::Tabular && !custom;
-    if multiple_rows && row_fields.iter().filter(|&&field| field != usize::MAX).any(|&field|
+    if multiple_rows && row_fields.iter().filter(|&&field| field < cache.fields.len()).any(|&field|
         truthy(table.fields[field].attributes.get("subtotalTop"), true) != raw_subtotal_top) {
         return Err(bad("Row fields with different subtotal positions are not modelled"));
     }
-    let mut subtotal_on: Vec<_> = row_fields.iter().map(|&field| field == usize::MAX
+    let mut subtotal_on: Vec<_> = row_fields.iter().map(|&field| field >= cache.fields.len()
         || truthy(table.fields[field].attributes.get("defaultSubtotal"), true)).collect();
     if rows_only && row_values.is_none() && row_fields.len() == 2 && subtotal_on.iter().any(|on| !on)
         && !(form == Form::Outline && !subtotal_on[0] && subtotal_on[1]) {
@@ -466,7 +480,7 @@ pub(super) fn render_axes(
         if level > 0 { subtotal_on[level - 1] = false; } else { subtotal_on[0] = false; }
     }
     let fill_down = truthy(table.fields[row].attributes.get("fillDownLabels"), false);
-    let blank_after: Vec<_> = row_fields.iter().map(|&field| field != usize::MAX &&
+    let blank_after: Vec<_> = row_fields.iter().map(|&field| field < cache.fields.len() &&
         truthy(table.fields[field].attributes.get("insertBlankRow"), false)).collect();
     if (row_values.is_some() && blank_after.iter().any(|&blank| blank))
         || (!multiple_rows && blank_after[0]) || (1..row_fields.len().saturating_sub(1)).any(|i| blank_after[i]) {
@@ -476,7 +490,10 @@ pub(super) fn render_axes(
     let value_captions: Vec<String> = table.data_fields.iter().map(|data|
         data.name.clone().unwrap_or_else(|| cache.fields[data.field as usize].name.clone())).collect();
     let row_levels = row_fields.iter().map(|&field| {
-        if field == usize::MAX {
+        if field == ROOT {
+            Ok(vec![Group { key: PivotItem::Missing, shared: 0, first: 0, total: Total::default(),
+                old: 0, hidden: false, excluded: false }])
+        } else if field == usize::MAX {
             Ok(table.data_fields.iter().enumerate().map(|(i, data)| Group {
                 key: PivotItem::Text(data.name.clone().unwrap_or_else(|| cache.fields[data.field as usize].name.clone())),
                 shared: i as u32, first: i, total: Total::default(), old: i, hidden: false, excluded: false,
@@ -493,7 +510,7 @@ pub(super) fn render_axes(
     };
     let row_positions: Vec<_> = row_levels.iter().enumerate().map(|(level, groups)| {
         let field = row_fields[level];
-        positions(groups, field != usize::MAX && table.fields[field].sort_measure.is_some())
+        positions(groups, field < table.fields.len() && table.fields[field].sort_measure.is_some())
     }).collect();
     let mut levels = Vec::new();
     let mut fields = row_fields.clone();
@@ -570,7 +587,7 @@ pub(super) fn render_axes(
         if !page_allows(table, cache, record)? { continue; }
         let mut row_path = Vec::with_capacity(row_fields.len());
         for (level, &field) in row_fields.iter().enumerate() {
-            row_path.push(if field == usize::MAX { 0 } else {
+            row_path.push(if field == usize::MAX || field == ROOT { 0 } else {
                 find(&row_levels[level], &row_sorted[level], super::records::axis_value(cache, record, field)?.0)?
             });
         }
@@ -703,7 +720,7 @@ pub(super) fn render_axes(
             output: &mut columns,
         }, &mut Vec::new())?;
     }
-    let row_grand = truthy(table.attributes.get("colGrandTotals"), true);
+    let row_grand = !root_only && truthy(table.attributes.get("colGrandTotals"), true);
     if !values_only && !rows_only && truthy(table.attributes.get("rowGrandTotals"), true) {
         let column_measures = if row_values.is_some() { 1 } else { table.data_fields.len() };
         for measure in 0..column_measures {
@@ -716,7 +733,7 @@ pub(super) fn render_axes(
     }
     let first = table.area.first();
     let header = if values_only || rows_only { 1 } else { levels.len() as u32 + 1 };
-    let label_width = if ((rows_only || (custom && values_only)) && form != Form::Compact) || tabular_values { row_fields.len() as u32 } else { 1 };
+    let label_width = if root_only { 0 } else if ((rows_only || (custom && values_only)) && form != Form::Compact) || tabular_values { row_fields.len() as u32 } else { 1 };
     let mut cells = BTreeMap::<(u32, u32), CalcValue>::new();
     let caption = |m: usize| {
         table.data_fields[m].name.clone().unwrap_or_else(|| {
@@ -752,7 +769,8 @@ pub(super) fn render_axes(
         }
         if row_values.is_none() { cells.insert((0, label_width), plain_text(&caption(0))); }
     } else if values_only {
-        if custom && form != Form::Compact {
+        if root_only { /* The axis root has no row label. */ }
+        else if custom && form != Form::Compact {
             for (level, &field) in row_fields.iter().enumerate() {
                 cells.insert((0, level as u32), plain_text(&cache.fields[field].name));
             }
@@ -1207,7 +1225,7 @@ pub(super) fn render_axes(
                 && calculated_item.is_none_or(|item| group.shared != item.item) {
                 continue;
             }
-            cells.insert((r, 0), group_label(group)?);
+            if !root_only { cells.insert((r, 0), group_label(group)?); }
             for (col, entry) in columns.iter().enumerate() {
                 if let Some(value) = calculated.get(&(i, entry.path.clone(), entry.measure)) {
                     cells.insert((r, col as u32 + label_width), value.clone());
@@ -1219,7 +1237,7 @@ pub(super) fn render_axes(
                     cells.insert((r, col as u32 + label_width), CalcValue::number(0.));
                 }
             }
-            axis.push(axis_item("data", 0, vec![row_positions[0][i].unwrap()]));
+            axis.push(axis_item("data", 0, if root_only { Vec::new() } else { vec![row_positions[0][i].unwrap()] }));
             r += 1;
         }
     }
@@ -1266,7 +1284,8 @@ pub(super) fn render_axes(
             .ok_or_else(|| bad("Pivot output exceeds worksheet"))?,
         first
             .column()
-            .checked_add(label_width - 1 + columns.len() as u32)
+            .checked_add(label_width.checked_add(columns.len() as u32).and_then(|width| width.checked_sub(1))
+                .ok_or_else(|| bad("Pivot output exceeds worksheet"))?)
             .ok_or_else(|| bad("Pivot output exceeds worksheet"))?,
     )
     .map_err(|_| bad("Pivot output exceeds worksheet"))?;
@@ -1309,7 +1328,7 @@ pub(super) fn render_axes(
         out
     };
     for (level, &field) in row_fields.iter().enumerate() {
-        if field != usize::MAX {
+        if field < cache.fields.len() {
             let add_default = if row_values.is_some() || !rows_only { true }
                 else if row_fields.len() == 1 { row_grand } else { subtotal_on[level] };
             next.fields[field].items = rebuild(field, &row_levels[level], &row_positions[level], add_default);

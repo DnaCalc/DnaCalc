@@ -20,7 +20,7 @@ pub fn layout(table: &PivotTable, cache: &PivotCache) -> Result<PivotLayout, Piv
         || table.page_fields.iter().any(|page| page.field as i32 == table.row_fields[0])) {
         return Err(bad("This pivot value filter layout is not modelled"));
     }
-    if table.row_fields.is_empty() || table.data_fields.is_empty() {
+    if table.data_fields.is_empty() {
         return Err(bad("This pivot axis layout is not modelled"));
     }
     let mut layout = render_axes(table, cache, snapshot)?;
