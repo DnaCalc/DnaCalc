@@ -58,7 +58,7 @@ BINOM.DIST	full	20131,20527,?	70349	70320	651	numeric	f0be6d1471+changes
 BINOM.DIST	pinned	20131	120	120	-	exact	d711d51236+changes
 BINOM.DIST.RANGE	full	20430	1224	1224	-	exact	f0be6d1471+changes
 BINOM.DIST.RANGE	pinned	20430	120	120	-	exact	d3b996ee19+changes
-BINOM.INV	full	20430	2152	2149	4607182418800017408	gross	f0be6d1471+changes
+BINOM.INV	full	20430	2152	2152	-	exact	b84f912ae9+changes
 BINOM.INV	pinned	20430	120	120	-	exact	d711d51236+changes
 BITAND	full	20430	5989	5989	-	exact	f0be6d1471+changes
 BITAND	pinned	20430	120	120	-	exact	919dd43269+changes
@@ -120,7 +120,7 @@ COUPNUM	full	20131,20430,?	5584	5584	-	exact	f0be6d1471+changes
 COUPNUM	pinned	20131,20430	120	120	-	exact	919dd43269+changes
 COUPPCD	full	20131,20430,?	5584	5584	-	exact	f0be6d1471+changes
 COUPPCD	pinned	20131,20430	120	120	-	exact	919dd43269+changes
-CRITBINOM	full	20430	1264	1263	4607182418800017408	gross	f0be6d1471+changes
+CRITBINOM	full	20430	1264	1264	-	exact	b84f912ae9+changes
 CRITBINOM	pinned	20430	120	120	-	exact	d711d51236+changes
 CSC	full	20131,20430,?	2136	2136	-	exact	f0be6d1471+changes
 CSC	pinned	20131,20430	120	120	-	exact	919dd43269+changes

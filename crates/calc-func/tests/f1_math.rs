@@ -11,6 +11,19 @@ use f1_support::*;
 
 const PI: f64 = std::f64::consts::PI;
 
+/// Excel 20430's W111 binomial inverse boundaries, also exercised through the compatibility alias.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn binomial_inverse_advances_on_measured_equal_boundaries() {
+    for function in ["BINOM.INV", "CRITBINOM"] {
+        for (trials, alpha, expected) in [(1.0, 0.5, 1.0), (2.0, 0.25, 1.0), (7.0, 0.5, 4.0)] {
+            exact(call(function, vec![n(trials), n(0.5), n(alpha)]), expected);
+        }
+    }
+    // The W111 control near probability one remains in the lower count.
+    exact(call("BINOM.INV", vec![n(2.0), n(f64::from_bits(0x3fef_ffff_ffff_ffff)), n(f64::from_bits(0x3cb0_0000_0000_0000))]), 1.0);
+}
+
 /// Excel20527: the directed unit at10^126 rounds through PC64, then binary64.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
