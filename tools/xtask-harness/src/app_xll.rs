@@ -354,9 +354,10 @@ fn reopen_offer(session: &Session, xll: &Path, name: &str, out: &Path) -> Result
     let came = wait_until(LOAD_WAIT, || {
         items_of(session, "addins-loaded").len() > loaded_after_wrong || {
             let status = text_of(session, "addin-status");
-            ["refused", "not the file", "already loaded", "cannot", "rollback", "not an .xll", "failed", "dc-snz"]
-                .iter()
-                .any(|word| status.contains(word))
+            status != refusal
+                && ["refused", "already loaded", "cannot", "rollback", "not an .xll", "failed", "dc-snz"]
+                    .iter()
+                    .any(|word| status.contains(word))
         }
     });
     let status = text_of(session, "addin-status");
