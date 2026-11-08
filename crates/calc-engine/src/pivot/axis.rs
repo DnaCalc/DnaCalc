@@ -288,6 +288,17 @@ pub(super) fn render_axes(
     {
         return Err(bad("This pivot axis or value aggregation is not modelled"));
     }
+    let value_sorts: Vec<_> = table.fields.iter().enumerate().filter_map(|(field, value)|
+        value.sort_measure.map(|measure| (field, measure as usize))).collect();
+    if !value_sorts.is_empty() && (value_sorts.len() != 1 || row_fields.len() != 1
+        || row_values.is_some() || table.column_fields.iter().filter(|&&field| field != -2).count() > 1
+        || !table.page_fields.is_empty() || !table.filters.is_empty() || show != "normal"
+        || value_sorts.iter().any(|&(field, measure)| {
+            !(row_fields.contains(&field) || table.column_fields.contains(&(field as i32)))
+                || table.data_fields.get(measure).is_none_or(|data| data.subtotal != "sum")
+        })) {
+        return Err(bad("This value sort layout is not modelled"));
+    }
     let custom_subtotal = |field: usize| table.fields[field].attributes.iter().any(|(name, value)| {
         name.ends_with("Subtotal") && name != "defaultSubtotal" && truthy(Some(value), false)
     });
@@ -317,8 +328,9 @@ pub(super) fn render_axes(
     }
     let mut subtotal_on: Vec<_> = row_fields.iter().map(|&field| field == usize::MAX
         || truthy(table.fields[field].attributes.get("defaultSubtotal"), true)).collect();
-    if rows_only && row_values.is_none() && row_fields.len() == 2 && subtotal_on.iter().any(|on| !on) {
-        return Err(bad("Row fields without a subtotal remain unmeasured"));
+    if rows_only && row_values.is_none() && row_fields.len() == 2 && subtotal_on.iter().any(|on| !on)
+        && !(form == Form::Outline && !subtotal_on[0] && subtotal_on[1]) {
+        return Err(bad("Row fields without a subtotal remain unmeasured in this layout"));
     }
     if let Some(level) = row_values {
         if level > 0 { subtotal_on[level - 1] = false; } else { subtotal_on[0] = false; }
@@ -342,22 +354,17 @@ pub(super) fn render_axes(
         } else { field_groups(table, cache, snapshot, field, measure) }
     }).collect::<Result<Vec<_>, _>>()?;
     let rows = &row_levels[0];
-    let positions = |groups: &[Group]| {
-        let mut next = 0;
-        groups
-            .iter()
-            .map(|g| {
-                if g.hidden {
-                    None
-                } else {
-                    let at = next;
-                    next += 1;
-                    Some(at)
-                }
-            })
-            .collect::<Vec<_>>()
+    let positions = |groups: &[Group], preserve_items: bool| {
+        let mut order: Vec<_> = (0..groups.len()).filter(|&i| !groups[i].hidden).collect();
+        if preserve_items { order.sort_by_key(|&i| (groups[i].old, groups[i].first)); }
+        let mut result = vec![None; groups.len()];
+        for (position, i) in order.into_iter().enumerate() { result[i] = Some(position as u32); }
+        result
     };
-    let row_positions: Vec<_> = row_levels.iter().map(|groups| positions(groups)).collect();
+    let row_positions: Vec<_> = row_levels.iter().enumerate().map(|(level, groups)| {
+        let field = row_fields[level];
+        positions(groups, field != usize::MAX && table.fields[field].sort_measure.is_some())
+    }).collect();
     let mut levels = Vec::new();
     let mut fields = row_fields.clone();
     for &field in &table.column_fields {
@@ -379,7 +386,7 @@ pub(super) fn render_axes(
                 ));
             }
             let groups = field_groups(table, cache, snapshot, field, measure)?;
-            let positions = positions(&groups);
+            let positions = positions(&groups, table.fields[field].sort_measure.is_some());
             levels.push(ColumnLevel {
                 field: Some(field),
                 groups,
@@ -879,16 +886,13 @@ pub(super) fn render_axes(
         .insert("firstDataRow".into(), header.to_string());
     next.location.insert("firstDataCol".into(), label_width.to_string());
     let rebuild = |field: usize, groups: &[Group], positions: &[Option<u32>], add_default: bool| {
-        let mut out = groups
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| positions[*i].is_some())
-            .map(|(_, g)| PivotFieldItem {
-                index: Some(g.shared),
-                kind: "data".into(),
-                hidden: false,
-            })
-            .collect::<Vec<_>>();
+        let mut order: Vec<_> = (0..groups.len()).filter(|&i| positions[i].is_some()).collect();
+        order.sort_by_key(|&i| positions[i]);
+        let mut out = order.into_iter().map(|i| PivotFieldItem {
+            index: Some(groups[i].shared),
+            kind: "data".into(),
+            hidden: false,
+        }).collect::<Vec<_>>();
         out.extend(
             table.fields[field]
                 .items

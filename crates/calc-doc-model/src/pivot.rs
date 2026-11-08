@@ -111,6 +111,8 @@ pub struct PivotPageField {
 pub struct PivotField {
     pub attributes: BTreeMap<String, String>,
     pub items: Vec<PivotFieldItem>,
+    /// Data-field index selected by the supported value-sort scope.
+    pub sort_measure: Option<u32>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PivotFieldItem {
