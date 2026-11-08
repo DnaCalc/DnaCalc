@@ -303,6 +303,9 @@ fn not(
         site.scalar_operands(arguments)
             .and_then(|()| not_callable(&site, 0, &arguments[0]))
             .and_then(|()| {
+                if let Some(n) = arguments[0].as_number() && n.is_subnormal() && n.is_sign_negative() {
+                    return Ok(CalcValue::logical(false));
+                }
                 let logical = site.argument(0, coerce::logical(&arguments[0]))?;
                 Ok(CalcValue::logical(!logical))
             }),

@@ -311,6 +311,12 @@ ported_family! {
     17 weeknum_fn "WEEKNUM" (1, 2) [V "serial_number", V "return_type"] three_d (None, Some(&[]), None); |s, a, sv| {
         let serial = strict_date_arg(s, a, 0)?;
         let kind = return_type(s, a, true)?;
+        // Q3, dc-1943: these types can inherit the preceding WEEKNUM call's state.
+        // The function service has no such state, so it cannot promise a result.
+        if (0.0..(k::MAX_SERIAL_1900 + 1) as f64).contains(&serial)
+            && kind.is_some_and(|v| !(0.0..22.0).contains(&k::date_integer_floor(v))) {
+            return Err(s.not_modelled(Some(1)));
+        }
         out(s, k::weeknum(serial, kind))
     }
     18 isoweeknum_fn "ISOWEEKNUM" (1, 1) [V "date"] three_d (None, None, Some(&[])); |s, a, sv| {

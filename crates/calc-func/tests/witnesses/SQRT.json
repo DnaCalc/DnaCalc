@@ -3,14 +3,14 @@
   "function": "SQRT",
   "selection": "cargo xtask witness pin: of 42803 distinct readings in 4 bank files of OxFunc-Evidence, the first 4 rows of each bank and an evenly spaced sample of the rest, the budget of 120 rows shared by bank size; calc_func is the result calc-func calculated at pinning, on rows it did not match",
   "readings": [
-    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r0","platform":"Windows","source":"OxFunc-Evidence runs/w111-asin-intermediate-20260929/answers-sqrt.json"},
-    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r1","platform":"Windows","source":"OxFunc-Evidence runs/w111-broad-20260929/answers/answers-sqrt.json"},
-    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r2","platform":"Windows","source":"OxFunc-Evidence runs/w111-integer-publication-20260929/answers/answers-sqrt.json"},
-    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r3","platform":"Windows","source":"OxFunc-Evidence runs/w111-numeric-publication-heldout-20260929/answers/answers-sqrt.json"}
+    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r0","invocation":{"compatibility_version":"2","input_sheet_state":"visible-constant-inputs","input_transport":"cell_value2_bulk"},"platform":"Windows","source":"OxFunc-Evidence runs/w111-asin-intermediate-20260929/answers-sqrt.json"},
+    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r1","invocation":{"compatibility_version":"2","input_sheet_state":"visible-constant-inputs","input_transport":"cell_value2_bulk"},"platform":"Windows","source":"OxFunc-Evidence runs/w111-broad-20260929/answers/answers-sqrt.json"},
+    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r2","invocation":{"compatibility_version":"2","input_sheet_state":"visible-constant-inputs","input_transport":"cell_value2_bulk"},"platform":"Windows","source":"OxFunc-Evidence runs/w111-integer-publication-20260929/answers/answers-sqrt.json"},
+    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r3","invocation":{"compatibility_version":"2","input_sheet_state":"visible-constant-inputs","input_transport":"cell_value2_bulk"},"platform":"Windows","source":"OxFunc-Evidence runs/w111-numeric-publication-heldout-20260929/answers/answers-sqrt.json"}
   ],
   "witnesses": [
     {"args":["0x3fe2005b6b91690e"],"expected_bits":"0x3fe8003cf2138ebe","id":"asin-isolation-SQRT-013","reading":"r0"},
-    {"args":["0x0000000000000001"],"calc_func":"fault:NotImplemented","expected_bits":"0x0000000000000000","id":"w111broad-20260929-SQRT-00002","reading":"r1"},
+    {"args":["0x0000000000000001"],"expected_bits":"0x0000000000000000","id":"w111broad-20260929-SQRT-00002","reading":"r1"},
     {"args":["0x01a56e1fc2f8f359"],"expected_bits":"0x20ca2fe76a3f9475","id":"w111broad-20260929-SQRT-00006","reading":"r1"},
     {"args":["0x02e93a526814ad00"],"expected_bits":"0x216c69b0c2726ce3","id":"w111broad-20260929-SQRT-01072","reading":"r1"},
     {"args":["0x05a13d44ced89971"],"expected_bits":"0x22c77cc72342d6c4","id":"w111broad-20260929-SQRT-01007","reading":"r1"},

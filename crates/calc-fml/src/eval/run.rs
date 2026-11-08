@@ -3297,10 +3297,18 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn function_faults_pass_through() {
-        // A difference below the normal range, which calc-func's number rule refuses.
-        assert!(matches!(
+        // This previously refused difference is a real subnormal in Excel.
+        assert_eq!(
             evaluated(
                 "=POWER(2,-1022)*(1+POWER(2,-52))-POWER(2,-1022)",
+                CalcValue::empty()
+            ),
+            Ok(CalcValue::number(f64::from_bits(1)))
+        );
+        // Unary minus on a computed subnormal remains unmodelled.
+        assert!(matches!(
+            evaluated(
+                "=-EXP(-745)",
                 CalcValue::empty()
             ),
             Err(EvalFault::Function(FunctionFault::NotImplemented { .. }))

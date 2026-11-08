@@ -121,6 +121,8 @@ pub struct HostState {
     pub(crate) functions: calc_fml::CallableTable,
     /// The host's way to fetch a URL a workbook names; none gives Excel's failed-fetch results.
     pub(crate) fetch_route: Option<std::rc::Rc<dyn calc_func::FetchRoute>>,
+    /// The host's way to read a file IMPORTCSV and IMPORTTEXT name; none gives Excel's unreadable-file result.
+    pub(crate) import_route: Option<std::rc::Rc<dyn calc_func::ImportRoute>>,
     pub(crate) rtd_inputs: std::rc::Rc<calc_fml::rtd::RtdLedger>,
     /// The owner's capability to join or start RTD topics while this host evaluates, and the
     /// provisional values it returned that this host must admit before publishing.
@@ -228,6 +230,9 @@ impl HostState {
         if let Some(route) = &self.fetch_route {
             functions.register_fetch_route(route);
         }
+        if let Some(route) = &self.import_route {
+            functions.register_import_route(route);
+        }
         if self.rtd_connector.is_some() {
             functions.register_rtd();
         }
@@ -236,6 +241,13 @@ impl HostState {
             .set_callable_bindings(&self.model, self.functions.bindings());
         self.published = None;
         self.last_failure = None;
+    }
+
+    /// Bind IMPORTCSV and IMPORTTEXT to `route`, which reads the file a path names.
+    pub fn set_import_route(&mut self, route: std::rc::Rc<dyn calc_func::ImportRoute>) {
+        self.import_route = Some(route);
+        let functions = self.functions.clone();
+        self.set_user_functions(functions);
     }
 
     /// Bind WEBSERVICE and IMAGE to `route`. Each fetch then waits on the async path; the host
@@ -297,6 +309,7 @@ impl HostState {
             current_facts: None,
             functions: calc_fml::CallableTable::new(),
             fetch_route: None,
+            import_route: None,
             rtd_inputs: Default::default(),
             rtd_connector: None,
             rtd_connected: Default::default(),

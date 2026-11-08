@@ -83,10 +83,13 @@ ported_family! {
         raw(s, a, ExcelRealPolicy::SATURATE_SIGN, k::tanh::tanh_kernel)
     }
     22 degrees "DEGREES" (1, 1) [V "angle"] three_d (None, None, Some(&[])); |s, a, sv| {
-        raw(s, a, ExcelRealPolicy::FINITE, k::degrees::degrees_kernel)
+        let x = num_with_subnormal(s, a, 0)?;
+        let result = k::degrees::degrees_kernel(x);
+        out(s, ExcelRealPolicy::FINITE.publish(x, if result.is_subnormal() { 0.0 } else { result }))
     }
     23 radians "RADIANS" (1, 1) [V "angle"] three_d (None, None, Some(&[])); |s, a, sv| {
-        raw(s, a, ExcelRealPolicy::PASS, k::radians::radians_kernel)
+        let x = num_with_subnormal(s, a, 0)?;
+        out(s, ExcelRealPolicy::PASS.publish(x, k::radians::radians_kernel(x)))
     }
     24 pi "PI" (0, 0) [] |s, a, sv| { s.number(std::f64::consts::PI) }
     25 exp "EXP" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| {
@@ -105,7 +108,7 @@ ported_family! {
         }
     }
     28 log10 "LOG10" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| { unary(s, a, k::log10_fn::log10_kernel) }
-    29 sqrt "SQRT" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| { unary(s, a, k::sqrt_fn::sqrt_kernel) }
+    29 sqrt "SQRT" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| { out(s, k::sqrt_fn::sqrt_kernel(num_with_subnormal(s, a, 0)?)) }
     30 sqrtpi "SQRTPI" (1, 1) [V "number"] three_d (None, Some(&[]), None); |s, a, sv| {
         reject_logical(&a[0])?;
         unary(s, a, k::sqrtpi::sqrtpi_kernel)

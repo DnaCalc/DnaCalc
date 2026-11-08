@@ -313,7 +313,10 @@ function Comparable($Run) {
     return @($Run.data.cells,$Run.data.reopened,$Run.data.saved)
 }
 if (Test-Path -LiteralPath (Join-Path $root 'running')) {
+    # Only a job without a receipt can have been interrupted. The receipt is found from the file name
+    # first: parsing every retained job file made a start take longer than the client's 45 seconds.
     foreach($interrupted in Get-ChildItem -LiteralPath (Join-Path $root 'running') -Filter '*.json') {
+        if (Test-Path -LiteralPath (Join-Path $root ('completed/'+$interrupted.BaseName+'/receipt.json'))) { continue }
         $oldJob=Get-Content -LiteralPath $interrupted.FullName -Raw|ConvertFrom-Json
         $oldDirectory=Join-Path $root ('completed/'+$oldJob.id)
         $oldReceipt=Join-Path $oldDirectory 'receipt.json'
@@ -405,9 +408,10 @@ try {
             $receipt['launches_after']=$script:launches
             Write-Json (Join-Path $directory 'receipt.json') $receipt
             [DnaSessionDeadline]::Disarm()
+            Remove-Item -LiteralPath $destination -Force -ErrorAction SilentlyContinue
             Event 'job-finished' $receipt
             $script:activeJob=$null
             Status
         }
     }
-} finally { [DnaSessionDeadline]::Disarm(); Stop-Owned 'host shutdown'; Event 'host-stop' $PID; [DnaSessionDeadline]::Stop(); $lock.Dispose() }
+} finally { [DnaSessionDeadline]::Disarm(); Stop-Owned 'host shutdown'; Remove-Item -LiteralPath (Join-Path $root 'shutdown.request') -Force -ErrorAction SilentlyContinue; Event 'host-stop' $PID; [DnaSessionDeadline]::Stop(); $lock.Dispose() }

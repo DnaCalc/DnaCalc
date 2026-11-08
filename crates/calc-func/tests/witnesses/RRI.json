@@ -3,17 +3,17 @@
   "function": "RRI",
   "selection": "cargo xtask witness pin: of 5487 distinct readings in 6 bank files of OxFunc-Evidence, the first 4 rows of each bank and an evenly spaced sample of the rest, the budget of 120 rows shared by bank size; calc_func is the result calc-func calculated at pinning, on rows it did not match",
   "readings": [
-    {"bitness":"64-bit","cpu":null,"excel_build":"20228","id":"r0","platform":"Windows","source":"OxFunc-Evidence work/w109/G6-solvers/answers-rri-edge-stage1-20260809.json"},
-    {"bitness":"64-bit","cpu":null,"excel_build":"20228","id":"r1","platform":"Windows","source":"OxFunc-Evidence work/w109/G6-solvers/answers-rri-edge-stage2-20260809.json"},
-    {"bitness":"64-bit","cpu":null,"excel_build":"20228","id":"r2","platform":"Windows","source":"OxFunc-Evidence work/w109/G6-solvers/answers-rri-followup-20260809.json"},
+    {"bitness":"64-bit","cpu":null,"excel_build":"20228","id":"r0","invocation":{"compatibility_version":"2","input_transport":"cell_value2"},"platform":"Windows","source":"OxFunc-Evidence work/w109/G6-solvers/answers-rri-edge-stage1-20260809.json"},
+    {"bitness":"64-bit","cpu":null,"excel_build":"20228","id":"r1","invocation":{"compatibility_version":"2","input_transport":"cell_value2"},"platform":"Windows","source":"OxFunc-Evidence work/w109/G6-solvers/answers-rri-edge-stage2-20260809.json"},
+    {"bitness":"64-bit","cpu":null,"excel_build":"20228","id":"r2","invocation":{"compatibility_version":"2","input_sheet_state":"visible-constant-inputs","input_transport":"cell_value2_bulk"},"platform":"Windows","source":"OxFunc-Evidence work/w109/G6-solvers/answers-rri-followup-20260809.json"},
     {"bitness":null,"cpu":null,"excel_build":null,"id":"r3","platform":"Windows","source":"OxFunc-Evidence work/w109/G6-solvers/answers-rri-grid.json"},
-    {"bitness":"64-bit","cpu":null,"excel_build":"20228","id":"r4","platform":"Windows","source":"OxFunc-Evidence work/w109/G6-solvers/answers-rri-heldout-20260809.json"},
-    {"bitness":"64-bit","cpu":null,"excel_build":"20228","id":"r5","platform":"Windows","source":"OxFunc-Evidence work/w109/G6-solvers/answers-rri-period-one-discriminator-20260809.json"}
+    {"bitness":"64-bit","cpu":null,"excel_build":"20228","id":"r4","invocation":{"compatibility_version":"2","input_sheet_state":"visible-constant-inputs","input_transport":"cell_value2_bulk"},"platform":"Windows","source":"OxFunc-Evidence work/w109/G6-solvers/answers-rri-heldout-20260809.json"},
+    {"bitness":"64-bit","cpu":null,"excel_build":"20228","id":"r5","invocation":{"compatibility_version":"2","input_transport":"cell_value2"},"platform":"Windows","source":"OxFunc-Evidence work/w109/G6-solvers/answers-rri-period-one-discriminator-20260809.json"}
   ],
   "witnesses": [
     {"args":["0x0000000000000000","0x4000000000000000","0x0000000000000000"],"expected_bits":"error:Num","id":"rri-edge-stage1-20260809-056","reading":"r0"},
-    {"args":["0x0000000000000001","0x3ff0000000000000","0x0000000000000001"],"calc_func":"fault:NotImplemented","expected_bits":"error:Num","id":"rri-edge-stage1-20260809-008","reading":"r0"},
-    {"args":["0x000fffffffffffff","0x3ff0000000000000","0x0000000000000000"],"calc_func":"fault:NotImplemented","expected_bits":"error:Num","id":"rri-edge-stage2-20260809-027","reading":"r1"},
+    {"args":["0x0000000000000001","0x3ff0000000000000","0x0000000000000001"],"expected_bits":"error:Num","id":"rri-edge-stage1-20260809-008","reading":"r0"},
+    {"args":["0x000fffffffffffff","0x3ff0000000000000","0x0000000000000000"],"expected_bits":"error:Num","id":"rri-edge-stage2-20260809-027","reading":"r1"},
     {"args":["0x3fe0000000000000","0x3ff0000000000000","0x3fc0000000000000"],"expected_bits":"0xbfef800000000000","id":"rri-fu-0000","reading":"r2"},
     {"args":["0x3fe0000000000000","0x3ff0000000000000","0x3fe0000000000000"],"expected_bits":"0xbfe8000000000000","id":"rri-fu-0003","reading":"r2"},
     {"args":["0x3fe0000000000000","0x3ff0000000000000","0x3fe8000000000000"],"expected_bits":"0xbfdc000000000000","id":"rri-fu-0006","reading":"r2"},

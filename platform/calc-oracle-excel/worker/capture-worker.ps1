@@ -73,6 +73,10 @@
 #     sheet (an element f, formula, formula1 or formula2 of any namespace), or in a defined name,
 #     matched without regard to case on the function name, with or without _xl prefixes such as
 #     _xlfn., outside string literals. FILTERXML over WEBSERVICE is matched through WEBSERVICE.
+#     The CUBE functions are not refused in data-model mode: the package declares the in-file data
+#     model (a connection with model="1") and no other connection except the worksheet connections
+#     (type 102) that feed it, none refreshing on load. After the rebuild the worker then waits for
+#     the asynchronous queries (Application.CalculateUntilAsyncQueriesDone); it never refreshes.
 # A link to another workbook is not refused: Excel opens the workbook with UpdateLinks 0, which
 # never refreshes it, and step 5 records it. Any other route (an ActiveX control, an OLE object
 # embedded in a sheet, a linked data type, a function of an add-in, a formula part this list does
@@ -391,6 +395,7 @@ function Read-Package([string]$Path) {
                     [void]$connections.Add([ordered]@{
                         name = $connection.GetAttribute('name')
                         type = $connection.GetAttribute('type')
+                        model = ($null -ne $connection.SelectSingleNode(".//*[local-name()='connection' and @model='1']"))
                         refresh_on_load = ($refresh -eq '1' -or $refresh -eq 'true')
                     })
                 }
@@ -584,10 +589,30 @@ function Get-PackageRefusals($Package) {
     foreach ($link in $Package.links) {
         if ($link.kind -ne 'externalBook') { [void]$refusals.Add('external link part ' + $link.part + ' is a ' + $link.kind + ' link') }
     }
+    $modelOnly = Test-DataModelOnly $Package
     foreach ($call in $Package.external_calls) {
-        [void]$refusals.Add($call.where + ' calls ' + ($call.functions -join ', ') + ', which reaches external data or another application')
+        $functions = @($call.functions)
+        # Data-model mode: with only the workbook's own data model, the CUBE functions read that
+        # model and nothing else (a connection name that is not in the workbook gives #N/A).
+        if ($modelOnly) { $functions = @($functions | Where-Object { $_ -notlike 'CUBE*' }) }
+        if ($functions.Count -eq 0) { continue }
+        [void]$refusals.Add($call.where + ' calls ' + ($functions -join ', ') + ', which reaches external data or another application')
     }
     return , $refusals
+}
+
+# Data-model mode: the package declares the in-file data model (a connection with model="1") and no
+# connection other than it and the worksheet connections that feed it (type 102), none of them
+# refreshing on load. The CUBE functions of such a workbook query the model stored in the file, which
+# Excel loads from the package; nothing is fetched and nothing is refreshed.
+function Test-DataModelOnly($Package) {
+    $connections = @($Package.connections)
+    if (@($connections | Where-Object { $_.model }).Count -eq 0) { return $false }
+    foreach ($connection in $connections) {
+        if ($connection.refresh_on_load) { return $false }
+        if (-not $connection.model -and $connection.type -ne '102') { return $false }
+    }
+    return $true
 }
 
 # --- the Excel session --------------------------------------------------------------------------
@@ -1118,6 +1143,8 @@ try {
     if ((Get-ComProperty $excel 'MaxIterations') -ne $wantedCount) { $excel.MaxIterations = $wantedCount }
     if ((Get-ComProperty $excel 'MaxChange') -ne $wantedChange) { $excel.MaxChange = $wantedChange }
     $excel.CalculateFullRebuild()
+    # Data-model mode: CUBE formulas query the in-file model asynchronously; wait for them. No refresh.
+    if (Test-DataModelOnly $package) { $excel.CalculateUntilAsyncQueriesDone() }
     # XlCalculationState: xlDone 0, xlCalculating 1, xlPending 2. A read that fails throws, and a
     # value that is not an integer is refused, so neither reads as done (or not done); the
     # adapter's timeout bounds the wait. With iteration on, Excel 16.0.20430 (2026-10-25) leaves

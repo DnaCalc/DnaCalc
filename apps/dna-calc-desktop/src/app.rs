@@ -9,6 +9,7 @@
 //! would have to redo. The window chain, the WebView2 host and its bridge are
 //! `calc-platform-desktop`'s; the add-in set is `calc-addin-host`'s.
 use crate::fetch::ThreadedFetch;
+use crate::file_import::LocalFiles;
 use calc_addin_host::{AddinHost, Document};
 use calc_platform_desktop::{
     Shell, ThreadMessage, ThreadTimer, WebView, WebViewOptions, per_monitor_dpi_aware,
@@ -138,6 +139,7 @@ impl App {
             let mut server = Server::new();
             server.set_calculation_budget(calc_host::WorkBudget::evaluations(64));
             server.set_fetch_route(self.fetch.clone());
+            server.set_import_route(Rc::new(LocalFiles));
             if let Some(functions) = self.functions.borrow().clone() {
                 server.set_user_functions(functions);
             }
@@ -268,6 +270,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     server.set_calculation_budget(calc_host::WorkBudget::evaluations(64));
     let fetch = Rc::new(ThreadedFetch::new());
     server.set_fetch_route(fetch.clone());
+    server.set_import_route(Rc::new(LocalFiles));
     let (mut addins, mut functions) = (None, None);
     if !o.xlls.is_empty() {
         let sheets: Vec<(calc_value::SheetId, String)> = server

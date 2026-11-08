@@ -135,14 +135,14 @@ fn numeric(
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(id, services);
     let traits = super::catalogue().resolve(id).expect("declared rounding entry").traits();
-    Site::finish(numbers(&site, arguments, traits).and_then(|read| {
+    Site::finish(numbers(&site, arguments, traits, id).and_then(|read| {
         let result = compute(&site, &read)?;
         // Only `stored` makes a NaN here: Excel's own bit pattern for a result past DBL_MAX,
         // which the worksheet holds as a number.
         if result.is_nan() && traits.retain_overflow_number {
             Ok(CalcValue::excel_overflow_number(result).expect("the stored rounding result"))
-        } else if result.is_subnormal() && traits.retain_subnormal_output {
-            // Only the measured initial-reading return below can reach this publication.
+        } else if result.is_subnormal() && (traits.retain_subnormal_output || id == ABS) {
+            // ABS and the measured initial-reading returns retain subnormal results.
             super::kit::out_with_subnormal(&site, Ok(result))
         } else {
             site.number(result)
@@ -152,7 +152,7 @@ fn numeric(
 
 /// The arguments as numbers: an array argument is refused first, then each argument is read in
 /// order, so the first one's error is the result.
-fn numbers(site: &Site<'_>, arguments: &[CalcValue], traits: super::EntryTraits) -> Step<Vec<f64>> {
+fn numbers(site: &Site<'_>, arguments: &[CalcValue], traits: super::EntryTraits, id: FunctionId) -> Step<Vec<f64>> {
     site.scalar_operands(arguments)?;
     arguments
         .iter()
@@ -167,7 +167,10 @@ fn numbers(site: &Site<'_>, arguments: &[CalcValue], traits: super::EntryTraits)
                     _ => {}
                 }
             }
-            if traits.flush_subnormal_inputs && argument.as_number().is_some_and(f64::is_subnormal) {
+            if (matches!(id, ABS | EVEN | ODD) || index == 0 && matches!(id, CEILING | FLOOR | QUOTIENT))
+                && argument.as_number().is_some_and(f64::is_subnormal) {
+                Ok(argument.as_number().expect("number checked"))
+            } else if traits.flush_subnormal_inputs && argument.as_number().is_some_and(f64::is_subnormal) {
                 Ok(0.0)
             } else {
                 site.number_argument(index, argument)
@@ -193,6 +196,9 @@ fn sign(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
+    if let Some(n) = arguments[0].as_number() && n.is_subnormal() && n.is_sign_negative() {
+        return Ok(CalcValue::number(-1.0));
+    }
     numeric(SIGN, arguments, services, |_, n| {
         Ok(if n[0] > 0.0 {
             1.0
@@ -214,6 +220,9 @@ fn int(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
+    if let Some(n) = arguments[0].as_number() && n.is_subnormal() && n.is_sign_positive() {
+        return Ok(CalcValue::number(0.0));
+    }
     numeric(INT, arguments, services, |site, n| {
         let x = n[0];
         if x.abs() >= 1e15 {
@@ -624,6 +633,7 @@ fn floor(
 /// as #NUM!.
 fn to_multiple(site: &Site<'_>, number: f64, significance: f64, toward: Toward) -> Step<f64> {
     let quotient = site.divide(number, significance)?;
+    let quotient = if quotient.is_subnormal() { 0.0 } else { quotient };
     // Counted from the quotient rounded to 15 significant digits, as Excel counts (dc-j9k; see
     // ceiling_floor_family::excel_quotient).
     let quotient = if quotient.is_finite() && quotient != 0.0 {

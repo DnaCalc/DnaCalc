@@ -398,6 +398,17 @@ impl HostSession {
         );
     }
 
+    /// Bind IMPORTCSV and IMPORTTEXT to a host's file-read route.
+    pub fn set_import_route(&mut self, route: std::rc::Rc<dyn calc_func::ImportRoute>) {
+        self.host.set_import_route(route);
+        self.deliver_changes(
+            DeltaCause::CallablesChanged {
+                revision: self.host.revision(),
+            },
+            false,
+        );
+    }
+
     /// Bind WEBSERVICE and IMAGE to a host's fetch route.
     pub fn set_fetch_route(&mut self, route: std::rc::Rc<dyn calc_func::FetchRoute>) {
         self.host.set_fetch_route(route);

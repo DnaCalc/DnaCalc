@@ -9,3 +9,5 @@ crates/calc-engine/tests/fixtures/eng14-raw-nonfinite/oracle.entries.json -text 
 # Retain eng15's original observer source and cumulative trace bytes.
 crates/calc-engine/tests/fixtures/excel-calc-probes/P14/eng15-20261104/source/** -text whitespace=cr-at-eol,-blank-at-eof
 crates/calc-engine/tests/fixtures/excel-calc-probes/P14/eng15-20261104/traces/** -text whitespace=cr-at-eol
+# The import fixtures hold line ends of every kind (CR, LF, CRLF), inside quotes too: keep their bytes exact.
+crates/calc-func/tests/fixtures/import/files/** -text

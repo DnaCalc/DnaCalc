@@ -37,6 +37,7 @@ mod number_text;
 mod number_words;
 mod ported;
 mod value_text;
+mod import;
 
 pub use call::{
     ApplicationFacts, CalculationMode, CallAbandoned, CallableInvoker, CellFormatFacts, CellReader,
@@ -56,6 +57,7 @@ pub use fetch::{
     wire_url,
 };
 pub use file_prefix::FilePrefix;
+pub use import::{IMPORT_FUNCTIONS, IMPORT_PROVIDER, ImportFunction, ImportKind, ImportRoute};
 
 /// The order of two texts (UTF-16 code units) as Excel's comparison operators give it under the
 /// Windows locale en-ZA: Excel's pass over ASCII ignoring case, then Windows' collation ignoring

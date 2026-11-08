@@ -68,7 +68,9 @@ fn environment(context: Option<&WitnessInvocation>) -> Result<CalcEnvironment, &
     };
     environment.compatibility_version = match context.compatibility_version.as_deref() {
         None => 1,
-        Some(value) => value.parse().map_err(|_| "fault:WitnessCompatibilityVersion")?,
+        Some(value) => value
+            .parse()
+            .map_err(|_| "fault:WitnessCompatibilityVersion")?,
     };
     environment.date_system = match context.date_system.as_deref() {
         None | Some("1900") => DateSystem::System1900,
@@ -142,7 +144,7 @@ pub fn calculate(
         }
         return "fault:NotCatalogued".to_owned();
     };
-    let Ok(values) = args
+    let Ok(mut values) = args
         .iter()
         .enumerate()
         .map(|(i, a)| decode_argument(a, &format!("args[{i}]")))
@@ -162,6 +164,25 @@ pub fn calculate(
         && values
             .iter()
             .all(|value| !matches!(value.core_ref(), CoreRef::Array(_)));
+    let value2_transport = context.is_some_and(|c| {
+        matches!(
+            c.input_transport.as_deref(),
+            Some("cell_value2_bulk" | "cell_value2")
+        )
+    }) && values
+        .iter()
+        .all(|value| !matches!(value.core_ref(), CoreRef::Array(_)));
+    if value2_transport {
+        // Excel's Value2 cell write stores signed subnormals and negative zero as +0.
+        // Q1-subnormal-inputs.json, dc-1943: 179 affected bank calls replayed.
+        for value in &mut values {
+            if let Some(number) = value.as_number()
+                && (number.is_subnormal() || number == 0.0)
+            {
+                *value = CalcValue::number(0.0);
+            }
+        }
+    }
     let mut prepared = values.clone();
     let mut has_reference = false;
     if cell_transport {
@@ -259,6 +280,51 @@ mod tests {
                 false
             ),
             "logical:False"
+        );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn value2_write_flushes_subnormals_but_literals_remain_unchanged() {
+        let context = cells();
+        for bits in ["0x0000000000000001", "0x8000000000000001"] {
+            assert_eq!(
+                calculate("SIGN", &[json!(bits)], None, Some(&context), true),
+                "0x0000000000000000"
+            );
+        }
+        let negative = [json!("0x8000000000000001")];
+        assert_ne!(
+            calculate("SQRT", &negative, None, None, true),
+            "0x0000000000000000"
+        );
+        assert_eq!(
+            calculate("SQRT", &negative, None, Some(&context), false),
+            calculate("SQRT", &negative, None, None, true)
+        );
+        assert_eq!(
+            calculate(
+                "SIGN",
+                &[json!("0x0010000000000000")],
+                None,
+                Some(&context),
+                true
+            ),
+            "0x3ff0000000000000"
+        );
+        let scalar = WitnessInvocation {
+            input_transport: Some("cell_value2".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            calculate(
+                "SIGN",
+                &[json!("0x8000000000000001")],
+                None,
+                Some(&scalar),
+                true
+            ),
+            "0x0000000000000000"
         );
     }
 
