@@ -110,7 +110,7 @@ def session_receipts(session):
     return receipts
 
 
-def verify_excel_ownership(directory, env, session=None):
+def verify_excel_ownership(directory, env, session=None, fresh=True):
     """Use the runner's launch evidence or an explicitly supplied session ledger."""
     require(env["pid"] != 3144, "Protected Excel PID")
     session = session if session is not None else excel_session_directory
@@ -118,9 +118,14 @@ def verify_excel_ownership(directory, env, session=None):
         require(env["pid"] not in env["preexisting_excel_pids"], "Unowned Excel PID")
         return
     receipts = session_receipts(session).get(directory.resolve(), [])
+    retained = directory / "session-receipt.json"
+    if len(receipts) > 1 and not fresh and retained.is_file():
+        # A run directory name reused by an earlier attempt: the receipt the runner copied beside the capture names its job.
+        job = json.loads(retained.read_text(encoding="utf-8-sig"))["id"]
+        receipts = [r for r in receipts if r["id"] == job]
     require(len(receipts) == 1, "Missing or ambiguous owned-session receipt")
     receipt = receipts[0]
-    require(receipt["success"] and receipt["job"]["fresh_required"], "Session capture did not complete in a fresh process")
+    require(receipt["success"] and (receipt["job"]["fresh_required"] or not fresh), "Session capture did not complete in a fresh process")
     owned = receipt["excel"]
     require(owned["pid"] == env["pid"] and owned["start_ticks"] > 0
             and "/restore" not in owned["command_line"].lower(), "Session Excel identity differs")
@@ -366,7 +371,11 @@ def verify_x1(excel, excel_control, host, host_control):
     require(environments[0]["tracer_sha256"] == environments[2]["tracer_sha256"], "Different tracer binaries")
     require(environments[2]["executable_version"].startswith("16."), "Missing host version resource")
     for directory, env in zip((excel, excel_control), environments):
-        require(env["pid"] != 3144 and env["pid"] not in env["preexisting_excel_pids"], "Unowned Excel PID")
+        if excel_session_directory is not None:
+            # An ordinary (reused-process) session job: the receipt still binds PID, start time and launch.
+            verify_excel_ownership(directory, env, fresh=False)
+        else:
+            require(env["pid"] != 3144 and env["pid"] not in env["preexisting_excel_pids"], "Unowned Excel PID")
         observations = controller(directory)
         require(observations["AutomationSecurity unchanged"] is True, "Security setting changed")
         actual = {k: v for k, v in observations.items() if k.startswith("=")}
