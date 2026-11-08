@@ -82,3 +82,4 @@ pub(crate) fn calculate(state: &PivotState, tick: CalcTick) -> PivotResults {
 
 mod index;
 pub use index::data_cell;
+pub(crate) use index::invalid_model_request;

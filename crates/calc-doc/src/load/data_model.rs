@@ -10,7 +10,7 @@
 
 use super::{Events, LoadError, read_xml};
 use crate::opc::Package;
-use crate::xml::XmlEvent;
+use crate::xml::{XmlEvent, XmlName};
 use calc_doc_model::{DataModel, ModelMeasure};
 
 /// The workbook's connections and model, when its relationships name a connections part.
@@ -23,28 +23,65 @@ pub(crate) fn read(package: &Package, workbook: &str) -> Result<Option<DataModel
     let mut model = DataModel::default();
     let mut from_worksheet = false;
     let mut connection_types = Vec::new();
+    let mut connection_ids = std::collections::BTreeMap::<u32, usize>::new();
+    let mut current_connection_id = None;
+    let mut current_is_model_type = false;
+    let mut model_connections = 0usize;
+    let mut path = Vec::<XmlName>::new();
+    let mut model_extension_uri = false;
+    const MODEL_EXTENSION: &str = "{DE250136-89BD-433C-8126-D09CA5730AF9}";
+    const X15: &str = "http://schemas.microsoft.com/office/spreadsheetml/2010/11/main";
     while let Some(event) = events.next()? {
-        if let XmlEvent::Start(element) = event {
-            match element.name.local.as_str() {
-                "connection" => {
+        match event {
+            XmlEvent::Start(element) => {
+                if path.len() == 1 && path[0].is(super::MAIN_NAMESPACE, "connections")
+                    && element.name.is(super::MAIN_NAMESPACE, "connection") {
+                    current_connection_id = element.attribute("id").and_then(|id| id.parse::<u32>().ok()).filter(|id| *id != 0);
+                    current_is_model_type = element.attribute("type") == Some("5");
+                    if let Some(id) = current_connection_id { *connection_ids.entry(id).or_default() += 1; }
+                }
+                if path.len() == 3 && path[0].is(super::MAIN_NAMESPACE, "connections")
+                    && path[1].is(super::MAIN_NAMESPACE, "connection") && path[2].is(super::MAIN_NAMESPACE, "extLst")
+                    && element.name.is(super::MAIN_NAMESPACE, "ext") {
+                    model_extension_uri = element.attribute("uri") == Some(MODEL_EXTENSION);
+                }
+                if element.name.local == "connection" {
+                    if element.attribute("model") == Some("1") {
+                        model_connections += 1;
+                        let model_extension = path.len() == 4 && path[0].is(super::MAIN_NAMESPACE, "connections")
+                            && path[1].is(super::MAIN_NAMESPACE, "connection")
+                            && path[2].is(super::MAIN_NAMESPACE, "extLst") && path[3].is(super::MAIN_NAMESPACE, "ext");
+                        model.model_connection_id = if model_extension && model_extension_uri && current_is_model_type && !from_worksheet
+                            && element.attribute("name").is_none() && element.name.is(X15, "connection") {
+                            current_connection_id
+                        } else { None };
+                    }
                     if let Some(name) = element.attribute("name") {
                         model.connections.push(name.to_owned());
                         connection_types.push((name.to_owned(), element.attribute("type").map(str::to_owned)));
                         // A worksheet table feeding the model: `x15:connection id` names it.
                         from_worksheet = element.attribute("type") == Some("102");
-                    } else if from_worksheet
-                        && let Some(id) = element.attribute("id")
-                    {
+                    } else if from_worksheet && let Some(id) = element.attribute("id") {
                         model.tables.push(id.to_owned());
-                    } else if element.attribute("model") == Some("1")
-                        && let Some(last) = model.connections.last()
-                    {
+                    } else if element.attribute("model") == Some("1") && let Some(last) = model.connections.last() {
                         model.model_connection = Some(last.clone());
                     }
                 }
-                _ => {}
+                path.push(element.name);
             }
+            XmlEvent::End(name) => {
+                if path.len() == 4 && name.is(super::MAIN_NAMESPACE, "ext") { model_extension_uri = false; }
+                if path.len() == 2 && name.is(super::MAIN_NAMESPACE, "connection") {
+                    current_connection_id = None;
+                    current_is_model_type = false;
+                }
+                path.pop();
+            }
+            XmlEvent::Text(_) => {}
         }
+    }
+    if model_connections != 1 || model.model_connection_id.is_none_or(|id| connection_ids.get(&id) != Some(&1)) {
+        model.model_connection_id = None;
     }
     model.other_connections = connection_types.into_iter().filter(|(name, kind)| {
         kind.as_deref() != Some("102") && model.model_connection.as_ref().is_none_or(|model_name| !calc_doc_model::value::workbook_names_equal(name, model_name))

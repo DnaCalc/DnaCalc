@@ -927,6 +927,7 @@ mod date_flags {
             records_part: None,
             record_count: None,
             source_type: "worksheet".into(),
+            source_connection_id: None,
             source_sheet: None,
             source_range: None,
             source_name: None,

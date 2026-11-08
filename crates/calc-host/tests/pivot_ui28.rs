@@ -1376,3 +1376,57 @@ fn dc_8wp_12__refresh_reuses_retained_product_in_captured_layouts() {
         assert_eq!(actual.len(), checked, "{stage}: unexpected output cells");
     }
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_19__model_pivot_requires_its_own_connection_id() {
+    use existing_wire_support::{RawEntry, build_zip, parse_zip};
+    let bytes = include_bytes!("fixtures/pivot_cube/model-pivot.xlsx");
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes.to_vec()));
+    let original = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let data = original.host().model().definitions().data_model().unwrap();
+    assert_eq!(data.model_connection_id, Some(1));
+    let pivots = original.host().model().definitions().pivots();
+    let table = pivots.tables().find(|table| table.name == "pvt_model").unwrap();
+    let cache = &pivots.caches.caches[&table.cache_id];
+    assert_eq!(cache.source_connection_id, Some(1));
+    let cache_part = cache.part.trim_start_matches('/').to_owned();
+    let needle = "<cacheSource type=\"external\" connectionId=\"1\"/>";
+    let scenarios = [
+        (cache_part.as_str(), needle, "<cacheSource type=\"external\" connectionId=\"2\"/>"),
+        (cache_part.as_str(), needle, "<cacheSource type=\"external\"/>"),
+        (cache_part.as_str(), needle, "<cacheSource type=\"external\" connectionId=\"999\"/>"),
+        (cache_part.as_str(), needle, "<cacheSource type=\"external\" connectionId=\"1\"/><cacheSource type=\"external\" connectionId=\"1\"/>"),
+        ("xl/connections.xml", "<connection id=\"2\"", "<connection id=\"1\""),
+        ("xl/connections.xml", "name=\"ThisWorkbookDataModel\" description=\"Data Model\" type=\"5\"",
+            "name=\"ThisWorkbookDataModel\" description=\"Data Model\" type=\"1\""),
+        ("xl/connections.xml", "<x15:connection id=\"\" model=\"1\"/>",
+            "<x15:connection id=\"\" model=\"1\"/><x15:connection id=\"\" model=\"1\"/>"),
+        ("xl/connections.xml", "<x15:connection id=\"\" model=\"1\"/>",
+            "<unexpected><x15:connection id=\"\" model=\"1\"/></unexpected>"),
+        ("xl/connections.xml", "rowDrillCount=\"1000\"/><extLst><ext uri=\"{DE250136-89BD-433C-8126-D09CA5730AF9}\"",
+            "rowDrillCount=\"1000\"/><extLst><ext uri=\"{00000000-0000-0000-0000-000000000000}\""),
+    ];
+    for (part, needle, replacement) in scenarios {
+        let mut changed = false;
+        let entries: Vec<_> = parse_zip(bytes).entries.iter().map(|entry| {
+            let payload = entry.payload(bytes);
+            if entry.name == part {
+                let xml = if entry.method == 0 { payload.to_vec() } else { miniz_oxide::inflate::decompress_to_vec(payload).unwrap() };
+                let xml = String::from_utf8(xml).unwrap();
+                assert_eq!(xml.matches(needle).count(), 1);
+                changed = true;
+                RawEntry::stored(&entry.name, xml.replace(needle, replacement).as_bytes())
+            } else if entry.method == 0 { RawEntry::stored(&entry.name, payload) }
+            else { RawEntry::deflated(&entry.name, payload, entry.size, entry.crc32) }
+        }).collect();
+        assert!(changed);
+        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(build_zip(&entries)));
+        let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+        let sheet = book.host().sheets().iter().find(|s| String::from_utf16_lossy(s.name().text().utf16_code_units()) == "GpdModel").unwrap().id();
+        assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+        while book.has_unfinished_calculation() { book.advance_calculation(); }
+        let page = project(book.host(), &ProjectionRequest { cells: vec![at(sheet, "B6")] }).unwrap();
+        assert!(matches!(page.cells()[0].value(), ProjectedValue::NotModeled { .. }), "{replacement}: {:?}", page.cells()[0].value());
+    }
+}

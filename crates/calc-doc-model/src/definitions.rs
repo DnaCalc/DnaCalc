@@ -116,6 +116,8 @@ pub struct DataModel {
     pub connections: Vec<String>,
     /// The connection to the workbook's own data model.
     pub model_connection: Option<String>,
+    /// Numeric connection identity of the workbook's own model, when unique and valid.
+    pub model_connection_id: Option<u32>,
     /// Connections outside the workbook model and its worksheet sources.
     pub other_connections: Vec<String>,
     /// The worksheet tables feeding the model, by name.

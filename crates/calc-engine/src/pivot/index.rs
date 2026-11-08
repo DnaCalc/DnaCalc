@@ -67,6 +67,68 @@ fn axis_position(table: &PivotTable, cache: &PivotCache, fields: &[i32], items: 
     Ok(found)
 }
 
+/// Resolve only the error cases measured for a single-table model pivot. Successful requests
+/// still need the model-pivot walk and must not read the saved output cells as results.
+pub(crate) fn invalid_model_request(state: &PivotState, data: &calc_doc_model::DataModel,
+    model: &calc_fml::CubeModel, data_field: &str, reference: &[GridArea],
+    filters: &[(String, CalcValue)]) -> Option<Lookup> {
+    if data.model_connection.is_none() || !data.other_connections.is_empty() || model.tables.len() != 1 {
+        return None;
+    }
+    let mut tables = state.tables().filter(|t| reference.iter().any(|a| a.intersection(t.area).is_some()));
+    let table = tables.next()?;
+    if tables.next().is_some() || !table.unsupported.is_empty() || table.row_fields.len() != 1
+        || table.column_fields.len() != 1 || table.row_fields[0] < 0 || table.column_fields[0] < 0
+        || table.data_fields.len() != 1 || !table.page_fields.is_empty() || !table.filters.is_empty() {
+        return None;
+    }
+    let cache = state.caches.caches.get(&table.cache_id)?;
+    if cache.source_type != "external" || cache.source_connection_id.is_none()
+        || cache.source_connection_id != data.model_connection_id
+        || cache.unsupported.iter().any(|item| !matches!(item.as_str(),
+        "cacheHierarchies" | "dimensions" | "measureGroups" | "maps")) {
+        return None;
+    }
+    if table.row_fields[0] == table.column_fields[0] { return None; }
+    let quote = |name: &str| format!("[{}]", name.replace(']', "]]"));
+    let source = &model.tables[0];
+    for index in [table.row_fields[0] as usize, table.column_fields[0] as usize] {
+        let field = cache.fields.get(index)?;
+        if table.fields.get(index).is_none_or(|field| field.items.is_empty()) || !source.columns.iter().any(|column| {
+            let name = format!("{}.{}.{}", quote(&source.name), quote(&column.name), quote(&column.name));
+            equal(&field.name, &name) == Some(true)
+        }) { return None; }
+    }
+    if table.fields.get(table.data_fields[0].field as usize).is_none() { return None; }
+    let offset = |name: &str| table.location.get(name).and_then(|value| value.parse::<u32>().ok());
+    if offset("firstDataRow").and_then(|row| table.area.first().row().checked_add(row)).is_none_or(|row| row > table.area.last().row())
+        || offset("firstDataCol").and_then(|col| table.area.first().column().checked_add(col)).is_none_or(|col| col > table.area.last().column()) {
+        return None;
+    }
+    // The source connection and saved value field must both identify this retained model.
+    let field = cache.fields.get(table.data_fields[0].field as usize)?;
+    let held = model.pivot_measure(&field.name).ok()?;
+    let missing = Lookup::Error(WorksheetErrorCode::Ref);
+    let requested = match model.pivot_measure(data_field) {
+        Ok(measure) => measure,
+        Err(calc_fml::CubeFailure::Error(WorksheetErrorCode::Ref)) => return Some(missing),
+        Err(_) => return None,
+    };
+    if requested != held { return Some(missing); }
+    for (hierarchy, value) in filters {
+        // A held CUBE member, or a non-text argument, may have separate Excel rules.
+        if value.cube_value().is_some() { return None; }
+        let CoreRef::Text(text) = value.core_ref() else { return None; };
+        let Ok(text) = String::from_utf16(text.utf16_code_units()) else { return None; };
+        match model.pivot_key(hierarchy, &text) {
+            Ok(_) => {},
+            Err(calc_fml::CubeFailure::Error(WorksheetErrorCode::Ref)) => return Some(missing),
+            Err(_) => return None,
+        }
+    }
+    None
+}
+
 pub fn data_cell(state: &PivotState, data_field: &str, reference: &[GridArea], filters: &[(String, CalcValue)]) -> Lookup {
     let missing = Lookup::Error(WorksheetErrorCode::Ref);
     let mut tables = state.tables().filter(|t| reference.iter().any(|a| a.intersection(t.area).is_some()));

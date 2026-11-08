@@ -263,6 +263,11 @@ fn dc_8wp_19__model_pivot_and_mdx_capture_report() {
     let result = project(&host, &ProjectionRequest { cells: keys }).unwrap();
     let mut counts = [0usize; 4]; // match, mismatch, refused, missing
     for (row, cell) in rows.iter().zip(result.cells()) {
+        if row[2] == "e" {
+            assert!(matches!(cell.value(), ProjectedValue::Calculated { value, .. }
+                if matches!(value.core_ref(), CoreRef::Error(e) if e.excel_spelling() == row[4])),
+                "{}: Excel {}, host {:?}", row[1], row[4], cell.value());
+        }
         match cell.value() {
             ProjectedValue::Calculated { value, .. } => {
                 let matched = match (row[2], value.core_ref()) {
@@ -281,6 +286,17 @@ fn dc_8wp_19__model_pivot_and_mdx_capture_report() {
     let part = host.model().definitions().pivots().sheet(pivot_sheet).unwrap().tables.iter()
         .find(|t| t.name == "pvt_model").unwrap().part.clone();
     let mut book = HostSession::new(host);
+    // A source edit does not change the retained model until Refresh All. The missing-member
+    // result must therefore not read the just-edited worksheet cell.
+    let source_sheet = sheet(book.host(), "Sheet1");
+    assert!(book.dispatch(SkinIntent::EnterCell { at: CellKey::new(source_sheet, 2, 20).unwrap(), text: "Nowhere".into() }).accepted());
+    assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+    while book.has_unfinished_calculation() { book.advance_calculation(); }
+    let missing = CellKey::new(gpd, 5, 2).unwrap();
+    let page = project(book.host(), &ProjectionRequest { cells: vec![missing] }).unwrap();
+    assert!(matches!(page.cells()[0].value(), ProjectedValue::Calculated { value, .. }
+        if matches!(value.core_ref(), CoreRef::Error(e) if e.excel_spelling() == "#REF!")));
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
     let revision = book.host().revision().get();
     let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::PivotRefresh { sheet: pivot_sheet, revision, part }));
     let rows: Vec<_> = stages.lines().map(|l| l.split('\t').collect::<Vec<_>>())

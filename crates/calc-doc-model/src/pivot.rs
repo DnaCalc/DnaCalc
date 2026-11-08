@@ -36,6 +36,8 @@ pub struct PivotCache {
     pub records_part: Option<String>,
     pub record_count: Option<u64>,
     pub source_type: String,
+    /// Connection identity from an external cache source, if valid and present.
+    pub source_connection_id: Option<u32>,
     pub source_sheet: Option<String>,
     pub source_range: Option<String>,
     pub source_name: Option<String>,
