@@ -162,6 +162,7 @@ pub unsafe extern "system" fn xlAutoOpen() -> i32 {
         let ptr = module.value.string;
         String::from_utf16_lossy(std::slice::from_raw_parts(ptr.add(1), usize::from(*ptr)))
     };
+    *SELF_PATH.lock().unwrap() = module_name.clone();
     let targeted_failure = std::env::var("DNA_XLL_FAIL_MODULE")
         .ok()
         .is_some_and(|name| module_name.ends_with(&name));
@@ -225,6 +226,36 @@ pub unsafe extern "system" fn xlAutoOpen() -> i32 {
         ("MyNonfiniteValue", "B"),
         ("MyNonfinitePointer", "E"),
         ("MyNonfiniteOper", "Q"),
+        // dc-gh22: Excel12(xlfCall) and Excel12(xlfRegisterId) probes and their CALL targets.
+        ("MyXlf", "QQQQQQQQQQQ#"),
+        ("MyXlfPlain", "QQQQQQQQQQQ"),
+        ("MyXlfRaw", "QQQQQQQQQQQ#"),
+        ("MyRegIdCheck", "QQQQQ#"),
+        ("MyRegIdRepeat", "QQQQQ#"),
+        ("MyOpenProbe", "QE"),
+        ("MyStrInfoA", "JC"),
+        ("MyStrInfoW", "JC%"),
+        ("MyCountedInfoA", "JD"),
+        ("MyCountedInfoW", "JD%"),
+        ("MyBoolRaw", "JA"),
+        ("MyBoolEcho", "AA"),
+        ("MyShortAdd", "III"),
+        ("MyUShortAdd", "HHH"),
+        ("MyIntAdd", "JJJ"),
+        ("MyDoubleInc", "BE"),
+        ("MyIntInc", "JN"),
+        ("MyShortInc", "IM"),
+        ("MyBoolFlip", "AL"),
+        ("MyUpperA", "1F"),
+        ("MyUpperW", "1F%"),
+        ("MyUpperCountedA", "1G"),
+        ("MyUpperCountedW", "1G%"),
+        ("MyCatA", "CCC"),
+        ("MyCatCountedA", "DDD"),
+        ("MyCatW", "C%C%C%"),
+        ("MyCatCountedW", "D%D%D%"),
+        ("MyOperInfo", "QQ"),
+        ("MyThreeArgs", "BBBB"),
     ];
     for (proc, signature) in entries {
         if !unsafe { register(&module, proc, signature, proc) } {
@@ -323,6 +354,9 @@ pub unsafe extern "system" fn xlAutoOpen() -> i32 {
         } {
             return 0;
         }
+    }
+    unsafe {
+        lifecycle_probes(&module_name);
     }
     unsafe {
         call(XL_FREE_FN, &[&mut module], std::ptr::null_mut());
@@ -740,4 +774,595 @@ unsafe fn dynamic_registrations(module: &XlOper12) -> bool {
     let mut unused = 0;
     let restored = unsafe { VirtualProtect(slot.cast(), 4, old, &mut unused) } != 0;
     registered && restored
+}
+
+// ---- dc-gh22: Excel12(xlfCall) / Excel12(xlfRegisterId) probes -------------------------------
+const XLF_CALL: i32 = 150;
+const XLF_REGISTER_ID: i32 = 267;
+static SELF_PATH: Mutex<String> = Mutex::new(String::new());
+static OPEN_PROBES: Mutex<Vec<String>> = Mutex::new(Vec::new());
+thread_local! {
+    static ANSI:UnsafeCell<Vec<u8>>=const{UnsafeCell::new(Vec::new())};
+    static WIDE:UnsafeCell<Vec<u16>>=const{UnsafeCell::new(Vec::new())};
+}
+fn error_name(code: i32) -> String {
+    match code {
+        0 => "#NULL!".into(),
+        7 => "#DIV/0!".into(),
+        15 => "#VALUE!".into(),
+        23 => "#REF!".into(),
+        29 => "#NAME?".into(),
+        36 => "#NUM!".into(),
+        42 => "#N/A".into(),
+        43 => "#GETTING_DATA".into(),
+        other => format!("err{other}"),
+    }
+}
+unsafe fn counted_text(pointer: *const u16) -> String {
+    if pointer.is_null() {
+        return "<null>".into();
+    }
+    let length = usize::from(unsafe { *pointer });
+    String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(pointer.add(1), length) })
+}
+fn type_name(xltype: u32) -> String {
+    let base = match xltype & TYPE_MASK {
+        XL_NUM => "num".to_owned(),
+        XL_STR => "str".to_owned(),
+        XL_BOOL => "bool".to_owned(),
+        XL_REF => "ref".to_owned(),
+        XL_ERR => "err".to_owned(),
+        XL_MULTI => "multi".to_owned(),
+        XL_MISSING => "missing".to_owned(),
+        XL_NIL => "nil".to_owned(),
+        XL_SREF => "sref".to_owned(),
+        XL_INT => "int".to_owned(),
+        other => format!("type{other}"),
+    };
+    let mut flags = String::new();
+    if xltype & XL_FREE != 0 {
+        flags.push_str("+xlfree");
+    }
+    if xltype & DLL_FREE != 0 {
+        flags.push_str("+dllfree");
+    }
+    base + &flags
+}
+unsafe fn describe_value(oper: &XlOper12) -> String {
+    unsafe {
+        match oper.xltype & TYPE_MASK {
+            XL_NUM => format!("{}", oper.value.number),
+            XL_STR => counted_text(oper.value.string),
+            XL_BOOL => if oper.value.integer != 0 {
+                "TRUE"
+            } else {
+                "FALSE"
+            }
+            .into(),
+            XL_ERR => error_name(oper.value.integer),
+            XL_INT => format!("{}", oper.value.integer),
+            XL_MULTI => {
+                let array = oper.value.array;
+                let count = (array.rows.max(0) as usize) * (array.columns.max(0) as usize);
+                let items = (0..count)
+                    .map(|n| {
+                        let item = &*array.values.add(n);
+                        format!("{}:{}", type_name(item.xltype), describe_value(item))
+                    })
+                    .collect::<Vec<_>>();
+                format!("{}x{}[{}]", array.rows, array.columns, items.join(";"))
+            }
+            XL_REF | XL_SREF => "reference".into(),
+            _ => String::new(),
+        }
+    }
+}
+unsafe fn describe(code: i32, oper: &XlOper12) -> String {
+    format!("{code}|{}|{}", type_name(oper.xltype), unsafe {
+        describe_value(oper)
+    })
+}
+/// Substitute the fixture's own module path for the tokens a formula cannot know.
+unsafe fn resolved(oper: &XlOper12, arena: &mut Arena) -> XlOper12 {
+    if oper.xltype & TYPE_MASK != XL_STR {
+        return *oper;
+    }
+    let text = unsafe { counted_text(oper.value.string) };
+    let path = SELF_PATH.lock().unwrap().clone();
+    let name = path.rsplit('\\').next().unwrap_or("").to_owned();
+    let stem = name
+        .rsplit_once('.')
+        .map(|(s, _)| s.to_owned())
+        .unwrap_or(name.clone());
+    let replaced = match text.as_str() {
+        "@self" => path,
+        "@selfname" => name,
+        "@selfstem" => stem,
+        "@selfupper" => path.to_uppercase(),
+        "@selflower" => path.to_lowercase(),
+        _ => return *oper,
+    };
+    arena.text(&replaced).unwrap()
+}
+fn function_number(oper: &XlOper12) -> Option<i32> {
+    unsafe {
+        match oper.xltype & TYPE_MASK {
+            XL_NUM => Some(oper.value.number as i32),
+            XL_INT => Some(oper.value.integer),
+            _ => None,
+        }
+    }
+}
+/// Calls `Excel12(function, ...)` with the formula's arguments and returns what Excel gave.
+unsafe fn forward(args: &[*mut XlOper12], arena: &mut Arena) -> Option<(i32, XlOper12)> {
+    let function = function_number(unsafe { &*args[0] })?;
+    let mut list = args[1..]
+        .iter()
+        .map(|p| unsafe { resolved(&**p, arena) })
+        .collect::<Vec<_>>();
+    while list
+        .last()
+        .is_some_and(|o| o.xltype & TYPE_MASK == XL_MISSING)
+    {
+        list.pop();
+    }
+    let pointers = list
+        .iter_mut()
+        .map(|o| o as *mut XlOper12)
+        .collect::<Vec<_>>();
+    let mut result = XlOper12::default();
+    let code = unsafe { call(function, &pointers, &mut result) };
+    Some((code, result))
+}
+unsafe fn release(code: i32, result: &mut XlOper12) {
+    if code == SUCCESS && result.xltype & XL_FREE != 0 {
+        unsafe {
+            call(XL_FREE_FN, &[result], std::ptr::null_mut());
+        }
+    }
+}
+unsafe fn probe_text(args: &[*mut XlOper12]) -> *mut XlOper12 {
+    let mut arena = Arena::new();
+    let Some((code, mut result)) = (unsafe { forward(args, &mut arena) }) else {
+        return returned(XlOper12::error(15));
+    };
+    // A register ID differs between processes: report its kind, never its value.
+    let text = if function_number(unsafe { &*args[0] }) == Some(XLF_REGISTER_ID)
+        && result.xltype & TYPE_MASK == XL_NUM
+    {
+        let number = unsafe { result.value.number };
+        format!(
+            "{code}|{}|id integer={}",
+            type_name(result.xltype),
+            number.fract() == 0.
+        )
+    } else {
+        unsafe { describe(code, &result) }
+    };
+    unsafe { release(code, &mut result) };
+    returned_text(&text)
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyXlf(
+    a0: *mut XlOper12,
+    a1: *mut XlOper12,
+    a2: *mut XlOper12,
+    a3: *mut XlOper12,
+    a4: *mut XlOper12,
+    a5: *mut XlOper12,
+    a6: *mut XlOper12,
+    a7: *mut XlOper12,
+    a8: *mut XlOper12,
+    a9: *mut XlOper12,
+) -> *mut XlOper12 {
+    unsafe { probe_text(&[a0, a1, a2, a3, a4, a5, a6, a7, a8, a9]) }
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyXlfPlain(
+    a0: *mut XlOper12,
+    a1: *mut XlOper12,
+    a2: *mut XlOper12,
+    a3: *mut XlOper12,
+    a4: *mut XlOper12,
+    a5: *mut XlOper12,
+    a6: *mut XlOper12,
+    a7: *mut XlOper12,
+    a8: *mut XlOper12,
+    a9: *mut XlOper12,
+) -> *mut XlOper12 {
+    unsafe { probe_text(&[a0, a1, a2, a3, a4, a5, a6, a7, a8, a9]) }
+}
+/// Returns the callback's own result operand (so a register ID can feed `xlfCall`), or #VALUE!.
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyXlfRaw(
+    a0: *mut XlOper12,
+    a1: *mut XlOper12,
+    a2: *mut XlOper12,
+    a3: *mut XlOper12,
+    a4: *mut XlOper12,
+    a5: *mut XlOper12,
+    a6: *mut XlOper12,
+    a7: *mut XlOper12,
+    a8: *mut XlOper12,
+    a9: *mut XlOper12,
+) -> *mut XlOper12 {
+    let mut arena = Arena::new();
+    match unsafe { forward(&[a0, a1, a2, a3, a4, a5, a6, a7, a8, a9], &mut arena) } {
+        Some((SUCCESS, result)) => returned(result),
+        _ => returned(XlOper12::error(15)),
+    }
+}
+fn registered_id(name: &str) -> Option<f64> {
+    REGISTRATIONS
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|(_, n)| n == name)
+        .map(|(id, _)| *id)
+}
+fn id_facts(code: i32, result: &XlOper12, expected: Option<f64>) -> String {
+    let number = (result.xltype & TYPE_MASK == XL_NUM).then(|| unsafe { result.value.number });
+    format!(
+        "{code}|{}|same={}|integer={}",
+        type_name(result.xltype),
+        number.is_some() && number == expected,
+        number.is_some_and(|n| n.fract() == 0.),
+    )
+}
+/// REGISTER.ID of one of the fixture's exports, compared with what `xlfRegister` returned for a name.
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyRegIdCheck(
+    procedure: *mut XlOper12,
+    name: *mut XlOper12,
+    types: *mut XlOper12,
+    module: *mut XlOper12,
+) -> *mut XlOper12 {
+    let mut arena = Arena::new();
+    let name = unsafe { describe_value(&*name) };
+    let mut file = unsafe { resolved(&*module, &mut arena) };
+    if file.xltype & TYPE_MASK == XL_MISSING {
+        file = arena.text(&SELF_PATH.lock().unwrap().clone()).unwrap();
+    }
+    let mut procedure = unsafe { *procedure };
+    let mut types = unsafe { *types };
+    let mut list = vec![&mut file as *mut XlOper12, &mut procedure];
+    if types.xltype & TYPE_MASK != XL_MISSING {
+        list.push(&mut types);
+    }
+    let mut result = XlOper12::default();
+    let code = unsafe { call(XLF_REGISTER_ID, &list, &mut result) };
+    let text = id_facts(code, &result, registered_id(&name));
+    unsafe { release(code, &mut result) };
+    returned_text(&text)
+}
+/// Three REGISTER.ID calls (the third with the module name in upper case): do they agree?
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyRegIdRepeat(
+    module: *mut XlOper12,
+    procedure: *mut XlOper12,
+    types: *mut XlOper12,
+    unused: *mut XlOper12,
+) -> *mut XlOper12 {
+    let _ = unused;
+    let mut arena = Arena::new();
+    let first_module = unsafe { resolved(&*module, &mut arena) };
+    let upper_module = if first_module.xltype & TYPE_MASK == XL_STR {
+        arena
+            .text(&unsafe { counted_text(first_module.value.string) }.to_uppercase())
+            .unwrap()
+    } else {
+        first_module
+    };
+    let mut ids = Vec::new();
+    let mut codes = Vec::new();
+    for variant in [first_module, first_module, upper_module] {
+        let mut file = variant;
+        let mut procedure = unsafe { *procedure };
+        let mut types = unsafe { *types };
+        let mut list = vec![&mut file as *mut XlOper12, &mut procedure];
+        if types.xltype & TYPE_MASK != XL_MISSING {
+            list.push(&mut types);
+        }
+        let mut result = XlOper12::default();
+        let code = unsafe { call(XLF_REGISTER_ID, &list, &mut result) };
+        codes.push(code.to_string());
+        ids.push((result.xltype & TYPE_MASK == XL_NUM).then(|| unsafe { result.value.number }));
+        unsafe { release(code, &mut result) };
+    }
+    returned_text(&format!(
+        "codes={}|first_repeat_same={}|case_same={}",
+        codes.join(","),
+        ids[0].is_some() && ids[0] == ids[1],
+        ids[0].is_some() && ids[0] == ids[2],
+    ))
+}
+unsafe fn lifecycle_probes(module_name: &str) {
+    let mut arena = Arena::new();
+    let mut probes = Vec::new();
+    let module = arena.text(module_name).unwrap();
+    let cases: [(i32, Vec<XlOper12>); 4] = [
+        (
+            XLF_CALL,
+            vec![
+                module,
+                arena.text("MyAdd").unwrap(),
+                arena.text("BBB").unwrap(),
+                XlOper12::number(1.),
+                XlOper12::number(2.),
+            ],
+        ),
+        (
+            XLF_CALL,
+            vec![
+                arena.text("kernel32").unwrap(),
+                arena.text("lstrlenA").unwrap(),
+                arena.text("JC").unwrap(),
+                arena.text("hello").unwrap(),
+            ],
+        ),
+        (XLF_REGISTER_ID, vec![module, arena.text("MyAdd").unwrap()]),
+        (
+            XLF_REGISTER_ID,
+            vec![
+                module,
+                arena.text("MyAdd").unwrap(),
+                arena.text("BBB").unwrap(),
+            ],
+        ),
+    ];
+    for (function, mut list) in cases {
+        let pointers = list
+            .iter_mut()
+            .map(|o| o as *mut XlOper12)
+            .collect::<Vec<_>>();
+        let mut result = XlOper12::default();
+        let code = unsafe { call(function, &pointers, &mut result) };
+        let text = if function == XLF_REGISTER_ID {
+            id_facts(code, &result, registered_id("MyAdd"))
+        } else {
+            unsafe { describe(code, &result) }
+        };
+        unsafe { release(code, &mut result) };
+        probes.push(text);
+    }
+    *OPEN_PROBES.lock().unwrap() = probes;
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyOpenProbe(index: *const f64) -> *mut XlOper12 {
+    let probes = OPEN_PROBES.lock().unwrap();
+    let index = unsafe { *index } as usize;
+    match probes.get(index) {
+        Some(text) => {
+            let text = text.clone();
+            drop(probes);
+            returned_text(&text)
+        }
+        None => returned(XlOper12::error(42)),
+    }
+}
+
+// CALL targets: one export per type-text form the C API documents.
+fn info(length: usize, first: u32) -> i32 {
+    (length as i32) * 100000 + first as i32
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyStrInfoA(text: *const u8) -> i32 {
+    let bytes = unsafe { std::ffi::CStr::from_ptr(text.cast()) }.to_bytes();
+    info(bytes.len(), bytes.first().copied().unwrap_or(0).into())
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyStrInfoW(text: *const u16) -> i32 {
+    let mut length = 0;
+    while unsafe { *text.add(length) } != 0 {
+        length += 1;
+    }
+    info(
+        length,
+        if length == 0 {
+            0
+        } else {
+            unsafe { *text }.into()
+        },
+    )
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyCountedInfoA(text: *const u8) -> i32 {
+    let length = usize::from(unsafe { *text });
+    info(
+        length,
+        if length == 0 {
+            0
+        } else {
+            unsafe { *text.add(1) }.into()
+        },
+    )
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyCountedInfoW(text: *const u16) -> i32 {
+    let length = usize::from(unsafe { *text });
+    info(
+        length,
+        if length == 0 {
+            0
+        } else {
+            unsafe { *text.add(1) }.into()
+        },
+    )
+}
+#[unsafe(no_mangle)]
+pub extern "system" fn MyBoolRaw(value: i16) -> i32 {
+    i32::from(value)
+}
+#[unsafe(no_mangle)]
+pub extern "system" fn MyBoolEcho(value: i16) -> i16 {
+    value
+}
+#[unsafe(no_mangle)]
+pub extern "system" fn MyShortAdd(a: i16, b: i16) -> i16 {
+    a.wrapping_add(b)
+}
+#[unsafe(no_mangle)]
+pub extern "system" fn MyUShortAdd(a: u16, b: u16) -> u16 {
+    a.wrapping_add(b)
+}
+#[unsafe(no_mangle)]
+pub extern "system" fn MyIntAdd(a: i32, b: i32) -> i32 {
+    a.wrapping_add(b)
+}
+#[unsafe(no_mangle)]
+pub extern "system" fn MyThreeArgs(a: f64, b: f64, c: f64) -> f64 {
+    a * 100. + b * 10. + c
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyDoubleInc(value: *mut f64) -> f64 {
+    let old = unsafe { *value };
+    unsafe { *value = -1. };
+    old + 1.
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyIntInc(value: *mut i32) -> i32 {
+    let old = unsafe { *value };
+    unsafe { *value = -1 };
+    old.wrapping_add(1)
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyShortInc(value: *mut i16) -> i16 {
+    let old = unsafe { *value };
+    unsafe { *value = -1 };
+    old.wrapping_add(1)
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyBoolFlip(value: *mut i16) -> i16 {
+    let old = unsafe { *value };
+    unsafe { *value = 1 };
+    i16::from(old == 0)
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyUpperA(text: *mut u8) {
+    let mut at = 0;
+    while unsafe { *text.add(at) } != 0 {
+        unsafe { *text.add(at) = (*text.add(at)).to_ascii_uppercase() };
+        at += 1;
+    }
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyUpperW(text: *mut u16) {
+    let mut at = 0;
+    while unsafe { *text.add(at) } != 0 {
+        let unit = unsafe { *text.add(at) };
+        if (b'a' as u16..=b'z' as u16).contains(&unit) {
+            unsafe { *text.add(at) = unit - 32 };
+        }
+        at += 1;
+    }
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyUpperCountedA(text: *mut u8) {
+    for at in 1..=usize::from(unsafe { *text }) {
+        unsafe { *text.add(at) = (*text.add(at)).to_ascii_uppercase() };
+    }
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyUpperCountedW(text: *mut u16) {
+    for at in 1..=usize::from(unsafe { *text }) {
+        let unit = unsafe { *text.add(at) };
+        if (b'a' as u16..=b'z' as u16).contains(&unit) {
+            unsafe { *text.add(at) = unit - 32 };
+        }
+    }
+}
+fn ansi_return(bytes: Vec<u8>, counted: bool) -> *const u8 {
+    ANSI.with(|buffer| unsafe {
+        let buffer = &mut *buffer.get();
+        buffer.clear();
+        if counted {
+            buffer.push(bytes.len().min(255) as u8);
+            buffer.extend(bytes.iter().take(255));
+        } else {
+            buffer.extend(bytes);
+            buffer.push(0);
+        }
+        buffer.as_ptr()
+    })
+}
+fn wide_return(units: Vec<u16>, counted: bool) -> *const u16 {
+    WIDE.with(|buffer| unsafe {
+        let buffer = &mut *buffer.get();
+        buffer.clear();
+        if counted {
+            buffer.push(units.len().min(32767) as u16);
+            buffer.extend(units.iter().take(32767));
+        } else {
+            buffer.extend(units);
+            buffer.push(0);
+        }
+        buffer.as_ptr()
+    })
+}
+unsafe fn read_ansi(text: *const u8) -> Vec<u8> {
+    unsafe { std::ffi::CStr::from_ptr(text.cast()) }
+        .to_bytes()
+        .to_vec()
+}
+unsafe fn read_counted_ansi(text: *const u8) -> Vec<u8> {
+    unsafe { std::slice::from_raw_parts(text.add(1), usize::from(*text)) }.to_vec()
+}
+unsafe fn read_wide(text: *const u16) -> Vec<u16> {
+    let mut length = 0;
+    while unsafe { *text.add(length) } != 0 {
+        length += 1;
+    }
+    unsafe { std::slice::from_raw_parts(text, length) }.to_vec()
+}
+unsafe fn read_counted_wide(text: *const u16) -> Vec<u16> {
+    unsafe { std::slice::from_raw_parts(text.add(1), usize::from(*text)) }.to_vec()
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyCatA(a: *const u8, b: *const u8) -> *const u8 {
+    let mut joined = unsafe { read_ansi(a) };
+    joined.extend(unsafe { read_ansi(b) });
+    ansi_return(joined, false)
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyCatCountedA(a: *const u8, b: *const u8) -> *const u8 {
+    let mut joined = unsafe { read_counted_ansi(a) };
+    joined.extend(unsafe { read_counted_ansi(b) });
+    ansi_return(joined, true)
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyCatW(a: *const u16, b: *const u16) -> *const u16 {
+    let mut joined = unsafe { read_wide(a) };
+    joined.extend(unsafe { read_wide(b) });
+    wide_return(joined, false)
+}
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyCatCountedW(a: *const u16, b: *const u16) -> *const u16 {
+    let mut joined = unsafe { read_counted_wide(a) };
+    joined.extend(unsafe { read_counted_wide(b) });
+    wide_return(joined, true)
+}
+/// What type and value the callee received for an XLOPER12 argument.
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn MyOperInfo(value: *mut XlOper12) -> *mut XlOper12 {
+    let oper = unsafe { *value };
+    returned_text(&format!("{}|{}", type_name(oper.xltype), unsafe {
+        describe_value(&oper)
+    }))
+}
+/// Exports that no fixture registration names: only REGISTER.ID and CALL reach them.
+#[unsafe(no_mangle)]
+pub extern "system" fn MyUnregAdd(a: f64, b: f64) -> f64 {
+    a + b + 0.5
+}
+#[unsafe(no_mangle)]
+pub extern "system" fn MyUnregMul(a: f64, b: f64) -> f64 {
+    a * b + 0.25
+}
+#[unsafe(no_mangle)]
+pub extern "system" fn MyUnregSub(a: f64, b: f64) -> f64 {
+    a - b + 0.125
+}
+#[unsafe(no_mangle)]
+pub extern "system" fn MyUnregNeg(a: f64) -> f64 {
+    -a + 0.0625
 }

@@ -349,7 +349,7 @@ def verify_x1(excel, excel_control, host, host_control):
     cases_path = Path(__file__).resolve().parent / "fixture/x1-cases.json"
     cases = json.loads(cases_path.read_text(encoding="utf-8"))
     expected = {case["formula"]: case["value"] for case in cases}
-    require(len(expected) == 21, "X1 case denominator changed")
+    require(len(expected) == 289, "X1 case denominator changed")
     environments = [json.loads((p / "environment.json").read_text(encoding="utf-8-sig"))
                     for p in (excel, excel_control, host, host_control)]
     require(len({env["repository_commit"] for env in environments}) == 1, "Different capture source revisions")
@@ -377,7 +377,7 @@ def verify_x1(excel, excel_control, host, host_control):
     for directory in (host, host_control):
         output = json.loads((directory / "host.stdout").read_text(encoding="utf-8-sig"))
         require({r["formula"]: r["value"] for r in output["results"]} == expected, "DNA Calc formula outcomes differ")
-        require(output["registrations"] == 18 and output["duplicate_use_count"] == 2, "Registration use count differs")
+        require(output["registrations"] == 48 and output["duplicate_use_count"] == 2, "Registration use count differs")
         require(output["live_callback_allocations"] == 0, "Host callback storage leaked")
         require(output["closed_registration"] == "#NAME?", "Old registry still callable after close")
         require(not (directory / "host.stderr").read_text(encoding="utf-8-sig").strip(), "Host reported diagnostics")
@@ -394,7 +394,7 @@ def verify_x1(excel, excel_control, host, host_control):
             require(callback_counts[function, 32] == 1, f"Missing outside-context failure for {function}")
         registrations = [x for x in events if x["event"] == "registered_entry"]
         signatures.append(Counter((r["entry"].split(":", 1)[1], r["signature"]) for r in registrations))
-        require(len(registrations) == 19, "Registration callback count differs")
+        require(len(registrations) == 48, "Registration callback count differs")
         for entry in enters.values():
             if entry["entry"].endswith("!XLCallVer"):
                 require(int(leaves[entry["call"]]["rax"], 16) & 0xffffffff == 3072, "XLCallVer differs")

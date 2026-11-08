@@ -247,6 +247,7 @@ impl XllFunction {
             signature: (!as_run && r.info.macro_type != 2).then(|| signature.clone()),
             provider,
             rtd_subscriptions: Default::default(),
+            transient: Vec::new(),
         };
         let guard = unsafe { callbacks::enter(&mut frame) };
         let mut returned = Returned::default();

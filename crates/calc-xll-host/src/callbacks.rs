@@ -21,6 +21,8 @@ pub(crate) struct Frame<'a> {
     pub signature: Option<XllSignature>,
     pub provider: Option<crate::RtdProvider>,
     pub rtd_subscriptions: BTreeSet<calc_func::RtdLease>,
+    /// Callback results Excel keeps valid until the calling function returns (xlfCall).
+    pub transient: Vec<Arena>,
 }
 impl Frame<'_> {
     pub fn lifecycle(state: Shared, module: Rc<Module>) -> Self {
@@ -32,6 +34,7 @@ impl Frame<'_> {
             signature: None,
             provider: None,
             rtd_subscriptions: BTreeSet::new(),
+            transient: Vec::new(),
         }
     }
 }
@@ -220,6 +223,9 @@ pub unsafe fn dispatch(
             if matches!(function, 16388 | 16389) {
                 return sheet_callback(frame, function, args, result);
             }
+            if matches!(function, XLF_CALL | XLF_REGISTER_ID) {
+                return crate::call::dispatch(frame, function, args, result);
+            }
             match run(frame, function, args) {
                 Ok(Some(value)) => {
                     if result.is_null() {
@@ -244,6 +250,9 @@ pub unsafe fn dispatch(
     .unwrap_or(FAILED)
 }
 
+pub(crate) fn refuse_frame(frame: &mut Frame<'_>, why: &str) {
+    refuse(frame, why)
+}
 fn refuse(frame: &mut Frame<'_>, why: &str) {
     if let Some(context) = &mut frame.context {
         context.refuse_by(
@@ -252,6 +261,8 @@ fn refuse(frame: &mut Frame<'_>, why: &str) {
                 "dc-snz.18"
             } else if why.starts_with("dc-snz.23:") {
                 "dc-snz.23"
+            } else if why.starts_with("dc-gh22:") {
+                "dc-gh22"
             } else {
                 "dc-snz.2"
             },

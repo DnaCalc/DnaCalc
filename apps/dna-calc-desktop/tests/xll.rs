@@ -299,3 +299,74 @@ fn constant_evaluate_callbacks_use_the_application_formula_route() {
         }
     }
 }
+
+/// Native-only: `Excel12(xlfCall)` and `Excel12(xlfRegisterId)` run in the engine route with the
+/// answers Excel 16.0.20527 gave to the same fixture formulas (dc-gh22). The full measured set
+/// is `crates/calc-xll-reference/fixture/x1-cases.json`; this keeps one case per rule.
+#[test]
+fn call_and_register_id_match_the_measured_excel_answers() {
+    let fixture = new_fixture();
+    let cases = fixture.directory.join("call-cases.json");
+    let expected = [
+        (
+            r#"=MyXlf(150,"kernel32","lstrlenA","JC","hello")"#,
+            "0|num|5",
+        ),
+        (r#"=MyXlf(150,"@self","MyAdd","BBB",1,2)"#, "0|num|3"),
+        (
+            r#"=MyXlf(150,"@self","MyAdd","BBB",1,2,3)"#,
+            "0|err|#VALUE!",
+        ),
+        (
+            r#"=MyXlf(150,"@self","MyShortAdd","III",40000,1)"#,
+            "0|err|#NUM!",
+        ),
+        (
+            r#"=MyXlf(150,MyXlfRaw(267,"@self","MyAdd"),1,2)"#,
+            "0|num|3",
+        ),
+        (
+            r#"=MyXlf(150,"@self","NoSuchProc","BBB",1,2)"#,
+            "0|err|#VALUE!",
+        ),
+        (r#"=MyXlf(150)"#, "4|err|#VALUE!"),
+        (
+            r#"=MyXlfPlain(150,"@self","MyAdd","BBB",1,2)"#,
+            "2|err|#VALUE!",
+        ),
+        (
+            r#"=MyRegIdCheck("MyAdd","MyAdd")"#,
+            "0|num|same=true|integer=true",
+        ),
+        (
+            r#"=MyRegIdRepeat("kernel32","lstrlenA","JC")"#,
+            "codes=0,0,0|first_repeat_same=true|case_same=true",
+        ),
+    ];
+    std::fs::write(
+        &cases,
+        serde_json::to_vec(
+            &expected
+                .iter()
+                .map(|(formula, value)| serde_json::json!({"formula": formula, "value": value}))
+                .collect::<Vec<_>>(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let result = checked(
+        fixture
+            .command()
+            .arg("--engine")
+            .arg("--cases")
+            .arg(&cases)
+            .output()
+            .unwrap(),
+    );
+    let results = result["results"].as_array().unwrap();
+    assert_eq!(results.len(), expected.len());
+    for (row, (formula, value)) in results.iter().zip(expected) {
+        assert_eq!(row["value"], value, "{formula}");
+    }
+    assert_eq!(result["live_callback_allocations"], 0);
+}

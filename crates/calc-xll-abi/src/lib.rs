@@ -32,6 +32,8 @@ pub const NOT_THREAD_SAFE: i32 = 128;
 pub const INVALID_ASYNC: i32 = 256;
 
 pub const XLF_REGISTER: i32 = 149;
+pub const XLF_CALL: i32 = 150;
+pub const XLF_REGISTER_ID: i32 = 267;
 pub const XLF_UNREGISTER: i32 = 201;
 pub const XLF_SET_NAME: i32 = 88;
 pub const XLF_CALLER: i32 = 89;

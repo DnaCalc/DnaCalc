@@ -6,6 +6,8 @@ compile_error!("calc-xll-host is native-only");
 compile_error!("the first XLL host supports Windows x64 only");
 
 #[cfg(windows)]
+mod call;
+#[cfg(windows)]
 mod callbacks;
 #[cfg(windows)]
 mod international;
