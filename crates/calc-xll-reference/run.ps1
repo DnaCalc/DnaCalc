@@ -450,8 +450,9 @@ try {
         if (-not $excel.RegisterXLL($nativeXll)) { throw 'Excel refused the X1 fixture.' }
         Note 'RegisterXLL X1' $true
         $sheet.Range('A1').Value2 = 7
-        $cases = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'fixture/x1-cases.json') -Raw | ConvertFrom-Json
-        foreach ($case in $cases) {
+        # Not `$cases`: PowerShell variables are case-insensitive and `$Cases` is the typed [string] parameter.
+        $x1Cases = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'fixture/x1-cases.json') -Raw | ConvertFrom-Json
+        foreach ($case in $x1Cases) {
             $sheet.Range('B3:Z10').ClearContents()
             $sheet.Range('B3').Formula2 = [string]$case.formula
             if ($case.formula -match 'MyAsync') {

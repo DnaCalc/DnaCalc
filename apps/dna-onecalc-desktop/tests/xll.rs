@@ -12,7 +12,7 @@ fn new_fixture() -> Fixture {
 fn real_executable_uses_onecalc_for_the_same_excel_fixture() {
     let fixture = new_fixture();
     let result = checked(fixture.command().arg("--self-test").output().unwrap());
-    assert_eq!(result["results"].as_array().unwrap().len(), 21);
+    assert_eq!(result["results"].as_array().unwrap().len(), 289);
     assert_eq!(result["results"][0]["value"], 3.);
     assert_eq!(result["results"][16]["value"], 41.);
     assert_eq!(result["results"][17]["value"], 42.);
@@ -98,7 +98,7 @@ fn ten_thousand_registrations_have_no_small_pool_limit() {
             .output()
             .unwrap(),
     );
-    assert_eq!(result["registrations"], 10018);
+    assert_eq!(result["registrations"], 10048);
     assert_eq!(result["results"][0]["value"], 42.);
 }
 
@@ -244,7 +244,7 @@ fn failed_second_load_restores_previous_names_and_use_counts() {
     assert!(error.contains("xlAutoOpen returned zero"), "{error}");
     assert!(
         error.contains(
-            "after rollback: 22 active registrations, 22 callable names, 0 callback allocations"
+            "after rollback: 52 active registrations, 51 callable names, 0 callback allocations"
         ),
         "{error}"
     );
