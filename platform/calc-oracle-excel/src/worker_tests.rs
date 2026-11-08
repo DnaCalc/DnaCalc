@@ -330,6 +330,35 @@ fn formulas_calling_external_data_functions_are_refused_before_excel_starts() {
     );
 }
 
+/// Data-model mode: a workbook that declares the in-file data model (and no other connection than
+/// the worksheet connections that feed it) may call the CUBE functions, which then read that
+/// model; the same call in a workbook without the model stays refused (the test above).
+///
+/// Native-only: it runs the capture worker's package reader under PowerShell.
+#[test]
+fn cube_calls_over_the_in_file_data_model_are_not_refused() {
+    let oracle = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+        .join("crates")
+        .join("calc-host")
+        .join("tests")
+        .join("fixtures")
+        .join("pivot_cube")
+        .join("oracle.xlsx");
+    let read = read_package(&oracle);
+    let connections = read["connections"].as_array().unwrap();
+    assert!(
+        connections.iter().any(|c| c["model"] == json!(true)),
+        "{connections:?}"
+    );
+    assert!(
+        read["external_calls"].as_array().unwrap().len() > 100,
+        "the workbook's CUBE calls are still read"
+    );
+    assert_eq!(read["refusals"], json!([]));
+}
+
 /// The matching itself, on formula texts: every listed function, with prefixes, spaces before
 /// the parenthesis and any case; never inside a string literal or as the end of a longer name.
 #[test]
