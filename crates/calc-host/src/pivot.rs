@@ -168,6 +168,9 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<Pivo
     }
     let mut cache = cache.clone();
     let tracked_unused: Vec<_> = cache.fields.iter().map(|field| !field.unused_items.is_empty()).collect();
+    if tracked_unused.iter().any(|tracked| *tracked) && !cache.calculated_items.is_empty() {
+        return Err(fail("Calculated and retained items together are not modelled"));
+    }
     if tracked_unused.iter().any(|tracked| *tracked)
         && cache.attributes.get("missingItemsLimit").map(String::as_str) != Some("32500") {
         return Err(fail("This unused-item retention limit is not modelled"));
@@ -264,6 +267,10 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<Pivo
             }.filter(|i| if seven_day { *i < field.items.len() } else { *i > 0 && *i + 1 < field.items.len() })
                 .ok_or_else(|| fail("The grouped date is outside its saved items"))?;
             record.push(PivotItem::Index(index as u32));
+        }
+        if cache.calculated_items.iter().any(|item| matches!(record.get(item.field as usize),
+            Some(PivotItem::Index(index)) if *index == item.item)) {
+            return Err(fail("A calculated item that also occurs in source data is not modelled"));
         }
         records.push(record);
     }
@@ -468,7 +475,7 @@ pub(crate) fn prepare_create(host:&HostState,revision:u64,source:GridArea,destin
     let name=(1u32..).map(|i|format!("PivotTable{i}")).find(|name|!before.tables().any(|t|t.name.eq_ignore_ascii_case(name))&&!host.model().definitions().tables().iter().any(|t|t.name.eq_ignore_ascii_case(name))).ok_or_else(||fail("Pivot table names are exhausted"))?;
     let sheet_name=host.model().sheet_by_id(source.sheet()).ok_or_else(||fail("The source worksheet is unavailable"))?.name().text().to_string_lossy();
     let source_range=format!("{}:{}",crate::chart::cell_a1(source.first()),crate::chart::cell_a1(source.last()));
-    let cache=PivotCache{id:cache_id,part:cache_part,records_part:Some(records_part),record_count:Some(0),source_type:"worksheet".into(),source_sheet:Some(sheet_name),source_range:Some(source_range),source_name:None,fields:names.iter().map(|name|PivotCacheField{name:name.clone(),shared_items:Some(0),group:None,items:Vec::new(),unused_items:Vec::new(),attributes:BTreeMap::from([("name".into(),name.clone()),("numFmtId".into(),"0".into())])}).collect(),attributes:BTreeMap::new(),unsupported:Vec::new(),snapshot:None};
+    let cache=PivotCache{id:cache_id,part:cache_part,records_part:Some(records_part),record_count:Some(0),source_type:"worksheet".into(),source_sheet:Some(sheet_name),source_range:Some(source_range),source_name:None,calculated_items:Vec::new(),fields:names.iter().map(|name|PivotCacheField{name:name.clone(),shared_items:Some(0),group:None,items:Vec::new(),unused_items:Vec::new(),formula_items:Vec::new(),attributes:BTreeMap::from([("name".into(),name.clone()),("numFmtId".into(),"0".into())])}).collect(),attributes:BTreeMap::new(),unsupported:Vec::new(),snapshot:None};
     let cache=Arc::new(snapshot(host,&cache,source)?);
     let fields=(0..names.len()).map(|i|{let mut attributes=BTreeMap::from([("showAll".into(),"0".into())]);if i==row as usize{attributes.insert("axis".into(),"axisRow".into());}if i==value as usize{attributes.insert("dataField".into(),"1".into());}PivotField{attributes,items:Vec::new(),sort_measure:None}}).collect();
     let caption=format!("{operation} of {}",names[value as usize]);let data=PivotDataField{name:Some(caption.clone()),field:value,subtotal:subtotal.into(),extended_show:None,attributes:BTreeMap::from([("name".into(),caption),("fld".into(),value.to_string()),("subtotal".into(),subtotal.into())])};

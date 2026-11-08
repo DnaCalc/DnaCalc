@@ -107,17 +107,77 @@ pub(super) fn evaluate_field(
     }
     let formula = cache.fields.get(field).and_then(|field| field.attributes.get("formula"))
         .ok_or_else(|| bad("Invalid calculated field"))?;
+    evaluate_expression(cache, formula, &catalog, values, anchor, numeric)
+}
+
+fn evaluate_expression(cache: &PivotCache, formula: &str, catalog: &FieldCatalog, values: &[CalcValue],
+    anchor: CellKey, numeric: &calc_value::NumericMode) -> Result<CalcValue, PivotIssue> {
+    let bad = |why: &str| refusal(&cache.part, why);
+    let origin = FormulaAnchor::new(anchor);
     let tree = calc_fml::parse_formula(&format!("={formula}"));
-    let plan = calc_fml::compile_loaded(&tree, ReferenceNotation::A1, origin, &catalog, &mut PlanCache::new())
+    if !tree.diagnostics().is_empty() || !supported_syntax(&tree)
+        || !calc_fml::bind_references(&tree, ReferenceNotation::A1, origin, catalog).is_empty() {
+        return Err(bad("References in calculated pivot fields are not modelled"));
+    }
+    let plan = calc_fml::compile_loaded(&tree, ReferenceNotation::A1, origin, catalog, &mut PlanCache::new())
         .map_err(|_| bad("This calculated-field formula is not modelled"))?;
     let instance = calc_fml::instantiate(&plan, origin);
     let mut reader = TotalsReader { sheet: anchor.sheet(), values };
     let mut scratch = EvalScratch::new();
-    let mut services = FormulaEvaluationContext::new(numeric, &mut reader, None, None, ReadRequest::DEPENDENCY).with_catalog(&catalog);
+    let mut services = FormulaEvaluationContext::new(numeric, &mut reader, None, None, ReadRequest::DEPENDENCY).with_catalog(catalog);
     let value = calc_fml::evaluate(EvalFrame::new(&instance, &mut scratch), &mut services)
         .map_err(|_| bad("This calculated-field evaluation is not modelled"))?;
     match value.core_ref() {
         calc_value::CoreRef::Number(_) | calc_value::CoreRef::Error(_) => Ok(value),
         _ => Err(bad("This calculated-field result is not modelled")),
     }
+}
+
+/// Bind saved item references to actual per-item totals, then use the same formula evaluator.
+pub(super) fn evaluate_item(cache: &PivotCache, item: &PivotCalculatedItem, values: &[CalcValue],
+    anchor: CellKey, numeric: &calc_value::NumericMode) -> Result<CalcValue, PivotIssue> {
+    let bad = |why: &str| refusal(&cache.part, why);
+    let field = cache.fields.get(item.field as usize).ok_or_else(|| bad("Invalid calculated-item field"))?;
+    if !item.formula.is_ascii() || values.len() != field.items.len() || values.len() > 256 {
+        return Err(bad("This calculated-item formula is not modelled"));
+    }
+    let mut labels = BTreeMap::new();
+    let mut names = BTreeMap::new();
+    for (index, label) in field.items.iter().enumerate() {
+        if let PivotItem::Text(label) = label {
+            if labels.insert(calc_value::fold_workbook_name(label), index).is_some() {
+                return Err(bad("Ambiguous calculated-item labels"));
+            }
+            names.insert(calc_value::fold_workbook_name(&format!("PivotValue{index}")),
+                format!("${}$1", column_name(index + 1)));
+        }
+    }
+    let bytes = item.formula.as_bytes();
+    let mut at = 0;
+    let mut transformed = String::new();
+    while at < bytes.len() {
+        if bytes[at].is_ascii_alphabetic() || bytes[at] == b'_' {
+            let start = at;
+            while at < bytes.len() && (bytes[at].is_ascii_alphanumeric() || bytes[at] == b'_') { at += 1; }
+            let owner = &item.formula[start..at];
+            if !owner.eq_ignore_ascii_case(&field.name) || bytes.get(at) != Some(&b'[') {
+                return Err(bad("This calculated-item reference is not modelled"));
+            }
+            at += 1;
+            let start = at;
+            while at < bytes.len() && (bytes[at].is_ascii_alphanumeric() || bytes[at] == b'_') { at += 1; }
+            if at == start || bytes.get(at) != Some(&b']') {
+                return Err(bad("This calculated-item reference is not modelled"));
+            }
+            let label = calc_value::fold_workbook_name(&item.formula[start..at]);
+            let index = *labels.get(&label).ok_or_else(|| bad("Unknown calculated-item member"))?;
+            if index == item.item as usize { return Err(bad("A self-referencing calculated item is not modelled")); }
+            transformed.push_str(&format!("PivotValue{index}"));
+            at += 1;
+        } else {
+            transformed.push(bytes[at] as char);
+            at += 1;
+        }
+    }
+    evaluate_expression(cache, &transformed, &FieldCatalog { names }, values, anchor, numeric)
 }

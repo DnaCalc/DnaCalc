@@ -144,6 +144,7 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
         source_range: None,
         source_name: None,
         fields: Vec::new(),
+        calculated_items: Vec::new(),
         attributes: attrs(&root),
         unsupported: Vec::new(),
         snapshot: None,
@@ -152,9 +153,36 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
     let mut item_count = 0usize;
     let mut group_items_seen = false;
     let mut discrete_count = None;
+    let mut item_scope: Option<(usize, bool, Option<String>, Option<u32>, Option<u32>)> = None;
     while let Some(event) = events.next()? {
         match event {
             XmlEvent::Start(e) => {
+                if let Some((step, invalid, formula, field, item)) = item_scope.as_mut() {
+                    let names: Vec<_> = path.iter().map(String::as_str).collect();
+                    let known = match (*step, names.as_slice(), e.name.local.as_str()) {
+                        (0, ["calculatedItems"], "calculatedItem") => {
+                            *formula = e.attribute("formula").filter(|value| !value.is_empty()).map(str::to_owned);
+                            e.attributes.len() == 1 && formula.is_some()
+                        }
+                        (1, ["calculatedItems", "calculatedItem"], "pivotArea") => e.attributes.len() == 3
+                            && e.attribute("cacheIndex") == Some("1") && e.attribute("outline") == Some("0")
+                            && e.attribute("fieldPosition") == Some("0"),
+                        (2, ["calculatedItems", "calculatedItem", "pivotArea"], "references") =>
+                            e.attributes.len() == 1 && e.attribute("count") == Some("1"),
+                        (3, ["calculatedItems", "calculatedItem", "pivotArea", "references"], "reference") => {
+                            *field = e.attribute("field").and_then(|value| value.parse().ok());
+                            e.attributes.len() == 2 && e.attribute("count") == Some("1") && field.is_some()
+                        }
+                        (4, ["calculatedItems", "calculatedItem", "pivotArea", "references", "reference"], "x") => {
+                            *item = e.attribute("v").and_then(|value| value.parse().ok());
+                            e.attributes.len() == 1 && item.is_some()
+                        }
+                        _ => false,
+                    };
+                    *invalid |= !known || e.name.namespace.as_deref() != Some(M)
+                        || e.attributes.iter().any(|attr| attr.name.namespace.is_some());
+                    *step += 1;
+                }
                 if e.name.namespace.as_deref() == Some(M) {
                     match (
                         path.iter()
@@ -163,8 +191,15 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
                             .as_slice(),
                         e.name.local.as_str(),
                     ) {
-                        ([], "calculatedItems" | "calculatedMembers" | "cacheHierarchies" | "dimensions" | "measureGroups" | "maps")
+                        ([], "calculatedMembers" | "cacheHierarchies" | "dimensions" | "measureGroups" | "maps")
                         | (["cacheFields", "cacheField"], "mpMap" | "extLst") => cache.unsupported.push(e.name.local.to_string()),
+                        ([], "calculatedItems") => {
+                            if item_scope.is_some() || !cache.calculated_items.is_empty() || e.attributes.len() != 1
+                                || e.attribute("count") != Some("1") || e.attributes.iter().any(|attr| attr.name.namespace.is_some()) {
+                                cache.unsupported.push("unsupported calculated items".into());
+                            }
+                            item_scope = Some((0, false, None, None, None));
+                        }
                         ([], "cacheSource") => {
                             cache.source_type = required(&e, "type", &events)?.into()
                         }
@@ -179,6 +214,7 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
                             group: None,
                             items: Vec::new(),
                             unused_items: Vec::new(),
+                            formula_items: Vec::new(),
                             attributes: attrs(&e),
                         }); },
                         (["cacheFields", "cacheField"], "fieldGroup") => {
@@ -256,12 +292,18 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
                                 ));
                             }
                             item_count += 1;
+                            if e.attribute("f").is_some_and(|value| !matches!(value, "0" | "1" | "false" | "true")) {
+                                cache.unsupported.push("invalid calculated-item cache flag".into());
+                            }
                             if e.attribute("u").is_some_and(|value| !matches!(value, "0" | "1" | "false" | "true")) {
                                 cache.unsupported.push("invalid unused-item flag".into());
                             }
                             if let Some(field) = cache.fields.last_mut() {
                                 if matches!(e.attribute("u"), Some("1" | "true")) {
                                     field.unused_items.push(field.items.len() as u32);
+                                }
+                                if matches!(e.attribute("f"), Some("1" | "true")) {
+                                    field.formula_items.push(field.items.len() as u32);
                                 }
                                 field.items.push(item(&e, &events)?);
                             }
@@ -278,6 +320,13 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
                 });
             }
             XmlEvent::End(_) => {
+                if path.iter().map(String::as_str).collect::<Vec<_>>() == ["calculatedItems"] {
+                    match item_scope.take() {
+                        Some((5, false, Some(formula), Some(field), Some(item))) =>
+                            cache.calculated_items.push(PivotCalculatedItem { formula, field, item }),
+                        _ => cache.unsupported.push("unsupported calculated items".into()),
+                    }
+                }
                 if path.iter().map(String::as_str).collect::<Vec<_>>() == ["cacheFields", "cacheField", "fieldGroup", "discretePr"] {
                     let actual = cache.fields.last().and_then(|field| field.group.as_ref())
                         .and_then(|group| group.discrete.as_ref()).map(Vec::len);
@@ -291,6 +340,17 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
             }
             XmlEvent::Text(_) => {}
         }
+    }
+    if cache.calculated_items.len() == 1 {
+        let item = &cache.calculated_items[0];
+        if cache.fields.get(item.field as usize).is_none_or(|field|
+            field.formula_items.as_slice() != [item.item]
+                || !matches!(field.items.get(item.item as usize), Some(PivotItem::Text(_))))
+            || cache.fields.iter().enumerate().any(|(index, field)| index != item.field as usize && !field.formula_items.is_empty()) {
+            cache.unsupported.push("invalid calculated item mapping".into());
+        }
+    } else if cache.fields.iter().any(|field| !field.formula_items.is_empty()) {
+        cache.unsupported.push("unmapped calculated item".into());
     }
     for (field_index, field) in cache.fields.iter().enumerate() {
         let virtual_field = matches!(field.attributes.get("databaseField").map(String::as_str), Some("0" | "false"));
@@ -551,10 +611,13 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
                         (["pivotFields"], "pivotField") => fields.push(PivotField { attributes:attrs(&e),items:Vec::new(),sort_measure:None }),
                         (["pivotFields","pivotField","items"],"item") => {
                             if e.attribute("n").is_some(){unsupported.push("custom item captions".into());}
+                            if e.attribute("f").is_some_and(|value| !matches!(value, "0" | "1" | "false" | "true")) {
+                                unsupported.push("invalid calculated-item flag".into());
+                            }
                             if e.attribute("m").is_some_and(|value| !matches!(value, "0" | "1" | "false" | "true")) {
                                 unsupported.push("invalid missing-item flag".into());
                             }
-                            if let Some(field)=fields.last_mut() {field.items.push(PivotFieldItem {index:optional_integer(&e,"x",&events)?,kind:e.attribute("t").unwrap_or("data").into(),hidden:matches!(e.attribute("h"),Some("1"|"true")),missing:matches!(e.attribute("m"),Some("1"|"true"))});}
+                            if let Some(field)=fields.last_mut() {field.items.push(PivotFieldItem {index:optional_integer(&e,"x",&events)?,kind:e.attribute("t").unwrap_or("data").into(),hidden:matches!(e.attribute("h"),Some("1"|"true")),missing:matches!(e.attribute("m"),Some("1"|"true")),calculated:matches!(e.attribute("f"),Some("1"|"true"))});}
                         }
                         (["rowItems"],"i") => row_items.push(PivotAxisItem {kind:e.attribute("t").unwrap_or("data").into(),repeat:optional_integer(&e,"r",&events)?.unwrap_or(0),data_index:optional_integer(&e,"i",&events)?.unwrap_or(0),indexes:Vec::new()}),
                         (["colItems"],"i") => col_items.push(PivotAxisItem {kind:e.attribute("t").unwrap_or("data").into(),repeat:optional_integer(&e,"r",&events)?.unwrap_or(0),data_index:optional_integer(&e,"i",&events)?.unwrap_or(0),indexes:Vec::new()}),

@@ -379,6 +379,21 @@ pub(super) fn render_axes(
         || table.fields.iter().any(|field| field.sort_measure.is_some() || field.items.iter().any(|item| item.hidden))) {
         return Err(bad("This calculated-field layout is not modelled"));
     }
+    let calculated_item = cache.calculated_items.first();
+    if calculated_item.is_some_and(|item| cache.calculated_items.len() != 1 || calculated_fields
+        || row_fields.len() != 1 || item.field as usize != row || table.column_fields.len() > 1
+        || !table.page_fields.is_empty() || !table.filters.is_empty() || show != "normal"
+        || cache.fields.iter().any(|field| field.group.is_some())
+        || table.data_fields.iter().any(|data| data.subtotal != "sum")
+        || table.fields.iter().enumerate().any(|(index, field)| field.sort_measure.is_some()
+            || field.items.iter().any(|field_item| field_item.hidden || (field_item.calculated
+                && (index != row || field_item.index != Some(item.item)))))
+        || table.fields[row].items.iter().filter(|field_item| field_item.calculated).count() != 1) {
+        return Err(bad("This calculated-item layout is not modelled"));
+    }
+    if calculated_item.is_none() && table.fields.iter().any(|field| field.items.iter().any(|item| item.calculated)) {
+        return Err(bad("The calculated item definition is unavailable"));
+    }
     let numeric_groups: Vec<_> = cache.fields.iter().enumerate().filter_map(|(index, field)|
         field.group.as_ref().and_then(|group| group.numeric_items.as_ref()).map(|_| index)).collect();
     if !numeric_groups.is_empty() && (numeric_groups.len() != 1 || row_fields != numeric_groups
@@ -873,8 +888,8 @@ pub(super) fn render_axes(
         let results = visible_rows.len().checked_add(1).and_then(|rows| rows.checked_mul(columns.len()))
             .filter(|&count| count <= 1_000).ok_or_else(|| bad("The calculated pivot has too many output cells"))?;
         if results == 0 { return Err(bad("The calculated pivot has no output cells")); }
-        if field_totals.values().any(|total| total.source_error().is_some()) {
-            return Err(bad("Source errors in calculated fields are not modelled"));
+        if field_totals.values().any(|total| total.source_error().is_some() || !total.supports_calculated_inputs()) {
+            return Err(bad("These calculated-field source values are not modelled"));
         }
         for row in visible_rows.iter().copied().chain(std::iter::once(usize::MAX)) {
             for entry in &columns {
@@ -890,6 +905,41 @@ pub(super) fn render_axes(
                     calculated.insert((row, entry.path.clone(), entry.measure), value);
                 }
             }
+        }
+    }
+    if let Some(item) = calculated_item {
+        if rows.len().checked_mul(columns.len()).is_none_or(|count| count > 1_000)
+            || totals.values().any(|total| total.source_error().is_some() || !total.supports_calculated_inputs()) {
+            return Err(bad("This calculated-item input is not modelled"));
+        }
+        if table.fields[row].items.iter().filter(|field_item| field_item.kind == "data" && !field_item.calculated)
+            .any(|field_item| field_item.index.is_none_or(|index| !rows.iter().any(|group| group.shared == index))) {
+            return Err(bad("A removed calculated-item source member is not modelled"));
+        }
+        let calculated_row = rows.iter().position(|group| group.shared == item.item)
+            .ok_or_else(|| bad("The calculated item is absent from its axis"))?;
+        let exact = |value: &CalcValue| match value.core_ref() {
+            calc_value::CoreRef::Number(n) if n.is_finite() && (n * 8.0).fract() == 0.0
+                && n.abs() * 8.0 <= 9_007_199_254_740_992.0 => Some(n),
+            calc_value::CoreRef::Empty => Some(0.0),
+            _ => None,
+        };
+        for entry in &columns {
+            let values = cache.fields[row].items.iter().enumerate().map(|(shared, _)| {
+                let value = rows.iter().position(|group| group.shared as usize == shared)
+                    .and_then(|index| totals.get(&(index, entry.path.clone(), entry.measure)))
+                    .map(|total| total.result("sum")).unwrap_or_else(CalcValue::empty);
+                exact(&value).map(CalcValue::number).ok_or_else(|| bad("This calculated-item numeric input is not modelled"))
+            }).collect::<Result<Vec<_>, _>>()?;
+            let value = super::formula::evaluate_item(cache, item, &values, table.area.first(), &snapshot.numeric)?;
+            let number = exact(&value).ok_or_else(|| bad("This calculated-item result is not modelled"))?;
+            let grand = totals.get(&(usize::MAX, entry.path.clone(), entry.measure))
+                .map(|total| total.result("sum")).ok_or_else(|| bad("A calculated-item grand total is unavailable"))?;
+            let original = exact(&grand).ok_or_else(|| bad("This calculated-item grand total is not modelled"))?;
+            let sum = CalcValue::number(original + number);
+            if exact(&sum).is_none() { return Err(bad("This calculated-item grand total is not modelled")); }
+            calculated.insert((calculated_row, entry.path.clone(), entry.measure), value);
+            calculated.insert((usize::MAX, entry.path.clone(), entry.measure), sum);
         }
     }
     let mut multiple_running = BTreeMap::<usize, CalcValue>::new();
@@ -1153,7 +1203,8 @@ pub(super) fn render_axes(
         r = walk.r;
     } else {
         for (i, group) in rows.iter().enumerate().filter(|(_, g)| !g.hidden) {
-            if !totals.contains_key(&(i, Vec::new(), 0)) && !super::records::show_all_mode(table) {
+            if !totals.contains_key(&(i, Vec::new(), 0)) && !super::records::show_all_mode(table)
+                && calculated_item.is_none_or(|item| group.shared != item.item) {
                 continue;
             }
             cells.insert((r, 0), group_label(group)?);
@@ -1233,6 +1284,7 @@ pub(super) fn render_axes(
             kind: "data".into(),
             hidden: false,
             missing: false,
+            calculated: cache.fields[field].formula_items.contains(&groups[i].shared),
         }).collect::<Vec<_>>();
         out.extend(
             table.fields[field]
@@ -1252,7 +1304,7 @@ pub(super) fn render_axes(
         if custom && field == row_fields[0] {
             out.extend(table.fields[field].items.iter().filter(|item| item.kind != "data").cloned());
         } else if add_default {
-            out.push(PivotFieldItem { index: None, kind: "default".into(), hidden: false, missing: false });
+            out.push(PivotFieldItem { index: None, kind: "default".into(), hidden: false, missing: false, calculated: false });
         }
         out
     };

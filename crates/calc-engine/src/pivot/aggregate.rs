@@ -60,6 +60,10 @@ impl Total {
         };
         numerator.is_finite() && numerator >= 0.0
     }
+    /// The captured calculated-item inputs are quarter units in this bounded range.
+    pub(super) fn supports_calculated_inputs(&self) -> bool {
+        !self.unsafe_moment
+    }
     pub(super) fn source_error(&self) -> Option<WorksheetErrorCode> {
         self.error
     }
