@@ -986,3 +986,31 @@ fn dc_8wp_10__relative_percentage_with_zero_base_refuses_without_writing() {
     assert!(!receipt.accepted(), "{receipt:?}");
     assert_eq!(held(&book, sheet, 6, 12), before);
 }
+
+#[test]
+/// Native-only: compares lookups with the captured values in the saved M1 layouts.
+fn dc_8wp_14__lookup_values_on_rows_uses_the_displayed_measure() {
+    let bytes = include_bytes!("fixtures/pivot/m1-calculation/built.xlsx");
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes.to_vec()));
+    let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    for stage in ["values_rows_region", "values_rows_first", "values_rows_with_columns"] {
+        let name = format!("pvt_{stage}");
+        let sheet = book.host().model().definitions().pivots().sheets.iter().find_map(|(sheet, pivots)|
+            pivots.tables.iter().any(|table| table.name == name).then_some(*sheet)).unwrap();
+        let mut cases = vec![
+            ("Z1", "=GETPIVOTDATA(\"Sum Amount\",A3,\"Region\",\"East\")", 2074.5),
+            ("Z2", "=GETPIVOTDATA(\"Sum Units\",A3,\"Region\",\"East\")", 26.0),
+            ("Z3", "=GETPIVOTDATA(\"Sum Amount\",A3)", 7162.75),
+            ("Z4", "=GETPIVOTDATA(\"Sum Units\",A3)", 105.0),
+        ];
+        if stage == "values_rows_with_columns" {
+            cases.push(("Z5", "=GETPIVOTDATA(\"Sum Amount\",A3,\"Region\",\"East\",\"Product\",\"Alpha\")", 691.5));
+            cases.push(("Z6", "=GETPIVOTDATA(\"Sum Units\",A3,\"Region\",\"East\",\"Product\",\"Alpha\")", 7.0));
+        }
+        for (cell, formula, _) in &cases {
+            assert!(book.dispatch(SkinIntent::EnterCell { at: at(sheet, cell), text: (*formula).into() }).accepted());
+        }
+        let got = held(&book, sheet, 26, 6);
+        for (cell, _, value) in cases { assert_eq!(got.get(cell), Some(&Cell::Number(value)), "{stage} {cell}"); }
+    }
+}
