@@ -76,10 +76,21 @@ fn cache_group(field: &PivotCacheField, out: &mut Vec<u8>) -> Result<(), SaveRef
     let Some(group) = &field.group else { return Ok(()); };
     out.extend_from_slice(b"<fieldGroup");
     attrs(&group.attributes, out);
-    if let Some(range) = &group.range {
-        out.extend_from_slice(b"><rangePr");
-        attrs(range, out);
-        out.extend_from_slice(b"/><groupItems");
+    if group.range.is_some() || group.discrete.is_some() {
+        out.push(b'>');
+        if let Some(range) = &group.range {
+            out.extend_from_slice(b"<rangePr");
+            attrs(range, out);
+            out.extend_from_slice(b"/>");
+        }
+        if let Some(discrete) = &group.discrete {
+            out.extend_from_slice(b"<discretePr");
+            attr("count", &discrete.len().to_string(), out);
+            out.push(b'>');
+            for index in discrete { out.extend_from_slice(format!("<x v=\"{index}\"/>").as_bytes()); }
+            out.extend_from_slice(b"</discretePr>");
+        }
+        out.extend_from_slice(b"<groupItems");
         attr("count", &field.items.len().to_string(), out);
         out.push(b'>');
         for value in &field.items { item(value, false, out)?; }
@@ -403,7 +414,8 @@ fn preflight(xml: &XmlPart, containers: &[&str]) -> Result<(), SaveRefusal> {
                         "pivotCacheDefinition" => local == "cacheFields",
                         "cacheFields" => local == "cacheField",
                         "cacheField" => matches!(local, "sharedItems" | "fieldGroup"),
-                        "fieldGroup" => matches!(local, "rangePr" | "groupItems"),
+                        "fieldGroup" => matches!(local, "rangePr" | "groupItems" | "discretePr"),
+                        "discretePr" => local == "x",
                         "sharedItems" | "groupItems" => matches!(local, "n" | "s" | "b" | "e" | "m" | "d"),
                         "pivotCacheRecords" => local == "r",
                         "r" => matches!(local, "x" | "n" | "s" | "b" | "e" | "m" | "d"),
@@ -444,7 +456,7 @@ fn preflight(xml: &XmlPart, containers: &[&str]) -> Result<(), SaveRefusal> {
                             "reference" => matches!(a.name.local.as_str(), "field" | "count" | "selected"),
                             "fieldGroup" => matches!(a.name.local.as_str(), "base" | "par"),
                             "rangePr" => matches!(a.name.local.as_str(), "groupBy" | "startDate" | "endDate" | "autoStart" | "autoEnd" | "groupInterval"),
-                            "groupItems" => a.name.local.as_str() == "count",
+                            "groupItems" | "discretePr" => a.name.local.as_str() == "count",
                             "ext" => a.name.local.as_str() == "uri" && a.value == FILL_DOWN_URI,
                             "extLst" => false,
                             "item" => matches!(a.name.local.as_str(), "x" | "t" | "h" | "m"),

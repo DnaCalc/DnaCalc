@@ -105,6 +105,22 @@ fn source_area(host: &HostState, cache: &PivotCache, origin: CellKey) -> Result<
         )),
     }
 }
+fn distinct_group_labels(items: &[PivotItem]) -> bool {
+    let mut order: Vec<_> = items.iter().collect();
+    let mut undecided = false;
+    let mut compare = |a: &PivotItem, b: &PivotItem| match (a, b) {
+        (PivotItem::Missing, PivotItem::Missing) => std::cmp::Ordering::Equal,
+        (PivotItem::Missing, _) => std::cmp::Ordering::Greater,
+        (_, PivotItem::Missing) => std::cmp::Ordering::Less,
+        (PivotItem::Text(a), PivotItem::Text(b)) => calc_fml::text_order(
+            &a.encode_utf16().collect::<Vec<_>>(), &b.encode_utf16().collect::<Vec<_>>())
+            .unwrap_or_else(|| { undecided = true; std::cmp::Ordering::Equal }),
+        _ => { undecided = true; std::cmp::Ordering::Equal },
+    };
+    order.sort_by(|a, b| compare(a, b));
+    let unique = order.windows(2).all(|pair| compare(pair[0], pair[1]) != std::cmp::Ordering::Equal);
+    unique && !undecided
+}
 /// Read every source field, preserving cache item identities and recording actual values only.
 fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<PivotCache, String> {
     if area.cell_count() > 1_000_000 || area.row_count() > 100_001 {
@@ -131,6 +147,15 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<Pivo
             return Err(fail(
                 "The source header names changed; field remapping is not modelled",
             ));
+        }
+    }
+    for field in &cache.fields[source_count..] {
+        if let Some(group) = field.group.as_ref().filter(|group| group.discrete.is_some()) {
+            let base = group.attributes.get("base").and_then(|value| value.parse::<usize>().ok())
+                .filter(|&base| base < source_count).ok_or_else(|| fail("Invalid discrete grouping base"))?;
+            if !distinct_group_labels(&field.items) || !distinct_group_labels(&cache.fields[base].items) {
+                return Err(fail("Ambiguous discrete group labels are not modelled"));
+            }
         }
     }
     let mut cache = cache.clone();
@@ -164,6 +189,14 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<Pivo
             let group = field.group.as_ref().ok_or_else(|| fail("A grouped cache field is missing its definition"))?;
             let base = group.attributes.get("base").and_then(|v| v.parse::<usize>().ok())
                 .filter(|i| *i < source_count).ok_or_else(|| fail("Invalid grouped source field"))?;
+            if let Some(discrete) = &group.discrete {
+                let PivotItem::Index(index) = record[base] else { return Err(fail("Invalid discrete grouping source")); };
+                let mapped = discrete.get(index as usize).copied()
+                    .filter(|&index| (index as usize) < field.items.len())
+                    .ok_or_else(|| fail("New source items in a discrete group are not modelled"))?;
+                record.push(PivotItem::Index(mapped));
+                continue;
+            }
             let range = group.range.as_ref().ok_or_else(|| fail("A grouped date range is unavailable"))?;
             let date = match values[base].core_ref() {
                 CoreRef::Number(n) if n.is_finite() => n,

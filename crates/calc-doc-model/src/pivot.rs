@@ -67,6 +67,8 @@ pub struct PivotCacheField {
 pub struct PivotCacheGroup {
     pub attributes: BTreeMap<String, String>,
     pub range: Option<BTreeMap<String, String>>,
+    /// For a discrete group, the group-item index for each source shared item.
+    pub discrete: Option<Vec<u32>>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct SheetPivots {
