@@ -58,6 +58,7 @@ pub(super) struct Walk<'a> {
     /// Output rows that carry a value and the field-item path defining their total.
     pub(super) row_paths: Vec<(u32, Vec<usize>, Option<usize>, Option<&'static str>)>,
     pub(super) custom_subtotals: bool,
+    pub(super) sort_inner_ascending: Option<bool>,
     pub(super) collect_paths: bool,
     pub(super) values_level: Option<usize>,
     pub(super) value_captions: &'a [String],
@@ -79,6 +80,19 @@ impl AxisVisitor for Walk<'_> {
             .map(|(k, _)| k[level])
             .collect();
         found.dedup();
+        if level == 1 && let Some(ascending) = self.sort_inner_ascending {
+            found.sort_by(|&a, &b| {
+                let score = |child| {
+                    let mut path = prefix.to_vec();
+                    path.push(child);
+                    match self.totals[level][&path].result("sum").core_ref() {
+                        calc_value::CoreRef::Number(n) => n,
+                        _ => unreachable!("validated inner sort total"),
+                    }
+                };
+                if ascending { score(a).total_cmp(&score(b)) } else { score(b).total_cmp(&score(a)) }
+            });
+        }
         found
     }
     fn enter(&mut self, path: &[usize]) -> Result<bool, PivotIssue> {
@@ -279,7 +293,16 @@ pub(super) fn render_axes(
         && data.attributes.get("showDataAs").is_some_and(|show| show != "normal")) {
         return Err(bad("Conflicting value calculations are not modelled"));
     }
-    let show = match table.data_fields.first().and_then(|d| d.extended_show.as_deref()) {
+    let multiple_displays = values_only && row_fields.len() == 1 && table.data_fields.len() == 2
+        && table.page_fields.is_empty() && table.filters.is_empty()
+        && cache.fields[row].group.is_none()
+        && table.fields.get(row).is_some_and(|field| field.sort_measure.is_none()
+            && field.items.iter().all(|item| !item.hidden))
+        && table.data_fields.iter().all(|data| data.subtotal == "sum" && data.extended_show.is_none())
+        && table.data_fields[0].attributes.get("showDataAs").is_some_and(|show| show == "percentOfTotal")
+        && table.data_fields[1].attributes.get("showDataAs").is_some_and(|show| show == "runTotal")
+        && table.data_fields[1].attributes.get("baseField").and_then(|base| base.parse::<usize>().ok()) == Some(row);
+    let show = if multiple_displays { "normal" } else { match table.data_fields.first().and_then(|d| d.extended_show.as_deref()) {
         Some("percentOfParentRow") => "percentOfCol",
         Some("percentOfParentCol") => "percentOfRow",
         Some("percentOfRunningTotal") => "percentRunTotal",
@@ -288,7 +311,7 @@ pub(super) fn render_axes(
         Some(_) => return Err(bad("This extended value calculation is not modelled")),
         None => table.data_fields.first().and_then(|d| d.attributes.get("showDataAs"))
             .map(String::as_str).unwrap_or("normal"),
-    };
+    }};
     let percent = matches!(show, "percentOfCol" | "percentOfRow" | "percentOfTotal");
     let indexed = show == "index";
     let relative = matches!(show, "difference" | "percent" | "percentDiff" | "runTotal" | "percentRunTotal" | "rankAscending" | "rankDescending");
@@ -327,14 +350,18 @@ pub(super) fn render_axes(
             d.field as usize >= cache.fields.len()
                 || !matches!(d.subtotal.as_str(),
                     "sum" | "count" | "countNums" | "min" | "max" | "average" | "product" | "stdDev" | "stdDevp" | "var" | "varp")
-                || d.attributes.get("showDataAs").is_some_and(|v| v != "normal" && !(percent || indexed || relative))
+                || d.attributes.get("showDataAs").is_some_and(|v| v != "normal" && !(percent || indexed || relative || multiple_displays))
         })
     {
         return Err(bad("This pivot axis or value aggregation is not modelled"));
     }
     let value_sorts: Vec<_> = table.fields.iter().enumerate().filter_map(|(field, value)|
         value.sort_measure.map(|measure| (field, measure as usize))).collect();
-    if !value_sorts.is_empty() && (value_sorts.len() != 1 || row_fields.len() != 1
+    let inner_sort = value_sorts.len() == 1 && row_fields.len() == 2 && rows_only
+        && row_values.is_none() && table.data_fields.len() == 1 && value_sorts[0] == (row_fields[1], 0)
+        && !truthy(table.fields[row_fields[0]].attributes.get("compact"), true)
+        && !truthy(table.fields[row_fields[0]].attributes.get("outline"), true);
+    if !value_sorts.is_empty() && (value_sorts.len() != 1 || (row_fields.len() != 1 && !inner_sort)
         || row_values.is_some() || table.column_fields.iter().filter(|&&field| field != -2).count() > 1
         || !table.page_fields.is_empty() || !table.filters.is_empty() || show != "normal"
         || value_sorts.iter().any(|&(field, measure)| {
@@ -511,6 +538,22 @@ pub(super) fn render_axes(
     }
     if custom && totals.values().any(|total| total.source_error().is_some()) {
         return Err(bad("Source errors with custom subtotals are not modelled"));
+    }
+    if inner_sort {
+        let mut siblings = BTreeMap::<usize, Vec<f64>>::new();
+        for (path, total) in &row_totals[1] {
+            let number = match total.result("sum").core_ref() {
+                calc_value::CoreRef::Number(n) if n.is_finite() => n,
+                _ => return Err(bad("Nonnumeric inner value-sort totals are not modelled")),
+            };
+            siblings.entry(path[0]).or_default().push(number);
+        }
+        for values in siblings.values_mut() {
+            values.sort_by(f64::total_cmp);
+            if values.windows(2).any(|pair| pair[0] == pair[1]) {
+                return Err(bad("Ties in inner value sorts are not modelled"));
+            }
+        }
     }
     if super::records::show_all_rows_mode(table) {
         if totals.is_empty() { return Err(bad("No selected source records are not modelled")); }
@@ -739,6 +782,25 @@ pub(super) fn render_axes(
         .map(|(i, _)| i).collect();
     let row_order: BTreeMap<_, _> = visible_rows.iter().enumerate().map(|(n, &i)| (i, n)).collect();
     let column_order: BTreeMap<_, _> = visible_columns.iter().enumerate().map(|(n, &i)| (i, n)).collect();
+    let mut multiple_running = BTreeMap::<usize, CalcValue>::new();
+    if multiple_displays {
+        let denominator = totals.get(&(usize::MAX, Vec::new(), 0)).map(|total| total.result("sum"));
+        if !denominator.as_ref().is_some_and(|value| matches!(value.core_ref(),
+            calc_value::CoreRef::Number(n) if n.is_finite() && n != 0.0))
+            || totals.values().any(|total| total.source_error().is_some()) {
+            return Err(bad("Multiple displays with zero or error totals are not modelled"));
+        }
+        let mut sum = 0.0;
+        for &row in &visible_rows {
+            let value = totals.get(&(row, vec![1], 1)).map(|total| total.result("sum"));
+            match value.as_ref().map(CalcValue::core_ref) {
+                Some(calc_value::CoreRef::Number(n)) if n.is_finite() => sum += n,
+                _ => return Err(bad("A nonnumeric running total is not modelled")),
+            }
+            if !sum.is_finite() { return Err(bad("A nonfinite running total is not modelled")); }
+            multiple_running.insert(row, CalcValue::number(sum));
+        }
+    }
     let mut running = BTreeMap::<(usize, Vec<usize>), CalcValue>::new();
     if let Some((base_is_row, _, _)) = relative_base.filter(|_| matches!(show, "runTotal" | "percentRunTotal")) {
         let numeric = |row, path: Vec<usize>| totals.get(&(row, path, 0))
@@ -811,6 +873,18 @@ pub(super) fn render_axes(
     }
     let displayed = |total: &Total, row: usize, entry: &ColumnEntry| -> CalcValue {
         let value = total.result(&table.data_fields[entry.measure].subtotal);
+        if multiple_displays {
+            if entry.measure == 1 {
+                return multiple_running.get(&row).cloned().unwrap_or_else(CalcValue::empty);
+            }
+            return match (value.core_ref(), totals[&(usize::MAX, Vec::new(), 0)].result("sum").core_ref()) {
+                (calc_value::CoreRef::Number(n), calc_value::CoreRef::Number(d)) => {
+                    let ratio = n / d;
+                    if ratio.is_finite() { CalcValue::number(ratio) } else { CalcValue::error(WorksheetErrorCode::Num) }
+                }
+                _ => CalcValue::empty(),
+            };
+        }
         if let Some((base_is_row, base_item, fixed)) = relative_base {
             if (base_is_row && row == usize::MAX) || (!base_is_row && entry.kind == "grand") {
                 return CalcValue::empty();
@@ -932,6 +1006,8 @@ pub(super) fn render_axes(
             row_paths: Vec::new(),
             collect_paths: true,
             custom_subtotals: custom,
+            sort_inner_ascending: inner_sort.then(|| table.fields[row_fields[1]].attributes.get("sortType")
+                .is_some_and(|sort| sort == "ascending")),
             values_level: row_values,
             value_captions: &value_captions,
         };
