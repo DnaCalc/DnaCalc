@@ -89,9 +89,12 @@ pub fn run(
         let deadline = Instant::now() + Duration::from_secs(20);
         let idle = Duration::from_millis(case["rtd_idle_ms"].as_u64().unwrap_or(0));
         let mut idle_until = None;
+        // The turn right after an evaluation takes only the updates that evaluation may see and
+        // does not disconnect what no formula declared (the formula was just calculated, as
+        // CalcHost's first turn is, whose calculation is still in flight); later turns are idle.
+        let mut after_evaluation = true;
         loop {
-            // The owner is not evaluating between its turns: updates may be taken.
-            for input in addins.poll_rtd(false)? {
+            for input in addins.poll_rtd(std::mem::take(&mut after_evaluation))? {
                 let disposition = session.update_rtd(
                     input.topic.clone(),
                     input.lease,

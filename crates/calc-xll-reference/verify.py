@@ -22,6 +22,9 @@ excel_session_directory = None
 session_ownership_bindings = {}
 
 
+# The executables a host capture runs in: DNA Calc's engine harness and OneCalc's formula session.
+HOST_MODULES = ("dna-calc-desktop.exe", "dna-onecalc-desktop.exe")
+
 def content_matches(expected, content):
     lf = content.replace(b"\r\n", b"\n")
     return any(hashlib.sha256(value).hexdigest().upper() == expected
@@ -1149,12 +1152,12 @@ def verify_rtd_extended(excel, excel_control, host, host_control, cases_path, pu
             if early and entry["entry"].endswith(".ServerTerminate") and entry.get("from", {}).get("module") in envs[0]["fixture_files"]:
                 releases = [e for e in enters.values() if e["entry"] == "COM!Release" and e.get("object") == entry["object"] and e["thread"] == entry["thread"] and e["seq"] < entry["seq"] < returned["seq"] < leaves[e["call"]]["seq"]]
                 require(len(releases) == 1 and leaves[releases[0]["call"]].get("references") == 0, "RTD destructor lacks its final same-object Release")
-                require(releases[0].get("from", {}).get("module") == ("EXCEL.EXE" if index == 0 else "dna-calc-desktop.exe"), "RTD destructor has another owner")
+                require(releases[0].get("from", {}).get("module") in (("EXCEL.EXE",) if index == 0 else HOST_MODULES), "RTD destructor has another owner")
                 require(protocol and protocol[-1] == {"method":"ServerTerminate", "server":servers[entry["object"]], "hresult":0} and returned["hresult"] == 0, "RTD destructor lacks prior successful termination")
                 bodies.append({"entry":entry,"returned":returned,"reason":"final Release destructor","release":releases[0],"release_returned":leaves[releases[0]["call"]]})
                 continue
             require(entry["thread"] == opening["thread"], "RTD client call left the owner STA")
-            require(entry.get("from", {}).get("module") == ("EXCEL.EXE" if index == 0 else "dna-calc-desktop.exe"), "RTD external client has an unexpected caller")
+            require(entry.get("from", {}).get("module") in (("EXCEL.EXE",) if index == 0 else HOST_MODULES), "RTD external client has an unexpected caller")
             method = methods[entry["dispid"]] if dispatch else entry["entry"].rsplit(".", 1)[-1]
             obj = entry["object"]
             if method == "ServerStart":
@@ -1284,7 +1287,7 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
     for index, trace in enumerate(traces):
         protocol, inner, notices = [], [], []
         if signaling:
-            starts = [e for e in trace[1].values() if e["entry"] == "COM!Invoke" and e.get("object_label") == "RTD server" and e.get("dispid") == 10 or e["entry"] == "COM!early.rtdserver.ServerStart" and e.get("from", {}).get("module") == "dna-calc-desktop.exe"]
+            starts = [e for e in trace[1].values() if e["entry"] == "COM!Invoke" and e.get("object_label") == "RTD server" and e.get("dispid") == 10 or e["entry"] == "COM!early.rtdserver.ServerStart" and e.get("from", {}).get("module") in HOST_MODULES]
             require(len(starts) == 1, "Signaling server startup was not observed once")
             start = starts[0]
             created = [e for e in trace[1].values() if (e["entry"] == "COM!CreateInstance" or e["entry"].endswith("!CoCreateInstance")) and e.get("iid") == "ec0e6191-db51-11d3-8f3e-00c04f3651b8" and trace[2][e["call"]].get("object") == start["object"] and trace[2][e["call"]]["seq"] < start["seq"]]
@@ -1332,11 +1335,11 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
                 # but do not invent a second external ServerTerminate request.
                 releases = [e for e in trace[1].values() if e["entry"] == "COM!Release" and e.get("object") == entry["object"] and e["thread"] == entry["thread"] and e["seq"] < entry["seq"] < returned["seq"] < trace[2][e["call"]]["seq"]]
                 require(len(releases) == 1 and trace[2][releases[0]["call"]].get("references") == 0, "Internal RTD termination lacks the final owning Release")
-                require(releases[0].get("from", {}).get("module") == ("EXCEL.EXE" if index == 0 else "dna-calc-desktop.exe"), "Final RTD Release came from another owner")
+                require(releases[0].get("from", {}).get("module") in (("EXCEL.EXE",) if index == 0 else HOST_MODULES), "Final RTD Release came from another owner")
                 require(protocol and protocol[-1] == {"method":"ServerTerminate", "hresult":0} and returned["hresult"] == 0, "Destructor termination lacks prior successful client termination")
                 inner.append({"entry":entry, "returned":returned, "reason":"final Release destructor", "release":releases[0], "release_returned":trace[2][releases[0]["call"]]})
                 continue
-            require(dispatch and entry["from"].get("module") == "EXCEL.EXE" if index == 0 else early and entry["from"].get("module") == "dna-calc-desktop.exe", "Unexpected external RTD call transport/caller")
+            require(dispatch and entry["from"].get("module") == "EXCEL.EXE" if index == 0 else early and entry["from"].get("module") in HOST_MODULES, "Unexpected external RTD call transport/caller")
             method = method_names[entry["dispid"]] if dispatch else entry["entry"].rsplit(".", 1)[-1]
             row = {"method": method, "hresult": returned["hresult"]}
             arguments = entry.get("rgvarg", [])
@@ -1414,7 +1417,9 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
             # sequence 1 (the in-step certificate repair refuses a result that read a sequence not
             # yet admitted), so its first answer is repeated. Excel's two answers are 1 then 42;
             # since dc-snz.23.3 the host's first answer is that 1, no longer a temporary #N/A.
-            if index: expected.insert(0, {"type": 1, "value": 1})
+            # OneCalc admits the connection's value after its evaluation instead (no certificate
+            # repair, one formula), so it calls the function twice, as Excel does: 1 then 42.
+            if index and not outputs[0].get("single_formula"): expected.insert(0, {"type": 1, "value": 1})
             require([r["result"] for r in records] == expected, "RTD native result sequence differs")
         else:
             require(not records, "A typed RTD formula makes no UDF call")
