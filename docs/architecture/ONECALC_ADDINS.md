@@ -149,4 +149,25 @@ built from them with the Scripting Runtime reference (`vba-job.ps1 -Action build
 session, VBE object model), and the cases with Excel's answers (`x9-vba-cases.json`). The plan is
 `crates/calc-xll-reference/fixture/m5-acceptance.json`.
 
-RESULTS
+### What it showed (2026-11-08, Excel 16.0.20527, CalcVBA 18d06139)
+
+| Set | Cases | Matched | Fail |
+|---|---|---|---|
+| DnaExamples.xlam loaded through the page, against Excel with the .xlam open | 26 | 23 | 3 refused |
+| DnaExamples.xlsm opened as the session, each case saved and reopened by Excel | 26 + 1 edit | 24 | 3 refused |
+
+Matched in both: plain UDFs, Optional arguments (omitted, given, skipped), ParamArray (empty, with a
+skipped position), a class module, early-bound `Scripting.Dictionary` (`New`, `CompareMode =
+TextCompare`, `Exists`, `Keys`, default-member assignment, `TypeName`), Range arguments (`Count`,
+`Address`), `WorksheetFunction.Sum`, `CVErr`, `Err.Raise`, `Workbook_Open` having run once, a cell
+write from a UDF (trappable 1004; `#VALUE!` unhandled) and `ThisWorkbook.Name`. The three refusals
+are `ActiveSheet.Range(...)` (two cases) and `Selection`, which OneCalc does not model (Excel gives
+1004, `#VALUE!` and "Range"). All 27 saved .xlsm files, the one with the edited project included,
+opened in Excel without repair (no "[Repaired]" name, no new `error*.xml` log), each with its VBA
+project, and Excel's recalculated value equalled the page's.
+
+Not shown: `Workbook_AddinInstall` against Excel (installing an add-in in Excel writes its add-in
+list, which these runs leave alone); the browsers run the .xlsm route without the registry's type
+libraries, so DnaExamples' project does not compile there (the part is kept and saved back
+unchanged); the native dialogs (the runs type the add-in's path, open through the page's file
+input and save through `--save-dir`).

@@ -320,6 +320,16 @@ impl<F: Files, L: Libraries> Host<F, L> {
             Request::Addins => Reply::Addins(self.loaded_view()),
             // A VBA module lives beside the add-ins, so that loading one leaves the add-ins'
             // functions callable and loading an add-in leaves the module's.
+            // In an .xlsm session the module is the file project's: the session edits it.
+            request @ Request::LoadVba { .. }
+                if self
+                    .port
+                    .session()
+                    .project()
+                    .is_some_and(|project| !project.modules().is_empty()) =>
+            {
+                self.port.send(request)
+            }
             Request::LoadVba { name, source } => {
                 let before = self.port.session().user_function_names();
                 if let Err(message) = self.libs.load_vba(&name, &source) {
@@ -819,5 +829,40 @@ mod tests {
         // A file without a VBA project is refused, naming it.
         let empty = file_named("Empty.xlam", b"not a workbook");
         assert!(matches!(host.handle(Request::LoadAddin { path: empty.display().to_string(), expected_hash: None }), Reply::Refused { message } if message.contains("Empty.xlam")));
+    }
+
+    /// Native-only: an .xlsm session opened through the dialog compiles its project; a module the
+    /// VBA panel loads goes into that project (not beside the add-ins), and Save writes the changed
+    /// project as an .xlsm under the file's name.
+    #[test]
+    fn an_xlsm_session_keeps_panel_modules_in_its_project_and_saves_it() {
+        let xlsm = include_bytes!("../../../crates/calc-xll-reference/fixture/vba/DnaExamples.xlsm");
+        let mut host = host();
+        host.files.open = Some(("DnaExamples.xlsm".into(), xlsm.to_vec()));
+        let Reply::Opened(opened) = host.handle(Request::OpenNative) else {
+            panic!("opened")
+        };
+        assert!(opened.project.is_some_and(|p| !p.functions.is_empty() && p.notes.is_empty()));
+        let reply = host.handle(Request::LoadVba {
+            name: "Module1".into(),
+            source: "Public Function DnaTwice(ByVal x As Double) As Double\r\n    DnaTwice = 2 * x\r\nEnd Function\r\n".into(),
+        });
+        assert!(matches!(&reply, Reply::Functions { names } if names.iter().any(|n| n == "DNATWICE")), "{reply:?}");
+        assert!(host.libs.vba.is_empty(), "the module went into the project, not beside the add-ins");
+        assert_eq!(shown(host.handle(Request::Evaluate(formula("=DnaTwice(21)")))).result, "number 42");
+        let Reply::File { name, bytes } = host.handle(Request::Save) else {
+            panic!("saved")
+        };
+        assert_eq!(name, "DnaExamples.xlsm");
+        let file = calc_doc_read(&bytes);
+        assert!(file.contains("DnaTwice = 2 * x"));
+    }
+
+    /// The code of the saved file's Module1, read the way the session reads it.
+    fn calc_doc_read(bytes: &[u8]) -> String {
+        let (session, vba) = dna_onecalc::file::open(bytes).unwrap();
+        drop(session);
+        let project = calc_vba::read_office_project(&vba.unwrap().project).unwrap();
+        project.modules().iter().find(|m| m.name == "Module1").unwrap().source.clone()
     }
 }
