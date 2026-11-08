@@ -22,12 +22,15 @@
 //! the text or the caret, so a panic can only come from a memo or a view, where the browser smoke
 //! test sees it.
 
-use crate::editor::{BracketPair, Popup, PopupKey, bracket_pair_at, insert_call, popup_key};
+use crate::editor::{
+    BracketPair, Popup, PopupKey, bracket_pair_at, expects_reference, insert_call, popup_key,
+};
 use calc_fml::assist::{self, CallSite, HighlightRun, TokenRole};
 use calc_fml::parse_formula;
 use calc_fml::syntax::TextSpan;
 use calc_func::{FunctionCallTarget, help};
 use leptos::prelude::*;
+use std::rc::Rc;
 
 /// A text field can edit either an ordinary signal or one field of a portable model.
 /// The binding holds reactive accessors; the owning application retains the text.
@@ -184,6 +187,36 @@ impl HistoryStore for LocalHistory {
     }
 }
 
+/// What an owner gives the field to evaluate a selected part (F9): the part's start and length in
+/// UTF-16 code units of the text, and the continuation for the formula text that gives its value,
+/// or the reason there is none.
+pub type PartEvaluator = Rc<dyn Fn(usize, usize, Box<dyn FnOnce(Result<String, String>)>)>;
+
+/// The text before an F9 replaced a part, to restore with Escape.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PartUndo {
+    before: String,
+    after: String,
+    start: usize,
+    end: usize,
+}
+
+/// Point mode: the grid the field points into, and the cell a first arrow key moves from.
+#[derive(Clone)]
+struct PointConfig {
+    rows: u32,
+    columns: u32,
+    origin: Rc<dyn Fn() -> (u32, u32)>,
+}
+
+/// The reference point mode last wrote: where it is in the text, and the cells it spans.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Pointing {
+    span: TextSpan,
+    anchor: (u32, u32),
+    cursor: (u32, u32),
+}
+
 /// The formula field's state over its owner's text signal. Every part is a signal, a memo or a node
 /// reference, so the whole is `Copy` and its views can be placed anywhere in the owner's view.
 #[derive(Clone, Copy)]
@@ -200,6 +233,20 @@ pub struct FormulaAssist {
     pub composing: StateBinding<bool>,
     pub readonly: StateBinding<bool>,
     history: HistoryBinding,
+    /// The caller's defined names and registered functions, offered beside the catalogue; the
+    /// owner sets it (DNA Calc from the workbook, OneCalc from its session).
+    pub scope: RwSignal<assist::Scope>,
+    /// The part of the formula a trace step or an evaluated selection points at, drawn behind the
+    /// text.
+    pub focus: RwSignal<Option<TextSpan>>,
+    /// What the last F9 said: the part evaluated, or why it was not.
+    pub part_status: RwSignal<String>,
+    part: StoredValue<Option<PartEvaluator>, LocalStorage>,
+    part_undo: RwSignal<Option<PartUndo>>,
+    point: StoredValue<Option<PointConfig>, LocalStorage>,
+    pointing: RwSignal<Option<Pointing>>,
+    /// Typing arms point mode (Excel's Enter mode); a click or a caret key disarms it (Edit mode).
+    point_armed: RwSignal<bool>,
     runs: Memo<Vec<HighlightRun>>,
     brackets: Memo<Option<BracketPair>>,
     /// The function call the caret is in.
@@ -271,6 +318,14 @@ impl FormulaAssist {
             composing,
             readonly,
             history,
+            scope: RwSignal::new(assist::Scope::default()),
+            focus: RwSignal::new(None),
+            part_status: RwSignal::new(String::new()),
+            part: StoredValue::new_local(None),
+            part_undo: RwSignal::new(None),
+            point: StoredValue::new_local(None),
+            pointing: RwSignal::new(None),
+            point_armed: RwSignal::new(true),
             runs,
             brackets,
             call,
@@ -314,12 +369,18 @@ impl FormulaAssist {
         if text_changed {
             self.text.set(text.clone());
             self.history.record(text.clone(), at);
+            self.part_undo.set(None);
+            self.pointing.set(None);
+            self.point_armed.set(true);
+            self.focus.set(None);
         }
         self.caret.set(at);
         if self.composing.get_untracked() {
             return;
         }
-        let completion = assist::complete(&text, at);
+        let completion = self
+            .scope
+            .with_untracked(|scope| assist::complete_in(&text, at, scope));
         let prefix_now = completion.as_ref().map(|c| c.prefix.clone());
         if self.dismissed.get_untracked() != prefix_now {
             self.dismissed.set(None);
@@ -464,10 +525,17 @@ impl FormulaAssist {
         let highlight = move || {
             let diagnostics = diagnostics.get();
             let pair = self.brackets.get();
+            let focus = self.focus.get();
             self.runs.with(|runs| {
                 runs.iter()
                     .map(|run| {
-                        let classes = run_classes(run, &diagnostics, pair);
+                        let mut classes = run_classes(run, &diagnostics, pair);
+                        if let Some(focus) = focus
+                            && focus.start < run.span.end()
+                            && run.span.start < focus.end()
+                        {
+                            classes.push_str(" oc-focus");
+                        }
                         let role = role_name(run.role);
                         let text = run.text.clone();
                         view! { <span class=classes data-role=role>{text}</span> }
@@ -509,6 +577,23 @@ impl FormulaAssist {
                             ev.stop_propagation();
                             return;
                         }
+                        if !matches!(
+                            ev.key().as_str(),
+                            "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "Shift" | "Control" | "Alt" | "Meta"
+                        ) {
+                            self.pointing.set(None);
+                        }
+                        if ev.key() == "F9" && !ev.ctrl_key() && !ev.alt_key() && !ev.meta_key() {
+                            ev.prevent_default();
+                            ev.stop_propagation();
+                            self.evaluate_selection();
+                            return;
+                        }
+                        if ev.key() == "Escape" && self.restore_part() {
+                            ev.prevent_default();
+                            ev.stop_propagation();
+                            return;
+                        }
                         let ctrl = ev.ctrl_key() || ev.meta_key();
                         if ctrl && !ev.alt_key() && matches!(ev.key().to_ascii_lowercase().as_str(), "z" | "y") {
                             ev.prevent_default();
@@ -517,10 +602,18 @@ impl FormulaAssist {
                             self.undo(redo);
                             return;
                         }
-                        if self.popup_keydown(&ev) {
+                        if self.popup_keydown(&ev) || self.point_keydown(&ev) {
                             ev.stop_propagation();
-                        } else if let Some(on_key) = on_key {
-                            on_key.run(ev);
+                        } else {
+                            if matches!(
+                                ev.key().as_str(),
+                                "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "Home" | "End" | "PageUp" | "PageDown"
+                            ) {
+                                self.point_armed.set(false);
+                            }
+                            if let Some(on_key) = on_key {
+                                on_key.run(ev);
+                            }
                         }
                     }
                     on:keyup=move |ev: leptos::ev::KeyboardEvent| {
@@ -528,10 +621,226 @@ impl FormulaAssist {
                             self.sync_from_field(false)
                         }
                     }
-                    on:click=move |_| self.sync_from_field(false)
+                    on:click=move |_| {
+                        self.pointing.set(None);
+                        self.point_armed.set(false);
+                        self.sync_from_field(false)
+                    }
                 ></textarea>
             </div>
         }
+    }
+
+    /// The field's selection in UTF-16 code units.
+    pub fn selection(self) -> (usize, usize) {
+        match self.field.get_untracked() {
+            Some(field) => (
+                field.selection_start().ok().flatten().unwrap_or(0) as usize,
+                field.selection_end().ok().flatten().unwrap_or(0) as usize,
+            ),
+            None => {
+                let at = self.caret.get_untracked();
+                (at, at)
+            }
+        }
+    }
+
+    /// Lets F9 evaluate the selected part, through the owner's evaluator.
+    pub fn enable_part_evaluation(
+        self,
+        evaluate: impl Fn(usize, usize, Box<dyn FnOnce(Result<String, String>)>) + 'static,
+    ) {
+        self.part.set_value(Some(Rc::new(evaluate)));
+    }
+
+    /// F9: replaces the selected part with its value, selected, and keeps the text before it for
+    /// Escape. Without a selection it says to select one.
+    pub fn evaluate_selection(self) {
+        let Some(evaluate) = self.part.try_get_value().flatten() else {
+            return;
+        };
+        let (start, end) = self.selection();
+        if start >= end {
+            self.part_status
+                .set("Select the part of the formula to evaluate, then press F9.".to_owned());
+            return;
+        }
+        let before = self.text.get_untracked();
+        let units: Vec<u16> = before.encode_utf16().collect();
+        let end = end.min(units.len());
+        let part = String::from_utf16_lossy(&units[start..end]);
+        evaluate(
+            start,
+            end - start,
+            Box::new(move |answer| match answer {
+                Ok(literal) => {
+                    let mut out = units[..start].to_vec();
+                    out.extend(literal.encode_utf16());
+                    let stop = out.len();
+                    out.extend_from_slice(&units[end..]);
+                    let after = String::from_utf16_lossy(&out);
+                    self.place(after.clone(), stop);
+                    self.part_undo.set(Some(PartUndo {
+                        before,
+                        after,
+                        start,
+                        end,
+                    }));
+                    if let Some(field) = self.field.get_untracked() {
+                        let _ = field.set_selection_range(start as u32, stop as u32);
+                    }
+                    self.part_status.set(format!(
+                        "{} evaluated to {literal}. Escape restores the formula.",
+                        part.trim()
+                    ));
+                }
+                Err(reason) => self.part_status.set(reason),
+            }),
+        );
+    }
+
+    /// Escape after F9: puts the text back as it was and selects the part again. `false` when no
+    /// F9 is waiting to be undone (or the text was edited since).
+    pub fn restore_part(self) -> bool {
+        let Some(undo) = self.part_undo.get_untracked() else {
+            return false;
+        };
+        self.part_undo.set(None);
+        if self.text.get_untracked() != undo.after {
+            return false;
+        }
+        self.place(undo.before, undo.end);
+        if let Some(field) = self.field.get_untracked() {
+            let _ = field.set_selection_range(undo.start as u32, undo.end as u32);
+        }
+        self.part_status.set("Formula restored.".to_owned());
+        true
+    }
+
+    /// Lets arrow keys and clicks on the owner's grid insert and replace references at the caret.
+    /// The grid is `rows` by `columns`; `origin` gives the cell a first arrow key moves from.
+    pub fn enable_point_mode(self, rows: u32, columns: u32, origin: impl Fn() -> (u32, u32) + 'static) {
+        self.point.set_value(Some(PointConfig {
+            rows,
+            columns,
+            origin: Rc::new(origin),
+        }));
+    }
+
+    /// The cells (first row, first column, last row, last column) the pointed reference spans.
+    pub fn pointed_cells(self) -> Option<(u32, u32, u32, u32)> {
+        self.pointing.get().map(|p| {
+            (
+                p.anchor.0.min(p.cursor.0),
+                p.anchor.1.min(p.cursor.1),
+                p.anchor.0.max(p.cursor.0),
+                p.anchor.1.max(p.cursor.1),
+            )
+        })
+    }
+
+    /// An arrow key in point mode: moves the pointed cell (Shift extends a range), starting a
+    /// reference where the caret expects one. `true` when it took the key.
+    fn point_keydown(self, ev: &leptos::ev::KeyboardEvent) -> bool {
+        if ev.ctrl_key() || ev.meta_key() || ev.alt_key() {
+            return false;
+        }
+        let (row, column) = match ev.key().as_str() {
+            "ArrowUp" => (-1i64, 0i64),
+            "ArrowDown" => (1, 0),
+            "ArrowLeft" => (0, -1),
+            "ArrowRight" => (0, 1),
+            _ => return false,
+        };
+        let Some(config) = self.point.try_get_value().flatten() else {
+            return false;
+        };
+        let text = self.text.get_untracked();
+        let (start, end) = self.selection();
+        let (anchor, cursor, span) = match self.pointing.get_untracked() {
+            Some(p) => (p.anchor, p.cursor, Some(p.span)),
+            None if self.point_armed.get_untracked()
+                && !ev.shift_key()
+                && expects_reference(&text, start, end) =>
+            {
+                let origin = (config.origin)();
+                (origin, origin, Some(TextSpan::new(start, end - start)))
+            }
+            None => return false,
+        };
+        let moved = (
+            (i64::from(cursor.0) + row).clamp(1, i64::from(config.rows)) as u32,
+            (i64::from(cursor.1) + column).clamp(1, i64::from(config.columns)) as u32,
+        );
+        let anchor = if ev.shift_key() { anchor } else { moved };
+        ev.prevent_default();
+        self.point_to(&text, span, anchor, moved);
+        true
+    }
+
+    /// A click on a cell of the owner's grid while the field is being edited: inserts the cell's
+    /// reference where the caret expects one, or replaces the reference point mode wrote (Shift
+    /// extends it to a range). `true` when the click was taken, so the owner keeps the focus in
+    /// the field.
+    pub fn point_click(self, row: u32, column: u32, extend: bool) -> bool {
+        let Some(field) = self.field.get_untracked() else {
+            return false;
+        };
+        if self.point.try_get_value().flatten().is_none() {
+            return false;
+        }
+        let focused = leptos::prelude::document()
+            .active_element()
+            .is_some_and(|active| {
+                let element: &web_sys::Element = field.as_ref();
+                active.is_same_node(Some(element))
+            });
+        if !focused {
+            return false;
+        }
+        let text = self.text.get_untracked();
+        let (start, end) = self.selection();
+        let cell = (row, column);
+        match self.pointing.get_untracked() {
+            Some(p) => {
+                let anchor = if extend { p.anchor } else { cell };
+                self.point_to(&text, Some(p.span), anchor, cell);
+                true
+            }
+            None if expects_reference(&text, start, end) => {
+                self.point_to(&text, Some(TextSpan::new(start, end - start)), cell, cell);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Writes the reference for the cells `anchor` to `cursor` over `span` of `text`, with the
+    /// caret after it, and remembers where it is.
+    fn point_to(self, text: &str, span: Option<TextSpan>, anchor: (u32, u32), cursor: (u32, u32)) {
+        let span = span.unwrap_or_else(|| TextSpan::new(self.caret.get_untracked(), 0));
+        let address = |(row, column): (u32, u32)| crate::display::address(row, column);
+        let reference = if anchor == cursor {
+            address(cursor)
+        } else {
+            let first = (anchor.0.min(cursor.0), anchor.1.min(cursor.1));
+            let last = (anchor.0.max(cursor.0), anchor.1.max(cursor.1));
+            format!("{}:{}", address(first), address(last))
+        };
+        let units: Vec<u16> = text.encode_utf16().collect();
+        let start = span.start.min(units.len());
+        let end = span.end().min(units.len()).max(start);
+        let mut out = units[..start].to_vec();
+        out.extend(reference.encode_utf16());
+        let stop = out.len();
+        out.extend_from_slice(&units[end..]);
+        self.popup.set(Popup::Hidden);
+        self.place(String::from_utf16_lossy(&out), stop);
+        self.pointing.set(Some(Pointing {
+            span: TextSpan::new(start, stop - start),
+            anchor,
+            cursor,
+        }));
     }
 
     /// The completion popup, while it is open.
@@ -550,8 +859,11 @@ impl FormulaAssist {
                         .iter()
                         .enumerate()
                         .map(|(index, proposal)| {
-                            let label = proposal.label();
-                            let signature = proposal.target.signature_help().display;
+                            let label = proposal.label().to_owned();
+                            let signature = match proposal.target {
+                                Some(target) => target.signature_help().display,
+                                None => proposal.kind_name().to_owned(),
+                            };
                             let class = if index == selected { "oc-sel" } else { "" };
                             view! {
                                 <li
@@ -611,7 +923,7 @@ impl FormulaAssist {
         move || {
             let target = popup
                 .with(Popup::selected)
-                .map(|proposal| proposal.target)
+                .and_then(|proposal| proposal.target)
                 .or_else(|| call.with(|site| site.as_ref().and_then(|site| site.target)))?;
             Some(help_view(target))
         }

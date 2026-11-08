@@ -94,7 +94,7 @@ impl Popup {
             Popup::Open {
                 completion,
                 selected,
-            } => completion.proposals.get(*selected).copied(),
+            } => completion.proposals.get(*selected).cloned(),
             Popup::Hidden => None,
         }
     }
@@ -109,7 +109,7 @@ impl Popup {
         else {
             return None;
         };
-        let proposal = *completion.proposals.get(*selected)?;
+        let proposal = completion.proposals.get(*selected)?;
         let applied = completion.apply(text, proposal);
         *self = Popup::Hidden;
         Some(applied)
