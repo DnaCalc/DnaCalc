@@ -96,6 +96,23 @@ class ProtocolTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate(self.request(rows=[[a]]), self.names, "a" * 32)
 
+    def test_ets_questions_accept_numeric_arrays_without_result_selection(self):
+        a = number_array([[1.], [2.], [3.], [4.]])
+        for name in ("FORECAST.ETS", "FORECAST.ETS.CONFINT",
+                     "FORECAST.ETS.SEASONALITY", "FORECAST.ETS.STAT"):
+            request = self.request(function=name, rows=[[number(5.), a, a]])
+            self.assertIs(validate(request, self.names, "a" * 32), request)
+            prepared = witness_request(request)["rows"][0]
+            self.assertTrue(prepared["formula"].startswith("=" + name + "("))
+            self.assertEqual(typed_inputs(request["rows"][0], prepared["args"]), request["rows"][0])
+            with self.assertRaises(ValueError):
+                validate({**request, "result_index": [1, 1]}, self.names, "a" * 32)
+            with self.assertRaises(ValueError):
+                validate({**request, "rows": [[{"type": "array", "values": [[text("=CALL()")]]}]]},
+                         self.names, "a" * 32)
+        with self.assertRaises(ValueError):
+            validate(self.request(function="SUM", rows=[[a]]), self.names, "a" * 32)
+
     def test_queue_and_adaptive_helpers_retain_exact_inputs(self):
         with tempfile.TemporaryDirectory() as directory:
             client = Client(directory, timeout=3)

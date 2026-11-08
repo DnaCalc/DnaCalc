@@ -1,6 +1,7 @@
-//! Build the linked harness once in the workspace target, then run it after cargo releases its
-//! lock. The child inherits a concrete executable so acceptance subprocesses never start cargo
-//! inside a target directory whose outer test run still owns the lock.
+//! Build the linked harness in the default workspace target, then run a private copy from
+//! target/xtask/run after cargo releases its lock. The child inherits a concrete executable so
+//! acceptance subprocesses never start cargo inside a target directory whose outer test run
+//! still owns the lock.
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use xtask::cargo::{self, Workspace};
@@ -20,19 +21,15 @@ fn executable(ws: &Workspace) -> Result<PathBuf, String> {
         };
     }
     let mut build = Command::new(cargo::cargo_program());
-    build
-        .current_dir(&ws.root)
-        .args([
-            "build",
-            "--locked",
-            "-p",
-            "xtask-harness",
-            "--bin",
-            "xtask-harness",
-            "--message-format=json",
-            "--target-dir",
-        ])
-        .arg(ws.accept_target_dir());
+    build.current_dir(&ws.root).args([
+        "build",
+        "--locked",
+        "-p",
+        "xtask-harness",
+        "--bin",
+        "xtask-harness",
+        "--message-format=json",
+    ]);
     let out = cargo::output(&mut build)?;
     eprint!("{}", cargo::text(&out.stderr));
     let stdout = cargo::text(&out.stdout);
@@ -49,7 +46,27 @@ fn executable(ws: &Workspace) -> Result<PathBuf, String> {
     if !out.status.success() {
         return Err(format!("building xtask-harness exited with {}", out.status));
     }
-    built_executable(&stdout).ok_or_else(|| "cargo built no xtask-harness executable".to_owned())
+    let built = built_executable(&stdout)
+        .ok_or_else(|| "cargo built no xtask-harness executable".to_owned())?;
+    runnable_copy(ws, &built)
+}
+
+/// Windows cannot replace a running executable. Each launcher runs its own copy, leaving the
+/// Cargo artifact available for a workspace build, including commands nested inside the harness.
+fn runnable_copy(ws: &Workspace, built: &Path) -> Result<PathBuf, String> {
+    let dir = ws
+        .root
+        .join("target/xtask/run")
+        .join(std::process::id().to_string());
+    std::fs::create_dir_all(&dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+    let copy = dir.join(
+        built
+            .file_name()
+            .ok_or("the harness executable has no file name")?,
+    );
+    std::fs::copy(built, &copy)
+        .map_err(|e| format!("cannot copy {} to {}: {e}", built.display(), copy.display()))?;
+    Ok(copy)
 }
 
 /// Cargo reports the actual executable, including any configured target triple and suffix.
@@ -80,9 +97,14 @@ pub fn run(args: &[String]) -> ExitCode {
         .and_then(|cwd| Workspace::load(&cwd))
         .and_then(|ws| executable(&ws))
         .and_then(|exe| {
-            command(&exe, args)
+            let result = command(&exe, args)
                 .status()
-                .map_err(|e| format!("cannot run {}: {e}", exe.display()))
+                .map_err(|e| format!("cannot run {}: {e}", exe.display()));
+            // A nested launcher reuses the parent's copy; only its owner removes it, after exit.
+            if std::env::var_os(HARNESS_ENV).is_none() {
+                let _ = std::fs::remove_dir_all(exe.parent().expect("the run directory"));
+            }
+            result
         });
     match result {
         Ok(status) => ExitCode::from(status.code().unwrap_or(1).try_into().unwrap_or(1)),
@@ -109,6 +131,19 @@ mod tests {
             ))
         );
         assert_eq!(built_executable("not a cargo artifact"), None);
+        let root = std::env::temp_dir().join(format!("xtask-copy-{}", std::process::id()));
+        let ws = Workspace {
+            root: root.clone(),
+            members: Vec::new(),
+        };
+        std::fs::create_dir_all(&root).unwrap();
+        let source = root.join(format!("xtask-harness{}", std::env::consts::EXE_SUFFIX));
+        std::fs::write(&source, b"first build").unwrap();
+        let copy = runnable_copy(&ws, &source).unwrap();
+        assert!(copy.starts_with(root.join("target/xtask/run")));
+        std::fs::write(&source, b"next build").unwrap();
+        assert_eq!(std::fs::read(copy).unwrap(), b"first build");
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

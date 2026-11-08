@@ -180,9 +180,7 @@ fn acceptance(ws: &Workspace, log: &Path) -> (bool, String) {
             "acceptance",
             "--test",
             "acceptance",
-            "--target-dir",
         ])
-        .arg(ws.accept_target_dir())
         .args(["--", "--test-threads=1", "--show-output"])
         .current_dir(&ws.root);
     let out = match cargo::output(&mut command) {

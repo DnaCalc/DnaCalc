@@ -45,7 +45,7 @@
 //! transcript (standard output and standard error merged in the order written) is kept beside it.
 //! `cargo xtask ci-audit` (`ci_audit.rs`) merges these manifests across targets.
 //!
-//! Every cargo started here uses `target/xtask-accept`, and none sees `DNACALC_CI_ACCEPT`,
+//! Every cargo started here uses `target`, and none sees `DNACALC_CI_ACCEPT`,
 //! `DNACALC_CI_INJECT_BROWSER_FAILURE` or `DNACALC_CI_COMMIT`. When `DNACALC_CI_COMMIT` is set (the
 //! workflow sets it to the commit that started the run), the checkout must be on master at that
 //! commit. Every job checks that rustc reports the version `rust-toolchain.toml` pins. A job exits
@@ -841,7 +841,7 @@ fn browser_coverage(
 }
 
 /// The cargo of a test run: `cargo test --locked --no-fail-fast` with JSON messages, in
-/// `target/xtask-accept`, from the workspace root, without the CI variables.
+/// `target`, from the workspace root, without the CI variables.
 fn cargo_test(ws: &Workspace, args: &[String]) -> Command {
     let mut command = Command::new(cargo::cargo_program());
     command
@@ -851,8 +851,6 @@ fn cargo_test(ws: &Workspace, args: &[String]) -> Command {
             "--no-fail-fast",
             "--message-format=json-render-diagnostics",
         ])
-        .arg("--target-dir")
-        .arg(ws.accept_target_dir())
         .args(args)
         .current_dir(&ws.root);
     for name in CI_VARIABLES {
@@ -1977,8 +1975,6 @@ fn desktop_job(
             "--locked",
             "--message-format=json-render-diagnostics",
         ])
-        .arg("--target-dir")
-        .arg(ws.accept_target_dir())
         .current_dir(&ws.root);
     for member in &native {
         command.args(["-p", &member.name]);
@@ -2100,7 +2096,7 @@ pub fn run(raw: &[String]) -> ExitCode {
         "CI {} in {}: cargo target directory {}, record {}",
         job.as_str(),
         ws.root.display(),
-        cargo::ACCEPT_TARGET_DIR,
+        cargo::TARGET_DIR,
         ws.rel(&out_dir)
     );
     if let Some(what) = job.what() {
@@ -2162,7 +2158,7 @@ pub fn run(raw: &[String]) -> ExitCode {
         "started_utc": started_utc,
         "duration_s": rounded(started.elapsed().as_secs_f64()),
         "host": host,
-        "cargo_target_dir": cargo::ACCEPT_TARGET_DIR,
+        "cargo_target_dir": cargo::TARGET_DIR,
         "problems": problems,
     });
     if let Value::Object(fields) = &mut manifest {
@@ -2241,13 +2237,13 @@ mod tests {
     fn status_lines_open_blocks() {
         assert_eq!(
             running_executable(
-                r"     Running unittests src\lib.rs (target/xtask-accept\debug\deps\calc_value-a1e2e6d0ba07c133.exe)"
+                r"     Running unittests src\lib.rs (target\debug\deps\calc_value-a1e2e6d0ba07c133.exe)"
             ),
             Some("calc_value-a1e2e6d0ba07c133.exe".to_owned())
         );
         assert_eq!(
             running_executable(
-                "     Running tests/probe.rs (target/xtask-accept/wasm32-unknown-unknown/debug/deps/probe-c446e89b0647a142.wasm)"
+                "     Running tests/probe.rs (target/wasm32-unknown-unknown/debug/deps/probe-c446e89b0647a142.wasm)"
             ),
             Some("probe-c446e89b0647a142.wasm".to_owned())
         );

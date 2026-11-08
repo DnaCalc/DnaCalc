@@ -37,6 +37,9 @@ reply = excel.ask("LINEST", [[number_array([[2.0], [4.0], [6.0]]),
 The service flattens each array into audited Value2 cells and constructs its shape with CHOOSE.
 Other array-producing functions stay outside the service. An existing Windows loop must be
 stopped and started after pulling this protocol extension.
+The four scalar FORECAST.ETS functions also accept these bounded numeric arrays,
+without `result_index`. Their explicit admission permits measurement before a
+worksheet implementation exists. Restart the Windows loop after pulling this change.
 Failures raise `ServiceError` with its retained `.response`; timeouts retain the request.
 On this Windows clone, start and stop explicitly:
 ```powershell

@@ -6,9 +6,9 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-/// The target directory of every cargo that xtask starts, relative to the workspace root. The
-/// cargo that started xtask owns `target/` itself.
-pub const ACCEPT_TARGET_DIR: &str = "target/xtask-accept";
+/// The default workspace target directory, shared with cargo run by hand. Only the lightweight
+/// launcher has its own build directory (`target/xtask`).
+pub const TARGET_DIR: &str = "target";
 
 pub const WASM_TARGET: &str = "wasm32-unknown-unknown";
 
@@ -224,8 +224,8 @@ impl Workspace {
             .replace('\\', "/")
     }
 
-    pub fn accept_target_dir(&self) -> PathBuf {
-        self.root.join("target").join("xtask-accept")
+    pub fn target_dir(&self) -> PathBuf {
+        self.root.join(TARGET_DIR)
     }
 }
 
