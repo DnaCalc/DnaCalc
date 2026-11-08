@@ -472,6 +472,10 @@ Write-Workbook (Join-Path $OutDir 'dcj9k_r38_ets/oracle.xlsx') $r38Ets
 $r39Ets = @(, @('dcj9k_r39_ets', (New-OracleSheet @() (Get-SectionLines 'sheet-dcj9k_r39_ets.txt' 'dcj9k_r39_ets'))))
 Write-Workbook (Join-Path $OutDir 'dcj9k_r39_ets/oracle.xlsx') $r39Ets
 
+# R39 exact seasonal affine histories; the captured nonseasonal oracle is unchanged.
+$r39Seasonal = @(, @('dcj9k_r39_seasonal', (New-OracleSheet @() (Get-SectionLines 'sheet-dcj9k_r39_seasonal.txt' 'dcj9k_r39_seasonal'))))
+Write-Workbook (Join-Path $OutDir 'dcj9k_r39_seasonal/oracle.xlsx') $r39Seasonal
+
 # dc-b1l.6: every fn2 caller has a blank source sheet and a separate observer sheet.
 # Stored text comes from calc-doc's existing file_form serializer; the packet's authored
 # spelling, explicit form and caller remain alongside it in this section's layout.

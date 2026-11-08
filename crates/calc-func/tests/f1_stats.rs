@@ -1244,3 +1244,56 @@ fn ets_unresolved_reset_keeps_independent_statistics() {
             Err(calc_func::FunctionFault::NotHeld { owner: "dc-j9k", .. })));
     }
 }
+
+/// Fresh R39 explicit periods: one shared state loop retains zero innovations.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_exact_seasonal_affine_states_and_reported_start() {
+    for (pattern, count, expected) in [
+        (vec![2.0,3.0],8, [0x400f000000000000u64,0x4008000000000000,0x4010800000000000,0x400c000000000000]),
+        (vec![0.25,1.5,3.25,-3.5],8, [0xc005000000000000,0x3ff4000000000000,0x4005000000000000,0x3ffc000000000000]),
+        (vec![0.5,-2.25,-3.25,3.0,-1.0,1.75,1.25,-0.25],16, [0x3ffa000000000000,0x4004000000000000,0xbfc0000000000000,0x3ff8000000000000]),
+    ] {
+        let period = pattern.len();
+        let values: Vec<_> = (0..count).map(|j| pattern[j % period] + j as f64 / 8.0).collect();
+        let times = arr(vec![(1..=count).map(|j| j as f64).collect()]);
+        let y = arr(vec![values.clone()]);
+        for (h, bits) in [0.0,1.0,2.0,5.0].into_iter().zip(expected) {
+            exact(call("FORECAST.ETS", vec![n(count as f64+h),y.clone(),times.clone(),n(period as f64)]), f64::from_bits(bits));
+        }
+        for (statistic, expected) in [0.751,0.001,0.001,0.0,0.0,0.0,0.0].into_iter().enumerate() {
+            exact(call("FORECAST.ETS.STAT", vec![y.clone(),times.clone(),n((statistic+1)as f64),n(period as f64)]), expected);
+        }
+        exact(call("FORECAST.ETS.CONFINT", vec![n(count as f64+10.0),y.clone(),times.clone(),n(0.95),n(period as f64)]),0.0);
+        let mut noisy = values;
+        noisy[count-1] += 1.0/16.0;
+        assert!(matches!(call("FORECAST.ETS", vec![n(count as f64+1.0),arr(vec![noisy]),times,n(period as f64)]),
+            Err(calc_func::FunctionFault::NotHeld { owner: "dc-j9k", .. })));
+    }
+    for value in [0.0,2.0_f64.powi(-400),2.0_f64.powi(400)] {
+        let y = arr(vec![vec![value;16]]);
+        let times = arr(vec![(1..=16).map(|j| j as f64).collect()]);
+        exact(call("FORECAST.ETS",vec![n(17.0),y.clone(),times.clone(),n(8.0)]),value);
+        exact(call("FORECAST.ETS.STAT",vec![y.clone(),times.clone(),n(1.0),n(8.0)]),0.751);
+        exact(call("FORECAST.ETS.CONFINT",vec![n(17.0),y,times,n(f64::from_bits(0x3fefffffffffffff)),n(8.0)]),0.0);
+    }
+}
+
+/// Fresh detector mapping and automatic-profile coupling retain period two.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_automatic_exact_alternating_states() {
+    let y = arr(vec![vec![1.0,127.0,257.0,383.0,513.0,639.0,769.0,895.0]]);
+    let times = arr(vec![(1..=8).map(|j| j as f64).collect()]);
+    exact(call("FORECAST.ETS.SEASONALITY",vec![y.clone(),times.clone()]),2.0);
+    exact(call("FORECAST.ETS",vec![n(9.0),y.clone(),times.clone()]),1025.0);
+    exact(call("FORECAST.ETS.STAT",vec![y.clone(),times.clone(),n(1.0)]),0.751);
+    exact(call("FORECAST.ETS.STAT",vec![y.clone(),times.clone(),n(3.0)]),0.001);
+    exact(call("FORECAST.ETS.CONFINT",vec![n(9.0),y,times,n(0.95)]),0.0);
+    for (offset,trend) in [(0.0,2.0_f64.powi(36)),(2.0_f64.powi(39),0.0)] {
+        let y = arr(vec![(0..8).map(|j|offset+if j%2==0 {1.0}else{-1.0}+trend*j as f64).collect()]);
+        let times = arr(vec![(1..=8).map(|j|j as f64).collect()]);
+        exact(call("FORECAST.ETS.SEASONALITY",vec![y.clone(),times.clone()]),2.0);
+        exact(call("FORECAST.ETS",vec![n(9.0),y,times]),549_755_813_889.0);
+    }
+}

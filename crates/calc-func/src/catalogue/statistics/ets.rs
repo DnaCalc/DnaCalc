@@ -1,9 +1,10 @@
 //! ETS's measured numeric-vector surface (dc-j9k, Excel20527, R39).
 //!
 //! Timeline preparation, option errors, step statistics and the exact, nonseasonal
-//! zero-residual model and bounded nonseasonal fits are implemented. Short-series
+//! zero-residual models and bounded nonseasonal fits are implemented. Short-series
 //! initialisation, rounded constant initialisation, the minimum-alpha forecast
-//! reset, seasonal fits and calendar inference still belong to dc-j9k. In particular,
+//! reset, nonzero seasonal fits, incomplete cycles and calendar inference still
+//! belong to dc-j9k. In particular,
 //! bit-identical input values do NOT justify returning that value: adjacent-load
 //! measurements expose rounding and changed optimisation even on constant data.
 //! The corpus counts the remaining nonseasonal last-bit differences as mismatches.
@@ -213,20 +214,36 @@ fn statistic_window(n: usize) -> usize {
 struct Model {
     level: f64,
     trend: f64,
-    seasons: [f64; 2],
+    seasons: [f64; 8],
+    period: usize,
     errors: Vec<f64>,
     predictions: Vec<f64>,
     trends: Vec<f64>,
+}
+
+struct Initial {
+    level: f64,
+    trend: f64,
+    seasons: [f64; 8],
+    period: usize,
+    gamma: f64,
 }
 
 impl Model {
     /// The application and parameter search use this same recurrence. During
     /// validation only the transition runs; observations no longer update it.
     fn run(y: &[f64], alpha: f64, beta: f64, validation: Option<usize>) -> Self {
-        let mut model = Self { level: y[0], trend: initial_slope(y), seasons: [0.0; 2],
+        Self::run_initialized(y, alpha, beta, validation, Initial {
+            level: y[0], trend: initial_slope(y), seasons: [0.0; 8], period: 2, gamma: f64::EPSILON,
+        })
+    }
+
+    fn run_initialized(y: &[f64], alpha: f64, beta: f64, validation: Option<usize>, initial: Initial) -> Self {
+        let mut model = Self { level: initial.level, trend: initial.trend,
+            seasons: initial.seasons, period: initial.period,
             errors: vec![0.0], predictions: vec![y[0]], trends: Vec::with_capacity(y.len() - 1) };
         for (j, &v) in y.iter().enumerate().skip(1) {
-            let q = j % 2;
+            let q = j % model.period;
             let prediction = (model.level + model.trend) + model.seasons[q];
             let error = v - prediction;
             model.errors.push(error);
@@ -236,7 +253,7 @@ impl Model {
             } else {
                 model.level += model.trend + alpha * error;
                 model.trend += beta * error;
-                model.seasons[q] += f64::EPSILON * error;
+                model.seasons[q] += initial.gamma * error;
             }
             model.trends.push(model.trend);
         }
@@ -263,7 +280,7 @@ impl Model {
         }
         let center = (self.seasons[0] + self.seasons[1]) / 2.0;
         self.level += center;
-        for season in &mut self.seasons { *season -= center; }
+        for season in &mut self.seasons[..self.period] { *season -= center; }
         reset
     }
 
@@ -279,6 +296,77 @@ impl Model {
         let prefix = if start == 0 { y.len() } else { start };
         let scale = y[..prefix].windows(2).fold(0.0, |sum, v| sum + (v[1] - v[0]).abs()) / (prefix - 1) as f64;
         [if scale == 0.0 { 0.0 } else { mae / scale }, smape, mae, rmse]
+    }
+}
+
+/// Complete-cycle seasonal affine histories in the measured exact-arithmetic
+/// region. Every innovation is calculated by the application's shared loop.
+/// The zero objective retains the measured starting parameters; a nonzero
+/// innovation needs the still unidentified seasonal initialisation/search.
+fn exact_seasonal(site: &Site<'_>, y: &[f64], period: usize, output: Output, statistic: f64, horizon: f64, automatic: bool) -> Step<CalcValue> {
+    if !(8..=32).contains(&y.len()) || ![2, 4, 8].contains(&period)
+        || y.len() % period != 0 || y.len() < 2 * period
+        || y.iter().any(|&v| v != 0.0 && !(2.0_f64.powi(-400)..=2.0_f64.powi(400)).contains(&v.abs())) {
+        return Err(unfinished(site));
+    }
+    let differences: Vec<_> = (0..period).map(|j| exact_sum(y[j + period], -y[j]))
+        .collect::<Option<_>>().ok_or_else(|| unfinished(site))?;
+    let trend = exact_total(&differences).and_then(|v| exact_ratio(v, (period * period) as f64))
+        .ok_or_else(|| unfinished(site))?;
+    let mut adjusted = Vec::with_capacity(period);
+    for (j, &v) in y.iter().take(period).enumerate() {
+        let product = j as f64 * trend;
+        if (j as f64).mul_add(trend, -product) != 0.0 { return Err(unfinished(site)); }
+        adjusted.push(exact_sum(v, -product).ok_or_else(|| unfinished(site))?);
+    }
+    let level = exact_total(&adjusted).and_then(|v| exact_ratio(v, period as f64))
+        .ok_or_else(|| unfinished(site))?;
+    let mut seasons = [0.0; 8];
+    for (target, &v) in seasons.iter_mut().zip(&adjusted) {
+        *target = exact_sum(v, -level).ok_or_else(|| unfinished(site))?;
+    }
+    if exact_total(&seasons[..period]) != Some(0.0) { return Err(unfinished(site)); }
+    let mut lattice = y.to_vec();
+    lattice.extend_from_slice(&adjusted);
+    lattice.extend_from_slice(&seasons[..period]);
+    lattice.extend([level, trend]);
+    let minimum = quantum_exponent(&lattice);
+    if !(-900..=900).contains(&minimum) { return Err(unfinished(site)); }
+    let quantum = 2.0_f64.powi(minimum);
+    let bound = (1u64 << 50) as f64 / (y.len() as f64).powi(3);
+    if lattice.iter().any(|v| (v / quantum).abs() > bound) { return Err(unfinished(site)); }
+    if exact_sum(level, seasons[0]) != Some(y[0]) { return Err(unfinished(site)); }
+    let model = Model::run_initialized(y, 0.751, 0.001, None,
+        Initial { level, trend, seasons, period, gamma: 0.001 });
+    if model.errors.iter().any(|&v| v != 0.0) { return Err(unfinished(site)); }
+    // Fresh automatic profiles distinguish a nonzero alternating component
+    // from the affine case. Other detector shapes remain unidentified.
+    if automatic && (period != 2 || model.seasons[0] == model.seasons[1]) {
+        return Err(unfinished(site));
+    }
+    match output {
+        Output::Forecast => {
+            if horizon < 0.0 { return Err(unfinished(site)); }
+            let product = horizon * model.trend;
+            if !product.is_finite() || horizon.mul_add(model.trend, -product) != 0.0 {
+                return Err(unfinished(site));
+            }
+            let phase = ((y.len() - 1) as u64 + horizon as u64) % period as u64;
+            let projected = exact_sum(model.level, product).ok_or_else(|| unfinished(site))?;
+            site.number(exact_sum(projected, model.seasons[phase as usize])
+                .ok_or_else(|| unfinished(site))?)
+        }
+        // The measured zero innovations imply zero forecast variance at every
+        // admitted horizon. No general seasonal variance expression is assumed.
+        Output::Confidence => site.number((model.squared_errors() / y.len() as f64).sqrt()),
+        Output::Statistic => {
+            let statistics = model.statistics(y);
+            site.number(match statistic as u8 {
+                1 => 0.751, 2 | 3 => 0.001, 4..=7 => statistics[statistic as usize - 4],
+                _ => unreachable!(),
+            })
+        }
+        Output::Seasonality => site.number(period as f64),
     }
 }
 
@@ -389,6 +477,16 @@ pub(super) fn evaluate(site: &Site<'_>, args: &[CalcValue], sv: &mut EvalService
     if output == Output::Statistic && statistic == 8.0 { return site.number(series.step); }
     if output == Output::Confidence && confidence == 0.0 { return site.number(0.0); }
     if !series.preparation_exact { return Err(unfinished(site)); }
+    if season == 1.0 {
+        match exact_seasonal(site, &series.values, 2, output, statistic, horizon, true) {
+            Ok(value) => return Ok(value),
+            Err(Exit::Fault(FunctionFault::NotHeld { .. })) => {}
+            Err(why) => return Err(why),
+        }
+    }
+    if season > 1.0 && season <= (series.values.len() / 2) as f64 {
+        return exact_seasonal(site, &series.values, season as usize, output, statistic, horizon, false);
+    }
     let trend = match exact_trend(&series.values) {
         Some(trend) => trend,
         None => {
@@ -399,9 +497,7 @@ pub(super) fn evaluate(site: &Site<'_>, args: &[CalcValue], sv: &mut EvalService
         }
     };
     if output == Output::Seasonality { return site.number(0.0); }
-    // An explicit period longer than half the data falls back to the
-    // nonseasonal model. Otherwise seasonal states remain unimplemented.
-    if season > 1.0 && season <= (series.values.len() / 2) as f64 { return Err(unfinished(site)); }
+    // An explicit period longer than half the data uses the nonseasonal model.
     match output {
         Output::Forecast => {
             let product = horizon * trend;
