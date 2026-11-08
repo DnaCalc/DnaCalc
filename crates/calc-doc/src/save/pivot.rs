@@ -746,7 +746,7 @@ pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
         retained.fields = old.fields.clone();
         retained.snapshot = old.snapshot.clone();
         if retained.attributes.get("missingItemsLimit") != old.attributes.get("missingItemsLimit") {
-            if retained.attributes.get("missingItemsLimit").map(String::as_str) != Some("0") {
+            if !matches!(retained.attributes.get("missingItemsLimit").map(String::as_str), None | Some("0" | "32500")) {
                 return Err(bad(&cache.part, "This item retention setting is not modelled"));
             }
             match old.attributes.get("missingItemsLimit") {

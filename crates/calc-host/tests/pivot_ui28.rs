@@ -512,7 +512,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
             .map(|t| (*sheet, t.part.clone()))
     }).unwrap();
     let mut missing_verdicts = BTreeMap::new();
-    for stage in ["missing-items-built", "missing-items-refresh-default", "missing-items-refresh-none", "missing-items-refresh-added"] {
+    for stage in ["missing-items-built", "missing-items-refresh-default", "missing-items-refresh-none", "missing-items-refresh-added", "missing-items-delta-removed-auto", "missing-items-max-limit"] {
         if stage == "missing-items-refresh-default" {
             for row in 2..=37 {
                 let address = format!("B{row}");
@@ -534,6 +534,16 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
                 assert!(book.dispatch(SkinIntent::EnterCell { at: at(source_sheet, address), text: text.into() }).accepted());
             }
         }
+        if stage == "missing-items-delta-removed-auto" || stage == "missing-items-max-limit" {
+            if stage == "missing-items-delta-removed-auto" {
+                assert!(book.dispatch(SkinIntent::EnterCell { at: at(source_sheet, "B9"), text: "Alpha".into() }).accepted());
+            }
+            let limit = if stage == "missing-items-max-limit" { Some(32500) } else { None };
+            let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotSetMissingItemsLimit {
+                sheet: missing_sheet, revision: book.host().revision().get(), part: missing_part.clone(), limit,
+            }));
+            assert!(receipt.accepted(), "{stage}: {:?}", receipt.error);
+        }
         let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
             sheet: missing_sheet, revision: book.host().revision().get(), part: missing_part.clone(),
         }));
@@ -550,11 +560,12 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
             let unused: Vec<_> = cache_field.unused_items.iter().map(|&index| cache_field.items[index as usize].clone()).collect();
             let expected_missing = if stage == "missing-items-built" { vec![calc_doc_model::pivot::PivotItem::Text("Delta".into())] }
                 else if stage == "missing-items-refresh-default" { vec![calc_doc_model::pivot::PivotItem::Text("Gamma".into()), calc_doc_model::pivot::PivotItem::Text("Delta".into())] }
+                else if stage == "missing-items-delta-removed-auto" || stage == "missing-items-max-limit" { vec![calc_doc_model::pivot::PivotItem::Text("Delta".into())] }
                 else { Vec::new() };
             assert_eq!(missing, expected_missing, "{stage} retained field items");
             assert_eq!(unused, expected_missing, "{stage} unused cache items");
         }
-        if stage == "missing-items-refresh-none" || stage == "missing-items-refresh-added" {
+        if matches!(stage, "missing-items-refresh-none" | "missing-items-refresh-added" | "missing-items-delta-removed-auto" | "missing-items-max-limit") {
             assert_eq!(verdict, "matched", "{stage}");
             let mut bytes = Vec::new();
             book.save(&SavePolicy::default(), &mut bytes).unwrap();
@@ -562,7 +573,12 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
             book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
             let pivots = book.host().model().definitions().pivots();
             let table = pivots.sheet(missing_sheet).unwrap().tables.iter().find(|t| t.part == missing_part).unwrap();
-            assert_eq!(pivots.caches.caches[&table.cache_id].attributes.get("missingItemsLimit").map(String::as_str), Some("0"));
+            let expected_limit = match stage {
+                "missing-items-delta-removed-auto" => None,
+                "missing-items-max-limit" => Some("32500"),
+                _ => Some("0"),
+            };
+            assert_eq!(pivots.caches.caches[&table.cache_id].attributes.get("missingItemsLimit").map(String::as_str), expected_limit);
             let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
                 sheet: missing_sheet, revision: book.host().revision().get(), part: missing_part.clone(),
             }));
@@ -646,7 +662,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
         println!("{stage}: {verdict}");
     }
     println!("M1 matched {} of {}: {matched:?}", matched.len(), expected.len());
-    assert_eq!(matched, ["agg-all-amount", "agg-all-units", "agg-text-field", "blank-line-both", "blank-line-compact-columns", "blank-line-outer", "calc-field-arith", "calc-field-if", "calc-field-of-calc", "calc-field-ratio", "calc-item-diff", "calc-item-half-sum", "calc-item-sum", "err-keys", "err-keys-columns", "err-keys-desc", "err-values", "err-values-display", "group-day-month", "group-days-7", "group-month", "group-month-year", "group-number-clean", "group-number-units", "group-quarter", "group-quarter-year", "group-text-items", "group-year", "group-year-columns", "missing-items-built", "missing-items-refresh-added", "missing-items-refresh-default", "missing-items-refresh-none", "nodata-rows", "nodata-rows-hidden", "nodata-two-row-fields", "prec-grand-only", "show-count-average", "show-difference-east", "show-difference-next", "show-difference-previous", "show-difference-product-alpha", "show-index", "show-percent-difference-east", "show-percent-difference-previous", "show-percent-of-column", "show-percent-of-parent", "show-percent-of-parent-column", "show-percent-of-parent-product", "show-percent-of-parent-row", "show-percent-of-row", "show-percent-of-total", "show-percent-running-total", "show-percentof-east", "show-percentof-previous", "show-rank-ascending", "show-rank-descending", "show-running-total", "show-running-total-product", "show-two-data-fields", "sort-by-second-data", "sort-by-value-asc", "sort-by-value-columns", "sort-by-value-desc", "sort-by-value-inner", "sort-by-value-ties", "subtotals-multiple-compact", "subtotals-multiple-outline-bottom", "subtotals-multiple-outline-top", "subtotals-multiple-tabular", "subtotals-multiple-two-data", "subtotals-none", "values-columns-after-field", "values-rows-first", "values-rows-region", "values-rows-two-fields", "values-rows-with-columns"]);
+    assert_eq!(matched, ["agg-all-amount", "agg-all-units", "agg-text-field", "blank-line-both", "blank-line-compact-columns", "blank-line-outer", "calc-field-arith", "calc-field-if", "calc-field-of-calc", "calc-field-ratio", "calc-item-diff", "calc-item-half-sum", "calc-item-sum", "err-keys", "err-keys-columns", "err-keys-desc", "err-values", "err-values-display", "group-day-month", "group-days-7", "group-month", "group-month-year", "group-number-clean", "group-number-units", "group-quarter", "group-quarter-year", "group-text-items", "group-year", "group-year-columns", "missing-items-built", "missing-items-delta-removed-auto", "missing-items-max-limit", "missing-items-refresh-added", "missing-items-refresh-default", "missing-items-refresh-none", "nodata-rows", "nodata-rows-hidden", "nodata-two-row-fields", "prec-grand-only", "show-count-average", "show-difference-east", "show-difference-next", "show-difference-previous", "show-difference-product-alpha", "show-index", "show-percent-difference-east", "show-percent-difference-previous", "show-percent-of-column", "show-percent-of-parent", "show-percent-of-parent-column", "show-percent-of-parent-product", "show-percent-of-parent-row", "show-percent-of-row", "show-percent-of-total", "show-percent-running-total", "show-percentof-east", "show-percentof-previous", "show-rank-ascending", "show-rank-descending", "show-running-total", "show-running-total-product", "show-two-data-fields", "sort-by-second-data", "sort-by-value-asc", "sort-by-value-columns", "sort-by-value-desc", "sort-by-value-inner", "sort-by-value-ties", "subtotals-multiple-compact", "subtotals-multiple-outline-bottom", "subtotals-multiple-outline-top", "subtotals-multiple-tabular", "subtotals-multiple-two-data", "subtotals-none", "values-columns-after-field", "values-rows-first", "values-rows-region", "values-rows-two-fields", "values-rows-with-columns"]);
     let mut saved = Vec::new();
     book.save(&SavePolicy::default(), &mut saved).unwrap();
     let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(saved));
@@ -988,34 +1004,6 @@ fn dc_8wp_10__relative_percentage_with_zero_base_refuses_without_writing() {
 }
 
 #[test]
-/// Native-only: compares lookups with the captured values in the saved M1 layouts.
-fn dc_8wp_14__lookup_values_on_rows_uses_the_displayed_measure() {
-    let bytes = include_bytes!("fixtures/pivot/m1-calculation/built.xlsx");
-    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes.to_vec()));
-    let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
-    for stage in ["values_rows_region", "values_rows_first", "values_rows_with_columns"] {
-        let name = format!("pvt_{stage}");
-        let sheet = book.host().model().definitions().pivots().sheets.iter().find_map(|(sheet, pivots)|
-            pivots.tables.iter().any(|table| table.name == name).then_some(*sheet)).unwrap();
-        let mut cases = vec![
-            ("Z1", "=GETPIVOTDATA(\"Sum Amount\",A3,\"Region\",\"East\")", 2074.5),
-            ("Z2", "=GETPIVOTDATA(\"Sum Units\",A3,\"Region\",\"East\")", 26.0),
-            ("Z3", "=GETPIVOTDATA(\"Sum Amount\",A3)", 7162.75),
-            ("Z4", "=GETPIVOTDATA(\"Sum Units\",A3)", 105.0),
-        ];
-        if stage == "values_rows_with_columns" {
-            cases.push(("Z5", "=GETPIVOTDATA(\"Sum Amount\",A3,\"Region\",\"East\",\"Product\",\"Alpha\")", 691.5));
-            cases.push(("Z6", "=GETPIVOTDATA(\"Sum Units\",A3,\"Region\",\"East\",\"Product\",\"Alpha\")", 7.0));
-        }
-        for (cell, formula, _) in &cases {
-            assert!(book.dispatch(SkinIntent::EnterCell { at: at(sheet, cell), text: (*formula).into() }).accepted());
-        }
-        let got = held(&book, sheet, 26, 6);
-        for (cell, _, value) in cases { assert_eq!(got.get(cell), Some(&Cell::Number(value)), "{stage} {cell}"); }
-    }
-}
-
-#[test]
 /// Native-only: replays Excel's saved number-format stages through refresh and XLSX save.
 fn dc_8wp_12__data_field_number_formats_match_capture_after_refresh() {
     let bytes = include_bytes!("fixtures/pivot/m2-formatting/built.xlsx");
@@ -1063,5 +1051,33 @@ fn dc_8wp_12__data_field_number_formats_match_capture_after_refresh() {
         for (address, _, saved_format) in &expected {
             assert_eq!(book.host().number_format(at(sheet, address)), saved_format.as_deref(), "{stage} {address} after reopen");
         }
+    }
+}
+
+#[test]
+/// Native-only: compares lookups with the captured values in the saved M1 layouts.
+fn dc_8wp_14__lookup_values_on_rows_uses_the_displayed_measure() {
+    let bytes = include_bytes!("fixtures/pivot/m1-calculation/built.xlsx");
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes.to_vec()));
+    let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    for stage in ["values_rows_region", "values_rows_first", "values_rows_with_columns"] {
+        let name = format!("pvt_{stage}");
+        let sheet = book.host().model().definitions().pivots().sheets.iter().find_map(|(sheet, pivots)|
+            pivots.tables.iter().any(|table| table.name == name).then_some(*sheet)).unwrap();
+        let mut cases = vec![
+            ("Z1", "=GETPIVOTDATA(\"Sum Amount\",A3,\"Region\",\"East\")", 2074.5),
+            ("Z2", "=GETPIVOTDATA(\"Sum Units\",A3,\"Region\",\"East\")", 26.0),
+            ("Z3", "=GETPIVOTDATA(\"Sum Amount\",A3)", 7162.75),
+            ("Z4", "=GETPIVOTDATA(\"Sum Units\",A3)", 105.0),
+        ];
+        if stage == "values_rows_with_columns" {
+            cases.push(("Z5", "=GETPIVOTDATA(\"Sum Amount\",A3,\"Region\",\"East\",\"Product\",\"Alpha\")", 691.5));
+            cases.push(("Z6", "=GETPIVOTDATA(\"Sum Units\",A3,\"Region\",\"East\",\"Product\",\"Alpha\")", 7.0));
+        }
+        for (cell, formula, _) in &cases {
+            assert!(book.dispatch(SkinIntent::EnterCell { at: at(sheet, cell), text: (*formula).into() }).accepted());
+        }
+        let got = held(&book, sheet, 26, 6);
+        for (cell, _, value) in cases { assert_eq!(got.get(cell), Some(&Cell::Number(value)), "{stage} {cell}"); }
     }
 }

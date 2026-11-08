@@ -440,7 +440,7 @@ pub(super) fn render_axes(
         return Err(bad("These custom subtotals are not modelled in this layout"));
     }
     let retains_missing = table.fields.iter().any(|field| field.items.iter().any(|item| item.missing));
-    if retains_missing && (!matches!(cache.attributes.get("missingItemsLimit").map(String::as_str), Some("32500" | "0"))
+    if retains_missing && (!matches!(cache.attributes.get("missingItemsLimit").map(String::as_str), Some("32500" | "0") | None)
         || row_fields.len() != 1 || table.column_fields.len() != 1 || table.column_fields[0] < 0
         || !table.page_fields.is_empty() || !table.filters.is_empty() || table.data_fields.len() != 1
         || table.data_fields[0].subtotal != "sum" || show != "normal"

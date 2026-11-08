@@ -172,7 +172,7 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<Pivo
         return Err(fail("Calculated and retained items together are not modelled"));
     }
     if tracked_unused.iter().any(|tracked| *tracked)
-        && !matches!(cache.attributes.get("missingItemsLimit").map(String::as_str), Some("32500" | "0")) {
+        && !matches!(cache.attributes.get("missingItemsLimit").map(String::as_str), Some("32500" | "0") | None) {
         return Err(fail("This unused-item retention limit is not modelled"));
     }
     let mut indexes = Vec::new();
@@ -424,13 +424,19 @@ fn append_number_formats(host: &HostState, formats: &BTreeMap<CellKey, u32>, edi
 
 /// Select the captured zero-retention policy. Existing cached items are removed on refresh.
 pub(crate) fn prepare_forget_missing_items(host: &HostState, sheet: SheetId, revision: u64, part: &str) -> Result<Vec<CellEdit>, String> {
+    prepare_missing_items_limit(host, sheet, revision, part, Some(0))
+}
+pub(crate) fn prepare_missing_items_limit(host: &HostState, sheet: SheetId, revision: u64, part: &str, limit: Option<u32>) -> Result<Vec<CellEdit>, String> {
     if revision != host.revision().get() { return Err(fail("The workbook changed before setting item retention")); }
+    if !matches!(limit, None | Some(0 | 32500)) { return Err(fail("This unused-item retention limit is not modelled")); }
     let before = host.model().definitions().pivots();
     let selected = before.sheet(sheet).and_then(|s| s.tables.iter().find(|t| t.part == part))
         .ok_or_else(|| fail("The selected pivot is unavailable"))?;
     let mut after = (**before).clone();
     let cache = after.caches.caches.get_mut(&selected.cache_id).ok_or_else(|| fail("The source cache is unavailable"))?;
-    Arc::make_mut(cache).attributes.insert("missingItemsLimit".into(), "0".into());
+    let attributes = &mut Arc::make_mut(cache).attributes;
+    if let Some(limit) = limit { attributes.insert("missingItemsLimit".into(), limit.to_string()); }
+    else { attributes.remove("missingItemsLimit"); }
     host.loaded().check_pivot_state(&after).map_err(|e| e.to_string())?;
     Ok(vec![CellEdit::Pivots(Arc::new(after))])
 }
@@ -468,6 +474,31 @@ pub(crate) fn prepare_refresh(
     }
     let mut cache = snapshot(host, cache, area)?;
     let mut after = (**before).clone();
+    // The captured automatic and maximum policies retain an item removed from either axis.
+    // Other arrangements keep their existing refusal until their retention behavior is measured.
+    if matches!(cache.attributes.get("missingItemsLimit").map(String::as_str), None | Some("32500"))
+        && before.tables().filter(|t| t.cache_id == cache.id).count() == 1
+        && selected.row_fields.len() == 1 && selected.column_fields.len() == 1
+        && selected.row_fields[0] >= 0 && selected.column_fields[0] >= 0
+        && selected.data_fields.len() == 1 && selected.data_fields[0].subtotal == "sum"
+        && selected.page_fields.is_empty() && selected.filters.is_empty()
+        && cache.calculated_items.is_empty() && cache.fields.iter().all(|f| f.group.is_none())
+        && selected.fields.iter().all(|f| f.sort_measure.is_none() && f.items.iter().all(|i| !i.hidden && !i.calculated)) {
+        let records = &cache.snapshot.as_ref().expect("snapshot just created").records;
+        let table = after.sheets.get_mut(&sheet).and_then(|s| s.tables.iter_mut().find(|t| t.part == part))
+            .ok_or_else(|| fail("The selected pivot is unavailable"))?;
+        for index in [selected.row_fields[0] as usize, selected.column_fields[0] as usize] {
+            let field = cache.fields.get_mut(index).ok_or_else(|| fail("Invalid retained field"))?;
+            let used: std::collections::BTreeSet<_> = records.iter().filter_map(|row| match row.get(index) {
+                Some(PivotItem::Index(i)) => Some(*i), _ => None,
+            }).collect();
+            field.unused_items = (0..field.items.len() as u32).filter(|i| !used.contains(i)).collect();
+            if field.unused_items.len() > 32500 { return Err(fail("Retaining more than 32500 unused items is not modelled")); }
+            for item in &mut table.fields[index].items {
+                if item.kind == "data" { item.missing = item.index.is_some_and(|i| field.unused_items.contains(&i)); }
+            }
+        }
+    }
     if cache.attributes.get("missingItemsLimit").map(String::as_str) == Some("0") {
         if before.tables().filter(|t| t.cache_id == cache.id).count() != 1
             || !cache.calculated_items.is_empty() || cache.fields.iter().any(|f| f.group.is_some() || !f.formula_items.is_empty())
