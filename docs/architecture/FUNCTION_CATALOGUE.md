@@ -89,9 +89,12 @@ the LET names and LAMBDA parameters in scope at the caret (read from the formula
 Each proposal says what it is (`ProposalKind`); a call inserts its name and parenthesis, a name or
 a local only itself. The function help panel shows a function's implementation (held, formula
 binding, not held with its owning work package, deferred with its class) and its availability. A
-part of a formula can be evaluated on its own through the owner's evaluator (F9, and the trace in
-DNA OneCalc): the owner supplies it to `FormulaAssist`, so DNA Calc enables it once its worker has
-a request for it (dc-0f1k.7).
+part of a formula can be evaluated on its own through the owner's evaluator (F9, and the trace panel):
+the walk is `dna_formula_ui::parts`, and the owner supplies the evaluator. DNA OneCalc evaluates in its
+session; DNA Calc asks its worker (`EvaluatePart`, `TraceFormula` and `UserFunctions`, dc-0f1k.7), which
+evaluates each part as the edited cell would read it over the published values and writes nothing. A
+part that calls a registered function is a typed refusal (dc-hsa5: the detached evaluation has no
+effect-free capability for user functions yet); the registered functions are still completed.
 
 ## Entry checking: formulas Excel will not take
 

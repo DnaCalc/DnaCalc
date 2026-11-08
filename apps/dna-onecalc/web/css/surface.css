@@ -12,7 +12,6 @@ html, body { margin: 0; background: var(--dna-paper); color: var(--dna-ink); }
 .oc-kind{display:inline-block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;background:var(--dna-line-soft);color:var(--dna-ink-2);border-radius:10px;padding:1px 8px;margin-right:8px}
 .oc-value{font:600 18px ui-monospace,Consolas,monospace}
 .oc-err{color:var(--dna-red-ink)}
-.oc-prov{color:var(--dna-ink-3);font-size:12px;margin:6px 0 0}
 .oc-diags{color:var(--dna-red-ink);margin:6px 0;padding-left:20px}
 .oc-reads{color:var(--dna-ink-2);font-size:12px;margin:6px 0;padding-left:20px}
 .oc-array{border-collapse:collapse;margin:6px 0;font:13px ui-monospace,Consolas,monospace}
@@ -27,9 +26,6 @@ html, body { margin: 0; background: var(--dna-paper); color: var(--dna-ink); }
 .oc-grid td.oc-formula{background:var(--dna-amber-soft)}
 .oc-grid td.oc-formula input{font-weight:600}
 .oc-grid td.oc-pointed{outline:2px dashed var(--dna-accent);outline-offset:-2px}
-.oc-trace{margin:8px 0}.oc-trace header{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.oc-trace h2{margin:0;font-size:1rem}
-.oc-trace-steps{list-style:decimal;padding-left:2em;font:13px ui-monospace,Consolas,monospace}.oc-trace-steps li{cursor:pointer;padding:1px 4px}.oc-trace-steps li.oc-depth-1{margin-left:1em}.oc-trace-steps li.oc-depth-2{margin-left:2em}.oc-trace-steps li.oc-depth-3{margin-left:3em}.oc-trace-steps li.oc-depth-4{margin-left:4em}.oc-trace-steps li.oc-depth-5{margin-left:5em}.oc-trace-steps li.oc-depth-6{margin-left:6em}.oc-trace-steps li.oc-depth-7{margin-left:7em}.oc-trace-steps li.oc-depth-8{margin-left:8em}
-.oc-trace-steps li.oc-trace-current{background:var(--dna-amber-soft)}
 .oc-grid td.oc-refused{background:var(--dna-red-soft)}
 .oc-grid input[data-kind=number]{text-align:right}
 .oc-grid input[data-kind=error]{color:var(--dna-red-ink)}

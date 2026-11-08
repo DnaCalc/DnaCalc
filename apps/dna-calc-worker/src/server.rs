@@ -574,6 +574,33 @@ impl Server {
                     version,
                     cell(anchor)?,
                 ))),
+                Request::EvaluatePart {
+                    formula,
+                    anchor,
+                    start,
+                    len,
+                } => Ok(Reply::Part(cell(anchor).and_then(|anchor| {
+                    crate::parts::evaluate_part(
+                        self.book.host(),
+                        self.book.profile(),
+                        anchor,
+                        &formula,
+                        start,
+                        len,
+                    )
+                }))),
+                Request::TraceFormula { formula, anchor } => {
+                    let anchor = cell(anchor)?;
+                    Ok(Reply::Trace(crate::parts::trace(
+                        self.book.host(),
+                        self.book.profile(),
+                        anchor,
+                        &formula,
+                    )))
+                }
+                Request::UserFunctions => {
+                    Ok(Reply::UserFunctions(self.book.host().user_function_names()))
+                }
                 Request::CalculateName { id, version, anchor } => {
                     if self.pending_name.as_ref().is_some_and(|name| name.work.is_some()) {
                         return Err("A selected-name calculation is already running".into());

@@ -3470,14 +3470,14 @@ mod tests {
             .map(|group| group.core)
             .sum();
         assert_eq!(
-            inherited_total, 383,
-            "the two applications retain 383 core cases including eighteen chart creation/log/combination/legend cases, the two wasm-stack cases (dc-0f1k.9) and all 363 inherited core cases"
+            inherited_total, 389,
+            "the two applications retain 389 core cases including eighteen chart creation/log/combination/legend cases, the eight wasm-stack and formula-bar part cases (dc-0f1k.9, dc-0f1k.7) and all 363 inherited core cases"
         );
         assert_eq!(
-            total, 395,
-            "the twelve page-layout cases extend all 383 inherited core cases"
+            total, 401,
+            "the twelve page-layout cases extend all 389 inherited core cases"
         );
-        assert_eq!(current_total,433,"eight chart and eleven pivot cases extend all 414 inherited core cases, including the nineteen chart and saved-pivot cases");
+        assert_eq!(current_total,439,"eight chart and eleven pivot cases extend all 420 inherited core cases, including the nineteen chart and saved-pivot cases");
     }
 
     /// dc-0f1k.9: the stack check passes a stack of the size the bundle asks for with half of it

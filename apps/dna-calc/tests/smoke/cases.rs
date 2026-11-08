@@ -9098,6 +9098,36 @@ Case {
         Action::Keys("grid","="),Action::Keys("cell-editor","SUM(1,2")],checks:&[
         Check::StackMargin("__dnacalcMemory",8_000_000)]},
 
+    // dc-0f1k.7: F9 on a part, the evaluation trace and registered functions in the formula bar,
+    // shared with DNA OneCalc (dna-formula-ui); the worker evaluates each part over the workbook.
+    Case{name:"formula bar F9: the selected part is replaced by its value, selected, over the workbook's cells",actions:&[
+        Action::Into("name-box","A1\u{E007}"),Action::Into(BAR,"1.5\u{E007}"),Action::Into(BAR,"2\u{E007}"),
+        Action::Wait(Check::Text(cell!("A2"),"2")),
+        Action::Into("name-box","C1\u{E007}"),Action::Into(BAR,"=SUM(A1:A2)*2"),
+        Action::Keys(BAR,"\u{E011}\u{E014}\u{E008}\u{E014}\u{E014}\u{E014}\u{E014}\u{E014}\u{E014}\u{E014}\u{E014}\u{E014}\u{E014}\u{E000}\u{E039}"),
+        Action::Wait(Check::Value(BAR,"=3.5*2"))],checks:&[
+        Check::Value(BAR,"=3.5*2"),Check::SelectedText(BAR,"3.5"),Check::TextContains("[data-onecalc=\"part-status\"]","SUM(A1:A2) evaluated to 3.5")]},
+    Case{name:"formula bar F9: Escape restores the formula and selects the part again",actions:&[Action::Keys(BAR,ESCAPE)],checks:&[
+        Check::Value(BAR,"=SUM(A1:A2)*2"),Check::SelectedText(BAR,"SUM(A1:A2)"),Check::Text("[data-onecalc=\"part-status\"]","Formula restored.")]},
+    Case{name:"formula bar F9: with nothing selected the bar says to select a part, and the formula is unchanged",actions:&[
+        Action::Keys(BAR,"\u{E012}\u{E039}")],checks:&[
+        Check::Value(BAR,"=SUM(A1:A2)*2"),Check::TextContains("[data-onecalc=\"part-status\"]","Select the part")]},
+    Case{name:"formula bar trace: every part is a step, innermost first, with its value",actions:&[
+        Action::Click("[data-onecalc=\"trace-start\"]")],checks:&[
+        Check::Items("[data-onecalc=\"trace-steps\"]",&["A1:A2 = {1.5;2}","SUM(A1:A2) = 3.5","SUM(A1:A2)*2 = 7"]),
+        Check::Text("[data-onecalc=\"trace-status\"]","Step 1 of 3"),Check::Count("[data-onecalc=highlight] .oc-focus",3)]},
+    Case{name:"formula bar trace: Next step moves the highlight to the next part",actions:&[
+        Action::Click("[data-onecalc=\"trace-next\"]")],checks:&[
+        Check::Text("[data-onecalc=\"trace-status\"]","Step 2 of 3"),Check::Count("[data-onecalc=trace-steps] .oc-trace-current",1)]},
+    Case{name:"formula bar trace: editing the formula marks the trace stale",actions:&[
+        Action::Keys(BAR,"+1")],checks:&[
+        Check::TextContains("[data-onecalc=\"trace-status\"]","changed since this trace"),Check::Count("[data-onecalc=trace-step]",0)]},
+    Case{name:"formula bar completion: a registered function of the opened workbook is offered beside the catalogue's",actions:&[
+        Action::Keys(BAR,ESCAPE),
+        Action::Upload("open-file","crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm"),Action::DiscardReplacement,
+        Action::Wait(Check::Text("document","local.xlsm")),
+        Action::Into("name-box","H1\u{E007}"),Action::Keys(BAR,"=MyF")],checks:&[
+        Check::Contains("[data-onecalc=\"completions\"]","MYFUNC")]},
 ];
 
 /// The script that reads what one check looks at.
@@ -10005,4 +10035,5 @@ CaseGroup {
     CaseGroup{name:"chart-multi-plot",start:832,end:836,core:4,setup:&[]},
     CaseGroup{name:"chart-element-text",start:836,end:840,core:4,setup:&[]},
     CaseGroup{name:"stack-margin",start:840,end:841,core:1,setup:&[]},
+    CaseGroup{name:"formula-bar-parts",start:841,end:848,core:6,setup:&[]},
 ];

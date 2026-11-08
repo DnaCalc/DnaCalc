@@ -411,6 +411,29 @@ impl Controller {
             dna_calc_model::SurfaceDescriptor::selection_editor(EditOrigin::Bar),
             assist,
         );
+        // F9 on a selected part of the formula being edited asks the workbook for that part's value,
+        // as the edited cell would read it (dc-0f1k.7).
+        assist.enable_part_evaluation(move |start, len, done| {
+            let Some(anchor) = controller.edit_anchor() else {
+                done(Err("No cell is being edited".to_owned()));
+                return;
+            };
+            controller.ask_result(
+                Request::EvaluatePart {
+                    formula: assist.text.get_untracked(),
+                    anchor: wire::Key::of(anchor),
+                    start,
+                    len,
+                },
+                move |reply| {
+                    done(match reply {
+                        Ok(Reply::Part(part)) => part.map(|part| part.literal),
+                        Ok(other) => Err(format!("Unexpected answer: {other:?}")),
+                        Err(message) => Err(format!("The workbook did not answer: {message}")),
+                    })
+                },
+            );
+        });
         service.start();
         service.set_events(std::rc::Rc::new(move |event| controller.receive(event)));
         service.set_health(std::rc::Rc::new(move |health| {
@@ -2714,8 +2737,34 @@ impl Controller {
         self.offer_defined_names();
     }
 
-    /// Asks the workbook for its defined names (no sheet rows) and offers them to the formula
-    /// field's completion beside the catalogue's functions.
+    /// The cell the formula being edited belongs to: the edit's target, else the active cell.
+    fn edit_anchor(&self) -> Option<CellKey> {
+        self.edit_target
+            .get_untracked()
+            .or_else(|| self.active_key_untracked())
+    }
+
+    /// Asks the workbook for the evaluation trace of the formula being edited; `done` gets it.
+    pub fn trace_formula(&self, done: Box<dyn FnOnce(dna_calc_model::parts::Trace)>) {
+        let Some(anchor) = self.edit_anchor() else {
+            self.say("No cell is being edited", true);
+            return;
+        };
+        self.ask(
+            Request::TraceFormula {
+                formula: self.assist.text.get_untracked(),
+                anchor: wire::Key::of(anchor),
+            },
+            move |reply| {
+                if let Reply::Trace(found) = reply {
+                    done(found);
+                }
+            },
+        );
+    }
+
+    /// Asks the workbook for its defined names (no sheet rows) and its registered functions, and
+    /// offers them to the formula field's completion beside the catalogue's functions.
     fn offer_defined_names(&self) {
         let controller = *self;
         let generation = self.generation.get_untracked();
@@ -2743,6 +2792,20 @@ impl Controller {
                 }
             },
         );
+        let controller = *self;
+        let generation = self.generation.get_untracked();
+        self.ask(Request::UserFunctions, move |reply| {
+            if controller.generation.get_untracked() != generation {
+                return;
+            }
+            if let wire::Reply::UserFunctions(functions) = reply {
+                controller.assist.scope().try_update(|scope| {
+                    if scope.functions != functions {
+                        scope.functions = functions;
+                    }
+                });
+            }
+        });
     }
 
     pub fn activate_editor(&self, origin: EditOrigin, assist: FormulaAssist) {

@@ -1045,6 +1045,7 @@ name = "dna-calc"
 version = "0.1.0"
 dependencies = [
  "any_spawner",
+ "calc-fml",
  "calc-func",
  "calc-host",
  "calc-value",

@@ -2927,3 +2927,65 @@ fn dc_8wp_2__refresh_crosses_the_actual_wire_and_retry_does_not_refresh_twice(){
     let save=server.execute_current(Request::Save,None);assert!(save.reply.is_ok(),"{:?}",save.reply);let bytes=save.bytes.unwrap();assert!(server.execute_current(Request::Open{name:"pivot-saved.xlsx".into()},Some(bytes)).reply.is_ok());let sheet=server.book().sheets()[0].id;assert_eq!(shown(server.book(),CellKey::new(sheet,6,5).unwrap()).text,"112");
     let reply=server.execute_current(Request::PivotTables(Sheet::of(sheet)),None);assert!(matches!(reply.reply,Ok(Reply::PivotTables{ref tables,ref issues})if tables.len()==2&&tables.iter().all(|t|t.refreshed_revision.is_none())&&issues.is_empty()),"Reopened saved output must not claim to have refreshed");
 }
+
+
+/// dc-0f1k.7: the formula bar's evaluation trace and completion of registered functions, through
+/// the controller and the worker's message route. (F9 on a selection needs a DOM selection; the
+/// browser smoke suite covers it. The worker's part evaluation is tested in dna-calc-worker.)
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_0f1k_7__the_formula_bar_traces_the_edit_and_completes_registered_functions() {
+    #[derive(Debug)]
+    struct Double;
+    impl calc_fml::UserFunction for Double {
+        fn call(
+            &self,
+            arguments: &[calc_host::value::CalcValue],
+        ) -> Result<calc_host::value::CalcValue, String> {
+            Ok(calc_host::value::CalcValue::number(
+                arguments[0].as_number().unwrap_or(0.0) * 2.0,
+            ))
+        }
+    }
+    let owner = Owner::new();
+    owner.with(|| {
+        let transport = std::rc::Rc::new(dna_calc_worker::transport::InProcessTransport::default());
+        let controller = Controller::with_transport(transport.clone());
+        let commit = |controller: &Controller| {
+            let accepted = std::rc::Rc::new(std::cell::Cell::new(None));
+            let seen = accepted.clone();
+            controller.commit_edit(move |ok| seen.set(Some(ok)));
+            accepted.get().expect("the server answered")
+        };
+        transport.with_server(|server| {
+            let mut functions = calc_host::CallableTable::new();
+            functions.register("Double", std::rc::Rc::new(Double)).unwrap();
+            server.set_user_functions(functions);
+        });
+        controller.select(1, 1);
+        controller.begin_edit(EditOrigin::Cell, Some("1.5".to_owned()));
+        assert!(commit(&controller));
+        controller.select(2, 1);
+        controller.begin_edit(EditOrigin::Cell, Some("2".to_owned()));
+        assert!(commit(&controller));
+        // Starting an edit offers the registered functions to the formula field's completion.
+        controller.select(1, 3);
+        controller.begin_edit(EditOrigin::Bar, Some("=SUM(A1:A2)*2".to_owned()));
+        assert_eq!(controller.assist.scope().get_untracked().functions, ["DOUBLE"]);
+        // The trace asks the worker, which evaluates each part of the edit over the cells.
+        let traced = std::rc::Rc::new(std::cell::RefCell::new(None));
+        let into = traced.clone();
+        controller.trace_formula(Box::new(move |trace| *into.borrow_mut() = Some(trace)));
+        let trace = traced.borrow_mut().take().expect("the worker traced the edit");
+        let steps: Vec<(&str, &str)> = trace
+            .steps
+            .iter()
+            .map(|step| (step.text.as_str(), step.value.as_str()))
+            .collect();
+        assert_eq!(
+            steps,
+            [("A1:A2", "{1.5;2}"), ("SUM(A1:A2)", "3.5"), ("SUM(A1:A2)*2", "7")]
+        );
+        controller.cancel_edit();
+    });
+}

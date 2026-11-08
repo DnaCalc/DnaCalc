@@ -226,6 +226,10 @@ impl HostState {
     pub fn user_function_bindings(&self) -> calc_fml::CallableBindings {
         self.functions.bindings()
     }
+    /// The names of the callable user functions (add-in registrations and VBA), in table order.
+    pub fn user_function_names(&self) -> Vec<String> {
+        self.functions.names().map(str::to_owned).collect()
+    }
     pub fn set_user_functions(&mut self, mut functions: calc_fml::CallableTable) {
         if let Some(route) = &self.fetch_route {
             functions.register_fetch_route(route);

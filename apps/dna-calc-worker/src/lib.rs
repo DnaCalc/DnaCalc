@@ -6,6 +6,7 @@ mod chart;
 mod format;
 pub mod ledger;
 mod names;
+mod parts;
 mod printing;
 mod publication;
 mod search;
