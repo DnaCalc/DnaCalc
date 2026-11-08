@@ -346,6 +346,23 @@ class SessionShutdownRequestTests(unittest.TestCase):
             self.assertIn("Leftover shutdown request could not be removed", output)
             self.assertIn(str(request.resolve()), output)
 
+    def test_start_does_not_parse_retained_running_jobs_that_already_have_receipts(self):
+        """The cause of the 45 second start failure: every retained running/*.json was parsed."""
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            for name in ("running", "completed"):
+                (directory / name).mkdir()
+            for index in range(5):
+                ident = f"job{index}"
+                (directory / "running" / f"{ident}.json").write_text("{ not json")
+                (directory / "completed" / ident).mkdir()
+                (directory / "completed" / ident / "receipt.json").write_text("{}")
+            started = self.submit(directory, "-Start")
+            try:
+                self.assertEqual(started.returncode, 0, started.stdout + started.stderr)
+            finally:
+                self.submit(directory, "-Stop")
+
 
 if __name__ == "__main__":
     unittest.main()
