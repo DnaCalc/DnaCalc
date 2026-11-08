@@ -361,12 +361,13 @@ fn ui30__pivot_layouts_refresh_to_the_cells_excel_held() {
     assert_eq!(matched, UI30_MUST_MATCH, "{outcomes:#?}");
 }
 // Data number formats and three row fields (all layouts, cells and row items) refresh. Report
-// filters with chosen items, two column fields, grouped dates, percent of column, top 10 and
-// values filters still refuse (dc-8wp).
+// filters with chosen items, two column fields, grouped dates, top 10 and values filters remain
+// open (dc-8wp).
 const UI30_MUST_MATCH: &[&str] = &[
     "pvt_fmt_0_00",
     "pvt_fmt_currency",
     "pvt_fmt_percent",
+    "pvt_pct_of_column",
     "pvt_three_rows_compact_suboff",
     "pvt_three_rows_compact_subon",
     "pvt_three_rows_outline_suboff",

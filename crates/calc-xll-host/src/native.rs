@@ -464,6 +464,31 @@ impl Module {
         {
             return Err(format!("registration module is not loaded: {name}"));
         }
+        Self::from_handle(handle)
+    }
+    /// A module as CALL and REGISTER.ID open it: one already in the process (by name, with or
+    /// without the `.dll` default extension), otherwise LoadLibrary from the safe search path.
+    pub(crate) fn open_library(name: &str) -> Result<Rc<Self>, String> {
+        if let Ok(module) = Self::loaded(name) {
+            return Ok(module);
+        }
+        let absolute = Path::new(name).is_absolute();
+        let handle = unsafe {
+            LoadLibraryExW(
+                wide(std::ffi::OsStr::new(name)).as_ptr(),
+                std::ptr::null_mut(),
+                if absolute { 0x1100 } else { 0x1000 },
+            )
+        };
+        if handle.is_null() {
+            return Err(format!(
+                "LoadLibraryExW {name}: {}",
+                std::io::Error::last_os_error()
+            ));
+        }
+        Self::from_handle(handle)
+    }
+    fn from_handle(handle: *mut c_void) -> Result<Rc<Self>, String> {
         let mut path = vec![0u16; 32768];
         let length =
             unsafe { GetModuleFileNameW(handle, path.as_mut_ptr(), path.len() as u32) } as usize;

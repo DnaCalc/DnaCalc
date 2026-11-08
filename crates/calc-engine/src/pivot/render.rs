@@ -313,8 +313,9 @@ fn layout_matrix(
         !matches!(
             d.subtotal.as_str(),
             "sum" | "count" | "countNums" | "min" | "max" | "average"
-        ) || d.attributes.get("showDataAs").is_some_and(|x| x != "normal")
-            || d.field as usize >= cache.fields.len()
+        ) || d.attributes.get("showDataAs").is_some_and(|x| {
+            x != "normal" && !(x == "percentOfCol" && !values_across)
+        }) || d.field as usize >= cache.fields.len()
     }) || (values_across != (table.data_fields.len() > 1))
         || row >= cache.fields.len()
         || col.is_some_and(|c| c >= cache.fields.len() || c == row)
@@ -427,6 +428,32 @@ fn layout_matrix(
     };
     let mut col_items = Vec::<PivotAxisItem>::new();
     let kind = table.data_fields[0].subtotal.as_str();
+    let percent = table.data_fields[0].attributes.get("showDataAs")
+        .is_some_and(|v| v == "percentOfCol");
+    if percent && (visible_cols.iter().any(|h| !matches!(
+        col_totals[h].result(kind).core_ref(), calc_value::CoreRef::Number(n) if n != 0.0
+    )) || (col_grand && !matches!(
+        grand_total.result(kind).core_ref(), calc_value::CoreRef::Number(n) if n != 0.0
+    )) || cell_totals.values().chain(row_totals.values()).any(|total| matches!(
+        total.result(kind).core_ref(), calc_value::CoreRef::Error(_)
+    ))) {
+        return Err(bad("Percent of column with zero or error totals is not modelled"));
+    }
+    let result = |value: &Total, denominator: &Total| {
+        let value = value.result(kind);
+        if !percent { return value; }
+        let divisor = denominator.result(kind);
+        match (value.core_ref(), divisor.core_ref()) {
+            (calc_value::CoreRef::Empty, _) => CalcValue::empty(),
+            (calc_value::CoreRef::Error(e), _) | (_, calc_value::CoreRef::Error(e)) => CalcValue::error(e),
+            (calc_value::CoreRef::Number(_), calc_value::CoreRef::Number(0.0)) => CalcValue::error(WorksheetErrorCode::Div0),
+            (calc_value::CoreRef::Number(n), calc_value::CoreRef::Number(d)) => {
+                let ratio = n / d;
+                if ratio.is_finite() { CalcValue::number(ratio) } else { CalcValue::error(WorksheetErrorCode::Num) }
+            },
+            _ => CalcValue::empty(),
+        }
+    };
     if values_across {
         cells.insert((0, 0), text(&row_caption));
         for (k, d) in table.data_fields.iter().enumerate() {
@@ -474,11 +501,13 @@ fn layout_matrix(
         if col.is_some() {
             for (n, &h) in visible_cols.iter().enumerate() {
                 if let Some(t) = cell_totals.get(&(g, h)) {
-                    cells.insert((r, 1 + n as u32), t.result(kind));
+                    cells.insert((r, 1 + n as u32), result(t, &col_totals[&h]));
+                } else if percent {
+                    cells.insert((r, 1 + n as u32), CalcValue::number(0.));
                 }
             }
             if col_grand {
-                cells.insert((r, 1 + visible_cols.len() as u32), row_totals[&g].result(kind));
+                cells.insert((r, 1 + visible_cols.len() as u32), result(&row_totals[&g], &grand_total));
             }
         } else {
             for (k, d) in table.data_fields.iter().enumerate() {
@@ -496,10 +525,10 @@ fn layout_matrix(
         cells.insert((r, 0), text(&grand_caption));
         if col.is_some() {
             for (n, &h) in visible_cols.iter().enumerate() {
-                cells.insert((r, 1 + n as u32), col_totals[&h].result(kind));
+                cells.insert((r, 1 + n as u32), result(&col_totals[&h], &col_totals[&h]));
             }
             if col_grand {
-                cells.insert((r, 1 + visible_cols.len() as u32), grand_total.result(kind));
+                cells.insert((r, 1 + visible_cols.len() as u32), result(&grand_total, &grand_total));
             }
         } else {
             for (k, d) in table.data_fields.iter().enumerate() {
