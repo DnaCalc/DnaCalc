@@ -1430,3 +1430,42 @@ fn dc_8wp_19__model_pivot_requires_its_own_connection_id() {
         assert!(matches!(page.cells()[0].value(), ProjectedValue::NotModeled { .. }), "{replacement}: {:?}", page.cells()[0].value());
     }
 }
+
+/// A model pivot with transformed values must not be published as its untransformed measure.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_19__model_pivot_refuses_transformed_values() {
+    use calc_host::WorkbookCommand;
+    use existing_wire_support::{RawEntry, build_zip, parse_zip};
+    let bytes = include_bytes!("fixtures/pivot_cube/model-pivot.xlsx");
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes.to_vec()));
+    let original = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let pivot = original.host().model().definitions().pivots().tables().find(|table| table.name == "pvt_model").unwrap();
+    let part = pivot.part.trim_start_matches('/').to_owned();
+    let needle = "<dataField fld=\"2\" subtotal=\"count\"";
+    let replacement = "<dataField showDataAs=\"percentOfTotal\" fld=\"2\" subtotal=\"count\"";
+    let mut changed = false;
+    let entries: Vec<_> = parse_zip(bytes).entries.iter().map(|entry| {
+        let payload = entry.payload(bytes);
+        if entry.name == part {
+            let xml = if entry.method == 0 { payload.to_vec() } else { miniz_oxide::inflate::decompress_to_vec(payload).unwrap() };
+            let xml = String::from_utf8(xml).unwrap();
+            assert_eq!(xml.matches(needle).count(), 1);
+            changed = true;
+            RawEntry::stored(&entry.name, xml.replace(needle, replacement).as_bytes())
+        } else if entry.method == 0 { RawEntry::stored(&entry.name, payload) }
+        else { RawEntry::deflated(&entry.name, payload, entry.size, entry.crc32) }
+    }).collect();
+    assert!(changed);
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(build_zip(&entries)));
+    let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let sheet = book.host().sheets().iter().find(|s| String::from_utf16_lossy(s.name().text().utf16_code_units()) == "ModelPivot").unwrap().id();
+    let part = book.host().model().definitions().pivots().sheet(sheet).unwrap().tables.iter().find(|table| table.name == "pvt_model").unwrap().part.clone();
+    let revision = book.host().revision();
+    let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::PivotRefresh { sheet, revision: revision.get(), part }));
+    assert!(!receipt.accepted(), "{receipt:?}");
+    assert!(format!("{receipt:?}").contains("dc-8wp.19"), "{receipt:?}");
+    assert_eq!(book.host().revision(), revision);
+    let page = project(book.host(), &ProjectionRequest { cells: vec![at(sheet, "F9")] }).unwrap();
+    assert!(!matches!(page.cells()[0].value(), ProjectedValue::Calculated { .. }));
+}

@@ -1925,6 +1925,14 @@ impl ReferenceReader for WorkbookReader<'_> {
 impl HostFacts for WorkbookReader<'_> {
     fn pivot_data_cell(&mut self,data_field:&str,reference:&[GridArea],fields:&[(String,CalcValue)])->calc_fml::PivotLookup {
         let definitions = self.view.inputs.definitions();
+        if let Some(result) = crate::pivot::model_data_cell(definitions.pivots(), data_field, reference, fields) {
+            return match result {
+                calc_fml::PivotLookup::Cell(at) if self.view.state.pivot_results.cells.get(&at)
+                    .is_some_and(|(value, _)| !matches!(value.core_ref(), calc_value::CoreRef::Empty)) => result,
+                calc_fml::PivotLookup::Cell(_) => calc_fml::PivotLookup::NotModelled,
+                _ => result,
+            };
+        }
         if let (Some(data), Some(facts)) = (definitions.data_model(), self.view.workbook_facts)
             && let Some(connection) = data.model_connection.as_deref()
             && let calc_fml::CubeLookup::Model(model) = facts.cube_model(connection)

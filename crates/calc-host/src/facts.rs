@@ -212,29 +212,27 @@ pub(crate) fn prepare_model_refresh(host: &HostState, revision: u64) -> Result<V
     if revision != host.revision().get() { return Err("The workbook changed before Refresh All (dc-8wp.18)".into()); }
     let Some(data) = host.model.definitions().data_model() else { return Err("The workbook has no data model (dc-8wp.18)".into()); };
     if !data.other_connections.is_empty() { return Err("Refresh All includes external connections that are not modelled (dc-8wp.21)".into()); }
-    if host.model.definitions().pivots().tables().next().is_some() { return Err("Refresh All includes pivot tables that are not yet refreshed by this command (dc-8wp.19)".into()); }
     let mut data = (**data).clone();
     data.snapshot = Some(model_snapshot(&host.model, Some(host)).ok_or("The data model source is unavailable or has uncalculated values (dc-8wp.18)")?);
     let data = Arc::new(data);
+    let pivots = host.model.definitions().pivots();
+    let mut tables = pivots.tables();
+    let mut edits = vec![crate::CellEdit::DataModel(data.clone())];
+    if let Some(table) = tables.next() {
+        if tables.next().is_some() || !pivots.caches.issues.is_empty() || pivots.sheets.values().any(|sheet| !sheet.issues.is_empty()) {
+            return Err("Refresh All cannot yet refresh this set of pivot tables (dc-8wp.19)".into());
+        }
+        let cache = pivots.caches.caches.get(&table.cache_id).ok_or("The model-pivot cache is unavailable (dc-8wp.19)")?;
+        edits.extend(crate::pivot::prepare_model_pivot_refresh(host, pivots, table, cache, data.clone())?);
+    }
     let mut admitted = host.admitted_model_snapshots.borrow_mut();
     admitted.retain(|entry| entry.strong_count() != 0);
     admitted.push(Arc::downgrade(&data));
-    Ok(vec![crate::CellEdit::DataModel(data)])
+    Ok(edits)
 }
 
 fn build_cube(data: &calc_doc_model::DataModel) -> calc_func::CubeLookup {
-    let Some(connection) = &data.model_connection else { return calc_func::CubeLookup::NotReadable; };
-    let Some(snapshot) = &data.snapshot else { return calc_func::CubeLookup::NotReadable; };
-    let tables = snapshot.tables.iter().map(|table| calc_func::CubeTable {
-        name: table.name.clone(),
-        columns: table.columns.iter().enumerate().map(|(i, name)| calc_func::CubeColumn {
-            name: name.clone(), cells: table.rows.iter().map(|row| row.get(i).and_then(Option::as_ref).map_or_else(calc_value::CalcValue::empty, |v| v.to_value())).collect(),
-        }).collect(),
-    }).collect();
-    calc_func::CubeLookup::Model(Arc::new(calc_func::CubeModel {
-        connection: connection.clone(), tables,
-        measures: data.measures.iter().map(|m| calc_func::CubeMeasure { name: m.name.clone(), expression: m.expression.clone() }).collect(),
-    }))
+    calc_engine::pivot::cube_model(data)
 }
 
 impl WorkbookFacts for HostFacts {

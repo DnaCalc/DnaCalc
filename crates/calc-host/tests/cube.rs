@@ -302,10 +302,7 @@ fn dc_8wp_19__model_pivot_and_mdx_capture_report() {
     let rows: Vec<_> = stages.lines().map(|l| l.split('\t').collect::<Vec<_>>())
         .filter(|fields| fields[0] == "model-pivot").collect();
     assert_eq!(rows.len(), 28);
-    if !receipt.accepted() {
-        println!("M4 model pivot: 0/28 match; 28 fail (refresh refused: {:?})", receipt.error);
-        return;
-    }
+    assert!(receipt.accepted(), "M4 model pivot refresh: {receipt:?}");
     let keys = rows.iter().map(|r| {
         let address = r[1].as_bytes();
         CellKey::new(pivot_sheet, r[1][1..].parse().unwrap(), u32::from(address[0] - b'A' + 1)).unwrap()
@@ -322,4 +319,138 @@ fn dc_8wp_19__model_pivot_and_mdx_capture_report() {
         }
     }
     println!("M4 model pivot: {matches}/28 match; {} fail", 28-matches);
+    assert_eq!(matches, 28);
+    assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+    while book.has_unfinished_calculation() { book.advance_calculation(); }
+    let rows: Vec<_> = stages.lines().map(|l| l.split('\t').collect::<Vec<_>>())
+        .filter(|fields| fields[0] == "gpd-model").collect();
+    let keys = rows.iter().map(|r| CellKey::new(gpd, r[1][1..].parse().unwrap(), 2).unwrap()).collect();
+    let page = project(book.host(), &ProjectionRequest { cells: keys }).unwrap();
+    for (row, cell) in rows.iter().zip(page.cells()) {
+        let ProjectedValue::Calculated { value, .. } = cell.value() else { panic!("{} was not calculated: {:?}", row[1], cell.value()); };
+        assert!(match (row[2], value.core_ref()) {
+            ("n", CoreRef::Number(n)) => row[3].parse::<f64>().ok() == Some(n),
+            ("e", CoreRef::Error(e)) => e.excel_spelling() == row[4],
+            _ => false,
+        }, "{} Excel {} host {:?}", row[1], row[4], value);
+    }
+    println!("M4 MDX after refresh: 11/11 match; 0 fail");
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(saved));
+    let mut reopened = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let sheet = reopened.host().sheets().iter().find(|s| String::from_utf16_lossy(s.name().text().utf16_code_units()) == "ModelPivot").unwrap().id();
+    let part = reopened.host().model().definitions().pivots().sheet(sheet).unwrap().tables.iter()
+        .find(|table| table.name == "pvt_model").unwrap().part.clone();
+    let receipt = reopened.dispatch(SkinIntent::Command(WorkbookCommand::PivotRefresh { sheet, revision: reopened.host().revision().get(), part }));
+    assert!(receipt.accepted(), "reopened model pivot: {receipt:?}");
+    let page = project(reopened.host(), &ProjectionRequest { cells: vec![CellKey::new(sheet, 9, 6).unwrap()] }).unwrap();
+    assert!(matches!(page.cells()[0].value(), ProjectedValue::Calculated { value, .. } if value.as_number() == Some(135.3)));
+}
+
+
+/// A model pivot reads its retained snapshot, publishes through the pivot operation and refuses
+/// forged snapshot provenance. Exact arithmetic is refused until it has an implementation.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_19__model_pivot_keeps_snapshot_and_rejects_forgery() {
+    use calc_host::{CellEdit, HostSession, SkinIntent, WorkbookCommand};
+    use calc_host::value::{NumericMode, NumericTargetId};
+    use calc_doc_model::{CachedValue, FiniteNumber};
+    use calc_doc_model::pivot::PivotSnapshotOrigin;
+    let target = NumericTargetId::new("16.0.20527.20150", "Current", "Excel", "x86-64").unwrap();
+    for numeric in [NumericMode::Fast, NumericMode::Exact(target.clone())] {
+        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(include_bytes!("fixtures/pivot_cube/model-pivot.xlsx").to_vec()));
+        let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions { numeric: numeric.clone(), calc_mode: Some(CalcMode::Manual), ..Default::default() }).unwrap();
+        let sheet = |book: &HostSession, name: &str| book.host().sheets().iter().find(|s| String::from_utf16_lossy(s.name().text().utf16_code_units()) == name).unwrap().id();
+        let source_sheet = sheet(&book, "Sheet1");
+        for (col, value) in [(20, "Nowhere"), (22, "999")] {
+            assert!(book.dispatch(SkinIntent::EnterCell { at: CellKey::new(source_sheet, 2, col).unwrap(), text: value.into() }).accepted());
+        }
+        let pivot_sheet = sheet(&book, "ModelPivot");
+        let (part, cache_id) = {
+            let table = book.host().model().definitions().pivots().sheet(pivot_sheet).unwrap().tables.iter().find(|table| table.name == "pvt_model").unwrap();
+            (table.part.clone(), table.cache_id)
+        };
+        if numeric != NumericMode::Fast {
+            let revision = book.host().revision();
+            let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::PivotRefresh { sheet: pivot_sheet, revision: revision.get(), part }));
+            assert!(!receipt.accepted(), "Exact arithmetic must not be silently calculated as Fast: {receipt:?}");
+            assert!(format!("{receipt:?}").contains("dc-8wp.19"), "{receipt:?}");
+            assert_eq!(book.host().revision(), revision);
+            let total = CellKey::new(pivot_sheet, 9, 6).unwrap();
+            let page = project(book.host(), &ProjectionRequest { cells: vec![total] }).unwrap();
+            assert!(!matches!(page.cells()[0].value(), ProjectedValue::Calculated { .. }));
+            let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::RefreshAll { revision: revision.get() }));
+            assert!(!receipt.accepted(), "Exact Refresh All must not publish Fast results: {receipt:?}");
+            assert_eq!(book.host().revision(), revision);
+            continue;
+        }
+        let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::PivotRefresh { sheet: pivot_sheet, revision: book.host().revision().get(), part }));
+        assert!(receipt.accepted(), "{receipt:?}");
+        let total = CellKey::new(pivot_sheet, 9, 6).unwrap();
+        let page = project(book.host(), &ProjectionRequest { cells: vec![total] }).unwrap();
+        assert!(matches!(page.cells()[0].value(), ProjectedValue::Calculated { value, calculation }
+            if value.as_number() == Some(135.3) && calculation.mode() == &numeric && calculation.revision().get() == 0));
+        assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+        while book.has_unfinished_calculation() { book.advance_calculation(); }
+        let gpd = CellKey::new(sheet(&book, "GpdModel"), 1, 2).unwrap();
+        let page = project(book.host(), &ProjectionRequest { cells: vec![gpd] }).unwrap();
+        assert!(matches!(page.cells()[0].value(), ProjectedValue::Calculated { value, .. } if value.as_number() == Some(135.3)), "{numeric:?}: {:?}", page.cells()[0].value());
+        assert!(book.save(&SavePolicy::default(), &mut Vec::new()).is_err(), "changed source rows cannot be saved as a changed model");
+        for case in 0..4 {
+            let mut state = (**book.host().model().definitions().pivots()).clone();
+            let cache = Arc::make_mut(state.caches.caches.get_mut(&cache_id).unwrap());
+            let snapshot = Arc::make_mut(cache.snapshot.as_mut().unwrap());
+            match case {
+                0 => snapshot.source_revision += 1,
+                1 => snapshot.numeric = if numeric == NumericMode::Fast { NumericMode::Exact(target.clone()) } else { NumericMode::Fast },
+                2 => snapshot.records.push(Vec::new()),
+                _ => {
+                    let PivotSnapshotOrigin::DataModel { model } = &mut snapshot.origin else { panic!("model origin expected"); };
+                    let model = Arc::make_mut(model);
+                    model.snapshot.as_mut().unwrap().tables[0].rows[0][2] = Some(CachedValue::Number(FiniteNumber::new(999.0).unwrap()));
+                }
+            }
+            let revision = book.host().revision();
+            let receipt = book.dispatch(SkinIntent::Edit { edits: vec![CellEdit::Pivots(Arc::new(state))] });
+            assert!(!receipt.accepted(), "forged case {case}: {receipt:?}");
+            assert_eq!(book.host().revision(), revision);
+            let page = project(book.host(), &ProjectionRequest { cells: vec![total] }).unwrap();
+            assert!(matches!(page.cells()[0].value(), ProjectedValue::Calculated { value, .. } if value.as_number() == Some(135.3)));
+        }
+        let revision = book.host().revision();
+        let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::RefreshAll { revision: revision.get() }));
+        assert!(!receipt.accepted(), "a changed axis cannot be silently reused: {receipt:?}");
+        assert_eq!(book.host().revision(), revision);
+        let page = project(book.host(), &ProjectionRequest { cells: vec![total] }).unwrap();
+        assert!(matches!(page.cells()[0].value(), ProjectedValue::Calculated { value, .. } if value.as_number() == Some(135.3)));
+
+        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(include_bytes!("fixtures/pivot_cube/model-pivot.xlsx").to_vec()));
+        let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions { numeric: numeric.clone(), calc_mode: Some(CalcMode::Manual), ..Default::default() }).unwrap();
+        let pivot_sheet = sheet(&book, "ModelPivot");
+        let part = book.host().model().definitions().pivots().sheet(pivot_sheet).unwrap().tables.iter().find(|table| table.name == "pvt_model").unwrap().part.clone();
+        assert!(book.dispatch(SkinIntent::Command(WorkbookCommand::PivotRefresh { sheet: pivot_sheet, revision: book.host().revision().get(), part })).accepted());
+        let source_sheet = sheet(&book, "Sheet1");
+        assert!(book.dispatch(SkinIntent::EnterCell { at: CellKey::new(source_sheet, 2, 22).unwrap(), text: "999".into() }).accepted());
+        let total = CellKey::new(pivot_sheet, 9, 6).unwrap();
+        let page = project(book.host(), &ProjectionRequest { cells: vec![total] }).unwrap();
+        assert!(matches!(page.cells()[0].value(), ProjectedValue::Calculated { value, .. } if value.as_number() == Some(135.3)));
+        let revision = book.host().revision().get();
+        let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::RefreshAll { revision }));
+        assert!(receipt.accepted(), "{numeric:?}: {receipt:?}");
+        let page = project(book.host(), &ProjectionRequest { cells: vec![total] }).unwrap();
+        assert!(matches!(page.cells()[0].value(), ProjectedValue::Calculated { value, calculation } if value.as_number() == Some(1034.3) && calculation.revision().get() == revision && calculation.mode() == &numeric), "{numeric:?}: {:?}", page.cells()[0].value());
+        assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+        while book.has_unfinished_calculation() { book.advance_calculation(); }
+        let gpd = CellKey::new(sheet(&book, "GpdModel"), 1, 2).unwrap();
+        let page = project(book.host(), &ProjectionRequest { cells: vec![gpd] }).unwrap();
+        assert!(matches!(page.cells()[0].value(), ProjectedValue::Calculated { value, .. } if value.as_number() == Some(1034.3)), "{numeric:?}: {:?}", page.cells()[0].value());
+        let numeric_argument = CellKey::new(sheet(&book, "GpdModel"), 20, 2).unwrap();
+        assert!(book.dispatch(SkinIntent::EnterCell { at: numeric_argument, text: "=GETPIVOTDATA(1,ModelPivot!$A$3)".into() }).accepted());
+        assert!(book.dispatch(SkinIntent::Rebuild).accepted());
+        while book.has_unfinished_calculation() { book.advance_calculation(); }
+        let page = project(book.host(), &ProjectionRequest { cells: vec![numeric_argument] }).unwrap();
+        assert!(matches!(page.cells()[0].value(), ProjectedValue::Calculated { value, .. } if matches!(value.core_ref(), CoreRef::Error(e) if e.excel_spelling() == "#REF!")), "{:?}", page.cells()[0].value());
+    }
 }

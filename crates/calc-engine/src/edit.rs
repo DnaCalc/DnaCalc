@@ -10,6 +10,7 @@ use calc_doc_model::{
 use calc_value::{CellKey, GridArea, NameKey, NodeId, SheetId};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
+use std::sync::Arc;
 
 /// A change to the graph's formula nodes that an edit stages.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -248,6 +249,17 @@ pub fn prepare_edit<'s, 'r>(
     }
 
     let pivot_results=change.operations.iter().enumerate().rev().find_map(|(operation,op)|match op {WorkbookOp::SetPivots(pivots)=>Some((operation,pivots)),_=>None}).map(|(operation,pivots)|{
+        let next_model = change.operations.iter().rev().find_map(|op| match op {
+            WorkbookOp::SetDataModel(model) => Some(model.as_ref()), _ => None,
+        }).or_else(|| inputs.definitions().data_model().map(Arc::as_ref));
+        for (id, cache) in &pivots.caches.caches {
+            if let Some(snapshot) = cache.snapshot.as_deref() {
+                let previous = inputs.definitions().pivots().caches.caches.get(id).and_then(|cache| cache.snapshot.as_deref());
+                if !crate::pivot::valid_model_snapshot(snapshot, next_model, previous, None) {
+                    return Err(PrepareError::PivotRefresh { operation });
+                }
+            }
+        }
         let results=crate::pivot::calculate(pivots,crate::CalcTick::new(state.allocate_tick()));
         if results.issues.is_empty(){Ok(results)}else{Err(PrepareError::PivotRefresh{operation})}
     }).transpose()?;

@@ -7,6 +7,9 @@ use std::{collections::{BTreeMap, BTreeSet}, sync::Arc};
 fn fail(detail: impl AsRef<str>) -> String {
     format!("{} (dc-8wp)", detail.as_ref())
 }
+fn model_fail(detail: impl AsRef<str>) -> String {
+    format!("{} (dc-8wp.19)", detail.as_ref())
+}
 fn observed(cell: &crate::ProjectedCell) -> Result<CalcValue, String> {
     match cell.value() {
         ProjectedValue::Empty => Ok(CalcValue::empty()),
@@ -586,6 +589,39 @@ pub(crate) fn prepare_set_layout(host: &HostState, sheet: SheetId, revision: u64
     Ok(edits)
 }
 
+// Model-pivot refresh reads only the already retained data-model snapshot. The first supported
+// shape is the captured one-table, one-row-axis, one-column-axis layout.
+pub(crate) fn prepare_model_pivot_refresh(host: &HostState, before: &PivotState, selected: &PivotTable, cache: &PivotCache, data: Arc<calc_doc_model::DataModel>) -> Result<Vec<CellEdit>, String> {
+    if data.model_connection_id.is_none() || cache.source_connection_id != data.model_connection_id
+        || !data.other_connections.is_empty() || before.tables().filter(|table| table.cache_id == cache.id).count() != 1 {
+        return Err(model_fail("This model-pivot source is not modelled"));
+    }
+    let snapshot = data.snapshot.as_ref().ok_or_else(|| model_fail("The retained data-model snapshot is unavailable"))?;
+    if snapshot.tables.len() != 1 || data.tables.len() != 1 {
+        return Err(model_fail("This model-pivot table set is not modelled"));
+    }
+    let source_revision = match &snapshot.tables[0].provenance {
+        calc_doc_model::ModelSnapshotProvenance::WorksheetTables { revision } => *revision,
+        _ => return Err(model_fail("A model-only pivot source is not modelled")),
+    };
+    let source = host.model().definitions().tables().iter().find(|table|
+        calc_value::workbook_names_equal(&table.name, &snapshot.tables[0].name)
+        || calc_value::workbook_names_equal(&table.display_name, &snapshot.tables[0].name))
+        .map(|table| table.area).ok_or_else(|| model_fail("The worksheet model source is unavailable"))?;
+    let mut refreshed = cache.clone();
+    refreshed.snapshot = Some(Arc::new(PivotSnapshot {
+        records: Vec::new(), origin: PivotSnapshotOrigin::DataModel { model: data },
+        source_revision, numeric: host.recalc_context().numeric.clone(),
+    }));
+    let layout = calc_engine::pivot::layout(selected, &refreshed).map_err(|issue| format!("{} ({})", issue.detail, issue.owner))?;
+    if layout.table.area != selected.area { return Err(model_fail("The model-pivot output extent changed")); }
+    let mut after = before.clone();
+    after.caches.caches.insert(cache.id, Arc::new(refreshed));
+    preflight_output(host, before, &after, source, cache.id)?;
+    host.loaded().check_pivot_state(&after).map_err(|error| error.to_string())?;
+    Ok(vec![CellEdit::Clear { area: selected.area }, CellEdit::Pivots(Arc::new(after))])
+}
+
 pub(crate) fn prepare_refresh(
     host: &HostState,
     sheet: SheetId,
@@ -610,6 +646,10 @@ pub(crate) fn prepare_refresh(
         .caches
         .get(&selected.cache_id)
         .ok_or_else(|| fail("The source cache is unavailable"))?;
+    if cache.source_type == "external" {
+        let data = host.model().definitions().data_model().cloned().ok_or_else(|| model_fail("The data model is unavailable"))?;
+        return prepare_model_pivot_refresh(host, before, selected, cache, data);
+    }
     if !cache.unsupported.is_empty() {
         return Err(fail("Grouped or calculated caches cannot be refreshed"));
     }
