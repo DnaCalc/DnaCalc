@@ -3139,6 +3139,20 @@ impl Server {
             omitted: omitted as u64,
             workbook: self.book.name().to_owned(),
             names,
+            functions: host
+                .user_function_descriptors()
+                .into_iter()
+                .map(|d| wire::FunctionDoc {
+                    name: d.name,
+                    origin: d.origin,
+                    category: d.category,
+                    description: d.description,
+                    parameters: d.parameters.into_iter().map(|p| (p.name, p.description)).collect(),
+                    volatile: d.volatile,
+                    thread_safe: d.thread_safe,
+                    asynchronous: d.asynchronous,
+                })
+                .collect(),
             sheets,
             cells,
         }
@@ -3431,6 +3445,50 @@ mod fit_tests {
 #[cfg(test)]
 mod outline_tests {
     use super::*;
+    /// The outline reply carries what the registered functions' providers documented, so the formula
+    /// bar completes them and shows their signature and help (dc-0f1k milestone 4).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn the_outline_carries_the_registered_functions_descriptors() {
+        #[derive(Debug)]
+        struct Add;
+        impl calc_fml::UserFunction for Add {
+            fn call(&self, _: &[calc_value::CalcValue]) -> Result<calc_value::CalcValue, String> {
+                Ok(calc_value::CalcValue::number(0.))
+            }
+        }
+        let mut server = Server::new();
+        assert!(server.outline(&[], &[], None, "").functions.is_empty());
+        let mut table = calc_fml::CallableTable::new();
+        table
+            .register_described(
+                None,
+                "MyAdd",
+                std::rc::Rc::new(Add),
+                calc_fml::CallableDescriptor {
+                    name: "MyAdd".into(),
+                    origin: "xll My.xll".into(),
+                    category: "Math".into(),
+                    description: "Adds.".into(),
+                    parameters: vec![calc_fml::CallableParameter {
+                        name: "first".into(),
+                        description: "One.".into(),
+                    }],
+                    thread_safe: true,
+                    ..calc_fml::CallableDescriptor::default()
+                },
+            )
+            .unwrap();
+        server.book.set_user_functions(table);
+        let functions = server.outline(&[], &[], None, "").functions;
+        assert_eq!(functions.len(), 1);
+        let function = &functions[0];
+        assert_eq!((function.name.as_str(), function.origin.as_str()), ("MyAdd", "xll My.xll"));
+        assert_eq!((function.category.as_str(), function.description.as_str()), ("Math", "Adds."));
+        assert_eq!(function.parameters, [("first".to_owned(), "One.".to_owned())]);
+        assert!(function.thread_safe && !function.volatile && !function.asynchronous);
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn outline_search_reveal_and_spill_windows_use_the_application_server() {

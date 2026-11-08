@@ -19,6 +19,8 @@ dna-calc-protocol = { path = "../dna-calc-protocol" }
 # The one number-format renderer (calc-func's cell_text, which TEXT renders with), for cells' number
 # formats (dc-09v).
 calc-func = { path = "../../crates/calc-func" }
+# The registered functions' descriptors the formula field completes and documents.
+calc-fml = { path = "../../crates/calc-fml" }
 dna-formula-ui = { path = "../dna-formula-ui" }
 leptos = { version = "=0.8.19", default-features = false, features = ["csr"] }
 # The browser entry's start function (src/bin/dna-calc-web.rs).

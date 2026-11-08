@@ -26,7 +26,7 @@ pub use calc_func::{RtdConnection, RtdConnector, RtdLease, TopicKey};
 #[cfg(windows)]
 pub use callbacks::dispatch;
 #[cfg(windows)]
-pub use native::{AsyncReturn, RegistrationInfo, XllHost};
+pub use native::{AsyncReturn, RegistrationDocs, RegistrationInfo, XllHost};
 /// Owning-STA RTD service; worksheet results require admitted input reads. A topic is Excel's
 /// identity (ProgID, server, strings): the service shares one connection among every caller.
 #[cfg(windows)]

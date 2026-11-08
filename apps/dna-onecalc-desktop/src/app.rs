@@ -7,18 +7,23 @@
 //! The window chain, the WebView2 host and its string bridge are `calc-platform-desktop`'s, the
 //! add-in set `calc-addin-host`'s, and the file dialogs `calc-platform-desktop`'s: nothing here is
 //! OneCalc-only beyond wiring them to the host.
-use crate::host::{Files, Host};
+use crate::host::{Files, Host, Libraries};
 use calc_addin_host::{AddinHost, Document};
+use calc_fml::CallableTable;
 use calc_platform_desktop::dialogs::{self, FileFilter};
 use calc_platform_desktop::{
     Shell, ThreadMessage, ThreadTimer, WebView, WebViewOptions, per_monitor_dpi_aware,
-    run_message_loop,
+    pump_pending, run_message_loop,
 };
-use dna_onecalc::{AddinRef, Session};
+use calc_value::CalcValue;
+use dna_onecalc::port::{Reply, Request};
+use dna_onecalc::{ExternalReturns, Session};
 use std::{
     cell::{Cell, RefCell},
-    path::PathBuf,
+    collections::{BTreeMap, VecDeque},
+    path::{Path, PathBuf},
     rc::Rc,
+    time::{Duration, Instant},
 };
 
 /// What the command line asks of app mode.
@@ -28,6 +33,9 @@ struct Options {
     /// The built page (`cargo xtask app bundle onecalc`), mapped as `https://dnacalc.app/`.
     assets: Option<PathBuf>,
     xlls: Vec<PathBuf>,
+    /// The first sheet's name, which add-ins see (the comparisons with Excel name it as the
+    /// Excel workbook they ran in did).
+    sheet: String,
     debug_port: Option<u16>,
     size: (i32, i32),
 }
@@ -37,6 +45,7 @@ fn options(args: &[String]) -> Result<Options, String> {
         url: None,
         assets: None,
         xlls: Vec::new(),
+        sheet: "Sheet1".to_owned(),
         debug_port: None,
         size: (1280, 900),
     };
@@ -48,6 +57,7 @@ fn options(args: &[String]) -> Result<Options, String> {
             "--url" => o.url = Some(value()?),
             "--assets" => o.assets = Some(PathBuf::from(value()?)),
             "--xll" => o.xlls.push(PathBuf::from(value()?)),
+            "--sheet" => o.sheet = value()?,
             "--debug-port" => {
                 o.debug_port = Some(value()?.parse().map_err(|_| "--debug-port needs a port")?)
             }
@@ -114,27 +124,247 @@ impl Files for Dialogs {
         std::fs::write(&path, bytes).map_err(|e| format!("{}: {e}", path.display()))?;
         Ok(Some(path.display().to_string()))
     }
+
+    fn choose_addin(&mut self) -> Result<Option<PathBuf>, String> {
+        dialogs::open_file(self.owner.cast(), "Load an add-in", &ADDIN_FILES)
+    }
+}
+
+const ADDIN_FILES: [FileFilter<'static>; 2] = [
+    FileFilter {
+        name: "Excel add-ins (*.xll)",
+        patterns: "*.xll",
+    },
+    FileFilter {
+        name: "All files",
+        patterns: "*.*",
+    },
+];
+
+/// How long an evaluation waits for an add-in's asynchronous return before it gives up.
+const RETURN_WAIT: Duration = Duration::from_secs(30);
+
+/// How long after a load the host keeps running the add-ins' events and message loop to let a
+/// slow add-in finish registering (a Python runtime does so after its open routine returns), and
+/// how long the registrations must stay unchanged to call that done.
+const SETTLE_QUIET: Duration = Duration::from_millis(800);
+const SETTLE_LIMIT: Duration = Duration::from_secs(60);
+
+/// The .xll add-ins this process loaded, over `calc-addin-host`'s add-in set.
+struct Addins {
+    set: Rc<RefCell<AddinHost>>,
+    /// Each loaded .xll with the highest registration id there was before it loaded: a
+    /// registration belongs to the last add-in whose floor is below its id.
+    xlls: Vec<(PathBuf, u64)>,
+    /// What the registrations looked like when the table was last published.
+    published: Cell<u64>,
+}
+
+impl Addins {
+    fn new(set: Rc<RefCell<AddinHost>>) -> Self {
+        Addins {
+            set,
+            xlls: Vec::new(),
+            published: Cell::new(0),
+        }
+    }
+
+    /// A number that changes when a registration is added or removed.
+    fn signature(&self) -> u64 {
+        let set = self.set.borrow();
+        set.registrations().iter().fold(0u64, |sum, r| {
+            sum.wrapping_mul(1_000_003)
+                .wrapping_add(r.id)
+                .wrapping_add(u64::from(r.use_count) << 40)
+        })
+    }
+
+    /// Runs the add-ins' events and the message loop until the registrations have been quiet for
+    /// [`SETTLE_QUIET`].
+    fn settle(&self) {
+        let (start, mut quiet_since, mut last) = (Instant::now(), Instant::now(), self.signature());
+        while start.elapsed() < SETTLE_LIMIT && quiet_since.elapsed() < SETTLE_QUIET {
+            pump_pending();
+            let _ = self.set.borrow().after_calculate();
+            std::thread::sleep(Duration::from_millis(10));
+            let now = self.signature();
+            if now != last {
+                last = now;
+                quiet_since = Instant::now();
+            }
+        }
+    }
+}
+
+impl Libraries for Addins {
+    fn load_xll(&mut self, path: &Path) -> Result<(), String> {
+        let floor = self
+            .set
+            .borrow()
+            .registrations()
+            .iter()
+            .map(|r| r.id)
+            .max()
+            .unwrap_or(0);
+        self.set.borrow_mut().load(path)?;
+        self.xlls.push((path.to_owned(), floor));
+        self.settle();
+        Ok(())
+    }
+
+    fn unload_xll(&mut self, path: &Path) -> Result<(), String> {
+        self.set.borrow_mut().unload(path)?;
+        self.xlls.retain(|(held, _)| held != path);
+        Ok(())
+    }
+
+    fn loaded(&self) -> Vec<(PathBuf, Vec<String>)> {
+        let registrations = self.set.borrow().registrations();
+        self.xlls
+            .iter()
+            .enumerate()
+            .map(|(index, (path, floor))| {
+                let ceiling = self
+                    .xlls
+                    .get(index + 1)
+                    .map_or(u64::MAX, |(_, next_floor)| *next_floor);
+                let mut own: Vec<_> = registrations
+                    .iter()
+                    .filter(|r| {
+                        r.id > *floor
+                            && r.id <= ceiling
+                            && r.macro_type == 1
+                            && r.use_count > 0
+                            && !r.name.is_empty()
+                    })
+                    .collect();
+                own.sort_by_key(|r| r.id);
+                (path.clone(), own.iter().map(|r| r.name.clone()).collect())
+            })
+            .collect()
+    }
+
+    fn load_vba(&mut self, name: &str, source: &str) -> Result<(), String> {
+        self.set
+            .borrow_mut()
+            .load_vba_module(name, source, calc_vba::DEFAULT_STEP_BUDGET)
+    }
+
+    fn unload_vba(&mut self) {
+        let mut set = self.set.borrow_mut();
+        let modules: Vec<String> = set.vba_modules().map(str::to_owned).collect();
+        for module in modules {
+            set.unload_vba_module(&module);
+        }
+    }
+
+    fn callables(&self) -> Result<CallableTable, String> {
+        let table = self.set.borrow().callables()?;
+        self.published.set(self.signature());
+        Ok(table)
+    }
+
+    fn changed(&mut self) -> bool {
+        self.signature() != self.published.get()
+    }
+
+    fn calculated(&mut self, row: u32, column: u32) {
+        let set = self.set.borrow();
+        if let Err(why) = set.sheet_changed(row, column).and_then(|()| set.after_calculate()) {
+            eprintln!("dna-onecalc-desktop: add-in events: {why}");
+        }
+    }
+}
+
+/// Where an evaluation waits for an add-in's asynchronous return: it takes the returns the add-in
+/// host has, and runs the message loop while it has none.
+struct Returns {
+    set: Rc<RefCell<AddinHost>>,
+    arrived: BTreeMap<u64, Result<CalcValue, String>>,
+    /// When the calculation under way began.
+    since: Instant,
+}
+
+impl std::fmt::Debug for Returns {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Returns")
+            .field("arrived", &self.arrived.len())
+            .finish()
+    }
+}
+
+impl ExternalReturns for Returns {
+    fn begin(&mut self) {
+        self.since = Instant::now();
+    }
+
+    fn idle(&mut self) -> Result<(), String> {
+        if self.since.elapsed() > RETURN_WAIT {
+            return Err(format!(
+                "an add-in call on the pool did not finish within {} seconds",
+                RETURN_WAIT.as_secs()
+            ));
+        }
+        pump_pending();
+        std::thread::sleep(Duration::from_millis(1));
+        Ok(())
+    }
+
+    fn await_return(&mut self, request: u64) -> Result<CalcValue, String> {
+        let deadline = Instant::now() + RETURN_WAIT;
+        loop {
+            for returned in self.set.borrow().take_async_returns() {
+                self.arrived.insert(returned.request, returned.value);
+            }
+            if let Some(value) = self.arrived.remove(&request) {
+                return value;
+            }
+            if Instant::now() > deadline {
+                return Err(format!(
+                    "the add-in did not return request {request} within {} seconds",
+                    RETURN_WAIT.as_secs()
+                ));
+            }
+            pump_pending();
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
 }
 
 struct App {
-    host: RefCell<Host<Dialogs>>,
+    host: RefCell<Host<Dialogs, Addins>>,
     web: WebView,
     frame: *mut std::ffi::c_void,
     bounds: Cell<(i32, i32)>,
+    /// Requests that arrived while one was being answered (an evaluation that waits for an add-in
+    /// runs the message loop, which delivers the page's next message): answered in order after it.
+    waiting: RefCell<VecDeque<String>>,
+    busy: Cell<bool>,
 }
 
 impl App {
-    /// One request from the page: answered with the same id.
+    /// One request from the page: answered with the same id. A request that arrives while another
+    /// is being answered waits its turn.
     fn request(&self, message: &str) {
-        let answer = self.host.borrow_mut().answer(message);
-        match answer {
-            Some(text) => {
-                if let Err(why) = self.web.post(&text, None) {
-                    eprintln!("dna-onecalc-desktop: {why}");
-                }
-            }
-            None => eprintln!("dna-onecalc-desktop: a message that is no call was ignored"),
+        self.waiting.borrow_mut().push_back(message.to_owned());
+        if self.busy.replace(true) {
+            return;
         }
+        loop {
+            let Some(next) = self.waiting.borrow_mut().pop_front() else {
+                break;
+            };
+            let answer = self.host.borrow_mut().answer(&next);
+            match answer {
+                Some(text) => {
+                    if let Err(why) = self.web.post(&text, None) {
+                        eprintln!("dna-onecalc-desktop: {why}");
+                    }
+                }
+                None => eprintln!("dna-onecalc-desktop: a message that is no call was ignored"),
+            }
+        }
+        self.busy.set(false);
     }
 
     /// The window's size, once per tick.
@@ -172,44 +402,49 @@ pub fn run(args: &[String]) -> Result<(), String> {
         },
     )?;
 
-    let session = Session::new("Sheet1").map_err(|e| format!("{e:?}"))?;
-    let (mut addins, mut loaded) = (None, Vec::new());
-    let mut host = Host::new(session, Dialogs { owner: frame.cast() });
-    if !o.xlls.is_empty() {
-        let sheets: Vec<(calc_value::SheetId, String)> = host
-            .session()
-            .sheets()
-            .map(|(name, id)| (id, name.to_owned()))
-            .collect();
-        let sheet_refs: Vec<(calc_value::SheetId, &str)> =
-            sheets.iter().map(|(id, name)| (*id, name.as_str())).collect();
-        let mut set = AddinHost::new(
-            &shell,
-            &Document {
-                workbook: WORKBOOK,
-                active_sheet: Some("Sheet1"),
-                sheets: &sheet_refs,
-            },
-        )?;
-        for xll in &o.xlls {
-            set.load(xll)?;
-            let bytes = std::fs::read(xll).map_err(|e| format!("{}: {e}", xll.display()))?;
-            loaded.push(AddinRef {
-                kind: "xll".to_owned(),
-                path: xll.display().to_string(),
-                hash: format!("sha256:{}", calc_verdict::sha256_hex(&bytes)),
-            });
+    let mut session = Session::new(&o.sheet).map_err(|e| format!("{e:?}"))?;
+    let sheets: Vec<(calc_value::SheetId, String)> = session
+        .sheets()
+        .map(|(name, id)| (id, name.to_owned()))
+        .collect();
+    let sheet_refs: Vec<(calc_value::SheetId, &str)> =
+        sheets.iter().map(|(id, name)| (*id, name.as_str())).collect();
+    // The add-in set always exists: the page loads add-ins into it whenever the person asks.
+    let set = Rc::new(RefCell::new(AddinHost::new(
+        &shell,
+        &Document {
+            workbook: WORKBOOK,
+            active_sheet: Some(&o.sheet),
+            sheets: &sheet_refs,
+        },
+    )?));
+    // Registered functions that answer later (native async, thread-safe on the pool) suspend the
+    // evaluation instead of blocking the call; the session waits for their returns.
+    set.borrow().enable_async_continuations()?;
+    session.set_external_returns(Some(Box::new(Returns {
+        set: set.clone(),
+        arrived: BTreeMap::new(),
+        since: Instant::now(),
+    })));
+    let mut host = Host::new(session, Dialogs { owner: frame.cast() }, Addins::new(set.clone()));
+    for xll in &o.xlls {
+        match host.handle(Request::LoadAddin {
+            path: xll.display().to_string(),
+            expected_hash: None,
+        }) {
+            Reply::Addins(_) => {}
+            Reply::Refused { message } => return Err(message),
+            other => return Err(format!("unexpected answer loading {}: {other:?}", xll.display())),
         }
-        host.session_mut().set_user_functions(set.callables()?);
-        addins = Some(set);
     }
-    host.set_loaded(loaded);
     // Declared after the shell so that it drops first: the add-ins close while their windows exist.
     let app = Rc::new(App {
         host: RefCell::new(host),
         web,
         frame: frame.cast(),
         bounds: Cell::new(o.size),
+        waiting: RefCell::new(VecDeque::new()),
+        busy: Cell::new(false),
     });
     {
         // The page's messages must not keep the app alive: a weak handle lets it drop at exit.
@@ -240,7 +475,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     );
     drop(timer);
     drop(app);
-    drop(addins);
+    drop(set);
     drop(shell);
     Ok(())
 }

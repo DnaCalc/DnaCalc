@@ -12,6 +12,8 @@ portability = "portable"
 [dependencies]
 calc-syntax = { path = "../calc-syntax" }
 calc-func = { path = "../calc-func" }
+# The descriptors of registered functions cross OneCalc's session port and the DNA Calc worker wire.
+serde = { version = "=1.0.229", features = ["derive"] }
 
 # The dc-ibp2 Excel comparison reads the capture of its oracle workbook through the one verdict
 # library and judges its rows with calc_verdict::judge. Test-only: calc-verdict never depends on

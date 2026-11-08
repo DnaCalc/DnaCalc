@@ -263,6 +263,7 @@ dependencies = [
  "calc-func",
  "calc-syntax",
  "calc-verdict",
+ "serde",
  "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-test",
@@ -1045,6 +1046,7 @@ name = "dna-calc"
 version = "0.1.0"
 dependencies = [
  "any_spawner",
+ "calc-fml",
  "calc-func",
  "calc-host",
  "calc-value",
@@ -1164,8 +1166,10 @@ name = "dna-onecalc-desktop"
 version = "0.1.0"
 dependencies = [
  "calc-addin-host",
+ "calc-fml",
  "calc-platform-desktop",
  "calc-value",
+ "calc-vba",
  "calc-verdict",
  "calc-xll-abi",
  "calc-xll-fixture",

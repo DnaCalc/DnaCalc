@@ -1,0 +1,15 @@
+{
+  "comment": "OneCalc milestone 4 acceptance (dc-0f1k, dc-snz.2): every set is loaded through the OneCalc page (`cargo xtask app xll-accept onecalc`) and its cases are compared with Excel's answers from an untraced run of run.ps1 in an owned hidden session (the `excel` record). Variables: {fixture} this folder, {build} ../build, {x1} the own X1 add-in, {x3} the xlw and xlOil runtime folders, {cvba} the generated add-in, {excel} the folder of Excel controller records, {m4} the staged artifacts.",
+  "sets": [
+    {"name": "x1-fixture", "xll": "{x1}", "sheet": "X1", "cases": "x1-cases.json", "excel": "{excel}/x1-fixture/controller.jsonl"},
+    {"name": "exceldna-net48", "xll": "{fixture}/bin/Release/net48/X0-AddIn64.xll", "also": ["{build}/NativeOwner64.xll"], "sheet": "X0", "cases": "x2-cases.json", "excel": "{excel}/exceldna-net48/controller.jsonl"},
+    {"name": "exceldna-net8", "xll": "{fixture}/bin/Release/net8.0-windows/X0-AddIn64.xll", "also": ["{build}/NativeOwner64.xll"], "sheet": "X0", "cases": "x2-cases.json", "excel": "{excel}/exceldna-net8/controller.jsonl"},
+    {"name": "exceldna-aot", "xll": "{fixture}/bin/Release/net10.0-windows/win-x64/publish/X2Aot-AddIn64.xll", "sheet": "X0", "cases": "x2-hello-cases.json", "excel": "{excel}/exceldna-aot/controller.jsonl"},
+    {"name": "exceldna-pool", "xll": "{fixture}/bin/Release/net48/X2Pool-AddIn64.xll", "sheet": "X0", "cases": "x2-pool-cases.json", "excel": "{excel}/exceldna-pool/controller.jsonl"},
+    {"name": "xlw", "xll": "{x3}/xlw-runtime/xlwSample.xll", "sheet": "X0", "cases": "x3-xlw-cases.json", "excel": "{excel}/xlw/controller.jsonl"},
+    {"name": "xlw-types", "xll": "{x3}/xlw-types-runtime/xlwTypes.xll", "sheet": "X0", "cases": "x3-xlw-types-cases.json", "excel": "{excel}/xlw-types/controller.jsonl"},
+    {"name": "xloil-utils-sql", "xll": "{x3}/xloil-runtime/xlOil.xll", "sheet": "X0", "cases": "x3-xloil-cases.json", "excel": "{excel}/xloil-utils-sql/controller.jsonl"},
+    {"name": "xloil-python", "xll": "{x3}/xloil-python-runtime/xlOil.xll", "sheet": "X0", "cases": "x3-xloil-python-cases.json", "excel": "{excel}/xloil-python/controller.jsonl"},
+    {"name": "calcvba-udf", "xll": "{cvba}/FunctionsUdf.xll", "sheet": "X0", "cases": "{m4}/calcvba-udf-cases.json", "excel": "{excel}/calcvba-udf/controller.jsonl"}
+  ]
+}
