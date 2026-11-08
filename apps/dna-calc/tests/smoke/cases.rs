@@ -9091,6 +9091,13 @@ Case {
     Case{name:"element fonts: Automatic clears only the selected title and phone controls remain reachable",actions:&[
         Action::Click("chart-font-reset"),Action::Wait(Check::Attr("[data-dnacalc=chart-title]","fill","#595959")),Action::Window(390,1100)
     ],checks:&[Check::Attr("[data-dnacalc=chart-title]","font-size","14"),Check::Attr("[data-chart-text=legend]","fill","#209040"),Check::Attr("[data-chart-text='axis:2']","fill","#2030C0"),Check::Reachable("chart-font-target"),Check::HitTarget("chart-font-target"),Check::Reachable("chart-font-apply"),Check::HitTarget("chart-font-apply"),Check::Fits]},
+    // dc-0f1k.9: the web build stopped mounting when FormulaAssist grew by 16 bytes, because the
+    // 1 MiB wasm stack was 99% spent by the mount. The page's stack is 8 MiB (xtask's
+    // PAGE_STACK_BYTES) and the mount, with a formula being edited, may spend half of it.
+    Case{name:"the wasm shadow stack is 8 MiB and the mount and a formula edit spent at most half of it (dc-0f1k.9)",actions:&[
+        Action::Keys("grid","="),Action::Keys("cell-editor","SUM(1,2")],checks:&[
+        Check::StackMargin("__dnacalcMemory",8_000_000)]},
+
 ];
 
 /// The script that reads what one check looks at.
@@ -9997,4 +10004,5 @@ CaseGroup {
     CaseGroup{name:"saved-pivots",start:816,end:832,core:16,setup:&[]},
     CaseGroup{name:"chart-multi-plot",start:832,end:836,core:4,setup:&[]},
     CaseGroup{name:"chart-element-text",start:836,end:840,core:4,setup:&[]},
+    CaseGroup{name:"stack-margin",start:840,end:841,core:1,setup:&[]},
 ];

@@ -130,6 +130,8 @@ pub struct App {
     pub worker: Option<(&'static str, &'static str)>,
     /// The page, relative to the workspace root.
     pub page: &'static str,
+    /// The wasm shadow stack of the page's module, in bytes (see [`PAGE_STACK_BYTES`]).
+    pub stack_bytes: u64,
     /// Further scripts copied beside the page, relative to the workspace root (DNA Calc's
     /// calculation worker, `web/worker.js`, dc-p96).
     pub scripts: &'static [&'static str],
@@ -168,6 +170,7 @@ pub static APPS: [App; 2] = [
         entry: "dna-onecalc-web",
         worker: None,
         page: "apps/dna-onecalc/web/index.html",
+        stack_bytes: PAGE_STACK_BYTES,
         scripts: &[],
         styles: &[
             "apps/dna-formula-ui/web/css/formula-field.css",
@@ -188,6 +191,7 @@ pub static APPS: [App; 2] = [
         entry: "dna-calc-web",
         worker: Some(("dna-calc-worker", "dna-calc-worker-web")),
         page: "apps/dna-calc/web/index.html",
+        stack_bytes: PAGE_STACK_BYTES,
         scripts: &["apps/dna-calc/web/worker.js"],
         styles: &[
             "apps/dna-formula-ui/web/css/formula-field.css",
@@ -209,6 +213,17 @@ pub static APPS: [App; 2] = [
         groups: CALC_GROUPS,
     },
 ];
+
+/// The shadow stack of a page's wasm module: 8 MiB. rust-lld gives a wasm32 module 1 MiB unless told
+/// otherwise, placed first in linear memory, so an overflow runs below address 0 and traps as
+/// "memory access out of bounds" in whatever frame is deepest. DNA Calc's mount (a Leptos view tree
+/// whose closures each copy the Copy `Controller` and `FormulaAssist`, built by value on the stack)
+/// used 1,038,408 of the 1,048,576 bytes when measured (dc-0f1k.9): 99%, so growing `FormulaAssist`
+/// by 16 bytes crashed the mount. 8 MiB leaves the measured use at about an eighth of the stack, the
+/// room for `Controller` and `FormulaAssist` to grow about seven-fold, at the price of virtual memory
+/// the module touches only as the stack deepens. The `stack-margin` smoke case reads the use back
+/// from the built module and fails a bundle that spends more than half of it.
+pub const PAGE_STACK_BYTES: u64 = 8 * 1024 * 1024;
 
 /// The wasm-bindgen CLI release the bundle needs: the one the apps' wasm-bindgen crate is pinned to.
 const BINDGEN_VERSION: &str = "wasm-bindgen 0.2.117";
@@ -417,10 +432,13 @@ pub(crate) fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(Strin
         );
         let target_dir = ws.target_dir();
         let mut build = Command::new(cargo::cargo_program());
+        // `cargo rustc` hands the link argument to the final binary alone, so no dependency is
+        // rebuilt for it. The worker keeps the linker's default stack.
+        let stack = (entry == app.entry).then_some(app.stack_bytes);
         build
             .current_dir(&ws.root)
             .args([
-                "build",
+                if stack.is_some() { "rustc" } else { "build" },
                 "--locked",
                 "--profile",
                 PROFILE,
@@ -430,6 +448,9 @@ pub(crate) fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(Strin
                 entry,
             ])
             .args(["--target", WASM_TARGET]);
+        if let Some(bytes) = stack {
+            build.args(["--", "-C", &format!("link-arg=-zstack-size={bytes}")]);
+        }
         let built = cargo::output(&mut build)?;
         if !built.status.success() {
             return Err(format!(
@@ -1251,6 +1272,11 @@ pub enum Check {
     Fits,
     /// The page's viewport is at most this many pixels wide (a narrow-screen case really is one).
     Narrow(u32),
+    /// The page's wasm shadow stack (its module's memory in the named window global, its top in the
+    /// root's `data-dna-stack-top`) is at least this many bytes, and the deepest point it has
+    /// reached (the lowest memory that is not zero: the stack grows down from its top) spent at
+    /// most half of it (dc-0f1k.9: a 1 MiB stack was 99% spent when the mount crashed).
+    StackMargin(&'static str, u64),
     /// DNA OneCalc: the array result's cells, row by row.
     Array(&'static [&'static [&'static str]]),
     /// DNA OneCalc: the text of the highlighted run with this role.
@@ -1452,6 +1478,9 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
             "return [document.documentElement.scrollWidth, window.innerWidth];".to_owned()
         }
         Check::Narrow(_) => "return window.innerWidth;".to_owned(),
+        Check::StackMargin(memory, _) => format!(
+            "var m=window.{memory},top=parseInt(document.documentElement.getAttribute('data-dna-stack-top'),10);if(!m||!(top>1024))return null;var w=new Uint32Array(m.buffer,0,top>>2),i=1;while(i<w.length&&w[i]===0)i++;return [top,top-i*4];"
+        ),
         Check::Style(name, declarations) => format!(
             "var e = {}; if (!e) {{ return null; }} var probe = document.createElement('div'); var out = []; '{declarations}'.split(';').forEach(function (d) {{ var i = d.indexOf(':'); if (i < 0) {{ return; }} var k = d.slice(0, i).trim(); probe.style.setProperty(k, d.slice(i + 1).trim()); out.push([k, e.style.getPropertyValue(k), probe.style.getPropertyValue(k)]); }}); return out;",
             q(name)
@@ -1504,6 +1533,15 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
         Check::Narrow(width) => seen
             .as_f64()
             .is_some_and(|seen| seen > 0.0 && seen <= f64::from(*width)),
+        Check::StackMargin(_, least) => seen.as_array().is_some_and(|pair| {
+            match (
+                pair.first().and_then(Value::as_u64),
+                pair.get(1).and_then(Value::as_u64),
+            ) {
+                (Some(size), Some(used)) => size >= *least && used * 2 <= size,
+                _ => false,
+            }
+        }),
         Check::Style(..) | Check::Computed(..) => seen.as_array().is_some_and(|pairs| {
             !pairs.is_empty()
                 && pairs.iter().all(|pair| {
@@ -1668,6 +1706,9 @@ fn describe(check: &Check) -> String {
         Check::Computed(name, declarations) => format!("{name} is shown with {declarations:?}"),
         Check::Fits => "the page fits the window's width".to_owned(),
         Check::Narrow(width) => format!("the viewport is at most {width} pixels wide"),
+        Check::StackMargin(_, least) => format!(
+            "the wasm shadow stack is at least {least} bytes and its deepest point spent at most half of it"
+        ),
         Check::Array(rows) => format!("result-array is {rows:?}"),
         Check::Highlighted(role_name, text) => format!("{text:?} is highlighted as {role_name}"),
     }
@@ -3429,14 +3470,28 @@ mod tests {
             .map(|group| group.core)
             .sum();
         assert_eq!(
-            inherited_total, 381,
-            "the two applications retain 381 core cases including eighteen chart creation/log/combination/legend cases and all 363 inherited core cases"
+            inherited_total, 383,
+            "the two applications retain 383 core cases including eighteen chart creation/log/combination/legend cases, the two wasm-stack cases (dc-0f1k.9) and all 363 inherited core cases"
         );
         assert_eq!(
-            total, 393,
-            "the twelve page-layout cases extend all 381 inherited core cases"
+            total, 395,
+            "the twelve page-layout cases extend all 383 inherited core cases"
         );
-        assert_eq!(current_total,431,"eight chart and eleven pivot cases extend all 412 inherited core cases, including the nineteen chart and saved-pivot cases");
+        assert_eq!(current_total,433,"eight chart and eleven pivot cases extend all 414 inherited core cases, including the nineteen chart and saved-pivot cases");
+    }
+
+    /// dc-0f1k.9: the stack check passes a stack of the size the bundle asks for with half of it
+    /// free, and fails the stack the crash happened on (1 MiB, 99% spent), a stack spent past half
+    /// and a page that reports nothing.
+    #[test]
+    fn the_stack_margin_check_fails_a_thin_or_missing_stack() {
+        let check = Check::StackMargin("__dnacalcMemory", 8_000_000);
+        assert!(satisfied(&check, &serde_json::json!([8_388_531u64, 1_041_051u64])));
+        assert!(satisfied(&check, &serde_json::json!([8_388_531u64, 4_194_265u64])));
+        assert!(!satisfied(&check, &serde_json::json!([8_388_531u64, 4_194_267u64])));
+        assert!(!satisfied(&check, &serde_json::json!([1_048_531u64, 1_038_408u64])), "the 1 MiB stack the mount crashed on");
+        assert!(!satisfied(&check, &serde_json::json!([1_048_531u64, 100_000u64])), "a stack the build did not enlarge");
+        assert!(!satisfied(&check, &Value::Null), "no memory or stack top in the page");
     }
 
     #[test]

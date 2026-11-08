@@ -38,7 +38,10 @@ window.__dnacalcAssets = new URL(".", import.meta.url).href;
 import("./dna-calc-web.js")
   .then(function (glue) {
     return glue.default({ module_or_path: new URL("./dna-calc-web_bg.wasm", import.meta.url) })
-      .then(function () {
+      .then(function (exports) {
+        // The module's linear memory, for the smoke case `stack-margin` (dc-0f1k.9): how deep the
+        // wasm shadow stack has gone shows as the lowest memory that is not zero.
+        window.__dnacalcMemory = exports && exports.memory;
         // Share the initialized bounded decoder with clients in another JavaScript realm.
         window.__dnacalcDecodeTile = glue.decode_tile_event;
       });
