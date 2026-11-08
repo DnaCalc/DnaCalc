@@ -736,6 +736,8 @@ pub fn help_view(target: FunctionCallTarget<'static>) -> impl IntoView {
     let availability = match target.availability() {
         calc_func::Availability::Unspecified => "Availability not established",
         calc_func::Availability::ListsInCellsBeta => "Insider Beta; workbook compatibility version 3",
+        calc_func::Availability::AbsentOnWindows => "Not in Excel for Windows (the name gives #NAME?)",
+        calc_func::Availability::MacroSheetOnly => "Macro sheets only (refused in a worksheet formula)",
     };
     let description = help::description(target)
         .unwrap_or("No description in calc-func's help text.")
