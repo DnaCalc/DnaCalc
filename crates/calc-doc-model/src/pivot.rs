@@ -57,6 +57,8 @@ pub struct PivotCacheField {
     pub shared_items: Option<u32>,
     pub group: Option<PivotCacheGroup>,
     pub items: Vec<PivotItem>,
+    /// Shared-item indexes retained without any current source record.
+    pub unused_items: Vec<u32>,
     pub attributes: BTreeMap<String, String>,
 }
 /// Grouping metadata retained from a cache field. Virtual date fields use their group items
@@ -65,6 +67,10 @@ pub struct PivotCacheField {
 pub struct PivotCacheGroup {
     pub attributes: BTreeMap<String, String>,
     pub range: Option<BTreeMap<String, String>>,
+    /// For a discrete group, the group-item index for each source shared item.
+    pub discrete: Option<Vec<u32>>,
+    /// Labels for numeric groups on a source field, distinct from its original shared items.
+    pub numeric_items: Option<Vec<PivotItem>>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct SheetPivots {
@@ -111,12 +117,16 @@ pub struct PivotPageField {
 pub struct PivotField {
     pub attributes: BTreeMap<String, String>,
     pub items: Vec<PivotFieldItem>,
+    /// Data-field index selected by the supported value-sort scope.
+    pub sort_measure: Option<u32>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PivotFieldItem {
     pub index: Option<u32>,
     pub kind: String,
     pub hidden: bool,
+    /// A retained item that no longer occurs in the source records.
+    pub missing: bool,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct PivotAxisItem {
@@ -131,6 +141,8 @@ pub struct PivotDataField {
     pub field: u32,
     pub subtotal: String,
     pub attributes: BTreeMap<String, String>,
+    /// A recognized extended display calculation preserved in the original table part.
+    pub extended_show: Option<String>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PivotItem {

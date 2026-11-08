@@ -40,6 +40,8 @@ pub enum WorkbookOp {
     SetPageSetup { sheet: SheetId, setup: crate::PageSetup },
     SetCharts {sheet:SheetId,charts:Vec<crate::Chart>},
     SetPivots(std::sync::Arc<crate::pivot::PivotState>),
+    /// Replace the data model snapshot after an explicit refresh.
+    SetDataModel(std::sync::Arc<crate::DataModel>),
     SetValidations { sheet: SheetId, rules: Vec<crate::Validation> },
     SetReviewLinks { sheet:SheetId, links:Vec<crate::ReviewLink> },
     SetReviewNotes {

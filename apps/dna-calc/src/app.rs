@@ -133,6 +133,9 @@ pub fn app_with_transport(
         })
     };
     let assist = controller.assist;
+    // The evaluation trace of the formula being edited (dna-formula-ui's panel): stale once the
+    // formula or the workbook changes.
+    let trace_panel = dna_formula_ui::trace_panel::TracePanel::new();
     let file_input = NodeRef::<leptos::html::Input>::new();
     let replace_dialog = NodeRef::<leptos::html::Dialog>::new();
     let replacement = RwSignal::new(None::<Replacement>);
@@ -841,6 +844,12 @@ pub fn app_with_transport(
                     <button type="button" data-dnacalc="cancel-edit"
                         disabled=move || assist.readonly.get()
                         on:click=move |_| { controller.cancel_edit(); controller.focus_active_skin(); }>"Cancel"</button>
+                    <p role="status" data-onecalc="part-status">{move || assist.part_status().get()}</p>
+                    {trace_panel.view(
+                        assist,
+                        move || format!("{}\u{1}{}", assist.text.get(), controller.revision.get()),
+                        move |done| controller.trace_formula(done),
+                    )}
                 </div>
             })}
             {crate::printing::toolbar(controller)}

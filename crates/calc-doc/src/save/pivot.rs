@@ -43,7 +43,7 @@ fn attrs(values: &BTreeMap<String, String>, out: &mut Vec<u8>) {
         attr(k, v, out);
     }
 }
-fn item(item: &PivotItem, out: &mut Vec<u8>) -> Result<(), SaveRefusal> {
+fn item(item: &PivotItem, unused: bool, out: &mut Vec<u8>) -> Result<(), SaveRefusal> {
     let (kind, value) = match item {
         PivotItem::Missing => ("m", None),
         PivotItem::Number(v) => ("n", Some(v.clone())),
@@ -68,6 +68,7 @@ fn item(item: &PivotItem, out: &mut Vec<u8>) -> Result<(), SaveRefusal> {
             attr("v", &value, out);
         }
     }
+    if unused { attr("u", "1", out); }
     out.extend_from_slice(b"/>");
     Ok(())
 }
@@ -75,13 +76,25 @@ fn cache_group(field: &PivotCacheField, out: &mut Vec<u8>) -> Result<(), SaveRef
     let Some(group) = &field.group else { return Ok(()); };
     out.extend_from_slice(b"<fieldGroup");
     attrs(&group.attributes, out);
-    if let Some(range) = &group.range {
-        out.extend_from_slice(b"><rangePr");
-        attrs(range, out);
-        out.extend_from_slice(b"/><groupItems");
-        attr("count", &field.items.len().to_string(), out);
+    if group.range.is_some() || group.discrete.is_some() {
         out.push(b'>');
-        for value in &field.items { item(value, out)?; }
+        if let Some(range) = &group.range {
+            out.extend_from_slice(b"<rangePr");
+            attrs(range, out);
+            out.extend_from_slice(b"/>");
+        }
+        if let Some(discrete) = &group.discrete {
+            out.extend_from_slice(b"<discretePr");
+            attr("count", &discrete.len().to_string(), out);
+            out.push(b'>');
+            for index in discrete { out.extend_from_slice(format!("<x v=\"{index}\"/>").as_bytes()); }
+            out.extend_from_slice(b"</discretePr>");
+        }
+        let items = group.numeric_items.as_deref().unwrap_or(&field.items);
+        out.extend_from_slice(b"<groupItems");
+        attr("count", &items.len().to_string(), out);
+        out.push(b'>');
+        for value in items { item(value, false, out)?; }
         out.extend_from_slice(b"</groupItems></fieldGroup>");
     } else {
         out.extend_from_slice(b"/>");
@@ -214,8 +227,8 @@ fn cache_fields(cache: &PivotCache) -> Result<Vec<u8>, SaveRefusal> {
             attr("maxDate", max, &mut out);
         }
         out.push(b'>');
-        for value in &field.items {
-            item(value, &mut out)?;
+        for (index, value) in field.items.iter().enumerate() {
+            item(value, field.unused_items.contains(&(index as u32)), &mut out)?;
         }
         out.extend_from_slice(b"</sharedItems>");
         cache_group(field, &mut out)?;
@@ -244,7 +257,7 @@ fn fields(table: &PivotTable) -> Vec<u8> {
             ext.extend_from_slice(b"/></ext></extLst>");
             ext
         });
-        if field.items.is_empty() {
+        if field.items.is_empty() && field.sort_measure.is_none() {
             match extension {
                 Some(ext) => {
                     out.push(b'>');
@@ -255,7 +268,10 @@ fn fields(table: &PivotTable) -> Vec<u8> {
             }
             continue;
         }
-        out.extend_from_slice(format!("><items count=\"{}\">", field.items.len()).as_bytes());
+        out.push(b'>');
+        if !field.items.is_empty() {
+            out.extend_from_slice(format!("<items count=\"{}\">", field.items.len()).as_bytes());
+        }
         for item in &field.items {
             out.extend_from_slice(b"<item");
             if let Some(i) = item.index {
@@ -267,9 +283,15 @@ fn fields(table: &PivotTable) -> Vec<u8> {
             if item.hidden {
                 attr("h", "1", &mut out);
             }
+            if item.missing {
+                attr("m", "1", &mut out);
+            }
             out.extend_from_slice(b"/>");
         }
-        out.extend_from_slice(b"</items>");
+        if !field.items.is_empty() { out.extend_from_slice(b"</items>"); }
+        if let Some(measure) = field.sort_measure {
+            out.extend_from_slice(format!("<autoSortScope><pivotArea dataOnly=\"0\" outline=\"0\" fieldPosition=\"0\"><references count=\"1\"><reference field=\"4294967294\" count=\"1\" selected=\"0\"><x v=\"{measure}\"/></reference></references></pivotArea></autoSortScope>").as_bytes());
+        }
         if let Some(ext) = extension {
             out.extend_from_slice(&ext);
         }
@@ -381,7 +403,11 @@ fn preflight(xml: &XmlPart, containers: &[&str]) -> Result<(), SaveRefusal> {
                                 || local == "colItems"
                         }
                         "pivotFields" => local == "pivotField",
-                        "pivotField" => local == "items" || local == "extLst",
+                        "pivotField" => matches!(local, "items" | "extLst" | "autoSortScope"),
+                        "autoSortScope" => local == "pivotArea",
+                        "pivotArea" => local == "references",
+                        "references" => local == "reference",
+                        "reference" => local == "x",
                         "extLst" => local == "ext",
                         "items" => local == "item",
                         "rowItems" | "colItems" => local == "i",
@@ -389,7 +415,8 @@ fn preflight(xml: &XmlPart, containers: &[&str]) -> Result<(), SaveRefusal> {
                         "pivotCacheDefinition" => local == "cacheFields",
                         "cacheFields" => local == "cacheField",
                         "cacheField" => matches!(local, "sharedItems" | "fieldGroup"),
-                        "fieldGroup" => matches!(local, "rangePr" | "groupItems"),
+                        "fieldGroup" => matches!(local, "rangePr" | "groupItems" | "discretePr"),
+                        "discretePr" => local == "x",
                         "sharedItems" | "groupItems" => matches!(local, "n" | "s" | "b" | "e" | "m" | "d"),
                         "pivotCacheRecords" => local == "r",
                         "r" => matches!(local, "x" | "n" | "s" | "b" | "e" | "m" | "d"),
@@ -424,14 +451,19 @@ fn preflight(xml: &XmlPart, containers: &[&str]) -> Result<(), SaveRefusal> {
                                     | "maxDate"
                                     | "longText"
                             ),
+                            "autoSortScope" => false,
+                            "pivotArea" => matches!(a.name.local.as_str(), "dataOnly" | "outline" | "fieldPosition"),
+                            "references" => a.name.local.as_str() == "count",
+                            "reference" => matches!(a.name.local.as_str(), "field" | "count" | "selected"),
                             "fieldGroup" => matches!(a.name.local.as_str(), "base" | "par"),
-                            "rangePr" => matches!(a.name.local.as_str(), "groupBy" | "startDate" | "endDate" | "autoStart" | "autoEnd"),
-                            "groupItems" => a.name.local.as_str() == "count",
+                            "rangePr" => matches!(a.name.local.as_str(), "groupBy" | "startDate" | "endDate" | "autoStart" | "autoEnd" | "groupInterval" | "startNum" | "endNum"),
+                            "groupItems" | "discretePr" => a.name.local.as_str() == "count",
                             "ext" => a.name.local.as_str() == "uri" && a.value == FILL_DOWN_URI,
                             "extLst" => false,
-                            "item" => matches!(a.name.local.as_str(), "x" | "t" | "h"),
+                            "item" => matches!(a.name.local.as_str(), "x" | "t" | "h" | "m"),
                             "i" => matches!(a.name.local.as_str(), "t" | "r" | "i"),
-                            "x" | "n" | "s" | "b" | "e" | "d" => a.name.local.as_str() == "v",
+                            "x" | "n" | "s" | "b" | "e" | "d" => a.name.local.as_str() == "v"
+                                || (parent == "sharedItems" && a.name.local.as_str() == "u"),
                             _ => false,
                         };
                         if !allowed || a.name.namespace.is_some() {
@@ -523,7 +555,7 @@ fn records(xml: &XmlPart, cache: &PivotCache) -> Result<Vec<u8>, SaveRefusal> {
         for (i, value) in row.iter().enumerate() {
             let field = cache.fields.get(i).ok_or_else(|| bad(&cache.part, "A record has an invalid field count"))?;
             if !matches!(field.attributes.get("databaseField").map(String::as_str), Some("0" | "false")) {
-                item(value, &mut body)?;
+                item(value, false, &mut body)?;
             }
         }
         body.extend_from_slice(b"</r>");
@@ -669,6 +701,9 @@ pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
                 &table.part,
                 "Changing these pivot properties is not modelled",
             ));
+        }
+        if old.unsupported.iter().any(|item| item == "unsupported value sort") {
+            return Err(bad(&table.part, "An unsupported value-sort scope cannot be rewritten"));
         }
         let xml = read_part(package, &table.part)?;
         preflight(&xml, &["location", "pivotFields", "rowItems", "colItems"])?;
@@ -821,6 +856,7 @@ mod date_flags {
             name: "Month".into(),
             shared_items: None,
             group: None,
+            unused_items: Vec::new(),
             items: vec![
                 PivotItem::Date("2024-02-15T00:00:00".into()),
                 PivotItem::Date("2024-01-15T00:00:00".into()),

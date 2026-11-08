@@ -275,6 +275,7 @@ pub enum Interest {
 /// What the page asks the session to do: calc-host's skin intents as the page sends them.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Intent {
+    RefreshAll { revision: u64 },
     PivotCreate {revision:u64,source:Area,destination:String,row:u32,value:u32,subtotal:String},
     PivotRefresh {sheet:Sheet,revision:u64,part:String},
     PageSetup {
@@ -597,6 +598,19 @@ pub enum Request {
         version: u64,
         anchor: Key,
     },
+    /// F9 on a part of the formula being edited at `anchor` (dc-0f1k.7): the value of the part of
+    /// `formula` from `start` for `len` UTF-16 code units, as that cell would read it.
+    EvaluatePart {
+        formula: String,
+        anchor: Key,
+        start: usize,
+        len: usize,
+    },
+    /// The evaluation trace of the formula being edited at `anchor`: every part with its value.
+    TraceFormula { formula: String, anchor: Key },
+    /// The registered functions the workbook can call (add-in registrations and VBA), for the
+    /// formula field's completion.
+    UserFunctions,
     CalculateName { id: (u32, u32), version: u64, anchor: Key },
     PollNameCalculation { token: u64 },
     CancelNameCalculation { token: u64 },
@@ -1094,6 +1108,9 @@ pub enum Reply {
     FilterValues { revision:u64, values:Result<(Vec<(String,bool)>,bool),String>, criteria:Option<FilterChange> },
     Names(crate::names::NamePage),
     NameEvaluation(crate::names::NameEvaluation),
+    Part(Result<crate::parts::PartValue, String>),
+    Trace(crate::parts::Trace),
+    UserFunctions(Vec<String>),
     NameCalculation(crate::names::NameCalculationReply),
     FormatSelection(Result<crate::format::FormatSelection, String>),
     FormatPreview(Result<Cell, String>),

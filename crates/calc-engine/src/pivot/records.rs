@@ -79,6 +79,75 @@ pub(super) fn resolve<'a>(
         _ => Ok(value),
     }
 }
+/// The axis label and saved item index for one source record. Numeric groups keep their
+/// original numeric cache items for value calculations and use separate axis labels.
+pub(super) fn axis_value<'a>(cache: &'a PivotCache, record: &'a [PivotItem], field: usize)
+    -> Result<(&'a PivotItem, u32), PivotIssue> {
+    let bad = |why: &str| refusal(&cache.part, why);
+    let saved = cache.fields.get(field).ok_or_else(|| bad("Invalid axis field"))?;
+    if let Some(group) = saved.group.as_ref().filter(|group| group.numeric_items.is_some()) {
+        let labels = group.numeric_items.as_ref().unwrap();
+        let range = group.range.as_ref().ok_or_else(|| bad("Missing numeric grouping range"))?;
+        let number = |key: &str| range.get(key).and_then(|v| v.parse::<f64>().ok())
+            .filter(|v| v.is_finite() && v.fract() == 0.0 && v.abs() <= 4_503_599_627_370_496.0)
+            .ok_or_else(|| bad("Invalid numeric grouping range"));
+        let (start, end, step) = (number("startNum")?, number("endNum")?, number("groupInterval")?);
+        let n = match resolve(cache, record, field)? {
+            PivotItem::Number(value) => value.parse::<f64>().ok().filter(|n| n.is_finite() && n.fract() == 0.0)
+                .ok_or_else(|| bad("Noninteger numeric grouping is not modelled"))?,
+            _ => return Err(bad("Nonnumeric numeric-group members are not modelled")),
+        };
+        if step <= 0.0 || start >= end { return Err(bad("Invalid numeric grouping range")); }
+        let groups = (end - start) / step;
+        if !groups.is_finite() || groups.fract() != 0.0 || groups > 100_000.0
+            || labels.len() != groups as usize + 2 {
+            return Err(bad("Invalid numeric grouping range"));
+        }
+        if n < start || n > end { return Err(bad("Values outside the fixed numeric grouping range are not modelled")); }
+        let index = (((n - start) / step).floor() as usize + 1).min(labels.len() - 2);
+        return Ok((&labels[index], index as u32));
+    }
+    let PivotItem::Index(index) = record.get(field).ok_or_else(|| bad("Invalid axis record"))? else {
+        return Err(bad("An axis item needs a shared cache index"));
+    };
+    Ok((resolve(cache, record, field)?, *index))
+}
+pub(super) fn axis_items(cache: &PivotCache, field: usize) -> &[PivotItem] {
+    let field = &cache.fields[field];
+    field.group.as_ref().and_then(|group| group.numeric_items.as_deref()).unwrap_or(&field.items)
+}
+/// The captured no-data layout has one field on each axis and one selected page item.
+pub(super) fn show_all_mode(table: &PivotTable) -> bool {
+    if table.row_fields.len() != 1 || table.column_fields.len() != 1
+        || table.page_fields.len() != 1 || table.page_fields[0].selected_item.is_none()
+        || !table.filters.is_empty() || table.data_fields.len() != 1
+        || table.data_fields[0].subtotal != "sum" || table.data_fields[0].extended_show.is_some()
+        || table.data_fields[0].attributes.get("showDataAs").is_some_and(|v| v != "normal")
+        || table.attributes.contains_key("missingCaption") || truthy(table.attributes.get("showMissing"), false) {
+        return false;
+    }
+    table.row_fields.iter().chain(&table.column_fields).all(|field| usize::try_from(*field).ok()
+        .and_then(|i| table.fields.get(i)).is_some_and(|field|
+            truthy(field.attributes.get("showAll"), true) && field.sort_measure.is_none()
+                && field.items.iter().all(|item| !item.hidden)))
+}
+/// The captured tabular no-data case has two row fields and one selected page item.
+pub(super) fn show_all_rows_mode(table: &PivotTable) -> bool {
+    if table.row_fields.len() != 2 || !table.column_fields.is_empty()
+        || table.page_fields.len() != 1 || table.page_fields[0].selected_item.is_none()
+        || !table.filters.is_empty() || table.data_fields.len() != 1
+        || table.data_fields[0].subtotal != "sum" || table.data_fields[0].extended_show.is_some()
+        || table.data_fields[0].attributes.get("showDataAs").is_some_and(|v| v != "normal")
+        || table.attributes.contains_key("missingCaption") || truthy(table.attributes.get("showMissing"), false) {
+        return false;
+    }
+    table.row_fields.iter().all(|field| usize::try_from(*field).ok().and_then(|i| table.fields.get(i))
+        .is_some_and(|field| truthy(field.attributes.get("showAll"), true)
+            && !truthy(field.attributes.get("compact"), true) && !truthy(field.attributes.get("outline"), true)
+            && truthy(field.attributes.get("defaultSubtotal"), true)
+            && !truthy(field.attributes.get("insertBlankRow"), false) && field.sort_measure.is_none()
+            && field.items.iter().all(|item| !item.hidden)))
+}
 /// The distinct labels of one row field in their final order (hidden items included and
 /// flagged), each with the totals of its records. The order is the saved manual order, or the
 /// shared text comparator ascending or descending.
@@ -91,10 +160,14 @@ pub(super) fn field_groups(
 ) -> Result<Vec<Group>, PivotIssue> {
     let bad = |why: &str| refusal(&table.part, why);
     let field = &table.fields[row];
+    let measure = if let Some(index) = field.sort_measure {
+        table.data_fields.get(index as usize).ok_or_else(|| bad("Invalid value-sort measure"))?.field as usize
+    } else { measure };
     if field
         .attributes
         .get("showAll")
         .is_none_or(|v| v != "0" && v != "false")
+        && !show_all_mode(table) && !show_all_rows_mode(table)
     {
         return Err(bad(
             "Showing items without source data needs measured layout semantics",
@@ -106,7 +179,7 @@ pub(super) fn field_groups(
         if r.len() != cache.fields.len() {
             return Err(bad("A source record does not match the cache fields"));
         }
-        let key = resolve(cache, r, row)?;
+        let key = axis_value(cache, r, row)?.0;
         if compare(key, key).is_none() {
             return Err(bad("The shared comparator cannot order this pivot label"));
         }
@@ -114,8 +187,8 @@ pub(super) fn field_groups(
     }
     order.sort_by(|&a, &b| {
         compare(
-            resolve(cache, &snapshot.records[a], row).unwrap(),
-            resolve(cache, &snapshot.records[b], row).unwrap(),
+            axis_value(cache, &snapshot.records[a], row).unwrap().0,
+            axis_value(cache, &snapshot.records[b], row).unwrap().0,
         )
         .unwrap_or_else(|| {
             undecided = true;
@@ -128,14 +201,11 @@ pub(super) fn field_groups(
     let mut groups = Vec::<Group>::new();
     for source in order {
         let record = &snapshot.records[source];
-        let key = resolve(cache, record, row)?;
+        let (key, shared) = axis_value(cache, record, row)?;
         if groups
             .last()
             .is_none_or(|g| compare(&g.key, key) != Some(Ordering::Equal))
         {
-            let PivotItem::Index(shared) = record[row] else {
-                return Err(bad("A refreshed row label must name a shared cache item"));
-            };
             groups.push(Group {
                 key: key.clone(),
                 shared,
@@ -159,7 +229,7 @@ pub(super) fn field_groups(
         for item in field.items.iter().filter(|item| item.kind == "data") {
             let shared = item.index.ok_or_else(|| bad("A grouped item has no cache index"))?;
             if !indexes.insert(shared) { return Err(bad("A grouped item is repeated")); }
-            let key = cache.fields[row].items.get(shared as usize)
+            let key = axis_items(cache, row).get(shared as usize)
                 .ok_or_else(|| bad("A grouped item index is invalid"))?;
             let mut unknown = false;
             let found = groups.binary_search_by(|group| compare(&group.key, key).unwrap_or_else(|| {
@@ -188,7 +258,7 @@ pub(super) fn field_groups(
         }
         let Some(key) = item
             .index
-            .and_then(|i| cache.fields[row].items.get(i as usize))
+            .and_then(|i| axis_items(cache, row).get(i as usize))
         else {
             return Err(bad("A saved field item has an invalid cache index"));
         };
@@ -207,6 +277,8 @@ pub(super) fn field_groups(
         if let Ok(i) = found {
             groups[i].old = groups[i].old.min(position);
             groups[i].hidden |= item.hidden;
+        } else if show_all_mode(table) || show_all_rows_mode(table) {
+            return Err(bad("Retained items absent from the source are not modelled"));
         }
     }
     if let Some(filter) = table.filters.iter().find(|filter| filter.field as usize == row) {
@@ -235,6 +307,29 @@ pub(super) fn field_groups(
             }
             PivotFilterKind::Unsupported => return Err(bad("This pivot filter is not modelled")),
         }
+    }
+    if let Some(index) = field.sort_measure {
+        if groups.iter().any(|group| group.hidden || group.excluded) {
+            return Err(bad("Value sorting hidden items is not modelled"));
+        }
+        let kind = table.data_fields.get(index as usize).ok_or_else(|| bad("Invalid value-sort measure"))?.subtotal.as_str();
+        let mut scored = groups.into_iter().map(|group| {
+            let score = match group.total.result(kind).core_ref() {
+                calc_value::CoreRef::Number(n) if n.is_finite() => n,
+                _ => return Err(bad("A nonnumeric value-sort total is not modelled")),
+            };
+            Ok((group, score))
+        }).collect::<Result<Vec<_>, PivotIssue>>()?;
+        let ascending = match field.attributes.get("sortType").map(String::as_str) {
+            Some("ascending") => true,
+            Some("descending") => false,
+            _ => return Err(bad("Invalid value-sort direction")),
+        };
+        scored.sort_by(|a, b| if ascending { a.1.total_cmp(&b.1) } else { b.1.total_cmp(&a.1) });
+        if scored.windows(2).any(|pair| pair[0].1 == pair[1].1) {
+            return Err(bad("Ties in value sorts are not modelled"));
+        }
+        return Ok(scored.into_iter().map(|(group, _)| group).collect());
     }
     match field
         .attributes
@@ -295,12 +390,14 @@ pub(super) fn page_field_items(
                 index: Some(g.shared),
                 kind: "data".into(),
                 hidden: false,
+                missing: false,
             })
             .collect::<Vec<_>>();
         items.push(PivotFieldItem {
             index: None,
             kind: "default".into(),
             hidden: false,
+            missing: false,
         });
         next.fields[page].items = items;
     }

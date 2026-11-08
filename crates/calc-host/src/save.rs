@@ -255,6 +255,21 @@ pub(crate) fn prepare_image(
     calculation: Option<calc_engine::contract::CompletionReceipt>,
     calculate_before_save: bool,
 ) -> Result<PreparedSave, SaveFailed> {
+    // The package writer preserves the embedded model bytes. Refuse to save a changed
+    // snapshot until those bytes can be updated to agree with the calculated cells.
+    let initial = crate::facts::initial_model(loaded.model());
+    fn rows(root: &calc_doc_model::ModelRoot) -> Option<Vec<(&str, &[String], &[Vec<Option<CachedValue>>])>> {
+        Some(root.definitions().data_model()?.snapshot.as_ref()?.tables.iter()
+            .map(|table| (table.name.as_str(), table.columns.as_slice(), table.rows.as_slice())).collect())
+    }
+    let source_now = crate::facts::initial_model(model);
+    let removed_source = model.definitions().data_model().is_some_and(|data| data.tables.iter().any(|name| {
+        let has_table = |root: &calc_doc_model::ModelRoot| root.definitions().tables().iter().any(|table| calc_value::workbook_names_equal(&table.name, name) || calc_value::workbook_names_equal(&table.display_name, name));
+        has_table(&initial) && !has_table(model)
+    }));
+    if rows(model) != rows(&initial) || rows(model) != rows(&source_now) || removed_source {
+        return Err(SaveFailed::Operation { owner: "dc-8wp.20", reason: "Saving changed data model source rows is not yet supported".into() });
+    }
     let cache_policy = pin.cache_policy;
     // Serialization may share proven-equal sources without changing the live authored
     // root, results or the pin's revision. An exhausted budget keeps individual formulas.

@@ -273,6 +273,18 @@ impl DetachedFormula {
         Self::compile_in(inputs, text, origin, FormulaForm::Dynamic, None)
     }
 
+    /// [`DetachedFormula::compile_dynamic`] with the workbook's registered functions (add-in
+    /// registrations and VBA) bound, as a cell's formula sees them (a formula typed into the
+    /// formula bar and evaluated a part at a time, dc-0f1k.7).
+    pub fn compile_dynamic_with_bindings(
+        inputs: &ModelRoot,
+        text: &str,
+        origin: CellKey,
+        functions: &calc_fml::CallableBindings,
+    ) -> Result<Self, NotModeled> {
+        Self::compile_in(inputs, text, origin, FormulaForm::Dynamic, Some(functions))
+    }
+
     fn compile_in(
         inputs: &ModelRoot,
         text: &str,

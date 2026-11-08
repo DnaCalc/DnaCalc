@@ -79,6 +79,14 @@ pub fn controls(controller: Controller) -> AnyView {
         }>
             <summary data-dnacalc="pivot-tools-toggle">"Pivot tables"</summary>
             <Show when=move ||open.get()>
+                <button type="button" data-dnacalc="refresh-all" on:click=move |_| {
+                    controller.after_input(move || {
+                        let revision = controller.summary.get_untracked().revision;
+                        controller.dispatch(wire::Intent::RefreshAll { revision }, move |outcome| {
+                            if outcome.accepted { controller.say("Data model refreshed", false); }
+                        });
+                    });
+                }>"Refresh All"</button>
                 <p class="dc-note" data-dnacalc="pivot-state">{move ||if ready.get(){if saved.get().iter().any(|p|p.refreshed_revision.is_some()){"Pivot refreshed from source data. Later source edits need another refresh."}else{"Saved pivot definitions. No pivot refresh has run; displayed cells use the worksheet's current contents."}}else{"Reading saved pivot definitions…"}}</p>
                 <Show when=move ||ready.get()&&saved.get().is_empty()><p class="dc-note">"No saved pivot tables on this worksheet."</p></Show>
                 <fieldset class="dc-command-fieldset" data-dnacalc="pivot-create">

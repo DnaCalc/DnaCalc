@@ -158,38 +158,21 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
             .unwrap_or((1, grid::COLUMNS))
     });
 
-    // The evaluation trace: the steps the session listed for the authored state it was asked
-    // about, and the step shown. It is stale once the authored state differs from that one.
-    let trace = RwSignal::new(None::<(Authored, crate::trace::Trace)>);
-    let trace_at = RwSignal::new(0usize);
-    let show_step = move |index: usize| {
-        trace.with_untracked(|trace| {
-            if let Some((_, trace)) = trace
-                && let Some(step) = trace.steps.get(index)
-            {
-                assist.focus().set(Some(TextSpan::new(step.start, step.len)));
-                trace_at.set(index);
-            }
-        });
-    };
-    let start_trace = move |_| {
-        let state = authored.get_untracked();
+    // The evaluation trace (dna-formula-ui's panel, which DNA Calc shows too): the steps the session
+    // listed for the authored state it was asked about. It is stale once the state differs.
+    let trace_panel = dna_formula_ui::trace_panel::TracePanel::new();
+    let trace_identity = move || serde_json::to_string(&authored.get()).unwrap_or_default();
+    let trace_start = move |done: Box<dyn FnOnce(crate::trace::Trace)>| {
         call(
             Request::Trace {
-                authored: state.clone(),
+                authored: authored.get_untracked(),
             },
             Box::new(move |reply| {
                 if let Reply::Trace(found) = reply {
-                    let first = found.steps.first().map(|s| TextSpan::new(s.start, s.len));
-                    trace.set(Some((state, found)));
-                    trace_at.set(0);
-                    assist.focus().set(first);
+                    done(found);
                 }
             }),
         );
-    };
-    let trace_fresh = move || {
-        trace.with(|trace| trace.as_ref().is_some_and(|(state, _)| *state == authored.get()))
     };
 
     // The VBA module: its source, and what the session said of loading it.
@@ -896,36 +879,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                             <ol class="oc-reads" data-onecalc="reads">{move ||shown.with(|s|s.reads.clone()).into_iter().map(|line|view!{<li>{line}</li>}).collect_view()}</ol>
                         </details>
                     </section>
-                    <section class="oc-trace" data-onecalc="trace-panel" aria-labelledby="oc-trace-title">
-                        <header><h2 id="oc-trace-title">"Evaluation trace"</h2>
-                            <button type="button" data-onecalc="trace-start" on:click=start_trace>"Trace the formula"</button>
-                            <button type="button" data-onecalc="trace-previous" on:click=move |_| show_step(trace_at.get_untracked().saturating_sub(1))>"Previous step"</button>
-                            <button type="button" data-onecalc="trace-next" on:click=move |_| show_step(trace_at.get_untracked() + 1)>"Next step"</button>
-                        </header>
-                        <p class="oc-prov" role="status" data-onecalc="trace-status">{move || if trace.with(Option::is_none) {
-                            "Select part of the formula and press F9 to see its value; Escape restores the formula. Or trace the whole formula, part by part.".to_owned()
-                        } else if !trace_fresh() {
-                            "The formula or its inputs changed since this trace. Trace it again.".to_owned()
-                        } else {
-                            trace.with(|trace| trace.as_ref().map(|(_, t)| format!("Step {} of {}", trace_at.get() + 1, t.steps.len())).unwrap_or_default())
-                        }}</p>
-                        <ol class="oc-trace-steps" data-onecalc="trace-steps">{move || {
-                            if !trace_fresh() { return Vec::new(); }
-                            let current = trace_at.get();
-                            trace.with(|trace| trace.as_ref().map(|(_, t)| t.steps.iter().enumerate().map(|(index, step)| {
-                                let class = format!(
-                                    "oc-depth-{}{}",
-                                    step.depth.min(8),
-                                    if index == current { " oc-trace-current" } else { "" }
-                                );
-                                let (text, kind, value) = (step.text.clone(), step.kind.clone(), step.value.clone());
-                                view! { <li class=class data-onecalc="trace-step" on:click=move |_| show_step(index)>
-                                    <code data-onecalc="trace-part">{text}</code>" = "<span data-onecalc="trace-value" data-kind=kind>{value}</span>
-                                </li> }
-                            }).collect::<Vec<_>>()).unwrap_or_default())
-                        }}</ol>
-                        <p class="oc-prov" data-onecalc="trace-note">{move || trace.with(|trace| trace.as_ref().map(|(_, t)| t.note.clone()).unwrap_or_default())}</p>
-                    </section>
+                    {trace_panel.view(assist, trace_identity, trace_start)}
                     <details class="oc-format-controls" data-onecalc="format-controls"><summary data-onecalc="format-tools">"Format & locale"</summary>
                         <label>"Locale"<select data-onecalc="locale" prop:value=move ||locale.get() on:change=move |ev|locale.set(event_target_value(&ev))>{SessionOptions::LOCALES.into_iter().map(|name|view!{<option value=name>{name}</option>}).collect_view()}</select></label>
                         <label>"Format"<select data-onecalc="format-picker" prop:value=move || {

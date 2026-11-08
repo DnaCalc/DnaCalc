@@ -104,3 +104,4 @@ wasm-bindgen-test = "=0.3.67"
 [dev-dependencies]
 dna-calc-worker = {path="../dna-calc-worker"}
 calc-host = {path="../../crates/calc-host"}
+calc-fml = {path="../../crates/calc-fml"}

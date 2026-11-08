@@ -105,6 +105,22 @@ fn source_area(host: &HostState, cache: &PivotCache, origin: CellKey) -> Result<
         )),
     }
 }
+fn distinct_group_labels(items: &[PivotItem]) -> bool {
+    let mut order: Vec<_> = items.iter().collect();
+    let mut undecided = false;
+    let mut compare = |a: &PivotItem, b: &PivotItem| match (a, b) {
+        (PivotItem::Missing, PivotItem::Missing) => std::cmp::Ordering::Equal,
+        (PivotItem::Missing, _) => std::cmp::Ordering::Greater,
+        (_, PivotItem::Missing) => std::cmp::Ordering::Less,
+        (PivotItem::Text(a), PivotItem::Text(b)) => calc_fml::text_order(
+            &a.encode_utf16().collect::<Vec<_>>(), &b.encode_utf16().collect::<Vec<_>>())
+            .unwrap_or_else(|| { undecided = true; std::cmp::Ordering::Equal }),
+        _ => { undecided = true; std::cmp::Ordering::Equal },
+    };
+    order.sort_by(|a, b| compare(a, b));
+    let unique = order.windows(2).all(|pair| compare(pair[0], pair[1]) != std::cmp::Ordering::Equal);
+    unique && !undecided
+}
 /// Read every source field, preserving cache item identities and recording actual values only.
 fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<PivotCache, String> {
     if area.cell_count() > 1_000_000 || area.row_count() > 100_001 {
@@ -133,7 +149,26 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<Pivo
             ));
         }
     }
+    for field in &cache.fields[..source_count] {
+        if let Some(items) = field.group.as_ref().and_then(|group| group.numeric_items.as_ref()) {
+            if !distinct_group_labels(items) { return Err(fail("Ambiguous numeric group labels are not modelled")); }
+        }
+    }
+    for field in &cache.fields[source_count..] {
+        if let Some(group) = field.group.as_ref().filter(|group| group.discrete.is_some()) {
+            let base = group.attributes.get("base").and_then(|value| value.parse::<usize>().ok())
+                .filter(|&base| base < source_count).ok_or_else(|| fail("Invalid discrete grouping base"))?;
+            if !distinct_group_labels(&field.items) || !distinct_group_labels(&cache.fields[base].items) {
+                return Err(fail("Ambiguous discrete group labels are not modelled"));
+            }
+        }
+    }
     let mut cache = cache.clone();
+    let tracked_unused: Vec<_> = cache.fields.iter().map(|field| !field.unused_items.is_empty()).collect();
+    if tracked_unused.iter().any(|tracked| *tracked)
+        && cache.attributes.get("missingItemsLimit").map(String::as_str) != Some("32500") {
+        return Err(fail("This unused-item retention limit is not modelled"));
+    }
     let mut indexes = Vec::new();
     for field in &cache.fields {
         let mut map = BTreeMap::new();
@@ -159,6 +194,14 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<Pivo
             let group = field.group.as_ref().ok_or_else(|| fail("A grouped cache field is missing its definition"))?;
             let base = group.attributes.get("base").and_then(|v| v.parse::<usize>().ok())
                 .filter(|i| *i < source_count).ok_or_else(|| fail("Invalid grouped source field"))?;
+            if let Some(discrete) = &group.discrete {
+                let PivotItem::Index(index) = record[base] else { return Err(fail("Invalid discrete grouping source")); };
+                let mapped = discrete.get(index as usize).copied()
+                    .filter(|&index| (index as usize) < field.items.len())
+                    .ok_or_else(|| fail("New source items in a discrete group are not modelled"))?;
+                record.push(PivotItem::Index(mapped));
+                continue;
+            }
             let range = group.range.as_ref().ok_or_else(|| fail("A grouped date range is unavailable"))?;
             let date = match values[base].core_ref() {
                 CoreRef::Number(n) if n.is_finite() => n,
@@ -178,12 +221,31 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<Pivo
             };
             let start = bound("startDate")?;
             let end = bound("endDate")?;
-            if start > end || date < start || date > end {
+            if start > end { return Err(fail("Invalid grouping range")); }
+            let min_date = calc_func::locale::excel_serial_from_ymd(system, 1900, 1, 1)
+                .ok_or_else(|| fail("Invalid date system"))?;
+            let max_date = calc_func::locale::excel_serial_from_ymd(system, 9999, 12, 31)
+                .ok_or_else(|| fail("Invalid date system"))? + 1.0;
+            if date < min_date || date >= max_date { return Err(fail("Invalid grouped date")); }
+            let (year, month, day) = calc_func::locale::ymd_from_excel_serial(system, date)
+                .ok_or_else(|| fail("Invalid grouped date"))?;
+            let seven_day = range.get("groupBy").is_some_and(|v| v == "days")
+                && range.get("groupInterval").is_some_and(|v| v == "7");
+            if !seven_day && (date < start || date > end) {
                 return Err(fail("Dates outside the saved grouping range are not modelled"));
             }
-            let (year, month, _) = calc_func::locale::ymd_from_excel_serial(system, date)
-                .ok_or_else(|| fail("Invalid grouped date"))?;
             let index = match range.get("groupBy").map(String::as_str) {
+                Some("days") if seven_day => {
+                    if date.floor() < start { Some(0) }
+                    else if date.floor() > end { Some(field.items.len() - 1) }
+                    else { Some(((date.floor() - start) / 7.0).floor() as usize + 1) }
+                }
+                Some("days") => {
+                    // The saved day labels cover a leap year, so March follows February 29.
+                    let first = calc_func::locale::excel_serial_from_ymd(system, 2000, 1, 1);
+                    let current = calc_func::locale::excel_serial_from_ymd(system, 2000, month, day);
+                    first.zip(current).map(|(first, current)| (current - first) as usize + 1)
+                }
                 Some("months") => usize::try_from(month).ok(),
                 Some("quarters") => usize::try_from((month - 1) / 3 + 1).ok(),
                 Some("years") => {
@@ -192,7 +254,7 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<Pivo
                     usize::try_from(year - start + 1).ok()
                 }
                 _ => None,
-            }.filter(|i| *i > 0 && *i + 1 < field.items.len())
+            }.filter(|i| if seven_day { *i < field.items.len() } else { *i > 0 && *i + 1 < field.items.len() })
                 .ok_or_else(|| fail("The grouped date is outside its saved items"))?;
             record.push(PivotItem::Index(index as u32));
         }
@@ -203,8 +265,19 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<Pivo
             "Refreshed shared items exceed the cache reader budget of 100,000",
         ));
     }
-    for field in &mut cache.fields[..source_count] {
+    let retaining_items = tracked_unused.iter().any(|tracked| *tracked);
+    for (index, field) in cache.fields[..source_count].iter_mut().enumerate() {
         field.shared_items = Some(field.items.len() as u32);
+        if retaining_items {
+            let used: std::collections::BTreeSet<_> = records.iter().filter_map(|record| match record[index] {
+                PivotItem::Index(item) => Some(item), _ => None,
+            }).collect();
+            let unused: Vec<_> = (0..field.items.len() as u32).filter(|item| !used.contains(item)).collect();
+            if (tracked_unused[index] && unused.is_empty()) || (!tracked_unused[index] && !unused.is_empty()) {
+                return Err(fail("This change to unused cache fields is not modelled"));
+            }
+            field.unused_items = unused;
+        }
     }
     cache.record_count = Some(records.len() as u64);
     cache.snapshot = Some(Arc::new(PivotSnapshot {
@@ -388,10 +461,10 @@ pub(crate) fn prepare_create(host:&HostState,revision:u64,source:GridArea,destin
     let name=(1u32..).map(|i|format!("PivotTable{i}")).find(|name|!before.tables().any(|t|t.name.eq_ignore_ascii_case(name))&&!host.model().definitions().tables().iter().any(|t|t.name.eq_ignore_ascii_case(name))).ok_or_else(||fail("Pivot table names are exhausted"))?;
     let sheet_name=host.model().sheet_by_id(source.sheet()).ok_or_else(||fail("The source worksheet is unavailable"))?.name().text().to_string_lossy();
     let source_range=format!("{}:{}",crate::chart::cell_a1(source.first()),crate::chart::cell_a1(source.last()));
-    let cache=PivotCache{id:cache_id,part:cache_part,records_part:Some(records_part),record_count:Some(0),source_type:"worksheet".into(),source_sheet:Some(sheet_name),source_range:Some(source_range),source_name:None,fields:names.iter().map(|name|PivotCacheField{name:name.clone(),shared_items:Some(0),group:None,items:Vec::new(),attributes:BTreeMap::from([("name".into(),name.clone()),("numFmtId".into(),"0".into())])}).collect(),attributes:BTreeMap::new(),unsupported:Vec::new(),snapshot:None};
+    let cache=PivotCache{id:cache_id,part:cache_part,records_part:Some(records_part),record_count:Some(0),source_type:"worksheet".into(),source_sheet:Some(sheet_name),source_range:Some(source_range),source_name:None,fields:names.iter().map(|name|PivotCacheField{name:name.clone(),shared_items:Some(0),group:None,items:Vec::new(),unused_items:Vec::new(),attributes:BTreeMap::from([("name".into(),name.clone()),("numFmtId".into(),"0".into())])}).collect(),attributes:BTreeMap::new(),unsupported:Vec::new(),snapshot:None};
     let cache=Arc::new(snapshot(host,&cache,source)?);
-    let fields=(0..names.len()).map(|i|{let mut attributes=BTreeMap::from([("showAll".into(),"0".into())]);if i==row as usize{attributes.insert("axis".into(),"axisRow".into());}if i==value as usize{attributes.insert("dataField".into(),"1".into());}PivotField{attributes,items:Vec::new()}}).collect();
-    let caption=format!("{operation} of {}",names[value as usize]);let data=PivotDataField{name:Some(caption.clone()),field:value,subtotal:subtotal.into(),attributes:BTreeMap::from([("name".into(),caption),("fld".into(),value.to_string()),("subtotal".into(),subtotal.into())])};
+    let fields=(0..names.len()).map(|i|{let mut attributes=BTreeMap::from([("showAll".into(),"0".into())]);if i==row as usize{attributes.insert("axis".into(),"axisRow".into());}if i==value as usize{attributes.insert("dataField".into(),"1".into());}PivotField{attributes,items:Vec::new(),sort_measure:None}}).collect();
+    let caption=format!("{operation} of {}",names[value as usize]);let data=PivotDataField{name:Some(caption.clone()),field:value,subtotal:subtotal.into(),extended_show:None,attributes:BTreeMap::from([("name".into(),caption),("fld".into(),value.to_string()),("subtotal".into(),subtotal.into())])};
     let table=PivotTable{name:name.clone(),part,cache_id,area:GridArea::cell(destination),row_fields:vec![row as i32],column_fields:Vec::new(),page_fields:Vec::new(),filters:Vec::new(),data_fields:vec![data],attributes:BTreeMap::from([("name".into(),name),("cacheId".into(),cache_id.to_string()),("dataCaption".into(),"Values".into()),("compact".into(),"1".into()),("outline".into(),"0".into()),("rowGrandTotals".into(),"1".into()),("colGrandTotals".into(),"1".into())]),location:BTreeMap::from([("firstHeaderRow".into(),"1".into()),("firstDataRow".into(),"1".into()),("firstDataCol".into(),"1".into())]),fields,col_items:Vec::new(),row_items:Vec::new(),unsupported:Vec::new()};
     let table=calc_engine::pivot::layout(&table,&cache).map_err(|e|fail(e.detail))?.table;
     let mut after=(**before).clone();after.caches.caches.insert(cache_id,cache);after.sheets.entry(destination.sheet()).or_default().tables.push(table);

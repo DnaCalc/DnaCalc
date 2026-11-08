@@ -56,7 +56,9 @@ pub(super) struct Walk<'a> {
     pub(super) cells: BTreeMap<(u32, u32), CalcValue>,
     pub(super) axis: Vec<PivotAxisItem>,
     /// Output rows that carry a value and the field-item path defining their total.
-    pub(super) row_paths: Vec<(u32, Vec<usize>, Option<usize>)>,
+    pub(super) row_paths: Vec<(u32, Vec<usize>, Option<usize>, Option<&'static str>)>,
+    pub(super) custom_subtotals: bool,
+    pub(super) sort_inner_ascending: Option<bool>,
     pub(super) collect_paths: bool,
     pub(super) values_level: Option<usize>,
     pub(super) value_captions: &'a [String],
@@ -78,6 +80,19 @@ impl AxisVisitor for Walk<'_> {
             .map(|(k, _)| k[level])
             .collect();
         found.dedup();
+        if level == 1 && let Some(ascending) = self.sort_inner_ascending {
+            found.sort_by(|&a, &b| {
+                let score = |child| {
+                    let mut path = prefix.to_vec();
+                    path.push(child);
+                    match self.totals[level][&path].result("sum").core_ref() {
+                        calc_value::CoreRef::Number(n) => n,
+                        _ => unreachable!("validated inner sort total"),
+                    }
+                };
+                if ascending { score(a).total_cmp(&score(b)) } else { score(b).total_cmp(&score(a)) }
+            });
+        }
         found
     }
     fn enter(&mut self, path: &[usize]) -> Result<bool, PivotIssue> {
@@ -119,16 +134,16 @@ impl AxisVisitor for Walk<'_> {
                     self.printed = depth;
                 }
             }
-            if self.collect_paths { self.row_paths.push((self.r, path.to_vec(), None)); }
+            if self.collect_paths { self.row_paths.push((self.r, path.to_vec(), None, None)); }
             self.r += 1;
             return Ok(false);
         }
         match self.form {
             Form::Compact | Form::Outline => {
                 self.cells.insert((self.r, label_column), group_label(group)?);
-                if self.subtotal_top && self.subtotal_on[level] {
+                if self.subtotal_top && self.subtotal_on[level] && !self.custom_subtotals {
                     self.cells.insert((self.r, self.value_column), total);
-                    if self.collect_paths { self.row_paths.push((self.r, path.to_vec(), None)); }
+                    if self.collect_paths { self.row_paths.push((self.r, path.to_vec(), None, None)); }
                 }
                 let mut item = axis_item("data", level as u32, vec![x]);
                 item.data_index = data_index;
@@ -146,14 +161,27 @@ impl AxisVisitor for Walk<'_> {
         }
         let g = path[level];
         let x = self.position[level][g].expect("visible group");
-        if self.subtotal_on[level] && self.values_level.is_some_and(|v| level + 1 < v) {
+        if self.custom_subtotals && level == 0 {
+            let group = &self.levels[level][g];
+            let label_column = if self.form == Form::Compact { 0 } else { level as u32 };
+            for (item_kind, caption, calculation) in [
+                ("sum", "Sum", "sum"), ("countA", "Count", "count"),
+                ("avg", "Average", "average"), ("max", "Max", "max"), ("min", "Min", "min"),
+            ] {
+                self.cells.insert((self.r, label_column), plain_text(&format!("{} {caption}", label_text(group)?)));
+                self.axis.push(axis_item(item_kind, level as u32, vec![x]));
+                if self.collect_paths { self.row_paths.push((self.r, path.to_vec(), None, Some(calculation))); }
+                self.r += 1;
+            }
+            self.printed = level;
+        } else if self.subtotal_on[level] && self.values_level.is_some_and(|v| level + 1 < v) {
             let group = &self.levels[level][g];
             for (measure, caption) in self.value_captions.iter().enumerate() {
                 self.cells.insert((self.r, level as u32), plain_text(&format!("{} {}", label_text(group)?, caption)));
                 let mut item = axis_item("default", level as u32, vec![x]);
                 item.data_index = measure as u32;
                 self.axis.push(item);
-                if self.collect_paths { self.row_paths.push((self.r, path.to_vec(), Some(measure))); }
+                if self.collect_paths { self.row_paths.push((self.r, path.to_vec(), Some(measure), None)); }
                 self.r += 1;
             }
             self.printed = level;
@@ -167,14 +195,14 @@ impl AxisVisitor for Walk<'_> {
                     self.cells.insert((self.r, label_column), total_label);
                     self.cells.insert((self.r, self.value_column), total);
                     self.axis.push(axis_item("default", level as u32, vec![x]));
-                    if self.collect_paths { self.row_paths.push((self.r, path.to_vec(), None)); }
+                    if self.collect_paths { self.row_paths.push((self.r, path.to_vec(), None, None)); }
                     self.r += 1;
                 }
                 Form::Tabular => {
                     self.cells.insert((self.r, level as u32), total_label);
                     self.cells.insert((self.r, self.value_column), total);
                     self.axis.push(axis_item("default", level as u32, vec![x]));
-                    if self.collect_paths { self.row_paths.push((self.r, path.to_vec(), None)); }
+                    if self.collect_paths { self.row_paths.push((self.r, path.to_vec(), None, None)); }
                     self.r += 1;
                     self.printed = level;
                 }
@@ -239,7 +267,7 @@ impl AxisVisitor for ColumnWalk<'_> {
 }
 
 /// Column combinations and their row paths use the shared depth-first axis walk.
-pub(super) fn layout_columns(
+pub(super) fn render_axes(
     table: &PivotTable,
     cache: &PivotCache,
     snapshot: &PivotSnapshot,
@@ -260,18 +288,57 @@ pub(super) fn layout_columns(
     }
     let value_level = table.column_fields.iter().filter(|&&f| f == -2).count();
     let values_only = table.column_fields == [-2];
-    let rows_only_values = row_values.is_some() && table.column_fields.is_empty();
-    let show = table.data_fields.first().and_then(|d| d.attributes.get("showDataAs"))
-        .map(String::as_str).unwrap_or("normal");
+    let rows_only = table.column_fields.is_empty();
+    if table.data_fields.iter().any(|data| data.extended_show.is_some()
+        && data.attributes.get("showDataAs").is_some_and(|show| show != "normal")) {
+        return Err(bad("Conflicting value calculations are not modelled"));
+    }
+    let multiple_displays = values_only && row_fields.len() == 1 && table.data_fields.len() == 2
+        && table.page_fields.is_empty() && table.filters.is_empty()
+        && cache.fields[row].group.is_none()
+        && table.fields.get(row).is_some_and(|field| field.sort_measure.is_none()
+            && field.items.iter().all(|item| !item.hidden))
+        && table.data_fields.iter().all(|data| data.subtotal == "sum" && data.extended_show.is_none())
+        && table.data_fields[0].attributes.get("showDataAs").is_some_and(|show| show == "percentOfTotal")
+        && table.data_fields[1].attributes.get("showDataAs").is_some_and(|show| show == "runTotal")
+        && table.data_fields[1].attributes.get("baseField").and_then(|base| base.parse::<usize>().ok()) == Some(row);
+    let show = if multiple_displays { "normal" } else { match table.data_fields.first().and_then(|d| d.extended_show.as_deref()) {
+        Some("percentOfParentRow") => "percentOfCol",
+        Some("percentOfParentCol") => "percentOfRow",
+        Some("percentOfRunningTotal") => "percentRunTotal",
+        Some("rankAscending") => "rankAscending",
+        Some("rankDescending") => "rankDescending",
+        Some(_) => return Err(bad("This extended value calculation is not modelled")),
+        None => table.data_fields.first().and_then(|d| d.attributes.get("showDataAs"))
+            .map(String::as_str).unwrap_or("normal"),
+    }};
     let percent = matches!(show, "percentOfCol" | "percentOfRow" | "percentOfTotal");
     let indexed = show == "index";
-    let relative = matches!(show, "difference" | "percent" | "percentDiff" | "runTotal");
+    let relative = matches!(show, "difference" | "percent" | "percentDiff" | "runTotal" | "percentRunTotal" | "rankAscending" | "rankDescending");
     if show != "normal" && (!(percent || indexed || relative) || table.column_fields.len() != 1
         || values_only || table.data_fields.len() != 1) {
         return Err(bad("This value calculation layout is not modelled"));
     }
+    let custom_subtotal = |field: usize| table.fields[field].attributes.iter().any(|(name, value)| {
+        name.ends_with("Subtotal") && name != "defaultSubtotal" && truthy(Some(value), false)
+    });
+    let selected_subtotals = |field: usize| table.fields[field].items.iter().filter(|item| item.kind != "data")
+        .map(|item| item.kind.as_str()).collect::<Vec<_>>();
+    let custom = row_fields.len() == 2 && row_values.is_none() && table.fields.len() == cache.fields.len()
+        && ((rows_only && table.data_fields.len() == 1) || (values_only && table.data_fields.len() == 2))
+        && table.data_fields.iter().all(|data| data.subtotal == "sum") && show == "normal"
+        && table.page_fields.is_empty() && table.filters.is_empty()
+        && row_fields.iter().all(|&field| table.fields[field].sort_measure.is_none()
+            && table.fields[field].items.iter().all(|item| !item.hidden)
+            && !truthy(table.fields[field].attributes.get("insertBlankRow"), false))
+        && custom_subtotal(row_fields[0]) && !custom_subtotal(row_fields[1])
+        && ["sumSubtotal", "countASubtotal", "avgSubtotal", "maxSubtotal", "minSubtotal"].iter()
+            .all(|name| truthy(table.fields[row_fields[0]].attributes.get(*name), false))
+        && table.fields[row_fields[0]].attributes.iter().filter(|(name, value)|
+            name.ends_with("Subtotal") && name.as_str() != "defaultSubtotal" && truthy(Some(value), false)).count() == 5
+        && selected_subtotals(row_fields[0]) == ["sum", "countA", "avg", "max", "min"];
     if (multiple_rows && show != "normal")
-        || (multiple_rows && row_values.is_none() && table.data_fields.len() != 1)
+        || (multiple_rows && row_values.is_none() && table.data_fields.len() != 1 && !custom)
         || (row_values.is_some() && (row_fields.len() > 3 || table.column_fields.len() > 1
             || table.data_fields.iter().any(|d| d.subtotal != "sum")))
         || row >= cache.fields.len()
@@ -283,35 +350,83 @@ pub(super) fn layout_columns(
             d.field as usize >= cache.fields.len()
                 || !matches!(d.subtotal.as_str(),
                     "sum" | "count" | "countNums" | "min" | "max" | "average" | "product" | "stdDev" | "stdDevp" | "var" | "varp")
-                || d.attributes.get("showDataAs").is_some_and(|v| v != "normal" && !(percent || indexed || relative))
+                || d.attributes.get("showDataAs").is_some_and(|v| v != "normal" && !(percent || indexed || relative || multiple_displays))
         })
     {
         return Err(bad("This pivot axis or value aggregation is not modelled"));
     }
-    let custom_subtotal = |field: usize| table.fields[field].attributes.iter().any(|(name, value)| {
-        name.ends_with("Subtotal") && name != "defaultSubtotal" && truthy(Some(value), false)
-    });
-    if row_fields.iter().filter(|&&field| field != usize::MAX).any(|&field| custom_subtotal(field)
-        || !truthy(table.fields[field].attributes.get("defaultSubtotal"), true)) {
-        return Err(bad("Row fields without an automatic subtotal are not modelled"));
+    let numeric_groups: Vec<_> = cache.fields.iter().enumerate().filter_map(|(index, field)|
+        field.group.as_ref().and_then(|group| group.numeric_items.as_ref()).map(|_| index)).collect();
+    if !numeric_groups.is_empty() && (numeric_groups.len() != 1 || row_fields != numeric_groups
+        || !values_only || table.data_fields.len() != 2 || !table.page_fields.is_empty()
+        || !table.filters.is_empty() || show != "normal"
+        || table.data_fields[0].subtotal != "sum" || table.data_fields[1].subtotal != "count"
+        || table.data_fields[0].field != table.data_fields[1].field
+        || table.data_fields[0].field as usize == row_fields[0]
+        || table.fields.iter().any(|field| field.sort_measure.is_some() || field.items.iter().any(|item| item.hidden))) {
+        return Err(bad("This numeric grouping layout is not modelled"));
+    }
+    let value_sorts: Vec<_> = table.fields.iter().enumerate().filter_map(|(field, value)|
+        value.sort_measure.map(|measure| (field, measure as usize))).collect();
+    let inner_sort = value_sorts.len() == 1 && row_fields.len() == 2 && rows_only
+        && row_values.is_none() && table.data_fields.len() == 1 && value_sorts[0] == (row_fields[1], 0)
+        && !truthy(table.fields[row_fields[0]].attributes.get("compact"), true)
+        && !truthy(table.fields[row_fields[0]].attributes.get("outline"), true);
+    if !value_sorts.is_empty() && (value_sorts.len() != 1 || (row_fields.len() != 1 && !inner_sort)
+        || row_values.is_some() || table.column_fields.iter().filter(|&&field| field != -2).count() > 1
+        || !table.page_fields.is_empty() || !table.filters.is_empty() || show != "normal"
+        || value_sorts.iter().any(|&(field, measure)| {
+            !(row_fields.contains(&field) || table.column_fields.contains(&(field as i32)))
+                || table.data_fields.get(measure).is_none_or(|data| data.subtotal != "sum")
+        })) {
+        return Err(bad("This value sort layout is not modelled"));
+    }
+    if row_fields.iter().filter(|&&field| field != usize::MAX).any(|&field| (custom_subtotal(field) && !custom)
+        || (!rows_only && !truthy(table.fields[field].attributes.get("defaultSubtotal"), true)))
+        || table.fields.iter().enumerate().any(|(field, _)| custom_subtotal(field) && !row_fields.contains(&field)) {
+        return Err(bad("These custom subtotals are not modelled in this layout"));
+    }
+    let retains_missing = table.fields.iter().any(|field| field.items.iter().any(|item| item.missing));
+    if retains_missing && (cache.attributes.get("missingItemsLimit").map(String::as_str) != Some("32500")
+        || row_fields.len() != 1 || table.column_fields.len() != 1 || table.column_fields[0] < 0
+        || !table.page_fields.is_empty() || !table.filters.is_empty() || table.data_fields.len() != 1
+        || table.data_fields[0].subtotal != "sum" || show != "normal"
+        || table.fields.iter().any(|field| field.sort_measure.is_some() || field.items.iter().any(|item| item.hidden))
+        || table.fields.iter().enumerate().any(|(index, field)| field.items.iter().any(|item| item.missing
+            && (item.kind != "data" || item.index.is_none()
+                || (index != row && table.column_fields[0] as usize != index))))) {
+        return Err(bad("This retained-item layout is not modelled"));
     }
     let compact_rows = truthy(table.fields[row].attributes.get("compact"), true);
-    let tabular_values = row_values.is_some() && row_fields.len() == 3 && rows_only_values
-        && !compact_rows && !truthy(table.fields[row].attributes.get("outline"), true)
-        && row_values == Some(2);
+    let outline_rows = truthy(table.fields[row].attributes.get("outline"), true);
+    let tabular_values = row_values.is_some() && row_fields.len() == 3 && rows_only
+        && !compact_rows && !outline_rows && row_values == Some(2);
     if row_values.is_some() && row_fields.len() == 3 && !tabular_values {
         return Err(bad("Values with two row fields are only modelled in tabular form"));
     }
-    if multiple_rows && ((!compact_rows && !tabular_values) || row_fields.iter().filter(|&&field| field != usize::MAX)
-        .any(|&field| truthy(table.fields[field].attributes.get("compact"), true) != compact_rows
-            || (tabular_values && truthy(table.fields[field].attributes.get("outline"), true)))) {
+    if multiple_rows && ((!compact_rows && !tabular_values && !rows_only && !(custom && values_only))
+        || row_fields.iter().filter(|&&field| field != usize::MAX).any(|&field|
+            truthy(table.fields[field].attributes.get("compact"), true) != compact_rows
+            || ((rows_only || tabular_values || custom) && truthy(table.fields[field].attributes.get("outline"), true) != outline_rows))) {
         return Err(bad("This multi-field row form is not modelled"));
     }
-    let subtotal_top = truthy(table.fields[row].attributes.get("subtotalTop"), true) && !tabular_values;
+    let form = if compact_rows { Form::Compact } else if outline_rows { Form::Outline } else { Form::Tabular };
+    let raw_subtotal_top = truthy(table.fields[row].attributes.get("subtotalTop"), true);
+    let subtotal_top = raw_subtotal_top && form != Form::Tabular && !custom;
     if multiple_rows && row_fields.iter().filter(|&&field| field != usize::MAX).any(|&field|
-        (truthy(table.fields[field].attributes.get("subtotalTop"), true) && !tabular_values) != subtotal_top) {
+        truthy(table.fields[field].attributes.get("subtotalTop"), true) != raw_subtotal_top) {
         return Err(bad("Row fields with different subtotal positions are not modelled"));
     }
+    let mut subtotal_on: Vec<_> = row_fields.iter().map(|&field| field == usize::MAX
+        || truthy(table.fields[field].attributes.get("defaultSubtotal"), true)).collect();
+    if rows_only && row_values.is_none() && row_fields.len() == 2 && subtotal_on.iter().any(|on| !on)
+        && !(form == Form::Outline && !subtotal_on[0] && subtotal_on[1]) {
+        return Err(bad("Row fields without a subtotal remain unmeasured in this layout"));
+    }
+    if let Some(level) = row_values {
+        if level > 0 { subtotal_on[level - 1] = false; } else { subtotal_on[0] = false; }
+    }
+    let fill_down = truthy(table.fields[row].attributes.get("fillDownLabels"), false);
     let blank_after: Vec<_> = row_fields.iter().map(|&field| field != usize::MAX &&
         truthy(table.fields[field].attributes.get("insertBlankRow"), false)).collect();
     if (row_values.is_some() && blank_after.iter().any(|&blank| blank))
@@ -330,22 +445,17 @@ pub(super) fn layout_columns(
         } else { field_groups(table, cache, snapshot, field, measure) }
     }).collect::<Result<Vec<_>, _>>()?;
     let rows = &row_levels[0];
-    let positions = |groups: &[Group]| {
-        let mut next = 0;
-        groups
-            .iter()
-            .map(|g| {
-                if g.hidden {
-                    None
-                } else {
-                    let at = next;
-                    next += 1;
-                    Some(at)
-                }
-            })
-            .collect::<Vec<_>>()
+    let positions = |groups: &[Group], preserve_items: bool| {
+        let mut order: Vec<_> = (0..groups.len()).filter(|&i| !groups[i].hidden).collect();
+        if preserve_items { order.sort_by_key(|&i| (groups[i].old, groups[i].first)); }
+        let mut result = vec![None; groups.len()];
+        for (position, i) in order.into_iter().enumerate() { result[i] = Some(position as u32); }
+        result
     };
-    let row_positions: Vec<_> = row_levels.iter().map(|groups| positions(groups)).collect();
+    let row_positions: Vec<_> = row_levels.iter().enumerate().map(|(level, groups)| {
+        let field = row_fields[level];
+        positions(groups, field != usize::MAX && table.fields[field].sort_measure.is_some())
+    }).collect();
     let mut levels = Vec::new();
     let mut fields = row_fields.clone();
     for &field in &table.column_fields {
@@ -367,7 +477,7 @@ pub(super) fn layout_columns(
                 ));
             }
             let groups = field_groups(table, cache, snapshot, field, measure)?;
-            let positions = positions(&groups);
+            let positions = positions(&groups, table.fields[field].sort_measure.is_some());
             levels.push(ColumnLevel {
                 field: Some(field),
                 groups,
@@ -377,6 +487,28 @@ pub(super) fn layout_columns(
     }
     if levels.len() > 64 {
         return Err(bad("More than 64 column levels are not modelled"));
+    }
+    if !retains_missing && fields.iter().filter_map(|&field| cache.fields.get(field))
+        .any(|field| !field.unused_items.is_empty()) {
+        return Err(bad("Unused axis items without retained field markers are not modelled"));
+    }
+    if retains_missing {
+        for (field, groups) in std::iter::once((row, row_levels[0].as_slice()))
+            .chain(levels.iter().filter_map(|level| level.field.map(|field| (field, level.groups.as_slice())))) {
+            let present: BTreeSet<_> = groups.iter().map(|group| group.shared).collect();
+            let mut absent = false;
+            for item in table.fields[field].items.iter().filter(|item| item.kind == "data") {
+                let index = item.index.ok_or_else(|| bad("A retained item has no cache index"))?;
+                if present.contains(&index) {
+                    if absent { return Err(bad("Retained items before present items are not modelled")); }
+                } else {
+                    if !cache.fields[field].unused_items.contains(&index) {
+                        return Err(bad("A retained item has no unused cache marker"));
+                    }
+                    absent = true;
+                }
+            }
+        }
     }
     let sorted = |groups: &[Group]| {
         let mut indexes: Vec<usize> = (0..groups.len()).collect();
@@ -399,7 +531,7 @@ pub(super) fn layout_columns(
         let mut row_path = Vec::with_capacity(row_fields.len());
         for (level, &field) in row_fields.iter().enumerate() {
             row_path.push(if field == usize::MAX { 0 } else {
-                find(&row_levels[level], &row_sorted[level], resolve(cache, record, field)?)?
+                find(&row_levels[level], &row_sorted[level], super::records::axis_value(cache, record, field)?.0)?
             });
         }
         if row_path.iter().enumerate().any(|(level, &i)|
@@ -410,7 +542,7 @@ pub(super) fn layout_columns(
         let mut hidden = false;
         for (depth, level) in levels.iter().enumerate() {
             if let Some(field) = level.field {
-                let index = find(&level.groups, &level_sorted[depth], resolve(cache, record, field)?)?;
+                let index = find(&level.groups, &level_sorted[depth], super::records::axis_value(cache, record, field)?.0)?;
                 hidden |= level.groups[index].hidden;
                 indexes.push(index);
             } else {
@@ -448,6 +580,51 @@ pub(super) fn layout_columns(
             return Err(bad("The pivot has too many row and column combinations"));
         }
     }
+    if custom && totals.values().any(|total| total.source_error().is_some()) {
+        return Err(bad("Source errors with custom subtotals are not modelled"));
+    }
+    if inner_sort {
+        let mut siblings = BTreeMap::<usize, Vec<f64>>::new();
+        for (path, total) in &row_totals[1] {
+            let number = match total.result("sum").core_ref() {
+                calc_value::CoreRef::Number(n) if n.is_finite() => n,
+                _ => return Err(bad("Nonnumeric inner value-sort totals are not modelled")),
+            };
+            siblings.entry(path[0]).or_default().push(number);
+        }
+        for values in siblings.values_mut() {
+            values.sort_by(f64::total_cmp);
+            if values.windows(2).any(|pair| pair[0] == pair[1]) {
+                return Err(bad("Ties in inner value sorts are not modelled"));
+            }
+        }
+    }
+    if super::records::show_all_rows_mode(table) {
+        if totals.is_empty() { return Err(bad("No selected source records are not modelled")); }
+        let combinations = row_levels[1].len().checked_add(1)
+            .and_then(|width| row_levels[0].len().checked_mul(width))
+            .filter(|&count| count <= 1_000_000).ok_or_else(|| bad("The pivot has too many row combinations"))?;
+        if combinations > 0 {
+            for outer in 0..row_levels[0].len() {
+                let prefix = vec![outer];
+                row_totals[0].entry(prefix.clone()).or_default();
+                let next = row_ids.len();
+                let key = *row_ids.entry(prefix).or_insert(next);
+                totals.entry((key, Vec::new(), 0)).or_default();
+                for inner in 0..row_levels[1].len() {
+                    let path = vec![outer, inner];
+                    row_totals[1].entry(path.clone()).or_default();
+                    let next = row_ids.len();
+                    let key = *row_ids.entry(path).or_insert(next);
+                    totals.entry((key, Vec::new(), 0)).or_default();
+                }
+            }
+        }
+    }
+    if super::records::show_all_mode(table) {
+        if totals.is_empty() { return Err(bad("No selected source records are not modelled")); }
+        for index in 0..levels[0].groups.len() { paths.insert(vec![index]); }
+    }
     if row_values.is_some() && totals.values().any(|total| total.source_error().is_some()) {
         return Err(bad("Source errors with Values on rows are not modelled"));
     }
@@ -459,7 +636,7 @@ pub(super) fn layout_columns(
         return Err(bad("This numeric input for the value function is not modelled"));
     }
     let mut columns = Vec::new();
-    if rows_only_values {
+    if rows_only {
         columns.push(ColumnEntry { path: Vec::new(), measure: 0, kind: "data" });
     } else {
         walk_axis(&mut ColumnWalk {
@@ -470,7 +647,7 @@ pub(super) fn layout_columns(
         }, &mut Vec::new())?;
     }
     let row_grand = truthy(table.attributes.get("colGrandTotals"), true);
-    if !values_only && !rows_only_values && truthy(table.attributes.get("rowGrandTotals"), true) {
+    if !values_only && !rows_only && truthy(table.attributes.get("rowGrandTotals"), true) {
         let column_measures = if row_values.is_some() { 1 } else { table.data_fields.len() };
         for measure in 0..column_measures {
             columns.push(ColumnEntry {
@@ -481,8 +658,8 @@ pub(super) fn layout_columns(
         }
     }
     let first = table.area.first();
-    let header = if values_only || rows_only_values { 1 } else { levels.len() as u32 + 1 };
-    let label_width = if tabular_values { row_fields.len() as u32 } else { 1 };
+    let header = if values_only || rows_only { 1 } else { levels.len() as u32 + 1 };
+    let label_width = if ((rows_only || (custom && values_only)) && form != Form::Compact) || tabular_values { row_fields.len() as u32 } else { 1 };
     let mut cells = BTreeMap::<(u32, u32), CalcValue>::new();
     let caption = |m: usize| {
         table.data_fields[m].name.clone().unwrap_or_else(|| {
@@ -506,14 +683,25 @@ pub(super) fn layout_columns(
         .get("grandTotalCaption")
         .map(String::as_str)
         .unwrap_or("Grand Total");
-    if tabular_values {
-        for (level, &field) in row_fields.iter().enumerate() {
-            let label = if field == usize::MAX { table.attributes.get("dataCaption").map(String::as_str).unwrap_or("Values") }
-                else { &cache.fields[field].name };
-            cells.insert((0, level as u32), plain_text(label));
+    if rows_only {
+        if form == Form::Compact {
+            cells.insert((0, 0), plain_text(table.attributes.get("rowHeaderCaption").map(String::as_str).unwrap_or("Row Labels")));
+        } else {
+            for (level, &field) in row_fields.iter().enumerate() {
+                let label = if field == usize::MAX { table.attributes.get("dataCaption").map(String::as_str).unwrap_or("Values") }
+                    else { &cache.fields[field].name };
+                cells.insert((0, level as u32), plain_text(label));
+            }
         }
-    } else if values_only || rows_only_values {
-        cells.insert((0, 0), plain_text(row_caption));
+        if row_values.is_none() { cells.insert((0, label_width), plain_text(&caption(0))); }
+    } else if values_only {
+        if custom && form != Form::Compact {
+            for (level, &field) in row_fields.iter().enumerate() {
+                cells.insert((0, level as u32), plain_text(&cache.fields[field].name));
+            }
+        } else {
+            cells.insert((0, 0), plain_text(row_caption));
+        }
     } else {
         if table.data_fields.len() == 1 { cells.insert((0, 0), plain_text(&caption(0))); }
         let column_caption = table.attributes.get("colHeaderCaption").map(String::as_str)
@@ -522,11 +710,11 @@ pub(super) fn layout_columns(
         cells.insert((header - 1, 0), plain_text(row_caption));
     }
     let mut col_items = Vec::new();
-    if rows_only_values { col_items.push(axis_item("data", 0, Vec::new())); }
+    if rows_only { col_items.push(axis_item("data", 0, Vec::new())); }
     let mut previous = Vec::new();
     for (i, entry) in columns.iter().enumerate() {
-        if rows_only_values { continue; }
-        let column = i as u32 + 1;
+        if rows_only { continue; }
+        let column = i as u32 + if values_only { label_width } else { 1 };
         let repeat = if entry.kind == "data" {
             previous
                 .iter()
@@ -605,12 +793,15 @@ pub(super) fn layout_columns(
         }
         let is_row = base == row;
         if !is_row && levels[0].field != Some(base) { return Err(bad("Unsupported value calculation base field")); }
+        if !is_row && matches!(show, "rankAscending" | "rankDescending") {
+            return Err(bad("Column-based ranks are not modelled"));
+        }
         let groups = if is_row { &rows } else { &levels[0].groups };
-        if show == "runTotal" && table.data_fields[0].subtotal != "sum" {
+        if matches!(show, "runTotal" | "percentRunTotal") && table.data_fields[0].subtotal != "sum" {
             return Err(bad("Running totals for this value function are not modelled"));
         }
         let base_index = match item {
-            _ if show == "runTotal" => None,
+            _ if matches!(show, "runTotal" | "percentRunTotal" | "rankAscending" | "rankDescending") => None,
             1_048_828 | 1_048_829 => None,
             _ => {
                 let shared = table.fields[base].items.get(item as usize).and_then(|item| item.index)
@@ -635,8 +826,27 @@ pub(super) fn layout_columns(
         .map(|(i, _)| i).collect();
     let row_order: BTreeMap<_, _> = visible_rows.iter().enumerate().map(|(n, &i)| (i, n)).collect();
     let column_order: BTreeMap<_, _> = visible_columns.iter().enumerate().map(|(n, &i)| (i, n)).collect();
+    let mut multiple_running = BTreeMap::<usize, CalcValue>::new();
+    if multiple_displays {
+        let denominator = totals.get(&(usize::MAX, Vec::new(), 0)).map(|total| total.result("sum"));
+        if !denominator.as_ref().is_some_and(|value| matches!(value.core_ref(),
+            calc_value::CoreRef::Number(n) if n.is_finite() && n != 0.0))
+            || totals.values().any(|total| total.source_error().is_some()) {
+            return Err(bad("Multiple displays with zero or error totals are not modelled"));
+        }
+        let mut sum = 0.0;
+        for &row in &visible_rows {
+            let value = totals.get(&(row, vec![1], 1)).map(|total| total.result("sum"));
+            match value.as_ref().map(CalcValue::core_ref) {
+                Some(calc_value::CoreRef::Number(n)) if n.is_finite() => sum += n,
+                _ => return Err(bad("A nonnumeric running total is not modelled")),
+            }
+            if !sum.is_finite() { return Err(bad("A nonfinite running total is not modelled")); }
+            multiple_running.insert(row, CalcValue::number(sum));
+        }
+    }
     let mut running = BTreeMap::<(usize, Vec<usize>), CalcValue>::new();
-    if let Some((base_is_row, _, _)) = relative_base.filter(|_| show == "runTotal") {
+    if let Some((base_is_row, _, _)) = relative_base.filter(|_| matches!(show, "runTotal" | "percentRunTotal")) {
         let numeric = |row, path: Vec<usize>| totals.get(&(row, path, 0))
             .map(|total| total.result("sum")).and_then(|value| match value.core_ref() {
                 calc_value::CoreRef::Number(n) => Some(n), _ => None,
@@ -662,6 +872,36 @@ pub(super) fn layout_columns(
             }
         }
     }
+    if matches!(show, "rankAscending" | "rankDescending") {
+        for entry in &columns {
+            let mut values = Vec::new();
+            for &row in &visible_rows {
+                if let Some(total) = totals.get(&(row, entry.path.clone(), 0)) {
+                    match total.result(&table.data_fields[0].subtotal).core_ref() {
+                        calc_value::CoreRef::Number(n) if n.is_finite() => values.push(n),
+                        calc_value::CoreRef::Empty => {},
+                        _ => return Err(bad("Nonnumeric rank values are not modelled")),
+                    }
+                }
+            }
+            values.sort_by(f64::total_cmp);
+            if values.windows(2).any(|pair| pair[0] == pair[1]) {
+                return Err(bad("Tied ranks are not modelled"));
+            }
+        }
+    }
+    if show == "percentRunTotal" {
+        let (base_is_row, _, _) = relative_base.ok_or_else(|| bad("Missing running-total base"))?;
+        let keys: Vec<_> = if base_is_row {
+            columns.iter().map(|entry| (usize::MAX, entry.path.clone(), 0)).collect()
+        } else {
+            visible_rows.iter().copied().chain(std::iter::once(usize::MAX)).map(|row| (row, Vec::new(), 0)).collect()
+        };
+        if keys.iter().any(|key| totals.get(key).is_none_or(|total| !matches!(total.result("sum").core_ref(),
+            calc_value::CoreRef::Number(n) if n.is_finite() && n != 0.0))) {
+            return Err(bad("Running percentages with zero or nonnumeric totals are not modelled"));
+        }
+    }
     if percent || indexed {
         let valid = |total: &Total| matches!(total.result(&table.data_fields[0].subtotal).core_ref(),
             calc_value::CoreRef::Number(n) if n != 0.0);
@@ -677,12 +917,46 @@ pub(super) fn layout_columns(
     }
     let displayed = |total: &Total, row: usize, entry: &ColumnEntry| -> CalcValue {
         let value = total.result(&table.data_fields[entry.measure].subtotal);
+        if multiple_displays {
+            if entry.measure == 1 {
+                return multiple_running.get(&row).cloned().unwrap_or_else(CalcValue::empty);
+            }
+            return match (value.core_ref(), totals[&(usize::MAX, Vec::new(), 0)].result("sum").core_ref()) {
+                (calc_value::CoreRef::Number(n), calc_value::CoreRef::Number(d)) => {
+                    let ratio = n / d;
+                    if ratio.is_finite() { CalcValue::number(ratio) } else { CalcValue::error(WorksheetErrorCode::Num) }
+                }
+                _ => CalcValue::empty(),
+            };
+        }
         if let Some((base_is_row, base_item, fixed)) = relative_base {
             if (base_is_row && row == usize::MAX) || (!base_is_row && entry.kind == "grand") {
                 return CalcValue::empty();
             }
-            if show == "runTotal" {
-                return running.get(&(row, entry.path.clone())).cloned().unwrap_or_else(CalcValue::empty);
+            if matches!(show, "rankAscending" | "rankDescending") {
+                let n = match value.core_ref() {
+                    calc_value::CoreRef::Number(n) => n,
+                    _ => return CalcValue::empty(),
+                };
+                let rank = 1 + visible_rows.iter().filter(|&&other| totals.get(&(other, entry.path.clone(), 0))
+                    .is_some_and(|total| match total.result(&table.data_fields[0].subtotal).core_ref() {
+                        calc_value::CoreRef::Number(candidate) => if show == "rankAscending" { candidate < n } else { candidate > n },
+                        _ => false,
+                    })).count();
+                return CalcValue::number(rank as f64);
+            }
+            if matches!(show, "runTotal" | "percentRunTotal") {
+                let sum = running.get(&(row, entry.path.clone())).cloned().unwrap_or_else(CalcValue::empty);
+                if show == "runTotal" { return sum; }
+                let denominator = if base_is_row { (usize::MAX, entry.path.clone(), 0) }
+                    else { (row, Vec::new(), 0) };
+                return match (sum.core_ref(), totals[&denominator].result("sum").core_ref()) {
+                    (calc_value::CoreRef::Number(n), calc_value::CoreRef::Number(d)) => {
+                        let ratio = n / d;
+                        if ratio.is_finite() { CalcValue::number(ratio) } else { CalcValue::error(WorksheetErrorCode::Num) }
+                    },
+                    _ => CalcValue::empty(),
+                };
             }
             let current = if base_is_row { row } else { entry.path[0] };
             let visible = if base_is_row { &visible_rows } else { &visible_columns };
@@ -758,17 +1032,15 @@ pub(super) fn layout_columns(
     let mut axis = Vec::new();
     let mut r = header;
     if multiple_rows {
-        let mut subtotal_on = vec![true; row_fields.len()];
-        if let Some(level) = row_values { if level > 0 { subtotal_on[level - 1] = false; } else { subtotal_on[0] = false; } }
         let mut walk = Walk {
             levels: &row_levels,
             totals: &row_totals,
             position: &row_positions,
-            form: if tabular_values { Form::Tabular } else { Form::Compact },
+            form,
             subtotal_top,
             subtotal_on: &subtotal_on,
             blank_after: &blank_after,
-            fill_down: false,
+            fill_down,
             kind: &table.data_fields[0].subtotal,
             value_column: label_width,
             r: header,
@@ -777,6 +1049,9 @@ pub(super) fn layout_columns(
             axis: Vec::new(),
             row_paths: Vec::new(),
             collect_paths: true,
+            custom_subtotals: custom,
+            sort_inner_ascending: inner_sort.then(|| table.fields[row_fields[1]].attributes.get("sortType")
+                .is_some_and(|sort| sort == "ascending")),
             values_level: row_values,
             value_captions: &value_captions,
         };
@@ -784,12 +1059,12 @@ pub(super) fn layout_columns(
         for ((row, column), value) in walk.cells {
             if column < label_width { cells.insert((row, column), value); }
         }
-        for (output_row, path, subtotal_measure) in walk.row_paths {
+        for (output_row, path, subtotal_measure, subtotal_kind) in walk.row_paths {
             let key = row_ids[&path];
             for (col, entry) in columns.iter().enumerate() {
                 let measure = subtotal_measure.or_else(|| row_values.and_then(|level| path.get(level)).copied()).unwrap_or(entry.measure);
                 if let Some(total) = totals.get(&(key, entry.path.clone(), measure)) {
-                    cells.insert((output_row, col as u32 + label_width), total.result(&table.data_fields[measure].subtotal));
+                    cells.insert((output_row, col as u32 + label_width), total.result(subtotal_kind.unwrap_or(&table.data_fields[measure].subtotal)));
                 }
             }
         }
@@ -797,7 +1072,7 @@ pub(super) fn layout_columns(
         r = walk.r;
     } else {
         for (i, group) in rows.iter().enumerate().filter(|(_, g)| !g.hidden) {
-            if !totals.contains_key(&(i, Vec::new(), 0)) {
+            if !totals.contains_key(&(i, Vec::new(), 0)) && !super::records::show_all_mode(table) {
                 continue;
             }
             cells.insert((r, 0), group_label(group)?);
@@ -819,7 +1094,9 @@ pub(super) fn layout_columns(
         // carries the source error from Sum into its Count and Count Numbers cells as well.
         let common_error = if values_only && table.data_fields[0].subtotal == "sum"
             && table.data_fields.iter().all(|d| d.field == table.data_fields[0].field) {
-            totals.get(&(usize::MAX, Vec::new(), 0)).and_then(Total::source_error)
+            totals.get(&(usize::MAX, Vec::new(), 0)).and_then(|total| match total.result("sum").core_ref() {
+                calc_value::CoreRef::Error(error) => Some(error), _ => None,
+            })
         } else { None };
         let grand_measures = if row_values.is_some() { table.data_fields.len() } else { 1 };
         for measure in 0..grand_measures {
@@ -863,17 +1140,15 @@ pub(super) fn layout_columns(
     next.location
         .insert("firstDataRow".into(), header.to_string());
     next.location.insert("firstDataCol".into(), label_width.to_string());
-    let rebuild = |field: usize, groups: &[Group], positions: &[Option<u32>]| {
-        let mut out = groups
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| positions[*i].is_some())
-            .map(|(_, g)| PivotFieldItem {
-                index: Some(g.shared),
-                kind: "data".into(),
-                hidden: false,
-            })
-            .collect::<Vec<_>>();
+    let rebuild = |field: usize, groups: &[Group], positions: &[Option<u32>], add_default: bool| {
+        let mut order: Vec<_> = (0..groups.len()).filter(|&i| positions[i].is_some()).collect();
+        order.sort_by_key(|&i| positions[i]);
+        let mut out = order.into_iter().map(|i| PivotFieldItem {
+            index: Some(groups[i].shared),
+            kind: "data".into(),
+            hidden: false,
+            missing: false,
+        }).collect::<Vec<_>>();
         out.extend(
             table.fields[field]
                 .items
@@ -881,23 +1156,35 @@ pub(super) fn layout_columns(
                 .filter(|i| i.hidden)
                 .cloned(),
         );
-        out.push(PivotFieldItem {
-            index: None,
-            kind: "default".into(),
-            hidden: false,
-        });
+        if retains_missing {
+            let present: BTreeSet<_> = groups.iter().map(|group| group.shared).collect();
+            out.extend(table.fields[field].items.iter().filter(|item| item.kind == "data"
+                && item.index.is_some_and(|index| !present.contains(&index))).cloned().map(|mut item| {
+                    item.missing = true;
+                    item
+                }));
+        }
+        if custom && field == row_fields[0] {
+            out.extend(table.fields[field].items.iter().filter(|item| item.kind != "data").cloned());
+        } else if add_default {
+            out.push(PivotFieldItem { index: None, kind: "default".into(), hidden: false, missing: false });
+        }
         out
     };
     for (level, &field) in row_fields.iter().enumerate() {
-        if field != usize::MAX { next.fields[field].items = rebuild(field, &row_levels[level], &row_positions[level]); }
+        if field != usize::MAX {
+            let add_default = if row_values.is_some() || !rows_only { true }
+                else if row_fields.len() == 1 { row_grand } else { subtotal_on[level] };
+            next.fields[field].items = rebuild(field, &row_levels[level], &row_positions[level], add_default);
+        }
     }
     for level in &levels {
         if let Some(field) = level.field {
-            next.fields[field].items = rebuild(field, &level.groups, &level.positions);
+            next.fields[field].items = rebuild(field, &level.groups, &level.positions, true);
         }
     }
     next.row_items = axis;
-    next.col_items = col_items;
+    if !rows_only { next.col_items = col_items; }
     for row in 0..r {
         for col in 0..(label_width + columns.len() as u32) {
             cells.entry((row, col)).or_insert_with(CalcValue::empty);

@@ -264,6 +264,37 @@ impl HostState {
             .map_err(|e| e.to_string())
     }
 
+    /// The value of formula text typed for a cell (`text` without its `=`) as the cell `anchor` would
+    /// read it, over the published values and the registered functions: the formula bar's F9 on a
+    /// part and its evaluation trace. Nothing is written; a cell being edited still has its old
+    /// content.
+    pub fn evaluate_formula_text(
+        &self,
+        text: &str,
+        anchor: CellKey,
+    ) -> Result<calc_value::CalcValue, String> {
+        if self.model.sheet_by_id(anchor.sheet()).is_none() {
+            return Err("The evaluation worksheet is unavailable".into());
+        }
+        let formula = calc_engine::DetachedFormula::compile_dynamic_with_bindings(
+            &self.model,
+            text,
+            anchor,
+            &self.user_function_bindings(),
+        )
+        .map_err(|e| e.to_string())?;
+        formula
+            .evaluate(&self.engine, &self.model, anchor)
+            .map_err(|e| match e {
+                // A typed refusal says what the engine does not do yet and which work owns it.
+                calc_engine::NotModeled::Evaluation(calc_fml::EvalFault::NotModelled {
+                    construct,
+                    owner,
+                }) => format!("Not evaluated here: {construct} ({owner})"),
+                other => other.to_string(),
+            })
+    }
+
     pub fn evaluate_name_with_evidence(
         &self,
         id: NameId,
