@@ -297,6 +297,7 @@ class ProtocolTests(unittest.TestCase):
             self.assertTrue(service.stop_requested(stop))
 
 
+@unittest.skipUnless(os.name == "nt", "Native-only: starts the Windows session host and tests Windows file-handle sharing")
 class SessionShutdownRequestTests(unittest.TestCase):
     """The session host in a private temporary directory; no Excel process is launched."""
 

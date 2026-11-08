@@ -9,7 +9,8 @@
 //! {"format": "dnacalc-capture-record", "version": 1,
 //!  "case": "<case id>", "source": "<content hash of the input workbook>",
 //!  "acquisition": {"kind": "live_capture" | "file_cache_replay"}
-//!               | {"kind": "legacy_evidence", "entry": "<entry of the legacy evidence record>"},
+//!               | {"kind": "legacy_evidence", "entry": "<entry of the legacy evidence record>"}
+//!               | {"kind": "function_questions", "entry": "<audited request-to-cell mapping>"},
 //!  "environment": null | {"excel_build": "...", "channel": "...", "compatibility": "...",
 //!                         "numeric_environment": "...", "settings": {"<name>": "<value>", ...}},
 //!  "sheets": [{"name": "Sheet1", "visibility": "visible" | "hidden" | "very_hidden"}, ...],
@@ -63,8 +64,9 @@ use crate::value::{CalcValue, ExcelText, MAX_COLUMNS, MAX_ROWS, NumericTargetId}
 use std::fmt;
 
 pub const CAPTURE_FORMAT: &str = "dnacalc-capture-record";
-/// The version [`CaptureRecord::encode`] writes. The decoder also reads version 1, which has no
-/// session.
+/// The worksheet-capture version. Audited function questions use version 3,
+/// with formula text and a request mapping, and no workbook session. Historical
+/// version 1 remains read-only.
 pub const CAPTURE_VERSION: u64 = 2;
 
 /// A cell named by its sheet's name and a 1-based row and column within Excel's grid.
@@ -183,6 +185,11 @@ pub enum Acquisition {
     /// Converted from an entry of a legacy evidence record (such as
     /// `migration/evidence/oxfunc-smart-fuzzer.json`), whose label decides what it may certify.
     LegacyEvidence { entry: String },
+    /// Raw scalar calls from the existing Excel question worker, mapped to
+    /// dependency-free formula cells after their numeric operands were audited.
+    /// `entry` identifies the retained request/readback-to-cell mapping. No
+    /// workbook-open, saved-package or round-trip observation is implied.
+    FunctionQuestions { entry: String },
 }
 
 impl Acquisition {
@@ -196,17 +203,23 @@ impl Acquisition {
             ("legacy_evidence", Some(entry)) => Ok(Self::LegacyEvidence {
                 entry: json::name(entry, &fields.at("entry"))?.to_owned(),
             }),
+            ("function_questions", Some(entry)) => Ok(Self::FunctionQuestions {
+                entry: json::name(entry, &fields.at("entry"))?.to_owned(),
+            }),
+            ("function_questions", None) => Err(DecodeError::new(
+                path, "is function_questions and has no member \"entry\"",
+            )),
             ("legacy_evidence", None) => Err(DecodeError::new(
                 path,
                 "is legacy_evidence and has no member \"entry\"",
             )),
             ("live_capture" | "file_cache_replay", Some(_)) => Err(DecodeError::new(
                 path,
-                format!("is {kind} and has the member \"entry\", which only legacy_evidence takes"),
+                format!("is {kind} and has the member \"entry\", which only imported observations take"),
             )),
             (other, _) => Err(DecodeError::new(
                 &fields.at("kind"),
-                format!("{other:?} is not live_capture, file_cache_replay or legacy_evidence"),
+                format!("{other:?} is not live_capture, file_cache_replay, legacy_evidence or function_questions"),
             )),
         }
     }
@@ -216,13 +229,14 @@ impl Acquisition {
             Acquisition::LiveCapture => "live_capture",
             Acquisition::FileCacheReplay => "file_cache_replay",
             Acquisition::LegacyEvidence { .. } => "legacy_evidence",
+            Acquisition::FunctionQuestions { .. } => "function_questions",
         }
     }
 
     /// The acquisition as the record and the report write it.
     pub(crate) fn out(&self) -> Out {
         let mut members = vec![("kind", Out::text(self.name()))];
-        if let Acquisition::LegacyEvidence { entry } = self {
+        if let Acquisition::LegacyEvidence { entry } | Acquisition::FunctionQuestions { entry } = self {
             members.push(("entry", Out::text(entry.as_str())));
         }
         Out::Object(members)
@@ -999,7 +1013,8 @@ pub struct CaptureRecord {
     pub sheets: Vec<SheetEntry>,
     pub formulas: Vec<FormulaCell>,
     pub observations: Vec<CellObservation>,
-    /// How the capture was taken: present in a version 2 record, `None` in a version 1 record.
+    /// The authored-workbook session: present in version 2, absent in historical
+    /// version 1 and in version 3's audited function-question mappings.
     pub session: Option<CaptureSession>,
 }
 
@@ -1057,7 +1072,8 @@ const VERSION_2_MEMBERS: [&str; 13] = [
 ];
 
 impl CaptureRecord {
-    /// The record in `bytes`, of version 1 or 2 (its JSON form, described in this module's
+    /// The record in `bytes`, of version 1 or 2, or version 3 for audited
+    /// function questions without an authored-workbook session (its JSON form, described in this module's
     /// documentation).
     pub fn decode(bytes: &[u8]) -> Result<CaptureRecord, DecodeError> {
         let root = json::parse(bytes, "capture")?;
@@ -1073,10 +1089,17 @@ impl CaptureRecord {
         let fields = match version {
             1 => Fields::new(&root, "capture", &VERSION_1_MEMBERS)?,
             2 => any,
+            3 => {
+                let acquisition = Fields::new(any.required("acquisition")?, &any.at("acquisition"), &["kind", "entry"])?;
+                if json::text(acquisition.required("kind")?, &acquisition.at("kind"))? != "function_questions" {
+                    return Err(DecodeError::new(&any.at("version"), "version 3 is only for function questions"));
+                }
+                Fields::new(&root, "capture", &VERSION_1_MEMBERS)?
+            }
             other => {
                 return Err(DecodeError::new(
                     &any.at("version"),
-                    format!("is {other}, expected 1 or {CAPTURE_VERSION}"),
+                    format!("is {other}, expected 1 or {CAPTURE_VERSION}, or 3 for function questions"),
                 ));
             }
         };
@@ -1084,6 +1107,10 @@ impl CaptureRecord {
         let source = json::name(fields.required("source")?, &fields.at("source"))?.to_owned();
         let acquisition =
             Acquisition::decode(fields.required("acquisition")?, &fields.at("acquisition"))?;
+        if (version == 3) != matches!(acquisition, Acquisition::FunctionQuestions { .. }) {
+            return Err(DecodeError::new(&fields.at("acquisition"),
+                "function_questions requires version 3, which has no workbook session"));
+        }
         let environment =
             ExcelEnvironment::decode(fields.required("environment")?, &fields.at("environment"))?;
 
@@ -1166,8 +1193,14 @@ impl CaptureRecord {
             &fields.at("observations"),
             &OBSERVATION_ORIGINS,
         )?;
+        if version == 3 && observations.iter().any(|o| !matches!(&o.observation, Observation::ExcelRaw(v) if representable(v) && v.as_array().is_none())) {
+            return Err(DecodeError::new(&fields.at("observations"), "function questions require raw scalar observations"));
+        }
 
-        let session = if version == 1 {
+        if version == 3 && formulas.iter().any(|f| f.formula.is_none() || f.dynamic_array || !matches!(f.kind, FormulaKind::Ordinary)) {
+            return Err(DecodeError::new(&formulas_at, "function questions require ordinary scalar formula text"));
+        }
+        let session = if version == 1 || version == 3 {
             None
         } else {
             Some(CaptureSession::decode(&fields)?)
@@ -1225,11 +1258,30 @@ impl CaptureRecord {
         session.failures = kept;
     }
 
-    /// The record as a version 2 JSON document (this module's documentation), members in the
-    /// order the documentation lists them. Refuses a record without a session (a version 1 record
-    /// is read, never written) and a raw observation of a value no cell holds (an omitted
+    /// The record as a version 2 JSON document, or version 3 for function questions, members in the
+    /// order the documentation lists them. Refuses a worksheet record without a session
+    /// (a version 1 record is read, never written) and a raw observation of a value no cell holds (an omitted
     /// argument or a reference), which the decoder would refuse.
     pub fn encode(&self) -> Result<String, EncodeError> {
+        if matches!(self.acquisition, Acquisition::FunctionQuestions { .. }) {
+            if self.session.is_some() || self.formulas.iter().any(|f| f.formula.is_none() || f.dynamic_array || !matches!(f.kind, FormulaKind::Ordinary)) {
+                return Err(EncodeError { message: "function questions have scalar formula text and no workbook session".into() });
+            }
+            if self.observations.iter().any(|o| !matches!(&o.observation, Observation::ExcelRaw(v) if representable(v) && v.as_array().is_none())) {
+                return Err(EncodeError { message: "function questions require raw scalar observations".into() });
+            }
+            return Ok(Out::Object(vec![
+                ("format", Out::text(CAPTURE_FORMAT)), ("version", Out::Unsigned(3)),
+                ("case", Out::text(&self.case)), ("source", Out::text(&self.source)),
+                ("acquisition", self.acquisition.out()),
+                ("environment", self.environment.as_ref().map_or(Out::Null, ExcelEnvironment::out)),
+                ("sheets", Out::Array(self.sheets.iter().map(|s| Out::Object(vec![
+                    ("name", Out::text(&s.name)), ("visibility", Out::text(s.visibility.name())),
+                ])).collect())),
+                ("formulas", Out::Array(self.formulas.iter().map(FormulaCell::out).collect())),
+                ("observations", Out::Array(self.observations.iter().map(CellObservation::out).collect())),
+            ]).document());
+        }
         let Some(session) = &self.session else {
             return Err(EncodeError {
                 message: format!(
@@ -1315,6 +1367,30 @@ impl CaptureRecord {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Question replies have their own acquisition label and no invented
+    /// workbook session. File-cache replay must continue to reject them.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn function_questions_keep_their_mapping_and_have_no_saved_workbook() {
+        let text = br#"{"format":"dnacalc-capture-record","version":3,"case":"questions",
+            "source":"section:sha256:example","acquisition":{"kind":"function_questions","entry":"sha256:audited-mapping"},
+            "environment":null,"sheets":[{"name":"Q","visibility":"visible"}],
+            "formulas":[{"sheet":"Q","row":1,"column":4,"kind":"ordinary","formula":"=1+1"}],
+            "observations":[{"sheet":"Q","row":1,"column":4,"excel_raw":{"number":"4000000000000000"}}]}"#;
+        let record = CaptureRecord::decode(text).unwrap();
+        assert_eq!(record.acquisition, Acquisition::FunctionQuestions { entry: "sha256:audited-mapping".into() });
+        assert!(record.session.is_none());
+        assert_eq!(CaptureRecord::decode(record.encode().unwrap().as_bytes()).unwrap(), record);
+        assert!(crate::file_cache_replay(&record, &crate::VerdictPolicy::default()).is_err());
+        let missing = String::from_utf8(text.to_vec()).unwrap().replace(
+            ",\"entry\":\"sha256:audited-mapping\"", "");
+        assert!(CaptureRecord::decode(missing.as_bytes()).is_err());
+        let original = String::from_utf8(text.to_vec()).unwrap();
+        assert!(CaptureRecord::decode(original.replace("\"version\":3", "\"version\":1").as_bytes()).is_err());
+        assert!(CaptureRecord::decode(original.replace("\"version\":3", "\"version\":2").as_bytes()).is_err());
+        assert!(CaptureRecord::decode(original.replace(",\"formula\":\"=1+1\"", "").as_bytes()).is_err());
+    }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

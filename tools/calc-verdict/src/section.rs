@@ -16,10 +16,10 @@
 //! - the sheet's position when it calls SHEET or SHEETS, and the list of every sheet when it calls
 //!   SHEETS() or INFO("numfile"), whose results depend on the whole workbook.
 //!
-//! A section capture is a CaptureRecord version 2 holding one sheet's inventory and observations
+//! A section capture is a CaptureRecord holding one sheet's inventory and observations
 //! ([`section_record`]); its `source` is the section key, and its session's input package names
 //! the package Excel opened, which may hold other sections, or other sections emptied. Its
-//! environment and session (Excel build, worker, saved package) are provenance; none of them
+//! environment and any session (Excel build, worker, saved package) are provenance; none of them
 //! decides whether the capture is valid. Only the key does.
 //!
 //! The package is read through its parts ([`stored_package_parts`] reads a package whose entries

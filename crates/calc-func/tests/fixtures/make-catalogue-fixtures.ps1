@@ -462,6 +462,12 @@ Write-Workbook (Join-Path $OutDir 'dcj9k_r21/oracle.xlsx') $questions
 $r22Questions = @(, @('dcj9k_r22', (New-OracleSheet @() (Get-SectionLines 'sheet-dcj9k_r22.txt' 'dcj9k_r22'))))
 Write-Workbook (Join-Path $OutDir 'dcj9k_r22/oracle.xlsx') $r22Questions
 
+# dc-j9k R38: measured ETS questions use the same generator and a separate
+# numeric workbook, preserving every existing SHEETS/INFO capture key.
+$r38Ets = @(, @('dcj9k_r38_ets', (New-OracleSheet @() (Get-SectionLines 'sheet-dcj9k_r38_ets.txt' 'dcj9k_r38_ets'))))
+$r38Ets += , @('prefix_metadata', (New-PrefixSheet (Get-SectionLines 'prefix-dcj9k_r38_ets.txt' 'dcj9k_r38_ets')))
+Write-Workbook (Join-Path $OutDir 'dcj9k_r38_ets/oracle.xlsx') $r38Ets
+
 # dc-b1l.6: every fn2 caller has a blank source sheet and a separate observer sheet.
 # Stored text comes from calc-doc's existing file_form serializer; the packet's authored
 # spelling, explicit form and caller remain alongside it in this section's layout.

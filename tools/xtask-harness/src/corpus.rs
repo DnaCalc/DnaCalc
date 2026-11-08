@@ -15,9 +15,9 @@
 //!    one taken now: a workbook whose committed capture is missing or of other bytes, and each
 //!    section with no capture of its current key, is counted as awaiting capture (its formula
 //!    cells, counted from the package), and `cargo xtask capture --pending` takes it. A sectioned
-//!    workbook is compared once per capture session its valid section captures come from, each
-//!    time with one record of that session's sections (`calc_verdict::merged_record`, written to
-//!    `<out>/workbooks/<name>/session-<n>.capture.json`), and the counts are added.
+//!    workbook is compared once per group of records from the same workbook session or audited
+//!    scalar question mapping (`calc_verdict::merged_record`), and the counts are added. Records
+//!    use `session-<n>.capture.json` or `questions-<n>.capture.json` below the workbook's output.
 //! 2. **Captures of a folder's workbooks, taken once and cached.** The cache (`--cache`, by default
 //!    `C:\Work\DnaCalc\corpus\captures-cache`, outside the repository) holds a capture record at
 //!    `<sha256 of the workbook>/<Excel build>.capture.json`, or, for a workbook captured under
@@ -66,7 +66,7 @@ use crate::capture::{accepted, repository_revision};
 use crate::corpus_summary::{Compared, NotCompared, Summary, Times, Workbook, read_triage};
 use crate::oracle_cases::{OracleCase, oracle_cases, package_parts, section_states, whole_state};
 use calc_oracle_excel::{CalculationPolicy, CaptureRequest, capture, windows_powershell};
-use calc_verdict::{CaptureRecord, sha256_hex};
+use calc_verdict::{Acquisition, CaptureRecord, sha256_hex};
 use calc_verdict::{merged_record, workbook_sections};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
@@ -1374,7 +1374,21 @@ fn awaiting(bytes: &[u8], reason: &str) -> Result<Compared, NotCompared> {
     Ok(compared)
 }
 
-/// Compares a workbook captured per section: each capture session's valid section captures
+fn section_group(record: &CaptureRecord) -> (String, String, String, Option<String>) {
+    let session = record.session.as_ref();
+    let path = record.environment.as_ref().and_then(|environment| {
+        environment.settings.iter().find(|(name, _)| name == "workbook_path")
+            .map(|(_, value)| value.clone())
+    }).unwrap_or_default();
+    let mapping = match &record.acquisition {
+        Acquisition::FunctionQuestions { entry } => Some(entry.clone()),
+        _ => None,
+    };
+    (session.map(|s| s.input_package.clone()).unwrap_or_default(),
+        session.map(|s| s.tool.clone()).unwrap_or_default(), path, mapping)
+}
+
+/// Compares a workbook captured per section: each session or scalar question mapping's valid records
 /// together, against one record of them, and every section with no valid capture counted as
 /// awaiting capture.
 fn sectioned_workbook(
@@ -1401,32 +1415,16 @@ fn sectioned_workbook(
             return;
         }
     };
-    // The valid captures by the session that took them: the package Excel opened, the capture
-    // tool and the workbook's path (which CELL("filename") reads).
-    let mut sessions: BTreeMap<(String, String, String), Vec<&CaptureRecord>> = BTreeMap::new();
+    // Keep the existing workbook-session identity; independent question mappings
+    // have no workbook session and must never inherit one another's acquisition.
+    let mut groups: BTreeMap<_, Vec<&CaptureRecord>> = BTreeMap::new();
     let mut compared = Compared::default();
     let mut awaiting_names = Vec::new();
     for state in &states {
         match &state.capture {
             Some(record) => {
-                let session = record.session.as_ref();
-                let path = record
-                    .environment
-                    .as_ref()
-                    .and_then(|environment| {
-                        environment
-                            .settings
-                            .iter()
-                            .find(|(name, _)| name == "workbook_path")
-                            .map(|(_, value)| value.clone())
-                    })
-                    .unwrap_or_default();
-                sessions
-                    .entry((
-                        session.map(|s| s.input_package.clone()).unwrap_or_default(),
-                        session.map(|s| s.tool.clone()).unwrap_or_default(),
-                        path,
-                    ))
+                groups
+                    .entry(section_group(record))
                     .or_default()
                     .push(record);
             }
@@ -1449,11 +1447,13 @@ fn sectioned_workbook(
         return;
     }
     let mut compare_seconds = 0.0;
-    for (n, records) in sessions.values().enumerate() {
+    for (n, records) in groups.values().enumerate() {
         let Some(merged) = merged_record(records, &case.case, &format!("sha256:{sha256}")) else {
             continue;
         };
-        let path = dir.join(format!("session-{}.capture.json", n + 1));
+        let kind = if matches!(merged.acquisition, Acquisition::FunctionQuestions { .. }) { "questions" } else { "session" };
+        let stem = format!("{kind}-{}", n + 1);
+        let path = dir.join(format!("{stem}.capture.json"));
         let written = merged
             .encode()
             .map_err(|e| e.to_string())
@@ -1462,7 +1462,7 @@ fn sectioned_workbook(
             workbook.outcome = Err(NotCompared {
                 stage: "capture".to_owned(),
                 reason: format!(
-                    "the record of capture session {} cannot be written: {e}",
+                    "the record of comparison group {} cannot be written: {e}",
                     n + 1
                 ),
             });
@@ -1474,7 +1474,7 @@ fn sectioned_workbook(
             program,
             entry,
             Some(&path),
-            &dir.join(format!("session-{}", n + 1)),
+            &dir.join(&stem),
             &bounded_args,
             program_digest,
             sha256,
@@ -1509,9 +1509,12 @@ fn sectioned_workbook(
         );
     }
     let captured = states.iter().filter(|s| s.capture.is_some()).count();
+    let with_sessions = groups.values().filter(|records| records[0].session.is_some()).count();
+    let question_maps = groups.values().filter(|records|
+        matches!(records[0].acquisition, Acquisition::FunctionQuestions { .. })).count();
     workbook.capture = Some(format!(
-        "{captured} committed section captures from {} capture session(s); {} section(s) awaiting capture{}",
-        sessions.len(),
+        "{captured} committed section records in {} comparison group(s): {with_sessions} with workbook sessions, {question_maps} with scalar question mappings; {} section(s) awaiting capture{}",
+        groups.len(),
         awaiting_names.len(),
         if awaiting_names.is_empty() {
             String::new()

@@ -9,13 +9,15 @@ description = "DNA Calc on the Windows desktop: the page in WebView2 over the na
 [package.metadata.dnacalc]
 portability = "native-only"
 
+[dependencies]
+calc-func = { path = "../../crates/calc-func" }
+
 [target.'cfg(windows)'.dependencies]
 calc-addin-host = { path = "../../crates/calc-addin-host" }
 calc-platform-desktop = { path = "../../platform/calc-platform-desktop" }
 calc-xll-host = { path = "../../crates/calc-xll-host" }
 calc-xll-abi = { path = "../../crates/calc-xll-abi" }
 calc-value = { path = "../../crates/calc-value" }
-calc-func = { path = "../../crates/calc-func" }
 calc-host = { path = "../../crates/calc-host" }
 serde_json = "=1.0.154"
 # The app mode hosts the page in WebView2 over the native workbook worker (M2 of the grid design).

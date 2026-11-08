@@ -5175,6 +5175,11 @@
  {"path": "crates/calc-func/tests/fixtures/import/files/utf16.csv", "class": "own-work", "reason": "a small input file written by this project for the IMPORTCSV and IMPORTTEXT measurements (dc-z8c1)"},
  {"path": "crates/calc-func/tests/fixtures/import/files/utf16be.csv", "class": "own-work", "reason": "a small input file written by this project for the IMPORTCSV and IMPORTTEXT measurements (dc-z8c1)"},
  {"path": "crates/calc-func/tests/fixtures/import/files/utf8acc.csv", "class": "own-work", "reason": "a small input file written by this project for the IMPORTCSV and IMPORTTEXT measurements (dc-z8c1)"},
- {"path": "crates/calc-func/tests/fixtures/import/files/wide.csv", "class": "own-work", "reason": "a small input file written by this project for the IMPORTCSV and IMPORTTEXT measurements (dc-z8c1)"}
+ {"path": "crates/calc-func/tests/fixtures/import/files/wide.csv", "class": "own-work", "reason": "a small input file written by this project for the IMPORTCSV and IMPORTTEXT measurements (dc-z8c1)"},
+  {"path": "crates/calc-func/src/catalogue/statistics/ets.rs", "class": "own-work", "reason": "Original MIT ETS numeric-vector preparation and exact zero-residual arithmetic, from Excel20527 question-service measurements; dc-j9k R38. No third-party implementation copied."},
+  {"path": "crates/calc-func/tests/fixtures/dcj9k_r38_ets/oracle.xlsx", "class": "own-work", "reason": "Original MIT ETS numeric-question workbook from the existing catalogue generator, preserving existing capture keys; dc-j9k R38."},
+  {"path": "crates/calc-func/tests/fixtures/dcj9k_r38_ets/sheet-dcj9k_r38_ets.txt", "class": "own-work", "reason": "Original MIT selection of four measured scalar ETS calls per retained design case; dc-j9k R38."},
+  {"path": "crates/calc-func/tests/captures/dcj9k_r38_ets/sections/dcj9k_r38_ets.capture.json", "class": "own-work", "reason": "Original Excel20527 raw question observations imported through the canonical codec, with numeric-operand and request/readback mapping retained in Research evidence/round38; no workbook round trip claimed."},
+ {"path": "crates/calc-func/tests/fixtures/dcj9k_r38_ets/prefix-dcj9k_r38_ets.txt", "class": "own-work", "reason": "Original MIT saved-file prefix questions for the four ETS surfaces; explicitly awaiting an Excel saved-formula capture, separate from numeric question observations."}
  ]
 }

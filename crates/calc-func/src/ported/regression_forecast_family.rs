@@ -479,7 +479,7 @@ fn prediction_input_from_optional(
     }
 }
 
-/// The least-squares fit of LINEST, LOGEST, TREND and GROWTH as Excel computes it (dc-j9k,
+/// The current least-squares model of LINEST, LOGEST, TREND and GROWTH (dc-j9k,
 /// identified on captured coefficients and predictions of one, two and three predictors, with and
 /// without a constant; the catalogue oracle's sheet dcj9k_regression holds them):
 ///
@@ -509,6 +509,11 @@ fn prediction_input_from_optional(
 ///    kept one a ratio of at least 2^-41, four of them exactly 2^-41. The sum of squares the
 ///    columns are reflected with, recomputed from the entries, places those 96 fits on the wrong
 ///    side 11 times, so the test reads the running difference, not that sum.
+/// R38's separate 216-case rank-deficient design exposes an unresolved interaction
+/// with an added zero predictor: degrees of freedom agree on 123 cases, including
+/// all 108 without that predictor. Do not generalise the zero-column rule above
+/// beyond the recorded fits. Private QR, residuals and zero-column handling remain
+/// incomplete; a rank-only adjustment cannot establish the whole fit.
 /// The collinearity test's bound on a column's remaining over its initial sum of squares (5 above).
 const COLLINEAR_REMAINDER: f64 = 1.0 / (1u64 << 41) as f64;
 

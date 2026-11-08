@@ -23,7 +23,9 @@
 //! - [`CaptureSession`]: what a version 2 CaptureRecord adds about how a live capture was taken
 //!   (authored revision and operations, the [`CalculationContext`] fingerprint, the capture
 //!   tool's revision, package hashes, failures, shared-formula ranges and the save and reopen
-//!   round trip). [`CaptureRecord::encode`] writes version 2; the decoder reads versions 1 and 2.
+//!   round trip). [`CaptureRecord::encode`] writes version 2 for those sessions and version 3 for
+//!   audited scalar function questions, which claim no workbook round trip. Historical version 1
+//!   remains readable.
 //! - [`file_cache_replay`]: a version 2 live capture judged against the file-cache reading of the
 //!   package Excel saved during it, and [`MissingCapture`], the typed answer for a capture
 //!   artifact path whose capture has not been taken.
