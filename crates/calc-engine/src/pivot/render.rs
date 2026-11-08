@@ -9,10 +9,6 @@ pub fn layout(table: &PivotTable, cache: &PivotCache) -> Result<PivotLayout, Piv
         .snapshot
         .as_ref()
         .ok_or_else(|| bad("No explicit source refresh has run"))?;
-    if table.fields.iter().any(|field| field.attributes.iter().any(|(name, value)|
-        name.ends_with("Subtotal") && name != "defaultSubtotal" && truthy(Some(value), false))) {
-        return Err(bad("Custom subtotals are not modelled"));
-    }
     if !table.unsupported.is_empty() || !cache.unsupported.is_empty() {
         return Err(bad(
             "Grouped, calculated, filtered or extended pivot layouts are not modelled",
