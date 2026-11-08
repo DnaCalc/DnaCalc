@@ -23,6 +23,7 @@ static class Program
     static bool WatchdogFired;
     static int Batches;
     static string Stage = "";
+    static long LastVerified;
 
     static void Send(char type, string json)
     {
@@ -121,6 +122,9 @@ static class Program
         try
         {
             Launch++;
+            // Test hook: the named worker's first start fails, so the pool's "down, no retry loop" path can be exercised.
+            if (Environment.GetEnvironmentVariable("TOUCHSTONE_TEST_FAIL_START") == Name)
+                throw new InvalidOperationException("start refused by TOUCHSTONE_TEST_FAIL_START");
             X = OwnedExcel.Start(Root, Name, Launch, Mt, StartupSeconds);
             WatchdogFired = false;
             Warm();
@@ -238,6 +242,22 @@ static class Program
 
     static dynamic Rng(dynamic sheet, int r0, int c0, int r1, int c1) => sheet.Range[ColName(c0) + r0 + ":" + ColName(c1) + r1];
 
+    /// <summary>Merges regions of one column that touch vertically into single runs.</summary>
+    static List<(int r, int c, int n, int m)> MergeRuns(List<(int r, int c, int n, int m)> regions)
+    {
+        var merged = new List<(int r, int c, int n, int m)>();
+        foreach (var x in regions.OrderBy(x => x.c).ThenBy(x => x.r))
+        {
+            if (merged.Count > 0)
+            {
+                var last = merged[^1];
+                if (last.c == x.c && last.m == x.m && last.r + last.n == x.r) { merged[^1] = (last.r, last.c, last.n + x.n, last.m); continue; }
+            }
+            merged.Add(x);
+        }
+        return merged;
+    }
+
     sealed class Block { public int Row, Col; public object[,] Data; }
 
     static void HandleBatch(string body)
@@ -249,11 +269,13 @@ static class Program
         bool echo = req.TryGetValue("echo", out var ec) && ec is true;
         bool serial = req.TryGetValue("serial", out var se) && se is true;
         var timing = new Dictionary<string, object>();
+        double gcBefore = GC.GetTotalPauseDuration().TotalMilliseconds;
         var result = new Dictionary<string, object> { ["id"] = id, ["env_id"] = X.EnvId, ["worker"] = Name, ["batch"] = ++Batches };
         try
         {
             // Drift before: recycle and report; the broker re-queues nothing it has not been told about.
-            var before = X.Fingerprint();
+            // The previous batch ended with a verified fingerprint; only after an idle spell is it read again.
+            var before = DateTime.UtcNow.Ticks - LastVerified > TimeSpan.TicksPerSecond * 5 ? X.Fingerprint() : X.Baseline;
             if (before != X.Baseline)
             {
                 result["error"] = "fingerprint-drift-before";
@@ -266,17 +288,23 @@ static class Program
             Interlocked.Exchange(ref DeadlineTicks, DateTime.UtcNow.AddMilliseconds(deadlineMs).Ticks);
             var groups = EvaluateBatch((List<object>)req["groups"], echo, serial, timing);
             Interlocked.Exchange(ref DeadlineTicks, 0);
-            var after = X.Fingerprint();
-            if (after != X.Baseline)
+            var fpWatch = Stopwatch.StartNew();
+            bool quick = Batches % 20 != 0;
+            var after = X.Fingerprint(quick);
+            var expected = quick ? X.QuickBaseline() : X.Baseline;
+            timing["fingerprint_ms"] = Math.Round(fpWatch.Elapsed.TotalMilliseconds, 3);
+            LastVerified = DateTime.UtcNow.Ticks;
+            if (after != expected)
             {
                 result["error"] = "fingerprint-drift-after";
-                result["detail"] = "expected " + X.Baseline + " got " + after;
+                result["detail"] = "expected " + expected + " got " + after;
                 Send('R', Json.Write(result));
                 Recycle("drift after");
                 return;
             }
             result["groups"] = groups;
             timing["total_ms"] = Math.Round(sw.Elapsed.TotalMilliseconds, 3);
+            timing["gc_pause_ms"] = Math.Round(GC.GetTotalPauseDuration().TotalMilliseconds - gcBefore, 3);
             result["timing"] = timing;
             Send('R', Json.Write(result));
         }
@@ -312,16 +340,22 @@ static class Program
                 N = (int)(long)raw["n"],
                 V = (List<object>)raw["v"],
                 Xsel = raw.TryGetValue("x", out var xs) ? (List<object>)xs : null,
-                Row0 = row,
             };
             g.TokenCol = new int[g.Tokens.Length];
             int w = 0;
             for (int t = 0; t < g.Tokens.Length; t++) { g.TokenCol[t] = w; w += TokenWidth(g.Tokens[t]); }
             g.Width = w;
-            row += g.N;
             maxCols = Math.Max(maxCols, 1 + w);
             groups.Add(g);
         }
+        // Layout: small groups first, clustered by which columns hold text (fewer NumberFormat runs and one
+        // formula array for all of them), then the large groups, each of which gets one fill assignment.
+        const int SmallGroup = 32;
+        string Signature(Group g) => string.Concat(g.Tokens.Select(t => t == "s" || t == "S" ? "t" : t == "e" ? "e" : "."));
+        var layout = groups.Where(g => g.N < SmallGroup).OrderBy(g => Signature(g), StringComparer.Ordinal)
+            .Concat(groups.Where(g => g.N >= SmallGroup)).ToList();
+        foreach (var g in layout) { g.Row0 = row; row += g.N; }
+        int smallRows = layout.Where(g => g.N < SmallGroup).Sum(g => g.N);
         int totalRows = row - 1;
         if (totalRows > 1000000) throw new InvalidOperationException("batch-too-large");
         dynamic sheet = X.SheetS;
@@ -362,12 +396,15 @@ static class Program
                 }
             }
             Stage = "args block";
-            foreach (var (r, c, n, m) in textRegions) Rng(sheet, r, 2 + c, r + n - 1, 2 + c + m - 1).NumberFormat = "@";
+            foreach (var (r, c, n, m) in MergeRuns(textRegions)) Rng(sheet, r, 2 + c, r + n - 1, 2 + c + m - 1).NumberFormat = "@";
             var cmp = (object[,])all.Clone();
-            foreach (var (r, c, n, m) in errorRegions)
+            var errorRuns = MergeRuns(errorRegions);
+            foreach (var (r, c, n, m) in errorRuns)
                 for (int i = 0; i < n; i++) all[r - 1 + i, c] = null;
+            timing["build_ms"] = Math.Round(sw.Elapsed.TotalMilliseconds, 3);
             Rng(sheet, 1, 2, totalRows, maxCols).Value2 = all;
-            foreach (var (r, c, n, m) in errorRegions)
+            timing["value2_ms"] = Math.Round(sw.Elapsed.TotalMilliseconds, 3);
+            foreach (var (r, c, n, m) in errorRuns)
             {
                 var lit = new object[n, 1];
                 for (int i = 0; i < n; i++) lit[i, 0] = "=" + Names[((ErrorWrapper)cmp[r - 1 + i, c]).ErrorCode];
@@ -421,8 +458,16 @@ static class Program
             }
         }
         timing["args_ms"] = Math.Round(sw.Elapsed.TotalMilliseconds, 3);
-        // 2. formulas, one assignment per group (per-row only where a literal is part of the text)
-        foreach (var g in groups)
+        // 2. formulas: one array assignment for all small groups, one fill assignment per large group
+        if (smallRows > 0)
+        {
+            Stage = "formulas small groups";
+            var fs = new object[smallRows, 1];
+            foreach (var g in layout.Where(g => g.N < SmallGroup))
+                for (int i = 0; i < g.N; i++) fs[g.Row0 - 1 + i, 0] = Formula(g, i);
+            Rng(sheet, 1, 1, smallRows, 1).Formula2R1C1 = fs;
+        }
+        foreach (var g in layout.Where(g => g.N >= SmallGroup))
         {
             Stage = "formula " + g.F + " rows " + g.Row0 + "+" + g.N + " " + Formula(g, 0);
             var range = Rng(sheet, g.Row0, 1, g.Row0 + g.N - 1, 1);

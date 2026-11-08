@@ -74,7 +74,7 @@ def build_sample(state, per_function=33, target_functions=150, target_calls=5000
 
 def _split(function, have):
     for group in protocol.rows_to_groups(function, have["rows"], have["x"]):
-        positions = group.get("i") or list(range(group["n"]))
+        positions = list(protocol.positions(group))
         group["_expected"] = {"ty": "", "v": []}
         for p in positions:
             letter, value = protocol.typed_to_answer(have["answers"][p])
@@ -82,6 +82,7 @@ def _split(function, have):
             group["_expected"]["v"].append(value)
         # keep positions local to this group so the sample can be replayed by itself
         group.pop("i", None)
+        group.pop("o", None)
         yield group, positions
 
 

@@ -143,3 +143,87 @@ def validate(request, names, request_id):
     if total > 200000:
         raise ValueError("batch exceeds 200000 scalar arguments")
     return request
+
+
+# --- touchstone/1 admission plug-in (broker --admission policy:admission) -----------------------------------
+MAX_GROUP_CALLS = 250000
+TOKENS = re.compile(r"n|s|S|b|B|e|z|a[0-9]+x[0-9]+")
+BAD_TEXT = re.compile(r'[\\/:\[\]!|\x00-\x1f]')
+
+
+class Admission:
+    """The same fail-closed rules as validate(), for columnar groups."""
+
+    def __init__(self, root):
+        self.names = catalogue_names(root)
+
+    def v1(self, raw, request_id):
+        request = validate(decode(raw), self.names, request_id)
+        return request["function"], request["rows"], request.get("result_index")
+
+    def check(self, group):
+        name = group["f"]
+        if not isinstance(name, str) or name not in self.names:
+            raise ValueError("function is outside the service's safe catalogue subset")
+        n = group["n"]
+        if type(n) is not int or not 1 <= n <= MAX_GROUP_CALLS:
+            raise ValueError("expected 1..%d calls per group" % MAX_GROUP_CALLS)
+        tokens = group["k"].split(",") if group["k"] else []
+        if len(tokens) > 32:
+            raise ValueError("expected at most 32 arguments")
+        index = group.get("x")
+        if name in REGRESSION:
+            if (not isinstance(index, list) or len(index) != 2 or any(type(v) is not int for v in index)
+                    or not 1 <= index[0] <= 5 or not 1 <= index[1] <= 33):
+                raise ValueError("regression requires a bounded scalar result_index")
+        elif index is not None:
+            raise ValueError("result_index is only supported for regression")
+        widths = []
+        for token in tokens:
+            if not TOKENS.fullmatch(token):
+                raise ValueError("unsupported argument type")
+            if token[0] == "a":
+                r, c = (int(x) for x in token[1:].split("x"))
+                if name not in NUMERIC_ARRAYS or not (1 <= r <= 32 and 1 <= c <= 32 and r * c <= 128):
+                    raise ValueError("expected a bounded rectangular numeric array")
+                widths.append(r * c)
+            else:
+                widths.append(1)
+        width = sum(widths)
+        values = group["v"]
+        if not isinstance(values, list) or len(values) != n * width:
+            raise ValueError("value count does not match the group's shape")
+        at = 0
+        for token, w in zip(tokens, widths):
+            if token[0] == "a":
+                self._numbers([v for i in range(n) for v in values[i * width + at:i * width + at + w]])
+            else:
+                column = values[at::width]
+                if token == "n":
+                    self._numbers(column)
+                elif token in ("s", "S"):
+                    for v in column:
+                        if not isinstance(v, str) or len(v) > 1024 or BAD_TEXT.search(v):
+                            raise ValueError("text contains a path, reference, URL or control character")
+                elif token in ("b", "B"):
+                    if any(type(v) is not bool for v in column):
+                        raise ValueError("boolean must be true or false")
+                elif token == "e":
+                    if any(v not in ERRORS for v in column):
+                        raise ValueError("unsupported worksheet error")
+                elif token == "z":
+                    if any(v is not None for v in column):
+                        raise ValueError("blank carries no value")
+            at += w
+
+    @staticmethod
+    def _numbers(cells):
+        for v in cells:
+            if not isinstance(v, str) or len(v) != 16 or v.startswith(("7ff", "fff")):
+                raise ValueError("number must be finite binary64 hex, passed through a cell")
+        if not re.fullmatch("[0-9a-f]*", "".join(cells)):
+            raise ValueError("number must be finite binary64 hex, passed through a cell")
+
+
+def admission(root):
+    return Admission(root)

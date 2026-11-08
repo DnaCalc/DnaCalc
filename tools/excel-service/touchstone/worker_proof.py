@@ -52,6 +52,11 @@ def main():
                     matched += 1
                 else:
                     mismatched.append({"f": group["f"], "i": i, "expected": [el, ev], "got": [gl, gv]})
+        repeats = []
+        for again in range(2):
+            r2 = worker.run({"id": 2 + again, "groups": sample["groups"], "deadline_ms": 30000}, 60)
+            repeats.append(r2.get("timing"))
+        report["sample_repeat_timing"] = repeats
         report["sample"] = {"calls": sample["calls"], "matched": matched, "unread": unread,
                             "mismatched": len(mismatched), "first_mismatches": mismatched[:8],
                             "timing": result.get("timing")}

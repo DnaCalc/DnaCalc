@@ -17,6 +17,7 @@ sealed class OwnedExcel
     public dynamic App;
     public dynamic Book;
     public dynamic SheetS, SheetA, SheetQ;
+    dynamic mtc, namesObj, sheetsObj, booksObj;   // child objects kept, so a fingerprint does not resolve them again
     public int Pid;
     public long StartTicks;
     public Process Process;
@@ -180,6 +181,7 @@ sealed class OwnedExcel
         object registered = a.RegisteredFunctions;
         if (registered != null && registered is not DBNull) loaded.Add("XLL functions are registered");
         if (loaded.Count > 0) throw new InvalidOperationException("this Excel instance is not isolated: " + string.Join("; ", loaded));
+        mtc = a.MultiThreadedCalculation; namesObj = Book.Names; sheetsObj = Book.Worksheets; booksObj = a.Workbooks;
         Snapshot0 = FullSnapshot();
         Baseline = Fingerprint();
         Env = BuildEnv(mtThreads);
@@ -190,36 +192,52 @@ sealed class OwnedExcel
 
     static string Show(object v) => v switch { null => "null", double d => BitConverter.DoubleToInt64Bits(d).ToString("x16"), _ => v.ToString() };
 
-    /// <summary>About fifteen cheap properties, compared before and after every batch.</summary>
-    public string Fingerprint()
+    static readonly string[] QuickKeys = { "Calculation", "Iteration", "mtc", "Names", "Sheets", "Workbooks", "AutomationSecurity" };
+
+    /// <summary>
+    /// Sixteen cheap properties, compared after every batch (the full set only every 20th batch and after idle;
+    /// the quick subset in between, because a COM read of a busy Excel can cost several milliseconds).
+    /// </summary>
+    public string Fingerprint(bool quick = false)
     {
         dynamic a = App;
         var sb = new StringBuilder();
         void P(string n, object v) => sb.Append(n).Append('=').Append(Show(v)).Append(';');
         P("Calculation", (object)a.Calculation);
         P("Iteration", (object)a.Iteration);
-        P("MaxIterations", (object)a.MaxIterations);
-        P("MaxChange", (object)(double)a.MaxChange);
-        P("PrecisionAsDisplayed", (object)Book.PrecisionAsDisplayed);
-        P("Date1904", (object)Book.Date1904);
-        P("CompatibilityVersion", (object)Book.CompatibilityVersion);
-        P("UseSystemSeparators", (object)a.UseSystemSeparators);
-        P("DecimalSeparator", (object)a.DecimalSeparator);
-        P("ThousandsSeparator", (object)a.ThousandsSeparator);
-        P("mtc", (object)a.MultiThreadedCalculation.Enabled);
-        P("mtc_mode", (object)a.MultiThreadedCalculation.ThreadMode);
+        if (!quick)
+        {
+            P("MaxIterations", (object)a.MaxIterations);
+            P("MaxChange", (object)(double)a.MaxChange);
+            P("PrecisionAsDisplayed", (object)Book.PrecisionAsDisplayed);
+            P("Date1904", (object)Book.Date1904);
+            P("CompatibilityVersion", (object)Book.CompatibilityVersion);
+            P("UseSystemSeparators", (object)a.UseSystemSeparators);
+            P("DecimalSeparator", (object)a.DecimalSeparator);
+            P("ThousandsSeparator", (object)a.ThousandsSeparator);
+        }
+        P("mtc", (object)mtc.Enabled);
+        if (!quick) P("mtc_mode", (object)mtc.ThreadMode);
         P("Names", VisibleNames());
-        P("Sheets", (object)Book.Worksheets.Count);
-        P("Workbooks", (object)a.Workbooks.Count);
+        P("Sheets", (object)sheetsObj.Count);
+        P("Workbooks", (object)booksObj.Count);
         P("AutomationSecurity", (object)a.AutomationSecurity);
         return sb.ToString();
+    }
+
+    /// <summary>The baseline restricted to the quick subset.</summary>
+    public string QuickBaseline()
+    {
+        var parts = Baseline.Split(';', StringSplitOptions.RemoveEmptyEntries).Where(p => QuickKeys.Contains(p.Substring(0, p.IndexOf('='))));
+        return string.Concat(parts.Select(p => p + ";"));
     }
 
     // Excel adds hidden _xlfn.* names for future functions; those are not state leakage.
     int VisibleNames()
     {
-        dynamic names = Book.Names;
+        dynamic names = namesObj;
         int count = (int)names.Count, visible = 0;
+        if (count == 0) return 0;
         for (int i = 1; i <= count; i++)
         {
             string n = (string)names.Item(i).Name;

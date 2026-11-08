@@ -75,7 +75,8 @@ class WorkerProcess:
     """One C# worker (one owned Excel). Synchronous; callers serialise access (one batch in flight)."""
 
     def __init__(self, root, name, mt=0, exe=WORKER_EXE, startup_seconds=60, log_dir=None):
-        self.root, self.name, self.mt, self.exe = Path(root), name, mt, Path(exe)
+        self.root, self.name, self.mt = Path(root), name, mt
+        self.exe = exe if isinstance(exe, (list, tuple)) else Path(exe)
         self.startup_seconds = startup_seconds
         self.process = None
         self.hello = None
@@ -109,7 +110,7 @@ class WorkerProcess:
         self.log_dir.mkdir(parents=True, exist_ok=True)
         err = open(self.log_dir / f"{self.name}.stderr", "ab")
         self.process = subprocess.Popen(
-            [str(self.exe), "--root", str(self.root), "--name", self.name, "--mt", str(self.mt),
+            [*(self.exe if isinstance(self.exe, (list, tuple)) else [str(self.exe)]), "--root", str(self.root), "--name", self.name, "--mt", str(self.mt),
              "--startup-seconds", str(self.startup_seconds)],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=err, bufsize=0,
             creationflags=subprocess.CREATE_NO_WINDOW)

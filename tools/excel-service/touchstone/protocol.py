@@ -12,8 +12,8 @@ shape travel as a *group* (columnar, so thousands of calls cost one small header
     e  worksheet error (value: "#N/A" ...)
     z  blank (value: null)
     aRxC  numeric array of R rows and C columns, value: R*C hex strings inline
-``x`` is an optional [row, column] result selector (regression functions).  ``i`` is the list
-of original positions of the group's calls in the request (omitted when contiguous from 0).
+``x`` is an optional [row, column] result selector (regression functions).  Each group says where its
+calls sit in the request: ``o`` (first position, calls contiguous) or ``i`` (the list of positions).
 
 An answer group is {"ty": "nntb...", "v": [...]} with one type letter and value per call:
     n hex bits   t text   b boolean   e "#N/A"   z null   u {"reason":..., "read_back":...}
@@ -33,7 +33,7 @@ CODE_NAMES = {v: k for k, v in ERROR_CODES.items()}
 MAX_FRAME = 64 * 1024
 
 # frame types
-HELLO, SUBMIT, ANSWER, DONE, ENV, ERROR, PING, PONG, CANCEL = b"HSADEXPQC"
+HELLO, SUBMIT, ANSWER, DONE, ENV, ERROR, PING, PONG, CANCEL, WAIT = (bytes([c]) for c in b"HSADEXPQCW")
 
 
 def dumps(obj):
@@ -121,9 +121,16 @@ def rows_to_groups(function, rows, result_index=None):
         group["i"].append(position)
     result = list(groups.values())
     for group in result:
-        if group["i"] == list(range(group["n"])):
-            del group["i"]
+        if group["i"] == list(range(group["i"][0], group["i"][0] + group["n"])):
+            group["o"] = group.pop("i")[0]
     return result
+
+
+def positions(group):
+    """The request positions of a group's calls."""
+    if "o" in group:
+        return range(group["o"], group["o"] + group["n"])
+    return group["i"]
 
 
 def token_width(token):
@@ -208,7 +215,7 @@ def answer_to_typed(letter, value):
 
 
 def split_group(group, max_calls):
-    """Cut a group into pieces of at most max_calls calls."""
+    """Cut a group into pieces of at most max_calls calls (positions stay attached)."""
     if group["n"] <= max_calls:
         return [group]
     width = group_width(group)
@@ -219,6 +226,49 @@ def split_group(group, max_calls):
                  "v": group["v"][start * width:(start + n) * width]}
         if "x" in group:
             piece["x"] = group["x"]
-        piece["i"] = group["i"][start:start + n] if "i" in group else list(range(start, start + n))
+        if "o" in group:
+            piece["o"] = group["o"] + start
+        else:
+            piece["i"] = group["i"][start:start + n]
         pieces.append(piece)
     return pieces
+
+
+def with_positions(groups, start=0):
+    """Give position-less groups consecutive request positions (a copy; the input is untouched)."""
+    result = []
+    for group in groups:
+        g = dict(group)
+        g.pop("i", None)
+        g["o"] = start
+        start += g["n"]
+        result.append(g)
+    return result
+
+
+FRAME_BUDGET = 40 * 1024
+
+
+def submit_frames(rid, groups, opts=None, client=None):
+    """Cut groups into submit frames of about FRAME_BUDGET bytes: [{id, seq, last, groups, opts?, c?}]."""
+    frames, current, size = [], [], 0
+    for group in groups:
+        per_call = max(8, group_width(group) * 20)
+        step = max(1, FRAME_BUDGET // per_call)
+        for part in split_group(group, step):
+            current.append(part)
+            size += part["n"] * per_call
+            if size >= FRAME_BUDGET:
+                frames.append(current)
+                current, size = [], 0
+    if current or not frames:
+        frames.append(current)
+    result = []
+    for seq, in_frame in enumerate(frames):
+        frame = {"id": rid, "seq": seq, "last": seq == len(frames) - 1, "groups": in_frame}
+        if seq == 0 and opts:
+            frame["opts"] = opts
+        if client is not None:
+            frame["c"] = client
+        result.append(frame)
+    return result
