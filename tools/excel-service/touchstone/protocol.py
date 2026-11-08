@@ -98,8 +98,10 @@ def _token(arg):
     raise ValueError("unsupported argument type " + str(kind))
 
 
-def rows_to_groups(function, rows, result_index=None):
-    """Typed rows (the v1 client shape) -> columnar groups, preserving call positions."""
+def rows_to_groups(function, rows, result_index=None, spill=False):
+    """Typed rows (the v1 client shape) -> columnar groups, preserving call positions.
+
+    spill=True asks for the whole array an array-returning function spills (each answer is a matrix)."""
     groups = {}
     for position, row in enumerate(rows):
         tokens, values = [], []
@@ -116,6 +118,8 @@ def rows_to_groups(function, rows, result_index=None):
             group = groups[key] = {"f": function, "k": key, "n": 0, "v": [], "i": []}
             if result_index is not None:
                 group["x"] = list(result_index)
+            if spill:
+                group["spill"] = True
         group["n"] += 1
         group["v"].extend(values)
         group["i"].append(position)
@@ -211,6 +215,10 @@ def answer_to_typed(letter, value):
         return {"type": "blank"}
     if letter == "u":
         return {"type": "unread", **value}
+    if letter == "m":
+        r, c = value["r"], value["c"]
+        cells = [answer_to_typed(l, x) for l, x in zip(value["ty"], value["v"])]
+        return {"type": "array", "rows": r, "cols": c, "values": [cells[i * c:(i + 1) * c] for i in range(r)]}
     raise ValueError(letter)
 
 
@@ -224,8 +232,9 @@ def split_group(group, max_calls):
         n = min(max_calls, group["n"] - start)
         piece = {"f": group["f"], "k": group["k"], "n": n,
                  "v": group["v"][start * width:(start + n) * width]}
-        if "x" in group:
-            piece["x"] = group["x"]
+        for key in ("x", "spill", "p"):
+            if key in group:
+                piece[key] = group[key]
         if "o" in group:
             piece["o"] = group["o"] + start
         else:

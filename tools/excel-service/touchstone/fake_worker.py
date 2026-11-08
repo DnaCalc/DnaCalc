@@ -49,7 +49,7 @@ while True:
         break
     if kind != "B":
         continue
-    groups = payload["groups"]
+    groups = [g for g in payload["groups"] if not g.get("p")]          # primer calls are evaluated, not answered
     if any(g["f"] == "CRASH" for g in groups) and not crashed:
         crashed = True
         send("R", {"id": payload["id"], "env_id": "fake00000001", "worker": NAME, "batch": 1, "error": "excel-crashed",

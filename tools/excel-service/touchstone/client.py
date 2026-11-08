@@ -45,6 +45,7 @@ class Pending:
         self.t_submit = time.monotonic()
         self.t_done = None
         self.rows, self.function, self.index = rows, function, result_index
+        self.order = None
         self.frames_sent = []
         self.callbacks = []
 
@@ -60,6 +61,8 @@ class Pending:
                     self.inputs[p] = list(zip(g["ity"][n * width:(n + 1) * width], g["iv"][n * width:(n + 1) * width]))
         if frame.get("env"):
             self.env_ids.add(frame["env"])
+        if frame.get("order"):
+            self.order = frame["order"]
 
     def resolve(self, error=None):
         if error and not self.error:
@@ -95,10 +98,12 @@ class Pending:
             if p in self.inputs:
                 reply.inputs[p] = [protocol.answer_to_typed(il, ix) for il, ix in self.inputs[p]]
         reply.env_id = sorted(self.env_ids)[0] if self.env_ids else None
-        built = reply.build()
+        built = reply.build(strict=False)
         if not built["ok"]:
             raise ServiceError(built)
         built["service_seconds"] = self.seconds
+        if self.order:
+            built["order"] = self.order
         return built
 
 
@@ -259,10 +264,14 @@ class Connection:
         self._submit(pending, protocol.submit_frames(rid, groups, opts))
         return pending
 
-    def submit_rows(self, function, rows, *, result_index=None, priority=None, echo=False, order="any", rid=None):
+    def submit_rows(self, function, rows, *, result_index=None, priority=None, echo=False, order="any", rid=None,
+                    spill=False, primer=None):
+        """primer: [(function, typed_row), ...] evaluated first, in order, in serial mode (answers dropped)."""
         rid = rid or uuid.uuid4().hex
-        groups = protocol.rows_to_groups(function, rows, result_index)
+        groups = protocol.rows_to_groups(function, rows, result_index, spill)
         opts = {"echo": echo, "order": order, "calls": len(rows)}
+        if primer:
+            opts["primer"] = [protocol.rows_to_groups(f, [row])[0] for f, row in primer]
         if priority:
             opts["priority"] = priority
         pending = Pending(rid, len(rows), groups, opts, self.envs, self.machine, rows=rows, function=function, result_index=result_index)

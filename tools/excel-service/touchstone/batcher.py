@@ -15,6 +15,7 @@ CHUNK = 5000                 # bulk is cut into items of at most this many calls
 BATCH_CALLS = 20000          # most calls in one batch when the queue is deep
 BATCH_BYTES = 4 * 1024 * 1024
 QUANTUM = 5000               # deficit added to an origin each round
+MAX_SPILL_CALLS = 1000       # a spill batch lays one anchor per call on a grid; keep the grid small
 INTERACTIVE_CALLS = 100      # requests at most this big are interactive unless flagged otherwise
 APPROX_BYTES_PER_VALUE = 18
 BULK_BATCH_MS = 120.0         # a bulk batch is cut to about this much estimated work, so interactive calls wait little
@@ -28,7 +29,7 @@ DEFAULT_COST_US = 25.0        # per call, until a function has been measured
 class Piece:
     """One submit frame's worth of calls: answered as a unit by (origin, id, seq)."""
     __slots__ = ("conn", "origin", "rid", "seq", "last", "priority", "groups", "calls", "echo", "serial",
-                 "t_received", "t_dispatched", "remaining", "frames", "done", "fail", "env_ids", "workers")
+                 "t_received", "t_dispatched", "remaining", "frames", "done", "fail", "env_ids", "workers", "primer")
 
     def __init__(self, conn, rid, seq, groups, last, priority, echo=False, serial=False):
         self.conn, self.origin, self.rid, self.seq, self.last = conn, conn.origin, rid, seq, last
@@ -44,6 +45,7 @@ class Piece:
         self.fail = None
         self.env_ids = set()
         self.workers = set()
+        self.primer = []        # serial mode: calls evaluated first, their answers dropped
 
 
 class Item:
@@ -63,10 +65,11 @@ class Slice:
 
 
 class Batch:
-    __slots__ = ("groups", "slices", "calls", "echo", "serial", "t_created", "pieces", "interactive")
+    __slots__ = ("groups", "slices", "calls", "echo", "serial", "t_created", "pieces", "interactive", "primer")
 
     def __init__(self):
         self.groups, self.slices, self.calls = [], [], 0
+        self.primer = []
         self.echo = self.serial = False
         self.t_created = time.monotonic()
         self.pieces = set()
@@ -74,7 +77,7 @@ class Batch:
 
 
 def shape_key(group):
-    return (group["f"], group["k"], tuple(group["x"]) if "x" in group else None)
+    return (group["f"], group["k"], tuple(group["x"]) if "x" in group else None, bool(group.get("spill")))
 
 
 class _Origin:
@@ -157,6 +160,15 @@ class _Class:
                         self.deficit[origin] = 0
                     return [head], 1, 100
                 room = budget_calls - calls
+                spill = bool(item.group.get("spill"))
+                if taken and spill != bool(taken[0].group.get("spill")):
+                    stop = True      # a spill batch holds only spill calls, a scalar batch none
+                    break
+                if spill:
+                    room = min(room, MAX_SPILL_CALLS - calls)
+                    if room <= 0:
+                        stop = True
+                        break
                 if budget_ms is not None:
                     cost = costs.get(item.group["f"], DEFAULT_COST_US)
                     room = min(room, max(MIN_BULK_CALLS, int((budget_ms - spent) * 1000 / cost)))
@@ -219,11 +231,35 @@ class Batcher:
         self.isolate = set()
         self.recent_interactive = 0.0
         self.costs = {}          # function -> estimated microseconds per call
+        self.serial = deque()    # serial pieces, oldest first; only the serial worker takes them
 
     def queued_calls(self):
         return self.interactive.calls + self.bulk.calls
 
+    def serial_pending(self):
+        return bool(self.serial)
+
+    def next_serial_batch(self):
+        """The oldest serial piece, whole and in order, with its primer: one worker evaluates it call by call."""
+        piece = self.serial.popleft()
+        batch = Batch()
+        batch.serial = True
+        batch.echo = piece.echo
+        batch.primer = piece.primer
+        for index, group in enumerate(piece.groups):
+            batch.groups.append(group)
+            batch.slices.append(Slice(Item(piece, group), index, 0))
+            batch.calls += group["n"]
+        batch.pieces.add(piece)
+        piece.remaining = len(piece.groups)
+        piece.t_dispatched = time.monotonic()
+        return batch
+
     def add_piece(self, piece):
+        if piece.serial:
+            self.serial.append(piece)
+            piece.remaining = len(piece.groups)
+            return
         cls = self.interactive if piece.priority == "interactive" else self.bulk
         if piece.priority == "interactive":
             self.recent_interactive = time.monotonic()
@@ -255,12 +291,14 @@ class Batcher:
         merged = {}
         for item in items:
             g = item.group
-            key = (g["f"], g["k"], tuple(g["x"]) if "x" in g else None)
+            key = shape_key(g)
             entry = merged.get(key)
             if entry is None:
                 m = {"f": g["f"], "k": g["k"], "n": 0, "v": []}
                 if "x" in g:
                     m["x"] = g["x"]
+                if g.get("spill"):
+                    m["spill"] = True
                 batch.groups.append(m)
                 entry = merged[key] = (m, len(batch.groups) - 1)
             m, index = entry

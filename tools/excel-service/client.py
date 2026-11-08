@@ -135,22 +135,30 @@ class Client:
         if not math.isfinite(self.timeout) or not 0 < self.timeout <= 900:
             raise ValueError("timeout must be between 0 and 900 seconds")
 
-    def submit(self, function, rows, *, result_index=None, priority=None, order="any", echo_inputs=False):
+    def submit(self, function, rows, *, result_index=None, priority=None, order="any", echo_inputs=False,
+               shape="scalar", primer=None):
         """Send a question; returns a concurrent.futures.Future of the reply (ServiceError on failure).
 
         priority: "interactive" or "bulk" (default: up to 100 calls are interactive); order "any" or "serial"
         (state-sensitive functions); echo_inputs asks for the exact inputs Excel read back.  The file queue
         has one lane and always echoes inputs; the options apply to the socket transport.
+
+        order="serial" evaluates the calls one at a time, in the order given, on the serial worker (for functions
+        whose answer depends on the call before it; WEEKNUM is always served this way); primer is a list of
+        (function, row) calls evaluated first to put the engine in a known state.  shape="array" asks for the whole
+        array an array-returning function spills: each answer row is {"type": "array", "rows", "cols", "values"}.
         """
         self._check_timeout()
         if order not in ("any", "serial"):
             raise ValueError("order must be 'any' or 'serial'")
         connection = self._socket()
         if connection is None:
+            if shape != "scalar" or order != "any" or primer:
+                raise RuntimeError("array answers and serial mode need the touchstone socket, not the v1 file queue")
             return self._executor().submit(self._ask_file, function, rows, result_index)
         future = concurrent.futures.Future()
         pending = connection.submit_rows(function, rows, result_index=result_index, priority=priority,
-                                         echo=echo_inputs, order=order)
+                                         echo=echo_inputs, order=order, spill=(shape == "array"), primer=primer)
 
         def settle(done):
             try:
@@ -169,17 +177,18 @@ class Client:
             settle(pending)
         return future
 
-    def ask(self, function, rows, *, result_index=None, priority=None, order="any", echo_inputs=False):
+    def ask(self, function, rows, *, result_index=None, priority=None, order="any", echo_inputs=False,
+            shape="scalar", primer=None):
         """Return {rows: typed answers, ...provenance}; failures raise ServiceError.
 
         A timeout raises TimeoutError; the request stays known to the service, and retrying ask creates a new
         question.  The service never silently substitutes or rounds an input.
         """
         self._check_timeout()
-        if self._socket() is None:
+        if self._socket() is None and shape == "scalar" and order == "any" and not primer:
             return self._ask_file(function, rows, result_index)
         future = self.submit(function, rows, result_index=result_index, priority=priority, order=order,
-                             echo_inputs=echo_inputs)
+                             echo_inputs=echo_inputs, shape=shape, primer=primer)
         try:
             return future.result(self.timeout)
         except concurrent.futures.TimeoutError:

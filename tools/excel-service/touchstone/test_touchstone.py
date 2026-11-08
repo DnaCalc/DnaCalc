@@ -87,6 +87,33 @@ def piece(origin, rid, f, calls, priority="bulk", k="n"):
 
 
 class BatcherTests(unittest.TestCase):
+    def test_serial_pieces_stay_whole_and_wait_for_the_serial_worker(self):
+        b = batcher.Batcher()
+        p = piece("a", "s", "ID", 40)
+        p.serial = True
+        p.primer = [{"f": "ABS", "k": "n", "n": 1, "v": [ONE], "p": True}]
+        b.add_piece(p)
+        self.assertFalse(b.has_work())                 # ordinary workers never see it
+        self.assertTrue(b.serial_pending())
+        batch = b.next_serial_batch()
+        self.assertTrue(batch.serial)
+        self.assertEqual([g["n"] for g in batch.groups], [40])
+        self.assertEqual(batch.primer, p.primer)
+        self.assertFalse(b.serial_pending())
+
+    def test_spill_calls_never_share_a_batch_with_scalar_calls_and_are_capped(self):
+        b = batcher.Batcher()
+        spill = protocol.with_positions([{"f": "MINVERSE", "k": "a2x2", "n": 1500, "v": [ONE] * 6000, "spill": True}])
+        b.add_piece(batcher.Piece(FakeConn("a"), "r1", 0, spill, True, "bulk"))
+        b.add_piece(piece("a", "r2", "ABS", 50))
+        kinds = []
+        while b.has_work():
+            batch = b.next_batch()
+            kinds.append((bool(batch.groups[0].get("spill")), batch.calls))
+            self.assertEqual({bool(g.get("spill")) for g in batch.groups}, {kinds[-1][0]})
+        self.assertTrue(all(calls <= batcher.MAX_SPILL_CALLS for spill_kind, calls in kinds if spill_kind))
+        self.assertEqual(sum(calls for _, calls in kinds), 1550)
+
     def test_interactive_goes_first_and_alone(self):
         b = batcher.Batcher()
         b.add_piece(piece("a", "bulk", "ABS", 3000))
@@ -395,7 +422,7 @@ class ClientApiTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.broker, cls.state, cls.stop = start_broker()
+        cls.broker, cls.state, cls.stop = start_broker(workers=3)
         sys.path.insert(0, str(HERE.parent))
         import client as top
         cls.top = top
@@ -493,6 +520,40 @@ class ClientApiTests(unittest.TestCase):
             run = c.consecutive_run("ID", "3e47bc15e9000000", 30000)
             self.assertEqual(len(run["rows"]), 30000)
             self.assertEqual(run["rows"][29999]["bits"], f"{0x3e47bc15e9000000 + 29999:016x}")
+        finally:
+            c.close()
+
+    def test_serial_requests_run_whole_and_in_order_on_the_serial_worker_and_say_so(self):
+        c = self.make()
+        try:
+            before = self.broker.slots[2].calls
+            rows = [[self.top.number(float(i))] if i % 2 == 0 else [self.top.text(f"t{i}")] for i in range(20)]
+            reply = c.ask("ID", rows, order="serial", primer=[("ABS", [self.top.number(1.0)])])
+            self.assertEqual(reply["order"], "serial")
+            self.assertEqual(len(reply["rows"]), 20)
+            self.assertEqual(self.broker.slots[2].calls - before, 20)       # the primer call is evaluated, not counted or answered
+            self.assertTrue(self.broker.slots[2].serial)
+        finally:
+            c.close()
+
+    def test_a_state_sensitive_function_is_always_served_serially(self):
+        c = self.make()
+        try:
+            before = self.broker.slots[2].calls
+            reply = c.ask("WEEKNUM", [[self.top.number(43836.0), self.top.number(float(t))] for t in (1, 99, 2)])
+            self.assertEqual(reply["order"], "serial")
+            self.assertEqual(self.broker.slots[2].calls - before, 3)
+        finally:
+            c.close()
+
+    def test_array_questions_are_flagged_as_spill_groups(self):
+        c = self.make()
+        try:
+            conn = c._socket()
+            pending = conn.submit_rows("MINVERSE", [[self.top.number_array([[1.0, 2.0], [3.0, 4.0]])]], spill=True)
+            self.assertTrue(pending.groups[0]["spill"])
+            self.assertEqual(pending.groups[0]["k"], "a2x2")
+            pending.raw(30)
         finally:
             c.close()
 

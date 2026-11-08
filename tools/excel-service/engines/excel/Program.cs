@@ -286,7 +286,11 @@ static class Program
             }
             WatchdogFired = false;
             Interlocked.Exchange(ref DeadlineTicks, DateTime.UtcNow.AddMilliseconds(deadlineMs).Ticks);
-            var groups = EvaluateBatch((List<object>)req["groups"], echo, serial, timing);
+            var groupList = (List<object>)req["groups"];
+            var groups = serial ? EvaluateSerial(groupList, echo, timing)
+                : groupList.Count > 0 && ((Dictionary<string, object>)groupList[0]).ContainsKey("spill") ? EvaluateSpill(groupList, echo, timing)
+                : EvaluateBatch(groupList, echo, false, timing);
+            if (serial) result["order"] = "serial";
             Interlocked.Exchange(ref DeadlineTicks, 0);
             var fpWatch = Stopwatch.StartNew();
             bool quick = Batches % 20 != 0;
@@ -326,7 +330,7 @@ static class Program
         }
     }
 
-    static List<object> EvaluateBatch(List<object> groupList, bool echo, bool serial, Dictionary<string, object> timing)
+    static List<object> EvaluateBatch(List<object> groupList, bool echo, bool serialCalc, Dictionary<string, object> timing)
     {
         var sw = Stopwatch.StartNew();
         var groups = new List<Group>();
@@ -352,7 +356,8 @@ static class Program
         // formula array for all of them), then the large groups, each of which gets one fill assignment.
         const int SmallGroup = 32;
         string Signature(Group g) => string.Concat(g.Tokens.Select(t => t == "s" || t == "S" ? "t" : t == "e" ? "e" : "."));
-        var layout = groups.Where(g => g.N < SmallGroup).OrderBy(g => Signature(g), StringComparer.Ordinal)
+        var layout = serialCalc ? groups   // serial: the rows keep the order the calls were given in
+            : groups.Where(g => g.N < SmallGroup).OrderBy(g => Signature(g), StringComparer.Ordinal)
             .Concat(groups.Where(g => g.N >= SmallGroup)).ToList();
         foreach (var g in layout) { g.Row0 = row; row += g.N; }
         int smallRows = layout.Where(g => g.N < SmallGroup).Sum(g => g.N);
@@ -412,51 +417,7 @@ static class Program
             }
             written.Add(new Block { Row = 1, Col = 2, Data = cmp });
         }
-        else
-        foreach (var g in groups)
-        {
-            int t = 0;
-            while (t < g.Tokens.Length)
-            {
-                char c = g.Tokens[t][0];
-                bool numeric = c == 'n' || c == 'a';
-                int t2 = t;
-                if (numeric) while (t2 + 1 < g.Tokens.Length && (g.Tokens[t2 + 1][0] == 'n' || g.Tokens[t2 + 1][0] == 'a')) t2++;
-                int cellStart = g.TokenCol[t];
-                int cellEnd = g.TokenCol[t2] + TokenWidth(g.Tokens[t2]);
-                int m = cellEnd - cellStart;
-                if (c == 'z') { t = t2 + 1; continue; }
-                var data = new object[g.N, m];
-                for (int i = 0; i < g.N; i++)
-                {
-                    int baseIndex = i * g.Width + cellStart;
-                    for (int j = 0; j < m; j++)
-                    {
-                        object v = g.V[baseIndex + j];
-                        switch (c)
-                        {
-                            case 'n': case 'a': data[i, j] = Bits(v); break;
-                            case 's': case 'S': data[i, j] = (string)v; break;
-                            case 'b': case 'B': data[i, j] = (bool)v; break;
-                            case 'e': data[i, j] = new ErrorWrapper(Codes[(string)v]); break;
-                        }
-                    }
-                }
-                Stage = "args " + g.F + " token " + g.Tokens[t] + " rows " + g.Row0 + "+" + g.N;
-                var range = Rng(sheet, g.Row0, 2 + cellStart, g.Row0 + g.N - 1, 2 + cellEnd - 1);
-                if (c == 's' || c == 'S') range.NumberFormat = "@";
-                if (c == 'e')
-                {
-                    var lit = new object[g.N, m];
-                    for (int i = 0; i < g.N; i++)
-                        for (int j = 0; j < m; j++) lit[i, j] = "=" + (string)g.V[i * g.Width + cellStart + j];
-                    range.Formula2R1C1 = lit;
-                }
-                else range.Value2 = data;
-                written.Add(new Block { Row = g.Row0, Col = 2 + cellStart, Data = data });
-                t = t2 + 1;
-            }
-        }
+        else WriteGroupArguments(sheet, groups, written);
         timing["args_ms"] = Math.Round(sw.Elapsed.TotalMilliseconds, 3);
         // 2. formulas: one array assignment for all small groups, one fill assignment per large group
         if (smallRows > 0)
@@ -483,8 +444,14 @@ static class Program
         sw.Restart();
         // 3. one Calculate for the batch
         Stage = "calculate";
-        X.App.Calculate();
-        while ((int)X.App.CalculationState != 0) Thread.Sleep(0);
+        if (serialCalc)
+        {
+            // One calculation pass over the rows in the order given, on a worker with multithreaded calculation off:
+            // a state-sensitive function sees the call before it (measured: each cell calculated alone does not).
+            Rng(sheet, 1, 1, totalRows, 1).Calculate();
+        }
+        else X.App.Calculate();
+        if (!serialCalc) while ((int)X.App.CalculationState != 0) Thread.Sleep(0);   // Range.Calculate is synchronous and leaves the state pending
         timing["calc_ms"] = Math.Round(sw.Elapsed.TotalMilliseconds, 3);
         sw.Restart();
         // 4. read results and arguments back as one rectangle
@@ -549,11 +516,287 @@ static class Program
         return output;
     }
 
+    /// <summary>Writes every group's arguments one rectangle per token run (large batches and spill batches).</summary>
+    static void WriteGroupArguments(dynamic sheet, List<Group> groups, List<Block> written)
+    {
+        foreach (var g in groups)
+        {
+            int t = 0;
+            while (t < g.Tokens.Length)
+            {
+                char c = g.Tokens[t][0];
+                bool numeric = c == 'n' || c == 'a';
+                int t2 = t;
+                if (numeric) while (t2 + 1 < g.Tokens.Length && (g.Tokens[t2 + 1][0] == 'n' || g.Tokens[t2 + 1][0] == 'a')) t2++;
+                int cellStart = g.TokenCol[t];
+                int cellEnd = g.TokenCol[t2] + TokenWidth(g.Tokens[t2]);
+                int m = cellEnd - cellStart;
+                if (c == 'z') { t = t2 + 1; continue; }
+                var data = new object[g.N, m];
+                for (int i = 0; i < g.N; i++)
+                {
+                    int baseIndex = i * g.Width + cellStart;
+                    for (int j = 0; j < m; j++)
+                    {
+                        object v = g.V[baseIndex + j];
+                        switch (c)
+                        {
+                            case 'n': case 'a': data[i, j] = Bits(v); break;
+                            case 's': case 'S': data[i, j] = (string)v; break;
+                            case 'b': case 'B': data[i, j] = (bool)v; break;
+                            case 'e': data[i, j] = new ErrorWrapper(Codes[(string)v]); break;
+                        }
+                    }
+                }
+                Stage = "args " + g.F + " token " + g.Tokens[t] + " rows " + g.Row0 + "+" + g.N;
+                var range = Rng(sheet, g.Row0, 2 + cellStart, g.Row0 + g.N - 1, 2 + cellEnd - 1);
+                if (c == 's' || c == 'S') range.NumberFormat = "@";
+                if (c == 'e')
+                {
+                    var lit = new object[g.N, m];
+                    for (int i = 0; i < g.N; i++)
+                        for (int j = 0; j < m; j++) lit[i, j] = "=" + (string)g.V[i * g.Width + cellStart + j];
+                    range.Formula2R1C1 = lit;
+                }
+                else range.Value2 = data;
+                written.Add(new Block { Row = g.Row0, Col = 2 + cellStart, Data = data });
+                t = t2 + 1;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Array-returning functions: each call's formula sits on sheet A at an anchor of a grid (66 rows and columns
+    /// apart, so a spill of up to 64 x 64 never meets its neighbour), its arguments in cells of sheet S, and the
+    /// answer is the whole spill range as a matrix; #SPILL! and the other error values are typed answers.
+    /// </summary>
+    static List<object> EvaluateSpill(List<object> groupList, bool echo, Dictionary<string, object> timing)
+    {
+        var sw = Stopwatch.StartNew();
+        var groups = new List<Group>();
+        int row = 1, maxCols = 1;
+        foreach (Dictionary<string, object> raw in groupList)
+        {
+            var g = new Group
+            {
+                F = (string)raw["f"],
+                Tokens = ((string)raw["k"]).Length == 0 ? Array.Empty<string>() : ((string)raw["k"]).Split(','),
+                N = (int)(long)raw["n"],
+                V = (List<object>)raw["v"],
+                Xsel = raw.TryGetValue("x", out var xs) ? (List<object>)xs : null,
+            };
+            g.TokenCol = new int[g.Tokens.Length];
+            int w = 0;
+            for (int t = 0; t < g.Tokens.Length; t++) { g.TokenCol[t] = w; w += TokenWidth(g.Tokens[t]); }
+            g.Width = w;
+            g.Row0 = row;
+            row += g.N;
+            maxCols = Math.Max(maxCols, 1 + w);
+            groups.Add(g);
+        }
+        int totalRows = row - 1;
+        if (totalRows > 1000) throw new InvalidOperationException("batch-too-large-for-spill");
+        dynamic sheet = X.SheetS, grid = X.SheetA;
+        var written = new List<Block>();
+        WriteGroupArguments(sheet, groups, written);
+        var anchors = new List<string>();
+        int number = 0;
+        foreach (var g in groups)
+            for (int i = 0; i < g.N; i++, number++)
+            {
+                string address = ColName(1 + number / 100 * 66) + (1 + number % 100 * 66);
+                Stage = "spill formula " + g.F + " " + address;
+                grid.Range[address].Formula2 = SpillFormula(g, g.Row0 + i);
+                anchors.Add(address);
+            }
+        timing["write_ms"] = Math.Round(sw.Elapsed.TotalMilliseconds, 3);
+        sw.Restart();
+        Stage = "calculate";
+        X.App.Calculate();
+        while ((int)X.App.CalculationState != 0) Thread.Sleep(0);
+        timing["calc_ms"] = Math.Round(sw.Elapsed.TotalMilliseconds, 3);
+        sw.Restart();
+        object raw2 = Rng(sheet, 1, 1, totalRows, maxCols).Value2;
+        Func<int, int, object> at;
+        if (raw2 is Array arr)
+        {
+            int lb0 = arr.GetLowerBound(0), lb1 = arr.GetLowerBound(1);
+            var mat = (object[,])raw2;
+            at = (r, c) => mat[lb0 + r - 1, lb1 + c - 1];
+        }
+        else at = (r, c) => raw2;
+        var changed = new HashSet<int>();
+        foreach (var b in written)
+            for (int i = 0; i < b.Data.GetLength(0); i++)
+                for (int j = 0; j < b.Data.GetLength(1); j++)
+                    if (!Same(b.Data[i, j], at(b.Row + i, b.Col + j))) changed.Add(b.Row + i);
+        timing["read_ms"] = Math.Round(sw.Elapsed.TotalMilliseconds, 3);
+        sw.Restart();
+        var output = new List<object>();
+        int k = 0;
+        foreach (var g in groups)
+        {
+            var ty = new StringBuilder(g.N);
+            var vals = new List<object>(g.N);
+            for (int i = 0; i < g.N; i++, k++)
+            {
+                int r = g.Row0 + i;
+                if (changed.Contains(r))
+                {
+                    var back = new List<object>();
+                    for (int j = 0; j < g.Width; j++) { var (l, v) = Convert1(at(r, 2 + j)); back.Add(new List<object> { l.ToString(), v }); }
+                    ty.Append('u');
+                    vals.Add(new Dictionary<string, object> { ["reason"] = "input-changed", ["read_back"] = back });
+                    continue;
+                }
+                dynamic cell = grid.Range[anchors[k]];
+                object top = cell.Value2;
+                if (top is int)
+                {
+                    var (l, v) = Convert1(top);
+                    ty.Append(l);
+                    vals.Add(v);
+                    continue;
+                }
+                bool spills = (bool)cell.HasSpill;
+                object body = spills ? cell.SpillingToRange.Value2 : top;
+                int rows = 1, cols = 1;
+                Func<int, int, object> cellAt = (a, b) => body;
+                if (body is Array ba && ba.Rank == 2)
+                {
+                    rows = ba.GetLength(0); cols = ba.GetLength(1);
+                    int l0 = ba.GetLowerBound(0), l1 = ba.GetLowerBound(1);
+                    var bm = (object[,])body;
+                    cellAt = (a, b) => bm[l0 + a, l1 + b];
+                }
+                if (rows > 64 || cols > 64)
+                {
+                    ty.Append('u');
+                    vals.Add(new Dictionary<string, object> { ["reason"] = "spill-larger-than-the-bound", ["read_back"] = new List<object>() });
+                    continue;
+                }
+                var cty = new StringBuilder();
+                var cv = new List<object>();
+                for (int a = 0; a < rows; a++)
+                    for (int b = 0; b < cols; b++) { var (l, v) = Convert1(cellAt(a, b)); cty.Append(l); cv.Add(v); }
+                ty.Append('m');
+                vals.Add(new Dictionary<string, object> { ["r"] = rows, ["c"] = cols, ["ty"] = cty.ToString(), ["v"] = cv });
+            }
+            var og = new Dictionary<string, object> { ["ty"] = ty.ToString(), ["v"] = vals };
+            if (echo)
+            {
+                var ity = new StringBuilder();
+                var iv = new List<object>();
+                for (int i = 0; i < g.N; i++)
+                    for (int j = 0; j < g.Width; j++) { var (l, v) = Convert1(at(g.Row0 + i, 2 + j)); ity.Append(l); iv.Add(v); }
+                og["ity"] = ity.ToString();
+                og["iv"] = iv;
+            }
+            output.Add(og);
+        }
+        Rng(sheet, 1, 1, totalRows, maxCols).Clear();
+        grid.UsedRange.Clear();
+        timing["convert_ms"] = Math.Round(sw.Elapsed.TotalMilliseconds, 3);
+        timing["calls"] = totalRows;
+        return output;
+    }
+
+    static string SpillFormula(Group g, int row)
+    {
+        var refs = new List<string>();
+        for (int t = 0; t < g.Tokens.Length; t++)
+        {
+            var tok = g.Tokens[t];
+            int at = g.TokenCol[t];
+            string Cell(int offset) => "S!$" + ColName(2 + offset) + "$" + row;
+            if (tok[0] == 'a')
+            {
+                var p = tok.Substring(1).Split('x');
+                int r = int.Parse(p[0]), c = int.Parse(p[1]);
+                var idx = new StringBuilder("{");
+                for (int i = 0; i < r; i++)
+                {
+                    if (i > 0) idx.Append(';');
+                    for (int j = 0; j < c; j++) { if (j > 0) idx.Append(','); idx.Append(i * c + j + 1); }
+                }
+                idx.Append('}');
+                refs.Add("CHOOSE(" + idx + "," + string.Join(",", Enumerable.Range(0, r * c).Select(kk => Cell(at + kk))) + ")");
+            }
+            else if (tok == "S") refs.Add("\"" + ((string)g.V[(row - g.Row0) * g.Width + at]).Replace("\"", "\"\"") + "\"");
+            else if (tok == "B") refs.Add((bool)g.V[(row - g.Row0) * g.Width + at] ? "TRUE" : "FALSE");
+            else refs.Add(Cell(at));
+        }
+        var f = g.F + "(" + string.Join(",", refs) + ")";
+        if (g.Xsel != null) f = "INDEX(" + f + "," + g.Xsel[0] + "," + g.Xsel[1] + ")";
+        return "=" + f;
+    }
+
+    /// <summary>
+    /// Serial mode: every call becomes its own row, in the order of its request position (primer calls, flagged
+    /// "p", first), calculated one Range.Calculate at a time; the answers are regrouped like the request's groups.
+    /// </summary>
+    static List<object> EvaluateSerial(List<object> groupList, bool echo, Dictionary<string, object> timing)
+    {
+        var calls = new List<(long pos, Dictionary<string, object> single, int group, int index)>();
+        var sizes = new List<int>();
+        long primerPosition = long.MinValue / 2;
+        foreach (Dictionary<string, object> raw in groupList)
+        {
+            bool primer = raw.TryGetValue("p", out var flag) && flag is true;
+            string k = (string)raw["k"];
+            int width = k.Length == 0 ? 0 : k.Split(',').Sum(TokenWidth);
+            int n = (int)(long)raw["n"];
+            var values = (List<object>)raw["v"];
+            for (int i = 0; i < n; i++)
+            {
+                long pos = primer ? primerPosition++ : raw.TryGetValue("o", out var o) ? (long)o + i : (long)((List<object>)raw["i"])[i];
+                var single = new Dictionary<string, object> { ["f"] = raw["f"], ["k"] = k, ["n"] = 1L, ["v"] = values.GetRange(i * width, width) };
+                if (raw.TryGetValue("x", out var xs)) single["x"] = xs;
+                calls.Add((pos, single, primer ? -1 : sizes.Count, i));
+            }
+            if (!primer) sizes.Add(n);
+        }
+        calls.Sort((a, b) => a.pos.CompareTo(b.pos));
+        var singles = calls.Select(c => (object)c.single).ToList();
+        var answered = EvaluateBatch(singles, echo, true, timing);
+        var ty = sizes.Select(n => new char[n]).ToList();
+        var val = sizes.Select(n => new object[n]).ToList();
+        var ity = sizes.Select(n => new List<char>[n]).ToList();
+        var ival = sizes.Select(n => new List<object>[n]).ToList();
+        for (int c = 0; c < calls.Count; c++)
+        {
+            var (_, _, group, index) = calls[c];
+            if (group < 0) continue;
+            var a = (Dictionary<string, object>)answered[c];
+            ty[group][index] = ((string)a["ty"])[0];
+            val[group][index] = ((List<object>)a["v"])[0];
+            if (echo)
+            {
+                ity[group][index] = ((string)a["ity"]).ToList();
+                ival[group][index] = (List<object>)a["iv"];
+            }
+        }
+        var output = new List<object>();
+        for (int g = 0; g < sizes.Count; g++)
+        {
+            var og = new Dictionary<string, object> { ["ty"] = new string(ty[g]), ["v"] = val[g].ToList() };
+            if (echo)
+            {
+                og["ity"] = new string(ity[g].SelectMany(x => x).ToArray());
+                og["iv"] = ival[g].SelectMany(x => x).ToList();
+            }
+            output.Add(og);
+        }
+        return output;
+    }
+
     static readonly Dictionary<string, int> Codes = new()
     {
         ["#NULL!"] = 2000, ["#DIV/0!"] = 2007, ["#VALUE!"] = 2015, ["#REF!"] = 2023, ["#NAME?"] = 2029, ["#NUM!"] = 2036, ["#N/A"] = 2042,
     };
-    static readonly Dictionary<int, string> Names = Codes.ToDictionary(kv => kv.Value, kv => kv.Key);
+    static readonly Dictionary<int, string> Names = Codes.ToDictionary(kv => kv.Value, kv => kv.Key)
+        .Concat(new Dictionary<int, string> { [2045] = "#SPILL!", [2046] = "#CALC!", [2047] = "#FIELD!", [2044] = "#UNKNOWN!" })
+        .ToDictionary(kv => kv.Key, kv => kv.Value);
 
     static (char, object) Convert1(object v)
     {

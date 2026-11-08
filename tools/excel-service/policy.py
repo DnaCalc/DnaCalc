@@ -147,6 +147,10 @@ def validate(request, names, request_id):
 
 # --- touchstone/1 admission plug-in (broker --admission policy:admission) -----------------------------------
 MAX_GROUP_CALLS = 250000
+MAX_SPILL_CALLS = 1000
+# Array-returning functions, admitted only as spill groups (arguments in cells, the whole spill read back).
+SPILL_FUNCTIONS = {"TEXTSPLIT", "MINVERSE", "MMULT", "MUNIT", "MODE.MULT", "FREQUENCY", "TREND", "GROWTH",
+                   "TRANSPOSE", "SEQUENCE", "SORT", "UNIQUE"}
 TOKENS = re.compile(r"n|s|S|b|B|e|z|a[0-9]+x[0-9]+")
 BAD_TEXT = re.compile(r'[\\/:\[\]!|\x00-\x1f]')
 
@@ -163,11 +167,16 @@ class Admission:
 
     def check(self, group):
         name = group["f"]
-        if not isinstance(name, str) or name not in self.names:
+        spill = bool(group.get("spill"))
+        if spill:
+            if name not in SPILL_FUNCTIONS:
+                raise ValueError("function is not admitted as an array-returning question")
+        elif not isinstance(name, str) or name not in self.names:
             raise ValueError("function is outside the service's safe catalogue subset")
         n = group["n"]
-        if type(n) is not int or not 1 <= n <= MAX_GROUP_CALLS:
-            raise ValueError("expected 1..%d calls per group" % MAX_GROUP_CALLS)
+        limit = MAX_SPILL_CALLS if spill else MAX_GROUP_CALLS
+        if type(n) is not int or not 1 <= n <= limit:
+            raise ValueError("expected 1..%d calls per group" % limit)
         tokens = group["k"].split(",") if group["k"] else []
         if len(tokens) > 32:
             raise ValueError("expected at most 32 arguments")
@@ -184,7 +193,7 @@ class Admission:
                 raise ValueError("unsupported argument type")
             if token[0] == "a":
                 r, c = (int(x) for x in token[1:].split("x"))
-                if name not in NUMERIC_ARRAYS or not (1 <= r <= 32 and 1 <= c <= 32 and r * c <= 128):
+                if (name not in NUMERIC_ARRAYS and not spill) or not (1 <= r <= 32 and 1 <= c <= 32 and r * c <= 128):
                     raise ValueError("expected a bounded rectangular numeric array")
                 widths.append(r * c)
             else:

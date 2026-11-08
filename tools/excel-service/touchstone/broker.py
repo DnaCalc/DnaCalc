@@ -10,6 +10,7 @@ No DnaCalc imports: admission is a plug-in (--admission module:factory).
 """
 import argparse
 import asyncio
+import collections
 import hashlib
 import importlib
 import json
@@ -38,6 +39,9 @@ ANSWER_CACHE_BYTES = 256 * 1024 * 1024
 FRAME_CALLS = 2000
 BASE_DEADLINE_MS = 5000
 DEADLINE_MS_PER_CALL = 0.1
+# Functions whose answers depend on the call before them (measured, 2026-11-08: WEEKNUM with a return type
+# outside 1, 2, 11-17, 21): they are always evaluated call by call in request order on the serial worker.
+STATE_SENSITIVE = ("WEEKNUM",)
 WORKER_MT = (4, 4, 0)             # threads per worker; 0 = multithreaded calculation off (the serial worker)
 
 
@@ -125,7 +129,7 @@ class V1Conn:
 
 
 class Request:
-    __slots__ = ("pieces", "last_seq", "priority", "echo", "serial", "t_first", "calls", "done_sent", "cache_bytes", "envs", "touched", "client")
+    __slots__ = ("pieces", "last_seq", "priority", "echo", "serial", "t_first", "calls", "done_sent", "cache_bytes", "envs", "touched", "client", "primer")
 
     def __init__(self):
         self.pieces, self.last_seq = {}, None
@@ -137,6 +141,7 @@ class Request:
         self.envs = set()
         self.touched = time.monotonic()
         self.client = None
+        self.primer = []
 
 
 class Slot:
@@ -146,6 +151,7 @@ class Slot:
         self.name, self.mt = name, mt
         self.proc = engine.WorkerProcess(root, name, mt=mt, log_dir=log_dir, exe=exe)
         self.state = "new"          # new, idle, busy, down
+        self.serial = mt == 0       # the serial worker: multithreaded calculation off, takes serial requests
         self.hello = None
         self.batches = 0
         self.calls = 0
@@ -168,6 +174,18 @@ class Broker:
         self.cache_bytes = 0
         self.counters = {"calls": 0, "batches": 0, "requests": 0, "refused": 0, "errors": 0}
         self.crash_counts = {}
+        registry = getattr(options, "registry", None)
+        self.registry = set(STATE_SENSITIVE if registry is None else [] if registry == ["none"] else registry)
+        self.leak_every = getattr(options, "leak_every", 100)
+        self.recent = collections.deque()       # (group, ty, v) of recent scalar answers, for the fresh-Excel sample
+        self.recent_calls = 0
+        self.leak_counter = 0
+        self.pending_checks = collections.deque()
+        self.leak_checks = {"checked": 0, "differences": 0, "skipped": 0}
+        self.last_fresh = time.time()
+        self.fresh_running = False
+        self.build_changed = False
+        self.started = time.time()
         self.machine = socket.gethostname()
         self.cpu = None
         self.conns = []
@@ -286,6 +304,7 @@ class Broker:
             opts = body.get("opts") or {}
             req.echo = bool(opts.get("echo"))
             req.serial = opts.get("order") == "serial"
+            req.primer = opts.get("primer") or []
             total = opts.get("calls", 0)
             req.priority = opts.get("priority") or ("interactive" if 0 < total <= batcher.INTERACTIVE_CALLS else "bulk")
         req.touched = time.monotonic()
@@ -306,7 +325,7 @@ class Broker:
             return
         groups = body["groups"]
         try:
-            for group in groups:
+            for group in [*groups, *(req.primer if seq == 0 else [])]:
                 self.admission.check(group)
         except ValueError as error:
             self.counters["refused"] += 1
@@ -318,7 +337,10 @@ class Broker:
             conn.send(protocol.ERROR, self.tag({"id": rid, "seq": seq, "code": "refused", "detail": str(error)}, req.client), True)
             self.maybe_done(key, req)
             return
-        piece = batcher.Piece(conn, rid, seq, groups, bool(body.get("last")), req.priority, req.echo, req.serial)
+        serial = req.serial or any(g["f"] in self.registry for g in groups)
+        piece = batcher.Piece(conn, rid, seq, groups, bool(body.get("last")), req.priority, req.echo, serial)
+        if serial and seq == 0:
+            piece.primer = [dict(g, p=True) for g in req.primer]
         req.pieces[seq] = piece
         req.calls += piece.calls
         self.batcher.add_piece(piece)
@@ -326,8 +348,22 @@ class Broker:
 
     # ---- dispatch ---------------------------------------------------------------------
     def kick(self):
+        # Serial work goes to the serial worker, in order; while any waits, ordinary batches keep off that worker.
+        if self.batcher.serial_pending():
+            serial_slots = [s for s in self.slots if s.serial and s.state != "down"]
+            if not serial_slots:
+                while self.batcher.serial_pending():
+                    batch = self.batcher.next_serial_batch()
+                    self.fail_batch(batch, "worker-down", "no serial worker is up")
+            else:
+                slot = next((s for s in serial_slots if s.state == "idle"), None)
+                if slot is not None:
+                    batch = self.batcher.next_serial_batch()
+                    slot.state = "busy"
+                    asyncio.create_task(self.run_batch(slot, batch))
+        keep_free = self.batcher.serial_pending()
         while self.batcher.has_work():
-            slot = next((s for s in self.slots if s.state == "idle"), None)
+            slot = next((s for s in self.slots if s.state == "idle" and not (keep_free and s.serial)), None)
             if slot is None:
                 if self.slots and all(s.state == "down" for s in self.slots):
                     self.fail_all("no worker is up")
@@ -337,6 +373,7 @@ class Broker:
                 return
             slot.state = "busy"
             asyncio.create_task(self.run_batch(slot, batch))
+        self.run_pending_checks()
 
     @staticmethod
     def tag(obj, client):
@@ -356,7 +393,8 @@ class Broker:
         number = self.batch_no
         calls = batch.calls
         deadline_ms = BASE_DEADLINE_MS + DEADLINE_MS_PER_CALL * calls
-        message = {"id": number, "groups": batch.groups, "deadline_ms": deadline_ms, "echo": batch.echo, "serial": batch.serial}
+        message = {"id": number, "groups": [*batch.primer, *batch.groups], "deadline_ms": deadline_ms, "echo": batch.echo,
+                   "serial": batch.serial}
         t_dispatch = time.monotonic()
         result, failure = None, None
         try:
@@ -400,6 +438,8 @@ class Broker:
             return
         env_id = result["env_id"]
         self.respond(batch, result, slot)
+        self.remember(batch, result)
+        self.leak_check_maybe(slot, batch, result)
         t_sent = time.monotonic()
         t = result.get("timing", {})
         variable = sum(t.get(k) or 0 for k in ("write_ms", "calc_ms", "read_ms", "convert_ms"))
@@ -436,6 +476,146 @@ class Broker:
         slot.proc = engine.WorkerProcess(slot.proc.root, slot.name, mt=slot.mt, log_dir=slot.proc.log_dir, exe=slot.proc.exe)
         await self.start_slot(slot)
 
+    # ---- reversed-order and fresh-Excel checks ---------------------------------------------
+    def remember(self, batch, result):
+        """Keep recent scalar answers (calls and their answers) for the fresh-Excel sample."""
+        if batch.serial or any(g.get("spill") for g in batch.groups) or result.get("order"):
+            return
+        for g, a in zip(batch.groups, result["groups"]):
+            if "ity" in a:
+                a = {"ty": a["ty"], "v": a["v"]}
+            self.recent.append(({k: v for k, v in g.items() if k in ("f", "k", "n", "v", "x")}, a["ty"], a["v"]))
+            self.recent_calls += g["n"]
+        while self.recent_calls > 40000 and self.recent:
+            old = self.recent.popleft()
+            self.recent_calls -= old[0]["n"]
+
+    @staticmethod
+    def reversed_groups(groups):
+        out = []
+        for g in reversed(groups):
+            width = protocol.group_width(g)
+            n = g["n"]
+            v = g["v"]
+            reversed_v = [v[(n - 1 - i) * width + j] for i in range(n) for j in range(width)]
+            r = {"f": g["f"], "k": g["k"], "n": n, "v": reversed_v}
+            if "x" in g:
+                r["x"] = g["x"]
+            out.append(r)
+        return out
+
+    def leak_check_maybe(self, slot, batch, result, force=False):
+        """One batch in `leak_every`: the same calls in reversed order on another worker, answers compared.
+
+        A difference is a candidate for the state-sensitive registry (leakage.jsonl); no answer is changed."""
+        if batch.serial or batch.interactive or any(g.get("spill") for g in batch.groups):
+            return
+        self.leak_counter += 1
+        if not force and (not self.leak_every or self.leak_counter % self.leak_every):
+            return
+        if len(self.pending_checks) >= 500:
+            self.leak_checks["skipped"] += 1
+            return
+        self.pending_checks.append((slot, batch, result))
+
+    def run_pending_checks(self):
+        """Reversed-order checks run on an idle worker other than the first one, when no real work is waiting."""
+        while self.pending_checks and not self.batcher.has_work() and not self.batcher.serial_pending():
+            first, batch, result = self.pending_checks[0]
+            other = next((s for s in self.slots if s.state == "idle" and s is not first and not s.serial), None) or \
+                next((s for s in self.slots if s.state == "idle" and s is not first), None)
+            if other is None:
+                return
+            self.pending_checks.popleft()
+            other.state = "busy"
+            asyncio.create_task(self.leak_check(other, first.name, batch, result))
+
+    async def leak_check(self, other, first_worker, batch, result):
+        message = {"id": -self.leak_counter, "groups": self.reversed_groups(batch.groups), "deadline_ms": 30000,
+                   "echo": False, "serial": False}
+        try:
+            second = await self.loop.run_in_executor(self.executor, other.proc.run, message, 40)
+        except Exception as error:
+            self.log_event("leak-check-failed", worker=other.name, detail=str(error)[:200])
+            await self.restart_slot(other)
+            self.kick()
+            return
+        other.state = "idle"
+        if second.get("error"):
+            self.log_event("leak-check-error", worker=other.name, detail=second.get("error"))
+            if second["error"] in ("excel-crashed", "fingerprint-drift-after", "fingerprint-drift-before"):
+                await self.recycle_after_worker_event(other)
+            self.kick()
+            return
+        differences = self.compare_reversed(batch.groups, result["groups"], second["groups"], [first_worker, other.name],
+                                            [result["env_id"], second["env_id"]], "reversed")
+        self.leak_checks["checked"] += 1
+        self.leak_checks["differences"] += differences
+        self.kick()
+
+    def compare_reversed(self, groups, first, second, workers, envs, kind):
+        count = 0
+        # second answers the reversed groups in the reversed order: group index k of `second` is groups[-1-k]
+        n_groups = len(groups)
+        for k, b in enumerate(second):
+            gi = n_groups - 1 - k
+            g, a = groups[gi], first[gi]
+            n, width = g["n"], protocol.group_width(g)
+            for i in range(n):
+                j = n - 1 - i
+                x = (a["ty"][i], a["v"][i])
+                y = (b["ty"][j], b["v"][j])
+                if x != y:
+                    count += 1
+                    self.leak_log({"kind": kind, "function": g["f"], "shape": g["k"], "x": g.get("x"),
+                                   "args": g["v"][i * width:(i + 1) * width], "first": list(x), "second": list(y),
+                                   "workers": workers, "envs": envs})
+        return count
+
+    def leak_log(self, record):
+        record = {"utc": logs.utc().isoformat(timespec="milliseconds"), **record}
+        with (self.state_dir / "log" / "leakage.jsonl").open("a", encoding="ascii") as stream:
+            stream.write(logs.compact(record) + "\n")
+
+    async def fresh_sample(self, calls=10000, reason="daily"):
+        """Run a sample of recent calls in a brand-new Excel and compare with the answers that were given."""
+        if not self.recent:
+            return {"calls": 0, "reason": reason}
+        picked, total = [], 0
+        for group, ty, v in reversed(self.recent):
+            if total >= calls:
+                break
+            picked.append((group, ty, v))
+            total += group["n"]
+        proc = engine.WorkerProcess(self.state_dir / "excel", "fresh", mt=4, log_dir=self.state_dir / "excel" / "worker-logs",
+                                    exe=self.worker_exe)
+        try:
+            hello = await self.loop.run_in_executor(self.executor, proc.start)
+            message = {"id": 0, "groups": [g for g, _, _ in picked], "deadline_ms": 60000, "echo": False, "serial": False}
+            fresh = await self.loop.run_in_executor(self.executor, proc.run, message, 90)
+        except Exception as error:
+            self.log_event("fresh-sample-failed", detail=str(error)[:200])
+            return {"error": str(error)[:200]}
+        finally:
+            await self.loop.run_in_executor(self.executor, proc.stop)
+        if fresh.get("error"):
+            return {"error": fresh["error"]}
+        different = 0
+        for (g, ty, v), b in zip(picked, fresh["groups"]):
+            width = protocol.group_width(g)
+            for i in range(g["n"]):
+                x, y = (ty[i], v[i]), (b["ty"][i], b["v"][i])
+                if x != y:
+                    different += 1
+                    self.leak_log({"kind": "fresh", "function": g["f"], "shape": g["k"], "x": g.get("x"),
+                                   "args": g["v"][i * width:(i + 1) * width], "first": list(x), "second": list(y),
+                                   "workers": ["pool", "fresh"], "envs": [hello["env_id"]]})
+        summary = {"calls": total, "different": different, "reason": reason, "env": hello["env_id"],
+                   "build": hello["env"].get("build")}
+        self.log_event("fresh-sample", **summary)
+        self.last_fresh = time.time()
+        return summary
+
     # ---- answers ----------------------------------------------------------------------
     def send_answer(self, conn, frame, piece):
         env_id = frame.get("env")
@@ -470,6 +650,8 @@ class Broker:
             req = self.requests.get((piece.origin, piece.rid))
             frame = self.tag({"id": piece.rid, "seq": piece.seq, "env": env_id, "w": slot.name, "b": result["batch"],
                               "g": frame_groups}, req.client if req else None)
+            if batch.serial:
+                frame["order"] = "serial"
             piece.frames.append(frame)
             piece.env_ids.add(env_id)
             piece.workers.add(slot.name)
@@ -630,13 +812,45 @@ class Broker:
         return server
 
     # ---- main -------------------------------------------------------------------------
+    def note_build(self):
+        """An Excel build that differs from the last run's schedules a fresh-Excel sample once traffic exists."""
+        builds = {(s.hello or {}).get("env", {}).get("build") for s in self.slots if s.hello}
+        path = self.state_dir / "last-build.txt"
+        previous = path.read_text(encoding="ascii").strip() if path.exists() else None
+        current = ",".join(sorted(b for b in builds if b))
+        self.build_changed = bool(previous) and previous != current
+        path.write_text(current, encoding="ascii")
+
+    def schedule_fresh(self):
+        trigger = self.state_dir / "leak-now"
+        reason = None
+        if trigger.exists():
+            reason = "requested"
+        elif self.recent and time.time() - self.last_fresh > 24 * 3600:
+            reason = "daily"
+        elif self.build_changed and self.recent and time.time() - self.started > 120:
+            reason = "build-change"
+            self.build_changed = False
+        if reason and not self.fresh_running and self.recent:
+            trigger.unlink(missing_ok=True)
+            self.fresh_running = True
+
+            async def run():
+                try:
+                    summary = await self.fresh_sample(reason=reason)
+                    (self.state_dir / "fresh-sample.json").write_text(json.dumps(summary), encoding="ascii")
+                finally:
+                    self.fresh_running = False
+            asyncio.create_task(run())
+
     def write_status(self):
         status = {"pid": os.getpid(), "running": True, "utc": logs.utc().isoformat(timespec="seconds"),
                   "queued_calls": self.batcher.queued_calls(), "counters": self.counters,
                   "workers": [{"name": s.name, "state": s.state, "batches": s.batches, "calls": s.calls,
                                "pid": (s.hello or {}).get("pid"), "env": (s.hello or {}).get("env_id"),
                                "mt": s.mt, "crashes": s.crashes} for s in self.slots],
-                  "isolated_functions": sorted(self.batcher.isolate), "answer_cache_bytes": self.cache_bytes}
+                  "isolated_functions": sorted(self.batcher.isolate), "answer_cache_bytes": self.cache_bytes,
+                  "leak_checks": self.leak_checks, "pending_leak_checks": len(self.pending_checks), "serial_registry": sorted(self.registry)}
         tmp = self.state_dir / "status.json.tmp"
         tmp.write_text(json.dumps(status), encoding="ascii")
         try:
@@ -664,9 +878,11 @@ class Broker:
                                                                         "socket": self.options.relay_socket})
                     tasks.append(asyncio.create_task(self.peers.run()))
                 self.log_event("started", pid=os.getpid(), workers=[s.name + ":" + s.state for s in self.slots])
+                self.note_build()
                 while not stop.exists():
                     self.write_status()
                     self.evict()
+                    self.schedule_fresh()
                     await asyncio.sleep(0.5)
             finally:
                 self.stopping = True
@@ -695,6 +911,9 @@ def command_start(options):
     run += f" --desktop {options.desktop}"
     if options.admission:
         run += f" --admission {options.admission}"
+    if options.registry is not None:
+        run += " --registry " + " ".join(options.registry)
+    run += f" --leak-every {options.leak_every}"
     subprocess.Popen(["pwsh", "-NoProfile", "-File", str(guard), "-Command", run, "-Log", str(state / "console.log"),
                       "-GuardOut", str(state / "guard.json"), "-SessionRoot", str(state / "excel"),
                       "-DesktopName", options.desktop],
@@ -753,6 +972,9 @@ def main():
     parser.add_argument("--relay-v1-queue", default="~/excel-queue-v2",
                         help="the v1 file queue each relay serves on its host (~/excel-queue at cutover)")
     parser.add_argument("--relay-socket", default="~/.excel-service/excel.sock")
+    parser.add_argument("--registry", nargs="*", default=None,
+                        help="functions served in serial mode (default WEEKNUM; 'none' for an empty registry, to test the leak check)")
+    parser.add_argument("--leak-every", type=int, default=100, help="reversed-order check on one batch in this many")
     parser.add_argument("--admission", default=None, help="module:factory of the admission plug-in")
     parser.add_argument("--desktop", default="DnaCalcExcelV2")
     parser.add_argument("--since", default=None, help="e.g. 24h, 7d or an ISO time")
