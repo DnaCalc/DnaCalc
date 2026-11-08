@@ -576,7 +576,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
         println!("{stage}: {verdict}");
     }
     println!("M1 matched {} of {}: {matched:?}", matched.len(), expected.len());
-    assert_eq!(matched, ["agg-text-field", "group-month", "group-month-year", "group-quarter", "group-quarter-year", "group-year", "group-year-columns", "nodata-rows-hidden", "show-count-average", "show-percent-of-column", "show-percent-of-row", "show-percent-of-total", "values-columns-after-field"]);
+    assert_eq!(matched, ["agg-text-field", "group-month", "group-month-year", "group-quarter", "group-quarter-year", "group-year", "group-year-columns", "nodata-rows-hidden", "show-count-average", "show-difference-east", "show-difference-next", "show-difference-previous", "show-difference-product-alpha", "show-index", "show-percent-difference-east", "show-percent-difference-previous", "show-percent-of-column", "show-percent-of-row", "show-percent-of-total", "show-percentof-east", "show-percentof-previous", "show-running-total", "show-running-total-product", "values-columns-after-field"]);
 }
 
 #[test]
@@ -662,4 +662,34 @@ fn dc_8wp_10__pivot_precision_uses_the_same_path_in_both_numeric_modes() {
         outputs.push(cells);
     }
     assert_eq!(outputs[0], outputs[1]);
+}
+
+#[test]
+/// Native-only: checks refusal through a captured workbook and the host refresh command.
+fn dc_8wp_10__relative_percentage_with_zero_base_refuses_without_writing() {
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(
+        include_bytes!("fixtures/pivot/m1-calculation/built.xlsx").to_vec(),
+    ));
+    let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let source_sheet = book.host().sheets().iter().find(|s|
+        String::from_utf16_lossy(s.name().text().utf16_code_units()) == "Source").unwrap().id();
+    let source_cells = held(&book, source_sheet, 5, 37);
+    let mut changed = 0;
+    for row in 2..=37 {
+        if source_cells.get(&format!("A{row}")) == Some(&Cell::Text("East".into())) {
+            let receipt = book.dispatch(SkinIntent::EnterCell { at: at(source_sheet, &format!("D{row}")), text: "0".into() });
+            assert!(receipt.accepted(), "{receipt:?}");
+            changed += 1;
+        }
+    }
+    assert!(changed > 0);
+    let (sheet, part) = book.host().model().definitions().pivots().sheets.iter().find_map(|(sheet, pivots)|
+        pivots.tables.iter().find(|table| table.name == "pvt_show_percentof_east")
+            .map(|table| (*sheet, table.part.clone()))).unwrap();
+    let before = held(&book, sheet, 6, 12);
+    let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+        sheet, revision: book.host().revision().get(), part,
+    }));
+    assert!(!receipt.accepted(), "{receipt:?}");
+    assert_eq!(held(&book, sheet, 6, 12), before);
 }
