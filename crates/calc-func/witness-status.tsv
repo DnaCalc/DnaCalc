@@ -205,8 +205,8 @@ FINV	full	20131,?	32	3	41	numeric	cc9cff0cb2+changes
 FINV	pinned	20131	32	3	41	numeric	7e118266e6+changes
 FISHER	full	20430	34166	34166	-	exact	cc9cff0cb2+changes
 FISHER	pinned	20430	120	120	-	exact	919dd43269+changes
-FIXED	full	20430	989	201	-	structural	cc9cff0cb2+changes
-FIXED	pinned	20430	120	22	-	structural	919dd43269+changes
+FIXED	full	20430	989	989	-	exact	562b6fbad3+changes
+FIXED	pinned	20430	120	120	-	exact	562b6fbad3+changes
 FLOOR	full	20430	1335	1324	4611686018427387904	structural	cc9cff0cb2+changes
 FLOOR	pinned	20430	120	120	-	exact	919dd43269+changes
 FLOOR.MATH	full	20430	1362	1350	-	structural	cc9cff0cb2+changes

@@ -403,7 +403,7 @@ fn environment(id: String, source: String, env: Option<&Value>, fallback: Option
             .or_else(|| fallback.and_then(|e| e.get(name)).and_then(text_of))
     };
     let setting = |name: &str| settings.and_then(|v| v.get(name)).and_then(text_of);
-    let invocation = calc_verdict::WitnessInvocation {
+    let mut invocation = calc_verdict::WitnessInvocation {
         input_transport: field("excel_input_plumbing"),
         input_sheet_state: None,
         locale: field("locale_profile"),
@@ -414,6 +414,14 @@ fn environment(id: String, source: String, env: Option<&Value>, fallback: Option
             .or_else(|| field("workbook_date_system")).or_else(|| field("date_system")),
         compatibility_version: setting("CompatibilityVersion").or_else(|| field("workbook_compatibility_version")).or_else(|| field("workbook_compatibility")),
     };
+    // dc-1943: all 989 FIXED calls in this particular bank were replayed on the same
+    // en-ZA host, with identical results. The captured replay is retained under
+    // migration/evidence/dc-1943-fixed-replay.json.gz. Other banks keep their own context.
+    if source == format!("{CHECKOUT} cache/oracle-20430/build-20430/FIXED.jsonl") {
+        invocation.locale.get_or_insert_with(|| "en-ZA".to_owned());
+        invocation.decimal_separator.get_or_insert_with(|| ".".to_owned());
+        invocation.thousands_separator.get_or_insert_with(|| " ".to_owned());
+    }
     ReadingSource {
         id,
         source,
@@ -2364,6 +2372,25 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fixed_replay_attests_the_profile_only_for_its_bank() {
+        let bytes = include_bytes!("../../../migration/evidence/dc-1943-fixed-replay.json.gz");
+        let replay: Value = serde_json::from_slice(&gunzip(bytes, None).unwrap()).unwrap();
+        assert_eq!(replay["excel_build"], "20527");
+        let rows: Vec<_> = replay["rows"].as_array().unwrap().iter()
+            .filter(|row| row["tag"] == "bank").collect();
+        assert_eq!(rows.len(), 989);
+        assert!(rows.iter().all(|row| row["same"] == true && row["input_kept"] == true
+            && row["input_bits"][2] == "3ff0000000000000"
+            && row["excel_text"] == row["bank_text"]));
+        let source = format!("{CHECKOUT} cache/oracle-20430/build-20430/FIXED.jsonl");
+        let context = environment("r0".into(), source, None, None, None).invocation.unwrap();
+        assert_eq!(context.locale.as_deref(), Some("en-ZA"));
+        assert_eq!(context.decimal_separator.as_deref(), Some("."));
+        assert_eq!(context.thousands_separator.as_deref(), Some(" "));
+        assert!(environment("r0".into(), "another bank".into(), None, None, None).invocation.is_none());
+    }
 
     /// W111 broad ISREF writes each scalar into a cell and calls through that reference.
     #[test]
