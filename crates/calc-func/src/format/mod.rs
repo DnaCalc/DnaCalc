@@ -20,10 +20,10 @@
 //! - Dates and times (y, m, d, h, s, AM/PM, elapsed [h], [m], [s]) through [`datetime`]; a negative
 //!   number under a date code is #VALUE!.
 //!
-//! A fraction alone (`?/?`, `??/16`) renders as [`FractionCode`] says. A fraction with an integer
-//! part (`# ?/?`, which Excel gave #VALUE! for under en-ZA), a literal inside the decimal places,
-//! and letters that are format tokens elsewhere (`B`, `e`, `g`, `A/P`) are not modelled and refuse
-//! the call.
+//! A fraction (`?/?`, `??/16`, `# ?/?`, `# ??/??`) renders as [`FractionLayout`] says. A literal
+//! inside the decimal places and letters that are format tokens elsewhere (`B`, `e`, `g`, `A/P`)
+//! are not modelled and refuse the call. Under a host whose group separator is a space (en-ZA) a
+//! fraction with an integer part is #VALUE!, as Excel gave it.
 
 pub(crate) mod cell_info;
 mod datetime;
@@ -286,6 +286,25 @@ fn significant(decimal: &ExactDecimal, count: usize) -> (String, i64) {
 
 // --- format codes ---------------------------------------------------------------------------------
 
+/// Whether a section is a text section: an `@` outside quotes and escapes, and no digit placeholder.
+fn is_text_section(section: &str) -> bool {
+    let (mut quoted, mut escaped, mut at_sign, mut digit) = (false, false, false, false);
+    for ch in section.chars() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        match ch {
+            '\\' => escaped = true,
+            '"' => quoted = !quoted,
+            '@' if !quoted => at_sign = true,
+            '0' | '#' | '?' if !quoted => digit = true,
+            _ => {}
+        }
+    }
+    at_sign && !digit
+}
+
 /// The sections of a code, split at `;` outside quotes and escapes.
 fn sections(code: &str) -> Vec<String> {
     let mut out = Vec::new();
@@ -425,6 +444,12 @@ fn strip_tokens(section: &str) -> Result<(String, Option<crate::locale::LocaleId
 /// The section a number is rendered with, and whether that section shows the number's sign
 /// itself (so its magnitude is rendered).
 fn choose(sections: &[String], value: f64) -> Result<(String, bool), Failure> {
+    // A second section that is the text section (`# ?/?;@`) leaves one section for every number
+    // (Excel 16.0.20430 shows -0.5 as `- 1/2` under `# ?/?;@`).
+    let sections = match sections {
+        [first, second] if is_text_section(second) => &sections[..1],
+        _ => sections,
+    };
     let numeric: Vec<&String> = sections.iter().take(3).collect();
     if numeric.iter().any(|s| condition_of(s).is_some()) {
         let mut fallback = None;
@@ -945,109 +970,420 @@ fn scientific(
     Ok((out, true))
 }
 
-/// A section that is a fraction alone, with no integer part: numerator placeholders (`0`, `#`,
-/// `?`), `/`, and denominator placeholders or a fixed denominator (dc-uar). Excel 16.0.20430
-/// (the catalogue oracle's sheet dcuar_text):
+/// A fraction section: an optional integer part, then numerator placeholders, `/` and a
+/// denominator, with literal text around them (dc-uar for the fraction alone, dc-0f1k.6 for the
+/// rest; every behaviour here is a reading of Excel 16.0.20430, `Range.Text` of a cell and the
+/// cell's `TEXT` formula, in apps/dna-onecalc/tests/fixtures/formats):
 ///
-/// - with placeholders, the fraction is the last convergent of the number's continued fraction,
-///   computed in binary64, whose denominator has at most as many digits as there are
-///   placeholders (`TEXT(0.7,"?/?")` is `2/3`, `TEXT(0.1,"?/?")` is `0/1` since 1/0.1 is 10);
-/// - with a fixed denominator d, the numerator is |x|*d rounded a half up, and a numerator above
-///   32767 is #VALUE!;
-/// - a numerator placeholder pads on the left (`0` with 0, `?` with a space, `#` with nothing); a
-///   denominator of `0`s pads with zeros on the left, one of `?` and `#` is left-aligned and
-///   `?` pads with a space on the right;
-/// - a minus sign comes first, and not for a numerator of 0.
-///
-/// A fraction with an integer part (`# ?/?`) is not this form; under en-ZA the space in it is
-/// the group separator, and Excel gives those #VALUE! (not modelled here).
-struct FractionCode {
+/// - A denominator of placeholders (`?`, `#`) or zeros limits the approximation to as many digits
+///   as there are placeholders and takes the last convergent of the number's continued fraction,
+///   computed in binary64 (`TEXT(0.7,"?/?")` is `2/3`, `TEXT(0.9,"?/?")` is `8/9` since
+///   1/(1/0.9-1) is 8.999..., and `TEXT(0.1,"?/?")` is `0/1`). A fixed denominator `d` takes the
+///   numerator |x|*d rounded a half up from the 15 significant digits of the product.
+/// - Without an integer part the fraction is improper (`1234.5678` under `??/??` is `100000/81`);
+///   a value from 2147483647 up, or a numerator above 32767 over a fixed denominator, shows as a
+///   row of `#`, which TEXT gives as #VALUE!. With an integer part (`# ?/?`) the integer part is
+///   the whole number, the fraction approximates what is left, and a fraction that rounds up to
+///   1 carries into the whole number (`2.999` under `# ?/?` is `3`).
+/// - A numerator or denominator pads to its placeholders: digits fill the numerator's placeholders
+///   from the right (`0` pads with a zero, `?` with a space, `#` with nothing); a denominator of
+///   zeros pads on the left, one of `?` and `#` is left-aligned and `?` pads with a space.
+/// - A numerator of 0 with an integer part, and no `0` in the numerator, shows no fraction: the
+///   fraction's width in spaces when a `?` stands anywhere in the code, nothing otherwise, and the
+///   integer part writes `0` for a value that is wholly zero (`0` under `# ?/?` is `0` and four
+///   spaces, under `# #/#` just `0`). A `0` in the numerator writes `0/1` instead.
+/// - The text between the integer part and the numerator is written as it stands when the integer
+///   part wrote anything (a `?` placeholder writes a space); otherwise it is written as spaces of its
+///   width when the numerator's first placeholder is `?`, and not at all when it is not.
+/// - A minus sign comes first (before any literal text): always with an integer part (`-0` is
+///   shown), and without one only for a numerator other than 0. A `%` scales by 100.
+struct FractionLayout {
+    /// Literal text before the integer part, or before the numerator when there is none.
+    prefix: String,
+    /// The integer part's placeholders (none: the fraction stands alone).
+    integer: Vec<char>,
+    grouping: bool,
+    /// Literal text between the integer part and the numerator.
+    separator: String,
     numerator: Vec<char>,
-    denominator: Result<u64, Vec<char>>,
+    denominator: Denominator,
+    suffix: String,
+    percents: i32,
 }
 
-fn fraction_code(section: &str) -> Option<FractionCode> {
-    let (top, bottom) = section.split_once('/')?;
-    let placeholders = |s: &str| !s.is_empty() && s.chars().all(|c| matches!(c, '0' | '#' | '?'));
-    if !placeholders(top) {
-        return None;
-    }
-    let denominator = if placeholders(bottom) {
-        let chars: Vec<char> = bottom.chars().collect();
-        if chars.contains(&'0') && chars.iter().any(|c| *c != '0') {
-            return None;
-        }
-        Err(chars)
-    } else if !bottom.is_empty()
-        && bottom.len() <= 9
-        && bottom.chars().all(|c| c.is_ascii_digit())
-        && !bottom.starts_with('0')
-    {
-        Ok(bottom.parse().ok()?)
-    } else {
-        return None;
+enum Denominator {
+    /// A number written in the code (`8`, `100`).
+    Fixed(u64),
+    /// Placeholders `?` and `#`: left-aligned, `?` pads with a space.
+    Places(Vec<char>),
+    /// Zeros: pads with zeros on the left.
+    Zeros(usize),
+}
+
+enum FractionToken {
+    Literal(String),
+    Placeholder(char),
+    Group,
+    Slash,
+    Digit(char),
+    Percent,
+}
+
+/// The fraction `section` writes, if it is one: `Ok(None)` when it has no `/` outside quotes and
+/// escapes, `Value` for a code Excel refuses (two fractions, a decimal point, an exponent), and
+/// `NotModelled` for the shapes not measured.
+fn fraction_layout(section: &str, profile: &FormatProfile) -> Result<Option<FractionLayout>, Failure> {
+    let decimal = profile.format_code_decimal_token;
+    let group = profile.format_code_group_token;
+    let chars: Vec<char> = section.chars().collect();
+    let mut tokens: Vec<FractionToken> = Vec::new();
+    let mut at = 0;
+    // What makes the code not a fraction Excel shows: known only once a `/` is found.
+    let mut refusal: Option<Failure> = None;
+    let push_literal = |tokens: &mut Vec<FractionToken>, text: &str| match tokens.last_mut() {
+        Some(FractionToken::Literal(existing)) => existing.push_str(text),
+        _ => tokens.push(FractionToken::Literal(text.to_owned())),
     };
-    let numerator: Vec<char> = top.chars().collect();
-    if numerator.contains(&'0') && numerator.iter().any(|c| *c != '0') {
-        return None;
+    while at < chars.len() {
+        let ch = chars[at];
+        let rest: String = chars[at..].iter().collect();
+        match ch {
+            '"' => {
+                let Some(close) = chars[at + 1..].iter().position(|c| *c == '"') else {
+                    refusal = Some(Failure::NotModelled);
+                    break;
+                };
+                let text: String = chars[at + 1..at + 1 + close].iter().collect();
+                push_literal(&mut tokens, &text);
+                at += close + 2;
+            }
+            '\\' => {
+                let Some(next) = chars.get(at + 1) else {
+                    refusal = Some(Failure::NotModelled);
+                    break;
+                };
+                push_literal(&mut tokens, &next.to_string());
+                at += 2;
+            }
+            '_' => {
+                push_literal(&mut tokens, " ");
+                at += 2;
+            }
+            '*' => at += 2,
+            '0' | '#' | '?' => {
+                tokens.push(FractionToken::Placeholder(ch));
+                at += 1;
+            }
+            '%' => {
+                tokens.push(FractionToken::Percent);
+                at += 1;
+            }
+            '/' => {
+                tokens.push(FractionToken::Slash);
+                at += 1;
+            }
+            '1'..='9' => {
+                tokens.push(FractionToken::Digit(ch));
+                at += 1;
+            }
+            '@' => {
+                refusal.get_or_insert(Failure::NotModelled);
+                at += 1;
+            }
+            'E' | 'e' if matches!(chars.get(at + 1), Some('+' | '-')) => {
+                refusal.get_or_insert(Failure::Value);
+                at += 2;
+            }
+            _ if rest.starts_with(decimal) => {
+                refusal.get_or_insert(Failure::Value);
+                at += decimal.chars().count();
+            }
+            _ if !group.is_empty() && rest.starts_with(group) => {
+                tokens.push(FractionToken::Group);
+                at += group.chars().count();
+            }
+            c if c.is_ascii_alphabetic() => {
+                if "ymdhsbegYMDHSBEG".contains(c) || (matches!(c, 'a' | 'A') && !measured_host(profile)) {
+                    refusal.get_or_insert(Failure::NotModelled);
+                }
+                push_literal(&mut tokens, &c.to_string());
+                at += 1;
+            }
+            c => {
+                push_literal(&mut tokens, &c.to_string());
+                at += 1;
+            }
+        }
     }
-    Some(FractionCode {
+    let slashes: Vec<usize> = tokens
+        .iter()
+        .enumerate()
+        .filter(|(_, t)| matches!(t, FractionToken::Slash))
+        .map(|(i, _)| i)
+        .collect();
+    let slash = match slashes.as_slice() {
+        [] => return Ok(None),
+        [one] => *one,
+        _ => return Err(refusal.unwrap_or(Failure::Value)),
+    };
+    if let Some(refusal) = refusal {
+        return Err(refusal);
+    }
+    let mut numerator_from = slash;
+    while numerator_from > 0 && matches!(tokens[numerator_from - 1], FractionToken::Placeholder(_)) {
+        numerator_from -= 1;
+    }
+    let numerator: Vec<char> = tokens[numerator_from..slash]
+        .iter()
+        .filter_map(|t| match t {
+            FractionToken::Placeholder(c) => Some(*c),
+            _ => None,
+        })
+        .collect();
+    let mut denominator_to = slash + 1;
+    let mut denominator: Vec<char> = Vec::new();
+    while let Some(token) = tokens.get(denominator_to) {
+        match token {
+            FractionToken::Placeholder(c) | FractionToken::Digit(c) => denominator.push(*c),
+            _ => break,
+        }
+        denominator_to += 1;
+    }
+    if numerator.is_empty() || denominator.is_empty() {
+        return Err(Failure::NotModelled);
+    }
+    let denominator = if denominator.iter().all(|c| matches!(c, '?' | '#')) {
+        Denominator::Places(denominator)
+    } else if denominator.iter().all(|c| *c == '0') {
+        Denominator::Zeros(denominator.len())
+    } else if denominator.len() <= 9
+        && denominator.iter().all(|c| c.is_ascii_digit())
+        && denominator[0] != '0'
+    {
+        Denominator::Fixed(
+            denominator
+                .iter()
+                .collect::<String>()
+                .parse()
+                .map_err(|_| Failure::NotModelled)?,
+        )
+    } else {
+        return Err(Failure::NotModelled);
+    };
+    // The integer part: the placeholders (and group separators) before the literal text that
+    // precedes the numerator. Without that text the placeholders beside the numerator are its own.
+    let head = &tokens[..numerator_from];
+    let mut separator_from = head.len();
+    while separator_from > 0 && matches!(head[separator_from - 1], FractionToken::Literal(_)) {
+        separator_from -= 1;
+    }
+    let mut integer_from = separator_from;
+    while integer_from > 0
+        && matches!(head[integer_from - 1], FractionToken::Placeholder(_) | FractionToken::Group)
+    {
+        integer_from -= 1;
+    }
+    let integer_tokens = &head[integer_from..separator_from];
+    let has_integer = separator_from < head.len()
+        && integer_tokens
+            .iter()
+            .any(|t| matches!(t, FractionToken::Placeholder(_)));
+    let (prefix_to, integer_range, separator_range) = if has_integer {
+        (integer_from, integer_from..separator_from, separator_from..head.len())
+    } else {
+        (head.len(), 0..0, 0..0)
+    };
+    let text = |tokens: &[FractionToken]| -> Result<(String, i32), Failure> {
+        let mut out = String::new();
+        let mut percents = 0;
+        for token in tokens {
+            match token {
+                FractionToken::Literal(text) => out.push_str(text),
+                FractionToken::Percent => {
+                    out.push('%');
+                    percents += 1;
+                }
+                _ => return Err(Failure::NotModelled),
+            }
+        }
+        Ok((out, percents))
+    };
+    let (prefix, p1) = text(&head[..prefix_to])?;
+    let (separator, p2) = text(&head[separator_range])?;
+    let (suffix, p3) = text(&tokens[denominator_to..])?;
+    let integer: Vec<char> = head[integer_range.clone()]
+        .iter()
+        .filter_map(|t| match t {
+            FractionToken::Placeholder(c) => Some(*c),
+            _ => None,
+        })
+        .collect();
+    let grouping = head[integer_range]
+        .iter()
+        .any(|t| matches!(t, FractionToken::Group));
+    Ok(Some(FractionLayout {
+        prefix,
+        integer,
+        grouping,
+        separator,
         numerator,
         denominator,
-    })
+        suffix,
+        percents: p1 + p2 + p3,
+    }))
 }
 
-impl FractionCode {
-    fn render(&self, value: f64, show_minus: bool) -> Rendered {
-        let x = value.abs();
-        let (numerator, denominator) = match &self.denominator {
-            Ok(d) => {
-                let n = (x * *d as f64 + 0.5).floor();
-                if !(n <= 32767.0) {
-                    return Err(Failure::Value);
-                }
-                (n as u64, *d)
-            }
-            Err(places) => {
-                let largest = 10u64.pow(places.len() as u32) - 1;
-                convergent(x, largest).ok_or(Failure::NotModelled)?
-            }
-        };
-        let mut out = String::new();
-        if show_minus && value < 0.0 && numerator != 0 {
-            out.push('-');
+/// Digits fill `placeholders` from the right; a placeholder left over pads (`0` with a zero, `?`
+/// with a space, `#` with nothing) and digits left over are written whole.
+fn fill_placeholders(placeholders: &[char], digits: &str) -> String {
+    let missing = placeholders.len().saturating_sub(digits.len());
+    let mut out = String::new();
+    for c in &placeholders[..missing] {
+        match c {
+            '0' => out.push('0'),
+            '?' => out.push(' '),
+            _ => {}
         }
-        let top = numerator.to_string();
-        let missing = self.numerator.len().saturating_sub(top.len());
-        for c in &self.numerator[..missing] {
-            match c {
-                '0' => out.push('0'),
-                '?' => out.push(' '),
-                _ => {}
-            }
-        }
-        out.push_str(&top);
-        out.push('/');
+    }
+    out.push_str(digits);
+    out
+}
+
+impl FractionLayout {
+    fn denominator_text(&self, denominator: u64) -> String {
         let bottom = denominator.to_string();
         match &self.denominator {
-            Ok(_) => out.push_str(&bottom),
-            Err(places) => {
+            Denominator::Fixed(_) => bottom,
+            Denominator::Zeros(width) => {
+                format!("{}{bottom}", "0".repeat(width.saturating_sub(bottom.len())))
+            }
+            Denominator::Places(places) => {
                 let missing = places.len().saturating_sub(bottom.len());
-                if places.first() == Some(&'0') {
-                    out.push_str(&"0".repeat(missing));
-                    out.push_str(&bottom);
-                } else {
-                    out.push_str(&bottom);
-                    for c in &places[places.len() - missing..] {
-                        if *c == '?' {
-                            out.push(' ');
-                        }
+                let mut out = bottom;
+                for c in &places[places.len() - missing..] {
+                    if *c == '?' {
+                        out.push(' ');
                     }
                 }
+                out
             }
         }
-        Ok(out)
     }
+
+    fn render(&self, profile: &FormatProfile, value: f64, show_minus: bool) -> Rendered {
+        let x = value.abs() * 100f64.powi(self.percents);
+        if !x.is_finite() {
+            return Err(Failure::Value);
+        }
+        let mixed = !self.integer.is_empty();
+        let (whole, rest) = if mixed { (x.floor(), x - x.floor()) } else { (0.0, x) };
+        let (mut numerator, denominator) = match &self.denominator {
+            Denominator::Fixed(d) => {
+                let (n, _) = digits(rest * *d as f64, 0);
+                let n: u64 = if n.is_empty() {
+                    0
+                } else {
+                    n.parse().map_err(|_| Failure::Value)?
+                };
+                if !mixed && n > 32767 {
+                    return Err(Failure::Value);
+                }
+                (n, *d)
+            }
+            Denominator::Places(places) => self.approximate(rest, places.len(), mixed)?,
+            Denominator::Zeros(width) => self.approximate(rest, *width, mixed)?,
+        };
+        let mut whole_text = if whole > 0.0 { digits(whole, 0).0 } else { String::new() };
+        if mixed && numerator == denominator {
+            // The fraction rounded up to 1: it carries into the whole number.
+            whole_text = digits(whole + 1.0, 0).0;
+            numerator = 0;
+        }
+        let minus = if show_minus && value < 0.0 && (mixed || numerator != 0) {
+            "-"
+        } else {
+            ""
+        };
+        let numerator_text = |n: u64| fill_placeholders(&self.numerator, &n.to_string());
+        if !mixed {
+            return Ok(format!(
+                "{minus}{}{}/{}{}",
+                self.prefix,
+                numerator_text(numerator),
+                self.denominator_text(denominator),
+                self.suffix
+            ));
+        }
+        let blank = numerator == 0 && !self.numerator.contains(&'0');
+        let pads = self.integer.iter().any(|c| matches!(c, '0' | '?'));
+        let separator_shows = !whole_text.is_empty() || pads || self.numerator[0] == '?';
+        if whole_text.is_empty() && numerator == 0 && (blank || separator_shows) {
+            whole_text = "0".to_owned();
+        }
+        let padded = fill_placeholders(&self.integer, &whole_text);
+        let integer_text = if self.grouping {
+            grouped_digits(&padded, profile.thousands_separator)
+        } else {
+            padded
+        };
+        let separator = if !integer_text.is_empty() {
+            self.separator.clone()
+        } else if separator_shows {
+            " ".repeat(self.separator.chars().count())
+        } else {
+            String::new()
+        };
+        let body = if blank {
+            let anywhere = self.integer.iter().chain(&self.numerator).any(|c| *c == '?')
+                || matches!(&self.denominator, Denominator::Places(p) if p.contains(&'?'));
+            if anywhere {
+                let one = match &self.denominator {
+                    Denominator::Fixed(d) => *d,
+                    _ => 1,
+                };
+                let width = self.separator.chars().count()
+                    + numerator_text(0).chars().count()
+                    + 1
+                    + self.denominator_text(one).chars().count();
+                " ".repeat(width)
+            } else {
+                String::new()
+            }
+        } else {
+            format!(
+                "{separator}{}/{}",
+                numerator_text(numerator),
+                self.denominator_text(denominator)
+            )
+        };
+        Ok(format!("{minus}{}{integer_text}{body}{}", self.prefix, self.suffix))
+    }
+
+    /// The last convergent of `rest` whose denominator has at most `width` digits.
+    fn approximate(&self, rest: f64, width: usize, mixed: bool) -> Result<(u64, u64), Failure> {
+        if !mixed && rest >= 2_147_483_647.0 {
+            return Err(Failure::Value);
+        }
+        convergent(rest, 10u64.pow(width as u32) - 1).ok_or(Failure::NotModelled)
+    }
+}
+
+/// `padded` (digits, and the spaces or zeros a placeholder wrote) with `separator` between groups
+/// of three digits counted from the right.
+fn grouped_digits(padded: &str, separator: &str) -> String {
+    let digit_count = padded.chars().filter(|c| c.is_ascii_digit()).count();
+    let mut out = String::new();
+    let mut seen = 0;
+    for c in padded.chars() {
+        if c.is_ascii_digit() {
+            if seen > 0 && (digit_count - seen) % 3 == 0 {
+                out.push_str(separator);
+            }
+            seen += 1;
+        }
+        out.push(c);
+    }
+    out
 }
 
 /// Whether `section` is a fraction with an integer part set off by the group separator, under a
@@ -1064,8 +1400,14 @@ fn mixed_fraction_under_space_grouping(section: &str, profile: &FormatProfile) -
     let placeholders = |s: &str| !s.is_empty() && s.chars().all(|c| matches!(c, '0' | '#' | '?'));
     whole.chars().any(|c| matches!(c, '0' | '#'))
         && whole.chars().all(|c| matches!(c, '0' | '#' | '?' | ','))
-        && fraction_code(fraction).is_some()
-        && fraction.split_once('/').is_some_and(|(top, _)| placeholders(top))
+        && fraction.split_once('/').is_some_and(|(top, bottom)| {
+            placeholders(top)
+                && (placeholders(bottom)
+                    || (!bottom.is_empty()
+                        && bottom.len() <= 9
+                        && bottom.chars().all(|c| c.is_ascii_digit())
+                        && !bottom.starts_with('0')))
+        })
 }
 
 /// The last convergent of `x`'s continued fraction, computed in binary64, whose denominator is
@@ -1319,11 +1661,11 @@ fn render_text(profile: &FormatProfile, system: DateSystem, value: f64, code: &s
         return datetime::render_with_datetime_tokens(profile, system, value, &stripped, name_locale, !locale_declared)
             .ok_or(Failure::NotModelled);
     }
-    if let Some(fraction) = fraction_code(&stripped) {
-        return fraction.render(value, !magnitude_only);
-    }
     if mixed_fraction_under_space_grouping(&stripped, profile) {
         return Err(Failure::Value);
+    }
+    if let Some(layout) = fraction_layout(&stripped, profile)? {
+        return layout.render(profile, value, !magnitude_only);
     }
     let mut items = items(&stripped, profile)?;
     if !items.iter().any(|i| matches!(i, Item::Digit(_))) {
@@ -1413,6 +1755,105 @@ mod tests {
         assert_eq!(cell_text(&german,DateSystem::System1900,&value,"#,##0.00"),Ok("1.234.567,89".into()));
         assert_eq!(cell_text(&german,DateSystem::System1900,&crate::value::CalcValue::number(45234.567),"dd.mm.yyyy"),Ok("04.11.2023".into()));
         assert_eq!(cell_text(&german,DateSystem::System1900,&crate::value::CalcValue::number(12.5),"\"v1.2,3 \"0.00"),Ok("v1.2,3 12,50".into()));
+    }
+
+    /// Fraction codes as Excel 16.0.20430 showed them (`Range.Text` of a cell, en-US separators;
+    /// apps/dna-onecalc/tests/fixtures/formats holds all 10,000 rows, replayed by that crate).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn fractions_render_as_excel_did() {
+        let profile = format_profile(LocaleId::EnUs);
+        let cell = |value: f64, code: &str| {
+            cell_text(&profile, DateSystem::System1900, &crate::value::CalcValue::number(value), code)
+        };
+        let rows: &[(f64, &str, &str)] = &[
+            // The fraction alone: improper, the last convergent within the denominator's digits.
+            (1234.5678, "?/?", "8642/7"),
+            (1234.5678, "??/??", "100000/81"),
+            (0.99, "??/??", "98/99"),
+            (0.9, "?/?", "8/9"),
+            (0.1, "?/?", "0/1"),
+            (0.7, "?/?", "2/3"),
+            (-0.004, "?/?", "0/1"),
+            (-0.004, "???/???", "-  1/250"),
+            (0.5, "??/??", " 1/2 "),
+            (0.285, "?/100", "29/100"),
+            (1.005, "?/100", "101/100"),
+            (1.5, "0/4", "6/4"),
+            (0.0625, "00/00", "01/16"),
+            (0.3333333, "?/8", "3/8"),
+            (0.3333333, "?/?%", "100/3%"),
+            // An integer part.
+            (1234.5678, "# ?/?", "1234 4/7"),
+            (1234.5678, "# ??/??", "1234 46/81"),
+            (-1234.5, "# ??/??", "-1234  1/2 "),
+            (0.5, "# ?/?", " 1/2"),
+            (0.5, "# ??/??", "  1/2 "),
+            (0.5, "# #/#", "1/2"),
+            (0.5, "0 ?/?", "0 1/2"),
+            (0.5, "? ?/?", "  1/2"),
+            (2.999, "# ?/?", "3    "),
+            (0.99, "# ?/?", "1    "),
+            (0.99, "# ??/??", " 98/99"),
+            (0.0, "# ?/?", "0    "),
+            (0.0, "# #/#", "0"),
+            (0.0, "# ??/16", "0      "),
+            (0.0, "# 0/0", "0/1"),
+            (1.0, "# 0/0", "1 0/1"),
+            (0.0, "0 0/0", "0 0/1"),
+            (0.000012345, "# ?????/?????", "     1/81004"),
+            (-0.004, "# ?/?", "-0    "),
+            (-2.75, "# ?/?", "-2 3/4"),
+            (1234.5678, "# ?/2", "1234 1/2"),
+            (-2.75, "# ?/2", "-3    "),
+            (0.5, "# ?/4", " 2/4"),
+            (0.999999, "# ?/100", "1      "),
+            (2.675, "# ?/100", "2 68/100"),
+            (1E+21, "# ?/?", "1000000000000000000000    "),
+            (1234.5678, "#,##0 ?/?", "1,234 4/7"),
+            (1E+21, "#,##0 ?/?", "1,000,000,000,000,000,000,000    "),
+            (0.5, "0000 ?/?", "0000 1/2"),
+            (2.999, "00 ?/?", "03    "),
+            // Literal text, and the text between the integer part and the numerator.
+            (1234.5678, "\"about \"# ?/?", "about 1234 4/7"),
+            (-1234.5, "\"about \"# ?/?", "-about 1234 1/2"),
+            (1.0, "# ?/?\"x\"", "1    x"),
+            (0.5, "#-?/?", " 1/2"),
+            (1.5, "#-?/?", "1-1/2"),
+            (0.5, "0-?/?", "0-1/2"),
+            (1.0, "# \"-\" ?/?", "1      "),
+            (0.5, "# \"-\" ?/?", "   1/2"),
+            (0.5, "# #?/?#", "1/2"),
+            (0.0, "# #?/?#", "0    "),
+            (0.5, "# ?0/?", "  1/2"),
+            (0.0, "# ?0/?", "0  0/1"),
+            (0.5, "$# ?/?", "$ 1/2"),
+            (0.5, "# ?/?%", "50    %"),
+            (-0.004, "# ?/?%", "- 2/5%"),
+            // Sections.
+            (-1234.5, "# ?/?;(# ?/?)", "(1234 1/2)"),
+            (-0.004, "# ?/?;(# ?/?)", "(0    )"),
+            (-0.5, "# ?/?;@", "- 1/2"),
+            (0.0, "# ?/?;# ?/?;\"zero\"", "zero"),
+            (-1234.5, "[<1]?/?;# ?/?", "-2469/2"),
+        ];
+        for (value, code, expected) in rows {
+            assert_eq!(cell(*value, code), Ok((*expected).to_owned()), "{value} under {code}");
+        }
+        // A cell Excel fills with `#`, which TEXT gives as #VALUE!.
+        for (value, code) in [
+            (2147483647.0, "?/?"),
+            (1E+10, "??/??"),
+            (1234.5678, "?/100"),
+            (123456789.125, "?/8"),
+            (32767.0, "?/64"),
+        ] {
+            assert_eq!(cell(value, code), Err(CellFormatError::Unshowable), "{value} under {code}");
+        }
+        // Codes Excel refuses to store: TEXT gives #VALUE!.
+        for code in ["0.0 ?/?", "# ?/? ?/?", "# ?/?E+0", "#,##0.00 ?/?"] {
+            assert_eq!(cell(1.5, code), Err(CellFormatError::Unshowable), "{code}");
+        }
     }
 
     /// Every row is Excel's TEXT, FIXED or DOLLAR on this machine (16.0.20430, en-ZA with `.` and
