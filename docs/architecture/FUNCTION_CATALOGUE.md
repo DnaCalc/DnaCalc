@@ -80,6 +80,19 @@ registrations belong to the caller. An unheld built-in is a typed refusal naming
 deferred built-in names its deferral's owner. Binding forms are handled by the formula language.
 `is_builtin` asks the catalogue.
 
+## Editor completion and status
+
+`calc_fml::assist::complete_in(text, caret, &Scope)` completes the name being typed over the same
+name space: every catalogue call that resolves (held, not held, deferred and the binding forms),
+the LET names and LAMBDA parameters in scope at the caret (read from the formula text:
+`local_bindings_at`), and the caller's `Scope`, its defined names and its registered functions.
+Each proposal says what it is (`ProposalKind`); a call inserts its name and parenthesis, a name or
+a local only itself. The function help panel shows a function's implementation (held, formula
+binding, not held with its owning work package, deferred with its class) and its availability. A
+part of a formula can be evaluated on its own through the owner's evaluator (F9, and the trace in
+DNA OneCalc): the owner supplies it to `FormulaAssist`, so DNA Calc enables it once its worker has
+a request for it (dc-0f1k.7).
+
 ## Entry checking: formulas Excel will not take
 
 Excel checks a formula when it is entered and refuses some outright. COM reports that as `0x800A03EC`, the
