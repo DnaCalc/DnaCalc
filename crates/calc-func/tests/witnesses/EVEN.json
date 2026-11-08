@@ -3,11 +3,11 @@
   "function": "EVEN",
   "selection": "cargo xtask witness pin: of 1227 distinct readings in 1 bank files of OxFunc-Evidence, the first 4 rows of each bank and an evenly spaced sample of the rest, the budget of 120 rows shared by bank size; calc_func is the result calc-func calculated at pinning, on rows it did not match",
   "readings": [
-    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r0","platform":"Windows","source":"OxFunc-Evidence runs/w111-broad-20260929/answers/answers-even.json"}
+    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r0","invocation":{"compatibility_version":"2","input_sheet_state":"visible-constant-inputs","input_transport":"cell_value2_bulk"},"platform":"Windows","source":"OxFunc-Evidence runs/w111-broad-20260929/answers/answers-even.json"}
   ],
   "witnesses": [
     {"args":["0x0000000000000000"],"expected_bits":"0x0000000000000000","id":"w111broad-20260929-EVEN-00000","reading":"r0"},
-    {"args":["0x0000000000000001"],"calc_func":"fault:NotImplemented","expected_bits":"0x0000000000000000","id":"w111broad-20260929-EVEN-00002","reading":"r0"},
+    {"args":["0x0000000000000001"],"expected_bits":"0x0000000000000000","id":"w111broad-20260929-EVEN-00002","reading":"r0"},
     {"args":["0x0010000000000000"],"expected_bits":"0x4000000000000000","id":"w111broad-20260929-EVEN-00004","reading":"r0"},
     {"args":["0x01a56e1fc2f8f359"],"expected_bits":"0x4000000000000000","id":"w111broad-20260929-EVEN-00006","reading":"r0"},
     {"args":["0x01b7fd8c155e1ba4"],"expected_bits":"0x4000000000000000","id":"w111broad-20260929-EVEN-00652","reading":"r0"},

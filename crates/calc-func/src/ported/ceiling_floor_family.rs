@@ -8,6 +8,9 @@ use crate::value::WorksheetErrorCode;
 /// FLOOR(1*(1-2^-51),1) is 1 and FLOOR(1*(1-2^-50),1) is 0).
 pub(crate) fn excel_quotient(number: f64, significance: f64) -> f64 {
     let quotient = number / significance;
+    if quotient.is_subnormal() {
+        return 0.0;
+    }
     if !quotient.is_finite() || quotient == 0.0 {
         return quotient;
     }

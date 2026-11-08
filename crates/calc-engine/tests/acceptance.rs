@@ -2128,10 +2128,10 @@ fn ceng_m1_2__wrong_cache_not_pass() {
             set(c(1, 1), formula("Data!A1*Data!A2")),
             set(c(2, 1), formula("A1+Data!A1")),
             set(c(3, 1), formula("IF(A2>10,\"big\",\"small\")")),
-            // A difference below the normal range, which calc-func refuses as not modelled.
+            // Unary minus on a computed subnormal remains unmodelled.
             set(
                 c(4, 1),
-                formula("2.2250738585075E-308-2.2250738585073E-308"),
+                formula("-EXP(-745)"),
             ),
             set(c(5, 1), formula("A4+1")),
             // A reference to another workbook (L3 binds 3-D references, which this row held
@@ -2140,13 +2140,13 @@ fn ceng_m1_2__wrong_cache_not_pass() {
             set(c(7, 1), unpaired),
             set(c(8, 1), formula("0.1+0.2-0.3")),
             // A formula that reads Data!A1 and Data!A2 and is refused when it runs: Calc!A4's
-            // difference below the normal range. (`COUNTIFS(Data!A1:A2*1,1)`, which this row held before, is one
+            // unmodelled unary minus. (`COUNTIFS(Data!A1:A2*1,1)`, which this row held before, is one
             // Excel refuses to enter, since COUNTIFS's range takes only a reference (dc-mx3x);
             // XLOOKUP's lookup array and CHISQ.TEST's ranges, before that, were measured by L3
             // and dc-10y and lift.)
             set(
                 c(9, 1),
-                formula("Data!A1*Data!A2*0+(2.2250738585075E-308-2.2250738585073E-308)"),
+                formula("Data!A1*Data!A2*0+-EXP(-745)"),
             ),
             set(c(1, 3), formula("A2*2")),
         ],
@@ -2386,7 +2386,7 @@ fn ceng_m1_2__wrong_cache_not_pass() {
     assert!(reads.contains(&read(c(1, 3), cell_area(c(2, 1)), vec![values(&[15.0])])));
     assert!(reads.contains(&read(c(5, 1), cell_area(c(4, 1)), vec![Run::Missing(1)])));
     note!(
-        "{CASE}: 10 formulas opened with wrong FileCached results; 0 counted calculated before the first recalculation, 4 after it (the hand-derived 12, 15, \"big\" and 30), 6 typed refusals with no value (two differences below the normal range among them), and no read handed over a cache"
+        "{CASE}: 10 formulas opened with wrong FileCached results; 0 counted calculated before the first recalculation, 4 after it (the hand-derived 12, 15, \"big\" and 30), 6 typed refusals with no value (two unary-minus cases among them), and no read handed over a cache"
     );
     note!(
         "ACCEPT-NOTE: {CASE}: NotModeled::Result (an array, callable, reference, empty or non-finite result) is not reachable through CalcFml's evaluator today (IF gives 0 for an omitted branch, and arithmetic overflow is calc-func's #NUM!); calc-engine's unit test result::tests::only_scalar_values_are_published exercises it"

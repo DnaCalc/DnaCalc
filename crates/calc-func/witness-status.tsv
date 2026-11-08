@@ -1,6 +1,6 @@
 function	bank	excel_builds	rows	matched	worst_ulp	class	calc_func_commit
 ABS	full	20430	1227	1225	-	structural	cc9cff0cb2+changes
-ABS	pinned	20430	120	119	-	structural	919dd43269+changes
+ABS	pinned	20430	120	120	-	exact	c0b94f88ab+changes
 ACCRINT	full	20131,20228,?	146688	146688	-	exact	cc9cff0cb2+changes
 ACCRINT	pinned	20131,20228	120	120	-	exact	919dd43269+changes
 ACCRINTM	full	20430	3612	3612	-	exact	cc9cff0cb2+changes
@@ -71,9 +71,9 @@ BITRSHIFT	pinned	20430	120	120	-	exact	919dd43269+changes
 BITXOR	full	20430	5989	5989	-	exact	cc9cff0cb2+changes
 BITXOR	pinned	20430	120	120	-	exact	919dd43269+changes
 CEILING	full	20430	1335	1323	4611686018427387904	structural	cc9cff0cb2+changes
-CEILING	pinned	20430	120	119	-	structural	919dd43269+changes
+CEILING	pinned	20430	120	120	-	exact	c0b94f88ab+changes
 CEILING.MATH	full	20430	1362	1350	-	structural	cc9cff0cb2+changes
-CEILING.MATH	pinned	20430	120	119	-	structural	919dd43269+changes
+CEILING.MATH	pinned	20430	120	120	-	exact	c0b94f88ab+changes
 CEILING.PRECISE	full	20430	1335	1323	4611686018427387904	structural	cc9cff0cb2+changes
 CEILING.PRECISE	pinned	20430	120	120	-	exact	919dd43269+changes
 CHIDIST	full	20131,?	388	371	24	numeric	cc9cff0cb2+changes
@@ -150,7 +150,7 @@ DEC2OCT	pinned	20430	120	120	-	exact	919dd43269+changes
 DECIMAL	full	20430	1230	1230	-	exact	cc9cff0cb2+changes
 DECIMAL	pinned	20430	120	120	-	exact	919dd43269+changes
 DEGREES	full	20430	1227	1225	-	structural	cc9cff0cb2+changes
-DEGREES	pinned	20430	120	118	-	structural	919dd43269+changes
+DEGREES	pinned	20430	120	120	-	exact	c0b94f88ab+changes
 DELTA	full	20430	1092	1088	-	structural	cc9cff0cb2+changes
 DELTA	pinned	20430,20527	263	263	-	exact	919dd43269+changes
 DEVSQ	full	20430,20527	23106	23106	-	exact	cc9cff0cb2+changes
@@ -180,7 +180,7 @@ ERROR.TYPE	full	20430	1227	1227	-	exact	cc9cff0cb2+changes
 ERROR.TYPE	pinned	20430	120	120	-	exact	919dd43269+changes
 EUROCONVERT	full	20527	13	13	-	exact	f0be6d1471+changes
 EVEN	full	20430	1227	1225	-	structural	cc9cff0cb2+changes
-EVEN	pinned	20430	120	119	-	structural	919dd43269+changes
+EVEN	pinned	20430	120	120	-	exact	c0b94f88ab+changes
 EXP	full	20131,20228,20430,20527,?	2456	2456	-	exact	cc9cff0cb2+changes
 EXP	pinned	20131,20228,20430,20527	178	178	-	exact	919dd43269+changes
 EXPON.DIST	full	20131,20430,?	49346	49345	1	last_bit	cc9cff0cb2+changes
@@ -236,7 +236,7 @@ GCD	pinned	20430	120	120	-	exact	919dd43269+changes
 GEOMEAN	full	20430,20527	1225	1225	-	exact	cc9cff0cb2+changes
 GEOMEAN	pinned	20430,20527	285	285	-	exact	919dd43269+changes
 GESTEP	full	20430	1096	1092	-	structural	cc9cff0cb2+changes
-GESTEP	pinned	20430	120	119	-	structural	919dd43269+changes
+GESTEP	pinned	20430	120	120	-	exact	c0b94f88ab+changes
 GROWTH	full	20228	1260	1254	1	last_bit	cc9cff0cb2+changes
 GROWTH	pinned	20228	126	124	1	last_bit	919dd43269+changes
 HARMEAN	full	20430	19214	19214	-	exact	cc9cff0cb2+changes
@@ -300,7 +300,7 @@ IMSUM	pinned	20430	120	120	-	exact	919dd43269+changes
 IMTAN	full	20430	1209	1209	-	exact	cc9cff0cb2+changes
 IMTAN	pinned	20430,20527	1267	1267	-	exact	919dd43269+changes
 INT	full	20430	124403	124399	4	structural	cc9cff0cb2+changes
-INT	pinned	20430	120	119	-	structural	919dd43269+changes
+INT	pinned	20430	120	120	-	exact	c0b94f88ab+changes
 INTERCEPT	full	20131	4	4	-	exact	cc9cff0cb2+changes
 INTERCEPT	pinned	20131	4	4	-	exact	919dd43269+changes
 INTRATE	full	20430	2400	2400	-	exact	cc9cff0cb2+changes
@@ -316,7 +316,7 @@ ISERR	pinned	20430	120	120	-	exact	919dd43269+changes
 ISERROR	full	20430	1227	1227	-	exact	cc9cff0cb2+changes
 ISERROR	pinned	20430	120	120	-	exact	919dd43269+changes
 ISEVEN	full	20430	57066	57064	-	structural	cc9cff0cb2+changes
-ISEVEN	pinned	20430	120	119	-	structural	919dd43269+changes
+ISEVEN	pinned	20430	120	120	-	exact	c0b94f88ab+changes
 ISLOGICAL	full	20430	1227	1227	-	exact	cc9cff0cb2+changes
 ISLOGICAL	pinned	20430	120	120	-	exact	919dd43269+changes
 ISNA	full	20430	1227	1227	-	exact	cc9cff0cb2+changes
@@ -328,7 +328,7 @@ ISNUMBER	pinned	20430	120	120	-	exact	919dd43269+changes
 ISO.CEILING	full	20430	1335	1323	4611686018427387904	structural	cc9cff0cb2+changes
 ISO.CEILING	pinned	20430	120	120	-	exact	919dd43269+changes
 ISODD	full	20430	57016	57014	-	structural	cc9cff0cb2+changes
-ISODD	pinned	20430	120	119	-	structural	919dd43269+changes
+ISODD	pinned	20430	120	120	-	exact	c0b94f88ab+changes
 ISOWEEKNUM	full	20430	10153	10153	-	exact	cc9cff0cb2+changes
 ISOWEEKNUM	pinned	20430	120	120	-	exact	919dd43269+changes
 ISREF	full	20430	1227	1227	-	exact	cc9cff0cb2+changes
@@ -378,7 +378,7 @@ MONTH	pinned	20430	120	120	-	exact	919dd43269+changes
 MROUND	full	20430	50782	50782	-	exact	cc9cff0cb2+changes
 MROUND	pinned	20430	120	120	-	exact	919dd43269+changes
 N	full	20430	1227	1225	-	structural	cc9cff0cb2+changes
-N	pinned	20430	120	119	-	structural	919dd43269+changes
+N	pinned	20430	120	120	-	exact	c0b94f88ab+changes
 NA	full	20430	1	1	-	exact	cc9cff0cb2+changes
 NA	pinned	20430	1	1	-	exact	919dd43269+changes
 NEGBINOM.DIST	full	20430	510	444	554	numeric	cc9cff0cb2+changes
@@ -411,7 +411,7 @@ OCT2DEC	pinned	20430	120	120	-	exact	919dd43269+changes
 OCT2HEX	full	20430	1198	1198	-	exact	cc9cff0cb2+changes
 OCT2HEX	pinned	20430	120	120	-	exact	919dd43269+changes
 ODD	full	20430	1227	1225	-	structural	cc9cff0cb2+changes
-ODD	pinned	20430	120	119	-	structural	919dd43269+changes
+ODD	pinned	20430	120	120	-	exact	c0b94f88ab+changes
 OR	full	20430	1212	1212	-	exact	cc9cff0cb2+changes
 OR	pinned	20430	120	120	-	exact	919dd43269+changes
 PDURATION	full	20430	1205	1205	-	exact	cc9cff0cb2+changes
@@ -444,9 +444,9 @@ PROPER	full	20527	3	3	-	exact	cc9cff0cb2+changes
 PV	full	20131,20430,20527,?	1308	1306	3	last_bit	cc9cff0cb2+changes
 PV	pinned	20131,20430	120	120	-	exact	fb999a7211+changes
 QUOTIENT	full	20430	1362	1350	-	structural	cc9cff0cb2+changes
-QUOTIENT	pinned	20430	120	119	-	structural	919dd43269+changes
+QUOTIENT	pinned	20430	120	120	-	exact	c0b94f88ab+changes
 RADIANS	full	20430	32925	32923	-	structural	cc9cff0cb2+changes
-RADIANS	pinned	20430	120	119	-	structural	919dd43269+changes
+RADIANS	pinned	20430	120	120	-	exact	c0b94f88ab+changes
 RATE	full	20131,20228,20527,?	377	376	1333068467558	gross	cc9cff0cb2+changes
 RATE	pinned	20131,20228	120	120	-	exact	c31226fe39+changes
 RECEIVED	full	20430	2400	2400	-	exact	cc9cff0cb2+changes
@@ -479,7 +479,7 @@ SLN	pinned	20430	120	120	-	exact	919dd43269+changes
 SLOPE	full	20131	4	4	-	exact	cc9cff0cb2+changes
 SLOPE	pinned	20131	4	4	-	exact	919dd43269+changes
 SQRT	full	20430	42803	42801	-	structural	cc9cff0cb2+changes
-SQRT	pinned	20430	120	119	-	structural	919dd43269+changes
+SQRT	pinned	20430	120	120	-	exact	c0b94f88ab+changes
 SQRTPI	full	20430	1224	1224	-	exact	cc9cff0cb2+changes
 SQRTPI	pinned	20430	120	120	-	exact	919dd43269+changes
 STANDARDIZE	full	20430	10310	10302	-	structural	cc9cff0cb2+changes

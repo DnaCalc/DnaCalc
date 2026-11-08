@@ -264,13 +264,15 @@ ported_family! {
     63 bessely "BESSELY" (2, 2) [V "x", V "n"] three_d (None, Some(&[]), None); |s, a, sv| { bessel(s, a, k::bessel::bessely_kernel, false) }
     70 delta "DELTA" (1, 2) [V "number1", V "number2"] three_d (None, Some(&[]), None); |s, a, sv| {
         // Excel reads the second scalar before the first, including conversion errors.
-        let y = if given(a, 1) { super::kit::num_without_logical(s, a, 1)? } else { 0.0 };
-        let x = super::kit::num_without_logical(s, a, 0)?;
+        let y = if given(a, 1) { super::kit::reject_logical(&a[1])?; super::kit::num_with_subnormal(s, a, 1)? } else { 0.0 };
+        super::kit::reject_logical(&a[0])?;
+        let x = super::kit::num_with_subnormal(s, a, 0)?;
         out(s, k::delta_fn::delta_kernel(x, y))
     }
     71 gestep "GESTEP" (1, 2) [V "number", V "step"] three_d (None, Some(&[]), None); |s, a, sv| {
-        let step = if given(a, 1) { super::kit::num_without_logical(s, a, 1)? } else { 0.0 };
-        let x = super::kit::num_without_logical(s, a, 0)?;
+        let step = if given(a, 1) { super::kit::reject_logical(&a[1])?; super::kit::num_with_subnormal(s, a, 1)? } else { 0.0 };
+        super::kit::reject_logical(&a[0])?;
+        let x = super::kit::num_with_subnormal(s, a, 0)?;
         out(s, k::gestep_fn::gestep_kernel(x, step))
     }
     72 convert "CONVERT" (3, 3) [V "number", V "from_unit", V "to_unit"] three_d (None, Some(&[]), None); |s, a, sv| {

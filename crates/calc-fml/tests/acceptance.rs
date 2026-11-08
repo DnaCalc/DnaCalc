@@ -4320,9 +4320,9 @@ fn dc_ibp2__error_fallback() {
 
     // Rows not compared with Excel: errors read from cells the oracle workbook does not hold, typed
     // refusals, and faults, each with the areas read.
-    // A product below the normal range, which calc-func refuses as not modelled.
+    // Unary minus on a computed subnormal remains unmodelled.
     let caret = catalogue()
-        .resolve_surface(Notation::Infix, "-")
+        .resolve_surface(Notation::Prefix, "-")
         .expect("-")
         .id();
     let at = book.anchor(100);
@@ -4362,8 +4362,7 @@ fn dc_ibp2__error_fallback() {
         (unread.outcome, unread.reads),
         (Ok(CalcValue::number(1.0)), vec![])
     );
-    // A difference below the normal range, which calc-func's number rule refuses.
-    let refused = book.evaluate("=IFERROR(2.2250738585075E-308-2.2250738585073E-308,A1)", at);
+    let refused = book.evaluate("=IFERROR(-EXP(-745),A1)", at);
     assert!(
         matches!(
             &refused.outcome,
@@ -4377,7 +4376,7 @@ fn dc_ibp2__error_fallback() {
         vec![],
         "a refused value: the fallback is not read"
     );
-    assert_eq!(refused.log.calls, ["Infix -", "Call IFERROR"]);
+    assert_eq!(refused.log.calls, ["Prefix -", "Call EXP", "Prefix -", "Call IFERROR"]);
     // A legacy formula intersects a range at IFERROR's and IFNA's value parameters with its own
     // row, 100 here, which the ranges do not reach: #VALUE!, which IFERROR catches and IFNA
     // passes on. Excel 16.0 writes these as `=IFERROR(@A1:A2,0)` and `=SUM(IFERROR(@A1:A3,0))`

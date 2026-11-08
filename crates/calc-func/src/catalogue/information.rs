@@ -381,6 +381,7 @@ fn odd(site: &Site<'_>, argument: &CalcValue, services: &mut EvalServices<'_>) -
     };
     let number = match scalar(site, &value)? {
         CoreRef::Logical(_) => return Err(Exit::Error(WorksheetErrorCode::Value)),
+        CoreRef::Number(n) if n.is_subnormal() => n,
         _ => site.number_argument(0, &value)?,
     };
     Ok(site.add(number.abs(), PARITY_TOLERANCE)?.trunc() % 2.0 != 0.0)
@@ -441,9 +442,7 @@ fn type_code(site: &Site<'_>, value: &CalcValue) -> Step<f64> {
 /// and a blank cell among them, as 0 (Microsoft's page; a date is a number here). A reference is
 /// read at the first cell of its first area, of any size: Excel loads a range given to N without
 /// `@`, and reads its first cell in a legacy formula placed within the range's rows and in a
-/// dynamic-array formula alike. A number Excel's handling of which is not modelled (a subnormal)
-/// is refused, as the number rule refuses one, and so are #BLOCKED! and #CONNECT! (see
-/// [`known`]).
+/// dynamic-array formula alike. Computed subnormals retain their bits (dc-1943 Q1).
 fn n(arguments: &[CalcValue], services: &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(N, services);
     Site::finish(each(&site, &arguments[0], services, n_of))
@@ -464,6 +463,7 @@ fn n_of(site: &Site<'_>, argument: &CalcValue, services: &mut EvalServices<'_>) 
     }
     known(site, &value).and_then(|core| match core {
         CoreRef::Number(_) if value.is_excel_overflow() => Ok(value.clone()),
+        CoreRef::Number(x) if x.is_subnormal() => Ok(value.clone()),
         CoreRef::Number(x) => site
             .argument(0, coerce::operand(x))
             .and_then(|x| site.number(x)),
