@@ -133,6 +133,8 @@ pub struct PivotDataField {
     pub field: u32,
     pub subtotal: String,
     pub attributes: BTreeMap<String, String>,
+    /// A recognized extended display calculation preserved in the original table part.
+    pub extended_show: Option<String>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PivotItem {
