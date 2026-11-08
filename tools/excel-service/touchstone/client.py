@@ -103,38 +103,65 @@ class Pending:
 
 
 class Connection:
-    def __init__(self, sock, token=None, name="client"):
-        self.sock = sock
-        self.token = token
+    """One connection to a relay socket or the broker's local endpoint.  When it drops (the ssh session was
+    cut, the broker restarted) it reconnects with backoff and resends every unanswered request under the
+    same ids; the broker answers resent pieces from its cache and never evaluates one twice."""
+
+    def __init__(self, opener, name="client", reconnect=True):
+        self.opener = opener
         self.name = name
+        self.reconnect = reconnect
         self.envs = {}
         self.machine = None
         self.pending = {}
         self.lock = threading.Lock()
         self.write_lock = threading.Lock()
-        self.alive = True
-        self.reader = protocol.FrameReader()
+        self.alive = False
+        self.closed = False
+        self.reconnects = 0
+        self.sock = None
         self.hello = threading.Event()
+        delay = 0.25
+        for attempt in range(12):       # the relay may be restarting (its ssh session was just replaced)
+            try:
+                self._connect(first=True)
+                break
+            except (OSError, ValueError):
+                if attempt == 11:
+                    raise
+                time.sleep(delay)
+                delay = min(3.0, delay * 1.7)
         self.thread = threading.Thread(target=self._read_loop, daemon=True)
         self.thread.start()
-        self._send(protocol.HELLO, {"v": protocol.VERSION, "name": name, "token": token})
-        if not self.hello.wait(10):
-            raise ConnectionError("no hello from the service")
 
     # -- opening ------------------------------------------------------------------------
     @classmethod
-    def open(cls, socket_path=None, endpoint=None, name="client"):
+    def open(cls, socket_path=None, endpoint=None, name="client", reconnect=True):
         socket_path = Path(socket_path or os.environ.get("TOUCHSTONE_SOCKET") or DEFAULT_SOCKET)
-        if hasattr(socket, "AF_UNIX") and socket_path.exists():
-            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            sock.connect(str(socket_path))
-            return cls(sock, None, name)
         endpoint = Path(endpoint or os.environ.get("TOUCHSTONE_ENDPOINT") or DEFAULT_ENDPOINT)
-        info = json.loads(endpoint.read_text())
-        sock = socket.create_connection((info["host"], info["port"]), timeout=10)
-        sock.settimeout(None)
-        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        return cls(sock, info["token"], name)
+
+        def opener():
+            if hasattr(socket, "AF_UNIX") and socket_path.exists():
+                sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                sock.connect(str(socket_path))
+                return sock, None
+            info = json.loads(endpoint.read_text())
+            sock = socket.create_connection((info["host"], info["port"]), timeout=10)
+            sock.settimeout(None)
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            return sock, info["token"]
+
+        conn = cls(opener, name, reconnect)
+        conn.wait_hello()
+        return conn
+
+    def _connect(self, first=False):
+        sock, token = self.opener()
+        self.sock = sock
+        self.reader = protocol.FrameReader()
+        self.hello.clear()
+        self.alive = True
+        self._send(protocol.HELLO, {"v": protocol.VERSION, "name": self.name, "token": token})
 
     # -- plumbing -----------------------------------------------------------------------
     def _send(self, kind, obj):
@@ -143,22 +170,49 @@ class Connection:
             self.sock.sendall(data)
 
     def _read_loop(self):
-        try:
-            while True:
-                data = self.sock.recv(1 << 20)
-                if not data:
-                    break
-                for kind, body in self.reader.feed(data):
-                    self._on_frame(kind, body)
-        except (OSError, ValueError):
-            pass
-        finally:
+        backoff = 0.5
+        while not self.closed:
+            try:
+                while True:
+                    data = self.sock.recv(1 << 20)
+                    if not data:
+                        break
+                    backoff = 0.5
+                    for kind, body in self.reader.feed(data):
+                        self._on_frame(kind, body)
+            except (OSError, ValueError):
+                pass
             self.alive = False
-            with self.lock:
-                waiting = list(self.pending.values())
-            for pending in waiting:
-                pending.resolve("connection lost")
-            self.hello.set()
+            if self.closed:
+                break
+            if not self.reconnect:
+                break
+            while not self.closed:
+                time.sleep(backoff)
+                backoff = min(30.0, backoff * 2)
+                try:
+                    self._connect()
+                except (OSError, ValueError):
+                    continue
+                self.reconnects += 1
+                self._resend()
+                break
+        with self.lock:
+            waiting = list(self.pending.values())
+            self.pending.clear()
+        for pending in waiting:
+            pending.resolve("connection lost")
+        self.hello.set()
+
+    def _resend(self):
+        with self.lock:
+            waiting = list(self.pending.values())
+        for pending in waiting:
+            try:
+                for frame in pending.frames_sent:
+                    self._send(protocol.SUBMIT, frame)
+            except OSError:
+                return
 
     def _on_frame(self, kind, body):
         if kind == protocol.HELLO:
@@ -189,6 +243,10 @@ class Connection:
                 for p in waiting:
                     p.resolve(f"{body.get('code')}: {body.get('detail')}")
 
+    def wait_hello(self, timeout=10):
+        if not self.hello.wait(timeout):
+            raise ConnectionError("no hello from the service")
+
     # -- requests -----------------------------------------------------------------------
     def submit_groups(self, groups, *, priority=None, echo=False, order="any", rid=None):
         rid = rid or uuid.uuid4().hex
@@ -216,18 +274,18 @@ class Connection:
         with self.lock:
             self.pending[pending.rid] = pending
         if not self.alive:
-            pending.resolve("connection lost")
-            return
+            return      # sent after the reconnect, with everything else that is unanswered
         try:
             for frame in frames:
                 self._send(protocol.SUBMIT, frame)
         except OSError:
-            pending.resolve("connection lost")
+            pass        # the reader notices the lost connection and resends
 
     def report_wait(self, reason, seconds, kind="client-timeout", lane=None):
         self._send(protocol.WAIT, {"kind": kind, "reason": reason, "seconds": seconds, "lane": lane})
 
     def close(self):
+        self.closed = True
         try:
             self.sock.close()
         except OSError:

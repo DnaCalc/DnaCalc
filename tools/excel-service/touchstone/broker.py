@@ -295,8 +295,9 @@ class Broker:
         if existing is not None:
             # The client resent an unanswered piece (reconnect): rebind, replay what exists, never re-evaluate.
             existing.conn = conn
+            req.client = body.get("c", req.client)
             for frame in existing.frames:
-                self.send_answer(conn, frame, existing)
+                self.send_answer(conn, self.tag(dict(frame), req.client), existing)
             if req.done_sent and body.get("last"):
                 conn.send(protocol.DONE, self.tag({"id": rid, "calls": req.calls, "envs": sorted(req.envs), "seconds": 0.0,
                                                    "replayed": True}, req.client), req.priority == "interactive")
@@ -659,7 +660,8 @@ class Broker:
                 tasks.append(asyncio.create_task(self.v1_scan(self.options.local_queue)))
                 if self.options.hosts:
                     from peers import PeerManager
-                    self.peers = PeerManager(self, self.options.hosts)
+                    self.peers = PeerManager(self, self.options.hosts, {"v1_queue": self.options.relay_v1_queue,
+                                                                        "socket": self.options.relay_socket})
                     tasks.append(asyncio.create_task(self.peers.run()))
                 self.log_event("started", pid=os.getpid(), workers=[s.name + ":" + s.state for s in self.slots])
                 while not stop.exists():
@@ -689,7 +691,8 @@ def command_start(options):
     guard = HERE.parents[1] / "excel-session" / "on-private-desktop.ps1"
     run = f'py -3 "{HERE / "broker.py"}" run --state "{state}" --workers {options.workers} --local-queue "{options.local_queue}"'
     if options.hosts:
-        run += " --hosts " + " ".join(options.hosts)
+        run += " --hosts " + " ".join(options.hosts) + f' --relay-v1-queue "{options.relay_v1_queue}" --relay-socket "{options.relay_socket}"'
+    run += f" --desktop {options.desktop}"
     if options.admission:
         run += f" --admission {options.admission}"
     subprocess.Popen(["pwsh", "-NoProfile", "-File", str(guard), "-Command", run, "-Log", str(state / "console.log"),
@@ -747,6 +750,9 @@ def main():
     parser.add_argument("--local-queue", type=Path, default=None,
                         help="the v1 file queue to serve (default: queue under --state; ~/excel-queue only after the v1 service is stopped)")
     parser.add_argument("--hosts", nargs="*", default=[])
+    parser.add_argument("--relay-v1-queue", default="~/excel-queue-v2",
+                        help="the v1 file queue each relay serves on its host (~/excel-queue at cutover)")
+    parser.add_argument("--relay-socket", default="~/.excel-service/excel.sock")
     parser.add_argument("--admission", default=None, help="module:factory of the admission plug-in")
     parser.add_argument("--desktop", default="DnaCalcExcelV2")
     parser.add_argument("--since", default=None, help="e.g. 24h, 7d or an ISO time")

@@ -153,7 +153,8 @@ def main():
     elif options.command == "v1":
         print(json.dumps(run_v1(options.sample, options.functions), indent=1))
     else:
-        from touchstone.bench_run import run
+        sys.path.insert(0, str(HERE / "touchstone"))
+        from bench_run import run
         print(json.dumps(run(options), indent=1))
 
 
