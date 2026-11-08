@@ -76,6 +76,14 @@ the receiver (`deploy/host/dnacalc-site-receive`, installed as `~/bin/dnacalc-si
 checks every file against build.json and switches `current` atomically, keeping `previous`.
 `build.json` carries the commit either way.
 
+**Route changed, owner 2026-11-08: build on the host.** The host now has the workspace's Rust
+1.94.1 with the wasm target, the wasm-bindgen 0.2.117 CLI, and the `chromium` and `firefox` snaps
+with their drivers, so the reasons above no longer hold. Pack, the two-browser smoke and the
+switch all run on dna-koderbot, in a run folder holding a fresh clone of the pushed master;
+`site publish --local`, `site status` and `site rollback --local` call the installed receiver
+there directly, and refuse one that is not the clone's copy. Nothing is built on Windows or in WSL
+for a publish. The steps are `deploy/OWNER_STEPS.md`, sections 1 to 3.
+
 **Host names.** DNA Calc at dnacalc.com (www redirects to it). DNA OneCalc at
 dnaonecalc.dnacalc.com until onecalc.dnacalc.com has a DNS record (an owner step; it cannot be set
 from the host), then at onecalc.dnacalc.com too.
