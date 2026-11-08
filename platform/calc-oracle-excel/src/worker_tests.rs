@@ -209,8 +209,8 @@ fn connections_that_refresh_on_load_and_dde_links_are_refused_before_excel_start
     assert_eq!(
         read["connections"],
         json!([
-            {"name": "Refreshing", "type": "1", "refresh_on_load": true},
-            {"name": "Quiet", "type": "1", "refresh_on_load": false}
+            {"name": "Refreshing", "type": "1", "model": false, "refresh_on_load": true},
+            {"name": "Quiet", "type": "1", "model": false, "refresh_on_load": false}
         ])
     );
     assert_eq!(
@@ -278,7 +278,7 @@ fn a_query_table_that_refreshes_on_load_is_refused_before_excel_starts() {
     let read = read_package(&fixture("worker/query-table-refresh.xlsx"));
     assert_eq!(
         read["connections"],
-        json!([{"name": "WebQuery", "type": "4", "refresh_on_load": false}])
+        json!([{"name": "WebQuery", "type": "4", "model": false, "refresh_on_load": false}])
     );
     assert_eq!(
         refreshing_roots(&read),
