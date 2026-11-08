@@ -1245,6 +1245,47 @@ fn ets_unresolved_reset_keeps_independent_statistics() {
     }
 }
 
+/// R40 fresh Excel20527 selections. The short initializer extends the first
+/// two phases to seven before search, while forecasting the original history.
+/// The final five-point row separates PC64 seasonal publication by one ULP.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_exact_short_initialization_and_final_seasonal_addition() {
+    for (inputs, expected) in [
+        (vec![0x363e000000000000,0x362ac00000000000,0xb6597c0000000000],
+            [0xb66364fcec311623,0x3fb999999999999a,0x3fb95810624dd2f2,0x363d0c17e6b54aaf]),
+        (vec![0x404d940000000000,0xc034080000000000,0xc02a600000000000,0x404a7c0000000000],
+            [0x4042242b202448ef,0x3fd0000000000000,0x3f50624dd2f1a9fc,0x404911709dfd64dc]),
+        (vec![0xbbacc40000000000,0xbb90280000000000,0x3b5a000000000000,0xbb97080000000000,0x3ba3340000000000],
+            [0x3ba36755e5a5d6c9,0x3fb999999999999a,0x3f50624dd2f1a9fc,0x3b93d2aa28c23363]),
+        (vec![0x3623e80000000000,0xb618100000000000,0xb5fbc00000000000,0xb615180000000000,0x362b200000000000,0xb601e00000000000],
+            [0x3614c41938705503,0x3fd0000000000000,0x3f50624dd2f1a9fc,0x3624efb13de41d62]),
+        (vec![0xc4b1700000000000,0xc46c000000000000,0xc4a1b00000000000,0x44c0f80000000000,0xc4c5400000000000,0x44c4380000000000,0xc495e00000000000],
+            [0x44907efd9abfc7e5,0x3f60624dd2f1a9fc,0x3f50624dd2f1a9fc,0x44bb51cbb6f8bd3d]),
+        (vec![0xbdfbe00000000000,0x3e28280000000000,0xbe2ac80000000000,0x3df0000000000000,0x3dc0000000000000],
+            [0xbe058406e1503b12,0x3f60624dd2f1a9fc,0x3f50624dd2f1a9fc,0x3e208a5188fd3683]),
+    ] {
+        let count = inputs.len();
+        let y = arr(vec![inputs.into_iter().map(f64::from_bits).collect()]);
+        let times = arr(vec![(1..=count).map(|i| i as f64).collect()]);
+        exact(call("FORECAST.ETS", vec![n(count as f64 + 1.0),y.clone(),times.clone(),n(0.0)]),
+            f64::from_bits(expected[0]));
+        for (statistic, bits) in [(1.0,expected[1]),(2.0,expected[2]),(7.0,expected[3])] {
+            exact(call("FORECAST.ETS.STAT", vec![y.clone(),times.clone(),n(statistic),n(0.0)]),
+                f64::from_bits(bits));
+        }
+    }
+    // A non-dyadic initial quotient still needs the private regression's
+    // rounding; the newly proved region does not claim it.
+    assert!(matches!(call("FORECAST.ETS",vec![n(5.0),arr(vec![vec![0.0,0.0,0.0,1.0]]),
+        arr(vec![vec![1.0,2.0,3.0,4.0]]),n(0.0)]),
+        Err(calc_func::FunctionFault::NotHeld { owner: "dc-j9k", .. })));
+    // One of 24 separately selected final-product midpoint questions. Strict
+    // binary64 multiplication publishes ...e91, Excel's PC64 store ...e92.
+    exact(call("FORECAST.ETS.CONFINT",vec![n(8.0),arr(vec![vec![1251.65625,840.28125,-71.3125]]),
+        arr(vec![vec![1.0,2.0,3.0]]),n(0.95),n(0.0)]),f64::from_bits(0x407652d81eb07e92));
+}
+
 /// Fresh R39 explicit periods: one shared state loop retains zero innovations.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

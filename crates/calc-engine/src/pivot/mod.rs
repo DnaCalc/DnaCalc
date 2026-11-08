@@ -33,14 +33,25 @@ pub struct PivotLayout {
 mod aggregate;
 mod axis;
 mod formula;
+mod model;
 mod records;
 mod render;
 use aggregate::Total;
-use axis::{Walk, axis_item, render_axes};
+use axis::render_axes;
 use records::{compare, field_groups, page_allows, page_field_items, resolve};
 pub use records::item_value;
 use render::{Form, label_text, truthy};
-pub use render::layout;
+pub use model::{cube_model, valid_model_snapshot};
+pub(crate) use model::data_cell as model_data_cell;
+
+/// Calculate a pivot from its retained worksheet records or data-model snapshot.
+pub fn layout(table: &PivotTable, cache: &PivotCache) -> Result<PivotLayout, PivotIssue> {
+    if matches!(cache.snapshot.as_ref().map(|snapshot| &snapshot.origin), Some(PivotSnapshotOrigin::DataModel { .. })) {
+        model::layout(table, cache)
+    } else {
+        render::layout(table, cache)
+    }
+}
 
 #[derive(Clone, Debug, Default)]
 pub struct PivotResults {
@@ -82,3 +93,4 @@ pub(crate) fn calculate(state: &PivotState, tick: CalcTick) -> PivotResults {
 
 mod index;
 pub use index::data_cell;
+pub(crate) use index::invalid_model_request;

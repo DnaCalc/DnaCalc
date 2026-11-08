@@ -1924,7 +1924,22 @@ impl ReferenceReader for WorkbookReader<'_> {
 /// formulas and their text, and the sheets. The formula being evaluated is the caller's to say.
 impl HostFacts for WorkbookReader<'_> {
     fn pivot_data_cell(&mut self,data_field:&str,reference:&[GridArea],fields:&[(String,CalcValue)])->calc_fml::PivotLookup {
-        crate::pivot::data_cell(self.view.inputs.definitions().pivots(),data_field,reference,fields)
+        let definitions = self.view.inputs.definitions();
+        if let Some(result) = crate::pivot::model_data_cell(definitions.pivots(), data_field, reference, fields) {
+            return match result {
+                calc_fml::PivotLookup::Cell(at) if self.view.state.pivot_results.cells.get(&at)
+                    .is_some_and(|(value, _)| !matches!(value.core_ref(), calc_value::CoreRef::Empty)) => result,
+                calc_fml::PivotLookup::Cell(_) => calc_fml::PivotLookup::NotModelled,
+                _ => result,
+            };
+        }
+        if let (Some(data), Some(facts)) = (definitions.data_model(), self.view.workbook_facts)
+            && let Some(connection) = data.model_connection.as_deref()
+            && let calc_fml::CubeLookup::Model(model) = facts.cube_model(connection)
+            && let Some(result) = crate::pivot::invalid_model_request(definitions.pivots(), data, &model, data_field, reference, fields) {
+            return result;
+        }
+        crate::pivot::data_cell(definitions.pivots(),data_field,reference,fields)
     }
 
     fn caller(&mut self) -> Option<CellKey> {

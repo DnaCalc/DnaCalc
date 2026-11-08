@@ -140,6 +140,7 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
         records_part,
         record_count: optional_integer(&root, "recordCount", &events)?,
         source_type: String::new(),
+        source_connection_id: None,
         source_sheet: None,
         source_range: None,
         source_name: None,
@@ -150,6 +151,7 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
         snapshot: None,
     };
     let mut path = Vec::<String>::new();
+    let mut cache_source_seen = false;
     let mut item_count = 0usize;
     let mut group_items_seen = false;
     let mut discrete_count = None;
@@ -201,7 +203,10 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
                             item_scope = Some((0, false, None, None, None));
                         }
                         ([], "cacheSource") => {
-                            cache.source_type = required(&e, "type", &events)?.into()
+                            if cache_source_seen { return Err(events.invalid("Duplicate pivot cache sources")); }
+                            cache_source_seen = true;
+                            cache.source_type = required(&e, "type", &events)?.into();
+                            cache.source_connection_id = optional_integer::<u32>(&e, "connectionId", &events)?.filter(|id| *id != 0);
                         }
                         (["cacheSource"], "worksheetSource") => {
                             cache.source_sheet = e.attribute("sheet").map(str::to_owned);

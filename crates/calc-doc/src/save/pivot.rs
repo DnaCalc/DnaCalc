@@ -772,6 +772,14 @@ pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
                 "Discarding refreshed cache records is not modelled",
             ));
         };
+        if matches!(&snapshot.origin, PivotSnapshotOrigin::DataModel { .. }) {
+            let mut retained = (**cache).clone();
+            retained.snapshot = old.snapshot.clone();
+            if &retained != old.as_ref() {
+                return Err(bad(&cache.part, "Changing this model-pivot cache is not modelled"));
+            }
+            continue;
+        }
         let mut retained = (**cache).clone();
         retained.record_count = old.record_count;
         retained.fields = old.fields.clone();
@@ -927,6 +935,7 @@ mod date_flags {
             records_part: None,
             record_count: None,
             source_type: "worksheet".into(),
+            source_connection_id: None,
             source_sheet: None,
             source_range: None,
             source_name: None,
