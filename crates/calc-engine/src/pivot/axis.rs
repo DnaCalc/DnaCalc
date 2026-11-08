@@ -477,6 +477,10 @@ pub(super) fn render_axes(
     if levels.len() > 64 {
         return Err(bad("More than 64 column levels are not modelled"));
     }
+    if !retains_missing && fields.iter().filter_map(|&field| cache.fields.get(field))
+        .any(|field| !field.unused_items.is_empty()) {
+        return Err(bad("Unused axis items without retained field markers are not modelled"));
+    }
     if retains_missing {
         for (field, groups) in std::iter::once((row, row_levels[0].as_slice()))
             .chain(levels.iter().filter_map(|level| level.field.map(|field| (field, level.groups.as_slice())))) {
@@ -487,6 +491,9 @@ pub(super) fn render_axes(
                 if present.contains(&index) {
                     if absent { return Err(bad("Retained items before present items are not modelled")); }
                 } else {
+                    if !cache.fields[field].unused_items.contains(&index) {
+                        return Err(bad("A retained item has no unused cache marker"));
+                    }
                     absent = true;
                 }
             }
