@@ -108,7 +108,30 @@ pub struct PivotTable {
     pub fields: Vec<PivotField>,
     pub row_items: Vec<PivotAxisItem>,
     pub col_items: Vec<PivotAxisItem>,
+    /// The saved table style and its display options, when specified.
+    pub style: Option<PivotStyle>,
+    /// Saved differential formats and their pivot-area selections, in file order.
+    pub formats: Vec<PivotFormat>,
     pub unsupported: Vec<String>,
+}
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct PivotStyle {
+    pub attributes: BTreeMap<String, String>,
+}
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct PivotFormat {
+    pub attributes: BTreeMap<String, String>,
+    pub area: Option<PivotFormatArea>,
+}
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct PivotFormatArea {
+    pub attributes: BTreeMap<String, String>,
+    pub references: Vec<PivotFormatReference>,
+}
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct PivotFormatReference {
+    pub attributes: BTreeMap<String, String>,
+    pub items: Vec<u32>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PivotFilter {
