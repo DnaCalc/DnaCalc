@@ -131,6 +131,9 @@ struct State {
     by_key: BTreeMap<TopicKey, u64>,
     pending_disconnects: Vec<PendingDisconnect>,
     declarations: BTreeMap<u64, Declaration>,
+    /// The topics a cell read through the owner's connector (the built-in RTD). A cell keeps them
+    /// connected until its formula is replaced: no native call declares them.
+    connector_reads: BTreeMap<CellKey, BTreeSet<u64>>,
     replacement_calls: Vec<Declaration>,
     renewed_inputs: BTreeMap<u64, u64>,
     next: u64,
@@ -160,6 +163,7 @@ impl RtdClient {
                 by_key: BTreeMap::new(),
                 pending_disconnects: Vec::new(),
                 declarations: BTreeMap::new(),
+                connector_reads: BTreeMap::new(),
                 replacement_calls: Vec::new(),
                 renewed_inputs: BTreeMap::new(),
                 next: 1,
@@ -260,6 +264,7 @@ impl RtdClient {
             .state
             .try_borrow_mut()
             .map_err(|_| "dc-snz.23: reentrant RTD disconnect")?;
+        state.connector_reads.remove(&caller);
         state
             .replacement_calls
             .retain(|call| call.caller != caller || !providers.contains(&call.provider));
@@ -320,12 +325,15 @@ impl RtdClient {
         state.declarations.retain(|id, call| {
             call.caller != caller || !providers.contains(&call.provider) || invocations.contains(id)
         });
-        let declared: BTreeSet<_> = state
+        let mut declared: BTreeSet<_> = state
             .declarations
             .values()
             .filter(|call| call.caller == caller && providers.contains(&call.provider))
             .flat_map(|call| call.subscriptions.iter().copied())
             .collect();
+        if let Some(read) = state.connector_reads.get(&caller) {
+            declared.extend(read.iter().copied());
+        }
         for (&id, topic) in &mut state.topics {
             if !declared.contains(&id) {
                 topic.active_callers.remove(&caller);
@@ -377,8 +385,16 @@ impl std::fmt::Debug for RtdClient {
 /// The owner's connector over this client: join or start the topic's one connection. The
 /// connect-time value is provisional until the owner admits it as its sequence.
 impl RtdConnector for RtdClient {
-    fn connect(&self, topic: &TopicKey, caller: CellKey) -> Result<RtdConnection, String> {
+    fn connect(
+        &self,
+        topic: &TopicKey,
+        caller: CellKey,
+        declared: bool,
+    ) -> Result<RtdConnection, String> {
         let lease = RtdService::subscribe(self, caller, topic)?;
+        if declared && let Ok(mut state) = self.state.try_borrow_mut() {
+            state.connector_reads.entry(caller).or_default().insert(lease.0);
+        }
         Ok(RtdConnection {
             lease,
             provisional: RtdService::initial_value(self, topic, lease),
@@ -652,6 +668,7 @@ impl RtdService for RtdClient {
         }
         state.topics.clear();
         state.by_key.clear();
+        state.connector_reads.clear();
         state.transports.clear();
         state.declarations.clear();
         state.replacement_calls.clear();

@@ -358,8 +358,9 @@ impl calc_fml::RtdConnector for RecordingConnector {
         &self,
         topic: &calc_fml::TopicKey,
         caller: calc_doc_model::value::CellKey,
+        declared: bool,
     ) -> Result<calc_fml::RtdConnection, String> {
-        let connection = self.inner.connect(topic, caller)?;
+        let connection = self.inner.connect(topic, caller, declared)?;
         if let Some((sequence, value)) = &connection.provisional {
             self.queue.borrow_mut().push((
                 topic.clone(),
@@ -378,8 +379,11 @@ impl HostState {
         std::mem::take(&mut self.rtd_admissions)
     }
     /// The owner's capability to join or start RTD topics while this host evaluates.
+    /// It also registers the built-in `RTD`, which reads through the same connector.
     pub fn set_rtd_connector(&mut self, connector: std::rc::Rc<dyn calc_fml::RtdConnector>) {
         self.rtd_connector = Some(connector);
+        let functions = self.functions.clone();
+        self.set_user_functions(functions);
     }
     pub(crate) fn attach_rtd_connector(
         &self,

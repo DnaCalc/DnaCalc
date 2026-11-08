@@ -1,0 +1,4 @@
+[
+  {"formula":"=10+RTD(\"DnaCalc.X5.{pid}\",,\"a\")+3","value":55,"rtd_wait_value":55,"dependent":"=B3*2","dependent_value":110},
+  {"formula":"=99","value":99,"dependent":"=B3*2","dependent_value":198}
+]

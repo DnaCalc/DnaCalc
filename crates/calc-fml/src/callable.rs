@@ -255,6 +255,15 @@ impl CallableTable {
         self.entries.contains_key(&Self::key(provider, name))
     }
 
+    /// Register the built-in `RTD`, which reads through the evaluation's RTD connector.
+    pub fn register_rtd(&mut self) {
+        let provider = crate::rtd::RTD_PROVIDER;
+        self.entries
+            .retain(|(held, _), _| held.as_deref() != Some(provider));
+        self.register_for(Some(provider), "RTD", Rc::new(crate::rtd::RtdFunction))
+            .expect("a provider cleared above");
+    }
+
     /// Bind the fetching functions to `route`, replacing any earlier route's.
     pub fn register_fetch_route(&mut self, route: &Rc<dyn calc_func::FetchRoute>) {
         let provider = calc_func::FETCH_PROVIDER;

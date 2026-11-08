@@ -312,7 +312,8 @@ pub fn run(
         }
         if !keep_formula {
             current_formula = Some(formula.to_owned());
-            enter_as(&mut book, b, formula, legacy)?;
+            // A case formula's {pid} is this process's id, as the owned Excel's is its own.
+            enter_as(&mut book, b, &formula.replace("{pid}", &std::process::id().to_string()), legacy)?;
             retire_rtd(&mut book, &rtd, &providers, b, &mut rtd_retired)?;
             if entry_evaluation {
                 evaluate_entry(&mut book, b)?;

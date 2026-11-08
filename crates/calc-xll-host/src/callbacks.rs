@@ -817,7 +817,7 @@ fn run(
             // admission. The value shows at once, as in Excel; the read stays uncertified
             // until the owner admits that sequence.
             let topic = calc_func::TopicKey::new(&progid, "", &topics);
-            let read = context.read_topic(&topic).map_err(err)?;
+            let read = context.read_topic(&topic, false).map_err(err)?;
             frame.rtd_subscriptions.insert(read.lease);
             let value = read.value;
             value

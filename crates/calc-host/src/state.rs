@@ -228,6 +228,9 @@ impl HostState {
         if let Some(route) = &self.fetch_route {
             functions.register_fetch_route(route);
         }
+        if self.rtd_connector.is_some() {
+            functions.register_rtd();
+        }
         self.functions.replace(functions);
         self.engine
             .set_callable_bindings(&self.model, self.functions.bindings());

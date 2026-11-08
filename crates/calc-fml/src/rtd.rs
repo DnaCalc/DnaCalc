@@ -148,6 +148,87 @@ pub fn admit(ledger: &RtdLedger, event: RtdEvent) -> (RtdLedger, RtdDisposition)
     }
 }
 
+/// The most topic strings a call can carry: a worksheet function takes 255 arguments, two of
+/// them the ProgID and the server.
+pub const MAX_TOPIC_STRINGS: usize = 253;
+
+/// The built-in `RTD(progid, server, topic1, ...)`, registered by a host that has an RTD
+/// connector ([`crate::CallableTable::register_rtd`]). It coerces its arguments to text as Excel
+/// does and reads the topic through [`read_topic`], the rule the `xlfRtd` callback uses too, so
+/// a typed `=RTD()` and an add-in's call with equal arguments are one topic. Local servers only:
+/// a non-empty server name is a typed refusal. Excel's `#N/A` when no server can be started is
+/// the answer to a connector failure; an error argument is returned as that error.
+#[derive(Debug)]
+pub struct RtdFunction;
+
+pub(crate) const RTD_PROVIDER: &str = "calc-fml/rtd";
+
+impl calc_func::UserFunction for RtdFunction {
+    fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+        Err("dc-snz.23: RTD reads through the evaluator's connector".into())
+    }
+    fn call_with_context(
+        &self,
+        arguments: &[CalcValue],
+        context: &mut dyn calc_func::UserFunctionContext,
+    ) -> Result<CalcValue, String> {
+        use calc_func::value::WorksheetErrorCode;
+        let mut values = Vec::with_capacity(arguments.len());
+        for argument in arguments {
+            values.push(match argument.as_reference() {
+                Some(reference) => context.argument_values_of(reference)?,
+                None => argument.clone(),
+            });
+        }
+        if values.len() < 3 {
+            return Err(context.refuse_by("RTD without a ProgID, a server and a topic", "dc-snz.23"));
+        }
+        if values.len() - 2 > MAX_TOPIC_STRINGS {
+            return Ok(CalcValue::error(WorksheetErrorCode::Value));
+        }
+        for value in &values {
+            if let Some(error) = value.as_error() {
+                return Ok(CalcValue::error(error));
+            }
+            if value.as_array().is_some() {
+                return Err(context.refuse_by("RTD over an array argument", "dc-snz.23"));
+            }
+        }
+        // Text as Excel coerces an argument to text: the one catalogue's CONCAT.
+        let mut text = |value: &CalcValue| -> Result<Option<String>, String> {
+            if value.is_missing() || value.is_empty() {
+                return Ok(Some(String::new()));
+            }
+            let joined = context.worksheet_function("CONCAT", std::slice::from_ref(value))?;
+            Ok(joined.as_text().map(|text| text.to_string_lossy()))
+        };
+        let mut texts = Vec::with_capacity(values.len());
+        for value in &values {
+            match text(value)? {
+                Some(text) => texts.push(text),
+                None => return Ok(CalcValue::error(WorksheetErrorCode::Value)),
+            }
+        }
+        if !texts[1].is_empty() {
+            return Err(context.refuse_by("RTD from a named (remote) server", "dc-snz.23"));
+        }
+        let topic = TopicKey::new(&texts[0], "", &texts[2..]);
+        match context.read_topic(&topic, true) {
+            Ok(seen) => Ok(match seen.value {
+                // Excel shows an empty RTD value as zero.
+                Some((_, value)) if value.is_empty() => CalcValue::number(0.0),
+                Some((_, value)) => value,
+                None => CalcValue::error(WorksheetErrorCode::NA),
+            }),
+            // No server could be started for the ProgID (or it failed): Excel's #N/A.
+            Err(why) if why.starts_with(calc_func::RTD_CONNECT_FAILED) => {
+                Ok(CalcValue::error(WorksheetErrorCode::NA))
+            }
+            Err(why) => Err(why),
+        }
+    }
+}
+
 /// Why [`read_topic`] could not read.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RtdReadError {
@@ -171,11 +252,12 @@ pub fn read_topic(
     connector: Option<&dyn RtdConnector>,
     topic: &TopicKey,
     caller: CellKey,
+    declared: bool,
 ) -> Result<(RtdTopicRead, RtdRead), RtdReadError> {
     let cut = cut.ok_or(RtdReadError::NoCut)?;
     let connector = connector.ok_or(RtdReadError::NoConnector)?;
     let connection = connector
-        .connect(topic, caller)
+        .connect(topic, caller, declared)
         .map_err(RtdReadError::Connect)?;
     let lease = connection.lease;
     let admitted = cut.get(topic).filter(|entry| entry.lease == lease);
@@ -293,6 +375,7 @@ mod tests {
             &self,
             _topic: &TopicKey,
             _caller: CellKey,
+            _declared: bool,
         ) -> Result<calc_func::RtdConnection, String> {
             Ok(calc_func::RtdConnection {
                 lease: RtdLease(self.1),
@@ -311,7 +394,7 @@ mod tests {
         let t = topic("a");
         // A new connection: ConnectData's value shows at once, read at sequence 1.
         let (seen, read) =
-            read_topic(Some(&empty), Some(&Connector(Some((1, 7.0)), 3)), &t, caller()).unwrap();
+            read_topic(Some(&empty), Some(&Connector(Some((1, 7.0)), 3)), &t, caller(), false).unwrap();
         assert_eq!(seen.lease, RtdLease(3));
         assert_eq!(seen.value, Some((1, CalcValue::number(7.0))));
         assert_eq!(read, RtdRead { topic: t.clone(), lease: RtdLease(3), sequence: 1 });
@@ -322,19 +405,38 @@ mod tests {
             Some(&Connector(Some((1, 7.0)), 3)),
             &t,
             caller(),
+            false,
         )
         .unwrap();
         assert_eq!(seen.value, Some((1, CalcValue::number(7.0))));
         assert_eq!(read.sequence, 1);
         // A joined topic with nothing provisional and nothing admitted has no value.
         let (seen, read) =
-            read_topic(Some(&empty), Some(&Connector(None, 3)), &t, caller()).unwrap();
+            read_topic(Some(&empty), Some(&Connector(None, 3)), &t, caller(), false).unwrap();
         assert_eq!(seen.value, None);
         assert_eq!(read.sequence, 0);
         // A cut entry of another incarnation is not this lease's.
         let (old, _) = admit(&empty, update("a", 2, 9, 1.0));
-        let (seen, _) = read_topic(Some(&old), Some(&Connector(None, 3)), &t, caller()).unwrap();
+        let (seen, _) = read_topic(Some(&old), Some(&Connector(None, 3)), &t, caller(), false).unwrap();
         assert_eq!(seen.value, None);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_topic_key_is_excels_identity_as_measured() {
+        let key = |progid: &str, server: &str, strings: &[&str]| {
+            TopicKey::new(
+                progid,
+                server,
+                &strings.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>(),
+            )
+        };
+        // The ProgID compares without regard to ASCII case; topic strings compare exactly.
+        assert_eq!(key("Dna.Prog", "", &["a"]), key("DNA.PROG", "", &["a"]));
+        assert_ne!(key("Dna.Prog", "", &["abc"]), key("Dna.Prog", "", &["ABC"]));
+        assert_ne!(key("Dna.Prog", "", &["t"]), key("Dna.Prog", "", &[" t"]));
+        // Two strings are not one.
+        assert_ne!(key("Dna.Prog", "", &["x", "y"]), key("Dna.Prog", "", &["x"]));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -343,11 +445,11 @@ mod tests {
         let empty = RtdLedger::default();
         let t = topic("a");
         assert_eq!(
-            read_topic(None, Some(&Connector(None, 1)), &t, caller()).unwrap_err(),
+            read_topic(None, Some(&Connector(None, 1)), &t, caller(), false).unwrap_err(),
             RtdReadError::NoCut
         );
         assert_eq!(
-            read_topic(Some(&empty), None, &t, caller()).unwrap_err(),
+            read_topic(Some(&empty), None, &t, caller(), false).unwrap_err(),
             RtdReadError::NoConnector
         );
     }

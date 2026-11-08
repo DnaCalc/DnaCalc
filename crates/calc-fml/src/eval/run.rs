@@ -3717,6 +3717,7 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
     fn read_topic(
         &mut self,
         topic: &calc_func::TopicKey,
+        declared: bool,
     ) -> Result<calc_func::RtdTopicRead, String> {
         use crate::rtd::RtdReadError;
         let caller = self.caller();
@@ -3728,6 +3729,7 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
             self.run.rtd_connector,
             topic,
             caller,
+            declared,
         );
         let (seen, read) = match read {
             Ok(done) => done,
@@ -3737,7 +3739,9 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
             Err(RtdReadError::NoConnector) => {
                 return Err(self.refuse_by("RTD without an owner connector", "dc-snz.23"));
             }
-            Err(RtdReadError::Connect(why)) => return Err(why),
+            Err(RtdReadError::Connect(why)) => {
+                return Err(format!("{}{why}", calc_func::RTD_CONNECT_FAILED));
+            }
         };
         if let Some(effects) = self.run.user_function_effects.as_deref_mut()
             && !effects.external_inputs.contains(&read)

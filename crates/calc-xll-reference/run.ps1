@@ -343,8 +343,8 @@ try {
             # Excel removes the previous anchor's spill when replacing its formula.
             if ($case.PSObject.Properties['keep_formula'] -and $case.keep_formula) {
                 if ([string]$sheet.Range('B3').Formula2 -ne [string]$case.formula) { throw 'Retained formula differs from the selected case.' }
-            } elseif ($case.PSObject.Properties['legacy'] -and $case.legacy) { $sheet.Range('B3').Formula = [string]$case.formula }
-            else { $sheet.Range('B3').Formula2 = [string]$case.formula }
+            } elseif ($case.PSObject.Properties['legacy'] -and $case.legacy) { $sheet.Range('B3').Formula = ([string]$case.formula).Replace('{pid}',[string]$ownedExcelPid) }
+            else { $sheet.Range('B3').Formula2 = ([string]$case.formula).Replace('{pid}',[string]$ownedExcelPid) }
             if ($case.PSObject.Properties['entry_wait_value']) {
                 $deadline=[DateTime]::UtcNow.AddSeconds($(if($NoTrace){60}else{180}))
                 do { Start-Sleep -Milliseconds 50; [void]$excel.Ready; $value=$sheet.Range('B3').Value2 }
@@ -409,7 +409,7 @@ try {
             for($i=0;$i -lt 10;$i++){Start-Sleep -Milliseconds 100; [void]$excel.Ready}
             if ((Get-Content -LiteralPath (Join-Path $run 'fixture.tsv') -Raw) -notmatch "Outside 89`t") { throw 'Outside-context probes did not finish.' }
         }
-        if ($AddInDirectory -and (Get-Content -LiteralPath $Cases -Raw) -match 'X5\.Rtd(?:Value)?\(') {
+        if ($AddInDirectory -and (Get-Content -LiteralPath $Cases -Raw) -match 'X5\.Rtd(?:Value)?\(|DnaCalc\.X5\.') {
             # Retire the workbook's RTD client while its server module is still
             # loaded, as the host composition does before XLL teardown.
             $book.Close($false); $bookClosed=$true

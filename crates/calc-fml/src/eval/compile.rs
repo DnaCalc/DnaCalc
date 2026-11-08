@@ -1250,6 +1250,28 @@ impl<'c> Lowering<'c> {
         tasks: &mut Vec<Task<'t>>,
     ) -> Result<(), CompileError> {
         let spelling = file_unprefixed(name.text());
+        if spelling.eq_ignore_ascii_case("RTD") && spelling.len() == name.text().len() {
+            // The built-in RTD is the owner's, registered with its RTD connector (dc-snz.23.4);
+            // a change of registration rebinds this plan.
+            let provider = crate::rtd::RTD_PROVIDER;
+            self.watch_callable(Some(provider), "RTD");
+            if self
+                .functions
+                .is_some_and(|f| f.contains_for(Some(provider), "RTD"))
+            {
+                self.user_call(
+                    "RTD",
+                    Some(UserFunctionSource {
+                        book: ExternalBookRef::Number(0),
+                        target: Some(provider.to_owned()),
+                    }),
+                    arguments,
+                    block,
+                    tasks,
+                );
+                return Ok(());
+            }
+        }
         if is_builtin(spelling) || spelling.len() != name.text().len() {
             return Err(unknown);
         }

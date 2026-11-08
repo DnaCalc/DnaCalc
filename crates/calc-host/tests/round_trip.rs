@@ -8844,6 +8844,7 @@ mod async_contract {
             &self,
             _topic: &calc_host::TopicKey,
             _caller: calc_host::value::CellKey,
+            _declared: bool,
         ) -> Result<calc_host::RtdConnection, String> {
             *self.0.borrow_mut() += 1;
             Ok(calc_host::RtdConnection {
@@ -8864,7 +8865,7 @@ mod async_contract {
             _: &[CalcValue],
             context: &mut dyn UserFunctionContext,
         ) -> Result<CalcValue, String> {
-            let read = context.read_topic(&probe_topic())?;
+            let read = context.read_topic(&probe_topic(), false)?;
             Ok(read
                 .value
                 .map(|(_, value)| value)
@@ -8915,6 +8916,73 @@ mod async_contract {
         book.dispatch(SkinIntent::Recalculate);
         drain(&mut book);
         assert_eq!(calculated(book.host(), at(s, "B1")), Some(CalcValue::number(43.0)));
+    }
+    /// A connector that records the topic of every connect and refuses one ProgID, as a registry
+    /// with no such class does.
+    #[derive(Debug)]
+    struct NamingConnector(Rc<RefCell<Vec<calc_host::TopicKey>>>);
+    impl calc_host::RtdConnector for NamingConnector {
+        fn connect(
+            &self,
+            topic: &calc_host::TopicKey,
+            _caller: calc_host::value::CellKey,
+            _declared: bool,
+        ) -> Result<calc_host::RtdConnection, String> {
+            if topic.progid == "no.such.prog" {
+                return Err("no server for this ProgID".into());
+            }
+            self.0.borrow_mut().push(topic.clone());
+            Ok(calc_host::RtdConnection {
+                lease: RtdLease(9),
+                provisional: Some((1, CalcValue::number(1.0))),
+            })
+        }
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn contract_p03_the_built_in_rtd_reads_a_topic_through_the_one_rule() {
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        let seen = Rc::new(RefCell::new(Vec::new()));
+        book.set_rtd_connector(Rc::new(NamingConnector(seen.clone())));
+        for (cell, formula) in [
+            ("B1", "=RTD(\"Probe.Progid\",,\"t\")+1"),
+            // The ProgID's case and an omitted server are the same topic.
+            ("B2", "=RTD(\"PROBE.PROGID\",\"\",\"t\")+1"),
+            // A number and its text are the same topic string.
+            ("B3", "=RTD(\"Probe.Progid\",,1)+1"),
+            ("B4", "=RTD(\"Probe.Progid\",,\"1\")+1"),
+            // No server for the ProgID is Excel's #N/A; a named server is not modelled.
+            ("B5", "=RTD(\"No.Such.Prog\",,\"t\")"),
+            ("B6", "=RTD(\"Probe.Progid\",\"remote\",\"t\")"),
+        ] {
+            enter(&mut book, at(s, cell), formula);
+        }
+        book.dispatch(SkinIntent::Recalculate);
+        drain(&mut book);
+        let number = |address: &str| calculated(book.host(), at(s, address));
+        assert_eq!(number("B1"), Some(CalcValue::number(2.0)));
+        assert_eq!(number("B2"), Some(CalcValue::number(2.0)));
+        assert_eq!(number("B3"), Some(CalcValue::number(2.0)));
+        assert_eq!(number("B4"), Some(CalcValue::number(2.0)));
+        assert_eq!(
+            number("B5").and_then(|v| v.as_error()),
+            Some(calc_host::value::WorksheetErrorCode::NA)
+        );
+        assert_eq!(number("B6"), None, "a named (remote) server is a typed refusal");
+        let seen = seen.borrow();
+        let key = |strings: &[&str]| {
+            calc_host::TopicKey::new(
+                "Probe.Progid",
+                "",
+                &strings.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>(),
+            )
+        };
+        assert!(seen.contains(&key(&["t"])) && seen.contains(&key(&["1"])));
+        assert!(
+            seen.iter().all(|k| *k == key(&["t"]) || *k == key(&["1"])),
+            "only two topics: {seen:?}"
+        );
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

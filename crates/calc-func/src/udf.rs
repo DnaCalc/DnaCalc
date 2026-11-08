@@ -12,8 +12,12 @@ pub struct UserCallableIdentity {
 }
 /// Excel's identity of one real-time-data topic: the server's ProgID, the (local) server name and
 /// the topic strings, 1 to 253 of them. Every cell that asks for the same arguments shares one
-/// topic. Whether Excel folds case in these strings is measured (dc-snz.23.4); this key compares
-/// them exactly until that is known.
+/// topic. Measured in Excel 16.0 (2026-11-08, dc-snz.23.4, codex-runs/rtd1/measure): the ProgID
+/// compares without regard to case; an omitted server and an empty one are one; topic strings
+/// compare exactly, case and spaces included, after text coercion (the number 1 and the text
+/// "1", TRUE and "TRUE", `0.1+0.2` and "0.3" are one topic); two strings and one are two topics;
+/// a typed `=RTD()` and an XLL's `xlfRtd` with equal arguments are one topic. The ProgID's case
+/// is folded for ASCII only; the measurement did not reach other letters.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TopicKey {
     pub progid: String,
@@ -23,7 +27,7 @@ pub struct TopicKey {
 impl TopicKey {
     pub fn new(progid: &str, server: &str, strings: &[String]) -> Self {
         TopicKey {
-            progid: progid.to_owned(),
+            progid: progid.to_ascii_lowercase(),
             server: server.to_owned(),
             strings: strings.to_vec(),
         }
@@ -48,6 +52,9 @@ pub struct RtdRead {
     pub lease: RtdLease,
     pub sequence: u64,
 }
+/// The prefix of the error text when the owner's connector could not connect a topic (no server
+/// for the ProgID, or its start failed). The built-in `RTD` answers it as Excel does, `#N/A`.
+pub const RTD_CONNECT_FAILED: &str = "dc-snz.23: RTD connect failed: ";
 /// What the owner's connector answers for one topic: the connection's lease and, while the
 /// owner has not yet admitted it, the value ConnectData returned (its sequence is 1 for a new
 /// connection). The provisional value is shown at once, as Excel shows it, but it is not
@@ -61,8 +68,17 @@ pub struct RtdConnection {
 /// a reference reader is. Calling it again for a topic already connected joins it (no second
 /// ConnectData) and registers `caller` as one more cell that reads the topic. Absent in the
 /// browser, where an RTD read is a typed refusal.
+///
+/// `declared` says who keeps the connection alive. A formula that reads the topic itself (the
+/// built-in `RTD`) declares it for as long as the formula stays; an add-in's `xlfRtd` call does
+/// not, since the native call's own record of what it asked for each time decides.
 pub trait RtdConnector: fmt::Debug {
-    fn connect(&self, topic: &TopicKey, caller: CellKey) -> Result<RtdConnection, String>;
+    fn connect(
+        &self,
+        topic: &TopicKey,
+        caller: CellKey,
+        declared: bool,
+    ) -> Result<RtdConnection, String>;
 }
 /// What the one read-or-connect rule gives a reader: the lease it read at and the value with the
 /// sequence it was admitted (or provisionally observed) at, if there is one.
@@ -252,7 +268,7 @@ pub trait UserFunctionContext {
     /// The one rule for reading a topic from a function: join or start its connection through
     /// the owner's connector, and take the cut's admitted value, or the connection's
     /// provisional one while it awaits admission. The read is recorded with the sequence used.
-    fn read_topic(&mut self, _topic: &TopicKey) -> Result<RtdTopicRead, String> {
+    fn read_topic(&mut self, _topic: &TopicKey, _declared: bool) -> Result<RtdTopicRead, String> {
         Err(self.refuse_by("RTD read without an owner connector", "dc-snz.23"))
     }
     /// End this semantic evaluation after an unresolved read. The registration authorizes the reason.
