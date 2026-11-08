@@ -188,7 +188,7 @@ ported_family! {
     // ref takes only an operand that may give a reference: `=SUBTOTAL(9,2)`, `=SUBTOTAL(9,{1,2})`,
     // `=SUBTOTAL(9,1+1)` and `=SUBTOTAL(9,B1,2)` are refused, `=SUBTOTAL(9,B1:B3)` and
     // `=SUBTOTAL(9,INDEX(B1:B3,0))` enter.
-    1 subtotal "SUBTOTAL" (2, 255) [V "function_num", F "ref1" @Reference ~ ArrayAlwaysLiftReferences, F "ref2" @Reference ~ ArrayAlwaysLiftReferencesRepeated] traits skip_nested_subtotals; three_d (None, Some(&[1, usize::MAX]), Some(&[0])); |s, a, sv| {
+    1 subtotal "SUBTOTAL" (2, 255) [V "function_num", F "ref1" @Reference ~ ArrayAlwaysLiftReferences, F "ref2" @Reference ~ ArrayAlwaysLiftReferencesRepeated] traits skip_nested_subtotals, lift_dynamic_references; three_d (None, Some(&[1, usize::MAX]), Some(&[0])); |s, a, sv| {
         let number = num(s, a, 0)?.trunc() as i64;
         let (function, hidden) = match number {
             1..=11 => (number, false),

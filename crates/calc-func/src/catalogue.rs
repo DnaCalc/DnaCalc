@@ -334,7 +334,7 @@ impl EntryTraits {
     const fn intersect_legacy_result(mut self) -> Self { self.intersect_legacy_result = true; self }
     const fn reject_multi_cell_reference(mut self) -> Self { self.reject_multi_cell_reference = true; self }
     const fn padding_precedes_call(mut self) -> Self { self.padding_precedes_call = true; self }
-    const fn skip_nested_subtotals(mut self) -> Self { self.can_skip_nested_subtotals = true; self.is_subtotal = true; self.lift_dynamic_references = true; self }
+    const fn skip_nested_subtotals(mut self) -> Self { self.can_skip_nested_subtotals = true; self.is_subtotal = true; self }
     const fn lift_dynamic_references(mut self) -> Self { self.lift_dynamic_references = true; self }
     const fn take_reference_array(mut self) -> Self { self.take_reference_array = true; self }
     const fn lift_computed_array(mut self) -> Self { self.lift_computed_array = true; self }

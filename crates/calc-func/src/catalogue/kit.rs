@@ -69,7 +69,7 @@ macro_rules! ported_family {
             $(groups ($gfrom:literal, $gsize:literal, $gtail:literal);)?
             $(result $result:ident;)?
             $(availability $availability:ident;)?
-            $(traits $traits:ident;)?
+            $(traits $($traits:ident),+;)?
             $(volatile $volatility:literal;)?
             $(host_route ($provider:expr, $fetch_kind:expr);)?
             $(three_d ($take:expr, $value:expr, $reference:expr);)?
@@ -92,7 +92,7 @@ macro_rules! ported_family {
                     $(.with_groups(super::ArgumentGroups::new($gfrom, $gsize, $gtail)))?
                     $(.with_result(super::ResultForm::$result))?
                     $(.with_availability(super::Availability::$availability))?
-                    $(.with_traits(super::EntryTraits::NONE.$traits()))?
+                    $(.with_traits(super::EntryTraits::NONE$(.$traits())+))?
                     $(.with_volatile_if($volatility))?
                     $(.with_kind(super::EntryKind::HostRoute { provider: $provider, route: super::HostRouteKind::Fetch($fetch_kind) }))?
                     $(.with_three_d(super::ThreeD::new($take, $value, $reference)))?,

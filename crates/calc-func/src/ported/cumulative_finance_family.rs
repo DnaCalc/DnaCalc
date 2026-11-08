@@ -5,8 +5,6 @@ pub use crate::ported::financial_time_value_family::PaymentTiming;
 use crate::value::CalcValue;
 use crate::value::WorksheetErrorCode;
 
-const EPSILON: f64 = 1.0e-12;
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum CumulativeFinanceEvalError {
     ArityMismatch {
@@ -42,9 +40,10 @@ fn trunc_positive_period(value: f64) -> Result<i32, CumulativeFinanceEvalError> 
 
 fn payment_timing_arg(value: f64) -> Result<PaymentTiming, CumulativeFinanceEvalError> {
     validate_finite(&[value])?;
-    if (value - 0.0).abs() < EPSILON {
+    // Excel20527 rejects both neighbours of one and nonzero values near zero.
+    if value == 0.0 {
         Ok(PaymentTiming::EndOfPeriod)
-    } else if (value - 1.0).abs() < EPSILON {
+    } else if value == 1.0 {
         Ok(PaymentTiming::BeginningOfPeriod)
     } else {
         Err(CumulativeFinanceEvalError::Domain(WorksheetErrorCode::Num))
