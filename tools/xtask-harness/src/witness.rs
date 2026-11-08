@@ -97,6 +97,7 @@ const DIFFERENCES: &str = "crates/calc-func/witness-differences.tsv";
 const WEEKNUM_EXCLUSION: &str = "migration/evidence/dc-1943-weeknum.json";
 const TEXTSPLIT_REPLAY: &str = "migration/evidence/dc-1943-textsplit-replay.json.gz";
 const MINVERSE_REPLAY: &str = "migration/evidence/dc-1943-minverse-replay.json.gz";
+const BINOM_REPLAY: &str = "migration/evidence/dc-1943-binom-replay.json.gz";
 const LEDGER: &str = "function-lane/ledgers/EXCEL_PARITY_LEDGER.csv";
 const EDGE_ROWS: usize = 4;
 /// New readings taken by `cargo xtask witness read`, in the evidence repository.
@@ -762,6 +763,50 @@ fn recovered_minverse_spill(function: &str, path: &str, record: &Value, inputs: 
         && record["result_index"][1] == 0
 }
 
+/// Retain all Q6 calls, including repeated observations. Grouping later combines identical
+/// inputs, while the original capture still carries each call and its Excel answer.
+fn add_binomial_replay(banks: &mut Banks, function: &str, doc: &Value) -> Result<(), String> {
+    let source = banks.sources.len();
+    banks.sources.push(Source {
+        path: BINOM_REPLAY.to_owned(),
+        env: ReadingSource {
+            id: String::new(), source: format!("DnaCalc {BINOM_REPLAY}"),
+            excel_build: Some("20527".into()), platform: Some("Windows".into()), bitness: None,
+            cpu: doc["cpu"].as_str().map(str::to_owned),
+            invocation: Some(calc_verdict::WitnessInvocation {
+                input_transport: Some("cell_value2_bulk".into()), ..Default::default()
+            }),
+        },
+    });
+    banks.files_read += 1;
+    for (section, count) in [("alpha_neighbours", 54), ("ulp_scan_plus_minus_4", 135)] {
+        let rows = doc[section].as_array().ok_or("binomial replay has no section")?;
+        if rows.len() != count { return Err(format!("{section}: expected {count} calls")); }
+        for (i, row) in rows.iter().enumerate() {
+            let n = row["n"].as_f64().ok_or("binomial trials")?;
+            let p = row["p"].as_f64().ok_or("binomial probability")?;
+            let alpha = row["alpha_bits"].as_str().ok_or("binomial alpha bits")?;
+            if alpha.len() != 16 || u64::from_str_radix(alpha, 16).is_err() { return Err("invalid alpha bits".into()); }
+            let args = vec![serde_json::json!(format!("0x{:016x}", n.to_bits())),
+                serde_json::json!(format!("0x{:016x}", p.to_bits())), serde_json::json!(format!("0x{alpha}"))];
+            if let Some(readback) = row.get("input_bits_read_back") {
+                let expected = serde_json::json!([format!("{:016x}", n.to_bits()), format!("{:016x}", p.to_bits()), alpha]);
+                if readback != &expected { return Err(format!("{section} {i}: input readback differs")); }
+            }
+            let result = |name: &str| -> Option<u64> {
+                let value = &row[name];
+                value.as_str().and_then(|s| u64::from_str_radix(s, 16).ok())
+                    .or_else(|| value.as_f64().map(f64::to_bits))
+            };
+            let answer = result(function).ok_or("binomial replay has no numeric answer")?;
+            if result("BINOM.INV") != result("CRITBINOM") { return Err(format!("{section} {i}: functions disagree")); }
+            banks.readings.push(Reading { function: function.to_owned(), id: format!("q6-{section}-{i:03}"),
+                args, index: None, expected: format!("0x{answer:016x}"), source });
+        }
+    }
+    Ok(())
+}
+
 fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>), String> {
     let mut banks = Banks {
         sources: Vec::new(),
@@ -979,6 +1024,12 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
         add_array_replay(&mut banks, "TEXTSPLIT", TEXTSPLIT_REPLAY, &doc)?;
     }
     if let Some(doc) = &inverse_replay { add_array_replay(&mut banks, "MINVERSE", MINVERSE_REPLAY, doc)?; }
+    for function in ["BINOM.INV", "CRITBINOM"] {
+        if only.is_none_or(|f| f == function) {
+            let doc = bank_json(&gunzip(include_bytes!("../../../migration/evidence/dc-1943-binom-replay.json.gz"), None)?)?;
+            add_binomial_replay(&mut banks, function, &doc)?;
+        }
+    }
     Ok((banks, unread))
 }
 
@@ -2542,6 +2593,19 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn binomial_replay_retains_every_call_and_its_exact_inputs() {
+        let doc = bank_json(&gunzip(include_bytes!("../../../migration/evidence/dc-1943-binom-replay.json.gz"), None).unwrap()).unwrap();
+        let mut banks = Banks { sources: Vec::new(), readings: Vec::new(), files_read: 0,
+            import_notes: Vec::new(), unread_rows: BTreeMap::new() };
+        for function in ["BINOM.INV", "CRITBINOM"] { add_binomial_replay(&mut banks, function, &doc).unwrap(); }
+        assert_eq!(banks.readings.len(), 378);
+        let (grouped, differences) = group(&banks);
+        assert!(differences.is_empty());
+        assert_eq!(grouped["BINOM.INV"].len(), 156);
+        assert_eq!(grouped["CRITBINOM"].len(), 156);
+    }
 
     #[test]
     fn free_layout_replays_compare_every_observed_array_cell() {
