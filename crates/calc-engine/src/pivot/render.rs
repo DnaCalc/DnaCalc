@@ -17,6 +17,12 @@ pub fn layout(table: &PivotTable, cache: &PivotCache) -> Result<PivotLayout, Piv
             "Grouped, calculated, filtered or extended pivot layouts are not modelled",
         ));
     }
+    if !table.filters.is_empty() && (table.filters.len() != 1 || table.row_fields.len() != 1
+        || !table.column_fields.is_empty() || table.data_fields.len() != 1
+        || table.filters[0].field as i32 != table.row_fields[0] || table.filters[0].measure != 0
+        || table.page_fields.iter().any(|page| page.field as i32 == table.row_fields[0])) {
+        return Err(bad("This pivot value filter layout is not modelled"));
+    }
     if table.row_fields.len() == 1 && table.column_fields.len() >= 2 {
         return layout_columns(table, cache, snapshot);
     }
@@ -152,11 +158,12 @@ fn layout_rows(
     let mut totals: Vec<BTreeMap<Vec<usize>, Total>> = (0..depth).map(|_| BTreeMap::new()).collect();
     let mut grand_total = Total::default();
     for record in &snapshot.records {
+        if !page_allows(table, cache, record)? { continue; }
         let mut path = Vec::with_capacity(depth);
         for (level, &field) in rows.iter().enumerate() {
             path.push(find(level, resolve(cache, record, field)?)?);
         }
-        if path.iter().enumerate().any(|(l, &g)| levels[l][g].hidden) {
+        if path.iter().enumerate().any(|(l, &g)| levels[l][g].hidden || levels[l][g].excluded) {
             continue;
         }
         let value = resolve(cache, record, measure)?;
@@ -349,6 +356,7 @@ fn layout_matrix(
     let mut value_rows = BTreeMap::<usize, Vec<Total>>::new();
     let mut value_grand: Vec<Total> = table.data_fields.iter().map(|_| Total::default()).collect();
     for record in &snapshot.records {
+        if !page_allows(table, cache, record)? { continue; }
         let g = find(&rows, resolve(cache, record, row)?)?;
         if rows[g].hidden {
             continue;

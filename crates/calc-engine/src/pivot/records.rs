@@ -143,10 +143,13 @@ pub(super) fn field_groups(
                 total: Total::default(),
                 old: usize::MAX,
                 hidden: false,
+                excluded: false,
             });
         }
         let group = groups.last_mut().unwrap();
-        group.total.push(resolve(cache, record, measure)?)?;
+        if page_allows(table, cache, record)? {
+            group.total.push(resolve(cache, record, measure)?)?;
+        }
     }
     for (position, item) in field.items.iter().enumerate() {
         if item.kind != "data" {
@@ -175,6 +178,33 @@ pub(super) fn field_groups(
             groups[i].hidden |= item.hidden;
         }
     }
+    if let Some(filter) = table.filters.iter().find(|filter| filter.field as usize == row) {
+        let kind = table.data_fields.get(filter.measure as usize)
+            .ok_or_else(|| bad("Invalid value-filter measure"))?.subtotal.as_str();
+        let mut scores = Vec::new();
+        for (i, group) in groups.iter().enumerate().filter(|(_, group)| !group.hidden) {
+            match group.total.result(kind).core_ref() {
+                calc_value::CoreRef::Number(n) if n.is_finite() => scores.push((i, n)),
+                _ => return Err(bad("A nonnumeric value-filter total is not modelled")),
+            }
+        }
+        match &filter.kind {
+            PivotFilterKind::TopCount(count) => {
+                scores.sort_by(|a, b| b.1.total_cmp(&a.1));
+                let n = (*count as usize).min(scores.len());
+                if n > 0 && n < scores.len() && scores[n-1].1 == scores[n].1 {
+                    return Err(bad("A tie at the top-count boundary is not modelled"));
+                }
+                for &(i, _) in scores.iter().skip(n) { groups[i].excluded = true; }
+            }
+            PivotFilterKind::ValueGreaterThan(value) => {
+                let threshold = value.parse::<f64>().ok().filter(|n| n.is_finite())
+                    .ok_or_else(|| bad("Invalid value-filter threshold"))?;
+                for (i, score) in scores { groups[i].excluded = score <= threshold; }
+            }
+            PivotFilterKind::Unsupported => return Err(bad("This pivot filter is not modelled")),
+        }
+    }
     match field
         .attributes
         .get("sortType")
@@ -189,8 +219,8 @@ pub(super) fn field_groups(
     Ok(groups)
 }
 /// The item lists of the page fields after a refresh. A page field showing (All) filters
-/// nothing, so only its item list follows the cache (UI28 pvt_report_filter); a selected item or
-/// a hidden item filters the source and refuses.
+/// nothing, so its item list follows the cache. Selected or hidden page items keep their saved
+/// positions, which the page field uses to identify its selection.
 pub(super) fn page_field_items(
     table: &PivotTable,
     cache: &PivotCache,
@@ -198,8 +228,25 @@ pub(super) fn page_field_items(
     measure: usize,
     next: &mut PivotTable,
 ) -> Result<(), PivotIssue> {
-    for &page in &table.page_fields {
-        let page = page as usize;
+    for selection in &table.page_fields {
+        let page = selection.field as usize;
+        if selection.selected_item.is_some() || table.fields.get(page).is_some_and(|f| f.items.iter().any(|i| i.hidden)) {
+            // Selected positions refer to the preserved list. Reordering that list would change
+            // the selection written in the original pageField XML.
+            if page >= cache.fields.len() || page >= next.fields.len() {
+                return Err(refusal(&table.part, "An invalid page field is not modelled"));
+            }
+            let indices: std::collections::BTreeSet<u32> = table.fields[page].items.iter()
+                .filter(|item| item.kind == "data").filter_map(|item| item.index).collect();
+            for record in &snapshot.records {
+                let key = resolve(cache, record, page)?;
+                let known = matches!(record.get(page), Some(PivotItem::Index(i)) if indices.contains(i))
+                    || indices.iter().filter_map(|i| cache.fields[page].items.get(*i as usize))
+                        .any(|item| compare(item, key) == Some(Ordering::Equal));
+                if !known { return Err(refusal(&table.part, "A new item in a filtered page field is not modelled")); }
+            }
+            continue;
+        }
         if page >= cache.fields.len()
             || page >= next.fields.len()
             || table.fields[page].items.iter().any(|i| i.hidden)
@@ -229,3 +276,42 @@ pub(super) fn page_field_items(
     Ok(())
 }
 
+
+/// Select source records for report-filter fields without changing the shared source snapshot.
+pub(super) fn page_allows(
+    table: &PivotTable, cache: &PivotCache, record: &[PivotItem],
+) -> Result<bool, PivotIssue> {
+    for page in &table.page_fields {
+        let index = page.field as usize;
+        let field = table.fields.get(index).ok_or_else(|| refusal(&table.part, "Invalid page field"))?;
+        let cache_field = cache.fields.get(index).ok_or_else(|| refusal(&table.part, "Invalid page cache field"))?;
+        let key = resolve(cache, record, index)?;
+        let equal = |item: &PivotFieldItem| -> Result<bool, PivotIssue> {
+            let saved = item.index.and_then(|i| cache_field.items.get(i as usize))
+                .ok_or_else(|| refusal(&table.part, "Invalid page item"))?;
+            compare(saved, key).map(|o| o == Ordering::Equal)
+                .ok_or_else(|| refusal(&table.part, "A page item cannot be compared"))
+        };
+        if let Some(position) = page.selected_item {
+            let item = field.items.get(position as usize).filter(|i| i.kind == "data" && !i.hidden)
+                .ok_or_else(|| refusal(&table.part, "Invalid selected page item"))?;
+            if !equal(item)? { return Ok(false); }
+        } else if field.items.iter().any(|i| i.hidden) {
+            let mut found = None;
+            for item in field.items.iter().filter(|i| i.kind == "data") {
+                if equal(item)? {
+                    if found.is_some_and(|hidden| hidden != item.hidden) {
+                        return Err(refusal(&table.part, "Conflicting page item visibility is not modelled"));
+                    }
+                    found = Some(item.hidden);
+                }
+            }
+            match found {
+                Some(true) => return Ok(false),
+                Some(false) => {},
+                None => return Err(refusal(&table.part, "A new item in a filtered page field is not modelled")),
+            }
+        }
+    }
+    Ok(true)
+}

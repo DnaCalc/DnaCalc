@@ -285,11 +285,27 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
     let mut row_fields = Vec::new();
     let mut column_fields = Vec::new();
     let mut page_fields = Vec::new();
+    let mut filters = Vec::<PivotFilter>::new();
+    let mut invalid_filters = Vec::<bool>::new();
+    let mut filter_type = String::new();
+    let mut auto_filters = 0usize;
+    let mut filter_columns = 0usize;
     let mut data_fields = Vec::new();
     let mut path = Vec::<String>::new();
     while let Some(event) = events.next()? {
         match event {
             XmlEvent::Start(e) => {
+                let filter_path: Vec<_> = path.iter().map(String::as_str).collect();
+                if filter_path.starts_with(&["filters", "filter"]) {
+                    let known = e.name.namespace.as_deref() == Some(M) && matches!(
+                        (filter_path.as_slice(), e.name.local.as_str()),
+                        (["filters", "filter"], "autoFilter") |
+                        (["filters", "filter", "autoFilter"], "filterColumn") |
+                        (["filters", "filter", "autoFilter", "filterColumn"], "top10" | "customFilters") |
+                        (["filters", "filter", "autoFilter", "filterColumn", "customFilters"], "customFilter")
+                    );
+                    if !known { if let Some(invalid) = invalid_filters.last_mut() { *invalid = true; } }
+                }
                 if e.name.namespace.as_deref() == Some(X14)
                     && e.name.local == "pivotField"
                     && path.iter().map(String::as_str).collect::<Vec<_>>() == ["pivotFields", "pivotField", "extLst", "ext"]
@@ -342,7 +358,7 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
                         (["colItems"],"i") => col_items.push(PivotAxisItem {kind:e.attribute("t").unwrap_or("data").into(),repeat:optional_integer(&e,"r",&events)?.unwrap_or(0),data_index:optional_integer(&e,"i",&events)?.unwrap_or(0),indexes:Vec::new()}),
                         (["colItems","i"],"x") => {if let Some(item)=col_items.last_mut(){item.indexes.push(optional_integer(&e,"v",&events)?.unwrap_or(0));}}
                         (["rowItems","i"],"x") => {if let Some(item)=row_items.last_mut(){item.indexes.push(optional_integer(&e,"v",&events)?.unwrap_or(0));}}
-                        ([],"filters"|"conditionalFormats"|"rowHierarchies"|"colHierarchies"|"calculatedMembers")
+                        ([],"conditionalFormats"|"rowHierarchies"|"colHierarchies"|"calculatedMembers")
                         | (["pivotFields","pivotField"],"autoSortScope"|"memberProperties") => unsupported.push(e.name.local.to_string()),
                         (["pivotFields","pivotField"],"extLst") => {}
                         (["pivotFields","pivotField","extLst"],"ext") => {
@@ -351,11 +367,71 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
                         (["rowFields"], "field") => row_fields.push(integer(&e, "x", &events)?),
                         (["colFields"], "field") => column_fields.push(integer(&e, "x", &events)?),
                         (["pageFields"], "pageField") => {
-                            if e.attribute("item").is_some() || e.attribute("hier").is_some_and(|h| h != "-1") {
-                                unsupported.push("selected page field item".into());
+                            if e.attribute("hier").is_some_and(|h| h != "-1") {
+                                unsupported.push("hierarchical page field".into());
                             }
-                            page_fields.push(integer(&e, "fld", &events)?)
+                            page_fields.push(PivotPageField {
+                                field: integer(&e, "fld", &events)?,
+                                selected_item: optional_integer(&e, "item", &events)?,
+                            })
                         }
+                        (["filters"], "filter") => {
+                            filter_type = e.attribute("type").unwrap_or("").into();
+                            auto_filters = 0;
+                            filter_columns = 0;
+                            invalid_filters.push(e.attributes.iter().any(|a| !matches!(a.name.local.as_str(),
+                                "fld" | "type" | "evalOrder" | "id" | "iMeasureFld"))
+                                || e.attribute("evalOrder").is_some_and(|v| v != "-1"));
+                            filters.push(PivotFilter {
+                                field: integer(&e, "fld", &events)?,
+                                measure: optional_integer(&e, "iMeasureFld", &events)?.unwrap_or(u32::MAX),
+                                kind: PivotFilterKind::Unsupported,
+                            });
+                        }
+                        (["filters"], _) => unsupported.push("unsupported pivot filter element".into()),
+                        (["filters", "filter"], "autoFilter") => {
+                            auto_filters += 1;
+                            if auto_filters != 1 || e.attributes.iter().any(|a| a.name.local != "ref") {
+                                if let Some(invalid) = invalid_filters.last_mut() { *invalid = true; }
+                            }
+                        }
+                        (["filters", "filter", "autoFilter"], "filterColumn") => {
+                            filter_columns += 1;
+                            if filter_columns != 1 || e.attribute("colId") != Some("0") || e.attributes.iter().any(|a| a.name.local != "colId") {
+                                if let Some(invalid) = invalid_filters.last_mut() { *invalid = true; }
+                            }
+                        }
+                        (["filters", "filter", "autoFilter", "filterColumn"], "customFilters") => {
+                            if e.attributes.iter().any(|a| a.name.local != "and") || matches!(e.attribute("and"), Some("1" | "true")) {
+                                if let Some(invalid) = invalid_filters.last_mut() { *invalid = true; }
+                            }
+                        }
+                        (["filters", "filter", "autoFilter", "filterColumn"], "top10") => {
+                            if e.attributes.iter().any(|a| !matches!(a.name.local.as_str(), "val" | "filterVal" | "top" | "percent")) {
+                                if let Some(invalid) = invalid_filters.last_mut() { *invalid = true; }
+                            }
+                            if filters.last().is_some_and(|f| !matches!(f.kind, PivotFilterKind::Unsupported)) {
+                                if let Some(invalid) = invalid_filters.last_mut() { *invalid = true; }
+                            }
+                            if filter_type == "count" && !matches!(e.attribute("top"), Some("0" | "false"))
+                                && !matches!(e.attribute("percent"), Some("1" | "true")) {
+                                if let (Some(filter), Some(count)) = (filters.last_mut(), e.attribute("val").and_then(|v| v.parse::<u32>().ok()).filter(|n| *n > 0)) {
+                                    filter.kind = PivotFilterKind::TopCount(count);
+                                }
+                            }
+                        }
+                        (["filters", "filter", "autoFilter", "filterColumn", "customFilters"], "customFilter") => {
+                            if e.attributes.iter().any(|a| !matches!(a.name.local.as_str(), "operator" | "val"))
+                                || filters.last().is_some_and(|f| !matches!(f.kind, PivotFilterKind::Unsupported)) {
+                                if let Some(invalid) = invalid_filters.last_mut() { *invalid = true; }
+                            }
+                            if filter_type == "valueGreaterThan" && e.attribute("operator") == Some("greaterThan") {
+                                if let (Some(filter), Some(value)) = (filters.last_mut(), e.attribute("val")) {
+                                    filter.kind = PivotFilterKind::ValueGreaterThan(value.into());
+                                }
+                            }
+                        }
+                        (["dataFields", "dataField"], "extLst") => unsupported.push("data field extension".into()),
                         (["dataFields"], "dataField") => data_fields.push(PivotDataField {
                             name: e.attribute("name").map(|s|decoded(s,&events)).transpose()?,
                             field: integer(&e, "fld", &events)?,
@@ -379,6 +455,10 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
             XmlEvent::Text(_) => {}
         }
     }
+    if invalid_filters.iter().any(|invalid| *invalid)
+        || filters.iter().any(|f| matches!(f.kind, PivotFilterKind::Unsupported)) {
+        unsupported.push("unsupported pivot filter".into());
+    }
     Ok(PivotTable {
         name,
         part: part.into(),
@@ -387,6 +467,7 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
         row_fields,
         column_fields,
         page_fields,
+        filters,
         data_fields,
         attributes: attrs(&root),
         location: location_attrs, fields, row_items, col_items, unsupported,

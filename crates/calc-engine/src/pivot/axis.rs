@@ -306,6 +306,7 @@ pub(super) fn layout_columns(
     let mut paths = BTreeSet::new();
     let mut totals = BTreeMap::<(usize, Vec<usize>, usize), Total>::new();
     for record in &snapshot.records {
+        if !page_allows(table, cache, record)? { continue; }
         let r = find(&rows, &row_sorted, resolve(cache, record, row)?)?;
         if rows[r].hidden {
             continue;

@@ -19,6 +19,7 @@ struct Group {
     pub(super) total: Total,
     pub(super) old: usize,
     pub(super) hidden: bool,
+    pub(super) excluded: bool,
 }
 #[derive(Debug)]
 pub struct PivotLayout {
@@ -33,7 +34,7 @@ mod records;
 mod render;
 use aggregate::Total;
 use axis::{Walk, axis_item, layout_columns};
-use records::{compare, field_groups, page_field_items, resolve};
+use records::{compare, field_groups, page_allows, page_field_items, resolve};
 pub use records::item_value;
 use render::{Form, label_text, truthy};
 pub use render::layout;
