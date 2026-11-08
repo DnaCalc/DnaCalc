@@ -2183,6 +2183,82 @@ const IF: (Notation, &str) = (Notation::Call, "IF");
 const COUNT: (Notation, &str) = (Notation::Call, "COUNT");
 const COUNTIF: (Notation, &str) = (Notation::Call, "COUNTIF");
 
+/// Excel 16.0.20527, dc-1943 Q1: EXP creates a real subnormal, which + and - retain,
+/// while multiplication, division and exponentiation flush their subnormal results.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn computed_subnormal_arithmetic() {
+    let mode = NumericMode::Fast;
+    let exp = surface(Notation::Call, "EXP");
+    let mut input = Recorded::new(vec![CalcValue::number(-745.0)]);
+    let tiny = run(exp, &mut input, &mode).unwrap();
+    assert_eq!(tiny.as_number().unwrap().to_bits(), 1);
+    for (op, left, right, expected) in [
+        (PLUS, tiny.clone(), CalcValue::number(0.0), 1),
+        (MINUS, CalcValue::number(0.0), tiny.clone(), 0x8000_0000_0000_0001),
+        (TIMES, tiny.clone(), CalcValue::number(3.0), 0),
+        (DIVIDE, tiny.clone(), CalcValue::number(1.0), 0),
+        (POWER, tiny.clone(), CalcValue::number(1.0), 0),
+    ] {
+        let mut args = Recorded::new(vec![left, right]);
+        let actual = run(surface(op.0, op.1), &mut args, &mode).unwrap();
+        assert_eq!(actual.as_number().unwrap().to_bits(), expected, "{op:?}");
+    }
+    let mut args = Recorded::new(vec![tiny, CalcValue::number(2f64.powi(1000))]);
+    let scaled = run(surface(TIMES.0, TIMES.1), &mut args, &mode).unwrap();
+    assert_eq!(scaled.as_number().unwrap(), 2f64.powi(-74));
+    for (function, input, expected) in [
+        ("ABS", 0x8000_0000_0000_0001, 1),
+        ("N", 0x8000_0000_0000_0001, 0x8000_0000_0000_0001),
+        ("SIGN", 0x8000_0000_0000_0001, (-1.0f64).to_bits()),
+        ("INT", 1, 0),
+        ("SQRT", 1, 0x1e60_0000_0000_0000),
+        ("DEGREES", 1, 0),
+        ("DEGREES", 0x0008_bfe5_5de0_2338, 0x005f_5509_5d41_03fa),
+        ("RADIANS", 0x0008_bfe5_5de0_2338, 0),
+        ("EVEN", 1, 2.0f64.to_bits()),
+        ("EVEN", 0x8000_0000_0000_0001, (-2.0f64).to_bits()),
+        ("ODD", 1, 1.0f64.to_bits()),
+        ("ODD", 0x8000_0000_0000_0001, (-1.0f64).to_bits()),
+    ] {
+        let mut args = Recorded::new(vec![CalcValue::number(f64::from_bits(input))]);
+        let result = run(surface(Notation::Call, function), &mut args, &mode).unwrap();
+        assert_eq!(result.as_number().unwrap().to_bits(), expected, "{function}");
+    }
+    for (function, expected) in [("ISEVEN", true), ("ISODD", false)] {
+        let mut args = Recorded::new(vec![CalcValue::number(f64::from_bits(1))]);
+        let result = run(surface(Notation::Call, function), &mut args, &mode).unwrap();
+        assert_eq!(result.as_logical(), Some(expected), "{function}");
+    }
+    let mut negative = Recorded::new(vec![CalcValue::number(-f64::from_bits(1))]);
+    assert_eq!(run(surface(Notation::Call, "NOT"), &mut negative, &mode).unwrap().as_logical(), Some(false));
+    for (function, a, b, expected) in [
+        ("DELTA", 1, 0, 0.0),
+        ("DELTA", 1, 1, 1.0),
+        ("GESTEP", 1, 0, 1.0),
+        ("GESTEP", 0, 1, 0.0),
+    ] {
+        let mut args = Recorded::new(vec![CalcValue::number(f64::from_bits(a)), CalcValue::number(f64::from_bits(b))]);
+        let result = run(surface(Notation::Call, function), &mut args, &mode).unwrap();
+        assert_eq!(result.as_number(), Some(expected), "{function}");
+    }
+    for (function, bits, significance, expected) in [
+        ("CEILING", 0x0008_bfe5_5de0_2338, 1.0, 0.0),
+        ("CEILING", 0x0008_bfe5_5de0_2338, 0.1, 0.1),
+        ("FLOOR", 0x8008_bfe5_5de0_2338, 0.1, -0.1),
+        ("CEILING.PRECISE", 0x0008_bfe5_5de0_2338, 0.1, 0.1),
+        ("FLOOR.PRECISE", 0x8008_bfe5_5de0_2338, 0.1, -0.1),
+        ("ISO.CEILING", 0x0008_bfe5_5de0_2338, 0.1, 0.1),
+        ("CEILING.MATH", 0x0008_bfe5_5de0_2338, 1.0, 0.0),
+        ("FLOOR.MATH", 0x8008_bfe5_5de0_2338, 1.0, 0.0),
+        ("QUOTIENT", 0x0008_bfe5_5de0_2338, 0.1, 0.0),
+    ] {
+        let mut args = Recorded::new(vec![CalcValue::number(f64::from_bits(bits)), CalcValue::number(significance)]);
+        let result = run(surface(Notation::Call, function), &mut args, &mode).unwrap();
+        assert_eq!(result.as_number(), Some(expected), "{function}");
+    }
+}
+
 fn exact_mode() -> NumericMode {
     NumericMode::Exact(
         NumericTargetId::new(
@@ -3623,7 +3699,7 @@ fn cfunc_m1_2__mixed_operands() {
     s.refuse = false;
 
     // Unary plus publishes a number by the number rule: -0 gives +0, and a number that is no
-    // worksheet value (NaN, an infinity) or is subnormal is refused, naming the operand.
+    // worksheet value (NaN or an infinity) is refused, naming the operand.
     let unary_plus = surface(UNARY_PLUS.0, UNARY_PLUS.1);
     let mut negative_zero = Recorded::new(vec![CalcValue::number(-0.0)]);
     let published = run(unary_plus, &mut negative_zero, &fast);
@@ -3634,7 +3710,7 @@ fn cfunc_m1_2__mixed_operands() {
         Ok(Some(0x0000_0000_0000_0000)),
         "+(-0.0) gives {published:?}"
     );
-    for operand in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, 5e-324] {
+    for operand in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         let mut given = Recorded::new(vec![CalcValue::number(operand)]);
         assert_eq!(
             run(unary_plus, &mut given, &fast),
@@ -3645,8 +3721,10 @@ fn cfunc_m1_2__mixed_operands() {
             "+({operand:?})"
         );
     }
+    let mut subnormal = Recorded::new(vec![CalcValue::number(f64::from_bits(1))]);
+    assert_eq!(run(unary_plus, &mut subnormal, &fast).unwrap().as_number().unwrap().to_bits(), 1);
     note!(
-        "ACCEPT-NOTE: {CASE}: +(-0.0) through calc_func::invoke gives bits {:#018x}; +NaN, +inf, +(-inf) and +5e-324 are refused naming the operand",
+        "ACCEPT-NOTE: {CASE}: +(-0.0) through calc_func::invoke gives bits {:#018x}; +NaN, +inf and +(-inf) are refused naming the operand; +5e-324 is retained",
         published
             .as_ref()
             .ok()

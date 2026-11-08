@@ -3,7 +3,7 @@
   "function": "QUOTIENT",
   "selection": "cargo xtask witness pin: of 1362 distinct readings in 1 bank files of OxFunc-Evidence, the first 4 rows of each bank and an evenly spaced sample of the rest, the budget of 120 rows shared by bank size; calc_func is the result calc-func calculated at pinning, on rows it did not match",
   "readings": [
-    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r0","platform":"Windows","source":"OxFunc-Evidence runs/w111-broad-20260929/answers/answers-quotient.json"}
+    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r0","invocation":{"compatibility_version":"2","input_sheet_state":"visible-constant-inputs","input_transport":"cell_value2_bulk"},"platform":"Windows","source":"OxFunc-Evidence runs/w111-broad-20260929/answers/answers-quotient.json"}
   ],
   "witnesses": [
     {"args":["0x0000000000000000","0x0000000000000000"],"expected_bits":"error:Div0","id":"w111broad-20260929-QUOTIENT-00002","reading":"r0"},
@@ -70,7 +70,7 @@
     {"args":["0x631612043a818ed8","0x3df5272a91cb037b"],"expected_bits":"0x6510b1a3ab893dfa","id":"w111broad-20260929-QUOTIENT-00172","reading":"r0"},
     {"args":["0x73fac07ede61f54d","0x40ac6603d472c858"],"expected_bits":"0x733e2505ff9cd388","id":"w111broad-20260929-QUOTIENT-00897","reading":"r0"},
     {"args":["0x7fefffffffffffff","0x4000000000000000"],"expected_bits":"0x7fdfffffffffffff","id":"w111broad-20260929-QUOTIENT-00155","reading":"r0"},
-    {"args":["0x8000000000000001","0x4000000000000000"],"calc_func":"fault:NotImplemented","expected_bits":"0x0000000000000000","id":"w111broad-20260929-QUOTIENT-00023","reading":"r0"},
+    {"args":["0x8000000000000001","0x4000000000000000"],"expected_bits":"0x0000000000000000","id":"w111broad-20260929-QUOTIENT-00023","reading":"r0"},
     {"args":["0x81a56e1fc2f8f359","0x4000000000000000"],"expected_bits":"0x0000000000000000","id":"w111broad-20260929-QUOTIENT-00047","reading":"r0"},
     {"args":["0x876b32a8c5929d1e","0x3ec348bc39077ed4"],"expected_bits":"0x0000000000000000","id":"w111broad-20260929-QUOTIENT-00267","reading":"r0"},
     {"args":["0x97decee457fcbc07","0x3e40a78e8d84a0c8"],"expected_bits":"0x0000000000000000","id":"w111broad-20260929-QUOTIENT-00632","reading":"r0"},

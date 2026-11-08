@@ -10,7 +10,8 @@
 //! `=-POWER(2,-1022)/2` and `=(POWER(2,-1022)*1.5)/2` are all 0, and
 //! `=POWER(2,-1022)-POWER(2,-1022)*0.75` is 2^-1022, its product having been 0). A sum or
 //! difference below it is not: `=POWER(2,-1022)*(1+POWER(2,-52))-POWER(2,-1022)` is 2^-1074 in
-//! Excel, which the number rule still refuses.
+//! Excel. The computed-subnormal probes in dc-1943 confirm that + and - retain such values,
+//! while * and / flush a subnormal result, and ^ flushes the probed subnormal results.
 
 use super::{CatalogueEntry, Family, FunctionId, Notation, Parameter};
 use crate::call::{EvalServices, FunctionFault};
@@ -85,11 +86,17 @@ fn power(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(POWER, services);
-    Site::finish(operands(&site, arguments).and_then(|(x, y)| power_value(&site, x, y)))
+    Site::finish(operands(&site, arguments).and_then(|(x, y)| {
+        if x.is_subnormal() {
+            site.number(flushed(raise(&site, x, y)?))
+        } else {
+            power_value(&site, x, y)
+        }
+    }))
 }
 
-/// The kernel distinguishes flushed integer/reciprocal results from retained fractional
-/// subnormals. Both POWER and the operator publish that result through the same measured policy.
+/// POWER's kernel distinguishes flushed integer/reciprocal results from retained fractional
+/// subnormals. The operator also retains the recorded fractional results from normal inputs.
 pub(super) fn power_value(site: &Site<'_>, x: f64, y: f64) -> Step<CalcValue> {
     super::kit::out_with_subnormal(site, Ok(raise(site, x, y)?))
 }
@@ -101,13 +108,20 @@ fn binary<'m>(
     operation: fn(&Site<'m>, f64, f64) -> Step<f64>,
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(id, services);
-    Site::finish(operands(&site, arguments).and_then(|(a, b)| site.number(operation(&site, a, b)?)))
+    Site::finish(operands(&site, arguments).and_then(|(a, b)| {
+        let result = operation(&site, a, b)?;
+        if id == PLUS || id == MINUS {
+            super::kit::out_with_subnormal(&site, Ok(result))
+        } else {
+            site.number(result)
+        }
+    }))
 }
 
 fn operands(site: &Site<'_>, arguments: &[CalcValue]) -> Step<(f64, f64)> {
     site.scalar_operands(arguments)?;
-    let a = site.number_argument(0, &arguments[0])?;
-    let b = site.number_argument(1, &arguments[1])?;
+    let a = super::kit::num_with_subnormal(site, arguments, 0)?;
+    let b = super::kit::num_with_subnormal(site, arguments, 1)?;
     Ok((a, b))
 }
 
@@ -173,9 +187,8 @@ fn negate(
     )
 }
 
-/// `+x`: Excel's unary plus leaves its operand's value as it is, so text and a logical are the
-/// result unchanged and an error is the result. A number is published by the number rule (a zero
-/// is +0), and a blank operand is 0.
+/// `+x`: Excel's unary plus leaves its operand's value as it is, including a computed subnormal;
+/// a zero is +0 and a blank operand is 0.
 fn unary_plus(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
@@ -187,6 +200,7 @@ fn unary_plus(
             return Ok(operand.clone());
         }
         match operand.core_ref() {
+            CoreRef::Number(n) if n.is_subnormal() => Ok(CalcValue::number(n)),
             CoreRef::Number(n) => site.number(site.argument(0, coerce::operand(n))?),
             CoreRef::Empty | CoreRef::Missing => site.number(0.0),
             CoreRef::Text(_) | CoreRef::Logical(_) => Ok(operand.clone()),

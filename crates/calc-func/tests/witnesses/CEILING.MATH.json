@@ -3,7 +3,7 @@
   "function": "CEILING.MATH",
   "selection": "cargo xtask witness pin: of 1362 distinct readings in 1 bank files of OxFunc-Evidence, the first 4 rows of each bank and an evenly spaced sample of the rest, the budget of 120 rows shared by bank size; calc_func is the result calc-func calculated at pinning, on rows it did not match",
   "readings": [
-    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r0","platform":"Windows","source":"OxFunc-Evidence runs/w111-broad-20260929/answers/answers-ceiling.math.json"}
+    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r0","invocation":{"compatibility_version":"2","input_sheet_state":"visible-constant-inputs","input_transport":"cell_value2_bulk"},"platform":"Windows","source":"OxFunc-Evidence runs/w111-broad-20260929/answers/answers-ceiling.math.json"}
   ],
   "witnesses": [
     {"args":["0x0000000000000000","0x0000000000000000","0x0000000000000000"],"expected_bits":"0x0000000000000000","id":"w111broad-20260929-CEILING.MATH-00002","reading":"r0"},
@@ -69,7 +69,7 @@
     {"args":["0x61a2643d8dfdcbb7"],"expected_bits":"0x61a2643d8dfdcbb3","id":"w111broad-20260929-CEILING.MATH-00862","reading":"r0"},
     {"args":["0x710c71c834b03b20"],"expected_bits":"0x710c71c834b03b22","id":"w111broad-20260929-CEILING.MATH-00282","reading":"r0"},
     {"args":["0x7fefffffffffffff","0x3ff0000000000000","0x3ff0000000000000"],"expected_bits":"error:Num","id":"w111broad-20260929-CEILING.MATH-00155","reading":"r0"},
-    {"args":["0x8000000000000001","0x3ff0000000000000","0x0000000000000000"],"calc_func":"fault:NotImplemented","expected_bits":"0x0000000000000000","id":"w111broad-20260929-CEILING.MATH-00022","reading":"r0"},
+    {"args":["0x8000000000000001","0x3ff0000000000000","0x0000000000000000"],"expected_bits":"0x0000000000000000","id":"w111broad-20260929-CEILING.MATH-00022","reading":"r0"},
     {"args":["0x81a56e1fc2f8f359","0x3ff0000000000000","0x0000000000000000"],"expected_bits":"0x0000000000000000","id":"w111broad-20260929-CEILING.MATH-00046","reading":"r0"},
     {"args":["0x88b7f65cee01d8b5","0x404055eb9e7155b0","0xbff0000000000000"],"expected_bits":"0xc04055eb9e7155b0","id":"w111broad-20260929-CEILING.MATH-00497","reading":"r0"},
     {"args":["0x9548426e81b5a75e","0x401d3a5650840e60","0x4000000000000000"],"expected_bits":"0xc01d3a5650840e60","id":"w111broad-20260929-CEILING.MATH-00817","reading":"r0"},

@@ -3,13 +3,13 @@
   "function": "ISODD",
   "selection": "cargo xtask witness pin: of 57016 distinct readings in 4 bank files of OxFunc-Evidence, the first 4 rows of each bank and an evenly spaced sample of the rest, the budget of 120 rows shared by bank size; calc_func is the result calc-func calculated at pinning, on rows it did not match",
   "readings": [
-    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r0","platform":"Windows","source":"OxFunc-Evidence runs/w111-broad-20260929/answers/answers-isodd.json"},
-    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r1","platform":"Windows","source":"OxFunc-Evidence runs/w111-integer-heldout-20260929/answers/answers-isodd.json"},
-    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r2","platform":"Windows","source":"OxFunc-Evidence runs/w111-integer-publication-20260929/answers/answers-isodd.json"},
-    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r3","platform":"Windows","source":"OxFunc-Evidence runs/w111-integer-refinement-20260929/answers/answers-isodd.json"}
+    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r0","invocation":{"compatibility_version":"2","input_sheet_state":"visible-constant-inputs","input_transport":"cell_value2_bulk"},"platform":"Windows","source":"OxFunc-Evidence runs/w111-broad-20260929/answers/answers-isodd.json"},
+    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r1","invocation":{"compatibility_version":"2","input_sheet_state":"visible-constant-inputs","input_transport":"cell_value2_bulk"},"platform":"Windows","source":"OxFunc-Evidence runs/w111-integer-heldout-20260929/answers/answers-isodd.json"},
+    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r2","invocation":{"compatibility_version":"2","input_sheet_state":"visible-constant-inputs","input_transport":"cell_value2_bulk"},"platform":"Windows","source":"OxFunc-Evidence runs/w111-integer-publication-20260929/answers/answers-isodd.json"},
+    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r3","invocation":{"compatibility_version":"2","input_sheet_state":"visible-constant-inputs","input_transport":"cell_value2_bulk"},"platform":"Windows","source":"OxFunc-Evidence runs/w111-integer-refinement-20260929/answers/answers-isodd.json"}
   ],
   "witnesses": [
-    {"args":["0x0000000000000001"],"calc_func":"fault:NotImplemented","expected_bits":"logical:False","id":"w111broad-20260929-ISODD-00002","reading":"r0"},
+    {"args":["0x0000000000000001"],"expected_bits":"logical:False","id":"w111broad-20260929-ISODD-00002","reading":"r0"},
     {"args":["0x0010000000000000"],"expected_bits":"logical:False","id":"w111broad-20260929-ISODD-00004","reading":"r0"},
     {"args":["0x01a56e1fc2f8f359"],"expected_bits":"logical:False","id":"w111broad-20260929-ISODD-00006","reading":"r0"},
     {"args":["0x001a23bfd63d32ea"],"expected_bits":"logical:False","id":"integer-heldout-ISODD-001021","reading":"r1"},
