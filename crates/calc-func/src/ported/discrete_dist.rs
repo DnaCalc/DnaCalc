@@ -9,8 +9,7 @@
 //!   `v = (x - np)/(x + np)`, the Stirling error `ln n! - (n + 1/2) ln n + n - ln sqrt(2 pi)`, the
 //!   hypergeometric mass as a ratio of three binomial masses and the negative binomial as
 //!   `s/(s+f)` times a binomial mass.
-//! - The cumulative functions sum the masses; BINOM.INV is the smallest count whose cumulative
-//!   probability reaches alpha.
+//! - BINOM.INV advances past the equal cumulative boundaries recorded in the W111 bank.
 //!
 //! # What was measured in Excel (16.0, 64-bit)
 //!
@@ -255,7 +254,7 @@ pub fn binom_dist_range_kernel(trials: f64, p: f64, number_s: f64, number_s2: Op
 }
 
 /// `BINOM.INV(trials, probability_s, alpha)`: the smallest count whose cumulative binomial
-/// probability is at least alpha.
+/// probability exceeds alpha on the measured exact boundary cases.
 pub fn binom_inv_kernel(trials: f64, p: f64, alpha: f64) -> R {
     let n = trials.trunc();
     if n < 0.0 || !(p > 0.0 && p < 1.0) || !(alpha > 0.0 && alpha < 1.0) {
@@ -264,12 +263,16 @@ pub fn binom_inv_kernel(trials: f64, p: f64, alpha: f64) -> R {
     let q = 1.0 - p;
     let mut sum = 0.0;
     let mut k = 0.0;
+    // The forward recurrence starts at the larger-probability endpoint; use the existing
+    // mass calculation when that endpoint is the upper tail or its starting mass underflows.
+    let mut mass = if p <= q { crate::ported::excel_numeric::crt_pow(q, n) } else { 0.0 };
     while k < n {
-        sum += binom_mass(k, n, p, q);
-        if sum >= alpha {
+        sum += if mass == 0.0 { binom_mass(k, n, p, q) } else { mass };
+        if sum > alpha {
             return Ok(k);
         }
         k += 1.0;
+        mass *= (n - k + 1.0) / k * p / q;
     }
     Ok(n)
 }
