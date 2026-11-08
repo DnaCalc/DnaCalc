@@ -138,6 +138,7 @@ second copy is really needed, say why in the commit message.
   backup and with the lanes paused. No lane agent force-pushes.
 - If a push is rejected, pull with `--no-rebase`, re-run the tests and push again.
 - Never run two cargo invocations in one target directory at the same time.
+- Dev debug info is off; panic and assertion locations remain available. Set `CARGO_PROFILE_DEV_DEBUG=line-tables-only` locally for debugger or backtrace line numbers.
 - Builds and tests share `target/debug`; only the lightweight xtask launcher uses `target/xtask`. The linked harness runs a temporary copy under `target/xtask/run` so Windows can rebuild its original.
 - Never commit `target/`, Excel lock files, secrets or bulk corpus files.
 - Commit messages end with the attribution line the harness asks for.
