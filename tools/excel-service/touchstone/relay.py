@@ -78,7 +78,7 @@ class Relay:
             os.unlink(self.socket_path)
         except FileNotFoundError:
             pass
-        self.server = await asyncio.start_unix_server(self.on_client, path=self.socket_path)
+        self.listener = await asyncio.start_unix_server(self.on_client, path=self.socket_path)
         os.chmod(self.socket_path, 0o600)
         tasks = [asyncio.create_task(self.v1_scan())] if self.v1_queue else []
         frames = protocol.FrameReader()
@@ -92,7 +92,7 @@ class Relay:
         finally:
             for t in tasks:
                 t.cancel()
-            self.server.close()
+            self.listener.close()
             for client in list(self.clients.values()):
                 client.closed = True
                 try:

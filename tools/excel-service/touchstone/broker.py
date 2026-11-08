@@ -42,6 +42,10 @@ DEADLINE_MS_PER_CALL = 0.1
 # Functions whose answers depend on the call before them (measured, 2026-11-08: WEEKNUM with a return type
 # outside 1, 2, 11-17, 21): they are always evaluated call by call in request order on the serial worker.
 STATE_SENSITIVE = ("WEEKNUM",)
+# A worker's Excel is replaced, one worker at a time, after this much work (leftovers and leaks stay bounded).
+RECYCLE_CALLS = 5_000_000
+RECYCLE_SECONDS = 4 * 3600
+RECYCLE_BATCHES = 10_000
 WORKER_MT = (4, 4, 0)             # threads per worker; 0 = multithreaded calculation off (the serial worker)
 
 
@@ -157,6 +161,7 @@ class Slot:
         self.calls = 0
         self.crashes = 0
         self.restarts = 0
+        self.since = {"time": time.time(), "calls": 0, "batches": 0}   # since this Excel started
 
 
 class Broker:
@@ -245,6 +250,7 @@ class Broker:
         # The worker computed env_id without the broker's CPU name; keep its id so answers and worker agree.
         self.envs.add(hello["env_id"], env, {"worker": slot.name})
         slot.hello = hello
+        slot.since = {"time": time.time(), "calls": 0, "batches": 0}
         slot.state = "idle"
         self.log_event("worker-up", worker=slot.name, pid=hello["pid"], env=hello["env_id"], restart=hello.get("restart", False))
 
@@ -374,6 +380,34 @@ class Broker:
             slot.state = "busy"
             asyncio.create_task(self.run_batch(slot, batch))
         self.run_pending_checks()
+        self.maybe_recycle()
+
+    def maybe_recycle(self):
+        """Staggered: at most one worker is being replaced, and never the last one that is up."""
+        if any(s.state == "new" for s in self.slots):
+            return
+        limit_calls = getattr(self.options, "recycle_calls", RECYCLE_CALLS)
+        limit_batches = getattr(self.options, "recycle_batches", RECYCLE_BATCHES)
+        limit_seconds = getattr(self.options, "recycle_seconds", RECYCLE_SECONDS)
+        up = [s for s in self.slots if s.state in ("idle", "busy")]
+        for slot in up:
+            old = (slot.since["calls"] >= limit_calls or slot.since["batches"] >= limit_batches
+                   or time.time() - slot.since["time"] >= limit_seconds)
+            if slot.state == "idle" and old and len(up) > 1:
+                slot.state = "new"
+                asyncio.create_task(self.recycle_slot(slot))
+                return
+
+    async def recycle_slot(self, slot):
+        reason = dict(slot.since)
+        try:
+            hello = await self.loop.run_in_executor(self.executor, slot.proc.recycle)
+            self.adopt_hello(slot, hello)
+            self.log_event("recycled", worker=slot.name, after=reason)
+        except Exception as error:
+            self.log_event("recycle-failed", worker=slot.name, detail=str(error)[:200])
+            await self.restart_slot(slot)
+        self.kick()
 
     @staticmethod
     def tag(obj, client):
@@ -446,6 +480,8 @@ class Broker:
         self.batcher.learn(batch, variable or (t_back - t_dispatch) * 1000)
         slot.batches += 1
         slot.calls += calls
+        slot.since["batches"] += 1
+        slot.since["calls"] += calls
         self.counters["batches"] += 1
         self.counters["calls"] += calls
         self.log_batch(slot, number, batch, result, t_dispatch, t_back, sent=t_sent)

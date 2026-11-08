@@ -128,7 +128,7 @@ class WorkerProcess:
                     if kind == "H":
                         result["hello"] = body
                         return
-                    if kind == "X":
+                    if kind == "X" and body.get("fatal"):    # other X frames are events (idle drift); keep waiting
                         result["error"] = body
                         return
             except Exception as error:
@@ -207,6 +207,13 @@ class WorkerProcess:
                 self.kill()
                 raise WorkerError(json.dumps(outcome["fatal"]))
             return outcome["result"]
+
+    def recycle(self):
+        """Ask the idle worker to quit its Excel and start a new one; returns the new hello."""
+        with self.lock:
+            self._send("R", {})
+            self.hello = self._expect_hello(self.startup_seconds + 30)
+            return self.hello
 
     def await_restart(self):
         """After an excel-crashed result the worker restarts its Excel once and sends a new hello (or a fatal X)."""

@@ -17,6 +17,7 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
 
 import batcher  # noqa: E402
+import peers  # noqa: E402
 import protocol  # noqa: E402
 import v1  # noqa: E402
 
@@ -378,6 +379,25 @@ class BrokerTests(unittest.TestCase):
         finally:
             stop()
 
+    def test_workers_are_recycled_one_at_a_time_and_answers_keep_coming(self):
+        broker, state, stop = start_broker(workers=2, extra={"recycle_batches": 3})
+        try:
+            conn = self.connect(state)
+            for i in range(14):
+                letters, values = conn.submit_groups([{"f": "ID", "k": "n", "n": 1, "v": [TWO]}]).raw(30)
+                self.assertEqual(values, [TWO])
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline and not any(s.since["batches"] < 14 and s.batches > 3 for s in broker.slots):
+                time.sleep(0.05)
+            broker.batch_log.flush()
+            import logs
+            events = [r for r in logs.BatchLog.read(state / "log") if r.get("event") == "recycled"]
+            self.assertGreaterEqual(len(events), 1)
+            self.assertEqual({s.state for s in broker.slots} <= {"idle", "busy", "new"}, True)
+            self.assertNotIn("down", {s.state for s in broker.slots})
+        finally:
+            stop()
+
     def test_a_resent_piece_is_replayed_not_evaluated_twice(self):
         broker, state, stop = start_broker()
         try:
@@ -563,6 +583,118 @@ class ClientApiTests(unittest.TestCase):
         r = c.ask("ID", [[self.top.number(7.0)]])
         self.assertEqual(r["rows"][0]["bits"], self.top.bits(7.0))
         c.close()
+
+
+def _wsl_python():
+    import shutil
+    import subprocess
+    if not shutil.which("wsl"):
+        return False
+    try:
+        done = subprocess.run(["wsl", "-e", "python3", "--version"], capture_output=True, timeout=60)
+        return done.returncode == 0
+    except Exception:
+        return False
+
+
+@unittest.skipUnless(sys.platform == "win32" and _wsl_python(), "Native-only: runs the Linux relay in WSL")
+class RelayTests(unittest.TestCase):
+    """The Linux relay (relay.py) in WSL, with this test playing the broker on its stdin and stdout."""
+
+    def setUp(self):
+        import subprocess
+        import peers
+        self.subprocess = subprocess
+        self.dir = "/tmp/touchstone-relay-test-%d" % int(time.time() * 1000)
+        command, first = peers.bundle({"socket": self.dir + "/excel.sock", "v1_queue": self.dir + "/queue"})
+        self.relay = subprocess.Popen(["wsl", "-e", "bash", "-c", command], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                      stderr=subprocess.PIPE)
+        self.relay.stdin.write(first)
+        self.relay.stdin.flush()
+        self.frames = protocol.FrameReader()
+        self.seen = []
+        hello = self.read_frame()
+        self.assertEqual(hello[0], protocol.HELLO)
+        self.send(protocol.HELLO, {"v": protocol.VERSION, "server": "broker-host", "envs": {"e1": {"build": "7", "version": "16.0"}}})
+
+    def tearDown(self):
+        self.relay.stdin.close()
+        try:
+            self.relay.wait(20)
+        except Exception:
+            self.relay.kill()
+        self.subprocess.run(["wsl", "-e", "rm", "-rf", self.dir], capture_output=True)
+
+    def send(self, kind, body):
+        self.relay.stdin.write(protocol.pack(kind, body, True))
+        self.relay.stdin.flush()
+
+    def read_frame(self):
+        while not self.seen:
+            chunk = self.relay.stdout.read1(1 << 16)
+            if not chunk:
+                raise AssertionError("relay closed: " + self.relay.stderr.read().decode()[-500:])
+            self.seen.extend(self.frames.feed(chunk))
+        return self.seen.pop(0)
+
+    def answer_submits(self, count):
+        """Answer `count` submit frames like a broker: every call answers the number 1.0; then done."""
+        for _ in range(count):
+            kind, body = self.read_frame()
+            self.assertEqual(kind, protocol.SUBMIT)
+            groups = [{"ty": "n" * g["n"], "v": [ONE] * g["n"], **({"o": g["o"]} if "o" in g else {"i": g["i"]}),
+                       **({"ity": "n" * g["n"], "iv": [g["v"][i * protocol.group_width(g)] for i in range(g["n"])]} if body.get("opts", {}).get("echo") else {})}
+                      for g in body["groups"]]
+            self.send(protocol.ANSWER, {"id": body["id"], "seq": body["seq"], "c": body["c"], "env": "e1", "g": groups})
+            if body["last"]:
+                self.send(protocol.DONE, {"id": body["id"], "c": body["c"], "calls": 0})
+
+    def test_a_lane_client_on_the_socket_is_answered_through_the_broker_stream(self):
+        import peers
+        runner = ("import json" + chr(10) +
+                  "conn = sys.modules['client'].Connection.open(socket_path=%r, name='lane')" + chr(10) +
+                  "p = conn.submit_groups([{'f': 'ABS', 'k': 'n', 'n': 3, 'v': ['%s', '%s', '%s']}])" + chr(10) +
+                  "letters, values = p.raw(30)" + chr(10) +
+                  "print(json.dumps({'values': values, 'server': conn.machine}))" + chr(10)) % (
+                      self.dir + "/excel.sock", TWO, TWO, TWO)
+        command, first = peers.bundle_program(("protocol", "v1", "client"), runner)
+        lane = self.subprocess.Popen(["wsl", "-e", "bash", "-c", command], stdin=self.subprocess.PIPE,
+                                     stdout=self.subprocess.PIPE, stderr=self.subprocess.PIPE)
+        lane.stdin.write(first)
+        lane.stdin.close()
+        self.answer_submits(1)
+        out, err = lane.communicate(timeout=60)
+        self.assertEqual(lane.returncode, 0, err.decode()[-800:])
+        result = json.loads(out.decode().strip().splitlines()[-1])
+        self.assertEqual(result, {"values": [ONE, ONE, ONE], "server": "broker-host"})
+
+    def test_a_v1_request_file_is_answered_in_the_v1_reply_shape(self):
+        rid = "ab" * 16
+        request = {"version": 1, "id": rid, "function": "ABS", "rows": [[number(TWO)], [number(ONE)]],
+                   "created": time.time(), "expires": time.time() + 120}
+        self.subprocess.run(["wsl", "-e", "bash", "-c", "mkdir -p %s/queue/in && cat > %s/queue/in/%s.json" % (self.dir, self.dir, rid)],
+                            input=json.dumps(request).encode(), check=True, timeout=60)
+        self.answer_submits(1)
+        deadline = time.monotonic() + 30
+        reply = None
+        while time.monotonic() < deadline:
+            done = self.subprocess.run(["wsl", "-e", "cat", "%s/queue/out/%s.json" % (self.dir, rid)], capture_output=True)
+            if done.returncode == 0 and done.stdout:
+                reply = json.loads(done.stdout)
+                break
+            time.sleep(0.2)
+        self.assertIsNotNone(reply, "no v1 reply")
+        self.assertTrue(reply["ok"], reply)
+        self.assertEqual([r["bits"] for r in reply["rows"]], [ONE, ONE])
+        self.assertEqual(reply["inputs"][0][0], number(TWO))
+        self.assertEqual(reply["excel_build"], "7")
+        self.assertEqual(reply["machine"], "broker-host")
+
+    def test_the_relay_leaves_with_its_ssh_session(self):
+        self.relay.stdin.close()
+        self.assertIsNotNone(self.relay.wait(30))
+        gone = self.subprocess.run(["wsl", "-e", "ls", self.dir + "/excel.sock"], capture_output=True)
+        self.assertNotEqual(gone.returncode, 0)
 
 
 if __name__ == "__main__":

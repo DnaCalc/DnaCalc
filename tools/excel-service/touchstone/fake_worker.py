@@ -47,6 +47,9 @@ while True:
     kind, payload = chr(body[0]), json.loads(body[1:])
     if kind == "Q":
         break
+    if kind == "R":
+        hello(True)
+        continue
     if kind != "B":
         continue
     groups = [g for g in payload["groups"] if not g.get("p")]          # primer calls are evaluated, not answered
