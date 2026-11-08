@@ -190,6 +190,7 @@ fn arguments_have_their_defaults_and_refusals() {
             trusted_code: None,
             dir: Some(PathBuf::from("corpus-dir")),
             oracle: false,
+            profile: None,
             out: PathBuf::from(DEFAULT_OUT),
             cache: PathBuf::from(DEFAULT_CACHE),
             imports: Vec::new(),
@@ -216,6 +217,10 @@ fn arguments_have_their_defaults_and_refusals() {
         [PathBuf::from("a.json"), PathBuf::from("b.json")]
     );
     assert_eq!(parsed.timeout, Duration::from_secs(60));
+    assert_eq!(parse_args(&args("--oracle --release")).unwrap().profile.as_deref(), Some("release"));
+    assert_eq!(parse_args(&args("--oracle --profile dev")).unwrap().profile.as_deref(), Some("dev"));
+    assert!(parse_args(&args("--oracle --release --profile dev")).is_err());
+    assert!(parse_args(&args("--oracle --profile unknown")).is_err());
     for (bad, refusal) in [
         ("", "give a workbook folder, --oracle or --import"),
         ("--out o", "give a workbook folder"),

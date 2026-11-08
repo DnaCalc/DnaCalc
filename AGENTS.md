@@ -73,6 +73,8 @@ DnaTreeCalc, DnaOneCalc and the others) are read-only inputs: port from them, ne
    tree. `--skip <step>` leaves a step out.
 4. **Measure.** Run the corpus comparison (`cargo xtask corpus`, or `cargo xtask compare` per
    workbook until it lands) before and after the package, and record the summary.
+   Corpus comparisons use debug by default; `--release` selects the speed build in `target/release`.
+   Dev builds optimise external dependencies and calc-verdict (corpus hashing); the calculation crates stay unoptimised.
 5. **Close.**
    - One read-only review agent checks the change against the honesty rules and checks the
      close note against tool output.
@@ -136,6 +138,7 @@ second copy is really needed, say why in the commit message.
   backup and with the lanes paused. No lane agent force-pushes.
 - If a push is rejected, pull with `--no-rebase`, re-run the tests and push again.
 - Never run two cargo invocations in one target directory at the same time.
+- Dev debug info is off; panic and assertion locations remain available. Set `CARGO_PROFILE_DEV_DEBUG=line-tables-only` locally for debugger or backtrace line numbers.
 - Builds and tests share `target/debug`; only the lightweight xtask launcher uses `target/xtask`. The linked harness runs a temporary copy under `target/xtask/run` so Windows can rebuild its original.
 - Never commit `target/`, Excel lock files, secrets or bulk corpus files.
 - Commit messages end with the attribution line the harness asks for.

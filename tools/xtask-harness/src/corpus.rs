@@ -41,10 +41,10 @@
 //! 4. **Comparison through the product route.** Each workbook is compared by a `cargo xtask
 //!    compare` process (the one verdict path: calc_host open, recalculate and project, calc-verdict
 //!    judge, then the triage), writing `report.json`, `evaluations.json`, `triage.json` and its log
-//!    `compare.log` to `<out>/workbooks/<name>/`. That process is a release build of xtask: this
-//!    one, when it is a release build, and otherwise one this command builds first with `cargo
-//!    build --release -p xtask` in `target/xtask-corpus`, so the recorded wall times are those of
-//!    optimised code. A separate process means a workbook that crashes the comparison is a counted
+//!    `compare.log` to `<out>/workbooks/<name>/`. It uses the current debug executable by default.
+//!    `--release` builds the comparison executable in `target/release`; `--profile perf` selects
+//!    the profiler build. Each runs a copy from `target/xtask/run` so Cargo can rebuild on Windows.
+//!    A separate process means a workbook that crashes the comparison is a counted
 //!    failure, and the run carries on.
 //! 5. **The summary.** `<out>/summary.md` and `<out>/summary.json` (`corpus_summary.rs`): per
 //!    workbook and in total, pass (matched Excel), external links (matched from another
@@ -59,7 +59,7 @@
 //! Paths are relative to the current directory.
 //!
 //! Exit codes: 0 when the summary was written, whatever it says; 1 when it cannot be written, the
-//! cache or the output folder cannot be made, or the release build of the compare process fails;
+//! cache or the output folder cannot be made, or the requested build of the compare process fails;
 //! 2 on a usage error.
 
 use crate::capture::{accepted, repository_revision};
@@ -75,7 +75,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::time::{Duration, Instant};
 
-pub const USAGE: &str = "usage: cargo xtask corpus [<dir>] [--recursive] [--oracle] [--out <dir>] [--cache <dir>] [--import <capture.json>]... [--no-capture] [--dna-only] [--saved-excel <provenance.json>] [--trusted-code <manifest.json>] [--timeout <s>] [--shard <index/count>] [--resume] [--minimize] | cargo xtask corpus --merge <summary.json>... --out <dir>";
+pub const USAGE: &str = "usage: cargo xtask corpus [<dir>] [--recursive] [--oracle] [--release | --profile dev|release|perf] [--out <dir>] [--cache <dir>] [--import <capture.json>]... [--no-capture] [--dna-only] [--saved-excel <provenance.json>] [--trusted-code <manifest.json>] [--timeout <s>] [--shard <index/count>] [--resume] [--minimize] | cargo xtask corpus --merge <summary.json>... --out <dir>";
 
 const EXIT_FAILED: u8 = 1;
 const EXIT_USAGE: u8 = 2;
@@ -85,13 +85,13 @@ pub(crate) const DEFAULT_CACHE: &str = r"C:\Work\DnaCalc\corpus\captures-cache";
 const DEFAULT_OUT: &str = "target/corpus";
 /// One workbook's census/capture/comparison budget; the largest Ofgem capture took most of an hour.
 const DEFAULT_TIMEOUT_S: u64 = 3 * 3600;
-/// The target directory of the release build of the compare process.
-const RELEASE_TARGET_DIR: &str = "target/xtask-corpus";
+
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Args {
     pub(crate) dir: Option<PathBuf>,
     pub(crate) oracle: bool,
+    pub(crate) profile: Option<String>,
     pub(crate) out: PathBuf,
     pub(crate) cache: PathBuf,
     pub(crate) imports: Vec<PathBuf>,
@@ -111,6 +111,7 @@ pub(crate) fn parse_args(args: &[String]) -> Result<Args, String> {
     let mut parsed = Args {
         dir: None,
         oracle: false,
+        profile: None,
         out: PathBuf::from(DEFAULT_OUT),
         cache: PathBuf::from(DEFAULT_CACHE),
         imports: Vec::new(),
@@ -142,6 +143,16 @@ pub(crate) fn parse_args(args: &[String]) -> Result<Args, String> {
         };
         match arg.as_str() {
             "--oracle" => parsed.oracle = true,
+            "--release" => {
+                once(&mut parsed.profile, "--release/--profile", "release".into())?;
+            }
+            "--profile" => {
+                let profile = value("--profile")?;
+                if !matches!(profile.as_str(), "dev" | "release" | "perf") {
+                    return Err("--profile needs dev, release or perf".into());
+                }
+                once(&mut parsed.profile, "--release/--profile", profile)?;
+            }
             "--no-capture" => parsed.no_capture = true,
             "--recursive" => parsed.recursive = true,
             "--resume" => parsed.resume = true,
@@ -579,46 +590,18 @@ pub(crate) fn repository_root() -> PathBuf {
     }
 }
 
-/// The release xtask the comparisons run in, and its description.
-pub(crate) fn compare_program() -> Result<(PathBuf, String), String> {
-    if !cfg!(debug_assertions) {
-        let exe = std::env::current_exe()
-            .map_err(|e| format!("cannot name this xtask's executable: {e}"))?;
-        return Ok((exe, "this xtask, a release build".to_owned()));
+/// Comparisons use this executable by default: debug for everyday work, or the caller's
+/// profile when invoked directly. Explicit speed runs build into Cargo's standard profile folder.
+pub(crate) fn compare_program(profile: Option<&str>) -> Result<(PathBuf, String), String> {
+    if let Some(profile) = profile {
+        let ws = crate::cargo::Workspace::load(&repository_root())?;
+        let exe = xtask::harness::profile_executable(&ws, profile)?;
+        return Ok((exe, format!("xtask-harness built with profile {profile}")));
     }
-    let root = repository_root();
-    let target = root.join(RELEASE_TARGET_DIR);
-    println!(
-        "xtask corpus: building the release xtask the comparisons run in ({})",
-        target.display()
-    );
-    let mut command = Command::new(crate::cargo::cargo_program());
-    command
-        .current_dir(&root)
-        .args([
-            "build",
-            "--release",
-            "--locked",
-            "-p",
-            "xtask-harness",
-            "--target-dir",
-        ])
-        .arg(&target);
-    let output = crate::cargo::output(&mut command)?;
-    if !output.status.success() {
-        return Err(format!(
-            "the release build of xtask failed ({}):\n{}",
-            output.status,
-            crate::cargo::tail(&output.stderr, 20)
-        ));
-    }
-    let exe = target
-        .join("release")
-        .join(format!("xtask-harness{}", std::env::consts::EXE_SUFFIX));
-    Ok((
-        exe,
-        format!("a release build of xtask in {RELEASE_TARGET_DIR}"),
-    ))
+    let exe = std::env::current_exe()
+        .map_err(|e| format!("cannot name this xtask's executable: {e}"))?;
+    let mode = if cfg!(debug_assertions) { "debug" } else { "optimised" };
+    Ok((exe, format!("this xtask-harness ({mode})")))
 }
 
 /// The capture of one workbook: where it came from, its path, and the capture time when taken now.
@@ -958,7 +941,7 @@ fn run_corpus(args: &Args) -> u8 {
     let (program, program_note) = if entries.is_empty() {
         (PathBuf::new(), "none run".to_owned())
     } else {
-        match compare_program() {
+        match compare_program(args.profile.as_deref()) {
             Ok(program) => program,
             Err(e) => {
                 eprintln!("xtask corpus: {e}");
@@ -967,6 +950,7 @@ fn run_corpus(args: &Args) -> u8 {
         }
     };
 
+    let _copy = args.profile.as_ref().map(|_| xtask::harness::CopyCleanup(program.clone()));
     let (entries, inventory) = crate::corpus_batch::select(entries, args.shard);
     if let Err(e) = fs::write(
         args.out.join("inventory.json"),

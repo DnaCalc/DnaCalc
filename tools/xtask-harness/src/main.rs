@@ -59,8 +59,8 @@
 //! `cargo xtask corpus [<dir>] [--oracle] [--out <dir>] [--cache <dir>] [--import
 //! <capture.json>]... [--no-capture] [--timeout <s>]` compares every workbook of a folder, and with
 //! `--oracle` the oracle workbooks committed here, with Excel: each captured once and cached
-//! outside the repository by workbook hash and Excel build, compared by a release `cargo xtask
-//! compare` process, and summarised in `summary.md` and `summary.json` with the failures grouped
+//! outside the repository by workbook hash and Excel build, compared by a debug `cargo xtask
+//! compare` process by default (`--release` for speed), and summarised in `summary.md` and `summary.json` with the failures grouped
 //! by root cause across the corpus (`corpus.rs`, `corpus_summary.rs`).
 //!
 //! `cargo xtask bench <dir> [--runs <n>] [--out <dir>] [--cache <dir>] [--edit

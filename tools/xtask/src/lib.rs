@@ -5,6 +5,7 @@ compile_error!("xtask is native-only and must not be built for wasm32");
 pub mod arch;
 pub mod cargo;
 pub mod check;
+pub mod harness;
 pub mod licence;
 pub mod rust_source;
 pub mod test_output;
