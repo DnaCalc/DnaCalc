@@ -209,8 +209,8 @@ fn connections_that_refresh_on_load_and_dde_links_are_refused_before_excel_start
     assert_eq!(
         read["connections"],
         json!([
-            {"name": "Refreshing", "type": "1", "refresh_on_load": true},
-            {"name": "Quiet", "type": "1", "refresh_on_load": false}
+            {"name": "Refreshing", "type": "1", "model": false, "refresh_on_load": true},
+            {"name": "Quiet", "type": "1", "model": false, "refresh_on_load": false}
         ])
     );
     assert_eq!(
@@ -278,7 +278,7 @@ fn a_query_table_that_refreshes_on_load_is_refused_before_excel_starts() {
     let read = read_package(&fixture("worker/query-table-refresh.xlsx"));
     assert_eq!(
         read["connections"],
-        json!([{"name": "WebQuery", "type": "4", "refresh_on_load": false}])
+        json!([{"name": "WebQuery", "type": "4", "model": false, "refresh_on_load": false}])
     );
     assert_eq!(
         refreshing_roots(&read),
@@ -328,6 +328,35 @@ fn formulas_calling_external_data_functions_are_refused_before_excel_starts() {
             .iter()
             .any(|r| r.contains("!A6") || r.contains("!A7") || r.contains("!A8"))
     );
+}
+
+/// Data-model mode: a workbook that declares the in-file data model (and no other connection than
+/// the worksheet connections that feed it) may call the CUBE functions, which then read that
+/// model; the same call in a workbook without the model stays refused (the test above).
+///
+/// Native-only: it runs the capture worker's package reader under PowerShell.
+#[test]
+fn cube_calls_over_the_in_file_data_model_are_not_refused() {
+    let oracle = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+        .join("crates")
+        .join("calc-host")
+        .join("tests")
+        .join("fixtures")
+        .join("pivot_cube")
+        .join("oracle.xlsx");
+    let read = read_package(&oracle);
+    let connections = read["connections"].as_array().unwrap();
+    assert!(
+        connections.iter().any(|c| c["model"] == json!(true)),
+        "{connections:?}"
+    );
+    assert!(
+        read["external_calls"].as_array().unwrap().len() > 100,
+        "the workbook's CUBE calls are still read"
+    );
+    assert_eq!(read["refusals"], json!([]));
 }
 
 /// The matching itself, on formula texts: every listed function, with prefixes, spaces before

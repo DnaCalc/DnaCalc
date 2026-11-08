@@ -217,6 +217,19 @@ struct Pointing {
     cursor: (u32, u32),
 }
 
+/// The handles of the state only some owners use.
+#[derive(Clone, Copy)]
+struct Ext {
+    scope: RwSignal<assist::Scope>,
+    focus: RwSignal<Option<TextSpan>>,
+    part_status: RwSignal<String>,
+    part: StoredValue<Option<PartEvaluator>, LocalStorage>,
+    part_undo: RwSignal<Option<PartUndo>>,
+    point: StoredValue<Option<PointConfig>, LocalStorage>,
+    pointing: RwSignal<Option<Pointing>>,
+    point_armed: RwSignal<bool>,
+}
+
 /// The formula field's state over its owner's text signal. Every part is a signal, a memo or a node
 /// reference, so the whole is `Copy` and its views can be placed anywhere in the owner's view.
 #[derive(Clone, Copy)]
@@ -233,22 +246,9 @@ pub struct FormulaAssist {
     pub composing: StateBinding<bool>,
     pub readonly: StateBinding<bool>,
     history: HistoryBinding,
-    /// The caller's defined names and registered functions, offered beside the catalogue; the
-    /// owner sets it (DNA Calc from the workbook, OneCalc from its session).
-    pub scope: RwSignal<assist::Scope>,
-    /// The part of the formula a trace step or an evaluated selection points at, drawn behind the
-    /// text.
-    pub focus: RwSignal<Option<TextSpan>>,
-    /// What the last F9 said: the part evaluated, or why it was not.
-    pub part_status: RwSignal<String>,
-    part: StoredValue<Option<PartEvaluator>, LocalStorage>,
-    part_undo: RwSignal<Option<PartUndo>>,
-    point: StoredValue<Option<PointConfig>, LocalStorage>,
-    pointing: RwSignal<Option<Pointing>>,
-    /// Typing arms point mode (Excel's Enter mode); a click or a caret key disarms it (Edit mode).
-    point_armed: RwSignal<bool>,
-    runs: Memo<Vec<HighlightRun>>,
-    brackets: Memo<Option<BracketPair>>,
+    /// The state only some owners use (completion scope, F9, point mode, the trace focus), behind
+    /// one handle: views copy this struct into every closure, so it stays small.
+    ext: StoredValue<Ext, LocalStorage>,
     /// The function call the caret is in.
     pub call: Memo<Option<CallSite>>,
 }
@@ -300,11 +300,6 @@ impl FormulaAssist {
             popup,
         } = state;
         history.start(text.get_untracked(), text.get_untracked(), 0);
-        let runs = Memo::new(move |_| text.with(|text| assist::highlight(text)));
-        let brackets = Memo::new(move |_| {
-            let caret = caret.get();
-            text.with(|text| bracket_pair_at(text, caret))
-        });
         let call = Memo::new(move |_| {
             let caret = caret.get();
             text.with(|text| assist::call_at(&parse_formula(text), caret))
@@ -318,18 +313,60 @@ impl FormulaAssist {
             composing,
             readonly,
             history,
-            scope: RwSignal::new(assist::Scope::default()),
-            focus: RwSignal::new(None),
-            part_status: RwSignal::new(String::new()),
-            part: StoredValue::new_local(None),
-            part_undo: RwSignal::new(None),
-            point: StoredValue::new_local(None),
-            pointing: RwSignal::new(None),
-            point_armed: RwSignal::new(true),
-            runs,
-            brackets,
+            ext: StoredValue::new_local(Ext {
+                scope: RwSignal::new(assist::Scope::default()),
+                focus: RwSignal::new(None),
+                part_status: RwSignal::new(String::new()),
+                part: StoredValue::new_local(None),
+                part_undo: RwSignal::new(None),
+                point: StoredValue::new_local(None),
+                pointing: RwSignal::new(None),
+                point_armed: RwSignal::new(true),
+            }),
             call,
         }
+    }
+
+    fn ext(self) -> Ext {
+        self.ext.get_value()
+    }
+
+    /// The caller's defined names and registered functions, offered beside the catalogue; the
+    /// owner sets it (DNA Calc from the workbook, OneCalc from its session).
+    pub fn scope(self) -> RwSignal<assist::Scope> {
+        self.ext().scope
+    }
+
+    /// The part of the formula a trace step or an evaluated selection points at, drawn behind
+    /// the text.
+    pub fn focus(self) -> RwSignal<Option<TextSpan>> {
+        self.ext().focus
+    }
+
+    /// What the last F9 said: the part evaluated, or why it was not.
+    pub fn part_status(self) -> RwSignal<String> {
+        self.ext().part_status
+    }
+
+    fn part(self) -> StoredValue<Option<PartEvaluator>, LocalStorage> {
+        self.ext().part
+    }
+
+    fn part_undo(self) -> RwSignal<Option<PartUndo>> {
+        self.ext().part_undo
+    }
+
+    fn point(self) -> StoredValue<Option<PointConfig>, LocalStorage> {
+        self.ext().point
+    }
+
+    fn pointing(self) -> RwSignal<Option<Pointing>> {
+        self.ext().pointing
+    }
+
+    /// Typing arms point mode (Excel's Enter mode); a click or a caret key disarms it (Edit mode).
+    fn point_armed(self) -> RwSignal<bool> {
+        self.ext().point_armed
     }
 
     /// Another field over the same text, completion, caret and local undo session.
@@ -369,17 +406,17 @@ impl FormulaAssist {
         if text_changed {
             self.text.set(text.clone());
             self.history.record(text.clone(), at);
-            self.part_undo.set(None);
-            self.pointing.set(None);
-            self.point_armed.set(true);
-            self.focus.set(None);
+            self.part_undo().set(None);
+            self.pointing().set(None);
+            self.point_armed().set(true);
+            self.focus().set(None);
         }
         self.caret.set(at);
         if self.composing.get_untracked() {
             return;
         }
         let completion = self
-            .scope
+            .scope()
             .with_untracked(|scope| assist::complete_in(&text, at, scope));
         let prefix_now = completion.as_ref().map(|c| c.prefix.clone());
         if self.dismissed.get_untracked() != prefix_now {
@@ -522,11 +559,19 @@ impl FormulaAssist {
         cell_role: Option<&'static str>,
         label: String,
     ) -> impl IntoView {
+        // The highlight and the bracket pair are this field's own: kept out of the struct, which
+        // views copy into every closure (DNA Calc's command bar mounts near the wasm stack's size).
+        let (caret, text_binding) = (self.caret, self.text);
+        let runs = Memo::new(move |_| text_binding.with(|text| assist::highlight(text)));
+        let brackets = Memo::new(move |_| {
+            let caret = caret.get();
+            text_binding.with(|text| bracket_pair_at(text, caret))
+        });
         let highlight = move || {
             let diagnostics = diagnostics.get();
-            let pair = self.brackets.get();
-            let focus = self.focus.get();
-            self.runs.with(|runs| {
+            let pair = brackets.get();
+            let focus = self.focus().get();
+            runs.with(|runs| {
                 runs.iter()
                     .map(|run| {
                         let mut classes = run_classes(run, &diagnostics, pair);
@@ -577,11 +622,17 @@ impl FormulaAssist {
                             ev.stop_propagation();
                             return;
                         }
-                        if !matches!(
-                            ev.key().as_str(),
-                            "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "Shift" | "Control" | "Alt" | "Meta"
-                        ) {
-                            self.pointing.set(None);
+                        // A key that types or moves the caret by more than an arrow ends point
+                        // mode; a modifier, or a key the browser does not name (Firefox sends
+                        // "Unidentified" when a driver releases the modifiers), does not.
+                        let key = ev.key();
+                        if key.chars().count() == 1
+                            || matches!(
+                                key.as_str(),
+                                "Backspace" | "Delete" | "Enter" | "Home" | "End" | "PageUp" | "PageDown" | "Tab" | "Insert"
+                            )
+                        {
+                            self.pointing().set(None);
                         }
                         if ev.key() == "F9" && !ev.ctrl_key() && !ev.alt_key() && !ev.meta_key() {
                             ev.prevent_default();
@@ -609,7 +660,7 @@ impl FormulaAssist {
                                 ev.key().as_str(),
                                 "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "Home" | "End" | "PageUp" | "PageDown"
                             ) {
-                                self.point_armed.set(false);
+                                self.point_armed().set(false);
                             }
                             if let Some(on_key) = on_key {
                                 on_key.run(ev);
@@ -622,8 +673,8 @@ impl FormulaAssist {
                         }
                     }
                     on:click=move |_| {
-                        self.pointing.set(None);
-                        self.point_armed.set(false);
+                        self.pointing().set(None);
+                        self.point_armed().set(false);
                         self.sync_from_field(false)
                     }
                 ></textarea>
@@ -650,18 +701,18 @@ impl FormulaAssist {
         self,
         evaluate: impl Fn(usize, usize, Box<dyn FnOnce(Result<String, String>)>) + 'static,
     ) {
-        self.part.set_value(Some(Rc::new(evaluate)));
+        self.part().set_value(Some(Rc::new(evaluate)));
     }
 
     /// F9: replaces the selected part with its value, selected, and keeps the text before it for
     /// Escape. Without a selection it says to select one.
     pub fn evaluate_selection(self) {
-        let Some(evaluate) = self.part.try_get_value().flatten() else {
+        let Some(evaluate) = self.part().try_get_value().flatten() else {
             return;
         };
         let (start, end) = self.selection();
         if start >= end {
-            self.part_status
+            self.part_status()
                 .set("Select the part of the formula to evaluate, then press F9.".to_owned());
             return;
         }
@@ -680,7 +731,7 @@ impl FormulaAssist {
                     out.extend_from_slice(&units[end..]);
                     let after = String::from_utf16_lossy(&out);
                     self.place(after.clone(), stop);
-                    self.part_undo.set(Some(PartUndo {
+                    self.part_undo().set(Some(PartUndo {
                         before,
                         after,
                         start,
@@ -689,12 +740,12 @@ impl FormulaAssist {
                     if let Some(field) = self.field.get_untracked() {
                         let _ = field.set_selection_range(start as u32, stop as u32);
                     }
-                    self.part_status.set(format!(
+                    self.part_status().set(format!(
                         "{} evaluated to {literal}. Escape restores the formula.",
                         part.trim()
                     ));
                 }
-                Err(reason) => self.part_status.set(reason),
+                Err(reason) => self.part_status().set(reason),
             }),
         );
     }
@@ -702,10 +753,10 @@ impl FormulaAssist {
     /// Escape after F9: puts the text back as it was and selects the part again. `false` when no
     /// F9 is waiting to be undone (or the text was edited since).
     pub fn restore_part(self) -> bool {
-        let Some(undo) = self.part_undo.get_untracked() else {
+        let Some(undo) = self.part_undo().get_untracked() else {
             return false;
         };
-        self.part_undo.set(None);
+        self.part_undo().set(None);
         if self.text.get_untracked() != undo.after {
             return false;
         }
@@ -713,14 +764,14 @@ impl FormulaAssist {
         if let Some(field) = self.field.get_untracked() {
             let _ = field.set_selection_range(undo.start as u32, undo.end as u32);
         }
-        self.part_status.set("Formula restored.".to_owned());
+        self.part_status().set("Formula restored.".to_owned());
         true
     }
 
     /// Lets arrow keys and clicks on the owner's grid insert and replace references at the caret.
     /// The grid is `rows` by `columns`; `origin` gives the cell a first arrow key moves from.
     pub fn enable_point_mode(self, rows: u32, columns: u32, origin: impl Fn() -> (u32, u32) + 'static) {
-        self.point.set_value(Some(PointConfig {
+        self.point().set_value(Some(PointConfig {
             rows,
             columns,
             origin: Rc::new(origin),
@@ -729,7 +780,7 @@ impl FormulaAssist {
 
     /// The cells (first row, first column, last row, last column) the pointed reference spans.
     pub fn pointed_cells(self) -> Option<(u32, u32, u32, u32)> {
-        self.pointing.get().map(|p| {
+        self.pointing().get().map(|p| {
             (
                 p.anchor.0.min(p.cursor.0),
                 p.anchor.1.min(p.cursor.1),
@@ -752,14 +803,14 @@ impl FormulaAssist {
             "ArrowRight" => (0, 1),
             _ => return false,
         };
-        let Some(config) = self.point.try_get_value().flatten() else {
+        let Some(config) = self.point().try_get_value().flatten() else {
             return false;
         };
         let text = self.text.get_untracked();
         let (start, end) = self.selection();
-        let (anchor, cursor, span) = match self.pointing.get_untracked() {
+        let (anchor, cursor, span) = match self.pointing().get_untracked() {
             Some(p) => (p.anchor, p.cursor, Some(p.span)),
-            None if self.point_armed.get_untracked()
+            None if self.point_armed().get_untracked()
                 && !ev.shift_key()
                 && expects_reference(&text, start, end) =>
             {
@@ -786,7 +837,7 @@ impl FormulaAssist {
         let Some(field) = self.field.get_untracked() else {
             return false;
         };
-        if self.point.try_get_value().flatten().is_none() {
+        if self.point().try_get_value().flatten().is_none() {
             return false;
         }
         let focused = leptos::prelude::document()
@@ -801,7 +852,7 @@ impl FormulaAssist {
         let text = self.text.get_untracked();
         let (start, end) = self.selection();
         let cell = (row, column);
-        match self.pointing.get_untracked() {
+        match self.pointing().get_untracked() {
             Some(p) => {
                 let anchor = if extend { p.anchor } else { cell };
                 self.point_to(&text, Some(p.span), anchor, cell);
@@ -836,7 +887,7 @@ impl FormulaAssist {
         out.extend_from_slice(&units[end..]);
         self.popup.set(Popup::Hidden);
         self.place(String::from_utf16_lossy(&out), stop);
-        self.pointing.set(Some(Pointing {
+        self.pointing().set(Some(Pointing {
             span: TextSpan::new(start, stop - start),
             anchor,
             cursor,

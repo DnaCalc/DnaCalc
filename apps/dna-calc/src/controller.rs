@@ -2739,7 +2739,7 @@ impl Controller {
                         .iter()
                         .map(|text| text.split(" = ").next().unwrap_or(text).trim().to_owned())
                         .collect();
-                    controller.assist.scope.try_update(|scope| scope.names = names);
+                    controller.assist.scope().try_update(|scope| scope.names = names);
                 }
             },
         );

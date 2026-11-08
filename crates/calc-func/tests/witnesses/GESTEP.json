@@ -3,7 +3,7 @@
   "function": "GESTEP",
   "selection": "cargo xtask witness pin: of 1096 distinct readings in 1 bank files of OxFunc-Evidence, the first 4 rows of each bank and an evenly spaced sample of the rest, the budget of 120 rows shared by bank size; calc_func is the result calc-func calculated at pinning, on rows it did not match",
   "readings": [
-    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r0","platform":"Windows","source":"OxFunc-Evidence runs/w111-broad-20260929/answers/answers-gestep.json"}
+    {"bitness":"64-bit","cpu":null,"excel_build":"20430","id":"r0","invocation":{"compatibility_version":"2","input_sheet_state":"visible-constant-inputs","input_transport":"cell_value2_bulk"},"platform":"Windows","source":"OxFunc-Evidence runs/w111-broad-20260929/answers/answers-gestep.json"}
   ],
   "witnesses": [
     {"args":["0x0000000000000000","0x0000000000000000"],"expected_bits":"0x3ff0000000000000","id":"w111broad-20260929-GESTEP-00070","reading":"r0"},
@@ -11,7 +11,7 @@
     {"args":["0x0000000000000000","0x4014000000000000"],"expected_bits":"0x0000000000000000","id":"w111broad-20260929-GESTEP-01240","reading":"r0"},
     {"args":["0x0000000000000000","0x402e000000000000"],"expected_bits":"0x0000000000000000","id":"w111broad-20260929-GESTEP-01189","reading":"r0"},
     {"args":["0x0000000000000000","0x4031000000000000"],"expected_bits":"0x0000000000000000","id":"w111broad-20260929-GESTEP-00293","reading":"r0"},
-    {"args":["0x0000000000000001"],"calc_func":"fault:NotImplemented","expected_bits":"0x3ff0000000000000","id":"w111broad-20260929-GESTEP-00002","reading":"r0"},
+    {"args":["0x0000000000000001"],"expected_bits":"0x3ff0000000000000","id":"w111broad-20260929-GESTEP-00002","reading":"r0"},
     {"args":["0x1416038e61ce7fa3"],"expected_bits":"0x3ff0000000000000","id":"w111broad-20260929-GESTEP-01164","reading":"r0"},
     {"args":["0x351ab4f8fdff41e2"],"expected_bits":"0x3ff0000000000000","id":"w111broad-20260929-GESTEP-00624","reading":"r0"},
     {"args":["0x3ff0000000000000","0x3ff0000000000000"],"expected_bits":"0x3ff0000000000000","id":"w111broad-20260929-GESTEP-00039","reading":"r0"},

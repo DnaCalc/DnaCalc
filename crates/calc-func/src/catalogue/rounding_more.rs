@@ -3,7 +3,7 @@
 //! FLOOR.PRECISE and ISO.CEILING. The significance defaults to 1 and the mode to 0 when the call
 //! does not reach them; an argument left empty is read as 0.
 
-use super::kit::{num, opt, out};
+use super::kit::{num_with_subnormal, opt, out};
 use crate::kernel::{Site, Step};
 use crate::ported::ceiling_floor_family as cf;
 use crate::value::{CalcValue, WorksheetErrorCode};
@@ -15,7 +15,7 @@ fn two(
     a: &[CalcValue],
     kernel: fn(f64, f64) -> Result<f64, WorksheetErrorCode>,
 ) -> Step<CalcValue> {
-    let x = num(site, a, 0)?;
+    let x = num_with_subnormal(site, a, 0)?;
     let significance = opt(site, a, 1, 1.0)?;
     out(site, kernel(x, significance))
 }
@@ -25,7 +25,7 @@ fn three(
     a: &[CalcValue],
     kernel: fn(f64, f64, f64) -> Result<f64, WorksheetErrorCode>,
 ) -> Step<CalcValue> {
-    let x = num(site, a, 0)?;
+    let x = num_with_subnormal(site, a, 0)?;
     let significance = opt(site, a, 1, 1.0)?;
     let mode = opt(site, a, 2, 0.0)?;
     out(site, kernel(x, significance, mode))

@@ -10,6 +10,7 @@ use std::rc::Rc;
 
 const FILES: &[(&str, &[u8])] = &[
     ("basic.csv", include_bytes!("fixtures/import/files/basic.csv")),
+    // Windows resolves this spelling to the same file; keep the distinct path in the test.
     ("basic.csv ", include_bytes!("fixtures/import/files/basic.csv")),
     ("big.csv", include_bytes!("fixtures/import/files/big.csv")),
     ("blank.csv", include_bytes!("fixtures/import/files/blank.csv")),

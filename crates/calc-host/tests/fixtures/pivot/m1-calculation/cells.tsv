@@ -1,0 +1,4114 @@
+agg-all-amount	A3	s	Row Labels
+agg-all-amount	B3	s	Sum Amt
+agg-all-amount	C3	s	Count Amt
+agg-all-amount	D3	s	CountNums Amt
+agg-all-amount	E3	s	Average Amt
+agg-all-amount	F3	s	Max Amt
+agg-all-amount	G3	s	Min Amt
+agg-all-amount	H3	s	Product Amt
+agg-all-amount	I3	s	StDev Amt
+agg-all-amount	J3	s	StDevP Amt
+agg-all-amount	K3	s	Var Amt
+agg-all-amount	L3	s	VarP Amt
+agg-all-amount	A4	s	East
+agg-all-amount	B4	n	2074.5
+agg-all-amount	C4	n	9
+agg-all-amount	D4	n	9
+agg-all-amount	E4	n	230.5
+agg-all-amount	F4	n	346.5
+agg-all-amount	G4	n	114.5
+agg-all-amount	H4	n	1.0842329854290563e+21
+agg-all-amount	I4	n	79.4197708382491
+agg-all-amount	J4	n	74.87767802667673
+agg-all-amount	K4	n	6307.5
+agg-all-amount	L4	n	5606.666666666667
+agg-all-amount	A5	s	North
+agg-all-amount	B5	n	659.5
+agg-all-amount	C5	n	6
+agg-all-amount	D5	n	5
+agg-all-amount	E5	n	131.9
+agg-all-amount	F5	n	332
+agg-all-amount	G5	n	-75.5
+agg-all-amount	H5	n	0
+agg-all-amount	I5	n	180.7935286452477
+agg-all-amount	J5	n	161.70664797713172
+agg-all-amount	K5	n	32686.3
+agg-all-amount	L5	n	26149.04
+agg-all-amount	A6	s	South
+agg-all-amount	B6	n	2009.25
+agg-all-amount	C6	n	9
+agg-all-amount	D6	n	9
+agg-all-amount	E6	n	223.25
+agg-all-amount	F6	n	339.25
+agg-all-amount	G6	n	107.25
+agg-all-amount	H6	n	7.819574605146927e+20
+agg-all-amount	I6	n	79.4197708382491
+agg-all-amount	J6	n	74.87767802667673
+agg-all-amount	K6	n	6307.5
+agg-all-amount	L6	n	5606.666666666667
+agg-all-amount	A7	s	West
+agg-all-amount	B7	n	2261.5
+agg-all-amount	C7	n	10
+agg-all-amount	D7	n	10
+agg-all-amount	E7	n	226.15
+agg-all-amount	F7	n	353.75
+agg-all-amount	G7	n	121.75
+agg-all-amount	H7	n	1.8066996444017885e+23
+agg-all-amount	I7	n	83.38025345767826
+agg-all-amount	J7	n	79.10145384251797
+agg-all-amount	K7	n	6952.266666666669
+agg-all-amount	L7	n	6257.04
+agg-all-amount	A8	s	(blank)
+agg-all-amount	B8	n	158
+agg-all-amount	C8	n	1
+agg-all-amount	D8	n	1
+agg-all-amount	E8	n	158
+agg-all-amount	F8	n	158
+agg-all-amount	G8	n	158
+agg-all-amount	H8	n	158
+agg-all-amount	I8	e	-2146826281
+agg-all-amount	J8	n	0
+agg-all-amount	K8	e	-2146826281
+agg-all-amount	L8	n	0
+agg-all-amount	A9	s	Grand Total
+agg-all-amount	B9	n	7162.75
+agg-all-amount	C9	n	35
+agg-all-amount	D9	n	34
+agg-all-amount	E9	n	210.6691176470588
+agg-all-amount	F9	n	353.75
+agg-all-amount	G9	n	-75.5
+agg-all-amount	H9	n	0
+agg-all-amount	I9	n	100.81380453115706
+agg-all-amount	J9	n	99.32018411557071
+agg-all-amount	K9	n	10163.423184046345
+agg-all-amount	L9	n	9864.498972750866
+agg-all-units	B3	s	Column Labels
+agg-all-units	B4	s	East
+agg-all-units	M4	s	North
+agg-all-units	X4	s	South
+agg-all-units	AI4	s	West
+agg-all-units	AT4	s	(blank)
+agg-all-units	BE4	s	Total Sum Unt
+agg-all-units	BF4	s	Total Count Unt
+agg-all-units	BG4	s	Total CountNums Unt
+agg-all-units	BH4	s	Total Average Unt
+agg-all-units	BI4	s	Total Max Unt
+agg-all-units	BJ4	s	Total Min Unt
+agg-all-units	BK4	s	Total Product Unt
+agg-all-units	BL4	s	Total StDev Unt
+agg-all-units	BM4	s	Total StDevP Unt
+agg-all-units	BN4	s	Total Var Unt
+agg-all-units	BO4	s	Total VarP Unt
+agg-all-units	A5	s	Row Labels
+agg-all-units	B5	s	Sum Unt
+agg-all-units	C5	s	Count Unt
+agg-all-units	D5	s	CountNums Unt
+agg-all-units	E5	s	Average Unt
+agg-all-units	F5	s	Max Unt
+agg-all-units	G5	s	Min Unt
+agg-all-units	H5	s	Product Unt
+agg-all-units	I5	s	StDev Unt
+agg-all-units	J5	s	StDevP Unt
+agg-all-units	K5	s	Var Unt
+agg-all-units	L5	s	VarP Unt
+agg-all-units	M5	s	Sum Unt
+agg-all-units	N5	s	Count Unt
+agg-all-units	O5	s	CountNums Unt
+agg-all-units	P5	s	Average Unt
+agg-all-units	Q5	s	Max Unt
+agg-all-units	R5	s	Min Unt
+agg-all-units	S5	s	Product Unt
+agg-all-units	T5	s	StDev Unt
+agg-all-units	U5	s	StDevP Unt
+agg-all-units	V5	s	Var Unt
+agg-all-units	W5	s	VarP Unt
+agg-all-units	X5	s	Sum Unt
+agg-all-units	Y5	s	Count Unt
+agg-all-units	Z5	s	CountNums Unt
+agg-all-units	AA5	s	Average Unt
+agg-all-units	AB5	s	Max Unt
+agg-all-units	AC5	s	Min Unt
+agg-all-units	AD5	s	Product Unt
+agg-all-units	AE5	s	StDev Unt
+agg-all-units	AF5	s	StDevP Unt
+agg-all-units	AG5	s	Var Unt
+agg-all-units	AH5	s	VarP Unt
+agg-all-units	AI5	s	Sum Unt
+agg-all-units	AJ5	s	Count Unt
+agg-all-units	AK5	s	CountNums Unt
+agg-all-units	AL5	s	Average Unt
+agg-all-units	AM5	s	Max Unt
+agg-all-units	AN5	s	Min Unt
+agg-all-units	AO5	s	Product Unt
+agg-all-units	AP5	s	StDev Unt
+agg-all-units	AQ5	s	StDevP Unt
+agg-all-units	AR5	s	Var Unt
+agg-all-units	AS5	s	VarP Unt
+agg-all-units	AT5	s	Sum Unt
+agg-all-units	AU5	s	Count Unt
+agg-all-units	AV5	s	CountNums Unt
+agg-all-units	AW5	s	Average Unt
+agg-all-units	AX5	s	Max Unt
+agg-all-units	AY5	s	Min Unt
+agg-all-units	AZ5	s	Product Unt
+agg-all-units	BA5	s	StDev Unt
+agg-all-units	BB5	s	StDevP Unt
+agg-all-units	BC5	s	Var Unt
+agg-all-units	BD5	s	VarP Unt
+agg-all-units	A6	s	Alpha
+agg-all-units	B6	n	7
+agg-all-units	C6	n	3
+agg-all-units	D6	n	3
+agg-all-units	E6	n	2.3333333333333335
+agg-all-units	F6	n	4
+agg-all-units	G6	n	1
+agg-all-units	H6	n	8
+agg-all-units	I6	n	1.5275252316519468
+agg-all-units	J6	n	1.247219128924647
+agg-all-units	K6	n	2.333333333333334
+agg-all-units	L6	n	1.5555555555555556
+agg-all-units	M6	n	9
+agg-all-units	N6	n	3
+agg-all-units	O6	n	3
+agg-all-units	P6	n	3
+agg-all-units	Q6	n	5
+agg-all-units	R6	n	1
+agg-all-units	S6	n	15
+agg-all-units	T6	n	2
+agg-all-units	U6	n	1.632993161855452
+agg-all-units	V6	n	4
+agg-all-units	W6	n	2.6666666666666665
+agg-all-units	X6	n	11
+agg-all-units	Y6	n	3
+agg-all-units	Z6	n	3
+agg-all-units	AA6	n	3.6666666666666665
+agg-all-units	AB6	n	5
+agg-all-units	AC6	n	2
+agg-all-units	AD6	n	40
+agg-all-units	AE6	n	1.5275252316519463
+agg-all-units	AF6	n	1.247219128924647
+agg-all-units	AG6	n	2.333333333333332
+agg-all-units	AH6	n	1.5555555555555556
+agg-all-units	AI6	n	12
+agg-all-units	AJ6	n	4
+agg-all-units	AK6	n	4
+agg-all-units	AL6	n	3
+agg-all-units	AM6	n	4
+agg-all-units	AN6	n	1
+agg-all-units	AO6	n	48
+agg-all-units	AP6	n	1.4142135623730951
+agg-all-units	AQ6	n	1.224744871391589
+agg-all-units	AR6	n	2
+agg-all-units	AS6	n	1.5
+agg-all-units	BE6	n	39
+agg-all-units	BF6	n	13
+agg-all-units	BG6	n	13
+agg-all-units	BH6	n	3
+agg-all-units	BI6	n	5
+agg-all-units	BJ6	n	1
+agg-all-units	BK6	n	230400
+agg-all-units	BL6	n	1.4719601443879744
+agg-all-units	BM6	n	1.4142135623730951
+agg-all-units	BN6	n	2.1666666666666665
+agg-all-units	BO6	n	2
+agg-all-units	A7	s	Beta
+agg-all-units	B7	n	9
+agg-all-units	C7	n	3
+agg-all-units	D7	n	3
+agg-all-units	E7	n	3
+agg-all-units	F7	n	5
+agg-all-units	G7	n	1
+agg-all-units	H7	n	15
+agg-all-units	I7	n	2
+agg-all-units	J7	n	1.632993161855452
+agg-all-units	K7	n	4
+agg-all-units	L7	n	2.6666666666666665
+agg-all-units	M7	n	6
+agg-all-units	N7	n	2
+agg-all-units	O7	n	2
+agg-all-units	P7	n	3
+agg-all-units	Q7	n	4
+agg-all-units	R7	n	2
+agg-all-units	S7	n	8
+agg-all-units	T7	n	1.4142135623730951
+agg-all-units	U7	n	1
+agg-all-units	V7	n	2
+agg-all-units	W7	n	1
+agg-all-units	X7	n	7
+agg-all-units	Y7	n	3
+agg-all-units	Z7	n	3
+agg-all-units	AA7	n	2.3333333333333335
+agg-all-units	AB7	n	4
+agg-all-units	AC7	n	1
+agg-all-units	AD7	n	8
+agg-all-units	AE7	n	1.5275252316519468
+agg-all-units	AF7	n	1.247219128924647
+agg-all-units	AG7	n	2.333333333333334
+agg-all-units	AH7	n	1.5555555555555556
+agg-all-units	AI7	n	10
+agg-all-units	AJ7	n	3
+agg-all-units	AK7	n	3
+agg-all-units	AL7	n	3.3333333333333335
+agg-all-units	AM7	n	5
+agg-all-units	AN7	n	2
+agg-all-units	AO7	n	30
+agg-all-units	AP7	n	1.5275252316519463
+agg-all-units	AQ7	n	1.247219128924647
+agg-all-units	AR7	n	2.333333333333332
+agg-all-units	AS7	n	1.5555555555555556
+agg-all-units	BE7	n	32
+agg-all-units	BF7	n	11
+agg-all-units	BG7	n	11
+agg-all-units	BH7	n	2.909090909090909
+agg-all-units	BI7	n	5
+agg-all-units	BJ7	n	1
+agg-all-units	BK7	n	28800
+agg-all-units	BL7	n	1.4459976109624424
+agg-all-units	BM7	n	1.378704626191191
+agg-all-units	BN7	n	2.090909090909091
+agg-all-units	BO7	n	1.9008264462809918
+agg-all-units	A8	s	Gamma
+agg-all-units	B8	n	10
+agg-all-units	C8	n	3
+agg-all-units	D8	n	3
+agg-all-units	E8	n	3.3333333333333335
+agg-all-units	F8	n	5
+agg-all-units	G8	n	2
+agg-all-units	H8	n	30
+agg-all-units	I8	n	1.5275252316519463
+agg-all-units	J8	n	1.247219128924647
+agg-all-units	K8	n	2.333333333333332
+agg-all-units	L8	n	1.5555555555555556
+agg-all-units	M8	n	4
+agg-all-units	N8	n	2
+agg-all-units	O8	n	2
+agg-all-units	P8	n	2
+agg-all-units	Q8	n	3
+agg-all-units	R8	n	1
+agg-all-units	S8	n	3
+agg-all-units	T8	n	1.4142135623730951
+agg-all-units	U8	n	1
+agg-all-units	V8	n	2
+agg-all-units	W8	n	1
+agg-all-units	X8	n	9
+agg-all-units	Y8	n	3
+agg-all-units	Z8	n	3
+agg-all-units	AA8	n	3
+agg-all-units	AB8	n	5
+agg-all-units	AC8	n	1
+agg-all-units	AD8	n	15
+agg-all-units	AE8	n	2
+agg-all-units	AF8	n	1.632993161855452
+agg-all-units	AG8	n	4
+agg-all-units	AH8	n	2.6666666666666665
+agg-all-units	AI8	n	7
+agg-all-units	AJ8	n	3
+agg-all-units	AK8	n	3
+agg-all-units	AL8	n	2.3333333333333335
+agg-all-units	AM8	n	4
+agg-all-units	AN8	n	1
+agg-all-units	AO8	n	8
+agg-all-units	AP8	n	1.5275252316519468
+agg-all-units	AQ8	n	1.247219128924647
+agg-all-units	AR8	n	2.333333333333334
+agg-all-units	AS8	n	1.5555555555555556
+agg-all-units	AT8	n	4
+agg-all-units	AU8	n	1
+agg-all-units	AV8	n	1
+agg-all-units	AW8	n	4
+agg-all-units	AX8	n	4
+agg-all-units	AY8	n	4
+agg-all-units	AZ8	n	4
+agg-all-units	BA8	e	-2146826281
+agg-all-units	BB8	n	0
+agg-all-units	BC8	e	-2146826281
+agg-all-units	BD8	n	0
+agg-all-units	BE8	n	34
+agg-all-units	BF8	n	12
+agg-all-units	BG8	n	12
+agg-all-units	BH8	n	2.8333333333333335
+agg-all-units	BI8	n	5
+agg-all-units	BJ8	n	1
+agg-all-units	BK8	n	43200
+agg-all-units	BL8	n	1.4668044012461756
+agg-all-units	BM8	n	1.4043582955293932
+agg-all-units	BN8	n	2.151515151515152
+agg-all-units	BO8	n	1.9722222222222223
+agg-all-units	A9	s	Grand Total
+agg-all-units	B9	n	26
+agg-all-units	C9	n	9
+agg-all-units	D9	n	9
+agg-all-units	E9	n	2.888888888888889
+agg-all-units	F9	n	5
+agg-all-units	G9	n	1
+agg-all-units	H9	n	3600
+agg-all-units	I9	n	1.5365907428821477
+agg-all-units	J9	n	1.4487116456005886
+agg-all-units	K9	n	2.3611111111111107
+agg-all-units	L9	n	2.0987654320987654
+agg-all-units	M9	n	19
+agg-all-units	N9	n	7
+agg-all-units	O9	n	7
+agg-all-units	P9	n	2.7142857142857144
+agg-all-units	Q9	n	5
+agg-all-units	R9	n	1
+agg-all-units	S9	n	360
+agg-all-units	T9	n	1.4960264830861913
+agg-all-units	U9	n	1.385051387833237
+agg-all-units	V9	n	2.2380952380952386
+agg-all-units	W9	n	1.9183673469387754
+agg-all-units	X9	n	27
+agg-all-units	Y9	n	9
+agg-all-units	Z9	n	9
+agg-all-units	AA9	n	3
+agg-all-units	AB9	n	5
+agg-all-units	AC9	n	1
+agg-all-units	AD9	n	4800
+agg-all-units	AE9	n	1.5811388300841898
+agg-all-units	AF9	n	1.4907119849998598
+agg-all-units	AG9	n	2.5
+agg-all-units	AH9	n	2.2222222222222223
+agg-all-units	AI9	n	29
+agg-all-units	AJ9	n	10
+agg-all-units	AK9	n	10
+agg-all-units	AL9	n	2.9
+agg-all-units	AM9	n	5
+agg-all-units	AN9	n	1
+agg-all-units	AO9	n	11520
+agg-all-units	AP9	n	1.370320319406298
+agg-all-units	AQ9	n	1.3
+agg-all-units	AR9	n	1.8777777777777784
+agg-all-units	AS9	n	1.69
+agg-all-units	AT9	n	4
+agg-all-units	AU9	n	1
+agg-all-units	AV9	n	1
+agg-all-units	AW9	n	4
+agg-all-units	AX9	n	4
+agg-all-units	AY9	n	4
+agg-all-units	AZ9	n	4
+agg-all-units	BA9	e	-2146826281
+agg-all-units	BB9	n	0
+agg-all-units	BC9	e	-2146826281
+agg-all-units	BD9	n	0
+agg-all-units	BE9	n	105
+agg-all-units	BF9	n	36
+agg-all-units	BG9	n	36
+agg-all-units	BH9	n	2.9166666666666665
+agg-all-units	BI9	n	5
+agg-all-units	BJ9	n	1
+agg-all-units	BK9	n	286654464000000
+agg-all-units	BL9	n	1.4217695212053785
+agg-all-units	BM9	n	1.4018836534383934
+agg-all-units	BN9	n	2.0214285714285714
+agg-all-units	BO9	n	1.9652777777777777
+agg-text-field	A3	s	Row Labels
+agg-text-field	B3	s	Count Product
+agg-text-field	C3	s	Sum Product
+agg-text-field	D3	s	Max Month
+agg-text-field	E3	s	Count Month
+agg-text-field	A4	s	East
+agg-text-field	B4	n	9
+agg-text-field	C4	n	0
+agg-text-field	D4	n	46341
+agg-text-field	E4	n	9
+agg-text-field	A5	s	North
+agg-text-field	B5	n	7
+agg-text-field	C5	n	0
+agg-text-field	D5	n	46280
+agg-text-field	E5	n	7
+agg-text-field	A6	s	South
+agg-text-field	B6	n	9
+agg-text-field	C6	n	0
+agg-text-field	D6	n	46310
+agg-text-field	E6	n	9
+agg-text-field	A7	s	West
+agg-text-field	B7	n	10
+agg-text-field	C7	n	0
+agg-text-field	D7	n	46371
+agg-text-field	E7	n	10
+agg-text-field	A8	s	(blank)
+agg-text-field	B8	n	1
+agg-text-field	C8	n	0
+agg-text-field	D8	n	45550
+agg-text-field	E8	n	1
+agg-text-field	A9	s	Grand Total
+agg-text-field	B9	n	36
+agg-text-field	C9	n	0
+agg-text-field	D9	n	46371
+agg-text-field	E9	n	36
+agg-two-level-columns	B3	s	Column Labels
+agg-two-level-columns	B4	s	Alpha
+agg-two-level-columns	D4	s	Beta
+agg-two-level-columns	F4	s	Gamma
+agg-two-level-columns	H4	s	Total StDev Amt
+agg-two-level-columns	I4	s	Total Product Amt
+agg-two-level-columns	A5	s	Row Labels
+agg-two-level-columns	B5	s	StDev Amt
+agg-two-level-columns	C5	s	Product Amt
+agg-two-level-columns	D5	s	StDev Amt
+agg-two-level-columns	E5	s	Product Amt
+agg-two-level-columns	F5	s	StDev Amt
+agg-two-level-columns	G5	s	Product Amt
+agg-two-level-columns	A6	s	East
+agg-two-level-columns	B6	n	87
+agg-two-level-columns	C6	n	10501868.125
+agg-two-level-columns	D6	n	87
+agg-two-level-columns	E6	n	15510639.375
+agg-two-level-columns	F6	n	87
+agg-two-level-columns	G6	n	6656199.875
+agg-two-level-columns	H6	n	79.4197708382491
+agg-two-level-columns	I6	n	1.0842329854290563e+21
+agg-two-level-columns	A7	s	North
+agg-two-level-columns	B7	e	-2146826281
+agg-two-level-columns	C7	n	100
+agg-two-level-columns	D7	n	267.63991667910824
+agg-two-level-columns	E7	n	-22876.5
+agg-two-level-columns	F7	n	234.75945135393377
+agg-two-level-columns	G7	n	0
+agg-two-level-columns	H7	n	180.7935286452477
+agg-two-level-columns	I7	n	0
+agg-two-level-columns	A8	s	South
+agg-two-level-columns	B8	n	87
+agg-two-level-columns	C8	n	14141403.015625
+agg-two-level-columns	D8	n	87
+agg-two-level-columns	E8	n	5859369.140625
+agg-two-level-columns	F8	n	87
+agg-two-level-columns	G8	n	9437126.328125
+agg-two-level-columns	H8	n	79.4197708382491
+agg-two-level-columns	I8	n	7.819574605146929e+20
+agg-two-level-columns	A9	s	West
+agg-two-level-columns	B9	n	83.29615837480142
+agg-two-level-columns	C9	n	915143453.3007812
+agg-two-level-columns	D9	n	87
+agg-two-level-columns	E9	n	11639303.859375
+agg-two-level-columns	F9	n	87
+agg-two-level-columns	G9	n	16961715.546875
+agg-two-level-columns	H9	n	83.38025345767826
+agg-two-level-columns	I9	n	1.8066996444017885e+23
+agg-two-level-columns	A10	s	(blank)
+agg-two-level-columns	F10	e	-2146826281
+agg-two-level-columns	G10	n	158
+agg-two-level-columns	H10	e	-2146826281
+agg-two-level-columns	I10	n	158
+agg-two-level-columns	A11	s	Grand Total
+agg-two-level-columns	B11	n	84.79711079983798
+agg-two-level-columns	C11	n	1.359090062735115e+25
+agg-two-level-columns	D11	n	120.81910313281664
+agg-two-level-columns	E11	n	-2.4198984773456365e+25
+agg-two-level-columns	F11	n	103.28341597348295
+agg-two-level-columns	G11	n	0
+agg-two-level-columns	H11	n	100.81380453115706
+agg-two-level-columns	I11	n	0
+show-percent-of-total	A3	s	Sum Amount
+show-percent-of-total	B3	s	Column Labels
+show-percent-of-total	A4	s	Row Labels
+show-percent-of-total	B4	s	Alpha
+show-percent-of-total	C4	s	Beta
+show-percent-of-total	D4	s	Gamma
+show-percent-of-total	E4	s	Grand Total
+show-percent-of-total	A5	s	East
+show-percent-of-total	B5	n	0.09654113294474888
+show-percent-of-total	C5	n	0.10868730585319884
+show-percent-of-total	D5	n	0.08439496003629891
+show-percent-of-total	E5	n	0.28962339883424665
+show-percent-of-total	A6	s	North
+show-percent-of-total	B6	n	0.013961118285574675
+show-percent-of-total	C6	n	0.03176154409968238
+show-percent-of-total	D6	n	0.04635091270810792
+show-percent-of-total	E6	n	0.09207357509336497
+show-percent-of-total	A7	s	South
+show-percent-of-total	B7	n	0.10565076262608634
+show-percent-of-total	C7	n	0.08135841680918642
+show-percent-of-total	D7	n	0.09350458971763638
+show-percent-of-total	E7	n	0.28051376915290915
+show-percent-of-total	A8	s	West
+show-percent-of-total	B8	n	0.10442916477609857
+show-percent-of-total	C8	n	0.09957767617186136
+show-percent-of-total	D8	n	0.11172384908031133
+show-percent-of-total	E8	n	0.31573069002827125
+show-percent-of-total	A9	s	(blank)
+show-percent-of-total	B9	n	0
+show-percent-of-total	C9	n	0
+show-percent-of-total	D9	n	0.022058566891207984
+show-percent-of-total	E9	n	0.022058566891207984
+show-percent-of-total	A10	s	Grand Total
+show-percent-of-total	B10	n	0.3205821786325085
+show-percent-of-total	C10	n	0.321384942933929
+show-percent-of-total	D10	n	0.3580328784335625
+show-percent-of-total	E10	n	1
+show-percent-of-column	A3	s	Sum Amount
+show-percent-of-column	B3	s	Column Labels
+show-percent-of-column	A4	s	Row Labels
+show-percent-of-column	B4	s	Alpha
+show-percent-of-column	C4	s	Beta
+show-percent-of-column	D4	s	Gamma
+show-percent-of-column	E4	s	Grand Total
+show-percent-of-column	A5	s	East
+show-percent-of-column	B5	n	0.30114316820903647
+show-percent-of-column	C5	n	0.3381841876629018
+show-percent-of-column	D5	n	0.2357184636381361
+show-percent-of-column	E5	n	0.28962339883424665
+show-percent-of-column	A6	s	North
+show-percent-of-column	B6	n	0.043549265106151334
+show-percent-of-column	C6	n	0.09882710686359687
+show-percent-of-column	D6	n	0.1294599337102749
+show-percent-of-column	E6	n	0.09207357509336497
+show-percent-of-column	A7	s	South
+show-percent-of-column	B7	n	0.32955906369080024
+show-percent-of-column	C7	n	0.25314943527367506
+show-percent-of-column	D7	n	0.2611620198869175
+show-percent-of-column	E7	n	0.28051376915290915
+show-percent-of-column	A8	s	West
+show-percent-of-column	B8	n	0.325748502994012
+show-percent-of-column	C8	n	0.3098392701998262
+show-percent-of-column	D8	n	0.3120491323844804
+show-percent-of-column	E8	n	0.31573069002827125
+show-percent-of-column	A9	s	(blank)
+show-percent-of-column	B9	n	0
+show-percent-of-column	C9	n	0
+show-percent-of-column	D9	n	0.06161045038019107
+show-percent-of-column	E9	n	0.022058566891207984
+show-percent-of-column	A10	s	Grand Total
+show-percent-of-column	B10	n	1
+show-percent-of-column	C10	n	1
+show-percent-of-column	D10	n	1
+show-percent-of-column	E10	n	1
+show-percent-of-row	A3	s	Sum Amount
+show-percent-of-row	B3	s	Column Labels
+show-percent-of-row	A4	s	Row Labels
+show-percent-of-row	B4	s	Alpha
+show-percent-of-row	C4	s	Beta
+show-percent-of-row	D4	s	Gamma
+show-percent-of-row	E4	s	Grand Total
+show-percent-of-row	A5	s	East
+show-percent-of-row	B5	n	0.3333333333333333
+show-percent-of-row	C5	n	0.3752711496746204
+show-percent-of-row	D5	n	0.2913955169920463
+show-percent-of-row	E5	n	1
+show-percent-of-row	A6	s	North
+show-percent-of-row	B6	n	0.1516300227445034
+show-percent-of-row	C6	n	0.34495830174374525
+show-percent-of-row	D6	n	0.5034116755117514
+show-percent-of-row	E6	n	1
+show-percent-of-row	A7	s	South
+show-percent-of-row	B7	n	0.3766330720418066
+show-percent-of-row	C7	n	0.29003359462486
+show-percent-of-row	D7	n	0.3333333333333333
+show-percent-of-row	E7	n	1
+show-percent-of-row	A8	s	West
+show-percent-of-row	B8	n	0.33075392438646917
+show-percent-of-row	C8	n	0.3153880168030069
+show-percent-of-row	D8	n	0.353858058810524
+show-percent-of-row	E8	n	1
+show-percent-of-row	A9	s	(blank)
+show-percent-of-row	B9	n	0
+show-percent-of-row	C9	n	0
+show-percent-of-row	D9	n	1
+show-percent-of-row	E9	n	1
+show-percent-of-row	A10	s	Grand Total
+show-percent-of-row	B10	n	0.3205821786325085
+show-percent-of-row	C10	n	0.321384942933929
+show-percent-of-row	D10	n	0.3580328784335625
+show-percent-of-row	E10	n	1
+show-index	A3	s	Sum Amount
+show-index	B3	s	Column Labels
+show-index	A4	s	Row Labels
+show-index	B4	s	Alpha
+show-index	C4	s	Beta
+show-index	D4	s	Gamma
+show-index	E4	s	Grand Total
+show-index	A5	s	East
+show-index	B5	n	1.0397749954636182
+show-index	C5	n	1.1676687347228007
+show-index	D5	n	0.8138792120626942
+show-index	E5	n	1
+show-index	A6	s	North
+show-index	B6	n	0.4729833186339431
+show-index	C6	n	1.0733492944461387
+show-index	D6	n	1.406048734167205
+show-index	E6	n	1
+show-index	A7	s	South
+show-index	B7	n	1.1748409523211543
+show-index	C7	n	0.9024492310596074
+show-index	D7	n	0.931013192955092
+show-index	E7	n	1
+show-index	A8	s	West
+show-index	B8	n	1.0317289806855447
+show-index	C8	n	0.9813403637514064
+show-index	D8	n	0.9883395635582299
+show-index	E8	n	1
+show-index	A9	s	(blank)
+show-index	B9	n	0
+show-index	C9	n	0
+show-index	D9	n	2.793039578865276
+show-index	E9	n	1
+show-index	A10	s	Grand Total
+show-index	B10	n	1
+show-index	C10	n	1
+show-index	D10	n	1
+show-index	E10	n	1
+show-percent-of-parent-row	A3	s	Sum Amount
+show-percent-of-parent-row	B3	s	Column Labels
+show-percent-of-parent-row	A4	s	Row Labels
+show-percent-of-parent-row	B4	s	Alpha
+show-percent-of-parent-row	C4	s	Beta
+show-percent-of-parent-row	D4	s	Gamma
+show-percent-of-parent-row	E4	s	Grand Total
+show-percent-of-parent-row	A5	s	East
+show-percent-of-parent-row	B5	n	0.30114316820903647
+show-percent-of-parent-row	C5	n	0.3381841876629018
+show-percent-of-parent-row	D5	n	0.2357184636381361
+show-percent-of-parent-row	E5	n	0.28962339883424665
+show-percent-of-parent-row	A6	s	North
+show-percent-of-parent-row	B6	n	0.043549265106151334
+show-percent-of-parent-row	C6	n	0.09882710686359687
+show-percent-of-parent-row	D6	n	0.1294599337102749
+show-percent-of-parent-row	E6	n	0.09207357509336497
+show-percent-of-parent-row	A7	s	South
+show-percent-of-parent-row	B7	n	0.32955906369080024
+show-percent-of-parent-row	C7	n	0.25314943527367506
+show-percent-of-parent-row	D7	n	0.2611620198869175
+show-percent-of-parent-row	E7	n	0.28051376915290915
+show-percent-of-parent-row	A8	s	West
+show-percent-of-parent-row	B8	n	0.325748502994012
+show-percent-of-parent-row	C8	n	0.3098392701998262
+show-percent-of-parent-row	D8	n	0.3120491323844804
+show-percent-of-parent-row	E8	n	0.31573069002827125
+show-percent-of-parent-row	A9	s	(blank)
+show-percent-of-parent-row	B9	n	0
+show-percent-of-parent-row	C9	n	0
+show-percent-of-parent-row	D9	n	0.06161045038019107
+show-percent-of-parent-row	E9	n	0.022058566891207984
+show-percent-of-parent-row	A10	s	Grand Total
+show-percent-of-parent-row	B10	n	1
+show-percent-of-parent-row	C10	n	1
+show-percent-of-parent-row	D10	n	1
+show-percent-of-parent-row	E10	n	1
+show-percent-of-parent-column	A3	s	Sum Amount
+show-percent-of-parent-column	B3	s	Column Labels
+show-percent-of-parent-column	A4	s	Row Labels
+show-percent-of-parent-column	B4	s	Alpha
+show-percent-of-parent-column	C4	s	Beta
+show-percent-of-parent-column	D4	s	Gamma
+show-percent-of-parent-column	E4	s	Grand Total
+show-percent-of-parent-column	A5	s	East
+show-percent-of-parent-column	B5	n	0.3333333333333333
+show-percent-of-parent-column	C5	n	0.3752711496746204
+show-percent-of-parent-column	D5	n	0.2913955169920463
+show-percent-of-parent-column	E5	n	1
+show-percent-of-parent-column	A6	s	North
+show-percent-of-parent-column	B6	n	0.1516300227445034
+show-percent-of-parent-column	C6	n	0.34495830174374525
+show-percent-of-parent-column	D6	n	0.5034116755117514
+show-percent-of-parent-column	E6	n	1
+show-percent-of-parent-column	A7	s	South
+show-percent-of-parent-column	B7	n	0.3766330720418066
+show-percent-of-parent-column	C7	n	0.29003359462486
+show-percent-of-parent-column	D7	n	0.3333333333333333
+show-percent-of-parent-column	E7	n	1
+show-percent-of-parent-column	A8	s	West
+show-percent-of-parent-column	B8	n	0.33075392438646917
+show-percent-of-parent-column	C8	n	0.3153880168030069
+show-percent-of-parent-column	D8	n	0.353858058810524
+show-percent-of-parent-column	E8	n	1
+show-percent-of-parent-column	A9	s	(blank)
+show-percent-of-parent-column	B9	n	0
+show-percent-of-parent-column	C9	n	0
+show-percent-of-parent-column	D9	n	1
+show-percent-of-parent-column	E9	n	1
+show-percent-of-parent-column	A10	s	Grand Total
+show-percent-of-parent-column	B10	n	0.3205821786325085
+show-percent-of-parent-column	C10	n	0.321384942933929
+show-percent-of-parent-column	D10	n	0.3580328784335625
+show-percent-of-parent-column	E10	n	1
+show-difference-previous	A3	s	Sum Amount
+show-difference-previous	B3	s	Column Labels
+show-difference-previous	A4	s	Row Labels
+show-difference-previous	B4	s	Alpha
+show-difference-previous	C4	s	Beta
+show-difference-previous	D4	s	Gamma
+show-difference-previous	E4	s	Grand Total
+show-difference-previous	A5	s	East
+show-difference-previous	A6	s	North
+show-difference-previous	B6	n	-591.5
+show-difference-previous	C6	n	-551
+show-difference-previous	D6	n	-272.5
+show-difference-previous	E6	n	-1415
+show-difference-previous	A7	s	South
+show-difference-previous	B7	n	656.75
+show-difference-previous	C7	n	355.25
+show-difference-previous	D7	n	337.75
+show-difference-previous	E7	n	1349.75
+show-difference-previous	A8	s	West
+show-difference-previous	B8	n	-8.75
+show-difference-previous	C8	n	130.5
+show-difference-previous	D8	n	130.5
+show-difference-previous	E8	n	252.25
+show-difference-previous	A9	s	(blank)
+show-difference-previous	B9	n	-748
+show-difference-previous	C9	n	-713.25
+show-difference-previous	D9	n	-642.25
+show-difference-previous	E9	n	-2103.5
+show-difference-previous	A10	s	Grand Total
+show-difference-next	A3	s	Sum Amount
+show-difference-next	B3	s	Column Labels
+show-difference-next	A4	s	Row Labels
+show-difference-next	B4	s	Alpha
+show-difference-next	C4	s	Beta
+show-difference-next	D4	s	Gamma
+show-difference-next	E4	s	Grand Total
+show-difference-next	A5	s	East
+show-difference-next	B5	n	591.5
+show-difference-next	C5	n	551
+show-difference-next	D5	n	272.5
+show-difference-next	E5	n	1415
+show-difference-next	A6	s	North
+show-difference-next	B6	n	-656.75
+show-difference-next	C6	n	-355.25
+show-difference-next	D6	n	-337.75
+show-difference-next	E6	n	-1349.75
+show-difference-next	A7	s	South
+show-difference-next	B7	n	8.75
+show-difference-next	C7	n	-130.5
+show-difference-next	D7	n	-130.5
+show-difference-next	E7	n	-252.25
+show-difference-next	A8	s	West
+show-difference-next	B8	n	748
+show-difference-next	C8	n	713.25
+show-difference-next	D8	n	642.25
+show-difference-next	E8	n	2103.5
+show-difference-next	A9	s	(blank)
+show-difference-next	A10	s	Grand Total
+show-difference-east	A3	s	Sum Amount
+show-difference-east	B3	s	Column Labels
+show-difference-east	A4	s	Row Labels
+show-difference-east	B4	s	Alpha
+show-difference-east	C4	s	Beta
+show-difference-east	D4	s	Gamma
+show-difference-east	E4	s	Grand Total
+show-difference-east	A5	s	East
+show-difference-east	A6	s	North
+show-difference-east	B6	n	-591.5
+show-difference-east	C6	n	-551
+show-difference-east	D6	n	-272.5
+show-difference-east	E6	n	-1415
+show-difference-east	A7	s	South
+show-difference-east	B7	n	65.25
+show-difference-east	C7	n	-195.75
+show-difference-east	D7	n	65.25
+show-difference-east	E7	n	-65.25
+show-difference-east	A8	s	West
+show-difference-east	B8	n	56.5
+show-difference-east	C8	n	-65.25
+show-difference-east	D8	n	195.75
+show-difference-east	E8	n	187
+show-difference-east	A9	s	(blank)
+show-difference-east	B9	n	-691.5
+show-difference-east	C9	n	-778.5
+show-difference-east	D9	n	-446.5
+show-difference-east	E9	n	-1916.5
+show-difference-east	A10	s	Grand Total
+show-percentof-east	A3	s	Sum Amount
+show-percentof-east	B3	s	Column Labels
+show-percentof-east	A4	s	Row Labels
+show-percentof-east	B4	s	Alpha
+show-percentof-east	C4	s	Beta
+show-percentof-east	D4	s	Gamma
+show-percentof-east	E4	s	Grand Total
+show-percentof-east	A5	s	East
+show-percentof-east	B5	n	1
+show-percentof-east	C5	n	1
+show-percentof-east	D5	n	1
+show-percentof-east	E5	n	1
+show-percentof-east	A6	s	North
+show-percentof-east	B6	n	0.14461315979754158
+show-percentof-east	C6	n	0.2922286448298009
+show-percentof-east	D6	n	0.5492142266335814
+show-percentof-east	E6	n	0.3179079296215956
+show-percentof-east	A7	s	South
+show-percentof-east	B7	n	1.094360086767896
+show-percentof-east	C7	n	0.7485549132947977
+show-percentof-east	D7	n	1.1079404466501241
+show-percentof-east	E7	n	0.9685466377440347
+show-percentof-east	A8	s	West
+show-percentof-east	B8	n	1.081706435285611
+show-percentof-east	C8	n	0.9161849710982659
+show-percentof-east	D8	n	1.3238213399503722
+show-percentof-east	E8	n	1.0901422029404675
+show-percentof-east	A9	s	(blank)
+show-percentof-east	B9	e	-2146826288
+show-percentof-east	C9	e	-2146826288
+show-percentof-east	D9	n	0.261373035566584
+show-percentof-east	E9	n	0.07616293082670524
+show-percentof-east	A10	s	Grand Total
+show-percentof-previous	A3	s	Sum Amount
+show-percentof-previous	B3	s	Column Labels
+show-percentof-previous	A4	s	Row Labels
+show-percentof-previous	B4	s	Alpha
+show-percentof-previous	C4	s	Beta
+show-percentof-previous	D4	s	Gamma
+show-percentof-previous	E4	s	Grand Total
+show-percentof-previous	A5	s	East
+show-percentof-previous	B5	n	1
+show-percentof-previous	C5	n	1
+show-percentof-previous	D5	n	1
+show-percentof-previous	E5	n	1
+show-percentof-previous	A6	s	North
+show-percentof-previous	B6	n	0.14461315979754158
+show-percentof-previous	C6	n	0.2922286448298009
+show-percentof-previous	D6	n	0.5492142266335814
+show-percentof-previous	E6	n	0.3179079296215956
+show-percentof-previous	A7	s	South
+show-percentof-previous	B7	n	7.5675
+show-percentof-previous	C7	n	2.5615384615384613
+show-percentof-previous	D7	n	2.0173192771084336
+show-percentof-previous	E7	n	3.046626231993935
+show-percentof-previous	A8	s	West
+show-percentof-previous	B8	n	0.9884373967624711
+show-percentof-previous	C8	n	1.223938223938224
+show-percentof-previous	D8	n	1.1948488241881299
+show-percentof-previous	E8	n	1.125544357347269
+show-percentof-previous	A9	s	(blank)
+show-percentof-previous	B9	e	-2146826288
+show-percentof-previous	C9	e	-2146826288
+show-percentof-previous	D9	n	0.19743830053108405
+show-percentof-previous	E9	n	0.06986513376077824
+show-percentof-previous	A10	s	Grand Total
+show-percent-difference-previous	A3	s	Sum Amount
+show-percent-difference-previous	B3	s	Column Labels
+show-percent-difference-previous	A4	s	Row Labels
+show-percent-difference-previous	B4	s	Alpha
+show-percent-difference-previous	C4	s	Beta
+show-percent-difference-previous	D4	s	Gamma
+show-percent-difference-previous	E4	s	Grand Total
+show-percent-difference-previous	A5	s	East
+show-percent-difference-previous	A6	s	North
+show-percent-difference-previous	B6	n	-0.8553868402024585
+show-percent-difference-previous	C6	n	-0.7077713551701991
+show-percent-difference-previous	D6	n	-0.4507857733664185
+show-percent-difference-previous	E6	n	-0.6820920703784045
+show-percent-difference-previous	A7	s	South
+show-percent-difference-previous	B7	n	6.5675
+show-percent-difference-previous	C7	n	1.5615384615384615
+show-percent-difference-previous	D7	n	1.0173192771084338
+show-percent-difference-previous	E7	n	2.046626231993935
+show-percent-difference-previous	A8	s	West
+show-percent-difference-previous	B8	n	-0.011562603237528906
+show-percent-difference-previous	C8	n	0.22393822393822393
+show-percent-difference-previous	D8	n	0.1948488241881299
+show-percent-difference-previous	E8	n	0.12554435734726888
+show-percent-difference-previous	A9	s	(blank)
+show-percent-difference-previous	B9	e	-2146826288
+show-percent-difference-previous	C9	e	-2146826288
+show-percent-difference-previous	D9	n	-0.802561699468916
+show-percent-difference-previous	E9	n	-0.9301348662392217
+show-percent-difference-previous	A10	s	Grand Total
+show-percent-difference-east	A3	s	Sum Amount
+show-percent-difference-east	B3	s	Column Labels
+show-percent-difference-east	A4	s	Row Labels
+show-percent-difference-east	B4	s	Alpha
+show-percent-difference-east	C4	s	Beta
+show-percent-difference-east	D4	s	Gamma
+show-percent-difference-east	E4	s	Grand Total
+show-percent-difference-east	A5	s	East
+show-percent-difference-east	A6	s	North
+show-percent-difference-east	B6	n	-0.8553868402024585
+show-percent-difference-east	C6	n	-0.7077713551701991
+show-percent-difference-east	D6	n	-0.4507857733664185
+show-percent-difference-east	E6	n	-0.6820920703784045
+show-percent-difference-east	A7	s	South
+show-percent-difference-east	B7	n	0.09436008676789588
+show-percent-difference-east	C7	n	-0.2514450867052023
+show-percent-difference-east	D7	n	0.10794044665012408
+show-percent-difference-east	E7	n	-0.031453362255965296
+show-percent-difference-east	A8	s	West
+show-percent-difference-east	B8	n	0.08170643528561099
+show-percent-difference-east	C8	n	-0.0838150289017341
+show-percent-difference-east	D8	n	0.3238213399503722
+show-percent-difference-east	E8	n	0.09014220294046758
+show-percent-difference-east	A9	s	(blank)
+show-percent-difference-east	B9	e	-2146826288
+show-percent-difference-east	C9	e	-2146826288
+show-percent-difference-east	D9	n	-0.738626964433416
+show-percent-difference-east	E9	n	-0.9238370691732948
+show-percent-difference-east	A10	s	Grand Total
+show-running-total	A3	s	Sum Amount
+show-running-total	B3	s	Column Labels
+show-running-total	A4	s	Row Labels
+show-running-total	B4	s	Alpha
+show-running-total	C4	s	Beta
+show-running-total	D4	s	Gamma
+show-running-total	E4	s	Grand Total
+show-running-total	A5	s	East
+show-running-total	B5	n	691.5
+show-running-total	C5	n	778.5
+show-running-total	D5	n	604.5
+show-running-total	E5	n	2074.5
+show-running-total	A6	s	North
+show-running-total	B6	n	791.5
+show-running-total	C6	n	1006
+show-running-total	D6	n	936.5
+show-running-total	E6	n	2734
+show-running-total	A7	s	South
+show-running-total	B7	n	1548.25
+show-running-total	C7	n	1588.75
+show-running-total	D7	n	1606.25
+show-running-total	E7	n	4743.25
+show-running-total	A8	s	West
+show-running-total	B8	n	2296.25
+show-running-total	C8	n	2302
+show-running-total	D8	n	2406.5
+show-running-total	E8	n	7004.75
+show-running-total	A9	s	(blank)
+show-running-total	B9	n	2296.25
+show-running-total	C9	n	2302
+show-running-total	D9	n	2564.5
+show-running-total	E9	n	7162.75
+show-running-total	A10	s	Grand Total
+show-percent-running-total	A3	s	Sum Amount
+show-percent-running-total	B3	s	Column Labels
+show-percent-running-total	A4	s	Row Labels
+show-percent-running-total	B4	s	Alpha
+show-percent-running-total	C4	s	Beta
+show-percent-running-total	D4	s	Gamma
+show-percent-running-total	E4	s	Grand Total
+show-percent-running-total	A5	s	East
+show-percent-running-total	B5	n	0.30114316820903647
+show-percent-running-total	C5	n	0.3381841876629018
+show-percent-running-total	D5	n	0.2357184636381361
+show-percent-running-total	E5	n	0.28962339883424665
+show-percent-running-total	A6	s	North
+show-percent-running-total	B6	n	0.3446924333151878
+show-percent-running-total	C6	n	0.4370112945264987
+show-percent-running-total	D6	n	0.365178397348411
+show-percent-running-total	E6	n	0.3816969739276116
+show-percent-running-total	A7	s	South
+show-percent-running-total	B7	n	0.6742514970059881
+show-percent-running-total	C7	n	0.6901607298001737
+show-percent-running-total	D7	n	0.6263404172353285
+show-percent-running-total	E7	n	0.6622107430805207
+show-percent-running-total	A8	s	West
+show-percent-running-total	B8	n	1
+show-percent-running-total	C8	n	1
+show-percent-running-total	D8	n	0.9383895496198089
+show-percent-running-total	E8	n	0.977941433108792
+show-percent-running-total	A9	s	(blank)
+show-percent-running-total	B9	n	1
+show-percent-running-total	C9	n	1
+show-percent-running-total	D9	n	1
+show-percent-running-total	E9	n	1
+show-percent-running-total	A10	s	Grand Total
+show-rank-ascending	A3	s	Sum Amount
+show-rank-ascending	B3	s	Column Labels
+show-rank-ascending	A4	s	Row Labels
+show-rank-ascending	B4	s	Alpha
+show-rank-ascending	C4	s	Beta
+show-rank-ascending	D4	s	Gamma
+show-rank-ascending	E4	s	Grand Total
+show-rank-ascending	A5	s	East
+show-rank-ascending	B5	n	2
+show-rank-ascending	C5	n	4
+show-rank-ascending	D5	n	3
+show-rank-ascending	E5	n	4
+show-rank-ascending	A6	s	North
+show-rank-ascending	B6	n	1
+show-rank-ascending	C6	n	1
+show-rank-ascending	D6	n	2
+show-rank-ascending	E6	n	2
+show-rank-ascending	A7	s	South
+show-rank-ascending	B7	n	4
+show-rank-ascending	C7	n	2
+show-rank-ascending	D7	n	4
+show-rank-ascending	E7	n	3
+show-rank-ascending	A8	s	West
+show-rank-ascending	B8	n	3
+show-rank-ascending	C8	n	3
+show-rank-ascending	D8	n	5
+show-rank-ascending	E8	n	5
+show-rank-ascending	A9	s	(blank)
+show-rank-ascending	D9	n	1
+show-rank-ascending	E9	n	1
+show-rank-ascending	A10	s	Grand Total
+show-rank-descending	A3	s	Sum Amount
+show-rank-descending	B3	s	Column Labels
+show-rank-descending	A4	s	Row Labels
+show-rank-descending	B4	s	Alpha
+show-rank-descending	C4	s	Beta
+show-rank-descending	D4	s	Gamma
+show-rank-descending	E4	s	Grand Total
+show-rank-descending	A5	s	East
+show-rank-descending	B5	n	3
+show-rank-descending	C5	n	1
+show-rank-descending	D5	n	3
+show-rank-descending	E5	n	2
+show-rank-descending	A6	s	North
+show-rank-descending	B6	n	4
+show-rank-descending	C6	n	4
+show-rank-descending	D6	n	4
+show-rank-descending	E6	n	4
+show-rank-descending	A7	s	South
+show-rank-descending	B7	n	1
+show-rank-descending	C7	n	3
+show-rank-descending	D7	n	2
+show-rank-descending	E7	n	3
+show-rank-descending	A8	s	West
+show-rank-descending	B8	n	2
+show-rank-descending	C8	n	2
+show-rank-descending	D8	n	1
+show-rank-descending	E8	n	1
+show-rank-descending	A9	s	(blank)
+show-rank-descending	D9	n	5
+show-rank-descending	E9	n	5
+show-rank-descending	A10	s	Grand Total
+show-difference-product-alpha	A3	s	Sum Amount
+show-difference-product-alpha	B3	s	Column Labels
+show-difference-product-alpha	A4	s	Row Labels
+show-difference-product-alpha	B4	s	Alpha
+show-difference-product-alpha	C4	s	Beta
+show-difference-product-alpha	D4	s	Gamma
+show-difference-product-alpha	E4	s	Grand Total
+show-difference-product-alpha	A5	s	East
+show-difference-product-alpha	C5	n	87
+show-difference-product-alpha	D5	n	-87
+show-difference-product-alpha	A6	s	North
+show-difference-product-alpha	C6	n	127.5
+show-difference-product-alpha	D6	n	232
+show-difference-product-alpha	A7	s	South
+show-difference-product-alpha	C7	n	-174
+show-difference-product-alpha	D7	n	-87
+show-difference-product-alpha	A8	s	West
+show-difference-product-alpha	C8	n	-34.75
+show-difference-product-alpha	D8	n	52.25
+show-difference-product-alpha	A9	s	(blank)
+show-difference-product-alpha	C9	n	0
+show-difference-product-alpha	D9	n	158
+show-difference-product-alpha	A10	s	Grand Total
+show-difference-product-alpha	C10	n	5.75
+show-difference-product-alpha	D10	n	268.25
+show-running-total-product	A3	s	Sum Amount
+show-running-total-product	B3	s	Column Labels
+show-running-total-product	A4	s	Row Labels
+show-running-total-product	B4	s	Alpha
+show-running-total-product	C4	s	Beta
+show-running-total-product	D4	s	Gamma
+show-running-total-product	E4	s	Grand Total
+show-running-total-product	A5	s	East
+show-running-total-product	B5	n	691.5
+show-running-total-product	C5	n	1470
+show-running-total-product	D5	n	2074.5
+show-running-total-product	A6	s	North
+show-running-total-product	B6	n	100
+show-running-total-product	C6	n	327.5
+show-running-total-product	D6	n	659.5
+show-running-total-product	A7	s	South
+show-running-total-product	B7	n	756.75
+show-running-total-product	C7	n	1339.5
+show-running-total-product	D7	n	2009.25
+show-running-total-product	A8	s	West
+show-running-total-product	B8	n	748
+show-running-total-product	C8	n	1461.25
+show-running-total-product	D8	n	2261.5
+show-running-total-product	A9	s	(blank)
+show-running-total-product	B9	n	0
+show-running-total-product	C9	n	0
+show-running-total-product	D9	n	158
+show-running-total-product	A10	s	Grand Total
+show-running-total-product	B10	n	2296.25
+show-running-total-product	C10	n	4598.25
+show-running-total-product	D10	n	7162.75
+show-percent-of-parent	A3	s	Region
+show-percent-of-parent	B3	s	Product
+show-percent-of-parent	C3	s	Sum Amount
+show-percent-of-parent	A4	s	East
+show-percent-of-parent	B4	s	Alpha
+show-percent-of-parent	C4	n	0.3333333333333333
+show-percent-of-parent	B5	s	Beta
+show-percent-of-parent	C5	n	0.3752711496746204
+show-percent-of-parent	B6	s	Gamma
+show-percent-of-parent	C6	n	0.2913955169920463
+show-percent-of-parent	A7	s	East Total
+show-percent-of-parent	C7	n	1
+show-percent-of-parent	A8	s	North
+show-percent-of-parent	B8	s	Alpha
+show-percent-of-parent	C8	n	0.1516300227445034
+show-percent-of-parent	B9	s	Beta
+show-percent-of-parent	C9	n	0.34495830174374525
+show-percent-of-parent	B10	s	Gamma
+show-percent-of-parent	C10	n	0.5034116755117514
+show-percent-of-parent	A11	s	North Total
+show-percent-of-parent	C11	n	1
+show-percent-of-parent	A12	s	South
+show-percent-of-parent	B12	s	Alpha
+show-percent-of-parent	C12	n	0.3766330720418066
+show-percent-of-parent	B13	s	Beta
+show-percent-of-parent	C13	n	0.29003359462486
+show-percent-of-parent	B14	s	Gamma
+show-percent-of-parent	C14	n	0.3333333333333333
+show-percent-of-parent	A15	s	South Total
+show-percent-of-parent	C15	n	1
+show-percent-of-parent	A16	s	West
+show-percent-of-parent	B16	s	Alpha
+show-percent-of-parent	C16	n	0.33075392438646917
+show-percent-of-parent	B17	s	Beta
+show-percent-of-parent	C17	n	0.3153880168030069
+show-percent-of-parent	B18	s	Gamma
+show-percent-of-parent	C18	n	0.353858058810524
+show-percent-of-parent	A19	s	West Total
+show-percent-of-parent	C19	n	1
+show-percent-of-parent	A20	s	(blank)
+show-percent-of-parent	B20	s	Gamma
+show-percent-of-parent	C20	n	1
+show-percent-of-parent	A21	s	(blank) Total
+show-percent-of-parent	C21	n	1
+show-percent-of-parent	A22	s	Grand Total
+show-percent-of-parent-product	A3	s	Region
+show-percent-of-parent-product	B3	s	Product
+show-percent-of-parent-product	C3	s	Sum Amount
+show-percent-of-parent-product	A4	s	East
+show-percent-of-parent-product	B4	s	Alpha
+show-percent-of-parent-product	C4	n	1
+show-percent-of-parent-product	B5	s	Beta
+show-percent-of-parent-product	C5	n	1
+show-percent-of-parent-product	B6	s	Gamma
+show-percent-of-parent-product	C6	n	1
+show-percent-of-parent-product	A7	s	East Total
+show-percent-of-parent-product	A8	s	North
+show-percent-of-parent-product	B8	s	Alpha
+show-percent-of-parent-product	C8	n	1
+show-percent-of-parent-product	B9	s	Beta
+show-percent-of-parent-product	C9	n	1
+show-percent-of-parent-product	B10	s	Gamma
+show-percent-of-parent-product	C10	n	1
+show-percent-of-parent-product	A11	s	North Total
+show-percent-of-parent-product	A12	s	South
+show-percent-of-parent-product	B12	s	Alpha
+show-percent-of-parent-product	C12	n	1
+show-percent-of-parent-product	B13	s	Beta
+show-percent-of-parent-product	C13	n	1
+show-percent-of-parent-product	B14	s	Gamma
+show-percent-of-parent-product	C14	n	1
+show-percent-of-parent-product	A15	s	South Total
+show-percent-of-parent-product	A16	s	West
+show-percent-of-parent-product	B16	s	Alpha
+show-percent-of-parent-product	C16	n	1
+show-percent-of-parent-product	B17	s	Beta
+show-percent-of-parent-product	C17	n	1
+show-percent-of-parent-product	B18	s	Gamma
+show-percent-of-parent-product	C18	n	1
+show-percent-of-parent-product	A19	s	West Total
+show-percent-of-parent-product	A20	s	(blank)
+show-percent-of-parent-product	B20	s	Gamma
+show-percent-of-parent-product	C20	n	1
+show-percent-of-parent-product	A21	s	(blank) Total
+show-percent-of-parent-product	A22	s	Grand Total
+show-two-data-fields	A3	s	Row Labels
+show-two-data-fields	B3	s	Pct Amount
+show-two-data-fields	C3	s	Run Units
+show-two-data-fields	A4	s	East
+show-two-data-fields	B4	n	0.28962339883424665
+show-two-data-fields	C4	n	26
+show-two-data-fields	A5	s	North
+show-two-data-fields	B5	n	0.09207357509336497
+show-two-data-fields	C5	n	45
+show-two-data-fields	A6	s	South
+show-two-data-fields	B6	n	0.28051376915290915
+show-two-data-fields	C6	n	72
+show-two-data-fields	A7	s	West
+show-two-data-fields	B7	n	0.31573069002827125
+show-two-data-fields	C7	n	101
+show-two-data-fields	A8	s	(blank)
+show-two-data-fields	B8	n	0.022058566891207984
+show-two-data-fields	C8	n	105
+show-two-data-fields	A9	s	Grand Total
+show-two-data-fields	B9	n	1
+show-count-average	A3	s	Avg Amount
+show-count-average	B3	s	Column Labels
+show-count-average	A4	s	Row Labels
+show-count-average	B4	s	Alpha
+show-count-average	C4	s	Beta
+show-count-average	D4	s	Gamma
+show-count-average	E4	s	Grand Total
+show-count-average	A5	s	East
+show-count-average	B5	n	1.1041916167664672
+show-count-average	C5	n	1.2400086880973067
+show-count-average	D5	n	0.9428738545525444
+show-count-average	E5	n	1.0941328400404873
+show-count-average	A6	s	North
+show-count-average	B6	n	0.47904191616766467
+show-count-average	C6	n	0.5435490877497827
+show-count-average	D6	n	0.7767596022616494
+show-count-average	E6	n	0.6261003106348819
+show-count-average	A7	s	South
+show-count-average	B7	n	1.208383233532934
+show-count-average	C7	n	0.9282145960034752
+show-count-average	D7	n	1.04464807954767
+show-count-average	E7	n	1.0597186834665457
+show-count-average	A8	s	West
+show-count-average	B8	n	0.895808383233533
+show-count-average	C8	n	1.1360773240660296
+show-count-average	D8	n	1.2481965295379216
+show-count-average	E8	n	1.0734843460961223
+show-count-average	A9	s	(blank)
+show-count-average	B9	n	0
+show-count-average	C9	n	0
+show-count-average	D9	n	0.7393254045622928
+show-count-average	E9	n	0.7499912743010716
+show-count-average	A10	s	Grand Total
+show-count-average	B10	n	1
+show-count-average	C10	n	1
+show-count-average	D10	n	1
+show-count-average	E10	n	1
+calc-field-ratio	A3	s	Row Labels
+calc-field-ratio	B3	s	Sum Price
+calc-field-ratio	C3	s	Sum Amount
+calc-field-ratio	A4	s	East
+calc-field-ratio	B4	n	79.78846153846153
+calc-field-ratio	C4	n	2074.5
+calc-field-ratio	A5	s	North
+calc-field-ratio	B5	n	34.71052631578947
+calc-field-ratio	C5	n	659.5
+calc-field-ratio	A6	s	South
+calc-field-ratio	B6	n	74.41666666666667
+calc-field-ratio	C6	n	2009.25
+calc-field-ratio	A7	s	West
+calc-field-ratio	B7	n	77.98275862068965
+calc-field-ratio	C7	n	2261.5
+calc-field-ratio	A8	s	(blank)
+calc-field-ratio	B8	n	39.5
+calc-field-ratio	C8	n	158
+calc-field-ratio	A9	s	Grand Total
+calc-field-ratio	B9	n	68.21666666666667
+calc-field-ratio	C9	n	7162.75
+calc-field-if	A3	s	Sum Big
+calc-field-if	B3	s	Column Labels
+calc-field-if	A4	s	Row Labels
+calc-field-if	B4	s	Alpha
+calc-field-if	C4	s	Beta
+calc-field-if	D4	s	Gamma
+calc-field-if	E4	s	Grand Total
+calc-field-if	A5	s	East
+calc-field-if	B5	n	691.5
+calc-field-if	C5	n	778.5
+calc-field-if	D5	n	604.5
+calc-field-if	E5	n	2074.5
+calc-field-if	A6	s	North
+calc-field-if	B6	n	100
+calc-field-if	C6	n	227.5
+calc-field-if	D6	n	332
+calc-field-if	E6	n	659.5
+calc-field-if	A7	s	South
+calc-field-if	B7	n	756.75
+calc-field-if	C7	n	582.75
+calc-field-if	D7	n	669.75
+calc-field-if	E7	n	2009.25
+calc-field-if	A8	s	West
+calc-field-if	B8	n	748
+calc-field-if	C8	n	713.25
+calc-field-if	D8	n	800.25
+calc-field-if	E8	n	2261.5
+calc-field-if	A9	s	(blank)
+calc-field-if	B9	n	0
+calc-field-if	C9	n	0
+calc-field-if	D9	n	158
+calc-field-if	E9	n	158
+calc-field-if	A10	s	Grand Total
+calc-field-if	B10	n	2296.25
+calc-field-if	C10	n	2302
+calc-field-if	D10	n	2564.5
+calc-field-if	E10	n	7162.75
+calc-field-arith	A3	s	Row Labels
+calc-field-arith	B3	s	Sum Mix
+calc-field-arith	C3	s	Avg Mix
+calc-field-arith	A4	s	Alpha
+calc-field-arith	B4	n	2486.875
+calc-field-arith	C4	n	2486.875
+calc-field-arith	A5	s	Beta
+calc-field-arith	B5	n	2500.2000000000003
+calc-field-arith	C5	n	2500.2000000000003
+calc-field-arith	A6	s	Gamma
+calc-field-arith	B6	n	2786.9500000000003
+calc-field-arith	C6	n	2786.9500000000003
+calc-field-arith	A7	s	Grand Total
+calc-field-arith	B7	n	7774.025000000001
+calc-field-arith	C7	n	7774.025000000001
+calc-field-of-calc	A3	s	Row Labels
+calc-field-of-calc	B3	s	Sum HalfPlus
+calc-field-of-calc	A4	s	East
+calc-field-of-calc	B4	n	1063.25
+calc-field-of-calc	A5	s	North
+calc-field-of-calc	B5	n	348.75
+calc-field-of-calc	A6	s	South
+calc-field-of-calc	B6	n	1031.625
+calc-field-of-calc	A7	s	West
+calc-field-of-calc	B7	n	1159.75
+calc-field-of-calc	A8	s	(blank)
+calc-field-of-calc	B8	n	83
+calc-field-of-calc	A9	s	Grand Total
+calc-field-of-calc	B9	n	3686.375
+calc-item-sum	A3	s	Sum Amount
+calc-item-sum	B3	s	Column Labels
+calc-item-sum	A4	s	Row Labels
+calc-item-sum	B4	s	East
+calc-item-sum	C4	s	North
+calc-item-sum	D4	s	South
+calc-item-sum	E4	s	West
+calc-item-sum	F4	s	(blank)
+calc-item-sum	G4	s	Grand Total
+calc-item-sum	A5	s	Alpha
+calc-item-sum	B5	n	691.5
+calc-item-sum	C5	n	100
+calc-item-sum	D5	n	756.75
+calc-item-sum	E5	n	748
+calc-item-sum	G5	n	2296.25
+calc-item-sum	A6	s	Beta
+calc-item-sum	B6	n	778.5
+calc-item-sum	C6	n	227.5
+calc-item-sum	D6	n	582.75
+calc-item-sum	E6	n	713.25
+calc-item-sum	G6	n	2302
+calc-item-sum	A7	s	Gamma
+calc-item-sum	B7	n	604.5
+calc-item-sum	C7	n	332
+calc-item-sum	D7	n	669.75
+calc-item-sum	E7	n	800.25
+calc-item-sum	F7	n	158
+calc-item-sum	G7	n	2564.5
+calc-item-sum	A8	s	AlphaBeta
+calc-item-sum	B8	n	1470
+calc-item-sum	C8	n	327.5
+calc-item-sum	D8	n	1339.5
+calc-item-sum	E8	n	1461.25
+calc-item-sum	F8	n	0
+calc-item-sum	G8	n	4598.25
+calc-item-sum	A9	s	Grand Total
+calc-item-sum	B9	n	3544.5
+calc-item-sum	C9	n	987
+calc-item-sum	D9	n	3348.75
+calc-item-sum	E9	n	3722.75
+calc-item-sum	F9	n	158
+calc-item-sum	G9	n	11761
+calc-item-diff	A3	s	Row Labels
+calc-item-diff	B3	s	Sum Amount
+calc-item-diff	C3	s	Sum Units
+calc-item-diff	A4	s	East
+calc-item-diff	B4	n	2074.5
+calc-item-diff	C4	n	26
+calc-item-diff	A5	s	North
+calc-item-diff	B5	n	659.5
+calc-item-diff	C5	n	19
+calc-item-diff	A6	s	South
+calc-item-diff	B6	n	2009.25
+calc-item-diff	C6	n	27
+calc-item-diff	A7	s	West
+calc-item-diff	B7	n	2261.5
+calc-item-diff	C7	n	29
+calc-item-diff	A8	s	(blank)
+calc-item-diff	B8	n	158
+calc-item-diff	C8	n	4
+calc-item-diff	A9	s	EastMinusWest
+calc-item-diff	B9	n	-187
+calc-item-diff	C9	n	-3
+calc-item-diff	A10	s	Grand Total
+calc-item-diff	B10	n	6975.75
+calc-item-diff	C10	n	102
+calc-item-half-sum	A3	s	Sum Amount
+calc-item-half-sum	B3	s	Column Labels
+calc-item-half-sum	A4	s	Row Labels
+calc-item-half-sum	B4	s	Alpha
+calc-item-half-sum	C4	s	Beta
+calc-item-half-sum	D4	s	Gamma
+calc-item-half-sum	E4	s	Grand Total
+calc-item-half-sum	A5	s	East
+calc-item-half-sum	B5	n	691.5
+calc-item-half-sum	C5	n	778.5
+calc-item-half-sum	D5	n	604.5
+calc-item-half-sum	E5	n	2074.5
+calc-item-half-sum	A6	s	North
+calc-item-half-sum	B6	n	100
+calc-item-half-sum	C6	n	227.5
+calc-item-half-sum	D6	n	332
+calc-item-half-sum	E6	n	659.5
+calc-item-half-sum	A7	s	South
+calc-item-half-sum	B7	n	756.75
+calc-item-half-sum	C7	n	582.75
+calc-item-half-sum	D7	n	669.75
+calc-item-half-sum	E7	n	2009.25
+calc-item-half-sum	A8	s	West
+calc-item-half-sum	B8	n	748
+calc-item-half-sum	C8	n	713.25
+calc-item-half-sum	D8	n	800.25
+calc-item-half-sum	E8	n	2261.5
+calc-item-half-sum	A9	s	(blank)
+calc-item-half-sum	D9	n	158
+calc-item-half-sum	E9	n	158
+calc-item-half-sum	A10	s	NorthSouthHalf
+calc-item-half-sum	B10	n	428.375
+calc-item-half-sum	C10	n	405.125
+calc-item-half-sum	D10	n	500.875
+calc-item-half-sum	E10	n	1334.375
+calc-item-half-sum	A11	s	Grand Total
+calc-item-half-sum	B11	n	2724.625
+calc-item-half-sum	C11	n	2707.125
+calc-item-half-sum	D11	n	3065.375
+calc-item-half-sum	E11	n	8497.125
+group-month	A3	s	Row Labels
+group-month	B3	s	Sum Amount
+group-month	A4	s	Jan
+group-month	B4	n	100
+group-month	A5	s	Feb
+group-month	B5	n	582.75
+group-month	A6	s	Mar
+group-month	B6	n	604.5
+group-month	A7	s	Apr
+group-month	B7	n	748
+group-month	A8	s	May
+group-month	B8	n	227.5
+group-month	A9	s	Jun
+group-month	B9	n	669.75
+group-month	A10	s	Jul
+group-month	B10	n	691.5
+group-month	A11	s	Aug
+group-month	B11	n	713.25
+group-month	A12	s	Sept
+group-month	B12	n	490
+group-month	A13	s	Oct
+group-month	B13	n	756.75
+group-month	A14	s	Nov
+group-month	B14	n	778.5
+group-month	A15	s	Dec
+group-month	B15	n	800.25
+group-month	A16	s	Grand Total
+group-month	B16	n	7162.75
+group-year	A3	s	Row Labels
+group-year	B3	s	Sum Amount
+group-year	A4	s	2024
+group-year	B4	n	1671.25
+group-year	A5	s	2025
+group-year	B5	n	1999
+group-year	A6	s	2026
+group-year	B6	n	3492.5
+group-year	A7	s	Grand Total
+group-year	B7	n	7162.75
+group-month-year	A3	s	Row Labels
+group-month-year	B3	s	Sum Amount
+group-month-year	A4	s	2024
+group-month-year	B4	n	1671.25
+group-month-year	A5	s	Jan
+group-month-year	B5	n	100
+group-month-year	A6	s	Feb
+group-month-year	B6	n	107.25
+group-month-year	A7	s	Mar
+group-month-year	B7	n	114.5
+group-month-year	A8	s	Apr
+group-month-year	B8	n	243.5
+group-month-year	A9	s	Jun
+group-month-year	B9	n	136.25
+group-month-year	A10	s	Jul
+group-month-year	B10	n	143.5
+group-month-year	A11	s	Aug
+group-month-year	B11	n	150.75
+group-month-year	A12	s	Sept
+group-month-year	B12	n	158
+group-month-year	A13	s	Oct
+group-month-year	B13	n	165.25
+group-month-year	A14	s	Nov
+group-month-year	B14	n	172.5
+group-month-year	A15	s	Dec
+group-month-year	B15	n	179.75
+group-month-year	A16	s	2025
+group-month-year	B16	n	1999
+group-month-year	A17	s	Jan
+group-month-year	A18	s	Feb
+group-month-year	B18	n	194.25
+group-month-year	A19	s	Mar
+group-month-year	B19	n	201.5
+group-month-year	A20	s	Apr
+group-month-year	B20	n	208.75
+group-month-year	A21	s	May
+group-month-year	B21	n	-75.5
+group-month-year	A22	s	Jun
+group-month-year	B22	n	223.25
+group-month-year	A23	s	Jul
+group-month-year	B23	n	230.5
+group-month-year	A24	s	Aug
+group-month-year	B24	n	237.75
+group-month-year	A25	s	Sept
+group-month-year	B25	n	0
+group-month-year	A26	s	Oct
+group-month-year	B26	n	252.25
+group-month-year	A27	s	Nov
+group-month-year	B27	n	259.5
+group-month-year	A28	s	Dec
+group-month-year	B28	n	266.75
+group-month-year	A29	s	2026
+group-month-year	B29	n	3492.5
+group-month-year	A30	s	Jan
+group-month-year	B30	n	0
+group-month-year	A31	s	Feb
+group-month-year	B31	n	281.25
+group-month-year	A32	s	Mar
+group-month-year	B32	n	288.5
+group-month-year	A33	s	Apr
+group-month-year	B33	n	295.75
+group-month-year	A34	s	May
+group-month-year	B34	n	303
+group-month-year	A35	s	Jun
+group-month-year	B35	n	310.25
+group-month-year	A36	s	Jul
+group-month-year	B36	n	317.5
+group-month-year	A37	s	Aug
+group-month-year	B37	n	324.75
+group-month-year	A38	s	Sept
+group-month-year	B38	n	332
+group-month-year	A39	s	Oct
+group-month-year	B39	n	339.25
+group-month-year	A40	s	Nov
+group-month-year	B40	n	346.5
+group-month-year	A41	s	Dec
+group-month-year	B41	n	353.75
+group-month-year	A42	s	Grand Total
+group-month-year	B42	n	7162.75
+group-quarter-year	A3	s	Row Labels
+group-quarter-year	B3	s	Sum Amount
+group-quarter-year	A4	s	2024
+group-quarter-year	B4	n	1671.25
+group-quarter-year	A5	s	Qtr1
+group-quarter-year	B5	n	321.75
+group-quarter-year	A6	s	Qtr2
+group-quarter-year	B6	n	379.75
+group-quarter-year	A7	s	Qtr3
+group-quarter-year	B7	n	452.25
+group-quarter-year	A8	s	Qtr4
+group-quarter-year	B8	n	517.5
+group-quarter-year	A9	s	2025
+group-quarter-year	B9	n	1999
+group-quarter-year	A10	s	Qtr1
+group-quarter-year	B10	n	395.75
+group-quarter-year	A11	s	Qtr2
+group-quarter-year	B11	n	356.5
+group-quarter-year	A12	s	Qtr3
+group-quarter-year	B12	n	468.25
+group-quarter-year	A13	s	Qtr4
+group-quarter-year	B13	n	778.5
+group-quarter-year	A14	s	2026
+group-quarter-year	B14	n	3492.5
+group-quarter-year	A15	s	Qtr1
+group-quarter-year	B15	n	569.75
+group-quarter-year	A16	s	Qtr2
+group-quarter-year	B16	n	909
+group-quarter-year	A17	s	Qtr3
+group-quarter-year	B17	n	974.25
+group-quarter-year	A18	s	Qtr4
+group-quarter-year	B18	n	1039.5
+group-quarter-year	A19	s	Grand Total
+group-quarter-year	B19	n	7162.75
+group-quarter	A3	s	Row Labels
+group-quarter	B3	s	Sum Amount
+group-quarter	A4	s	Qtr1
+group-quarter	B4	n	1287.25
+group-quarter	A5	s	Qtr2
+group-quarter	B5	n	1645.25
+group-quarter	A6	s	Qtr3
+group-quarter	B6	n	1894.75
+group-quarter	A7	s	Qtr4
+group-quarter	B7	n	2335.5
+group-quarter	A8	s	Grand Total
+group-quarter	B8	n	7162.75
+group-day-month	A3	s	Row Labels
+group-day-month	B3	s	Sum Amount
+group-day-month	A4	s	Jan
+group-day-month	B4	n	100
+group-day-month	A5	s	15-Jan
+group-day-month	B5	n	100
+group-day-month	A6	s	Feb
+group-day-month	B6	n	582.75
+group-day-month	A7	s	15-Feb
+group-day-month	B7	n	582.75
+group-day-month	A8	s	Mar
+group-day-month	B8	n	604.5
+group-day-month	A9	s	15-Mar
+group-day-month	B9	n	604.5
+group-day-month	A10	s	Apr
+group-day-month	B10	n	748
+group-day-month	A11	s	15-Apr
+group-day-month	B11	n	748
+group-day-month	A12	s	May
+group-day-month	B12	n	227.5
+group-day-month	A13	s	15-May
+group-day-month	B13	n	227.5
+group-day-month	A14	s	Jun
+group-day-month	B14	n	669.75
+group-day-month	A15	s	15-Jun
+group-day-month	B15	n	669.75
+group-day-month	A16	s	Jul
+group-day-month	B16	n	691.5
+group-day-month	A17	s	15-Jul
+group-day-month	B17	n	691.5
+group-day-month	A18	s	Aug
+group-day-month	B18	n	713.25
+group-day-month	A19	s	15-Aug
+group-day-month	B19	n	713.25
+group-day-month	A20	s	Sept
+group-day-month	B20	n	490
+group-day-month	A21	s	15-Sept
+group-day-month	B21	n	490
+group-day-month	A22	s	Oct
+group-day-month	B22	n	756.75
+group-day-month	A23	s	15-Oct
+group-day-month	B23	n	756.75
+group-day-month	A24	s	Nov
+group-day-month	B24	n	778.5
+group-day-month	A25	s	15-Nov
+group-day-month	B25	n	778.5
+group-day-month	A26	s	Dec
+group-day-month	B26	n	800.25
+group-day-month	A27	s	15-Dec
+group-day-month	B27	n	800.25
+group-day-month	A28	s	Grand Total
+group-day-month	B28	n	7162.75
+group-days-7	A3	s	Row Labels
+group-days-7	B3	s	Sum Amount
+group-days-7	A4	s	2024/01/15 - 2024/01/21
+group-days-7	B4	n	100
+group-days-7	A5	s	2024/02/12 - 2024/02/18
+group-days-7	B5	n	107.25
+group-days-7	A6	s	2024/03/11 - 2024/03/17
+group-days-7	B6	n	114.5
+group-days-7	A7	s	2024/04/15 - 2024/04/21
+group-days-7	B7	n	243.5
+group-days-7	A8	s	2024/06/10 - 2024/06/16
+group-days-7	B8	n	136.25
+group-days-7	A9	s	2024/07/15 - 2024/07/21
+group-days-7	B9	n	143.5
+group-days-7	A10	s	2024/08/12 - 2024/08/18
+group-days-7	B10	n	150.75
+group-days-7	A11	s	2024/09/09 - 2024/09/15
+group-days-7	B11	n	158
+group-days-7	A12	s	2024/10/14 - 2024/10/20
+group-days-7	B12	n	165.25
+group-days-7	A13	s	2024/11/11 - 2024/11/17
+group-days-7	B13	n	172.5
+group-days-7	A14	s	2024/12/09 - 2024/12/15
+group-days-7	B14	n	179.75
+group-days-7	A15	s	2025/01/13 - 2025/01/19
+group-days-7	A16	s	2025/02/10 - 2025/02/16
+group-days-7	B16	n	194.25
+group-days-7	A17	s	2025/03/10 - 2025/03/16
+group-days-7	B17	n	201.5
+group-days-7	A18	s	2025/04/14 - 2025/04/20
+group-days-7	B18	n	208.75
+group-days-7	A19	s	2025/05/12 - 2025/05/18
+group-days-7	B19	n	-75.5
+group-days-7	A20	s	2025/06/09 - 2025/06/15
+group-days-7	B20	n	223.25
+group-days-7	A21	s	2025/07/14 - 2025/07/20
+group-days-7	B21	n	230.5
+group-days-7	A22	s	2025/08/11 - 2025/08/17
+group-days-7	B22	n	237.75
+group-days-7	A23	s	2025/09/15 - 2025/09/21
+group-days-7	B23	n	0
+group-days-7	A24	s	2025/10/13 - 2025/10/19
+group-days-7	B24	n	252.25
+group-days-7	A25	s	2025/11/10 - 2025/11/16
+group-days-7	B25	n	259.5
+group-days-7	A26	s	>2025/12/09
+group-days-7	B26	n	3759.25
+group-days-7	A27	s	Grand Total
+group-days-7	B27	n	7162.75
+group-year-columns	A3	s	Sum Amount
+group-year-columns	B3	s	Column Labels
+group-year-columns	B4	s	2024
+group-year-columns	F4	s	2024 Total
+group-year-columns	G4	s	2025
+group-year-columns	K4	s	2025 Total
+group-year-columns	L4	s	2026
+group-year-columns	P4	s	2026 Total
+group-year-columns	Q4	s	Grand Total
+group-year-columns	A5	s	Row Labels
+group-year-columns	B5	s	Qtr1
+group-year-columns	C5	s	Qtr2
+group-year-columns	D5	s	Qtr3
+group-year-columns	E5	s	Qtr4
+group-year-columns	G5	s	Qtr1
+group-year-columns	H5	s	Qtr2
+group-year-columns	I5	s	Qtr3
+group-year-columns	J5	s	Qtr4
+group-year-columns	L5	s	Qtr1
+group-year-columns	M5	s	Qtr2
+group-year-columns	N5	s	Qtr3
+group-year-columns	O5	s	Qtr4
+group-year-columns	A6	s	East
+group-year-columns	B6	n	114.5
+group-year-columns	D6	n	143.5
+group-year-columns	E6	n	172.5
+group-year-columns	F6	n	430.5
+group-year-columns	G6	n	201.5
+group-year-columns	I6	n	230.5
+group-year-columns	J6	n	259.5
+group-year-columns	K6	n	691.5
+group-year-columns	L6	n	288.5
+group-year-columns	N6	n	317.5
+group-year-columns	O6	n	346.5
+group-year-columns	P6	n	952.5
+group-year-columns	Q6	n	2074.5
+group-year-columns	A7	s	North
+group-year-columns	B7	n	100
+group-year-columns	F7	n	100
+group-year-columns	H7	n	-75.5
+group-year-columns	I7	n	0
+group-year-columns	K7	n	-75.5
+group-year-columns	L7	n	0
+group-year-columns	M7	n	303
+group-year-columns	N7	n	332
+group-year-columns	P7	n	635
+group-year-columns	Q7	n	659.5
+group-year-columns	A8	s	South
+group-year-columns	B8	n	107.25
+group-year-columns	C8	n	136.25
+group-year-columns	E8	n	165.25
+group-year-columns	F8	n	408.75
+group-year-columns	G8	n	194.25
+group-year-columns	H8	n	223.25
+group-year-columns	J8	n	252.25
+group-year-columns	K8	n	669.75
+group-year-columns	L8	n	281.25
+group-year-columns	M8	n	310.25
+group-year-columns	O8	n	339.25
+group-year-columns	P8	n	930.75
+group-year-columns	Q8	n	2009.25
+group-year-columns	A9	s	West
+group-year-columns	C9	n	243.5
+group-year-columns	D9	n	150.75
+group-year-columns	E9	n	179.75
+group-year-columns	F9	n	574
+group-year-columns	H9	n	208.75
+group-year-columns	I9	n	237.75
+group-year-columns	J9	n	266.75
+group-year-columns	K9	n	713.25
+group-year-columns	M9	n	295.75
+group-year-columns	N9	n	324.75
+group-year-columns	O9	n	353.75
+group-year-columns	P9	n	974.25
+group-year-columns	Q9	n	2261.5
+group-year-columns	A10	s	(blank)
+group-year-columns	D10	n	158
+group-year-columns	F10	n	158
+group-year-columns	Q10	n	158
+group-year-columns	A11	s	Grand Total
+group-year-columns	B11	n	321.75
+group-year-columns	C11	n	379.75
+group-year-columns	D11	n	452.25
+group-year-columns	E11	n	517.5
+group-year-columns	F11	n	1671.25
+group-year-columns	G11	n	395.75
+group-year-columns	H11	n	356.5
+group-year-columns	I11	n	468.25
+group-year-columns	J11	n	778.5
+group-year-columns	K11	n	1999
+group-year-columns	L11	n	569.75
+group-year-columns	M11	n	909
+group-year-columns	N11	n	974.25
+group-year-columns	O11	n	1039.5
+group-year-columns	P11	n	3492.5
+group-year-columns	Q11	n	7162.75
+group-number-units	A3	s	Row Labels
+group-number-units	B3	s	Sum Amount
+group-number-units	C3	s	Count Amount
+group-number-units	A4	s	1-2
+group-number-units	B4	n	2790.5
+group-number-units	C4	n	15
+group-number-units	A5	s	3-5
+group-number-units	B5	n	4372.25
+group-number-units	C5	n	20
+group-number-units	A6	s	Grand Total
+group-number-units	B6	n	7162.75
+group-number-units	C6	n	35
+group-text-items	A3	s	Row Labels
+group-text-items	B3	s	Sum Amount
+group-text-items	A4	s	Group1
+group-text-items	B4	n	2734
+group-text-items	A5	s	East
+group-text-items	B5	n	2074.5
+group-text-items	A6	s	North
+group-text-items	B6	n	659.5
+group-text-items	A7	s	South
+group-text-items	B7	n	2009.25
+group-text-items	A8	s	South
+group-text-items	B8	n	2009.25
+group-text-items	A9	s	West
+group-text-items	B9	n	2261.5
+group-text-items	A10	s	West
+group-text-items	B10	n	2261.5
+group-text-items	A11	s	(blank)
+group-text-items	B11	n	158
+group-text-items	A12	s	(blank)
+group-text-items	B12	n	158
+group-text-items	A13	s	Grand Total
+group-text-items	B13	n	7162.75
+values-rows-region	A3	s	Row Labels
+values-rows-region	A4	s	East
+values-rows-region	A5	s	Sum Amount
+values-rows-region	B5	n	2074.5
+values-rows-region	A6	s	Sum Units
+values-rows-region	B6	n	26
+values-rows-region	A7	s	North
+values-rows-region	A8	s	Sum Amount
+values-rows-region	B8	n	659.5
+values-rows-region	A9	s	Sum Units
+values-rows-region	B9	n	19
+values-rows-region	A10	s	South
+values-rows-region	A11	s	Sum Amount
+values-rows-region	B11	n	2009.25
+values-rows-region	A12	s	Sum Units
+values-rows-region	B12	n	27
+values-rows-region	A13	s	West
+values-rows-region	A14	s	Sum Amount
+values-rows-region	B14	n	2261.5
+values-rows-region	A15	s	Sum Units
+values-rows-region	B15	n	29
+values-rows-region	A16	s	(blank)
+values-rows-region	A17	s	Sum Amount
+values-rows-region	B17	n	158
+values-rows-region	A18	s	Sum Units
+values-rows-region	B18	n	4
+values-rows-region	A19	s	Total Sum Amount
+values-rows-region	B19	n	7162.75
+values-rows-region	A20	s	Total Sum Units
+values-rows-region	B20	n	105
+values-rows-two-fields	A3	s	Region
+values-rows-two-fields	B3	s	Product
+values-rows-two-fields	C3	s	Values
+values-rows-two-fields	A4	s	East
+values-rows-two-fields	B4	s	Alpha
+values-rows-two-fields	C4	s	Sum Amount
+values-rows-two-fields	D4	n	691.5
+values-rows-two-fields	C5	s	Sum Units
+values-rows-two-fields	D5	n	7
+values-rows-two-fields	B6	s	Beta
+values-rows-two-fields	C6	s	Sum Amount
+values-rows-two-fields	D6	n	778.5
+values-rows-two-fields	C7	s	Sum Units
+values-rows-two-fields	D7	n	9
+values-rows-two-fields	B8	s	Gamma
+values-rows-two-fields	C8	s	Sum Amount
+values-rows-two-fields	D8	n	604.5
+values-rows-two-fields	C9	s	Sum Units
+values-rows-two-fields	D9	n	10
+values-rows-two-fields	A10	s	East Sum Amount
+values-rows-two-fields	D10	n	2074.5
+values-rows-two-fields	A11	s	East Sum Units
+values-rows-two-fields	D11	n	26
+values-rows-two-fields	A12	s	North
+values-rows-two-fields	B12	s	Alpha
+values-rows-two-fields	C12	s	Sum Amount
+values-rows-two-fields	D12	n	100
+values-rows-two-fields	C13	s	Sum Units
+values-rows-two-fields	D13	n	9
+values-rows-two-fields	B14	s	Beta
+values-rows-two-fields	C14	s	Sum Amount
+values-rows-two-fields	D14	n	227.5
+values-rows-two-fields	C15	s	Sum Units
+values-rows-two-fields	D15	n	6
+values-rows-two-fields	B16	s	Gamma
+values-rows-two-fields	C16	s	Sum Amount
+values-rows-two-fields	D16	n	332
+values-rows-two-fields	C17	s	Sum Units
+values-rows-two-fields	D17	n	4
+values-rows-two-fields	A18	s	North Sum Amount
+values-rows-two-fields	D18	n	659.5
+values-rows-two-fields	A19	s	North Sum Units
+values-rows-two-fields	D19	n	19
+values-rows-two-fields	A20	s	South
+values-rows-two-fields	B20	s	Alpha
+values-rows-two-fields	C20	s	Sum Amount
+values-rows-two-fields	D20	n	756.75
+values-rows-two-fields	C21	s	Sum Units
+values-rows-two-fields	D21	n	11
+values-rows-two-fields	B22	s	Beta
+values-rows-two-fields	C22	s	Sum Amount
+values-rows-two-fields	D22	n	582.75
+values-rows-two-fields	C23	s	Sum Units
+values-rows-two-fields	D23	n	7
+values-rows-two-fields	B24	s	Gamma
+values-rows-two-fields	C24	s	Sum Amount
+values-rows-two-fields	D24	n	669.75
+values-rows-two-fields	C25	s	Sum Units
+values-rows-two-fields	D25	n	9
+values-rows-two-fields	A26	s	South Sum Amount
+values-rows-two-fields	D26	n	2009.25
+values-rows-two-fields	A27	s	South Sum Units
+values-rows-two-fields	D27	n	27
+values-rows-two-fields	A28	s	West
+values-rows-two-fields	B28	s	Alpha
+values-rows-two-fields	C28	s	Sum Amount
+values-rows-two-fields	D28	n	748
+values-rows-two-fields	C29	s	Sum Units
+values-rows-two-fields	D29	n	12
+values-rows-two-fields	B30	s	Beta
+values-rows-two-fields	C30	s	Sum Amount
+values-rows-two-fields	D30	n	713.25
+values-rows-two-fields	C31	s	Sum Units
+values-rows-two-fields	D31	n	10
+values-rows-two-fields	B32	s	Gamma
+values-rows-two-fields	C32	s	Sum Amount
+values-rows-two-fields	D32	n	800.25
+values-rows-two-fields	C33	s	Sum Units
+values-rows-two-fields	D33	n	7
+values-rows-two-fields	A34	s	West Sum Amount
+values-rows-two-fields	D34	n	2261.5
+values-rows-two-fields	A35	s	West Sum Units
+values-rows-two-fields	D35	n	29
+values-rows-two-fields	A36	s	(blank)
+values-rows-two-fields	B36	s	Gamma
+values-rows-two-fields	C36	s	Sum Amount
+values-rows-two-fields	D36	n	158
+values-rows-two-fields	C37	s	Sum Units
+values-rows-two-fields	D37	n	4
+values-rows-two-fields	A38	s	(blank) Sum Amount
+values-rows-two-fields	D38	n	158
+values-rows-two-fields	A39	s	(blank) Sum Units
+values-rows-two-fields	D39	n	4
+values-rows-two-fields	A40	s	Total Sum Amount
+values-rows-two-fields	D40	n	7162.75
+values-rows-two-fields	A41	s	Total Sum Units
+values-rows-two-fields	D41	n	105
+values-rows-first	A3	s	Row Labels
+values-rows-first	A4	s	Sum Amount
+values-rows-first	A5	s	East
+values-rows-first	B5	n	2074.5
+values-rows-first	A6	s	North
+values-rows-first	B6	n	659.5
+values-rows-first	A7	s	South
+values-rows-first	B7	n	2009.25
+values-rows-first	A8	s	West
+values-rows-first	B8	n	2261.5
+values-rows-first	A9	s	(blank)
+values-rows-first	B9	n	158
+values-rows-first	A10	s	Sum Units
+values-rows-first	A11	s	East
+values-rows-first	B11	n	26
+values-rows-first	A12	s	North
+values-rows-first	B12	n	19
+values-rows-first	A13	s	South
+values-rows-first	B13	n	27
+values-rows-first	A14	s	West
+values-rows-first	B14	n	29
+values-rows-first	A15	s	(blank)
+values-rows-first	B15	n	4
+values-rows-first	A16	s	Total Sum Amount
+values-rows-first	B16	n	7162.75
+values-rows-first	A17	s	Total Sum Units
+values-rows-first	B17	n	105
+values-rows-with-columns	B3	s	Column Labels
+values-rows-with-columns	A4	s	Row Labels
+values-rows-with-columns	B4	s	Alpha
+values-rows-with-columns	C4	s	Beta
+values-rows-with-columns	D4	s	Gamma
+values-rows-with-columns	E4	s	Grand Total
+values-rows-with-columns	A5	s	East
+values-rows-with-columns	A6	s	Sum Amount
+values-rows-with-columns	B6	n	691.5
+values-rows-with-columns	C6	n	778.5
+values-rows-with-columns	D6	n	604.5
+values-rows-with-columns	E6	n	2074.5
+values-rows-with-columns	A7	s	Sum Units
+values-rows-with-columns	B7	n	7
+values-rows-with-columns	C7	n	9
+values-rows-with-columns	D7	n	10
+values-rows-with-columns	E7	n	26
+values-rows-with-columns	A8	s	North
+values-rows-with-columns	A9	s	Sum Amount
+values-rows-with-columns	B9	n	100
+values-rows-with-columns	C9	n	227.5
+values-rows-with-columns	D9	n	332
+values-rows-with-columns	E9	n	659.5
+values-rows-with-columns	A10	s	Sum Units
+values-rows-with-columns	B10	n	9
+values-rows-with-columns	C10	n	6
+values-rows-with-columns	D10	n	4
+values-rows-with-columns	E10	n	19
+values-rows-with-columns	A11	s	South
+values-rows-with-columns	A12	s	Sum Amount
+values-rows-with-columns	B12	n	756.75
+values-rows-with-columns	C12	n	582.75
+values-rows-with-columns	D12	n	669.75
+values-rows-with-columns	E12	n	2009.25
+values-rows-with-columns	A13	s	Sum Units
+values-rows-with-columns	B13	n	11
+values-rows-with-columns	C13	n	7
+values-rows-with-columns	D13	n	9
+values-rows-with-columns	E13	n	27
+values-rows-with-columns	A14	s	West
+values-rows-with-columns	A15	s	Sum Amount
+values-rows-with-columns	B15	n	748
+values-rows-with-columns	C15	n	713.25
+values-rows-with-columns	D15	n	800.25
+values-rows-with-columns	E15	n	2261.5
+values-rows-with-columns	A16	s	Sum Units
+values-rows-with-columns	B16	n	12
+values-rows-with-columns	C16	n	10
+values-rows-with-columns	D16	n	7
+values-rows-with-columns	E16	n	29
+values-rows-with-columns	A17	s	(blank)
+values-rows-with-columns	A18	s	Sum Amount
+values-rows-with-columns	D18	n	158
+values-rows-with-columns	E18	n	158
+values-rows-with-columns	A19	s	Sum Units
+values-rows-with-columns	D19	n	4
+values-rows-with-columns	E19	n	4
+values-rows-with-columns	A20	s	Total Sum Amount
+values-rows-with-columns	B20	n	2296.25
+values-rows-with-columns	C20	n	2302
+values-rows-with-columns	D20	n	2564.5
+values-rows-with-columns	E20	n	7162.75
+values-rows-with-columns	A21	s	Total Sum Units
+values-rows-with-columns	B21	n	39
+values-rows-with-columns	C21	n	32
+values-rows-with-columns	D21	n	34
+values-rows-with-columns	E21	n	105
+values-columns-after-field	B3	s	Column Labels
+values-columns-after-field	B4	s	Sum Amount
+values-columns-after-field	E4	s	Sum Units
+values-columns-after-field	H4	s	Total Sum Amount
+values-columns-after-field	I4	s	Total Sum Units
+values-columns-after-field	A5	s	Row Labels
+values-columns-after-field	B5	s	Alpha
+values-columns-after-field	C5	s	Beta
+values-columns-after-field	D5	s	Gamma
+values-columns-after-field	E5	s	Alpha
+values-columns-after-field	F5	s	Beta
+values-columns-after-field	G5	s	Gamma
+values-columns-after-field	A6	s	East
+values-columns-after-field	B6	n	691.5
+values-columns-after-field	C6	n	778.5
+values-columns-after-field	D6	n	604.5
+values-columns-after-field	E6	n	7
+values-columns-after-field	F6	n	9
+values-columns-after-field	G6	n	10
+values-columns-after-field	H6	n	2074.5
+values-columns-after-field	I6	n	26
+values-columns-after-field	A7	s	North
+values-columns-after-field	B7	n	100
+values-columns-after-field	C7	n	227.5
+values-columns-after-field	D7	n	332
+values-columns-after-field	E7	n	9
+values-columns-after-field	F7	n	6
+values-columns-after-field	G7	n	4
+values-columns-after-field	H7	n	659.5
+values-columns-after-field	I7	n	19
+values-columns-after-field	A8	s	South
+values-columns-after-field	B8	n	756.75
+values-columns-after-field	C8	n	582.75
+values-columns-after-field	D8	n	669.75
+values-columns-after-field	E8	n	11
+values-columns-after-field	F8	n	7
+values-columns-after-field	G8	n	9
+values-columns-after-field	H8	n	2009.25
+values-columns-after-field	I8	n	27
+values-columns-after-field	A9	s	West
+values-columns-after-field	B9	n	748
+values-columns-after-field	C9	n	713.25
+values-columns-after-field	D9	n	800.25
+values-columns-after-field	E9	n	12
+values-columns-after-field	F9	n	10
+values-columns-after-field	G9	n	7
+values-columns-after-field	H9	n	2261.5
+values-columns-after-field	I9	n	29
+values-columns-after-field	A10	s	(blank)
+values-columns-after-field	D10	n	158
+values-columns-after-field	G10	n	4
+values-columns-after-field	H10	n	158
+values-columns-after-field	I10	n	4
+values-columns-after-field	A11	s	Grand Total
+values-columns-after-field	B11	n	2296.25
+values-columns-after-field	C11	n	2302
+values-columns-after-field	D11	n	2564.5
+values-columns-after-field	E11	n	39
+values-columns-after-field	F11	n	32
+values-columns-after-field	G11	n	34
+values-columns-after-field	H11	n	7162.75
+values-columns-after-field	I11	n	105
+subtotals-multiple-compact	A3	s	Row Labels
+subtotals-multiple-compact	B3	s	Sum Amount
+subtotals-multiple-compact	A4	s	East
+subtotals-multiple-compact	A5	s	Alpha
+subtotals-multiple-compact	B5	n	691.5
+subtotals-multiple-compact	A6	s	Beta
+subtotals-multiple-compact	B6	n	778.5
+subtotals-multiple-compact	A7	s	Gamma
+subtotals-multiple-compact	B7	n	604.5
+subtotals-multiple-compact	A8	s	East Sum
+subtotals-multiple-compact	B8	n	2074.5
+subtotals-multiple-compact	A9	s	East Count
+subtotals-multiple-compact	B9	n	9
+subtotals-multiple-compact	A10	s	East Average
+subtotals-multiple-compact	B10	n	230.5
+subtotals-multiple-compact	A11	s	East Max
+subtotals-multiple-compact	B11	n	346.5
+subtotals-multiple-compact	A12	s	East Min
+subtotals-multiple-compact	B12	n	114.5
+subtotals-multiple-compact	A13	s	North
+subtotals-multiple-compact	A14	s	Alpha
+subtotals-multiple-compact	B14	n	100
+subtotals-multiple-compact	A15	s	Beta
+subtotals-multiple-compact	B15	n	227.5
+subtotals-multiple-compact	A16	s	Gamma
+subtotals-multiple-compact	B16	n	332
+subtotals-multiple-compact	A17	s	North Sum
+subtotals-multiple-compact	B17	n	659.5
+subtotals-multiple-compact	A18	s	North Count
+subtotals-multiple-compact	B18	n	6
+subtotals-multiple-compact	A19	s	North Average
+subtotals-multiple-compact	B19	n	131.9
+subtotals-multiple-compact	A20	s	North Max
+subtotals-multiple-compact	B20	n	332
+subtotals-multiple-compact	A21	s	North Min
+subtotals-multiple-compact	B21	n	-75.5
+subtotals-multiple-compact	A22	s	South
+subtotals-multiple-compact	A23	s	Alpha
+subtotals-multiple-compact	B23	n	756.75
+subtotals-multiple-compact	A24	s	Beta
+subtotals-multiple-compact	B24	n	582.75
+subtotals-multiple-compact	A25	s	Gamma
+subtotals-multiple-compact	B25	n	669.75
+subtotals-multiple-compact	A26	s	South Sum
+subtotals-multiple-compact	B26	n	2009.25
+subtotals-multiple-compact	A27	s	South Count
+subtotals-multiple-compact	B27	n	9
+subtotals-multiple-compact	A28	s	South Average
+subtotals-multiple-compact	B28	n	223.25
+subtotals-multiple-compact	A29	s	South Max
+subtotals-multiple-compact	B29	n	339.25
+subtotals-multiple-compact	A30	s	South Min
+subtotals-multiple-compact	B30	n	107.25
+subtotals-multiple-compact	A31	s	West
+subtotals-multiple-compact	A32	s	Alpha
+subtotals-multiple-compact	B32	n	748
+subtotals-multiple-compact	A33	s	Beta
+subtotals-multiple-compact	B33	n	713.25
+subtotals-multiple-compact	A34	s	Gamma
+subtotals-multiple-compact	B34	n	800.25
+subtotals-multiple-compact	A35	s	West Sum
+subtotals-multiple-compact	B35	n	2261.5
+subtotals-multiple-compact	A36	s	West Count
+subtotals-multiple-compact	B36	n	10
+subtotals-multiple-compact	A37	s	West Average
+subtotals-multiple-compact	B37	n	226.15
+subtotals-multiple-compact	A38	s	West Max
+subtotals-multiple-compact	B38	n	353.75
+subtotals-multiple-compact	A39	s	West Min
+subtotals-multiple-compact	B39	n	121.75
+subtotals-multiple-compact	A40	s	(blank)
+subtotals-multiple-compact	A41	s	Gamma
+subtotals-multiple-compact	B41	n	158
+subtotals-multiple-compact	A42	s	(blank) Sum
+subtotals-multiple-compact	B42	n	158
+subtotals-multiple-compact	A43	s	(blank) Count
+subtotals-multiple-compact	B43	n	1
+subtotals-multiple-compact	A44	s	(blank) Average
+subtotals-multiple-compact	B44	n	158
+subtotals-multiple-compact	A45	s	(blank) Max
+subtotals-multiple-compact	B45	n	158
+subtotals-multiple-compact	A46	s	(blank) Min
+subtotals-multiple-compact	B46	n	158
+subtotals-multiple-compact	A47	s	Grand Total
+subtotals-multiple-compact	B47	n	7162.75
+subtotals-multiple-outline-top	A3	s	Region
+subtotals-multiple-outline-top	B3	s	Product
+subtotals-multiple-outline-top	C3	s	Sum Amount
+subtotals-multiple-outline-top	A4	s	East
+subtotals-multiple-outline-top	B5	s	Alpha
+subtotals-multiple-outline-top	C5	n	691.5
+subtotals-multiple-outline-top	B6	s	Beta
+subtotals-multiple-outline-top	C6	n	778.5
+subtotals-multiple-outline-top	B7	s	Gamma
+subtotals-multiple-outline-top	C7	n	604.5
+subtotals-multiple-outline-top	A8	s	East Sum
+subtotals-multiple-outline-top	C8	n	2074.5
+subtotals-multiple-outline-top	A9	s	East Count
+subtotals-multiple-outline-top	C9	n	9
+subtotals-multiple-outline-top	A10	s	East Average
+subtotals-multiple-outline-top	C10	n	230.5
+subtotals-multiple-outline-top	A11	s	East Max
+subtotals-multiple-outline-top	C11	n	346.5
+subtotals-multiple-outline-top	A12	s	East Min
+subtotals-multiple-outline-top	C12	n	114.5
+subtotals-multiple-outline-top	A13	s	North
+subtotals-multiple-outline-top	B14	s	Alpha
+subtotals-multiple-outline-top	C14	n	100
+subtotals-multiple-outline-top	B15	s	Beta
+subtotals-multiple-outline-top	C15	n	227.5
+subtotals-multiple-outline-top	B16	s	Gamma
+subtotals-multiple-outline-top	C16	n	332
+subtotals-multiple-outline-top	A17	s	North Sum
+subtotals-multiple-outline-top	C17	n	659.5
+subtotals-multiple-outline-top	A18	s	North Count
+subtotals-multiple-outline-top	C18	n	6
+subtotals-multiple-outline-top	A19	s	North Average
+subtotals-multiple-outline-top	C19	n	131.9
+subtotals-multiple-outline-top	A20	s	North Max
+subtotals-multiple-outline-top	C20	n	332
+subtotals-multiple-outline-top	A21	s	North Min
+subtotals-multiple-outline-top	C21	n	-75.5
+subtotals-multiple-outline-top	A22	s	South
+subtotals-multiple-outline-top	B23	s	Alpha
+subtotals-multiple-outline-top	C23	n	756.75
+subtotals-multiple-outline-top	B24	s	Beta
+subtotals-multiple-outline-top	C24	n	582.75
+subtotals-multiple-outline-top	B25	s	Gamma
+subtotals-multiple-outline-top	C25	n	669.75
+subtotals-multiple-outline-top	A26	s	South Sum
+subtotals-multiple-outline-top	C26	n	2009.25
+subtotals-multiple-outline-top	A27	s	South Count
+subtotals-multiple-outline-top	C27	n	9
+subtotals-multiple-outline-top	A28	s	South Average
+subtotals-multiple-outline-top	C28	n	223.25
+subtotals-multiple-outline-top	A29	s	South Max
+subtotals-multiple-outline-top	C29	n	339.25
+subtotals-multiple-outline-top	A30	s	South Min
+subtotals-multiple-outline-top	C30	n	107.25
+subtotals-multiple-outline-top	A31	s	West
+subtotals-multiple-outline-top	B32	s	Alpha
+subtotals-multiple-outline-top	C32	n	748
+subtotals-multiple-outline-top	B33	s	Beta
+subtotals-multiple-outline-top	C33	n	713.25
+subtotals-multiple-outline-top	B34	s	Gamma
+subtotals-multiple-outline-top	C34	n	800.25
+subtotals-multiple-outline-top	A35	s	West Sum
+subtotals-multiple-outline-top	C35	n	2261.5
+subtotals-multiple-outline-top	A36	s	West Count
+subtotals-multiple-outline-top	C36	n	10
+subtotals-multiple-outline-top	A37	s	West Average
+subtotals-multiple-outline-top	C37	n	226.15
+subtotals-multiple-outline-top	A38	s	West Max
+subtotals-multiple-outline-top	C38	n	353.75
+subtotals-multiple-outline-top	A39	s	West Min
+subtotals-multiple-outline-top	C39	n	121.75
+subtotals-multiple-outline-top	A40	s	(blank)
+subtotals-multiple-outline-top	B41	s	Gamma
+subtotals-multiple-outline-top	C41	n	158
+subtotals-multiple-outline-top	A42	s	(blank) Sum
+subtotals-multiple-outline-top	C42	n	158
+subtotals-multiple-outline-top	A43	s	(blank) Count
+subtotals-multiple-outline-top	C43	n	1
+subtotals-multiple-outline-top	A44	s	(blank) Average
+subtotals-multiple-outline-top	C44	n	158
+subtotals-multiple-outline-top	A45	s	(blank) Max
+subtotals-multiple-outline-top	C45	n	158
+subtotals-multiple-outline-top	A46	s	(blank) Min
+subtotals-multiple-outline-top	C46	n	158
+subtotals-multiple-outline-top	A47	s	Grand Total
+subtotals-multiple-outline-top	C47	n	7162.75
+subtotals-multiple-outline-bottom	A3	s	Region
+subtotals-multiple-outline-bottom	B3	s	Product
+subtotals-multiple-outline-bottom	C3	s	Sum Amount
+subtotals-multiple-outline-bottom	A4	s	East
+subtotals-multiple-outline-bottom	B5	s	Alpha
+subtotals-multiple-outline-bottom	C5	n	691.5
+subtotals-multiple-outline-bottom	B6	s	Beta
+subtotals-multiple-outline-bottom	C6	n	778.5
+subtotals-multiple-outline-bottom	B7	s	Gamma
+subtotals-multiple-outline-bottom	C7	n	604.5
+subtotals-multiple-outline-bottom	A8	s	East Sum
+subtotals-multiple-outline-bottom	C8	n	2074.5
+subtotals-multiple-outline-bottom	A9	s	East Count
+subtotals-multiple-outline-bottom	C9	n	9
+subtotals-multiple-outline-bottom	A10	s	East Average
+subtotals-multiple-outline-bottom	C10	n	230.5
+subtotals-multiple-outline-bottom	A11	s	East Max
+subtotals-multiple-outline-bottom	C11	n	346.5
+subtotals-multiple-outline-bottom	A12	s	East Min
+subtotals-multiple-outline-bottom	C12	n	114.5
+subtotals-multiple-outline-bottom	A13	s	North
+subtotals-multiple-outline-bottom	B14	s	Alpha
+subtotals-multiple-outline-bottom	C14	n	100
+subtotals-multiple-outline-bottom	B15	s	Beta
+subtotals-multiple-outline-bottom	C15	n	227.5
+subtotals-multiple-outline-bottom	B16	s	Gamma
+subtotals-multiple-outline-bottom	C16	n	332
+subtotals-multiple-outline-bottom	A17	s	North Sum
+subtotals-multiple-outline-bottom	C17	n	659.5
+subtotals-multiple-outline-bottom	A18	s	North Count
+subtotals-multiple-outline-bottom	C18	n	6
+subtotals-multiple-outline-bottom	A19	s	North Average
+subtotals-multiple-outline-bottom	C19	n	131.9
+subtotals-multiple-outline-bottom	A20	s	North Max
+subtotals-multiple-outline-bottom	C20	n	332
+subtotals-multiple-outline-bottom	A21	s	North Min
+subtotals-multiple-outline-bottom	C21	n	-75.5
+subtotals-multiple-outline-bottom	A22	s	South
+subtotals-multiple-outline-bottom	B23	s	Alpha
+subtotals-multiple-outline-bottom	C23	n	756.75
+subtotals-multiple-outline-bottom	B24	s	Beta
+subtotals-multiple-outline-bottom	C24	n	582.75
+subtotals-multiple-outline-bottom	B25	s	Gamma
+subtotals-multiple-outline-bottom	C25	n	669.75
+subtotals-multiple-outline-bottom	A26	s	South Sum
+subtotals-multiple-outline-bottom	C26	n	2009.25
+subtotals-multiple-outline-bottom	A27	s	South Count
+subtotals-multiple-outline-bottom	C27	n	9
+subtotals-multiple-outline-bottom	A28	s	South Average
+subtotals-multiple-outline-bottom	C28	n	223.25
+subtotals-multiple-outline-bottom	A29	s	South Max
+subtotals-multiple-outline-bottom	C29	n	339.25
+subtotals-multiple-outline-bottom	A30	s	South Min
+subtotals-multiple-outline-bottom	C30	n	107.25
+subtotals-multiple-outline-bottom	A31	s	West
+subtotals-multiple-outline-bottom	B32	s	Alpha
+subtotals-multiple-outline-bottom	C32	n	748
+subtotals-multiple-outline-bottom	B33	s	Beta
+subtotals-multiple-outline-bottom	C33	n	713.25
+subtotals-multiple-outline-bottom	B34	s	Gamma
+subtotals-multiple-outline-bottom	C34	n	800.25
+subtotals-multiple-outline-bottom	A35	s	West Sum
+subtotals-multiple-outline-bottom	C35	n	2261.5
+subtotals-multiple-outline-bottom	A36	s	West Count
+subtotals-multiple-outline-bottom	C36	n	10
+subtotals-multiple-outline-bottom	A37	s	West Average
+subtotals-multiple-outline-bottom	C37	n	226.15
+subtotals-multiple-outline-bottom	A38	s	West Max
+subtotals-multiple-outline-bottom	C38	n	353.75
+subtotals-multiple-outline-bottom	A39	s	West Min
+subtotals-multiple-outline-bottom	C39	n	121.75
+subtotals-multiple-outline-bottom	A40	s	(blank)
+subtotals-multiple-outline-bottom	B41	s	Gamma
+subtotals-multiple-outline-bottom	C41	n	158
+subtotals-multiple-outline-bottom	A42	s	(blank) Sum
+subtotals-multiple-outline-bottom	C42	n	158
+subtotals-multiple-outline-bottom	A43	s	(blank) Count
+subtotals-multiple-outline-bottom	C43	n	1
+subtotals-multiple-outline-bottom	A44	s	(blank) Average
+subtotals-multiple-outline-bottom	C44	n	158
+subtotals-multiple-outline-bottom	A45	s	(blank) Max
+subtotals-multiple-outline-bottom	C45	n	158
+subtotals-multiple-outline-bottom	A46	s	(blank) Min
+subtotals-multiple-outline-bottom	C46	n	158
+subtotals-multiple-outline-bottom	A47	s	Grand Total
+subtotals-multiple-outline-bottom	C47	n	7162.75
+subtotals-multiple-tabular	A3	s	Region
+subtotals-multiple-tabular	B3	s	Product
+subtotals-multiple-tabular	C3	s	Sum Amount
+subtotals-multiple-tabular	A4	s	East
+subtotals-multiple-tabular	B4	s	Alpha
+subtotals-multiple-tabular	C4	n	691.5
+subtotals-multiple-tabular	B5	s	Beta
+subtotals-multiple-tabular	C5	n	778.5
+subtotals-multiple-tabular	B6	s	Gamma
+subtotals-multiple-tabular	C6	n	604.5
+subtotals-multiple-tabular	A7	s	East Sum
+subtotals-multiple-tabular	C7	n	2074.5
+subtotals-multiple-tabular	A8	s	East Count
+subtotals-multiple-tabular	C8	n	9
+subtotals-multiple-tabular	A9	s	East Average
+subtotals-multiple-tabular	C9	n	230.5
+subtotals-multiple-tabular	A10	s	East Max
+subtotals-multiple-tabular	C10	n	346.5
+subtotals-multiple-tabular	A11	s	East Min
+subtotals-multiple-tabular	C11	n	114.5
+subtotals-multiple-tabular	A12	s	North
+subtotals-multiple-tabular	B12	s	Alpha
+subtotals-multiple-tabular	C12	n	100
+subtotals-multiple-tabular	B13	s	Beta
+subtotals-multiple-tabular	C13	n	227.5
+subtotals-multiple-tabular	B14	s	Gamma
+subtotals-multiple-tabular	C14	n	332
+subtotals-multiple-tabular	A15	s	North Sum
+subtotals-multiple-tabular	C15	n	659.5
+subtotals-multiple-tabular	A16	s	North Count
+subtotals-multiple-tabular	C16	n	6
+subtotals-multiple-tabular	A17	s	North Average
+subtotals-multiple-tabular	C17	n	131.9
+subtotals-multiple-tabular	A18	s	North Max
+subtotals-multiple-tabular	C18	n	332
+subtotals-multiple-tabular	A19	s	North Min
+subtotals-multiple-tabular	C19	n	-75.5
+subtotals-multiple-tabular	A20	s	South
+subtotals-multiple-tabular	B20	s	Alpha
+subtotals-multiple-tabular	C20	n	756.75
+subtotals-multiple-tabular	B21	s	Beta
+subtotals-multiple-tabular	C21	n	582.75
+subtotals-multiple-tabular	B22	s	Gamma
+subtotals-multiple-tabular	C22	n	669.75
+subtotals-multiple-tabular	A23	s	South Sum
+subtotals-multiple-tabular	C23	n	2009.25
+subtotals-multiple-tabular	A24	s	South Count
+subtotals-multiple-tabular	C24	n	9
+subtotals-multiple-tabular	A25	s	South Average
+subtotals-multiple-tabular	C25	n	223.25
+subtotals-multiple-tabular	A26	s	South Max
+subtotals-multiple-tabular	C26	n	339.25
+subtotals-multiple-tabular	A27	s	South Min
+subtotals-multiple-tabular	C27	n	107.25
+subtotals-multiple-tabular	A28	s	West
+subtotals-multiple-tabular	B28	s	Alpha
+subtotals-multiple-tabular	C28	n	748
+subtotals-multiple-tabular	B29	s	Beta
+subtotals-multiple-tabular	C29	n	713.25
+subtotals-multiple-tabular	B30	s	Gamma
+subtotals-multiple-tabular	C30	n	800.25
+subtotals-multiple-tabular	A31	s	West Sum
+subtotals-multiple-tabular	C31	n	2261.5
+subtotals-multiple-tabular	A32	s	West Count
+subtotals-multiple-tabular	C32	n	10
+subtotals-multiple-tabular	A33	s	West Average
+subtotals-multiple-tabular	C33	n	226.15
+subtotals-multiple-tabular	A34	s	West Max
+subtotals-multiple-tabular	C34	n	353.75
+subtotals-multiple-tabular	A35	s	West Min
+subtotals-multiple-tabular	C35	n	121.75
+subtotals-multiple-tabular	A36	s	(blank)
+subtotals-multiple-tabular	B36	s	Gamma
+subtotals-multiple-tabular	C36	n	158
+subtotals-multiple-tabular	A37	s	(blank) Sum
+subtotals-multiple-tabular	C37	n	158
+subtotals-multiple-tabular	A38	s	(blank) Count
+subtotals-multiple-tabular	C38	n	1
+subtotals-multiple-tabular	A39	s	(blank) Average
+subtotals-multiple-tabular	C39	n	158
+subtotals-multiple-tabular	A40	s	(blank) Max
+subtotals-multiple-tabular	C40	n	158
+subtotals-multiple-tabular	A41	s	(blank) Min
+subtotals-multiple-tabular	C41	n	158
+subtotals-multiple-tabular	A42	s	Grand Total
+subtotals-multiple-tabular	C42	n	7162.75
+subtotals-all-eleven	A3	s	Region
+subtotals-all-eleven	B3	s	Product
+subtotals-all-eleven	C3	s	Sum Amount
+subtotals-all-eleven	A4	s	East
+subtotals-all-eleven	B5	s	Alpha
+subtotals-all-eleven	C5	n	691.5
+subtotals-all-eleven	B6	s	Beta
+subtotals-all-eleven	C6	n	778.5
+subtotals-all-eleven	B7	s	Gamma
+subtotals-all-eleven	C7	n	604.5
+subtotals-all-eleven	A8	s	East Sum
+subtotals-all-eleven	C8	n	2074.5
+subtotals-all-eleven	A9	s	East Count
+subtotals-all-eleven	C9	n	9
+subtotals-all-eleven	A10	s	East Average
+subtotals-all-eleven	C10	n	230.5
+subtotals-all-eleven	A11	s	East Max
+subtotals-all-eleven	C11	n	346.5
+subtotals-all-eleven	A12	s	East Min
+subtotals-all-eleven	C12	n	114.5
+subtotals-all-eleven	A13	s	East Product
+subtotals-all-eleven	C13	n	1.0842329854290563e+21
+subtotals-all-eleven	A14	s	East Count
+subtotals-all-eleven	C14	n	9
+subtotals-all-eleven	A15	s	East StdDev
+subtotals-all-eleven	C15	n	79.4197708382491
+subtotals-all-eleven	A16	s	East StdDevp
+subtotals-all-eleven	C16	n	74.87767802667673
+subtotals-all-eleven	A17	s	East Var
+subtotals-all-eleven	C17	n	6307.5
+subtotals-all-eleven	A18	s	East Varp
+subtotals-all-eleven	C18	n	5606.666666666667
+subtotals-all-eleven	A19	s	North
+subtotals-all-eleven	B20	s	Alpha
+subtotals-all-eleven	C20	n	100
+subtotals-all-eleven	B21	s	Beta
+subtotals-all-eleven	C21	n	227.5
+subtotals-all-eleven	B22	s	Gamma
+subtotals-all-eleven	C22	n	332
+subtotals-all-eleven	A23	s	North Sum
+subtotals-all-eleven	C23	n	659.5
+subtotals-all-eleven	A24	s	North Count
+subtotals-all-eleven	C24	n	6
+subtotals-all-eleven	A25	s	North Average
+subtotals-all-eleven	C25	n	131.9
+subtotals-all-eleven	A26	s	North Max
+subtotals-all-eleven	C26	n	332
+subtotals-all-eleven	A27	s	North Min
+subtotals-all-eleven	C27	n	-75.5
+subtotals-all-eleven	A28	s	North Product
+subtotals-all-eleven	C28	n	0
+subtotals-all-eleven	A29	s	North Count
+subtotals-all-eleven	C29	n	5
+subtotals-all-eleven	A30	s	North StdDev
+subtotals-all-eleven	C30	n	180.7935286452477
+subtotals-all-eleven	A31	s	North StdDevp
+subtotals-all-eleven	C31	n	161.70664797713172
+subtotals-all-eleven	A32	s	North Var
+subtotals-all-eleven	C32	n	32686.3
+subtotals-all-eleven	A33	s	North Varp
+subtotals-all-eleven	C33	n	26149.04
+subtotals-all-eleven	A34	s	South
+subtotals-all-eleven	B35	s	Alpha
+subtotals-all-eleven	C35	n	756.75
+subtotals-all-eleven	B36	s	Beta
+subtotals-all-eleven	C36	n	582.75
+subtotals-all-eleven	B37	s	Gamma
+subtotals-all-eleven	C37	n	669.75
+subtotals-all-eleven	A38	s	South Sum
+subtotals-all-eleven	C38	n	2009.25
+subtotals-all-eleven	A39	s	South Count
+subtotals-all-eleven	C39	n	9
+subtotals-all-eleven	A40	s	South Average
+subtotals-all-eleven	C40	n	223.25
+subtotals-all-eleven	A41	s	South Max
+subtotals-all-eleven	C41	n	339.25
+subtotals-all-eleven	A42	s	South Min
+subtotals-all-eleven	C42	n	107.25
+subtotals-all-eleven	A43	s	South Product
+subtotals-all-eleven	C43	n	7.819574605146929e+20
+subtotals-all-eleven	A44	s	South Count
+subtotals-all-eleven	C44	n	9
+subtotals-all-eleven	A45	s	South StdDev
+subtotals-all-eleven	C45	n	79.4197708382491
+subtotals-all-eleven	A46	s	South StdDevp
+subtotals-all-eleven	C46	n	74.87767802667673
+subtotals-all-eleven	A47	s	South Var
+subtotals-all-eleven	C47	n	6307.5
+subtotals-all-eleven	A48	s	South Varp
+subtotals-all-eleven	C48	n	5606.666666666667
+subtotals-all-eleven	A49	s	West
+subtotals-all-eleven	B50	s	Alpha
+subtotals-all-eleven	C50	n	748
+subtotals-all-eleven	B51	s	Beta
+subtotals-all-eleven	C51	n	713.25
+subtotals-all-eleven	B52	s	Gamma
+subtotals-all-eleven	C52	n	800.25
+subtotals-all-eleven	A53	s	West Sum
+subtotals-all-eleven	C53	n	2261.5
+subtotals-all-eleven	A54	s	West Count
+subtotals-all-eleven	C54	n	10
+subtotals-all-eleven	A55	s	West Average
+subtotals-all-eleven	C55	n	226.15
+subtotals-all-eleven	A56	s	West Max
+subtotals-all-eleven	C56	n	353.75
+subtotals-all-eleven	A57	s	West Min
+subtotals-all-eleven	C57	n	121.75
+subtotals-all-eleven	A58	s	West Product
+subtotals-all-eleven	C58	n	1.8066996444017885e+23
+subtotals-all-eleven	A59	s	West Count
+subtotals-all-eleven	C59	n	10
+subtotals-all-eleven	A60	s	West StdDev
+subtotals-all-eleven	C60	n	83.38025345767826
+subtotals-all-eleven	A61	s	West StdDevp
+subtotals-all-eleven	C61	n	79.10145384251797
+subtotals-all-eleven	A62	s	West Var
+subtotals-all-eleven	C62	n	6952.266666666669
+subtotals-all-eleven	A63	s	West Varp
+subtotals-all-eleven	C63	n	6257.04
+subtotals-all-eleven	A64	s	(blank)
+subtotals-all-eleven	B65	s	Gamma
+subtotals-all-eleven	C65	n	158
+subtotals-all-eleven	A66	s	(blank) Sum
+subtotals-all-eleven	C66	n	158
+subtotals-all-eleven	A67	s	(blank) Count
+subtotals-all-eleven	C67	n	1
+subtotals-all-eleven	A68	s	(blank) Average
+subtotals-all-eleven	C68	n	158
+subtotals-all-eleven	A69	s	(blank) Max
+subtotals-all-eleven	C69	n	158
+subtotals-all-eleven	A70	s	(blank) Min
+subtotals-all-eleven	C70	n	158
+subtotals-all-eleven	A71	s	(blank) Product
+subtotals-all-eleven	C71	n	158
+subtotals-all-eleven	A72	s	(blank) Count
+subtotals-all-eleven	C72	n	1
+subtotals-all-eleven	A73	s	(blank) StdDev
+subtotals-all-eleven	C73	e	-2146826281
+subtotals-all-eleven	A74	s	(blank) StdDevp
+subtotals-all-eleven	C74	n	0
+subtotals-all-eleven	A75	s	(blank) Var
+subtotals-all-eleven	C75	e	-2146826281
+subtotals-all-eleven	A76	s	(blank) Varp
+subtotals-all-eleven	C76	n	0
+subtotals-all-eleven	A77	s	Grand Total
+subtotals-all-eleven	C77	n	7162.75
+subtotals-multiple-two-data	A3	s	Region
+subtotals-multiple-two-data	B3	s	Product
+subtotals-multiple-two-data	C3	s	Sum Amount
+subtotals-multiple-two-data	D3	s	Sum Units
+subtotals-multiple-two-data	A4	s	East
+subtotals-multiple-two-data	B5	s	Alpha
+subtotals-multiple-two-data	C5	n	691.5
+subtotals-multiple-two-data	D5	n	7
+subtotals-multiple-two-data	B6	s	Beta
+subtotals-multiple-two-data	C6	n	778.5
+subtotals-multiple-two-data	D6	n	9
+subtotals-multiple-two-data	B7	s	Gamma
+subtotals-multiple-two-data	C7	n	604.5
+subtotals-multiple-two-data	D7	n	10
+subtotals-multiple-two-data	A8	s	East Sum
+subtotals-multiple-two-data	C8	n	2074.5
+subtotals-multiple-two-data	D8	n	26
+subtotals-multiple-two-data	A9	s	East Count
+subtotals-multiple-two-data	C9	n	9
+subtotals-multiple-two-data	D9	n	9
+subtotals-multiple-two-data	A10	s	East Average
+subtotals-multiple-two-data	C10	n	230.5
+subtotals-multiple-two-data	D10	n	2.888888888888889
+subtotals-multiple-two-data	A11	s	East Max
+subtotals-multiple-two-data	C11	n	346.5
+subtotals-multiple-two-data	D11	n	5
+subtotals-multiple-two-data	A12	s	East Min
+subtotals-multiple-two-data	C12	n	114.5
+subtotals-multiple-two-data	D12	n	1
+subtotals-multiple-two-data	A13	s	North
+subtotals-multiple-two-data	B14	s	Alpha
+subtotals-multiple-two-data	C14	n	100
+subtotals-multiple-two-data	D14	n	9
+subtotals-multiple-two-data	B15	s	Beta
+subtotals-multiple-two-data	C15	n	227.5
+subtotals-multiple-two-data	D15	n	6
+subtotals-multiple-two-data	B16	s	Gamma
+subtotals-multiple-two-data	C16	n	332
+subtotals-multiple-two-data	D16	n	4
+subtotals-multiple-two-data	A17	s	North Sum
+subtotals-multiple-two-data	C17	n	659.5
+subtotals-multiple-two-data	D17	n	19
+subtotals-multiple-two-data	A18	s	North Count
+subtotals-multiple-two-data	C18	n	6
+subtotals-multiple-two-data	D18	n	7
+subtotals-multiple-two-data	A19	s	North Average
+subtotals-multiple-two-data	C19	n	131.9
+subtotals-multiple-two-data	D19	n	2.7142857142857144
+subtotals-multiple-two-data	A20	s	North Max
+subtotals-multiple-two-data	C20	n	332
+subtotals-multiple-two-data	D20	n	5
+subtotals-multiple-two-data	A21	s	North Min
+subtotals-multiple-two-data	C21	n	-75.5
+subtotals-multiple-two-data	D21	n	1
+subtotals-multiple-two-data	A22	s	South
+subtotals-multiple-two-data	B23	s	Alpha
+subtotals-multiple-two-data	C23	n	756.75
+subtotals-multiple-two-data	D23	n	11
+subtotals-multiple-two-data	B24	s	Beta
+subtotals-multiple-two-data	C24	n	582.75
+subtotals-multiple-two-data	D24	n	7
+subtotals-multiple-two-data	B25	s	Gamma
+subtotals-multiple-two-data	C25	n	669.75
+subtotals-multiple-two-data	D25	n	9
+subtotals-multiple-two-data	A26	s	South Sum
+subtotals-multiple-two-data	C26	n	2009.25
+subtotals-multiple-two-data	D26	n	27
+subtotals-multiple-two-data	A27	s	South Count
+subtotals-multiple-two-data	C27	n	9
+subtotals-multiple-two-data	D27	n	9
+subtotals-multiple-two-data	A28	s	South Average
+subtotals-multiple-two-data	C28	n	223.25
+subtotals-multiple-two-data	D28	n	3
+subtotals-multiple-two-data	A29	s	South Max
+subtotals-multiple-two-data	C29	n	339.25
+subtotals-multiple-two-data	D29	n	5
+subtotals-multiple-two-data	A30	s	South Min
+subtotals-multiple-two-data	C30	n	107.25
+subtotals-multiple-two-data	D30	n	1
+subtotals-multiple-two-data	A31	s	West
+subtotals-multiple-two-data	B32	s	Alpha
+subtotals-multiple-two-data	C32	n	748
+subtotals-multiple-two-data	D32	n	12
+subtotals-multiple-two-data	B33	s	Beta
+subtotals-multiple-two-data	C33	n	713.25
+subtotals-multiple-two-data	D33	n	10
+subtotals-multiple-two-data	B34	s	Gamma
+subtotals-multiple-two-data	C34	n	800.25
+subtotals-multiple-two-data	D34	n	7
+subtotals-multiple-two-data	A35	s	West Sum
+subtotals-multiple-two-data	C35	n	2261.5
+subtotals-multiple-two-data	D35	n	29
+subtotals-multiple-two-data	A36	s	West Count
+subtotals-multiple-two-data	C36	n	10
+subtotals-multiple-two-data	D36	n	10
+subtotals-multiple-two-data	A37	s	West Average
+subtotals-multiple-two-data	C37	n	226.15
+subtotals-multiple-two-data	D37	n	2.9
+subtotals-multiple-two-data	A38	s	West Max
+subtotals-multiple-two-data	C38	n	353.75
+subtotals-multiple-two-data	D38	n	5
+subtotals-multiple-two-data	A39	s	West Min
+subtotals-multiple-two-data	C39	n	121.75
+subtotals-multiple-two-data	D39	n	1
+subtotals-multiple-two-data	A40	s	(blank)
+subtotals-multiple-two-data	B41	s	Gamma
+subtotals-multiple-two-data	C41	n	158
+subtotals-multiple-two-data	D41	n	4
+subtotals-multiple-two-data	A42	s	(blank) Sum
+subtotals-multiple-two-data	C42	n	158
+subtotals-multiple-two-data	D42	n	4
+subtotals-multiple-two-data	A43	s	(blank) Count
+subtotals-multiple-two-data	C43	n	1
+subtotals-multiple-two-data	D43	n	1
+subtotals-multiple-two-data	A44	s	(blank) Average
+subtotals-multiple-two-data	C44	n	158
+subtotals-multiple-two-data	D44	n	4
+subtotals-multiple-two-data	A45	s	(blank) Max
+subtotals-multiple-two-data	C45	n	158
+subtotals-multiple-two-data	D45	n	4
+subtotals-multiple-two-data	A46	s	(blank) Min
+subtotals-multiple-two-data	C46	n	158
+subtotals-multiple-two-data	D46	n	4
+subtotals-multiple-two-data	A47	s	Grand Total
+subtotals-multiple-two-data	C47	n	7162.75
+subtotals-multiple-two-data	D47	n	105
+subtotals-none	A3	s	Region
+subtotals-none	B3	s	Product
+subtotals-none	C3	s	Sum Amount
+subtotals-none	A4	s	East
+subtotals-none	B5	s	Alpha
+subtotals-none	C5	n	691.5
+subtotals-none	B6	s	Beta
+subtotals-none	C6	n	778.5
+subtotals-none	B7	s	Gamma
+subtotals-none	C7	n	604.5
+subtotals-none	A8	s	North
+subtotals-none	B9	s	Alpha
+subtotals-none	C9	n	100
+subtotals-none	B10	s	Beta
+subtotals-none	C10	n	227.5
+subtotals-none	B11	s	Gamma
+subtotals-none	C11	n	332
+subtotals-none	A12	s	South
+subtotals-none	B13	s	Alpha
+subtotals-none	C13	n	756.75
+subtotals-none	B14	s	Beta
+subtotals-none	C14	n	582.75
+subtotals-none	B15	s	Gamma
+subtotals-none	C15	n	669.75
+subtotals-none	A16	s	West
+subtotals-none	B17	s	Alpha
+subtotals-none	C17	n	748
+subtotals-none	B18	s	Beta
+subtotals-none	C18	n	713.25
+subtotals-none	B19	s	Gamma
+subtotals-none	C19	n	800.25
+subtotals-none	A20	s	(blank)
+subtotals-none	B21	s	Gamma
+subtotals-none	C21	n	158
+subtotals-none	A22	s	Grand Total
+subtotals-none	C22	n	7162.75
+blank-line-outer	A3	s	Region
+blank-line-outer	B3	s	Product
+blank-line-outer	C3	s	Sum Amount
+blank-line-outer	A4	s	East
+blank-line-outer	B4	s	Alpha
+blank-line-outer	C4	n	691.5
+blank-line-outer	B5	s	Beta
+blank-line-outer	C5	n	778.5
+blank-line-outer	B6	s	Gamma
+blank-line-outer	C6	n	604.5
+blank-line-outer	A7	s	East Total
+blank-line-outer	C7	n	2074.5
+blank-line-outer	A9	s	North
+blank-line-outer	B9	s	Alpha
+blank-line-outer	C9	n	100
+blank-line-outer	B10	s	Beta
+blank-line-outer	C10	n	227.5
+blank-line-outer	B11	s	Gamma
+blank-line-outer	C11	n	332
+blank-line-outer	A12	s	North Total
+blank-line-outer	C12	n	659.5
+blank-line-outer	A14	s	South
+blank-line-outer	B14	s	Alpha
+blank-line-outer	C14	n	756.75
+blank-line-outer	B15	s	Beta
+blank-line-outer	C15	n	582.75
+blank-line-outer	B16	s	Gamma
+blank-line-outer	C16	n	669.75
+blank-line-outer	A17	s	South Total
+blank-line-outer	C17	n	2009.25
+blank-line-outer	A19	s	West
+blank-line-outer	B19	s	Alpha
+blank-line-outer	C19	n	748
+blank-line-outer	B20	s	Beta
+blank-line-outer	C20	n	713.25
+blank-line-outer	B21	s	Gamma
+blank-line-outer	C21	n	800.25
+blank-line-outer	A22	s	West Total
+blank-line-outer	C22	n	2261.5
+blank-line-outer	A24	s	(blank)
+blank-line-outer	B24	s	Gamma
+blank-line-outer	C24	n	158
+blank-line-outer	A25	s	(blank) Total
+blank-line-outer	C25	n	158
+blank-line-outer	A27	s	Grand Total
+blank-line-outer	C27	n	7162.75
+blank-line-both	A3	s	Region
+blank-line-both	B3	s	Product
+blank-line-both	C3	s	Sum Amount
+blank-line-both	A4	s	East
+blank-line-both	C4	n	2074.5
+blank-line-both	B5	s	Alpha
+blank-line-both	C5	n	691.5
+blank-line-both	B6	s	Beta
+blank-line-both	C6	n	778.5
+blank-line-both	B7	s	Gamma
+blank-line-both	C7	n	604.5
+blank-line-both	A9	s	North
+blank-line-both	C9	n	659.5
+blank-line-both	B10	s	Alpha
+blank-line-both	C10	n	100
+blank-line-both	B11	s	Beta
+blank-line-both	C11	n	227.5
+blank-line-both	B12	s	Gamma
+blank-line-both	C12	n	332
+blank-line-both	A14	s	South
+blank-line-both	C14	n	2009.25
+blank-line-both	B15	s	Alpha
+blank-line-both	C15	n	756.75
+blank-line-both	B16	s	Beta
+blank-line-both	C16	n	582.75
+blank-line-both	B17	s	Gamma
+blank-line-both	C17	n	669.75
+blank-line-both	A19	s	West
+blank-line-both	C19	n	2261.5
+blank-line-both	B20	s	Alpha
+blank-line-both	C20	n	748
+blank-line-both	B21	s	Beta
+blank-line-both	C21	n	713.25
+blank-line-both	B22	s	Gamma
+blank-line-both	C22	n	800.25
+blank-line-both	A24	s	(blank)
+blank-line-both	C24	n	158
+blank-line-both	B25	s	Gamma
+blank-line-both	C25	n	158
+blank-line-both	A27	s	Grand Total
+blank-line-both	C27	n	7162.75
+blank-line-compact-columns	A3	s	Sum Amount
+blank-line-compact-columns	B3	s	Column Labels
+blank-line-compact-columns	A4	s	Row Labels
+blank-line-compact-columns	B4	n	45306
+blank-line-compact-columns	C4	n	45337
+blank-line-compact-columns	D4	n	45366
+blank-line-compact-columns	E4	n	45397
+blank-line-compact-columns	F4	n	45458
+blank-line-compact-columns	G4	n	45488
+blank-line-compact-columns	H4	n	45519
+blank-line-compact-columns	I4	n	45550
+blank-line-compact-columns	J4	n	45580
+blank-line-compact-columns	K4	n	45611
+blank-line-compact-columns	L4	n	45641
+blank-line-compact-columns	M4	n	45672
+blank-line-compact-columns	N4	n	45703
+blank-line-compact-columns	O4	n	45731
+blank-line-compact-columns	P4	n	45762
+blank-line-compact-columns	Q4	n	45792
+blank-line-compact-columns	R4	n	45823
+blank-line-compact-columns	S4	n	45853
+blank-line-compact-columns	T4	n	45884
+blank-line-compact-columns	U4	n	45915
+blank-line-compact-columns	V4	n	45945
+blank-line-compact-columns	W4	n	45976
+blank-line-compact-columns	X4	n	46006
+blank-line-compact-columns	Y4	n	46037
+blank-line-compact-columns	Z4	n	46068
+blank-line-compact-columns	AA4	n	46096
+blank-line-compact-columns	AB4	n	46127
+blank-line-compact-columns	AC4	n	46157
+blank-line-compact-columns	AD4	n	46188
+blank-line-compact-columns	AE4	n	46218
+blank-line-compact-columns	AF4	n	46249
+blank-line-compact-columns	AG4	n	46280
+blank-line-compact-columns	AH4	n	46310
+blank-line-compact-columns	AI4	n	46341
+blank-line-compact-columns	AJ4	n	46371
+blank-line-compact-columns	AK4	s	Grand Total
+blank-line-compact-columns	A5	s	East
+blank-line-compact-columns	D5	n	114.5
+blank-line-compact-columns	G5	n	143.5
+blank-line-compact-columns	K5	n	172.5
+blank-line-compact-columns	O5	n	201.5
+blank-line-compact-columns	S5	n	230.5
+blank-line-compact-columns	W5	n	259.5
+blank-line-compact-columns	AA5	n	288.5
+blank-line-compact-columns	AE5	n	317.5
+blank-line-compact-columns	AI5	n	346.5
+blank-line-compact-columns	AK5	n	2074.5
+blank-line-compact-columns	A6	s	Alpha
+blank-line-compact-columns	G6	n	143.5
+blank-line-compact-columns	S6	n	230.5
+blank-line-compact-columns	AE6	n	317.5
+blank-line-compact-columns	AK6	n	691.5
+blank-line-compact-columns	A7	s	Beta
+blank-line-compact-columns	K7	n	172.5
+blank-line-compact-columns	W7	n	259.5
+blank-line-compact-columns	AI7	n	346.5
+blank-line-compact-columns	AK7	n	778.5
+blank-line-compact-columns	A8	s	Gamma
+blank-line-compact-columns	D8	n	114.5
+blank-line-compact-columns	O8	n	201.5
+blank-line-compact-columns	AA8	n	288.5
+blank-line-compact-columns	AK8	n	604.5
+blank-line-compact-columns	A10	s	North
+blank-line-compact-columns	B10	n	100
+blank-line-compact-columns	Q10	n	-75.5
+blank-line-compact-columns	U10	n	0
+blank-line-compact-columns	Y10	n	0
+blank-line-compact-columns	AC10	n	303
+blank-line-compact-columns	AG10	n	332
+blank-line-compact-columns	AK10	n	659.5
+blank-line-compact-columns	A11	s	Alpha
+blank-line-compact-columns	B11	n	100
+blank-line-compact-columns	Y11	n	0
+blank-line-compact-columns	AK11	n	100
+blank-line-compact-columns	A12	s	Beta
+blank-line-compact-columns	Q12	n	-75.5
+blank-line-compact-columns	AC12	n	303
+blank-line-compact-columns	AK12	n	227.5
+blank-line-compact-columns	A13	s	Gamma
+blank-line-compact-columns	U13	n	0
+blank-line-compact-columns	AG13	n	332
+blank-line-compact-columns	AK13	n	332
+blank-line-compact-columns	A15	s	South
+blank-line-compact-columns	C15	n	107.25
+blank-line-compact-columns	F15	n	136.25
+blank-line-compact-columns	J15	n	165.25
+blank-line-compact-columns	N15	n	194.25
+blank-line-compact-columns	R15	n	223.25
+blank-line-compact-columns	V15	n	252.25
+blank-line-compact-columns	Z15	n	281.25
+blank-line-compact-columns	AD15	n	310.25
+blank-line-compact-columns	AH15	n	339.25
+blank-line-compact-columns	AK15	n	2009.25
+blank-line-compact-columns	A16	s	Alpha
+blank-line-compact-columns	J16	n	165.25
+blank-line-compact-columns	V16	n	252.25
+blank-line-compact-columns	AH16	n	339.25
+blank-line-compact-columns	AK16	n	756.75
+blank-line-compact-columns	A17	s	Beta
+blank-line-compact-columns	C17	n	107.25
+blank-line-compact-columns	N17	n	194.25
+blank-line-compact-columns	Z17	n	281.25
+blank-line-compact-columns	AK17	n	582.75
+blank-line-compact-columns	A18	s	Gamma
+blank-line-compact-columns	F18	n	136.25
+blank-line-compact-columns	R18	n	223.25
+blank-line-compact-columns	AD18	n	310.25
+blank-line-compact-columns	AK18	n	669.75
+blank-line-compact-columns	A20	s	West
+blank-line-compact-columns	E20	n	243.5
+blank-line-compact-columns	H20	n	150.75
+blank-line-compact-columns	L20	n	179.75
+blank-line-compact-columns	P20	n	208.75
+blank-line-compact-columns	T20	n	237.75
+blank-line-compact-columns	X20	n	266.75
+blank-line-compact-columns	AB20	n	295.75
+blank-line-compact-columns	AF20	n	324.75
+blank-line-compact-columns	AJ20	n	353.75
+blank-line-compact-columns	AK20	n	2261.5
+blank-line-compact-columns	A21	s	Alpha
+blank-line-compact-columns	E21	n	243.5
+blank-line-compact-columns	P21	n	208.75
+blank-line-compact-columns	AB21	n	295.75
+blank-line-compact-columns	AK21	n	748
+blank-line-compact-columns	A22	s	Beta
+blank-line-compact-columns	H22	n	150.75
+blank-line-compact-columns	T22	n	237.75
+blank-line-compact-columns	AF22	n	324.75
+blank-line-compact-columns	AK22	n	713.25
+blank-line-compact-columns	A23	s	Gamma
+blank-line-compact-columns	L23	n	179.75
+blank-line-compact-columns	X23	n	266.75
+blank-line-compact-columns	AJ23	n	353.75
+blank-line-compact-columns	AK23	n	800.25
+blank-line-compact-columns	A25	s	(blank)
+blank-line-compact-columns	I25	n	158
+blank-line-compact-columns	AK25	n	158
+blank-line-compact-columns	A26	s	Gamma
+blank-line-compact-columns	I26	n	158
+blank-line-compact-columns	AK26	n	158
+blank-line-compact-columns	A28	s	Grand Total
+blank-line-compact-columns	B28	n	100
+blank-line-compact-columns	C28	n	107.25
+blank-line-compact-columns	D28	n	114.5
+blank-line-compact-columns	E28	n	243.5
+blank-line-compact-columns	F28	n	136.25
+blank-line-compact-columns	G28	n	143.5
+blank-line-compact-columns	H28	n	150.75
+blank-line-compact-columns	I28	n	158
+blank-line-compact-columns	J28	n	165.25
+blank-line-compact-columns	K28	n	172.5
+blank-line-compact-columns	L28	n	179.75
+blank-line-compact-columns	N28	n	194.25
+blank-line-compact-columns	O28	n	201.5
+blank-line-compact-columns	P28	n	208.75
+blank-line-compact-columns	Q28	n	-75.5
+blank-line-compact-columns	R28	n	223.25
+blank-line-compact-columns	S28	n	230.5
+blank-line-compact-columns	T28	n	237.75
+blank-line-compact-columns	U28	n	0
+blank-line-compact-columns	V28	n	252.25
+blank-line-compact-columns	W28	n	259.5
+blank-line-compact-columns	X28	n	266.75
+blank-line-compact-columns	Y28	n	0
+blank-line-compact-columns	Z28	n	281.25
+blank-line-compact-columns	AA28	n	288.5
+blank-line-compact-columns	AB28	n	295.75
+blank-line-compact-columns	AC28	n	303
+blank-line-compact-columns	AD28	n	310.25
+blank-line-compact-columns	AE28	n	317.5
+blank-line-compact-columns	AF28	n	324.75
+blank-line-compact-columns	AG28	n	332
+blank-line-compact-columns	AH28	n	339.25
+blank-line-compact-columns	AI28	n	346.5
+blank-line-compact-columns	AJ28	n	353.75
+blank-line-compact-columns	AK28	n	7162.75
+nodata-rows	A1	s	Month
+nodata-rows	B1	n	45306
+nodata-rows	A3	s	Sum Amount
+nodata-rows	B3	s	Column Labels
+nodata-rows	A4	s	Row Labels
+nodata-rows	B4	s	Alpha
+nodata-rows	C4	s	Beta
+nodata-rows	D4	s	Gamma
+nodata-rows	E4	s	Grand Total
+nodata-rows	A5	s	East
+nodata-rows	A6	s	North
+nodata-rows	B6	n	100
+nodata-rows	E6	n	100
+nodata-rows	A7	s	South
+nodata-rows	A8	s	West
+nodata-rows	A9	s	(blank)
+nodata-rows	A10	s	Grand Total
+nodata-rows	B10	n	100
+nodata-rows	E10	n	100
+nodata-rows-hidden	A1	s	Month
+nodata-rows-hidden	B1	n	45306
+nodata-rows-hidden	A3	s	Sum Amount
+nodata-rows-hidden	B3	s	Column Labels
+nodata-rows-hidden	A4	s	Row Labels
+nodata-rows-hidden	B4	s	Alpha
+nodata-rows-hidden	C4	s	Grand Total
+nodata-rows-hidden	A5	s	North
+nodata-rows-hidden	B5	n	100
+nodata-rows-hidden	C5	n	100
+nodata-rows-hidden	A6	s	Grand Total
+nodata-rows-hidden	B6	n	100
+nodata-rows-hidden	C6	n	100
+nodata-nullstring	A1	s	Month
+nodata-nullstring	B1	n	45306
+nodata-nullstring	A3	s	Sum Amount
+nodata-nullstring	B3	s	Column Labels
+nodata-nullstring	A4	s	Row Labels
+nodata-nullstring	B4	s	Alpha
+nodata-nullstring	C4	s	Beta
+nodata-nullstring	D4	s	Gamma
+nodata-nullstring	E4	s	Grand Total
+nodata-nullstring	A5	s	East
+nodata-nullstring	B5	n	0
+nodata-nullstring	C5	n	0
+nodata-nullstring	D5	n	0
+nodata-nullstring	E5	n	0
+nodata-nullstring	A6	s	North
+nodata-nullstring	B6	n	100
+nodata-nullstring	C6	n	0
+nodata-nullstring	D6	n	0
+nodata-nullstring	E6	n	100
+nodata-nullstring	A7	s	South
+nodata-nullstring	B7	n	0
+nodata-nullstring	C7	n	0
+nodata-nullstring	D7	n	0
+nodata-nullstring	E7	n	0
+nodata-nullstring	A8	s	West
+nodata-nullstring	B8	n	0
+nodata-nullstring	C8	n	0
+nodata-nullstring	D8	n	0
+nodata-nullstring	E8	n	0
+nodata-nullstring	A9	s	(blank)
+nodata-nullstring	B9	n	0
+nodata-nullstring	C9	n	0
+nodata-nullstring	D9	n	0
+nodata-nullstring	E9	n	0
+nodata-nullstring	A10	s	Grand Total
+nodata-nullstring	B10	n	100
+nodata-nullstring	C10	n	0
+nodata-nullstring	D10	n	0
+nodata-nullstring	E10	n	100
+nodata-two-row-fields	A1	s	Month
+nodata-two-row-fields	B1	n	45306
+nodata-two-row-fields	A3	s	Region
+nodata-two-row-fields	B3	s	Product
+nodata-two-row-fields	C3	s	Sum Amount
+nodata-two-row-fields	A4	s	East
+nodata-two-row-fields	B4	s	Alpha
+nodata-two-row-fields	B5	s	Beta
+nodata-two-row-fields	B6	s	Gamma
+nodata-two-row-fields	A7	s	East Total
+nodata-two-row-fields	A8	s	North
+nodata-two-row-fields	B8	s	Alpha
+nodata-two-row-fields	C8	n	100
+nodata-two-row-fields	B9	s	Beta
+nodata-two-row-fields	B10	s	Gamma
+nodata-two-row-fields	A11	s	North Total
+nodata-two-row-fields	C11	n	100
+nodata-two-row-fields	A12	s	South
+nodata-two-row-fields	B12	s	Alpha
+nodata-two-row-fields	B13	s	Beta
+nodata-two-row-fields	B14	s	Gamma
+nodata-two-row-fields	A15	s	South Total
+nodata-two-row-fields	A16	s	West
+nodata-two-row-fields	B16	s	Alpha
+nodata-two-row-fields	B17	s	Beta
+nodata-two-row-fields	B18	s	Gamma
+nodata-two-row-fields	A19	s	West Total
+nodata-two-row-fields	A20	s	(blank)
+nodata-two-row-fields	B20	s	Alpha
+nodata-two-row-fields	B21	s	Beta
+nodata-two-row-fields	B22	s	Gamma
+nodata-two-row-fields	A23	s	(blank) Total
+nodata-two-row-fields	A24	s	Grand Total
+nodata-two-row-fields	C24	n	100
+sort-by-value-desc	A3	s	Row Labels
+sort-by-value-desc	B3	s	Sum Amount
+sort-by-value-desc	A4	s	West
+sort-by-value-desc	B4	n	2261.5
+sort-by-value-desc	A5	s	East
+sort-by-value-desc	B5	n	2074.5
+sort-by-value-desc	A6	s	South
+sort-by-value-desc	B6	n	2009.25
+sort-by-value-desc	A7	s	North
+sort-by-value-desc	B7	n	659.5
+sort-by-value-desc	A8	s	(blank)
+sort-by-value-desc	B8	n	158
+sort-by-value-desc	A9	s	Grand Total
+sort-by-value-desc	B9	n	7162.75
+sort-by-value-asc	A3	s	Row Labels
+sort-by-value-asc	B3	s	Sum Amount
+sort-by-value-asc	A4	s	(blank)
+sort-by-value-asc	B4	n	158
+sort-by-value-asc	A5	s	North
+sort-by-value-asc	B5	n	659.5
+sort-by-value-asc	A6	s	South
+sort-by-value-asc	B6	n	2009.25
+sort-by-value-asc	A7	s	East
+sort-by-value-asc	B7	n	2074.5
+sort-by-value-asc	A8	s	West
+sort-by-value-asc	B8	n	2261.5
+sort-by-value-asc	A9	s	Grand Total
+sort-by-value-asc	B9	n	7162.75
+sort-by-second-data	A3	s	Row Labels
+sort-by-second-data	B3	s	Sum Amount
+sort-by-second-data	C3	s	Sum Units
+sort-by-second-data	A4	s	West
+sort-by-second-data	B4	n	2261.5
+sort-by-second-data	C4	n	29
+sort-by-second-data	A5	s	South
+sort-by-second-data	B5	n	2009.25
+sort-by-second-data	C5	n	27
+sort-by-second-data	A6	s	East
+sort-by-second-data	B6	n	2074.5
+sort-by-second-data	C6	n	26
+sort-by-second-data	A7	s	North
+sort-by-second-data	B7	n	659.5
+sort-by-second-data	C7	n	19
+sort-by-second-data	A8	s	(blank)
+sort-by-second-data	B8	n	158
+sort-by-second-data	C8	n	4
+sort-by-second-data	A9	s	Grand Total
+sort-by-second-data	B9	n	7162.75
+sort-by-second-data	C9	n	105
+sort-by-value-inner	A3	s	Region
+sort-by-value-inner	B3	s	Product
+sort-by-value-inner	C3	s	Sum Amount
+sort-by-value-inner	A4	s	East
+sort-by-value-inner	B4	s	Beta
+sort-by-value-inner	C4	n	778.5
+sort-by-value-inner	B5	s	Alpha
+sort-by-value-inner	C5	n	691.5
+sort-by-value-inner	B6	s	Gamma
+sort-by-value-inner	C6	n	604.5
+sort-by-value-inner	A7	s	East Total
+sort-by-value-inner	C7	n	2074.5
+sort-by-value-inner	A8	s	North
+sort-by-value-inner	B8	s	Gamma
+sort-by-value-inner	C8	n	332
+sort-by-value-inner	B9	s	Beta
+sort-by-value-inner	C9	n	227.5
+sort-by-value-inner	B10	s	Alpha
+sort-by-value-inner	C10	n	100
+sort-by-value-inner	A11	s	North Total
+sort-by-value-inner	C11	n	659.5
+sort-by-value-inner	A12	s	South
+sort-by-value-inner	B12	s	Alpha
+sort-by-value-inner	C12	n	756.75
+sort-by-value-inner	B13	s	Gamma
+sort-by-value-inner	C13	n	669.75
+sort-by-value-inner	B14	s	Beta
+sort-by-value-inner	C14	n	582.75
+sort-by-value-inner	A15	s	South Total
+sort-by-value-inner	C15	n	2009.25
+sort-by-value-inner	A16	s	West
+sort-by-value-inner	B16	s	Gamma
+sort-by-value-inner	C16	n	800.25
+sort-by-value-inner	B17	s	Alpha
+sort-by-value-inner	C17	n	748
+sort-by-value-inner	B18	s	Beta
+sort-by-value-inner	C18	n	713.25
+sort-by-value-inner	A19	s	West Total
+sort-by-value-inner	C19	n	2261.5
+sort-by-value-inner	A20	s	(blank)
+sort-by-value-inner	B20	s	Gamma
+sort-by-value-inner	C20	n	158
+sort-by-value-inner	A21	s	(blank) Total
+sort-by-value-inner	C21	n	158
+sort-by-value-inner	A22	s	Grand Total
+sort-by-value-inner	C22	n	7162.75
+sort-by-value-columns	A3	s	Sum Amount
+sort-by-value-columns	B3	s	Column Labels
+sort-by-value-columns	A4	s	Row Labels
+sort-by-value-columns	B4	s	Gamma
+sort-by-value-columns	C4	s	Beta
+sort-by-value-columns	D4	s	Alpha
+sort-by-value-columns	E4	s	Grand Total
+sort-by-value-columns	A5	s	East
+sort-by-value-columns	B5	n	604.5
+sort-by-value-columns	C5	n	778.5
+sort-by-value-columns	D5	n	691.5
+sort-by-value-columns	E5	n	2074.5
+sort-by-value-columns	A6	s	North
+sort-by-value-columns	B6	n	332
+sort-by-value-columns	C6	n	227.5
+sort-by-value-columns	D6	n	100
+sort-by-value-columns	E6	n	659.5
+sort-by-value-columns	A7	s	South
+sort-by-value-columns	B7	n	669.75
+sort-by-value-columns	C7	n	582.75
+sort-by-value-columns	D7	n	756.75
+sort-by-value-columns	E7	n	2009.25
+sort-by-value-columns	A8	s	West
+sort-by-value-columns	B8	n	800.25
+sort-by-value-columns	C8	n	713.25
+sort-by-value-columns	D8	n	748
+sort-by-value-columns	E8	n	2261.5
+sort-by-value-columns	A9	s	(blank)
+sort-by-value-columns	B9	n	158
+sort-by-value-columns	E9	n	158
+sort-by-value-columns	A10	s	Grand Total
+sort-by-value-columns	B10	n	2564.5
+sort-by-value-columns	C10	n	2302
+sort-by-value-columns	D10	n	2296.25
+sort-by-value-columns	E10	n	7162.75
+sort-by-value-ties	A3	s	Row Labels
+sort-by-value-ties	B3	s	Sum Units
+sort-by-value-ties	A4	s	Alpha
+sort-by-value-ties	B4	n	39
+sort-by-value-ties	A5	s	Gamma
+sort-by-value-ties	B5	n	34
+sort-by-value-ties	A6	s	Beta
+sort-by-value-ties	B6	n	32
+sort-by-value-ties	A7	s	Grand Total
+sort-by-value-ties	B7	n	105
+err-values	A3	s	Row Labels
+err-values	B3	s	Sum Val
+err-values	C3	s	Count Val
+err-values	D3	s	CountNums Val
+err-values	E3	s	Average Val
+err-values	F3	s	Max Val
+err-values	G3	s	Min Val
+err-values	A4	s	q
+err-values	B4	n	45
+err-values	C4	n	9
+err-values	D4	n	9
+err-values	E4	n	5
+err-values	F4	n	9
+err-values	G4	n	1
+err-values	A5	s	s
+err-values	B5	n	45012
+err-values	C5	n	4
+err-values	D5	n	4
+err-values	E5	n	11253
+err-values	F5	n	45000
+err-values	G5	n	3
+err-values	A6	s	t
+err-values	B6	n	4
+err-values	C6	n	2
+err-values	D6	n	2
+err-values	E6	n	2
+err-values	F6	n	2.5
+err-values	G6	n	1.5
+err-values	A7	s	u
+err-values	B7	n	6
+err-values	C7	n	1
+err-values	D7	n	1
+err-values	E7	n	6
+err-values	F7	n	6
+err-values	G7	n	6
+err-values	A8	s	v
+err-values	B8	n	2
+err-values	C8	n	2
+err-values	D8	n	1
+err-values	E8	n	2
+err-values	F8	n	2
+err-values	G8	n	2
+err-values	A9	s	w
+err-values	B9	n	4
+err-values	C9	n	2
+err-values	D9	n	1
+err-values	E9	n	4
+err-values	F9	n	4
+err-values	G9	n	4
+err-values	A10	s	x
+err-values	B10	n	30
+err-values	C10	n	2
+err-values	D10	n	2
+err-values	E10	n	15
+err-values	F10	n	20
+err-values	G10	n	10
+err-values	A11	s	y
+err-values	B11	e	-2146826246
+err-values	C11	n	3
+err-values	D11	n	2
+err-values	E11	e	-2146826246
+err-values	F11	e	-2146826246
+err-values	G11	e	-2146826246
+err-values	A12	s	z
+err-values	B12	e	-2146826281
+err-values	C12	n	2
+err-values	D12	n	1
+err-values	E12	e	-2146826281
+err-values	F12	e	-2146826281
+err-values	G12	e	-2146826281
+err-values	A13	s	Grand Total
+err-values	B13	e	-2146826246
+err-values	C13	e	-2146826246
+err-values	D13	e	-2146826246
+err-values	E13	e	-2146826246
+err-values	F13	e	-2146826246
+err-values	G13	e	-2146826246
+err-values-display	A3	s	Row Labels
+err-values-display	B3	s	Sum Val
+err-values-display	C3	s	Count Val
+err-values-display	A4	s	q
+err-values-display	B4	n	45
+err-values-display	C4	n	9
+err-values-display	A5	s	s
+err-values-display	B5	n	45012
+err-values-display	C5	n	4
+err-values-display	A6	s	t
+err-values-display	B6	n	4
+err-values-display	C6	n	2
+err-values-display	A7	s	u
+err-values-display	B7	n	6
+err-values-display	C7	n	1
+err-values-display	A8	s	v
+err-values-display	B8	n	2
+err-values-display	C8	n	2
+err-values-display	A9	s	w
+err-values-display	B9	n	4
+err-values-display	C9	n	2
+err-values-display	A10	s	x
+err-values-display	B10	n	30
+err-values-display	C10	n	2
+err-values-display	A11	s	y
+err-values-display	B11	s	ERR
+err-values-display	C11	n	3
+err-values-display	A12	s	z
+err-values-display	B12	s	ERR
+err-values-display	C12	n	2
+err-values-display	A13	s	Grand Total
+err-values-display	B13	s	ERR
+err-values-display	C13	s	ERR
+err-keys	A3	s	Row Labels
+err-keys	B3	s	Count Val
+err-keys	C3	s	CountNums Val
+err-keys	A4	n	-1
+err-keys	B4	n	1
+err-keys	C4	n	1
+err-keys	A5	n	0
+err-keys	B5	n	1
+err-keys	C5	n	1
+err-keys	A6	n	1
+err-keys	B6	n	2
+err-keys	C6	n	2
+err-keys	A7	n	45000
+err-keys	B7	n	1
+err-keys	C7	n	1
+err-keys	B8	n	1
+err-keys	C8	n	1
+err-keys	A9	s	 
+err-keys	B9	n	1
+err-keys	C9	n	0
+err-keys	A10	s	1
+err-keys	A11	s	a
+err-keys	B11	n	4
+err-keys	C11	n	4
+err-keys	A12	s	A 
+err-keys	B12	n	1
+err-keys	C12	n	1
+err-keys	A13	s	b
+err-keys	B13	n	2
+err-keys	C13	n	1
+err-keys	A14	s	k0
+err-keys	B14	n	3
+err-keys	C14	n	3
+err-keys	A15	s	k1
+err-keys	B15	n	3
+err-keys	C15	n	3
+err-keys	A16	s	k2
+err-keys	B16	n	3
+err-keys	C16	n	3
+err-keys	A17	s	TRUE
+err-keys	B17	n	1
+err-keys	C17	n	0
+err-keys	A18	s	#DIV/0!
+err-keys	B18	n	1
+err-keys	C18	n	0
+err-keys	A19	s	#N/A
+err-keys	B19	n	1
+err-keys	C19	n	1
+err-keys	A20	s	(blank)
+err-keys	B20	n	1
+err-keys	C20	n	1
+err-keys	A21	s	Grand Total
+err-keys	B21	n	27
+err-keys	C21	n	23
+err-keys-desc	A3	s	Row Labels
+err-keys-desc	B3	s	Count Val
+err-keys-desc	A4	s	(blank)
+err-keys-desc	B4	n	1
+err-keys-desc	A5	s	#N/A
+err-keys-desc	B5	n	1
+err-keys-desc	A6	s	#DIV/0!
+err-keys-desc	B6	n	1
+err-keys-desc	A7	s	TRUE
+err-keys-desc	B7	n	1
+err-keys-desc	A8	s	k2
+err-keys-desc	B8	n	3
+err-keys-desc	A9	s	k1
+err-keys-desc	B9	n	3
+err-keys-desc	A10	s	k0
+err-keys-desc	B10	n	3
+err-keys-desc	A11	s	b
+err-keys-desc	B11	n	2
+err-keys-desc	A12	s	A 
+err-keys-desc	B12	n	1
+err-keys-desc	A13	s	a
+err-keys-desc	B13	n	4
+err-keys-desc	A14	s	1
+err-keys-desc	A15	s	 
+err-keys-desc	B15	n	1
+err-keys-desc	B16	n	1
+err-keys-desc	A17	n	45000
+err-keys-desc	B17	n	1
+err-keys-desc	A18	n	1
+err-keys-desc	B18	n	2
+err-keys-desc	A19	n	0
+err-keys-desc	B19	n	1
+err-keys-desc	A20	n	-1
+err-keys-desc	B20	n	1
+err-keys-desc	A21	s	Grand Total
+err-keys-desc	B21	n	27
+err-keys-columns	A3	s	Count Val
+err-keys-columns	B3	s	Column Labels
+err-keys-columns	A4	s	Row Labels
+err-keys-columns	B4	n	-1
+err-keys-columns	C4	n	0
+err-keys-columns	D4	n	1
+err-keys-columns	E4	n	45000
+err-keys-columns	G4	s	 
+err-keys-columns	H4	s	1
+err-keys-columns	I4	s	a
+err-keys-columns	J4	s	A 
+err-keys-columns	K4	s	b
+err-keys-columns	L4	s	k0
+err-keys-columns	M4	s	k1
+err-keys-columns	N4	s	k2
+err-keys-columns	O4	s	TRUE
+err-keys-columns	P4	s	#DIV/0!
+err-keys-columns	Q4	s	#N/A
+err-keys-columns	R4	s	(blank)
+err-keys-columns	S4	s	Grand Total
+err-keys-columns	A5	s	q
+err-keys-columns	L5	n	3
+err-keys-columns	M5	n	3
+err-keys-columns	N5	n	3
+err-keys-columns	S5	n	9
+err-keys-columns	A6	s	s
+err-keys-columns	E6	n	1
+err-keys-columns	I6	n	2
+err-keys-columns	J6	n	1
+err-keys-columns	S6	n	4
+err-keys-columns	A7	s	t
+err-keys-columns	B7	n	1
+err-keys-columns	C7	n	1
+err-keys-columns	S7	n	2
+err-keys-columns	A8	s	u
+err-keys-columns	D8	n	1
+err-keys-columns	S8	n	1
+err-keys-columns	A9	s	v
+err-keys-columns	D9	n	1
+err-keys-columns	O9	n	1
+err-keys-columns	S9	n	2
+err-keys-columns	A10	s	w
+err-keys-columns	F10	n	1
+err-keys-columns	G10	n	1
+err-keys-columns	S10	n	2
+err-keys-columns	A11	s	x
+err-keys-columns	I11	n	2
+err-keys-columns	S11	n	2
+err-keys-columns	A12	s	y
+err-keys-columns	K12	n	2
+err-keys-columns	Q12	n	1
+err-keys-columns	S12	n	3
+err-keys-columns	A13	s	z
+err-keys-columns	P13	n	1
+err-keys-columns	R13	n	1
+err-keys-columns	S13	n	2
+err-keys-columns	A14	s	Grand Total
+err-keys-columns	B14	n	1
+err-keys-columns	C14	n	1
+err-keys-columns	D14	n	2
+err-keys-columns	E14	n	1
+err-keys-columns	F14	n	1
+err-keys-columns	G14	n	1
+err-keys-columns	I14	n	4
+err-keys-columns	J14	n	1
+err-keys-columns	K14	n	2
+err-keys-columns	L14	n	3
+err-keys-columns	M14	n	3
+err-keys-columns	N14	n	3
+err-keys-columns	O14	n	1
+err-keys-columns	P14	n	1
+err-keys-columns	Q14	n	1
+err-keys-columns	R14	n	1
+err-keys-columns	S14	n	27
+prec-all-functions	A3	s	Row Labels
+prec-all-functions	B3	s	Sum Val
+prec-all-functions	C3	s	Count Val
+prec-all-functions	D3	s	CountNums Val
+prec-all-functions	E3	s	Average Val
+prec-all-functions	F3	s	Max Val
+prec-all-functions	G3	s	Min Val
+prec-all-functions	H3	s	Product Val
+prec-all-functions	I3	s	StDev Val
+prec-all-functions	J3	s	StDevP Val
+prec-all-functions	K3	s	Var Val
+prec-all-functions	L3	s	VarP Val
+prec-all-functions	A4	s	G1
+prec-all-functions	B4	n	0.9999999999999999
+prec-all-functions	C4	n	10
+prec-all-functions	D4	n	10
+prec-all-functions	E4	n	0.09999999999999999
+prec-all-functions	F4	n	0.1
+prec-all-functions	G4	n	0.1
+prec-all-functions	H4	n	1.0000000000000006e-10
+prec-all-functions	I4	n	2.483526865641276e-09
+prec-all-functions	J4	n	2.580956827951785e-09
+prec-all-functions	K4	n	6.1679056923619804e-18
+prec-all-functions	L4	n	6.661338147750939e-18
+prec-all-functions	A5	s	G10
+prec-all-functions	B5	n	16777218
+prec-all-functions	C5	n	3
+prec-all-functions	D5	n	3
+prec-all-functions	E5	n	5592406
+prec-all-functions	F5	n	16777216
+prec-all-functions	G5	n	1
+prec-all-functions	H5	n	16777216
+prec-all-functions	I5	n	9686329.596502228
+prec-all-functions	J5	n	7908854.9972831085
+prec-all-functions	K5	n	93824981052075
+prec-all-functions	L5	n	62549987368050
+prec-all-functions	A6	s	G11
+prec-all-functions	B6	n	0
+prec-all-functions	C6	n	4
+prec-all-functions	D6	n	4
+prec-all-functions	E6	n	0
+prec-all-functions	F6	n	1
+prec-all-functions	G6	n	-1
+prec-all-functions	H6	n	1
+prec-all-functions	I6	n	1.1547005383792515
+prec-all-functions	J6	n	1
+prec-all-functions	K6	n	1.3333333333333333
+prec-all-functions	L6	n	1
+prec-all-functions	A7	s	G12
+prec-all-functions	B7	n	7
+prec-all-functions	C7	n	1
+prec-all-functions	D7	n	1
+prec-all-functions	E7	n	7
+prec-all-functions	F7	n	7
+prec-all-functions	G7	n	7
+prec-all-functions	H7	n	7
+prec-all-functions	I7	e	-2146826281
+prec-all-functions	J7	n	0
+prec-all-functions	K7	e	-2146826281
+prec-all-functions	L7	n	0
+prec-all-functions	A8	s	G13
+prec-all-functions	B8	n	0
+prec-all-functions	C8	n	2
+prec-all-functions	D8	n	2
+prec-all-functions	E8	n	0
+prec-all-functions	F8	n	0
+prec-all-functions	G8	n	0
+prec-all-functions	H8	n	0
+prec-all-functions	I8	n	0
+prec-all-functions	J8	n	0
+prec-all-functions	K8	n	0
+prec-all-functions	L8	n	0
+prec-all-functions	A9	s	G2
+prec-all-functions	B9	n	0
+prec-all-functions	C9	n	3
+prec-all-functions	D9	n	3
+prec-all-functions	E9	n	0
+prec-all-functions	F9	n	1e+16
+prec-all-functions	G9	n	-1e+16
+prec-all-functions	H9	n	-1e+32
+prec-all-functions	I9	n	1e+16
+prec-all-functions	J9	n	8164965809277260
+prec-all-functions	K9	n	1e+32
+prec-all-functions	L9	n	6.666666666666667e+31
+prec-all-functions	A10	s	G3
+prec-all-functions	B10	n	0
+prec-all-functions	C10	n	3
+prec-all-functions	D10	n	3
+prec-all-functions	E10	n	0
+prec-all-functions	F10	n	1e+16
+prec-all-functions	G10	n	-1e+16
+prec-all-functions	H10	n	-1e+32
+prec-all-functions	I10	n	1e+16
+prec-all-functions	J10	n	8164965809277260
+prec-all-functions	K10	n	1e+32
+prec-all-functions	L10	n	6.666666666666667e+31
+prec-all-functions	A11	s	G4
+prec-all-functions	B11	n	0.6000000000000001
+prec-all-functions	C11	n	3
+prec-all-functions	D11	n	3
+prec-all-functions	E11	n	0.20000000000000004
+prec-all-functions	F11	n	0.3
+prec-all-functions	G11	n	0.1
+prec-all-functions	H11	n	0.006000000000000001
+prec-all-functions	I11	n	0.09999999999999994
+prec-all-functions	J11	n	0.08164965809277257
+prec-all-functions	K11	n	0.009999999999999988
+prec-all-functions	L11	n	0.00666666666666666
+prec-all-functions	A12	s	G5
+prec-all-functions	B12	e	-2146826252
+prec-all-functions	C12	n	3
+prec-all-functions	D12	n	3
+prec-all-functions	E12	e	-2146826252
+prec-all-functions	F12	n	1e+308
+prec-all-functions	G12	n	-1e+308
+prec-all-functions	H12	e	-2146826252
+prec-all-functions	I12	e	-2146826252
+prec-all-functions	J12	e	-2146826252
+prec-all-functions	K12	e	-2146826252
+prec-all-functions	L12	e	-2146826252
+prec-all-functions	A13	s	G6
+prec-all-functions	B13	n	0.7
+prec-all-functions	C13	n	3
+prec-all-functions	D13	n	3
+prec-all-functions	E13	n	0.2333333333333333
+prec-all-functions	F13	n	1000000000000000.2
+prec-all-functions	G13	n	-1000000000000000
+prec-all-functions	H13	n	-7.000000000000001e+29
+prec-all-functions	I13	n	1000000000000000.1
+prec-all-functions	J13	n	816496580927726.1
+prec-all-functions	K13	n	1.0000000000000003e+30
+prec-all-functions	L13	n	6.666666666666669e+29
+prec-all-functions	A14	s	G7
+prec-all-functions	B14	n	1.5000000000000002e-09
+prec-all-functions	C14	n	5
+prec-all-functions	D14	n	5
+prec-all-functions	E14	n	3.0000000000000005e-10
+prec-all-functions	F14	n	5e-10
+prec-all-functions	G14	n	1e-10
+prec-all-functions	H14	n	0
+prec-all-functions	I14	n	1.5811388300841892e-10
+prec-all-functions	J14	n	1.4142135623730945e-10
+prec-all-functions	K14	n	2.4999999999999987e-20
+prec-all-functions	L14	n	1.9999999999999987e-20
+prec-all-functions	A15	s	G8
+prec-all-functions	B15	n	6.6
+prec-all-functions	C15	n	3
+prec-all-functions	D15	n	3
+prec-all-functions	E15	n	2.1999999999999997
+prec-all-functions	F15	n	3.3
+prec-all-functions	G15	n	1.1
+prec-all-functions	H15	n	7.986000000000001
+prec-all-functions	I15	n	1.1
+prec-all-functions	J15	n	0.8981462390204985
+prec-all-functions	K15	n	1.21
+prec-all-functions	L15	n	0.8066666666666664
+prec-all-functions	A16	s	G9
+prec-all-functions	B16	n	2e+154
+prec-all-functions	C16	n	2
+prec-all-functions	D16	n	2
+prec-all-functions	E16	n	1e+154
+prec-all-functions	F16	n	1e+154
+prec-all-functions	G16	n	1e+154
+prec-all-functions	H16	n	1e+308
+prec-all-functions	I16	e	-2146826252
+prec-all-functions	J16	e	-2146826252
+prec-all-functions	K16	e	-2146826252
+prec-all-functions	L16	e	-2146826252
+prec-all-functions	A17	s	Grand Total
+prec-all-functions	B17	e	-2146826252
+prec-all-functions	C17	e	-2146826252
+prec-all-functions	D17	e	-2146826252
+prec-all-functions	E17	e	-2146826252
+prec-all-functions	F17	e	-2146826252
+prec-all-functions	G17	e	-2146826252
+prec-all-functions	H17	e	-2146826252
+prec-all-functions	I17	e	-2146826252
+prec-all-functions	J17	e	-2146826252
+prec-all-functions	K17	e	-2146826252
+prec-all-functions	L17	e	-2146826252
+group-number-clean	A3	s	Row Labels
+group-number-clean	B3	s	Sum Val
+group-number-clean	C3	s	Count Val
+group-number-clean	A4	s	1-3
+group-number-clean	B4	e	-2146826252
+group-number-clean	C4	n	35
+group-number-clean	A5	s	4-6
+group-number-clean	B5	n	-0.6999999991
+group-number-clean	C5	n	6
+group-number-clean	A6	s	7-10
+group-number-clean	B6	n	0.4
+group-number-clean	C6	n	4
+group-number-clean	A7	s	Grand Total
+group-number-clean	B7	e	-2146826252
+group-number-clean	C7	e	-2146826252
+prec-sum-average	A3	s	Row Labels
+prec-sum-average	B3	s	Sum Val
+prec-sum-average	C3	s	Average Val
+prec-sum-average	D3	s	Sum Ord
+prec-sum-average	A4	s	G1
+prec-sum-average	B4	n	0.9999999999999999
+prec-sum-average	C4	n	0.09999999999999999
+prec-sum-average	D4	n	55
+prec-sum-average	A5	s	G10
+prec-sum-average	B5	n	16777218
+prec-sum-average	C5	n	5592406
+prec-sum-average	D5	n	6
+prec-sum-average	A6	s	G11
+prec-sum-average	B6	n	0
+prec-sum-average	C6	n	0
+prec-sum-average	D6	n	10
+prec-sum-average	A7	s	G12
+prec-sum-average	B7	n	7
+prec-sum-average	C7	n	7
+prec-sum-average	D7	n	1
+prec-sum-average	A8	s	G13
+prec-sum-average	B8	n	0
+prec-sum-average	C8	n	0
+prec-sum-average	D8	n	3
+prec-sum-average	A9	s	G2
+prec-sum-average	B9	n	0
+prec-sum-average	C9	n	0
+prec-sum-average	D9	n	6
+prec-sum-average	A10	s	G3
+prec-sum-average	B10	n	0
+prec-sum-average	C10	n	0
+prec-sum-average	D10	n	6
+prec-sum-average	A11	s	G4
+prec-sum-average	B11	n	0.6000000000000001
+prec-sum-average	C11	n	0.20000000000000004
+prec-sum-average	D11	n	6
+prec-sum-average	A12	s	G5
+prec-sum-average	B12	e	-2146826252
+prec-sum-average	C12	e	-2146826252
+prec-sum-average	D12	n	6
+prec-sum-average	A13	s	G6
+prec-sum-average	B13	n	0.7
+prec-sum-average	C13	n	0.2333333333333333
+prec-sum-average	D13	n	6
+prec-sum-average	A14	s	G7
+prec-sum-average	B14	n	1.5000000000000002e-09
+prec-sum-average	C14	n	3.0000000000000005e-10
+prec-sum-average	D14	n	15
+prec-sum-average	A15	s	G8
+prec-sum-average	B15	n	6.6
+prec-sum-average	C15	n	2.1999999999999997
+prec-sum-average	D15	n	6
+prec-sum-average	A16	s	G9
+prec-sum-average	B16	n	2e+154
+prec-sum-average	C16	n	1e+154
+prec-sum-average	D16	n	3
+prec-sum-average	A17	s	Grand Total
+prec-sum-average	B17	e	-2146826252
+prec-sum-average	C17	e	-2146826252
+prec-sum-average	D17	n	129
+prec-grand-only	A3	s	Sum Val
+prec-grand-only	B3	s	Product Val
+prec-grand-only	A4	e	-2146826252
+prec-grand-only	B4	e	-2146826252
+prec-column-grand	A3	s	Sum Val
+prec-column-grand	B3	s	Column Labels
+prec-column-grand	A4	s	Row Labels
+prec-column-grand	B4	n	1
+prec-column-grand	C4	n	2
+prec-column-grand	D4	n	3
+prec-column-grand	E4	n	4
+prec-column-grand	F4	n	5
+prec-column-grand	G4	n	6
+prec-column-grand	H4	n	7
+prec-column-grand	I4	n	8
+prec-column-grand	J4	n	9
+prec-column-grand	K4	n	10
+prec-column-grand	L4	s	Grand Total
+prec-column-grand	A5	s	G1
+prec-column-grand	B5	n	0.1
+prec-column-grand	C5	n	0.1
+prec-column-grand	D5	n	0.1
+prec-column-grand	E5	n	0.1
+prec-column-grand	F5	n	0.1
+prec-column-grand	G5	n	0.1
+prec-column-grand	H5	n	0.1
+prec-column-grand	I5	n	0.1
+prec-column-grand	J5	n	0.1
+prec-column-grand	K5	n	0.1
+prec-column-grand	L5	n	0.9999999999999999
+prec-column-grand	A6	s	G10
+prec-column-grand	B6	n	16777216
+prec-column-grand	C6	n	1
+prec-column-grand	D6	n	1
+prec-column-grand	L6	n	16777218
+prec-column-grand	A7	s	G11
+prec-column-grand	B7	n	1
+prec-column-grand	C7	n	-1
+prec-column-grand	D7	n	1
+prec-column-grand	E7	n	-1
+prec-column-grand	L7	n	0
+prec-column-grand	A8	s	G12
+prec-column-grand	B8	n	7
+prec-column-grand	L8	n	7
+prec-column-grand	A9	s	G13
+prec-column-grand	B9	n	0
+prec-column-grand	C9	n	0
+prec-column-grand	L9	n	0
+prec-column-grand	A10	s	G2
+prec-column-grand	B10	n	1e+16
+prec-column-grand	C10	n	1
+prec-column-grand	D10	n	-1e+16
+prec-column-grand	L10	n	0
+prec-column-grand	A11	s	G3
+prec-column-grand	B11	n	1
+prec-column-grand	C11	n	1e+16
+prec-column-grand	D11	n	-1e+16
+prec-column-grand	L11	n	0
+prec-column-grand	A12	s	G4
+prec-column-grand	B12	n	0.1
+prec-column-grand	C12	n	0.2
+prec-column-grand	D12	n	0.3
+prec-column-grand	L12	n	0.6000000000000001
+prec-column-grand	A13	s	G5
+prec-column-grand	B13	n	1e+308
+prec-column-grand	C13	n	1e+308
+prec-column-grand	D13	n	-1e+308
+prec-column-grand	L13	e	-2146826252
+prec-column-grand	A14	s	G6
+prec-column-grand	B14	n	1000000000000000.2
+prec-column-grand	C14	n	-1000000000000000
+prec-column-grand	D14	n	0.7
+prec-column-grand	L14	n	0.7
+prec-column-grand	A15	s	G7
+prec-column-grand	B15	n	1e-10
+prec-column-grand	C15	n	2e-10
+prec-column-grand	D15	n	3e-10
+prec-column-grand	E15	n	4e-10
+prec-column-grand	F15	n	5e-10
+prec-column-grand	L15	n	1.5000000000000002e-09
+prec-column-grand	A16	s	G8
+prec-column-grand	B16	n	1.1
+prec-column-grand	C16	n	2.2
+prec-column-grand	D16	n	3.3
+prec-column-grand	L16	n	6.6
+prec-column-grand	A17	s	G9
+prec-column-grand	B17	n	1e+154
+prec-column-grand	C17	n	1e+154
+prec-column-grand	L17	n	2e+154
+prec-column-grand	A18	s	Grand Total
+prec-column-grand	B18	n	1e+308
+prec-column-grand	C18	n	1e+308
+prec-column-grand	D18	n	-1e+308
+prec-column-grand	E18	n	-0.8999999996
+prec-column-grand	F18	n	0.1000000005
+prec-column-grand	G18	n	0.1
+prec-column-grand	H18	n	0.1
+prec-column-grand	I18	n	0.1
+prec-column-grand	J18	n	0.1
+prec-column-grand	K18	n	0.1
+prec-column-grand	L18	e	-2146826252
+missing-items-built	A3	s	Sum Amount
+missing-items-built	B3	s	Column Labels
+missing-items-built	A4	s	Row Labels
+missing-items-built	B4	s	East
+missing-items-built	C4	s	North
+missing-items-built	D4	s	South
+missing-items-built	E4	s	West
+missing-items-built	F4	s	(blank)
+missing-items-built	G4	s	Grand Total
+missing-items-built	A5	s	Alpha
+missing-items-built	B5	n	691.5
+missing-items-built	C5	n	100
+missing-items-built	D5	n	756.75
+missing-items-built	E5	n	748
+missing-items-built	G5	n	2296.25
+missing-items-built	A6	s	Beta
+missing-items-built	B6	n	778.5
+missing-items-built	C6	n	227.5
+missing-items-built	D6	n	582.75
+missing-items-built	E6	n	713.25
+missing-items-built	G6	n	2302
+missing-items-built	A7	s	Gamma
+missing-items-built	B7	n	604.5
+missing-items-built	C7	n	332
+missing-items-built	D7	n	669.75
+missing-items-built	E7	n	800.25
+missing-items-built	F7	n	158
+missing-items-built	G7	n	2564.5
+missing-items-built	A8	s	Grand Total
+missing-items-built	B8	n	2074.5
+missing-items-built	C8	n	659.5
+missing-items-built	D8	n	2009.25
+missing-items-built	E8	n	2261.5
+missing-items-built	F8	n	158
+missing-items-built	G8	n	7162.75
+missing-items-refresh-default	A3	s	Sum Amount
+missing-items-refresh-default	B3	s	Column Labels
+missing-items-refresh-default	A4	s	Row Labels
+missing-items-refresh-default	B4	s	East
+missing-items-refresh-default	C4	s	North
+missing-items-refresh-default	D4	s	South
+missing-items-refresh-default	E4	s	West
+missing-items-refresh-default	F4	s	(blank)
+missing-items-refresh-default	G4	s	Grand Total
+missing-items-refresh-default	A5	s	Alpha
+missing-items-refresh-default	B5	n	1296
+missing-items-refresh-default	C5	n	432
+missing-items-refresh-default	D5	n	1426.5
+missing-items-refresh-default	E5	n	1548.25
+missing-items-refresh-default	F5	n	158
+missing-items-refresh-default	G5	n	4860.75
+missing-items-refresh-default	A6	s	Beta
+missing-items-refresh-default	B6	n	778.5
+missing-items-refresh-default	C6	n	227.5
+missing-items-refresh-default	D6	n	582.75
+missing-items-refresh-default	E6	n	713.25
+missing-items-refresh-default	G6	n	2302
+missing-items-refresh-default	A7	s	Grand Total
+missing-items-refresh-default	B7	n	2074.5
+missing-items-refresh-default	C7	n	659.5
+missing-items-refresh-default	D7	n	2009.25
+missing-items-refresh-default	E7	n	2261.5
+missing-items-refresh-default	F7	n	158
+missing-items-refresh-default	G7	n	7162.75
+missing-items-refresh-none	A3	s	Sum Amount
+missing-items-refresh-none	B3	s	Column Labels
+missing-items-refresh-none	A4	s	Row Labels
+missing-items-refresh-none	B4	s	East
+missing-items-refresh-none	C4	s	North
+missing-items-refresh-none	D4	s	South
+missing-items-refresh-none	E4	s	West
+missing-items-refresh-none	F4	s	(blank)
+missing-items-refresh-none	G4	s	Grand Total
+missing-items-refresh-none	A5	s	Alpha
+missing-items-refresh-none	B5	n	1296
+missing-items-refresh-none	C5	n	432
+missing-items-refresh-none	D5	n	1426.5
+missing-items-refresh-none	E5	n	1548.25
+missing-items-refresh-none	F5	n	158
+missing-items-refresh-none	G5	n	4860.75
+missing-items-refresh-none	A6	s	Beta
+missing-items-refresh-none	B6	n	778.5
+missing-items-refresh-none	C6	n	227.5
+missing-items-refresh-none	D6	n	582.75
+missing-items-refresh-none	E6	n	713.25
+missing-items-refresh-none	G6	n	2302
+missing-items-refresh-none	A7	s	Grand Total
+missing-items-refresh-none	B7	n	2074.5
+missing-items-refresh-none	C7	n	659.5
+missing-items-refresh-none	D7	n	2009.25
+missing-items-refresh-none	E7	n	2261.5
+missing-items-refresh-none	F7	n	158
+missing-items-refresh-none	G7	n	7162.75
+missing-items-refresh-added	A3	s	Sum Amount
+missing-items-refresh-added	B3	s	Column Labels
+missing-items-refresh-added	A4	s	Row Labels
+missing-items-refresh-added	B4	s	East
+missing-items-refresh-added	C4	s	North
+missing-items-refresh-added	D4	s	South
+missing-items-refresh-added	E4	s	West
+missing-items-refresh-added	F4	s	(blank)
+missing-items-refresh-added	G4	s	Grand Total
+missing-items-refresh-added	A5	s	Alpha
+missing-items-refresh-added	B5	n	1296
+missing-items-refresh-added	C5	n	432
+missing-items-refresh-added	D5	n	1426.5
+missing-items-refresh-added	E5	n	1426.5
+missing-items-refresh-added	F5	n	158
+missing-items-refresh-added	G5	n	4739
+missing-items-refresh-added	A6	s	Beta
+missing-items-refresh-added	B6	n	778.5
+missing-items-refresh-added	C6	n	227.5
+missing-items-refresh-added	D6	n	582.75
+missing-items-refresh-added	E6	n	562.5
+missing-items-refresh-added	G6	n	2151.25
+missing-items-refresh-added	A7	s	Gamma
+missing-items-refresh-added	E7	n	121.75
+missing-items-refresh-added	G7	n	121.75
+missing-items-refresh-added	A8	s	Delta
+missing-items-refresh-added	E8	n	150.75
+missing-items-refresh-added	G8	n	150.75
+missing-items-refresh-added	A9	s	Grand Total
+missing-items-refresh-added	B9	n	2074.5
+missing-items-refresh-added	C9	n	659.5
+missing-items-refresh-added	D9	n	2009.25
+missing-items-refresh-added	E9	n	2261.5
+missing-items-refresh-added	F9	n	158
+missing-items-refresh-added	G9	n	7162.75
+missing-items-delta-removed-auto	A3	s	Sum Amount
+missing-items-delta-removed-auto	B3	s	Column Labels
+missing-items-delta-removed-auto	A4	s	Row Labels
+missing-items-delta-removed-auto	B4	s	East
+missing-items-delta-removed-auto	C4	s	North
+missing-items-delta-removed-auto	D4	s	South
+missing-items-delta-removed-auto	E4	s	West
+missing-items-delta-removed-auto	F4	s	(blank)
+missing-items-delta-removed-auto	G4	s	Grand Total
+missing-items-delta-removed-auto	A5	s	Alpha
+missing-items-delta-removed-auto	B5	n	1296
+missing-items-delta-removed-auto	C5	n	432
+missing-items-delta-removed-auto	D5	n	1426.5
+missing-items-delta-removed-auto	E5	n	1577.25
+missing-items-delta-removed-auto	F5	n	158
+missing-items-delta-removed-auto	G5	n	4889.75
+missing-items-delta-removed-auto	A6	s	Beta
+missing-items-delta-removed-auto	B6	n	778.5
+missing-items-delta-removed-auto	C6	n	227.5
+missing-items-delta-removed-auto	D6	n	582.75
+missing-items-delta-removed-auto	E6	n	562.5
+missing-items-delta-removed-auto	G6	n	2151.25
+missing-items-delta-removed-auto	A7	s	Gamma
+missing-items-delta-removed-auto	E7	n	121.75
+missing-items-delta-removed-auto	G7	n	121.75
+missing-items-delta-removed-auto	A8	s	Grand Total
+missing-items-delta-removed-auto	B8	n	2074.5
+missing-items-delta-removed-auto	C8	n	659.5
+missing-items-delta-removed-auto	D8	n	2009.25
+missing-items-delta-removed-auto	E8	n	2261.5
+missing-items-delta-removed-auto	F8	n	158
+missing-items-delta-removed-auto	G8	n	7162.75
+missing-items-max-limit	A3	s	Sum Amount
+missing-items-max-limit	B3	s	Column Labels
+missing-items-max-limit	A4	s	Row Labels
+missing-items-max-limit	B4	s	East
+missing-items-max-limit	C4	s	North
+missing-items-max-limit	D4	s	South
+missing-items-max-limit	E4	s	West
+missing-items-max-limit	F4	s	(blank)
+missing-items-max-limit	G4	s	Grand Total
+missing-items-max-limit	A5	s	Alpha
+missing-items-max-limit	B5	n	1296
+missing-items-max-limit	C5	n	432
+missing-items-max-limit	D5	n	1426.5
+missing-items-max-limit	E5	n	1577.25
+missing-items-max-limit	F5	n	158
+missing-items-max-limit	G5	n	4889.75
+missing-items-max-limit	A6	s	Beta
+missing-items-max-limit	B6	n	778.5
+missing-items-max-limit	C6	n	227.5
+missing-items-max-limit	D6	n	582.75
+missing-items-max-limit	E6	n	562.5
+missing-items-max-limit	G6	n	2151.25
+missing-items-max-limit	A7	s	Gamma
+missing-items-max-limit	E7	n	121.75
+missing-items-max-limit	G7	n	121.75
+missing-items-max-limit	A8	s	Grand Total
+missing-items-max-limit	B8	n	2074.5
+missing-items-max-limit	C8	n	659.5
+missing-items-max-limit	D8	n	2009.25
+missing-items-max-limit	E8	n	2261.5
+missing-items-max-limit	F8	n	158
+missing-items-max-limit	G8	n	7162.75
