@@ -906,6 +906,13 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
             Check::Items("addins-offered", &[]),
         ],
     },
+    // dc-0f1k.9: the page's wasm stack is 8 MiB (xtask's PAGE_STACK_BYTES) and its mount may spend
+    // half of it.
+    Case {
+        name: "the wasm shadow stack is 8 MiB and the mount spent at most half of it (dc-0f1k.9)",
+        actions: &[],
+        checks: &[Check::StackMargin("__onecalcMemory", 8_000_000)],
+    },
 ];
 
 /// Groups whose name ends in `-browser` need the browser's own download (Save writes a file the
@@ -982,6 +989,13 @@ pub(crate) const ONECALC_GROUPS: &[CaseGroup] = &[
         start: 83,
         end: 84,
         core: 0,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "stack-margin",
+        start: 84,
+        end: 85,
+        core: 1,
         setup: &[],
     },
 ];

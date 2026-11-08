@@ -239,7 +239,7 @@ impl AxisVisitor for ColumnWalk<'_> {
 }
 
 /// Column combinations and their row paths use the shared depth-first axis walk.
-pub(super) fn layout_columns(
+pub(super) fn render_axes(
     table: &PivotTable,
     cache: &PivotCache,
     snapshot: &PivotSnapshot,
@@ -260,7 +260,7 @@ pub(super) fn layout_columns(
     }
     let value_level = table.column_fields.iter().filter(|&&f| f == -2).count();
     let values_only = table.column_fields == [-2];
-    let rows_only_values = row_values.is_some() && table.column_fields.is_empty();
+    let rows_only = table.column_fields.is_empty();
     let show = table.data_fields.first().and_then(|d| d.attributes.get("showDataAs"))
         .map(String::as_str).unwrap_or("normal");
     let percent = matches!(show, "percentOfCol" | "percentOfRow" | "percentOfTotal");
@@ -292,26 +292,38 @@ pub(super) fn layout_columns(
         name.ends_with("Subtotal") && name != "defaultSubtotal" && truthy(Some(value), false)
     });
     if row_fields.iter().filter(|&&field| field != usize::MAX).any(|&field| custom_subtotal(field)
-        || !truthy(table.fields[field].attributes.get("defaultSubtotal"), true)) {
-        return Err(bad("Row fields without an automatic subtotal are not modelled"));
+        || (!rows_only && !truthy(table.fields[field].attributes.get("defaultSubtotal"), true))) {
+        return Err(bad("Row fields without an automatic subtotal are not modelled in this layout"));
     }
     let compact_rows = truthy(table.fields[row].attributes.get("compact"), true);
-    let tabular_values = row_values.is_some() && row_fields.len() == 3 && rows_only_values
-        && !compact_rows && !truthy(table.fields[row].attributes.get("outline"), true)
-        && row_values == Some(2);
+    let outline_rows = truthy(table.fields[row].attributes.get("outline"), true);
+    let tabular_values = row_values.is_some() && row_fields.len() == 3 && rows_only
+        && !compact_rows && !outline_rows && row_values == Some(2);
     if row_values.is_some() && row_fields.len() == 3 && !tabular_values {
         return Err(bad("Values with two row fields are only modelled in tabular form"));
     }
-    if multiple_rows && ((!compact_rows && !tabular_values) || row_fields.iter().filter(|&&field| field != usize::MAX)
-        .any(|&field| truthy(table.fields[field].attributes.get("compact"), true) != compact_rows
-            || (tabular_values && truthy(table.fields[field].attributes.get("outline"), true)))) {
+    if multiple_rows && ((!compact_rows && !tabular_values && !rows_only)
+        || row_fields.iter().filter(|&&field| field != usize::MAX).any(|&field|
+            truthy(table.fields[field].attributes.get("compact"), true) != compact_rows
+            || ((rows_only || tabular_values) && truthy(table.fields[field].attributes.get("outline"), true) != outline_rows))) {
         return Err(bad("This multi-field row form is not modelled"));
     }
-    let subtotal_top = truthy(table.fields[row].attributes.get("subtotalTop"), true) && !tabular_values;
+    let form = if compact_rows { Form::Compact } else if outline_rows { Form::Outline } else { Form::Tabular };
+    let raw_subtotal_top = truthy(table.fields[row].attributes.get("subtotalTop"), true);
+    let subtotal_top = raw_subtotal_top && form != Form::Tabular;
     if multiple_rows && row_fields.iter().filter(|&&field| field != usize::MAX).any(|&field|
-        (truthy(table.fields[field].attributes.get("subtotalTop"), true) && !tabular_values) != subtotal_top) {
+        truthy(table.fields[field].attributes.get("subtotalTop"), true) != raw_subtotal_top) {
         return Err(bad("Row fields with different subtotal positions are not modelled"));
     }
+    let mut subtotal_on: Vec<_> = row_fields.iter().map(|&field| field == usize::MAX
+        || truthy(table.fields[field].attributes.get("defaultSubtotal"), true)).collect();
+    if rows_only && row_values.is_none() && row_fields.len() == 2 && subtotal_on.iter().any(|on| !on) {
+        return Err(bad("Row fields without a subtotal remain unmeasured"));
+    }
+    if let Some(level) = row_values {
+        if level > 0 { subtotal_on[level - 1] = false; } else { subtotal_on[0] = false; }
+    }
+    let fill_down = truthy(table.fields[row].attributes.get("fillDownLabels"), false);
     let blank_after: Vec<_> = row_fields.iter().map(|&field| field != usize::MAX &&
         truthy(table.fields[field].attributes.get("insertBlankRow"), false)).collect();
     if (row_values.is_some() && blank_after.iter().any(|&blank| blank))
@@ -459,7 +471,7 @@ pub(super) fn layout_columns(
         return Err(bad("This numeric input for the value function is not modelled"));
     }
     let mut columns = Vec::new();
-    if rows_only_values {
+    if rows_only {
         columns.push(ColumnEntry { path: Vec::new(), measure: 0, kind: "data" });
     } else {
         walk_axis(&mut ColumnWalk {
@@ -470,7 +482,7 @@ pub(super) fn layout_columns(
         }, &mut Vec::new())?;
     }
     let row_grand = truthy(table.attributes.get("colGrandTotals"), true);
-    if !values_only && !rows_only_values && truthy(table.attributes.get("rowGrandTotals"), true) {
+    if !values_only && !rows_only && truthy(table.attributes.get("rowGrandTotals"), true) {
         let column_measures = if row_values.is_some() { 1 } else { table.data_fields.len() };
         for measure in 0..column_measures {
             columns.push(ColumnEntry {
@@ -481,8 +493,8 @@ pub(super) fn layout_columns(
         }
     }
     let first = table.area.first();
-    let header = if values_only || rows_only_values { 1 } else { levels.len() as u32 + 1 };
-    let label_width = if tabular_values { row_fields.len() as u32 } else { 1 };
+    let header = if values_only || rows_only { 1 } else { levels.len() as u32 + 1 };
+    let label_width = if (rows_only && form != Form::Compact) || tabular_values { row_fields.len() as u32 } else { 1 };
     let mut cells = BTreeMap::<(u32, u32), CalcValue>::new();
     let caption = |m: usize| {
         table.data_fields[m].name.clone().unwrap_or_else(|| {
@@ -506,13 +518,18 @@ pub(super) fn layout_columns(
         .get("grandTotalCaption")
         .map(String::as_str)
         .unwrap_or("Grand Total");
-    if tabular_values {
-        for (level, &field) in row_fields.iter().enumerate() {
-            let label = if field == usize::MAX { table.attributes.get("dataCaption").map(String::as_str).unwrap_or("Values") }
-                else { &cache.fields[field].name };
-            cells.insert((0, level as u32), plain_text(label));
+    if rows_only {
+        if form == Form::Compact {
+            cells.insert((0, 0), plain_text(table.attributes.get("rowHeaderCaption").map(String::as_str).unwrap_or("Row Labels")));
+        } else {
+            for (level, &field) in row_fields.iter().enumerate() {
+                let label = if field == usize::MAX { table.attributes.get("dataCaption").map(String::as_str).unwrap_or("Values") }
+                    else { &cache.fields[field].name };
+                cells.insert((0, level as u32), plain_text(label));
+            }
         }
-    } else if values_only || rows_only_values {
+        if row_values.is_none() { cells.insert((0, label_width), plain_text(&caption(0))); }
+    } else if values_only {
         cells.insert((0, 0), plain_text(row_caption));
     } else {
         if table.data_fields.len() == 1 { cells.insert((0, 0), plain_text(&caption(0))); }
@@ -522,10 +539,10 @@ pub(super) fn layout_columns(
         cells.insert((header - 1, 0), plain_text(row_caption));
     }
     let mut col_items = Vec::new();
-    if rows_only_values { col_items.push(axis_item("data", 0, Vec::new())); }
+    if rows_only { col_items.push(axis_item("data", 0, Vec::new())); }
     let mut previous = Vec::new();
     for (i, entry) in columns.iter().enumerate() {
-        if rows_only_values { continue; }
+        if rows_only { continue; }
         let column = i as u32 + 1;
         let repeat = if entry.kind == "data" {
             previous
@@ -758,17 +775,15 @@ pub(super) fn layout_columns(
     let mut axis = Vec::new();
     let mut r = header;
     if multiple_rows {
-        let mut subtotal_on = vec![true; row_fields.len()];
-        if let Some(level) = row_values { if level > 0 { subtotal_on[level - 1] = false; } else { subtotal_on[0] = false; } }
         let mut walk = Walk {
             levels: &row_levels,
             totals: &row_totals,
             position: &row_positions,
-            form: if tabular_values { Form::Tabular } else { Form::Compact },
+            form,
             subtotal_top,
             subtotal_on: &subtotal_on,
             blank_after: &blank_after,
-            fill_down: false,
+            fill_down,
             kind: &table.data_fields[0].subtotal,
             value_column: label_width,
             r: header,
@@ -863,7 +878,7 @@ pub(super) fn layout_columns(
     next.location
         .insert("firstDataRow".into(), header.to_string());
     next.location.insert("firstDataCol".into(), label_width.to_string());
-    let rebuild = |field: usize, groups: &[Group], positions: &[Option<u32>]| {
+    let rebuild = |field: usize, groups: &[Group], positions: &[Option<u32>], add_default: bool| {
         let mut out = groups
             .iter()
             .enumerate()
@@ -881,23 +896,25 @@ pub(super) fn layout_columns(
                 .filter(|i| i.hidden)
                 .cloned(),
         );
-        out.push(PivotFieldItem {
-            index: None,
-            kind: "default".into(),
-            hidden: false,
-        });
+        if add_default {
+            out.push(PivotFieldItem { index: None, kind: "default".into(), hidden: false });
+        }
         out
     };
     for (level, &field) in row_fields.iter().enumerate() {
-        if field != usize::MAX { next.fields[field].items = rebuild(field, &row_levels[level], &row_positions[level]); }
+        if field != usize::MAX {
+            let add_default = if row_values.is_some() || !rows_only { true }
+                else if row_fields.len() == 1 { row_grand } else { subtotal_on[level] };
+            next.fields[field].items = rebuild(field, &row_levels[level], &row_positions[level], add_default);
+        }
     }
     for level in &levels {
         if let Some(field) = level.field {
-            next.fields[field].items = rebuild(field, &level.groups, &level.positions);
+            next.fields[field].items = rebuild(field, &level.groups, &level.positions, true);
         }
     }
     next.row_items = axis;
-    next.col_items = col_items;
+    if !rows_only { next.col_items = col_items; }
     for row in 0..r {
         for col in 0..(label_width + columns.len() as u32) {
             cells.entry((row, col)).or_insert_with(CalcValue::empty);

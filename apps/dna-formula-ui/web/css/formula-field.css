@@ -22,3 +22,8 @@
 .oc-help p{margin:4px 0}
 .oc-help .oc-help-source{margin:0 0 4px;font-size:11px;color:var(--dna-ink-3)}
 .oc-help .oc-help-source a{color:var(--dna-accent-ink)}
+/* The evaluation trace panel both apps show (dna-formula-ui trace_panel). */
+.oc-prov{color:var(--dna-ink-3);font-size:12px;margin:6px 0 0}
+.oc-trace{margin:8px 0}.oc-trace header{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.oc-trace h2{margin:0;font-size:1rem}
+.oc-trace-steps{list-style:decimal;padding-left:2em;font:13px ui-monospace,Consolas,monospace}.oc-trace-steps li{cursor:pointer;padding:1px 4px}.oc-trace-steps li.oc-depth-1{margin-left:1em}.oc-trace-steps li.oc-depth-2{margin-left:2em}.oc-trace-steps li.oc-depth-3{margin-left:3em}.oc-trace-steps li.oc-depth-4{margin-left:4em}.oc-trace-steps li.oc-depth-5{margin-left:5em}.oc-trace-steps li.oc-depth-6{margin-left:6em}.oc-trace-steps li.oc-depth-7{margin-left:7em}.oc-trace-steps li.oc-depth-8{margin-left:8em}
+.oc-trace-steps li.oc-trace-current{background:var(--dna-amber-soft)}

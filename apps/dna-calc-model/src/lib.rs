@@ -4,6 +4,7 @@ pub mod address;
 mod editor;
 pub mod format;
 pub mod names;
+pub mod parts;
 pub use editor::{EditorState, PointEdit, PointSyntax, TextHistory, replace_text};
 pub mod command;
 pub mod geometry;

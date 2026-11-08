@@ -228,6 +228,10 @@ impl HostState {
     pub fn user_function_bindings(&self) -> calc_fml::CallableBindings {
         self.functions.bindings()
     }
+    /// The names of the callable user functions (add-in registrations and VBA), in table order.
+    pub fn user_function_names(&self) -> Vec<String> {
+        self.functions.names().map(str::to_owned).collect()
+    }
     /// What the providers of the registered functions (add-ins) documented of them, in name order.
     pub fn user_function_descriptors(&self) -> Vec<calc_fml::CallableDescriptor> {
         self.functions.descriptors().cloned().collect()

@@ -17,6 +17,11 @@ pub struct InProcessTransport {
     health: RefCell<Option<Rc<dyn Fn(Health)>>>,
 }
 impl InProcessTransport {
+    /// The server the transport runs, for a native owner that installs what a browser worker
+    /// cannot (an add-in's registered functions).
+    pub fn with_server<R>(&self, f: impl FnOnce(&mut Server) -> R) -> R {
+        f(&mut self.server.borrow_mut())
+    }
     /// A native owner can drive one cooperative task, releasing its server borrow
     /// before events reenter the transport (for example a save-ready PollSave).
     pub fn advance_calculation(&self) -> Result<calc_host::HostProgress, String> {

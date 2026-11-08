@@ -45,6 +45,14 @@ pub fn start_page(page: &'static Page, mount: impl FnOnce(HtmlElement)) {
     let document = web_sys::window()
         .and_then(|window| window.document())
         .expect("the page has a document");
+    // Where the wasm shadow stack started: a local's address in linear memory lies just below the
+    // stack pointer the module began with, and the stack grows down from there. The page's start
+    // script (boot.js) reads how deep the mount went from it (dc-0f1k.9).
+    let marker = 0u8;
+    let stack_top = std::hint::black_box(&marker) as *const u8 as usize;
+    if let Some(root) = document.document_element() {
+        let _ = root.set_attribute("data-dna-stack-top", &stack_top.to_string());
+    }
     let host: HtmlElement = match document.get_element_by_id(page.host_id) {
         Some(element) => element
             .dyn_into()

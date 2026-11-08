@@ -36,7 +36,9 @@ import("./dna-onecalc-web.js")
   .then(function (glue) {
     return glue.default({ module_or_path: new URL("./dna-onecalc-web_bg.wasm", import.meta.url) });
   })
-  .then(function () {
+  .then(function (exports) {
+    // The module's linear memory (see DNA Calc's boot.js): the wasm shadow stack's depth shows in it.
+    window.__onecalcMemory = exports && exports.memory;
     var element = loading();
     if (element) { element.remove(); }
   })
