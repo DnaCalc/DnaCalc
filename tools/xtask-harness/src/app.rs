@@ -2099,6 +2099,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 custom: None,
                 date_1904: false,
                 cached: None,
+                vba: None,
             };
             let bytes = calc_doc::write_session(&file).map_err(|e| e.to_string())?;
             fs::write(session.downloads.join(name), bytes).map_err(|e| e.to_string())
@@ -2120,6 +2121,7 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 custom: None,
                 date_1904: false,
                 cached: None,
+                vba: None,
             };
             let bytes = calc_doc::write_session(&file).map_err(|e| e.to_string())?;
             fs::write(session.downloads.join(name), bytes).map_err(|e| e.to_string())

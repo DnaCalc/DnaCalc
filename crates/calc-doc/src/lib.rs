@@ -117,10 +117,10 @@ pub use save::{
 };
 pub use session::{
     SessionArray, SessionConstant, SessionFile, SessionFormula, SessionRefusal, SessionValue,
-    plain_formula_needs_legacy, read_session, write_session,
+    SessionVba, plain_formula_needs_legacy, read_session, read_vba_file, write_session,
 };
 pub use source::{MemorySource, PackageRead, PackageWrite, SinkError, SourceError};
-pub use vba::{VbaModuleKind, VbaModuleSource, VbaProjectSource, VbaReadError, VbaReadPolicy};
+pub use vba::{VBA_PROJECT_CONTENT_TYPE, VbaProjectPart, VbaReadError, VbaReadPolicy};
 pub use xml::{
     XmlAttribute, XmlElement, XmlError, XmlEvent, XmlLimits, XmlName, XmlPart, XmlReader, XmlStr,
 };

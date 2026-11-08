@@ -558,13 +558,14 @@ fn dc_snz_15__project_reading_leaves_host_file_caches_unexecuted() {
     let call = at(id, "B1");
     let before = value(&host, call);
     assert!(matches!(before, ProjectedValue::FileCached(_)));
-    let project = host
+    let part = host
         .loaded()
-        .read_vba_project(&calc_host::VbaReadPolicy::default())
+        .vba_project(&calc_host::VbaReadPolicy::default())
         .unwrap()
         .unwrap();
-    assert_eq!(project.code_page, 1252);
-    assert_eq!(project.modules.len(), 4);
+    let project = calc_vba::read_office_project(&part.bytes).unwrap();
+    assert_eq!(project.code_page(), 1252);
+    assert_eq!(project.modules().len(), 4);
     assert_eq!(value(&host, call), before);
     let mut saved = Vec::new();
     save(&host, &SavePolicy::default(), &mut saved).unwrap();

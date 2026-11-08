@@ -45,6 +45,22 @@ pub trait Libraries {
     /// The .xll add-ins loaded, in load order, with the worksheet functions each registered.
     fn loaded(&self) -> Vec<(PathBuf, Vec<String>)>;
 
+    /// Loads a VBA add-in (an .xlam) from its project, raising `Workbook_Open`, then
+    /// `Workbook_AddinInstall` when `install`. A project that does not compile loads nothing; the
+    /// answer lists what its events reported.
+    fn load_xlam(
+        &mut self,
+        path: &Path,
+        project: &calc_vba::OfficeProject,
+        install: bool,
+    ) -> Result<Vec<String>, String>;
+
+    /// Unloads the VBA add-in loaded from `path`.
+    fn unload_xlam(&mut self, path: &Path) -> Result<(), String>;
+
+    /// The VBA add-ins loaded, in load order, with their worksheet functions.
+    fn loaded_xlam(&self) -> Vec<(PathBuf, Vec<String>)>;
+
     /// Compiles a VBA standard module and keeps it beside the add-ins; a module that does not
     /// compile changes nothing.
     fn load_vba(&mut self, name: &str, source: &str) -> Result<(), String>;
@@ -72,6 +88,8 @@ pub struct Host<F, L> {
     port: LocalPort,
     files: F,
     libs: L,
+    /// What each loaded VBA add-in's load reported, by path.
+    xlam_notes: Vec<(PathBuf, Vec<String>)>,
     /// The grid's entries as the last evaluation had them, to tell the add-ins which cells changed.
     last_grid: Vec<String>,
 }
@@ -82,6 +100,7 @@ impl<F: Files, L: Libraries> Host<F, L> {
             port: LocalPort::new(session),
             files,
             libs,
+            xlam_notes: Vec::new(),
             last_grid: Vec::new(),
         };
         let _ = host.publish();
@@ -115,15 +134,30 @@ impl<F: Files, L: Libraries> Host<F, L> {
     }
 
     fn loaded_view(&self) -> Vec<LoadedAddin> {
-        self.libs
-            .loaded()
-            .into_iter()
-            .map(|(path, functions)| LoadedAddin {
-                kind: "xll".to_owned(),
+        let xlls = self.libs.loaded().into_iter().map(|(path, functions)| ("xll", path, functions));
+        let xlams = self.libs.loaded_xlam().into_iter().map(|(path, functions)| ("xlam", path, functions));
+        xlls.chain(xlams)
+            .map(|(kind, path, functions)| LoadedAddin {
+                kind: kind.to_owned(),
                 hash: file_hash(&path).unwrap_or_default(),
+                notes: self
+                    .xlam_notes
+                    .iter()
+                    .find(|(held, _)| *held == path)
+                    .map(|(_, notes)| notes.clone())
+                    .unwrap_or_default(),
                 path: path.display().to_string(),
                 functions,
             })
+            .collect()
+    }
+
+    fn loaded_paths(&self) -> Vec<PathBuf> {
+        self.libs
+            .loaded()
+            .into_iter()
+            .chain(self.libs.loaded_xlam())
+            .map(|(path, _)| path)
             .collect()
     }
 
@@ -153,7 +187,7 @@ impl<F: Files, L: Libraries> Host<F, L> {
                 self.libs.unload_vba();
                 let _ = self.publish();
                 opened.shown.functions_version = self.port.session().functions_version();
-                opened.loaded = self.loaded_view().into_iter().map(|a| a.path).collect();
+                opened.loaded = self.loaded_paths().iter().map(|p| p.display().to_string()).collect();
                 Reply::Opened(opened)
             }
             other => other,
@@ -162,17 +196,18 @@ impl<F: Files, L: Libraries> Host<F, L> {
 
     fn load_addin(&mut self, path: &Path, expected_hash: Option<&str>) -> Reply {
         let refused = |message: String| Reply::Refused { message };
-        let is_xll = path
+        let extension = path
             .extension()
-            .is_some_and(|extension| extension.eq_ignore_ascii_case("xll"));
-        if !is_xll {
+            .map(|extension| extension.to_string_lossy().to_ascii_lowercase());
+        let is_xlam = extension.as_deref() == Some("xlam");
+        if extension.as_deref() != Some("xll") && !is_xlam {
             return refused(format!(
-                "{} is not an .xll add-in; only .xll add-ins load here",
+                "{} is not an .xll or .xlam add-in; only those load here",
                 path.display()
             ));
         }
         let path = std::path::absolute(path).unwrap_or_else(|_| path.to_owned());
-        if self.libs.loaded().iter().any(|(held, _)| *held == path) {
+        if self.loaded_paths().contains(&path) {
             return refused(format!("{} is already loaded", path.display()));
         }
         let hash = match file_hash(&path) {
@@ -187,7 +222,19 @@ impl<F: Files, L: Libraries> Host<F, L> {
                 path.display()
             ));
         }
-        if let Err(message) = self.libs.load_xll(&path) {
+        if is_xlam {
+            // The person loading an add-in installs it, as Excel's Add-ins dialog does; a session
+            // that lists it (a reopen) only opens it.
+            let install = expected_hash.is_none();
+            let loaded = std::fs::read(&path)
+                .map_err(|e| format!("{}: {e}", path.display()))
+                .and_then(|bytes| dna_onecalc::file::read_vba_addin(&bytes))
+                .and_then(|project| self.libs.load_xlam(&path, &project, install));
+            match loaded {
+                Ok(notes) => self.xlam_notes.push((path.clone(), notes)),
+                Err(message) => return refused(format!("{}: {message}", path.display())),
+            }
+        } else if let Err(message) = self.libs.load_xll(&path) {
             return refused(message);
         }
         if let Err(message) = self.publish() {
@@ -200,13 +247,17 @@ impl<F: Files, L: Libraries> Host<F, L> {
     fn unload_addin(&mut self, path: &str) -> Reply {
         let wanted = Path::new(path);
         let path = self
-            .libs
-            .loaded()
+            .loaded_paths()
             .into_iter()
-            .map(|(held, _)| held)
             .find(|held| held == wanted)
             .unwrap_or_else(|| wanted.to_owned());
-        if let Err(message) = self.libs.unload_xll(&path) {
+        let unloaded = if self.libs.loaded_xlam().iter().any(|(held, _)| *held == path) {
+            self.xlam_notes.retain(|(held, _)| *held != path);
+            self.libs.unload_xlam(&path)
+        } else {
+            self.libs.unload_xll(&path)
+        };
+        if let Err(message) = unloaded {
             return Reply::Refused { message };
         }
         if let Err(message) = self.publish() {
@@ -378,6 +429,8 @@ mod tests {
     #[derive(Default)]
     struct Fake {
         xlls: Vec<PathBuf>,
+        /// Each VBA add-in loaded: its path, its module count and whether it was installed.
+        xlams: Vec<(PathBuf, usize, bool)>,
         vba: Vec<String>,
         generation: u32,
         seen: u32,
@@ -410,6 +463,27 @@ mod tests {
                 .iter()
                 .map(|path| (path.clone(), vec!["Double".to_owned()]))
                 .collect()
+        }
+
+        fn load_xlam(
+            &mut self,
+            path: &Path,
+            project: &calc_vba::OfficeProject,
+            install: bool,
+        ) -> Result<Vec<String>, String> {
+            self.xlams.push((path.to_owned(), project.modules().len(), install));
+            self.generation += 1;
+            Ok(vec![format!("{} module(s)", project.modules().len())])
+        }
+
+        fn unload_xlam(&mut self, path: &Path) -> Result<(), String> {
+            self.xlams.retain(|(held, _, _)| held != path);
+            self.generation += 1;
+            Ok(())
+        }
+
+        fn loaded_xlam(&self) -> Vec<(PathBuf, Vec<String>)> {
+            self.xlams.iter().map(|(path, _, _)| (path.clone(), vec!["DnaAdd".to_owned()])).collect()
         }
 
         fn load_vba(&mut self, name: &str, source: &str) -> Result<(), String> {
@@ -627,13 +701,13 @@ mod tests {
         let listed = host.session().addins().to_vec();
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].hash, loaded[0].hash);
-        // Loading it again is refused; so is a file that is not an .xll.
+        // Loading it again is refused; so is a file that is not an .xll or an .xlam.
         match host.handle(Request::LoadAddin { path: loaded[0].path.clone(), expected_hash: None }) {
             Reply::Refused { message } => assert!(message.contains("already loaded"), "{message}"),
             other => panic!("{other:?}"),
         }
-        match host.handle(Request::LoadAddin { path: "C:\\libs\\Add.xlam".into(), expected_hash: None }) {
-            Reply::Refused { message } => assert!(message.contains("only .xll"), "{message}"),
+        match host.handle(Request::LoadAddin { path: "C:\\libs\\Add.dll".into(), expected_hash: None }) {
+            Reply::Refused { message } => assert!(message.contains("not an .xll or .xlam add-in"), "{message}"),
             other => panic!("{other:?}"),
         }
         // Unloading removes the function and the listing.
@@ -714,5 +788,36 @@ mod tests {
         host.libs.xlls.clear();
         host.libs.generation += 1;
         assert_eq!(shown(host.handle(Request::Evaluate(formula("=Double(4)")))).result, "error #NAME?");
+    }
+
+    /// Native-only: a VBA add-in (.xlam) loads by path: CalcVBA reads the project calc-doc found
+    /// in the file, the person's load installs it, a load from the session's list only opens it,
+    /// and unloading removes it.
+    #[test]
+    fn a_vba_add_in_loads_installs_is_listed_and_unloads() {
+        let path = file_named(
+            "DnaExamples.xlam",
+            include_bytes!("../../../crates/calc-xll-reference/fixture/vba/DnaExamples.xlam"),
+        );
+        let mut host = host();
+        let loaded = addins(host.handle(Request::LoadAddin { path: path.display().to_string(), expected_hash: None }));
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].kind, "xlam");
+        assert_eq!(loaded[0].functions, ["DnaAdd"]);
+        assert_eq!(loaded[0].notes, ["4 module(s)"]);
+        assert_eq!(host.libs.xlams, [(path.clone(), 4, true)]);
+        assert_eq!(host.session().addins().len(), 1);
+        assert_eq!(host.session().addins()[0].kind, "xlam");
+        // Loading it twice is refused.
+        assert!(matches!(host.handle(Request::LoadAddin { path: path.display().to_string(), expected_hash: None }), Reply::Refused { .. }));
+        // Unloaded, then loaded from the session's list (a reopen): opened, not installed.
+        let hash = loaded[0].hash.clone();
+        assert!(addins(host.handle(Request::UnloadAddin { path: path.display().to_string() })).is_empty());
+        assert!(host.libs.xlams.is_empty());
+        host.handle(Request::LoadAddin { path: path.display().to_string(), expected_hash: Some(hash) });
+        assert_eq!(host.libs.xlams, [(path.clone(), 4, false)]);
+        // A file without a VBA project is refused, naming it.
+        let empty = file_named("Empty.xlam", b"not a workbook");
+        assert!(matches!(host.handle(Request::LoadAddin { path: empty.display().to_string(), expected_hash: None }), Reply::Refused { message } if message.contains("Empty.xlam")));
     }
 }

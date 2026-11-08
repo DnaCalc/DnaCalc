@@ -1,4 +1,4 @@
-# Add-ins in DNA OneCalc (milestone 4, dc-0f1k and dc-snz.2)
+# Add-ins in DNA OneCalc (milestones 4 and 5, dc-0f1k, dc-snz.2 and dc-0f1k.4)
 
 How the desktop OneCalc loads, shows, runs and unloads `.xll` add-ins, what a saved session says about
 them, and what the acceptance run showed. The XLL host itself (ABI, callbacks, pool, async, RTD) is
@@ -7,8 +7,8 @@ described in [XLL_COM_HOSTING.md](XLL_COM_HOSTING.md); this note is about the ap
 ## What a person can do
 
 - **Load an add-in.** The page's "Add-ins" panel has "Load add-in..." (the native file dialog of the
-  desktop exe, filtered to `*.xll`) and a path box with "Load path". Only `.xll` files load; a
-  `.xlam` or a VBA module is milestone 5 (dc-0f1k.4). The load runs the add-in's open routine, waits
+  desktop exe, filtered to `*.xll` and `*.xlam`) and a path box with "Load path". A `.xlam` is a VBA
+  add-in (milestone 5, below). The load of an `.xll` runs the add-in's open routine, waits
   until its registrations stop changing (a Python runtime registers after the open routine returns),
   and publishes every registered worksheet function to the session's one table of functions. A load
   that fails rolls back completely and the panel shows why (which registrations remain, if any).
@@ -31,6 +31,9 @@ There is no signing and no sandbox: an `.xll` is native code that runs in the On
 the person's rights, as in Excel. What the application does about that is small and written here:
 
 1. Nothing loads without the person's action (a button, a path they typed, a command-line `--xll`).
+   The one exception is an .xlsm session's own VBA project: opening the file is the action, and its
+   project compiles and its `Workbook_Open` runs, as in an Excel that enables macros. A VBA project
+   with COM references can do what the person can, as in Excel.
 2. A session lists add-ins with the hash of each file when it was saved; reopening only offers.
 3. A listed add-in whose file no longer has the listed hash is not loaded by the offer.
 4. Commands, ribbons, menus and other add-in features are not offered. Their registration or load
@@ -119,3 +122,31 @@ tests with a scripted chooser, and the page's other route, a typed path, runs th
 commands and ribbons (not offered); RTD (milestone 6); xlOil Python's event cases (they toggle
 `Application.EnableEvents`, which OneCalc has no control for; the page does tell add-ins of a changed
 grid cell and of each calculation); the x5 permission and RTD case files.
+
+## Milestone 5: VBA add-ins and .xlsm sessions (dc-0f1k.4)
+
+- **Load a VBA add-in.** An `.xlam` loads through the same panel (dialog or typed path). calc-doc
+  reads its `vbaProject.bin` part as a blob; CalcVBA reads and compiles the project with its
+  references (the Excel library bound to DNA's objects; other type libraries, such as the Microsoft
+  Scripting Runtime, read from the registry and called early-bound through COM). Its public
+  functions join the session's table; its line in the list shows kind `xlam`, the functions and
+  what its workbook events reported. The person's load installs it (`Workbook_Open`, then
+  `Workbook_AddinInstall`, as Excel's Add-ins dialog); a load from a reopened session's list only
+  opens it (`Workbook_Open`). Unload removes its functions.
+- **Open an .xlsm session.** A session file with a VBA project opens like any session; its project
+  compiles and runs `Workbook_Open`, and the VBA panel's status lists its functions. A module typed
+  into the VBA panel goes into that project (a changed project). Save writes the session as an
+  .xlsm under the file's own name: the project part unchanged, or the changed one after an edit.
+  Where the project does not compile (in the browsers, without the registry's type libraries), the
+  session still keeps the part and saves it back unchanged.
+- **What add-in code sees** is listed in docs/plan/VBA_UDFS.md: cell writes raise Excel's trappable
+  error 1004, `ThisWorkbook.Name` is the file's name, `ActiveSheet`, `Selection` and `Range.Value`
+  reads are typed refusals.
+
+The acceptance add-in is DNA Calc's own: `crates/calc-xll-reference/fixture/vba` holds its sources
+(`DnaExamples.bas`, the class `DnaCounter.cls`, `ThisWorkbook.txt`), the `.xlam` and `.xlsm` Excel
+built from them with the Scripting Runtime reference (`vba-job.ps1 -Action build`, owned hidden
+session, VBE object model), and the cases with Excel's answers (`x9-vba-cases.json`). The plan is
+`crates/calc-xll-reference/fixture/m5-acceptance.json`.
+
+RESULTS

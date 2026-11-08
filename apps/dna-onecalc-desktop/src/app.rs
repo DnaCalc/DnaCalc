@@ -38,6 +38,10 @@ struct Options {
     sheet: String,
     debug_port: Option<u16>,
     size: (i32, i32),
+    /// Save sessions here, each in a new numbered folder under the name the session suggests,
+    /// instead of asking in the save dialog: an acceptance run drives the page's Save without a
+    /// person (the dialog's own code is not exercised then).
+    save_dir: Option<PathBuf>,
 }
 
 fn options(args: &[String]) -> Result<Options, String> {
@@ -48,6 +52,7 @@ fn options(args: &[String]) -> Result<Options, String> {
         sheet: "Sheet1".to_owned(),
         debug_port: None,
         size: (1280, 900),
+        save_dir: None,
     };
     let mut args = args.iter();
     while let Some(arg) = args.next() {
@@ -58,6 +63,7 @@ fn options(args: &[String]) -> Result<Options, String> {
             "--assets" => o.assets = Some(PathBuf::from(value()?)),
             "--xll" => o.xlls.push(PathBuf::from(value()?)),
             "--sheet" => o.sheet = value()?,
+            "--save-dir" => o.save_dir = Some(PathBuf::from(value()?)),
             "--debug-port" => {
                 o.debug_port = Some(value()?.parse().map_err(|_| "--debug-port needs a port")?)
             }
@@ -88,12 +94,14 @@ const TICK_ID: usize = 0x4f4e43;
 /// The native file dialogs, owned by the window.
 struct Dialogs {
     owner: *mut std::ffi::c_void,
+    /// `--save-dir`: where saves go without the dialog, and how many there have been.
+    save_dir: Option<(PathBuf, usize)>,
 }
 
 const SESSION_FILES: [FileFilter<'static>; 2] = [
     FileFilter {
-        name: "OneCalc sessions (*.xlsx)",
-        patterns: "*.xlsx",
+        name: "OneCalc sessions (*.xlsx; *.xlsm)",
+        patterns: "*.xlsx;*.xlsm",
     },
     FileFilter {
         name: "All files",
@@ -115,9 +123,19 @@ impl Files for Dialogs {
         Ok(Some((name, bytes)))
     }
 
-    fn choose_save(&mut self, _suggested: &str, bytes: &[u8]) -> Result<Option<String>, String> {
+    fn choose_save(&mut self, suggested: &str, bytes: &[u8]) -> Result<Option<String>, String> {
+        if let Some((directory, count)) = &mut self.save_dir {
+            *count += 1;
+            let folder = directory.join(count.to_string());
+            std::fs::create_dir_all(&folder).map_err(|e| format!("{}: {e}", folder.display()))?;
+            let path = folder.join(suggested);
+            std::fs::write(&path, bytes).map_err(|e| format!("{}: {e}", path.display()))?;
+            return Ok(Some(path.display().to_string()));
+        }
+        // A session with a VBA project is an .xlsm.
+        let extension = if suggested.ends_with(".xlsm") { "xlsm" } else { "xlsx" };
         let Some(path) =
-            dialogs::save_file(self.owner.cast(), "Save the session", &SESSION_FILES, "xlsx")?
+            dialogs::save_file(self.owner.cast(), "Save the session", &SESSION_FILES, extension)?
         else {
             return Ok(None);
         };
@@ -132,8 +150,8 @@ impl Files for Dialogs {
 
 const ADDIN_FILES: [FileFilter<'static>; 2] = [
     FileFilter {
-        name: "Excel add-ins (*.xll)",
-        patterns: "*.xll",
+        name: "Excel add-ins (*.xll; *.xlam)",
+        patterns: "*.xll;*.xlam",
     },
     FileFilter {
         name: "All files",
@@ -242,6 +260,28 @@ impl Libraries for Addins {
                 (path.clone(), own.iter().map(|r| r.name.clone()).collect())
             })
             .collect()
+    }
+
+    fn load_xlam(
+        &mut self,
+        path: &Path,
+        project: &calc_vba::OfficeProject,
+        install: bool,
+    ) -> Result<Vec<String>, String> {
+        let load = self.set.borrow_mut().load_vba_addin(path, project, install)?;
+        Ok(load.notes)
+    }
+
+    fn unload_xlam(&mut self, path: &Path) -> Result<(), String> {
+        if self.set.borrow_mut().unload_vba_addin(path) {
+            Ok(())
+        } else {
+            Err(format!("{} is not loaded", path.display()))
+        }
+    }
+
+    fn loaded_xlam(&self) -> Vec<(PathBuf, Vec<String>)> {
+        self.set.borrow().vba_addins()
     }
 
     fn load_vba(&mut self, name: &str, source: &str) -> Result<(), String> {
@@ -431,7 +471,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
         arrived: BTreeMap::new(),
         since: Instant::now(),
     })));
-    let mut host = Host::new(session, Dialogs { owner: frame.cast() }, Addins::new(set.clone()));
+    let mut host = Host::new(session, Dialogs { owner: frame.cast(), save_dir: o.save_dir.clone().map(|d| (d, 0)) }, Addins::new(set.clone()));
     for xll in &o.xlls {
         match host.handle(Request::LoadAddin {
             path: xll.display().to_string(),

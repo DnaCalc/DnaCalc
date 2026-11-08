@@ -518,7 +518,7 @@ mod tests {
         let mut session = Session::new("Sheet1").unwrap();
         evaluate(&mut session, &authored);
         let bytes = crate::file::save(&mut session).expect("saved");
-        let mut reopened = crate::file::open(&bytes).expect("reopened");
+        let mut reopened = crate::file::open(&bytes).expect("reopened").0;
         let state = authored_of(&reopened);
         assert_eq!(state, authored);
         let shown = evaluate(&mut reopened, &state);
@@ -553,7 +553,7 @@ mod tests {
         let shown = evaluate(&mut session, &state);
         assert!(shown.formula_cell.contains("the formula stays in Sheet1!C7"), "{shown:?}");
         assert_eq!(shown.result, "number 5");
-        let reopened = crate::file::open(&crate::file::save(&mut session).unwrap()).unwrap();
+        let reopened = crate::file::open(&crate::file::save(&mut session).unwrap()).unwrap().0;
         assert_eq!(authored_of(&reopened).formula_cell, "C7");
         assert_eq!(display::cell(&reopened, reopened.formula_cell()), "Sheet1!C7");
     }
@@ -607,7 +607,7 @@ mod tests {
         assert_eq!(shown.result, "number 43860");
         assert!(matches!(&shown.view, ViewWire::Value { text, .. } if text == "2024-01-31"), "{shown:?}");
         // The date system is the workbook's own: it goes into the file and comes back.
-        let reopened = crate::file::open(&crate::file::save(&mut session).unwrap()).unwrap();
+        let reopened = crate::file::open(&crate::file::save(&mut session).unwrap()).unwrap().0;
         assert!(reopened.options().date_1904);
         assert!(authored_of(&reopened).date_1904);
     }

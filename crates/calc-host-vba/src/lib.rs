@@ -38,6 +38,8 @@ pub struct ModuleSource {
 #[derive(Debug)]
 pub enum FileProjectError {
     Read(calc_host::VbaReadError),
+    /// CalcVBA could not read the project part (its storage, directory, code page or text).
+    Project(String),
     DocumentIdentity(String),
     UnsupportedModule(String),
     Preparation(String),
@@ -47,6 +49,7 @@ impl std::fmt::Display for FileProjectError {
         write!(f, "workbook VBA project (dc-snz.15): ")?;
         match self {
             Self::Read(error) => error.fmt(f),
+            Self::Project(error) => write!(f, "invalid VBA project: {error}"),
             Self::DocumentIdentity(name) => write!(f, "ambiguous document code name {name:?}"),
             Self::UnsupportedModule(name) => write!(
                 f,
@@ -78,13 +81,18 @@ pub fn prepare_file_project_with_events(
     backend: Option<calc_vba::Backend>,
     automatic_events: bool,
 ) -> Result<Option<Rc<WorkbookEvents>>, FileProjectError> {
-    let Some(project) = host
+    // calc-doc hands over the project part as a blob; CalcVBA reads what is inside it.
+    let Some(part) = host
         .loaded()
-        .read_vba_project(&Default::default())
+        .vba_project(&Default::default())
         .map_err(FileProjectError::Read)?
     else {
         return Ok(None);
     };
+    let project =
+        calc_vba::read_office_project(&part.bytes).map_err(FileProjectError::Project)?;
+    let references = calc_vba::events::ProjectReferences::of(&project)
+        .map_err(FileProjectError::Preparation)?;
     let mut documents = BTreeMap::new();
     for (name, sheet) in host
         .loaded()
@@ -97,28 +105,32 @@ pub fn prepare_file_project_with_events(
         }
     }
     let modules = project
-        .modules
-        .into_iter()
+        .modules()
+        .iter()
         .map(|module| {
             let target = match module.kind {
-                calc_host::VbaModuleKind::Procedural => ModuleTarget::Standard,
-                calc_host::VbaModuleKind::Class => {
+                calc_vba::OfficeModuleKind::Standard => ModuleTarget::Standard,
+                calc_vba::OfficeModuleKind::Class => {
                     if documents.contains_key(&calc_value::fold_workbook_name(&module.name)) {
-                        return Err(FileProjectError::DocumentIdentity(module.name));
+                        return Err(FileProjectError::DocumentIdentity(module.name.clone()));
                     }
                     ModuleTarget::Class
                 }
-                calc_host::VbaModuleKind::DocumentClassOrDesigner => {
+                calc_vba::OfficeModuleKind::Document | calc_vba::OfficeModuleKind::Designer => {
                     match documents.get(&calc_value::fold_workbook_name(&module.name)) {
-                        Some(Some(sheet)) => ModuleTarget::Worksheet(*sheet),
-                        Some(None) => ModuleTarget::Workbook,
-                        None => return Err(FileProjectError::UnsupportedModule(module.name)),
+                        Some(Some(sheet)) if module.kind == calc_vba::OfficeModuleKind::Document => {
+                            ModuleTarget::Worksheet(*sheet)
+                        }
+                        Some(None) if module.kind == calc_vba::OfficeModuleKind::Document => {
+                            ModuleTarget::Workbook
+                        }
+                        _ => return Err(FileProjectError::UnsupportedModule(module.name.clone())),
                     }
                 }
             };
             Ok(ModuleSource {
-                name: module.name,
-                source: module.source,
+                name: module.name.clone(),
+                source: module.source.clone(),
                 target,
             })
         })
@@ -127,6 +139,7 @@ pub fn prepare_file_project_with_events(
         host,
         name,
         &modules,
+        &references,
         max_steps,
         backend,
         true,
@@ -189,13 +202,24 @@ pub fn prepare(
     max_steps: u64,
     backend: Option<calc_vba::Backend>,
 ) -> Result<Rc<WorkbookEvents>, String> {
-    prepare_project(host, name, modules, max_steps, backend, false, true)
+    prepare_project(
+        host,
+        name,
+        modules,
+        &calc_vba::events::ProjectReferences::none(),
+        max_steps,
+        backend,
+        false,
+        true,
+    )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn prepare_project(
     host: &HostState,
     name: &str,
     modules: &[ModuleSource],
+    references: &calc_vba::events::ProjectReferences,
     max_steps: u64,
     backend: Option<calc_vba::Backend>,
     file_project: bool,
@@ -235,11 +259,16 @@ fn prepare_project(
         })
         .collect::<Result<Vec<_>, String>>()?;
     let project = if file_project {
-        calc_vba::events::load_file_project_with_events(
+        calc_vba::events::load_file_project_with(
             &modules,
+            references,
             max_steps,
             backend,
-            automatic_events,
+            if automatic_events {
+                calc_vba::events::DocumentEvents::All
+            } else {
+                calc_vba::events::DocumentEvents::None
+            },
         )?
     } else {
         calc_vba::events::load_project(&modules, max_steps, backend)?

@@ -40,16 +40,13 @@ fn replace_project(
     let source = Arc::new(calc_doc::MemorySource::new(bytes.to_vec()));
     let document = calc_doc::open(source, &Default::default()).unwrap();
     let loaded = calc_doc::load(&document, &mut Default::default()).unwrap();
-    let package = document.package();
-    let project = loaded
-        .read_vba_project(&Default::default())
-        .unwrap()
-        .unwrap();
-    let mut compound =
-        cfb::CompoundFile::open(Cursor::new(package.read_part(&project.part).unwrap())).unwrap();
+    // calc-doc hands over the part; CalcVBA's reader names each module's stream and offset.
+    let part = loaded.vba_project(&Default::default()).unwrap().unwrap();
+    let project = calc_vba::read_office_project(&part.bytes).unwrap();
+    let mut compound = cfb::CompoundFile::open(Cursor::new(part.bytes.clone())).unwrap();
     for (name, text) in sources {
         let module = project
-            .modules
+            .modules()
             .iter()
             .find(|module| module.name == *name)
             .unwrap();
@@ -61,6 +58,20 @@ fn replace_project(
             .read_to_end(&mut bytes)
             .unwrap();
         bytes.truncate(module.source_offset);
+        // A replacement that names no VB_Name keeps the module's own Attribute lines, as the
+        // VBE saves every module with them (CalcVBA's reader requires VB_Name to match the
+        // directory); one that names a VB_Name is written as given, to test identity checks.
+        let text = if text.contains("Attribute VB_Name") {
+            (*text).to_owned()
+        } else {
+            let attributes: String = module
+                .source
+                .lines()
+                .filter(|line| line.trim_start().to_ascii_lowercase().starts_with("attribute "))
+                .map(|line| format!("{line}\r\n"))
+                .collect();
+            attributes + text
+        };
         // MS-OVBA literal-only compressed chunks. No copied caches or p-code is
         // executed by the source frontend; the original directory/offset stays valid.
         bytes.push(1);
@@ -98,7 +109,7 @@ fn replace_project(
         .entries
         .iter()
         .map(|entry| {
-            let content = if entry.name == project.part {
+            let content = if entry.name == part.part {
                 binary.clone()
             } else {
                 match entry.method {

@@ -96,7 +96,7 @@ fn split_module(module: Module) -> SplitModule {
     let spreadsheet = module
         .spreadsheet
         .as_ref()
-        .map(|_| Arc::new(if module.event_project { spreadsheet::SpreadsheetHost::for_events() } else { spreadsheet::SpreadsheetHost::new() }));
+        .map(|_| Arc::new(spreadsheet::SpreadsheetHost::new(module.event_project, module.com)));
     let engine = if let Some(host) = &spreadsheet {
         module.engine.with_host(host.clone())
     } else {

@@ -27,7 +27,26 @@ pub struct AddinHost {
     rtd: Option<Rc<RtdClient>>,
     xlls: Vec<PathBuf>,
     vba: Vec<(String, CallableTable)>,
+    /// VBA add-ins (.xlam): each file's project, compiled with its references (dc-0f1k.4).
+    vba_addins: Vec<(PathBuf, calc_vba::events::OfficeLoad)>,
     workbook: String,
+}
+
+/// What loading a VBA add-in did: its worksheet functions, and what its workbook events did or
+/// what this host does not deliver of them.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VbaAddinLoad {
+    pub functions: Vec<String>,
+    pub notes: Vec<String>,
+}
+
+/// The reads a VBA add-in's workbook events get: none of the add-in's own sheets or the
+/// session's cells are modelled for them yet, so a read is a refusal the event reports.
+struct NoWorkbookReads;
+impl calc_vba::events::EventReadContext for NoWorkbookReads {
+    fn read_reference(&self, _: &calc_value::ReferenceLike) -> Result<CalcValue, String> {
+        Err("cell reads from an add-in's workbook events are not modelled (dc-0f1k.4)".into())
+    }
 }
 
 /// Publishes the window chain's object model and tells it the workbook, in the order Excel's
@@ -62,6 +81,7 @@ impl AddinHost {
             rtd: None,
             xlls: Vec::new(),
             vba: Vec::new(),
+            vba_addins: Vec::new(),
             workbook: document.workbook.to_owned(),
         })
     }
@@ -162,6 +182,81 @@ impl AddinHost {
         self.vba.iter().map(|(name, _)| name.as_str())
     }
 
+    /// Loads a VBA add-in (an .xlam) from its project, as read from the file at `path`: compiles
+    /// its modules with its type-library references (early-bound COM through the registered type
+    /// libraries), publishes its public functions with the others, and raises `Workbook_Open`,
+    /// then `Workbook_AddinInstall` when `install` (the person loaded the add-in, as Excel's
+    /// Add-ins dialog installs one; a session reopening its list only opens it). A project that
+    /// does not compile loads nothing; a failing event is reported and the add-in stays loaded,
+    /// as Excel keeps an add-in whose `Workbook_Open` raised an error.
+    pub fn load_vba_addin(
+        &mut self,
+        path: &Path,
+        project: &calc_vba::OfficeProject,
+        install: bool,
+    ) -> Result<VbaAddinLoad, String> {
+        if self.vba_addins.iter().any(|(held, _)| held == path) {
+            return Err(format!("{} is already loaded", path.display()));
+        }
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let load = calc_vba::events::load_office_project(
+            project,
+            &name,
+            calc_vba::DEFAULT_STEP_BUDGET,
+            None,
+        )?;
+        let functions = load
+            .project
+            .functions()
+            .registrations()
+            .filter(|(provider, name)| provider.is_none() && !name.contains('.'))
+            .map(|(_, name)| name.to_owned())
+            .collect();
+        let mut notes: Vec<String> = load
+            .undelivered
+            .iter()
+            .map(|handler| format!("{handler} is not delivered"))
+            .collect();
+        if let Some(workbook) = &load.workbook {
+            let steps = calc_vba::DEFAULT_STEP_BUDGET;
+            if let Err(why) = workbook.open(&NoWorkbookReads, steps) {
+                notes.push(format!("Workbook_Open: {why}"));
+            }
+            if install && let Err(why) = workbook.addin_install(&NoWorkbookReads, steps) {
+                notes.push(format!("Workbook_AddinInstall: {why}"));
+            }
+        }
+        self.vba_addins.push((path.to_owned(), load));
+        Ok(VbaAddinLoad { functions, notes })
+    }
+
+    /// Removes a VBA add-in's functions; `false` when none was loaded from `path`.
+    pub fn unload_vba_addin(&mut self, path: &Path) -> bool {
+        let before = self.vba_addins.len();
+        self.vba_addins.retain(|(held, _)| held != path);
+        self.vba_addins.len() != before
+    }
+
+    /// The VBA add-ins loaded, in load order, with their worksheet functions.
+    pub fn vba_addins(&self) -> Vec<(PathBuf, Vec<String>)> {
+        self.vba_addins
+            .iter()
+            .map(|(path, load)| {
+                let functions = load
+                    .project
+                    .functions()
+                    .registrations()
+                    .filter(|(provider, name)| provider.is_none() && !name.contains('.'))
+                    .map(|(_, name)| name.to_owned())
+                    .collect();
+                (path.clone(), functions)
+            })
+            .collect()
+    }
+
     /// The one table of every loaded function (XLL registrations and VBA functions), to hand to
     /// the application's owner of formulas. A new table each call: one published after a load or
     /// unload replaces the one before it, and a handle bound to the old one stays unable to run.
@@ -176,7 +271,12 @@ impl AddinHost {
         early_execution: &[u64],
     ) -> Result<CallableTable, String> {
         let mut table = self.native.functions_with_early_execution(early_execution)?;
-        for (_, module) in &self.vba {
+        let addins: Vec<CallableTable> = self
+            .vba_addins
+            .iter()
+            .map(|(_, load)| load.project.functions())
+            .collect();
+        for module in self.vba.iter().map(|(_, module)| module).chain(&addins) {
             let registrations = module
                 .registrations()
                 .map(|(provider, name)| (provider.map(str::to_owned), name.to_owned()))

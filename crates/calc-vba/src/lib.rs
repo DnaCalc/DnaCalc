@@ -8,6 +8,11 @@ use calc_func::{UserFunction, UserFunctionContext};
 pub use oxvba_embed::Backend;
 mod runtime;
 pub mod events;
+pub mod office;
+pub use office::{
+    OfficeModule, OfficeModuleKind, OfficeProject, OfficeReadLimits, OfficeReference,
+    read_office_project, read_office_project_with,
+};
 use runtime::{CodeCache, Module, OwnedSession, Range, SpreadsheetContext, Value};
 use std::{cell::RefCell, fmt, rc::Rc};
 

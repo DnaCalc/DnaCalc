@@ -40,6 +40,6 @@ pub mod web;
 
 pub use fixture::{Read, ReadRun, RunCells};
 pub use session::{
-    AddinRef, Calculation, Diagnostic, ExternalReturns, InputError, InputValue, Session,
-    SessionOptions, SheetError,
+    AddinRef, Calculation, Diagnostic, ExternalReturns, InputError, InputValue, ProjectReport,
+    Session, SessionOptions, SessionProject, SheetError,
 };

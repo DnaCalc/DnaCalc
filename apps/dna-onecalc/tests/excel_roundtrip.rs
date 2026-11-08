@@ -21,7 +21,7 @@ fn customs(package: &[u8]) -> Vec<u8> {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn excel_read_the_saved_session_as_the_same_formula_and_constants() {
     let reading: serde_json::Value = serde_json::from_str(EXCEL_READING).unwrap();
-    let mut session = file::open(ONECALC_SAVED).expect("OneCalc reads its own file");
+    let mut session = file::open(ONECALC_SAVED).expect("OneCalc reads its own file").0;
     assert_eq!(reading["formula2"], session.formula().to_owned());
     assert_eq!(reading["sheets"], 1);
     assert_eq!(reading["has_array"], false);
@@ -45,8 +45,8 @@ fn excel_read_the_saved_session_as_the_same_formula_and_constants() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn the_file_excel_saved_reopens_with_the_same_session_and_the_custom_part() {
-    let mut original = file::open(ONECALC_SAVED).unwrap();
-    let mut reopened = file::open(EXCEL_SAVED).expect("Excel's file reopens in OneCalc");
+    let mut original = file::open(ONECALC_SAVED).unwrap().0;
+    let mut reopened = file::open(EXCEL_SAVED).expect("Excel's file reopens in OneCalc").0;
     assert_eq!(reopened.formula(), original.formula());
     assert_eq!(reopened.formula_cell(), original.formula_cell());
     assert_eq!(reopened.options(), original.options());

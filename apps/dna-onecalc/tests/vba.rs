@@ -353,3 +353,123 @@ End Function
         );
     }
 }
+
+// dc-0f1k.4: an .xlsm session's own VBA project, through the port the page uses. The project is
+// DNA Calc's example add-in project as Excel saved it; its cases hold Excel's answers
+// (crates/calc-xll-reference/fixture/vba, measured in an owned Excel session).
+const EXAMPLES_XLSM: &[u8] =
+    include_bytes!("../../../crates/calc-xll-reference/fixture/vba/DnaExamples.xlsm");
+const EXAMPLE_CASES: &str =
+    include_str!("../../../crates/calc-xll-reference/fixture/vba/x9-vba-cases.json");
+
+fn opened_examples() -> (dna_onecalc::port::LocalPort, dna_onecalc::port::Opened) {
+    use dna_onecalc::port::{LocalPort, Reply, Request, SessionPort};
+    let mut port = LocalPort::new(Session::new("Sheet1").unwrap());
+    let reply = port.send(Request::Open {
+        name: "DnaExamples.xlsm".into(),
+        bytes: EXAMPLES_XLSM.to_vec(),
+    });
+    let Reply::Opened(opened) = reply else {
+        panic!("{reply:?}")
+    };
+    (port, *opened)
+}
+
+/// What the page shows for `formula` in H1: its value text, or why there is none.
+fn shown(port: &mut dna_onecalc::port::LocalPort, formula: &str) -> String {
+    use dna_onecalc::port::{Reply, Request, SessionPort};
+    port.send(Request::SetFormulaCell { address: "H1".into() });
+    port.send(Request::SetFormula { text: formula.into() });
+    match port.send(Request::Calculate) {
+        Reply::Calculated(view) => view
+            .value
+            .unwrap_or_else(|| format!("not calculated: {}", view.diagnostics.join(" | "))),
+        other => panic!("{formula}: {other:?}"),
+    }
+}
+
+/// Excel's answer for a case in the typed form the session's view gives (`number 42`,
+/// `text "a"`, `logical TRUE`, `error #N/A`).
+fn excel_text(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::Number(n) => format!("number {}", n.as_f64().unwrap()),
+        serde_json::Value::String(s) => format!("text \"{}\"", s.replace('"', "\"\"")),
+        serde_json::Value::Bool(b) => if *b { "logical TRUE" } else { "logical FALSE" }.into(),
+        serde_json::Value::Object(o) => format!("error {}", o["error"].as_str().unwrap()),
+        other => panic!("{other}"),
+    }
+}
+
+/// Native-only: the project references the Microsoft Scripting Runtime, which only a Windows
+/// build reads from the registry and runs through COM.
+#[cfg(windows)]
+#[test]
+fn an_xlsm_session_compiles_its_project_and_answers_its_cases_as_excel_did() {
+    let (mut port, opened) = opened_examples();
+    let project = opened.project.expect("the file's project");
+    assert!(project.functions.iter().any(|f| f.eq_ignore_ascii_case("DnaDistinct")), "{project:?}");
+    assert!(project.notes.is_empty(), "{project:?}");
+    let cases: Vec<serde_json::Value> = serde_json::from_str(EXAMPLE_CASES).unwrap();
+    let mut differences = Vec::new();
+    for case in &cases {
+        let formula = case["formula"].as_str().unwrap();
+        // Excel answered with the add-in open; here the project is the .xlsm session's own, and
+        // ThisWorkbook.Name is the name of the file opened.
+        let excel = if formula == "=DnaBook()" {
+            "text \"DnaExamples.xlsm\"".to_owned()
+        } else {
+            excel_text(&case["value"])
+        };
+        let ours = shown(&mut port, formula);
+        if ours != excel {
+            differences.push(format!("{formula}: OneCalc {ours:?}, Excel {excel:?}"));
+        }
+    }
+    // What OneCalc does not model yet (Excel allows it): ActiveSheet and Selection are typed
+    // refusals, counted here as the acceptance counts them.
+    let expected_refusals = ["=DnaTryWrite()", "=DnaWrite()", "=DnaSelection()"];
+    for difference in &differences {
+        assert!(
+            expected_refusals.iter().any(|f| difference.starts_with(&format!("{f}:")))
+                && difference.contains("not calculated"),
+            "{differences:#?}"
+        );
+    }
+    assert_eq!(differences.len(), expected_refusals.len(), "{differences:#?}");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn an_xlsm_session_saves_its_project_part_unchanged_and_an_edit_changes_it() {
+    use dna_onecalc::port::{Reply, Request, SessionPort};
+    let (mut port, opened) = opened_examples();
+    let original = calc_doc::read_vba_file(EXAMPLES_XLSM.to_vec()).unwrap().unwrap();
+    port.send(Request::SetFormula { text: "=1+1".into() });
+    let Reply::File { name, bytes } = port.send(Request::Save) else {
+        panic!("saved")
+    };
+    assert_eq!(name, "DnaExamples.xlsm");
+    let saved = calc_doc::read_session(bytes, dna_onecalc::file::NAMESPACE).unwrap();
+    assert_eq!(saved.vba.as_ref().map(|v| &v.project), Some(&original.project));
+    assert_eq!(saved.vba.as_ref().and_then(|v| v.sheet_code_name.as_deref()), Some("Sheet1"));
+    if opened.project.is_some_and(|p| !p.functions.is_empty()) {
+        // Where the project compiles (the Windows build), editing a module through the VBA panel
+        // changes the project and the part a save writes.
+        let reply = port.send(Request::LoadVba {
+            name: "Extra".into(),
+            source: "Public Function DnaTwice(ByVal x As Double) As Double\r\n    DnaTwice = 2 * x\r\nEnd Function\r\n".into(),
+        });
+        assert!(matches!(&reply, Reply::Functions { names } if names.iter().any(|n| n.eq_ignore_ascii_case("DnaTwice"))), "{reply:?}");
+        assert_eq!(shown(&mut port, "=DnaTwice(21)"), "number 42");
+        assert_eq!(shown(&mut port, "=DnaAdd(40,2)"), "number 42");
+        let Reply::File { bytes, .. } = port.send(Request::Save) else {
+            panic!("saved")
+        };
+        let edited = calc_doc::read_session(bytes, dna_onecalc::file::NAMESPACE).unwrap();
+        let blob = edited.vba.unwrap().project;
+        assert_ne!(blob, original.project);
+        let project = calc_vba::read_office_project(&blob).unwrap();
+        assert!(project.modules().iter().any(|m| m.name == "Extra" && m.source.contains("DnaTwice = 2 * x")));
+        assert_eq!(project.modules().len(), 5);
+    }
+}
