@@ -38,6 +38,7 @@ pub use entry::{ArgumentGroups, EntryClass, EntryRule, OperandForm, ResultForm};
 mod error_fallback;
 mod euro_tools;
 mod fetching;
+mod importing;
 mod financial;
 mod group_pivot;
 mod grouping;
@@ -62,7 +63,7 @@ mod unheld;
 
 /// The family fragments that make up the catalogue. A new family adds its module above and one
 /// line here; its entries stay in its own file.
-const FAMILIES: [&Family; 35] = [
+const FAMILIES: [&Family; 36] = [
     &arithmetic::FAMILY,
     &comparison::FAMILY,
     &text::FAMILY,
@@ -74,6 +75,7 @@ const FAMILIES: [&Family; 35] = [
     &euro_tools::FAMILY,
     &cube_functions::FAMILY,
     &fetching::FAMILY,
+    &importing::FAMILY,
     &lookup::FAMILY,
     &information::FAMILY,
     &reference_text::FAMILY,
@@ -173,7 +175,7 @@ pub enum EntryKind {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum HostRouteKind { Fetch(crate::FetchKind), Rtd }
+pub enum HostRouteKind { Fetch(crate::FetchKind), Import(crate::ImportKind), Rtd }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BindingForm { Let, Lambda }

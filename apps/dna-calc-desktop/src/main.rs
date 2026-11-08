@@ -15,6 +15,7 @@ mod app;
 mod engine;
 #[cfg(windows)]
 mod fetch;
+mod file_import;
 
 #[cfg(windows)]
 #[unsafe(no_mangle)]

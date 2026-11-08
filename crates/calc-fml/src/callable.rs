@@ -277,6 +277,19 @@ impl CallableTable {
         }
     }
 
+    /// Bind IMPORTCSV and IMPORTTEXT to `route`, replacing any earlier route's.
+    pub fn register_import_route(&mut self, route: &Rc<dyn calc_func::ImportRoute>) {
+        let provider = calc_func::IMPORT_PROVIDER;
+        self.entries
+            .retain(|(held, _), _| held.as_deref() != Some(provider));
+        for name in calc_func::IMPORT_FUNCTIONS {
+            let function = calc_func::ImportFunction::new(name, route.clone())
+                .expect("an import function's spelling");
+            self.register_for(Some(provider), name, Rc::new(function))
+                .expect("a provider cleared above");
+        }
+    }
+
     fn key(provider: Option<&str>, name: &str) -> (Option<String>, String) {
         (
             provider.map(str::to_owned),

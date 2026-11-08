@@ -445,7 +445,7 @@ impl FetchFunction {
 
 /// The shape every argument lifts to: arrays must agree or be single, and a missing position in
 /// a larger shape is #N/A, as lifting pads.
-fn lifted(arguments: &[CalcValue]) -> (ArrayShape, Vec<Vec<CalcValue>>) {
+pub(crate) fn lifted(arguments: &[CalcValue]) -> (ArrayShape, Vec<Vec<CalcValue>>) {
     let shape_of = |value: &CalcValue| value.as_array().map(CalcArray::shape);
     let rows = arguments
         .iter()
