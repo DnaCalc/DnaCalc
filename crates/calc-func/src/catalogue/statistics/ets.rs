@@ -1,8 +1,8 @@
 //! ETS's measured numeric-vector surface (dc-j9k, Excel20527, R39).
 //!
 //! Timeline preparation, option errors, step statistics and the exact, nonseasonal
-//! zero-residual models and bounded nonseasonal fits are implemented. Short-series
-//! initialisation, rounded constant initialisation, the minimum-alpha forecast
+//! zero-residual models and bounded nonseasonal fits are implemented. Short fits
+//! require exact moment regressions and phase extension. Rounded constant initialisation, the minimum-alpha forecast
 //! reset, nonzero seasonal fits, incomplete cycles and calendar inference still
 //! belong to dc-j9k. In particular,
 //! bit-identical input values do NOT justify returning that value: adjacent-load
@@ -191,7 +191,7 @@ const PARAMETERS: &[(f64, f64)] = &[
     (0.998, 0.099), (0.998, 0.499), (0.998, 0.749), (0.998, 0.899),
 ];
 
-fn initial_slope(y: &[f64]) -> f64 {
+fn regression_slope(y: &[f64]) -> f64 {
     let mut sx = 0.0;
     let mut sy = 0.0;
     let mut sxx = 0.0;
@@ -205,6 +205,51 @@ fn initial_slope(y: &[f64]) -> f64 {
     }
     let n = y.len() as f64;
     (n * sxy - sx * sy) / (n * sxx - sx * sx)
+}
+
+/// R40's short-history impulse response identifies the first two phases plus
+/// the original regression trend as the extension to seven observations.
+/// The search runs on that extension; final state updates use the real history.
+fn initial_slope(y: &[f64]) -> f64 {
+    if y.len() >= 7 { return regression_slope(y); }
+    let trend = regression_slope(y);
+    let mut extended = y.to_vec();
+    for j in y.len()..7 { extended.push(y[j % 2] + (j - j % 2) as f64 * trend); }
+    regression_slope(&extended)
+}
+
+/// Sufficient exact region, independent of the private regression's stores.
+/// Both products and running sums must be exact, including the final quotient.
+fn exact_regression_slope(y: &[f64]) -> Option<f64> {
+    let n = y.len() as f64;
+    let sx = n * (n + 1.0) / 2.0;
+    let sxx = n * (n + 1.0) * (2.0 * n + 1.0) / 6.0;
+    let sy = exact_total(y)?;
+    let mut products = Vec::with_capacity(y.len());
+    for (i, &v) in y.iter().enumerate() {
+        let x = (i + 1) as f64;
+        let product = x * v;
+        if x.mul_add(v, -product) != 0.0 { return None; }
+        products.push(product);
+    }
+    let sxy = exact_total(&products)?;
+    let left = n * sxy;
+    let right = sx * sy;
+    if n.mul_add(sxy, -left) != 0.0 || sx.mul_add(sy, -right) != 0.0 { return None; }
+    exact_ratio(exact_sum(left, -right)?, n * sxx - sx * sx)
+}
+
+fn exact_short_history(y: &[f64]) -> Option<Vec<f64>> {
+    let trend = exact_regression_slope(y)?;
+    let mut extended = y.to_vec();
+    for j in y.len()..7 {
+        let distance = (j - j % 2) as f64;
+        let product = distance * trend;
+        if distance.mul_add(trend, -product) != 0.0 { return None; }
+        extended.push(exact_sum(y[j % 2], product)?);
+    }
+    exact_regression_slope(&extended)?;
+    Some(extended)
 }
 
 fn statistic_window(n: usize) -> usize {
@@ -379,20 +424,25 @@ fn nonseasonal(site: &Site<'_>, y: &[f64], output: Output, statistic: f64, horiz
     if output == Output::Statistic && statistic == 3.0 && (3..=32).contains(&y.len()) {
         return site.number(f64::EPSILON);
     }
-    // The service separates short initialisation from the ordinary regression
-    // at this boundary. The seven-observation boundary still has last-bit losses.
-    if !(8..=32).contains(&y.len()) {
+    if !(3..=32).contains(&y.len()) {
         return Err(unfinished(site));
     }
+    // Outside the exact short-history region, the private initial regression's
+    // rounding remains unidentified. Every refusal remains a counted failure.
+    let extended;
+    let search_history = if y.len() < 8 {
+        extended = exact_short_history(y).ok_or_else(|| unfinished(site))?;
+        &extended[..]
+    } else { y };
     // The exact-affine route has already failed here. Rounded constant
     // initialisation changes the search parameters in retained adjacent probes.
     if y.iter().all(|&v| v == y[0]) { return Err(unfinished(site)); }
-    let start = y.len() - statistic_window(y.len());
+    let start = search_history.len() - statistic_window(search_history.len());
     let validation = (start != 0).then_some(start);
     let mut best = f64::INFINITY;
     let mut chosen = PARAMETERS[0];
     for &(alpha, beta) in PARAMETERS {
-        let score = Model::run(y, alpha, beta, validation).squared_errors();
+        let score = Model::run(search_history, alpha, beta, validation).squared_errors();
         if score < best { best = score; chosen = (alpha, beta); }
     }
     if !best.is_finite() { return Err(unfinished(site)); }
@@ -409,7 +459,10 @@ fn nonseasonal(site: &Site<'_>, y: &[f64], output: Output, statistic: f64, horiz
             // decision there; pre-reset errors and beta .001 remain identified.
             if alpha == 0.002 && y.len() > 10 && reset { return Err(unfinished(site)); }
             let phase = ((y.len() - 1) as u64 + horizon as u64) % 2;
-            site.number((model.level + horizon * model.trend) + model.seasons[phase as usize])
+            // Fresh midpoint questions distinguish the final seasonal addition
+            // at PC64 followed by a binary64 store from strict binary64 addition.
+            site.number(crate::ported::excel_numeric::excel_x87_add(
+                model.level + horizon * model.trend, model.seasons[phase as usize]))
         }
         Output::Statistic => site.number(match statistic as u8 {
             1 => alpha, 2 => beta, 3 => f64::EPSILON, 4..=7 => statistics[statistic as usize - 4],
@@ -427,7 +480,10 @@ fn nonseasonal(site: &Site<'_>, y: &[f64], output: Output, statistic: f64, horiz
             let z = if probability == 1.0 { 1.0 } else {
                 crate::ported::normal_log_family::norm_s_inv_kernel(probability).map_err(Exit::Error)?
             };
-            site.number(z * ((squared_errors / y.len() as f64) * variance).sqrt())
+            // R40 independently certified product-midpoint questions identify
+            // the same PC64-then-binary64 publication used by the forecast.
+            site.number(crate::ported::excel_numeric::excel_x87_mul(
+                z, ((squared_errors / y.len() as f64) * variance).sqrt()))
         }
         Output::Seasonality => Err(unfinished(site)),
     }
