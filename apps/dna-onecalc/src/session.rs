@@ -632,7 +632,6 @@ impl Session {
             MacroState::Enabled => return Ok(ProjectReport::default()),
             MacroState::Disabled => {}
         }
-        held.macros = MacroState::Enabled;
         let Some(project) = held.parsed.clone() else {
             let blob = &held.vba.project;
             return Err(calc_vba::read_office_project(blob)
@@ -640,6 +639,7 @@ impl Session {
                 .unwrap_or_else(|| "the project did not read".to_owned()));
         };
         let report = self.compile_project(&project)?;
+        self.project.as_mut().expect("a held project part").macros = MacroState::Enabled;
         let notes = self.raise_open();
         Ok(ProjectReport { notes: [report.notes, notes].concat(), ..report })
     }

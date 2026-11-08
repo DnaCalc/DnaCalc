@@ -409,7 +409,14 @@ fn a_macro_file_opens_disabled_and_the_mark_of_the_web_blocks_it() {
             assert!(matches!(&reply, Reply::Refused { message } if message.contains("Mark of the Web")), "{reply:?}");
             assert_eq!(port.session().project().map(|p| p.macros), Some(dna_onecalc::MacroState::Blocked(zone.unwrap())));
         } else {
+            #[cfg(windows)]
             assert!(matches!(reply, Reply::Opened(_)), "{zone:?}: {reply:?}");
+            #[cfg(not(windows))]
+            {
+                assert!(matches!(&reply, Reply::Refused { message } if message.contains("Scripting") && message.contains("cannot be resolved on this platform") && message.contains("dc-0f1k.4")), "{zone:?}: {reply:?}");
+                assert_eq!(port.session().project().map(|p| p.macros), Some(dna_onecalc::MacroState::Disabled));
+                assert_eq!(port.session().project().map(|p| p.is_running()), Some(false));
+            }
         }
         // The project part is the file's either way: a save writes it back.
         let Reply::File { bytes, .. } = port.send(Request::Save) else {
@@ -426,6 +433,7 @@ fn a_macro_file_opens_disabled_and_the_mark_of_the_web_blocks_it() {
 // (crates/calc-xll-reference/fixture/vba, measured in an owned Excel session).
 const EXAMPLES_XLSM: &[u8] =
     include_bytes!("../../../crates/calc-xll-reference/fixture/vba/DnaExamples.xlsm");
+#[cfg(windows)]
 const EXAMPLE_CASES: &str =
     include_str!("../../../crates/calc-xll-reference/fixture/vba/x9-vba-cases.json");
 
@@ -444,6 +452,7 @@ fn opened_examples() -> (dna_onecalc::port::LocalPort, dna_onecalc::port::Opened
 }
 
 /// What the page shows for `formula` in H1: its value text, or why there is none.
+#[cfg(windows)]
 fn shown(port: &mut dna_onecalc::port::LocalPort, formula: &str) -> String {
     use dna_onecalc::port::{Reply, Request, SessionPort};
     port.send(Request::SetFormulaCell { address: "H1".into() });
@@ -458,6 +467,7 @@ fn shown(port: &mut dna_onecalc::port::LocalPort, formula: &str) -> String {
 
 /// Excel's answer for a case in the typed form the session's view gives (`number 42`,
 /// `text "a"`, `logical TRUE`, `error #N/A`).
+#[cfg(windows)]
 fn excel_text(value: &serde_json::Value) -> String {
     match value {
         serde_json::Value::Number(n) => format!("number {}", n.as_f64().unwrap()),
@@ -516,10 +526,12 @@ fn an_xlsm_session_saves_its_project_part_unchanged_and_an_edit_changes_it() {
     // Disabled macros still save the project part unchanged; editing needs them enabled.
     let held = opened.project.expect("the file's project");
     assert_eq!(held.macros, dna_onecalc::port::MacrosView::Disabled);
-    let Reply::Opened(enabled_view) = port.send(Request::EnableMacros) else {
-        panic!("enabled")
-    };
-    let opened = *enabled_view;
+    #[cfg(not(windows))]
+    {
+        let reply = port.send(Request::EnableMacros);
+        assert!(matches!(&reply, Reply::Refused { message } if message.contains("Scripting") && message.contains("cannot be resolved on this platform") && message.contains("dc-0f1k.4")), "{reply:?}");
+        assert_eq!(port.session().project().map(|p| p.macros), Some(dna_onecalc::MacroState::Disabled));
+    }
     let original = calc_doc::read_vba_file(EXAMPLES_XLSM.to_vec()).unwrap().unwrap();
     port.send(Request::SetFormula { text: "=1+1".into() });
     let Reply::File { name, bytes } = port.send(Request::Save) else {
@@ -529,7 +541,17 @@ fn an_xlsm_session_saves_its_project_part_unchanged_and_an_edit_changes_it() {
     let saved = calc_doc::read_session(bytes, dna_onecalc::file::NAMESPACE).unwrap();
     assert_eq!(saved.vba.as_ref().map(|v| &v.project), Some(&original.project));
     assert_eq!(saved.vba.as_ref().and_then(|v| v.sheet_code_name.as_deref()), Some("Sheet1"));
-    if opened.project.is_some_and(|p| !p.functions.is_empty()) {
+    #[cfg(windows)]
+    {
+        let Reply::Opened(enabled_view) = port.send(Request::EnableMacros) else {
+            panic!("enabled")
+        };
+        assert!(enabled_view.project.is_some_and(|p| !p.functions.is_empty()));
+        let Reply::File { name, bytes } = port.send(Request::Save) else { panic!("saved after enabling") };
+        assert_eq!(name, "DnaExamples.xlsm");
+        let saved = calc_doc::read_session(bytes, dna_onecalc::file::NAMESPACE).unwrap();
+        assert_eq!(saved.vba.as_ref().map(|v| &v.project), Some(&original.project));
+        assert_eq!(saved.vba.as_ref().and_then(|v| v.sheet_code_name.as_deref()), Some("Sheet1"));
         // Where the project compiles (the Windows build), editing a module through the VBA panel
         // changes the project and the part a save writes.
         let reply = port.send(Request::LoadVba {
