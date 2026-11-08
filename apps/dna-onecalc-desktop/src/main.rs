@@ -25,6 +25,8 @@ pub unsafe extern "system" fn MdCallBack12(
 mod app;
 #[cfg(windows)]
 mod host;
+#[cfg(windows)]
+mod rtd;
 
 #[cfg(windows)]
 const WORKBOOK: &str = "Book1";
@@ -47,6 +49,7 @@ fn run() -> Result<(), String> {
     let mut commands = Vec::new();
     let mut early_commands = Vec::new();
     let mut reload = false;
+    let mut rtd_mode = false;
     let mut reload_new_host = false;
     let mut ribbon_ui = false;
     let mut sheet_name = "X1".to_owned();
@@ -70,6 +73,7 @@ fn run() -> Result<(), String> {
                 early_commands.push(args.next().ok_or("--early-command needs a name")?)
             }
             "--reload" => reload = true,
+            "--rtd" => rtd_mode = true,
             "--ribbon-ui" => ribbon_ui = true,
             "--reload-new-host" => {
                 reload = true;
@@ -169,6 +173,13 @@ fn run() -> Result<(), String> {
     } else {
         vec![serde_json::json!({"formula": formula, "value": null})]
     };
+    // `--rtd`: the cases run against the add-ins' real RTD servers (rtd.rs), one formula at a time.
+    let rtd_output = if rtd_mode {
+        Some(rtd::run(&shell, &mut addins, &mut session, &tests)?)
+    } else {
+        None
+    };
+    let tests = if rtd_output.is_some() { Vec::new() } else { tests };
     let mut results = Vec::new();
     for case in tests {
         let formula = case["formula"].as_str().ok_or("case needs formula")?;
@@ -292,10 +303,17 @@ fn run() -> Result<(), String> {
     if !native.diagnostics().is_empty() {
         return Err(format!("XLL callback refusals: {:?}", native.diagnostics()));
     }
-    println!(
-        "{}",
-        serde_json::json!({"host":"DNA Calc / OneCalc controller","registrations":registrations.len(),"duplicate_use_count":registrations.iter().find(|r|r.name=="MyAdd").map(|r|r.use_count),"numbered_exports":registrations.iter().filter_map(|r|r.procedure.strip_prefix('f').and_then(|n|n.parse::<u32>().ok())).fold(None,|a:Option<(u32,u32)>,n|Some(a.map(|(lo,hi)|(lo.min(n),hi.max(n))).unwrap_or((n,n)))),"ribbons":ribbons,"results":results,"reload_results":reload_results,"runtime_delay_releases":native.runtime_delay_releases(),"commands":command_results,"live_callback_allocations":native.live_callback_allocations(),"closed_registration":"#NAME?","closed_name":stale_name})
-    );
+    let mut report = serde_json::json!({"host":"DNA Calc / OneCalc controller","registrations":registrations.len(),"duplicate_use_count":registrations.iter().find(|r|r.name=="MyAdd").map(|r|r.use_count),"numbered_exports":registrations.iter().filter_map(|r|r.procedure.strip_prefix('f').and_then(|n|n.parse::<u32>().ok())).fold(None,|a:Option<(u32,u32)>,n|Some(a.map(|(lo,hi)|(lo.min(n),hi.max(n))).unwrap_or((n,n)))),"ribbons":ribbons,"results":results,"reload_results":reload_results,"runtime_delay_releases":native.runtime_delay_releases(),"commands":command_results,"live_callback_allocations":native.live_callback_allocations(),"closed_registration":"#NAME?","closed_name":stale_name});
+    if let Some(serde_json::Value::Object(fields)) = rtd_output {
+        let report = report.as_object_mut().expect("the report is an object");
+        report.extend(fields);
+        // Every topic is disconnected and every server terminated once the add-ins closed.
+        report.insert(
+            "rtd_subscriptions_after_close".into(),
+            serde_json::json!(addins.rtd().map_or(0, |client| client.subscriptions())),
+        );
+    }
+    println!("{report}");
     if let Some(path) = finished {
         std::fs::write(path, "finished").map_err(|e| e.to_string())?;
     }

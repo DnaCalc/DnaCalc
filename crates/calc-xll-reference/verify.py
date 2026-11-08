@@ -1073,7 +1073,11 @@ def verify_rtd_extended(excel, excel_control, host, host_control, cases_path, pu
         require(not (directory / "host.stderr").read_text().strip(), "RTD host diagnostics")
         output = json.loads((directory / "host.stdout").read_text())
         require(output["live_callback_allocations"] == output["rtd_subscriptions_after_close"] == 0 and output["closed_registration"] == "#NAME?", "RTD teardown incomplete")
-        require([(r["formula"], r["value"], r["dependent"]) for r in output["results"]] == [(c["formula"], c["value"], c.get("dependent_value")) for c in cases], "Ordered host RTD outcomes differ")
+        # OneCalc has one formula and no dependents (output["single_formula"]): its rows carry none.
+        if output.get("single_formula"):
+            require([(r["formula"], r["value"]) for r in output["results"]] == [(c["formula"], c["value"]) for c in cases], "Ordered host RTD outcomes differ")
+        else:
+            require([(r["formula"], r["value"], r["dependent"]) for r in output["results"]] == [(c["formula"], c["value"], c.get("dependent_value")) for c in cases], "Ordered host RTD outcomes differ")
         latest = {}
         for update in output["rtd_updates"]:
             key = ident(update)
@@ -1084,7 +1088,8 @@ def verify_rtd_extended(excel, excel_control, host, host_control, cases_path, pu
                 require(row["idle_observed_ms"] >= case["rtd_idle_ms"], "Host RTD idle observation was shortened")
             if "expected_rtd_inputs" in case:
                 require(len(row["provenance"]["rtd_inputs"]) == case["expected_rtd_inputs"] and row["provenance"]["completed_invocations"] == case["expected_completed_invocations"], "RTD value lacks its expected producing invocations/inputs")
-                require(len(row["dependent_provenance"]["rtd_inputs"]) == case["expected_dependent_rtd_inputs"] and row["dependent_provenance"]["completed_invocations"] == case["expected_dependent_completed_invocations"], "RTD dependent lacks its expected producing invocations/inputs")
+                if not output.get("single_formula"):
+                    require(len(row["dependent_provenance"]["rtd_inputs"]) == case["expected_dependent_rtd_inputs"] and row["dependent_provenance"]["completed_invocations"] == case["expected_dependent_completed_invocations"], "RTD dependent lacks its expected producing invocations/inputs")
             through = row["rtd_updates_through"]
             require(isinstance(through, int) and 0 <= through <= len(output["rtd_updates"]), "Invalid RTD producing cut index")
             cut = {ident(u): u["sequence"] for u in output["rtd_updates"][:through]}
@@ -1255,7 +1260,10 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
         require(not (directory / "host.stderr").read_text().strip(), "RTD host diagnostics")
         output = json.loads((directory / "host.stdout").read_text())
         require(output["live_callback_allocations"] == output["rtd_subscriptions_after_close"] == 0 and output["closed_registration"] == "#NAME?", "RTD teardown incomplete")
-        require([(r["formula"], r["value"], r["dependent"]) for r in output["results"]] == [(c["formula"], c["value"], c["dependent_value"]) for c in cases], "Host RTD outcomes differ")
+        if output.get("single_formula"):
+            require([(r["formula"], r["value"]) for r in output["results"]] == [(c["formula"], c["value"]) for c in cases], "Host RTD outcomes differ")
+        else:
+            require([(r["formula"], r["value"], r["dependent"]) for r in output["results"]] == [(c["formula"], c["value"], c["dependent_value"]) for c in cases], "Host RTD outcomes differ")
         for case, row in zip(cases, output["results"], strict=True):
             if "rtd_idle_ms" in case:
                 require(row["idle_observed_ms"] >= case["rtd_idle_ms"], "Host RTD idle observation was shortened")

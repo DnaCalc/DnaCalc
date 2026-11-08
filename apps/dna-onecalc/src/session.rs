@@ -220,6 +220,8 @@ pub struct Session {
     published: calc_fml::CallableTable,
     /// The owner that delivers asynchronous returns; with one, evaluation runs as a continuation.
     returns: Option<Box<dyn ExternalReturns>>,
+    /// The RTD inputs the session admitted and the topics its formula reads (see `rtd.rs`).
+    rtd: crate::rtd::SessionRtd,
     /// Changes whenever the table of registered functions is replaced (a counter shared by all
     /// sessions, so a replacement session never repeats a version a surface has seen).
     functions_version: u64,
@@ -265,8 +267,84 @@ impl Session {
             project: None,
             published: calc_fml::CallableTable::new(),
             returns: None,
+            rtd: Default::default(),
             functions_version: next_functions_version(),
         })
+    }
+
+    /// Gives the session the owner's capability to join or start RTD topics, and registers the
+    /// built-in `RTD`, which reads through it. Without one (the browsers'), `RTD` and an
+    /// add-in's `xlfRtd` are typed refusals.
+    pub fn set_rtd_connector(&mut self, connector: std::rc::Rc<dyn calc_fml::RtdConnector>) {
+        self.rtd.set_connector(connector);
+        self.published.register_rtd();
+        self.republish();
+    }
+
+    /// The handle the session's live table binds `name` to (a workbook-level registration): what
+    /// a call of that function carries, which the RTD client keys its declarations by.
+    pub fn bind_function(&self, name: &str) -> Option<calc_fml::CallableHandle> {
+        self.functions.bind(None, name)
+    }
+
+    /// Whether the session has an RTD connector.
+    pub fn has_rtd_connector(&self) -> bool {
+        self.rtd.has_connector()
+    }
+
+    /// Admits an RTD value the owner received (a `RefreshData`) as `sequence` of the lease's
+    /// connection. When it is accepted and the formula read that topic, the owner calculates again.
+    pub fn update_rtd(
+        &mut self,
+        topic: calc_fml::TopicKey,
+        lease: calc_fml::RtdLease,
+        sequence: u64,
+        value: CalcValue,
+    ) -> calc_fml::rtd::RtdDisposition {
+        self.rtd.admit(topic, lease, sequence, value)
+    }
+
+    /// The connection of `topic` at `lease` ends (disconnected): its input is retired.
+    pub fn retire_rtd(
+        &mut self,
+        topic: calc_fml::TopicKey,
+        lease: calc_fml::RtdLease,
+    ) -> calc_fml::rtd::RtdDisposition {
+        self.rtd.retire(topic, lease)
+    }
+
+    /// The topics (with their leases) the formula read in its last calculation.
+    pub fn rtd_reads(&self) -> &[calc_fml::RtdRead] {
+        self.rtd.reads()
+    }
+
+    /// The ids of the registered-function calls the formula's last calculation made, which the RTD
+    /// client reconciles the connections it holds for the formula against.
+    pub fn rtd_invocations(&self) -> &std::collections::BTreeSet<u64> {
+        self.rtd.invocations()
+    }
+
+    /// Whether the formula's last calculation read `topic` at `lease`.
+    pub fn reads_rtd(&self, topic: &calc_fml::TopicKey, lease: calc_fml::RtdLease) -> bool {
+        self.rtd.reads().iter().any(|read| &read.topic == topic && read.lease == lease)
+    }
+
+    /// The connections the formula held before its last calculation and does not read now:
+    /// the owner disconnects them (and then [`Session::retire_rtd`]s each), after the new formula
+    /// has been calculated, as Excel connects the next topic before it disconnects the old one.
+    pub fn take_unread_rtd(&mut self) -> Vec<(calc_fml::TopicKey, calc_fml::RtdLease)> {
+        self.rtd.take_unread()
+    }
+
+    /// The values admitted since the last call, in admission order (the connections' first values
+    /// included, admitted as the sequence the connector gave them).
+    pub fn take_rtd_admissions(&mut self) -> Vec<crate::rtd::RtdAdmission> {
+        self.rtd.take_admissions()
+    }
+
+    /// Takes the RTD connector out, for the session that replaces this one.
+    pub fn rtd_connector_for_replacement(&self) -> Option<std::rc::Rc<dyn calc_fml::RtdConnector>> {
+        self.rtd.connector()
     }
 
     /// Gives the session an owner of asynchronous returns, which makes every evaluation a
@@ -472,6 +550,9 @@ impl Session {
     /// functions of the session's own VBA project stay callable beside them.
     pub fn set_user_functions(&mut self, functions: calc_fml::CallableTable) {
         self.published = functions;
+        if self.rtd.has_connector() {
+            self.published.register_rtd();
+        }
         self.republish();
     }
 
@@ -830,6 +911,8 @@ impl Session {
         // The session's sheets are the workbook context INDIRECT's text is bound in.
         let mut function_diagnostics = Vec::new();
         let references = self.references.pin();
+        let recording = self.rtd.recording();
+        let mut rtd_effects = calc_fml::UserFunctionEffects::default();
         let mut services = FormulaEvaluationContext::new(
             &self.numeric,
             &mut reader,
@@ -841,6 +924,7 @@ impl Session {
         .with_functions(&self.functions)
         .with_reference_handles(&*references)
         .with_function_diagnostics(&mut function_diagnostics)
+        .with_user_function_effects(&mut rtd_effects)
         // The person's active sheet is the session's one sheet and what they have selected is the
         // cell they are entering the formula in: what VBA's ActiveSheet and Selection see (Excel
         // gives a worksheet function the user's sheet and selection, not its caller's; measured,
@@ -849,6 +933,11 @@ impl Session {
             active_sheet: self.formula_cell.sheet(),
             selection: self.formula_cell,
         });
+        if let Some(recording) = &recording {
+            services = services
+                .with_external_inputs(&self.rtd.ledger)
+                .with_rtd_connector(recording);
+        }
         let mut failure = None;
         let outcome = match self.returns.as_mut() {
             None => evaluate(EvalFrame::new(&instance, &mut self.scratch), &mut services),
@@ -898,6 +987,12 @@ impl Session {
             }
         };
         drop(services);
+        // The session's own formula is the one whose RTD reads are kept; a part evaluated for
+        // F9 or the trace reads the inputs but changes none of the session's connection state.
+        if recording.is_some() && formula == self.formula {
+            let calls = rtd_effects.invocations().iter().map(|call| call.id).collect();
+            self.rtd.finish(rtd_effects.external_inputs().to_vec(), calls);
+        }
         function_diagnostics.extend(failure);
         let reads = reader.into_reads();
         match outcome {

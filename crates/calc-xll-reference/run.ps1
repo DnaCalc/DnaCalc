@@ -1,7 +1,7 @@
 param([string]$RunDirectory = (Join-Path $PSScriptRoot ('runs/' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ'))), [switch]$NoTrace, [string]$X1Xll, [string]$HostExecutable,
     [string]$ExcelDnaDirectory, [string]$AddInName='X0', [string]$Cases, [switch]$Reload, [switch]$ReloadNewHost,
     [switch]$AotAliasLoad, [switch]$ExpectAotReloadRefusal,
-    [string]$AddInDirectory, [string]$XllFileName, [switch]$ExpectXloilReloadRefusal, [switch]$Engine,
+    [string]$AddInDirectory, [string]$XllFileName, [switch]$ExpectXloilReloadRefusal, [switch]$Engine, [switch]$Rtd,
     [switch]$PrivateComAddIn,[switch]$RibbonUI, [string]$WorkbookName, $OwnedExcel=$null)
 $ErrorActionPreference = 'Stop'
 if (-not $HostExecutable -and $null -eq $OwnedExcel) {
@@ -22,6 +22,7 @@ if (-not $HostExecutable -and $null -eq $OwnedExcel) {
 if ([Threading.Thread]::CurrentThread.ApartmentState -ne 'STA') { throw 'Run with pwsh -Sta -File run.ps1.' }
 if ($ReloadNewHost) { $Reload=$true }
 if ($Engine -and -not $HostExecutable) { throw '-Engine needs -HostExecutable.' }
+if ($Rtd -and ($Engine -or -not $HostExecutable)) { throw '-Rtd runs OneCalc''s formula session over the RTD servers: give -HostExecutable dna-onecalc-desktop.exe and not -Engine.' }
 if ($RibbonUI -and -not $PrivateComAddIn) { throw '-RibbonUI requires the private COM fixture preflight.' }
 if ($PrivateComAddIn) {
     if (-not $AddInDirectory) { throw '-PrivateComAddIn needs an explicitly selected external fixture.' }
@@ -101,6 +102,7 @@ if ($HostExecutable) {
         $launch.StandardOutputEncoding=[Text.Encoding]::UTF8; $launch.StandardErrorEncoding=[Text.Encoding]::UTF8
         $arguments = @('--xll',$nativeXll,'--ready',$readyFile,'--wait',$go,'--finished',$done,'--release',$release)
         if ($Engine) { $arguments += '--engine' }
+        if ($Rtd) { $arguments += '--rtd' }
         if ($WorkbookName) { $arguments += @('--workbook-name',$WorkbookName) }
         if ($RibbonUI) { $arguments += '--ribbon-ui' }
         if ($ExcelDnaDirectory -or $AddInDirectory) {
