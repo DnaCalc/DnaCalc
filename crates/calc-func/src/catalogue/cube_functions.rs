@@ -14,6 +14,9 @@ fn failed<T>(site: &Site<'_>, failure: CubeFailure) -> Step<T> {
     match failure {
         CubeFailure::Error(code) => Err(Exit::Error(code)),
         CubeFailure::NotModelled => Err(site.not_modelled(None)),
+        CubeFailure::CrossTableNotModelled => Err(Exit::Fault(crate::FunctionFault::NotHeld {
+            id: site.id(), owner: "dc-8wp.19",
+        })),
     }
 }
 

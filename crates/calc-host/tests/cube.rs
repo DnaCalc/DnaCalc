@@ -243,3 +243,67 @@ fn dc_8wp_18__malformed_model_snapshot_is_refused() {
     let command = calc_host::HostCommand { base: host.revision(), edits: vec![calc_host::CellEdit::DataModel(Arc::new(forged))] };
     assert!(calc_host::dispatch(&mut host, command).is_err());
 }
+
+/// The M4 saved model-pivot workbook: only newly calculated results count as matches.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_19__model_pivot_and_mdx_capture_report() {
+    use calc_host::{HostSession, SkinIntent, WorkbookCommand};
+    let mut host = open(include_bytes!("fixtures/pivot_cube/model-pivot.xlsx").to_vec());
+    calculate_full(&mut host);
+    settle(&mut host);
+    let stages = include_str!("fixtures/pivot_cube/stages.tsv");
+    let sheet = |host: &HostState, name: &str| host.sheets().iter().find(|s|
+        String::from_utf16_lossy(s.name().text().utf16_code_units()) == name).unwrap().id();
+    let gpd = sheet(&host, "GpdModel");
+    let rows: Vec<_> = stages.lines().map(|l| l.split('\t').collect::<Vec<_>>())
+        .filter(|fields| fields[0] == "gpd-model").collect();
+    assert_eq!(rows.len(), 11);
+    let keys = rows.iter().map(|r| CellKey::new(gpd, r[1][1..].parse().unwrap(), 2).unwrap()).collect();
+    let result = project(&host, &ProjectionRequest { cells: keys }).unwrap();
+    let mut counts = [0usize; 4]; // match, mismatch, refused, missing
+    for (row, cell) in rows.iter().zip(result.cells()) {
+        match cell.value() {
+            ProjectedValue::Calculated { value, .. } => {
+                let matched = match (row[2], value.core_ref()) {
+                    ("n", CoreRef::Number(n)) => row[3].parse::<f64>().ok() == Some(n),
+                    ("e", CoreRef::Error(e)) => e.excel_spelling() == row[4],
+                    _ => false,
+                };
+                counts[usize::from(!matched)] += 1;
+            }
+            ProjectedValue::NotModeled { .. } => counts[2] += 1,
+            _ => counts[3] += 1,
+        }
+    }
+    println!("M4 MDX: {}/11 match; {} fail ({} mismatched, {} refused, {} missing)", counts[0], 11-counts[0], counts[1], counts[2], counts[3]);
+    let pivot_sheet = sheet(&host, "ModelPivot");
+    let part = host.model().definitions().pivots().sheet(pivot_sheet).unwrap().tables.iter()
+        .find(|t| t.name == "pvt_model").unwrap().part.clone();
+    let mut book = HostSession::new(host);
+    let revision = book.host().revision().get();
+    let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::PivotRefresh { sheet: pivot_sheet, revision, part }));
+    let rows: Vec<_> = stages.lines().map(|l| l.split('\t').collect::<Vec<_>>())
+        .filter(|fields| fields[0] == "model-pivot").collect();
+    assert_eq!(rows.len(), 28);
+    if !receipt.accepted() {
+        println!("M4 model pivot: 0/28 match; 28 fail (refresh refused: {:?})", receipt.error);
+        return;
+    }
+    let keys = rows.iter().map(|r| {
+        let address = r[1].as_bytes();
+        CellKey::new(pivot_sheet, r[1][1..].parse().unwrap(), u32::from(address[0] - b'A' + 1)).unwrap()
+    }).collect();
+    let page = project(book.host(), &ProjectionRequest { cells: keys }).unwrap();
+    let mut matches = 0;
+    for (row, cell) in rows.iter().zip(page.cells()) {
+        if let ProjectedValue::Calculated { value, .. } = cell.value() {
+            if match (row[2], value.core_ref()) {
+                ("n", CoreRef::Number(n)) => row[3].parse::<f64>().ok() == Some(n),
+                ("s", CoreRef::Text(t)) => t.to_string_lossy() == row[3],
+                _ => false,
+            } { matches += 1; }
+        }
+    }
+    println!("M4 model pivot: {matches}/28 match; {} fail", 28-matches);
+}
