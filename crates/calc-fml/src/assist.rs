@@ -296,8 +296,9 @@ pub fn complete(text: &str, caret: usize) -> Option<Completion> {
     }
     let wanted = crate::eval::file_unprefixed(&prefix).to_ascii_uppercase();
     let proposals: Vec<Proposal> = catalogue()
-        .surfaces()
+        .entries()
         .filter(|target| target.notation() == Notation::Call)
+        .filter(|target| function_named(target.spelling()).is_some())
         .filter(|target| target.spelling().starts_with(wanted.as_str()))
         .map(|target| Proposal { target })
         .collect();
@@ -474,6 +475,17 @@ mod tests {
         let completion = complete("=SUMX", 3).expect("a name");
         assert_eq!(completion.prefix, "SU");
         assert_eq!(completion.replace, TextSpan::new(1, 2));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn completion_includes_every_resolvable_catalogue_call() {
+        for target in catalogue().entries().filter(|t| t.notation() == Notation::Call) {
+            if function_named(target.spelling()).is_none() { continue; }
+            let text = format!("={}", target.spelling());
+            let found = complete(&text, text.encode_utf16().count()).unwrap();
+            assert!(found.proposals.iter().any(|p| p.target == target), "{}", target.spelling());
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

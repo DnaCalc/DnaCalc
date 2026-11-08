@@ -727,6 +727,16 @@ pub fn signature_pieces(target: FunctionCallTarget<'_>, active: usize) -> (Strin
 /// The function help panel for one function.
 pub fn help_view(target: FunctionCallTarget<'static>) -> impl IntoView {
     let signature = target.signature_help().display;
+    let status = match target.implementation() {
+        calc_func::Implementation::Held => "Held".to_owned(),
+        calc_func::Implementation::Binding => "Formula binding".to_owned(),
+        calc_func::Implementation::NotHeld { owner } => format!("Not held; owned by {owner}"),
+        calc_func::Implementation::Deferred { class } => format!("Deferred ({class:?}); owned by {}", class.owner()),
+    };
+    let availability = match target.availability() {
+        calc_func::Availability::Unspecified => "Availability not established",
+        calc_func::Availability::ListsInCellsBeta => "Insider Beta; workbook compatibility version 3",
+    };
     let description = help::description(target)
         .unwrap_or("No description in calc-func's help text.")
         .to_owned();
@@ -747,6 +757,7 @@ pub fn help_view(target: FunctionCallTarget<'static>) -> impl IntoView {
             <h3 data-onecalc="help-name">{target.spelling()}</h3>
             <code data-onecalc="help-signature">{signature}</code>
             <p data-onecalc="help-description">{description}</p>
+            <p data-onecalc="help-status">{status}"; "{availability}</p>
             {source}
             <p>{format!("{}; in calc-func's catalogue.", arity_text(target))}</p>
         </aside>
