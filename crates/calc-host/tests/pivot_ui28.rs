@@ -1176,3 +1176,44 @@ fn dc_8wp_12__all_captured_stages_report_number_format_codes() {
     let failed = mismatches + refused_cells;
     println!("Captured number-format codes: {matches}/3330 match ({:.2}%); {failed} fail ({mismatches} mismatches, {refused_cells} refused) across 76 stages; other display properties are not compared here", 100.0 * matches as f64 / 3330.0);
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_12__refresh_reuses_retained_product_in_captured_layouts() {
+    let formats = include_str!("fixtures/pivot/m2-formatting/formats.tsv");
+    let stages = ["refresh-preserve-autofit", "refresh-preserve-noautofit",
+        "refresh-nopreserve-autofit", "refresh-nopreserve-noautofit",
+        "refresh-userwidth-autofit", "refresh-userwidth-noautofit"];
+    for stage in stages {
+        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(
+            include_bytes!("fixtures/pivot/m2-formatting/built.xlsx").to_vec(),
+        ));
+        let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+        let source_sheet = book.host().sheets().iter().find(|s|
+            String::from_utf16_lossy(s.name().text().utf16_code_units()) == "Source").unwrap().id();
+        for (address, text) in [("B3", "A very long product name that needs a wide column"), ("D3", "123456789.125")] {
+            assert!(book.dispatch(SkinIntent::EnterCell { at: at(source_sheet, address), text: text.into() }).accepted());
+        }
+        let name = format!("pvt_{}", stage.replace('-', "_"));
+        let (sheet, part) = book.host().model().definitions().pivots().sheets.iter().find_map(|(sheet, pivots)|
+            pivots.tables.iter().find(|table| table.name == name).map(|table| (*sheet, table.part.clone()))).unwrap();
+        let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+            sheet, revision: book.host().revision().get(), part,
+        }));
+        assert!(receipt.accepted(), "{stage}: {receipt:?}");
+        let actual = held(&book, sheet, 16, 30);
+        let mut checked = 0;
+        for fields in formats.lines().map(|line| line.split('\t').collect::<Vec<_>>())
+            .filter(|fields| fields[0] == format!("{stage}-refreshed")) {
+            let expected = match fields[2] {
+                "n" => Cell::Number(fields[3].parse().unwrap()),
+                "s" => Cell::Text(fields[3].into()),
+                kind => panic!("unexpected captured cell kind {kind}"),
+            };
+            assert_eq!(actual.get(fields[1]), Some(&expected), "{stage} {}", fields[1]);
+            checked += 1;
+        }
+        assert_eq!(checked, 38);
+        assert_eq!(actual.len(), checked, "{stage}: unexpected output cells");
+    }
+}
