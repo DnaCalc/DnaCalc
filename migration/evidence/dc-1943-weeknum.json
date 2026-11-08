@@ -1,0 +1,34 @@
+{
+  "format": "dnacalc-witness-exclusion/1",
+  "function": "WEEKNUM",
+  "reason": "Return types below 0 or above 21 after the measured conversion depend on prior WEEKNUM evaluation; a single call has no stable expected result.",
+  "evidence": "r2:dnacalc-evidence/research/round02/dc-1943-20261108T104726Z/Q3-WEEKNUM.json",
+  "sha256": "0f216dcb74138ed093947f74b012dbd213eed357302a7f4cb8b0f530ec11a98f",
+  "excel_build": "20527",
+  "paired_calls": 2000,
+  "always_num_return_types": [
+    0,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    18,
+    19,
+    20
+  ],
+  "previously_matching_pins_now_refused": [
+    "date-boundary-WEEKNUM-00196",
+    "date-boundary-WEEKNUM-00197",
+    "date-boundary-WEEKNUM-01610",
+    "date-boundary-WEEKNUM-01750",
+    "date-boundary-WEEKNUM-02685",
+    "date-boundary-WEEKNUM-00454",
+    "date-conversion-WEEKNUM-02773",
+    "date-conversion-WEEKNUM-02592",
+    "date-conversion-WEEKNUM-01477"
+  ]
+}

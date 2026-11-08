@@ -44,6 +44,25 @@ fn dates_without_an_environment_are_refused() {
     refused(call("TEXT", vec![n(1.0), t("0.00")]));
 }
 
+/// Q3, Excel 16.0.20527: these return-type classes always give #NUM!, and the
+/// captured serial and return-type bits locate the observed conversion boundaries.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn weeknum_stable_invalid_types_and_input_boundaries() {
+    let e = host();
+    for kind in [0.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 18.0, 19.0, 20.0] {
+        error(c(&e, "WEEKNUM", vec![n(43835.0), n(kind)]), Num);
+    }
+    exact(c(&e, "WEEKNUM", vec![n(43835.0), n(11.0 - 2.3e-7)]), 1.0);
+    error(c(&e, "WEEKNUM", vec![n(43835.0), n(11.0 - 2.4e-7)]), Num);
+    for kind in [-1.0, 22.0, 99.0, 22.0 - 1e-7] {
+        refused(c(&e, "WEEKNUM", vec![n(43835.0), n(kind)]));
+    }
+    error(c(&e, "WEEKNUM", vec![n(-1.0), n(22.0)]), Num);
+    exact(c(&e, "WEEKNUM", vec![n(f64::from_bits(0x40e5_6780_0000_0000)), n(2.0)]), 2.0);
+    exact(c(&e, "WEEKNUM", vec![n(f64::from_bits(0x40e5_677f_ffff_ffff)), n(2.0)]), 1.0);
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn date_parts_and_serials() {

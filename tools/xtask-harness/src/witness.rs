@@ -94,6 +94,7 @@ const MANIFESTS: [&str; 2] = ["manifest.tsv", "w109-manifest.tsv"];
 const PINNED_DIR: &str = "crates/calc-func/tests/witnesses";
 const STATUS: &str = "crates/calc-func/witness-status.tsv";
 const DIFFERENCES: &str = "crates/calc-func/witness-differences.tsv";
+const WEEKNUM_EXCLUSION: &str = "migration/evidence/dc-1943-weeknum.json";
 const LEDGER: &str = "function-lane/ledgers/EXCEL_PARITY_LEDGER.csv";
 const EDGE_ROWS: usize = 4;
 /// New readings taken by `cargo xtask witness read`, in the evidence repository.
@@ -1006,6 +1007,9 @@ fn write_trace_row(writer: &mut impl Write, row: &Row<'_>, source: &Source) -> R
     if let Some(context) = &source.env.invocation {
         value["reading"]["invocation"] = context.to_json();
     }
+    if row.actual == "excluded:order-dependent" {
+        value["exclusion"] = serde_json::json!({"reason": "order-dependent", "evidence": WEEKNUM_EXCLUSION});
+    }
     serde_json::to_writer(&mut *writer, &value).map_err(|e| format!("witness trace: {e}"))?;
     writer.write_all(b"\n").map_err(|e| format!("witness trace: {e}"))
 }
@@ -1019,6 +1023,25 @@ struct Difference {
 
 fn build_order(build: &Option<String>) -> u64 {
     build.as_deref().and_then(|b| b.parse().ok()).unwrap_or(0)
+}
+
+/// Q3's serial calls show that these return types depend on a preceding WEEKNUM call.
+/// The bank does not retain that evaluation order, so a single recorded value cannot
+/// judge a stateless invocation. Keep the row in the failure denominator and report it.
+fn order_dependent_weeknum(reading: &Reading) -> bool {
+    if reading.function != "WEEKNUM" { return false; }
+    let Some(value) = reading.args.get(1)
+        .and_then(|arg| decode_argument(arg, "return_type").ok())
+        .and_then(|arg| arg.as_number()) else { return false; };
+    if !value.is_finite() { return false; }
+    let upper = value.ceil();
+    let tolerance = if upper > 0.0 {
+        2.0_f64.powi(-22) + 2.0_f64.powi(-33)
+    } else {
+        2.0_f64.powi(-23) + 2.0_f64.powi(-34)
+    };
+    let kind = if upper - value <= tolerance { upper } else { value.floor() };
+    !(0.0..22.0).contains(&kind)
 }
 
 fn group<'a>(banks: &'a Banks) -> (BTreeMap<String, Vec<Vec<&'a Reading>>>, Vec<Difference>) {
@@ -1073,15 +1096,24 @@ fn calc_func_commit(root: &Path) -> String {
     if dirty { format!("{head}+changes") } else { head }
 }
 
-const STATUS_HEADER: &str = "function\tbank\texcel_builds\trows\tmatched\tworst_ulp\tclass\tcalc_func_commit";
+const STATUS_HEADER: &str = "function\tbank\texcel_builds\trows\tmatched\tworst_ulp\tclass\tcalc_func_commit\texcluded";
 
 struct Status {
     function: String,
     builds: String,
     rows: usize,
     matched: usize,
+    excluded: usize,
     worst_ulp: Option<u64>,
     class: Severity,
+}
+
+fn status_class(status: &Status) -> &'static str {
+    if status.excluded > 0 && status.matched + status.excluded == status.rows {
+        "excluded"
+    } else {
+        status.class.name()
+    }
 }
 
 fn status_of(function: &str, rows: &[Row]) -> Status {
@@ -1094,6 +1126,7 @@ fn status_of(function: &str, rows: &[Row]) -> Status {
         builds: builds.into_iter().collect::<Vec<_>>().join(","),
         rows: rows.len(),
         matched: rows.iter().filter(|r| r.severity == Severity::Exact).count(),
+        excluded: rows.iter().filter(|r| r.actual == "excluded:order-dependent").count(),
         worst_ulp: rows.iter().filter_map(|r| r.ulp).max(),
         class: rows.iter().map(|r| r.severity).max().unwrap_or(Severity::Exact),
     }
@@ -1109,19 +1142,21 @@ fn write_status(root: &Path, bank: &str, statuses: &[Status], only: Option<&str>
             let (Some(f), Some(b)) = (cols.next(), cols.next()) else { continue };
             let replaced = b == bank && only.is_none_or(|o| o == f);
             if !replaced {
-                lines.insert((f.to_owned(), b.to_owned()), line.to_owned());
+                let line = if line.split('\t').count() == 8 { format!("{line}\t0") } else { line.to_owned() };
+                lines.insert((f.to_owned(), b.to_owned()), line);
             }
         }
     }
     for s in statuses {
         let line = format!(
-            "{}\t{bank}\t{}\t{}\t{}\t{}\t{}\t{commit}",
+            "{}\t{bank}\t{}\t{}\t{}\t{}\t{}\t{commit}\t{}",
             s.function,
             if s.builds.is_empty() { "?" } else { &s.builds },
             s.rows,
             s.matched,
             s.worst_ulp.map_or("-".to_owned(), |u| u.to_string()),
-            s.class.name()
+            status_class(s),
+            s.excluded
         );
         lines.insert((s.function.clone(), bank.to_owned()), line);
     }
@@ -1576,7 +1611,7 @@ fn compare_with_ledger(checkout: &Path, root: &Path, statuses: &[Status]) -> Res
             s.rows,
             s.matched,
             rate,
-            s.class.name(),
+            status_class(s),
             s.worst_ulp.map_or("-".to_owned(), |u| u.to_string()),
             status,
             severity,
@@ -1844,10 +1879,14 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
             })
             .collect();
         let contexts: Vec<_> = banks.sources.iter().map(|s| s.env.invocation.clone().map(std::sync::Arc::new)).collect();
-        let jobs: Vec<_> = chosen.iter().map(|r| (r.args.clone(), r.index, contexts[r.source].clone())).collect();
-        let actuals = calculate_all(function, &jobs, !request.values_only);
+        let excluded = |r: &Reading| request.verb == Verb::Judge && order_dependent_weeknum(r);
+        let jobs: Vec<_> = chosen.iter().filter(|r| !excluded(r))
+            .map(|r| (r.args.clone(), r.index, contexts[r.source].clone())).collect();
+        let mut actuals = calculate_all(function, &jobs, !request.values_only).into_iter();
         let mut rows = Vec::new();
-        for ((readings, reading), actual) in keys.iter().zip(chosen).zip(actuals) {
+        for (readings, reading) in keys.iter().zip(chosen) {
+            let actual = if excluded(reading) { "excluded:order-dependent".to_owned() }
+                else { actuals.next().expect("one result per judged job") };
             let (slow, actual) = match actual.strip_prefix(SLOW) {
                 Some(rest) => (true, rest.to_owned()),
                 None => (false, actual),
@@ -1859,7 +1898,8 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
             if actual == "fault:Timeout" {
                 println!("xtask witness: {function}: no result within {ROW_SECONDS} s on {}", Value::Array(reading.args.clone()));
             }
-            let (severity, ulp) = judge(&reading.expected, &actual);
+            let (severity, ulp) = if excluded(reading) { (Severity::Structural, None) }
+                else { judge(&reading.expected, &actual) };
             let row = Row { reading, builds, actual, severity, ulp, slow };
             if let Some(writer) = trace.as_mut() {
                 write_trace_row(writer, &row, &banks.sources[reading.source])?;
@@ -1873,13 +1913,16 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
             status.class = Severity::Structural;
             println!("xtask witness: {function}: {unread} unread recorded rows count as failures");
         }
+        if status.excluded > 0 {
+            println!("xtask witness: {function}: {} order-dependent rows excluded from judgment, retained as failures; evidence {WEEKNUM_EXCLUSION}", status.excluded);
+        }
         println!(
             "xtask witness: {:<22} {:>8} rows {:>8} matched  worst {:>6} ULP  {}",
             function,
             status.rows,
             status.matched,
             status.worst_ulp.map_or("-".to_owned(), |u| u.to_string()),
-            status.class.name()
+            status_class(&status)
         );
         statuses.push(status);
         judged.insert(function.clone(), rows);
@@ -1890,8 +1933,9 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
     }
     let rows: usize = statuses.iter().map(|s| s.rows).sum();
     let matched: usize = statuses.iter().map(|s| s.matched).sum();
+    let excluded: usize = statuses.iter().map(|s| s.excluded).sum();
     println!(
-        "xtask witness: {} functions, {exact} exact on every counted row; {matched} of {rows} rows matched, {} failed (mismatched, refused or unread; {unread_rows} unread)",
+        "xtask witness: {} functions, {exact} exact on every counted row; {matched} of {rows} rows matched, {} failed (mismatched, refused, unread or excluded; {unread_rows} unread, {excluded} excluded)",
         statuses.len(),
         rows - matched
     );
@@ -1921,12 +1965,12 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
     if let Some(path) = &request.report {
         let functions: Vec<Value> = statuses.iter().map(|s| serde_json::json!({
             "function": s.function, "rows": s.rows, "matched": s.matched,
-            "failed": s.rows - s.matched, "worst_ulp": s.worst_ulp, "class": s.class.name(),
+            "failed": s.rows - s.matched, "excluded": s.excluded, "worst_ulp": s.worst_ulp, "class": status_class(s),
         })).collect();
         let summary = serde_json::json!({
             "format": "dnacalc-witness-summary", "bank": bank,
             "totals": {"functions": statuses.len(), "exact": exact, "rows": rows,
-                "matched": matched, "failed": rows - matched, "unread": unread_rows},
+                "matched": matched, "failed": rows - matched, "unread": unread_rows, "excluded": excluded},
             "functions": functions,
         });
         fs::write(path, serde_json::to_vec_pretty(&summary).unwrap())
@@ -2372,6 +2416,35 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn weeknum_order_dependent_rows_remain_counted_and_carry_evidence() {
+        let metadata: Value = serde_json::from_str(include_str!("../../../migration/evidence/dc-1943-weeknum.json")).unwrap();
+        assert_eq!(metadata["paired_calls"], 2000);
+        assert!(metadata["evidence"].as_str().unwrap().ends_with("/Q3-WEEKNUM.json"));
+        let reading = |kind: f64| Reading {
+            function: "WEEKNUM".into(), id: "row".into(),
+            args: vec![serde_json::json!("0x40e5676000000000"), serde_json::json!(format!("0x{:016x}", kind.to_bits()))],
+            index: None, expected: "error:Num".into(), source: 0,
+        };
+        for kind in [0.0, 3.0, 10.0, 18.0, 20.0, 21.0, 11.0 - 2.3e-7] {
+            assert!(!order_dependent_weeknum(&reading(kind)), "{kind}");
+        }
+        for kind in [-1.0, 22.0, 99.0, 22.0 - 1e-7] {
+            assert!(order_dependent_weeknum(&reading(kind)), "{kind}");
+        }
+        let r = reading(22.0);
+        let row = Row { reading: &r, slow: false, builds: BTreeSet::new(),
+            actual: "excluded:order-dependent".into(), severity: Severity::Structural, ulp: None };
+        let mut trace = Vec::new();
+        let source = Source { path: "bank".into(), env: environment("r0".into(), "bank".into(), None, None, None) };
+        write_trace_row(&mut trace, &row, &source).unwrap();
+        let trace: Value = serde_json::from_slice(&trace).unwrap();
+        assert_eq!(trace["exclusion"]["evidence"], WEEKNUM_EXCLUSION);
+        let status = status_of("WEEKNUM", &[row]);
+        assert_eq!((status.rows, status.matched, status.excluded), (1, 0, 1));
+        assert_eq!(status_class(&status), "excluded");
+    }
 
     #[test]
     fn fixed_replay_attests_the_profile_only_for_its_bank() {
