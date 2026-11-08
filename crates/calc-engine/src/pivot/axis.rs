@@ -12,10 +12,12 @@ pub(super) fn axis_item(kind: &str, repeat: u32, indexes: Vec<u32>) -> PivotAxis
     }
 }
 fn group_label(group: &Group) -> Result<CalcValue, PivotIssue> {
-    if group.key == PivotItem::Missing {
-        Ok(plain_text("(blank)"))
-    } else {
-        item_value(&group.key)
+    match &group.key {
+        PivotItem::Missing => Ok(plain_text("(blank)")),
+        PivotItem::Text(value) if value.is_empty() => Ok(CalcValue::empty()),
+        PivotItem::Boolean(value) => Ok(plain_text(if *value { "TRUE" } else { "FALSE" })),
+        PivotItem::Error(value) => Ok(plain_text(value)),
+        _ => item_value(&group.key),
     }
 }
 /// Traverse either axis in field-item order. Visitors decide how each node is rendered.
@@ -757,12 +759,17 @@ pub(super) fn layout_columns(
     }
     if row_grand {
         cells.insert((r, 0), plain_text(grand_caption));
+        // With several value functions on the same source field, Excel's captured grand row
+        // carries the source error from Sum into its Count and Count Numbers cells as well.
+        let common_error = if values_only && table.data_fields[0].subtotal == "sum"
+            && table.data_fields.iter().all(|d| d.field == table.data_fields[0].field) {
+            totals.get(&(usize::MAX, Vec::new(), 0)).and_then(Total::source_error)
+        } else { None };
         for (col, entry) in columns.iter().enumerate() {
             if let Some(total) = totals.get(&(usize::MAX, entry.path.clone(), entry.measure)) {
-                cells.insert(
-                    (r, col as u32 + 1),
-                    displayed(total, usize::MAX, entry),
-                );
+                let value = common_error.map(CalcValue::error)
+                    .unwrap_or_else(|| displayed(total, usize::MAX, entry));
+                cells.insert((r, col as u32 + 1), value);
             }
         }
         axis.push(axis_item("grand", 0, vec![0]));

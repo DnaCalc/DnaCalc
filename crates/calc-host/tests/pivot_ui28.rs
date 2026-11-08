@@ -581,8 +581,8 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
                 } else {
                     let diff = want.iter().filter(|(k, v)| got.get(*k) != Some(*v))
                         .map(|(k,v)| format!("{k}: want {v:?} got {:?}", got.get(k)))
-                        .chain(got.keys().filter(|k| !want.contains_key(*k)).map(|k| format!("{k}: unexpected")))
-                        .take(3).collect::<Vec<_>>().join("; ");
+                        .chain(got.keys().filter(|k| !want.contains_key(*k)).map(|k| format!("{k}: unexpected {:?}", got[k])))
+                        .take(25).collect::<Vec<_>>().join("; ");
                     format!("mismatched: {diff}")
                 }
             }
@@ -592,7 +592,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
         println!("{stage}: {verdict}");
     }
     println!("M1 matched {} of {}: {matched:?}", matched.len(), expected.len());
-    assert_eq!(matched, ["agg-all-amount", "agg-all-units", "agg-text-field", "blank-line-both", "blank-line-compact-columns", "blank-line-outer", "group-month", "group-month-year", "group-quarter", "group-quarter-year", "group-year", "group-year-columns", "nodata-rows-hidden", "show-count-average", "show-difference-east", "show-difference-next", "show-difference-previous", "show-difference-product-alpha", "show-index", "show-percent-difference-east", "show-percent-difference-previous", "show-percent-of-column", "show-percent-of-row", "show-percent-of-total", "show-percentof-east", "show-percentof-previous", "show-running-total", "show-running-total-product", "values-columns-after-field"]);
+    assert_eq!(matched, ["agg-all-amount", "agg-all-units", "agg-text-field", "blank-line-both", "blank-line-compact-columns", "blank-line-outer", "err-keys", "err-keys-columns", "err-keys-desc", "err-values", "err-values-display", "group-month", "group-month-year", "group-quarter", "group-quarter-year", "group-year", "group-year-columns", "nodata-rows-hidden", "show-count-average", "show-difference-east", "show-difference-next", "show-difference-previous", "show-difference-product-alpha", "show-index", "show-percent-difference-east", "show-percent-difference-previous", "show-percent-of-column", "show-percent-of-row", "show-percent-of-total", "show-percentof-east", "show-percentof-previous", "show-running-total", "show-running-total-product", "values-columns-after-field"]);
     let mut saved = Vec::new();
     book.save(&SavePolicy::default(), &mut saved).unwrap();
     let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(saved));
