@@ -894,6 +894,7 @@ class Broker:
                 for slot in self.slots:
                     await self.loop.run_in_executor(self.executor, slot.proc.stop)
                 self.log_event("stopped", pid=os.getpid())
+                self.batch_log.close()
                 status = {"pid": os.getpid(), "running": False, "utc": logs.utc().isoformat(timespec="seconds")}
                 (self.state_dir / "status.json").write_text(json.dumps(status), encoding="ascii")
 

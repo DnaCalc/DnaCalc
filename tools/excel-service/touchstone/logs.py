@@ -18,22 +18,56 @@ def compact(obj):
 
 
 class BatchLog:
-    """log/YYYY-MM-DD.jsonl.gz: each record is its own gzip member, fsynced, so a crash loses nothing earlier."""
+    """log/YYYY-MM-DD.jsonl.gz: gzip members of up to 64 records, each flushed and fsynced.
+
+    A batch of 100 calls or more is written at once (fsync per batch); small batches wait for the next flush
+    (at most one second, or 64 records) so that a stream of one-call questions does not cost a gzip header per
+    call.  A record is therefore at most one second from disk after a crash, and never a small one before a big one."""
 
     def __init__(self, directory):
         self.directory = Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True)
         self.lock = threading.Lock()
+        self.pending = []
+        self.stopped = threading.Event()
+        self.thread = threading.Thread(target=self._timer, daemon=True)
+        self.thread.start()
+
+    def _timer(self):
+        while not self.stopped.wait(1.0):
+            self.flush()
 
     def write(self, record):
         now = utc()
         record = {"utc": now.isoformat(timespec="milliseconds"), **record}
-        data = gzip.compress((compact(record) + "\n").encode("ascii"), compresslevel=6)
-        path = self.directory / (now.strftime("%Y-%m-%d") + ".jsonl.gz")
-        with self.lock, path.open("ab") as stream:
-            stream.write(data)
-            stream.flush()
-            os.fsync(stream.fileno())
+        line = compact(record) + chr(10)
+        with self.lock:
+            self.pending.append((now, line))
+            big = record.get("calls", 0) >= 100 or record.get("kind") != "batch"
+            if big or len(self.pending) >= 64:
+                self._flush_locked()
+
+    def flush(self):
+        with self.lock:
+            self._flush_locked()
+
+    def _flush_locked(self):
+        if not self.pending:
+            return
+        by_day = {}
+        for when, line in self.pending:
+            by_day.setdefault(when.strftime("%Y-%m-%d"), []).append(line)
+        self.pending = []
+        for day, lines in by_day.items():
+            data = gzip.compress("".join(lines).encode("ascii"), compresslevel=6)
+            with (self.directory / (day + ".jsonl.gz")).open("ab") as stream:
+                stream.write(data)
+                stream.flush()
+                os.fsync(stream.fileno())
+
+    def close(self):
+        self.stopped.set()
+        self.flush()
 
     @staticmethod
     def read(directory, since=None):

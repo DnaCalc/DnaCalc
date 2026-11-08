@@ -369,12 +369,26 @@ class Service:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["start", "stop", "run"])
+    parser.add_argument("command", choices=["start", "stop", "run", "stats", "waits"])
+    parser.add_argument("--v2-state", type=Path, default=Path(r"C:\Work\DnaCalc\codex-runs\excel-service-v2"),
+                        help="the touchstone broker's state folder, for stats and waits")
+    parser.add_argument("--since", default=None, help="stats and waits: 24h, 7d or an ISO time")
     parser.add_argument("--state", type=Path, default=DEFAULT_STATE)
     parser.add_argument("--local-queue", type=Path, default=Path.home() / "excel-queue")
     parser.add_argument("--hosts", nargs="*", choices=["dna-firehorse", "dna-koderbot"],
                         default=["dna-firehorse", "dna-koderbot"])
     options = parser.parse_args()
+    if options.command in ("stats", "waits"):
+        # The v2 broker (touchstone/broker.py) keeps the batch log and the waits log; these read them.
+        sys.path.insert(0, str(HERE / "touchstone"))
+        import broker
+        import logs
+        since = broker.parse_since(options.since)
+        if options.command == "stats":
+            print(json.dumps(logs.stats(options.v2_state / "log", since), indent=1))
+        else:
+            print(json.dumps(logs.WaitsLog.summary(options.v2_state / "log" / "waits.jsonl", since), indent=1))
+        return
     options.state.mkdir(parents=True, exist_ok=True)
     status = options.state / "status.json"
     if options.command == "run":
