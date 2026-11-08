@@ -244,6 +244,40 @@ fn ui28__pivot_refresh_scenarios_against_excel() {
 }
 
 #[test]
+/// Native-only: verifies structural edits and an XLSX save of a workbook with pivots.
+fn dc_8wp_16__unrelated_sheet_axes_leave_pivot_sources_and_outputs_intact() {
+    let bytes = include_bytes!("fixtures/pivot_getpivotdata/oracle.xlsx");
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes.to_vec()));
+    let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let sheet = |book: &HostSession, name: &str| book.host().sheets().iter()
+        .find(|s| s.name().text().to_string_lossy() == name).unwrap().id();
+    let source = sheet(&book, "Source");
+    let output = sheet(&book, "PvOne");
+    let unrelated = sheet(&book, "GPD");
+    let axis = |sheet| calc_host::AxisEdit::new(sheet, calc_host::Axis::Rows, calc_host::AxisChange::Insert, 200, 1).unwrap();
+    let before = book.host().revision();
+    assert!(!book.dispatch(SkinIntent::EditAxis(axis(source))).accepted());
+    assert!(!book.dispatch(SkinIntent::EditAxis(axis(output))).accepted());
+    assert_eq!(book.host().revision(), before);
+    assert!(book.dispatch(SkinIntent::EditAxis(axis(unrelated))).accepted());
+    let rename = |sheet, text: &str| SkinIntent::Edit { edits: vec![calc_host::CellEdit::Sheet(
+        calc_doc_model::SheetEdit::Rename { sheet, name: calc_doc_model::SheetName::new(
+            calc_host::value::ExcelText::from_interop_assignment(text)).unwrap() })] };
+    assert!(!book.dispatch(rename(source, "Source2")).accepted());
+    assert!(!book.dispatch(rename(output, "Pivot2")).accepted());
+    let renamed = book.dispatch(rename(unrelated, "Queries"));
+    assert!(!renamed.accepted(), "the workbook has other retained table references: {renamed:?}");
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened: Arc<dyn PackageRead> = Arc::new(MemorySource::new(saved));
+    let mut book = HostSession::open(reopened, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    let result = project(book.host(), &ProjectionRequest { cells: vec![at(unrelated, "B43")] }).unwrap();
+    assert!(matches!(result.cells()[0].value(), ProjectedValue::Calculated { value, .. }
+        if matches!(value.core_ref(), CoreRef::Number(n) if n == 691.5)));
+}
+
+#[test]
 /// Native-only: drives layout edits using a saved workbook and its retained cache records.
 fn dc_8wp_15__layout_uses_saved_records_and_survives_reopen() {
     let bytes = include_bytes!("fixtures/pivot_getpivotdata/oracle.xlsx");

@@ -226,9 +226,16 @@ impl ModelRoot {
             let next = match op {
                 WorkbookOp::EditAxis(edit) => {
                     current.require_sheet(operation, edit.sheet())?;
+                    if current.pivot_uses_sheet(edit.sheet()) { return Err(ApplyError::PivotStructural { operation }); }
                     current.axis_edit(*edit, rewriter)
                 }
                 WorkbookOp::EditSheet(edit) => {
+                    let sheet = match edit {
+                        SheetEdit::Insert { .. } => None,
+                        SheetEdit::Rename { sheet, .. } | SheetEdit::Move { sheet, .. }
+                        | SheetEdit::Remove { sheet } | SheetEdit::SetVisibility { sheet, .. } => Some(*sheet),
+                    };
+                    if sheet.is_some_and(|sheet| current.pivot_uses_sheet(sheet)) { return Err(ApplyError::PivotStructural { operation }); }
                     current.sheet_edit(operation, edit, rewriter, issue_sheet)?
                 }
                 other => {
@@ -250,6 +257,26 @@ impl ModelRoot {
             current = next;
         }
         Ok(current.rebuilt(current.parts(), revision))
+    }
+
+    // This layer cannot resolve arbitrary defined names. Keep those sources protected until the
+    // reference is known, while allowing edits on unrelated sheets for direct and table sources.
+    fn pivot_uses_sheet(&self, sheet: SheetId) -> bool {
+        let pivots = self.definitions().pivots();
+        if !pivots.caches.issues.is_empty() || pivots.sheets.values().any(|s| !s.issues.is_empty())
+            || (pivots.tables().next().is_some() && self.definitions().data_model().is_some()) { return true; }
+        let Some(name) = self.sheet_by_id(sheet).map(|s| s.name().text().to_string_lossy()) else { return false; };
+        pivots.tables().any(|table| {
+            if table.area.sheet() == sheet { return true; }
+            let Some(cache) = pivots.caches.caches.get(&table.cache_id) else { return true; };
+            if cache.source_type != "worksheet" { return true; }
+            if let Some(source) = &cache.source_name {
+                return self.definitions().tables().iter().find(|t| t.name.eq_ignore_ascii_case(source)
+                    || t.display_name.eq_ignore_ascii_case(source)).is_none_or(|t| t.sheet == sheet);
+            }
+            cache.source_sheet.as_ref().is_none_or(|source| !source.is_ascii() || !name.is_ascii()
+                || source.eq_ignore_ascii_case(&name))
+        })
     }
 
     fn require_sheet(&self, operation: usize, sheet: SheetId) -> Result<(), ApplyError> {
@@ -344,6 +371,7 @@ impl ModelRoot {
                 }
             });
         let mut next = Definitions::new(arrays, names, tables, unloaded)
+            .with_pivots(Arc::clone(definitions.pivots()))
             .with_styles(if definitions.styles().runs.iter().next().is_some() {
                 let mut styles = (**definitions.styles()).clone();
                 styles.runs = styles.runs.moved(edit);

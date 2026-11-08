@@ -145,6 +145,8 @@ pub enum ApplyError {
     /// The operation at this index inserts, renames, moves, removes, shows or hides a sheet,
     /// which [`ModelRoot::apply`] does not apply: [`ModelRoot::apply_structural`] does.
     SheetEdit { operation: usize },
+    /// A pivot output or source would need a structural transform.
+    PivotStructural { operation: usize },
     /// The skin layout edit at this index is refused, against the layout the batch's earlier
     /// operations leave.
     Layout {
@@ -189,6 +191,7 @@ impl fmt::Display for ApplyError {
                 f,
                 "operation {operation} edits the workbook's sheets, which the model root does not apply"
             ),
+            ApplyError::PivotStructural { operation } => write!(f, "operation {operation} changes a pivot output or source sheet (dc-8wp)"),
             ApplyError::Layout { operation, error } => {
                 write!(f, "operation {operation} edits the skin layout: {error}")
             }

@@ -70,7 +70,7 @@ fn read_row(host: &HostState, area: GridArea, row: u32) -> Result<Vec<CalcValue>
     let page = project(host, &ProjectionRequest { cells }).map_err(|e| e.to_string())?;
     page.cells().iter().map(observed).collect()
 }
-fn source_area(host: &HostState, cache: &PivotCache, origin: CellKey) -> Result<GridArea, String> {
+pub(crate) fn source_area(host: &HostState, cache: &PivotCache, origin: CellKey) -> Result<GridArea, String> {
     if cache.source_type != "worksheet" {
         return Err(fail("Only worksheet source data can be refreshed"));
     }
