@@ -96,6 +96,20 @@ fn cumipmt_omits_the_first_beginning_payment_from_its_finish() {
     }
 }
 
+/// Excel20527 accepts exactly zero and one for the cumulative payment type.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn cumulative_payment_type_requires_exact_zero_or_one() {
+    for function in ["CUMPRINC", "CUMIPMT"] {
+        for timing in [-1e-13, 1e-13, 1.0_f64.next_down(), 1.0_f64.next_up(), 1.0 + 1e-13] {
+            error(call(function, vec![n(0.01), n(12.0), n(100.0), n(2.0), n(4.0), n(timing)]), Num);
+        }
+        for timing in [0.0, 1.0] {
+            assert!(number(call(function, vec![n(0.01), n(12.0), n(100.0), n(2.0), n(4.0), n(timing)])).is_finite());
+        }
+    }
+}
+
 /// Excel20527 paired end/beginning calls, including a fractional period.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
