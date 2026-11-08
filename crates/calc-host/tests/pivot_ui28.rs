@@ -549,9 +549,13 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
                 .map(|t| (*sheet, t.part.clone()))
         });
         let verdict = if let Some((sheet, part)) = selected {
-            let saved_row_items = if matches!(stage.as_str(), "blank-line-both" | "blank-line-outer") {
+            let saved_row_items = if matches!(stage.as_str(), "blank-line-both" | "blank-line-compact-columns" | "blank-line-outer") {
                 Some(book.host().model().definitions().pivots().sheet(sheet).unwrap().tables.iter()
                     .find(|table| table.part == part).unwrap().row_items.clone())
+            } else { None };
+            let saved_structure = if stage == "blank-line-compact-columns" {
+                Some(canonical(book.host().model().definitions().pivots().sheet(sheet).unwrap().tables.iter()
+                    .find(|table| table.part == part).unwrap()))
             } else { None };
             let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
                 sheet, revision: book.host().revision().get(), part,
@@ -566,6 +570,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
                     let table = book.host().model().definitions().pivots().sheet(sheet).unwrap().tables.iter()
                         .find(|table| table.name == name).unwrap();
                     assert_eq!(table.row_items, expected_items, "{stage} row items");
+                    if let Some(expected) = saved_structure { assert_eq!(canonical(table), expected, "{stage} structure"); }
                 }
                 let width = want.keys().map(|address| address.bytes().take_while(u8::is_ascii_alphabetic)
                     .fold(0u32, |n, b| n * 26 + u32::from(b - b'A' + 1))).max().unwrap_or(0).max(60);
@@ -587,15 +592,18 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
         println!("{stage}: {verdict}");
     }
     println!("M1 matched {} of {}: {matched:?}", matched.len(), expected.len());
-    assert_eq!(matched, ["agg-all-amount", "agg-all-units", "agg-text-field", "blank-line-both", "blank-line-outer", "group-month", "group-month-year", "group-quarter", "group-quarter-year", "group-year", "group-year-columns", "nodata-rows-hidden", "show-count-average", "show-difference-east", "show-difference-next", "show-difference-previous", "show-difference-product-alpha", "show-index", "show-percent-difference-east", "show-percent-difference-previous", "show-percent-of-column", "show-percent-of-row", "show-percent-of-total", "show-percentof-east", "show-percentof-previous", "show-running-total", "show-running-total-product", "values-columns-after-field"]);
+    assert_eq!(matched, ["agg-all-amount", "agg-all-units", "agg-text-field", "blank-line-both", "blank-line-compact-columns", "blank-line-outer", "group-month", "group-month-year", "group-quarter", "group-quarter-year", "group-year", "group-year-columns", "nodata-rows-hidden", "show-count-average", "show-difference-east", "show-difference-next", "show-difference-previous", "show-difference-product-alpha", "show-index", "show-percent-difference-east", "show-percent-difference-previous", "show-percent-of-column", "show-percent-of-row", "show-percent-of-total", "show-percentof-east", "show-percentof-previous", "show-running-total", "show-running-total-product", "values-columns-after-field"]);
     let mut saved = Vec::new();
     book.save(&SavePolicy::default(), &mut saved).unwrap();
     let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(saved));
     let reopened = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
-    for name in ["pvt_blank_line_both", "pvt_blank_line_outer"] {
+    for name in ["pvt_blank_line_both", "pvt_blank_line_compact_columns", "pvt_blank_line_outer"] {
         let original = book.host().model().definitions().pivots().tables().find(|table| table.name == name).unwrap();
         let restored = reopened.host().model().definitions().pivots().tables().find(|table| table.name == name).unwrap();
         assert_eq!(restored.row_items, original.row_items, "{name} after save and reopen");
+        if name == "pvt_blank_line_compact_columns" {
+            assert_eq!(canonical(restored), canonical(original), "{name} structure after save and reopen");
+        }
     }
 }
 
