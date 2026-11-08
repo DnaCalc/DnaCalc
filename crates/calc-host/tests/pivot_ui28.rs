@@ -1222,6 +1222,15 @@ fn dc_8wp_12__all_captured_stages_report_number_format_codes() {
         let (sheet, part) = book.host().model().definitions().pivots().sheets.iter().find_map(|(sheet, pivots)|
             pivots.tables.iter().find(|table| table.name == name).map(|table| (*sheet, table.part.clone())))
             .unwrap_or_else(|| panic!("missing {name}"));
+        // The workbook was saved after the refresh scenarios. Restore the captured direct fill
+        // before measuring each stage so the refresh begins with the same formatting as Excel.
+        if stage.starts_with("refresh-") {
+            let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::FormatCells {
+                areas: vec![calc_host::value::GridArea::cell(at(sheet, "B5"))],
+                patch: calc_host::FormatPatch { fill: Some("#ffff00".into()), ..Default::default() },
+            }));
+            assert!(receipt.accepted(), "{stage} pre-refresh fill: {receipt:?}");
+        }
         if stage.ends_with("-refreshed") {
             for (address, text) in [("B3", "A very long product name that needs a wide column"), ("D3", "123456789.125")] {
                 assert!(book.dispatch(SkinIntent::EnterCell { at: at(source_sheet, address), text: text.into() }).accepted());
@@ -1312,10 +1321,45 @@ fn dc_8wp_12__refresh_reuses_retained_product_in_captured_layouts() {
         let name = format!("pvt_{}", stage.replace('-', "_"));
         let (sheet, part) = book.host().model().definitions().pivots().sheets.iter().find_map(|(sheet, pivots)|
             pivots.tables.iter().find(|table| table.name == name).map(|table| (*sheet, table.part.clone()))).unwrap();
+        let mut areas = vec![calc_host::value::GridArea::cell(at(sheet, "B5"))];
+        if stage == "refresh-nopreserve-noautofit" {
+            areas.push(calc_host::value::GridArea::cell(at(sheet, "Z5")));
+        }
+        let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::FormatCells {
+            areas, patch: calc_host::FormatPatch { fill: Some("#ffff00".into()), ..Default::default() },
+        }));
+        assert!(receipt.accepted(), "{stage} pre-refresh fill: {receipt:?}");
+        if stage == "refresh-nopreserve-autofit" {
+            let mut bytes = Vec::new();
+            book.save(&SavePolicy::default(), &mut bytes).unwrap();
+            let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes));
+            book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+            assert_eq!(captured_properties(book.host(), at(sheet, "B5"))[6].as_deref(), Some("65535"));
+        }
         let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
             sheet, revision: book.host().revision().get(), part,
         }));
         assert!(receipt.accepted(), "{stage}: {receipt:?}");
+        let captured = formats.lines().map(|line| line.split('\t').collect::<Vec<_>>())
+            .find(|fields| fields[0] == format!("{stage}-refreshed") && fields[1] == "B5")
+            .unwrap();
+        let properties = captured_properties(book.host(), at(sheet, "B5"));
+        for (index, expected) in [(6, captured[11]), (7, captured[12])] {
+            assert!(properties[index].as_deref().is_some_and(|actual| property_equal(index, actual, expected)),
+                "{stage} B5 property {index}: Excel {expected}, host {:?}", properties[index]);
+        }
+        if stage == "refresh-nopreserve-noautofit" {
+            assert_eq!(captured_properties(book.host(), at(sheet, "Z5"))[6].as_deref(), Some("65535"));
+            assert!(book.dispatch(SkinIntent::Undo).accepted());
+            assert_eq!(captured_properties(book.host(), at(sheet, "B5"))[6].as_deref(), Some("65535"));
+            assert!(book.dispatch(SkinIntent::Redo).accepted());
+            let mut bytes = Vec::new();
+            book.save(&SavePolicy::default(), &mut bytes).unwrap();
+            let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes));
+            let reopened = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+            assert_eq!(captured_properties(reopened.host(), at(sheet, "B5"))[6].as_deref(), Some("16777215"));
+            assert_eq!(captured_properties(reopened.host(), at(sheet, "Z5"))[6].as_deref(), Some("65535"));
+        }
         let actual = held(&book, sheet, 16, 30);
         let mut checked = 0;
         for fields in formats.lines().map(|line| line.split('\t').collect::<Vec<_>>())

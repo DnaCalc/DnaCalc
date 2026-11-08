@@ -3,7 +3,7 @@
 use crate::{CellEdit, HostState, ProjectedValue, ProjectionRequest, project};
 use calc_doc_model::pivot::*;
 use calc_value::{CalcValue, CellKey, CoreRef, GridArea, SheetId};
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::{BTreeMap, BTreeSet}, sync::Arc};
 fn fail(detail: impl AsRef<str>) -> String {
     format!("{} (dc-8wp)", detail.as_ref())
 }
@@ -394,18 +394,64 @@ fn preflight_output(
     }
     Ok(())
 }
+// The captured no-preservation refresh removes direct fills from data cells. Apply this to
+// known point-style coordinates; other formatting and ranges without point records remain open.
+fn direct_data_fills_to_clear(host: &HostState, before: &PivotState, cache_id: u32) -> Result<BTreeSet<CellKey>, String> {
+    let mut points = BTreeSet::new();
+    for table in before.tables().filter(|table| table.cache_id == cache_id
+        && matches!(table.attributes.get("preserveFormatting").map(String::as_str), Some("0" | "false"))) {
+        let row = table.location.get("firstDataRow").and_then(|v| v.parse::<u32>().ok())
+            .and_then(|v| table.area.first().row().checked_add(v)).ok_or_else(|| fail("The pivot data row is unavailable"))?;
+        let column = table.location.get("firstDataCol").and_then(|v| v.parse::<u32>().ok())
+            .and_then(|v| table.area.first().column().checked_add(v)).ok_or_else(|| fail("The pivot data column is unavailable"))?;
+        let in_body = |at: CellKey| table.area.contains(at) && at.row() >= row && at.column() >= column;
+        points.extend(host.model().definitions().cell_formats().map(|(at, _)| at).filter(|&at| in_body(at)));
+        points.extend(host.styles().runs.iter().filter(|run| run.area.cell_count() == 1)
+            .map(|run| run.area.first()).filter(|&at| in_body(at)));
+        if let Some(sheet) = host.loaded().sheet(table.area.sheet()) {
+            points.extend(sheet.explicit_styles().filter_map(|(row, col, _)| CellKey::new(table.area.sheet(), row, col).ok())
+                .filter(|&at| in_body(at)));
+        }
+    }
+    let styles = host.styles();
+    let mut clear = BTreeSet::new();
+    for at in points {
+        let xf = styles.cell_formats.get(host.cell_style(at) as usize).ok_or_else(|| fail("The pivot cell's source format is unavailable"))?;
+        let parent = xf.xf_id.and_then(|id| styles.cell_style_formats.get(id as usize));
+        let fill = xf.fill_id.or_else(|| parent.and_then(|p| p.fill_id)).unwrap_or(0);
+        if fill == 0 && styles.fills.is_empty() { continue; }
+        let fill = styles.fills.get(fill as usize).ok_or_else(|| fail("The pivot cell's source fill is unavailable"))?;
+        if !matches!(fill.pattern_type.as_deref(), None | Some("none")) || fill.gradient.is_some() { clear.insert(at); }
+    }
+    if !clear.is_empty() && styles.fills.first().is_none_or(|fill|
+        !matches!(fill.pattern_type.as_deref(), None | Some("none")) || fill.gradient.is_some()) {
+        return Err(fail("The workbook's empty fill is unavailable"));
+    }
+    Ok(clear)
+}
+
 /// Apply the walk's explicit data-field number formats to the same styles the grid and save use.
 fn append_number_formats(host: &HostState, formats: &BTreeMap<CellKey, u32>, edits: &mut Vec<CellEdit>) -> Result<(), String> {
-    if formats.is_empty() { return Ok(()); }
+    append_refresh_formats(host, formats, &BTreeSet::new(), edits)
+}
+
+fn append_refresh_formats(host: &HostState, formats: &BTreeMap<CellKey, u32>, clear_fills: &BTreeSet<CellKey>, edits: &mut Vec<CellEdit>) -> Result<(), String> {
+    if formats.is_empty() && clear_fills.is_empty() { return Ok(()); }
     let mut styles = (**host.styles()).clone();
     let mut assignments = Vec::new();
     let mut derived = BTreeMap::new();
-    for (&at, &number_format) in formats {
+    let points: BTreeSet<_> = formats.keys().copied().chain(clear_fills.iter().copied()).collect();
+    for at in points {
         let source = host.cell_style(at);
-        let style = if let Some(&style) = derived.get(&(source, number_format)) { style } else {
+        let number_format = formats.get(&at).copied();
+        let clear_fill = clear_fills.contains(&at);
+        let style = if let Some(&style) = derived.get(&(source, number_format, clear_fill)) { style } else {
             let mut xf = styles.cell_formats.get(source as usize).cloned().ok_or_else(|| fail("The pivot cell's source format is unavailable"))?;
-            xf.number_format_id = Some(number_format);
-            xf.apply_number_format = true;
+            if let Some(number_format) = number_format {
+                xf.number_format_id = Some(number_format);
+                xf.apply_number_format = true;
+            }
+            if clear_fill { xf.fill_id = Some(0); xf.apply_fill = true; }
             let style = if let Some(index) = styles.cell_formats.iter().position(|old| *old == xf) { index as u32 }
                 else {
                     let index = u32::try_from(styles.cell_formats.len()).map_err(|_| fail("Too many cell formats"))?;
@@ -413,8 +459,8 @@ fn append_number_formats(host: &HostState, formats: &BTreeMap<CellKey, u32>, edi
                     styles.sources.cell_formats.insert(index, source);
                     index
                 };
-            if host.style_number_format(&styles, style).is_none() { return Err(fail("The value-field number format is unavailable")); }
-            derived.insert((source, number_format), style);
+            if number_format.is_some() && host.style_number_format(&styles, style).is_none() { return Err(fail("The value-field number format is unavailable")); }
+            derived.insert((source, number_format, clear_fill), style);
             style
         };
         assignments.push(CellEdit::SetFormat { at, format: Some(style) });
@@ -663,7 +709,8 @@ pub(crate) fn prepare_refresh(
         .filter(|t| t.cache_id == cache.id)
         .map(|t| CellEdit::Clear { area: t.area })
         .collect::<Vec<_>>();
-    append_number_formats(host, &formats, &mut edits)?;
+    let clear_fills = direct_data_fills_to_clear(host, before, cache.id)?;
+    append_refresh_formats(host, &formats, &clear_fills, &mut edits)?;
     edits.push(CellEdit::Pivots(Arc::new(after)));
     Ok(edits)
 }
