@@ -501,6 +501,8 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
     let mut fields = Vec::<PivotField>::new();
     let mut row_items = Vec::<PivotAxisItem>::new();
     let mut col_items = Vec::<PivotAxisItem>::new();
+    let mut style = None;
+    let mut formats = Vec::<PivotFormat>::new();
     let mut unsupported = Vec::new();
     let mut row_fields = Vec::new();
     let mut column_fields = Vec::new();
@@ -623,6 +625,23 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
                         (["colItems"],"i") => col_items.push(PivotAxisItem {kind:e.attribute("t").unwrap_or("data").into(),repeat:optional_integer(&e,"r",&events)?.unwrap_or(0),data_index:optional_integer(&e,"i",&events)?.unwrap_or(0),indexes:Vec::new()}),
                         (["colItems","i"],"x") => {if let Some(item)=col_items.last_mut(){item.indexes.push(optional_integer(&e,"v",&events)?.unwrap_or(0));}}
                         (["rowItems","i"],"x") => {if let Some(item)=row_items.last_mut(){item.indexes.push(optional_integer(&e,"v",&events)?.unwrap_or(0));}}
+                        ([], "pivotTableStyleInfo") => style = Some(PivotStyle { attributes: attrs(&e) }),
+                        (["formats"], "format") => formats.push(PivotFormat { attributes: attrs(&e), area: None }),
+                        (["formats", "format"], "pivotArea") => {
+                            if let Some(format) = formats.last_mut() {
+                                format.area = Some(PivotFormatArea { attributes: attrs(&e), references: Vec::new() });
+                            }
+                        }
+                        (["formats", "format", "pivotArea", "references"], "reference") => {
+                            if let Some(area) = formats.last_mut().and_then(|format| format.area.as_mut()) {
+                                area.references.push(PivotFormatReference { attributes: attrs(&e), items: Vec::new() });
+                            }
+                        }
+                        (["formats", "format", "pivotArea", "references", "reference"], "x") => {
+                            if let Some(reference) = formats.last_mut().and_then(|format| format.area.as_mut()).and_then(|area| area.references.last_mut()) {
+                                reference.items.push(optional_integer(&e, "v", &events)?.unwrap_or(0));
+                            }
+                        }
                         ([],"conditionalFormats"|"rowHierarchies"|"colHierarchies"|"calculatedMembers")
                         | (["pivotFields","pivotField"],"memberProperties") => unsupported.push(e.name.local.to_string()),
                         (["pivotFields","pivotField"],"autoSortScope") => {
@@ -762,7 +781,7 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
         filters,
         data_fields,
         attributes: attrs(&root),
-        location: location_attrs, fields, row_items, col_items, unsupported,
+        location: location_attrs, fields, row_items, col_items, style, formats, unsupported,
     })
 }
 

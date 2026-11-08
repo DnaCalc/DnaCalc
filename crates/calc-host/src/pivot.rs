@@ -122,7 +122,7 @@ fn distinct_group_labels(items: &[PivotItem]) -> bool {
     unique && !undecided
 }
 /// Read every source field, preserving cache item identities and recording actual values only.
-fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<PivotCache, String> {
+fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea, reconciled_axes: Option<(usize, usize)>) -> Result<PivotCache, String> {
     if area.cell_count() > 1_000_000 || area.row_count() > 100_001 {
         return Err(fail(
             "Refresh exceeds its budget of 100,000 source records or 1,000,000 source cells",
@@ -288,7 +288,8 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<Pivo
                 PivotItem::Index(item) => Some(item), _ => None,
             }).collect();
             let unused: Vec<_> = (0..field.items.len() as u32).filter(|item| !used.contains(item)).collect();
-            if (tracked_unused[index] && unused.is_empty()) || (!tracked_unused[index] && !unused.is_empty()) {
+            if ((tracked_unused[index] && unused.is_empty()) || (!tracked_unused[index] && !unused.is_empty()))
+                && !reconciled_axes.is_some_and(|(row, column)| index == row || index == column) {
                 return Err(fail("This change to unused cache fields is not modelled"));
             }
             field.unused_items = unused;
@@ -570,18 +571,20 @@ pub(crate) fn prepare_refresh(
     if before.tables().any(|t| overlaps(area, t.area)) {
         return Err(fail("A pivot source cannot read another pivot output"));
     }
-    let mut cache = snapshot(host, cache, area)?;
-    let mut after = (**before).clone();
-    // The captured automatic and maximum policies retain an item removed from either axis.
-    // Other arrangements keep their existing refusal until their retention behavior is measured.
-    if matches!(cache.attributes.get("missingItemsLimit").map(String::as_str), None | Some("32500"))
+    // Only this measured layout can reconcile a change in retained axis items.
+    let reconciles_items = matches!(cache.attributes.get("missingItemsLimit").map(String::as_str), None | Some("32500"))
         && before.tables().filter(|t| t.cache_id == cache.id).count() == 1
         && selected.row_fields.len() == 1 && selected.column_fields.len() == 1
         && selected.row_fields[0] >= 0 && selected.column_fields[0] >= 0
         && selected.data_fields.len() == 1 && selected.data_fields[0].subtotal == "sum"
         && selected.page_fields.is_empty() && selected.filters.is_empty()
         && cache.calculated_items.is_empty() && cache.fields.iter().all(|f| f.group.is_none())
-        && selected.fields.iter().all(|f| f.sort_measure.is_none() && f.items.iter().all(|i| !i.hidden && !i.calculated)) {
+        && selected.fields.iter().all(|f| f.sort_measure.is_none() && f.items.iter().all(|i| !i.hidden && !i.calculated));
+    let axes = reconciles_items.then(|| (selected.row_fields[0] as usize, selected.column_fields[0] as usize));
+    let mut cache = snapshot(host, cache, area, axes)?;
+    let mut after = (**before).clone();
+    // The captured automatic and maximum policies retain an item removed from either axis.
+    if reconciles_items {
         let records = &cache.snapshot.as_ref().expect("snapshot just created").records;
         let table = after.sheets.get_mut(&sheet).and_then(|s| s.tables.iter_mut().find(|t| t.part == part))
             .ok_or_else(|| fail("The selected pivot is unavailable"))?;
@@ -706,11 +709,11 @@ pub(crate) fn prepare_create_layout(host:&HostState,revision:u64,source:GridArea
     let sheet_name=host.model().sheet_by_id(source.sheet()).ok_or_else(||fail("The source worksheet is unavailable"))?.name().text().to_string_lossy();
     let source_range=format!("{}:{}",crate::chart::cell_a1(source.first()),crate::chart::cell_a1(source.last()));
     let cache=PivotCache{id:cache_id,part:cache_part,records_part:Some(records_part),record_count:Some(0),source_type:"worksheet".into(),source_sheet:Some(sheet_name),source_range:Some(source_range),source_name:None,calculated_items:Vec::new(),fields:names.iter().map(|name|PivotCacheField{name:name.clone(),shared_items:Some(0),group:None,items:Vec::new(),unused_items:Vec::new(),formula_items:Vec::new(),attributes:BTreeMap::from([("name".into(),name.clone()),("numFmtId".into(),"0".into())])}).collect(),attributes:BTreeMap::new(),unsupported:Vec::new(),snapshot:None};
-    let cache=Arc::new(snapshot(host,&cache,source)?);
+    let cache=Arc::new(snapshot(host,&cache,source,None)?);
     let fields=(0..names.len()).map(|i|{let mut attributes=BTreeMap::from([("showAll".into(),"0".into())]);if rows.contains(&(i as u32)){attributes.insert("axis".into(),"axisRow".into());}if columns.contains(&(i as u32)){attributes.insert("axis".into(),"axisCol".into());}if values.iter().any(|(field,_)| *field as usize==i){attributes.insert("dataField".into(),"1".into());}PivotField{attributes,items:Vec::new(),sort_measure:None}}).collect();
     let mut column_fields: Vec<i32> = columns.into_iter().map(|i| i as i32).collect();
     if data_fields.len() > 1 { column_fields.push(-2); }
-    let table=PivotTable{name:name.clone(),part,cache_id,area:GridArea::cell(destination),row_fields:rows.into_iter().map(|i|i as i32).collect(),column_fields,page_fields:Vec::new(),filters:Vec::new(),data_fields,attributes:BTreeMap::from([("name".into(),name),("cacheId".into(),cache_id.to_string()),("dataCaption".into(),"Values".into()),("compact".into(),"1".into()),("outline".into(),"0".into()),("rowGrandTotals".into(),"1".into()),("colGrandTotals".into(),"1".into())]),location:BTreeMap::from([("firstHeaderRow".into(),"1".into()),("firstDataRow".into(),"1".into()),("firstDataCol".into(),"1".into())]),fields,col_items:Vec::new(),row_items:Vec::new(),unsupported:Vec::new()};
+    let table=PivotTable{name:name.clone(),part,cache_id,area:GridArea::cell(destination),row_fields:rows.into_iter().map(|i|i as i32).collect(),column_fields,page_fields:Vec::new(),filters:Vec::new(),data_fields,attributes:BTreeMap::from([("name".into(),name),("cacheId".into(),cache_id.to_string()),("dataCaption".into(),"Values".into()),("compact".into(),"1".into()),("outline".into(),"0".into()),("rowGrandTotals".into(),"1".into()),("colGrandTotals".into(),"1".into())]),location:BTreeMap::from([("firstHeaderRow".into(),"1".into()),("firstDataRow".into(),"1".into()),("firstDataCol".into(),"1".into())]),fields,col_items:Vec::new(),row_items:Vec::new(),style:Some(PivotStyle { attributes: BTreeMap::from([("name".into(), "PivotStyleLight16".into()), ("showRowHeaders".into(), "1".into()), ("showColHeaders".into(), "1".into()), ("showRowStripes".into(), "0".into()), ("showColStripes".into(), "0".into()), ("showLastColumn".into(), "1".into())]) }),formats:Vec::new(),unsupported:Vec::new()};
     let layout=calc_engine::pivot::layout(&table,&cache).map_err(|e|fail(e.detail))?;
     let mut after=(**before).clone();after.caches.caches.insert(cache_id,cache);after.sheets.entry(destination.sheet()).or_default().tables.push(layout.table);
     preflight_output(host,before,&after,source,cache_id)?;host.loaded().check_pivot_state(&after).map_err(|e|e.to_string())?;

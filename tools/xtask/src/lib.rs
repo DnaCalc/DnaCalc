@@ -7,6 +7,7 @@ pub mod cargo;
 pub mod check;
 pub mod harness;
 pub mod licence;
+pub mod keep;
 pub mod rust_source;
 pub mod test_output;
 pub mod text;

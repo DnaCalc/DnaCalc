@@ -104,7 +104,8 @@ impl Drop for CopyCleanup {
     }
 }
 
-fn command(exe: &Path, args: &[String]) -> Command {
+/// Run a prebuilt harness and preserve it for nested commands.
+pub fn command(exe: &Path, args: &[String]) -> Command {
     let mut command = Command::new(exe);
     command.args(args).env(HARNESS_ENV, exe);
     command

@@ -1081,3 +1081,139 @@ fn dc_8wp_14__lookup_values_on_rows_uses_the_displayed_measure() {
         for (cell, _, value) in cases { assert_eq!(got.get(cell), Some(&Cell::Number(value)), "{stage} {cell}"); }
     }
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_12__saved_style_and_area_records_survive_refresh_and_save() {
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(
+        include_bytes!("fixtures/pivot/m2-formatting/built.xlsx").to_vec(),
+    ));
+    let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let pivots = book.host().model().definitions().pivots();
+    assert_eq!(pivots.tables().count(), 70);
+    assert_eq!(pivots.tables().filter(|t| t.style.is_some()).count(), 70);
+    assert_eq!(pivots.tables().map(|t| t.formats.len()).sum::<usize>(), 22);
+    let style = pivots.tables().find(|t| t.name == "pvt_option_medium9_no_row_headers").unwrap();
+    let attrs = &style.style.as_ref().unwrap().attributes;
+    assert_eq!(attrs.get("name").map(String::as_str), Some("PivotStyleMedium9"));
+    assert_eq!(attrs.get("showRowHeaders").map(String::as_str), Some("0"));
+    let table = pivots.tables().find(|t| t.name == "pvt_area_data_field_range").unwrap();
+    assert_eq!(table.formats.len(), 3);
+    let format = &table.formats[0];
+    assert_eq!(format.attributes.get("dxfId").map(String::as_str), Some("21"));
+    let area = format.area.as_ref().unwrap();
+    assert_eq!(area.references.len(), 2);
+    assert_eq!(area.references[0].attributes.get("field").map(String::as_str), Some("4294967294"));
+    assert_eq!(area.references[0].items, vec![0]);
+    let (sheet, part) = (table.area.sheet(), table.part.clone());
+    let expected_style = table.style.clone();
+    let expected_formats = table.formats.clone();
+    let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+        sheet, revision: book.host().revision().get(), part,
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(saved));
+    let reopened = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let pivots = reopened.host().model().definitions().pivots();
+    let table = pivots.tables().find(|t| t.name == "pvt_area_data_field_range").unwrap();
+    assert_eq!(table.style, expected_style);
+    assert_eq!(table.formats, expected_formats);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_12__all_captured_stages_report_number_format_codes() {
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(
+        include_bytes!("fixtures/pivot/m2-formatting/built.xlsx").to_vec(),
+    ));
+    let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions {
+        locale: calc_host::FormatProfile::for_culture("en-US"), ..Default::default()
+    }).unwrap();
+    let source_sheet = book.host().sheets().iter().find(|s|
+        String::from_utf16_lossy(s.name().text().utf16_code_units()) == "Source").unwrap().id();
+    let mut stages: BTreeMap<&str, Vec<(&str, &str)>> = BTreeMap::new();
+    for line in include_str!("fixtures/pivot/m2-formatting/formats.tsv").lines() {
+        let fields: Vec<_> = line.split('\t').collect();
+        assert_eq!(fields.len(), 18);
+        stages.entry(fields[0]).or_default().push((fields[1], fields[4]));
+    }
+    assert_eq!(stages.len(), 76);
+    assert_eq!(stages.values().map(Vec::len).sum::<usize>(), 3330);
+    let mut matches = 0;
+    let mut refused_cells = 0;
+    for (stage, cells) in &stages {
+        let base = stage.strip_suffix("-built").or_else(|| stage.strip_suffix("-refreshed")).unwrap_or(stage);
+        let name = format!("pvt_{}", base.replace('-', "_"));
+        let (sheet, part) = book.host().model().definitions().pivots().sheets.iter().find_map(|(sheet, pivots)|
+            pivots.tables.iter().find(|table| table.name == name).map(|table| (*sheet, table.part.clone())))
+            .unwrap_or_else(|| panic!("missing {name}"));
+        if stage.ends_with("-refreshed") {
+            for (address, text) in [("B3", "A very long product name that needs a wide column"), ("D3", "123456789.125")] {
+                assert!(book.dispatch(SkinIntent::EnterCell { at: at(source_sheet, address), text: text.into() }).accepted());
+            }
+            let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+                sheet, revision: book.host().revision().get(), part,
+            }));
+            if !receipt.accepted() {
+                refused_cells += cells.len();
+                for (address, text) in [("B3", "Beta"), ("D3", "107.25")] {
+                    assert!(book.dispatch(SkinIntent::EnterCell { at: at(source_sheet, address), text: text.into() }).accepted());
+                }
+                continue;
+            }
+        }
+        matches += cells.iter().filter(|(address, expected)|
+            book.host().number_format(at(sheet, address)) == Some(*expected)).count();
+        if stage.ends_with("-refreshed") {
+            for (address, text) in [("B3", "Beta"), ("D3", "107.25")] {
+                assert!(book.dispatch(SkinIntent::EnterCell { at: at(source_sheet, address), text: text.into() }).accepted());
+            }
+        }
+    }
+    let mismatches = 3330 - matches - refused_cells;
+    let failed = mismatches + refused_cells;
+    println!("Captured number-format codes: {matches}/3330 match ({:.2}%); {failed} fail ({mismatches} mismatches, {refused_cells} refused) across 76 stages; other display properties are not compared here", 100.0 * matches as f64 / 3330.0);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_12__refresh_reuses_retained_product_in_captured_layouts() {
+    let formats = include_str!("fixtures/pivot/m2-formatting/formats.tsv");
+    let stages = ["refresh-preserve-autofit", "refresh-preserve-noautofit",
+        "refresh-nopreserve-autofit", "refresh-nopreserve-noautofit",
+        "refresh-userwidth-autofit", "refresh-userwidth-noautofit"];
+    for stage in stages {
+        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(
+            include_bytes!("fixtures/pivot/m2-formatting/built.xlsx").to_vec(),
+        ));
+        let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+        let source_sheet = book.host().sheets().iter().find(|s|
+            String::from_utf16_lossy(s.name().text().utf16_code_units()) == "Source").unwrap().id();
+        for (address, text) in [("B3", "A very long product name that needs a wide column"), ("D3", "123456789.125")] {
+            assert!(book.dispatch(SkinIntent::EnterCell { at: at(source_sheet, address), text: text.into() }).accepted());
+        }
+        let name = format!("pvt_{}", stage.replace('-', "_"));
+        let (sheet, part) = book.host().model().definitions().pivots().sheets.iter().find_map(|(sheet, pivots)|
+            pivots.tables.iter().find(|table| table.name == name).map(|table| (*sheet, table.part.clone()))).unwrap();
+        let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+            sheet, revision: book.host().revision().get(), part,
+        }));
+        assert!(receipt.accepted(), "{stage}: {receipt:?}");
+        let actual = held(&book, sheet, 16, 30);
+        let mut checked = 0;
+        for fields in formats.lines().map(|line| line.split('\t').collect::<Vec<_>>())
+            .filter(|fields| fields[0] == format!("{stage}-refreshed")) {
+            let expected = match fields[2] {
+                "n" => Cell::Number(fields[3].parse().unwrap()),
+                "s" => Cell::Text(fields[3].into()),
+                kind => panic!("unexpected captured cell kind {kind}"),
+            };
+            assert_eq!(actual.get(fields[1]), Some(&expected), "{stage} {}", fields[1]);
+            checked += 1;
+        }
+        assert_eq!(checked, 38);
+        assert_eq!(actual.len(), checked, "{stage}: unexpected output cells");
+    }
+}
