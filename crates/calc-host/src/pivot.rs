@@ -134,6 +134,9 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<Pivo
         !matches!(field.attributes.get("databaseField").map(String::as_str), Some("0" | "false"))) {
         return Err(fail("The source column count or grouped-field order changed"));
     }
+    if host.declared_date1904() && cache.fields.iter().any(|field| field.attributes.contains_key("formula")) {
+        return Err(fail("Calculated pivot fields in the 1904 date system are not modelled"));
+    }
     let headers = read_row(host, area, area.first().row())?;
     for (header, field) in headers.iter().zip(&cache.fields[..source_count]) {
         let CoreRef::Text(text) = header.core_ref() else {
@@ -191,6 +194,10 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<Pivo
             record.push(PivotItem::Index(index));
         }
         for field in &cache.fields[source_count..] {
+            if field.group.is_none() && field.attributes.contains_key("formula") {
+                record.push(PivotItem::Missing);
+                continue;
+            }
             let group = field.group.as_ref().ok_or_else(|| fail("A grouped cache field is missing its definition"))?;
             let base = group.attributes.get("base").and_then(|v| v.parse::<usize>().ok())
                 .filter(|i| *i < source_count).ok_or_else(|| fail("Invalid grouped source field"))?;

@@ -173,7 +173,7 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
                             cache.source_range = e.attribute("ref").map(str::to_owned);
                             cache.source_name = e.attribute("name").map(str::to_owned);
                         }
-                        (["cacheFields"], "cacheField") => { group_items_seen = false; discrete_count = None; if e.attribute("formula").is_some() {cache.unsupported.push("calculated cache field".into());} cache.fields.push(PivotCacheField {
+                        (["cacheFields"], "cacheField") => { group_items_seen = false; discrete_count = None; cache.fields.push(PivotCacheField {
                             name: decoded(required(&e, "name", &events)?,&events)?,
                             shared_items: None,
                             group: None,
@@ -294,6 +294,9 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
     }
     for (field_index, field) in cache.fields.iter().enumerate() {
         let virtual_field = matches!(field.attributes.get("databaseField").map(String::as_str), Some("0" | "false"));
+        if field.attributes.contains_key("formula") && (!virtual_field || field.group.is_some()) {
+            cache.unsupported.push("unsupported calculated cache field".into());
+        }
         if let Some(group) = &field.group {
             if group.attributes.keys().any(|name| name != "base" && name != "par") {
                 cache.unsupported.push("unsupported field-group attributes".into());
@@ -365,8 +368,8 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
                     && group.attributes.get("par").and_then(|v| v.parse::<usize>().ok()).is_some_and(|i| i < cache.fields.len());
                 if !numeric && !parent { cache.unsupported.push("unsupported source-field grouping".into()); }
             }
-        } else if virtual_field {
-            cache.unsupported.push("calculated cache field".into());
+        } else if virtual_field && field.attributes.get("formula").is_none_or(|formula| formula.is_empty()) {
+            cache.unsupported.push("unsupported virtual cache field".into());
         }
     }
     Ok(cache)
@@ -483,7 +486,7 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
                                 && e.attribute("uri") == Some("{E15A36E0-9728-4e99-A89B-3F7291B0FE68}"),
                         (1, ["dataFields", "dataField", "extLst", "ext"], "dataField") => {
                             *show = e.attribute("pivotShowAs").filter(|v| matches!(*v,
-                                "percentOfParentRow" | "percentOfParentCol" | "percentOfRunningTotal" | "rankAscending" | "rankDescending"))
+                                "percentOfParentRow" | "percentOfParentCol" | "percentOfParent" | "percentOfRunningTotal" | "rankAscending" | "rankDescending"))
                                 .map(str::to_owned);
                             e.name.namespace.as_deref() == Some(X14) && e.attributes.len() == 1 && show.is_some()
                         }
