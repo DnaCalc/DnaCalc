@@ -425,7 +425,7 @@ fn preflight(xml: &XmlPart, containers: &[&str]) -> Result<(), SaveRefusal> {
                                     | "longText"
                             ),
                             "fieldGroup" => matches!(a.name.local.as_str(), "base" | "par"),
-                            "rangePr" => matches!(a.name.local.as_str(), "groupBy" | "startDate" | "endDate" | "autoStart" | "autoEnd"),
+                            "rangePr" => matches!(a.name.local.as_str(), "groupBy" | "startDate" | "endDate" | "autoStart" | "autoEnd" | "groupInterval"),
                             "groupItems" => a.name.local.as_str() == "count",
                             "ext" => a.name.local.as_str() == "uri" && a.value == FILL_DOWN_URI,
                             "extLst" => false,

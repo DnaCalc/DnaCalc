@@ -549,11 +549,11 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
                 .map(|t| (*sheet, t.part.clone()))
         });
         let verdict = if let Some((sheet, part)) = selected {
-            let saved_row_items = if matches!(stage.as_str(), "blank-line-both" | "blank-line-compact-columns" | "blank-line-outer" | "values-rows-first" | "values-rows-region" | "values-rows-two-fields" | "values-rows-with-columns") {
+            let saved_row_items = if matches!(stage.as_str(), "blank-line-both" | "blank-line-compact-columns" | "blank-line-outer" | "group-day-month" | "group-days-7" | "values-rows-first" | "values-rows-region" | "values-rows-two-fields" | "values-rows-with-columns") {
                 Some(book.host().model().definitions().pivots().sheet(sheet).unwrap().tables.iter()
                     .find(|table| table.part == part).unwrap().row_items.clone())
             } else { None };
-            let saved_structure = if matches!(stage.as_str(), "blank-line-compact-columns" | "values-rows-first" | "values-rows-region" | "values-rows-two-fields" | "values-rows-with-columns") {
+            let saved_structure = if matches!(stage.as_str(), "blank-line-compact-columns" | "group-day-month" | "group-days-7" | "values-rows-first" | "values-rows-region" | "values-rows-two-fields" | "values-rows-with-columns") {
                 Some(canonical(book.host().model().definitions().pivots().sheet(sheet).unwrap().tables.iter()
                     .find(|table| table.part == part).unwrap()))
             } else { None };
@@ -592,18 +592,26 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
         println!("{stage}: {verdict}");
     }
     println!("M1 matched {} of {}: {matched:?}", matched.len(), expected.len());
-    assert_eq!(matched, ["agg-all-amount", "agg-all-units", "agg-text-field", "blank-line-both", "blank-line-compact-columns", "blank-line-outer", "err-keys", "err-keys-columns", "err-keys-desc", "err-values", "err-values-display", "group-month", "group-month-year", "group-quarter", "group-quarter-year", "group-year", "group-year-columns", "nodata-rows-hidden", "show-count-average", "show-difference-east", "show-difference-next", "show-difference-previous", "show-difference-product-alpha", "show-index", "show-percent-difference-east", "show-percent-difference-previous", "show-percent-of-column", "show-percent-of-row", "show-percent-of-total", "show-percentof-east", "show-percentof-previous", "show-running-total", "show-running-total-product", "values-columns-after-field", "values-rows-first", "values-rows-region", "values-rows-two-fields", "values-rows-with-columns"]);
+    assert_eq!(matched, ["agg-all-amount", "agg-all-units", "agg-text-field", "blank-line-both", "blank-line-compact-columns", "blank-line-outer", "err-keys", "err-keys-columns", "err-keys-desc", "err-values", "err-values-display", "group-day-month", "group-days-7", "group-month", "group-month-year", "group-quarter", "group-quarter-year", "group-year", "group-year-columns", "nodata-rows-hidden", "show-count-average", "show-difference-east", "show-difference-next", "show-difference-previous", "show-difference-product-alpha", "show-index", "show-percent-difference-east", "show-percent-difference-previous", "show-percent-of-column", "show-percent-of-row", "show-percent-of-total", "show-percentof-east", "show-percentof-previous", "show-running-total", "show-running-total-product", "values-columns-after-field", "values-rows-first", "values-rows-region", "values-rows-two-fields", "values-rows-with-columns"]);
     let mut saved = Vec::new();
     book.save(&SavePolicy::default(), &mut saved).unwrap();
     let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(saved));
-    let reopened = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
-    for name in ["pvt_blank_line_both", "pvt_blank_line_compact_columns", "pvt_blank_line_outer", "pvt_values_rows_first", "pvt_values_rows_region", "pvt_values_rows_two_fields", "pvt_values_rows_with_columns"] {
+    let mut reopened = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    for name in ["pvt_blank_line_both", "pvt_blank_line_compact_columns", "pvt_blank_line_outer", "pvt_group_day_month", "pvt_group_days_7", "pvt_values_rows_first", "pvt_values_rows_region", "pvt_values_rows_two_fields", "pvt_values_rows_with_columns"] {
         let original = book.host().model().definitions().pivots().tables().find(|table| table.name == name).unwrap();
         let restored = reopened.host().model().definitions().pivots().tables().find(|table| table.name == name).unwrap();
         assert_eq!(restored.row_items, original.row_items, "{name} after save and reopen");
-        if matches!(name, "pvt_blank_line_compact_columns" | "pvt_values_rows_first" | "pvt_values_rows_region" | "pvt_values_rows_two_fields" | "pvt_values_rows_with_columns") {
+        if matches!(name, "pvt_blank_line_compact_columns" | "pvt_group_day_month" | "pvt_group_days_7" | "pvt_values_rows_first" | "pvt_values_rows_region" | "pvt_values_rows_two_fields" | "pvt_values_rows_with_columns") {
             assert_eq!(canonical(restored), canonical(original), "{name} structure after save and reopen");
         }
+    }
+    for (name, stage) in [("pvt_group_day_month", "group-day-month"), ("pvt_group_days_7", "group-days-7")] {
+        let (sheet, part) = reopened.host().model().definitions().pivots().sheets.iter().find_map(|(sheet, pivots)|
+            pivots.tables.iter().find(|table| table.name == name).map(|table| (*sheet, table.part.clone()))).unwrap();
+        assert!(reopened.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+            sheet, revision: reopened.host().revision().get(), part,
+        })).accepted());
+        assert_eq!(held(&reopened, sheet, 60, 120), expected[stage], "{name} after save and refresh");
     }
 }
 
