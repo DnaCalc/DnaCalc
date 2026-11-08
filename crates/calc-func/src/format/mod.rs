@@ -891,8 +891,11 @@ fn scientific(
     let width = whole_places.len() as i64;
     let engineering = width > 1 && whole_places[0] == '#';
     if value == 0.0 {
+        // Zero fills every whole-number placeholder: `##0.0E+0` gives `000.0E+0` (measured, Excel
+        // 16.0 build 20527, dc-0f1k formats oracle).
         let mantissa = format!(
-            "0{}{}",
+            "{}{}{}",
+            "0".repeat(whole_places.len()),
             if fraction.is_empty() { "" } else { profile.decimal_separator },
             "0".repeat(fraction.len())
         );
@@ -1297,14 +1300,15 @@ fn render_text(profile: &FormatProfile, system: DateSystem, value: f64, code: &s
     if !locale_declared && measured_host(profile) && datetime::has_invalid_exponent(&stripped) {
         return Err(Failure::Value);
     }
-    if datetime::looks_like_datetime_format(&stripped) {
+    let code_decimal = profile.format_code_decimal_token.chars().next().unwrap_or('.');
+    if datetime::looks_like_datetime_format(&stripped, code_decimal) {
         if value < 0.0 {
             return Err(Failure::Value);
         }
         if value >= 2_958_466.0 {
             return Err(Failure::Value);
         }
-        if datetime::without_subseconds(&stripped)
+        if datetime::without_subseconds(&stripped, code_decimal)
             .chars()
             .any(|c| matches!(c, 'b' | 'B' | '0') ||
                 (matches!(c, 'e' | 'g' | 'G') && name_locale != Some(crate::locale::LocaleId::JaJp)

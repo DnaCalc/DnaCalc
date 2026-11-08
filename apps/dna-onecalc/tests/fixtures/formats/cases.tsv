@@ -1,0 +1,1811 @@
+# DNA OneCalc number-format oracle questions: see make-cases.py.
+nf0001	en-US	.	,		1900	number	1234.5678	General
+nf0002	en-US	.	,		1900	number	1234.5678	0
+nf0003	en-US	.	,		1900	number	1234.5678	0.00
+nf0004	en-US	.	,		1900	number	1234.5678	#,##0
+nf0005	en-US	.	,		1900	number	1234.5678	#,##0.00
+nf0006	en-US	.	,		1900	number	1234.5678	0.0%
+nf0007	en-US	.	,		1900	number	1234.5678	0.00E+00
+nf0008	en-US	.	,		1900	number	1234.5678	##0.0E+0
+nf0009	en-US	.	,		1900	number	1234.5678	# ?/?
+nf0010	en-US	.	,		1900	number	1234.5678	# ??/??
+nf0011	en-US	.	,		1900	number	1234.5678	$#,##0.00
+nf0012	en-US	.	,		1900	number	1234.5678	#,##0.00;[Red]-#,##0.00
+nf0013	en-US	.	,		1900	number	1234.5678	#,##0.00;(#,##0.00);"zero"
+nf0014	en-US	.	,		1900	number	1234.5678	0.00;-0.00;
+nf0015	en-US	.	,		1900	number	1234.5678	[<1]0.000;0.0
+nf0016	en-US	.	,		1900	number	1234.5678	000000
+nf0017	en-US	.	,		1900	number	1234.5678	#.#
+nf0018	en-US	.	,		1900	number	1234.5678	?.??
+nf0019	en-US	.	,		1900	number	1234.5678	@
+nf0020	en-US	.	,		1900	number	1234.5678	"x"0
+nf0021	en-US	.	,		1900	number	-1234.5	General
+nf0022	en-US	.	,		1900	number	-1234.5	0
+nf0023	en-US	.	,		1900	number	-1234.5	0.00
+nf0024	en-US	.	,		1900	number	-1234.5	#,##0
+nf0025	en-US	.	,		1900	number	-1234.5	#,##0.00
+nf0026	en-US	.	,		1900	number	-1234.5	0.0%
+nf0027	en-US	.	,		1900	number	-1234.5	0.00E+00
+nf0028	en-US	.	,		1900	number	-1234.5	##0.0E+0
+nf0029	en-US	.	,		1900	number	-1234.5	# ?/?
+nf0030	en-US	.	,		1900	number	-1234.5	# ??/??
+nf0031	en-US	.	,		1900	number	-1234.5	$#,##0.00
+nf0032	en-US	.	,		1900	number	-1234.5	#,##0.00;[Red]-#,##0.00
+nf0033	en-US	.	,		1900	number	-1234.5	#,##0.00;(#,##0.00);"zero"
+nf0034	en-US	.	,		1900	number	-1234.5	0.00;-0.00;
+nf0035	en-US	.	,		1900	number	-1234.5	[<1]0.000;0.0
+nf0036	en-US	.	,		1900	number	-1234.5	000000
+nf0037	en-US	.	,		1900	number	-1234.5	#.#
+nf0038	en-US	.	,		1900	number	-1234.5	?.??
+nf0039	en-US	.	,		1900	number	-1234.5	@
+nf0040	en-US	.	,		1900	number	-1234.5	"x"0
+nf0041	en-US	.	,		1900	number	0	General
+nf0042	en-US	.	,		1900	number	0	0
+nf0043	en-US	.	,		1900	number	0	0.00
+nf0044	en-US	.	,		1900	number	0	#,##0
+nf0045	en-US	.	,		1900	number	0	#,##0.00
+nf0046	en-US	.	,		1900	number	0	0.0%
+nf0047	en-US	.	,		1900	number	0	0.00E+00
+nf0048	en-US	.	,		1900	number	0	##0.0E+0
+nf0049	en-US	.	,		1900	number	0	# ?/?
+nf0050	en-US	.	,		1900	number	0	# ??/??
+nf0051	en-US	.	,		1900	number	0	$#,##0.00
+nf0052	en-US	.	,		1900	number	0	#,##0.00;[Red]-#,##0.00
+nf0053	en-US	.	,		1900	number	0	#,##0.00;(#,##0.00);"zero"
+nf0054	en-US	.	,		1900	number	0	0.00;-0.00;
+nf0055	en-US	.	,		1900	number	0	[<1]0.000;0.0
+nf0056	en-US	.	,		1900	number	0	000000
+nf0057	en-US	.	,		1900	number	0	#.#
+nf0058	en-US	.	,		1900	number	0	?.??
+nf0059	en-US	.	,		1900	number	0	@
+nf0060	en-US	.	,		1900	number	0	"x"0
+nf0061	en-US	.	,		1900	number	0.5	General
+nf0062	en-US	.	,		1900	number	0.5	0
+nf0063	en-US	.	,		1900	number	0.5	0.00
+nf0064	en-US	.	,		1900	number	0.5	#,##0
+nf0065	en-US	.	,		1900	number	0.5	#,##0.00
+nf0066	en-US	.	,		1900	number	0.5	0.0%
+nf0067	en-US	.	,		1900	number	0.5	0.00E+00
+nf0068	en-US	.	,		1900	number	0.5	##0.0E+0
+nf0069	en-US	.	,		1900	number	0.5	# ?/?
+nf0070	en-US	.	,		1900	number	0.5	# ??/??
+nf0071	en-US	.	,		1900	number	0.5	$#,##0.00
+nf0072	en-US	.	,		1900	number	0.5	#,##0.00;[Red]-#,##0.00
+nf0073	en-US	.	,		1900	number	0.5	#,##0.00;(#,##0.00);"zero"
+nf0074	en-US	.	,		1900	number	0.5	0.00;-0.00;
+nf0075	en-US	.	,		1900	number	0.5	[<1]0.000;0.0
+nf0076	en-US	.	,		1900	number	0.5	000000
+nf0077	en-US	.	,		1900	number	0.5	#.#
+nf0078	en-US	.	,		1900	number	0.5	?.??
+nf0079	en-US	.	,		1900	number	0.5	@
+nf0080	en-US	.	,		1900	number	0.5	"x"0
+nf0081	en-US	.	,		1900	number	0.000012345	General
+nf0082	en-US	.	,		1900	number	0.000012345	0
+nf0083	en-US	.	,		1900	number	0.000012345	0.00
+nf0084	en-US	.	,		1900	number	0.000012345	#,##0
+nf0085	en-US	.	,		1900	number	0.000012345	#,##0.00
+nf0086	en-US	.	,		1900	number	0.000012345	0.0%
+nf0087	en-US	.	,		1900	number	0.000012345	0.00E+00
+nf0088	en-US	.	,		1900	number	0.000012345	##0.0E+0
+nf0089	en-US	.	,		1900	number	0.000012345	# ?/?
+nf0090	en-US	.	,		1900	number	0.000012345	# ??/??
+nf0091	en-US	.	,		1900	number	0.000012345	$#,##0.00
+nf0092	en-US	.	,		1900	number	0.000012345	#,##0.00;[Red]-#,##0.00
+nf0093	en-US	.	,		1900	number	0.000012345	#,##0.00;(#,##0.00);"zero"
+nf0094	en-US	.	,		1900	number	0.000012345	0.00;-0.00;
+nf0095	en-US	.	,		1900	number	0.000012345	[<1]0.000;0.0
+nf0096	en-US	.	,		1900	number	0.000012345	000000
+nf0097	en-US	.	,		1900	number	0.000012345	#.#
+nf0098	en-US	.	,		1900	number	0.000012345	?.??
+nf0099	en-US	.	,		1900	number	0.000012345	@
+nf0100	en-US	.	,		1900	number	0.000012345	"x"0
+nf0101	en-US	.	,		1900	number	123456789.125	General
+nf0102	en-US	.	,		1900	number	123456789.125	0
+nf0103	en-US	.	,		1900	number	123456789.125	0.00
+nf0104	en-US	.	,		1900	number	123456789.125	#,##0
+nf0105	en-US	.	,		1900	number	123456789.125	#,##0.00
+nf0106	en-US	.	,		1900	number	123456789.125	0.0%
+nf0107	en-US	.	,		1900	number	123456789.125	0.00E+00
+nf0108	en-US	.	,		1900	number	123456789.125	##0.0E+0
+nf0109	en-US	.	,		1900	number	123456789.125	# ?/?
+nf0110	en-US	.	,		1900	number	123456789.125	# ??/??
+nf0111	en-US	.	,		1900	number	123456789.125	$#,##0.00
+nf0112	en-US	.	,		1900	number	123456789.125	#,##0.00;[Red]-#,##0.00
+nf0113	en-US	.	,		1900	number	123456789.125	#,##0.00;(#,##0.00);"zero"
+nf0114	en-US	.	,		1900	number	123456789.125	0.00;-0.00;
+nf0115	en-US	.	,		1900	number	123456789.125	[<1]0.000;0.0
+nf0116	en-US	.	,		1900	number	123456789.125	000000
+nf0117	en-US	.	,		1900	number	123456789.125	#.#
+nf0118	en-US	.	,		1900	number	123456789.125	?.??
+nf0119	en-US	.	,		1900	number	123456789.125	@
+nf0120	en-US	.	,		1900	number	123456789.125	"x"0
+nf0121	en-US	.	,		1900	number	1E+21	General
+nf0122	en-US	.	,		1900	number	1E+21	0
+nf0123	en-US	.	,		1900	number	1E+21	0.00
+nf0124	en-US	.	,		1900	number	1E+21	#,##0
+nf0125	en-US	.	,		1900	number	1E+21	#,##0.00
+nf0126	en-US	.	,		1900	number	1E+21	0.0%
+nf0127	en-US	.	,		1900	number	1E+21	0.00E+00
+nf0128	en-US	.	,		1900	number	1E+21	##0.0E+0
+nf0129	en-US	.	,		1900	number	1E+21	# ?/?
+nf0130	en-US	.	,		1900	number	1E+21	# ??/??
+nf0131	en-US	.	,		1900	number	1E+21	$#,##0.00
+nf0132	en-US	.	,		1900	number	1E+21	#,##0.00;[Red]-#,##0.00
+nf0133	en-US	.	,		1900	number	1E+21	#,##0.00;(#,##0.00);"zero"
+nf0134	en-US	.	,		1900	number	1E+21	0.00;-0.00;
+nf0135	en-US	.	,		1900	number	1E+21	[<1]0.000;0.0
+nf0136	en-US	.	,		1900	number	1E+21	000000
+nf0137	en-US	.	,		1900	number	1E+21	#.#
+nf0138	en-US	.	,		1900	number	1E+21	?.??
+nf0139	en-US	.	,		1900	number	1E+21	@
+nf0140	en-US	.	,		1900	number	1E+21	"x"0
+nf0141	en-US	.	,		1900	number	-0.004	General
+nf0142	en-US	.	,		1900	number	-0.004	0
+nf0143	en-US	.	,		1900	number	-0.004	0.00
+nf0144	en-US	.	,		1900	number	-0.004	#,##0
+nf0145	en-US	.	,		1900	number	-0.004	#,##0.00
+nf0146	en-US	.	,		1900	number	-0.004	0.0%
+nf0147	en-US	.	,		1900	number	-0.004	0.00E+00
+nf0148	en-US	.	,		1900	number	-0.004	##0.0E+0
+nf0149	en-US	.	,		1900	number	-0.004	# ?/?
+nf0150	en-US	.	,		1900	number	-0.004	# ??/??
+nf0151	en-US	.	,		1900	number	-0.004	$#,##0.00
+nf0152	en-US	.	,		1900	number	-0.004	#,##0.00;[Red]-#,##0.00
+nf0153	en-US	.	,		1900	number	-0.004	#,##0.00;(#,##0.00);"zero"
+nf0154	en-US	.	,		1900	number	-0.004	0.00;-0.00;
+nf0155	en-US	.	,		1900	number	-0.004	[<1]0.000;0.0
+nf0156	en-US	.	,		1900	number	-0.004	000000
+nf0157	en-US	.	,		1900	number	-0.004	#.#
+nf0158	en-US	.	,		1900	number	-0.004	?.??
+nf0159	en-US	.	,		1900	number	-0.004	@
+nf0160	en-US	.	,		1900	number	-0.004	"x"0
+nf0161	en-US	.	,		1900	text	abc	@
+nf0162	en-US	.	,		1900	text	abc	General
+nf0163	en-US	.	,		1900	text	abc	0.00
+nf0164	en-US	.	,		1900	text	abc	"t:"@
+nf0165	en-US	.	,		1900	text	abc	;;;@
+nf0166	en-US	.	,		1900	text	12	@
+nf0167	en-US	.	,		1900	text	12	General
+nf0168	en-US	.	,		1900	text	12	0.00
+nf0169	en-US	.	,		1900	text	12	"t:"@
+nf0170	en-US	.	,		1900	text	12	;;;@
+nf0171	en-GB	.	,		1900	number	1234.5678	General
+nf0172	en-GB	.	,		1900	number	1234.5678	0
+nf0173	en-GB	.	,		1900	number	1234.5678	0.00
+nf0174	en-GB	.	,		1900	number	1234.5678	#,##0
+nf0175	en-GB	.	,		1900	number	1234.5678	#,##0.00
+nf0176	en-GB	.	,		1900	number	1234.5678	0.0%
+nf0177	en-GB	.	,		1900	number	1234.5678	0.00E+00
+nf0178	en-GB	.	,		1900	number	1234.5678	##0.0E+0
+nf0179	en-GB	.	,		1900	number	1234.5678	# ?/?
+nf0180	en-GB	.	,		1900	number	1234.5678	# ??/??
+nf0181	en-GB	.	,		1900	number	1234.5678	$#,##0.00
+nf0182	en-GB	.	,		1900	number	1234.5678	#,##0.00;[Red]-#,##0.00
+nf0183	en-GB	.	,		1900	number	1234.5678	#,##0.00;(#,##0.00);"zero"
+nf0184	en-GB	.	,		1900	number	1234.5678	0.00;-0.00;
+nf0185	en-GB	.	,		1900	number	1234.5678	[<1]0.000;0.0
+nf0186	en-GB	.	,		1900	number	1234.5678	000000
+nf0187	en-GB	.	,		1900	number	1234.5678	#.#
+nf0188	en-GB	.	,		1900	number	1234.5678	?.??
+nf0189	en-GB	.	,		1900	number	1234.5678	@
+nf0190	en-GB	.	,		1900	number	1234.5678	"x"0
+nf0191	en-GB	.	,		1900	number	-1234.5	General
+nf0192	en-GB	.	,		1900	number	-1234.5	0
+nf0193	en-GB	.	,		1900	number	-1234.5	0.00
+nf0194	en-GB	.	,		1900	number	-1234.5	#,##0
+nf0195	en-GB	.	,		1900	number	-1234.5	#,##0.00
+nf0196	en-GB	.	,		1900	number	-1234.5	0.0%
+nf0197	en-GB	.	,		1900	number	-1234.5	0.00E+00
+nf0198	en-GB	.	,		1900	number	-1234.5	##0.0E+0
+nf0199	en-GB	.	,		1900	number	-1234.5	# ?/?
+nf0200	en-GB	.	,		1900	number	-1234.5	# ??/??
+nf0201	en-GB	.	,		1900	number	-1234.5	$#,##0.00
+nf0202	en-GB	.	,		1900	number	-1234.5	#,##0.00;[Red]-#,##0.00
+nf0203	en-GB	.	,		1900	number	-1234.5	#,##0.00;(#,##0.00);"zero"
+nf0204	en-GB	.	,		1900	number	-1234.5	0.00;-0.00;
+nf0205	en-GB	.	,		1900	number	-1234.5	[<1]0.000;0.0
+nf0206	en-GB	.	,		1900	number	-1234.5	000000
+nf0207	en-GB	.	,		1900	number	-1234.5	#.#
+nf0208	en-GB	.	,		1900	number	-1234.5	?.??
+nf0209	en-GB	.	,		1900	number	-1234.5	@
+nf0210	en-GB	.	,		1900	number	-1234.5	"x"0
+nf0211	en-GB	.	,		1900	number	0	General
+nf0212	en-GB	.	,		1900	number	0	0
+nf0213	en-GB	.	,		1900	number	0	0.00
+nf0214	en-GB	.	,		1900	number	0	#,##0
+nf0215	en-GB	.	,		1900	number	0	#,##0.00
+nf0216	en-GB	.	,		1900	number	0	0.0%
+nf0217	en-GB	.	,		1900	number	0	0.00E+00
+nf0218	en-GB	.	,		1900	number	0	##0.0E+0
+nf0219	en-GB	.	,		1900	number	0	# ?/?
+nf0220	en-GB	.	,		1900	number	0	# ??/??
+nf0221	en-GB	.	,		1900	number	0	$#,##0.00
+nf0222	en-GB	.	,		1900	number	0	#,##0.00;[Red]-#,##0.00
+nf0223	en-GB	.	,		1900	number	0	#,##0.00;(#,##0.00);"zero"
+nf0224	en-GB	.	,		1900	number	0	0.00;-0.00;
+nf0225	en-GB	.	,		1900	number	0	[<1]0.000;0.0
+nf0226	en-GB	.	,		1900	number	0	000000
+nf0227	en-GB	.	,		1900	number	0	#.#
+nf0228	en-GB	.	,		1900	number	0	?.??
+nf0229	en-GB	.	,		1900	number	0	@
+nf0230	en-GB	.	,		1900	number	0	"x"0
+nf0231	en-GB	.	,		1900	number	0.5	General
+nf0232	en-GB	.	,		1900	number	0.5	0
+nf0233	en-GB	.	,		1900	number	0.5	0.00
+nf0234	en-GB	.	,		1900	number	0.5	#,##0
+nf0235	en-GB	.	,		1900	number	0.5	#,##0.00
+nf0236	en-GB	.	,		1900	number	0.5	0.0%
+nf0237	en-GB	.	,		1900	number	0.5	0.00E+00
+nf0238	en-GB	.	,		1900	number	0.5	##0.0E+0
+nf0239	en-GB	.	,		1900	number	0.5	# ?/?
+nf0240	en-GB	.	,		1900	number	0.5	# ??/??
+nf0241	en-GB	.	,		1900	number	0.5	$#,##0.00
+nf0242	en-GB	.	,		1900	number	0.5	#,##0.00;[Red]-#,##0.00
+nf0243	en-GB	.	,		1900	number	0.5	#,##0.00;(#,##0.00);"zero"
+nf0244	en-GB	.	,		1900	number	0.5	0.00;-0.00;
+nf0245	en-GB	.	,		1900	number	0.5	[<1]0.000;0.0
+nf0246	en-GB	.	,		1900	number	0.5	000000
+nf0247	en-GB	.	,		1900	number	0.5	#.#
+nf0248	en-GB	.	,		1900	number	0.5	?.??
+nf0249	en-GB	.	,		1900	number	0.5	@
+nf0250	en-GB	.	,		1900	number	0.5	"x"0
+nf0251	en-GB	.	,		1900	number	0.000012345	General
+nf0252	en-GB	.	,		1900	number	0.000012345	0
+nf0253	en-GB	.	,		1900	number	0.000012345	0.00
+nf0254	en-GB	.	,		1900	number	0.000012345	#,##0
+nf0255	en-GB	.	,		1900	number	0.000012345	#,##0.00
+nf0256	en-GB	.	,		1900	number	0.000012345	0.0%
+nf0257	en-GB	.	,		1900	number	0.000012345	0.00E+00
+nf0258	en-GB	.	,		1900	number	0.000012345	##0.0E+0
+nf0259	en-GB	.	,		1900	number	0.000012345	# ?/?
+nf0260	en-GB	.	,		1900	number	0.000012345	# ??/??
+nf0261	en-GB	.	,		1900	number	0.000012345	$#,##0.00
+nf0262	en-GB	.	,		1900	number	0.000012345	#,##0.00;[Red]-#,##0.00
+nf0263	en-GB	.	,		1900	number	0.000012345	#,##0.00;(#,##0.00);"zero"
+nf0264	en-GB	.	,		1900	number	0.000012345	0.00;-0.00;
+nf0265	en-GB	.	,		1900	number	0.000012345	[<1]0.000;0.0
+nf0266	en-GB	.	,		1900	number	0.000012345	000000
+nf0267	en-GB	.	,		1900	number	0.000012345	#.#
+nf0268	en-GB	.	,		1900	number	0.000012345	?.??
+nf0269	en-GB	.	,		1900	number	0.000012345	@
+nf0270	en-GB	.	,		1900	number	0.000012345	"x"0
+nf0271	en-GB	.	,		1900	number	123456789.125	General
+nf0272	en-GB	.	,		1900	number	123456789.125	0
+nf0273	en-GB	.	,		1900	number	123456789.125	0.00
+nf0274	en-GB	.	,		1900	number	123456789.125	#,##0
+nf0275	en-GB	.	,		1900	number	123456789.125	#,##0.00
+nf0276	en-GB	.	,		1900	number	123456789.125	0.0%
+nf0277	en-GB	.	,		1900	number	123456789.125	0.00E+00
+nf0278	en-GB	.	,		1900	number	123456789.125	##0.0E+0
+nf0279	en-GB	.	,		1900	number	123456789.125	# ?/?
+nf0280	en-GB	.	,		1900	number	123456789.125	# ??/??
+nf0281	en-GB	.	,		1900	number	123456789.125	$#,##0.00
+nf0282	en-GB	.	,		1900	number	123456789.125	#,##0.00;[Red]-#,##0.00
+nf0283	en-GB	.	,		1900	number	123456789.125	#,##0.00;(#,##0.00);"zero"
+nf0284	en-GB	.	,		1900	number	123456789.125	0.00;-0.00;
+nf0285	en-GB	.	,		1900	number	123456789.125	[<1]0.000;0.0
+nf0286	en-GB	.	,		1900	number	123456789.125	000000
+nf0287	en-GB	.	,		1900	number	123456789.125	#.#
+nf0288	en-GB	.	,		1900	number	123456789.125	?.??
+nf0289	en-GB	.	,		1900	number	123456789.125	@
+nf0290	en-GB	.	,		1900	number	123456789.125	"x"0
+nf0291	en-GB	.	,		1900	number	1E+21	General
+nf0292	en-GB	.	,		1900	number	1E+21	0
+nf0293	en-GB	.	,		1900	number	1E+21	0.00
+nf0294	en-GB	.	,		1900	number	1E+21	#,##0
+nf0295	en-GB	.	,		1900	number	1E+21	#,##0.00
+nf0296	en-GB	.	,		1900	number	1E+21	0.0%
+nf0297	en-GB	.	,		1900	number	1E+21	0.00E+00
+nf0298	en-GB	.	,		1900	number	1E+21	##0.0E+0
+nf0299	en-GB	.	,		1900	number	1E+21	# ?/?
+nf0300	en-GB	.	,		1900	number	1E+21	# ??/??
+nf0301	en-GB	.	,		1900	number	1E+21	$#,##0.00
+nf0302	en-GB	.	,		1900	number	1E+21	#,##0.00;[Red]-#,##0.00
+nf0303	en-GB	.	,		1900	number	1E+21	#,##0.00;(#,##0.00);"zero"
+nf0304	en-GB	.	,		1900	number	1E+21	0.00;-0.00;
+nf0305	en-GB	.	,		1900	number	1E+21	[<1]0.000;0.0
+nf0306	en-GB	.	,		1900	number	1E+21	000000
+nf0307	en-GB	.	,		1900	number	1E+21	#.#
+nf0308	en-GB	.	,		1900	number	1E+21	?.??
+nf0309	en-GB	.	,		1900	number	1E+21	@
+nf0310	en-GB	.	,		1900	number	1E+21	"x"0
+nf0311	en-GB	.	,		1900	number	-0.004	General
+nf0312	en-GB	.	,		1900	number	-0.004	0
+nf0313	en-GB	.	,		1900	number	-0.004	0.00
+nf0314	en-GB	.	,		1900	number	-0.004	#,##0
+nf0315	en-GB	.	,		1900	number	-0.004	#,##0.00
+nf0316	en-GB	.	,		1900	number	-0.004	0.0%
+nf0317	en-GB	.	,		1900	number	-0.004	0.00E+00
+nf0318	en-GB	.	,		1900	number	-0.004	##0.0E+0
+nf0319	en-GB	.	,		1900	number	-0.004	# ?/?
+nf0320	en-GB	.	,		1900	number	-0.004	# ??/??
+nf0321	en-GB	.	,		1900	number	-0.004	$#,##0.00
+nf0322	en-GB	.	,		1900	number	-0.004	#,##0.00;[Red]-#,##0.00
+nf0323	en-GB	.	,		1900	number	-0.004	#,##0.00;(#,##0.00);"zero"
+nf0324	en-GB	.	,		1900	number	-0.004	0.00;-0.00;
+nf0325	en-GB	.	,		1900	number	-0.004	[<1]0.000;0.0
+nf0326	en-GB	.	,		1900	number	-0.004	000000
+nf0327	en-GB	.	,		1900	number	-0.004	#.#
+nf0328	en-GB	.	,		1900	number	-0.004	?.??
+nf0329	en-GB	.	,		1900	number	-0.004	@
+nf0330	en-GB	.	,		1900	number	-0.004	"x"0
+nf0331	en-GB	.	,		1900	text	abc	@
+nf0332	en-GB	.	,		1900	text	abc	General
+nf0333	en-GB	.	,		1900	text	abc	0.00
+nf0334	en-GB	.	,		1900	text	abc	"t:"@
+nf0335	en-GB	.	,		1900	text	abc	;;;@
+nf0336	en-GB	.	,		1900	text	12	@
+nf0337	en-GB	.	,		1900	text	12	General
+nf0338	en-GB	.	,		1900	text	12	0.00
+nf0339	en-GB	.	,		1900	text	12	"t:"@
+nf0340	en-GB	.	,		1900	text	12	;;;@
+nf0341	en-ZA	,	U+00A0		1900	number	1234.5678	General
+nf0342	en-ZA	,	U+00A0		1900	number	1234.5678	0
+nf0343	en-ZA	,	U+00A0		1900	number	1234.5678	0,00
+nf0344	en-ZA	,	U+00A0		1900	number	1234.5678	#U+00A0##0
+nf0345	en-ZA	,	U+00A0		1900	number	1234.5678	#U+00A0##0,00
+nf0346	en-ZA	,	U+00A0		1900	number	1234.5678	0,0%
+nf0347	en-ZA	,	U+00A0		1900	number	1234.5678	0,00E+00
+nf0348	en-ZA	,	U+00A0		1900	number	1234.5678	##0,0E+0
+nf0349	en-ZA	,	U+00A0		1900	number	1234.5678	# ?/?
+nf0350	en-ZA	,	U+00A0		1900	number	1234.5678	# ??/??
+nf0351	en-ZA	,	U+00A0		1900	number	1234.5678	$#U+00A0##0,00
+nf0352	en-ZA	,	U+00A0		1900	number	1234.5678	#U+00A0##0,00;[Red]-#U+00A0##0,00
+nf0353	en-ZA	,	U+00A0		1900	number	1234.5678	#U+00A0##0,00;(#U+00A0##0,00);"zero"
+nf0354	en-ZA	,	U+00A0		1900	number	1234.5678	0,00;-0,00;
+nf0355	en-ZA	,	U+00A0		1900	number	1234.5678	[<1]0,000;0,0
+nf0356	en-ZA	,	U+00A0		1900	number	1234.5678	000000
+nf0357	en-ZA	,	U+00A0		1900	number	1234.5678	#,#
+nf0358	en-ZA	,	U+00A0		1900	number	1234.5678	?,??
+nf0359	en-ZA	,	U+00A0		1900	number	1234.5678	@
+nf0360	en-ZA	,	U+00A0		1900	number	1234.5678	"x"0
+nf0361	en-ZA	,	U+00A0		1900	number	-1234.5	General
+nf0362	en-ZA	,	U+00A0		1900	number	-1234.5	0
+nf0363	en-ZA	,	U+00A0		1900	number	-1234.5	0,00
+nf0364	en-ZA	,	U+00A0		1900	number	-1234.5	#U+00A0##0
+nf0365	en-ZA	,	U+00A0		1900	number	-1234.5	#U+00A0##0,00
+nf0366	en-ZA	,	U+00A0		1900	number	-1234.5	0,0%
+nf0367	en-ZA	,	U+00A0		1900	number	-1234.5	0,00E+00
+nf0368	en-ZA	,	U+00A0		1900	number	-1234.5	##0,0E+0
+nf0369	en-ZA	,	U+00A0		1900	number	-1234.5	# ?/?
+nf0370	en-ZA	,	U+00A0		1900	number	-1234.5	# ??/??
+nf0371	en-ZA	,	U+00A0		1900	number	-1234.5	$#U+00A0##0,00
+nf0372	en-ZA	,	U+00A0		1900	number	-1234.5	#U+00A0##0,00;[Red]-#U+00A0##0,00
+nf0373	en-ZA	,	U+00A0		1900	number	-1234.5	#U+00A0##0,00;(#U+00A0##0,00);"zero"
+nf0374	en-ZA	,	U+00A0		1900	number	-1234.5	0,00;-0,00;
+nf0375	en-ZA	,	U+00A0		1900	number	-1234.5	[<1]0,000;0,0
+nf0376	en-ZA	,	U+00A0		1900	number	-1234.5	000000
+nf0377	en-ZA	,	U+00A0		1900	number	-1234.5	#,#
+nf0378	en-ZA	,	U+00A0		1900	number	-1234.5	?,??
+nf0379	en-ZA	,	U+00A0		1900	number	-1234.5	@
+nf0380	en-ZA	,	U+00A0		1900	number	-1234.5	"x"0
+nf0381	en-ZA	,	U+00A0		1900	number	0	General
+nf0382	en-ZA	,	U+00A0		1900	number	0	0
+nf0383	en-ZA	,	U+00A0		1900	number	0	0,00
+nf0384	en-ZA	,	U+00A0		1900	number	0	#U+00A0##0
+nf0385	en-ZA	,	U+00A0		1900	number	0	#U+00A0##0,00
+nf0386	en-ZA	,	U+00A0		1900	number	0	0,0%
+nf0387	en-ZA	,	U+00A0		1900	number	0	0,00E+00
+nf0388	en-ZA	,	U+00A0		1900	number	0	##0,0E+0
+nf0389	en-ZA	,	U+00A0		1900	number	0	# ?/?
+nf0390	en-ZA	,	U+00A0		1900	number	0	# ??/??
+nf0391	en-ZA	,	U+00A0		1900	number	0	$#U+00A0##0,00
+nf0392	en-ZA	,	U+00A0		1900	number	0	#U+00A0##0,00;[Red]-#U+00A0##0,00
+nf0393	en-ZA	,	U+00A0		1900	number	0	#U+00A0##0,00;(#U+00A0##0,00);"zero"
+nf0394	en-ZA	,	U+00A0		1900	number	0	0,00;-0,00;
+nf0395	en-ZA	,	U+00A0		1900	number	0	[<1]0,000;0,0
+nf0396	en-ZA	,	U+00A0		1900	number	0	000000
+nf0397	en-ZA	,	U+00A0		1900	number	0	#,#
+nf0398	en-ZA	,	U+00A0		1900	number	0	?,??
+nf0399	en-ZA	,	U+00A0		1900	number	0	@
+nf0400	en-ZA	,	U+00A0		1900	number	0	"x"0
+nf0401	en-ZA	,	U+00A0		1900	number	0.5	General
+nf0402	en-ZA	,	U+00A0		1900	number	0.5	0
+nf0403	en-ZA	,	U+00A0		1900	number	0.5	0,00
+nf0404	en-ZA	,	U+00A0		1900	number	0.5	#U+00A0##0
+nf0405	en-ZA	,	U+00A0		1900	number	0.5	#U+00A0##0,00
+nf0406	en-ZA	,	U+00A0		1900	number	0.5	0,0%
+nf0407	en-ZA	,	U+00A0		1900	number	0.5	0,00E+00
+nf0408	en-ZA	,	U+00A0		1900	number	0.5	##0,0E+0
+nf0409	en-ZA	,	U+00A0		1900	number	0.5	# ?/?
+nf0410	en-ZA	,	U+00A0		1900	number	0.5	# ??/??
+nf0411	en-ZA	,	U+00A0		1900	number	0.5	$#U+00A0##0,00
+nf0412	en-ZA	,	U+00A0		1900	number	0.5	#U+00A0##0,00;[Red]-#U+00A0##0,00
+nf0413	en-ZA	,	U+00A0		1900	number	0.5	#U+00A0##0,00;(#U+00A0##0,00);"zero"
+nf0414	en-ZA	,	U+00A0		1900	number	0.5	0,00;-0,00;
+nf0415	en-ZA	,	U+00A0		1900	number	0.5	[<1]0,000;0,0
+nf0416	en-ZA	,	U+00A0		1900	number	0.5	000000
+nf0417	en-ZA	,	U+00A0		1900	number	0.5	#,#
+nf0418	en-ZA	,	U+00A0		1900	number	0.5	?,??
+nf0419	en-ZA	,	U+00A0		1900	number	0.5	@
+nf0420	en-ZA	,	U+00A0		1900	number	0.5	"x"0
+nf0421	en-ZA	,	U+00A0		1900	number	0.000012345	General
+nf0422	en-ZA	,	U+00A0		1900	number	0.000012345	0
+nf0423	en-ZA	,	U+00A0		1900	number	0.000012345	0,00
+nf0424	en-ZA	,	U+00A0		1900	number	0.000012345	#U+00A0##0
+nf0425	en-ZA	,	U+00A0		1900	number	0.000012345	#U+00A0##0,00
+nf0426	en-ZA	,	U+00A0		1900	number	0.000012345	0,0%
+nf0427	en-ZA	,	U+00A0		1900	number	0.000012345	0,00E+00
+nf0428	en-ZA	,	U+00A0		1900	number	0.000012345	##0,0E+0
+nf0429	en-ZA	,	U+00A0		1900	number	0.000012345	# ?/?
+nf0430	en-ZA	,	U+00A0		1900	number	0.000012345	# ??/??
+nf0431	en-ZA	,	U+00A0		1900	number	0.000012345	$#U+00A0##0,00
+nf0432	en-ZA	,	U+00A0		1900	number	0.000012345	#U+00A0##0,00;[Red]-#U+00A0##0,00
+nf0433	en-ZA	,	U+00A0		1900	number	0.000012345	#U+00A0##0,00;(#U+00A0##0,00);"zero"
+nf0434	en-ZA	,	U+00A0		1900	number	0.000012345	0,00;-0,00;
+nf0435	en-ZA	,	U+00A0		1900	number	0.000012345	[<1]0,000;0,0
+nf0436	en-ZA	,	U+00A0		1900	number	0.000012345	000000
+nf0437	en-ZA	,	U+00A0		1900	number	0.000012345	#,#
+nf0438	en-ZA	,	U+00A0		1900	number	0.000012345	?,??
+nf0439	en-ZA	,	U+00A0		1900	number	0.000012345	@
+nf0440	en-ZA	,	U+00A0		1900	number	0.000012345	"x"0
+nf0441	en-ZA	,	U+00A0		1900	number	123456789.125	General
+nf0442	en-ZA	,	U+00A0		1900	number	123456789.125	0
+nf0443	en-ZA	,	U+00A0		1900	number	123456789.125	0,00
+nf0444	en-ZA	,	U+00A0		1900	number	123456789.125	#U+00A0##0
+nf0445	en-ZA	,	U+00A0		1900	number	123456789.125	#U+00A0##0,00
+nf0446	en-ZA	,	U+00A0		1900	number	123456789.125	0,0%
+nf0447	en-ZA	,	U+00A0		1900	number	123456789.125	0,00E+00
+nf0448	en-ZA	,	U+00A0		1900	number	123456789.125	##0,0E+0
+nf0449	en-ZA	,	U+00A0		1900	number	123456789.125	# ?/?
+nf0450	en-ZA	,	U+00A0		1900	number	123456789.125	# ??/??
+nf0451	en-ZA	,	U+00A0		1900	number	123456789.125	$#U+00A0##0,00
+nf0452	en-ZA	,	U+00A0		1900	number	123456789.125	#U+00A0##0,00;[Red]-#U+00A0##0,00
+nf0453	en-ZA	,	U+00A0		1900	number	123456789.125	#U+00A0##0,00;(#U+00A0##0,00);"zero"
+nf0454	en-ZA	,	U+00A0		1900	number	123456789.125	0,00;-0,00;
+nf0455	en-ZA	,	U+00A0		1900	number	123456789.125	[<1]0,000;0,0
+nf0456	en-ZA	,	U+00A0		1900	number	123456789.125	000000
+nf0457	en-ZA	,	U+00A0		1900	number	123456789.125	#,#
+nf0458	en-ZA	,	U+00A0		1900	number	123456789.125	?,??
+nf0459	en-ZA	,	U+00A0		1900	number	123456789.125	@
+nf0460	en-ZA	,	U+00A0		1900	number	123456789.125	"x"0
+nf0461	en-ZA	,	U+00A0		1900	number	1E+21	General
+nf0462	en-ZA	,	U+00A0		1900	number	1E+21	0
+nf0463	en-ZA	,	U+00A0		1900	number	1E+21	0,00
+nf0464	en-ZA	,	U+00A0		1900	number	1E+21	#U+00A0##0
+nf0465	en-ZA	,	U+00A0		1900	number	1E+21	#U+00A0##0,00
+nf0466	en-ZA	,	U+00A0		1900	number	1E+21	0,0%
+nf0467	en-ZA	,	U+00A0		1900	number	1E+21	0,00E+00
+nf0468	en-ZA	,	U+00A0		1900	number	1E+21	##0,0E+0
+nf0469	en-ZA	,	U+00A0		1900	number	1E+21	# ?/?
+nf0470	en-ZA	,	U+00A0		1900	number	1E+21	# ??/??
+nf0471	en-ZA	,	U+00A0		1900	number	1E+21	$#U+00A0##0,00
+nf0472	en-ZA	,	U+00A0		1900	number	1E+21	#U+00A0##0,00;[Red]-#U+00A0##0,00
+nf0473	en-ZA	,	U+00A0		1900	number	1E+21	#U+00A0##0,00;(#U+00A0##0,00);"zero"
+nf0474	en-ZA	,	U+00A0		1900	number	1E+21	0,00;-0,00;
+nf0475	en-ZA	,	U+00A0		1900	number	1E+21	[<1]0,000;0,0
+nf0476	en-ZA	,	U+00A0		1900	number	1E+21	000000
+nf0477	en-ZA	,	U+00A0		1900	number	1E+21	#,#
+nf0478	en-ZA	,	U+00A0		1900	number	1E+21	?,??
+nf0479	en-ZA	,	U+00A0		1900	number	1E+21	@
+nf0480	en-ZA	,	U+00A0		1900	number	1E+21	"x"0
+nf0481	en-ZA	,	U+00A0		1900	number	-0.004	General
+nf0482	en-ZA	,	U+00A0		1900	number	-0.004	0
+nf0483	en-ZA	,	U+00A0		1900	number	-0.004	0,00
+nf0484	en-ZA	,	U+00A0		1900	number	-0.004	#U+00A0##0
+nf0485	en-ZA	,	U+00A0		1900	number	-0.004	#U+00A0##0,00
+nf0486	en-ZA	,	U+00A0		1900	number	-0.004	0,0%
+nf0487	en-ZA	,	U+00A0		1900	number	-0.004	0,00E+00
+nf0488	en-ZA	,	U+00A0		1900	number	-0.004	##0,0E+0
+nf0489	en-ZA	,	U+00A0		1900	number	-0.004	# ?/?
+nf0490	en-ZA	,	U+00A0		1900	number	-0.004	# ??/??
+nf0491	en-ZA	,	U+00A0		1900	number	-0.004	$#U+00A0##0,00
+nf0492	en-ZA	,	U+00A0		1900	number	-0.004	#U+00A0##0,00;[Red]-#U+00A0##0,00
+nf0493	en-ZA	,	U+00A0		1900	number	-0.004	#U+00A0##0,00;(#U+00A0##0,00);"zero"
+nf0494	en-ZA	,	U+00A0		1900	number	-0.004	0,00;-0,00;
+nf0495	en-ZA	,	U+00A0		1900	number	-0.004	[<1]0,000;0,0
+nf0496	en-ZA	,	U+00A0		1900	number	-0.004	000000
+nf0497	en-ZA	,	U+00A0		1900	number	-0.004	#,#
+nf0498	en-ZA	,	U+00A0		1900	number	-0.004	?,??
+nf0499	en-ZA	,	U+00A0		1900	number	-0.004	@
+nf0500	en-ZA	,	U+00A0		1900	number	-0.004	"x"0
+nf0501	en-ZA	,	U+00A0		1900	text	abc	@
+nf0502	en-ZA	,	U+00A0		1900	text	abc	General
+nf0503	en-ZA	,	U+00A0		1900	text	abc	0,00
+nf0504	en-ZA	,	U+00A0		1900	text	abc	"t:"@
+nf0505	en-ZA	,	U+00A0		1900	text	abc	;;;@
+nf0506	en-ZA	,	U+00A0		1900	text	12	@
+nf0507	en-ZA	,	U+00A0		1900	text	12	General
+nf0508	en-ZA	,	U+00A0		1900	text	12	0,00
+nf0509	en-ZA	,	U+00A0		1900	text	12	"t:"@
+nf0510	en-ZA	,	U+00A0		1900	text	12	;;;@
+nf0511	de-DE	,	.		1900	number	1234.5678	General
+nf0512	de-DE	,	.		1900	number	1234.5678	0
+nf0513	de-DE	,	.		1900	number	1234.5678	0,00
+nf0514	de-DE	,	.		1900	number	1234.5678	#.##0
+nf0515	de-DE	,	.		1900	number	1234.5678	#.##0,00
+nf0516	de-DE	,	.		1900	number	1234.5678	0,0%
+nf0517	de-DE	,	.		1900	number	1234.5678	0,00E+00
+nf0518	de-DE	,	.		1900	number	1234.5678	##0,0E+0
+nf0519	de-DE	,	.		1900	number	1234.5678	# ?/?
+nf0520	de-DE	,	.		1900	number	1234.5678	# ??/??
+nf0521	de-DE	,	.		1900	number	1234.5678	$#.##0,00
+nf0522	de-DE	,	.		1900	number	1234.5678	#.##0,00;[Red]-#.##0,00
+nf0523	de-DE	,	.		1900	number	1234.5678	#.##0,00;(#.##0,00);"zero"
+nf0524	de-DE	,	.		1900	number	1234.5678	0,00;-0,00;
+nf0525	de-DE	,	.		1900	number	1234.5678	[<1]0,000;0,0
+nf0526	de-DE	,	.		1900	number	1234.5678	000000
+nf0527	de-DE	,	.		1900	number	1234.5678	#,#
+nf0528	de-DE	,	.		1900	number	1234.5678	?,??
+nf0529	de-DE	,	.		1900	number	1234.5678	@
+nf0530	de-DE	,	.		1900	number	1234.5678	"x"0
+nf0531	de-DE	,	.		1900	number	-1234.5	General
+nf0532	de-DE	,	.		1900	number	-1234.5	0
+nf0533	de-DE	,	.		1900	number	-1234.5	0,00
+nf0534	de-DE	,	.		1900	number	-1234.5	#.##0
+nf0535	de-DE	,	.		1900	number	-1234.5	#.##0,00
+nf0536	de-DE	,	.		1900	number	-1234.5	0,0%
+nf0537	de-DE	,	.		1900	number	-1234.5	0,00E+00
+nf0538	de-DE	,	.		1900	number	-1234.5	##0,0E+0
+nf0539	de-DE	,	.		1900	number	-1234.5	# ?/?
+nf0540	de-DE	,	.		1900	number	-1234.5	# ??/??
+nf0541	de-DE	,	.		1900	number	-1234.5	$#.##0,00
+nf0542	de-DE	,	.		1900	number	-1234.5	#.##0,00;[Red]-#.##0,00
+nf0543	de-DE	,	.		1900	number	-1234.5	#.##0,00;(#.##0,00);"zero"
+nf0544	de-DE	,	.		1900	number	-1234.5	0,00;-0,00;
+nf0545	de-DE	,	.		1900	number	-1234.5	[<1]0,000;0,0
+nf0546	de-DE	,	.		1900	number	-1234.5	000000
+nf0547	de-DE	,	.		1900	number	-1234.5	#,#
+nf0548	de-DE	,	.		1900	number	-1234.5	?,??
+nf0549	de-DE	,	.		1900	number	-1234.5	@
+nf0550	de-DE	,	.		1900	number	-1234.5	"x"0
+nf0551	de-DE	,	.		1900	number	0	General
+nf0552	de-DE	,	.		1900	number	0	0
+nf0553	de-DE	,	.		1900	number	0	0,00
+nf0554	de-DE	,	.		1900	number	0	#.##0
+nf0555	de-DE	,	.		1900	number	0	#.##0,00
+nf0556	de-DE	,	.		1900	number	0	0,0%
+nf0557	de-DE	,	.		1900	number	0	0,00E+00
+nf0558	de-DE	,	.		1900	number	0	##0,0E+0
+nf0559	de-DE	,	.		1900	number	0	# ?/?
+nf0560	de-DE	,	.		1900	number	0	# ??/??
+nf0561	de-DE	,	.		1900	number	0	$#.##0,00
+nf0562	de-DE	,	.		1900	number	0	#.##0,00;[Red]-#.##0,00
+nf0563	de-DE	,	.		1900	number	0	#.##0,00;(#.##0,00);"zero"
+nf0564	de-DE	,	.		1900	number	0	0,00;-0,00;
+nf0565	de-DE	,	.		1900	number	0	[<1]0,000;0,0
+nf0566	de-DE	,	.		1900	number	0	000000
+nf0567	de-DE	,	.		1900	number	0	#,#
+nf0568	de-DE	,	.		1900	number	0	?,??
+nf0569	de-DE	,	.		1900	number	0	@
+nf0570	de-DE	,	.		1900	number	0	"x"0
+nf0571	de-DE	,	.		1900	number	0.5	General
+nf0572	de-DE	,	.		1900	number	0.5	0
+nf0573	de-DE	,	.		1900	number	0.5	0,00
+nf0574	de-DE	,	.		1900	number	0.5	#.##0
+nf0575	de-DE	,	.		1900	number	0.5	#.##0,00
+nf0576	de-DE	,	.		1900	number	0.5	0,0%
+nf0577	de-DE	,	.		1900	number	0.5	0,00E+00
+nf0578	de-DE	,	.		1900	number	0.5	##0,0E+0
+nf0579	de-DE	,	.		1900	number	0.5	# ?/?
+nf0580	de-DE	,	.		1900	number	0.5	# ??/??
+nf0581	de-DE	,	.		1900	number	0.5	$#.##0,00
+nf0582	de-DE	,	.		1900	number	0.5	#.##0,00;[Red]-#.##0,00
+nf0583	de-DE	,	.		1900	number	0.5	#.##0,00;(#.##0,00);"zero"
+nf0584	de-DE	,	.		1900	number	0.5	0,00;-0,00;
+nf0585	de-DE	,	.		1900	number	0.5	[<1]0,000;0,0
+nf0586	de-DE	,	.		1900	number	0.5	000000
+nf0587	de-DE	,	.		1900	number	0.5	#,#
+nf0588	de-DE	,	.		1900	number	0.5	?,??
+nf0589	de-DE	,	.		1900	number	0.5	@
+nf0590	de-DE	,	.		1900	number	0.5	"x"0
+nf0591	de-DE	,	.		1900	number	0.000012345	General
+nf0592	de-DE	,	.		1900	number	0.000012345	0
+nf0593	de-DE	,	.		1900	number	0.000012345	0,00
+nf0594	de-DE	,	.		1900	number	0.000012345	#.##0
+nf0595	de-DE	,	.		1900	number	0.000012345	#.##0,00
+nf0596	de-DE	,	.		1900	number	0.000012345	0,0%
+nf0597	de-DE	,	.		1900	number	0.000012345	0,00E+00
+nf0598	de-DE	,	.		1900	number	0.000012345	##0,0E+0
+nf0599	de-DE	,	.		1900	number	0.000012345	# ?/?
+nf0600	de-DE	,	.		1900	number	0.000012345	# ??/??
+nf0601	de-DE	,	.		1900	number	0.000012345	$#.##0,00
+nf0602	de-DE	,	.		1900	number	0.000012345	#.##0,00;[Red]-#.##0,00
+nf0603	de-DE	,	.		1900	number	0.000012345	#.##0,00;(#.##0,00);"zero"
+nf0604	de-DE	,	.		1900	number	0.000012345	0,00;-0,00;
+nf0605	de-DE	,	.		1900	number	0.000012345	[<1]0,000;0,0
+nf0606	de-DE	,	.		1900	number	0.000012345	000000
+nf0607	de-DE	,	.		1900	number	0.000012345	#,#
+nf0608	de-DE	,	.		1900	number	0.000012345	?,??
+nf0609	de-DE	,	.		1900	number	0.000012345	@
+nf0610	de-DE	,	.		1900	number	0.000012345	"x"0
+nf0611	de-DE	,	.		1900	number	123456789.125	General
+nf0612	de-DE	,	.		1900	number	123456789.125	0
+nf0613	de-DE	,	.		1900	number	123456789.125	0,00
+nf0614	de-DE	,	.		1900	number	123456789.125	#.##0
+nf0615	de-DE	,	.		1900	number	123456789.125	#.##0,00
+nf0616	de-DE	,	.		1900	number	123456789.125	0,0%
+nf0617	de-DE	,	.		1900	number	123456789.125	0,00E+00
+nf0618	de-DE	,	.		1900	number	123456789.125	##0,0E+0
+nf0619	de-DE	,	.		1900	number	123456789.125	# ?/?
+nf0620	de-DE	,	.		1900	number	123456789.125	# ??/??
+nf0621	de-DE	,	.		1900	number	123456789.125	$#.##0,00
+nf0622	de-DE	,	.		1900	number	123456789.125	#.##0,00;[Red]-#.##0,00
+nf0623	de-DE	,	.		1900	number	123456789.125	#.##0,00;(#.##0,00);"zero"
+nf0624	de-DE	,	.		1900	number	123456789.125	0,00;-0,00;
+nf0625	de-DE	,	.		1900	number	123456789.125	[<1]0,000;0,0
+nf0626	de-DE	,	.		1900	number	123456789.125	000000
+nf0627	de-DE	,	.		1900	number	123456789.125	#,#
+nf0628	de-DE	,	.		1900	number	123456789.125	?,??
+nf0629	de-DE	,	.		1900	number	123456789.125	@
+nf0630	de-DE	,	.		1900	number	123456789.125	"x"0
+nf0631	de-DE	,	.		1900	number	1E+21	General
+nf0632	de-DE	,	.		1900	number	1E+21	0
+nf0633	de-DE	,	.		1900	number	1E+21	0,00
+nf0634	de-DE	,	.		1900	number	1E+21	#.##0
+nf0635	de-DE	,	.		1900	number	1E+21	#.##0,00
+nf0636	de-DE	,	.		1900	number	1E+21	0,0%
+nf0637	de-DE	,	.		1900	number	1E+21	0,00E+00
+nf0638	de-DE	,	.		1900	number	1E+21	##0,0E+0
+nf0639	de-DE	,	.		1900	number	1E+21	# ?/?
+nf0640	de-DE	,	.		1900	number	1E+21	# ??/??
+nf0641	de-DE	,	.		1900	number	1E+21	$#.##0,00
+nf0642	de-DE	,	.		1900	number	1E+21	#.##0,00;[Red]-#.##0,00
+nf0643	de-DE	,	.		1900	number	1E+21	#.##0,00;(#.##0,00);"zero"
+nf0644	de-DE	,	.		1900	number	1E+21	0,00;-0,00;
+nf0645	de-DE	,	.		1900	number	1E+21	[<1]0,000;0,0
+nf0646	de-DE	,	.		1900	number	1E+21	000000
+nf0647	de-DE	,	.		1900	number	1E+21	#,#
+nf0648	de-DE	,	.		1900	number	1E+21	?,??
+nf0649	de-DE	,	.		1900	number	1E+21	@
+nf0650	de-DE	,	.		1900	number	1E+21	"x"0
+nf0651	de-DE	,	.		1900	number	-0.004	General
+nf0652	de-DE	,	.		1900	number	-0.004	0
+nf0653	de-DE	,	.		1900	number	-0.004	0,00
+nf0654	de-DE	,	.		1900	number	-0.004	#.##0
+nf0655	de-DE	,	.		1900	number	-0.004	#.##0,00
+nf0656	de-DE	,	.		1900	number	-0.004	0,0%
+nf0657	de-DE	,	.		1900	number	-0.004	0,00E+00
+nf0658	de-DE	,	.		1900	number	-0.004	##0,0E+0
+nf0659	de-DE	,	.		1900	number	-0.004	# ?/?
+nf0660	de-DE	,	.		1900	number	-0.004	# ??/??
+nf0661	de-DE	,	.		1900	number	-0.004	$#.##0,00
+nf0662	de-DE	,	.		1900	number	-0.004	#.##0,00;[Red]-#.##0,00
+nf0663	de-DE	,	.		1900	number	-0.004	#.##0,00;(#.##0,00);"zero"
+nf0664	de-DE	,	.		1900	number	-0.004	0,00;-0,00;
+nf0665	de-DE	,	.		1900	number	-0.004	[<1]0,000;0,0
+nf0666	de-DE	,	.		1900	number	-0.004	000000
+nf0667	de-DE	,	.		1900	number	-0.004	#,#
+nf0668	de-DE	,	.		1900	number	-0.004	?,??
+nf0669	de-DE	,	.		1900	number	-0.004	@
+nf0670	de-DE	,	.		1900	number	-0.004	"x"0
+nf0671	de-DE	,	.		1900	text	abc	@
+nf0672	de-DE	,	.		1900	text	abc	General
+nf0673	de-DE	,	.		1900	text	abc	0,00
+nf0674	de-DE	,	.		1900	text	abc	"t:"@
+nf0675	de-DE	,	.		1900	text	abc	;;;@
+nf0676	de-DE	,	.		1900	text	12	@
+nf0677	de-DE	,	.		1900	text	12	General
+nf0678	de-DE	,	.		1900	text	12	0,00
+nf0679	de-DE	,	.		1900	text	12	"t:"@
+nf0680	de-DE	,	.		1900	text	12	;;;@
+nf0681	fr-FR	,	U+202F		1900	number	1234.5678	General
+nf0682	fr-FR	,	U+202F		1900	number	1234.5678	0
+nf0683	fr-FR	,	U+202F		1900	number	1234.5678	0,00
+nf0684	fr-FR	,	U+202F		1900	number	1234.5678	#U+202F##0
+nf0685	fr-FR	,	U+202F		1900	number	1234.5678	#U+202F##0,00
+nf0686	fr-FR	,	U+202F		1900	number	1234.5678	0,0%
+nf0687	fr-FR	,	U+202F		1900	number	1234.5678	0,00E+00
+nf0688	fr-FR	,	U+202F		1900	number	1234.5678	##0,0E+0
+nf0689	fr-FR	,	U+202F		1900	number	1234.5678	# ?/?
+nf0690	fr-FR	,	U+202F		1900	number	1234.5678	# ??/??
+nf0691	fr-FR	,	U+202F		1900	number	1234.5678	$#U+202F##0,00
+nf0692	fr-FR	,	U+202F		1900	number	1234.5678	#U+202F##0,00;[Red]-#U+202F##0,00
+nf0693	fr-FR	,	U+202F		1900	number	1234.5678	#U+202F##0,00;(#U+202F##0,00);"zero"
+nf0694	fr-FR	,	U+202F		1900	number	1234.5678	0,00;-0,00;
+nf0695	fr-FR	,	U+202F		1900	number	1234.5678	[<1]0,000;0,0
+nf0696	fr-FR	,	U+202F		1900	number	1234.5678	000000
+nf0697	fr-FR	,	U+202F		1900	number	1234.5678	#,#
+nf0698	fr-FR	,	U+202F		1900	number	1234.5678	?,??
+nf0699	fr-FR	,	U+202F		1900	number	1234.5678	@
+nf0700	fr-FR	,	U+202F		1900	number	1234.5678	"x"0
+nf0701	fr-FR	,	U+202F		1900	number	-1234.5	General
+nf0702	fr-FR	,	U+202F		1900	number	-1234.5	0
+nf0703	fr-FR	,	U+202F		1900	number	-1234.5	0,00
+nf0704	fr-FR	,	U+202F		1900	number	-1234.5	#U+202F##0
+nf0705	fr-FR	,	U+202F		1900	number	-1234.5	#U+202F##0,00
+nf0706	fr-FR	,	U+202F		1900	number	-1234.5	0,0%
+nf0707	fr-FR	,	U+202F		1900	number	-1234.5	0,00E+00
+nf0708	fr-FR	,	U+202F		1900	number	-1234.5	##0,0E+0
+nf0709	fr-FR	,	U+202F		1900	number	-1234.5	# ?/?
+nf0710	fr-FR	,	U+202F		1900	number	-1234.5	# ??/??
+nf0711	fr-FR	,	U+202F		1900	number	-1234.5	$#U+202F##0,00
+nf0712	fr-FR	,	U+202F		1900	number	-1234.5	#U+202F##0,00;[Red]-#U+202F##0,00
+nf0713	fr-FR	,	U+202F		1900	number	-1234.5	#U+202F##0,00;(#U+202F##0,00);"zero"
+nf0714	fr-FR	,	U+202F		1900	number	-1234.5	0,00;-0,00;
+nf0715	fr-FR	,	U+202F		1900	number	-1234.5	[<1]0,000;0,0
+nf0716	fr-FR	,	U+202F		1900	number	-1234.5	000000
+nf0717	fr-FR	,	U+202F		1900	number	-1234.5	#,#
+nf0718	fr-FR	,	U+202F		1900	number	-1234.5	?,??
+nf0719	fr-FR	,	U+202F		1900	number	-1234.5	@
+nf0720	fr-FR	,	U+202F		1900	number	-1234.5	"x"0
+nf0721	fr-FR	,	U+202F		1900	number	0	General
+nf0722	fr-FR	,	U+202F		1900	number	0	0
+nf0723	fr-FR	,	U+202F		1900	number	0	0,00
+nf0724	fr-FR	,	U+202F		1900	number	0	#U+202F##0
+nf0725	fr-FR	,	U+202F		1900	number	0	#U+202F##0,00
+nf0726	fr-FR	,	U+202F		1900	number	0	0,0%
+nf0727	fr-FR	,	U+202F		1900	number	0	0,00E+00
+nf0728	fr-FR	,	U+202F		1900	number	0	##0,0E+0
+nf0729	fr-FR	,	U+202F		1900	number	0	# ?/?
+nf0730	fr-FR	,	U+202F		1900	number	0	# ??/??
+nf0731	fr-FR	,	U+202F		1900	number	0	$#U+202F##0,00
+nf0732	fr-FR	,	U+202F		1900	number	0	#U+202F##0,00;[Red]-#U+202F##0,00
+nf0733	fr-FR	,	U+202F		1900	number	0	#U+202F##0,00;(#U+202F##0,00);"zero"
+nf0734	fr-FR	,	U+202F		1900	number	0	0,00;-0,00;
+nf0735	fr-FR	,	U+202F		1900	number	0	[<1]0,000;0,0
+nf0736	fr-FR	,	U+202F		1900	number	0	000000
+nf0737	fr-FR	,	U+202F		1900	number	0	#,#
+nf0738	fr-FR	,	U+202F		1900	number	0	?,??
+nf0739	fr-FR	,	U+202F		1900	number	0	@
+nf0740	fr-FR	,	U+202F		1900	number	0	"x"0
+nf0741	fr-FR	,	U+202F		1900	number	0.5	General
+nf0742	fr-FR	,	U+202F		1900	number	0.5	0
+nf0743	fr-FR	,	U+202F		1900	number	0.5	0,00
+nf0744	fr-FR	,	U+202F		1900	number	0.5	#U+202F##0
+nf0745	fr-FR	,	U+202F		1900	number	0.5	#U+202F##0,00
+nf0746	fr-FR	,	U+202F		1900	number	0.5	0,0%
+nf0747	fr-FR	,	U+202F		1900	number	0.5	0,00E+00
+nf0748	fr-FR	,	U+202F		1900	number	0.5	##0,0E+0
+nf0749	fr-FR	,	U+202F		1900	number	0.5	# ?/?
+nf0750	fr-FR	,	U+202F		1900	number	0.5	# ??/??
+nf0751	fr-FR	,	U+202F		1900	number	0.5	$#U+202F##0,00
+nf0752	fr-FR	,	U+202F		1900	number	0.5	#U+202F##0,00;[Red]-#U+202F##0,00
+nf0753	fr-FR	,	U+202F		1900	number	0.5	#U+202F##0,00;(#U+202F##0,00);"zero"
+nf0754	fr-FR	,	U+202F		1900	number	0.5	0,00;-0,00;
+nf0755	fr-FR	,	U+202F		1900	number	0.5	[<1]0,000;0,0
+nf0756	fr-FR	,	U+202F		1900	number	0.5	000000
+nf0757	fr-FR	,	U+202F		1900	number	0.5	#,#
+nf0758	fr-FR	,	U+202F		1900	number	0.5	?,??
+nf0759	fr-FR	,	U+202F		1900	number	0.5	@
+nf0760	fr-FR	,	U+202F		1900	number	0.5	"x"0
+nf0761	fr-FR	,	U+202F		1900	number	0.000012345	General
+nf0762	fr-FR	,	U+202F		1900	number	0.000012345	0
+nf0763	fr-FR	,	U+202F		1900	number	0.000012345	0,00
+nf0764	fr-FR	,	U+202F		1900	number	0.000012345	#U+202F##0
+nf0765	fr-FR	,	U+202F		1900	number	0.000012345	#U+202F##0,00
+nf0766	fr-FR	,	U+202F		1900	number	0.000012345	0,0%
+nf0767	fr-FR	,	U+202F		1900	number	0.000012345	0,00E+00
+nf0768	fr-FR	,	U+202F		1900	number	0.000012345	##0,0E+0
+nf0769	fr-FR	,	U+202F		1900	number	0.000012345	# ?/?
+nf0770	fr-FR	,	U+202F		1900	number	0.000012345	# ??/??
+nf0771	fr-FR	,	U+202F		1900	number	0.000012345	$#U+202F##0,00
+nf0772	fr-FR	,	U+202F		1900	number	0.000012345	#U+202F##0,00;[Red]-#U+202F##0,00
+nf0773	fr-FR	,	U+202F		1900	number	0.000012345	#U+202F##0,00;(#U+202F##0,00);"zero"
+nf0774	fr-FR	,	U+202F		1900	number	0.000012345	0,00;-0,00;
+nf0775	fr-FR	,	U+202F		1900	number	0.000012345	[<1]0,000;0,0
+nf0776	fr-FR	,	U+202F		1900	number	0.000012345	000000
+nf0777	fr-FR	,	U+202F		1900	number	0.000012345	#,#
+nf0778	fr-FR	,	U+202F		1900	number	0.000012345	?,??
+nf0779	fr-FR	,	U+202F		1900	number	0.000012345	@
+nf0780	fr-FR	,	U+202F		1900	number	0.000012345	"x"0
+nf0781	fr-FR	,	U+202F		1900	number	123456789.125	General
+nf0782	fr-FR	,	U+202F		1900	number	123456789.125	0
+nf0783	fr-FR	,	U+202F		1900	number	123456789.125	0,00
+nf0784	fr-FR	,	U+202F		1900	number	123456789.125	#U+202F##0
+nf0785	fr-FR	,	U+202F		1900	number	123456789.125	#U+202F##0,00
+nf0786	fr-FR	,	U+202F		1900	number	123456789.125	0,0%
+nf0787	fr-FR	,	U+202F		1900	number	123456789.125	0,00E+00
+nf0788	fr-FR	,	U+202F		1900	number	123456789.125	##0,0E+0
+nf0789	fr-FR	,	U+202F		1900	number	123456789.125	# ?/?
+nf0790	fr-FR	,	U+202F		1900	number	123456789.125	# ??/??
+nf0791	fr-FR	,	U+202F		1900	number	123456789.125	$#U+202F##0,00
+nf0792	fr-FR	,	U+202F		1900	number	123456789.125	#U+202F##0,00;[Red]-#U+202F##0,00
+nf0793	fr-FR	,	U+202F		1900	number	123456789.125	#U+202F##0,00;(#U+202F##0,00);"zero"
+nf0794	fr-FR	,	U+202F		1900	number	123456789.125	0,00;-0,00;
+nf0795	fr-FR	,	U+202F		1900	number	123456789.125	[<1]0,000;0,0
+nf0796	fr-FR	,	U+202F		1900	number	123456789.125	000000
+nf0797	fr-FR	,	U+202F		1900	number	123456789.125	#,#
+nf0798	fr-FR	,	U+202F		1900	number	123456789.125	?,??
+nf0799	fr-FR	,	U+202F		1900	number	123456789.125	@
+nf0800	fr-FR	,	U+202F		1900	number	123456789.125	"x"0
+nf0801	fr-FR	,	U+202F		1900	number	1E+21	General
+nf0802	fr-FR	,	U+202F		1900	number	1E+21	0
+nf0803	fr-FR	,	U+202F		1900	number	1E+21	0,00
+nf0804	fr-FR	,	U+202F		1900	number	1E+21	#U+202F##0
+nf0805	fr-FR	,	U+202F		1900	number	1E+21	#U+202F##0,00
+nf0806	fr-FR	,	U+202F		1900	number	1E+21	0,0%
+nf0807	fr-FR	,	U+202F		1900	number	1E+21	0,00E+00
+nf0808	fr-FR	,	U+202F		1900	number	1E+21	##0,0E+0
+nf0809	fr-FR	,	U+202F		1900	number	1E+21	# ?/?
+nf0810	fr-FR	,	U+202F		1900	number	1E+21	# ??/??
+nf0811	fr-FR	,	U+202F		1900	number	1E+21	$#U+202F##0,00
+nf0812	fr-FR	,	U+202F		1900	number	1E+21	#U+202F##0,00;[Red]-#U+202F##0,00
+nf0813	fr-FR	,	U+202F		1900	number	1E+21	#U+202F##0,00;(#U+202F##0,00);"zero"
+nf0814	fr-FR	,	U+202F		1900	number	1E+21	0,00;-0,00;
+nf0815	fr-FR	,	U+202F		1900	number	1E+21	[<1]0,000;0,0
+nf0816	fr-FR	,	U+202F		1900	number	1E+21	000000
+nf0817	fr-FR	,	U+202F		1900	number	1E+21	#,#
+nf0818	fr-FR	,	U+202F		1900	number	1E+21	?,??
+nf0819	fr-FR	,	U+202F		1900	number	1E+21	@
+nf0820	fr-FR	,	U+202F		1900	number	1E+21	"x"0
+nf0821	fr-FR	,	U+202F		1900	number	-0.004	General
+nf0822	fr-FR	,	U+202F		1900	number	-0.004	0
+nf0823	fr-FR	,	U+202F		1900	number	-0.004	0,00
+nf0824	fr-FR	,	U+202F		1900	number	-0.004	#U+202F##0
+nf0825	fr-FR	,	U+202F		1900	number	-0.004	#U+202F##0,00
+nf0826	fr-FR	,	U+202F		1900	number	-0.004	0,0%
+nf0827	fr-FR	,	U+202F		1900	number	-0.004	0,00E+00
+nf0828	fr-FR	,	U+202F		1900	number	-0.004	##0,0E+0
+nf0829	fr-FR	,	U+202F		1900	number	-0.004	# ?/?
+nf0830	fr-FR	,	U+202F		1900	number	-0.004	# ??/??
+nf0831	fr-FR	,	U+202F		1900	number	-0.004	$#U+202F##0,00
+nf0832	fr-FR	,	U+202F		1900	number	-0.004	#U+202F##0,00;[Red]-#U+202F##0,00
+nf0833	fr-FR	,	U+202F		1900	number	-0.004	#U+202F##0,00;(#U+202F##0,00);"zero"
+nf0834	fr-FR	,	U+202F		1900	number	-0.004	0,00;-0,00;
+nf0835	fr-FR	,	U+202F		1900	number	-0.004	[<1]0,000;0,0
+nf0836	fr-FR	,	U+202F		1900	number	-0.004	000000
+nf0837	fr-FR	,	U+202F		1900	number	-0.004	#,#
+nf0838	fr-FR	,	U+202F		1900	number	-0.004	?,??
+nf0839	fr-FR	,	U+202F		1900	number	-0.004	@
+nf0840	fr-FR	,	U+202F		1900	number	-0.004	"x"0
+nf0841	fr-FR	,	U+202F		1900	text	abc	@
+nf0842	fr-FR	,	U+202F		1900	text	abc	General
+nf0843	fr-FR	,	U+202F		1900	text	abc	0,00
+nf0844	fr-FR	,	U+202F		1900	text	abc	"t:"@
+nf0845	fr-FR	,	U+202F		1900	text	abc	;;;@
+nf0846	fr-FR	,	U+202F		1900	text	12	@
+nf0847	fr-FR	,	U+202F		1900	text	12	General
+nf0848	fr-FR	,	U+202F		1900	text	12	0,00
+nf0849	fr-FR	,	U+202F		1900	text	12	"t:"@
+nf0850	fr-FR	,	U+202F		1900	text	12	;;;@
+nf0851	en-US	.	,	409	1900	number	45322	yyyy-mm-dd
+nf0852	en-US	.	,	409	1900	number	45322	d/m/yyyy
+nf0853	en-US	.	,	409	1900	number	45322	dd-mmm-yy
+nf0854	en-US	.	,	409	1900	number	45322	dddd d mmmm yyyy
+nf0855	en-US	.	,	409	1900	number	45322	mmm yy
+nf0856	en-US	.	,	409	1900	number	45322	mmmmm
+nf0857	en-US	.	,	409	1900	number	45322	ddd
+nf0858	en-US	.	,	409	1900	number	45322	h:mm:ss
+nf0859	en-US	.	,	409	1900	number	45322	h:mm AM/PM
+nf0860	en-US	.	,	409	1900	number	45322	hh:mm:ss.000
+nf0861	en-US	.	,	409	1900	number	45322	[h]:mm
+nf0862	en-US	.	,	409	1900	number	45322	[mm]:ss
+nf0863	en-US	.	,	409	1900	number	45322	yyyy-mm-dd hh:mm:ss
+nf0864	en-US	.	,	409	1900	number	45322	d mmmm
+nf0865	en-US	.	,	409	1900	number	45322	General
+nf0866	en-US	.	,	409	1900	number	45322	0.00
+nf0867	en-US	.	,	409	1900	number	45322.75	yyyy-mm-dd
+nf0868	en-US	.	,	409	1900	number	45322.75	d/m/yyyy
+nf0869	en-US	.	,	409	1900	number	45322.75	dd-mmm-yy
+nf0870	en-US	.	,	409	1900	number	45322.75	dddd d mmmm yyyy
+nf0871	en-US	.	,	409	1900	number	45322.75	mmm yy
+nf0872	en-US	.	,	409	1900	number	45322.75	mmmmm
+nf0873	en-US	.	,	409	1900	number	45322.75	ddd
+nf0874	en-US	.	,	409	1900	number	45322.75	h:mm:ss
+nf0875	en-US	.	,	409	1900	number	45322.75	h:mm AM/PM
+nf0876	en-US	.	,	409	1900	number	45322.75	hh:mm:ss.000
+nf0877	en-US	.	,	409	1900	number	45322.75	[h]:mm
+nf0878	en-US	.	,	409	1900	number	45322.75	[mm]:ss
+nf0879	en-US	.	,	409	1900	number	45322.75	yyyy-mm-dd hh:mm:ss
+nf0880	en-US	.	,	409	1900	number	45322.75	d mmmm
+nf0881	en-US	.	,	409	1900	number	45322.75	General
+nf0882	en-US	.	,	409	1900	number	45322.75	0.00
+nf0883	en-US	.	,	409	1900	number	0.5	yyyy-mm-dd
+nf0884	en-US	.	,	409	1900	number	0.5	d/m/yyyy
+nf0885	en-US	.	,	409	1900	number	0.5	dd-mmm-yy
+nf0886	en-US	.	,	409	1900	number	0.5	dddd d mmmm yyyy
+nf0887	en-US	.	,	409	1900	number	0.5	mmm yy
+nf0888	en-US	.	,	409	1900	number	0.5	mmmmm
+nf0889	en-US	.	,	409	1900	number	0.5	ddd
+nf0890	en-US	.	,	409	1900	number	0.5	h:mm:ss
+nf0891	en-US	.	,	409	1900	number	0.5	h:mm AM/PM
+nf0892	en-US	.	,	409	1900	number	0.5	hh:mm:ss.000
+nf0893	en-US	.	,	409	1900	number	0.5	[h]:mm
+nf0894	en-US	.	,	409	1900	number	0.5	[mm]:ss
+nf0895	en-US	.	,	409	1900	number	0.5	yyyy-mm-dd hh:mm:ss
+nf0896	en-US	.	,	409	1900	number	0.5	d mmmm
+nf0897	en-US	.	,	409	1900	number	0.5	General
+nf0898	en-US	.	,	409	1900	number	0.5	0.00
+nf0899	en-US	.	,	409	1900	number	36526.999988426	yyyy-mm-dd
+nf0900	en-US	.	,	409	1900	number	36526.999988426	d/m/yyyy
+nf0901	en-US	.	,	409	1900	number	36526.999988426	dd-mmm-yy
+nf0902	en-US	.	,	409	1900	number	36526.999988426	dddd d mmmm yyyy
+nf0903	en-US	.	,	409	1900	number	36526.999988426	mmm yy
+nf0904	en-US	.	,	409	1900	number	36526.999988426	mmmmm
+nf0905	en-US	.	,	409	1900	number	36526.999988426	ddd
+nf0906	en-US	.	,	409	1900	number	36526.999988426	h:mm:ss
+nf0907	en-US	.	,	409	1900	number	36526.999988426	h:mm AM/PM
+nf0908	en-US	.	,	409	1900	number	36526.999988426	hh:mm:ss.000
+nf0909	en-US	.	,	409	1900	number	36526.999988426	[h]:mm
+nf0910	en-US	.	,	409	1900	number	36526.999988426	[mm]:ss
+nf0911	en-US	.	,	409	1900	number	36526.999988426	yyyy-mm-dd hh:mm:ss
+nf0912	en-US	.	,	409	1900	number	36526.999988426	d mmmm
+nf0913	en-US	.	,	409	1900	number	36526.999988426	General
+nf0914	en-US	.	,	409	1900	number	36526.999988426	0.00
+nf0915	en-US	.	,	409	1900	number	59.5	yyyy-mm-dd
+nf0916	en-US	.	,	409	1900	number	59.5	d/m/yyyy
+nf0917	en-US	.	,	409	1900	number	59.5	dd-mmm-yy
+nf0918	en-US	.	,	409	1900	number	59.5	dddd d mmmm yyyy
+nf0919	en-US	.	,	409	1900	number	59.5	mmm yy
+nf0920	en-US	.	,	409	1900	number	59.5	mmmmm
+nf0921	en-US	.	,	409	1900	number	59.5	ddd
+nf0922	en-US	.	,	409	1900	number	59.5	h:mm:ss
+nf0923	en-US	.	,	409	1900	number	59.5	h:mm AM/PM
+nf0924	en-US	.	,	409	1900	number	59.5	hh:mm:ss.000
+nf0925	en-US	.	,	409	1900	number	59.5	[h]:mm
+nf0926	en-US	.	,	409	1900	number	59.5	[mm]:ss
+nf0927	en-US	.	,	409	1900	number	59.5	yyyy-mm-dd hh:mm:ss
+nf0928	en-US	.	,	409	1900	number	59.5	d mmmm
+nf0929	en-US	.	,	409	1900	number	59.5	General
+nf0930	en-US	.	,	409	1900	number	59.5	0.00
+nf0931	en-US	.	,	409	1900	number	61	yyyy-mm-dd
+nf0932	en-US	.	,	409	1900	number	61	d/m/yyyy
+nf0933	en-US	.	,	409	1900	number	61	dd-mmm-yy
+nf0934	en-US	.	,	409	1900	number	61	dddd d mmmm yyyy
+nf0935	en-US	.	,	409	1900	number	61	mmm yy
+nf0936	en-US	.	,	409	1900	number	61	mmmmm
+nf0937	en-US	.	,	409	1900	number	61	ddd
+nf0938	en-US	.	,	409	1900	number	61	h:mm:ss
+nf0939	en-US	.	,	409	1900	number	61	h:mm AM/PM
+nf0940	en-US	.	,	409	1900	number	61	hh:mm:ss.000
+nf0941	en-US	.	,	409	1900	number	61	[h]:mm
+nf0942	en-US	.	,	409	1900	number	61	[mm]:ss
+nf0943	en-US	.	,	409	1900	number	61	yyyy-mm-dd hh:mm:ss
+nf0944	en-US	.	,	409	1900	number	61	d mmmm
+nf0945	en-US	.	,	409	1900	number	61	General
+nf0946	en-US	.	,	409	1900	number	61	0.00
+nf0947	en-GB	.	,	809	1900	number	45322	yyyy-mm-dd
+nf0948	en-GB	.	,	809	1900	number	45322	d/m/yyyy
+nf0949	en-GB	.	,	809	1900	number	45322	dd-mmm-yy
+nf0950	en-GB	.	,	809	1900	number	45322	dddd d mmmm yyyy
+nf0951	en-GB	.	,	809	1900	number	45322	mmm yy
+nf0952	en-GB	.	,	809	1900	number	45322	mmmmm
+nf0953	en-GB	.	,	809	1900	number	45322	ddd
+nf0954	en-GB	.	,	809	1900	number	45322	h:mm:ss
+nf0955	en-GB	.	,	809	1900	number	45322	h:mm AM/PM
+nf0956	en-GB	.	,	809	1900	number	45322	hh:mm:ss.000
+nf0957	en-GB	.	,	809	1900	number	45322	[h]:mm
+nf0958	en-GB	.	,	809	1900	number	45322	[mm]:ss
+nf0959	en-GB	.	,	809	1900	number	45322	yyyy-mm-dd hh:mm:ss
+nf0960	en-GB	.	,	809	1900	number	45322	d mmmm
+nf0961	en-GB	.	,	809	1900	number	45322	General
+nf0962	en-GB	.	,	809	1900	number	45322	0.00
+nf0963	en-GB	.	,	809	1900	number	45322.75	yyyy-mm-dd
+nf0964	en-GB	.	,	809	1900	number	45322.75	d/m/yyyy
+nf0965	en-GB	.	,	809	1900	number	45322.75	dd-mmm-yy
+nf0966	en-GB	.	,	809	1900	number	45322.75	dddd d mmmm yyyy
+nf0967	en-GB	.	,	809	1900	number	45322.75	mmm yy
+nf0968	en-GB	.	,	809	1900	number	45322.75	mmmmm
+nf0969	en-GB	.	,	809	1900	number	45322.75	ddd
+nf0970	en-GB	.	,	809	1900	number	45322.75	h:mm:ss
+nf0971	en-GB	.	,	809	1900	number	45322.75	h:mm AM/PM
+nf0972	en-GB	.	,	809	1900	number	45322.75	hh:mm:ss.000
+nf0973	en-GB	.	,	809	1900	number	45322.75	[h]:mm
+nf0974	en-GB	.	,	809	1900	number	45322.75	[mm]:ss
+nf0975	en-GB	.	,	809	1900	number	45322.75	yyyy-mm-dd hh:mm:ss
+nf0976	en-GB	.	,	809	1900	number	45322.75	d mmmm
+nf0977	en-GB	.	,	809	1900	number	45322.75	General
+nf0978	en-GB	.	,	809	1900	number	45322.75	0.00
+nf0979	en-GB	.	,	809	1900	number	0.5	yyyy-mm-dd
+nf0980	en-GB	.	,	809	1900	number	0.5	d/m/yyyy
+nf0981	en-GB	.	,	809	1900	number	0.5	dd-mmm-yy
+nf0982	en-GB	.	,	809	1900	number	0.5	dddd d mmmm yyyy
+nf0983	en-GB	.	,	809	1900	number	0.5	mmm yy
+nf0984	en-GB	.	,	809	1900	number	0.5	mmmmm
+nf0985	en-GB	.	,	809	1900	number	0.5	ddd
+nf0986	en-GB	.	,	809	1900	number	0.5	h:mm:ss
+nf0987	en-GB	.	,	809	1900	number	0.5	h:mm AM/PM
+nf0988	en-GB	.	,	809	1900	number	0.5	hh:mm:ss.000
+nf0989	en-GB	.	,	809	1900	number	0.5	[h]:mm
+nf0990	en-GB	.	,	809	1900	number	0.5	[mm]:ss
+nf0991	en-GB	.	,	809	1900	number	0.5	yyyy-mm-dd hh:mm:ss
+nf0992	en-GB	.	,	809	1900	number	0.5	d mmmm
+nf0993	en-GB	.	,	809	1900	number	0.5	General
+nf0994	en-GB	.	,	809	1900	number	0.5	0.00
+nf0995	en-GB	.	,	809	1900	number	36526.999988426	yyyy-mm-dd
+nf0996	en-GB	.	,	809	1900	number	36526.999988426	d/m/yyyy
+nf0997	en-GB	.	,	809	1900	number	36526.999988426	dd-mmm-yy
+nf0998	en-GB	.	,	809	1900	number	36526.999988426	dddd d mmmm yyyy
+nf0999	en-GB	.	,	809	1900	number	36526.999988426	mmm yy
+nf1000	en-GB	.	,	809	1900	number	36526.999988426	mmmmm
+nf1001	en-GB	.	,	809	1900	number	36526.999988426	ddd
+nf1002	en-GB	.	,	809	1900	number	36526.999988426	h:mm:ss
+nf1003	en-GB	.	,	809	1900	number	36526.999988426	h:mm AM/PM
+nf1004	en-GB	.	,	809	1900	number	36526.999988426	hh:mm:ss.000
+nf1005	en-GB	.	,	809	1900	number	36526.999988426	[h]:mm
+nf1006	en-GB	.	,	809	1900	number	36526.999988426	[mm]:ss
+nf1007	en-GB	.	,	809	1900	number	36526.999988426	yyyy-mm-dd hh:mm:ss
+nf1008	en-GB	.	,	809	1900	number	36526.999988426	d mmmm
+nf1009	en-GB	.	,	809	1900	number	36526.999988426	General
+nf1010	en-GB	.	,	809	1900	number	36526.999988426	0.00
+nf1011	en-GB	.	,	809	1900	number	59.5	yyyy-mm-dd
+nf1012	en-GB	.	,	809	1900	number	59.5	d/m/yyyy
+nf1013	en-GB	.	,	809	1900	number	59.5	dd-mmm-yy
+nf1014	en-GB	.	,	809	1900	number	59.5	dddd d mmmm yyyy
+nf1015	en-GB	.	,	809	1900	number	59.5	mmm yy
+nf1016	en-GB	.	,	809	1900	number	59.5	mmmmm
+nf1017	en-GB	.	,	809	1900	number	59.5	ddd
+nf1018	en-GB	.	,	809	1900	number	59.5	h:mm:ss
+nf1019	en-GB	.	,	809	1900	number	59.5	h:mm AM/PM
+nf1020	en-GB	.	,	809	1900	number	59.5	hh:mm:ss.000
+nf1021	en-GB	.	,	809	1900	number	59.5	[h]:mm
+nf1022	en-GB	.	,	809	1900	number	59.5	[mm]:ss
+nf1023	en-GB	.	,	809	1900	number	59.5	yyyy-mm-dd hh:mm:ss
+nf1024	en-GB	.	,	809	1900	number	59.5	d mmmm
+nf1025	en-GB	.	,	809	1900	number	59.5	General
+nf1026	en-GB	.	,	809	1900	number	59.5	0.00
+nf1027	en-GB	.	,	809	1900	number	61	yyyy-mm-dd
+nf1028	en-GB	.	,	809	1900	number	61	d/m/yyyy
+nf1029	en-GB	.	,	809	1900	number	61	dd-mmm-yy
+nf1030	en-GB	.	,	809	1900	number	61	dddd d mmmm yyyy
+nf1031	en-GB	.	,	809	1900	number	61	mmm yy
+nf1032	en-GB	.	,	809	1900	number	61	mmmmm
+nf1033	en-GB	.	,	809	1900	number	61	ddd
+nf1034	en-GB	.	,	809	1900	number	61	h:mm:ss
+nf1035	en-GB	.	,	809	1900	number	61	h:mm AM/PM
+nf1036	en-GB	.	,	809	1900	number	61	hh:mm:ss.000
+nf1037	en-GB	.	,	809	1900	number	61	[h]:mm
+nf1038	en-GB	.	,	809	1900	number	61	[mm]:ss
+nf1039	en-GB	.	,	809	1900	number	61	yyyy-mm-dd hh:mm:ss
+nf1040	en-GB	.	,	809	1900	number	61	d mmmm
+nf1041	en-GB	.	,	809	1900	number	61	General
+nf1042	en-GB	.	,	809	1900	number	61	0.00
+nf1043	en-ZA	,	U+00A0	1C09	1900	number	45322	yyyy-mm-dd
+nf1044	en-ZA	,	U+00A0	1C09	1900	number	45322	d/m/yyyy
+nf1045	en-ZA	,	U+00A0	1C09	1900	number	45322	dd-mmm-yy
+nf1046	en-ZA	,	U+00A0	1C09	1900	number	45322	dddd d mmmm yyyy
+nf1047	en-ZA	,	U+00A0	1C09	1900	number	45322	mmm yy
+nf1048	en-ZA	,	U+00A0	1C09	1900	number	45322	mmmmm
+nf1049	en-ZA	,	U+00A0	1C09	1900	number	45322	ddd
+nf1050	en-ZA	,	U+00A0	1C09	1900	number	45322	h:mm:ss
+nf1051	en-ZA	,	U+00A0	1C09	1900	number	45322	h:mm AM/PM
+nf1052	en-ZA	,	U+00A0	1C09	1900	number	45322	hh:mm:ss,000
+nf1053	en-ZA	,	U+00A0	1C09	1900	number	45322	[h]:mm
+nf1054	en-ZA	,	U+00A0	1C09	1900	number	45322	[mm]:ss
+nf1055	en-ZA	,	U+00A0	1C09	1900	number	45322	yyyy-mm-dd hh:mm:ss
+nf1056	en-ZA	,	U+00A0	1C09	1900	number	45322	d mmmm
+nf1057	en-ZA	,	U+00A0	1C09	1900	number	45322	General
+nf1058	en-ZA	,	U+00A0	1C09	1900	number	45322	0,00
+nf1059	en-ZA	,	U+00A0	1C09	1900	number	45322.75	yyyy-mm-dd
+nf1060	en-ZA	,	U+00A0	1C09	1900	number	45322.75	d/m/yyyy
+nf1061	en-ZA	,	U+00A0	1C09	1900	number	45322.75	dd-mmm-yy
+nf1062	en-ZA	,	U+00A0	1C09	1900	number	45322.75	dddd d mmmm yyyy
+nf1063	en-ZA	,	U+00A0	1C09	1900	number	45322.75	mmm yy
+nf1064	en-ZA	,	U+00A0	1C09	1900	number	45322.75	mmmmm
+nf1065	en-ZA	,	U+00A0	1C09	1900	number	45322.75	ddd
+nf1066	en-ZA	,	U+00A0	1C09	1900	number	45322.75	h:mm:ss
+nf1067	en-ZA	,	U+00A0	1C09	1900	number	45322.75	h:mm AM/PM
+nf1068	en-ZA	,	U+00A0	1C09	1900	number	45322.75	hh:mm:ss,000
+nf1069	en-ZA	,	U+00A0	1C09	1900	number	45322.75	[h]:mm
+nf1070	en-ZA	,	U+00A0	1C09	1900	number	45322.75	[mm]:ss
+nf1071	en-ZA	,	U+00A0	1C09	1900	number	45322.75	yyyy-mm-dd hh:mm:ss
+nf1072	en-ZA	,	U+00A0	1C09	1900	number	45322.75	d mmmm
+nf1073	en-ZA	,	U+00A0	1C09	1900	number	45322.75	General
+nf1074	en-ZA	,	U+00A0	1C09	1900	number	45322.75	0,00
+nf1075	en-ZA	,	U+00A0	1C09	1900	number	0.5	yyyy-mm-dd
+nf1076	en-ZA	,	U+00A0	1C09	1900	number	0.5	d/m/yyyy
+nf1077	en-ZA	,	U+00A0	1C09	1900	number	0.5	dd-mmm-yy
+nf1078	en-ZA	,	U+00A0	1C09	1900	number	0.5	dddd d mmmm yyyy
+nf1079	en-ZA	,	U+00A0	1C09	1900	number	0.5	mmm yy
+nf1080	en-ZA	,	U+00A0	1C09	1900	number	0.5	mmmmm
+nf1081	en-ZA	,	U+00A0	1C09	1900	number	0.5	ddd
+nf1082	en-ZA	,	U+00A0	1C09	1900	number	0.5	h:mm:ss
+nf1083	en-ZA	,	U+00A0	1C09	1900	number	0.5	h:mm AM/PM
+nf1084	en-ZA	,	U+00A0	1C09	1900	number	0.5	hh:mm:ss,000
+nf1085	en-ZA	,	U+00A0	1C09	1900	number	0.5	[h]:mm
+nf1086	en-ZA	,	U+00A0	1C09	1900	number	0.5	[mm]:ss
+nf1087	en-ZA	,	U+00A0	1C09	1900	number	0.5	yyyy-mm-dd hh:mm:ss
+nf1088	en-ZA	,	U+00A0	1C09	1900	number	0.5	d mmmm
+nf1089	en-ZA	,	U+00A0	1C09	1900	number	0.5	General
+nf1090	en-ZA	,	U+00A0	1C09	1900	number	0.5	0,00
+nf1091	en-ZA	,	U+00A0	1C09	1900	number	36526.999988426	yyyy-mm-dd
+nf1092	en-ZA	,	U+00A0	1C09	1900	number	36526.999988426	d/m/yyyy
+nf1093	en-ZA	,	U+00A0	1C09	1900	number	36526.999988426	dd-mmm-yy
+nf1094	en-ZA	,	U+00A0	1C09	1900	number	36526.999988426	dddd d mmmm yyyy
+nf1095	en-ZA	,	U+00A0	1C09	1900	number	36526.999988426	mmm yy
+nf1096	en-ZA	,	U+00A0	1C09	1900	number	36526.999988426	mmmmm
+nf1097	en-ZA	,	U+00A0	1C09	1900	number	36526.999988426	ddd
+nf1098	en-ZA	,	U+00A0	1C09	1900	number	36526.999988426	h:mm:ss
+nf1099	en-ZA	,	U+00A0	1C09	1900	number	36526.999988426	h:mm AM/PM
+nf1100	en-ZA	,	U+00A0	1C09	1900	number	36526.999988426	hh:mm:ss,000
+nf1101	en-ZA	,	U+00A0	1C09	1900	number	36526.999988426	[h]:mm
+nf1102	en-ZA	,	U+00A0	1C09	1900	number	36526.999988426	[mm]:ss
+nf1103	en-ZA	,	U+00A0	1C09	1900	number	36526.999988426	yyyy-mm-dd hh:mm:ss
+nf1104	en-ZA	,	U+00A0	1C09	1900	number	36526.999988426	d mmmm
+nf1105	en-ZA	,	U+00A0	1C09	1900	number	36526.999988426	General
+nf1106	en-ZA	,	U+00A0	1C09	1900	number	36526.999988426	0,00
+nf1107	en-ZA	,	U+00A0	1C09	1900	number	59.5	yyyy-mm-dd
+nf1108	en-ZA	,	U+00A0	1C09	1900	number	59.5	d/m/yyyy
+nf1109	en-ZA	,	U+00A0	1C09	1900	number	59.5	dd-mmm-yy
+nf1110	en-ZA	,	U+00A0	1C09	1900	number	59.5	dddd d mmmm yyyy
+nf1111	en-ZA	,	U+00A0	1C09	1900	number	59.5	mmm yy
+nf1112	en-ZA	,	U+00A0	1C09	1900	number	59.5	mmmmm
+nf1113	en-ZA	,	U+00A0	1C09	1900	number	59.5	ddd
+nf1114	en-ZA	,	U+00A0	1C09	1900	number	59.5	h:mm:ss
+nf1115	en-ZA	,	U+00A0	1C09	1900	number	59.5	h:mm AM/PM
+nf1116	en-ZA	,	U+00A0	1C09	1900	number	59.5	hh:mm:ss,000
+nf1117	en-ZA	,	U+00A0	1C09	1900	number	59.5	[h]:mm
+nf1118	en-ZA	,	U+00A0	1C09	1900	number	59.5	[mm]:ss
+nf1119	en-ZA	,	U+00A0	1C09	1900	number	59.5	yyyy-mm-dd hh:mm:ss
+nf1120	en-ZA	,	U+00A0	1C09	1900	number	59.5	d mmmm
+nf1121	en-ZA	,	U+00A0	1C09	1900	number	59.5	General
+nf1122	en-ZA	,	U+00A0	1C09	1900	number	59.5	0,00
+nf1123	en-ZA	,	U+00A0	1C09	1900	number	61	yyyy-mm-dd
+nf1124	en-ZA	,	U+00A0	1C09	1900	number	61	d/m/yyyy
+nf1125	en-ZA	,	U+00A0	1C09	1900	number	61	dd-mmm-yy
+nf1126	en-ZA	,	U+00A0	1C09	1900	number	61	dddd d mmmm yyyy
+nf1127	en-ZA	,	U+00A0	1C09	1900	number	61	mmm yy
+nf1128	en-ZA	,	U+00A0	1C09	1900	number	61	mmmmm
+nf1129	en-ZA	,	U+00A0	1C09	1900	number	61	ddd
+nf1130	en-ZA	,	U+00A0	1C09	1900	number	61	h:mm:ss
+nf1131	en-ZA	,	U+00A0	1C09	1900	number	61	h:mm AM/PM
+nf1132	en-ZA	,	U+00A0	1C09	1900	number	61	hh:mm:ss,000
+nf1133	en-ZA	,	U+00A0	1C09	1900	number	61	[h]:mm
+nf1134	en-ZA	,	U+00A0	1C09	1900	number	61	[mm]:ss
+nf1135	en-ZA	,	U+00A0	1C09	1900	number	61	yyyy-mm-dd hh:mm:ss
+nf1136	en-ZA	,	U+00A0	1C09	1900	number	61	d mmmm
+nf1137	en-ZA	,	U+00A0	1C09	1900	number	61	General
+nf1138	en-ZA	,	U+00A0	1C09	1900	number	61	0,00
+nf1139	de-DE	,	.	407	1900	number	45322	yyyy-mm-dd
+nf1140	de-DE	,	.	407	1900	number	45322	d/m/yyyy
+nf1141	de-DE	,	.	407	1900	number	45322	dd-mmm-yy
+nf1142	de-DE	,	.	407	1900	number	45322	dddd d mmmm yyyy
+nf1143	de-DE	,	.	407	1900	number	45322	mmm yy
+nf1144	de-DE	,	.	407	1900	number	45322	mmmmm
+nf1145	de-DE	,	.	407	1900	number	45322	ddd
+nf1146	de-DE	,	.	407	1900	number	45322	h:mm:ss
+nf1147	de-DE	,	.	407	1900	number	45322	h:mm AM/PM
+nf1148	de-DE	,	.	407	1900	number	45322	hh:mm:ss,000
+nf1149	de-DE	,	.	407	1900	number	45322	[h]:mm
+nf1150	de-DE	,	.	407	1900	number	45322	[mm]:ss
+nf1151	de-DE	,	.	407	1900	number	45322	yyyy-mm-dd hh:mm:ss
+nf1152	de-DE	,	.	407	1900	number	45322	d mmmm
+nf1153	de-DE	,	.	407	1900	number	45322	General
+nf1154	de-DE	,	.	407	1900	number	45322	0,00
+nf1155	de-DE	,	.	407	1900	number	45322.75	yyyy-mm-dd
+nf1156	de-DE	,	.	407	1900	number	45322.75	d/m/yyyy
+nf1157	de-DE	,	.	407	1900	number	45322.75	dd-mmm-yy
+nf1158	de-DE	,	.	407	1900	number	45322.75	dddd d mmmm yyyy
+nf1159	de-DE	,	.	407	1900	number	45322.75	mmm yy
+nf1160	de-DE	,	.	407	1900	number	45322.75	mmmmm
+nf1161	de-DE	,	.	407	1900	number	45322.75	ddd
+nf1162	de-DE	,	.	407	1900	number	45322.75	h:mm:ss
+nf1163	de-DE	,	.	407	1900	number	45322.75	h:mm AM/PM
+nf1164	de-DE	,	.	407	1900	number	45322.75	hh:mm:ss,000
+nf1165	de-DE	,	.	407	1900	number	45322.75	[h]:mm
+nf1166	de-DE	,	.	407	1900	number	45322.75	[mm]:ss
+nf1167	de-DE	,	.	407	1900	number	45322.75	yyyy-mm-dd hh:mm:ss
+nf1168	de-DE	,	.	407	1900	number	45322.75	d mmmm
+nf1169	de-DE	,	.	407	1900	number	45322.75	General
+nf1170	de-DE	,	.	407	1900	number	45322.75	0,00
+nf1171	de-DE	,	.	407	1900	number	0.5	yyyy-mm-dd
+nf1172	de-DE	,	.	407	1900	number	0.5	d/m/yyyy
+nf1173	de-DE	,	.	407	1900	number	0.5	dd-mmm-yy
+nf1174	de-DE	,	.	407	1900	number	0.5	dddd d mmmm yyyy
+nf1175	de-DE	,	.	407	1900	number	0.5	mmm yy
+nf1176	de-DE	,	.	407	1900	number	0.5	mmmmm
+nf1177	de-DE	,	.	407	1900	number	0.5	ddd
+nf1178	de-DE	,	.	407	1900	number	0.5	h:mm:ss
+nf1179	de-DE	,	.	407	1900	number	0.5	h:mm AM/PM
+nf1180	de-DE	,	.	407	1900	number	0.5	hh:mm:ss,000
+nf1181	de-DE	,	.	407	1900	number	0.5	[h]:mm
+nf1182	de-DE	,	.	407	1900	number	0.5	[mm]:ss
+nf1183	de-DE	,	.	407	1900	number	0.5	yyyy-mm-dd hh:mm:ss
+nf1184	de-DE	,	.	407	1900	number	0.5	d mmmm
+nf1185	de-DE	,	.	407	1900	number	0.5	General
+nf1186	de-DE	,	.	407	1900	number	0.5	0,00
+nf1187	de-DE	,	.	407	1900	number	36526.999988426	yyyy-mm-dd
+nf1188	de-DE	,	.	407	1900	number	36526.999988426	d/m/yyyy
+nf1189	de-DE	,	.	407	1900	number	36526.999988426	dd-mmm-yy
+nf1190	de-DE	,	.	407	1900	number	36526.999988426	dddd d mmmm yyyy
+nf1191	de-DE	,	.	407	1900	number	36526.999988426	mmm yy
+nf1192	de-DE	,	.	407	1900	number	36526.999988426	mmmmm
+nf1193	de-DE	,	.	407	1900	number	36526.999988426	ddd
+nf1194	de-DE	,	.	407	1900	number	36526.999988426	h:mm:ss
+nf1195	de-DE	,	.	407	1900	number	36526.999988426	h:mm AM/PM
+nf1196	de-DE	,	.	407	1900	number	36526.999988426	hh:mm:ss,000
+nf1197	de-DE	,	.	407	1900	number	36526.999988426	[h]:mm
+nf1198	de-DE	,	.	407	1900	number	36526.999988426	[mm]:ss
+nf1199	de-DE	,	.	407	1900	number	36526.999988426	yyyy-mm-dd hh:mm:ss
+nf1200	de-DE	,	.	407	1900	number	36526.999988426	d mmmm
+nf1201	de-DE	,	.	407	1900	number	36526.999988426	General
+nf1202	de-DE	,	.	407	1900	number	36526.999988426	0,00
+nf1203	de-DE	,	.	407	1900	number	59.5	yyyy-mm-dd
+nf1204	de-DE	,	.	407	1900	number	59.5	d/m/yyyy
+nf1205	de-DE	,	.	407	1900	number	59.5	dd-mmm-yy
+nf1206	de-DE	,	.	407	1900	number	59.5	dddd d mmmm yyyy
+nf1207	de-DE	,	.	407	1900	number	59.5	mmm yy
+nf1208	de-DE	,	.	407	1900	number	59.5	mmmmm
+nf1209	de-DE	,	.	407	1900	number	59.5	ddd
+nf1210	de-DE	,	.	407	1900	number	59.5	h:mm:ss
+nf1211	de-DE	,	.	407	1900	number	59.5	h:mm AM/PM
+nf1212	de-DE	,	.	407	1900	number	59.5	hh:mm:ss,000
+nf1213	de-DE	,	.	407	1900	number	59.5	[h]:mm
+nf1214	de-DE	,	.	407	1900	number	59.5	[mm]:ss
+nf1215	de-DE	,	.	407	1900	number	59.5	yyyy-mm-dd hh:mm:ss
+nf1216	de-DE	,	.	407	1900	number	59.5	d mmmm
+nf1217	de-DE	,	.	407	1900	number	59.5	General
+nf1218	de-DE	,	.	407	1900	number	59.5	0,00
+nf1219	de-DE	,	.	407	1900	number	61	yyyy-mm-dd
+nf1220	de-DE	,	.	407	1900	number	61	d/m/yyyy
+nf1221	de-DE	,	.	407	1900	number	61	dd-mmm-yy
+nf1222	de-DE	,	.	407	1900	number	61	dddd d mmmm yyyy
+nf1223	de-DE	,	.	407	1900	number	61	mmm yy
+nf1224	de-DE	,	.	407	1900	number	61	mmmmm
+nf1225	de-DE	,	.	407	1900	number	61	ddd
+nf1226	de-DE	,	.	407	1900	number	61	h:mm:ss
+nf1227	de-DE	,	.	407	1900	number	61	h:mm AM/PM
+nf1228	de-DE	,	.	407	1900	number	61	hh:mm:ss,000
+nf1229	de-DE	,	.	407	1900	number	61	[h]:mm
+nf1230	de-DE	,	.	407	1900	number	61	[mm]:ss
+nf1231	de-DE	,	.	407	1900	number	61	yyyy-mm-dd hh:mm:ss
+nf1232	de-DE	,	.	407	1900	number	61	d mmmm
+nf1233	de-DE	,	.	407	1900	number	61	General
+nf1234	de-DE	,	.	407	1900	number	61	0,00
+nf1235	fr-FR	,	U+202F	40C	1900	number	45322	yyyy-mm-dd
+nf1236	fr-FR	,	U+202F	40C	1900	number	45322	d/m/yyyy
+nf1237	fr-FR	,	U+202F	40C	1900	number	45322	dd-mmm-yy
+nf1238	fr-FR	,	U+202F	40C	1900	number	45322	dddd d mmmm yyyy
+nf1239	fr-FR	,	U+202F	40C	1900	number	45322	mmm yy
+nf1240	fr-FR	,	U+202F	40C	1900	number	45322	mmmmm
+nf1241	fr-FR	,	U+202F	40C	1900	number	45322	ddd
+nf1242	fr-FR	,	U+202F	40C	1900	number	45322	h:mm:ss
+nf1243	fr-FR	,	U+202F	40C	1900	number	45322	h:mm AM/PM
+nf1244	fr-FR	,	U+202F	40C	1900	number	45322	hh:mm:ss,000
+nf1245	fr-FR	,	U+202F	40C	1900	number	45322	[h]:mm
+nf1246	fr-FR	,	U+202F	40C	1900	number	45322	[mm]:ss
+nf1247	fr-FR	,	U+202F	40C	1900	number	45322	yyyy-mm-dd hh:mm:ss
+nf1248	fr-FR	,	U+202F	40C	1900	number	45322	d mmmm
+nf1249	fr-FR	,	U+202F	40C	1900	number	45322	General
+nf1250	fr-FR	,	U+202F	40C	1900	number	45322	0,00
+nf1251	fr-FR	,	U+202F	40C	1900	number	45322.75	yyyy-mm-dd
+nf1252	fr-FR	,	U+202F	40C	1900	number	45322.75	d/m/yyyy
+nf1253	fr-FR	,	U+202F	40C	1900	number	45322.75	dd-mmm-yy
+nf1254	fr-FR	,	U+202F	40C	1900	number	45322.75	dddd d mmmm yyyy
+nf1255	fr-FR	,	U+202F	40C	1900	number	45322.75	mmm yy
+nf1256	fr-FR	,	U+202F	40C	1900	number	45322.75	mmmmm
+nf1257	fr-FR	,	U+202F	40C	1900	number	45322.75	ddd
+nf1258	fr-FR	,	U+202F	40C	1900	number	45322.75	h:mm:ss
+nf1259	fr-FR	,	U+202F	40C	1900	number	45322.75	h:mm AM/PM
+nf1260	fr-FR	,	U+202F	40C	1900	number	45322.75	hh:mm:ss,000
+nf1261	fr-FR	,	U+202F	40C	1900	number	45322.75	[h]:mm
+nf1262	fr-FR	,	U+202F	40C	1900	number	45322.75	[mm]:ss
+nf1263	fr-FR	,	U+202F	40C	1900	number	45322.75	yyyy-mm-dd hh:mm:ss
+nf1264	fr-FR	,	U+202F	40C	1900	number	45322.75	d mmmm
+nf1265	fr-FR	,	U+202F	40C	1900	number	45322.75	General
+nf1266	fr-FR	,	U+202F	40C	1900	number	45322.75	0,00
+nf1267	fr-FR	,	U+202F	40C	1900	number	0.5	yyyy-mm-dd
+nf1268	fr-FR	,	U+202F	40C	1900	number	0.5	d/m/yyyy
+nf1269	fr-FR	,	U+202F	40C	1900	number	0.5	dd-mmm-yy
+nf1270	fr-FR	,	U+202F	40C	1900	number	0.5	dddd d mmmm yyyy
+nf1271	fr-FR	,	U+202F	40C	1900	number	0.5	mmm yy
+nf1272	fr-FR	,	U+202F	40C	1900	number	0.5	mmmmm
+nf1273	fr-FR	,	U+202F	40C	1900	number	0.5	ddd
+nf1274	fr-FR	,	U+202F	40C	1900	number	0.5	h:mm:ss
+nf1275	fr-FR	,	U+202F	40C	1900	number	0.5	h:mm AM/PM
+nf1276	fr-FR	,	U+202F	40C	1900	number	0.5	hh:mm:ss,000
+nf1277	fr-FR	,	U+202F	40C	1900	number	0.5	[h]:mm
+nf1278	fr-FR	,	U+202F	40C	1900	number	0.5	[mm]:ss
+nf1279	fr-FR	,	U+202F	40C	1900	number	0.5	yyyy-mm-dd hh:mm:ss
+nf1280	fr-FR	,	U+202F	40C	1900	number	0.5	d mmmm
+nf1281	fr-FR	,	U+202F	40C	1900	number	0.5	General
+nf1282	fr-FR	,	U+202F	40C	1900	number	0.5	0,00
+nf1283	fr-FR	,	U+202F	40C	1900	number	36526.999988426	yyyy-mm-dd
+nf1284	fr-FR	,	U+202F	40C	1900	number	36526.999988426	d/m/yyyy
+nf1285	fr-FR	,	U+202F	40C	1900	number	36526.999988426	dd-mmm-yy
+nf1286	fr-FR	,	U+202F	40C	1900	number	36526.999988426	dddd d mmmm yyyy
+nf1287	fr-FR	,	U+202F	40C	1900	number	36526.999988426	mmm yy
+nf1288	fr-FR	,	U+202F	40C	1900	number	36526.999988426	mmmmm
+nf1289	fr-FR	,	U+202F	40C	1900	number	36526.999988426	ddd
+nf1290	fr-FR	,	U+202F	40C	1900	number	36526.999988426	h:mm:ss
+nf1291	fr-FR	,	U+202F	40C	1900	number	36526.999988426	h:mm AM/PM
+nf1292	fr-FR	,	U+202F	40C	1900	number	36526.999988426	hh:mm:ss,000
+nf1293	fr-FR	,	U+202F	40C	1900	number	36526.999988426	[h]:mm
+nf1294	fr-FR	,	U+202F	40C	1900	number	36526.999988426	[mm]:ss
+nf1295	fr-FR	,	U+202F	40C	1900	number	36526.999988426	yyyy-mm-dd hh:mm:ss
+nf1296	fr-FR	,	U+202F	40C	1900	number	36526.999988426	d mmmm
+nf1297	fr-FR	,	U+202F	40C	1900	number	36526.999988426	General
+nf1298	fr-FR	,	U+202F	40C	1900	number	36526.999988426	0,00
+nf1299	fr-FR	,	U+202F	40C	1900	number	59.5	yyyy-mm-dd
+nf1300	fr-FR	,	U+202F	40C	1900	number	59.5	d/m/yyyy
+nf1301	fr-FR	,	U+202F	40C	1900	number	59.5	dd-mmm-yy
+nf1302	fr-FR	,	U+202F	40C	1900	number	59.5	dddd d mmmm yyyy
+nf1303	fr-FR	,	U+202F	40C	1900	number	59.5	mmm yy
+nf1304	fr-FR	,	U+202F	40C	1900	number	59.5	mmmmm
+nf1305	fr-FR	,	U+202F	40C	1900	number	59.5	ddd
+nf1306	fr-FR	,	U+202F	40C	1900	number	59.5	h:mm:ss
+nf1307	fr-FR	,	U+202F	40C	1900	number	59.5	h:mm AM/PM
+nf1308	fr-FR	,	U+202F	40C	1900	number	59.5	hh:mm:ss,000
+nf1309	fr-FR	,	U+202F	40C	1900	number	59.5	[h]:mm
+nf1310	fr-FR	,	U+202F	40C	1900	number	59.5	[mm]:ss
+nf1311	fr-FR	,	U+202F	40C	1900	number	59.5	yyyy-mm-dd hh:mm:ss
+nf1312	fr-FR	,	U+202F	40C	1900	number	59.5	d mmmm
+nf1313	fr-FR	,	U+202F	40C	1900	number	59.5	General
+nf1314	fr-FR	,	U+202F	40C	1900	number	59.5	0,00
+nf1315	fr-FR	,	U+202F	40C	1900	number	61	yyyy-mm-dd
+nf1316	fr-FR	,	U+202F	40C	1900	number	61	d/m/yyyy
+nf1317	fr-FR	,	U+202F	40C	1900	number	61	dd-mmm-yy
+nf1318	fr-FR	,	U+202F	40C	1900	number	61	dddd d mmmm yyyy
+nf1319	fr-FR	,	U+202F	40C	1900	number	61	mmm yy
+nf1320	fr-FR	,	U+202F	40C	1900	number	61	mmmmm
+nf1321	fr-FR	,	U+202F	40C	1900	number	61	ddd
+nf1322	fr-FR	,	U+202F	40C	1900	number	61	h:mm:ss
+nf1323	fr-FR	,	U+202F	40C	1900	number	61	h:mm AM/PM
+nf1324	fr-FR	,	U+202F	40C	1900	number	61	hh:mm:ss,000
+nf1325	fr-FR	,	U+202F	40C	1900	number	61	[h]:mm
+nf1326	fr-FR	,	U+202F	40C	1900	number	61	[mm]:ss
+nf1327	fr-FR	,	U+202F	40C	1900	number	61	yyyy-mm-dd hh:mm:ss
+nf1328	fr-FR	,	U+202F	40C	1900	number	61	d mmmm
+nf1329	fr-FR	,	U+202F	40C	1900	number	61	General
+nf1330	fr-FR	,	U+202F	40C	1900	number	61	0,00
+nf1331	en-US	.	,	409	1904	number	45322	yyyy-mm-dd
+nf1332	en-US	.	,	409	1904	number	45322	d/m/yyyy
+nf1333	en-US	.	,	409	1904	number	45322	dd-mmm-yy
+nf1334	en-US	.	,	409	1904	number	45322	dddd d mmmm yyyy
+nf1335	en-US	.	,	409	1904	number	45322	mmm yy
+nf1336	en-US	.	,	409	1904	number	45322	mmmmm
+nf1337	en-US	.	,	409	1904	number	45322	ddd
+nf1338	en-US	.	,	409	1904	number	45322	h:mm:ss
+nf1339	en-US	.	,	409	1904	number	45322	h:mm AM/PM
+nf1340	en-US	.	,	409	1904	number	45322	hh:mm:ss.000
+nf1341	en-US	.	,	409	1904	number	45322	[h]:mm
+nf1342	en-US	.	,	409	1904	number	45322	[mm]:ss
+nf1343	en-US	.	,	409	1904	number	45322	yyyy-mm-dd hh:mm:ss
+nf1344	en-US	.	,	409	1904	number	45322	d mmmm
+nf1345	en-US	.	,	409	1904	number	45322	General
+nf1346	en-US	.	,	409	1904	number	45322	0.00
+nf1347	en-US	.	,	409	1904	number	45322.75	yyyy-mm-dd
+nf1348	en-US	.	,	409	1904	number	45322.75	d/m/yyyy
+nf1349	en-US	.	,	409	1904	number	45322.75	dd-mmm-yy
+nf1350	en-US	.	,	409	1904	number	45322.75	dddd d mmmm yyyy
+nf1351	en-US	.	,	409	1904	number	45322.75	mmm yy
+nf1352	en-US	.	,	409	1904	number	45322.75	mmmmm
+nf1353	en-US	.	,	409	1904	number	45322.75	ddd
+nf1354	en-US	.	,	409	1904	number	45322.75	h:mm:ss
+nf1355	en-US	.	,	409	1904	number	45322.75	h:mm AM/PM
+nf1356	en-US	.	,	409	1904	number	45322.75	hh:mm:ss.000
+nf1357	en-US	.	,	409	1904	number	45322.75	[h]:mm
+nf1358	en-US	.	,	409	1904	number	45322.75	[mm]:ss
+nf1359	en-US	.	,	409	1904	number	45322.75	yyyy-mm-dd hh:mm:ss
+nf1360	en-US	.	,	409	1904	number	45322.75	d mmmm
+nf1361	en-US	.	,	409	1904	number	45322.75	General
+nf1362	en-US	.	,	409	1904	number	45322.75	0.00
+nf1363	en-US	.	,	409	1904	number	0.5	yyyy-mm-dd
+nf1364	en-US	.	,	409	1904	number	0.5	d/m/yyyy
+nf1365	en-US	.	,	409	1904	number	0.5	dd-mmm-yy
+nf1366	en-US	.	,	409	1904	number	0.5	dddd d mmmm yyyy
+nf1367	en-US	.	,	409	1904	number	0.5	mmm yy
+nf1368	en-US	.	,	409	1904	number	0.5	mmmmm
+nf1369	en-US	.	,	409	1904	number	0.5	ddd
+nf1370	en-US	.	,	409	1904	number	0.5	h:mm:ss
+nf1371	en-US	.	,	409	1904	number	0.5	h:mm AM/PM
+nf1372	en-US	.	,	409	1904	number	0.5	hh:mm:ss.000
+nf1373	en-US	.	,	409	1904	number	0.5	[h]:mm
+nf1374	en-US	.	,	409	1904	number	0.5	[mm]:ss
+nf1375	en-US	.	,	409	1904	number	0.5	yyyy-mm-dd hh:mm:ss
+nf1376	en-US	.	,	409	1904	number	0.5	d mmmm
+nf1377	en-US	.	,	409	1904	number	0.5	General
+nf1378	en-US	.	,	409	1904	number	0.5	0.00
+nf1379	en-US	.	,	409	1904	number	36526.999988426	yyyy-mm-dd
+nf1380	en-US	.	,	409	1904	number	36526.999988426	d/m/yyyy
+nf1381	en-US	.	,	409	1904	number	36526.999988426	dd-mmm-yy
+nf1382	en-US	.	,	409	1904	number	36526.999988426	dddd d mmmm yyyy
+nf1383	en-US	.	,	409	1904	number	36526.999988426	mmm yy
+nf1384	en-US	.	,	409	1904	number	36526.999988426	mmmmm
+nf1385	en-US	.	,	409	1904	number	36526.999988426	ddd
+nf1386	en-US	.	,	409	1904	number	36526.999988426	h:mm:ss
+nf1387	en-US	.	,	409	1904	number	36526.999988426	h:mm AM/PM
+nf1388	en-US	.	,	409	1904	number	36526.999988426	hh:mm:ss.000
+nf1389	en-US	.	,	409	1904	number	36526.999988426	[h]:mm
+nf1390	en-US	.	,	409	1904	number	36526.999988426	[mm]:ss
+nf1391	en-US	.	,	409	1904	number	36526.999988426	yyyy-mm-dd hh:mm:ss
+nf1392	en-US	.	,	409	1904	number	36526.999988426	d mmmm
+nf1393	en-US	.	,	409	1904	number	36526.999988426	General
+nf1394	en-US	.	,	409	1904	number	36526.999988426	0.00
+nf1395	en-US	.	,	409	1904	number	59.5	yyyy-mm-dd
+nf1396	en-US	.	,	409	1904	number	59.5	d/m/yyyy
+nf1397	en-US	.	,	409	1904	number	59.5	dd-mmm-yy
+nf1398	en-US	.	,	409	1904	number	59.5	dddd d mmmm yyyy
+nf1399	en-US	.	,	409	1904	number	59.5	mmm yy
+nf1400	en-US	.	,	409	1904	number	59.5	mmmmm
+nf1401	en-US	.	,	409	1904	number	59.5	ddd
+nf1402	en-US	.	,	409	1904	number	59.5	h:mm:ss
+nf1403	en-US	.	,	409	1904	number	59.5	h:mm AM/PM
+nf1404	en-US	.	,	409	1904	number	59.5	hh:mm:ss.000
+nf1405	en-US	.	,	409	1904	number	59.5	[h]:mm
+nf1406	en-US	.	,	409	1904	number	59.5	[mm]:ss
+nf1407	en-US	.	,	409	1904	number	59.5	yyyy-mm-dd hh:mm:ss
+nf1408	en-US	.	,	409	1904	number	59.5	d mmmm
+nf1409	en-US	.	,	409	1904	number	59.5	General
+nf1410	en-US	.	,	409	1904	number	59.5	0.00
+nf1411	en-US	.	,	409	1904	number	61	yyyy-mm-dd
+nf1412	en-US	.	,	409	1904	number	61	d/m/yyyy
+nf1413	en-US	.	,	409	1904	number	61	dd-mmm-yy
+nf1414	en-US	.	,	409	1904	number	61	dddd d mmmm yyyy
+nf1415	en-US	.	,	409	1904	number	61	mmm yy
+nf1416	en-US	.	,	409	1904	number	61	mmmmm
+nf1417	en-US	.	,	409	1904	number	61	ddd
+nf1418	en-US	.	,	409	1904	number	61	h:mm:ss
+nf1419	en-US	.	,	409	1904	number	61	h:mm AM/PM
+nf1420	en-US	.	,	409	1904	number	61	hh:mm:ss.000
+nf1421	en-US	.	,	409	1904	number	61	[h]:mm
+nf1422	en-US	.	,	409	1904	number	61	[mm]:ss
+nf1423	en-US	.	,	409	1904	number	61	yyyy-mm-dd hh:mm:ss
+nf1424	en-US	.	,	409	1904	number	61	d mmmm
+nf1425	en-US	.	,	409	1904	number	61	General
+nf1426	en-US	.	,	409	1904	number	61	0.00
+nf1427	en-GB	.	,	809	1904	number	45322	yyyy-mm-dd
+nf1428	en-GB	.	,	809	1904	number	45322	d/m/yyyy
+nf1429	en-GB	.	,	809	1904	number	45322	dd-mmm-yy
+nf1430	en-GB	.	,	809	1904	number	45322	dddd d mmmm yyyy
+nf1431	en-GB	.	,	809	1904	number	45322	mmm yy
+nf1432	en-GB	.	,	809	1904	number	45322	mmmmm
+nf1433	en-GB	.	,	809	1904	number	45322	ddd
+nf1434	en-GB	.	,	809	1904	number	45322	h:mm:ss
+nf1435	en-GB	.	,	809	1904	number	45322	h:mm AM/PM
+nf1436	en-GB	.	,	809	1904	number	45322	hh:mm:ss.000
+nf1437	en-GB	.	,	809	1904	number	45322	[h]:mm
+nf1438	en-GB	.	,	809	1904	number	45322	[mm]:ss
+nf1439	en-GB	.	,	809	1904	number	45322	yyyy-mm-dd hh:mm:ss
+nf1440	en-GB	.	,	809	1904	number	45322	d mmmm
+nf1441	en-GB	.	,	809	1904	number	45322	General
+nf1442	en-GB	.	,	809	1904	number	45322	0.00
+nf1443	en-GB	.	,	809	1904	number	45322.75	yyyy-mm-dd
+nf1444	en-GB	.	,	809	1904	number	45322.75	d/m/yyyy
+nf1445	en-GB	.	,	809	1904	number	45322.75	dd-mmm-yy
+nf1446	en-GB	.	,	809	1904	number	45322.75	dddd d mmmm yyyy
+nf1447	en-GB	.	,	809	1904	number	45322.75	mmm yy
+nf1448	en-GB	.	,	809	1904	number	45322.75	mmmmm
+nf1449	en-GB	.	,	809	1904	number	45322.75	ddd
+nf1450	en-GB	.	,	809	1904	number	45322.75	h:mm:ss
+nf1451	en-GB	.	,	809	1904	number	45322.75	h:mm AM/PM
+nf1452	en-GB	.	,	809	1904	number	45322.75	hh:mm:ss.000
+nf1453	en-GB	.	,	809	1904	number	45322.75	[h]:mm
+nf1454	en-GB	.	,	809	1904	number	45322.75	[mm]:ss
+nf1455	en-GB	.	,	809	1904	number	45322.75	yyyy-mm-dd hh:mm:ss
+nf1456	en-GB	.	,	809	1904	number	45322.75	d mmmm
+nf1457	en-GB	.	,	809	1904	number	45322.75	General
+nf1458	en-GB	.	,	809	1904	number	45322.75	0.00
+nf1459	en-GB	.	,	809	1904	number	0.5	yyyy-mm-dd
+nf1460	en-GB	.	,	809	1904	number	0.5	d/m/yyyy
+nf1461	en-GB	.	,	809	1904	number	0.5	dd-mmm-yy
+nf1462	en-GB	.	,	809	1904	number	0.5	dddd d mmmm yyyy
+nf1463	en-GB	.	,	809	1904	number	0.5	mmm yy
+nf1464	en-GB	.	,	809	1904	number	0.5	mmmmm
+nf1465	en-GB	.	,	809	1904	number	0.5	ddd
+nf1466	en-GB	.	,	809	1904	number	0.5	h:mm:ss
+nf1467	en-GB	.	,	809	1904	number	0.5	h:mm AM/PM
+nf1468	en-GB	.	,	809	1904	number	0.5	hh:mm:ss.000
+nf1469	en-GB	.	,	809	1904	number	0.5	[h]:mm
+nf1470	en-GB	.	,	809	1904	number	0.5	[mm]:ss
+nf1471	en-GB	.	,	809	1904	number	0.5	yyyy-mm-dd hh:mm:ss
+nf1472	en-GB	.	,	809	1904	number	0.5	d mmmm
+nf1473	en-GB	.	,	809	1904	number	0.5	General
+nf1474	en-GB	.	,	809	1904	number	0.5	0.00
+nf1475	en-GB	.	,	809	1904	number	36526.999988426	yyyy-mm-dd
+nf1476	en-GB	.	,	809	1904	number	36526.999988426	d/m/yyyy
+nf1477	en-GB	.	,	809	1904	number	36526.999988426	dd-mmm-yy
+nf1478	en-GB	.	,	809	1904	number	36526.999988426	dddd d mmmm yyyy
+nf1479	en-GB	.	,	809	1904	number	36526.999988426	mmm yy
+nf1480	en-GB	.	,	809	1904	number	36526.999988426	mmmmm
+nf1481	en-GB	.	,	809	1904	number	36526.999988426	ddd
+nf1482	en-GB	.	,	809	1904	number	36526.999988426	h:mm:ss
+nf1483	en-GB	.	,	809	1904	number	36526.999988426	h:mm AM/PM
+nf1484	en-GB	.	,	809	1904	number	36526.999988426	hh:mm:ss.000
+nf1485	en-GB	.	,	809	1904	number	36526.999988426	[h]:mm
+nf1486	en-GB	.	,	809	1904	number	36526.999988426	[mm]:ss
+nf1487	en-GB	.	,	809	1904	number	36526.999988426	yyyy-mm-dd hh:mm:ss
+nf1488	en-GB	.	,	809	1904	number	36526.999988426	d mmmm
+nf1489	en-GB	.	,	809	1904	number	36526.999988426	General
+nf1490	en-GB	.	,	809	1904	number	36526.999988426	0.00
+nf1491	en-GB	.	,	809	1904	number	59.5	yyyy-mm-dd
+nf1492	en-GB	.	,	809	1904	number	59.5	d/m/yyyy
+nf1493	en-GB	.	,	809	1904	number	59.5	dd-mmm-yy
+nf1494	en-GB	.	,	809	1904	number	59.5	dddd d mmmm yyyy
+nf1495	en-GB	.	,	809	1904	number	59.5	mmm yy
+nf1496	en-GB	.	,	809	1904	number	59.5	mmmmm
+nf1497	en-GB	.	,	809	1904	number	59.5	ddd
+nf1498	en-GB	.	,	809	1904	number	59.5	h:mm:ss
+nf1499	en-GB	.	,	809	1904	number	59.5	h:mm AM/PM
+nf1500	en-GB	.	,	809	1904	number	59.5	hh:mm:ss.000
+nf1501	en-GB	.	,	809	1904	number	59.5	[h]:mm
+nf1502	en-GB	.	,	809	1904	number	59.5	[mm]:ss
+nf1503	en-GB	.	,	809	1904	number	59.5	yyyy-mm-dd hh:mm:ss
+nf1504	en-GB	.	,	809	1904	number	59.5	d mmmm
+nf1505	en-GB	.	,	809	1904	number	59.5	General
+nf1506	en-GB	.	,	809	1904	number	59.5	0.00
+nf1507	en-GB	.	,	809	1904	number	61	yyyy-mm-dd
+nf1508	en-GB	.	,	809	1904	number	61	d/m/yyyy
+nf1509	en-GB	.	,	809	1904	number	61	dd-mmm-yy
+nf1510	en-GB	.	,	809	1904	number	61	dddd d mmmm yyyy
+nf1511	en-GB	.	,	809	1904	number	61	mmm yy
+nf1512	en-GB	.	,	809	1904	number	61	mmmmm
+nf1513	en-GB	.	,	809	1904	number	61	ddd
+nf1514	en-GB	.	,	809	1904	number	61	h:mm:ss
+nf1515	en-GB	.	,	809	1904	number	61	h:mm AM/PM
+nf1516	en-GB	.	,	809	1904	number	61	hh:mm:ss.000
+nf1517	en-GB	.	,	809	1904	number	61	[h]:mm
+nf1518	en-GB	.	,	809	1904	number	61	[mm]:ss
+nf1519	en-GB	.	,	809	1904	number	61	yyyy-mm-dd hh:mm:ss
+nf1520	en-GB	.	,	809	1904	number	61	d mmmm
+nf1521	en-GB	.	,	809	1904	number	61	General
+nf1522	en-GB	.	,	809	1904	number	61	0.00
+nf1523	en-ZA	,	U+00A0	1C09	1904	number	45322	yyyy-mm-dd
+nf1524	en-ZA	,	U+00A0	1C09	1904	number	45322	d/m/yyyy
+nf1525	en-ZA	,	U+00A0	1C09	1904	number	45322	dd-mmm-yy
+nf1526	en-ZA	,	U+00A0	1C09	1904	number	45322	dddd d mmmm yyyy
+nf1527	en-ZA	,	U+00A0	1C09	1904	number	45322	mmm yy
+nf1528	en-ZA	,	U+00A0	1C09	1904	number	45322	mmmmm
+nf1529	en-ZA	,	U+00A0	1C09	1904	number	45322	ddd
+nf1530	en-ZA	,	U+00A0	1C09	1904	number	45322	h:mm:ss
+nf1531	en-ZA	,	U+00A0	1C09	1904	number	45322	h:mm AM/PM
+nf1532	en-ZA	,	U+00A0	1C09	1904	number	45322	hh:mm:ss,000
+nf1533	en-ZA	,	U+00A0	1C09	1904	number	45322	[h]:mm
+nf1534	en-ZA	,	U+00A0	1C09	1904	number	45322	[mm]:ss
+nf1535	en-ZA	,	U+00A0	1C09	1904	number	45322	yyyy-mm-dd hh:mm:ss
+nf1536	en-ZA	,	U+00A0	1C09	1904	number	45322	d mmmm
+nf1537	en-ZA	,	U+00A0	1C09	1904	number	45322	General
+nf1538	en-ZA	,	U+00A0	1C09	1904	number	45322	0,00
+nf1539	en-ZA	,	U+00A0	1C09	1904	number	45322.75	yyyy-mm-dd
+nf1540	en-ZA	,	U+00A0	1C09	1904	number	45322.75	d/m/yyyy
+nf1541	en-ZA	,	U+00A0	1C09	1904	number	45322.75	dd-mmm-yy
+nf1542	en-ZA	,	U+00A0	1C09	1904	number	45322.75	dddd d mmmm yyyy
+nf1543	en-ZA	,	U+00A0	1C09	1904	number	45322.75	mmm yy
+nf1544	en-ZA	,	U+00A0	1C09	1904	number	45322.75	mmmmm
+nf1545	en-ZA	,	U+00A0	1C09	1904	number	45322.75	ddd
+nf1546	en-ZA	,	U+00A0	1C09	1904	number	45322.75	h:mm:ss
+nf1547	en-ZA	,	U+00A0	1C09	1904	number	45322.75	h:mm AM/PM
+nf1548	en-ZA	,	U+00A0	1C09	1904	number	45322.75	hh:mm:ss,000
+nf1549	en-ZA	,	U+00A0	1C09	1904	number	45322.75	[h]:mm
+nf1550	en-ZA	,	U+00A0	1C09	1904	number	45322.75	[mm]:ss
+nf1551	en-ZA	,	U+00A0	1C09	1904	number	45322.75	yyyy-mm-dd hh:mm:ss
+nf1552	en-ZA	,	U+00A0	1C09	1904	number	45322.75	d mmmm
+nf1553	en-ZA	,	U+00A0	1C09	1904	number	45322.75	General
+nf1554	en-ZA	,	U+00A0	1C09	1904	number	45322.75	0,00
+nf1555	en-ZA	,	U+00A0	1C09	1904	number	0.5	yyyy-mm-dd
+nf1556	en-ZA	,	U+00A0	1C09	1904	number	0.5	d/m/yyyy
+nf1557	en-ZA	,	U+00A0	1C09	1904	number	0.5	dd-mmm-yy
+nf1558	en-ZA	,	U+00A0	1C09	1904	number	0.5	dddd d mmmm yyyy
+nf1559	en-ZA	,	U+00A0	1C09	1904	number	0.5	mmm yy
+nf1560	en-ZA	,	U+00A0	1C09	1904	number	0.5	mmmmm
+nf1561	en-ZA	,	U+00A0	1C09	1904	number	0.5	ddd
+nf1562	en-ZA	,	U+00A0	1C09	1904	number	0.5	h:mm:ss
+nf1563	en-ZA	,	U+00A0	1C09	1904	number	0.5	h:mm AM/PM
+nf1564	en-ZA	,	U+00A0	1C09	1904	number	0.5	hh:mm:ss,000
+nf1565	en-ZA	,	U+00A0	1C09	1904	number	0.5	[h]:mm
+nf1566	en-ZA	,	U+00A0	1C09	1904	number	0.5	[mm]:ss
+nf1567	en-ZA	,	U+00A0	1C09	1904	number	0.5	yyyy-mm-dd hh:mm:ss
+nf1568	en-ZA	,	U+00A0	1C09	1904	number	0.5	d mmmm
+nf1569	en-ZA	,	U+00A0	1C09	1904	number	0.5	General
+nf1570	en-ZA	,	U+00A0	1C09	1904	number	0.5	0,00
+nf1571	en-ZA	,	U+00A0	1C09	1904	number	36526.999988426	yyyy-mm-dd
+nf1572	en-ZA	,	U+00A0	1C09	1904	number	36526.999988426	d/m/yyyy
+nf1573	en-ZA	,	U+00A0	1C09	1904	number	36526.999988426	dd-mmm-yy
+nf1574	en-ZA	,	U+00A0	1C09	1904	number	36526.999988426	dddd d mmmm yyyy
+nf1575	en-ZA	,	U+00A0	1C09	1904	number	36526.999988426	mmm yy
+nf1576	en-ZA	,	U+00A0	1C09	1904	number	36526.999988426	mmmmm
+nf1577	en-ZA	,	U+00A0	1C09	1904	number	36526.999988426	ddd
+nf1578	en-ZA	,	U+00A0	1C09	1904	number	36526.999988426	h:mm:ss
+nf1579	en-ZA	,	U+00A0	1C09	1904	number	36526.999988426	h:mm AM/PM
+nf1580	en-ZA	,	U+00A0	1C09	1904	number	36526.999988426	hh:mm:ss,000
+nf1581	en-ZA	,	U+00A0	1C09	1904	number	36526.999988426	[h]:mm
+nf1582	en-ZA	,	U+00A0	1C09	1904	number	36526.999988426	[mm]:ss
+nf1583	en-ZA	,	U+00A0	1C09	1904	number	36526.999988426	yyyy-mm-dd hh:mm:ss
+nf1584	en-ZA	,	U+00A0	1C09	1904	number	36526.999988426	d mmmm
+nf1585	en-ZA	,	U+00A0	1C09	1904	number	36526.999988426	General
+nf1586	en-ZA	,	U+00A0	1C09	1904	number	36526.999988426	0,00
+nf1587	en-ZA	,	U+00A0	1C09	1904	number	59.5	yyyy-mm-dd
+nf1588	en-ZA	,	U+00A0	1C09	1904	number	59.5	d/m/yyyy
+nf1589	en-ZA	,	U+00A0	1C09	1904	number	59.5	dd-mmm-yy
+nf1590	en-ZA	,	U+00A0	1C09	1904	number	59.5	dddd d mmmm yyyy
+nf1591	en-ZA	,	U+00A0	1C09	1904	number	59.5	mmm yy
+nf1592	en-ZA	,	U+00A0	1C09	1904	number	59.5	mmmmm
+nf1593	en-ZA	,	U+00A0	1C09	1904	number	59.5	ddd
+nf1594	en-ZA	,	U+00A0	1C09	1904	number	59.5	h:mm:ss
+nf1595	en-ZA	,	U+00A0	1C09	1904	number	59.5	h:mm AM/PM
+nf1596	en-ZA	,	U+00A0	1C09	1904	number	59.5	hh:mm:ss,000
+nf1597	en-ZA	,	U+00A0	1C09	1904	number	59.5	[h]:mm
+nf1598	en-ZA	,	U+00A0	1C09	1904	number	59.5	[mm]:ss
+nf1599	en-ZA	,	U+00A0	1C09	1904	number	59.5	yyyy-mm-dd hh:mm:ss
+nf1600	en-ZA	,	U+00A0	1C09	1904	number	59.5	d mmmm
+nf1601	en-ZA	,	U+00A0	1C09	1904	number	59.5	General
+nf1602	en-ZA	,	U+00A0	1C09	1904	number	59.5	0,00
+nf1603	en-ZA	,	U+00A0	1C09	1904	number	61	yyyy-mm-dd
+nf1604	en-ZA	,	U+00A0	1C09	1904	number	61	d/m/yyyy
+nf1605	en-ZA	,	U+00A0	1C09	1904	number	61	dd-mmm-yy
+nf1606	en-ZA	,	U+00A0	1C09	1904	number	61	dddd d mmmm yyyy
+nf1607	en-ZA	,	U+00A0	1C09	1904	number	61	mmm yy
+nf1608	en-ZA	,	U+00A0	1C09	1904	number	61	mmmmm
+nf1609	en-ZA	,	U+00A0	1C09	1904	number	61	ddd
+nf1610	en-ZA	,	U+00A0	1C09	1904	number	61	h:mm:ss
+nf1611	en-ZA	,	U+00A0	1C09	1904	number	61	h:mm AM/PM
+nf1612	en-ZA	,	U+00A0	1C09	1904	number	61	hh:mm:ss,000
+nf1613	en-ZA	,	U+00A0	1C09	1904	number	61	[h]:mm
+nf1614	en-ZA	,	U+00A0	1C09	1904	number	61	[mm]:ss
+nf1615	en-ZA	,	U+00A0	1C09	1904	number	61	yyyy-mm-dd hh:mm:ss
+nf1616	en-ZA	,	U+00A0	1C09	1904	number	61	d mmmm
+nf1617	en-ZA	,	U+00A0	1C09	1904	number	61	General
+nf1618	en-ZA	,	U+00A0	1C09	1904	number	61	0,00
+nf1619	de-DE	,	.	407	1904	number	45322	yyyy-mm-dd
+nf1620	de-DE	,	.	407	1904	number	45322	d/m/yyyy
+nf1621	de-DE	,	.	407	1904	number	45322	dd-mmm-yy
+nf1622	de-DE	,	.	407	1904	number	45322	dddd d mmmm yyyy
+nf1623	de-DE	,	.	407	1904	number	45322	mmm yy
+nf1624	de-DE	,	.	407	1904	number	45322	mmmmm
+nf1625	de-DE	,	.	407	1904	number	45322	ddd
+nf1626	de-DE	,	.	407	1904	number	45322	h:mm:ss
+nf1627	de-DE	,	.	407	1904	number	45322	h:mm AM/PM
+nf1628	de-DE	,	.	407	1904	number	45322	hh:mm:ss,000
+nf1629	de-DE	,	.	407	1904	number	45322	[h]:mm
+nf1630	de-DE	,	.	407	1904	number	45322	[mm]:ss
+nf1631	de-DE	,	.	407	1904	number	45322	yyyy-mm-dd hh:mm:ss
+nf1632	de-DE	,	.	407	1904	number	45322	d mmmm
+nf1633	de-DE	,	.	407	1904	number	45322	General
+nf1634	de-DE	,	.	407	1904	number	45322	0,00
+nf1635	de-DE	,	.	407	1904	number	45322.75	yyyy-mm-dd
+nf1636	de-DE	,	.	407	1904	number	45322.75	d/m/yyyy
+nf1637	de-DE	,	.	407	1904	number	45322.75	dd-mmm-yy
+nf1638	de-DE	,	.	407	1904	number	45322.75	dddd d mmmm yyyy
+nf1639	de-DE	,	.	407	1904	number	45322.75	mmm yy
+nf1640	de-DE	,	.	407	1904	number	45322.75	mmmmm
+nf1641	de-DE	,	.	407	1904	number	45322.75	ddd
+nf1642	de-DE	,	.	407	1904	number	45322.75	h:mm:ss
+nf1643	de-DE	,	.	407	1904	number	45322.75	h:mm AM/PM
+nf1644	de-DE	,	.	407	1904	number	45322.75	hh:mm:ss,000
+nf1645	de-DE	,	.	407	1904	number	45322.75	[h]:mm
+nf1646	de-DE	,	.	407	1904	number	45322.75	[mm]:ss
+nf1647	de-DE	,	.	407	1904	number	45322.75	yyyy-mm-dd hh:mm:ss
+nf1648	de-DE	,	.	407	1904	number	45322.75	d mmmm
+nf1649	de-DE	,	.	407	1904	number	45322.75	General
+nf1650	de-DE	,	.	407	1904	number	45322.75	0,00
+nf1651	de-DE	,	.	407	1904	number	0.5	yyyy-mm-dd
+nf1652	de-DE	,	.	407	1904	number	0.5	d/m/yyyy
+nf1653	de-DE	,	.	407	1904	number	0.5	dd-mmm-yy
+nf1654	de-DE	,	.	407	1904	number	0.5	dddd d mmmm yyyy
+nf1655	de-DE	,	.	407	1904	number	0.5	mmm yy
+nf1656	de-DE	,	.	407	1904	number	0.5	mmmmm
+nf1657	de-DE	,	.	407	1904	number	0.5	ddd
+nf1658	de-DE	,	.	407	1904	number	0.5	h:mm:ss
+nf1659	de-DE	,	.	407	1904	number	0.5	h:mm AM/PM
+nf1660	de-DE	,	.	407	1904	number	0.5	hh:mm:ss,000
+nf1661	de-DE	,	.	407	1904	number	0.5	[h]:mm
+nf1662	de-DE	,	.	407	1904	number	0.5	[mm]:ss
+nf1663	de-DE	,	.	407	1904	number	0.5	yyyy-mm-dd hh:mm:ss
+nf1664	de-DE	,	.	407	1904	number	0.5	d mmmm
+nf1665	de-DE	,	.	407	1904	number	0.5	General
+nf1666	de-DE	,	.	407	1904	number	0.5	0,00
+nf1667	de-DE	,	.	407	1904	number	36526.999988426	yyyy-mm-dd
+nf1668	de-DE	,	.	407	1904	number	36526.999988426	d/m/yyyy
+nf1669	de-DE	,	.	407	1904	number	36526.999988426	dd-mmm-yy
+nf1670	de-DE	,	.	407	1904	number	36526.999988426	dddd d mmmm yyyy
+nf1671	de-DE	,	.	407	1904	number	36526.999988426	mmm yy
+nf1672	de-DE	,	.	407	1904	number	36526.999988426	mmmmm
+nf1673	de-DE	,	.	407	1904	number	36526.999988426	ddd
+nf1674	de-DE	,	.	407	1904	number	36526.999988426	h:mm:ss
+nf1675	de-DE	,	.	407	1904	number	36526.999988426	h:mm AM/PM
+nf1676	de-DE	,	.	407	1904	number	36526.999988426	hh:mm:ss,000
+nf1677	de-DE	,	.	407	1904	number	36526.999988426	[h]:mm
+nf1678	de-DE	,	.	407	1904	number	36526.999988426	[mm]:ss
+nf1679	de-DE	,	.	407	1904	number	36526.999988426	yyyy-mm-dd hh:mm:ss
+nf1680	de-DE	,	.	407	1904	number	36526.999988426	d mmmm
+nf1681	de-DE	,	.	407	1904	number	36526.999988426	General
+nf1682	de-DE	,	.	407	1904	number	36526.999988426	0,00
+nf1683	de-DE	,	.	407	1904	number	59.5	yyyy-mm-dd
+nf1684	de-DE	,	.	407	1904	number	59.5	d/m/yyyy
+nf1685	de-DE	,	.	407	1904	number	59.5	dd-mmm-yy
+nf1686	de-DE	,	.	407	1904	number	59.5	dddd d mmmm yyyy
+nf1687	de-DE	,	.	407	1904	number	59.5	mmm yy
+nf1688	de-DE	,	.	407	1904	number	59.5	mmmmm
+nf1689	de-DE	,	.	407	1904	number	59.5	ddd
+nf1690	de-DE	,	.	407	1904	number	59.5	h:mm:ss
+nf1691	de-DE	,	.	407	1904	number	59.5	h:mm AM/PM
+nf1692	de-DE	,	.	407	1904	number	59.5	hh:mm:ss,000
+nf1693	de-DE	,	.	407	1904	number	59.5	[h]:mm
+nf1694	de-DE	,	.	407	1904	number	59.5	[mm]:ss
+nf1695	de-DE	,	.	407	1904	number	59.5	yyyy-mm-dd hh:mm:ss
+nf1696	de-DE	,	.	407	1904	number	59.5	d mmmm
+nf1697	de-DE	,	.	407	1904	number	59.5	General
+nf1698	de-DE	,	.	407	1904	number	59.5	0,00
+nf1699	de-DE	,	.	407	1904	number	61	yyyy-mm-dd
+nf1700	de-DE	,	.	407	1904	number	61	d/m/yyyy
+nf1701	de-DE	,	.	407	1904	number	61	dd-mmm-yy
+nf1702	de-DE	,	.	407	1904	number	61	dddd d mmmm yyyy
+nf1703	de-DE	,	.	407	1904	number	61	mmm yy
+nf1704	de-DE	,	.	407	1904	number	61	mmmmm
+nf1705	de-DE	,	.	407	1904	number	61	ddd
+nf1706	de-DE	,	.	407	1904	number	61	h:mm:ss
+nf1707	de-DE	,	.	407	1904	number	61	h:mm AM/PM
+nf1708	de-DE	,	.	407	1904	number	61	hh:mm:ss,000
+nf1709	de-DE	,	.	407	1904	number	61	[h]:mm
+nf1710	de-DE	,	.	407	1904	number	61	[mm]:ss
+nf1711	de-DE	,	.	407	1904	number	61	yyyy-mm-dd hh:mm:ss
+nf1712	de-DE	,	.	407	1904	number	61	d mmmm
+nf1713	de-DE	,	.	407	1904	number	61	General
+nf1714	de-DE	,	.	407	1904	number	61	0,00
+nf1715	fr-FR	,	U+202F	40C	1904	number	45322	yyyy-mm-dd
+nf1716	fr-FR	,	U+202F	40C	1904	number	45322	d/m/yyyy
+nf1717	fr-FR	,	U+202F	40C	1904	number	45322	dd-mmm-yy
+nf1718	fr-FR	,	U+202F	40C	1904	number	45322	dddd d mmmm yyyy
+nf1719	fr-FR	,	U+202F	40C	1904	number	45322	mmm yy
+nf1720	fr-FR	,	U+202F	40C	1904	number	45322	mmmmm
+nf1721	fr-FR	,	U+202F	40C	1904	number	45322	ddd
+nf1722	fr-FR	,	U+202F	40C	1904	number	45322	h:mm:ss
+nf1723	fr-FR	,	U+202F	40C	1904	number	45322	h:mm AM/PM
+nf1724	fr-FR	,	U+202F	40C	1904	number	45322	hh:mm:ss,000
+nf1725	fr-FR	,	U+202F	40C	1904	number	45322	[h]:mm
+nf1726	fr-FR	,	U+202F	40C	1904	number	45322	[mm]:ss
+nf1727	fr-FR	,	U+202F	40C	1904	number	45322	yyyy-mm-dd hh:mm:ss
+nf1728	fr-FR	,	U+202F	40C	1904	number	45322	d mmmm
+nf1729	fr-FR	,	U+202F	40C	1904	number	45322	General
+nf1730	fr-FR	,	U+202F	40C	1904	number	45322	0,00
+nf1731	fr-FR	,	U+202F	40C	1904	number	45322.75	yyyy-mm-dd
+nf1732	fr-FR	,	U+202F	40C	1904	number	45322.75	d/m/yyyy
+nf1733	fr-FR	,	U+202F	40C	1904	number	45322.75	dd-mmm-yy
+nf1734	fr-FR	,	U+202F	40C	1904	number	45322.75	dddd d mmmm yyyy
+nf1735	fr-FR	,	U+202F	40C	1904	number	45322.75	mmm yy
+nf1736	fr-FR	,	U+202F	40C	1904	number	45322.75	mmmmm
+nf1737	fr-FR	,	U+202F	40C	1904	number	45322.75	ddd
+nf1738	fr-FR	,	U+202F	40C	1904	number	45322.75	h:mm:ss
+nf1739	fr-FR	,	U+202F	40C	1904	number	45322.75	h:mm AM/PM
+nf1740	fr-FR	,	U+202F	40C	1904	number	45322.75	hh:mm:ss,000
+nf1741	fr-FR	,	U+202F	40C	1904	number	45322.75	[h]:mm
+nf1742	fr-FR	,	U+202F	40C	1904	number	45322.75	[mm]:ss
+nf1743	fr-FR	,	U+202F	40C	1904	number	45322.75	yyyy-mm-dd hh:mm:ss
+nf1744	fr-FR	,	U+202F	40C	1904	number	45322.75	d mmmm
+nf1745	fr-FR	,	U+202F	40C	1904	number	45322.75	General
+nf1746	fr-FR	,	U+202F	40C	1904	number	45322.75	0,00
+nf1747	fr-FR	,	U+202F	40C	1904	number	0.5	yyyy-mm-dd
+nf1748	fr-FR	,	U+202F	40C	1904	number	0.5	d/m/yyyy
+nf1749	fr-FR	,	U+202F	40C	1904	number	0.5	dd-mmm-yy
+nf1750	fr-FR	,	U+202F	40C	1904	number	0.5	dddd d mmmm yyyy
+nf1751	fr-FR	,	U+202F	40C	1904	number	0.5	mmm yy
+nf1752	fr-FR	,	U+202F	40C	1904	number	0.5	mmmmm
+nf1753	fr-FR	,	U+202F	40C	1904	number	0.5	ddd
+nf1754	fr-FR	,	U+202F	40C	1904	number	0.5	h:mm:ss
+nf1755	fr-FR	,	U+202F	40C	1904	number	0.5	h:mm AM/PM
+nf1756	fr-FR	,	U+202F	40C	1904	number	0.5	hh:mm:ss,000
+nf1757	fr-FR	,	U+202F	40C	1904	number	0.5	[h]:mm
+nf1758	fr-FR	,	U+202F	40C	1904	number	0.5	[mm]:ss
+nf1759	fr-FR	,	U+202F	40C	1904	number	0.5	yyyy-mm-dd hh:mm:ss
+nf1760	fr-FR	,	U+202F	40C	1904	number	0.5	d mmmm
+nf1761	fr-FR	,	U+202F	40C	1904	number	0.5	General
+nf1762	fr-FR	,	U+202F	40C	1904	number	0.5	0,00
+nf1763	fr-FR	,	U+202F	40C	1904	number	36526.999988426	yyyy-mm-dd
+nf1764	fr-FR	,	U+202F	40C	1904	number	36526.999988426	d/m/yyyy
+nf1765	fr-FR	,	U+202F	40C	1904	number	36526.999988426	dd-mmm-yy
+nf1766	fr-FR	,	U+202F	40C	1904	number	36526.999988426	dddd d mmmm yyyy
+nf1767	fr-FR	,	U+202F	40C	1904	number	36526.999988426	mmm yy
+nf1768	fr-FR	,	U+202F	40C	1904	number	36526.999988426	mmmmm
+nf1769	fr-FR	,	U+202F	40C	1904	number	36526.999988426	ddd
+nf1770	fr-FR	,	U+202F	40C	1904	number	36526.999988426	h:mm:ss
+nf1771	fr-FR	,	U+202F	40C	1904	number	36526.999988426	h:mm AM/PM
+nf1772	fr-FR	,	U+202F	40C	1904	number	36526.999988426	hh:mm:ss,000
+nf1773	fr-FR	,	U+202F	40C	1904	number	36526.999988426	[h]:mm
+nf1774	fr-FR	,	U+202F	40C	1904	number	36526.999988426	[mm]:ss
+nf1775	fr-FR	,	U+202F	40C	1904	number	36526.999988426	yyyy-mm-dd hh:mm:ss
+nf1776	fr-FR	,	U+202F	40C	1904	number	36526.999988426	d mmmm
+nf1777	fr-FR	,	U+202F	40C	1904	number	36526.999988426	General
+nf1778	fr-FR	,	U+202F	40C	1904	number	36526.999988426	0,00
+nf1779	fr-FR	,	U+202F	40C	1904	number	59.5	yyyy-mm-dd
+nf1780	fr-FR	,	U+202F	40C	1904	number	59.5	d/m/yyyy
+nf1781	fr-FR	,	U+202F	40C	1904	number	59.5	dd-mmm-yy
+nf1782	fr-FR	,	U+202F	40C	1904	number	59.5	dddd d mmmm yyyy
+nf1783	fr-FR	,	U+202F	40C	1904	number	59.5	mmm yy
+nf1784	fr-FR	,	U+202F	40C	1904	number	59.5	mmmmm
+nf1785	fr-FR	,	U+202F	40C	1904	number	59.5	ddd
+nf1786	fr-FR	,	U+202F	40C	1904	number	59.5	h:mm:ss
+nf1787	fr-FR	,	U+202F	40C	1904	number	59.5	h:mm AM/PM
+nf1788	fr-FR	,	U+202F	40C	1904	number	59.5	hh:mm:ss,000
+nf1789	fr-FR	,	U+202F	40C	1904	number	59.5	[h]:mm
+nf1790	fr-FR	,	U+202F	40C	1904	number	59.5	[mm]:ss
+nf1791	fr-FR	,	U+202F	40C	1904	number	59.5	yyyy-mm-dd hh:mm:ss
+nf1792	fr-FR	,	U+202F	40C	1904	number	59.5	d mmmm
+nf1793	fr-FR	,	U+202F	40C	1904	number	59.5	General
+nf1794	fr-FR	,	U+202F	40C	1904	number	59.5	0,00
+nf1795	fr-FR	,	U+202F	40C	1904	number	61	yyyy-mm-dd
+nf1796	fr-FR	,	U+202F	40C	1904	number	61	d/m/yyyy
+nf1797	fr-FR	,	U+202F	40C	1904	number	61	dd-mmm-yy
+nf1798	fr-FR	,	U+202F	40C	1904	number	61	dddd d mmmm yyyy
+nf1799	fr-FR	,	U+202F	40C	1904	number	61	mmm yy
+nf1800	fr-FR	,	U+202F	40C	1904	number	61	mmmmm
+nf1801	fr-FR	,	U+202F	40C	1904	number	61	ddd
+nf1802	fr-FR	,	U+202F	40C	1904	number	61	h:mm:ss
+nf1803	fr-FR	,	U+202F	40C	1904	number	61	h:mm AM/PM
+nf1804	fr-FR	,	U+202F	40C	1904	number	61	hh:mm:ss,000
+nf1805	fr-FR	,	U+202F	40C	1904	number	61	[h]:mm
+nf1806	fr-FR	,	U+202F	40C	1904	number	61	[mm]:ss
+nf1807	fr-FR	,	U+202F	40C	1904	number	61	yyyy-mm-dd hh:mm:ss
+nf1808	fr-FR	,	U+202F	40C	1904	number	61	d mmmm
+nf1809	fr-FR	,	U+202F	40C	1904	number	61	General
+nf1810	fr-FR	,	U+202F	40C	1904	number	61	0,00

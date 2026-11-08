@@ -43,7 +43,7 @@ pub(crate) fn has_invalid_exponent(section: &str) -> bool {
     })
 }
 
-pub(crate) fn looks_like_datetime_format(section: &str) -> bool {
+pub(crate) fn looks_like_datetime_format(section: &str, decimal: char) -> bool {
     let parts = tokenize_datetime_format(section, None);
     let has_datetime_token = parts.iter().any(|part| match part {
         DateTimePart::Token { .. } => true,
@@ -51,13 +51,13 @@ pub(crate) fn looks_like_datetime_format(section: &str) -> bool {
     });
     has_datetime_token
         && !section.contains('#')
-        && !without_subseconds(section).contains('0')
+        && !without_subseconds(section, decimal).contains('0')
         && !section.contains('?')
 }
 
 /// The section with the decimal places of a seconds token (`s.0`, `ss.00`, `[ss].000`) removed:
 /// the zeros left over belong to no date or time token.
-pub(crate) fn without_subseconds(section: &str) -> String {
+pub(crate) fn without_subseconds(section: &str, decimal: char) -> String {
     let chars: Vec<char> = section.chars().collect();
     let mut out = String::new();
     let mut index = 0;
@@ -65,7 +65,10 @@ pub(crate) fn without_subseconds(section: &str) -> String {
         out.push(chars[index]);
         let after_second = matches!(chars[index], 's' | 'S' | ']')
             && (chars[index] != ']' || out.to_ascii_lowercase().ends_with("s]"));
-        if after_second && chars.get(index + 1) == Some(&'.') && chars.get(index + 2) == Some(&'0') {
+        if after_second
+            && matches!(chars.get(index + 1), Some(&c) if c == '.' || c == decimal)
+            && chars.get(index + 2) == Some(&'0')
+        {
             index += 2;
             while chars.get(index) == Some(&'0') {
                 index += 1;
@@ -182,6 +185,13 @@ pub(crate) fn render_with_datetime_tokens(
                             1 => month.to_string(),
                             2 => format!("{month:02}"),
                             3 => month_name(&names_profile, month, true, name_locale.is_some()),
+                            // mmmmm is the month name's first letter (measured, Excel 16.0 build
+                            // 20527, dc-0f1k formats oracle).
+                            5 => month_name(&names_profile, month, false, name_locale.is_some())
+                                .chars()
+                                .next()
+                                .map(String::from)
+                                .unwrap_or_default(),
                             _ => month_name(&names_profile, month, false, name_locale.is_some()),
                         }
                     }
@@ -231,7 +241,7 @@ pub(crate) fn render_with_datetime_tokens(
                         format_elapsed(value, time.elapsed_seconds, width)
                     }
                     DateTimeTokenKind::SubSecond => {
-                        format!(".{:0width$}", time.subsecond)
+                        format!("{}{:0width$}", profile.decimal_separator, time.subsecond)
                     }
                     DateTimeTokenKind::AmPmUpper => {
                         super::designator(profile, time.hour < 12).to_string()
@@ -287,6 +297,10 @@ fn tokenize_datetime_format(section: &str, profile: Option<&FormatProfile>) -> V
     let mut in_quotes = false;
     let mut quoted_literal = String::new();
     let mut quoted_escape = false;
+    // The character a code writes the decimal point as: `.`, or the host's in a localized code.
+    let decimal = profile
+        .and_then(|p| p.format_code_decimal_token.chars().next())
+        .unwrap_or('.');
 
     while index < chars.len() {
         let ch = chars[index];
@@ -324,7 +338,7 @@ fn tokenize_datetime_format(section: &str, profile: Option<&FormatProfile>) -> V
             continue;
         }
 
-        if ch == '.'
+        if (ch == '.' || ch == decimal)
             && chars.get(index + 1) == Some(&'0')
             && matches!(
                 parts.last(),

@@ -414,11 +414,50 @@ mod tests {
         assert_eq!(window.cells[1][2].text, (11 * 100 + 22).to_string());
     }
 }
+/// One entry of a format picker: the group it is listed under, its name, and its format code in the
+/// locale's separators (the form the format box takes).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FormatChoice {
+    pub group: &'static str,
+    pub label: &'static str,
+    pub code: String,
+}
+
+/// The formats a picker offers for `profile`: General, number, percent, scientific, currency, date, time and text, each code written with the profile's decimal and thousands
+/// separators. Fractions are not offered: calc-func does not model them yet. A person can still
+/// type any code; the picker only names the common ones.
+pub fn format_choices(profile: &FormatProfile) -> Vec<FormatChoice> {
+    let (d, t) = (profile.decimal_separator, profile.thousands_separator);
+    let choice = |group, label, code: String| FormatChoice { group, label, code };
+    vec![
+        choice("General", "General", "General".to_owned()),
+        choice("Number", "Integer", "0".to_owned()),
+        choice("Number", "Two decimals", format!("0{d}00")),
+        choice("Number", "Thousands separator", format!("#{t}##0")),
+        choice("Number", "Thousands, two decimals", format!("#{t}##0{d}00")),
+        choice("Percent", "Percent", "0%".to_owned()),
+        choice("Percent", "Percent, two decimals", format!("0{d}00%")),
+        choice("Scientific", "Scientific", format!("0{d}00E+00")),
+        choice("Currency", "Dollar", format!("$#{t}##0{d}00")),
+        choice("Currency", "Dollar, negatives in red", format!("$#{t}##0{d}00;[Red]-$#{t}##0{d}00")),
+        choice("Date", "Year-month-day", "yyyy-mm-dd".to_owned()),
+        choice("Date", "Day/month/year", "d/m/yyyy".to_owned()),
+        choice("Date", "Day month-name year", "dd-mmm-yy".to_owned()),
+        choice("Date", "Long date", "dddd d mmmm yyyy".to_owned()),
+        choice("Time", "Time", "h:mm:ss".to_owned()),
+        choice("Time", "Time, 12-hour", "h:mm AM/PM".to_owned()),
+        choice("Time", "Elapsed hours", "[h]:mm:ss".to_owned()),
+        choice("Date and time", "Date and time", "yyyy-mm-dd hh:mm:ss".to_owned()),
+        choice("Text", "Text", "@".to_owned()),
+    ]
+}
+
 /// Applies an Excel number format to the shared scalar/array window. Formatting never evaluates.
 pub fn formatted_view(
     result: Option<&CalcValue>,
     profile: Option<&FormatProfile>,
     code: &str,
+    date_system: calc_func::locale::DateSystem,
 ) -> Result<ResultView, String> {
     let mut view = ResultView::of(result, profile);
     if code.trim().is_empty() || code.eq_ignore_ascii_case("General") {
@@ -433,7 +472,7 @@ pub fn formatted_view(
         }
         calc_func::cell_text_localized(
             profile,
-            calc_func::locale::DateSystem::System1900,
+            date_system,
             value,
             code,
         )
@@ -485,11 +524,11 @@ mod formatted_results {
             assert_eq!(plain(&value), expected);
             assert_eq!(shown(&value, Some(&profile)), expected);
             assert!(
-                matches!(formatted_view(Some(&value),Some(&profile),"General"),Ok(ResultView::Value {text,..}) if text==expected)
+                matches!(formatted_view(Some(&value),Some(&profile),"General",calc_func::locale::DateSystem::System1900),Ok(ResultView::Value {text,..}) if text==expected)
             );
             for code in ["0", "0.00E+00", "yyyy-mm-dd", "@"] {
                 assert!(
-                    formatted_view(Some(&value), Some(&profile), code).is_err(),
+                    formatted_view(Some(&value), Some(&profile), code, calc_func::locale::DateSystem::System1900).is_err(),
                     "{code}"
                 );
             }
@@ -498,18 +537,45 @@ mod formatted_results {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn every_picker_choice_formats_a_number_in_every_locale() {
+        for culture in ["en-US", "en-GB", "en-ZA", "de-DE", "fr-FR"] {
+            let profile = FormatProfile::for_culture(culture).unwrap();
+            for choice in format_choices(&profile) {
+                let value = CalcValue::number(1234.5);
+                for system in [
+                    calc_func::locale::DateSystem::System1900,
+                    calc_func::locale::DateSystem::System1904,
+                ] {
+                    let view = formatted_view(Some(&value), Some(&profile), &choice.code, system);
+                    assert!(view.is_ok(), "{culture} {} {:?}: {view:?}", choice.label, choice.code);
+                }
+            }
+        }
+        // The date system moves the date a serial number is.
+        let profile = FormatProfile::for_culture("en-US").unwrap();
+        let value = CalcValue::number(43860.0);
+        let show = |system| match formatted_view(Some(&value), Some(&profile), "yyyy-mm-dd", system) {
+            Ok(ResultView::Value { text, .. }) => text,
+            other => panic!("{other:?}"),
+        };
+        assert_eq!(show(calc_func::locale::DateSystem::System1904), "2024-01-31");
+        assert_eq!(show(calc_func::locale::DateSystem::System1900), "2020-01-30");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn scalar_and_array_formats_share_the_cell_formatter() {
         let profile = FormatProfile::for_culture("de-DE").unwrap();
         let value = CalcValue::number(3.5);
         assert!(
-            matches!(formatted_view(Some(&value),Some(&profile),"0,00"),Ok(ResultView::Value {text,exact:Some(exact),..}) if text=="3,50" && exact=="3.5")
+            matches!(formatted_view(Some(&value),Some(&profile),"0,00",calc_func::locale::DateSystem::System1900),Ok(ResultView::Value {text,exact:Some(exact),..}) if text=="3,50" && exact=="3.5")
         );
         let array = CalcValue::array(
             CalcArray::from_rows(vec![vec![CalcValue::number(1.0), CalcValue::number(2.5)]])
                 .unwrap(),
         );
         let ResultView::Array(window) =
-            formatted_view(Some(&array), Some(&profile), "0,00").unwrap()
+            formatted_view(Some(&array), Some(&profile), "0,00", calc_func::locale::DateSystem::System1900).unwrap()
         else {
             panic!("array view")
         };
@@ -522,7 +588,7 @@ mod formatted_results {
         );
         let error = CalcValue::error(WorksheetErrorCode::Div0);
         assert!(matches!(
-            formatted_view(Some(&error), Some(&profile), "0,00"),
+            formatted_view(Some(&error), Some(&profile), "0,00", calc_func::locale::DateSystem::System1900),
             Ok(ResultView::Error {
                 code: "#DIV/0!",
                 ..
