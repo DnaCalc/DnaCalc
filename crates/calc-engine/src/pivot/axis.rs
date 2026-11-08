@@ -512,6 +512,32 @@ pub(super) fn render_axes(
     if custom && totals.values().any(|total| total.source_error().is_some()) {
         return Err(bad("Source errors with custom subtotals are not modelled"));
     }
+    if super::records::show_all_rows_mode(table) {
+        if totals.is_empty() { return Err(bad("No selected source records are not modelled")); }
+        let combinations = row_levels[1].len().checked_add(1)
+            .and_then(|width| row_levels[0].len().checked_mul(width))
+            .filter(|&count| count <= 1_000_000).ok_or_else(|| bad("The pivot has too many row combinations"))?;
+        if combinations > 0 {
+            for outer in 0..row_levels[0].len() {
+                let prefix = vec![outer];
+                row_totals[0].entry(prefix.clone()).or_default();
+                let next = row_ids.len();
+                let key = *row_ids.entry(prefix).or_insert(next);
+                totals.entry((key, Vec::new(), 0)).or_default();
+                for inner in 0..row_levels[1].len() {
+                    let path = vec![outer, inner];
+                    row_totals[1].entry(path.clone()).or_default();
+                    let next = row_ids.len();
+                    let key = *row_ids.entry(path).or_insert(next);
+                    totals.entry((key, Vec::new(), 0)).or_default();
+                }
+            }
+        }
+    }
+    if super::records::show_all_mode(table) {
+        if totals.is_empty() { return Err(bad("No selected source records are not modelled")); }
+        for index in 0..levels[0].groups.len() { paths.insert(vec![index]); }
+    }
     if row_values.is_some() && totals.values().any(|total| total.source_error().is_some()) {
         return Err(bad("Source errors with Values on rows are not modelled"));
     }
@@ -926,7 +952,7 @@ pub(super) fn render_axes(
         r = walk.r;
     } else {
         for (i, group) in rows.iter().enumerate().filter(|(_, g)| !g.hidden) {
-            if !totals.contains_key(&(i, Vec::new(), 0)) {
+            if !totals.contains_key(&(i, Vec::new(), 0)) && !super::records::show_all_mode(table) {
                 continue;
             }
             cells.insert((r, 0), group_label(group)?);

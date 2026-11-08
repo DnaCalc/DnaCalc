@@ -79,6 +79,38 @@ pub(super) fn resolve<'a>(
         _ => Ok(value),
     }
 }
+/// The captured no-data layout has one field on each axis and one selected page item.
+pub(super) fn show_all_mode(table: &PivotTable) -> bool {
+    if table.row_fields.len() != 1 || table.column_fields.len() != 1
+        || table.page_fields.len() != 1 || table.page_fields[0].selected_item.is_none()
+        || !table.filters.is_empty() || table.data_fields.len() != 1
+        || table.data_fields[0].subtotal != "sum" || table.data_fields[0].extended_show.is_some()
+        || table.data_fields[0].attributes.get("showDataAs").is_some_and(|v| v != "normal")
+        || table.attributes.contains_key("missingCaption") || truthy(table.attributes.get("showMissing"), false) {
+        return false;
+    }
+    table.row_fields.iter().chain(&table.column_fields).all(|field| usize::try_from(*field).ok()
+        .and_then(|i| table.fields.get(i)).is_some_and(|field|
+            truthy(field.attributes.get("showAll"), true) && field.sort_measure.is_none()
+                && field.items.iter().all(|item| !item.hidden)))
+}
+/// The captured tabular no-data case has two row fields and one selected page item.
+pub(super) fn show_all_rows_mode(table: &PivotTable) -> bool {
+    if table.row_fields.len() != 2 || !table.column_fields.is_empty()
+        || table.page_fields.len() != 1 || table.page_fields[0].selected_item.is_none()
+        || !table.filters.is_empty() || table.data_fields.len() != 1
+        || table.data_fields[0].subtotal != "sum" || table.data_fields[0].extended_show.is_some()
+        || table.data_fields[0].attributes.get("showDataAs").is_some_and(|v| v != "normal")
+        || table.attributes.contains_key("missingCaption") || truthy(table.attributes.get("showMissing"), false) {
+        return false;
+    }
+    table.row_fields.iter().all(|field| usize::try_from(*field).ok().and_then(|i| table.fields.get(i))
+        .is_some_and(|field| truthy(field.attributes.get("showAll"), true)
+            && !truthy(field.attributes.get("compact"), true) && !truthy(field.attributes.get("outline"), true)
+            && truthy(field.attributes.get("defaultSubtotal"), true)
+            && !truthy(field.attributes.get("insertBlankRow"), false) && field.sort_measure.is_none()
+            && field.items.iter().all(|item| !item.hidden)))
+}
 /// The distinct labels of one row field in their final order (hidden items included and
 /// flagged), each with the totals of its records. The order is the saved manual order, or the
 /// shared text comparator ascending or descending.
@@ -98,6 +130,7 @@ pub(super) fn field_groups(
         .attributes
         .get("showAll")
         .is_none_or(|v| v != "0" && v != "false")
+        && !show_all_mode(table) && !show_all_rows_mode(table)
     {
         return Err(bad(
             "Showing items without source data needs measured layout semantics",
@@ -210,6 +243,8 @@ pub(super) fn field_groups(
         if let Ok(i) = found {
             groups[i].old = groups[i].old.min(position);
             groups[i].hidden |= item.hidden;
+        } else if show_all_mode(table) || show_all_rows_mode(table) {
+            return Err(bad("Retained items absent from the source are not modelled"));
         }
     }
     if let Some(filter) = table.filters.iter().find(|filter| filter.field as usize == row) {
