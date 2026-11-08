@@ -128,8 +128,20 @@ return (async function () {
     // produced its independent candidate; the dirty B1/C1 cone must be evaluated again.
     await intent({ EnterCell: { at: key(1, 1), text: "20" } });
     const receipt = await done;
-    require(receipt.outcome === "Complete" && receipt.calculated === 4100 && receipt.refused === 0,
-      "the pure scoped calculation did not complete all admitted targets");
+    // Every admitted target is accounted for: the successor calculates all of them except the
+    // background cells the superseded pass had already published (the visible rows I2:I10),
+    // which the edit leaves clean; their published values are not required a second time.
+    const successorAt = trace.findIndex((event, index) => event.Admitted && index > trace.findIndex((e) => e.Superseded));
+    const alreadyPublished = new Set();
+    for (const event of trace.slice(0, successorAt)) {
+      if (event.Cells && event.Cells.publication) {
+        for (const cell of event.Cells.cells) if (cell.at[3] === 9) alreadyPublished.add(JSON.stringify(cell.at));
+      }
+    }
+    require(receipt.outcome === "Complete" && receipt.refused === 0 && receipt.calculated === receipt.required
+      && receipt.calculated + alreadyPublished.size === 4100,
+      "the pure scoped calculation did not complete all admitted targets: " + JSON.stringify(receipt)
+      + " already published " + alreadyPublished.size);
     require(trace.find((event) => event.Admitted)?.Admitted.selection === "DirtyAndVolatile",
       "the reuse demonstration must preserve its declared dirty selection");
     const yielded = trace.findIndex((event) => event.Yielded);

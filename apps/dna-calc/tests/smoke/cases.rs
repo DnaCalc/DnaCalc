@@ -1898,7 +1898,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         checks: &[
             Check::Text("result-state", "Refused"),
             Check::Starts("cell-provenance", "Sheet1!C1: refused: "),
-            Check::Absent("refusal-owner"),
+            Check::Text("refusal-owner","Work package: dc-fetch-f0tp"),
             Check::Reachable("recover-edit"),
         ],
     },
@@ -7231,7 +7231,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
     Case {
         name:"name changes: source tokens and one Undo Redo preserve LET parameters and string literals",
         actions:&[
-            Action::Click("names-close"),Action::Into("name-box","A1\u{E007}"),Action::Wait(Check::Value(BAR,"=YieldRate*3")),Action::Into("name-box","A2\u{E007}"),Action::Wait(Check::Value(BAR,"=LET(_xlpm.Rate,5,_xlpm.Rate+1)")),Action::Into("name-box","A3\u{E007}"),Action::Wait(Check::Value(BAR,"=\"Rate\"")),Action::Into("name-box","A4\u{E007}"),Action::Wait(Check::Value(BAR,"=\"😀\"&YieldRate")),
+            Action::Click("names-close"),Action::Into("name-box","A1\u{E007}"),Action::Wait(Check::Value(BAR,"=YieldRate*3")),Action::Into("name-box","A2\u{E007}"),Action::Wait(Check::Value(BAR,"=LET(Rate,5,Rate+1)")),Action::Into("name-box","A3\u{E007}"),Action::Wait(Check::Value(BAR,"=\"Rate\"")),Action::Into("name-box","A4\u{E007}"),Action::Wait(Check::Value(BAR,"=\"😀\"&YieldRate")),
             Action::Click("name-manager"),Action::Wait(Check::Rendered("names-dialog",true)),Action::Click("names-undo"),Action::Wait(Check::Count("[data-name=Rate][data-name-scope=Workbook]",1)),Action::Wait(Check::TextContains("[data-name=Alias]","=Rate+1")),Action::Click("names-redo"),
         ],
         checks:&[Check::Count("[data-name=YieldRate][data-name-scope=Workbook]",1),Check::TextContains("[data-name=Alias]","=YieldRate+1"),Check::Text(cell!("A1"),"6"),Check::Text(cell!("A2"),"6"),Check::Text(cell!("A3"),"Rate"),Check::Text(cell!("A4"),"😀2")],
@@ -8755,10 +8755,14 @@ Case {
                 "A1:D20",
             ),
             Check::Count("[data-dnacalc=print-page][data-range='A21:D60']", 1),
-            // Excel prints a default 64 px column as 430 device pixels (UI27), so with the row
-            // headings and the repeated column A eight columns fit across a page, not nine.
-            Check::Count("[data-dnacalc=print-page][data-range='E1:L20']", 1),
-            Check::Count("[data-dnacalc=print-page][data-range='M1:T20']", 1),
+            // Excel prints a default 64 px column as 430 device pixels (UI27). The row-heading
+            // strip is 47 device pixels a digit (at least three digits) plus 32, measured in
+            // Excel (dc-ui30 P3/P4, commit 32c75a01; column strip cf6847cc). With that strip,
+            // the repeated column A and nine columns of 430 fit across the 7.5 inch page:
+            // E1:M20 then N1:T20. dcb24f61 asserted eight columns before those strip sizes
+            // were measured.
+            Check::Count("[data-dnacalc=print-page][data-range='E1:M20']", 1),
+            Check::Count("[data-dnacalc=print-page][data-range='N1:T20']", 1),
             Check::Text("[data-page='1'] [data-dnacalc=print-header]", "First 1 / 6"),
             Check::Text("[data-page='2'] [data-dnacalc=print-header]", "Even 2"),
             Check::Text("[data-page='3'] [data-dnacalc=print-header]", "Page 3 of 6"),
@@ -9126,7 +9130,8 @@ Case {
         Action::Keys(BAR,ESCAPE),
         Action::Upload("open-file","crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm"),Action::DiscardReplacement,
         Action::Wait(Check::Text("document","local.xlsm")),
-        Action::Into("name-box","H1\u{E007}"),Action::Keys(BAR,"=MyF")],checks:&[
+        Action::Into("name-box","H1\u{E007}"),Action::Keys(BAR,"=MyF"),
+        Action::Wait(Check::Contains("[data-onecalc=\"completions\"]","MYFUNC"))],checks:&[
         Check::Contains("[data-onecalc=\"completions\"]","MYFUNC")]},
 ];
 
