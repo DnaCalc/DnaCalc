@@ -369,7 +369,7 @@ MINA	full	20430	1212	1212	-	exact	cc9cff0cb2+changes	0
 MINA	pinned	20430	120	120	-	exact	919dd43269+changes	0
 MINUTE	full	20430	14631	14631	-	exact	cc9cff0cb2+changes	0
 MINUTE	pinned	20430	120	120	-	exact	919dd43269+changes	0
-MINVERSE	full	20131,20228	1795	1683	-	structural	cc9cff0cb2+changes	0
+MINVERSE	full	20131,20228,20527	2243	2131	-	excluded	0eee454f4c+changes	112
 MINVERSE	pinned	20131,20228	120	120	-	exact	919dd43269+changes	0
 MOD	full	20430	152432	152432	-	exact	cc9cff0cb2+changes	0
 MOD	pinned	20430	120	120	-	exact	919dd43269+changes	0
@@ -523,7 +523,7 @@ TDIST	pinned	20131	92	28	24	numeric	7e118266e6+changes	0
 TEXT	full	20527	7	7	-	exact	cc9cff0cb2+changes	0
 TEXTAFTER	full	20527	11	11	-	exact	cc9cff0cb2+changes	0
 TEXTBEFORE	full	20527	11	11	-	exact	cc9cff0cb2+changes	0
-TEXTSPLIT	full	20527	5	3	-	structural	cc9cff0cb2+changes	0
+TEXTSPLIT	full	20527	11	9	-	excluded	0eee454f4c+changes	2
 TIME	full	20430	1296	1296	-	exact	cc9cff0cb2+changes	0
 TIME	pinned	20430	120	120	-	exact	919dd43269+changes	0
 TINV	full	20131,?	32	15	173	numeric	cc9cff0cb2+changes	0

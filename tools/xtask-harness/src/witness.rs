@@ -95,6 +95,8 @@ const PINNED_DIR: &str = "crates/calc-func/tests/witnesses";
 const STATUS: &str = "crates/calc-func/witness-status.tsv";
 const DIFFERENCES: &str = "crates/calc-func/witness-differences.tsv";
 const WEEKNUM_EXCLUSION: &str = "migration/evidence/dc-1943-weeknum.json";
+const TEXTSPLIT_REPLAY: &str = "migration/evidence/dc-1943-textsplit-replay.json.gz";
+const MINVERSE_REPLAY: &str = "migration/evidence/dc-1943-minverse-replay.json.gz";
 const LEDGER: &str = "function-lane/ledgers/EXCEL_PARITY_LEDGER.csv";
 const EDGE_ROWS: usize = 4;
 /// New readings taken by `cargo xtask witness read`, in the evidence repository.
@@ -678,6 +680,88 @@ fn restore_prediction_column(args: &mut Value, columns: &BTreeSet<String>) -> bo
     true
 }
 
+fn array_replay_args(case: &Value, function: &str) -> Result<Vec<Value>, String> {
+    let id = case["id"].as_str().ok_or("array replay has no id")?;
+    let inputs = case["inputs"].as_array().ok_or("array replay has no input readback")?;
+    let expected_inputs = if function == "TEXTSPLIT" { 2 } else { 16 };
+    if inputs.len() < expected_inputs { return Err(format!("{id}: insufficient input readbacks")); }
+    let mut input = Vec::new();
+    for (i, cell) in inputs[..expected_inputs].iter().enumerate() {
+        let address = if function == "TEXTSPLIT" { format!("A{}", i + 1) }
+            else { format!("{}{}", (b'A' + (i % 4) as u8) as char, i / 4 + 1) };
+        if cell["a"] != address { return Err(format!("{id}: unexpected input address")); }
+        let value = &cell["read_back"];
+        input.push(match value["type"].as_str() {
+            Some("text") => Value::String(value["text"].as_str().ok_or("text readback")?.to_owned()),
+            Some("number") => Value::String(format!("0x{}", value["bits"].as_str().ok_or("number readback")?)),
+            _ => return Err(format!("{id}: unsupported input readback")),
+        });
+    }
+    Ok(if function == "TEXTSPLIT" { input } else {
+        vec![Value::Array(input.chunks(4).map(|row| Value::Array(row.to_vec())).collect())]
+    })
+}
+
+/// The free-layout replays retain full arrays. Add each observed cell through the same
+/// result-selection path as other witnesses, with layout in the source identity.
+fn add_array_replay(banks: &mut Banks, function: &str, path: &str, doc: &Value) -> Result<(), String> {
+    let cases = doc["cases"].as_array().ok_or("array replay has no cases")?;
+    let selected: Vec<_> = cases.iter().filter(|case| {
+        function == "TEXTSPLIT" || case["id"].as_str().is_some_and(|id| id.starts_with("MINVERSE|m4x4:"))
+    }).collect();
+    let expected_cases = if function == "TEXTSPLIT" { 2 } else { 28 };
+    if selected.len() != expected_cases { return Err(format!("{path}: expected {expected_cases} cases")); }
+    let source = banks.sources.len();
+    banks.sources.push(Source {
+        path: path.to_owned(),
+        env: ReadingSource {
+            id: String::new(), source: format!("DnaCalc {path}"),
+            excel_build: Some("20527".into()), platform: Some("Windows".into()), bitness: None,
+            cpu: doc["cpu"].as_str().map(str::to_owned),
+            invocation: Some(calc_verdict::WitnessInvocation {
+                input_transport: Some("recaptured_free_layout".into()), ..Default::default()
+            }),
+        },
+    });
+    banks.files_read += 1;
+    for case in selected {
+        let id = case["id"].as_str().ok_or("array replay has no id")?;
+        let args = array_replay_args(case, function)?;
+        let formula = case["formulas"].as_array().and_then(|f| f.first()).ok_or("array replay has no formula")?;
+        let (height, width) = if function == "TEXTSPLIT" { (1, 3) } else { (4, 4) };
+        if formula["rows"].as_u64() != Some(height) || formula["cols"].as_u64() != Some(width) {
+            return Err(format!("{id}: unexpected array shape"));
+        }
+        let cells = formula["cells"].as_array().ok_or("array replay has no cells")?;
+        if cells.len() != (height * width) as usize { return Err(format!("{id}: incomplete array")); }
+        let mut positions = BTreeSet::new();
+        for cell in cells {
+            let r = cell["r"].as_u64().ok_or("array cell row")? as usize;
+            let c = cell["c"].as_u64().ok_or("array cell column")? as usize;
+            if r == 0 || r > height as usize || c == 0 || c > width as usize { return Err(format!("{id}: invalid cell")); }
+            if !positions.insert((r, c)) { return Err(format!("{id}: repeated cell")); }
+            let expected = match cell["type"].as_str() {
+                Some("text") => format!("text:{}", cell["text"].as_str().ok_or("array text")?),
+                Some("number") => format!("0x{}", cell["bits"].as_str().ok_or("array number")?),
+                _ => return Err(format!("{id}: unsupported array cell")),
+            };
+            banks.readings.push(Reading { function: function.to_owned(), id: format!("{id}@{r},{c}"),
+                args: args.clone(), index: Some((r, c)), expected, source });
+        }
+    }
+    Ok(())
+}
+
+fn recovered_minverse_spill(function: &str, path: &str, record: &Value, inputs: &BTreeMap<&str, Value>) -> bool {
+    let Some((matrix, _)) = record["key"].as_str().and_then(|key| key.rsplit_once("|@")) else { return false; };
+    function == "MINVERSE" && path == "cache/oracle/build-20131/MINVERSE.jsonl"
+        && inputs.get(matrix).is_some_and(|expected| {
+            record["args"][0][0].as_object().and_then(|_| oracle_argument(&record["args"][0][0])).as_ref() == Some(expected)
+        }) && record["outcome"]["code"] == "ExcelErrorType9"
+        && record["result_index"][0].as_u64().is_some_and(|r| r < 4)
+        && record["result_index"][1] == 0
+}
+
 fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>), String> {
     let mut banks = Banks {
         sources: Vec::new(),
@@ -686,6 +770,18 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
         import_notes: Vec::new(),
         unread_rows: BTreeMap::new(),
     };
+    let inverse_replay = if only.is_none_or(|f| f == "MINVERSE") {
+        Some(bank_json(&gunzip(include_bytes!("../../../migration/evidence/dc-1943-minverse-replay.json.gz"), None)?)?)
+    } else { None };
+    let mut inverse_inputs = BTreeMap::new();
+    if let Some(doc) = &inverse_replay {
+        for case in doc["cases"].as_array().ok_or("MINVERSE replay has no cases")? {
+            let Some(id) = case["id"].as_str().filter(|id| id.starts_with("MINVERSE|m4x4:")) else { continue; };
+            let args = array_replay_args(case, "MINVERSE")?;
+            if inverse_inputs.insert(id, args[0].clone()).is_some() { return Err(format!("{id}: repeated matrix")); }
+        }
+        if inverse_inputs.len() != 28 { return Err("MINVERSE replay must hold 28 matrices".to_owned()); }
+    }
     let mut unread = Vec::new();
     let mut oracle_env: BTreeMap<String, Value> = BTreeMap::new();
     let mut paths = Vec::new();
@@ -728,7 +824,9 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
                 };
                 let call = record["args"].as_array().and_then(|a| a.first()).and_then(Value::as_array);
                 let args: Option<Vec<Value>> = call.map(|c| c.iter().map(oracle_argument).collect()).flatten();
-                let (Some(args), Some(expected)) = (args, oracle_outcome(&record["outcome"])) else {
+                let expected = oracle_outcome(&record["outcome"]).or_else(||
+                    recovered_minverse_spill(function, rel, &record, &inverse_inputs).then(|| "error:Spill".to_owned()));
+                let (Some(args), Some(expected)) = (args, expected) else {
                     unread.push(format!("{rel}:{}: an argument or outcome kind with no witness form", line_no + 1));
                     *banks.unread_rows.entry(function.to_ascii_uppercase()).or_default() += 1;
                     continue;
@@ -876,6 +974,11 @@ fn load_full(checkout: &Path, only: Option<&str>) -> Result<(Banks, Vec<String>)
             });
         }
     }
+    if only.is_none_or(|f| f == "TEXTSPLIT") {
+        let doc = bank_json(&gunzip(include_bytes!("../../../migration/evidence/dc-1943-textsplit-replay.json.gz"), None)?)?;
+        add_array_replay(&mut banks, "TEXTSPLIT", TEXTSPLIT_REPLAY, &doc)?;
+    }
+    if let Some(doc) = &inverse_replay { add_array_replay(&mut banks, "MINVERSE", MINVERSE_REPLAY, doc)?; }
     Ok((banks, unread))
 }
 
@@ -1007,8 +1110,14 @@ fn write_trace_row(writer: &mut impl Write, row: &Row<'_>, source: &Source) -> R
     if let Some(context) = &source.env.invocation {
         value["reading"]["invocation"] = context.to_json();
     }
-    if row.actual == "excluded:order-dependent" {
-        value["exclusion"] = serde_json::json!({"reason": "order-dependent", "evidence": WEEKNUM_EXCLUSION});
+    if let Some(reason) = row.actual.strip_prefix("excluded:") {
+        let evidence = match r.function.as_str() {
+            "WEEKNUM" => WEEKNUM_EXCLUSION,
+            "TEXTSPLIT" => TEXTSPLIT_REPLAY,
+            "MINVERSE" => MINVERSE_REPLAY,
+            _ => "",
+        };
+        value["exclusion"] = serde_json::json!({"reason": reason, "evidence": evidence});
     }
     serde_json::to_writer(&mut *writer, &value).map_err(|e| format!("witness trace: {e}"))?;
     writer.write_all(b"\n").map_err(|e| format!("witness trace: {e}"))
@@ -1042,6 +1151,20 @@ fn order_dependent_weeknum(reading: &Reading) -> bool {
     };
     let kind = if upper - value <= tolerance { upper } else { value.floor() };
     !(0.0..22.0).contains(&kind)
+}
+
+fn exclusion_reason(reading: &Reading, source: &Source) -> Option<&'static str> {
+    if order_dependent_weeknum(reading) { return Some("order-dependent"); }
+    if reading.function == "TEXTSPLIT" && source.path == "readings/excel-20527/TEXTSPLIT.json"
+        && matches!(reading.id.as_str(), "fn1-textsplit-004" | "fn1-textsplit-005")
+        && reading.expected == "error:Spill" {
+        return Some("spill-layout");
+    }
+    if reading.function == "MINVERSE" && source.path == "cache/oracle/build-20131/MINVERSE.jsonl"
+        && reading.expected == "error:Spill" && reading.index.is_some_and(|(_, c)| c == 0) {
+        return Some("spill-layout");
+    }
+    None
 }
 
 fn group<'a>(banks: &'a Banks) -> (BTreeMap<String, Vec<Vec<&'a Reading>>>, Vec<Difference>) {
@@ -1126,7 +1249,7 @@ fn status_of(function: &str, rows: &[Row]) -> Status {
         builds: builds.into_iter().collect::<Vec<_>>().join(","),
         rows: rows.len(),
         matched: rows.iter().filter(|r| r.severity == Severity::Exact).count(),
-        excluded: rows.iter().filter(|r| r.actual == "excluded:order-dependent").count(),
+        excluded: rows.iter().filter(|r| r.actual.starts_with("excluded:")).count(),
         worst_ulp: rows.iter().filter_map(|r| r.ulp).max(),
         class: rows.iter().map(|r| r.severity).max().unwrap_or(Severity::Exact),
     }
@@ -1879,13 +2002,16 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
             })
             .collect();
         let contexts: Vec<_> = banks.sources.iter().map(|s| s.env.invocation.clone().map(std::sync::Arc::new)).collect();
-        let excluded = |r: &Reading| request.verb == Verb::Judge && order_dependent_weeknum(r);
-        let jobs: Vec<_> = chosen.iter().filter(|r| !excluded(r))
+        let excluded = |r: &Reading| if request.verb == Verb::Judge {
+            exclusion_reason(r, &banks.sources[r.source])
+        } else { None };
+        let jobs: Vec<_> = chosen.iter().filter(|r| excluded(r).is_none())
             .map(|r| (r.args.clone(), r.index, contexts[r.source].clone())).collect();
         let mut actuals = calculate_all(function, &jobs, !request.values_only).into_iter();
         let mut rows = Vec::new();
         for (readings, reading) in keys.iter().zip(chosen) {
-            let actual = if excluded(reading) { "excluded:order-dependent".to_owned() }
+            let reason = excluded(reading);
+            let actual = if let Some(reason) = reason { format!("excluded:{reason}") }
                 else { actuals.next().expect("one result per judged job") };
             let (slow, actual) = match actual.strip_prefix(SLOW) {
                 Some(rest) => (true, rest.to_owned()),
@@ -1898,7 +2024,7 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
             if actual == "fault:Timeout" {
                 println!("xtask witness: {function}: no result within {ROW_SECONDS} s on {}", Value::Array(reading.args.clone()));
             }
-            let (severity, ulp) = if excluded(reading) { (Severity::Structural, None) }
+            let (severity, ulp) = if reason.is_some() { (Severity::Structural, None) }
                 else { judge(&reading.expected, &actual) };
             let row = Row { reading, builds, actual, severity, ulp, slow };
             if let Some(writer) = trace.as_mut() {
@@ -1914,7 +2040,7 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
             println!("xtask witness: {function}: {unread} unread recorded rows count as failures");
         }
         if status.excluded > 0 {
-            println!("xtask witness: {function}: {} order-dependent rows excluded from judgment, retained as failures; evidence {WEEKNUM_EXCLUSION}", status.excluded);
+            println!("xtask witness: {function}: {} rows excluded from judgment, retained as failures; the trace names their evidence", status.excluded);
         }
         println!(
             "xtask witness: {:<22} {:>8} rows {:>8} matched  worst {:>6} ULP  {}",
@@ -2416,6 +2542,43 @@ fn run_read(root: &Path, checkout: &Path, request: &Request) -> Result<ExitCode,
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn free_layout_replays_compare_every_observed_array_cell() {
+        let mut banks = Banks { sources: Vec::new(), readings: Vec::new(), files_read: 0,
+            import_notes: Vec::new(), unread_rows: BTreeMap::new() };
+        for (function, path, bytes, count) in [
+            ("TEXTSPLIT", TEXTSPLIT_REPLAY, &include_bytes!("../../../migration/evidence/dc-1943-textsplit-replay.json.gz")[..], 6),
+            ("MINVERSE", MINVERSE_REPLAY, &include_bytes!("../../../migration/evidence/dc-1943-minverse-replay.json.gz")[..], 448),
+        ] {
+            let doc = bank_json(&gunzip(bytes, None).unwrap()).unwrap();
+            let start = banks.readings.len();
+            add_array_replay(&mut banks, function, path, &doc).unwrap();
+            assert_eq!(banks.readings.len() - start, count);
+        }
+        for reading in &banks.readings {
+            let context = banks.sources[reading.source].env.invocation.as_ref();
+            assert_eq!(calculate_with_context(&reading.function, &reading.args, reading.index, context, true), reading.expected, "{}", reading.id);
+            if reading.index == Some((1, 1)) {
+                let (height, width) = if reading.function == "TEXTSPLIT" { (1, 3) } else { (4, 4) };
+                for index in [(height + 1, 1), (1, width + 1)] {
+                    assert_eq!(calculate_with_context(&reading.function, &reading.args, Some(index), context, true), "fault:ResultShape", "{} {index:?}", reading.id);
+                }
+            }
+        }
+        let doc = bank_json(&gunzip(include_bytes!("../../../migration/evidence/dc-1943-minverse-replay.json.gz"), None).unwrap()).unwrap();
+        let args = array_replay_args(&doc["cases"][0], "MINVERSE").unwrap();
+        let inputs = BTreeMap::from([("MINVERSE|m4x4:28c4018eb542fe5f", args[0].clone())]);
+        let mut record = serde_json::json!({"key":"MINVERSE|m4x4:28c4018eb542fe5f|@1,0",
+            "args":[[{"kind":"matrix","cols":4,"bits_hex_row_major":args[0]}]],
+            "outcome":{"code":"ExcelErrorType9"},"result_index":[1,0]});
+        assert!(recovered_minverse_spill("MINVERSE", "cache/oracle/build-20131/MINVERSE.jsonl", &record, &inputs));
+        record["args"][0][0]["bits_hex_row_major"][0][0] = serde_json::json!("0x0000000000000000");
+        assert!(!recovered_minverse_spill("MINVERSE", "cache/oracle/build-20131/MINVERSE.jsonl", &record, &inputs));
+        record["args"][0][0]["bits_hex_row_major"] = args[0].clone();
+        record["result_index"] = serde_json::json!([1,1]);
+        assert!(!recovered_minverse_spill("MINVERSE", "cache/oracle/build-20131/MINVERSE.jsonl", &record, &inputs));
+    }
 
     #[test]
     fn weeknum_order_dependent_rows_remain_counted_and_carry_evidence() {
