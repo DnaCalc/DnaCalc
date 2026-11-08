@@ -63,8 +63,15 @@ const NA: FunctionId = FunctionId::new(CODE, 15);
 const ERROR_TYPE: FunctionId = FunctionId::new(CODE, 16);
 
 const VALUE: &[Parameter] = &[Parameter::value("value")];
-const VALUE_OR_REFERENCE: &[Parameter] = &[Parameter::value_or_reference("value")];
-const NUMBER: &[Parameter] = &[Parameter::value_or_reference("number")];
+/// dc-o9r: TYPE intersects a reference except below an array place.
+const TYPE_VALUE: &[Parameter] = &[Parameter::value_or_reference("value")
+    .legacy(super::LegacyPlace::AggregateIntersectReference)];
+const N_VALUE: &[Parameter] = &[Parameter::value_or_reference("value")
+    .legacy(super::LegacyPlace::AggregateRootArrayNestedLiftReferences)];
+const NUMBER: &[Parameter] = &[Parameter::value_or_reference("number")
+    .legacy(super::LegacyPlace::AggregateAtRoot)];
+const ISREF_VALUE: &[Parameter] = &[Parameter::value_or_reference("value")
+    .legacy(super::LegacyPlace::AggregateAtRoot)];
 /// ISFORMULA's reference takes only an operand that may give one (dc-mx3x, Excel 16.0.20527,
 /// 2026-11-07, Formula2 and Formula alike): `=ISFORMULA(2)`, `=ISFORMULA({1,2})` and
 /// `=ISFORMULA(1+1)` are refused, `=ISFORMULA(B1:B3)` and `=ISFORMULA(INDEX(B1:B3,0))` enter.
@@ -106,10 +113,10 @@ pub(super) const FAMILY: Family = Family {
         unary(ISLOGICAL, "ISLOGICAL", VALUE, islogical),
         unary(ISEVEN, "ISEVEN", NUMBER, iseven),
         unary(ISODD, "ISODD", NUMBER, isodd),
-        unary(ISREF, "ISREF", VALUE_OR_REFERENCE, isref),
+        unary(ISREF, "ISREF", ISREF_VALUE, isref),
         unary(ISFORMULA, "ISFORMULA", REFERENCE, isformula),
-        unary(TYPE, "TYPE", VALUE_OR_REFERENCE, type_of),
-        unary(N, "N", VALUE_OR_REFERENCE, n),
+        unary(TYPE, "TYPE", TYPE_VALUE, type_of),
+        unary(N, "N", N_VALUE, n),
         CatalogueEntry {
             id: NA,
             spelling: "NA",

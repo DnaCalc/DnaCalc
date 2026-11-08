@@ -100,11 +100,11 @@ const LONGEST_TEXT: usize = 255;
 // range and each criteria range of SUMIFS, AVERAGEIFS, MAXIFS and MINIFS
 // (`=SUMIFS(B1:B3,B1:B3,1,2,1)` is refused). A criterion takes any operand.
 const RANGE_CRITERIA: &[Parameter] = &[
-    Parameter::reference("range").entry(EntryClass::Reference),
+    Parameter::reference("range").entry(EntryClass::Reference).legacy(super::LegacyPlace::ArrayAlwaysLiftReferences),
     Parameter::value_or_reference("criteria"),
 ];
 const SUM_RANGE: &[Parameter] = &[
-    Parameter::reference("range").entry(EntryClass::Reference),
+    Parameter::reference("range").entry(EntryClass::Reference).legacy(super::LegacyPlace::ArrayAlwaysLiftReferences),
     Parameter::value_or_reference("criteria"),
     Parameter::reference("sum_range").entry(EntryClass::Reference),
 ];

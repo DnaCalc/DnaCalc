@@ -30,7 +30,7 @@
 
 use super::builtins::is_builtin;
 use super::entry::{GrammarRule, Rejection, check_entry};
-use super::legacy::{self, Place};
+use super::legacy::Place;
 use super::{
     Admission, CompiledPlan, FormulaForm, Instruction, Literal, NameTarget, PlanCache, Target,
     UserFunctionSource,
@@ -1179,7 +1179,11 @@ impl<'c> Lowering<'c> {
                     continue;
                 }
                 if self.form == FormulaForm::Legacy
-                    && legacy::intersects_reference(place, spelled, index)
+                    && match target.0.legacy_place(index) {
+                        Some(calc_func::LegacyPlace::IntersectReferenceAlways | calc_func::LegacyPlace::AggregateAlwaysIntersectReference) => true,
+                        Some(calc_func::LegacyPlace::IntersectReference | calc_func::LegacyPlace::AggregateIntersectReference) => place != Place::Array,
+                        _ => false,
+                    }
                 {
                     tasks.push(Task::Emit {
                         block,

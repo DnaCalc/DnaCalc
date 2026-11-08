@@ -247,12 +247,12 @@ ported_family! {
         let y = complex_of(s, 1, &a[1])?;
         complex_text(Ok(x.sub(y)), &[x, y])
     }
-    54 imsum "IMSUM" (1, 255) [R "inumber1", R "inumber2"] |s, a, sv| {
+    54 imsum "IMSUM" (1, 255) [R "inumber1" ~ AggregateAtRoot, R "inumber2" ~ AggregateAtRootRepeated] |s, a, sv| {
         let zs = complexes(s, a, sv)?;
         let sum = zs.iter().fold(ParsedComplex::new(0.0, 0.0, None), |acc, z| acc.add(*z));
         complex_text(Ok(sum), &zs)
     }
-    55 improduct "IMPRODUCT" (1, 255) [R "inumber1", R "inumber2"] |s, a, sv| {
+    55 improduct "IMPRODUCT" (1, 255) [R "inumber1" ~ AggregateAtRoot, R "inumber2" ~ AggregateAtRootRepeated] |s, a, sv| {
         let zs = complexes(s, a, sv)?;
         let product = zs.iter().fold(ParsedComplex::new(1.0, 0.0, None), |acc, z| acc.mul(*z));
         complex_text(Ok(product), &zs)

@@ -323,7 +323,7 @@ ported_family! {
         };
         capped(k::substitute(&text, &old, &new, instance), WorksheetErrorCode::Value)
     }
-    27 t_fn "T" (1, 1) [V "value"] |s, a, sv| {
+    27 t_fn "T" (1, 1) [V "value" ~ LiftReferences] |s, a, sv| {
         match a[0].core_ref() {
             CoreRef::Text(_) => Ok(a[0].clone()),
             CoreRef::Error(code) => fail(code),
@@ -336,8 +336,8 @@ ported_family! {
         }
     }
     28 concatenate_fn "CONCATENATE" (1, 255) [V "text1", V "text2"] |s, a, sv| { concatenate(s, a) }
-    29 concat_fn "CONCAT" (1, 254) [R "text1", R "text2"] |s, a, sv| { concat(s, a, sv) }
-    30 textjoin_fn "TEXTJOIN" (3, 252) [R "delimiter", V "ignore_empty", R "text1", R "text2"] |s, a, sv| {
+    29 concat_fn "CONCAT" (1, 254) [R "text1" ~ AggregateAtRoot, R "text2" ~ AggregateAtRootRepeated] |s, a, sv| { concat(s, a, sv) }
+    30 textjoin_fn "TEXTJOIN" (3, 252) [R "delimiter" ~ AggregateAtRoot, V "ignore_empty" ~ AggregateAtRoot, R "text1" ~ AggregateAtRoot, R "text2" ~ AggregateAtRootRepeated] |s, a, sv| {
         textjoin(s, a, sv)
     }
 }

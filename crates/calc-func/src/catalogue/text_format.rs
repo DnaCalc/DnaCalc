@@ -924,7 +924,7 @@ ported_family! {
     4 dollar_fn "DOLLAR" (1, 2) [V "number", V "decimals"] |s, a, sv| { dollar(s, a) }
     5 numbervalue_fn "NUMBERVALUE" (1, 3) [V "text", V "decimal_separator", V "group_separator"] |s, a, sv| { numbervalue(s, a) }
     6 valuetotext_fn "VALUETOTEXT" (1, 2) [V "value", V "format"] |s, a, sv| { valuetotext(s, a) }
-    7 arraytotext_fn "ARRAYTOTEXT" (1, 2) [R "array", V "format"] |s, a, sv| { arraytotext(s, a, sv) }
+    7 arraytotext_fn "ARRAYTOTEXT" (1, 2) [R "array" ~ ArrayAtRoot, V "format"] |s, a, sv| { arraytotext(s, a, sv) }
     8 bahttext_fn "BAHTTEXT" (1, 1) [V "number"] |s, a, sv| { bahttext(s, a) }
     9 asc_fn "ASC" (1, 1) [V "text"] |s, a, sv| { width_conversion(s, a) }
     10 dbcs_fn "DBCS" (1, 1) [V "text"] |s, a, sv| { width_conversion(s, a) }
@@ -932,9 +932,9 @@ ported_family! {
     // 2026-11-07, Formula2 and Formula alike): `=PHONETIC(2)`, `=PHONETIC({1,2})` and
     // `=PHONETIC(1+1)` are refused, `=PHONETIC(B1)` and `=PHONETIC(INDEX(B1:B3,0))` enter.
     12 phonetic_fn "PHONETIC" (1, 1) [F "reference" @Reference] |s, a, sv| { phonetic(s, a, sv) }
-    13 textbefore_fn "TEXTBEFORE" (2, 6) [V "text", R "delimiter", V "instance_num", V "match_mode", V "match_end", V "if_not_found"] |s, a, sv| { text_delim(s, a, sv, Side::Before) }
-    14 textafter_fn "TEXTAFTER" (2, 6) [V "text", R "delimiter", V "instance_num", V "match_mode", V "match_end", V "if_not_found"] |s, a, sv| { text_delim(s, a, sv, Side::After) }
-    15 textsplit_fn "TEXTSPLIT" (2, 6) [V "text", R "col_delimiter", R "row_delimiter", V "ignore_empty", V "match_mode", V "pad_with"] |s, a, sv| { textsplit(s, a, sv) }
+    13 textbefore_fn "TEXTBEFORE" (2, 6) [V "text", R "delimiter" ~ AggregateAtRoot, V "instance_num", V "match_mode", V "match_end", V "if_not_found"] |s, a, sv| { text_delim(s, a, sv, Side::Before) }
+    14 textafter_fn "TEXTAFTER" (2, 6) [V "text", R "delimiter" ~ AggregateAtRoot, V "instance_num", V "match_mode", V "match_end", V "if_not_found"] |s, a, sv| { text_delim(s, a, sv, Side::After) }
+    15 textsplit_fn "TEXTSPLIT" (2, 6) [V "text", R "col_delimiter" ~ AggregateAtRoot, R "row_delimiter" ~ AggregateAtRoot, V "ignore_empty", V "match_mode", V "pad_with"] |s, a, sv| { textsplit(s, a, sv) }
     16 regextest_fn "REGEXTEST" (2, 3) [V "text", V "pattern", V "case_sensitivity"] |s, a, sv| { regextest(s, a) }
     17 regexextract_fn "REGEXEXTRACT" (2, 4) [V "text", V "pattern", V "return_mode", V "case_sensitivity"] |s, a, sv| { regexextract(s, a) }
     18 regexreplace_fn "REGEXREPLACE" (3, 5) [V "text", V "pattern", V "replacement", V "occurrence", V "case_sensitivity"] |s, a, sv| { regexreplace(s, a) }

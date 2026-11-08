@@ -57,17 +57,23 @@ const MAX: FunctionId = FunctionId::new(CODE, 11);
 const MINA: FunctionId = FunctionId::new(CODE, 12);
 const MAXA: FunctionId = FunctionId::new(CODE, 13);
 
+// dc-10y and dc-b1l, Excel 16.0.20527: SUM(A1:A3*2) intersects the range at the root;
+// SUMPRODUCT(SUM(A1:A3*2)) is 12, and SUMPRODUCT(SUM(ABS(A1:A3))) intersects inside ABS.
 const NUMBERS: &[Parameter] = &[
-    Parameter::value_or_reference("number1"),
-    Parameter::value_or_reference("number2"),
+    Parameter::value_or_reference("number1").legacy(super::LegacyPlace::AggregateUnderArray),
+    Parameter::value_or_reference("number2").legacy(super::LegacyPlace::AggregateUnderArrayRepeated),
 ];
 const VALUES: &[Parameter] = &[
-    Parameter::value_or_reference("value1"),
-    Parameter::value_or_reference("value2"),
+    Parameter::value_or_reference("value1").legacy(super::LegacyPlace::AggregateAtRoot),
+    Parameter::value_or_reference("value2").legacy(super::LegacyPlace::AggregateAtRootRepeated),
+];
+const COUNT_VALUES: &[Parameter] = &[
+    Parameter::value_or_reference("value1").legacy(super::LegacyPlace::AggregateUnderArray),
+    Parameter::value_or_reference("value2").legacy(super::LegacyPlace::AggregateUnderArrayRepeated),
 ];
 const ARRAYS: &[Parameter] = &[
-    Parameter::value_or_reference("array1"),
-    Parameter::value_or_reference("array2"),
+    Parameter::value_or_reference("array1").legacy(super::LegacyPlace::ArrayAtRoot),
+    Parameter::value_or_reference("array2").legacy(super::LegacyPlace::ArrayAtRootRepeated),
 ];
 /// COUNTBLANK's range takes only an operand that may give a reference (dc-mx3x, Excel 16.0.20527,
 /// 2026-11-07, Formula2 and Formula alike). Refused: `=COUNTBLANK(2)`, `=COUNTBLANK({"",1,#N/A})`,
@@ -110,8 +116,8 @@ pub(super) const FAMILY: Family = Family {
         aggregate(PRODUCT, "PRODUCT", NUMBERS, product),
         aggregate(SUMSQ, "SUMSQ", NUMBERS, sumsq),
         aggregate(SUMPRODUCT, "SUMPRODUCT", ARRAYS, sumproduct),
-        aggregate(COUNT, "COUNT", VALUES, count),
-        aggregate(COUNTA, "COUNTA", VALUES, counta),
+        aggregate(COUNT, "COUNT", COUNT_VALUES, count),
+        aggregate(COUNTA, "COUNTA", COUNT_VALUES, counta),
         CatalogueEntry {
             id: COUNTBLANK,
             spelling: "COUNTBLANK",

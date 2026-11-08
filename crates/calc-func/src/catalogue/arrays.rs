@@ -630,50 +630,50 @@ ported_family! {
     1 sequence_fn "SEQUENCE" (1, 4) [V "rows", V "columns", V "start", V "step"] resume sequence_resume => sequence_task; |s, a, sv| {
         result(s, k::eval_sequence_prepared(a))
     }
-    2 filter_fn "FILTER" (2, 3) [R "array", R "include", R "if_empty"] |s, a, sv| {
+    2 filter_fn "FILTER" (2, 3) [R "array" ~ ArrayAtRoot, R "include" ~ ArrayAtRoot, R "if_empty" ~ AggregateAtRoot] |s, a, sv| {
         source_error(a)?;
         run(s, a, sv, k::eval_filter_prepared)
     }
-    3 sort_fn "SORT" (1, 4) [R "array", R "sort_index", R "sort_order", V "by_col"] |s, a, sv| {
+    3 sort_fn "SORT" (1, 4) [R "array" ~ ArrayAtRoot, R "sort_index" ~ ArrayAtRoot, R "sort_order", V "by_col"] |s, a, sv| {
         sort(s, a, sv)
     }
     // The arrays to sort by and their orders come in pairs (dc-mx3x, Excel 16.0.20527,
     // 2026-11-07, Formula2 and Formula alike): SORTBY takes 2, 3, 5 and 7 arguments of 1 to 8,
     // the first pair without its order but no later one (`=SORTBY(B1,B1,B1,B1)` is refused).
-    4 sortby_fn "SORTBY" (2, 255) [R "array", R "by_array1", R "sort_order1"] groups (1, 2, 0); |s, a, sv| {
+    4 sortby_fn "SORTBY" (2, 255) [R "array" ~ ArrayAtRoot, R "by_array1" ~ ArrayAtRoot, R "sort_order1" ~ AggregateAtRoot] groups (1, 2, 0); |s, a, sv| {
         sortby(s, a, sv)
     }
-    5 unique_fn "UNIQUE" (1, 3) [R "array", V "by_col", V "exactly_once"] |s, a, sv| {
+    5 unique_fn "UNIQUE" (1, 3) [R "array" ~ ArrayAtRoot, V "by_col", V "exactly_once"] |s, a, sv| {
         unique(s, a, sv)
     }
     // A call of TAKE or DROP may give a reference (dc-mx3x): `=COUNTBLANK(TAKE(B1,B1))` and
     // `=TAKE(B1,B1)(3)` enter, and so do DROP's.
-    6 take_fn "TAKE" (2, 3) [R "array", V "rows", V "columns"] result MayBeReference; |s, a, sv| {
+    6 take_fn "TAKE" (2, 3) [R "array" ~ ArrayAtRoot, V "rows", V "columns"] result MayBeReference; |s, a, sv| {
         source_error(a)?;
         match sub_area(s, a, true)? {
             Some(reference) => Ok(reference),
             None => run(s, a, sv, k::eval_take_prepared),
         }
     }
-    7 drop_fn "DROP" (2, 3) [R "array", V "rows", V "columns"] result MayBeReference; |s, a, sv| {
+    7 drop_fn "DROP" (2, 3) [R "array" ~ ArrayAtRoot, V "rows", V "columns"] result MayBeReference; |s, a, sv| {
         source_error(a)?;
         match sub_area(s, a, false)? {
             Some(reference) => Ok(reference),
             None => run(s, a, sv, k::eval_drop_prepared),
         }
     }
-    8 chooserows_fn "CHOOSEROWS" (2, 255) [R "array", R "row_num1", R "row_num2"] |s, a, sv| {
+    8 chooserows_fn "CHOOSEROWS" (2, 255) [R "array" ~ ArrayAtRoot, R "row_num1" ~ AggregateAtRoot, R "row_num2" ~ AggregateAtRoot] |s, a, sv| {
         choose(s, a, sv, k::eval_chooserows_prepared)
     }
-    9 choosecols_fn "CHOOSECOLS" (2, 255) [R "array", R "col_num1", R "col_num2"] |s, a, sv| {
+    9 choosecols_fn "CHOOSECOLS" (2, 255) [R "array" ~ ArrayAtRoot, R "col_num1" ~ AggregateAtRoot, R "col_num2" ~ AggregateAtRoot] |s, a, sv| {
         choose(s, a, sv, k::eval_choosecols_prepared)
     }
-    10 vstack_fn "VSTACK" (1, 254) [R "array1", R "array2"] |s, a, sv| {
+    10 vstack_fn "VSTACK" (1, 254) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRootRepeated] |s, a, sv| {
         // Fn2: a direct error in any source precedes stacking; reference/array cells remain cells.
         for source in a { scalar_error(source)?; }
         run(s, a, sv, k::eval_vstack_prepared)
     }
-    11 hstack_fn "HSTACK" (1, 254) [R "array1", R "array2"] |s, a, sv| {
+    11 hstack_fn "HSTACK" (1, 254) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRootRepeated] |s, a, sv| {
         // Fn2: a direct error in any source precedes stacking; reference/array cells remain cells.
         for source in a { scalar_error(source)?; }
         // dc-h9u: a row of functions, as GROUPBY and PIVOTBY take them
@@ -685,27 +685,27 @@ ported_family! {
         }
         run(s, a, sv, k::eval_hstack_prepared)
     }
-    12 tocol_fn "TOCOL" (1, 3) [R "array", V "ignore", V "scan_by_column"] |s, a, sv| {
+    12 tocol_fn "TOCOL" (1, 3) [R "array" ~ ArrayAtRoot, V "ignore", V "scan_by_column"] |s, a, sv| {
         source_error(a)?;
         match by_area(s, a, sv, k::eval_tocol_prepared, true)? {
             Some(value) => Ok(value),
             None => run(s, a, sv, k::eval_tocol_prepared),
         }
     }
-    13 torow_fn "TOROW" (1, 3) [R "array", V "ignore", V "scan_by_column"] |s, a, sv| {
+    13 torow_fn "TOROW" (1, 3) [R "array" ~ ArrayAtRoot, V "ignore", V "scan_by_column"] |s, a, sv| {
         source_error(a)?;
         match by_area(s, a, sv, k::eval_torow_prepared, false)? {
             Some(value) => Ok(value),
             None => run(s, a, sv, k::eval_torow_prepared),
         }
     }
-    14 wraprows_fn "WRAPROWS" (2, 3) [R "vector", V "wrap_count", V "pad_with"] |s, a, sv| {
+    14 wraprows_fn "WRAPROWS" (2, 3) [R "vector" ~ ArrayAtRoot, V "wrap_count", V "pad_with"] |s, a, sv| {
         run(s, a, sv, k::eval_wraprows_prepared)
     }
-    15 wrapcols_fn "WRAPCOLS" (2, 3) [R "vector", V "wrap_count", V "pad_with"] |s, a, sv| {
+    15 wrapcols_fn "WRAPCOLS" (2, 3) [R "vector" ~ ArrayAtRoot, V "wrap_count", V "pad_with"] |s, a, sv| {
         run(s, a, sv, k::eval_wrapcols_prepared)
     }
-    16 expand_fn "EXPAND" (2, 4) [R "array", V "rows", V "columns", R "pad_with"] |s, a, sv| {
+    16 expand_fn "EXPAND" (2, 4) [R "array" ~ ArrayAtRoot, V "rows", V "columns", R "pad_with"] |s, a, sv| {
         source_error(a)?;
         let mut args = Vec::with_capacity(a.len());
         args.push(prepared_one(s, a, 0, sv)?);

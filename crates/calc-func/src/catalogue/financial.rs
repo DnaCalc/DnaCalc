@@ -182,7 +182,7 @@ ported_family! {
         let g = if a.len() > 5 { Some(num(s, a, 5)?) } else { None };
         tv_out(s, tv::rate(num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?, opt(s, a, 3, 0.0)?, t, g))
     }
-    6 npv_fn "NPV" (2, 255) [V "rate", R "value1", R "value2"] |s, a, sv| {
+    6 npv_fn "NPV" (2, 255) [V "rate" ~ AggregateAtRoot, R "value1" ~ AggregateAtRoot, R "value2" ~ AggregateAtRootRepeated] |s, a, sv| {
         let rate = num(s, a, 0)?;
         let values = numbers(s, a, 1, a.len(), sv, Held::Numbers)?;
         tv_out(s, tv::npv(rate, &values))
@@ -198,11 +198,11 @@ ported_family! {
     9 ispmt_fn "ISPMT" (4, 4) [V "rate", V "per", V "nper", V "pv"] |s, a, sv| {
         tv_out(s, tv::ispmt(num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?, num(s, a, 3)?))
     }
-    10 mirr_fn "MIRR" (3, 3) [R "values", V "finance_rate", V "reinvest_rate"] |s, a, sv| {
+    10 mirr_fn "MIRR" (3, 3) [R "values" ~ ArrayAtRoot, V "finance_rate", V "reinvest_rate"] |s, a, sv| {
         let values = numbers(s, a, 0, 1, sv, Held::Numbers)?;
         tv_out(s, tv::mirr(&values, num(s, a, 1)?, num(s, a, 2)?))
     }
-    11 fvschedule_fn "FVSCHEDULE" (2, 2) [V "principal", R "schedule"] |s, a, sv| {
+    11 fvschedule_fn "FVSCHEDULE" (2, 2) [V "principal", R "schedule" ~ AggregateAtRoot] |s, a, sv| {
         let principal = num(s, a, 0)?;
         let rates = schedule(s, a, 1, sv)?;
         tv_out(s, tv::fvschedule(principal, &rates))
@@ -225,7 +225,7 @@ ported_family! {
     17 cumprinc_fn "CUMPRINC" (6, 6) [V "rate", V "nper", V "pv", V "start_period", V "end_period", V "type"] |s, a, sv| {
         cumulative_out(s, cumulative::cumprinc_kernel(required_num(s, a, 0)?, required_num(s, a, 1)?, required_num(s, a, 2)?, required_num(s, a, 3)?, required_num(s, a, 4)?, required_num(s, a, 5)?))
     }
-    18 irr_fn "IRR" (1, 2) [R "values", V "guess"] |s, a, sv| {
+    18 irr_fn "IRR" (1, 2) [R "values" ~ ArrayAtRoot, V "guess"] |s, a, sv| {
         let mut values = resolved(s, a, 0, sv)?;
         // Fn7 scalar readings: held cells keep the collector's held-value rule,
         // even when the range is one cell. Direct text and logicals are ignored
@@ -249,7 +249,7 @@ ported_family! {
         }
         out(s, cash::irr_kernel(&cashflows, g))
     }
-    19 xnpv_fn "XNPV" (3, 3) [V "rate", R "values", R "dates"] |s, a, sv| {
+    19 xnpv_fn "XNPV" (3, 3) [V "rate", R "values" ~ AggregateAtRoot, R "dates" ~ AggregateAtRoot] |s, a, sv| {
         let rate = match cash::scalar_number_from_eval(&a[0]) {
             Ok(n) => n,
             Err(error) => return cash_err(error),
@@ -266,7 +266,7 @@ ported_family! {
         };
         out(s, cash::xnpv_kernel(rate, &values, &dates))
     }
-    20 xirr_fn "XIRR" (2, 3) [R "values", R "dates", V "guess"] |s, a, sv| {
+    20 xirr_fn "XIRR" (2, 3) [R "values" ~ AggregateAtRoot, R "dates" ~ AggregateAtRoot, V "guess"] |s, a, sv| {
         let values = resolved(s, a, 0, sv)?;
         let dates = resolved(s, a, 1, sv)?;
         let values = match cash::collect_numeric_vector_from_eval(&values) {

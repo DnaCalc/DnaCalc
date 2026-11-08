@@ -46,7 +46,7 @@ pub use call::{
 };
 pub use catalogue::{
     ArgumentDemand, ArgumentGroups, Catalogue, EntryClass, EntryRule, FunctionCallTarget,
-    FunctionId, HelpParameter, Notation, OperandForm, ParameterClass, RegistrationError,
+    FunctionId, HelpParameter, LegacyPlace, Notation, OperandForm, ParameterClass, RegistrationError,
     ResultForm, SignatureHelp, catalogue,
 };
 pub use cube::{CubeColumn, CubeFailure, CubeLookup, CubeMeasure, CubeMember, CubeModel, CubeTable};

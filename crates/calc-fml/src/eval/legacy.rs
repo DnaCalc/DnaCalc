@@ -41,7 +41,7 @@
 //! SKEW's numbers, LARGE's and SMALL's array, PERCENTILE's, QUARTILE's, PERCENTRANK's and
 //! TRIMMEAN's array, CONCAT's and TEXTJOIN's texts, NPV's values and TRANSPOSE's array
 //! (`=@TRANSPOSE(@A1:A3*1)`); each is #VALUE! in those rows, below A1:A3. dc-10y measured every
-//! parameter of the catalogue that takes a reference the same way on 2026-10-25 ([`AGGREGATE`]),
+//! parameter of the catalogue that takes a reference the same way on 2026-10-25,
 //! CHISQ.TEST's among them (no `@`: its ranges lift).
 //!
 //! From these rows a place is one of four kinds ([`Place`]). The formula's root, and every
@@ -65,243 +65,20 @@ pub(super) enum Place {
     Aggregate,
     Array,
     /// The arguments of an aggregate function called at an array place
-    /// ([`AGGREGATE_UNDER_ARRAY`], dc-b1l): an operator over a range lifts there, and a function
+    /// (dc-b1l): an operator over a range lifts there, and a function
     /// called there takes its arguments as at a formula's root.
     ArrayAggregate,
     Unknown,
 }
 
-/// The aggregate functions measured below an array place (dc-b1l, Excel 16.0.20527 through COM,
-/// 2026-10-30, legacy formulas entered through `Range.Formula` over 1, 2, 3 in A1:A3 and 10, 20,
-/// 30 in B1:B3): `=SUMPRODUCT(SUM(A1:A3*2))` is 12, `=SUMPRODUCT(MAX(A1:A3*2))` 6,
-/// `=SUMPRODUCT(AVERAGE(A1:A3*B1:B3))` 46.67, `=SUMPRODUCT(MIN(A1:A3+1))` 2 (an operator lifts),
-/// while `=SUMPRODUCT(SUM(ABS(A1:A3)))` reads back as `=SUMPRODUCT(SUM(ABS(@A1:A3)))` and
-/// `=SUMPRODUCT(SUM(IF(A1:A3>1,A1:A3)))` as `...IF(@A1:A3>1,...)` (a function below intersects
-/// as at the root); COUNT, COUNTA, PRODUCT, SUMSQ and MEDIAN likewise.
-const AGGREGATE_UNDER_ARRAY: &[&str] = &[
-    "SUM", "MAX", "MIN", "AVERAGE", "COUNT", "COUNTA", "PRODUCT", "SUMSQ", "MEDIAN",
-];
-
-/// The parameters that take a reference and do not spill, by function: a range expression
-/// written there is intersected. dc-10y measured every parameter of the catalogue that takes a
-/// reference, at its first positions (up to four), on Excel 16.0.20430 through COM on 2026-10-25:
-/// the call with `A1:A3*1` there and 1 at its other arguments, entered through `Range.Formula`,
-/// `Range.Formula2` read back; an `@` written before `A1:A3` puts the parameter here, none puts it
-/// in [`ARRAY`]. A function of 250 parameters or more whose measured positions all agree takes
-/// every position ([`ALL`]). A parameter whose call Excel refused to enter (one that takes only a
-/// reference) is in neither.
-const AGGREGATE: &[(&str, &[usize])] = &[
-    ("AGGREGATE", &[3]),
-    ("AND", ALL),
-    ("AVEDEV", ALL),
-    ("AVERAGE", ALL),
-    ("AVERAGEA", ALL),
-    ("BYCOL", &[1]),
-    ("BYROW", &[1]),
-    ("CHOOSECOLS", &[1, 2]),
-    ("CHOOSEROWS", &[1, 2]),
-    ("CONCAT", ALL),
-    ("COUNT", ALL),
-    ("COUNTA", ALL),
-    ("DEVSQ", ALL),
-    ("FILTER", &[2]),
-    ("FVSCHEDULE", &[1]),
-    ("GCD", ALL),
-    ("GEOMEAN", ALL),
-    ("HARMEAN", ALL),
-    ("HLOOKUP", &[1]),
-    ("IMPRODUCT", ALL),
-    ("IMSUM", ALL),
-    ("ISEVEN", &[0]),
-    ("ISODD", &[0]),
-    ("ISREF", &[0]),
-    ("KURT", ALL),
-    ("LARGE", &[0]),
-    ("LCM", ALL),
-    ("MAKEARRAY", &[2]),
-    ("MAP", &[1, 2]),
-    ("MATCH", &[1]),
-    ("MAX", ALL),
-    ("MAXA", ALL),
-    ("MEDIAN", ALL),
-    ("MIN", ALL),
-    ("MINA", ALL),
-    ("MULTINOMIAL", ALL),
-    ("N", &[0]),
-    ("NETWORKDAYS", &[2]),
-    ("NPV", ALL),
-    ("OR", ALL),
-    ("PERCENTILE", &[0]),
-    ("PERCENTILE.EXC", &[0]),
-    ("PERCENTILE.INC", &[0]),
-    ("PERCENTRANK", &[0]),
-    ("PERCENTRANK.EXC", &[0]),
-    ("PERCENTRANK.INC", &[0]),
-    ("PRODUCT", ALL),
-    ("QUARTILE", &[0]),
-    ("QUARTILE.EXC", &[0]),
-    ("QUARTILE.INC", &[0]),
-    ("REDUCE", &[0, 2]),
-    ("SCAN", &[0, 2]),
-    ("SERIESSUM", &[3]),
-    ("SHEET", &[0]),
-    ("SKEW", ALL),
-    ("SKEW.P", ALL),
-    ("SMALL", &[0]),
-    ("SORTBY", &[2]),
-    ("STDEV", ALL),
-    ("STDEV.P", ALL),
-    ("STDEV.S", ALL),
-    ("STDEVA", ALL),
-    ("STDEVP", ALL),
-    ("STDEVPA", ALL),
-    ("SUM", ALL),
-    ("SUMSQ", ALL),
-    ("TEXTAFTER", &[1]),
-    ("TEXTBEFORE", &[1]),
-    ("TEXTJOIN", ALL),
-    ("TEXTSPLIT", &[1, 2]),
-    ("TRANSPOSE", &[0]),
-    ("TRIMMEAN", &[0]),
-    ("TYPE", &[0]),
-    ("VAR", ALL),
-    ("VAR.P", ALL),
-    ("VAR.S", ALL),
-    ("VARA", ALL),
-    ("VARP", ALL),
-    ("VARPA", ALL),
-    ("VLOOKUP", &[1]),
-    ("WORKDAY", &[2]),
-    ("XIRR", &[0, 1]),
-    ("XLOOKUP", &[3]),
-    ("XNPV", &[1, 2]),
-    ("XOR", ALL),
-    ("Z.TEST", &[0]),
-    ("ZTEST", &[0]),
-];
-
-/// The array parameters, by function: a range expression written there lifts (measured as
-/// [`AGGREGATE`] says). FILTER's include, for one, was measured by the catalogue oracle's capture
-/// too (F3 dc-728): `=_xlfn._xlws.FILTER(Data!A1:A3,Data!A1:A3>1)` entered as a legacy formula
-/// gives 5, the first of FILTER's rows {5;3}.
-const ARRAY: &[(&str, &[usize])] = &[
-    ("AGGREGATE", &[2]),
-    ("ARRAYTOTEXT", &[0]),
-    ("BYCOL", &[0]),
-    ("BYROW", &[0]),
-    ("CHISQ.TEST", &[0, 1]),
-    ("CHITEST", &[0, 1]),
-    ("CHOOSECOLS", &[0]),
-    ("CHOOSEROWS", &[0]),
-    ("COLUMNS", &[0]),
-    ("CORREL", &[0, 1]),
-    ("COVAR", &[0, 1]),
-    ("COVARIANCE.P", &[0, 1]),
-    ("COVARIANCE.S", &[0, 1]),
-    ("DROP", &[0]),
-    ("EXPAND", &[0]),
-    ("F.TEST", &[0, 1]),
-    ("FILTER", &[0, 1]),
-    ("FORECAST", &[1, 2]),
-    ("FORECAST.LINEAR", &[1, 2]),
-    ("FREQUENCY", &[0, 1]),
-    ("FTEST", &[0, 1]),
-    ("GROWTH", &[0, 1]),
-    ("HSTACK", ALL),
-    ("INDEX", &[0]),
-    ("INTERCEPT", &[0, 1]),
-    ("IRR", &[0]),
-    ("LINEST", &[0, 1]),
-    ("LOGEST", &[0, 1]),
-    ("LOOKUP", &[1, 2]),
-    ("MAP", &[0]),
-    ("MDETERM", &[0]),
-    ("MINVERSE", &[0]),
-    ("MIRR", &[0]),
-    ("MMULT", &[0, 1]),
-    ("MODE", ALL),
-    ("MODE.MULT", ALL),
-    ("MODE.SNGL", ALL),
-    ("PEARSON", &[0, 1]),
-    ("PROB", &[0, 1]),
-    ("REDUCE", &[1]),
-    ("ROWS", &[0]),
-    ("RSQ", &[0, 1]),
-    ("SCAN", &[1]),
-    ("SHEETS", &[0]),
-    ("SLOPE", &[0, 1]),
-    ("SORT", &[0, 1]),
-    ("SORTBY", &[0, 1]),
-    ("STEYX", &[0, 1]),
-    ("SUMPRODUCT", ALL),
-    ("SUMX2MY2", &[0, 1]),
-    ("SUMX2PY2", &[0, 1]),
-    ("SUMXMY2", &[0, 1]),
-    ("T.TEST", &[0, 1]),
-    ("TAKE", &[0]),
-    ("TOCOL", &[0]),
-    ("TOROW", &[0]),
-    ("TREND", &[0, 1]),
-    ("TTEST", &[0, 1]),
-    ("UNIQUE", &[0]),
-    ("VSTACK", ALL),
-    ("WRAPCOLS", &[0]),
-    ("WRAPROWS", &[0]),
-    ("XLOOKUP", &[1, 2]),
-    ("XMATCH", &[1]),
-];
-
-/// The value parameters a legacy formula intersects wherever the call is, an array place
-/// included, by function. dc-b1l measured FIELDVALUE in the catalogue oracle's capture (Excel
-/// 16.0.20430, 2026-10-27): Excel loads `=ROWS(FIELDVALUE({1,2;3,4},"x"))` as
-/// `=ROWS(FIELDVALUE(@{1,2;3,4},"x"))`, #FIELD!, and `=ROWS(FIELDVALUE(Data!A1:A3,"x"))` with `@`
-/// before the range, where the `*` operand of `=ROWS(A1:A3*1)` lifts.
-const SINGLE: &[(&str, &[usize])] = &[("FIELDVALUE", ALL)];
-
-/// The array parameters that lift wherever the call is, an array place included (dc-h9u). Measured
-/// in Excel 16.0.20527 through COM on 2026-10-30, `Range.Formula` entry in rows 1 to 36 over
-/// A101:A103 = 1, 2, 3 and E101:E103 = East, West, East, `Range.Formula2` read back: Excel wrote no
-/// `@` in `=ROWS(GROUPBY(E101:E103&"",A101:A103*1,SUM))` (3),
-/// `=ROWS(GROUPBY(E101:E103,A101:A103,SUM,,,,A101:A103>1))` (3),
-/// `=SUMPRODUCT(GROUPBY(E101:E103,A101:A103*1,SUM,,0))` (6) or
-/// `=ROWS(PIVOTBY(E101:E103&"",D101:D103&"",A101:A103*1,SUM,,,,,,A101:A103>1))` (4), and the
-/// catalogue oracle's `=ROWS(GROUPBY(...,{1;2;3;4;5;6}>2))` rows give the filtered groups.
-const NESTED_ARRAY: &[(&str, &[usize])] = &[
-    ("GROUPBY", &[0, 1, 6]),
-    ("PIVOTBY", &[0, 1, 2, 9]),
-    // R25's Legacy INDEX(LINEST/LOGEST(...,CHOOSE({1,2},x1,x2),...))
-    // captures retain both predictor columns, including callers below x1/x2.
-    ("LINEST", &[1]),
-    ("LOGEST", &[1]),
-    // R26's Legacy INDEX(MINVERSE(CHOOSE({1,2},x1,x2)),1,1)
-    // captures likewise retain the complete two-column matrix below INDEX.
-    ("MINVERSE", &[0]),
-];
-
-/// The reference parameters at which OFFSET or INDIRECT lifts over an array wherever the call is,
-/// giving an array of references the function runs once per reference of (dc-b1l, the
-/// catalogue's dcb1l_language rows, Excel 16.0.20527, 2026-10-30: legacy
-/// `=SUM(SUBTOTAL(9,OFFSET(E1,{0;1},0,2)))` is 8 over 1, 2, 3 in E1:E3); ROW and INDEX, given one
-/// there, take its first reference (`=SUMPRODUCT(ROW(OFFSET(E1,{0;1},0)))` is 1).
-const REFERENCES_LIFT: &[(&str, &[usize])] = &[
-    ("SUBTOTAL", ALL),
-    ("SUMIF", &[0]),
-    ("COUNTIF", &[0]),
-    ("AREAS", &[0]),
-    ("ROW", &[0]),
-    ("INDEX", &[0]),
-];
-
 /// The parameters whose range expression a legacy formula intersects wherever the call is, an
-/// array place included, while an array there lifts (dc-o9r). Measured as [`NESTED_ARRAY`] says:
+/// array place included, while an array there lifts (dc-o9r). Measured on Excel 16.0.20527:
 /// `=SUMPRODUCT(TRANSPOSE(A101:A103*1))` is written back `=SUMPRODUCT(TRANSPOSE(@A101:A103*1))`,
 /// #VALUE!, and `=ROWS(TRANSPOSE(A101:A103*1))` likewise, while `=SUMPRODUCT(TRANSPOSE({1,2,3}*1))`
 /// keeps no `@`, 6, and `=ROWS(TRANSPOSE({1,2,3}*1))` is 3.
-const AGGREGATE_ANYWHERE: &[(&str, &[usize])] = &[("TRANSPOSE", &[0])];
-
 /// The parameters at which a legacy formula intersects an argument whose value is a reference
 /// (Excel writes `@` before it), outside an array place or (`true`) everywhere (dc-o9r, dc-b1l).
-/// Measured as [`NESTED_ARRAY`] says: `=TRANSPOSE(A101:A103)` is written back
+/// Measured on Excel 16.0.20527: `=TRANSPOSE(A101:A103)` is written back
 /// `=@TRANSPOSE(@A101:A103)` and gives #VALUE!, and `=ROWS(TRANSPOSE(A101:A103))`,
 /// `=SUMPRODUCT(TRANSPOSE(A101:A103))`, `=SUM(TRANSPOSE(OFFSET(A101,0,0,3,1)))`,
 /// `=SUM(TRANSPOSE(Rng))`, `=INDEX(TRANSPOSE(D101:D103),1,3)` and
@@ -310,27 +87,14 @@ const AGGREGATE_ANYWHERE: &[(&str, &[usize])] = &[("TRANSPOSE", &[0])];
 /// `TYPE(@Rng)`, `TYPE(@A:A)` (1, in row 3) likewise, while `=SUMPRODUCT(TYPE(A101:A103))` keeps
 /// no `@`, 64, and `=ROWS(TYPE(A101:A103))` is 1. `=TRANSPOSE({1,2,3})` and `=TYPE((A101,A102))`
 /// (a union) take no `@` before the argument.
-const REFERENCE_INTERSECTED: &[(&str, usize, bool)] = &[("TRANSPOSE", 0, true), ("TYPE", 0, false)];
-
-/// Whether a legacy formula intersects a reference given as argument `index` of a call of
-/// `spelling` made at `place` (see [`REFERENCE_INTERSECTED`]).
-pub(super) fn intersects_reference(place: Place, spelling: &str, index: usize) -> bool {
-    REFERENCE_INTERSECTED
-        .iter()
-        .any(|(name, position, everywhere)| {
-            name.eq_ignore_ascii_case(spelling)
-                && *position == index
-                && (*everywhere || place != Place::Array)
-        })
-}
-
-/// Every parameter of a function.
-const ALL: &[usize] = &[usize::MAX];
-
-fn listed(table: &[(&str, &[usize])], spelling: &str, index: usize) -> bool {
-    table.iter().any(|(name, positions)| {
-        name.eq_ignore_ascii_case(spelling) && (*positions == ALL || positions.contains(&index))
-    })
+#[cfg(test)]
+fn intersects_reference(place: Place, spelling: &str, index: usize) -> bool {
+    let target = calc_func::catalogue().resolve_surface(calc_func::Notation::Call, spelling);
+    match target.ok().and_then(|target| target.legacy_place(index)) {
+        Some(calc_func::LegacyPlace::IntersectReferenceAlways | calc_func::LegacyPlace::AggregateAlwaysIntersectReference) => true,
+        Some(calc_func::LegacyPlace::IntersectReference | calc_func::LegacyPlace::AggregateIntersectReference) => place != Place::Array,
+        _ => false,
+    }
 }
 
 impl Place {
@@ -374,32 +138,38 @@ impl Place {
                 other => other,
             };
         }
+        let legacy = calc_func::catalogue()
+            .resolve_surface(calc_func::Notation::Call, spelling)
+            .ok()
+            .and_then(|target| target.legacy_place(index));
         match class {
-            Some(ParameterClass::Value) if listed(SINGLE, spelling, index) => Place::Value,
+            Some(ParameterClass::Value)
+                if legacy
+                    == Some(calc_func::LegacyPlace::SingleValue) => Place::Value,
             Some(ParameterClass::Value) => self,
             Some(ParameterClass::ValueOrReference | ParameterClass::Reference) | None => {
                 // N's range arithmetic intersects at an aggregate place (dc_10y
                 // Lg!D124). An enclosing array place still lifts it, including
                 // generated arrays of references below SUMPRODUCT.
-                if listed(NESTED_ARRAY, spelling, index)
-                    || listed(REFERENCES_LIFT, spelling, index)
-                    || (self == Place::Array && spelling.eq_ignore_ascii_case("N") && index == 0)
+                if matches!(legacy,
+                    Some(calc_func::LegacyPlace::ArrayAlways | calc_func::LegacyPlace::ArrayAlwaysRepeated | calc_func::LegacyPlace::ArrayAlwaysLiftReferences | calc_func::LegacyPlace::ArrayAlwaysLiftReferencesRepeated))
+                    || (self == Place::Array && matches!(legacy, Some(calc_func::LegacyPlace::AggregateRootArrayNested | calc_func::LegacyPlace::AggregateRootArrayNestedLiftReferences)))
                 {
                     Place::Array
-                } else if listed(AGGREGATE_ANYWHERE, spelling, index) {
+                } else if legacy == Some(calc_func::LegacyPlace::AggregateAlwaysIntersectReference) {
                     Place::Aggregate
-                } else if listed(ARRAY, spelling, index) {
+                } else if matches!(legacy, Some(calc_func::LegacyPlace::ArrayAtRoot | calc_func::LegacyPlace::ArrayAtRootRepeated))
+                {
                     match self {
                         Place::Value | Place::Aggregate => Place::Array,
                         _ => Place::Unknown,
                     }
-                } else if listed(AGGREGATE, spelling, index) {
+                } else if matches!(legacy, Some(calc_func::LegacyPlace::AggregateAtRoot | calc_func::LegacyPlace::AggregateAtRootRepeated | calc_func::LegacyPlace::AggregateUnderArray | calc_func::LegacyPlace::AggregateUnderArrayRepeated | calc_func::LegacyPlace::AggregateAtRootTwice | calc_func::LegacyPlace::AggregateRootArrayNested | calc_func::LegacyPlace::AggregateRootArrayNestedLiftReferences | calc_func::LegacyPlace::AggregateIntersectReference))
+                {
                     match self {
                         Place::Value | Place::Aggregate => Place::Aggregate,
                         Place::Array
-                            if AGGREGATE_UNDER_ARRAY
-                                .iter()
-                                .any(|name| name.eq_ignore_ascii_case(spelling)) =>
+                            if matches!(legacy, Some(calc_func::LegacyPlace::AggregateUnderArray | calc_func::LegacyPlace::AggregateUnderArrayRepeated)) =>
                         {
                             Place::ArrayAggregate
                         }
