@@ -239,7 +239,7 @@ impl std::error::Error for ApplyError {}
 /// so [`ModelRoot::same_lineage`] tells a revision of a document from a root built apart from it,
 /// such as another load of the same file. Equality compares the revision, the sheets, the cells
 /// and the layout, not the lineage.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ModelRoot {
     revision: AuthoredRevision,
     sheets: Vec<SheetEntry>,
@@ -518,6 +518,13 @@ impl ModelRoot {
         Ok(Arc::new(root))
     }
 
+    /// Install the initial model snapshot without changing the imported revision.
+    pub fn with_initial_data_model(&self, model: crate::DataModel) -> Arc<Self> {
+        let mut root = self.clone();
+        root.definitions = Arc::new(Definitions::clone(&self.definitions).with_data_model(Some(model)));
+        Arc::new(root)
+    }
+
     pub fn revision(&self) -> AuthoredRevision {
         self.revision
     }
@@ -761,6 +768,7 @@ impl ModelRoot {
         let mut links = Vec::new();
         let mut charts = Vec::new();
         let mut pivots = None;
+        let mut data_model = None;
         let mut page_setups = Vec::new();
         let mut validations = Vec::new();
         let mut panes = Vec::new();
@@ -771,6 +779,7 @@ impl ModelRoot {
         for (operation, op) in batch.operations.iter().enumerate() {
             match op {
                 WorkbookOp::SetPageSetup {sheet, setup} => { self.position_of(operation, *sheet)?; if setup.validate().is_err() { return Err(ApplyError::AxisEdit {operation}); } page_setups.push((*sheet,setup.clone())); }
+                WorkbookOp::SetDataModel(value)=>{data_model=Some(value.clone());},
                 WorkbookOp::SetPivots(value)=>{for table in value.tables(){self.position_of(operation,table.area.sheet())?;}pivots=Some(value.clone());},
                 WorkbookOp::SetCharts {sheet,charts:values}=>{self.position_of(operation,*sheet)?;charts.push((*sheet,values.clone()));}
                 WorkbookOp::SetStyles(value) => styles = Some(Arc::clone(value)),
@@ -938,7 +947,7 @@ impl ModelRoot {
             Some(definitions) => Arc::new(definitions),
             None => Arc::clone(&self.definitions),
         };
-        if tables.is_some() || pivots.is_some() || styles.is_some()
+        if tables.is_some() || pivots.is_some() || data_model.is_some() || styles.is_some()
             || !conditional.is_empty()
             || !review.is_empty()
             || !links.is_empty()
@@ -953,6 +962,7 @@ impl ModelRoot {
             || iteration.is_some_and(|settings| settings != definitions.iteration())
         {
             let mut next = Definitions::clone(&definitions);
+            if let Some(model)=data_model {next=next.with_shared_data_model(model);}
             if let Some(pivots)=pivots {next=next.with_pivots(pivots);}
             if let Some(tables)=tables {next=next.with_tables(tables);}
         if let Some(styles) = styles {

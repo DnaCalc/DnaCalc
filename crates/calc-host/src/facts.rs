@@ -23,6 +23,7 @@ use std::sync::Arc;
 #[derive(Debug)]
 pub(crate) struct HostFacts {
     pub(crate) model: Arc<ModelRoot>,
+    pub(crate) cube: calc_func::CubeLookup,
     pub(crate) styles: Arc<StyleTable>,
     pub(crate) sheets: Arc<[LoadedSheet]>,
     pub(crate) axis_edits: Arc<[AxisEdit]>,
@@ -137,90 +138,111 @@ impl HostFacts {
     }
 }
 
-impl HostFacts {
-    /// A model table's rows as a table of the workbook holds them, with each cell read from the
-    /// model: the data model's snapshot, so reading it is no dependency. A formula in a column
-    /// is beyond this reader.
-    fn cube_table(&self, name: &str) -> Option<calc_func::CubeTable> {
-        let definitions = self.model.definitions();
-        let table = definitions.tables().iter().find(|table| {
-            calc_value::workbook_names_equal(&table.name, name)
-                || calc_value::workbook_names_equal(&table.display_name, name)
-        })?;
-        let first = table.area.first();
-        let last_row = table.area.last().row() - table.totals_rows;
-        let mut columns = Vec::with_capacity(table.columns.len());
-        for (offset, column) in table.columns.iter().enumerate() {
-            let mut cells = Vec::new();
-            for row in first.row() + table.header_rows..=last_row {
-                let at = CellKey::new(table.sheet, row, first.column() + offset as u32).ok()?;
-                cells.push(match self.model.cell(at) {
-                    None => calc_value::CalcValue::empty(),
-                    Some(calc_doc_model::CellInput::Number(number)) => {
-                        calc_value::CalcValue::number(number.get())
+/// Capture source rows at a known revision. Formula cells must have a current calculated value.
+fn model_snapshot(model: &ModelRoot, host: Option<&HostState>) -> Option<calc_doc_model::ModelSnapshot> {
+    use calc_doc_model::{CachedValue, CellInput, CellText, FiniteNumber, ModelSnapshot, ModelSnapshotTable};
+    let data = model.definitions().data_model()?;
+    let fed = |name: &String| data.tables.iter().any(|n| calc_value::workbook_names_equal(n, name));
+    if data.tables.is_empty() || !data.model_tables.iter().all(fed) { return None; }
+    let mut tables = Vec::new();
+    for name in &data.tables {
+        let table = model.definitions().tables().iter().find(|t| calc_value::workbook_names_equal(&t.name, name) || calc_value::workbook_names_equal(&t.display_name, name));
+        let Some(table) = table else {
+            // The model retains its existing copy when its worksheet table is removed.
+            let previous = data.snapshot.as_ref()?.tables.iter().find(|t| calc_value::workbook_names_equal(&t.name, name))?;
+            tables.push(previous.clone());
+            continue;
+        };
+        let last = table.area.last().row().checked_sub(table.totals_rows)?;
+        let first = table.area.first().row().checked_add(table.header_rows)?;
+        if table.area.cell_count() > 1_000_000 { return None; }
+        let projected = if let Some(host) = host {
+            let cells = (first..=last).flat_map(|row| (0..table.columns.len()).map(move |offset| {
+                CellKey::new(table.sheet, row, table.area.first().column() + offset as u32).ok()
+            })).collect::<Option<Vec<_>>>()?;
+            Some(crate::project(host, &crate::ProjectionRequest { cells }).ok()?)
+        } else { None };
+        let mut rows = Vec::new();
+        for row in first..=last {
+            let mut values = Vec::new();
+            for offset in 0..table.columns.len() {
+                let at = CellKey::new(table.sheet, row, table.area.first().column() + offset as u32).ok()?;
+                let value = if let Some(page) = &projected {
+                    let index = (row - first) as usize * table.columns.len() + offset;
+                    match page.cells().get(index)?.value() {
+                        crate::ProjectedValue::Empty => None,
+                        crate::ProjectedValue::Literal(value) => Some(value.clone()),
+                        crate::ProjectedValue::Calculated { value, calculation } if !calculation.reads_external_links() && !calculation.held_by_circular_rule() => Some(value.clone()),
+                        _ => return None,
                     }
-                    Some(calc_doc_model::CellInput::Text(text)) => {
-                        calc_value::CalcValue::text(text.text().clone())
+                } else {
+                    match model.cell(at) {
+                        None => None,
+                        Some(CellInput::Number(n)) => Some(calc_value::CalcValue::number(n.get())),
+                        Some(CellInput::Text(t)) => Some(calc_value::CalcValue::text(t.text().clone())),
+                        Some(CellInput::Logical(b)) => Some(calc_value::CalcValue::logical(*b)),
+                        Some(CellInput::Error(e)) => Some(calc_value::CalcValue::error(*e)),
+                        Some(CellInput::Formula(_)) => return None,
                     }
-                    Some(calc_doc_model::CellInput::Logical(logical)) => {
-                        calc_value::CalcValue::logical(*logical)
-                    }
-                    Some(_) => return None,
+                };
+                values.push(match value.as_ref().map(|v| v.core_ref()) {
+                    None | Some(calc_value::CoreRef::Empty) => None,
+                    Some(calc_value::CoreRef::Number(n)) => Some(CachedValue::Number(FiniteNumber::new(n)?)),
+                    Some(calc_value::CoreRef::Text(t)) => Some(CachedValue::Text(CellText::new(t.clone())?)),
+                    Some(calc_value::CoreRef::Logical(b)) => Some(CachedValue::Logical(b)),
+                    Some(calc_value::CoreRef::Error(e)) => Some(CachedValue::Error(e)),
+                    _ => return None,
                 });
             }
-            columns.push(calc_func::CubeColumn {
-                name: column.clone(),
-                cells,
-            });
+            rows.push(values);
         }
-        Some(calc_func::CubeTable {
-            name: name.to_owned(),
-            columns,
-        })
+        tables.push(ModelSnapshotTable { provenance: calc_doc_model::ModelSnapshotProvenance::WorksheetTables { revision: model.revision().get() }, name: name.clone(), columns: table.columns.clone(), rows });
     }
+    Some(ModelSnapshot { tables })
+}
+
+pub(crate) fn initial_model(model: &Arc<ModelRoot>) -> Arc<ModelRoot> {
+    let Some(data) = model.definitions().data_model() else { return model.clone(); };
+    let mut data = (**data).clone();
+    data.snapshot = model_snapshot(model, None);
+    model.with_initial_data_model(data)
+}
+
+pub(crate) fn prepare_model_refresh(host: &HostState, revision: u64) -> Result<Vec<crate::CellEdit>, String> {
+    if revision != host.revision().get() { return Err("The workbook changed before Refresh All (dc-8wp.18)".into()); }
+    let Some(data) = host.model.definitions().data_model() else { return Err("The workbook has no data model (dc-8wp.18)".into()); };
+    if !data.other_connections.is_empty() { return Err("Refresh All includes external connections that are not modelled (dc-8wp.21)".into()); }
+    if host.model.definitions().pivots().tables().next().is_some() { return Err("Refresh All includes pivot tables that are not yet refreshed by this command (dc-8wp.19)".into()); }
+    let mut data = (**data).clone();
+    data.snapshot = Some(model_snapshot(&host.model, Some(host)).ok_or("The data model source is unavailable or has uncalculated values (dc-8wp.18)")?);
+    let data = Arc::new(data);
+    let mut admitted = host.admitted_model_snapshots.borrow_mut();
+    admitted.retain(|entry| entry.strong_count() != 0);
+    admitted.push(Arc::downgrade(&data));
+    Ok(vec![crate::CellEdit::DataModel(data)])
+}
+
+fn build_cube(data: &calc_doc_model::DataModel) -> calc_func::CubeLookup {
+    let Some(connection) = &data.model_connection else { return calc_func::CubeLookup::NotReadable; };
+    let Some(snapshot) = &data.snapshot else { return calc_func::CubeLookup::NotReadable; };
+    let tables = snapshot.tables.iter().map(|table| calc_func::CubeTable {
+        name: table.name.clone(),
+        columns: table.columns.iter().enumerate().map(|(i, name)| calc_func::CubeColumn {
+            name: name.clone(), cells: table.rows.iter().map(|row| row.get(i).and_then(Option::as_ref).map_or_else(calc_value::CalcValue::empty, |v| v.to_value())).collect(),
+        }).collect(),
+    }).collect();
+    calc_func::CubeLookup::Model(Arc::new(calc_func::CubeModel {
+        connection: connection.clone(), tables,
+        measures: data.measures.iter().map(|m| calc_func::CubeMeasure { name: m.name.clone(), expression: m.expression.clone() }).collect(),
+    }))
 }
 
 impl WorkbookFacts for HostFacts {
     fn cube_model(&self, connection: &str) -> calc_func::CubeLookup {
-        use calc_func::CubeLookup;
-        let Some(model) = self.model.definitions().data_model() else {
-            return CubeLookup::NoConnection;
-        };
-        let names = |held: &String| calc_value::workbook_names_equal(held, connection);
-        if !model.connections.iter().any(names) {
-            return CubeLookup::NoConnection;
-        }
-        if model.model_connection.as_ref().is_none_or(|held| !names(held)) {
-            return CubeLookup::NotReadable;
-        }
-        let fed = |name: &String| {
-            model
-                .tables
-                .iter()
-                .any(|table| calc_value::workbook_names_equal(table, name))
-        };
-        if model.tables.is_empty() || !model.model_tables.iter().all(fed) {
-            return CubeLookup::NotReadable;
-        }
-        let mut tables = Vec::with_capacity(model.tables.len());
-        for name in &model.tables {
-            match self.cube_table(name) {
-                Some(table) => tables.push(table),
-                None => return CubeLookup::NotReadable,
-            }
-        }
-        CubeLookup::Model(Arc::new(calc_func::CubeModel {
-            connection: connection.to_owned(),
-            tables,
-            measures: model
-                .measures
-                .iter()
-                .map(|measure| calc_func::CubeMeasure {
-                    name: measure.name.clone(),
-                    expression: measure.expression.clone(),
-                })
-                .collect(),
-        }))
+        let Some(model) = self.model.definitions().data_model() else { return calc_func::CubeLookup::NoConnection; };
+        if !model.connections.iter().any(|name| calc_value::workbook_names_equal(name, connection)) { return calc_func::CubeLookup::NoConnection; }
+        if model.model_connection.as_ref().is_none_or(|name| !calc_value::workbook_names_equal(name, connection)) { return calc_func::CubeLookup::NotReadable; }
+        self.cube.clone()
     }
 
     fn cell_format(&self, cell: CellKey) -> Option<CellFormatFacts> {
@@ -337,7 +359,15 @@ impl HostState {
     }
 
     fn capture_workbook_facts(&self) -> Arc<HostFacts> {
+        let cube = if let Some(data) = self.model.definitions().data_model() {
+            let mut cache = self.cube_cache.borrow_mut();
+            if cache.as_ref().is_none_or(|(old, _)| !Arc::ptr_eq(old, data)) {
+                *cache = Some((data.clone(), build_cube(data)));
+            }
+            cache.as_ref().unwrap().1.clone()
+        } else { calc_func::CubeLookup::NoConnection };
         Arc::new(HostFacts {
+            cube,
             model: Arc::clone(&self.model),
             styles: Arc::clone(self.styles()),
             sheets: self.loaded.shared_sheets(),

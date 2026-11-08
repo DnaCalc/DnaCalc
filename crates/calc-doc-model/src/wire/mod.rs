@@ -348,7 +348,7 @@ pub fn encode_batch(batch: &OpBatch, root: &ModelRoot) -> Result<Vec<u8>, Encode
             return Err(EncodeError::Iteration { operation: index });
         }
         if matches!(operation, WorkbookOp::SetPageSetup {..}) {return Err(EncodeError::PageSetup {operation:index});}
-        if matches!(operation, WorkbookOp::SetPivots(_)) {return Err(EncodeError::Pivots {operation:index});}
+        if matches!(operation, WorkbookOp::SetPivots(_) | WorkbookOp::SetDataModel(_)) {return Err(EncodeError::Pivots {operation:index});}
         if matches!(operation, WorkbookOp::SetCharts {..}) {return Err(EncodeError::Charts {operation:index});}
         if matches!(operation, WorkbookOp::SetTables(_)) {return Err(EncodeError::Tables{operation:index});}
         if matches!(operation, WorkbookOp::SetAutoFilter { .. }) { return Err(EncodeError::AutoFilter { operation:index }); }

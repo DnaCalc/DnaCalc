@@ -317,6 +317,7 @@ pub fn prepare_edit<'s, 'r>(
             | WorkbookOp::SetFormat { .. }
             | WorkbookOp::SetStyles(_)
             | WorkbookOp::SetPivots(_)
+            | WorkbookOp::SetDataModel(_)
             | WorkbookOp::SetTables(_)
             | WorkbookOp::SetNameFormula { .. }
             | WorkbookOp::RestoreNames(_) => {}
@@ -483,14 +484,15 @@ pub fn prepare_edit<'s, 'r>(
         .any(|op| {
             matches!(
                 op,
-                WorkbookOp::SetAxisFormat(_) | WorkbookOp::SetAutoFilter { .. }
+                WorkbookOp::SetAxisFormat(_) | WorkbookOp::SetAutoFilter { .. } | WorkbookOp::SetDataModel(_)
             )
         })
         .then(|| state.nodes().map(|node| node.id()).collect());
     let schema_changed = change
         .operations
         .iter()
-        .any(|op| matches!(op, WorkbookOp::SetIteration(_) | WorkbookOp::SetPivots(_)));
+        .any(|op| matches!(op, WorkbookOp::SetIteration(_) | WorkbookOp::SetPivots(_)
+            | WorkbookOp::SetDataModel(_)));
     // Preview text only. Allocation of a name identity/version belongs to ModelRoot::apply.
     let mut name_after = BTreeMap::<NameKey, Option<&str>>::new();
     let mut name_keys = BTreeSet::new();
@@ -657,6 +659,7 @@ fn structural_moves(
                 | WorkbookOp::SetFormat { .. }
                 | WorkbookOp::SetStyles(_)
             | WorkbookOp::SetPivots(_)
+            | WorkbookOp::SetDataModel(_)
             | WorkbookOp::SetTables(_)
                 | WorkbookOp::SetNameFormula { .. }
                 | WorkbookOp::RestoreNames(_)
@@ -688,6 +691,7 @@ fn structural_moves(
             | WorkbookOp::SetFormat { .. }
             | WorkbookOp::SetStyles(_)
             | WorkbookOp::SetPivots(_)
+            | WorkbookOp::SetDataModel(_)
             | WorkbookOp::SetTables(_)
             | WorkbookOp::SetNameFormula { .. }
             | WorkbookOp::RestoreNames(_)

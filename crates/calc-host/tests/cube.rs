@@ -119,3 +119,127 @@ fn dc_8wp__a_cube_workbook_saves_and_reopens() {
         assert_eq!(first, second, "row {row}");
     }
 }
+
+const ORACLE: &[u8] = include_bytes!("fixtures/pivot_cube/oracle.xlsx");
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_18__cube_oracle_recalculates_all_captured_cells() {
+    let mut host = open(ORACLE.to_vec());
+    let sheet = host.sheets()[0].id();
+    let cells: Vec<_> = (1..=134).map(|row| CellKey::new(sheet, row, 1).unwrap()).collect();
+    let initial = project(&host, &ProjectionRequest { cells: cells.clone() }).unwrap();
+    let expected: Vec<_> = initial.cells().iter().map(|cell| match cell.value() {
+        ProjectedValue::FileCached(file) => Some(shown(&file.value().to_value())),
+        _ => None,
+    }).collect();
+    assert_eq!(expected.iter().flatten().count(), 131);
+    calculate_full(&mut host);
+    settle(&mut host);
+    let result = project(&host, &ProjectionRequest { cells }).unwrap();
+    let differences: Vec<_> = result.cells().iter().zip(expected.iter()).enumerate().filter_map(|(i, (cell, expected))| {
+        let expected = expected.as_ref()?;
+        match cell.value() {
+            ProjectedValue::Calculated { value, .. } if shown(value) == *expected => None,
+            other => Some(format!("A{}: Excel {expected}, DNA {other:?}", i + 1)),
+        }
+    }).collect();
+    assert!(differences.is_empty(), "{} differences: {differences:#?}", differences.len());
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_18__model_changes_only_on_refresh_all() {
+    use calc_host::{HostSession, SkinIntent, WorkbookCommand};
+    let mut host = open(ORACLE.to_vec());
+    calculate_full(&mut host);
+    settle(&mut host);
+    let sheet = host.sheets()[0].id();
+    let total = CellKey::new(sheet, 71, 1).unwrap();
+    let amount = CellKey::new(sheet, 2, 22).unwrap();
+    let mut session = HostSession::new(host);
+    let result = |session: &HostSession| {
+        let p = project(session.host(), &ProjectionRequest { cells: vec![total] }).unwrap();
+        match p.cells()[0].value() {
+            ProjectedValue::Calculated { value, .. } => shown(value),
+            other => panic!("not calculated: {other:?}"),
+        }
+    };
+    assert_eq!(result(&session), "42.3");
+    assert!(session.dispatch(SkinIntent::EnterCell { at: amount, text: "100".into() }).accepted());
+    let mut saved_before_refresh = Vec::new();
+    assert!(save(session.host(), &SavePolicy::default(), &mut saved_before_refresh).is_err());
+    assert!(saved_before_refresh.is_empty());
+    assert!(session.dispatch(SkinIntent::Rebuild).accepted());
+    while session.has_unfinished_calculation() { session.advance_calculation(); }
+    assert_eq!(result(&session), "42.3");
+    let revision = session.host().revision().get();
+    let connection = session.dispatch(SkinIntent::Command(WorkbookCommand::RefreshConnection { revision, name: "ThisWorkbookDataModel".into() }));
+    assert!(connection.accepted());
+    assert!(connection.committed.is_none());
+    assert_eq!(result(&session), "42.3");
+    let revision = session.host().revision().get();
+    let receipt = session.dispatch(SkinIntent::Command(WorkbookCommand::RefreshAll { revision }));
+    assert!(receipt.accepted());
+    assert!(receipt.committed.as_ref().unwrap().pending().contains(&total), "model refresh must mark CUBE cells pending");
+    assert!(session.dispatch(SkinIntent::Recalculate).accepted());
+    while session.has_unfinished_calculation() { session.advance_calculation(); }
+    assert_eq!(result(&session), "132.3");
+    let mut saved = Vec::new();
+    assert!(save(session.host(), &SavePolicy::default(), &mut saved).is_err(), "changed model bytes cannot be saved yet");
+    assert!(saved.is_empty());
+    assert!(session.dispatch(SkinIntent::Undo).accepted());
+    assert!(session.dispatch(SkinIntent::Recalculate).accepted());
+    while session.has_unfinished_calculation() { session.advance_calculation(); }
+    assert_eq!(result(&session), "42.3");
+    assert!(session.dispatch(SkinIntent::Redo).accepted());
+    assert!(session.dispatch(SkinIntent::Recalculate).accepted());
+    while session.has_unfinished_calculation() { session.advance_calculation(); }
+    assert_eq!(result(&session), "132.3");
+
+    for (column, text) in [(20, "South"), (21, "D"), (22, "3")] {
+        let at = CellKey::new(sheet, 8, column).unwrap();
+        assert!(session.dispatch(SkinIntent::EnterCell { at, text: text.into() }).accepted());
+    }
+    let mut tables = session.host().model().definitions().tables().to_vec();
+    let table = tables.iter_mut().find(|t| t.name == "Table1").unwrap();
+    table.area = calc_host::value::GridArea::new(table.area.first(), CellKey::new(sheet, 8, 22).unwrap()).unwrap();
+    if let Some(filter) = &mut table.filter { filter.area = table.area; }
+    let receipt = session.dispatch(SkinIntent::Edit { edits: vec![calc_host::CellEdit::Tables(tables)] });
+    assert!(receipt.accepted(), "{receipt:?}");
+    assert!(session.dispatch(SkinIntent::Rebuild).accepted());
+    while session.has_unfinished_calculation() { session.advance_calculation(); }
+    assert_eq!(result(&session), "132.3");
+    let revision = session.host().revision().get();
+    assert!(session.dispatch(SkinIntent::Command(WorkbookCommand::RefreshAll { revision })).accepted());
+    assert!(session.dispatch(SkinIntent::Recalculate).accepted());
+    while session.has_unfinished_calculation() { session.advance_calculation(); }
+    assert_eq!(result(&session), "135.3");
+    let count_cells = [58, 89].map(|row| CellKey::new(sheet, row, 1).unwrap()).to_vec();
+    let counts = project(session.host(), &ProjectionRequest { cells: count_cells }).unwrap();
+    let values: Vec<_> = counts.cells().iter().map(|cell| match cell.value() {
+        ProjectedValue::Calculated { value, .. } => shown(value),
+        other => panic!("not calculated: {other:?}"),
+    }).collect();
+    assert_eq!(values, ["5.0", "7.0"]);
+    assert!(session.dispatch(SkinIntent::Edit { edits: vec![calc_host::CellEdit::Tables(Vec::new())] }).accepted());
+    let revision = session.host().revision().get();
+    assert!(session.dispatch(SkinIntent::Command(WorkbookCommand::RefreshAll { revision })).accepted());
+    assert!(session.dispatch(SkinIntent::Recalculate).accepted());
+    while session.has_unfinished_calculation() { session.advance_calculation(); }
+    assert_eq!(result(&session), "135.3");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_18__malformed_model_snapshot_is_refused() {
+    let mut host = open(ORACLE.to_vec());
+    let mut data = (**host.model().definitions().data_model().unwrap()).clone();
+    data.snapshot.as_mut().unwrap().tables[0].rows[0].clear();
+    let command = calc_host::HostCommand { base: host.revision(), edits: vec![calc_host::CellEdit::DataModel(Arc::new(data))] };
+    assert!(calc_host::dispatch(&mut host, command).is_err());
+    let mut forged = (**host.model().definitions().data_model().unwrap()).clone();
+    forged.snapshot.as_mut().unwrap().tables[0].rows[0][2] = Some(calc_host::CachedValue::Number(calc_host::FiniteNumber::new(999.0).unwrap()));
+    let command = calc_host::HostCommand { base: host.revision(), edits: vec![calc_host::CellEdit::DataModel(Arc::new(forged))] };
+    assert!(calc_host::dispatch(&mut host, command).is_err());
+}

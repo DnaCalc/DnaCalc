@@ -39,8 +39,8 @@
 //! - Measures read: SUM, AVERAGE, COUNT (every kind of cell), COUNTA, COUNTBLANK, MIN, MAX (of text
 //!   too), DISTINCTCOUNT (a blank counts), COUNTROWS. With no rows, or a count of none, a
 //!   value is empty text.
-//! - Editing a source cell changes nothing until the model refreshes; here the model the facts
-//!   give is read when a CUBE cell calculates, and no dependency on the table's cells is kept.
+//! - Editing a source cell changes nothing until the model refreshes; the host supplies the
+//!   retained model snapshot, and no dependency on the table's cells is kept.
 //!
 //! Other set expressions, and DAX beyond one aggregate of one column, are refused as not
 //! modelled, as is a table column holding a formula.
