@@ -25,6 +25,8 @@
 
 pub mod bridge;
 pub mod display;
+#[cfg(test)]
+mod format_oracle;
 pub mod file;
 mod fixture;
 pub mod grid;
@@ -33,6 +35,7 @@ pub mod result;
 mod session;
 pub mod shown;
 pub mod surface;
+pub mod trace;
 pub mod web;
 
 pub use fixture::{Read, ReadRun, RunCells};

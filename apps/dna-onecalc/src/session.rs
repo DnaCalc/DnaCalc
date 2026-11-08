@@ -139,6 +139,9 @@ pub struct SessionOptions {
     pub locale: String,
     /// The number format text the result is shown with, in the locale's separators.
     pub number_format: String,
+    /// Whether serial dates count from 1904 rather than 1900 (the workbook's `date1904`).
+    #[serde(default)]
+    pub date_1904: bool,
 }
 
 impl Default for SessionOptions {
@@ -146,6 +149,7 @@ impl Default for SessionOptions {
         SessionOptions {
             locale: "en-US".to_owned(),
             number_format: "General".to_owned(),
+            date_1904: false,
         }
     }
 }
@@ -448,7 +452,14 @@ impl Session {
     /// normal form), place at the formula cell, and evaluate over the session's inputs, recording
     /// every read.
     pub fn calculate(&mut self) -> Calculation {
-        let tree = parse_formula(&self.formula);
+        let formula = self.formula.clone();
+        self.calculate_text(&formula)
+    }
+
+    /// [`Session::calculate`] for `formula` in place of the session's own: the same inputs, form,
+    /// environment and functions. A part of a formula is evaluated this way (F9, the trace).
+    pub fn calculate_text(&mut self, formula: &str) -> Calculation {
+        let tree = parse_formula(formula);
         let syntax: Vec<Diagnostic> = tree
             .diagnostics()
             .iter()

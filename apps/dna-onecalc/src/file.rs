@@ -135,11 +135,14 @@ pub fn open(bytes: &[u8]) -> Result<Session, OpenRefusal> {
             .set_input_at(cell, input)
             .map_err(|_| outside(format!("{} holds the formula and a constant", a1(*row, *column))))?;
     }
-    if let Some(item) = &file.custom {
-        let (options, addins) = read_item(&item.content).map_err(outside)?;
-        session.set_options(options);
-        session.set_addins(addins);
-    }
+    let (mut options, addins) = match &file.custom {
+        Some(item) => read_item(&item.content).map_err(outside)?,
+        None => (SessionOptions::default(), Vec::new()),
+    };
+    // The date system is the workbook's own setting, not part of our item.
+    options.date_1904 = file.date_1904;
+    session.set_options(options);
+    session.set_addins(addins);
     Ok(session)
 }
 
@@ -197,6 +200,7 @@ pub fn save(session: &mut Session) -> Result<Vec<u8>, String> {
             namespace: NAMESPACE.to_owned(),
             content: write_item(session.options(), session.addins()),
         }),
+        date_1904: session.options().date_1904,
         cached,
     };
     write_session(&file).map_err(|refusal| refusal.to_string())
@@ -340,6 +344,7 @@ mod tests {
         session.set_options(SessionOptions {
             locale: "de-DE".into(),
             number_format: "0,00".into(),
+            date_1904: false,
         });
         session.set_addins(vec![AddinRef {
             kind: "xll".into(),
@@ -398,6 +403,7 @@ mod tests {
                 SessionConstant { row: 2, column: 1, value: SessionValue::Number(4.0) },
             ],
             custom: None,
+            date_1904: false,
             cached: None,
         };
         let mut plain = open(&write_session(&file).unwrap()).unwrap();
@@ -441,6 +447,7 @@ mod tests {
                 value: SessionValue::Number(4.0),
             }],
             custom: None,
+            date_1904: false,
             cached: None,
         };
         let refusal = open(&write_session(&file).unwrap()).unwrap_err();

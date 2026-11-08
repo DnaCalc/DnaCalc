@@ -103,6 +103,15 @@ pub enum Request {
     Evaluate(Authored),
     /// Unloads the VBA module, if one is loaded.
     UnloadVba,
+    /// The value of the part of the authored formula at `start`..`start + len` (UTF-16 code
+    /// units): F9 on a selection.
+    EvaluatePart {
+        authored: Authored,
+        start: usize,
+        len: usize,
+    },
+    /// The authored formula's evaluation, part by part.
+    Trace { authored: Authored },
     /// A new, blank session; add-ins and their functions stay as they are.
     New,
     /// Opens the workbook `bytes` hold as the session (`name` is its file name).
@@ -158,6 +167,10 @@ pub enum Reply {
     Refused { message: String },
     /// What the surface shows for an authored state ([`Request::Evaluate`]).
     Shown(Box<Shown>),
+    /// The value of a part of the formula ([`Request::EvaluatePart`]).
+    Part(crate::trace::PartValue),
+    /// The parts of the formula and their values ([`Request::Trace`]).
+    Trace(crate::trace::Trace),
     /// A file or a new session replaced the session.
     Opened(Box<Opened>),
     /// A file outside what a session holds: why, and the offer to open it in DNA Calc.
@@ -233,10 +246,14 @@ pub(crate) fn entry_value(
 
 /// The calculation environment a surface gives its session: the 1900 date system, the profile of
 /// `culture`, and the owner's clock.
-pub(crate) fn environment(culture: &str, now: Option<f64>) -> CalcEnvironment {
+pub(crate) fn environment(culture: &str, now: Option<f64>, date_1904: bool) -> CalcEnvironment {
     CalcEnvironment {
         compatibility_version: 1,
-        date_system: DateSystem::System1900,
+        date_system: if date_1904 {
+            DateSystem::System1904
+        } else {
+            DateSystem::System1900
+        },
         profile: FormatProfile::for_culture(culture),
         now,
     }
@@ -347,7 +364,7 @@ impl SessionPort for LocalPort {
                 Reply::Accepted
             }
             Request::SetEnvironment { culture, now } => {
-                session.set_environment(Some(environment(&culture, now)));
+                session.set_environment(Some(environment(&culture, now, session.options().date_1904)));
                 Reply::Accepted
             }
             Request::LoadVba { name, source } => {
@@ -366,6 +383,15 @@ impl SessionPort for LocalPort {
             Request::Evaluate(authored) => {
                 Reply::Shown(Box::new(crate::shown::evaluate(session, &authored)))
             }
+            Request::EvaluatePart {
+                authored,
+                start,
+                len,
+            } => match crate::trace::evaluate_part(session, &authored, start, len) {
+                Ok(part) => Reply::Part(part),
+                Err(message) => refused(message),
+            },
+            Request::Trace { authored } => Reply::Trace(crate::trace::trace(session, &authored)),
             Request::New => {
                 let mut fresh = Session::new("Sheet1").expect("Sheet1 is a sheet name");
                 carry_functions(session, &mut fresh);

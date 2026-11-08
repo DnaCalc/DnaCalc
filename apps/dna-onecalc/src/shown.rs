@@ -33,6 +33,9 @@ pub struct Authored {
     pub grid: Vec<String>,
     pub locale: String,
     pub number_format: String,
+    /// Serial dates count from 1904 (the workbook's date system), not 1900.
+    #[serde(default)]
+    pub date_1904: bool,
     /// The clock (a serial date number) the page reads, for NOW and TODAY.
     pub now: Option<f64>,
 }
@@ -48,6 +51,7 @@ impl Default for Authored {
             grid: vec![String::new(); (grid::ROWS * grid::COLUMNS) as usize],
             locale: options.locale,
             number_format: options.number_format,
+            date_1904: options.date_1904,
             now: None,
         }
     }
@@ -159,6 +163,10 @@ pub struct Shown {
     /// units.
     pub diagnostic_spans: Vec<(usize, usize)>,
     pub reads: Vec<String>,
+    /// The registered functions the session can call (add-ins and a VBA module), which the
+    /// formula field completes beside the catalogue.
+    #[serde(default)]
+    pub functions: Vec<String>,
 }
 
 impl Shown {
@@ -177,15 +185,25 @@ fn grid_cell(session: &Session, index: usize) -> Option<CellKey> {
 
 /// Gives the session `authored`, calculates, and says what to show.
 pub fn evaluate(session: &mut Session, authored: &Authored) -> Shown {
+    let mut shown = evaluate_authored(session, authored);
+    shown.functions = session.user_function_names();
+    shown
+}
+
+/// Gives the session everything authored except the formula text: the form, the environment, the
+/// options, the formula cell and the grid's inputs. Returns how the formula cell is spelled and
+/// what each grid cell shows besides its entry.
+pub(crate) fn prepare(session: &mut Session, authored: &Authored) -> (String, Vec<GridShown>) {
     let Authored {
-        formula,
         formula_cell,
         legacy,
         plain,
         grid: entries,
         locale,
         number_format,
+        date_1904,
         now,
+        ..
     } = authored;
     session.set_form(if *legacy {
         FormulaForm::Legacy
@@ -195,10 +213,11 @@ pub fn evaluate(session: &mut Session, authored: &Authored) -> Shown {
     if *legacy && *plain {
         session.set_plain_legacy();
     }
-    session.set_environment(Some(crate::port::environment(locale, *now)));
+    session.set_environment(Some(crate::port::environment(locale, *now, *date_1904)));
     session.set_options(SessionOptions {
         locale: locale.clone(),
         number_format: number_format.clone(),
+        date_1904: *date_1904,
     });
     session.clear_inputs();
     let formula_cell = match session.set_formula_cell(formula_cell) {
@@ -243,7 +262,19 @@ pub fn evaluate(session: &mut Session, authored: &Authored) -> Shown {
             let _ = session.set_input_at(cell, InputValue::blank());
         }
     }
+    (formula_cell, shown_grid)
+}
 
+fn evaluate_authored(session: &mut Session, authored: &Authored) -> Shown {
+    let (formula_cell, mut shown_grid) = prepare(session, authored);
+    let Authored {
+        formula,
+        grid: entries,
+        number_format,
+        date_1904,
+        ..
+    } = authored;
+    let at = session.formula_cell();
     session.set_formula(formula);
     let formula_index = (0..entries.len()).find(|&index| grid_cell(session, index) == Some(at));
     if formula.trim().is_empty() {
@@ -270,6 +301,11 @@ pub fn evaluate(session: &mut Session, authored: &Authored) -> Shown {
         calculation.result.as_ref(),
         profile.as_ref(),
         number_format,
+        if *date_1904 {
+            calc_func::locale::DateSystem::System1904
+        } else {
+            calc_func::locale::DateSystem::System1900
+        },
     ) {
         Ok(view) => (view, String::new()),
         Err(note) => (
@@ -359,6 +395,7 @@ pub fn evaluate(session: &mut Session, authored: &Authored) -> Shown {
             .iter()
             .map(|read| display::read(session, read))
             .collect(),
+        functions: Vec::new(),
     }
 }
 
@@ -386,6 +423,7 @@ pub fn authored_of(session: &Session) -> Authored {
     }
     authored.locale = session.options().locale.clone();
     authored.number_format = session.options().number_format.clone();
+    authored.date_1904 = session.options().date_1904;
     authored
 }
 
@@ -517,6 +555,60 @@ mod tests {
         let reopened = crate::file::open(&crate::file::save(&mut session).unwrap()).unwrap();
         assert_eq!(authored_of(&reopened).formula_cell, "C7");
         assert_eq!(display::cell(&reopened, reopened.formula_cell()), "Sheet1!C7");
+    }
+
+    /// Excel's answers to 3,822 formula entries (dc-mx3x), through the route the page runs:
+    /// the formula goes to the session as authored text and the page shows what it answers.
+    const ENTRY_ANSWERS: &str =
+        include_str!("../../../crates/calc-fml/tests/fixtures/entry/excel-entry.tsv");
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn the_page_refuses_the_formulas_excel_refuses_on_entry_and_only_those() {
+        let mut session = Session::new("Sheet1").unwrap();
+        let (mut count, mut wrong) = (0, Vec::new());
+        for line in ENTRY_ANSWERS.lines().filter(|line| !line.starts_with('#')) {
+            let (answer, formula) = line.split_once('\t').expect("an answer and a formula");
+            let shown = evaluate(
+                &mut session,
+                &Authored {
+                    formula: formula.to_owned(),
+                    ..Authored::default()
+                },
+            );
+            let refused = shown.diagnostics.iter().any(|diagnostic| {
+                diagnostic.starts_with("Excel refuses this formula")
+                    || diagnostic.starts_with("syntax at")
+            });
+            if refused != (answer == "0") {
+                wrong.push(format!("{formula}: Excel {answer}, page {:?}", shown.diagnostics));
+            }
+            count += 1;
+        }
+        assert_eq!(count, 3822);
+        assert!(wrong.is_empty(), "{} differ:\n{}", wrong.len(), wrong.join("\n"));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn the_date_system_changes_the_dates_a_session_calculates_and_shows() {
+        let mut session = Session::new("Sheet1").unwrap();
+        let mut state = Authored {
+            formula: "=DATE(2024,1,31)".to_owned(),
+            number_format: "yyyy-mm-dd".to_owned(),
+            ..Authored::default()
+        };
+        let shown = evaluate(&mut session, &state);
+        assert_eq!(shown.result, "number 45322");
+        assert!(matches!(&shown.view, ViewWire::Value { text, .. } if text == "2024-01-31"));
+        state.date_1904 = true;
+        let shown = evaluate(&mut session, &state);
+        assert_eq!(shown.result, "number 43860");
+        assert!(matches!(&shown.view, ViewWire::Value { text, .. } if text == "2024-01-31"), "{shown:?}");
+        // The date system is the workbook's own: it goes into the file and comes back.
+        let reopened = crate::file::open(&crate::file::save(&mut session).unwrap()).unwrap();
+        assert!(reopened.options().date_1904);
+        assert!(authored_of(&reopened).date_1904);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

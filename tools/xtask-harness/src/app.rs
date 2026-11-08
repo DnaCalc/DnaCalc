@@ -1119,6 +1119,9 @@ pub enum Action {
     /// Write a session workbook into the downloads folder, as a file a person might open: its
     /// name and its one formula's text as the file spells it (`_xlfn.SEQUENCE(2,2)`), at H1.
     WriteSession(&'static str, &'static str),
+    /// Like [`Action::WriteSession`], with a plain formula (a legacy formula as a file stores it)
+    /// over the constants A1 = 3 and A2 = 4.
+    WritePlainSession(&'static str, &'static str),
     /// Write these bytes into the downloads folder under this name (a file that is no workbook).
     WriteDownload(&'static str, &'static [u8]),
     UploadDownload(&'static str),
@@ -2092,6 +2095,28 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 }),
                 constants: Vec::new(),
                 custom: None,
+                date_1904: false,
+                cached: None,
+            };
+            let bytes = calc_doc::write_session(&file).map_err(|e| e.to_string())?;
+            fs::write(session.downloads.join(name), bytes).map_err(|e| e.to_string())
+        }
+        Action::WritePlainSession(name, formula) => {
+            // A plain `<f>` (no array marker) over A1 = 3 and A2 = 4, entered in H1.
+            let file = calc_doc::SessionFile {
+                sheet: "Sheet1".to_owned(),
+                formula: Some(calc_doc::SessionFormula {
+                    row: 1,
+                    column: 8,
+                    text: formula.to_string(),
+                    array: calc_doc::SessionArray::Plain,
+                }),
+                constants: vec![
+                    calc_doc::SessionConstant { row: 1, column: 1, value: calc_doc::SessionValue::Number(3.0) },
+                    calc_doc::SessionConstant { row: 2, column: 1, value: calc_doc::SessionValue::Number(4.0) },
+                ],
+                custom: None,
+                date_1904: false,
                 cached: None,
             };
             let bytes = calc_doc::write_session(&file).map_err(|e| e.to_string())?;
@@ -2452,6 +2477,7 @@ fn session_field(bytes: &[u8], field: &str) -> Result<String, String> {
         "/sheet" => file.sheet.clone(),
         "/locale" => option("locale"),
         "/number-format" => option("numberFormat"),
+        "/date-system" => if file.date_1904 { "1904" } else { "1900" }.to_owned(),
         "/cached" => file.cached.as_ref().map(|v| format!("{v:?}")).unwrap_or_default(),
         other => {
             let address = other.strip_prefix("/cell/").ok_or(format!("no field {other}"))?;
