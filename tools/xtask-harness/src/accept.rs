@@ -4,7 +4,7 @@
 //!    all (`manifest.rs`).
 //! 2. Runs the architecture checks (`arch.rs`), whatever the bead.
 //! 3. Runs each Acceptance command the manifests register for the bead, once, from the workspace
-//!    root with `CARGO_TARGET_DIR=target/xtask-accept`, keeping argv, exit code and log; a command
+//!    root with cargo's default target directory, keeping argv, exit code and log; a command
 //!    that exits non-zero fails the run. A command that is itself `cargo xtask accept ...` is
 //!    skipped and listed (the runner does not run itself).
 //! 4. Selects the cases registered for the bead that declare the platform. An ID that no manifest
@@ -35,7 +35,7 @@
 //! that cannot run the platform (`windows` off Windows, `linux` off Linux, `excel` off Windows)
 //! runs no command and no case: every case is `not_run` with the reason, so such a run never
 //! records `passed`. The run exits 0 for `passed`, and for `not_run` only without
-//! `--require-all`; it exits 1 otherwise. Every cargo started here uses `target/xtask-accept`.
+//! `--require-all`; it exits 1 otherwise. Every cargo started here uses `target`.
 //!
 //! Platform routes: `windows` and `linux` run the cases natively on a host of that system; `excel`
 //! runs them natively on a Windows host where Excel is registered for automation, and records
@@ -356,7 +356,7 @@ fn listed_names(stdout: &str) -> Vec<String> {
         .collect()
 }
 
-/// `cargo test -p <package> --test <target> --locked --target-dir target/xtask-accept
+/// `cargo test -p <package> --test <target> --locked
 /// [--features <the target's required features>] [extra] -- [libtest]`, run from the workspace
 /// root.
 fn cargo_test(ws: &Workspace, entry: &BeadEntry, extra: &[&str], libtest: &[&str]) -> Command {
@@ -379,9 +379,7 @@ fn cargo_test(ws: &Workspace, entry: &BeadEntry, extra: &[&str], libtest: &[&str
             "--test",
             &entry.test,
             "--locked",
-        ])
-        .arg("--target-dir")
-        .arg(ws.accept_target_dir());
+        ]);
     if !required.is_empty() {
         command.args(["--features", &required.join(",")]);
     }
@@ -871,7 +869,7 @@ impl CommandRun {
             "exit_code": self.exit_code,
             "reason": self.reason,
             "started": self.started,
-            "environment": { "CARGO_TARGET_DIR": cargo::ACCEPT_TARGET_DIR },
+            "environment": {},
             "libtest_result_lines": self.result_lines,
             "duration_s": seconds(self.duration_s),
             "log": self.log,
@@ -928,7 +926,6 @@ fn run_commands(
             let mut command = Command::new(program);
             command
                 .args(&argv[1..])
-                .env("CARGO_TARGET_DIR", ws.accept_target_dir())
                 .current_dir(&ws.root);
             println!("ACCEPT running command {}", argv.join(" "));
             let log = out_dir.join(format!("command-{}.log", index + 1));
@@ -1251,7 +1248,7 @@ pub fn run(raw: &[String]) -> ExitCode {
             ""
         },
         ws.root.display(),
-        cargo::ACCEPT_TARGET_DIR
+        cargo::TARGET_DIR
     );
 
     let committed_rel = format!("{RECEIPTS_DIR}/{}/{platform}.json", args.id);
@@ -1398,7 +1395,7 @@ pub fn run(raw: &[String]) -> ExitCode {
         "started_utc": started_utc,
         "duration_s": seconds(started.elapsed().as_secs_f64()),
         "host": host,
-        "cargo_target_dir": cargo::ACCEPT_TARGET_DIR,
+        "cargo_target_dir": cargo::TARGET_DIR,
         "manifests": {
             "files": manifests.files.iter().map(|path| ws.rel(path)).collect::<Vec<_>>(),
             "errors": manifests.errors,
@@ -1562,8 +1559,8 @@ mod tests {
         };
         let sep = if cfg!(windows) { r"\" } else { "/" };
         assert_eq!(
-            redactor.apply(&format!("{root}{sep}target{sep}xtask-accept")),
-            "target/xtask-accept"
+            redactor.apply(&format!("{root}{sep}target")),
+            "target"
         );
         assert_eq!(
             redactor.apply(&format!(

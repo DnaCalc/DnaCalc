@@ -263,6 +263,7 @@ dependencies = [
  "calc-func",
  "calc-syntax",
  "calc-verdict",
+ "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-test",
 ]

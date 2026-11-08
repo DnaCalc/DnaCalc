@@ -198,6 +198,14 @@ pub enum Availability {
     Unspecified,
     /// Insider Beta with workbook compatibility version 3.
     ListsInCellsBeta,
+    /// The name is in the catalogue and Excel on Windows (16.0.20527) does not hold it: every
+    /// call answers #NAME?, the answer a missing name gets.
+    AbsentOnWindows,
+    /// Excel runs the name only on a macro sheet, in a defined name or through
+    /// `ExecuteExcel4Macro`: a worksheet formula holding it is refused at entry (`Range.Formula`
+    /// and `Formula2` throw 0x800A03EC) and a file holding it does not open (CALL and
+    /// REGISTER.ID, Excel 16.0.20527).
+    MacroSheetOnly,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -524,6 +532,10 @@ pub(crate) enum Kernel {
 }
 
 impl CatalogueEntry {
+    pub(crate) const fn with_availability(mut self, availability: Availability) -> Self {
+        self.availability = availability;
+        self
+    }
     pub(crate) const fn with_kind(mut self, kind: EntryKind) -> Self {
         self.kind = kind;
         self
@@ -869,6 +881,15 @@ impl Catalogue {
         }).map(|entry| FunctionCallTarget { entry })
     }
 
+    /// Whether `name` is the export of a declared add-in entry (EUROCONVERT of EUROTOOL.XLAM). A
+    /// bare call of such a name reaches no entry: Excel answers #NAME? while the add-in is not
+    /// loaded, which is the state of every bare-name reading.
+    pub fn is_unloaded_addin_export(&self, name: &str) -> bool {
+        self.by_id.iter().any(|entry| {
+            matches!(entry.kind, EntryKind::AddIn { export, .. } if export.eq_ignore_ascii_case(name))
+        })
+    }
+
     /// Resolve a file-form operator name without its file prefix.
     pub fn resolve_operator_alias(&self, name: &str) -> Option<FunctionCallTarget<'_>> {
         self.by_id.iter().find(|entry| {
@@ -879,19 +900,22 @@ impl Catalogue {
         }).map(|entry| FunctionCallTarget { entry })
     }
 
-    /// Every worksheet entry of the dispatch table, in ID order: all but the add-in's.
+    /// Every worksheet entry of the dispatch table, in ID order: all but the add-in's and the
+    /// names Excel on Windows does not hold ([`Availability::AbsentOnWindows`]).
     pub fn targets(&self) -> impl Iterator<Item = FunctionCallTarget<'_>> + '_ {
         self.by_id
             .iter()
-            .filter(|entry| entry.spelling != euro_tools::SURFACE && matches!(entry.kernel, Kernel::Eager(_) | Kernel::Resumable { .. } | Kernel::Lazy(_)))
+            .filter(|entry| entry.spelling != euro_tools::SURFACE && entry.availability != Availability::AbsentOnWindows && matches!(entry.kernel, Kernel::Eager(_) | Kernel::Resumable { .. } | Kernel::Lazy(_)))
             .map(|entry| FunctionCallTarget { entry })
     }
 
-    /// Every entry of the name table, ordered by notation and then by spelling.
+    /// Every entry of the name table, ordered by notation and then by spelling: the names Excel
+    /// holds, so neither the add-in's nor an [`Availability::AbsentOnWindows`] name (JIS) is in it,
+    /// though `resolve_surface` still finds the latter and it answers #NAME?.
     pub fn surfaces(&self) -> impl Iterator<Item = FunctionCallTarget<'_>> + '_ {
         self.by_surface
             .iter()
-            .filter(|entry| entry.spelling != euro_tools::SURFACE && matches!(entry.kernel, Kernel::Eager(_) | Kernel::Resumable { .. } | Kernel::Lazy(_)))
+            .filter(|entry| entry.spelling != euro_tools::SURFACE && entry.availability != Availability::AbsentOnWindows && matches!(entry.kernel, Kernel::Eager(_) | Kernel::Resumable { .. } | Kernel::Lazy(_)))
             .map(|entry| FunctionCallTarget { entry })
     }
 

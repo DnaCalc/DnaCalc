@@ -733,8 +733,6 @@ fn wasm_refusal(ws: &Workspace, log_dir: &Path) -> CheckResult {
                 WASM_TARGET,
                 "--locked",
             ])
-            .arg("--target-dir")
-            .arg(ws.accept_target_dir())
             .current_dir(&ws.root);
         let mut command = Command::new(cargo::cargo_program());
         command
@@ -747,8 +745,6 @@ fn wasm_refusal(ws: &Workspace, log_dir: &Path) -> CheckResult {
                 "--locked",
             ])
             .arg("--message-format=json")
-            .arg("--target-dir")
-            .arg(ws.accept_target_dir())
             .current_dir(&ws.root);
         let (clean_argv, argv) = (cargo::argv(&clean), cargo::argv(&command));
         let log = log_dir.join(format!("wasm-refusal-{}.log", member.name));

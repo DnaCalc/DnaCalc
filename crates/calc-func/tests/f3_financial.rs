@@ -847,3 +847,20 @@ fn maturity_price_and_bill_original_answers() {
     }
     assert!(differences.is_empty(), "{}", differences.join("\n"));
 }
+
+/// Excel20527 R37: isolated coupon weighting, quotient and running-sum words.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn duration_discounts_coupons_before_weighting_and_stores_its_sums() {
+    exact(dated("DURATION", vec![n(43831.0), n(50771.0), n(f64::from_bits(0x3fb0000000000000)),
+        n(f64::from_bits(0x3fe0000000000000)), n(1.0), n(0.0)]), f64::from_bits(0x40086461a4cb1b02));
+    for (maturity, rate_bits, yield_bits, frequency, expected) in [
+        (55154.0, 0x3fab1327a6ec088d_u64, 0x3ff8000000000000_u64, 1.0, 0x3ffaaaaaaac40db1_u64),
+        (49491.0, 0x3ff17d9e3585b48e_u64, 0x4008000000000000_u64, 2.0, 0x3feaaaaaaaac3c42_u64),
+        (46753.0, 0x4130191949ca1fd6_u64, 0x3f91000000000000_u64, 1.0, 0x4011a78257323c3a_u64),
+        (46204.0, 0x3fa782e6a3654c22_u64, 0x4008000000000000_u64, 2.0, 0x3feabea724a300e6_u64),
+    ] {
+        exact(dated("DURATION", vec![n(43831.0), n(maturity), n(f64::from_bits(rate_bits)),
+            n(f64::from_bits(yield_bits)), n(frequency), n(0.0)]), f64::from_bits(expected));
+    }
+}

@@ -656,10 +656,14 @@ pub fn duration_kernel(
     // discount factor is Excel's C-runtime `pow` staging (`excel_bond_pow`:
     // binary exponentiation on the on-coupon integer exponents, the legacy x87
     // `exp(RN53(RN64(exp*ln)))` chain off-coupon) — the SAME substrate PRICE
-    // uses. Coupon terms and their running sums use binary64. Redemption is a
-    // separate term, with the numerator weight grouped
-    // `(diff*cash)/disc` (left-assoc), NOT `diff*(cash/disc)`; the final
-    // `num/den/f` association. R33 exact-dyadic nonzero coupons and zero-coupon
+    // uses. R37's general-discount controls distinguish coupon PVs weighted
+    // after division from redemption weighted before division. Quotients and
+    // both forward running sums store from PC64, as does the final ratio.
+    // The fixed program agrees on 144 on-coupon discovery controls, 288
+    // holdout controls, 76 separating/adjacent controls, then 288 fresh
+    // controls per function (Excel20527; Research evidence/round37).
+    // The general fractional power producer remains unresolved. R33
+    // exact-dyadic nonzero coupons and zero-coupon
     // controls identify stored-PC64 redemption quotients separately from the
     // unresolved off-coupon producer. In this kernel,
     // numerator and denominator discount the SAME cashflows with the SAME `off`.
@@ -684,14 +688,15 @@ pub fn duration_kernel(
     for k in 0..p.n {
         let diff = off + k as f64;
         let disc = excel_bond_pow(base, diff);
-        num += diff * coup / disc;
-        den += coup / disc;
+        let coupon_pv = excel_x87_div(coup, disc);
+        num = excel_x87_add(num, diff * coupon_pv);
+        den = excel_x87_add(den, coupon_pv);
         if k + 1 == p.n {
-            num += excel_x87_div(diff * 100.0, disc);
-            den += excel_x87_div(100.0, disc);
+            num = excel_x87_add(num, excel_x87_div(diff * 100.0, disc));
+            den = excel_x87_add(den, excel_x87_div(100.0, disc));
         }
     }
-    Ok(num / den / f)
+    Ok(excel_x87_div(num, den) / f)
 }
 pub fn mduration_kernel(
     settlement: f64,

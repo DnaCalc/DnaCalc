@@ -1,0 +1,339 @@
+{
+ "function": "CALL and REGISTER.ID",
+ "bead": "dc-gh22",
+ "excel": "16.0.20527 64-bit (Windows)",
+ "taken": "2026-11-08",
+ "how": "worksheet_entry: each formula assigned to a cell of a new workbook through Range.Formula2 (tools/excel-session/host-function-jobs/formulas-job.ps1); entered=false is COM 0x800A03EC. xlm: Application.ExecuteExcel4Macro of the same call with CALL(A1..) arguments written out (modes-job.ps1). <fixture> is the X1 test .xll (crates/calc-xll-fixture built as hostfix.xll). A saved package holding CALL or REGISTER.ID (also written _xlfn.CALL) does not open: Workbooks.Open threw 0x800A03EC (open-job.ps1).",
+ "worksheet_entry": [
+  {
+   "formula": "=REGISTER.ID(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"BBB\")",
+   "entered": false
+  },
+  {
+   "formula": "=REGISTER.ID(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"BBB\")",
+   "entered": false
+  },
+  {
+   "formula": "=CALL(A1,1,2)",
+   "entered": false
+  },
+  {
+   "formula": "=CALL(A1,1.5,2.25)",
+   "entered": false
+  },
+  {
+   "formula": "=CALL(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"BBB\",1,2)",
+   "entered": false
+  },
+  {
+   "formula": "=REGISTER.ID(\"Kernel32\",\"GetCurrentProcessId\",\"J\")",
+   "entered": false
+  },
+  {
+   "formula": "=CALL(A6)>0",
+   "entered": false
+  },
+  {
+   "formula": "=CALL(\"kernel32\",\"lstrlenA\",\"JC\",\"hello\")",
+   "entered": false
+  },
+  {
+   "formula": "=REGISTER.ID(\"nosuch.dll\",\"MyAdd\",\"BBB\")",
+   "entered": false
+  },
+  {
+   "formula": "=CALL(\"nosuch.dll\",\"MyAdd\",\"BBB\",1,2)",
+   "entered": false
+  },
+  {
+   "formula": "=REGISTER.ID(\"<fixture>\\hostfix.xll\",\"NoSuchProc\",\"BBB\")",
+   "entered": false
+  },
+  {
+   "formula": "=CALL(\"<fixture>\\hostfix.xll\",\"NoSuchProc\",\"BBB\",1,2)",
+   "entered": false
+  },
+  {
+   "formula": "=REGISTER.ID(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"ZZZ\")",
+   "entered": false
+  },
+  {
+   "formula": "=CALL(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"ZZZ\",1,2)",
+   "entered": false
+  },
+  {
+   "formula": "=REGISTER.ID(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"\")",
+   "entered": false
+  },
+  {
+   "formula": "=REGISTER.ID(\"<fixture>\\hostfix.xll\",\"MyAdd\")",
+   "entered": false
+  },
+  {
+   "formula": "=CALL(12345,1,2)",
+   "entered": false
+  },
+  {
+   "formula": "=CALL(0,1,2)",
+   "entered": false
+  },
+  {
+   "formula": "=CALL(\"abc\",1,2)",
+   "entered": false
+  },
+  {
+   "formula": "=CALL(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"BBB\",1)",
+   "entered": false
+  },
+  {
+   "formula": "=CALL(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"BBB\",1,2,3)",
+   "entered": false
+  },
+  {
+   "formula": "=CALL(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"BBB\",\"x\",2)",
+   "entered": false
+  },
+  {
+   "formula": "=CALL(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"BBB\",TRUE,2)",
+   "entered": false
+  },
+  {
+   "formula": "=CALL(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"BBB\",#N/A,2)",
+   "entered": false
+  },
+  {
+   "formula": "=CALL(A1)",
+   "entered": false
+  },
+  {
+   "formula": "=CALL()",
+   "entered": false
+  },
+  {
+   "formula": "=REGISTER.ID()",
+   "entered": false
+  },
+  {
+   "formula": "=REGISTER.ID(\"Kernel32\")",
+   "entered": false
+  },
+  {
+   "formula": "=REGISTER.ID(1,\"MyAdd\",\"BBB\")",
+   "entered": false
+  },
+  {
+   "formula": "=REGISTER.ID(\"<fixture>\\hostfix.xll\",1,\"BBB\")",
+   "entered": false
+  },
+  {
+   "formula": "=REGISTER.ID(\"<fixture>\\hostfix.xll\",\"MyAdd\",1)",
+   "entered": false
+  },
+  {
+   "formula": "=CALL(A1,{1,2})",
+   "entered": false
+  },
+  {
+   "formula": "=REGISTER.ID(\"<fixture>\\hostfix.xll\",\"MyEcho\",\"QQ\")",
+   "entered": false
+  },
+  {
+   "formula": "=CALL(A32,\"hi\")",
+   "entered": false
+  },
+  {
+   "formula": "=CALL(A32,5)",
+   "entered": false
+  },
+  {
+   "formula": "=REGISTER.ID(\"KERNEL32.DLL\",\"GetCurrentProcessId\",\"J\")=A6",
+   "entered": false
+  },
+  {
+   "formula": "=REGISTER.ID(\"kernel32\",\"getcurrentprocessid\",\"J\")",
+   "entered": false
+  },
+  {
+   "formula": "=REGISTER.ID(\"kernel32\",\"GetCurrentProcessId\",\"J\")-A6",
+   "entered": false
+  },
+  {
+   "formula": "=ISNUMBER(A1)",
+   "entered": true
+  }
+ ],
+ "xlm": [
+  {
+   "formula": "REGISTER.ID(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"BBB\")",
+   "value": "a registration id (a process-dependent number)"
+  },
+  {
+   "formula": "REGISTER.ID(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"BBB\")",
+   "value": "a registration id (a process-dependent number)"
+  },
+  {
+   "formula": "CALL(REGISTER.ID(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"BBB\"),1,2)",
+   "value": 3.0
+  },
+  {
+   "formula": "CALL(REGISTER.ID(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"BBB\"),1.5,2.25)",
+   "value": 3.75
+  },
+  {
+   "formula": "CALL(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"BBB\",1,2)",
+   "value": 3.0
+  },
+  {
+   "formula": "REGISTER.ID(\"Kernel32\",\"GetCurrentProcessId\",\"J\")",
+   "value": "a registration id (a process-dependent number)"
+  },
+  {
+   "formula": "CALL(REGISTER.ID(\"Kernel32\",\"GetCurrentProcessId\",\"J\"))>0",
+   "value": true
+  },
+  {
+   "formula": "CALL(\"kernel32\",\"lstrlenA\",\"JC\",\"hello\")",
+   "value": 5.0
+  },
+  {
+   "formula": "REGISTER.ID(\"nosuch.dll\",\"MyAdd\",\"BBB\")",
+   "error_code": -2146826273
+  },
+  {
+   "formula": "CALL(\"nosuch.dll\",\"MyAdd\",\"BBB\",1,2)",
+   "error_code": -2146826273
+  },
+  {
+   "formula": "REGISTER.ID(\"<fixture>\\hostfix.xll\",\"NoSuchProc\",\"BBB\")",
+   "error_code": -2146826273
+  },
+  {
+   "formula": "CALL(\"<fixture>\\hostfix.xll\",\"NoSuchProc\",\"BBB\",1,2)",
+   "error_code": -2146826273
+  },
+  {
+   "formula": "REGISTER.ID(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"ZZZ\")",
+   "error_code": -2146826273
+  },
+  {
+   "formula": "CALL(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"ZZZ\",1,2)",
+   "error_code": -2146826273
+  },
+  {
+   "formula": "REGISTER.ID(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"\")",
+   "value": "a registration id (a process-dependent number)"
+  },
+  {
+   "formula": "REGISTER.ID(\"<fixture>\\hostfix.xll\",\"MyAdd\")",
+   "value": "a registration id (a process-dependent number)"
+  },
+  {
+   "formula": "CALL(12345,1,2)",
+   "error_code": -2146826273
+  },
+  {
+   "formula": "CALL(0,1,2)",
+   "error_code": -2146826273
+  },
+  {
+   "formula": "CALL(\"abc\",1,2)",
+   "error_code": -2146826273
+  },
+  {
+   "formula": "CALL(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"BBB\",1)",
+   "value": 1.0
+  },
+  {
+   "formula": "CALL(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"BBB\",1,2,3)",
+   "value": false
+  },
+  {
+   "formula": "CALL(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"BBB\",\"x\",2)",
+   "error_code": -2146826273
+  },
+  {
+   "formula": "CALL(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"BBB\",TRUE,2)",
+   "value": 3.0
+  },
+  {
+   "formula": "CALL(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"BBB\",#N/A,2)",
+   "error_code": -2146826273
+  },
+  {
+   "formula": "CALL(REGISTER.ID(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"BBB\"))",
+   "value": 0.0
+  },
+  {
+   "formula": "CALL()",
+   "refused": "There's a problem with this formula."
+  },
+  {
+   "formula": "REGISTER.ID()",
+   "refused": "There's a problem with this formula."
+  },
+  {
+   "formula": "REGISTER.ID(\"Kernel32\")",
+   "refused": "You've entered too few arguments for this function."
+  },
+  {
+   "formula": "REGISTER.ID(1,\"MyAdd\",\"BBB\")",
+   "error_code": -2146826273
+  },
+  {
+   "formula": "REGISTER.ID(\"<fixture>\\hostfix.xll\",1,\"BBB\")",
+   "error_code": -2146826273
+  },
+  {
+   "formula": "REGISTER.ID(\"<fixture>\\hostfix.xll\",\"MyAdd\",1)",
+   "value": "a registration id (a process-dependent number)"
+  },
+  {
+   "formula": "CALL(REGISTER.ID(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"BBB\"),{1,2})",
+   "value": 1.0
+  },
+  {
+   "formula": "REGISTER.ID(\"<fixture>\\hostfix.xll\",\"MyEcho\",\"QQ\")",
+   "value": "a registration id (a process-dependent number)"
+  },
+  {
+   "formula": "CALL(REGISTER.ID(\"<fixture>\\hostfix.xll\",\"MyEcho\",\"QQ\"),\"hi\")",
+   "value": "hi"
+  },
+  {
+   "formula": "CALL(REGISTER.ID(\"<fixture>\\hostfix.xll\",\"MyEcho\",\"QQ\"),5)",
+   "value": 5.0
+  },
+  {
+   "formula": "REGISTER.ID(\"KERNEL32.DLL\",\"GetCurrentProcessId\",\"J\")=REGISTER.ID(\"Kernel32\",\"GetCurrentProcessId\",\"J\")",
+   "value": true
+  },
+  {
+   "formula": "REGISTER.ID(\"kernel32\",\"getcurrentprocessid\",\"J\")",
+   "error_code": -2146826273
+  },
+  {
+   "formula": "REGISTER.ID(\"kernel32\",\"GetCurrentProcessId\",\"J\")-REGISTER.ID(\"Kernel32\",\"GetCurrentProcessId\",\"J\")",
+   "value": 0.0
+  },
+  {
+   "formula": "ISNUMBER(REGISTER.ID(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"BBB\"))",
+   "value": true
+  },
+  {
+   "formula": "CALL(\"kernel32\",\"lstrlenA\",\"JC\",\"h\u00e9llo\")",
+   "value": 5.0
+  },
+  {
+   "formula": "CALL(\"kernel32\",\"lstrlenW\",\"JC%\",\"h\u00e9llo\")",
+   "value": 5.0
+  },
+  {
+   "formula": "CALL(\"user32\",\"GetSystemMetrics\",\"JJ\",0)>0",
+   "value": true
+  },
+  {
+   "formula": "CALL(\"<fixture>\\hostfix.xll\",\"MyAdd\",\"BBB\",1,2)",
+   "value": 3.0
+  }
+ ]
+}

@@ -1,8 +1,8 @@
 //! The text functions that read or write number formats, dates and other text forms, ported from
 //! OxFunc (functions/ at 6fca3518): value_fn.rs, text_fn.rs, fixed_fn.rs, dollar_fn.rs,
 //! number_regex_translate_family.rs, valuetotext_fn.rs, array_text_split_family.rs,
-//! text_delim_family.rs, text_compat_locale_family.rs (ASC and DBCS; Excel on Windows has no
-//! JIS), web_text_xml_family.rs and hyperlink_fn.rs. A call whose result is not modelled is refused as not modelled.
+//! text_delim_family.rs, text_compat_locale_family.rs (ASC and DBCS; JIS is held as absent from Excel on
+//! Windows), web_text_xml_family.rs and hyperlink_fn.rs. A call whose result is not modelled is refused as not modelled.
 
 use super::kit::{fail, flag, grid, num, text_arg};
 use crate::call::EvalServices;
@@ -929,6 +929,11 @@ ported_family! {
     8 bahttext_fn "BAHTTEXT" (1, 1) [V "number"] three_d (None, None, Some(&[])); |s, a, sv| { bahttext(s, a) }
     9 asc_fn "ASC" (1, 1) [V "text"] three_d (None, None, Some(&[])); |s, a, sv| { width_conversion(s, a) }
     10 dbcs_fn "DBCS" (1, 1) [V "text"] three_d (None, None, Some(&[])); |s, a, sv| { width_conversion(s, a) }
+    // JIS: Excel 16.0.20527 for Windows answers #NAME? to every call (the fn1-jis bank rows,
+    // text, number, logical and empty arguments alike), so the name is held as absent. JIS is not in the dispatch table (Excel holds no such name), and
+    // its member number sits apart from the table's so that no neighbouring ID resolves to an
+    // entry the table does not admit.
+    100 jis_fn "JIS" (1, 1) [V "text"] availability AbsentOnWindows; |s, a, sv| { fail(WorksheetErrorCode::Name) }
     // PHONETIC's reference takes only an operand that may give one (dc-mx3x, Excel 16.0.20527,
     // 2026-11-07, Formula2 and Formula alike): `=PHONETIC(2)`, `=PHONETIC({1,2})` and
     // `=PHONETIC(1+1)` are refused, `=PHONETIC(B1)` and `=PHONETIC(INDEX(B1:B3,0))` enter.

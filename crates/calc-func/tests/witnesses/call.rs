@@ -136,6 +136,10 @@ pub fn calculate(
     apply_context: bool,
 ) -> String {
     let Ok(target) = catalogue().resolve_surface(Notation::Call, function) else {
+        // A bare call of an add-in's export (EUROCONVERT) is #NAME? while the add-in is not loaded.
+        if catalogue().is_unloaded_addin_export(function) {
+            return "error:Name".to_owned();
+        }
         return "fault:NotCatalogued".to_owned();
     };
     let Ok(values) = args

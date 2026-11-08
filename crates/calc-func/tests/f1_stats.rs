@@ -1040,3 +1040,21 @@ fn linest_stores_squared_norm_products() {
             Some(format!("0x{expected:016x}").as_str()));
     }
 }
+
+/// Excel20527 R37: zero-mean predictors isolate the intercept error association.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn intercept_error_multiplies_residual_by_variance_before_dividing() {
+    for (name, first_y, expected) in [
+        ("LINEST", 1.0, 0x3fc4e6fdf33cf032_u64),
+        ("LOGEST", 2.0, 0x3fbcfa0cce808936_u64),
+    ] {
+        let tail_y = if name == "LINEST" { 0.0 } else { 1.0 };
+        let y = arr(vec![vec![first_y], vec![tail_y], vec![tail_y], vec![tail_y], vec![tail_y]]);
+        let scale = 2.0_f64.powi(-20);
+        let x = arr([-4.0, -2.0, 0.0, 2.0, 4.0].into_iter().map(|v| vec![v * scale]).collect());
+        let value = call(name, vec![y, x, b(true), b(true)]).expect("regression statistics");
+        let values = value.as_array().expect("five-row regression result");
+        assert_eq!(values.row_slice(1).unwrap()[1].as_number().unwrap().to_bits(), expected);
+    }
+}

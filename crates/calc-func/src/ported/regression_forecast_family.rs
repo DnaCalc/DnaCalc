@@ -927,7 +927,12 @@ fn statistics_block(fit: &RegressionFit, use_const: bool, first: Vec<f64>) -> Ca
                 variance += w[a] * w[b] * covariance(a, b);
             }
         }
-        let se_b = if exact { 0.0 } else { (ss_resid / df * variance).sqrt() };
+        // R37 zero-mean predictors isolate this consumer from translation:
+        // all 360 discovery and 288 fresh LINEST/LOGEST selections agree
+        // with residual * variance before /df, conditioned on their published
+        // residual sum and inverse ones-column norm. The private QR/residual
+        // producers remain incomplete; this changes only the final association.
+        let se_b = if exact { 0.0 } else { (ss_resid * variance / df).sqrt() };
         second.push(number(se_b));
     } else {
         second.push(n_a());

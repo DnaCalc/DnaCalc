@@ -19,6 +19,10 @@ DENY = {"CALL", "REGISTER", "REGISTER.ID", "RTD", "DDE", "WEBSERVICE", "INFO", "
         "TREND", "GROWTH", "FREQUENCY", "MINVERSE", "MMULT", "MUNIT", "MODE.MULT"}
 
 REGRESSION = {"LINEST", "LOGEST"}
+# Pure numeric questions are needed before their worksheet kernels exist.
+ETS = {"FORECAST.ETS", "FORECAST.ETS.CONFINT", "FORECAST.ETS.SEASONALITY",
+       "FORECAST.ETS.STAT"}
+NUMERIC_ARRAYS = REGRESSION | ETS
 
 
 def catalogue_names(root):
@@ -43,7 +47,7 @@ def catalogue_names(root):
     names.update(re.findall(r'aggregate\(\w+, "([A-Z]+)"', source))
     if "ERF.PRECISE" not in names or "SUM" not in names:
         raise ValueError("Catalogue declaration format changed; review admission")
-    return names - DENY
+    return (names | ETS) - DENY
 
 
 def decode(raw):
@@ -93,19 +97,19 @@ def validate(request, names, request_id):
         for arg in row:
             if isinstance(arg, dict) and arg.get("type") == "array":
                 values = arg.get("values")
-                if (name not in REGRESSION or set(arg) != {"type", "values"}
+                if (name not in NUMERIC_ARRAYS or set(arg) != {"type", "values"}
                         or not isinstance(values, list) or not 1 <= len(values) <= 32
                         or any(not isinstance(r, list) for r in values)
                         or not 1 <= len(values[0]) <= 32
                         or any(len(r) != len(values[0]) for r in values)
                         or len(values)*len(values[0]) > 128):
-                    raise ValueError("expected a bounded rectangular regression array")
+                    raise ValueError("expected a bounded rectangular numeric array")
                 leaves = [v for r in values for v in r]
                 if any(not isinstance(v, dict) or set(v) != {"type", "bits"}
                        or v["type"] != "number" or not isinstance(v["bits"], str)
                        or not re.fullmatch("[0-9a-f]{16}", v["bits"])
                        or not math.isfinite(from_bits(v["bits"])) for v in leaves):
-                    raise ValueError("regression arrays contain only finite numeric cells")
+                    raise ValueError("arrays contain only finite numeric cells")
                 total += len(leaves)-1
                 continue
             if not isinstance(arg, dict) or arg.get("mode", "cell") not in ("cell", "literal"):

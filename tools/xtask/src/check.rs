@@ -16,8 +16,8 @@
 //! the acceptance suite are not part of this check: `cargo xtask sweep` runs them on purpose, at a
 //! milestone or on a schedule.
 //!
-//! Every cargo it starts uses `target/xtask-accept`, like `accept` and `ci`, so it never rebuilds
-//! the running xtask binary. Logs go to `target/check/`. The exit code is 1 when a scan, the build
+//! Every cargo it starts shares the default `target/` with builds and tests run by hand.
+//! The lightweight launcher runs from `target/xtask`. Logs go to `target/check/`. The exit code is 1 when a scan, the build
 //! or a test failed, 2 for a usage error, and 0 otherwise.
 
 use crate::cargo::{self, Resolved, Workspace};
@@ -49,12 +49,9 @@ fn run_logged(
     Ok((out.status.code(), text))
 }
 
-fn cargo_command(ws: &Workspace, verb: &str) -> Command {
+fn cargo_command(verb: &str) -> Command {
     let mut command = Command::new(cargo::cargo_program());
-    command
-        .args([verb, "--locked"])
-        .arg("--target-dir")
-        .arg(ws.accept_target_dir());
+    command.args([verb, "--locked"]);
     command
 }
 
@@ -170,7 +167,7 @@ pub fn run(raw: &[String]) -> ExitCode {
 
     println!("CHECK running cargo build --workspace");
     let build_log = log_dir.join("build.log");
-    let mut build = cargo_command(&ws, "build");
+    let mut build = cargo_command("build");
     build.arg("--workspace");
     match run_logged(&ws, build, &build_log) {
         Ok((Some(0), _)) => println!("CHECK passed build: log {}", ws.rel(&build_log)),
@@ -235,7 +232,7 @@ pub fn run(raw: &[String]) -> ExitCode {
             shown.join(", ")
         );
         let log = log_dir.join("test.log");
-        let mut test = cargo_command(&ws, "test");
+        let mut test = cargo_command("test");
         test.arg("--no-fail-fast");
         for package in &packages {
             test.args(["-p", package]);

@@ -207,8 +207,6 @@ fn plain_test<'a>(target: &'a str, libtest: &[&'a str]) -> Vec<&'a str> {
         "--target",
         WASM_TARGET,
         "--locked",
-        "--target-dir",
-        "target/xtask-accept",
         "--",
     ];
     args.extend_from_slice(libtest);
@@ -234,7 +232,7 @@ pub fn browser_route() {
     // Only the runner may force the browser, so no run in the copy inherits that variable.
     copy.set_environment(FORCE_BROWSER, None);
     // The runner's Node.js harness writes this path into a JavaScript string literal; on Windows
-    // the default (with backslashes, `\x` in `target\xtask-accept` among them) is a syntax error
+    // backslashes in the default path can form JavaScript escapes and cause a syntax error
     // that stops the Node.js run before its test. With forward slashes the Node.js run completes,
     // so only the runner's banner check stands between it and a pass. Browser runs ignore it.
     let bench = copy.base.join("wbg_benchmark.json");

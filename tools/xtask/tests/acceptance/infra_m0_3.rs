@@ -796,8 +796,8 @@ pub fn zero_tests_fail() {
     evidence.expect(
         run.run("fixture_pass__alpha")["argv"]
             .as_array()
-            .is_some_and(|argv| argv.iter().any(|arg| arg == "target/xtask-accept")),
-        "01-pass: the case argv names its target directory relative to the workspace".to_owned(),
+            .is_some_and(|argv| !argv.iter().any(|arg| arg == "--target-dir")),
+        "01-pass: the case argv uses the default workspace target directory".to_owned(),
     );
 
     // The hazard: cargo itself exits 0 for a misspelled name and runs 0 tests.
@@ -810,8 +810,6 @@ pub fn zero_tests_fail() {
             "--test",
             "acceptance",
             "--locked",
-            "--target-dir",
-            "target/xtask-accept",
             "--",
             "--exact",
             "fixture_misspelled__alpah",
@@ -1187,8 +1185,6 @@ pub fn zero_tests_fail() {
             "--test",
             "zero_run",
             "--locked",
-            "--target-dir",
-            "target/xtask-accept",
             "--",
             "--list",
         ],
