@@ -510,15 +510,54 @@ impl Session {
         &mut self,
         vba: calc_doc::SessionVba,
         file_name: &str,
+        zone: Option<u32>,
     ) -> Result<ProjectReport, String> {
         let parsed = calc_vba::read_office_project(&vba.project);
+        let macros = match zone {
+            Some(zone @ (3 | 4)) => MacroState::Blocked(zone),
+            _ => MacroState::Disabled,
+        };
         self.project = Some(SessionProject {
             vba,
             parsed: parsed.as_ref().ok().cloned(),
             file_name: file_name.to_owned(),
             load: None,
+            macros,
         });
-        let project = parsed?;
+        self.republish();
+        Ok(ProjectReport {
+            functions: Vec::new(),
+            notes: vec![match macros {
+                MacroState::Blocked(zone) => format!(
+                    "This file carries the Mark of the Web (zone {zone}: it came from the internet or another computer), so its VBA project is not run. Save a copy you trust and open that"
+                ),
+                _ => "Macros are disabled for this file: its VBA project is held and saved with it, but nothing in it runs until you enable macros".to_owned(),
+            }],
+        })
+    }
+
+    /// Lets the held project run (the person enabled macros for this file): it is compiled and
+    /// `Workbook_Open` is raised. A file with the Mark of the Web cannot be enabled.
+    pub fn enable_macros(&mut self) -> Result<ProjectReport, String> {
+        let Some(held) = self.project.as_mut() else {
+            return Err("the session has no VBA project".to_owned());
+        };
+        match held.macros {
+            MacroState::Blocked(zone) => {
+                return Err(format!(
+                    "the file carries the Mark of the Web (zone {zone}); its VBA project is not run"
+                ));
+            }
+            MacroState::Enabled => return Ok(ProjectReport::default()),
+            MacroState::Disabled => {}
+        }
+        held.macros = MacroState::Enabled;
+        let Some(project) = held.parsed.clone() else {
+            let blob = &held.vba.project;
+            return Err(calc_vba::read_office_project(blob)
+                .err()
+                .unwrap_or_else(|| "the project did not read".to_owned()));
+        };
         let report = self.compile_project(&project)?;
         let notes = self.raise_open();
         Ok(ProjectReport { notes: [report.notes, notes].concat(), ..report })
@@ -566,11 +605,33 @@ impl Session {
         }
     }
 
+    /// Raises `Workbook_BeforeSave` of the project (macros enabled), before anything is written, as
+    /// Excel does: `Ok(true)` when the handler set `Cancel`. A session saves by naming a file, so
+    /// `SaveAsUI` is true. A handler that fails is an error (what Excel does with the save after
+    /// an unhandled error in the handler is not measured, so nothing is written).
+    pub fn raise_before_save(&mut self) -> Result<bool, String> {
+        let Some(workbook) = self
+            .project
+            .as_ref()
+            .filter(|p| p.macros == MacroState::Enabled)
+            .and_then(|p| p.load.as_ref())
+            .and_then(|load| load.workbook.as_ref())
+        else {
+            return Ok(false);
+        };
+        workbook
+            .before_save(true, &NoWorkbookReads, calc_vba::DEFAULT_STEP_BUDGET)
+            .map_err(|why| format!("Workbook_BeforeSave: {why}"))
+    }
+
     /// Sets the code of a module of the session's project (`name`, a standard module unless the
     /// project has a module of that name), recompiling the project. The project part saved
     /// next is the changed one. Module state starts again, as after an edit in the VBE;
     /// `Workbook_Open` is not raised again. A change that does not compile changes nothing.
     pub fn edit_project_module(&mut self, name: &str, code: &str) -> Result<ProjectReport, String> {
+        if self.project.as_ref().is_some_and(|p| p.macros != MacroState::Enabled) {
+            return Err("macros are not enabled for this file, so its project is not edited".to_owned());
+        }
         let Some(parsed) = self.project.as_ref().and_then(|p| p.parsed.as_ref()) else {
             return Err("the session has no VBA project CalcVBA could read".to_owned());
         };
@@ -660,6 +721,21 @@ pub struct SessionProject {
     /// The file name `ThisWorkbook.Name` gives.
     pub file_name: String,
     load: Option<std::rc::Rc<calc_vba::events::OfficeLoad>>,
+    /// Whether the person (or the way the file was loaded) has let the project run.
+    pub macros: MacroState,
+}
+
+/// Whether a session file's VBA project may run, as in Excel's default: a file from the internet
+/// or another computer (Mark of the Web, zone 3 or 4) never runs its project here; any other file
+/// opens with macros disabled until the person enables them for that file.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MacroState {
+    /// The project compiled (or tried to) and its events run.
+    Enabled,
+    /// Held, not compiled, not run; [`Session::enable_macros`] lets it run.
+    Disabled,
+    /// Held, not run, and not to be enabled: the file carries the Mark of the Web (the zone).
+    Blocked(u32),
 }
 
 impl std::fmt::Debug for SessionProject {

@@ -96,6 +96,23 @@ struct Dialogs {
     owner: *mut std::ffi::c_void,
     /// `--save-dir`: where saves go without the dialog, and how many there have been.
     save_dir: Option<(PathBuf, usize)>,
+    /// The Mark of the Web zone of the file last chosen to open.
+    zone: Option<u32>,
+}
+
+/// The zone in a file's `Zone.Identifier` alternate data stream (`ZoneId=3`), when it has one.
+fn mark_of_the_web(path: &std::path::Path) -> Option<u32> {
+    let mut stream = path.as_os_str().to_owned();
+    stream.push(":Zone.Identifier");
+    let text = std::fs::read_to_string(std::path::PathBuf::from(stream)).ok()?;
+    zone_of(&text)
+}
+
+/// `ZoneId=<n>` in the text of a `Zone.Identifier` stream.
+pub(crate) fn zone_of(text: &str) -> Option<u32> {
+    text.lines()
+        .filter_map(|line| line.trim().strip_prefix("ZoneId="))
+        .find_map(|zone| zone.trim().parse().ok())
 }
 
 const SESSION_FILES: [FileFilter<'static>; 2] = [
@@ -116,11 +133,16 @@ impl Files for Dialogs {
             return Ok(None);
         };
         let bytes = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+        self.zone = mark_of_the_web(&path);
         let name = path
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
         Ok(Some((name, bytes)))
+    }
+
+    fn opened_zone(&self) -> Option<u32> {
+        self.zone
     }
 
     fn choose_save(&mut self, suggested: &str, bytes: &[u8]) -> Result<Option<String>, String> {
@@ -471,7 +493,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
         arrived: BTreeMap::new(),
         since: Instant::now(),
     })));
-    let mut host = Host::new(session, Dialogs { owner: frame.cast(), save_dir: o.save_dir.clone().map(|d| (d, 0)) }, Addins::new(set.clone()));
+    let mut host = Host::new(session, Dialogs { owner: frame.cast(), save_dir: o.save_dir.clone().map(|d| (d, 0)), zone: None }, Addins::new(set.clone()));
     for xll in &o.xlls {
         match host.handle(Request::LoadAddin {
             path: xll.display().to_string(),
@@ -541,5 +563,34 @@ mod tests {
         assert_eq!((o.size, o.xlls.len()), ((800, 600), 1));
         assert!(options(&args(&["--app", "--url", "http://127.0.0.1:1/"])).is_ok());
         assert!(options(&args(&["--app", "--bogus"])).is_err());
+    }
+}
+
+#[cfg(test)]
+mod zone_tests {
+    use super::zone_of;
+
+    /// The `Zone.Identifier` stream of a downloaded file (Windows writes `ZoneId` under `[ZoneTransfer]`).
+    #[test]
+    fn the_zone_is_read_from_the_stream_text() {
+        assert_eq!(zone_of("[ZoneTransfer]\r\nZoneId=3\r\nReferrerUrl=https://example.test/\r\n"), Some(3));
+        assert_eq!(zone_of("[ZoneTransfer]\nZoneId=4"), Some(4));
+        assert_eq!(zone_of("[ZoneTransfer]\r\nZoneId=x\r\n"), None);
+        assert_eq!(zone_of(""), None);
+    }
+
+    /// A file with a real `Zone.Identifier` alternate data stream is read through its path.
+    #[test]
+    fn a_file_with_an_alternate_stream_reports_its_zone() {
+        let dir = std::env::temp_dir().join(format!("onecalc-zone-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("marked.xlsm");
+        std::fs::write(&file, b"x").unwrap();
+        assert_eq!(super::mark_of_the_web(&file), None);
+        let mut stream = file.as_os_str().to_owned();
+        stream.push(":Zone.Identifier");
+        std::fs::write(std::path::PathBuf::from(stream), "[ZoneTransfer]\r\nZoneId=3\r\n").unwrap();
+        assert_eq!(super::mark_of_the_web(&file), Some(3));
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

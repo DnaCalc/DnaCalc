@@ -486,6 +486,14 @@ fn run_session_set(
             return Err("the page did not mount".to_owned());
         }
         open_through_page(&session, &file)?;
+        // A macro file opens with macros disabled, as in Excel: the person enables them for it.
+        click(&session, "macros-enable")?;
+        if !wait_until(PAGE_WAIT, || {
+            let status = text_of(&session, "vba-status");
+            !status.is_empty() && !status.starts_with("Macros are disabled")
+        }) {
+            return Err("the page did not enable the file's macros".to_owned());
+        }
         let project = text_of(&session, "vba-status");
         set_text_input(&session, "formula-cell", cell)?;
         // The Save button is in the session-file panel, which a person opens first.

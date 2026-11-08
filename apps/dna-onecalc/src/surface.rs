@@ -32,7 +32,7 @@
 //! onecalc`) sees it.
 
 use crate::grid;
-use crate::port::{Link, LoadedAddin, LocalLink, LocalPort, Opened, Reply, Request};
+use crate::port::{Link, LoadedAddin, LocalLink, LocalPort, MacrosView, Opened, Reply, Request};
 use crate::session::{AddinRef, Session, SessionOptions};
 use crate::shown::{Authored, Shown, ViewWire};
 use calc_fml::syntax::TextSpan;
@@ -179,6 +179,8 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
     let vba_source = RwSignal::new(calc_vba::EXAMPLE_MODULE.to_owned());
     let vba_status = RwSignal::new("No VBA module loaded.".to_owned());
     let vba_generation = RwSignal::new(0u64);
+    // Whether the file's VBA project may run: Excel's default is not until the person enables it.
+    let macros_view = RwSignal::new(MacrosView::Enabled);
     let load_vba = move |_| {
         let source = vba_source.get_untracked();
         call(
@@ -307,8 +309,10 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
             }
             // A session file's VBA project (an .xlsm) is compiled when it opens; its modules are
             // edited through the VBA panel, and Save writes the project back.
+            macros_view.set(project.as_ref().map_or(MacrosView::Enabled, |view| view.macros));
             vba_status.set(match &project {
                 None => "No VBA module loaded.".to_owned(),
+                Some(view) if view.macros != MacrosView::Enabled => view.notes.join("; "),
                 Some(view) if view.functions.is_empty() => {
                     format!("The file's VBA project did not load: {}", view.notes.join("; "))
                 }
@@ -421,7 +425,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
     let run_pending = move |what: Pending| match what {
         Pending::New => call(Request::New, Box::new(move |reply| on_reply.run(reply))),
         Pending::Open { name, bytes } => call(
-            Request::Open { name, bytes },
+            Request::Open { name, bytes, zone: None },
             Box::new(move |reply| on_reply.run(reply)),
         ),
         Pending::OpenNative => call(Request::OpenNative, Box::new(move |reply| on_reply.run(reply))),
@@ -819,6 +823,19 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                     input.set_value("");
                 }/>
                 <p role="status" data-onecalc="file-status">{move || file_status.get()}</p>
+                <Show when=move || macros_view.get() != MacrosView::Enabled>
+                    <p role="alert" data-onecalc="macros-bar">
+                        {move || if macros_view.get() == MacrosView::Blocked {
+                            "Macros are blocked: this file came from the internet or another computer, so its VBA project is not run."
+                        } else {
+                            "Macros are disabled for this file: its VBA project is kept and saved, but nothing in it runs."
+                        }}
+                        " "
+                        <Show when=move || macros_view.get() == MacrosView::Disabled>
+                            <button data-onecalc="macros-enable" type="button" on:click=move |_| call(Request::EnableMacros, Box::new(move |reply| on_reply.run(reply)))>"Enable macros"</button>
+                        </Show>
+                    </p>
+                </Show>
                 <p data-onecalc="file-name">{move || file_name.get()}</p>
                 <ul data-onecalc="file-addins">{addin_list}</ul>
                 <div class="oc-examples"><strong>"Examples"</strong><button data-onecalc="example-sum" on:click=move |_| request.run(Pending::Example(Box::new(Authored::example_sum())))>"SUM & blank input"</button><button data-onecalc="example-array" on:click=move |_| request.run(Pending::Example(Box::new(Authored { formula: "=SEQUENCE(3,2)".to_owned(), ..Authored::default() })))>"Array"</button><button data-onecalc="example-lambda" on:click=move |_| request.run(Pending::Example(Box::new(Authored { formula: "=LAMBDA(x,x*2)(21)".to_owned(), ..Authored::default() })))>"LAMBDA"</button><button data-onecalc="example-missing" on:click=move |_| request.run(Pending::Example(Box::new(Authored { formula: "=Z99+1".to_owned(), ..Authored::default() })))>"Missing input"</button></div>

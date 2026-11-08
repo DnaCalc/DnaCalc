@@ -26,6 +26,12 @@ pub trait Files {
     /// The workbook the person chooses to open, with its file name; `None` when they cancel.
     fn choose_open(&mut self) -> Result<Option<(String, Vec<u8>)>, String>;
 
+    /// The URL security zone in the Mark of the Web (`Zone.Identifier` stream) of the file
+    /// `choose_open` returned last; `None` when the file has none or the host cannot tell.
+    fn opened_zone(&self) -> Option<u32> {
+        None
+    }
+
     /// Asks where to save `bytes` (suggesting `suggested`), writes them there and returns the
     /// path; `None` when the person cancels.
     fn choose_save(&mut self, suggested: &str, bytes: &[u8]) -> Result<Option<String>, String>;
@@ -284,9 +290,21 @@ impl<F: Files, L: Libraries> Host<F, L> {
                 Err(message) => Reply::Refused { message },
                 Ok(None) => Reply::Cancelled,
                 Ok(Some((name, bytes))) => {
-                    let reply = self.port.send(Request::Open { name, bytes });
+                    let zone = self.files.opened_zone();
+                    let reply = self.port.send(Request::Open { name, bytes, zone });
                     self.finish(reply)
                 }
+            },
+            // The person enabled macros for this file: the project compiles and `Workbook_Open`
+            // runs; the add-ins the host loaded stay loaded (this is not a new file).
+            Request::EnableMacros => match self.port.send(Request::EnableMacros) {
+                Reply::Opened(mut opened) => {
+                    let _ = self.publish();
+                    opened.shown.functions_version = self.port.session().functions_version();
+                    opened.loaded = self.loaded_paths().iter().map(|p| p.display().to_string()).collect();
+                    Reply::Opened(opened)
+                }
+                other => other,
             },
             Request::SaveNative => {
                 self.list_loaded();
@@ -403,11 +421,16 @@ mod tests {
         save_to: Option<String>,
         addin: Option<PathBuf>,
         written: Vec<(String, Vec<u8>)>,
+        zone: Option<u32>,
     }
 
     impl Files for Scripted {
         fn choose_open(&mut self) -> Result<Option<(String, Vec<u8>)>, String> {
             Ok(self.open.take())
+        }
+
+        fn opened_zone(&self) -> Option<u32> {
+            self.zone
         }
 
         fn choose_save(&mut self, suggested: &str, bytes: &[u8]) -> Result<Option<String>, String> {
@@ -842,7 +865,16 @@ mod tests {
         let Reply::Opened(opened) = host.handle(Request::OpenNative) else {
             panic!("opened")
         };
-        assert!(opened.project.is_some_and(|p| !p.functions.is_empty() && p.notes.is_empty()));
+        // Excel's default: the file opens with macros disabled; nothing is compiled.
+        let view = opened.project.expect("the file's project");
+        assert!(view.functions.is_empty(), "{view:?}");
+        assert_eq!(view.macros, dna_onecalc::port::MacrosView::Disabled);
+        let refused = host.handle(Request::LoadVba { name: "Module1".into(), source: "Public Function X()\r\nEnd Function\r\n".into() });
+        assert!(matches!(refused, Reply::Refused { .. }), "{refused:?}");
+        let Reply::Opened(enabled) = host.handle(Request::EnableMacros) else {
+            panic!("enabled")
+        };
+        assert!(enabled.project.is_some_and(|p| !p.functions.is_empty() && p.notes.is_empty() && p.macros == dna_onecalc::port::MacrosView::Enabled));
         let reply = host.handle(Request::LoadVba {
             name: "Module1".into(),
             source: "Public Function DnaTwice(ByVal x As Double) As Double\r\n    DnaTwice = 2 * x\r\nEnd Function\r\n".into(),
@@ -856,6 +888,34 @@ mod tests {
         assert_eq!(name, "DnaExamples.xlsm");
         let file = calc_doc_read(&bytes);
         assert!(file.contains("DnaTwice = 2 * x"));
+    }
+
+    /// Native-only: a file with the Mark of the Web (zone 3 or 4) never runs its VBA project and
+    /// the person cannot enable it; zone 2 or no mark opens disabled and can be enabled.
+    #[test]
+    fn a_file_with_the_mark_of_the_web_never_runs_its_project() {
+        let xlsm = include_bytes!("../../../crates/calc-xll-reference/fixture/vba/DnaExamples.xlsm");
+        for (zone, blocked) in [(Some(3), true), (Some(4), true), (Some(2), false), (None, false)] {
+            let mut host = host();
+            host.files.open = Some(("DnaExamples.xlsm".into(), xlsm.to_vec()));
+            host.files.zone = zone;
+            let Reply::Opened(opened) = host.handle(Request::OpenNative) else {
+                panic!("opened")
+            };
+            let view = opened.project.expect("the file's project");
+            assert!(view.functions.is_empty() && !view.notes.is_empty(), "{view:?}");
+            let reply = host.handle(Request::EnableMacros);
+            if blocked {
+                assert_eq!(view.macros, dna_onecalc::port::MacrosView::Blocked);
+                assert!(view.notes.join(" ").contains("Mark of the Web"), "{view:?}");
+                assert!(matches!(reply, Reply::Refused { .. }), "{zone:?}: {reply:?}");
+                // The project is still the file's: a save writes it back.
+                assert!(matches!(host.handle(Request::Save), Reply::File { .. }));
+            } else {
+                assert_eq!(view.macros, dna_onecalc::port::MacrosView::Disabled);
+                assert!(matches!(reply, Reply::Opened(_)), "{zone:?}: {reply:?}");
+            }
+        }
     }
 
     /// The code of the saved file's Module1, read the way the session reads it.

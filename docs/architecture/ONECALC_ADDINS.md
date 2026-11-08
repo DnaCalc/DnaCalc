@@ -31,9 +31,21 @@ There is no signing and no sandbox: an `.xll` is native code that runs in the On
 the person's rights, as in Excel. What the application does about that is small and written here:
 
 1. Nothing loads without the person's action (a button, a path they typed, a command-line `--xll`).
-   The one exception is an .xlsm session's own VBA project: opening the file is the action, and its
-   project compiles and its `Workbook_Open` runs, as in an Excel that enables macros. A VBA project
-   with COM references can do what the person can, as in Excel.
+   An .xlam the person loads is enabled by that action. An .xlsm session's own VBA project is
+   handled as Excel does by default: the file opens with macros disabled, so its project is held
+   and saved back but not compiled and nothing in it, `Workbook_Open` included, runs until the
+   person enables macros for that file (a bar above the session, "Enable macros"). A file that
+   carries the Mark of the Web (a `Zone.Identifier` stream with ZoneId 3 or 4: it came from the
+   internet or another computer) never runs its project, and the bar says why; the desktop
+   application reads the stream, a browser cannot and treats the file as unmarked.
+1a. COM is early bound. A VBA project with a reference to a registered type library can use that
+   library's classes with `New` and typed variables; the calls go through the imported type
+   library. Late binding is refused with a typed result that names the rule: `CreateObject` and
+   `GetObject` in the project's source (the runtime sees them as activation by ProgID, as it does
+   `New`, so it refuses the ProgIDs the source passes to those calls, and every ProgID when one
+   call passes something that is not a literal; a class used both ways in one project is refused
+   for both) and calls through `IDispatch` on a COM object. A project with COM references can do
+   what the person can, as in Excel.
 2. A session lists add-ins with the hash of each file when it was saved; reopening only offers.
 3. A listed add-in whose file no longer has the listed hash is not loaded by the offer.
 4. Commands, ribbons, menus and other add-in features are not offered. Their registration or load
