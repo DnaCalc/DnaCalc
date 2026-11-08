@@ -59,9 +59,12 @@ pub trait Libraries {
     /// add-in may register after its open routine returns).
     fn changed(&mut self) -> bool;
 
-    /// Tells the add-ins the formula cell was calculated (the `SheetChange` and `AfterCalculate`
-    /// events), so the ones that wait for events can carry on.
-    fn calculated(&mut self, row: u32, column: u32);
+    /// Tells the add-ins a cell changed (the `SheetChange` event).
+    fn cell_changed(&mut self, row: u32, column: u32);
+
+    /// Tells the add-ins a calculation finished (the `AfterCalculate` event), so the ones that
+    /// wait for events can carry on.
+    fn calculated(&mut self);
 }
 
 /// The session behind the page, with the dialogs and the add-ins this process loaded.
@@ -69,6 +72,8 @@ pub struct Host<F, L> {
     port: LocalPort,
     files: F,
     libs: L,
+    /// The grid's entries as the last evaluation had them, to tell the add-ins which cells changed.
+    last_grid: Vec<String>,
 }
 
 impl<F: Files, L: Libraries> Host<F, L> {
@@ -77,6 +82,7 @@ impl<F: Files, L: Libraries> Host<F, L> {
             port: LocalPort::new(session),
             files,
             libs,
+            last_grid: Vec::new(),
         };
         let _ = host.publish();
         host
@@ -287,10 +293,27 @@ impl<F: Files, L: Libraries> Host<F, L> {
                 self.port.session_mut().set_vba_loaded(false);
                 Reply::Accepted
             }
-            request @ Request::Evaluate(_) => {
-                let reply = self.port.send(request);
+            Request::Evaluate(authored) => {
+                // The add-ins hear of the cells the person changed (the grid's entries) and of the
+                // formula's cell, then that a calculation finished.
+                let columns = dna_onecalc::grid::COLUMNS as usize;
+                let changed: Vec<(u32, u32)> = authored
+                    .grid
+                    .iter()
+                    .enumerate()
+                    .filter(|(index, entry)| {
+                        self.last_grid.get(*index).map_or(!entry.is_empty(), |last| last != *entry)
+                    })
+                    .map(|(index, _)| ((index / columns) as u32 + 1, (index % columns) as u32 + 1))
+                    .collect();
+                self.last_grid = authored.grid.clone();
+                let reply = self.port.send(Request::Evaluate(authored));
                 let cell = self.port.session().formula_cell();
-                self.libs.calculated(cell.row(), cell.column());
+                for (row, column) in changed {
+                    self.libs.cell_changed(row, column);
+                }
+                self.libs.cell_changed(cell.row(), cell.column());
+                self.libs.calculated();
                 reply
             }
             other => self.port.send(other),
@@ -359,6 +382,7 @@ mod tests {
         generation: u32,
         seen: u32,
         events: Vec<(u32, u32)>,
+        calculations: u32,
     }
 
     impl Libraries for Fake {
@@ -432,8 +456,12 @@ mod tests {
             changed
         }
 
-        fn calculated(&mut self, row: u32, column: u32) {
+        fn cell_changed(&mut self, row: u32, column: u32) {
             self.events.push((row, column));
+        }
+
+        fn calculated(&mut self) {
+            self.calculations += 1;
         }
     }
 
@@ -583,8 +611,16 @@ mod tests {
         assert_eq!(docs.names, ["DOUBLE"]);
         assert_eq!(docs.docs.len(), 1);
         assert_eq!(docs.docs[0].signature(), "Double(number)");
-        // The add-ins were told the formula cell calculated, once per evaluation.
-        assert!(!host.libs.events.is_empty());
+        // The add-ins were told of the formula's cell and that a calculation finished, once per
+        // evaluation, and of a grid cell only when its entry changed.
+        let (events, calculations) = (host.libs.events.len(), host.libs.calculations);
+        assert_eq!((events, calculations), (2, 2));
+        let mut with_input = formula("=Double(A1)");
+        with_input.grid[0] = "5".into();
+        host.handle(Request::Evaluate(with_input.clone()));
+        assert_eq!(&host.libs.events[events..], [(1, 1), (1, 8)]);
+        host.handle(Request::Evaluate(with_input));
+        assert_eq!(&host.libs.events[events + 2..], [(1, 8)]);
         // The loaded add-in is listed by a saved session, with the hash of the file.
         assert_eq!(addins(host.handle(Request::Addins)), loaded);
         host.handle(Request::Save);

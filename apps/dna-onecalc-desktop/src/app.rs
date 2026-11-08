@@ -268,9 +268,14 @@ impl Libraries for Addins {
         self.signature() != self.published.get()
     }
 
-    fn calculated(&mut self, row: u32, column: u32) {
-        let set = self.set.borrow();
-        if let Err(why) = set.sheet_changed(row, column).and_then(|()| set.after_calculate()) {
+    fn cell_changed(&mut self, row: u32, column: u32) {
+        if let Err(why) = self.set.borrow().sheet_changed(row, column) {
+            eprintln!("dna-onecalc-desktop: add-in events: {why}");
+        }
+    }
+
+    fn calculated(&mut self) {
+        if let Err(why) = self.set.borrow().after_calculate() {
             eprintln!("dna-onecalc-desktop: add-in events: {why}");
         }
     }

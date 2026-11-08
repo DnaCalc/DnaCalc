@@ -24,7 +24,7 @@ pub fn layout(table: &PivotTable, cache: &PivotCache) -> Result<PivotLayout, Piv
         || table.page_fields.iter().any(|page| page.field as i32 == table.row_fields[0])) {
         return Err(bad("This pivot value filter layout is not modelled"));
     }
-    let mut layout = if !table.row_fields.is_empty() && !table.column_fields.is_empty() && !table.data_fields.is_empty() {
+    let mut layout = if !table.row_fields.is_empty() && (!table.column_fields.is_empty() || table.row_fields.contains(&-2)) && !table.data_fields.is_empty() {
         layout_columns(table, cache, snapshot)?
     } else if !table.row_fields.is_empty() && table.column_fields.is_empty() && table.data_fields.len() == 1 {
         layout_rows(table, cache, snapshot)?
@@ -239,6 +239,8 @@ fn layout_rows(
         axis,
         row_paths: Vec::new(),
         collect_paths: false,
+        values_level: None,
+        value_captions: &[],
     };
     walk.visit(&mut Vec::new())?;
     let mut r = walk.r;
