@@ -300,9 +300,12 @@ impl FormulaAssist {
             popup,
         } = state;
         history.start(text.get_untracked(), text.get_untracked(), 0);
+        let scope = RwSignal::new(assist::Scope::default());
         let call = Memo::new(move |_| {
             let caret = caret.get();
-            text.with(|text| assist::call_at(&parse_formula(text), caret))
+            scope.with(|scope| {
+                text.with(|text| assist::call_in(&parse_formula(text), caret, scope))
+            })
         });
         FormulaAssist {
             text,
@@ -314,7 +317,7 @@ impl FormulaAssist {
             readonly,
             history,
             ext: StoredValue::new_local(Ext {
-                scope: RwSignal::new(assist::Scope::default()),
+                scope,
                 focus: RwSignal::new(None),
                 part_status: RwSignal::new(String::new()),
                 part: StoredValue::new_local(None),
@@ -911,9 +914,10 @@ impl FormulaAssist {
                         .enumerate()
                         .map(|(index, proposal)| {
                             let label = proposal.label().to_owned();
-                            let signature = match proposal.target {
-                                Some(target) => target.signature_help().display,
-                                None => proposal.kind_name().to_owned(),
+                            let signature = match (&proposal.target, &proposal.descriptor) {
+                                (Some(target), _) => target.signature_help().display,
+                                (None, Some(descriptor)) => descriptor.signature(),
+                                (None, None) => proposal.kind_name().to_owned(),
                             };
                             let class = if index == selected { "oc-sel" } else { "" };
                             view! {
@@ -957,12 +961,25 @@ impl FormulaAssist {
                     }
                     .into_any()
                 }
-                None => view! {
-                    <div class="oc-sig oc-err" data-onecalc="signature">
-                        {format!("{} is not a function in calc-func's catalogue", site.callee)}
-                    </div>
-                }
-                .into_any(),
+                None => match &site.registered {
+                    Some(descriptor) => {
+                        let (before, current, after) = descriptor.signature_pieces(site.active_argument);
+                        view! {
+                            <div class="oc-sig" data-onecalc="signature">
+                                {before}
+                                <strong data-onecalc="active-parameter">{current}</strong>
+                                {after}
+                            </div>
+                        }
+                        .into_any()
+                    }
+                    None => view! {
+                        <div class="oc-sig oc-err" data-onecalc="signature">
+                            {format!("{} is not a function in calc-func's catalogue", site.callee)}
+                        </div>
+                    }
+                    .into_any(),
+                },
             };
             Some(view)
         }
@@ -972,11 +989,24 @@ impl FormulaAssist {
     pub fn help(self) -> impl IntoView {
         let (popup, call) = (self.popup, self.call);
         move || {
-            let target = popup
-                .with(Popup::selected)
+            let selected = popup.with(Popup::selected);
+            let described = selected
+                .as_ref()
+                .and_then(|proposal| proposal.descriptor.clone())
+                .or_else(|| {
+                    call.with(|site| {
+                        site.as_ref()
+                            .filter(|site| site.target.is_none())
+                            .and_then(|site| site.registered.clone())
+                    })
+                });
+            if let Some(descriptor) = described {
+                return Some(registered_help_view(descriptor).into_any());
+            }
+            let target = selected
                 .and_then(|proposal| proposal.target)
                 .or_else(|| call.with(|site| site.as_ref().and_then(|site| site.target)))?;
-            Some(help_view(target))
+            Some(help_view(target).into_any())
         }
     }
 }
@@ -1085,6 +1115,53 @@ pub fn signature_pieces(target: FunctionCallTarget<'_>, active: usize) -> (Strin
     }
     after.push(')');
     (before, current, after)
+}
+
+/// The function help panel of a registered function: what its provider documented.
+pub fn registered_help_view(descriptor: calc_fml::CallableDescriptor) -> impl IntoView {
+    let signature = descriptor.signature();
+    let description = if descriptor.description.is_empty() {
+        "No description from the add-in.".to_owned()
+    } else {
+        descriptor.description.clone()
+    };
+    let category = if descriptor.category.is_empty() {
+        "no category".to_owned()
+    } else {
+        format!("category {}", descriptor.category)
+    };
+    let mut traits = Vec::new();
+    if descriptor.volatile {
+        traits.push("volatile");
+    }
+    if descriptor.thread_safe {
+        traits.push("thread-safe");
+    }
+    if descriptor.asynchronous {
+        traits.push("asynchronous");
+    }
+    let traits = if traits.is_empty() { String::new() } else { format!("; {}", traits.join(", ")) };
+    let parameters = descriptor
+        .parameters
+        .iter()
+        .map(|parameter| {
+            let text = if parameter.description.is_empty() {
+                parameter.name.clone()
+            } else {
+                format!("{}: {}", parameter.name, parameter.description)
+            };
+            view! { <li data-onecalc="help-parameter">{text}</li> }
+        })
+        .collect_view();
+    view! {
+        <aside class="oc-help" data-onecalc="function-help">
+            <h3 data-onecalc="help-name">{descriptor.name.clone()}</h3>
+            <code data-onecalc="help-signature">{signature}</code>
+            <p data-onecalc="help-description">{description}</p>
+            <ul data-onecalc="help-parameters">{parameters}</ul>
+            <p data-onecalc="help-status">{format!("Registered function from {}; {category}{traits}.", descriptor.origin)}</p>
+        </aside>
+    }
 }
 
 /// The function help panel for one function.

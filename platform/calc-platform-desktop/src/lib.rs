@@ -31,7 +31,7 @@ pub mod winhttp;
 #[cfg(windows)]
 pub use background::{Background, WM_BACKGROUND};
 #[cfg(windows)]
-pub use shell::{ObjectHandler, Shell, client_size};
+pub use shell::{ObjectHandler, Shell, client_size, pump_pending};
 #[cfg(windows)]
 pub use webview::{
     SEPARATOR, ThreadMessage, ThreadTimer, WebView, WebViewOptions, base64, per_monitor_dpi_aware,

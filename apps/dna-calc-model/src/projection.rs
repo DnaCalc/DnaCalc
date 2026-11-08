@@ -1230,8 +1230,27 @@ pub struct Outline {
     pub omitted: u64,
     pub workbook: String,
     pub names: Vec<String>,
+    /// The registered functions (add-ins) with what their providers documented of them: the
+    /// formula field completes them and shows their signature and help.
+    #[serde(default)]
+    pub functions: Vec<FunctionDoc>,
     pub sheets: Vec<OutlineSheet>,
     pub cells: Vec<Cell>,
+}
+
+/// A registered function as its provider documented it (`xlfRegister`'s names and help text).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct FunctionDoc {
+    pub name: String,
+    /// Where it comes from, for people (`xll Name.xll`).
+    pub origin: String,
+    pub category: String,
+    pub description: String,
+    /// Each parameter's name and its help text.
+    pub parameters: Vec<(String, String)>,
+    pub volatile: bool,
+    pub thread_safe: bool,
+    pub asynchronous: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

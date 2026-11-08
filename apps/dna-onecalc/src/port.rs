@@ -97,6 +97,9 @@ pub enum Request {
     LoadVba { name: String, source: String },
     /// The user functions the session can call, by name.
     Functions,
+    /// The registered functions with what their providers documented, and the version of the
+    /// table they belong to ([`crate::shown::Shown::functions_version`]).
+    FunctionDocs,
     /// Calculates the formula over the inputs.
     Calculate,
     /// The whole authored state in, what to show out: the surface's one request on each edit.
@@ -126,6 +129,43 @@ pub enum Request {
     Save,
     /// The session saved through the native host's file dialog (a host with no dialog refuses).
     SaveNative,
+    /// Loads an add-in the person picks in the native host's file dialog (a host that cannot load
+    /// add-ins refuses). The answer is [`Reply::Addins`].
+    LoadAddinNative,
+    /// Loads the add-in at `path`: one the session listed, or a path the person typed. When
+    /// `expected_hash` is given (the SHA-256 the session listed) and the file no longer holds it,
+    /// the host refuses and loads nothing.
+    LoadAddin {
+        path: String,
+        expected_hash: Option<String>,
+    },
+    /// Unloads the add-in loaded from `path`, running its close routine and removing its functions.
+    UnloadAddin { path: String },
+    /// The add-ins the host has loaded.
+    Addins,
+}
+
+/// An add-in the host has loaded, as the surface lists it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LoadedAddin {
+    /// What it is (`xll`).
+    pub kind: String,
+    /// The path it was loaded from.
+    pub path: String,
+    /// The SHA-256 of the file when it was loaded, as the session file lists it.
+    pub hash: String,
+    /// The worksheet functions it registered, in registration order.
+    pub functions: Vec<String>,
+}
+
+/// The registered functions a surface completes and documents, as of one version of the table.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct FunctionDocs {
+    pub version: u64,
+    /// Every registered name, in table order.
+    pub names: Vec<String>,
+    /// What the providers documented of them (argument names, help, category).
+    pub docs: Vec<calc_fml::CallableDescriptor>,
 }
 
 /// A session a file opened, as the surface shows it.
@@ -164,6 +204,8 @@ pub enum Reply {
     Calculated(CalculationView),
     /// The names of the functions a VBA module published, or all user functions.
     Functions { names: Vec<String> },
+    /// The registered functions of one version of the table ([`Request::FunctionDocs`]).
+    FunctionDocs(FunctionDocs),
     Refused { message: String },
     /// What the surface shows for an authored state ([`Request::Evaluate`]).
     Shown(Box<Shown>),
@@ -185,6 +227,8 @@ pub enum Reply {
     Saved { path: String },
     /// The person closed the native file dialog; nothing changed.
     Cancelled,
+    /// The add-ins the host has loaded (answers every add-in request that succeeds).
+    Addins(Vec<LoadedAddin>),
 }
 
 /// A session behind a message boundary. `&mut self` and no async: an answer is the thread's own
@@ -262,10 +306,12 @@ pub(crate) fn environment(culture: &str, now: Option<f64>, date_1904: bool) -> C
 /// A session that replaces `old` keeps its callable functions (the add-ins the host loaded) unless
 /// they are a VBA module's, which a new session does not carry: the module is unloaded with the
 /// session it was loaded into.
-fn carry_functions(old: &Session, new: &mut Session) {
+fn carry_functions(old: &mut Session, new: &mut Session) {
     if !old.has_vba_module() {
         new.set_user_functions(old.user_functions().clone());
     }
+    // The owner of asynchronous returns belongs to the add-ins, not to the session it served.
+    new.set_external_returns(old.take_external_returns());
 }
 
 /// The reply for a session that has just been opened or made: what to show for it.
@@ -373,6 +419,11 @@ impl SessionPort for LocalPort {
                     Err(message) => refused(message),
                 }
             }
+            Request::FunctionDocs => Reply::FunctionDocs(FunctionDocs {
+                version: session.functions_version(),
+                names: session.user_function_names(),
+                docs: session.user_function_descriptors(),
+            }),
             Request::Functions => Reply::Functions {
                 names: session.user_function_names(),
             },
@@ -420,6 +471,10 @@ impl SessionPort for LocalPort {
             Request::OpenNative | Request::SaveNative => {
                 refused("this session has no native file dialog")
             }
+            Request::LoadAddinNative | Request::LoadAddin { .. } | Request::UnloadAddin { .. } => {
+                refused("add-ins load only in the desktop app")
+            }
+            Request::Addins => Reply::Addins(Vec::new()),
             Request::Calculate => {
                 let calculation = session.calculate();
                 Reply::Calculated(CalculationView {

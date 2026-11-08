@@ -897,6 +897,15 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
             Check::Text("result-value", "2024-01-31"),
         ],
     },
+    Case {
+        name: "add-ins: the panel lists none until one is loaded",
+        actions: &[Action::OpenDetails("addin-controls")],
+        checks: &[
+            Check::Text("addin-count", "0 loaded"),
+            Check::Items("addins-loaded", &[]),
+            Check::Items("addins-offered", &[]),
+        ],
+    },
 ];
 
 /// Groups whose name ends in `-browser` need the browser's own download (Save writes a file the
@@ -965,6 +974,13 @@ pub(crate) const ONECALC_GROUPS: &[CaseGroup] = &[
         name: "format-files-browser",
         start: 81,
         end: 83,
+        core: 0,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "addins",
+        start: 83,
+        end: 84,
         core: 0,
         setup: &[],
     },

@@ -72,7 +72,10 @@ pub use calc_func::{
     UserFunction, UserFunctionContext, UserFunctionInvocation, UserFunctionStep,
     UserInvocationFrame, UserReevaluationReason,
 };
-pub use callable::{CallableBindingProof, CallableBindings, CallableHandle, CallableTable};
+pub use callable::{
+    CallableBindingProof, CallableBindings, CallableDescriptor, CallableHandle, CallableParameter,
+    CallableTable,
+};
 
 pub use calc_func::{
     ReferenceHandles, RtdConnection, RtdConnector, RtdCut, RtdEntry, RtdLease, RtdRead,

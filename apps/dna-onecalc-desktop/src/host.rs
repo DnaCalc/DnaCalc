@@ -5,14 +5,21 @@
 //! each request as JSON text, and [`Host::answer`] answers with the JSON of the reply. Almost every
 //! request is the session's own ([`dna_onecalc::port::LocalPort`]); this host adds only what a page
 //! cannot do: [`Request::OpenNative`] and [`Request::SaveNative`] show the native dialogs through
-//! [`Files`], and a session saved or opened lists the add-ins this process has loaded.
+//! [`Files`], and the add-in requests ([`Request::LoadAddinNative`], [`Request::LoadAddin`],
+//! [`Request::UnloadAddin`], [`Request::Addins`]) load and unload add-ins through [`Libraries`] and
+//! publish what they register to the session as its one table of functions. A session saved lists
+//! the add-ins this process has loaded; one opened lists the file's, loaded or not (the surface
+//! offers to load them, never the host).
 //!
-//! It holds no window and no COM: [`Files`] is the one seam to the platform, so the unit tests give
-//! it a scripted chooser and drive the same code the window runs.
+//! It holds no window and no COM: [`Files`] and [`Libraries`] are the seams to the platform and to
+//! `calc-addin-host`, so the unit tests give them scripted implementations and drive the same code
+//! the window runs.
 
+use calc_fml::CallableTable;
 use dna_onecalc::bridge::{Answer, Call};
-use dna_onecalc::port::{LocalPort, Reply, Request, SessionPort};
+use dna_onecalc::port::{LoadedAddin, LocalPort, Reply, Request, SessionPort};
 use dna_onecalc::{AddinRef, Session};
+use std::path::{Path, PathBuf};
 
 /// The file choices a person makes in the native dialogs.
 pub trait Files {
@@ -22,36 +29,76 @@ pub trait Files {
     /// Asks where to save `bytes` (suggesting `suggested`), writes them there and returns the
     /// path; `None` when the person cancels.
     fn choose_save(&mut self, suggested: &str, bytes: &[u8]) -> Result<Option<String>, String>;
+
+    /// The add-in the person chooses to load; `None` when they cancel.
+    fn choose_addin(&mut self) -> Result<Option<PathBuf>, String>;
+}
+
+/// The add-ins a process has loaded and the one table of functions they publish.
+pub trait Libraries {
+    /// Loads the .xll at `path`, running its open routine. A failed load leaves nothing registered.
+    fn load_xll(&mut self, path: &Path) -> Result<(), String>;
+
+    /// Unloads the .xll loaded from `path`, running its close routine.
+    fn unload_xll(&mut self, path: &Path) -> Result<(), String>;
+
+    /// The .xll add-ins loaded, in load order, with the worksheet functions each registered.
+    fn loaded(&self) -> Vec<(PathBuf, Vec<String>)>;
+
+    /// Compiles a VBA standard module and keeps it beside the add-ins; a module that does not
+    /// compile changes nothing.
+    fn load_vba(&mut self, name: &str, source: &str) -> Result<(), String>;
+
+    /// Removes the VBA modules.
+    fn unload_vba(&mut self);
+
+    /// The one table of every function the add-ins and VBA modules publish.
+    fn callables(&self) -> Result<CallableTable, String>;
+
+    /// Whether add-ins registered or removed functions since the table was last published (an
+    /// add-in may register after its open routine returns).
+    fn changed(&mut self) -> bool;
+
+    /// Tells the add-ins the formula cell was calculated (the `SheetChange` and `AfterCalculate`
+    /// events), so the ones that wait for events can carry on.
+    fn calculated(&mut self, row: u32, column: u32);
 }
 
 /// The session behind the page, with the dialogs and the add-ins this process loaded.
-pub struct Host<F> {
+pub struct Host<F, L> {
     port: LocalPort,
     files: F,
-    loaded: Vec<AddinRef>,
+    libs: L,
 }
 
-impl<F: Files> Host<F> {
-    pub fn new(session: Session, files: F) -> Self {
-        Host {
+impl<F: Files, L: Libraries> Host<F, L> {
+    pub fn new(session: Session, files: F, libs: L) -> Self {
+        let mut host = Host {
             port: LocalPort::new(session),
             files,
-            loaded: Vec::new(),
-        }
+            libs,
+        };
+        let _ = host.publish();
+        host
     }
 
-    /// The add-ins this process has loaded, which a saved session lists.
-    pub fn set_loaded(&mut self, loaded: Vec<AddinRef>) {
-        self.loaded = loaded;
-    }
-
-    /// For the owner that publishes add-in functions between requests.
+    /// For the owner that gives the session its owner of asynchronous returns.
+    #[allow(dead_code)]
     pub fn session_mut(&mut self) -> &mut Session {
         self.port.session_mut()
     }
 
+    #[cfg(test)]
     pub fn session(&self) -> &Session {
         self.port.session()
+    }
+
+    /// Publishes the add-ins' table to the session. A table that cannot be built leaves the
+    /// session with the one it had.
+    fn publish(&mut self) -> Result<(), String> {
+        let table = self.libs.callables()?;
+        self.port.session_mut().set_user_functions(table);
+        Ok(())
     }
 
     /// The JSON text of the answer to the JSON text of a call; `None` for text that is no call.
@@ -61,31 +108,120 @@ impl<F: Files> Host<F> {
         serde_json::to_string(&Answer { id, reply }).ok()
     }
 
+    fn loaded_view(&self) -> Vec<LoadedAddin> {
+        self.libs
+            .loaded()
+            .into_iter()
+            .map(|(path, functions)| LoadedAddin {
+                kind: "xll".to_owned(),
+                hash: file_hash(&path).unwrap_or_default(),
+                path: path.display().to_string(),
+                functions,
+            })
+            .collect()
+    }
+
     /// The loaded add-ins join the list the session keeps: a loaded add-in already listed (by
     /// path) takes its current hash.
     fn list_loaded(&mut self) {
         let mut listed = self.port.session().addins().to_vec();
-        for add_in in &self.loaded {
-            match listed.iter_mut().find(|held| held.path == add_in.path) {
-                Some(held) => *held = add_in.clone(),
-                None => listed.push(add_in.clone()),
+        for add_in in self.loaded_view() {
+            let entry = AddinRef {
+                kind: add_in.kind,
+                path: add_in.path,
+                hash: add_in.hash,
+            };
+            match listed.iter_mut().find(|held| held.path == entry.path) {
+                Some(held) => *held = entry,
+                None => listed.push(entry),
             }
         }
         self.port.session_mut().set_addins(listed);
     }
 
-    /// An opened or new session: the add-ins this process has loaded are marked as running.
+    /// An opened or new session: the add-ins this process has loaded are marked as running, and
+    /// their functions are the session's (a VBA module went with the session it was loaded into).
     fn finish(&mut self, reply: Reply) -> Reply {
         match reply {
             Reply::Opened(mut opened) => {
-                opened.loaded = self.loaded.iter().map(|a| a.path.clone()).collect();
+                self.libs.unload_vba();
+                let _ = self.publish();
+                opened.shown.functions_version = self.port.session().functions_version();
+                opened.loaded = self.loaded_view().into_iter().map(|a| a.path).collect();
                 Reply::Opened(opened)
             }
             other => other,
         }
     }
 
+    fn load_addin(&mut self, path: &Path, expected_hash: Option<&str>) -> Reply {
+        let refused = |message: String| Reply::Refused { message };
+        let is_xll = path
+            .extension()
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("xll"));
+        if !is_xll {
+            return refused(format!(
+                "{} is not an .xll add-in; only .xll add-ins load here",
+                path.display()
+            ));
+        }
+        let path = std::path::absolute(path).unwrap_or_else(|_| path.to_owned());
+        if self.libs.loaded().iter().any(|(held, _)| *held == path) {
+            return refused(format!("{} is already loaded", path.display()));
+        }
+        let hash = match file_hash(&path) {
+            Ok(hash) => hash,
+            Err(message) => return refused(message),
+        };
+        if let Some(expected) = expected_hash.filter(|expected| !expected.is_empty())
+            && expected != hash
+        {
+            return refused(format!(
+                "{} is not the file the session listed (it holds {hash}, the session listed {expected}); choose it with Load add-in to accept the change",
+                path.display()
+            ));
+        }
+        if let Err(message) = self.libs.load_xll(&path) {
+            return refused(message);
+        }
+        if let Err(message) = self.publish() {
+            return refused(message);
+        }
+        self.list_loaded();
+        Reply::Addins(self.loaded_view())
+    }
+
+    fn unload_addin(&mut self, path: &str) -> Reply {
+        let wanted = Path::new(path);
+        let path = self
+            .libs
+            .loaded()
+            .into_iter()
+            .map(|(held, _)| held)
+            .find(|held| held == wanted)
+            .unwrap_or_else(|| wanted.to_owned());
+        if let Err(message) = self.libs.unload_xll(&path) {
+            return Reply::Refused { message };
+        }
+        if let Err(message) = self.publish() {
+            return Reply::Refused { message };
+        }
+        let listed: Vec<AddinRef> = self
+            .port
+            .session()
+            .addins()
+            .iter()
+            .filter(|held| Path::new(&held.path) != path)
+            .cloned()
+            .collect();
+        self.port.session_mut().set_addins(listed);
+        Reply::Addins(self.loaded_view())
+    }
+
     pub fn handle(&mut self, request: Request) -> Reply {
+        if self.libs.changed() {
+            let _ = self.publish();
+        }
         match request {
             Request::OpenNative => match self.files.choose_open() {
                 Err(message) => Reply::Refused { message },
@@ -114,21 +250,74 @@ impl<F: Files> Host<F> {
                 let reply = self.port.send(request);
                 self.finish(reply)
             }
+            Request::LoadAddinNative => match self.files.choose_addin() {
+                Err(message) => Reply::Refused { message },
+                Ok(None) => Reply::Cancelled,
+                Ok(Some(path)) => self.load_addin(&path, None),
+            },
+            Request::LoadAddin {
+                path,
+                expected_hash,
+            } => self.load_addin(Path::new(&path), expected_hash.as_deref()),
+            Request::UnloadAddin { path } => self.unload_addin(&path),
+            Request::Addins => Reply::Addins(self.loaded_view()),
+            // A VBA module lives beside the add-ins, so that loading one leaves the add-ins'
+            // functions callable and loading an add-in leaves the module's.
+            Request::LoadVba { name, source } => {
+                let before = self.port.session().user_function_names();
+                if let Err(message) = self.libs.load_vba(&name, &source) {
+                    return Reply::Refused { message };
+                }
+                if let Err(message) = self.publish() {
+                    return Reply::Refused { message };
+                }
+                self.port.session_mut().set_vba_loaded(true);
+                let names = self
+                    .port
+                    .session()
+                    .user_function_names()
+                    .into_iter()
+                    .filter(|name| !before.contains(name))
+                    .collect();
+                Reply::Functions { names }
+            }
+            Request::UnloadVba => {
+                self.libs.unload_vba();
+                let _ = self.publish();
+                self.port.session_mut().set_vba_loaded(false);
+                Reply::Accepted
+            }
+            request @ Request::Evaluate(_) => {
+                let reply = self.port.send(request);
+                let cell = self.port.session().formula_cell();
+                self.libs.calculated(cell.row(), cell.column());
+                reply
+            }
             other => self.port.send(other),
         }
     }
 }
 
+/// `sha256:` and the hex digest of the file, as a session lists an add-in.
+fn file_hash(path: &Path) -> Result<String, String> {
+    let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    Ok(format!("sha256:{}", calc_verdict::sha256_hex(&bytes)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use calc_fml::{CallableDescriptor, CallableParameter, UserFunction};
+    use calc_value::CalcValue;
     use dna_onecalc::shown::Authored;
+    use std::rc::Rc;
 
     /// A chooser the test scripts: what the person would pick, and what was written.
     #[derive(Default)]
     struct Scripted {
         open: Option<(String, Vec<u8>)>,
         save_to: Option<String>,
+        addin: Option<PathBuf>,
         written: Vec<(String, Vec<u8>)>,
     }
 
@@ -144,10 +333,116 @@ mod tests {
                 path
             }))
         }
+
+        fn choose_addin(&mut self) -> Result<Option<PathBuf>, String> {
+            Ok(self.addin.take())
+        }
     }
 
-    fn host() -> Host<Scripted> {
-        Host::new(Session::new("Sheet1").unwrap(), Scripted::default())
+    /// An add-in function that doubles its argument.
+    #[derive(Debug)]
+    struct Double;
+    impl UserFunction for Double {
+        fn call(&self, arguments: &[CalcValue]) -> Result<CalcValue, String> {
+            Ok(CalcValue::number(
+                arguments.first().and_then(CalcValue::as_number).unwrap_or(0.) * 2.,
+            ))
+        }
+    }
+
+    /// The add-in set the tests script: loading a file named `*.xll` registers `Double` (documented
+    /// as `xlfRegister` would), and a file called `broken.xll` fails to load.
+    #[derive(Default)]
+    struct Fake {
+        xlls: Vec<PathBuf>,
+        vba: Vec<String>,
+        generation: u32,
+        seen: u32,
+        events: Vec<(u32, u32)>,
+    }
+
+    impl Libraries for Fake {
+        fn load_xll(&mut self, path: &Path) -> Result<(), String> {
+            if path.file_name().is_some_and(|n| n == "broken.xll") {
+                return Err("xlAutoOpen failed; after rollback: 0 active registrations".into());
+            }
+            self.xlls.push(path.to_owned());
+            self.generation += 1;
+            Ok(())
+        }
+
+        fn unload_xll(&mut self, path: &Path) -> Result<(), String> {
+            let before = self.xlls.len();
+            self.xlls.retain(|held| held != path);
+            if self.xlls.len() == before {
+                return Err(format!("{} is not loaded", path.display()));
+            }
+            self.generation += 1;
+            Ok(())
+        }
+
+        fn loaded(&self) -> Vec<(PathBuf, Vec<String>)> {
+            self.xlls
+                .iter()
+                .map(|path| (path.clone(), vec!["Double".to_owned()]))
+                .collect()
+        }
+
+        fn load_vba(&mut self, name: &str, source: &str) -> Result<(), String> {
+            if source.contains("Function (") {
+                return Err("does not compile".into());
+            }
+            self.vba.push(name.to_owned());
+            Ok(())
+        }
+
+        fn unload_vba(&mut self) {
+            self.vba.clear();
+        }
+
+        fn callables(&self) -> Result<CallableTable, String> {
+            let mut table = CallableTable::new();
+            if !self.xlls.is_empty() {
+                table.register_described(
+                    None,
+                    "Double",
+                    Rc::new(Double),
+                    CallableDescriptor {
+                        name: "Double".into(),
+                        origin: "xll fake.xll".into(),
+                        category: "Fakes".into(),
+                        description: "Twice the number.".into(),
+                        parameters: vec![CallableParameter {
+                            name: "number".into(),
+                            description: "What to double.".into(),
+                        }],
+                        ..CallableDescriptor::default()
+                    },
+                )?;
+            }
+            for name in &self.vba {
+                table.register(&format!("{name}.Add2"), Rc::new(Double))?;
+            }
+            Ok(table)
+        }
+
+        fn changed(&mut self) -> bool {
+            let changed = self.generation != self.seen;
+            self.seen = self.generation;
+            changed
+        }
+
+        fn calculated(&mut self, row: u32, column: u32) {
+            self.events.push((row, column));
+        }
+    }
+
+    fn host() -> Host<Scripted, Fake> {
+        Host::new(
+            Session::new("Sheet1").unwrap(),
+            Scripted::default(),
+            Fake::default(),
+        )
     }
 
     fn shown(reply: Reply) -> dna_onecalc::shown::Shown {
@@ -157,17 +452,45 @@ mod tests {
         }
     }
 
+    fn addins(reply: Reply) -> Vec<LoadedAddin> {
+        match reply {
+            Reply::Addins(list) => list,
+            other => panic!("{other:?}"),
+        }
+    }
+
+    /// A file on disk the host can hash, named `name`, in a directory of its own.
+    fn file_named(name: &str, content: &[u8]) -> PathBuf {
+        let directory = std::env::temp_dir().join(format!(
+            "dnacalc-onecalc-host-{}-{}",
+            std::process::id(),
+            calc_verdict::sha256_hex(name.as_bytes())
+        ));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join(name);
+        std::fs::write(&path, content).unwrap();
+        path
+    }
+
+    fn formula(text: &str) -> Authored {
+        Authored {
+            formula: text.to_owned(),
+            ..Authored::default()
+        }
+    }
+
     /// Native-only: the exe's host. A session saved through the native dialog is a workbook the
     /// same host opens through its native open dialog, with the same formula, constants and
     /// options and the add-ins this process loaded, listed.
     #[test]
     fn a_session_saved_through_the_dialog_opens_through_the_dialog() {
+        let path = file_named("Add.xll", b"MZ first");
         let mut first = host();
-        first.set_loaded(vec![AddinRef {
-            kind: "xll".into(),
-            path: "C:\\libs\\Add.xll".into(),
-            hash: "sha256:00".into(),
-        }]);
+        let loaded = addins(first.handle(Request::LoadAddin {
+            path: path.display().to_string(),
+            expected_hash: None,
+        }));
+        assert_eq!(loaded.len(), 1);
         let mut authored = Authored::example_sum();
         authored.locale = "de-DE".into();
         authored.number_format = "0,00".into();
@@ -178,7 +501,7 @@ mod tests {
         let (_, bytes) = first.files.written.remove(0);
 
         let mut second = host();
-        second.set_loaded(first.loaded.clone());
+        second.libs.xlls = first.libs.xlls.clone();
         second.files.open = Some(("session.xlsx".into(), bytes));
         let Reply::Opened(opened) = second.handle(Request::OpenNative) else {
             panic!("not opened");
@@ -186,8 +509,15 @@ mod tests {
         assert_eq!(opened.name, "session.xlsx");
         assert_eq!(opened.authored, authored);
         assert_eq!(opened.shown.result, "number 3.5");
-        assert_eq!(opened.addins, first.loaded);
-        assert_eq!(opened.loaded, ["C:\\libs\\Add.xll"]);
+        assert_eq!(
+            opened.addins,
+            [AddinRef {
+                kind: "xll".into(),
+                path: loaded[0].path.clone(),
+                hash: loaded[0].hash.clone(),
+            }]
+        );
+        assert_eq!(opened.loaded, [loaded[0].path.clone()]);
     }
 
     /// Native-only: cancelling a dialog changes nothing; a file outside the constraints is the
@@ -198,6 +528,7 @@ mod tests {
         host.handle(Request::Evaluate(Authored::example_sum()));
         assert_eq!(host.handle(Request::OpenNative), Reply::Cancelled);
         assert_eq!(host.handle(Request::SaveNative), Reply::Cancelled);
+        assert_eq!(host.handle(Request::LoadAddinNative), Reply::Cancelled);
         host.files.open = Some(("bad.xlsx".into(), b"not a workbook".to_vec()));
         match host.handle(Request::OpenNative) {
             Reply::NotASession { offer, .. } => assert_eq!(offer, "Open in DNA Calc"),
@@ -206,16 +537,12 @@ mod tests {
         assert_eq!(host.session().formula(), "=SUM(A1:A3)");
         host.handle(Request::LoadVba {
             name: "Module1".into(),
-            source: calc_vba_example(),
+            source: "Public Function Add2(a, b)\n Add2 = a + b\nEnd Function\n".to_owned(),
         });
         match host.handle(Request::SaveNative) {
             Reply::Refused { message } => assert!(message.contains("dc-0f1k.4"), "{message}"),
             other => panic!("{other:?}"),
         }
-    }
-
-    fn calc_vba_example() -> String {
-        "Public Function Add2(a, b)\n Add2 = a + b\nEnd Function\n".to_owned()
     }
 
     /// Native-only: the wire text a page posts is answered with the same id, in JSON.
@@ -231,5 +558,125 @@ mod tests {
         assert_eq!(answer.id, 41);
         assert!(matches!(answer.reply, Reply::Shown(_)));
         assert!(host.answer("not json").is_none());
+    }
+
+    /// Native-only: an add-in loads from the dialog or by path, its functions and what it
+    /// documented reach the page's next answer, a session saved lists it, and unloading removes the
+    /// functions and the listing.
+    #[test]
+    fn an_add_in_loads_calculates_is_listed_and_unloads() {
+        let path = file_named("Fake.xll", b"MZ fake");
+        let mut host = host();
+        assert_eq!(shown(host.handle(Request::Evaluate(formula("=Double(21)")))).result, "error #NAME?");
+        host.files.addin = Some(path.clone());
+        let loaded = addins(host.handle(Request::LoadAddinNative));
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].kind, "xll");
+        assert_eq!(loaded[0].functions, ["Double"]);
+        assert!(loaded[0].hash.starts_with("sha256:") && loaded[0].hash.len() == 71);
+        let answer = shown(host.handle(Request::Evaluate(formula("=Double(21)"))));
+        assert_eq!(answer.result, "number 42");
+        let Reply::FunctionDocs(docs) = host.handle(Request::FunctionDocs) else {
+            panic!("no function docs");
+        };
+        assert_eq!(docs.version, answer.functions_version);
+        assert_eq!(docs.names, ["DOUBLE"]);
+        assert_eq!(docs.docs.len(), 1);
+        assert_eq!(docs.docs[0].signature(), "Double(number)");
+        // The add-ins were told the formula cell calculated, once per evaluation.
+        assert!(!host.libs.events.is_empty());
+        // The loaded add-in is listed by a saved session, with the hash of the file.
+        assert_eq!(addins(host.handle(Request::Addins)), loaded);
+        host.handle(Request::Save);
+        let listed = host.session().addins().to_vec();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].hash, loaded[0].hash);
+        // Loading it again is refused; so is a file that is not an .xll.
+        match host.handle(Request::LoadAddin { path: loaded[0].path.clone(), expected_hash: None }) {
+            Reply::Refused { message } => assert!(message.contains("already loaded"), "{message}"),
+            other => panic!("{other:?}"),
+        }
+        match host.handle(Request::LoadAddin { path: "C:\\libs\\Add.xlam".into(), expected_hash: None }) {
+            Reply::Refused { message } => assert!(message.contains("only .xll"), "{message}"),
+            other => panic!("{other:?}"),
+        }
+        // Unloading removes the function and the listing.
+        assert!(addins(host.handle(Request::UnloadAddin { path: loaded[0].path.clone() })).is_empty());
+        assert_eq!(shown(host.handle(Request::Evaluate(formula("=Double(21)")))).result, "error #NAME?");
+        assert!(host.session().addins().is_empty());
+        assert!(matches!(
+            host.handle(Request::UnloadAddin { path: loaded[0].path.clone() }),
+            Reply::Refused { .. }
+        ));
+    }
+
+    /// Native-only: a load that fails leaves nothing loaded and says why; a listed add-in whose
+    /// file changed is not loaded by the offer, only by choosing the file.
+    #[test]
+    fn a_failed_load_and_a_changed_file_load_nothing() {
+        let broken = file_named("broken.xll", b"MZ broken");
+        let mut host = host();
+        match host.handle(Request::LoadAddin { path: broken.display().to_string(), expected_hash: None }) {
+            Reply::Refused { message } => assert!(message.contains("rollback"), "{message}"),
+            other => panic!("{other:?}"),
+        }
+        assert!(addins(host.handle(Request::Addins)).is_empty());
+        let path = file_named("Changed.xll", b"MZ original");
+        let listed = format!("sha256:{}", calc_verdict::sha256_hex(b"MZ original"));
+        std::fs::write(&path, b"MZ replaced").unwrap();
+        match host.handle(Request::LoadAddin {
+            path: path.display().to_string(),
+            expected_hash: Some(listed.clone()),
+        }) {
+            Reply::Refused { message } => {
+                assert!(message.contains("not the file the session listed"), "{message}")
+            }
+            other => panic!("{other:?}"),
+        }
+        assert!(addins(host.handle(Request::Addins)).is_empty());
+        std::fs::write(&path, b"MZ original").unwrap();
+        assert_eq!(
+            addins(host.handle(Request::LoadAddin {
+                path: path.display().to_string(),
+                expected_hash: Some(listed),
+            }))
+            .len(),
+            1
+        );
+    }
+
+    /// Native-only: a VBA module loads beside the add-ins instead of replacing their functions,
+    /// opening a file drops the module and keeps the add-ins, and functions an add-in registers
+    /// after its open routine returned appear at the next request.
+    #[test]
+    fn vba_modules_and_late_registrations_share_the_one_table() {
+        let path = file_named("Late.xll", b"MZ late");
+        let mut host = host();
+        host.handle(Request::LoadAddin { path: path.display().to_string(), expected_hash: None });
+        match host.handle(Request::LoadVba {
+            name: "Module1".into(),
+            source: "Public Function Add2(a, b)\n Add2 = a + b\nEnd Function\n".into(),
+        }) {
+            Reply::Functions { names } => assert_eq!(names, ["MODULE1.ADD2"]),
+            other => panic!("{other:?}"),
+        }
+        assert_eq!(shown(host.handle(Request::Evaluate(formula("=Double(4)")))).result, "number 8");
+        assert!(host.session().has_vba_module());
+        assert!(matches!(
+            host.handle(Request::LoadVba { name: "Broken".into(), source: "Function (".into() }),
+            Reply::Refused { .. }
+        ));
+        assert_eq!(shown(host.handle(Request::Evaluate(formula("=Double(4)")))).result, "number 8");
+        // Opening a new session ends the module, not the add-in.
+        let Reply::Opened(opened) = host.handle(Request::New) else { panic!("not opened") };
+        let Reply::FunctionDocs(docs) = host.handle(Request::FunctionDocs) else {
+            panic!("no function docs");
+        };
+        assert_eq!((docs.names, docs.version), (vec!["DOUBLE".to_owned()], opened.shown.functions_version));
+        assert!(!host.session().has_vba_module() && host.libs.vba.is_empty());
+        // A registration after the open routine: the next request publishes it.
+        host.libs.xlls.clear();
+        host.libs.generation += 1;
+        assert_eq!(shown(host.handle(Request::Evaluate(formula("=Double(4)")))).result, "error #NAME?");
     }
 }

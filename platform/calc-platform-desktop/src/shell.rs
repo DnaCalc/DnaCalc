@@ -225,7 +225,7 @@ pub fn client_size(window: HWND) -> Option<(i32, i32)> {
 }
 
 /// Dispatches every message waiting for this thread.
-fn pump_pending() {
+pub fn pump_pending() {
     let mut message: MSG = unsafe { std::mem::zeroed() };
     while unsafe { PeekMessageW(&mut message, std::ptr::null_mut(), 0, 0, PM_REMOVE) } != 0 {
         unsafe {
