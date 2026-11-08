@@ -319,7 +319,23 @@ pub fn dispatch(
             }
         }
     }
-    for op in &batch.operations {if let WorkbookOp::SetPivots(state)=op {host.loaded.check_pivot_state(state).map_err(|e|refuse(&e.to_string()))?;}}
+    let next_model = batch.operations.iter().rev().find_map(|op| match op {
+        WorkbookOp::SetDataModel(model) => Some(model.as_ref()), _ => None,
+    }).or_else(|| host.model.definitions().data_model().map(Arc::as_ref));
+    let numeric = host.recalc_context().numeric;
+    for op in &batch.operations {
+        if let WorkbookOp::SetPivots(state) = op {
+            for (id, cache) in &state.caches.caches {
+                if let Some(snapshot) = cache.snapshot.as_deref() {
+                    let previous = pivots.caches.caches.get(id).and_then(|cache| cache.snapshot.as_deref());
+                    if !calc_engine::pivot::valid_model_snapshot(snapshot, next_model, previous, Some(&numeric)) {
+                        return Err(refuse("Invalid model-pivot snapshot"));
+                    }
+                }
+            }
+            host.loaded.check_pivot_state(state).map_err(|e|refuse(&e.to_string()))?;
+        }
+    }
     let transformed_scope = if batch
         .operations
         .iter()

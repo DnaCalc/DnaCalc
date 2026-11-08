@@ -1175,11 +1175,20 @@ fn captured_properties(host: &calc_host::HostState, at: CellKey) -> Vec<Option<S
         (((pixels - 5.0) / 7.0 * 100.0 + 0.5).trunc() / 100.0).max(0.0).to_string()
     });
     let height = geometry.as_ref().and_then(|g| g.row(at.row()).and_then(|r| r.height).or(g.default_row_height)).map(|x| x.to_string());
-    vec![host.number_format(at).map(str::to_owned), font.and_then(|f| f.name.clone()), font.and_then(|f| f.size.clone()),
+    let mut properties = vec![host.number_format(at).map(str::to_owned), font.and_then(|f| f.name.clone()), font.and_then(|f| f.size.clone()),
         font.map(|f| f.bold.to_string()), font.map(|f| f.italic.to_string()), font.and_then(|f| captured_color(host, f.color.as_ref()?)),
         fill_color, pattern,
         edges.as_ref().and_then(|e| e[0].clone()), edges.as_ref().and_then(|e| e[1].clone()),
-        edges.as_ref().and_then(|e| e[2].clone()), edges.as_ref().and_then(|e| e[3].clone()), horizontal, indent, width, height]
+        edges.as_ref().and_then(|e| e[2].clone()), edges.as_ref().and_then(|e| e[3].clone()), horizontal, indent, width, height];
+    if let Some(look) = host.pivot_style_look(at) {
+        if let Some(bold) = look.bold { properties[3] = Some(bold.to_string()); }
+        if let Some(color) = look.font_color { properties[5] = captured_color(host, &color); }
+        if let Some(fill) = look.fill { properties[6] = captured_color(host, &fill); properties[7] = Some("1".into()); }
+        for (index, edge) in look.borders.iter().enumerate() {
+            if edge.is_some() { properties[8 + index] = captured_border(host, edge.as_ref()); }
+        }
+    }
+    properties
 }
 
 fn property_equal(property: usize, actual: &str, expected: &str) -> bool {
@@ -1247,6 +1256,7 @@ fn dc_8wp_12__all_captured_stages_report_number_format_codes() {
             }
         }
         let mut stage_matches = 0;
+        let mut stage_properties = [0usize; 16];
         let mut differences = BTreeMap::<(String, String), usize>::new();
         let page = project(book.host(), &ProjectionRequest { cells: cells.iter().map(|f| at(sheet, f[1])).collect() }).unwrap();
         for (fields, cell) in cells.iter().zip(page.cells()) {
@@ -1276,10 +1286,26 @@ fn dc_8wp_12__all_captured_stages_report_number_format_codes() {
             let expected = [fields[4], fields[6], fields[7], fields[8], fields[9], fields[10], fields[11], fields[12], edges[0], edges[1], edges[2], edges[3], fields[14], fields[15], fields[16], fields[17]];
             for (i, (actual, expected)) in captured_properties(book.host(), at(sheet, address)).iter().zip(expected).enumerate() {
                 match actual {
-                    Some(actual) if property_equal(i, actual, expected) => property_matches[i] += 1,
+                    Some(actual) if property_equal(i, actual, expected) => { property_matches[i] += 1; stage_properties[i] += 1; },
                     None => unavailable[i] += 1,
                     _ => {},
                 }
+            }
+        }
+        if matches!(*stage, "style-cols-PivotStyleLight16" | "option-light16-no-row-headers"
+            | "option-light16-no-column-headers" | "option-light16-row-stripes"
+            | "option-light16-column-stripes" | "option-light16-last-column") {
+            // The shared presentation layer now supplies these parts; the horizontal border
+            // colour and other unsupported parts are still counted separately below.
+            for i in [3, 6, 7, 8, 11] {
+                assert_eq!(stage_properties[i], cells.len(), "{stage}: {}", names[i]);
+            }
+        }
+        if matches!(*stage, "style-cols-PivotStyleMedium9" | "option-medium9-no-row-headers"
+            | "option-medium9-no-column-headers" | "option-medium9-row-stripes"
+            | "option-medium9-column-stripes" | "option-medium9-last-column") {
+            for i in [3, 5, 6, 7] {
+                assert_eq!(stage_properties[i], cells.len(), "{stage}: {}", names[i]);
             }
         }
         matches += stage_matches;
@@ -1429,4 +1455,43 @@ fn dc_8wp_19__model_pivot_requires_its_own_connection_id() {
         let page = project(book.host(), &ProjectionRequest { cells: vec![at(sheet, "B6")] }).unwrap();
         assert!(matches!(page.cells()[0].value(), ProjectedValue::NotModeled { .. }), "{replacement}: {:?}", page.cells()[0].value());
     }
+}
+
+/// A model pivot with transformed values must not be published as its untransformed measure.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_19__model_pivot_refuses_transformed_values() {
+    use calc_host::WorkbookCommand;
+    use existing_wire_support::{RawEntry, build_zip, parse_zip};
+    let bytes = include_bytes!("fixtures/pivot_cube/model-pivot.xlsx");
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes.to_vec()));
+    let original = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let pivot = original.host().model().definitions().pivots().tables().find(|table| table.name == "pvt_model").unwrap();
+    let part = pivot.part.trim_start_matches('/').to_owned();
+    let needle = "<dataField fld=\"2\" subtotal=\"count\"";
+    let replacement = "<dataField showDataAs=\"percentOfTotal\" fld=\"2\" subtotal=\"count\"";
+    let mut changed = false;
+    let entries: Vec<_> = parse_zip(bytes).entries.iter().map(|entry| {
+        let payload = entry.payload(bytes);
+        if entry.name == part {
+            let xml = if entry.method == 0 { payload.to_vec() } else { miniz_oxide::inflate::decompress_to_vec(payload).unwrap() };
+            let xml = String::from_utf8(xml).unwrap();
+            assert_eq!(xml.matches(needle).count(), 1);
+            changed = true;
+            RawEntry::stored(&entry.name, xml.replace(needle, replacement).as_bytes())
+        } else if entry.method == 0 { RawEntry::stored(&entry.name, payload) }
+        else { RawEntry::deflated(&entry.name, payload, entry.size, entry.crc32) }
+    }).collect();
+    assert!(changed);
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(build_zip(&entries)));
+    let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let sheet = book.host().sheets().iter().find(|s| String::from_utf16_lossy(s.name().text().utf16_code_units()) == "ModelPivot").unwrap().id();
+    let part = book.host().model().definitions().pivots().sheet(sheet).unwrap().tables.iter().find(|table| table.name == "pvt_model").unwrap().part.clone();
+    let revision = book.host().revision();
+    let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::PivotRefresh { sheet, revision: revision.get(), part }));
+    assert!(!receipt.accepted(), "{receipt:?}");
+    assert!(format!("{receipt:?}").contains("dc-8wp.19"), "{receipt:?}");
+    assert_eq!(book.host().revision(), revision);
+    let page = project(book.host(), &ProjectionRequest { cells: vec![at(sheet, "F9")] }).unwrap();
+    assert!(!matches!(page.cells()[0].value(), ProjectedValue::Calculated { .. }));
 }

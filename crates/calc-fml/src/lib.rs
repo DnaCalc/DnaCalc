@@ -66,7 +66,7 @@ pub use calc_func::{
 };
 pub use calc_func::{HostFacts, PivotLookup, RandomSource, SubtotalExclusions};
 // The engine uses the same model member parser as the CUBE functions for model-pivot requests.
-pub use calc_func::{CubeFailure, CubeLookup, CubeModel};
+pub use calc_func::{CubeColumn, CubeFailure, CubeLookup, CubeMeasure, CubeMember, CubeModel, CubeTable};
 
 pub mod rtd;
 mod callable;
