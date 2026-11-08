@@ -47,6 +47,9 @@
 //! conflicting contexts are refused. It preserves the original sample and can split a source
 //! when its rows used different transports. Run the full-bank comparison before retaining a change.
 //!
+//! `judge --report <json>` writes counts without refreshing committed status or differences.
+//! `--release` and `--profile perf` select speed/profiler builds in the standard target folder.
+//!
 //! `pin` judges the full banks as `judge --bank full` does, writes what it writes, and then the
 //! pinned sets: per function, the first rows of each bank
 //! (the generators write their edge rows first) and an evenly spaced sample of the rest, at most
@@ -84,7 +87,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
-pub const USAGE: &str = "cargo xtask witness judge [--func <F>] [--bank pinned|full] [--trace <path>] [--values-only] | cargo xtask witness compare --before <trace> --after <trace> | cargo xtask witness refresh [--func <F>] [--context] [--classified-losses <tsv>] | cargo xtask witness pin [--func <F>] [--rows <N>] | cargo xtask witness read --func <F>[,<F>...] [--timeout <s>] [--inputs <json> [--new-only] [--repeat-calls]]";
+pub const USAGE: &str = "cargo xtask witness judge [--func <F>] [--bank pinned|full] [--release | --profile dev|release|perf] [--report <json>] [--trace <path>] [--values-only] | cargo xtask witness compare --before <trace> --after <trace> | cargo xtask witness refresh [--func <F>] [--context] [--classified-losses <tsv>] | cargo xtask witness pin [--func <F>] [--rows <N>] | cargo xtask witness read --func <F>[,<F>...] [--timeout <s>] [--inputs <json> [--new-only] [--repeat-calls]]";
 
 use crate::evidence::CHECKOUT;
 const MANIFESTS: [&str; 2] = ["manifest.tsv", "w109-manifest.tsv"];
@@ -126,6 +129,8 @@ struct Request {
     values_only: bool,
     refresh_context: bool,
     classified_losses: Option<PathBuf>,
+    report: Option<PathBuf>,
+    profile: Option<String>,
 }
 
 fn parse_args(raw: &[String]) -> Result<Request, String> {
@@ -153,6 +158,8 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
         values_only: false,
         refresh_context: false,
         classified_losses: None,
+        report: None,
+        profile: None,
     };
     let mut it = rest.iter();
     while let Some(arg) = it.next() {
@@ -166,6 +173,15 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
             "--repeat-calls" if verb == Verb::Read => request.repeat_calls = true,
             "--context" if verb == Verb::Refresh => request.refresh_context = true,
             "--classified-losses" if verb == Verb::Refresh => request.classified_losses = Some(PathBuf::from(value()?)),
+            "--report" if verb == Verb::Judge => request.report = Some(PathBuf::from(value()?)),
+            "--release" if verb == Verb::Judge && request.profile.is_none() => request.profile = Some("release".into()),
+            "--profile" if verb == Verb::Judge && request.profile.is_none() => {
+                let profile = value()?;
+                if !matches!(profile.as_str(), "dev" | "release" | "perf") {
+                    return Err("--profile needs dev, release or perf".into());
+                }
+                request.profile = Some(profile);
+            }
             "--values-only" if verb == Verb::Judge => request.values_only = true,
             "--trace" if verb == Verb::Judge => request.trace = Some(PathBuf::from(value()?)),
             "--bank" if verb == Verb::Judge => {
@@ -1580,7 +1596,35 @@ pub fn run(raw: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    match run_request(&request) {
+    // Profile selection is a speed option. Child judging follows the same route and receives
+    // the same arguments after removing only the profile selector.
+    let result = if let Some(profile) = &request.profile {
+        (|| {
+            let ws = Workspace::load(&std::env::current_dir().map_err(|e| e.to_string())?)?;
+            let program = xtask::harness::profile_executable(&ws, profile)?;
+            let _copy = xtask::harness::CopyCleanup(program.clone());
+            let mut child = std::process::Command::new(&program);
+            child.arg("witness");
+            let mut args = raw.iter();
+            while let Some(arg) = args.next() {
+                match arg.as_str() {
+                    "--release" => (),
+                    "--profile" => { args.next(); },
+                    _ => {
+                        child.arg(arg);
+                        if matches!(arg.as_str(), "--func" | "--bank" | "--trace" | "--report") {
+                            child.arg(args.next().ok_or("missing validated argument value")?);
+                        }
+                    },
+                }
+            }
+            let status = child.status().map_err(|e| e.to_string());
+            Ok(ExitCode::from(status?.code().unwrap_or(1).try_into().unwrap_or(1)))
+        })()
+    } else {
+        run_request(&request)
+    };
+    match result {
         Ok(code) => code,
         Err(e) => {
             eprintln!("xtask witness: {e}");
@@ -1866,12 +1910,30 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
         Bank::Pinned => "pinned",
         Bank::Full => "full",
     };
-    write_status(&ws.root, bank, &statuses, only)?;
-    println!("xtask witness: wrote {STATUS} ({bank})");
+    if let Some(path) = &request.report {
+        let functions: Vec<Value> = statuses.iter().map(|s| serde_json::json!({
+            "function": s.function, "rows": s.rows, "matched": s.matched,
+            "failed": s.rows - s.matched, "worst_ulp": s.worst_ulp, "class": s.class.name(),
+        })).collect();
+        let summary = serde_json::json!({
+            "format": "dnacalc-witness-summary", "bank": bank,
+            "totals": {"functions": statuses.len(), "exact": exact, "rows": rows,
+                "matched": matched, "failed": rows - matched, "unread": unread_rows},
+            "functions": functions,
+        });
+        fs::write(path, serde_json::to_vec_pretty(&summary).unwrap())
+            .map_err(|e| format!("{}: {e}", path.display()))?;
+        println!("xtask witness: wrote read-only report {}", path.display());
+    } else {
+        write_status(&ws.root, bank, &statuses, only)?;
+        println!("xtask witness: wrote {STATUS} ({bank})");
+        if request.bank == Bank::Full {
+            // `pin` judged the full banks too, so it writes their status as judge does.
+            write_differences(&ws.root, &differences, only)?;
+            println!("xtask witness: wrote {DIFFERENCES}");
+        }
+    }
     if request.bank == Bank::Full {
-        // `pin` judged the full banks too, so it writes their status as `judge --bank full` does.
-        write_differences(&ws.root, &differences, only)?;
-        println!("xtask witness: wrote {DIFFERENCES}");
         compare_with_ledger(&checkout, &ws.root, &statuses)?;
     }
     Ok(ExitCode::SUCCESS)
@@ -2367,6 +2429,13 @@ mod tests {
         assert!(r.verb == Verb::Judge && r.bank == Bank::Pinned && r.function.is_none());
         let r = parse_args(&args("judge --bank full --func pmt")).unwrap();
         assert!(r.bank == Bank::Full && r.function.as_deref() == Some("PMT"));
+        let reported = parse_args(&args("judge --bank full --release --report counts.json")).unwrap();
+        assert_eq!(reported.profile.as_deref(), Some("release"));
+        assert_eq!(reported.report, Some(PathBuf::from("counts.json")));
+        assert_eq!(parse_args(&args("judge --profile perf")).unwrap().profile.as_deref(), Some("perf"));
+        assert!(parse_args(&args("judge --release --profile perf")).is_err());
+        assert!(parse_args(&args("judge --profile unknown")).is_err());
+        assert!(parse_args(&args("pin --report counts.json")).is_err());
         let r = parse_args(&args("judge --trace rows.jsonl")).unwrap();
         assert_eq!(r.trace, Some(PathBuf::from("rows.jsonl")));
         let r = parse_args(&args("pin --rows 100")).unwrap();
