@@ -1356,6 +1356,29 @@ pub(super) fn render_axes(
             )
         })
         .collect();
+    let mut number_formats = BTreeMap::new();
+    let mut row_path = Vec::new();
+    for (row, item) in next.row_items.iter().enumerate() {
+        if item.kind == "blank" { continue; }
+        if row_values.is_some() && item.kind != "grand" {
+            let repeat = item.repeat as usize;
+            if repeat > row_path.len() { return Err(bad("Invalid formatted row path")); }
+            row_path.truncate(repeat);
+            row_path.extend_from_slice(&item.indexes);
+            // Parent labels in a Values-on-rows layout do not carry a value field.
+            if item.kind == "data" && row_path.len() < next.row_fields.len() { continue; }
+        }
+        for (column, entry) in columns.iter().enumerate() {
+            let measure = if row_values.is_some() { item.data_index as usize } else { entry.measure };
+            let data = table.data_fields.get(measure).ok_or_else(|| bad("Invalid value-field index"))?;
+            if let Some(id) = data.attributes.get("numFmtId") {
+                let id = id.parse::<u32>().map_err(|_| bad("Invalid value-field number format"))?;
+                let at = CellKey::new(first.sheet(), first.row() + header + row as u32,
+                    first.column() + label_width + column as u32).map_err(|_| bad("Invalid formatted cell"))?;
+                if next.area.contains(at) { number_formats.insert(at, id); }
+            }
+        }
+    }
     page_field_items(table, cache, snapshot, measure, &mut next)?;
-    Ok(PivotLayout { table: next, cells })
+    Ok(PivotLayout { table: next, cells, number_formats })
 }

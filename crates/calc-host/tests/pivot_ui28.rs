@@ -1014,3 +1014,54 @@ fn dc_8wp_14__lookup_values_on_rows_uses_the_displayed_measure() {
         for (cell, _, value) in cases { assert_eq!(got.get(cell), Some(&Cell::Number(value)), "{stage} {cell}"); }
     }
 }
+
+#[test]
+/// Native-only: replays Excel's saved number-format stages through refresh and XLSX save.
+fn dc_8wp_12__data_field_number_formats_match_capture_after_refresh() {
+    let bytes = include_bytes!("fixtures/pivot/m2-formatting/built.xlsx");
+    let formats = include_str!("fixtures/pivot/m2-formatting/formats.tsv");
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes.to_vec()));
+    let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions { locale: calc_host::FormatProfile::for_culture("en-US"), ..Default::default() }).unwrap();
+    for stage in ["numfmt-number-2dp", "numfmt-percent", "numfmt-currency", "numfmt-scientific",
+        "numfmt-text-prefix", "numfmt-general", "numfmt-date-like", "numfmt-negative-red"] {
+        let name = format!("pvt_{}", stage.replace('-', "_"));
+        let (sheet, part) = book.host().model().definitions().pivots().sheets.iter().find_map(|(sheet, pivots)|
+            pivots.tables.iter().find(|table| table.name == name).map(|table| (*sheet, table.part.clone()))).unwrap();
+        let expected: Vec<_> = formats.lines().filter_map(|line| {
+            let fields: Vec<_> = line.split('\t').collect();
+            (fields[0] == stage && fields[2] == "n").then(|| (fields[1], fields[4],
+                book.host().number_format(at(sheet, fields[1])).map(str::to_owned)))
+        }).collect();
+        assert!(!expected.is_empty());
+        if stage == "numfmt-percent" {
+            let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::FormatCells {
+                areas: vec![calc_host::value::GridArea::cell(at(sheet, "B6"))],
+                patch: calc_host::FormatPatch { number_format: Some("0.00".into()), ..Default::default() },
+            }));
+            assert!(receipt.accepted(), "{receipt:?}");
+            assert!(book.dispatch(SkinIntent::EnterCell { at: at(sheet, "Z1"), text: "=CELL(\"format\",B6)".into() }).accepted());
+            let page = project(book.host(), &ProjectionRequest { cells: vec![at(sheet, "Z1")] }).unwrap();
+            assert_eq!(held(&book, sheet, 26, 1).get("Z1"), Some(&Cell::Text("F2".into())), "{:?}", page.cells()[0].value());
+        }
+        let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+            sheet, revision: book.host().revision().get(), part,
+        }));
+        assert!(receipt.accepted(), "{stage}: {receipt:?}");
+        if stage == "numfmt-percent" {
+            assert_eq!(held(&book, sheet, 26, 1).get("Z1"), Some(&Cell::Text("P1".into())));
+        }
+        let mut display_matches = 0;
+        for (address, display_format, saved_format) in &expected {
+            let actual = book.host().number_format(at(sheet, address));
+            assert_eq!(actual, saved_format.as_deref(), "{stage} {address} cell format");
+            if actual == Some(*display_format) { display_matches += 1; }
+        }
+        println!("{stage}: {} of {} DisplayFormat number codes agree with cell formats", display_matches, expected.len());
+        let mut saved = Vec::new(); book.save(&SavePolicy::default(), &mut saved).unwrap();
+        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(saved));
+        book = HostSession::open(source, &OpenPolicy::default(), HostOptions { locale: calc_host::FormatProfile::for_culture("en-US"), ..Default::default() }).unwrap();
+        for (address, _, saved_format) in &expected {
+            assert_eq!(book.host().number_format(at(sheet, address)), saved_format.as_deref(), "{stage} {address} after reopen");
+        }
+    }
+}

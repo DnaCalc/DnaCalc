@@ -25,6 +25,8 @@ struct Group {
 pub struct PivotLayout {
     pub table: PivotTable,
     pub cells: BTreeMap<CellKey, CalcValue>,
+    /// Explicit data-field number format IDs, keyed by output cell.
+    pub number_formats: BTreeMap<CellKey, u32>,
 }
 
 
@@ -43,6 +45,7 @@ pub use render::layout;
 #[derive(Clone, Debug, Default)]
 pub struct PivotResults {
     pub cells: BTreeMap<CellKey, (CalcValue, Calculation)>,
+    pub number_formats: BTreeMap<CellKey, u32>,
     pub issues: Vec<PivotIssue>,
 }
 /// Rebuild only derived output; snapshot records remain the actual source readings.
@@ -65,6 +68,7 @@ pub(crate) fn calculate(state: &PivotState, tick: CalcTick) -> PivotResults {
                 for (at, value) in layout.cells {
                     out.cells.insert(at, (value, calculation.clone()));
                 }
+                out.number_formats.extend(layout.number_formats);
             }
             Ok(_) => out.issues.push(refusal(
                 &table.part,

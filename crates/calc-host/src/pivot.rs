@@ -392,6 +392,36 @@ fn preflight_output(
     }
     Ok(())
 }
+/// Apply the walk's explicit data-field number formats to the same styles the grid and save use.
+fn append_number_formats(host: &HostState, formats: &BTreeMap<CellKey, u32>, edits: &mut Vec<CellEdit>) -> Result<(), String> {
+    if formats.is_empty() { return Ok(()); }
+    let mut styles = (**host.styles()).clone();
+    let mut assignments = Vec::new();
+    let mut derived = BTreeMap::new();
+    for (&at, &number_format) in formats {
+        let source = host.cell_style(at);
+        let style = if let Some(&style) = derived.get(&(source, number_format)) { style } else {
+            let mut xf = styles.cell_formats.get(source as usize).cloned().ok_or_else(|| fail("The pivot cell's source format is unavailable"))?;
+            xf.number_format_id = Some(number_format);
+            xf.apply_number_format = true;
+            let style = if let Some(index) = styles.cell_formats.iter().position(|old| *old == xf) { index as u32 }
+                else {
+                    let index = u32::try_from(styles.cell_formats.len()).map_err(|_| fail("Too many cell formats"))?;
+                    styles.cell_formats.push(xf);
+                    styles.sources.cell_formats.insert(index, source);
+                    index
+                };
+            if host.style_number_format(&styles, style).is_none() { return Err(fail("The value-field number format is unavailable")); }
+            derived.insert((source, number_format), style);
+            style
+        };
+        assignments.push(CellEdit::SetFormat { at, format: Some(style) });
+    }
+    if styles != **host.styles() { edits.push(CellEdit::Styles(Arc::new(styles))); }
+    edits.extend(assignments);
+    Ok(())
+}
+
 /// Select the captured zero-retention policy. Existing cached items are removed on refresh.
 pub(crate) fn prepare_forget_missing_items(host: &HostState, sheet: SheetId, revision: u64, part: &str) -> Result<Vec<CellEdit>, String> {
     if revision != host.revision().get() { return Err(fail("The workbook changed before setting item retention")); }
@@ -482,12 +512,13 @@ pub(crate) fn prepare_refresh(
     }
     let cache = Arc::new(cache);
     after.caches.caches.insert(cache.id, cache.clone());
+    let mut formats = BTreeMap::new();
     for tables in after.sheets.values_mut() {
         for table in &mut tables.tables {
             if table.cache_id == cache.id {
-                *table = calc_engine::pivot::layout(table, &cache)
-                    .map_err(|e| fail(e.detail))?
-                    .table;
+                let layout = calc_engine::pivot::layout(table, &cache).map_err(|e| fail(e.detail))?;
+                formats.extend(layout.number_formats);
+                *table = layout.table;
             }
         }
     }
@@ -500,6 +531,7 @@ pub(crate) fn prepare_refresh(
         .filter(|t| t.cache_id == cache.id)
         .map(|t| CellEdit::Clear { area: t.area })
         .collect::<Vec<_>>();
+    append_number_formats(host, &formats, &mut edits)?;
     edits.push(CellEdit::Pivots(Arc::new(after)));
     Ok(edits)
 }
