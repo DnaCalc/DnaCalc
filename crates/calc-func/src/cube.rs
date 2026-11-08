@@ -92,6 +92,8 @@ pub enum CubeFailure {
     Error(WorksheetErrorCode),
     /// Beyond what is modelled; the caller refuses.
     NotModelled,
+    /// Cross-table model relationships have not been decoded (dc-8wp.19).
+    CrossTableNotModelled,
 }
 
 const NA: CubeFailure = CubeFailure::Error(WorksheetErrorCode::NA);
@@ -526,6 +528,13 @@ impl CubeModel {
             return Ok(empty_text());
         }
         let table = self.fact_table(arguments, measure)?;
+        // Relationships between model tables are not decoded yet. Silently ignoring a member
+        // from another table would publish an unfiltered measure as if it had been filtered.
+        // This check also covers every alternative in a set and All members.
+        if arguments.iter().flatten().flatten().any(|member|
+            Self::hierarchy(member).is_some_and(|(member_table, _)| member_table != table)) {
+            return Err(CubeFailure::CrossTableNotModelled);
+        }
         let rows = self.tables[table]
             .columns
             .first()
@@ -564,7 +573,7 @@ impl CubeModel {
                 return Ok(table);
             }
         }
-        Ok(0)
+        if self.tables.is_empty() { Err(CubeFailure::NotModelled) } else { Ok(0) }
     }
 
     fn row_in(&self, table: usize, row: usize, argument: &[Vec<CubeMember>]) -> bool {
@@ -641,7 +650,17 @@ impl CubeModel {
         if numbers.is_empty() {
             return Ok(empty_text());
         }
-        let sum = || scaled_sum(&numbers).unwrap_or_else(|| numbers.iter().sum());
+        // The measured column-wide rule implies one representation for every slice: a value
+        // outside the selected rows can determine whether a SUM uses scaled integers or binary64
+        // addition. A sliced column with seven decimal places has not yet been captured.
+        let sum = || {
+            let all_numbers: Vec<f64> = held.cells.iter().filter_map(CalcValue::as_number).collect();
+            if scaled_sum(&all_numbers).is_some() {
+                scaled_sum(&numbers).unwrap_or_else(|| numbers.iter().sum())
+            } else {
+                numbers.iter().sum()
+            }
+        };
         Ok(CalcValue::number(match function.as_str() {
             "SUM" => sum(),
             "AVERAGE" => sum() / numbers.len() as f64,
@@ -810,6 +829,26 @@ mod tests {
         assert_eq!(model.pivot_key("[Table1].[Region].[Region]", "[Table1].[Region].[Region].&[East]"), Err(missing));
     }
 
+    /// Unmodelled relationships cannot silently turn a cross-table slice into an unfiltered sum.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_8wp_19__cross_table_members_refuse_without_relationships() {
+        let mut model = model();
+        model.tables.push(CubeTable { name: "Other".into(), columns: vec![CubeColumn {
+            name: "Region".into(), cells: vec![text("East"), text("West")],
+        }] });
+        let total = model.member("[Measures].[TotalAmount]").unwrap();
+        let east = model.member("[Table1].[Region].&[East]").unwrap();
+        let other_east = model.member("[Other].[Region].&[East]").unwrap();
+        let other_all = model.member("[Other].[Region].[All]").unwrap();
+        assert_eq!(model.value(&[vec![total.clone()], vec![east.clone()]]), Ok(CalcValue::number(15.2)));
+        assert_eq!(model.value(&[vec![total.clone()], vec![other_east.clone()]]), Err(CubeFailure::CrossTableNotModelled));
+        assert_eq!(model.value(&[vec![total.clone()], vec![other_all]]), Err(CubeFailure::CrossTableNotModelled));
+        assert_eq!(model.value_over(&[vec![vec![total]], vec![vec![east], vec![other_east]]]), Err(CubeFailure::CrossTableNotModelled));
+        model.tables.clear();
+        assert_eq!(model.value(&[vec![]]), Err(CubeFailure::NotModelled));
+    }
+
     /// A column with a blank, keys differing in case, numbers and logicals (the p44 measurement).
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -953,6 +992,20 @@ mod tests {
         assert_eq!(scaled_sum(&[-0.000001, 0.000002]), Some(0.000001));
         assert_eq!(scaled_sum(&[1.5, 0.1234567]), None);
         assert_eq!(scaled_sum(&[1e10]), None);
+    }
+
+    /// Exercise the inferred whole-column representation for a filtered slice.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_8wp_19__slice_uses_whole_column_numeric_representation() {
+        let mut model = model();
+        model.tables[0].columns[0].cells = vec![text("East"), text("East"), text("West")];
+        model.tables[0].columns[1].cells = vec![text("A"), text("A"), text("B")];
+        model.tables[0].columns[2].cells = vec![CalcValue::number(0.1), CalcValue::number(0.2), CalcValue::number(0.0000001)];
+        let members = ["[Measures].[TotalAmount]", "[Table1].[Region].&[East]"];
+        assert_eq!(value(&model, &members), Ok(CalcValue::number(0.1 + 0.2)));
+        model.tables[0].columns[2].cells[2] = CalcValue::number(0.000001);
+        assert_eq!(value(&model, &members), Ok(CalcValue::number(0.3)));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

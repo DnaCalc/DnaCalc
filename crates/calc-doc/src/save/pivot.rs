@@ -304,6 +304,13 @@ fn fields(table: &PivotTable) -> Vec<u8> {
     out.extend_from_slice(b"</pivotFields>");
     out
 }
+fn axis_fields(name: &str, fields: &[i32]) -> Vec<u8> {
+    if fields.is_empty() { return Vec::new(); }
+    let mut out = format!("<{name} xmlns=\"{M}\" count=\"{}\">", fields.len()).into_bytes();
+    for field in fields { out.extend_from_slice(format!("<field x=\"{field}\"/>").as_bytes()); }
+    out.extend_from_slice(format!("</{name}>").as_bytes());
+    out
+}
 fn col_items(table: &PivotTable) -> Vec<u8> {
     let mut out = format!(
         "<colItems xmlns=\"{M}\" count=\"{}\">",
@@ -405,6 +412,8 @@ fn preflight(xml: &XmlPart, containers: &[&str]) -> Result<(), SaveRefusal> {
                                 || local == "pivotFields"
                                 || local == "rowItems"
                                 || local == "colItems"
+                                || local == "rowFields"
+                                || local == "colFields"
                         }
                         "pivotFields" => local == "pivotField",
                         "pivotField" => matches!(local, "items" | "extLst" | "autoSortScope"),
@@ -414,6 +423,7 @@ fn preflight(xml: &XmlPart, containers: &[&str]) -> Result<(), SaveRefusal> {
                         "reference" => local == "x",
                         "extLst" => local == "ext",
                         "items" => local == "item",
+                        "rowFields" | "colFields" => local == "field",
                         "rowItems" | "colItems" => local == "i",
                         "i" => local == "x",
                         "pivotCacheDefinition" => local == "cacheFields",
@@ -435,7 +445,7 @@ fn preflight(xml: &XmlPart, containers: &[&str]) -> Result<(), SaveRefusal> {
                     for a in &e.attributes {
                         let allowed = match local {
                             "location" | "pivotField" | "cacheField" => true,
-                            "pivotFields" | "rowItems" | "colItems" | "items" | "cacheFields" => {
+                            "pivotFields" | "rowFields" | "colFields" | "rowItems" | "colItems" | "items" | "cacheFields" => {
                                 a.name.local.as_str() == "count"
                             }
                             "sharedItems" => matches!(
@@ -464,6 +474,7 @@ fn preflight(xml: &XmlPart, containers: &[&str]) -> Result<(), SaveRefusal> {
                             "groupItems" | "discretePr" => a.name.local.as_str() == "count",
                             "ext" => a.name.local.as_str() == "uri" && a.value == FILL_DOWN_URI,
                             "extLst" => false,
+                            "field" => a.name.local.as_str() == "x",
                             "item" => matches!(a.name.local.as_str(), "x" | "t" | "h" | "m" | "f"),
                             "i" => matches!(a.name.local.as_str(), "t" | "r" | "i"),
                             "x" | "n" | "s" | "b" | "e" | "d" => a.name.local.as_str() == "v"
@@ -523,6 +534,19 @@ fn rewrite(
         match reader.expect()? {
             (XmlEvent::Start(e), span) => {
                 let end = reader.element_end()?;
+                if root_name == "pivotTableDefinition" && e.name.namespace.as_deref() == Some(M) {
+                    let local = e.name.local.as_str();
+                    for (missing, before) in [
+                        ("rowFields", local == "rowItems"),
+                        ("colFields", matches!(local, "colItems" | "pageFields" | "dataFields")),
+                        ("colItems", matches!(local, "pageFields" | "dataFields")),
+                    ] {
+                        if before && !seen.contains(missing) && let Some(bytes) = children.get(missing) {
+                            splice.replace((span.0, span.0), bytes);
+                            seen.insert(missing.to_owned());
+                        }
+                    }
+                }
                 if e.name.namespace.as_deref() == Some(M)
                     && let Some(bytes) = children.get(e.name.local.as_str())
                 {
@@ -700,6 +724,8 @@ pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
         retained.fields = old.fields.clone();
         retained.row_items = old.row_items.clone();
         retained.col_items = old.col_items.clone();
+        retained.row_fields = old.row_fields.clone();
+        retained.column_fields = old.column_fields.clone();
         if &retained != old {
             return Err(bad(
                 &table.part,
@@ -710,7 +736,10 @@ pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
             return Err(bad(&table.part, "An unsupported value-sort scope cannot be rewritten"));
         }
         let xml = read_part(package, &table.part)?;
-        preflight(&xml, &["location", "pivotFields", "rowItems", "colItems"])?;
+        let mut containers = vec!["location", "pivotFields", "rowItems", "colItems"];
+        if old.row_fields != table.row_fields { containers.push("rowFields"); }
+        if old.column_fields != table.column_fields { containers.push("colFields"); }
+        preflight(&xml, &containers)?;
         let mut replacements = BTreeMap::from([
             ("location", location(table)),
             ("pivotFields", fields(table)),
@@ -720,6 +749,8 @@ pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
         if !old.col_items.is_empty() || !table.col_items.is_empty() {
             replacements.insert("colItems", col_items(table));
         }
+        if old.row_fields != table.row_fields { replacements.insert("rowFields", axis_fields("rowFields", &table.row_fields)); }
+        if old.column_fields != table.column_fields { replacements.insert("colFields", axis_fields("colFields", &table.column_fields)); }
         out.rewritten.insert(
             table.part.clone(),
             rewrite(&xml, "pivotTableDefinition", &[], &replacements)?,
@@ -746,7 +777,7 @@ pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
         retained.fields = old.fields.clone();
         retained.snapshot = old.snapshot.clone();
         if retained.attributes.get("missingItemsLimit") != old.attributes.get("missingItemsLimit") {
-            if retained.attributes.get("missingItemsLimit").map(String::as_str) != Some("0") {
+            if !matches!(retained.attributes.get("missingItemsLimit").map(String::as_str), None | Some("0" | "32500")) {
                 return Err(bad(&cache.part, "This item retention setting is not modelled"));
             }
             match old.attributes.get("missingItemsLimit") {
@@ -823,8 +854,20 @@ fn fresh_cache(cache:&PivotCache,records_id:&str)->Result<Vec<u8>,SaveRefusal>{
     let (Some(sheet),Some(range))=(&cache.source_sheet,&cache.source_range)else{return Err(bad(&cache.part,"New pivots need an explicit worksheet source"));};string_attr("sheet",sheet,&mut out);attr("ref",range,&mut out);out.extend(b"/></cacheSource>");out.extend(cache_fields(cache)?);out.extend(b"</pivotCacheDefinition>");Ok(out)
 }
 fn fresh_table(table:&PivotTable)->Vec<u8>{
-    let mut out=format!("<pivotTableDefinition xmlns=\"{M}\"").into_bytes();let mut a=table.attributes.clone();a.remove("name");attrs(&a,&mut out);string_attr("name",&table.name,&mut out);out.push(b'>');out.extend(location(table));out.extend(fields(table));out.extend(format!("<rowFields count=\"1\"><field x=\"{}\"/></rowFields>",table.row_fields[0]).as_bytes());out.extend(row_items(table));
-    let data=&table.data_fields[0];out.extend(b"<dataFields count=\"1\"><dataField");let mut a=data.attributes.clone();a.remove("name");attrs(&a,&mut out);if let Some(name)=&data.name{string_attr("name",name,&mut out);}out.extend(b"/></dataFields><pivotTableStyleInfo name=\"PivotStyleLight16\" showRowHeaders=\"1\" showColHeaders=\"1\" showRowStripes=\"0\" showColStripes=\"0\" showLastColumn=\"1\"/></pivotTableDefinition>");out
+    let mut out=format!("<pivotTableDefinition xmlns=\"{M}\"").into_bytes();
+    let mut a=table.attributes.clone(); a.remove("name"); attrs(&a,&mut out);
+    string_attr("name",&table.name,&mut out); out.push(b'>');
+    out.extend(location(table)); out.extend(fields(table));
+    if !table.row_fields.is_empty() { out.extend(axis_fields("rowFields", &table.row_fields)); }
+    out.extend(row_items(table));
+    if !table.column_fields.is_empty() { out.extend(axis_fields("colFields", &table.column_fields)); }
+    if !table.col_items.is_empty() { out.extend(col_items(table)); }
+    out.extend(format!("<dataFields count=\"{}\">",table.data_fields.len()).as_bytes());
+    for data in &table.data_fields {
+        out.extend(b"<dataField"); let mut a=data.attributes.clone(); a.remove("name"); attrs(&a,&mut out);
+        if let Some(name)=&data.name { string_attr("name",name,&mut out); } out.extend(b"/>");
+    }
+    out.extend(b"</dataFields><pivotTableStyleInfo name=\"PivotStyleLight16\" showRowHeaders=\"1\" showColHeaders=\"1\" showRowStripes=\"0\" showColStripes=\"0\" showLastColumn=\"1\"/></pivotTableDefinition>"); out
 }
 fn add_new<S:Borrow<crate::load::LoadedSheet>>(package:&Package,before:&PivotState,after:&PivotState,out:&mut Changes,workbook:&str,sheets:&[S])->Result<(),SaveRefusal>{
     use super::parts;
@@ -847,7 +890,7 @@ fn add_new<S:Borrow<crate::load::LoadedSheet>>(package:&Package,before:&PivotSta
         let cache=after.caches.caches.get(&table.cache_id).ok_or_else(||bad(&table.part,"The new pivot cache is unavailable"))?;
         // Use the engine's same layout validation; the codec only writes neutral definitions.
         // Host/engine already validated the supported row/value layout and actual source snapshot.
-        if table.row_fields.len()!=1||!table.column_fields.is_empty()||!table.page_fields.is_empty()||table.data_fields.len()!=1||cache.snapshot.is_none(){return Err(bad(&table.part,"The new pivot layout is not supported"));}
+        if table.row_fields.is_empty()||!table.page_fields.is_empty()||table.data_fields.is_empty()||cache.snapshot.is_none(){return Err(bad(&table.part,"The new pivot layout is not supported"));}
         parts::put_part(package,out,&table.part,fresh_table(table));
         parts::ensure_relationship(package,out,&table.part,&format!("{REL}/pivotCacheDefinition"),&cache.part)?;
         parts::ensure_content_type(package,out,&table.part,"application/vnd.openxmlformats-officedocument.spreadsheetml.pivotTable+xml")?;
@@ -884,6 +927,7 @@ mod date_flags {
             records_part: None,
             record_count: None,
             source_type: "worksheet".into(),
+            source_connection_id: None,
             source_sheet: None,
             source_range: None,
             source_name: None,

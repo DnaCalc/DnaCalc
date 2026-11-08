@@ -117,6 +117,7 @@ pub struct FormulaEvaluationContext<'s> {
     pub(super) invocation: Option<calc_func::UserInvocationFrame>,
     pub(super) external_inputs: Option<&'s dyn calc_func::RtdCut>,
     pub(super) rtd_connector: Option<&'s dyn calc_func::RtdConnector>,
+    pub(super) user_view: Option<calc_func::UserView>,
     pub(super) reference_handles: Option<&'s dyn calc_func::ReferenceHandles>,
     pub(super) observation_reader: Option<&'s mut dyn ReferenceReader>,
     pub(super) function_diagnostics: Option<&'s mut Vec<String>>,
@@ -148,6 +149,7 @@ impl<'s> FormulaEvaluationContext<'s> {
             invocation: None,
             external_inputs: None,
             rtd_connector: None,
+            user_view: None,
             reference_handles: None,
             observation_reader: None,
             function_diagnostics: None,
@@ -170,6 +172,12 @@ impl<'s> FormulaEvaluationContext<'s> {
     /// The owner's capability to join or start an RTD topic during this evaluation.
     pub fn with_rtd_connector(mut self, connector: &'s dyn calc_func::RtdConnector) -> Self {
         self.rtd_connector = Some(connector);
+        self
+    }
+    /// The sheet and selection the person has active, which VBA's `ActiveSheet` and `Selection`
+    /// answer (a host that models neither leaves them out, and the calls are typed refusals).
+    pub fn with_user_view(mut self, view: calc_func::UserView) -> Self {
+        self.user_view = Some(view);
         self
     }
     pub fn with_reference_handles(mut self, handles: &'s dyn calc_func::ReferenceHandles) -> Self {

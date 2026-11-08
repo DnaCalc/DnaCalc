@@ -1,5 +1,7 @@
 # F2 (dc-ip6): text, date and time, information, logical, lookup, database and web text. WEBSERVICE
-# and the CUBE functions have no row: the capture refuses a workbook that calls them.
+# has no row: the capture refuses a workbook that calls it. The CUBE functions have none either; the
+# capture refuses them here (no data model in this workbook) and answers them over an in-file data model in
+# crates/calc-host/tests/fixtures/pivot_cube (131 cells, counted by cargo xtask corpus --oracle).
 ADDRESS(2,3)
 ARRAYTOTEXT(Data!B1:B3)
 ASC("x")

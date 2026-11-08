@@ -152,8 +152,12 @@ grid cell and of each calculation); the x5 permission and RTD case files.
   Where the project does not compile (in the browsers, without the registry's type libraries), the
   session still keeps the part and saves it back unchanged.
 - **What add-in code sees** is listed in docs/plan/VBA_UDFS.md: cell writes raise Excel's trappable
-  error 1004, `ThisWorkbook.Name` is the file's name, `ActiveSheet`, `Selection` and `Range.Value`
-  reads are typed refusals.
+  error 1004, `ThisWorkbook.Name` is the file's name, `ActiveSheet` is the session's one sheet
+  (`Name`, `Range("A1")`) and `Selection` is the cell the formula is entered in, and `Range.Value`
+  reads are typed refusals. In Excel a worksheet function sees the user's sheet and selection, not its
+  caller's (measured, `fixture/vba/active-objects-measured.json`, four scenarios); OneCalc's user has
+  one sheet and has selected the formula cell, which is Excel's measured case where the selection is
+  the caller. DNA Calc does not give the view yet, so the same code is a typed refusal there.
 
 The acceptance add-in is DNA Calc's own: `crates/calc-xll-reference/fixture/vba` holds its sources
 (`DnaExamples.bas`, the class `DnaCounter.cls`, `ThisWorkbook.txt`), the `.xlam` and `.xlsm` Excel
@@ -173,8 +177,8 @@ skipped position), a class module, early-bound `Scripting.Dictionary` (`New`, `C
 TextCompare`, `Exists`, `Keys`, default-member assignment, `TypeName`), Range arguments (`Count`,
 `Address`), `WorksheetFunction.Sum`, `CVErr`, `Err.Raise`, `Workbook_Open` having run once, a cell
 write from a UDF (trappable 1004; `#VALUE!` unhandled) and `ThisWorkbook.Name`. The three refusals
-are `ActiveSheet.Range(...)` (two cases) and `Selection`, which OneCalc does not model (Excel gives
-1004, `#VALUE!` and "Range"). All 27 saved .xlsm files, the one with the edited project included,
+were `ActiveSheet.Range(...)` (two cases) and `Selection`; since dc-0f1k.12 OneCalc answers them
+(1004, `#VALUE!` and "Range") and the project's 26 cases all match. All 27 saved .xlsm files, the one with the edited project included,
 opened in Excel without repair (no "[Repaired]" name, no new `error*.xml` log), each with its VBA
 project, and Excel's recalculated value equalled the page's.
 
@@ -183,3 +187,38 @@ list, which these runs leave alone); the browsers run the .xlsm route without th
 libraries, so DnaExamples' project does not compile there (the part is kept and saved back
 unchanged); the native dialogs (the runs type the add-in's path, open through the page's file
 input and save through `--save-dir`).
+
+## Milestone 6: RTD (dc-snz.23)
+
+A session with an RTD connector (the desktop application's, over the loaded add-ins' RTD servers)
+reads real-time data for its one formula by the rules calc-fml defines for every host: the built-in
+`RTD` and an add-in's `xlfRtd` join or start the topic through the connector, the first value
+(`ConnectData`'s) shows at once, and the session admits it as sequence 1 when the evaluation ends.
+The session owns what calc-fml holds no state for: the ledger of admitted inputs
+(`calc_fml::rtd::RtdLedger`), the topics and leases the formula read, and the leases a replaced
+formula stopped reading (`Session::update_rtd`, `retire_rtd`, `reads_rtd`, `take_unread_rtd`;
+`apps/dna-onecalc/src/rtd.rs`). There is no engine and no dependents: when an admitted input is one
+the formula read, the owner calculates the formula again. Without a connector (the browsers) `RTD`
+and `xlfRtd` stay typed refusals.
+
+The desktop harness (`dna-onecalc-desktop --rtd`, `run.ps1 -Rtd`, `src/rtd.rs`) drives a session over
+the real servers the way `dna-calc-desktop --engine` drives CalcHost: it polls the RTD client between
+turns, admits each update as the next sequence, calculates again, and, for a replaced formula,
+disconnects what the new formula no longer reads after it has been calculated. `verify.py` reads a
+host output with `single_formula` as (formula, value) rows with no dependents.
+
+What the strict comparison with Excel (owned hidden sessions, traced and control, 16.0.20527) showed
+through the OneCalc executable on 2026-11-08, with the numbers the DNA Calc host had for the same
+conditions in `codex-runs/rtd1/m4`:
+
+| Condition | Values | Ordered client calls matched / failed | DNA Calc host |
+|---|---|---|---|
+| X5 numeric UDF (`=10+X5.RtdValue()+3`) | 2 of 2, UDF answers 1 then 42 as Excel's | 6 / 0, "verified controlled numeric RTD protocol" | the same status |
+| X5 typed `=RTD(...)` | 2 of 2 | 6 / 0, verified | the same |
+| Excel-DNA original (8 formulas) | 8 of 8 | 8 / 18 | 11 / 15 |
+| Excel-DNA delayed (6 formulas) | 6 of 6 | 20 / 2 | 20 / 0 |
+
+Unequal ordered client traffic stays a failure. The original and delayed rows differ from Excel in
+when `DisconnectData` and `UpdateNotify` fall relative to each other for the formulas that finish at
+once; Excel's own samples differ between runs. Native call traffic (`xlAsyncReturn` and the managed
+callbacks) is not matched in either host. Remote servers and array topics are refused as before.

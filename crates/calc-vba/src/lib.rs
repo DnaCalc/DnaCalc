@@ -791,6 +791,31 @@ fn range_metadata(reference: &ReferenceLike) -> runtime::RangeInfo {
         address,
     }
 }
+/// `A1`, `$A$1` or `A1:B2` as `((row, column), (row, column))`, rows and columns from 1.
+fn parse_a1_area(text: &str) -> Option<((u32, u32), (u32, u32))> {
+    fn cell(text: &str) -> Option<(u32, u32)> {
+        let text = text.replace('$', "");
+        let split = text.find(|c: char| c.is_ascii_digit())?;
+        let (letters, digits) = text.split_at(split);
+        if letters.is_empty() || letters.len() > 3 || !letters.chars().all(|c| c.is_ascii_alphabetic()) {
+            return None;
+        }
+        let column = letters
+            .chars()
+            .fold(0u32, |n, c| n * 26 + (c.to_ascii_uppercase() as u32 - 'A' as u32 + 1));
+        let row: u32 = digits.parse().ok()?;
+        (row >= 1 && column >= 1 && column <= 16384).then_some((row, column))
+    }
+    let (first, last) = match text.split_once(':') {
+        Some((a, b)) => (cell(a.trim())?, cell(b.trim())?),
+        None => {
+            let one = cell(text.trim())?;
+            (one, one)
+        }
+    };
+    Some(((first.0.min(last.0), first.1.min(last.1)), (first.0.max(last.0), first.1.max(last.1))))
+}
+
 struct ContextBridge<'a> {
     context: RefCell<&'a mut dyn UserFunctionContext>,
     sheets: Rc<RefCell<Sheets>>,
@@ -876,6 +901,46 @@ impl SpreadsheetContext for ContextBridge<'_> {
     fn caller(&self) -> Option<Range> {
         let caller = self.context.try_borrow().ok()?.caller()?;
         self.range(&ReferenceLike::cell(caller)).ok()
+    }
+    fn active_sheet_name(&self) -> Result<String, runtime::ContextError> {
+        let mut context = self.context.try_borrow_mut().map_err(|_| "reentrant sheet name read")?;
+        let Some(view) = context.user_view() else {
+            return Err(runtime::ContextError::Refused(
+                context.refuse("ActiveSheet (the host does not model the user's active sheet)"),
+            ));
+        };
+        context.sheet_name(view.active_sheet).map_err(Into::into)
+    }
+    fn active_range(&self, address: &str) -> Result<Range, runtime::ContextError> {
+        let sheet = {
+            let context = self.context.try_borrow().map_err(|_| "reentrant active sheet read")?;
+            match context.user_view() {
+                Some(view) => view.active_sheet,
+                None => {
+                    drop(context);
+                    return Err(runtime::ContextError::Refused(
+                        self.refuse("ActiveSheet (the host does not model the user's active sheet)"),
+                    ));
+                }
+            }
+        };
+        let Some(((first_row, first_column), (last_row, last_column))) = parse_a1_area(address) else {
+            return Err(runtime::ContextError::Vba(1004, format!("Range({address:?}) is not an A1 address")));
+        };
+        let area = CellKey::new(sheet, first_row, first_column)
+            .and_then(|first| CellKey::new(sheet, last_row, last_column).map(|last| (first, last)))
+            .and_then(|(first, last)| calc_func::value::GridArea::new(first, last))
+            .map_err(|error| runtime::ContextError::Vba(1004, error.to_string()))?;
+        self.range(&ReferenceLike::area(area))
+    }
+    fn selection(&self) -> Result<Range, runtime::ContextError> {
+        let view = self.context.try_borrow().map_err(|_| "reentrant selection read")?.user_view();
+        match view {
+            Some(view) => self.range(&ReferenceLike::cell(view.selection)),
+            None => Err(runtime::ContextError::Refused(
+                self.refuse("Selection (the host does not model the user's selection)"),
+            )),
+        }
     }
     fn metadata(&self, range: Range) -> Result<runtime::RangeInfo, runtime::ContextError> {
         Ok(range_metadata(&self.reference(range)?))

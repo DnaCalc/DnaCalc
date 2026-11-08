@@ -47,12 +47,18 @@ DnaTreeCalc, DnaOneCalc and the others) are read-only inputs: port from them, ne
    The message starts with the bead ID and names the legacy repository, commit and paths it
    ported from. Several commits per package is normal.
 
-   `cargo xtask check` is the per-commit check, a few minutes on a warm tree. It runs the word
-   scan over new text only (the lines your working tree adds to the docs, AGENTS.md, README.md
-   and the tracker, and the messages of commits not pushed yet), the provenance marker scan (no
-   marker of a removed third-party or Microsoft source in code), `cargo build --workspace`, and
-   one `cargo test` over the packages you touched and the packages that depend on them.
-   `cargo xtask check --all` tests every package.
+   `cargo xtask check` is the light per-commit check: provenance markers,
+   `cargo check --locked --workspace --all-targets`, and tests of touched packages only.
+   Windows also checks touched packages and dependents for Linux when that target is installed
+   (otherwise it prints a note); touched portable packages get a wasm32 check.
+   `--dependents` builds the workspace and tests touched packages and their dependents; use it
+   for core contract changes. `--all` builds and tests every package. `--base <rev>` selects
+   the change baseline used by keepers. Run logs include ordered output and command timings.
+
+   Launchers export `DNACALC_AGENT_LOG` as `<host>:<path>`. Commit with
+   `git commit --trailer "Agent-Log: $DNACALC_AGENT_LOG"`; the light check warns about
+   unpushed non-merge commits without this trailer. Keep work logs for at least 60 days.
+   Find a commit's log with `git log --format='%h %(trailers:key=Agent-Log,valueonly)'`.
 
    A portable package's test runs natively and in the browsers: give it
    `#[cfg_attr(not(target_arch = "wasm32"), test)]` with
@@ -136,7 +142,7 @@ second copy is really needed, say why in the commit message.
 - Never use branches, worktrees, rebase, force push or `reset --hard`. The one exception is the licence
   history cleanup (dc-96l.7): the orchestrator force-pushes once per repository, after a
   backup and with the lanes paused. No lane agent force-pushes.
-- If a push is rejected, pull with `--no-rebase`, re-run the tests and push again.
+- If a push is rejected, pull with `--no-rebase`, re-run the light check and push again.
 - Never run two cargo invocations in one target directory at the same time.
 - Everyday work builds debug; `cargo xtask bench` measures the `perf` profile (release optimisation with line tables).
 - Before any performance change lands, including CPU features (`target-cpu`, FMA), SIMD or rewritten arithmetic, run `cargo xtask corpus --oracle --profile perf` and `cargo xtask witness judge --bank full --profile perf --report <json>`; their counts must match debug.
@@ -148,13 +154,23 @@ second copy is really needed, say why in the commit message.
 
 ## Writing
 
-Write plainly about what the work does. Avoid process jargon such as "gate" for what blocks
-what, or "production ready": say concretely what is done, what blocks what, and what is left.
+Write plainly about what the work does: say concretely what is done, what blocks what,
+and what is left.
+
+## Red master
+
+- Keepers run about every ten minutes in their own clones and target directories, in tmux on Linux and a background process on Windows.
+- They run dependent checks since last green, full checks every 20 commits or two hours, and a nightly Windows sweep; findings are keeper-owned `master-red` P0 beads.
+- Keep pushing after the light check; an exact test named for this platform in an open keeper-owned bead is printed as failed, known red. Full checks and keepers never excuse it.
+- Fix forward within about an hour, with the causing lane or a repair lane citing the bead. The keeper closes the bead when green.
+- Revert only for a major blunder: a platform cannot compile and has no fix within 30 minutes; secrets, unlicensed source or bulk corpus committed; corrupted evidence; or four hours red with no repair under way.
 
 ## Platforms
 
 - **Per commit:** `cargo xtask check` on the machine you work on, Windows or Linux. Windows-only
   behaviour (Excel, COM, x87 on this CPU) is exercised by the Windows sessions and the sweep.
+- Tests with platform-dependent behaviour assert both branches with `#[cfg(windows)]` and
+  `#[cfg(not(windows))]`; an unavailable capability needs an asserted refusal.
 - **Per milestone:** `cargo xtask sweep` on Windows (it includes wasm in headless Chrome and
   Firefox), and the tests on Linux (a WSL clone of the pushed commit; WSL is offline and builds
   from `~/cargo-vendor`).

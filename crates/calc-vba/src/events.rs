@@ -72,19 +72,24 @@ pub struct ProjectReferences {
     pub(crate) libraries: Vec<String>,
     /// Whether calls reach platform COM objects (a native Windows build only).
     pub(crate) com: bool,
+    /// References unavailable to this compiler, named if compilation needs one.
+    unavailable: Vec<String>,
 }
 impl ProjectReferences {
     pub fn none() -> Self {
         Self::default()
     }
     /// The references of an Office project read from its blob. Only a native Windows build
-    /// reads the platform's registered type libraries; elsewhere (the browsers) the project
-    /// compiles without them, so code that uses one of their types is a compile error.
+    /// reads registered type libraries. Elsewhere compilation can use the built-in objects, and
+    /// reports the unavailable references if their types are needed.
     pub fn of(project: &crate::office::OfficeProject) -> Result<Self, String> {
         if !cfg!(all(windows, not(target_arch = "wasm32"))) {
             // A reference to another VBA project is refused on every platform.
             project.compiler_references()?;
-            return Ok(Self::none());
+            return Ok(Self {
+                unavailable: project.com_references().iter().map(|reference| reference.name().to_owned()).collect(),
+                ..Self::none()
+            });
         }
         let compiler = project.compiler_references()?;
         let libraries: Vec<String> = project
@@ -100,6 +105,7 @@ impl ProjectReferences {
             compiler,
             libraries,
             com: !project.com_references().is_empty(),
+            unavailable: Vec::new(),
         })
     }
 }
@@ -176,7 +182,13 @@ fn load_project_impl(
         return Err("VBA project exceeds its source/module limits (dc-hsa5.12)".into());
     }
     let module = Module::load_event_project(modules, references, private_worksheet_lookup, events)
-        .map_err(|e| format!("document project (dc-hsa5.12): {e}"))?;
+        .map_err(|e| {
+            if references.unavailable.is_empty() {
+                format!("document project (dc-hsa5.12): {e}")
+            } else {
+                format!("document project (dc-hsa5.12): {e}; VBA references {} cannot be resolved on this platform (dc-0f1k.4)", references.unavailable.join(", "))
+            }
+        })?;
     crate::prepare_project(module, max_steps, backend)
         .map_err(|e| format!("document project (dc-hsa5.12): {e}"))
 }

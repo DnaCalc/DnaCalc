@@ -140,6 +140,7 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
         records_part,
         record_count: optional_integer(&root, "recordCount", &events)?,
         source_type: String::new(),
+        source_connection_id: None,
         source_sheet: None,
         source_range: None,
         source_name: None,
@@ -150,6 +151,7 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
         snapshot: None,
     };
     let mut path = Vec::<String>::new();
+    let mut cache_source_seen = false;
     let mut item_count = 0usize;
     let mut group_items_seen = false;
     let mut discrete_count = None;
@@ -201,7 +203,10 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
                             item_scope = Some((0, false, None, None, None));
                         }
                         ([], "cacheSource") => {
-                            cache.source_type = required(&e, "type", &events)?.into()
+                            if cache_source_seen { return Err(events.invalid("Duplicate pivot cache sources")); }
+                            cache_source_seen = true;
+                            cache.source_type = required(&e, "type", &events)?.into();
+                            cache.source_connection_id = optional_integer::<u32>(&e, "connectionId", &events)?.filter(|id| *id != 0);
                         }
                         (["cacheSource"], "worksheetSource") => {
                             cache.source_sheet = e.attribute("sheet").map(str::to_owned);
@@ -501,6 +506,8 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
     let mut fields = Vec::<PivotField>::new();
     let mut row_items = Vec::<PivotAxisItem>::new();
     let mut col_items = Vec::<PivotAxisItem>::new();
+    let mut style = None;
+    let mut formats = Vec::<PivotFormat>::new();
     let mut unsupported = Vec::new();
     let mut row_fields = Vec::new();
     let mut column_fields = Vec::new();
@@ -623,6 +630,23 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
                         (["colItems"],"i") => col_items.push(PivotAxisItem {kind:e.attribute("t").unwrap_or("data").into(),repeat:optional_integer(&e,"r",&events)?.unwrap_or(0),data_index:optional_integer(&e,"i",&events)?.unwrap_or(0),indexes:Vec::new()}),
                         (["colItems","i"],"x") => {if let Some(item)=col_items.last_mut(){item.indexes.push(optional_integer(&e,"v",&events)?.unwrap_or(0));}}
                         (["rowItems","i"],"x") => {if let Some(item)=row_items.last_mut(){item.indexes.push(optional_integer(&e,"v",&events)?.unwrap_or(0));}}
+                        ([], "pivotTableStyleInfo") => style = Some(PivotStyle { attributes: attrs(&e) }),
+                        (["formats"], "format") => formats.push(PivotFormat { attributes: attrs(&e), area: None }),
+                        (["formats", "format"], "pivotArea") => {
+                            if let Some(format) = formats.last_mut() {
+                                format.area = Some(PivotFormatArea { attributes: attrs(&e), references: Vec::new() });
+                            }
+                        }
+                        (["formats", "format", "pivotArea", "references"], "reference") => {
+                            if let Some(area) = formats.last_mut().and_then(|format| format.area.as_mut()) {
+                                area.references.push(PivotFormatReference { attributes: attrs(&e), items: Vec::new() });
+                            }
+                        }
+                        (["formats", "format", "pivotArea", "references", "reference"], "x") => {
+                            if let Some(reference) = formats.last_mut().and_then(|format| format.area.as_mut()).and_then(|area| area.references.last_mut()) {
+                                reference.items.push(optional_integer(&e, "v", &events)?.unwrap_or(0));
+                            }
+                        }
                         ([],"conditionalFormats"|"rowHierarchies"|"colHierarchies"|"calculatedMembers")
                         | (["pivotFields","pivotField"],"memberProperties") => unsupported.push(e.name.local.to_string()),
                         (["pivotFields","pivotField"],"autoSortScope") => {
@@ -762,7 +786,7 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
         filters,
         data_fields,
         attributes: attrs(&root),
-        location: location_attrs, fields, row_items, col_items, unsupported,
+        location: location_attrs, fields, row_items, col_items, style, formats, unsupported,
     })
 }
 

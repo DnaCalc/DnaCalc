@@ -385,39 +385,38 @@ End Function
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn a_macro_file_opens_disabled_and_the_mark_of_the_web_blocks_it() {
     use dna_onecalc::port::{LocalPort, MacrosView, Reply, Request, SessionPort};
-    for (zone, expected) in [
-        (Some(3), MacrosView::Blocked),
-        (Some(4), MacrosView::Blocked),
-        (Some(2), MacrosView::Disabled),
-        (Some(0), MacrosView::Disabled),
-        (None, MacrosView::Disabled),
-    ] {
-        let mut port = LocalPort::new(Session::new("Sheet1").unwrap());
-        let Reply::Opened(opened) = port.send(Request::Open {
-            name: "DnaExamples.xlsm".into(),
-            bytes: EXAMPLES_XLSM.to_vec(),
-            zone,
-        }) else {
-            panic!("opened")
-        };
-        let view = opened.project.expect("the file's project");
-        assert_eq!(view.macros, expected, "{zone:?}");
-        assert!(view.functions.is_empty() && !view.notes.is_empty(), "{view:?}");
-        assert_eq!(port.session().project().map(|p| p.is_running()), Some(false));
-        let reply = port.send(Request::EnableMacros);
-        if expected == MacrosView::Blocked {
-            assert!(matches!(&reply, Reply::Refused { message } if message.contains("Mark of the Web")), "{reply:?}");
-            assert_eq!(port.session().project().map(|p| p.macros), Some(dna_onecalc::MacroState::Blocked(zone.unwrap())));
-        } else {
-            assert!(matches!(reply, Reply::Opened(_)), "{zone:?}: {reply:?}");
+    for (input_bytes, can_compile) in example_contract_inputs() {
+        for (zone, expected) in [
+            (Some(3), MacrosView::Blocked),
+            (Some(4), MacrosView::Blocked),
+            (Some(2), MacrosView::Disabled),
+            (Some(0), MacrosView::Disabled),
+            (None, MacrosView::Disabled),
+        ] {
+            let mut port = LocalPort::new(Session::new("Sheet1").unwrap());
+            let Reply::Opened(opened) = port.send(Request::Open {
+                name: "DnaExamples.xlsm".into(), bytes: input_bytes.clone(), zone,
+            }) else { panic!("opened") };
+            let view = opened.project.expect("the file's project");
+            assert_eq!(view.macros, expected, "{zone:?}");
+            assert!(view.functions.is_empty() && !view.notes.is_empty(), "{view:?}");
+            assert_eq!(port.session().project().map(|p| p.is_running()), Some(false));
+            let reply = port.send(Request::EnableMacros);
+            if expected == MacrosView::Blocked {
+                assert!(matches!(&reply, Reply::Refused { message } if message.contains("Mark of the Web")), "{reply:?}");
+                assert_eq!(port.session().project().map(|p| p.macros), Some(dna_onecalc::MacroState::Blocked(zone.unwrap())));
+            } else if can_compile {
+                assert!(matches!(reply, Reply::Opened(_)), "{zone:?}: {reply:?}");
+            } else {
+                assert!(matches!(&reply, Reply::Refused { message } if message.contains("Scripting") && message.contains("cannot be resolved on this platform") && message.contains("dc-0f1k.4")), "{zone:?}: {reply:?}");
+                assert_eq!(port.session().project().map(|p| p.macros), Some(dna_onecalc::MacroState::Disabled));
+                assert_eq!(port.session().project().map(|p| p.is_running()), Some(false));
+            }
+            let Reply::File { bytes, .. } = port.send(Request::Save) else { panic!("saved") };
+            let saved = calc_doc::read_session(bytes, dna_onecalc::file::NAMESPACE).unwrap();
+            let original = calc_doc::read_vba_file(input_bytes.clone()).unwrap().unwrap();
+            assert_eq!(saved.vba.map(|v| v.project), Some(original.project));
         }
-        // The project part is the file's either way: a save writes it back.
-        let Reply::File { bytes, .. } = port.send(Request::Save) else {
-            panic!("saved")
-        };
-        let saved = calc_doc::read_session(bytes, dna_onecalc::file::NAMESPACE).unwrap();
-        let original = calc_doc::read_vba_file(EXAMPLES_XLSM.to_vec()).unwrap().unwrap();
-        assert_eq!(saved.vba.map(|v| v.project), Some(original.project));
     }
 }
 
@@ -426,15 +425,43 @@ fn a_macro_file_opens_disabled_and_the_mark_of_the_web_blocks_it() {
 // (crates/calc-xll-reference/fixture/vba, measured in an owned Excel session).
 const EXAMPLES_XLSM: &[u8] =
     include_bytes!("../../../crates/calc-xll-reference/fixture/vba/DnaExamples.xlsm");
+#[cfg(windows)]
 const EXAMPLE_CASES: &str =
     include_str!("../../../crates/calc-xll-reference/fixture/vba/x9-vba-cases.json");
 
+// Storage and macro-security contracts run in the browsers as well as natively.
+// The complete example module now needs the Windows Scripting type library.
+// Keep that original input for Windows/COM cases; elsewhere use the existing
+// project writer to give these contracts a module with portable VBA only.
+fn examples_for_portable_contract() -> Vec<u8> {
+    if cfg!(windows) { return EXAMPLES_XLSM.to_vec(); }
+    let mut file = calc_doc::read_session(EXAMPLES_XLSM.to_vec(), dna_onecalc::file::NAMESPACE).unwrap();
+    let vba = file.vba.as_mut().unwrap();
+    let project = calc_vba::read_office_project(&vba.project).unwrap();
+    let module = project.modules().iter().find(|m| m.name == "DnaExamples").unwrap();
+    let source = "Public DnaOpened As Long\r\nPublic DnaInstalled As Boolean\r\nPublic Function DnaAdd(ByVal a As Double, ByVal b As Double) As Double\r\n    DnaAdd = a + b\r\nEnd Function\r\n";
+    vba.project = project.with_module(&module.name, module.kind, source).unwrap().to_blob().unwrap();
+    calc_doc::write_session(&file).unwrap()
+}
+
+// Preserve the full external-reference refusal contract and also exercise
+// portable activation/editing; Windows executes its complete original input.
+fn example_contract_inputs() -> Vec<(Vec<u8>, bool)> {
+    let mut inputs = vec![(EXAMPLES_XLSM.to_vec(), cfg!(windows))];
+    if !cfg!(windows) { inputs.push((examples_for_portable_contract(), true)); }
+    inputs
+}
+
 fn opened_examples() -> (dna_onecalc::port::LocalPort, dna_onecalc::port::Opened) {
+    opened_example_bytes(EXAMPLES_XLSM.to_vec())
+}
+
+fn opened_example_bytes(bytes: Vec<u8>) -> (dna_onecalc::port::LocalPort, dna_onecalc::port::Opened) {
     use dna_onecalc::port::{LocalPort, Reply, Request, SessionPort};
     let mut port = LocalPort::new(Session::new("Sheet1").unwrap());
     let reply = port.send(Request::Open {
         name: "DnaExamples.xlsm".into(),
-        bytes: EXAMPLES_XLSM.to_vec(),
+        bytes,
         zone: None,
     });
     let Reply::Opened(opened) = reply else {
@@ -458,6 +485,7 @@ fn shown(port: &mut dna_onecalc::port::LocalPort, formula: &str) -> String {
 
 /// Excel's answer for a case in the typed form the session's view gives (`number 42`,
 /// `text "a"`, `logical TRUE`, `error #N/A`).
+#[cfg(windows)]
 fn excel_text(value: &serde_json::Value) -> String {
     match value {
         serde_json::Value::Number(n) => format!("number {}", n.as_f64().unwrap()),
@@ -503,59 +531,57 @@ fn an_xlsm_session_compiles_its_project_and_answers_its_cases_as_excel_did() {
             differences.push(format!("{formula}: OneCalc {ours:?}, Excel {excel:?}"));
         }
     }
-    // What OneCalc does not model yet (Excel allows it): ActiveSheet and Selection are typed
-    // refusals, counted here as the acceptance counts them.
-    let expected_refusals = ["=DnaTryWrite()", "=DnaWrite()", "=DnaSelection()"];
-    for difference in &differences {
-        assert!(
-            expected_refusals.iter().any(|f| difference.starts_with(&format!("{f}:")))
-                && difference.contains("not calculated"),
-            "{differences:#?}"
-        );
-    }
-    assert_eq!(differences.len(), expected_refusals.len(), "{differences:#?}");
+    // ActiveSheet and Selection are the user's sheet and selection (dc-0f1k.12): every case of
+    // the example project, the former typed refusals included, answers as Excel did.
+    assert!(differences.is_empty(), "{differences:#?}");
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn an_xlsm_session_saves_its_project_part_unchanged_and_an_edit_changes_it() {
     use dna_onecalc::port::{Reply, Request, SessionPort};
-    let (mut port, opened) = opened_examples();
-    // Disabled macros still save the project part unchanged; editing needs them enabled.
-    let held = opened.project.expect("the file's project");
-    assert_eq!(held.macros, dna_onecalc::port::MacrosView::Disabled);
-    let Reply::Opened(enabled_view) = port.send(Request::EnableMacros) else {
-        panic!("enabled")
-    };
-    let opened = *enabled_view;
-    let original = calc_doc::read_vba_file(EXAMPLES_XLSM.to_vec()).unwrap().unwrap();
-    port.send(Request::SetFormula { text: "=1+1".into() });
-    let Reply::File { name, bytes } = port.send(Request::Save) else {
-        panic!("saved")
-    };
-    assert_eq!(name, "DnaExamples.xlsm");
-    let saved = calc_doc::read_session(bytes, dna_onecalc::file::NAMESPACE).unwrap();
-    assert_eq!(saved.vba.as_ref().map(|v| &v.project), Some(&original.project));
-    assert_eq!(saved.vba.as_ref().and_then(|v| v.sheet_code_name.as_deref()), Some("Sheet1"));
-    if opened.project.is_some_and(|p| !p.functions.is_empty()) {
-        // Where the project compiles (the Windows build), editing a module through the VBA panel
-        // changes the project and the part a save writes.
-        let reply = port.send(Request::LoadVba {
-            name: "Extra".into(),
-            source: "Public Function DnaTwice(ByVal x As Double) As Double\r\n    DnaTwice = 2 * x\r\nEnd Function\r\n".into(),
-        });
-        assert!(matches!(&reply, Reply::Functions { names } if names.iter().any(|n| n.eq_ignore_ascii_case("DnaTwice"))), "{reply:?}");
-        assert_eq!(shown(&mut port, "=DnaTwice(21)"), "number 42");
-        assert_eq!(shown(&mut port, "=DnaAdd(40,2)"), "number 42");
-        let Reply::File { bytes, .. } = port.send(Request::Save) else {
-            panic!("saved")
-        };
-        let edited = calc_doc::read_session(bytes, dna_onecalc::file::NAMESPACE).unwrap();
-        let blob = edited.vba.unwrap().project;
-        assert_ne!(blob, original.project);
-        let project = calc_vba::read_office_project(&blob).unwrap();
-        assert!(project.modules().iter().any(|m| m.name == "Extra" && m.source.contains("DnaTwice = 2 * x")));
-        assert_eq!(project.modules().len(), 5);
+    for (input_bytes, can_compile) in example_contract_inputs() {
+        let (mut port, opened) = opened_example_bytes(input_bytes.clone());
+        let held = opened.project.expect("the file's project");
+        assert_eq!(held.macros, dna_onecalc::port::MacrosView::Disabled);
+        let original = calc_doc::read_vba_file(input_bytes).unwrap().unwrap();
+        port.send(Request::SetFormula { text: "=1+1".into() });
+        let Reply::File { name, bytes } = port.send(Request::Save) else { panic!("saved") };
+        assert_eq!(name, "DnaExamples.xlsm");
+        let saved = calc_doc::read_session(bytes, dna_onecalc::file::NAMESPACE).unwrap();
+        assert_eq!(saved.vba.as_ref().map(|v| &v.project), Some(&original.project));
+        assert_eq!(saved.vba.as_ref().and_then(|v| v.sheet_code_name.as_deref()), Some("Sheet1"));
+        let reply = port.send(Request::EnableMacros);
+        if !can_compile {
+            assert!(matches!(&reply, Reply::Refused { message } if message.contains("Scripting") && message.contains("cannot be resolved on this platform") && message.contains("dc-0f1k.4")), "{reply:?}");
+            assert_eq!(port.session().project().map(|p| p.macros), Some(dna_onecalc::MacroState::Disabled));
+            assert_eq!(port.session().project().map(|p| p.is_running()), Some(false));
+        } else {
+            let Reply::Opened(enabled_view) = reply else { panic!("enabled: {reply:?}") };
+            assert!(enabled_view.project.is_some_and(|p| !p.functions.is_empty()));
+            assert_eq!(shown(&mut port, "=DnaAdd(40,2)"), "number 42");
+        }
+        let Reply::File { name, bytes } = port.send(Request::Save) else { panic!("saved after activation") };
+        assert_eq!(name, "DnaExamples.xlsm");
+        let saved = calc_doc::read_session(bytes, dna_onecalc::file::NAMESPACE).unwrap();
+        assert_eq!(saved.vba.as_ref().map(|v| &v.project), Some(&original.project));
+        assert_eq!(saved.vba.as_ref().and_then(|v| v.sheet_code_name.as_deref()), Some("Sheet1"));
+        if can_compile {
+            let reply = port.send(Request::LoadVba {
+                name: "Extra".into(),
+                source: "Public Function DnaTwice(ByVal x As Double) As Double\r\n    DnaTwice = 2 * x\r\nEnd Function\r\n".into(),
+            });
+            assert!(matches!(&reply, Reply::Functions { names } if names.iter().any(|n| n.eq_ignore_ascii_case("DnaTwice"))), "{reply:?}");
+            assert_eq!(shown(&mut port, "=DnaTwice(21)"), "number 42");
+            assert_eq!(shown(&mut port, "=DnaAdd(40,2)"), "number 42");
+            let Reply::File { bytes, .. } = port.send(Request::Save) else { panic!("saved") };
+            let edited = calc_doc::read_session(bytes, dna_onecalc::file::NAMESPACE).unwrap();
+            let blob = edited.vba.unwrap().project;
+            assert_ne!(blob, original.project);
+            let project = calc_vba::read_office_project(&blob).unwrap();
+            assert!(project.modules().iter().any(|m| m.name == "Extra" && m.source.contains("DnaTwice = 2 * x")));
+            assert_eq!(project.modules().len(), 5);
+        }
     }
 }
 
@@ -629,4 +655,62 @@ fn workbook_before_save_runs_first_and_cancel_stops_the_save() {
     let reply = load(&mut port, "False");
     assert!(matches!(reply, Reply::Functions { .. }), "{reply:?}");
     assert!(matches!(port.send(Request::Save), Reply::File { .. }));
+}
+
+/// dc-0f1k.12: a worksheet function sees the user's active sheet and selection
+/// (Excel: not its caller's; fixture/vba/active-objects-measured.json). OneCalc's user has one
+/// sheet and has selected the cell the formula is entered in, which is Excel's measured scenario
+/// "selection-is-the-caller"; the others (a selection elsewhere) are not a state OneCalc can be in.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn active_sheet_and_selection_are_the_users_as_excel_measured() {
+    let measured: serde_json::Value =
+        serde_json::from_str(include_str!("../../../crates/calc-xll-reference/fixture/vba/active-objects-measured.json")).unwrap();
+    let scenario = measured["scenarios"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["scenario"] == "selection-is-the-caller")
+        .unwrap();
+    let answers = scenario["answers"].as_object().unwrap();
+    let mut s = session();
+    s.set_input("B2", InputValue::number(11.0).unwrap()).unwrap();
+    s.load_vba_module(
+        "Probe",
+        "Public Function ActName() As String\n ActName = ActiveSheet.Name\nEnd Function\n\
+         Public Function ActType() As String\n ActType = TypeName(ActiveSheet)\nEnd Function\n\
+         Public Function SelType() As String\n SelType = TypeName(Selection)\nEnd Function\n\
+         Public Function SelAddr() As String\n SelAddr = Selection.Address\nEnd Function\n\
+         Public Function ActRead() As Variant\n ActRead = ActiveSheet.Range(\"B2\").Value2\nEnd Function\n\
+         Public Function CallerAddr() As String\n CallerAddr = Application.Caller.Address\nEnd Function\n\
+         Public Function TryActiveWrite() As Long\n On Error Resume Next\n ActiveSheet.Range(\"Z99\").Value = 1\n TryActiveWrite = Err.Number\nEnd Function\n",
+        1000,
+    )
+    .unwrap();
+    let mut differences = Vec::new();
+    for name in ["ActName", "ActType", "SelType", "SelAddr", "ActRead", "CallerAddr", "TryActiveWrite"] {
+        s.set_formula(&format!("=Probe.{name}()"));
+        let ours = s.calculate();
+        let excel = &answers[&format!("={name}()")];
+        let ours_text = match ours.result.as_ref() {
+            Some(value) => format!("{value:?}"),
+            None => format!("not calculated {:?}", ours.diagnostics),
+        };
+        let expected = match excel {
+            serde_json::Value::String(text) if name == "ActName" => text.replace("First", "Sheet1"),
+            other => other.to_string(),
+        };
+        let matched = match (&ours.result, excel) {
+            (Some(value), serde_json::Value::String(text)) => {
+                let want = if name == "ActName" { "Sheet1" } else { text.as_str() };
+                value == &CalcValue::text(calc_func::value::ExcelText::from_interop_assignment(want))
+            }
+            (Some(value), serde_json::Value::Number(n)) => value == &CalcValue::number(n.as_f64().unwrap()),
+            _ => false,
+        };
+        if !matched {
+            differences.push(format!("{name}: OneCalc {ours_text}, Excel {expected}"));
+        }
+    }
+    assert!(differences.is_empty(), "{differences:#?}");
 }

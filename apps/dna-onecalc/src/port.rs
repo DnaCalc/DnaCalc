@@ -360,6 +360,11 @@ fn carry_functions(old: &mut Session, new: &mut Session) {
     }
     // The owner of asynchronous returns belongs to the add-ins, not to the session it served.
     new.set_external_returns(old.take_external_returns());
+    // So does the capability to join RTD topics. (The old formula's connections are the owner's to
+    // disconnect: the new session has an empty ledger and reads nothing yet.)
+    if let Some(connector) = old.rtd_connector_for_replacement() {
+        new.set_rtd_connector(connector);
+    }
 }
 
 /// The reply for a session that has just been opened or made: what to show for it.

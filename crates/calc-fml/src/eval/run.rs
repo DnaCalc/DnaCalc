@@ -468,6 +468,7 @@ fn evaluate_slice(
         invocation: services.invocation.clone(),
         external_inputs: services.external_inputs,
         rtd_connector: services.rtd_connector,
+        user_view: services.user_view,
         reference_handles: services.reference_handles,
         observation_reader: observation_reader.as_ref(),
         reader: &reader,
@@ -542,6 +543,7 @@ struct Run<'a, 'r> {
     current_name: Option<Arc<ActiveName>>,
     external_inputs: Option<&'a dyn calc_func::RtdCut>,
     rtd_connector: Option<&'a dyn calc_func::RtdConnector>,
+    user_view: Option<calc_func::UserView>,
     read_policy: crate::ReadPolicy,
     invocation: Option<calc_func::UserInvocationFrame>,
     reference_handles: Option<&'a dyn calc_func::ReferenceHandles>,
@@ -3678,6 +3680,9 @@ struct UserCallContext<'b, 'a, 'r> {
 }
 
 impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
+    fn user_view(&self) -> Option<calc_func::UserView> {
+        self.run.user_view
+    }
     fn callable_identity(&self) -> Option<calc_func::UserCallableIdentity> {
         Some(self.callable)
     }
@@ -3831,6 +3836,14 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
     }
     fn caller(&self) -> Option<CellKey> {
         Some(self.run.instance.anchor.cell())
+    }
+    fn sheet_name(&mut self, sheet: calc_func::value::SheetId) -> Result<String, String> {
+        use calc_func::HostFacts;
+        let mut host = ReaderHost { shared: self.run.reader };
+        match host.sheet_name(sheet) {
+            Some(name) => Ok(name),
+            None => Err(self.refuse("sheet names without an admitted metadata view")),
+        }
     }
     fn reference_qualifier(&mut self, sheet: calc_func::value::SheetId) -> Result<String, String> {
         use calc_func::HostFacts;
@@ -4034,6 +4047,7 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
             invocation: self.frame.clone(),
             external_inputs: self.run.external_inputs,
             rtd_connector: self.run.rtd_connector,
+            user_view: self.run.user_view,
             reference_handles: self.run.reference_handles,
             observation_reader: self.run.observation_reader,
             function_diagnostics: self.run.function_diagnostics.as_deref_mut(),

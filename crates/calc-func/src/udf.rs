@@ -246,10 +246,30 @@ pub trait UserFunction: fmt::Debug {
     }
 }
 
+/// The sheet and the selection a person has active in the host.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UserView {
+    pub active_sheet: crate::value::SheetId,
+    /// The selected cell (a host with a one-cell selection; a larger one is not modelled).
+    pub selection: CellKey,
+}
+
 /// Services borrowed only for one synchronous call. The evaluator owns the reader and caller;
 /// adapters can retain reference identities, and must read their values through this context.
 pub trait UserFunctionContext {
     fn caller(&self) -> Option<CellKey>;
+    /// What the person looking at the application has active: the host's answer for VBA's
+    /// `ActiveSheet` and `Selection`. In Excel a worksheet function sees the user's sheet and
+    /// selection, not its caller's (measured, dc-0f1k.12). `None` when the host does not model
+    /// that view: the calls are then typed refusals.
+    fn user_view(&self) -> Option<UserView> {
+        None
+    }
+    /// The plain name of a sheet (for `ActiveSheet.Name`), from the same metadata view as
+    /// [`UserFunctionContext::reference_qualifier`].
+    fn sheet_name(&mut self, _sheet: crate::value::SheetId) -> Result<String, String> {
+        Err(self.refuse("sheet names without an admitted metadata view"))
+    }
     /// The current workbook/sheet qualifier of a local reference, without `!`.
     /// Reads metadata only; no formula value is demanded or observed.
     fn reference_qualifier(&mut self, _sheet: crate::value::SheetId) -> Result<String, String> {

@@ -8,6 +8,7 @@ fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.split_first() {
         Some((command, rest)) if command == "check" => xtask::check::run(rest),
+        Some((command, rest)) if command == "keep" => xtask::keep::run(rest),
         _ => harness::run(&args),
     }
 }

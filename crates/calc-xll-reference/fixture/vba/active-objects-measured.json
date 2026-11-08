@@ -1,0 +1,94 @@
+{
+ "about": "Excel answers for UDFs that read ActiveSheet, Selection and Application.Caller while the active sheet and selection differ from the caller (dc-0f1k.12). Measured by vba-job.ps1 -Action activeobjects in an owned hidden session, Excel 16.0.20527. In a worksheet function ActiveSheet and Selection are the user's, not the caller's.",
+ "excel_build": "20527",
+ "scenarios": [
+  {
+   "scenario": "same-sheet-selection-elsewhere",
+   "active_sheet": "First",
+   "selection": "B2:C3",
+   "caller_cell": "First!H1",
+   "answers": {
+    "=ActName()": "First",
+    "=ActType()": "Worksheet",
+    "=ActBook()": "Book2",
+    "=SelType()": "Range",
+    "=SelAddr()": "$B$2:$C$3",
+    "=SelCount()": 4.0,
+    "=SelSheet()": "First",
+    "=ActRead()": 11.0,
+    "=ActCount()": 14.0,
+    "=CallerAddr()": "$H$1",
+    "=ActCellAddr()": "$B$2",
+    "=ActWindow()": "Window",
+    "=TrySelectionWrite()": 1004.0,
+    "=TryActiveWrite()": 1004.0
+   }
+  },
+  {
+   "scenario": "other-sheet-active",
+   "active_sheet": "First",
+   "selection": "B2:C3",
+   "caller_cell": "Second!H1",
+   "answers": {
+    "=ActName()": "First",
+    "=ActType()": "Worksheet",
+    "=ActBook()": "Book2",
+    "=SelType()": "Range",
+    "=SelAddr()": "$B$2:$C$3",
+    "=SelCount()": 4.0,
+    "=SelSheet()": "First",
+    "=ActRead()": 11.0,
+    "=ActCount()": 1.0,
+    "=CallerAddr()": "$H$1",
+    "=ActCellAddr()": "$B$2",
+    "=ActWindow()": "Window",
+    "=TrySelectionWrite()": 1004.0,
+    "=TryActiveWrite()": 1004.0
+   }
+  },
+  {
+   "scenario": "active-second-selection-d4",
+   "active_sheet": "Second",
+   "selection": "D4",
+   "caller_cell": "First!H1",
+   "answers": {
+    "=ActName()": "Second",
+    "=ActType()": "Worksheet",
+    "=ActBook()": "Book2",
+    "=SelType()": "Range",
+    "=SelAddr()": "$D$4",
+    "=SelCount()": 1.0,
+    "=SelSheet()": "Second",
+    "=ActRead()": 22.0,
+    "=ActCount()": 8.0,
+    "=CallerAddr()": "$H$1",
+    "=ActCellAddr()": "$D$4",
+    "=ActWindow()": "Window",
+    "=TrySelectionWrite()": 1004.0,
+    "=TryActiveWrite()": 1004.0
+   }
+  },
+  {
+   "scenario": "selection-is-the-caller",
+   "active_sheet": "First",
+   "selection": "H1",
+   "caller_cell": "First!H1",
+   "answers": {
+    "=ActName()": "First",
+    "=ActType()": "Worksheet",
+    "=ActBook()": "Book2",
+    "=SelType()": "Range",
+    "=SelAddr()": "$H$1",
+    "=SelCount()": 1.0,
+    "=SelSheet()": "First",
+    "=ActRead()": 11.0,
+    "=ActCount()": 14.0,
+    "=CallerAddr()": "$H$1",
+    "=ActCellAddr()": "$H$1",
+    "=ActWindow()": "Window",
+    "=TrySelectionWrite()": 1004.0,
+    "=TryActiveWrite()": 1004.0
+   }
+  }
+ ]
+}

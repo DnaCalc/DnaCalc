@@ -36,6 +36,8 @@ pub struct PivotCache {
     pub records_part: Option<String>,
     pub record_count: Option<u64>,
     pub source_type: String,
+    /// Connection identity from an external cache source, if valid and present.
+    pub source_connection_id: Option<u32>,
     pub source_sheet: Option<String>,
     pub source_range: Option<String>,
     pub source_name: Option<String>,
@@ -43,12 +45,18 @@ pub struct PivotCache {
     pub calculated_items: Vec<PivotCalculatedItem>,
     pub attributes: BTreeMap<String, String>,
     pub unsupported: Vec<String>,
-    /// Source readings taken by an explicit refresh, never aggregated answers.
+    /// Source records used by the walk, never saved output cells.
     pub snapshot: Option<Arc<PivotSnapshot>>,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum PivotSnapshotOrigin {
+    SourceRead,
+    FileRecords { part: String },
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PivotSnapshot {
     pub records: Vec<Vec<PivotItem>>,
+    pub origin: PivotSnapshotOrigin,
     pub source_revision: u64,
     pub numeric: NumericMode,
 }
@@ -102,7 +110,30 @@ pub struct PivotTable {
     pub fields: Vec<PivotField>,
     pub row_items: Vec<PivotAxisItem>,
     pub col_items: Vec<PivotAxisItem>,
+    /// The saved table style and its display options, when specified.
+    pub style: Option<PivotStyle>,
+    /// Saved differential formats and their pivot-area selections, in file order.
+    pub formats: Vec<PivotFormat>,
     pub unsupported: Vec<String>,
+}
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct PivotStyle {
+    pub attributes: BTreeMap<String, String>,
+}
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct PivotFormat {
+    pub attributes: BTreeMap<String, String>,
+    pub area: Option<PivotFormatArea>,
+}
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct PivotFormatArea {
+    pub attributes: BTreeMap<String, String>,
+    pub references: Vec<PivotFormatReference>,
+}
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct PivotFormatReference {
+    pub attributes: BTreeMap<String, String>,
+    pub items: Vec<u32>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PivotFilter {

@@ -5180,6 +5180,12 @@
   {"path": "crates/calc-func/tests/fixtures/dcj9k_r38_ets/oracle.xlsx", "class": "own-work", "reason": "Original MIT ETS numeric-question workbook from the existing catalogue generator, preserving existing capture keys; dc-j9k R38."},
   {"path": "crates/calc-func/tests/fixtures/dcj9k_r38_ets/sheet-dcj9k_r38_ets.txt", "class": "own-work", "reason": "Original MIT selection of four measured scalar ETS calls per retained design case; dc-j9k R38."},
   {"path": "crates/calc-func/tests/captures/dcj9k_r38_ets/sections/dcj9k_r38_ets.capture.json", "class": "own-work", "reason": "Original Excel20527 raw question observations imported through the canonical codec, with numeric-operand and request/readback mapping retained in Research evidence/round38; no workbook round trip claimed."},
- {"path": "crates/calc-func/tests/fixtures/dcj9k_r38_ets/prefix-dcj9k_r38_ets.txt", "class": "own-work", "reason": "Original MIT saved-file prefix questions for the four ETS surfaces; explicitly awaiting an Excel saved-formula capture, separate from numeric question observations."}
- ]
+ {"path": "crates/calc-func/tests/fixtures/dcj9k_r38_ets/prefix-dcj9k_r38_ets.txt", "class": "own-work", "reason": "Original MIT saved-file prefix questions for the four ETS surfaces; explicitly awaiting an Excel saved-formula capture, separate from numeric question observations."},
+    {"path": "crates/calc-func/tests/fixtures/dcj9k_r39_ets/oracle.xlsx", "class": "own-work", "reason": "Original MIT R39 ETS numeric questions and audited Excel question-service observations, using the existing generator and capture codec; dc-j9k."},
+    {"path": "crates/calc-func/tests/fixtures/dcj9k_r39_ets/sheet-dcj9k_r39_ets.txt", "class": "own-work", "reason": "Original MIT R39 ETS numeric questions and audited Excel question-service observations, using the existing generator and capture codec; dc-j9k."},
+    {"path": "crates/calc-func/tests/captures/dcj9k_r39_ets/sections/dcj9k_r39_ets.capture.json", "class": "own-work", "reason": "Original MIT R39 ETS numeric questions and audited Excel question-service observations, using the existing generator and capture codec; dc-j9k."},
+    {"path": "crates/calc-func/tests/fixtures/dcj9k_r39_seasonal/oracle.xlsx", "class": "own-work", "reason": "Original MIT R39 exact seasonal affine questions, using the existing generator and audited Excel question-service capture route; dc-j9k."},
+    {"path": "crates/calc-func/tests/fixtures/dcj9k_r39_seasonal/sheet-dcj9k_r39_seasonal.txt", "class": "own-work", "reason": "Original MIT R39 exact seasonal affine questions, using the existing generator and audited Excel question-service capture route; dc-j9k."},
+    {"path": "crates/calc-func/tests/captures/dcj9k_r39_seasonal/sections/dcj9k_r39_seasonal.capture.json", "class": "own-work", "reason": "Original MIT R39 exact seasonal affine questions, using the existing generator and audited Excel question-service capture route; dc-j9k."}
+  ]
 }

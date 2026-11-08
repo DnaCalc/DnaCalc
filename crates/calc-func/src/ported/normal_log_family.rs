@@ -81,6 +81,82 @@ fn validate_probability_open_unit(p: f64) -> Result<(), WorksheetErrorCode> {
     Ok(())
 }
 
+/// The tail of the inverse standard normal by the rational approximations of
+/// M. J. Wichura, "Algorithm AS 241: The Percentage Points of the Normal Distribution",
+/// Applied Statistics 37(3), 1988, pp. 477-484 (PPND16): the published coefficients of its
+/// tail approximations evaluated in `sqrt(-ln p)`.
+fn inverse_standard_normal_as241_tail(p: f64) -> f64 {
+    const C: [f64; 8] = [
+        1.4234371107496835,
+        4.630337846156546,
+        5.769497221460691,
+        3.6478483247632045,
+        1.2704582524523684,
+        0.2417807251774506,
+        0.022723844989269184,
+        0.0007745450142783414,
+    ];
+    const D: [f64; 8] = [
+        1.0,
+        2.053191626637759,
+        1.6763848301838038,
+        0.6897673349851,
+        0.14810397642748008,
+        0.015198666563616457,
+        0.0005475938084995345,
+        1.0507500716444169e-09,
+    ];
+    const E: [f64; 8] = [
+        6.657904643501103,
+        5.463784911164114,
+        1.7848265399172913,
+        0.29656057182850487,
+        0.026532189526576124,
+        0.0012426609473880784,
+        2.7115555687434876e-05,
+        2.0103343992922881e-07,
+    ];
+    const F: [f64; 8] = [
+        1.0,
+        0.599832206555888,
+        0.1369298809227358,
+        0.014875361290850615,
+        0.0007868691311456133,
+        1.8463183175100548e-05,
+        1.421511758316446e-07,
+        2.0442631033899397e-15,
+    ];
+
+    let q = p - 0.5;
+    let tail_p = if q < 0.0 { p } else { 1.0 - p };
+    let mut r = libm::sqrt(-crt_log(tail_p));
+    let x = if r <= 5.0 {
+        r -= 1.6;
+        let numerator =
+            ((((((C[7] * r + C[6]) * r + C[5]) * r + C[4]) * r + C[3]) * r + C[2]) * r + C[1]) * r
+                + C[0];
+        let denominator =
+            ((((((D[7] * r + D[6]) * r + D[5]) * r + D[4]) * r + D[3]) * r + D[2]) * r + D[1]) * r
+                + D[0];
+        numerator / denominator
+    } else {
+        r -= 5.0;
+        let numerator =
+            ((((((E[7] * r + E[6]) * r + E[5]) * r + E[4]) * r + E[3]) * r + E[2]) * r + E[1]) * r
+                + E[0];
+        let denominator =
+            ((((((F[7] * r + F[6]) * r + F[5]) * r + F[4]) * r + F[3]) * r + F[2]) * r + F[1]) * r
+                + F[0];
+        numerator / denominator
+    };
+
+    if q < 0.0 {
+        -x
+    } else {
+        x
+    }
+}
+
 fn inverse_standard_normal_acklam_refined(p: f64) -> f64 {
     const A: [f64; 6] = [
         -3.969_683_028_665_376e1,
@@ -141,7 +217,10 @@ fn inverse_standard_normal_acklam_refined(p: f64) -> f64 {
 fn inverse_standard_normal(p: f64) -> Result<f64, WorksheetErrorCode> {
     validate_probability_open_unit(p)?;
 
-    Ok(inverse_standard_normal_acklam_refined(p))
+    // R39 single-bit regions separate the upper AS241 route at 15/16.
+    // The central and lower routes retain their existing numerical program.
+    Ok(if p > 15.0 / 16.0 { inverse_standard_normal_as241_tail(p) }
+        else { inverse_standard_normal_acklam_refined(p) })
 }
 
 pub fn norm_s_dist_kernel(z: f64, cumulative: bool) -> Result<f64, WorksheetErrorCode> {
@@ -340,9 +419,9 @@ mod tests {
     fn norm_family_records_exact_controls_and_inverse_gap() {
         assert_eq!(norm_dist_kernel(0.0, 0.0, 1.0, true).unwrap(), 0.5);
         assert_eq!(norm_s_dist_kernel(0.0, true).unwrap(), 0.5);
-        // Recorded Excel is 0x3fff5c0331eeff82; the uniform Acklam method differs.
-        assert_bits(norm_inv_kernel(0.975, 0.0, 1.0).unwrap(), 0x3fff5c0331eeff84);
-        assert_bits(norm_s_inv_kernel(0.975).unwrap(), 0x3fff5c0331eeff84);
+        // R39 restores the measured upper tail through the shared inverse.
+        assert_bits(norm_inv_kernel(0.975, 0.0, 1.0).unwrap(), 0x3fff5c0331eeff82);
+        assert_bits(norm_s_inv_kernel(0.975).unwrap(), 0x3fff5c0331eeff82);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -352,9 +431,9 @@ mod tests {
             (0.0001_f64, 0xc00d_c08b_b712_893au64, 0xc00dc08bb712893b),
             (0.001_f64, 0xc008_b8cb_b720_4470u64, 0xc008b8cbb7204471),
             (0.01_f64, 0xc002_9c5c_4630_ff0eu64, 0xc0029c5c4630ff0f),
-            (0.95_f64, 0x3ffa_5152_0967_6ab8u64, 0x3ffa515209676abc),
-            (0.975_f64, 0x3fff_5c03_31ee_ff82u64, 0x3fff5c0331eeff84),
-            (0.97575_f64, 0x3fff_913f_9b7a_a942u64, 0x3fff913f9b7aa943),
+            (0.95_f64, 0x3ffa_5152_0967_6ab8u64, 0x3ffa515209676ab8),
+            (0.975_f64, 0x3fff_5c03_31ee_ff82u64, 0x3fff5c0331eeff82),
+            (0.97575_f64, 0x3fff_913f_9b7a_a942u64, 0x3fff913f9b7aa942),
         ] {
             assert_eq!(norm_s_inv_kernel(p).unwrap().to_bits(), calculated_bits, "recorded Excel {expected_bits:#018x}");
             assert_eq!(norm_inv_kernel(p, 0.0, 1.0).unwrap().to_bits(), calculated_bits, "recorded Excel {expected_bits:#018x}");
@@ -433,4 +512,20 @@ mod tests {
             Err(WorksheetErrorCode::Num)
         );
     }
+    /// Fresh R39 upper-tail controls distinguish the CRT logarithm and full tables.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn norm_inv_upper_as241_uses_full_coefficients_and_crt_log() {
+        for (p, expected) in [
+            (0x3fee000000000001u64, 0x3ff88bc1fbe1dac1u64),
+            (0x3fee9b9ca4d07cf6u64, 0x3ffb61dc5570acfdu64),
+            (0x3fee7918e8ecf545u64, 0x3ffaada9db55cbb9u64),
+            (0x3fefffffffffffffu64, 0x40206b48528cea51u64),
+        ] {
+            let p = f64::from_bits(p);
+            assert_bits(norm_s_inv_kernel(p).unwrap(), expected);
+            assert_bits(norm_inv_kernel(p, 0.0, 1.0).unwrap(), expected);
+        }
+    }
+
 }

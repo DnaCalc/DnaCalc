@@ -19,7 +19,7 @@ mod call;
 mod udf;
 pub use udf::{
     ReferenceHandleError, ReferenceHandles, StoredReference, UserCallableIdentity,
-    RTD_CONNECT_FAILED, RTD_PROVIDER, RtdConnection, RtdConnector, RtdCut, RtdEntry, RtdLease, RtdRead, RtdTopicRead, TopicKey, UserFunction, UserFunctionContext, UserFunctionInvocation,
+    RTD_CONNECT_FAILED, RTD_PROVIDER, RtdConnection, RtdConnector, RtdCut, RtdEntry, RtdLease, RtdRead, RtdTopicRead, TopicKey, UserFunction, UserFunctionContext, UserFunctionInvocation, UserView,
     UserFunctionStep, UserInvocationFrame, UserReevaluationReason,
 };
 mod catalogue;
