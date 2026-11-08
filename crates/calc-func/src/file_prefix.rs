@@ -34,7 +34,7 @@ impl FilePrefix {
 
 /// Each named function of the catalogue by its spelling, in byte order of the spelling (checked
 /// below, since the lookup is a binary search), with the prefix a file writes before it.
-const FILE_PREFIXES: [(&str, FilePrefix); 511] = [
+const FILE_PREFIXES: [(&str, FilePrefix); 515] = [
     ("ABS", FilePrefix::Bare),
     ("ACCRINT", FilePrefix::Bare),
     ("ACCRINTM", FilePrefix::Bare),
@@ -217,6 +217,10 @@ const FILE_PREFIXES: [(&str, FilePrefix); 511] = [
     ("FLOOR.MATH", FilePrefix::Xlfn),
     ("FLOOR.PRECISE", FilePrefix::Xlfn),
     ("FORECAST", FilePrefix::Bare),
+    ("FORECAST.ETS", FilePrefix::Xlfn),
+    ("FORECAST.ETS.CONFINT", FilePrefix::Xlfn),
+    ("FORECAST.ETS.SEASONALITY", FilePrefix::Xlfn),
+    ("FORECAST.ETS.STAT", FilePrefix::Xlfn),
     ("FORECAST.LINEAR", FilePrefix::Xlfn),
     ("FORMULATEXT", FilePrefix::Xlfn),
     ("FREQUENCY", FilePrefix::Bare),
@@ -565,7 +569,7 @@ const _: () = {
             left.len() < right.len()
         };
         if !ordered {
-            panic!("the file prefix table is not in strictly increasing byte order of spelling");
+            panic!("the file prefix table is not in strictly increasing byte order of spelling"); // ubs:ignore — compile-time assertion for this static table; malformed ordering must fail the build
         }
         i += 1;
     }

@@ -16,6 +16,97 @@ fn data() -> CalcValue {
 
 use calc_func::value::CalcValue;
 
+/// Original Excel20527 R38 questions: exact affine data, vector references,
+/// duplicate aggregation, missing timestamps and the zero-confidence limit.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_exact_trends_and_timeline_statistics() {
+    let y = arr(vec![vec![2.0, 5.0, 8.0, 11.0]]);
+    let t = arr(vec![vec![1.0, 2.0, 3.0, 4.0]]);
+    exact(call("FORECAST.ETS", vec![n(7.0), y.clone(), t.clone(), n(0.0)]), 20.0);
+    exact(call("FORECAST.ETS.SEASONALITY", vec![y.clone(), t.clone()]), 0.0);
+    for (stat, expected) in [(1.0, 0.9), (2.0, 0.001), (3.0, f64::EPSILON),
+        (4.0, 0.0), (5.0, 0.0), (6.0, 0.0), (7.0, 0.0), (8.0, 1.0)] {
+        exact(call("FORECAST.ETS.STAT", vec![y.clone(), t.clone(), n(stat), n(0.0)]), expected);
+    }
+    exact(call("FORECAST.ETS.CONFINT", vec![n(7.0), y.clone(), t.clone(), n(0.95), n(0.0)]), 0.0);
+    exact(call("FORECAST.ETS", vec![n(5.0), y.clone(), t.clone(), n(8_784.0)]), 14.0);
+    error(call("FORECAST.ETS", vec![n(5.0), y.clone(), t.clone(), n(8_785.0)]), Num);
+    error(call("FORECAST.ETS.STAT", vec![y.clone(), t.clone(), n(8.0), n(8_785.0)]), Num);
+    exact(call("FORECAST.ETS", vec![n(4.0 + i32::MAX as f64), y.clone(), t.clone(), n(0.0)]),
+        11.0 + 3.0 * i32::MAX as f64);
+    error(call("FORECAST.ETS", vec![n(4.0 + 2_147_483_648.0), y.clone(), t.clone(), n(0.0)]), Num);
+    error(call("FORECAST.ETS.CONFINT", vec![n(4.0 + 2_147_483_648.0), y.clone(), t.clone(), n(0.0)]), Num);
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![n(2.0), n(5.0), n(8.0), n(11.0)]);
+    sheet.column(1, 2, vec![n(1.0), n(2.0), n(3.0), n(4.0)]);
+    let args = vec![n(7.0), sheet.area(1, 1, 4, 1), sheet.area(1, 2, 4, 2), n(0.0)];
+    exact(call_on(&mut sheet, "FORECAST.ETS", args), 20.0);
+    // General non-affine data still has a measured timeline step and a
+    // zero confidence interval at confidence zero, independently of its fit.
+    let noisy = arr(vec![vec![2.0, 3.0, 5.0, 7.0, 11.0, 13.0, 17.0, 19.0]]);
+    let times = arr(vec![vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]]);
+    exact(call("FORECAST.ETS.STAT", vec![noisy.clone(), times.clone(), n(8.0)]), 1.0);
+    exact(call("FORECAST.ETS.CONFINT", vec![n(9.0), noisy.clone(), times, n(0.0)]), 0.0);
+    // Reversed, duplicated and incomplete timelines use the same preparation.
+    for times in [vec![8.0, 7.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0],
+        vec![1.0, 2.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0],
+        vec![1.0, 2.0, 3.0, 5.0, 6.0, 7.0, 8.0, 9.0]] {
+        exact(call("FORECAST.ETS.STAT", vec![noisy.clone(), arr(vec![times]), n(8.0)]), 1.0);
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_errors_and_unresolved_arithmetic_remain_distinct() {
+    let y = arr(vec![vec![2.0, 3.0, 5.0, 7.0]]);
+    let t = arr(vec![vec![1.0, 2.0, 3.0, 4.0]]);
+    error(call("FORECAST.ETS", vec![n(5.0), y.clone(), t.clone(), n(0.5)]), Num);
+    error(call("FORECAST.ETS.CONFINT", vec![n(5.0), y.clone(), t.clone(), n(1.0)]), Num);
+    // R38 separates the confidence horizon from FORECAST.ETS's historical
+    // interpolation: even confidence zero needs a point after the history.
+    error(call("FORECAST.ETS.CONFINT", vec![n(4.0), y.clone(), t.clone(), n(0.0)]), Num);
+    error(call("FORECAST.ETS.CONFINT", vec![n(4.0), y.clone(), t.clone(), n(0.875)]), Num);
+    error(call("FORECAST.ETS.STAT", vec![y.clone(), t.clone(), n(9.0)]), Num);
+    error(call("FORECAST.ETS.SEASONALITY", vec![y.clone(), arr(vec![vec![1.0]])]), NA);
+    let short = arr(vec![vec![11.0, 12.0]]);
+    error(call("FORECAST.ETS.STAT", vec![y.clone(), short.clone(), n(9.0), n(-1.0)]), NA);
+    error(call("FORECAST.ETS.CONFINT", vec![n(21.0), y.clone(), short, n(1.0), n(-1.0)]), NA);
+    error(call("FORECAST.ETS", vec![n(2.0), n(1.0), n(1.0)]), Div0);
+    for times in [vec![1.0, 1.0, 1.0, 1.0], vec![1.0, 2.0, 4.0, 8.0]] {
+        error(call("FORECAST.ETS.SEASONALITY", vec![y.clone(), arr(vec![times])]), Num);
+    }
+    // Excel's numeric answer for this adjacent constant is 0x3ff0000000000002,
+    // not the input. Its private initialization/optimisation is still open.
+    let adjacent = f64::from_bits(0x3ff0_0000_0000_0001);
+    let unknown = call("FORECAST.ETS", vec![n(6.0), arr(vec![vec![adjacent; 3]]),
+        arr(vec![vec![1.0, 2.0, 3.0]]), n(0.0)]);
+    assert!(matches!(unknown, Err(calc_func::FunctionFault::NotHeld { owner: "dc-j9k", .. })));
+    // The history's initialization is exact, but this extrapolation separates
+    // a rounded product/add from a single final store. Keep that stage open.
+    assert!(matches!(call("FORECAST.ETS", vec![n(1_757_867_173.0),
+        arr(vec![vec![32_830_194_465.0, 101_151_455_122.0, 169_472_715_779.0, 237_793_976_436.0]]),
+        t.clone(), n(0.0)]), Err(calc_func::FunctionFault::NotHeld { owner: "dc-j9k", .. })));
+    assert!(matches!(call("FORECAST.ETS", vec![n(5.0), y, t, n(0.0)]),
+        Err(calc_func::FunctionFault::NotHeld { owner: "dc-j9k", .. })));
+    // Excel keeps the unit in this duplicate reduction: mean=1/3, sum=1.
+    // The private reduction is open; an accidentally zero local sum must not
+    // turn into an admitted exact trend. The independent step statistic works.
+    let cancellation = arr(vec![vec![9_007_199_254_740_992.0, 1.0, -9_007_199_254_740_992.0].repeat(4)]);
+    let repeated = arr(vec![vec![1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 3.0, 3.0, 3.0, 4.0, 4.0, 4.0]]);
+    for reduction in [1.0, 7.0] {
+        assert!(matches!(call("FORECAST.ETS", vec![n(5.0), cancellation.clone(), repeated.clone(),
+            n(0.0), n(1.0), n(reduction)]), Err(calc_func::FunctionFault::NotHeld { owner: "dc-j9k", .. })));
+        exact(call("FORECAST.ETS.STAT", vec![cancellation.clone(), repeated.clone(), n(8.0),
+            n(0.0), n(1.0), n(reduction)]), 1.0);
+    }
+    // Refuse the bounded model before multiplying a very large completed
+    // timestamp count; those products can overflow usize in a browser.
+    let sparse: Vec<f64> = (0..432).map(|i| if i == 0 { 0.0 } else { 1.0 + (i - 1) as f64 * 1_000_000.0 }).collect();
+    assert!(matches!(call("FORECAST.ETS.STAT", vec![arr(vec![vec![1.0; 432]]), arr(vec![sparse]), n(8.0)]),
+        Err(calc_func::FunctionFault::NotHeld { owner: "dc-j9k", .. })));
+}
+
 /// Excel20527 root-word controls: the sample deviation stores FSQRT from PC64.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

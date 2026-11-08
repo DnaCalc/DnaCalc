@@ -26,6 +26,8 @@ use crate::ported::excel_numeric::{crt_exp, crt_log};
 
 const CODE: u16 = 103;
 
+mod ets;
+
 /// Every argument's numbers by the aggregate rule `held`.
 fn all(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, held: Held) -> Step<Vec<f64>> {
     numbers(site, a, 0, a.len(), sv, held)
@@ -438,6 +440,18 @@ ported_family! {
     }
     58 logest "LOGEST" (1, 4) [R "known_ys" ~ ArrayAtRoot, R "known_xs" ~ ArrayAlways, V "const", V "stats"] three_d (None, Some(&[]), None); |s, a, sv| {
         regression(s, a, sv, k::regression_forecast_family::eval_logest_surface, RegressionNumbers::Coefficients)
+    }
+    59 forecast_ets "FORECAST.ETS" (3, 6) [V "target_date", R "values" ~ ArrayAlways, R "timeline" ~ ArrayAlways, V "seasonality", V "data_completion", V "aggregation"] three_d (None, None, Some(&[])); |s, a, sv| {
+        ets::evaluate(s, a, sv, ets::Output::Forecast)
+    }
+    60 forecast_ets_confint "FORECAST.ETS.CONFINT" (3, 7) [V "target_date", R "values" ~ ArrayAlways, R "timeline" ~ ArrayAlways, V "confidence_level", V "seasonality", V "data_completion", V "aggregation"] three_d (None, None, Some(&[])); |s, a, sv| {
+        ets::evaluate(s, a, sv, ets::Output::Confidence)
+    }
+    61 forecast_ets_seasonality "FORECAST.ETS.SEASONALITY" (2, 4) [R "values" ~ ArrayAlways, R "timeline" ~ ArrayAlways, V "data_completion", V "aggregation"] three_d (None, None, Some(&[])); |s, a, sv| {
+        ets::evaluate(s, a, sv, ets::Output::Seasonality)
+    }
+    62 forecast_ets_stat "FORECAST.ETS.STAT" (3, 6) [R "values" ~ ArrayAlways, R "timeline" ~ ArrayAlways, V "statistic_type", V "seasonality", V "data_completion", V "aggregation"] three_d (None, None, Some(&[])); |s, a, sv| {
+        ets::evaluate(s, a, sv, ets::Output::Statistic)
     }
 }
 

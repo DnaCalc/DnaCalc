@@ -141,6 +141,9 @@ fn evidence_note(capture: &CaptureRecord, labels: &EvidenceLabels) -> String {
             ),
             None => format!("the evidence record has no entry {entry:?}"),
         },
+        Acquisition::FunctionQuestions { entry } => format!(
+            "raw Excel function questions; request/readback mapping {entry}; no workbook round trip recorded"
+        ),
         Acquisition::LiveCapture | Acquisition::FileCacheReplay => format!(
             "the evidence record ({} labelled entries) was not consulted: the capture record was not converted from legacy evidence",
             labels.len()

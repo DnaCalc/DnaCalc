@@ -45,7 +45,7 @@ struct Oracle {
     /// The workbook, as committed.
     workbook: &'static [u8],
     /// Excel's capture of the workbook, or of its sheet prefix_metadata alone.
-    capture: &'static [u8],
+    capture: Option<&'static [u8]>,
     /// What Excel saved during that capture: the package (the capture's `out/oracle.xlsx`), or,
     /// for a section capture, the worksheet part it saved for the sheet, keyed.
     saved: &'static [u8],
@@ -55,12 +55,12 @@ struct Oracle {
     command: &'static str,
 }
 
-const ORACLES: [Oracle; 2] = [
+const ORACLES: [Oracle; 3] = [
     Oracle {
         name: "dc_xrxb",
         case: CASE,
         workbook: include_bytes!("../fixtures/dc_xrxb/oracle.xlsx"),
-        capture: include_bytes!("../captures/dc_xrxb/oracle.capture.json"),
+        capture: Some(include_bytes!("../captures/dc_xrxb/oracle.capture.json")),
         saved: include_bytes!("../captures/dc_xrxb/oracle.saved.xlsx"),
         section: false,
         command: "cargo xtask capture --pending",
@@ -69,8 +69,17 @@ const ORACLES: [Oracle; 2] = [
         name: "catalogue",
         case: "catalogue__prefix_metadata",
         workbook: include_bytes!("../fixtures/catalogue/oracle.xlsx"),
-        capture: include_bytes!("../captures/catalogue/sections/prefix_metadata.capture.json"),
+        capture: Some(include_bytes!("../captures/catalogue/sections/prefix_metadata.capture.json")),
         saved: include_bytes!("../captures/catalogue/sections/prefix_metadata.saved.xml"),
+        section: true,
+        command: "cargo xtask capture --pending",
+    },
+    Oracle {
+        name: "dcj9k_r38_ets",
+        case: "dcj9k_r38_ets__prefix_metadata",
+        workbook: include_bytes!("../fixtures/dcj9k_r38_ets/oracle.xlsx"),
+        capture: None,
+        saved: &[],
         section: true,
         command: "cargo xtask capture --pending",
     },
@@ -280,7 +289,7 @@ fn oracle_rows(workbook: &[u8]) -> Vec<Row> {
 
 /// The catalogue generator, run into a fresh directory: the workbook it writes.
 #[cfg(all(windows, not(target_arch = "wasm32")))]
-fn catalogue_generated() -> Vec<u8> {
+fn catalogue_generated() -> (Vec<u8>, Vec<u8>) {
     use std::path::Path;
     use std::process::{Command, Stdio};
     let generator = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -318,15 +327,17 @@ fn catalogue_generated() -> Vec<u8> {
         String::from_utf8_lossy(&ran.stderr)
     );
     let bytes = std::fs::read(out.join("catalogue").join("oracle.xlsx")).expect("the catalogue workbook");
+    let ets = std::fs::read(out.join("dcj9k_r38_ets").join("oracle.xlsx")).expect("the ETS workbook");
     let _ = std::fs::remove_dir_all(&out);
-    bytes
+    (bytes, ets)
 }
 
 /// One oracle's capture and the formulas Excel saved on the sheet, when the capture is of the
 /// workbook (or, for a section capture, of the sheet's section) as committed and what Excel saved
 /// belongs to it; otherwise why the oracle's rows await capture. A capture used has no failure.
 fn checked_capture(oracle: &Oracle) -> Result<(CaptureRecord, BTreeMap<String, String>), String> {
-    let capture = CaptureRecord::decode(oracle.capture).unwrap_or_else(|e| {
+    let bytes = oracle.capture.ok_or_else(|| "no Excel saved-formula capture has been taken; scalar function replies do not certify file spelling".to_owned())?;
+    let capture = CaptureRecord::decode(bytes).unwrap_or_else(|e| {
         panic!("the capture record does not decode ({}): {e}", oracle.command)
     });
     assert_eq!(capture.case, oracle.case);
@@ -424,10 +435,13 @@ pub fn prefix_metadata_matches_excel() {
             generated["dc_xrxb/oracle.xlsx"] == ORACLES[0].workbook,
             "the committed dc_xrxb/oracle.xlsx differs from the generator's output"
         );
+        let (catalogue, ets) = catalogue_generated();
         assert!(
-            catalogue_generated() == ORACLES[1].workbook,
+            catalogue == ORACLES[1].workbook,
             "the committed catalogue/oracle.xlsx differs from make-catalogue-fixtures.ps1's output"
         );
+        assert!(ets == ORACLES[2].workbook,
+            "the committed ETS oracle differs from make-catalogue-fixtures.ps1's output");
         note!(
             "ACCEPT-NOTE: {CASE}: the committed generators wrote {} workbooks and catalogue/oracle.xlsx; dc_xrxb/oracle.xlsx (sha256 {}) and catalogue/oracle.xlsx (sha256 {}) equal the committed fixtures byte for byte",
             generated.len(),

@@ -4,6 +4,27 @@
 use super::*;
 
 #[test]
+fn independent_question_mappings_keep_separate_comparison_groups() {
+    let mut first = CaptureRecord::decode(record("16.0.1", "plain").as_bytes()).unwrap();
+    let original = section_group(&first);
+    assert_eq!(original.3, None);
+    first.session = None;
+    first.acquisition = Acquisition::FunctionQuestions { entry: "mapping-A;sha256:first".into() };
+    let mut second = first.clone();
+    second.acquisition = Acquisition::FunctionQuestions { entry: "mapping-B;sha256:second".into() };
+    assert_ne!(section_group(&first), section_group(&second));
+    assert_ne!(section_group(&first), original);
+    let mut groups = BTreeMap::new();
+    for record in [&first, &second] { groups.entry(section_group(record)).or_insert_with(Vec::new).push(record); }
+    assert_eq!(groups.len(), 2);
+    for records in groups.values() {
+        let merged = merged_record(records, "merged", "source").unwrap();
+        assert_eq!(merged.acquisition, records[0].acquisition);
+        assert!(merged.session.is_none());
+    }
+}
+
+#[test]
 fn changed_saved_provenance_is_refused_before_comparison_starts() {
     let root = scratch("changed-saved-provenance");
     let path = root.join("case.xlsx");
