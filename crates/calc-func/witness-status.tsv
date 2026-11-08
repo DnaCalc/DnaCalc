@@ -459,7 +459,7 @@ ROUNDDOWN	pinned	20430,20527	782	779	12	numeric	919dd43269+changes
 ROUNDUP	full	20430	52841	52395	86	numeric	cc9cff0cb2+changes
 ROUNDUP	pinned	20430,20527	782	779	12	numeric	919dd43269+changes
 RRI	full	20228,?	5528	5483	-	structural	cc9cff0cb2+changes
-RRI	pinned	20228,?	120	118	-	structural	919dd43269+changes
+RRI	pinned	20228,?	120	120	-	exact	2569cd9175+changes
 SEC	full	20131,20430,?	2138	2138	-	exact	cc9cff0cb2+changes
 SEC	pinned	20131,20430	120	120	-	exact	919dd43269+changes
 SECH	full	20430	30424	30423	1	last_bit	cc9cff0cb2+changes
