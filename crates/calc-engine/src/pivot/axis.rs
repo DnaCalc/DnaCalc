@@ -355,6 +355,17 @@ pub(super) fn render_axes(
     {
         return Err(bad("This pivot axis or value aggregation is not modelled"));
     }
+    let numeric_groups: Vec<_> = cache.fields.iter().enumerate().filter_map(|(index, field)|
+        field.group.as_ref().and_then(|group| group.numeric_items.as_ref()).map(|_| index)).collect();
+    if !numeric_groups.is_empty() && (numeric_groups.len() != 1 || row_fields != numeric_groups
+        || !values_only || table.data_fields.len() != 2 || !table.page_fields.is_empty()
+        || !table.filters.is_empty() || show != "normal"
+        || table.data_fields[0].subtotal != "sum" || table.data_fields[1].subtotal != "count"
+        || table.data_fields[0].field != table.data_fields[1].field
+        || table.data_fields[0].field as usize == row_fields[0]
+        || table.fields.iter().any(|field| field.sort_measure.is_some() || field.items.iter().any(|item| item.hidden))) {
+        return Err(bad("This numeric grouping layout is not modelled"));
+    }
     let value_sorts: Vec<_> = table.fields.iter().enumerate().filter_map(|(field, value)|
         value.sort_measure.map(|measure| (field, measure as usize))).collect();
     let inner_sort = value_sorts.len() == 1 && row_fields.len() == 2 && rows_only
@@ -520,7 +531,7 @@ pub(super) fn render_axes(
         let mut row_path = Vec::with_capacity(row_fields.len());
         for (level, &field) in row_fields.iter().enumerate() {
             row_path.push(if field == usize::MAX { 0 } else {
-                find(&row_levels[level], &row_sorted[level], resolve(cache, record, field)?)?
+                find(&row_levels[level], &row_sorted[level], super::records::axis_value(cache, record, field)?.0)?
             });
         }
         if row_path.iter().enumerate().any(|(level, &i)|
@@ -531,7 +542,7 @@ pub(super) fn render_axes(
         let mut hidden = false;
         for (depth, level) in levels.iter().enumerate() {
             if let Some(field) = level.field {
-                let index = find(&level.groups, &level_sorted[depth], resolve(cache, record, field)?)?;
+                let index = find(&level.groups, &level_sorted[depth], super::records::axis_value(cache, record, field)?.0)?;
                 hidden |= level.groups[index].hidden;
                 indexes.push(index);
             } else {
@@ -1083,7 +1094,9 @@ pub(super) fn render_axes(
         // carries the source error from Sum into its Count and Count Numbers cells as well.
         let common_error = if values_only && table.data_fields[0].subtotal == "sum"
             && table.data_fields.iter().all(|d| d.field == table.data_fields[0].field) {
-            totals.get(&(usize::MAX, Vec::new(), 0)).and_then(Total::source_error)
+            totals.get(&(usize::MAX, Vec::new(), 0)).and_then(|total| match total.result("sum").core_ref() {
+                calc_value::CoreRef::Error(error) => Some(error), _ => None,
+            })
         } else { None };
         let grand_measures = if row_values.is_some() { table.data_fields.len() } else { 1 };
         for measure in 0..grand_measures {

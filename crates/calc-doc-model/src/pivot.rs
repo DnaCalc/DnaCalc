@@ -69,6 +69,8 @@ pub struct PivotCacheGroup {
     pub range: Option<BTreeMap<String, String>>,
     /// For a discrete group, the group-item index for each source shared item.
     pub discrete: Option<Vec<u32>>,
+    /// Labels for numeric groups on a source field, distinct from its original shared items.
+    pub numeric_items: Option<Vec<PivotItem>>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct SheetPivots {

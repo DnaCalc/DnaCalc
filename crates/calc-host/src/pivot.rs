@@ -149,6 +149,11 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<Pivo
             ));
         }
     }
+    for field in &cache.fields[..source_count] {
+        if let Some(items) = field.group.as_ref().and_then(|group| group.numeric_items.as_ref()) {
+            if !distinct_group_labels(items) { return Err(fail("Ambiguous numeric group labels are not modelled")); }
+        }
+    }
     for field in &cache.fields[source_count..] {
         if let Some(group) = field.group.as_ref().filter(|group| group.discrete.is_some()) {
             let base = group.attributes.get("base").and_then(|value| value.parse::<usize>().ok())

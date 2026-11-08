@@ -90,10 +90,11 @@ fn cache_group(field: &PivotCacheField, out: &mut Vec<u8>) -> Result<(), SaveRef
             for index in discrete { out.extend_from_slice(format!("<x v=\"{index}\"/>").as_bytes()); }
             out.extend_from_slice(b"</discretePr>");
         }
+        let items = group.numeric_items.as_deref().unwrap_or(&field.items);
         out.extend_from_slice(b"<groupItems");
-        attr("count", &field.items.len().to_string(), out);
+        attr("count", &items.len().to_string(), out);
         out.push(b'>');
-        for value in &field.items { item(value, false, out)?; }
+        for value in items { item(value, false, out)?; }
         out.extend_from_slice(b"</groupItems></fieldGroup>");
     } else {
         out.extend_from_slice(b"/>");
@@ -455,7 +456,7 @@ fn preflight(xml: &XmlPart, containers: &[&str]) -> Result<(), SaveRefusal> {
                             "references" => a.name.local.as_str() == "count",
                             "reference" => matches!(a.name.local.as_str(), "field" | "count" | "selected"),
                             "fieldGroup" => matches!(a.name.local.as_str(), "base" | "par"),
-                            "rangePr" => matches!(a.name.local.as_str(), "groupBy" | "startDate" | "endDate" | "autoStart" | "autoEnd" | "groupInterval"),
+                            "rangePr" => matches!(a.name.local.as_str(), "groupBy" | "startDate" | "endDate" | "autoStart" | "autoEnd" | "groupInterval" | "startNum" | "endNum"),
                             "groupItems" | "discretePr" => a.name.local.as_str() == "count",
                             "ext" => a.name.local.as_str() == "uri" && a.value == FILL_DOWN_URI,
                             "extLst" => false,

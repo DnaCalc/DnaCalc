@@ -79,6 +79,43 @@ pub(super) fn resolve<'a>(
         _ => Ok(value),
     }
 }
+/// The axis label and saved item index for one source record. Numeric groups keep their
+/// original numeric cache items for value calculations and use separate axis labels.
+pub(super) fn axis_value<'a>(cache: &'a PivotCache, record: &'a [PivotItem], field: usize)
+    -> Result<(&'a PivotItem, u32), PivotIssue> {
+    let bad = |why: &str| refusal(&cache.part, why);
+    let saved = cache.fields.get(field).ok_or_else(|| bad("Invalid axis field"))?;
+    if let Some(group) = saved.group.as_ref().filter(|group| group.numeric_items.is_some()) {
+        let labels = group.numeric_items.as_ref().unwrap();
+        let range = group.range.as_ref().ok_or_else(|| bad("Missing numeric grouping range"))?;
+        let number = |key: &str| range.get(key).and_then(|v| v.parse::<f64>().ok())
+            .filter(|v| v.is_finite() && v.fract() == 0.0 && v.abs() <= 4_503_599_627_370_496.0)
+            .ok_or_else(|| bad("Invalid numeric grouping range"));
+        let (start, end, step) = (number("startNum")?, number("endNum")?, number("groupInterval")?);
+        let n = match resolve(cache, record, field)? {
+            PivotItem::Number(value) => value.parse::<f64>().ok().filter(|n| n.is_finite() && n.fract() == 0.0)
+                .ok_or_else(|| bad("Noninteger numeric grouping is not modelled"))?,
+            _ => return Err(bad("Nonnumeric numeric-group members are not modelled")),
+        };
+        if step <= 0.0 || start >= end { return Err(bad("Invalid numeric grouping range")); }
+        let groups = (end - start) / step;
+        if !groups.is_finite() || groups.fract() != 0.0 || groups > 100_000.0
+            || labels.len() != groups as usize + 2 {
+            return Err(bad("Invalid numeric grouping range"));
+        }
+        if n < start || n > end { return Err(bad("Values outside the fixed numeric grouping range are not modelled")); }
+        let index = (((n - start) / step).floor() as usize + 1).min(labels.len() - 2);
+        return Ok((&labels[index], index as u32));
+    }
+    let PivotItem::Index(index) = record.get(field).ok_or_else(|| bad("Invalid axis record"))? else {
+        return Err(bad("An axis item needs a shared cache index"));
+    };
+    Ok((resolve(cache, record, field)?, *index))
+}
+pub(super) fn axis_items(cache: &PivotCache, field: usize) -> &[PivotItem] {
+    let field = &cache.fields[field];
+    field.group.as_ref().and_then(|group| group.numeric_items.as_deref()).unwrap_or(&field.items)
+}
 /// The captured no-data layout has one field on each axis and one selected page item.
 pub(super) fn show_all_mode(table: &PivotTable) -> bool {
     if table.row_fields.len() != 1 || table.column_fields.len() != 1
@@ -142,7 +179,7 @@ pub(super) fn field_groups(
         if r.len() != cache.fields.len() {
             return Err(bad("A source record does not match the cache fields"));
         }
-        let key = resolve(cache, r, row)?;
+        let key = axis_value(cache, r, row)?.0;
         if compare(key, key).is_none() {
             return Err(bad("The shared comparator cannot order this pivot label"));
         }
@@ -150,8 +187,8 @@ pub(super) fn field_groups(
     }
     order.sort_by(|&a, &b| {
         compare(
-            resolve(cache, &snapshot.records[a], row).unwrap(),
-            resolve(cache, &snapshot.records[b], row).unwrap(),
+            axis_value(cache, &snapshot.records[a], row).unwrap().0,
+            axis_value(cache, &snapshot.records[b], row).unwrap().0,
         )
         .unwrap_or_else(|| {
             undecided = true;
@@ -164,14 +201,11 @@ pub(super) fn field_groups(
     let mut groups = Vec::<Group>::new();
     for source in order {
         let record = &snapshot.records[source];
-        let key = resolve(cache, record, row)?;
+        let (key, shared) = axis_value(cache, record, row)?;
         if groups
             .last()
             .is_none_or(|g| compare(&g.key, key) != Some(Ordering::Equal))
         {
-            let PivotItem::Index(shared) = record[row] else {
-                return Err(bad("A refreshed row label must name a shared cache item"));
-            };
             groups.push(Group {
                 key: key.clone(),
                 shared,
@@ -195,7 +229,7 @@ pub(super) fn field_groups(
         for item in field.items.iter().filter(|item| item.kind == "data") {
             let shared = item.index.ok_or_else(|| bad("A grouped item has no cache index"))?;
             if !indexes.insert(shared) { return Err(bad("A grouped item is repeated")); }
-            let key = cache.fields[row].items.get(shared as usize)
+            let key = axis_items(cache, row).get(shared as usize)
                 .ok_or_else(|| bad("A grouped item index is invalid"))?;
             let mut unknown = false;
             let found = groups.binary_search_by(|group| compare(&group.key, key).unwrap_or_else(|| {
@@ -224,7 +258,7 @@ pub(super) fn field_groups(
         }
         let Some(key) = item
             .index
-            .and_then(|i| cache.fields[row].items.get(i as usize))
+            .and_then(|i| axis_items(cache, row).get(i as usize))
         else {
             return Err(bad("A saved field item has an invalid cache index"));
         };
