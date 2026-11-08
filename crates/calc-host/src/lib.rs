@@ -183,5 +183,7 @@ mod copy_metadata;
 pub use calc_doc_model::note_segments;
 
 mod pivot;
+mod pivot_style;
+pub use pivot_style::PivotStyleLook;
 
 pub use pivot::source_fields as pivot_source_fields;

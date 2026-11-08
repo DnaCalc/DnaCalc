@@ -1,0 +1,14 @@
+[package]
+name = "touchstone-client"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "Native-only client of the touchstone/1 answer broker: blocking ask, ask_many and submit over std sockets."
+
+[package.metadata.dnacalc]
+portability = "native-only"
+
+# serde_json reads and writes the frames' JSON; nothing else: no async runtime, std sockets and threads.
+[dependencies]
+serde_json = "=1.0.154"

@@ -32,6 +32,7 @@ members = [
     "platform/calc-oracle-excel",
     "platform/calc-xll-shim",
     "tools/calc-verdict",
+    "tools/touchstone-client",
     "tools/xtask",
     "tools/xtask-harness",
 ]

@@ -6,7 +6,26 @@ pub fn text_style(
     at: calc_host::value::CellKey,
     width: f64,
 ) -> TextStyle {
-    text_style_for(host, at, width, host.styles(), host.cell_style(at))
+    let mut shown = text_style_for(host, at, width, host.styles(), host.cell_style(at));
+    if let Some(pivot) = host.pivot_style_look(at) {
+        shown.unsupported.get_or_insert_with(|| "Some pivot style effects are not painted (dc-8wp.12)".into());
+        if let Some(bold) = pivot.bold { shown.bold = bold; }
+        if let Some(color) = pivot.font_color.as_ref().and_then(|color| crate::cells::style_color(host, color)) {
+            shown.font_color = Some(color);
+        }
+        if let Some(fill) = pivot.fill.as_ref().and_then(|color| crate::cells::style_color(host, color)) {
+            shown.fill = Some(fill);
+            shown.brush = None;
+        }
+        for (source, destination) in [(0, 0), (1, 2), (2, 3), (3, 1)] {
+            if let Some(edge) = &pivot.borders[source] {
+                shown.borders[destination] = edge.style.as_ref().map(|style| dna_calc_model::projection::BorderShown {
+                    style: style.clone(), color: edge.color.as_ref().and_then(|color| crate::cells::style_color(host, color)),
+                });
+            }
+        }
+    }
+    shown
 }
 
 pub fn text_style_for(
@@ -306,6 +325,53 @@ fn table_style(
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// The grid consumes the same pivot style layer as the W2 property comparison, and an
+    /// explicit data-cell fill remains above it.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_8wp_12__pivot_styles_reach_grid_and_keep_direct_fill() {
+        use calc_host::{HostSession, MemorySource, SkinIntent, WorkbookCommand, FormatPatch};
+        use calc_host::value::{CellKey, GridArea};
+        let source = std::sync::Arc::new(MemorySource::new(include_bytes!("../../../crates/calc-host/tests/fixtures/pivot/m2-formatting/built.xlsx").to_vec()));
+        let mut book = HostSession::open(source, &Default::default(), Default::default()).unwrap();
+        let table = book.host().model().definitions().pivots().tables().find(|table| table.name == "pvt_option_light16_column_stripes").unwrap();
+        let sheet = table.area.first().sheet();
+        let part = table.part.clone();
+        let area_table = book.host().model().definitions().pivots().tables().find(|table| table.name == "pvt_area_data_body").unwrap();
+        assert!(book.host().pivot_style_look(area_table.area.first()).is_none(), "area-format precedence needs separate support");
+        let medium = book.host().model().definitions().pivots().tables().find(|table| table.name == "pvt_style_cols_PivotStyleMedium9").unwrap();
+        let medium_sheet = medium.area.first().sheet();
+        let medium_header = text_style(book.host(), CellKey::new(medium_sheet, 3, 1).unwrap(), 64.);
+        assert!(medium_header.bold);
+        assert_eq!(medium_header.font_color.as_deref(), Some("#ffffff"));
+        assert_eq!(medium_header.fill.as_deref(), Some("#156082"));
+        let at = |row, column| CellKey::new(sheet, row, column).unwrap();
+        let header = text_style(book.host(), at(3, 1), 64.);
+        assert!(header.bold);
+        assert_eq!(header.fill.as_deref(), Some("#c0e6f5"));
+        assert!(header.unsupported.as_deref().is_some_and(|note| note.contains("dc-8wp.12")));
+        let stripe = text_style(book.host(), at(5, 2), 64.);
+        assert!(!stripe.bold);
+        assert_eq!(stripe.fill.as_deref(), Some("#d9d9d9"));
+        assert_eq!(stripe.borders[0].as_ref().and_then(|edge| edge.color.as_deref()), Some("#bfbfbf"));
+        let total = text_style(book.host(), at(10, 2), 64.);
+        assert!(total.bold);
+        assert_eq!(total.fill.as_deref(), Some("#c0e6f5"));
+        let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::FormatCells {
+            areas: vec![GridArea::cell(at(5, 2))],
+            patch: FormatPatch { fill: Some("#ffff00".into()), ..Default::default() },
+        }));
+        assert!(receipt.accepted(), "{receipt:?}");
+        assert_eq!(text_style(book.host(), at(5, 2), 64.).fill.as_deref(), Some("#ffff00"));
+        let receipt = book.dispatch(SkinIntent::Command(WorkbookCommand::PivotRefresh { sheet, revision: book.host().revision().get(), part }));
+        assert!(receipt.accepted(), "{receipt:?}");
+        assert_eq!(text_style(book.host(), at(5, 2), 64.).fill.as_deref(), Some("#ffff00"));
+        let mut saved = Vec::new();
+        book.save(&Default::default(), &mut saved).unwrap();
+        let reopened = HostSession::open(std::sync::Arc::new(MemorySource::new(saved)), &Default::default(), Default::default()).unwrap();
+        let sheet = reopened.host().model().definitions().pivots().tables().find(|table| table.name == "pvt_option_light16_column_stripes").unwrap().area.first().sheet();
+        assert_eq!(text_style(reopened.host(), CellKey::new(sheet, 5, 2).unwrap(), 64.).fill.as_deref(), Some("#ffff00"));
+    }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn table_preset_fill_projects_readable_automatic_text_and_preserves_explicit_colours() {
