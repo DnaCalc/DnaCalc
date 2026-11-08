@@ -178,12 +178,31 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<Pivo
             };
             let start = bound("startDate")?;
             let end = bound("endDate")?;
-            if start > end || date < start || date > end {
+            if start > end { return Err(fail("Invalid grouping range")); }
+            let min_date = calc_func::locale::excel_serial_from_ymd(system, 1900, 1, 1)
+                .ok_or_else(|| fail("Invalid date system"))?;
+            let max_date = calc_func::locale::excel_serial_from_ymd(system, 9999, 12, 31)
+                .ok_or_else(|| fail("Invalid date system"))? + 1.0;
+            if date < min_date || date >= max_date { return Err(fail("Invalid grouped date")); }
+            let (year, month, day) = calc_func::locale::ymd_from_excel_serial(system, date)
+                .ok_or_else(|| fail("Invalid grouped date"))?;
+            let seven_day = range.get("groupBy").is_some_and(|v| v == "days")
+                && range.get("groupInterval").is_some_and(|v| v == "7");
+            if !seven_day && (date < start || date > end) {
                 return Err(fail("Dates outside the saved grouping range are not modelled"));
             }
-            let (year, month, _) = calc_func::locale::ymd_from_excel_serial(system, date)
-                .ok_or_else(|| fail("Invalid grouped date"))?;
             let index = match range.get("groupBy").map(String::as_str) {
+                Some("days") if seven_day => {
+                    if date.floor() < start { Some(0) }
+                    else if date.floor() > end { Some(field.items.len() - 1) }
+                    else { Some(((date.floor() - start) / 7.0).floor() as usize + 1) }
+                }
+                Some("days") => {
+                    // The saved day labels cover a leap year, so March follows February 29.
+                    let first = calc_func::locale::excel_serial_from_ymd(system, 2000, 1, 1);
+                    let current = calc_func::locale::excel_serial_from_ymd(system, 2000, month, day);
+                    first.zip(current).map(|(first, current)| (current - first) as usize + 1)
+                }
                 Some("months") => usize::try_from(month).ok(),
                 Some("quarters") => usize::try_from((month - 1) / 3 + 1).ok(),
                 Some("years") => {
@@ -192,7 +211,7 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<Pivo
                     usize::try_from(year - start + 1).ok()
                 }
                 _ => None,
-            }.filter(|i| *i > 0 && *i + 1 < field.items.len())
+            }.filter(|i| if seven_day { *i < field.items.len() } else { *i > 0 && *i + 1 < field.items.len() })
                 .ok_or_else(|| fail("The grouped date is outside its saved items"))?;
             record.push(PivotItem::Index(index as u32));
         }

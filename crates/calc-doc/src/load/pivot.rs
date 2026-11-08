@@ -260,14 +260,28 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
                 let supported = !group.attributes.contains_key("par")
                     && group.attributes.get("base").and_then(|v| v.parse::<usize>().ok()).is_some()
                     && group.range.as_ref().is_some_and(|range| {
-                        matches!(range.get("groupBy").map(String::as_str), Some("months" | "quarters" | "years"))
+                        matches!(range.get("groupBy").map(String::as_str), Some("days" | "months" | "quarters" | "years"))
                             && range.contains_key("startDate") && range.contains_key("endDate")
-                            && range.keys().all(|k| matches!(k.as_str(), "groupBy" | "startDate" | "endDate" | "autoStart" | "autoEnd"))
+                            && ["autoStart", "autoEnd"].iter().all(|key| range.get(*key).is_none_or(|v|
+                                matches!(v.as_str(), "0" | "1" | "false" | "true")))
+                            && range.keys().all(|k| matches!(k.as_str(), "groupBy" | "startDate" | "endDate" | "autoStart" | "autoEnd" | "groupInterval"))
                     }) && field.items.iter().all(|item| matches!(item, PivotItem::Text(_)))
                     && group.range.as_ref().is_some_and(|range| match range.get("groupBy").map(String::as_str) {
-                        Some("months") => field.items.len() == 14,
-                        Some("quarters") => field.items.len() == 6,
-                        Some("years") => {
+                        Some("days") if !range.contains_key("groupInterval") => field.items.len() == 368,
+                        Some("days") => {
+                            let fixed = |key: &str| matches!(range.get(key).map(String::as_str), Some("0" | "false"));
+                            let bound = |key: &str| range.get(key).and_then(|value| PivotItem::Date(value.clone()).date_serial());
+                            match (bound("startDate"), bound("endDate")) {
+                                (Some(start), Some(end)) if range.get("groupInterval").is_some_and(|v| v == "7")
+                                    && fixed("autoStart") && fixed("autoEnd") && start.fract() == 0.0
+                                    && end.fract() == 0.0 && end >= start =>
+                                        (((end - start) / 7.0).floor() as usize).checked_add(3) == Some(field.items.len()),
+                                _ => false,
+                            }
+                        }
+                        Some("months") => !range.contains_key("groupInterval") && field.items.len() == 14,
+                        Some("quarters") => !range.contains_key("groupInterval") && field.items.len() == 6,
+                        Some("years") if !range.contains_key("groupInterval") => {
                             let year = |key: &str| range.get(key).and_then(|s| s.split('-').next()).and_then(|s| s.parse::<i64>().ok());
                             match (year("startDate"), year("endDate")) {
                                 (Some(first), Some(last)) if (1900..=9999).contains(&first) && (first..=9999).contains(&last) => usize::try_from(last - first + 3).ok() == Some(field.items.len()),
