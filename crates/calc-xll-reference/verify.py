@@ -1391,9 +1391,16 @@ def verify_rtd(excel, excel_control, host, host_control, cases_path, publication
             require(callback[0] == 379 and callback[2] == 0, "RTD callback failed")
             require([a["value"] for a in callback[1]] == [f"DnaCalc.X5.{environments[0 if index == 0 else 2]['pid']}", "", "numeric"], "RTD callback topics/provider differ")
             require(record["result"] == callback[3], "Native RTD UDF changed the callback value")
-        expected = [{"type": 1, "value": 1}, {"type": 1, "value": 42}]
-        if index: expected.insert(0, {"type": 16, "value": 42})
-        require([r["result"] for r in records] == expected, "RTD native result sequence differs")
+        if any("X5.RtdValue" in c["formula"] for c in cases):
+            expected = [{"type": 1, "value": 1}, {"type": 1, "value": 42}]
+            # The host evaluates the function once more after it admits ConnectData's value as
+            # sequence 1 (the in-step certificate repair refuses a result that read a sequence not
+            # yet admitted), so its first answer is repeated. Excel's two answers are 1 then 42;
+            # since dc-snz.23.3 the host's first answer is that 1, no longer a temporary #N/A.
+            if index: expected.insert(0, {"type": 1, "value": 1})
+            require([r["result"] for r in records] == expected, "RTD native result sequence differs")
+        else:
+            require(not records, "A typed RTD formula makes no UDF call")
         native.append(records)
     if not signaling:
         require([sum(row.get("reason") == "final Release destructor" for row in rows) for rows in internals] == [1, 1], "Numeric RTD destructor observation missing or repeated")
