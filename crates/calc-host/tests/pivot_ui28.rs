@@ -308,6 +308,8 @@ fn ui30__pivot_layouts_refresh_to_the_cells_excel_held() {
             .get(sheet)
             .map(|p| p.tables.iter().map(|t| t.row_items.clone()).collect())
             .unwrap_or_default();
+        let want_col_items: Vec<_> = book.host().model().definitions().pivots().sheets.get(sheet)
+            .map(|p| p.tables.iter().map(|t| t.col_items.clone()).collect()).unwrap_or_default();
         let mut verdict = None;
         for (part, _) in &tables {
             let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
@@ -330,8 +332,13 @@ fn ui30__pivot_layouts_refresh_to_the_cells_excel_held() {
                 .get(sheet)
                 .map(|p| p.tables.iter().map(|t| t.row_items.clone()).collect())
                 .unwrap_or_default();
+            let got_col_items: Vec<_> = book.host().model().definitions().pivots().sheets.get(sheet)
+                .map(|p| p.tables.iter().map(|t| t.col_items.clone()).collect()).unwrap_or_default();
             if got == want && got_items != want_items {
                 format!("mismatched: row items want {want_items:?} got {got_items:?}")
+            } else if got == want && tables.iter().any(|(_, name)|
+                name == "pvt_two_col_fields" || name == "pvt_two_data_col") && got_col_items != want_col_items {
+                format!("mismatched: column items want {want_col_items:?} got {got_col_items:?}")
             } else if got == want {
                 "matched".to_owned()
             } else {
@@ -361,8 +368,7 @@ fn ui30__pivot_layouts_refresh_to_the_cells_excel_held() {
     assert_eq!(matched, UI30_MUST_MATCH, "{outcomes:#?}");
 }
 // Data number formats and three row fields (all layouts, cells and row items) refresh. Report
-// filters with chosen items, two column fields, grouped dates, top 10 and values filters remain
-// open (dc-8wp).
+// Filters with chosen items, grouped dates, top 10 and values filters remain open (dc-8wp).
 const UI30_MUST_MATCH: &[&str] = &[
     "pvt_fmt_0_00",
     "pvt_fmt_currency",
@@ -374,4 +380,6 @@ const UI30_MUST_MATCH: &[&str] = &[
     "pvt_three_rows_outline_subon",
     "pvt_three_rows_tabular_suboff",
     "pvt_three_rows_tabular_subon",
+    "pvt_two_col_fields",
+    "pvt_two_data_col",
 ];
