@@ -15,11 +15,25 @@
 //! `calc-addin-host`, so the unit tests give them scripted implementations and drive the same code
 //! the window runs.
 
+use calc_addin_host::{RtdClient, RtdInput, RtdProvider};
 use calc_fml::CallableTable;
 use dna_onecalc::bridge::{Answer, Call};
 use dna_onecalc::port::{LoadedAddin, LocalPort, Reply, Request, SessionPort};
 use dna_onecalc::{AddinRef, Session};
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
+
+/// What the person answers when they close a window that holds unsaved changes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CloseChoice {
+    /// Save, then close.
+    Save,
+    /// Close and lose the changes.
+    Discard,
+    /// Keep the window open.
+    Cancel,
+}
 
 /// The file choices a person makes in the native dialogs.
 pub trait Files {
@@ -38,6 +52,42 @@ pub trait Files {
 
     /// The add-in the person chooses to load; `None` when they cancel.
     fn choose_addin(&mut self) -> Result<Option<PathBuf>, String>;
+
+    /// The path of the file `choose_open` or `read_recent` returned last, when it has one.
+    fn opened_path(&self) -> Option<PathBuf> {
+        None
+    }
+
+    /// Reads the file at `path` as `choose_open` reads the one the person chooses (a recent file).
+    fn read_recent(&mut self, path: &Path) -> Result<(String, Vec<u8>), String> {
+        Err(format!("{} cannot be read here", path.display()))
+    }
+
+    /// The files opened or saved most recently, newest first.
+    fn recent(&self) -> Vec<String> {
+        Vec::new()
+    }
+
+    /// Notes that the person opened or saved the file at `path`.
+    fn remember(&mut self, _path: &str) {}
+
+    /// Writes `bytes` to the file at `path` without asking, as Save does for a file it knows;
+    /// `Ok(false)` when this host always asks.
+    fn write_in_place(&mut self, _path: &str, _bytes: &[u8]) -> Result<bool, String> {
+        Ok(false)
+    }
+
+    /// What the person wants for the unsaved changes of `name` when they close the window.
+    fn confirm_close(&mut self, _name: &str) -> CloseChoice {
+        CloseChoice::Discard
+    }
+
+    /// Opens a file OneCalc refused in DNA Calc: the file at `path` when it has one, otherwise
+    /// `bytes` (a file the page read) written to a place of its own first.
+    fn open_in_dna_calc(&mut self, path: Option<&Path>, name: &str, bytes: &[u8]) -> Result<(), String> {
+        let _ = (path, name, bytes);
+        Err("DNA Calc cannot be started from here".to_owned())
+    }
 }
 
 /// The add-ins a process has loaded and the one table of functions they publish.
@@ -87,6 +137,30 @@ pub trait Libraries {
     /// Tells the add-ins a calculation finished (the `AfterCalculate` event), so the ones that
     /// wait for events can carry on.
     fn calculated(&mut self);
+
+    /// The RTD client over the add-ins' real-time servers, when they are enabled.
+    fn rtd(&self) -> Option<Rc<RtdClient>> {
+        None
+    }
+
+    /// The names the add-ins registered, which the session binds to the handles an RTD
+    /// declaration is keyed by.
+    fn registration_names(&self) -> Vec<String> {
+        Vec::new()
+    }
+
+    /// The RTD updates that have arrived; `evaluating` takes only those the evaluation just done
+    /// may see.
+    fn poll_rtd(&mut self, _evaluating: bool) -> Vec<RtdInput> {
+        Vec::new()
+    }
+}
+
+/// A file OneCalc refused, kept so that it can be opened in DNA Calc.
+struct Refused {
+    path: Option<PathBuf>,
+    name: String,
+    bytes: Vec<u8>,
 }
 
 /// The session behind the page, with the dialogs and the add-ins this process loaded.
@@ -98,6 +172,18 @@ pub struct Host<F, L> {
     xlam_notes: Vec<(PathBuf, Vec<String>)>,
     /// The grid's entries as the last evaluation had them, to tell the add-ins which cells changed.
     last_grid: Vec<String>,
+    /// The file the session was opened from or last saved to.
+    path: Option<String>,
+    /// What the page last said of the session: its name and whether it has unsaved changes.
+    state_name: String,
+    dirty: bool,
+    /// The file last refused, for Open in DNA Calc.
+    refused: Option<Refused>,
+    /// The formula and cell of the last evaluation, to tell a replaced formula (whose RTD
+    /// connections end) from the same one calculated again.
+    last_formula: Option<(String, String)>,
+    /// Whether the next RTD poll follows an evaluation (see [`Libraries::poll_rtd`]).
+    after_evaluation: bool,
 }
 
 impl<F: Files, L: Libraries> Host<F, L> {
@@ -108,6 +194,12 @@ impl<F: Files, L: Libraries> Host<F, L> {
             libs,
             xlam_notes: Vec::new(),
             last_grid: Vec::new(),
+            path: None,
+            state_name: String::new(),
+            dirty: false,
+            refused: None,
+            last_formula: None,
+            after_evaluation: false,
         };
         let _ = host.publish();
         host
@@ -192,6 +284,7 @@ impl<F: Files, L: Libraries> Host<F, L> {
             Reply::Opened(mut opened) => {
                 self.libs.unload_vba();
                 let _ = self.publish();
+                self.release_rtd();
                 opened.shown.functions_version = self.port.session().functions_version();
                 opened.loaded = self.loaded_paths().iter().map(|p| p.display().to_string()).collect();
                 Reply::Opened(opened)
@@ -281,6 +374,168 @@ impl<F: Files, L: Libraries> Host<F, L> {
         Reply::Addins(self.loaded_view())
     }
 
+    /// A file chosen to open (by dialog or from the recent list): opened, and remembered when it
+    /// is a session; refused with the offer when it is not.
+    fn open_chosen(&mut self, name: String, bytes: Vec<u8>) -> Reply {
+        let zone = self.files.opened_zone();
+        let path = self.files.opened_path();
+        let kept = bytes.clone();
+        let reply = self.port.send(Request::Open { name: name.clone(), bytes, zone });
+        let opened = matches!(reply, Reply::Opened(_));
+        self.note_refusal(&reply, path.clone(), Some(name), Some(kept));
+        if opened {
+            self.path = path.map(|p| p.display().to_string());
+            if let Some(path) = self.path.clone() {
+                self.files.remember(&path);
+            }
+        }
+        self.finish(reply)
+    }
+
+    /// Keeps a refused file for Open in DNA Calc, and forgets the last one when a file opens.
+    fn note_refusal(&mut self, reply: &Reply, path: Option<PathBuf>, name: Option<String>, bytes: Option<Vec<u8>>) {
+        match (reply, name, bytes) {
+            (Reply::NotASession { .. }, Some(name), Some(bytes)) => {
+                self.refused = Some(Refused { path, name, bytes });
+            }
+            (Reply::Opened(_), ..) => self.refused = None,
+            _ => {}
+        }
+    }
+
+    /// Save: to the file the session came from when there is one of the kind the session saves as
+    /// now, otherwise (and for Save as) through the dialog.
+    fn save_native(&mut self, ask: bool) -> Reply {
+        self.list_loaded();
+        match self.port.send(Request::Save) {
+            Reply::File { name, bytes } => {
+                if !ask
+                    && let Some(path) = self.path.clone()
+                    && same_extension(&path, &name)
+                {
+                    match self.files.write_in_place(&path, &bytes) {
+                        Ok(true) => {
+                            self.dirty = false;
+                            self.files.remember(&path);
+                            return Reply::Saved { path };
+                        }
+                        Ok(false) => {}
+                        Err(message) => return Reply::Refused { message },
+                    }
+                }
+                match self.files.choose_save(&name, &bytes) {
+                    Ok(Some(path)) => {
+                        self.path = Some(path.clone());
+                        self.dirty = false;
+                        self.files.remember(&path);
+                        Reply::Saved { path }
+                    }
+                    Ok(None) => Reply::Cancelled,
+                    Err(message) => Reply::Refused { message },
+                }
+            }
+            other => other,
+        }
+    }
+
+    /// The window is closing: with unsaved changes the person is asked, and `false` keeps it open
+    /// (they cancelled, or the save they asked for did not happen).
+    pub fn close_requested(&mut self) -> bool {
+        if !self.dirty {
+            return true;
+        }
+        let name = if self.state_name.is_empty() { "Untitled".to_owned() } else { self.state_name.clone() };
+        match self.files.confirm_close(&name) {
+            CloseChoice::Discard => true,
+            CloseChoice::Cancel => false,
+            CloseChoice::Save => matches!(self.save_native(false), Reply::Saved { .. }),
+        }
+    }
+
+    /// The handles the session gives the add-ins' registrations: what an RTD declaration is keyed by.
+    fn rtd_providers(&self) -> BTreeSet<RtdProvider> {
+        self.libs
+            .registration_names()
+            .iter()
+            .filter_map(|name| self.port.session().bind_function(name))
+            .collect()
+    }
+
+    /// The formula is being replaced: its topics leave the ledger now and disconnect once the new
+    /// formula has been calculated ([`Self::settle_rtd`]).
+    fn retire_rtd(&mut self) {
+        let Some(rtd) = self.libs.rtd() else { return };
+        let (providers, at) = (self.rtd_providers(), self.port.session().formula_cell());
+        match rtd.begin_replacement(&providers, at) {
+            Ok(retired) => {
+                for (topic, lease) in retired {
+                    self.port.session_mut().retire_rtd(topic, lease);
+                }
+            }
+            Err(message) => eprintln!("dna-onecalc-desktop: RTD: {message}"),
+        }
+    }
+
+    /// An evaluation ended: the replaced formula's topics disconnect, and the client keeps only
+    /// the connections the evaluation declared.
+    fn settle_rtd(&mut self) {
+        let Some(rtd) = self.libs.rtd() else { return };
+        let (providers, at) = (self.rtd_providers(), self.port.session().formula_cell());
+        let invocations = self.port.session().rtd_invocations().clone();
+        if trace() {
+            eprintln!("onecalc-trace: settle: {} invocation(s), {} read(s)", invocations.len(), self.port.session().rtd_reads().len());
+        }
+        for result in [
+            rtd.finish_replacement(&providers, at),
+            rtd.reconcile_evaluation(&providers, at, &invocations),
+        ] {
+            if let Err(message) = result {
+                eprintln!("dna-onecalc-desktop: RTD: {message}");
+            }
+        }
+        // Admissions are the ledger's record; nothing here lists them.
+        self.port.session_mut().take_rtd_admissions();
+        self.after_evaluation = true;
+    }
+
+    /// The session was replaced: the old formula's topics disconnect.
+    fn release_rtd(&mut self) {
+        self.last_formula = None;
+        if self.libs.rtd().is_some() {
+            self.retire_rtd();
+            self.settle_rtd();
+        }
+    }
+
+    /// Takes the real-time values that arrived since the last call, between requests. `true` when
+    /// the formula read one of them: the page evaluates it again.
+    pub fn poll_rtd(&mut self) -> bool {
+        if self.libs.rtd().is_none() {
+            return false;
+        }
+        let mut changed = false;
+        let evaluating = std::mem::take(&mut self.after_evaluation);
+        let inputs = self.libs.poll_rtd(evaluating);
+        if trace() && (!inputs.is_empty() || evaluating) {
+            eprintln!("onecalc-trace: poll (after evaluation {evaluating}) gave {} input(s)", inputs.len());
+        }
+        for input in inputs {
+            let session = self.port.session_mut();
+            let disposition = session.update_rtd(input.topic.clone(), input.lease, input.sequence, input.value);
+            if trace() {
+                eprintln!("onecalc-trace: update {:?} lease {:?} sequence {} admitted as {disposition:?}, read {}", input.topic, input.lease, input.sequence, session.reads_rtd(&input.topic, input.lease));
+            }
+            // The session already admitted the connection's own first value as it was returned.
+            if disposition == calc_fml::rtd::RtdDisposition::Accepted
+                && session.reads_rtd(&input.topic, input.lease)
+            {
+                changed = true;
+            }
+        }
+        self.port.session_mut().take_rtd_admissions();
+        changed
+    }
+
     pub fn handle(&mut self, request: Request) -> Reply {
         if self.libs.changed() {
             let _ = self.publish();
@@ -289,11 +544,26 @@ impl<F: Files, L: Libraries> Host<F, L> {
             Request::OpenNative => match self.files.choose_open() {
                 Err(message) => Reply::Refused { message },
                 Ok(None) => Reply::Cancelled,
-                Ok(Some((name, bytes))) => {
-                    let zone = self.files.opened_zone();
-                    let reply = self.port.send(Request::Open { name, bytes, zone });
-                    self.finish(reply)
-                }
+                Ok(Some((name, bytes))) => self.open_chosen(name, bytes),
+            },
+            Request::OpenRecent { path } => match self.files.read_recent(Path::new(&path)) {
+                Err(message) => Reply::Refused { message },
+                Ok((name, bytes)) => self.open_chosen(name, bytes),
+            },
+            Request::Recent => Reply::Recent(self.files.recent()),
+            Request::SessionState { dirty, name } => {
+                self.dirty = dirty;
+                self.state_name = name;
+                Reply::Accepted
+            }
+            Request::OpenInDnaCalc => match &self.refused {
+                None => Reply::Refused {
+                    message: "No file was refused, so there is nothing to open in DNA Calc.".to_owned(),
+                },
+                Some(file) => match self.files.open_in_dna_calc(file.path.as_deref(), &file.name, &file.bytes) {
+                    Ok(()) => Reply::Accepted,
+                    Err(message) => Reply::Refused { message },
+                },
             },
             // The person enabled macros for this file: the project compiles and `Workbook_Open`
             // runs; the add-ins the host loaded stay loaded (this is not a new file).
@@ -306,23 +576,22 @@ impl<F: Files, L: Libraries> Host<F, L> {
                 }
                 other => other,
             },
-            Request::SaveNative => {
-                self.list_loaded();
-                match self.port.send(Request::Save) {
-                    Reply::File { name, bytes } => match self.files.choose_save(&name, &bytes) {
-                        Ok(Some(path)) => Reply::Saved { path },
-                        Ok(None) => Reply::Cancelled,
-                        Err(message) => Reply::Refused { message },
-                    },
-                    other => other,
-                }
-            }
+            Request::SaveNative => self.save_native(false),
+            Request::SaveAsNative => self.save_native(true),
             Request::Save => {
                 self.list_loaded();
                 self.port.send(Request::Save)
             }
             request @ (Request::Open { .. } | Request::New) => {
+                let (name, bytes) = match &request {
+                    Request::Open { name, bytes, .. } => (Some(name.clone()), Some(bytes.clone())),
+                    _ => (None, None),
+                };
                 let reply = self.port.send(request);
+                if matches!(reply, Reply::Opened(_)) {
+                    self.path = None;
+                }
+                self.note_refusal(&reply, None, name, bytes);
                 self.finish(reply)
             }
             Request::LoadAddinNative => match self.files.choose_addin() {
@@ -386,7 +655,15 @@ impl<F: Files, L: Libraries> Host<F, L> {
                     .map(|(index, _)| ((index / columns) as u32 + 1, (index % columns) as u32 + 1))
                     .collect();
                 self.last_grid = authored.grid.clone();
+                // A replaced formula lets go of the real-time topics it read; the topics the new
+                // one reads connect first and the old ones disconnect after (as Excel does).
+                let key = (authored.formula.clone(), authored.formula_cell.clone());
+                let replaced = self.last_formula.replace(key.clone()).is_some_and(|last| last != key);
+                if replaced {
+                    self.retire_rtd();
+                }
                 let reply = self.port.send(Request::Evaluate(authored));
+                self.settle_rtd();
                 let cell = self.port.session().formula_cell();
                 for (row, column) in changed {
                     self.libs.cell_changed(row, column);
@@ -398,6 +675,17 @@ impl<F: Files, L: Libraries> Host<F, L> {
             other => self.port.send(other),
         }
     }
+}
+
+/// Whether `DNACALC_ONECALC_TRACE` asks for a trace of the real-time updates on stderr.
+fn trace() -> bool {
+    std::env::var_os("DNACALC_ONECALC_TRACE").is_some()
+}
+
+/// Whether the file at `path` and the file name `name` have the same extension.
+fn same_extension(path: &str, name: &str) -> bool {
+    let extension = |text: &str| text.rsplit('.').next().map(str::to_ascii_lowercase);
+    extension(path) == extension(name)
 }
 
 /// `sha256:` and the hex digest of the file, as a session lists an add-in.
@@ -422,6 +710,19 @@ mod tests {
         addin: Option<PathBuf>,
         written: Vec<(String, Vec<u8>)>,
         zone: Option<u32>,
+        /// The path `choose_open` and `read_recent` report as the file they read.
+        path: Option<PathBuf>,
+        /// What the recent list holds, and what `remember` was told.
+        recent: Vec<String>,
+        /// Whether Save may write in place; the paths it wrote to, with their bytes.
+        in_place: bool,
+        in_place_written: Vec<(String, Vec<u8>)>,
+        /// What the person answers when asked about unsaved changes, and the names asked about.
+        close: Option<CloseChoice>,
+        asked: Vec<String>,
+        /// A message when DNA Calc is absent; the files it was asked to open (path, name, bytes).
+        dna_calc: Option<String>,
+        launched: Vec<(Option<PathBuf>, String, usize)>,
     }
 
     impl Files for Scripted {
@@ -443,6 +744,43 @@ mod tests {
 
         fn choose_addin(&mut self) -> Result<Option<PathBuf>, String> {
             Ok(self.addin.take())
+        }
+
+        fn opened_path(&self) -> Option<PathBuf> {
+            self.path.clone()
+        }
+
+        fn read_recent(&mut self, path: &Path) -> Result<(String, Vec<u8>), String> {
+            self.path = Some(path.to_owned());
+            self.open.take().ok_or_else(|| format!("{} is gone", path.display()))
+        }
+
+        fn recent(&self) -> Vec<String> {
+            self.recent.clone()
+        }
+
+        fn remember(&mut self, path: &str) {
+            self.recent.insert(0, path.to_owned());
+        }
+
+        fn write_in_place(&mut self, path: &str, bytes: &[u8]) -> Result<bool, String> {
+            if self.in_place {
+                self.in_place_written.push((path.to_owned(), bytes.to_vec()));
+            }
+            Ok(self.in_place)
+        }
+
+        fn confirm_close(&mut self, name: &str) -> CloseChoice {
+            self.asked.push(name.to_owned());
+            self.close.expect("the test scripts the answer")
+        }
+
+        fn open_in_dna_calc(&mut self, path: Option<&Path>, name: &str, bytes: &[u8]) -> Result<(), String> {
+            if let Some(message) = &self.dna_calc {
+                return Err(message.clone());
+            }
+            self.launched.push((path.map(Path::to_owned), name.to_owned(), bytes.len()));
+            Ok(())
         }
     }
 
@@ -653,6 +991,129 @@ mod tests {
             }]
         );
         assert_eq!(opened.loaded, [loaded[0].path.clone()]);
+    }
+
+    /// A session workbook made by a host of its own, for the tests that open one.
+    fn session_bytes(text: &str) -> Vec<u8> {
+        let mut maker = host();
+        maker.handle(Request::Evaluate(formula(text)));
+        maker.files.save_to = Some("C:\\made\\made.xlsx".into());
+        assert!(matches!(maker.handle(Request::SaveNative), Reply::Saved { .. }));
+        maker.files.written.remove(0).1
+    }
+
+    /// Native-only: Save writes to the file the session came from without asking, Save as asks, and
+    /// a session with no file asks; every file opened or saved is remembered as recent.
+    #[test]
+    fn save_goes_to_the_known_file_and_save_as_asks() {
+        let mut host = host();
+        host.files.in_place = true;
+        host.files.open = Some(("one.xlsx".into(), session_bytes("=1+1")));
+        host.files.path = Some("C:\\work\\one.xlsx".into());
+        assert!(matches!(host.handle(Request::OpenNative), Reply::Opened(_)));
+        assert_eq!(host.files.recent, ["C:\\work\\one.xlsx"]);
+        host.handle(Request::Evaluate(formula("=2+2")));
+        // Save: in place, no dialog (a dialog here would answer Cancelled: nothing is scripted).
+        assert_eq!(host.handle(Request::SaveNative), Reply::Saved { path: "C:\\work\\one.xlsx".into() });
+        assert_eq!(host.files.in_place_written.len(), 1);
+        assert!(host.files.written.is_empty());
+        // Save as asks, takes the new path, and Save then goes there.
+        host.files.save_to = Some("C:\\work\\two.xlsx".into());
+        assert_eq!(host.handle(Request::SaveAsNative), Reply::Saved { path: "C:\\work\\two.xlsx".into() });
+        assert_eq!(host.files.written.len(), 1);
+        assert_eq!(host.handle(Request::SaveNative), Reply::Saved { path: "C:\\work\\two.xlsx".into() });
+        assert_eq!(host.files.in_place_written[1].0, "C:\\work\\two.xlsx");
+        assert_eq!(host.handle(Request::Recent), Reply::Recent(host.files.recent.clone()));
+        assert_eq!(host.files.recent[0], "C:\\work\\two.xlsx");
+        // A new session has no file: Save asks.
+        host.handle(Request::New);
+        assert_eq!(host.handle(Request::SaveNative), Reply::Cancelled);
+        // A session that saves as .xlsm does not go to an .xlsx path.
+        assert!(super::same_extension("C:\\a\\b.XLSX", "b.xlsx"));
+        assert!(!super::same_extension("C:\\a\\b.xlsx", "b.xlsm"));
+    }
+
+    /// Native-only: a recent file opens by its path; a path that is gone is a refusal that leaves the
+    /// session as it was.
+    #[test]
+    fn a_recent_file_opens_by_path() {
+        let mut host = host();
+        host.handle(Request::Evaluate(formula("=SUM(1,2)")));
+        match host.handle(Request::OpenRecent { path: "C:\\gone.xlsx".into() }) {
+            Reply::Refused { message } => assert!(message.contains("gone.xlsx"), "{message}"),
+            other => panic!("{other:?}"),
+        }
+        assert_eq!(host.session().formula(), "=SUM(1,2)");
+        host.files.open = Some(("seven.xlsx".into(), session_bytes("=3+4")));
+        let Reply::Opened(opened) = host.handle(Request::OpenRecent { path: "C:\\work\\seven.xlsx".into() }) else {
+            panic!("not opened");
+        };
+        assert_eq!((opened.name.as_str(), opened.shown.result.as_str()), ("seven.xlsx", "number 7"));
+        assert_eq!(host.files.recent, ["C:\\work\\seven.xlsx"]);
+    }
+
+    /// Native-only: closing a clean session asks nothing; with unsaved changes the person's answer
+    /// decides: discard closes, cancel keeps the window, save writes first and keeps the window if
+    /// the save does not happen.
+    #[test]
+    fn closing_with_unsaved_changes_asks_first() {
+        let mut host = host();
+        assert!(host.close_requested());
+        assert!(host.files.asked.is_empty());
+        host.handle(Request::Evaluate(formula("=1+1")));
+        host.handle(Request::SessionState { dirty: false, name: String::new() });
+        assert!(host.close_requested());
+        host.handle(Request::SessionState { dirty: true, name: String::new() });
+        host.files.close = Some(CloseChoice::Cancel);
+        assert!(!host.close_requested());
+        assert_eq!(host.files.asked, ["Untitled"]);
+        host.files.close = Some(CloseChoice::Discard);
+        assert!(host.close_requested());
+        // Save with no file: the dialog is asked; cancelling it keeps the window open.
+        host.handle(Request::SessionState { dirty: true, name: "calc.xlsx".into() });
+        host.files.close = Some(CloseChoice::Save);
+        assert!(!host.close_requested());
+        assert_eq!(host.files.asked.last().map(String::as_str), Some("calc.xlsx"));
+        host.files.save_to = Some("C:\\work\\calc.xlsx".into());
+        assert!(host.close_requested());
+        assert_eq!(host.files.written.len(), 1);
+        // Saved: the next close asks nothing.
+        let asked = host.files.asked.len();
+        assert!(host.close_requested());
+        assert_eq!(host.files.asked.len(), asked);
+    }
+
+    /// Native-only: a file OneCalc refuses can be opened in DNA Calc, by its path when the dialog
+    /// gave one; a file the page read goes with its bytes; with no file refused, or no DNA Calc,
+    /// the answer says so.
+    #[test]
+    fn a_refused_file_opens_in_dna_calc() {
+        let mut host = host();
+        match host.handle(Request::OpenInDnaCalc) {
+            Reply::Refused { message } => assert!(message.contains("nothing to open"), "{message}"),
+            other => panic!("{other:?}"),
+        }
+        host.files.open = Some(("big.xlsx".into(), b"not a workbook".to_vec()));
+        host.files.path = Some("C:\\work\\big.xlsx".into());
+        assert!(matches!(host.handle(Request::OpenNative), Reply::NotASession { .. }));
+        assert_eq!(host.handle(Request::OpenInDnaCalc), Reply::Accepted);
+        assert_eq!(host.files.launched, [(Some(PathBuf::from("C:\\work\\big.xlsx")), "big.xlsx".to_owned(), 14)]);
+        // The page read this one (a drop): no path.
+        host.handle(Request::Open { name: "drop.xlsx".into(), bytes: b"zip?".to_vec(), zone: None });
+        assert_eq!(host.handle(Request::OpenInDnaCalc), Reply::Accepted);
+        assert_eq!(host.files.launched[1], (None, "drop.xlsx".to_owned(), 4));
+        host.files.dna_calc = Some("DNA Calc is not in the folder".into());
+        match host.handle(Request::OpenInDnaCalc) {
+            Reply::Refused { message } => assert_eq!(message, "DNA Calc is not in the folder"),
+            other => panic!("{other:?}"),
+        }
+        // A file that opens clears the refusal.
+        host.files.open = Some(("ok.xlsx".into(), session_bytes("=5")));
+        assert!(matches!(host.handle(Request::OpenNative), Reply::Opened(_)));
+        match host.handle(Request::OpenInDnaCalc) {
+            Reply::Refused { message } => assert!(message.contains("nothing to open"), "{message}"),
+            other => panic!("{other:?}"),
+        }
     }
 
     /// Native-only: cancelling a dialog changes nothing; a file outside the constraints is the

@@ -58,6 +58,9 @@ mod renderer;
 mod paint;
 #[path = "app_xll.rs"]
 mod xll;
+#[cfg(windows)]
+#[path = "app_clean.rs"]
+pub(crate) mod clean;
 use serde_json::{Value, json};
 use std::fs;
 use std::io::{Read, Write};
@@ -805,14 +808,14 @@ fn unchunk(mut data: &[u8]) -> Result<Vec<u8>, String> {
 }
 
 /// A free port on 127.0.0.1, for a driver to listen on.
-fn free_port() -> Result<u16, String> {
+pub(crate) fn free_port() -> Result<u16, String> {
     let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?;
     let port = listener.local_addr().map_err(|e| e.to_string())?.port();
     Ok(port)
 }
 
 /// A running WebDriver server, stopped when dropped.
-struct DriverProcess {
+pub(crate) struct DriverProcess {
     child: Child,
     port: u16,
 }
@@ -825,7 +828,7 @@ impl Drop for DriverProcess {
 }
 
 /// One browser session over a driver.
-struct Session {
+pub(crate) struct Session {
     port: u16,
     id: String,
     downloads: PathBuf,
@@ -964,7 +967,7 @@ fn open_locale(browser:&Browser,download_root:&Path,locale:Option<&str>)->Result
 /// Like [`open_locale`]; with `attach` (a `host:port` DevTools address) the driver attaches to the
 /// browser already running there, as the WebView2 of `dna-calc-desktop --app --debug-port` is,
 /// instead of starting a headless one.
-fn open_attached(browser:&Browser,download_root:&Path,locale:Option<&str>,attach:Option<&str>)->Result<(DriverProcess,Session),String> {
+pub(crate) fn open_attached(browser:&Browser,download_root:&Path,locale:Option<&str>,attach:Option<&str>)->Result<(DriverProcess,Session),String> {
     let program = variable_file(browser.variable)
         .or_else(|| find_on_path(browser.program))
         .ok_or_else(|| {

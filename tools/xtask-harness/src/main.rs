@@ -159,6 +159,8 @@ mod pending;
 #[cfg(not(target_arch = "wasm32"))]
 use xtask::rust_source;
 #[cfg(not(target_arch = "wasm32"))]
+mod package;
+#[cfg(not(target_arch = "wasm32"))]
 mod site;
 #[cfg(not(target_arch = "wasm32"))]
 mod sweep;
@@ -187,6 +189,7 @@ fn main() -> ExitCode {
         Some((command, rest)) if command == "app" => app::run(rest),
         Some((command, rest)) if command == "onecalc" => app::run_onecalc(rest),
         Some((command, rest)) if command == "site" => site::run(rest),
+        Some((command, rest)) if command == "package" => package::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
         Some((command, rest)) if command == "witness" => witness::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
@@ -213,6 +216,7 @@ fn main() -> ExitCode {
                 compare::USAGE,
                 app::USAGE,
                 site::USAGE,
+                package::USAGE,
             ];
             #[cfg(not(target_arch = "wasm32"))]
             usages.push(capture::USAGE);

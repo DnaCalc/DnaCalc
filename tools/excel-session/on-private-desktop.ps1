@@ -2,7 +2,7 @@
 # desktop. Child processes (session host, Excel) inherit that desktop. A guard on the caller's real
 # desktop samples for any window of an Excel process launched under -SessionRoot and records it.
 # No registry, Trust Center, macro or Excel setting is touched. Input focus cannot reach that desktop.
-param([Parameter(Mandatory)][string]$Command,[Parameter(Mandatory)][string]$Log,[Parameter(Mandatory)][string]$GuardOut,[string]$SessionRoot='C:\Work\DnaCalc\codex-runs\xll20',[string]$DesktopName='DnaCalcHidden20')
+param([Parameter(Mandatory)][string]$Command,[Parameter(Mandatory)][string]$Log,[Parameter(Mandatory)][string]$GuardOut,[string]$SessionRoot='C:\Work\DnaCalc\codex-runs\xll20',[string]$DesktopName='DnaCalcHidden20',[string[]]$ProcessNames=@('EXCEL.EXE'))
 $ErrorActionPreference='Stop'
 Add-Type @'
 using System;
@@ -48,18 +48,19 @@ public static class DnaPrivateDesktop {
 }
 '@
 $root=$SessionRoot.ToLowerInvariant()
+$ProcessNames=@($ProcessNames|ForEach-Object{$_ -split ','})
 $everOwned=[Collections.Generic.HashSet[uint32]]::new()
 $inner='pwsh -NoProfile -NonInteractive -Command "'+$Command.Replace('"','\"')+' *> '''+$Log+'''; exit $LASTEXITCODE"'
 [DnaPrivateDesktop]::StartGuard()
 [DnaPrivateDesktop]::Launch($DesktopName,$inner,(Get-Location).Path)
 while(-not [DnaPrivateDesktop]::Exited(500)){
-    $ids=@(Get-CimInstance Win32_Process -Filter "Name='EXCEL.EXE'"|Where-Object {$_.CommandLine -and $_.CommandLine.ToLowerInvariant().Contains($root)}|ForEach-Object {[uint32]$_.ProcessId})
+    $ids=@(Get-CimInstance Win32_Process|Where-Object {$ProcessNames -contains $_.Name}|Where-Object {$_.CommandLine -and $_.CommandLine.ToLowerInvariant().Contains($root)}|ForEach-Object {[uint32]$_.ProcessId})
     [DnaPrivateDesktop]::SetOwned([uint32[]]$ids)
     foreach($i in $ids){[void]$everOwned.Add($i)}
 }
 [DnaPrivateDesktop]::StopGuard()
 $code=[DnaPrivateDesktop]::Finish()
-$guard=[ordered]@{desktop=$DesktopName;session_root=$SessionRoot;exit=$code;guard_samples=[DnaPrivateDesktop]::Samples;owned_excel_pids=@($everOwned|Sort-Object);windows_on_user_desktop=[DnaPrivateDesktop]::OwnedWindows;visible_on_user_desktop=[DnaPrivateDesktop]::VisibleWindows;foreground_hits=[DnaPrivateDesktop]::ForegroundHits;findings=@([DnaPrivateDesktop]::Findings);finished_utc=[DateTime]::UtcNow.ToString('O')}
+$guard=[ordered]@{desktop=$DesktopName;session_root=$SessionRoot;exit=$code;guard_samples=[DnaPrivateDesktop]::Samples;owned_pids=@($everOwned|Sort-Object);windows_on_user_desktop=[DnaPrivateDesktop]::OwnedWindows;visible_on_user_desktop=[DnaPrivateDesktop]::VisibleWindows;foreground_hits=[DnaPrivateDesktop]::ForegroundHits;findings=@([DnaPrivateDesktop]::Findings);finished_utc=[DateTime]::UtcNow.ToString('O')}
 $guard|ConvertTo-Json -Depth 5|Set-Content -LiteralPath $GuardOut -Encoding utf8NoBOM
 $guard|ConvertTo-Json -Depth 5
 exit $code

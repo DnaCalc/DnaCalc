@@ -51,4 +51,4 @@ calc-platform-desktop = { path = "../../platform/calc-platform-desktop" }
 [target.'cfg(windows)'.dependencies]
 calc-xll-host = { path = "../../crates/calc-xll-host" }
 calc-xll-abi = { path = "../../crates/calc-xll-abi" }
-windows-sys = { version = "0.61.2", features = ["Win32_Storage_FileSystem", "Win32_Globalization", "Win32_System_ProcessStatus", "Win32_System_Threading", "Win32_System_WindowsProgramming"] }
+windows-sys = { version = "0.61.2", features = ["Win32_Storage_FileSystem", "Win32_Globalization", "Win32_System_ProcessStatus", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }

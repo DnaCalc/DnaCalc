@@ -134,8 +134,21 @@ pub enum Request {
     OpenNative,
     /// The session saved as a workbook, the bytes in the reply.
     Save,
-    /// The session saved through the native host's file dialog (a host with no dialog refuses).
+    /// The session saved through the native host: to the file it was opened from or last saved to,
+    /// or through the file dialog when it has none (a host with no dialog refuses).
     SaveNative,
+    /// The session saved through the native host's file dialog, whatever file it came from.
+    SaveAsNative,
+    /// The files the person opened or saved most recently, newest first (the native host keeps
+    /// them; any other answers none).
+    Recent,
+    /// Opens a file from [`Request::Recent`] by its path.
+    OpenRecent { path: String },
+    /// What the surface holds, so the window can say it and the host can ask before closing: the
+    /// session's name and whether it has changes the file does not.
+    SessionState { dirty: bool, name: String },
+    /// Opens in DNA Calc the file last refused with [`Reply::NotASession`].
+    OpenInDnaCalc,
     /// Loads an add-in the person picks in the native host's file dialog (a host that cannot load
     /// add-ins refuses). The answer is [`Reply::Addins`].
     LoadAddinNative,
@@ -277,6 +290,8 @@ pub enum Reply {
     Cancelled,
     /// The add-ins the host has loaded (answers every add-in request that succeeds).
     Addins(Vec<LoadedAddin>),
+    /// The recent files, newest first ([`Request::Recent`]).
+    Recent(Vec<String>),
 }
 
 /// A session behind a message boundary. `&mut self` and no async: an answer is the thread's own
@@ -411,6 +426,10 @@ pub trait Link {
     fn native_files(&self) -> bool {
         false
     }
+
+    /// Hands the surface's handler the messages the other side sends on its own (see
+    /// [`crate::bridge::Event`]); a link whose other side never does ignores it.
+    fn on_event(&self, _handler: std::rc::Rc<dyn Fn(String)>) {}
 }
 
 /// A [`LocalPort`] in the page: the browser build's link.
@@ -575,9 +594,13 @@ impl SessionPort for LocalPort {
                 }
                 Err(message) => refused(message),
             },
-            Request::OpenNative | Request::SaveNative => {
-                refused("this session has no native file dialog")
-            }
+            Request::OpenNative
+            | Request::SaveNative
+            | Request::SaveAsNative
+            | Request::OpenRecent { .. } => refused("this session has no native file dialog"),
+            Request::Recent => Reply::Recent(Vec::new()),
+            Request::SessionState { .. } => Reply::Accepted,
+            Request::OpenInDnaCalc => refused("Open in DNA Calc needs the desktop app"),
             Request::LoadAddinNative | Request::LoadAddin { .. } | Request::UnloadAddin { .. } => {
                 refused("add-ins load only in the desktop app")
             }

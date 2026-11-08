@@ -96,6 +96,61 @@ fn run(
     Ok(Some(PathBuf::from(String::from_utf16_lossy(&buffer[..length]))))
 }
 
+/// What a [`message`] box offers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Buttons {
+    Ok,
+    YesNo,
+    YesNoCancel,
+}
+
+/// What the person pressed in a [`message`] box.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Pressed {
+    Ok,
+    Yes,
+    No,
+    Cancel,
+}
+
+/// A message box over `owner` (none when null), which blocks until the person answers. Closing the
+/// box counts as Cancel (or No when there is no Cancel).
+pub fn message(owner: HWND, title: &str, text: &str, buttons: Buttons, warning: bool) -> Pressed {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        IDCANCEL, IDOK, IDYES, MB_ICONERROR, MB_ICONQUESTION, MB_OK, MB_YESNO, MB_YESNOCANCEL,
+        MessageBoxW,
+    };
+    let wide = |text: &str| text.encode_utf16().chain(Some(0)).collect::<Vec<u16>>();
+    let kind = match buttons {
+        Buttons::Ok => MB_OK,
+        Buttons::YesNo => MB_YESNO,
+        Buttons::YesNoCancel => MB_YESNOCANCEL,
+    } | if warning { MB_ICONERROR } else { MB_ICONQUESTION };
+    let answer = unsafe { MessageBoxW(owner, wide(text).as_ptr(), wide(title).as_ptr(), kind) };
+    match answer {
+        IDOK => Pressed::Ok,
+        IDYES => Pressed::Yes,
+        IDCANCEL => Pressed::Cancel,
+        _ => Pressed::No,
+    }
+}
+
+/// Opens `url` in the person's default browser.
+pub fn open_url(url: &str) {
+    use windows_sys::Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWNORMAL};
+    let wide = |text: &str| text.encode_utf16().chain(Some(0)).collect::<Vec<u16>>();
+    unsafe {
+        ShellExecuteW(
+            std::ptr::null_mut(),
+            wide("open").as_ptr(),
+            wide(url).as_ptr(),
+            std::ptr::null(),
+            std::ptr::null(),
+            SW_SHOWNORMAL,
+        )
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

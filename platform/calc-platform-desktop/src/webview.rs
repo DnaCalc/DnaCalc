@@ -6,6 +6,7 @@
 //! [`WebView::on_message`] / [`WebView::post`]. A message may carry bytes after the
 //! [`SEPARATOR`], base64 encoded: the page side is `apps/dna-calc/web/desktop-bridge.js`. What the
 //! messages mean is the application's.
+use crate::assets::{Assets, content_type, requested_name};
 use std::result::Result;
 use std::{path::Path, rc::Rc};
 use webview2_com::{Microsoft::Web::WebView2::Win32::*, *};
@@ -212,6 +213,80 @@ impl WebView {
         .map_err(|e| e.to_string())
     }
 
+    /// Serves `assets` as `https://<host>/`, answering the page's requests from memory: a page
+    /// that is embedded in the executable loads with no folder and no server. A request for a
+    /// file the block does not hold gets a 404.
+    pub fn serve_assets(&self, host: &str, assets: Rc<Assets>) -> Result<(), String> {
+        let filter = format!("https://{host}/*");
+        let wide = CoTaskMemPWSTR::from(filter.as_str());
+        unsafe {
+            self.view.AddWebResourceRequestedFilter(
+                *wide.as_ref().as_pcwstr(),
+                COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL,
+            )
+        }
+        .map_err(|e| e.to_string())?;
+        let environment = self._environment.clone();
+        let prefix = format!("https://{host}");
+        let mut token = 0i64;
+        unsafe {
+            self.view
+                .add_WebResourceRequested(
+                    &WebResourceRequestedEventHandler::create(Box::new(move |_, args| {
+                        let Some(args) = args else { return Ok(()) };
+                        let request = args.Request()?;
+                        let mut uri = PWSTR::null();
+                        request.Uri(&mut uri)?;
+                        let uri = take_pwstr(uri);
+                        let found = uri
+                            .strip_prefix(&prefix)
+                            .and_then(requested_name)
+                            .and_then(|name| assets.get(&name).map(|bytes| (name, bytes)));
+                        let (status, reason, kind, bytes): (i32, &str, &str, &[u8]) = match &found {
+                            Some((name, bytes)) => (200, "OK", content_type(name), bytes),
+                            None => (404, "Not Found", "text/plain", b"not found"),
+                        };
+                        let stream = windows::Win32::UI::Shell::SHCreateMemStream(Some(bytes));
+                        let headers = format!("Content-Type: {kind}
+Cache-Control: no-store
+");
+                        let headers = CoTaskMemPWSTR::from(headers.as_str());
+                        let reason = CoTaskMemPWSTR::from(reason);
+                        let response = environment.CreateWebResourceResponse(
+                            stream.as_ref(),
+                            status,
+                            *reason.as_ref().as_pcwstr(),
+                            *headers.as_ref().as_pcwstr(),
+                        )?;
+                        args.SetResponse(&response)
+                    })),
+                    &mut token,
+                )
+                .map_err(|e| e.to_string())
+        }
+    }
+
+    /// Calls `handler` with the page's title, each time it changes (`document.title`).
+    pub fn on_title_changed(&self, handler: impl Fn(String) + 'static) -> Result<(), String> {
+        let mut token = 0i64;
+        unsafe {
+            self.view
+                .add_DocumentTitleChanged(
+                    &DocumentTitleChangedEventHandler::create(Box::new(move |sender, _| {
+                        if let Some(view) = sender {
+                            let mut title = PWSTR::null();
+                            if view.DocumentTitle(&mut title).is_ok() {
+                                handler(take_pwstr(title));
+                            }
+                        }
+                        Ok(())
+                    })),
+                    &mut token,
+                )
+                .map_err(|e| e.to_string())
+        }
+    }
+
     /// Calls `handler` with each string the page posts (`chrome.webview.postMessage`).
     pub fn on_message(&self, handler: impl Fn(String) + 'static) -> Result<(), String> {
         let handler = Rc::new(handler);
@@ -252,6 +327,20 @@ impl WebView {
     }
 }
 
+/// The version of the WebView2 Evergreen runtime installed on this machine, or `None` when there
+/// is none (a runtime in the folder `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` names is the one asked
+/// about).
+pub fn runtime_version() -> Option<String> {
+    let mut version = PWSTR::null();
+    unsafe { GetAvailableCoreWebView2BrowserVersionString(PCWSTR::null(), &mut version) }.ok()?;
+    let version = take_pwstr(version);
+    (!version.is_empty()).then_some(version)
+}
+
+/// Where a person downloads the WebView2 Evergreen runtime.
+pub const RUNTIME_DOWNLOAD: &str =
+    "https://developer.microsoft.com/microsoft-edge/webview2/#download-section";
+
 /// Makes the process render at each display's real scale. Call before the first window.
 pub fn per_monitor_dpi_aware() {
     unsafe {
@@ -261,19 +350,28 @@ pub fn per_monitor_dpi_aware() {
     }
 }
 
-/// A repeating timer on the calling thread, whose `WM_TIMER` carries `id` and no window.
+thread_local! {
+    /// The ids Windows gave the calling thread's timers, with the ids their owners asked for: a
+    /// timer with no window gets an id of the system's own choosing, whatever was asked.
+    static TIMERS: std::cell::RefCell<Vec<(usize, usize)>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// A repeating timer on the calling thread, whose `WM_TIMER` carries no window. The message loop
+/// ([`run_message_loop`]) reports it as [`ThreadMessage::Timer`] with the `id` it was started with.
 pub struct ThreadTimer(usize);
 
 impl ThreadTimer {
     pub fn start(id: usize, milliseconds: u32) -> Self {
-        unsafe { SetTimer(std::ptr::null_mut(), id, milliseconds, None) };
-        Self(id)
+        let given = unsafe { SetTimer(std::ptr::null_mut(), id, milliseconds, None) };
+        TIMERS.with(|timers| timers.borrow_mut().push((given, id)));
+        Self(given)
     }
 }
 
 impl Drop for ThreadTimer {
     fn drop(&mut self) {
         unsafe { KillTimer(std::ptr::null_mut(), self.0) };
+        TIMERS.with(|timers| timers.borrow_mut().retain(|(given, _)| *given != self.0));
     }
 }
 
@@ -296,7 +394,13 @@ pub fn run_message_loop(mut stop: impl FnMut() -> bool, mut on_thread_message: i
     while !stop() && unsafe { GetMessageW(&mut message, std::ptr::null_mut(), 0, 0) } > 0 {
         if message.hwnd.is_null() {
             on_thread_message(match message.message {
-                WM_TIMER => ThreadMessage::Timer(message.wParam),
+                WM_TIMER => ThreadMessage::Timer(TIMERS.with(|timers| {
+                    timers
+                        .borrow()
+                        .iter()
+                        .find(|(given, _)| *given == message.wParam)
+                        .map_or(message.wParam, |(_, asked)| *asked)
+                })),
                 crate::WM_BACKGROUND => ThreadMessage::Background,
                 other => ThreadMessage::Other(other),
             });

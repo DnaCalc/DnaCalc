@@ -18,6 +18,13 @@ pub struct Call {
     pub request: Request,
 }
 
+/// A message the host sends on its own, with no call to answer: something changed on its side that
+/// the page should look at again (`rtd`: a real-time value arrived).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Event {
+    pub event: String,
+}
+
 /// An answer on the wire: the id of the call it answers and the reply.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Answer {
@@ -36,12 +43,14 @@ mod page {
     use wasm_bindgen::closure::Closure;
 
     type Waiting = Rc<RefCell<BTreeMap<u64, Box<dyn FnOnce(Reply)>>>>;
+    type Events = Rc<RefCell<Option<Rc<dyn Fn(String)>>>>;
 
     /// A link to the native session behind WebView2.
     pub struct BridgeLink {
         host: JsValue,
         next: Cell<u64>,
         waiting: Waiting,
+        events: Events,
         _listener: Closure<dyn FnMut(JsValue)>,
     }
 
@@ -58,6 +67,8 @@ mod page {
         }
         let waiting: Waiting = Rc::new(RefCell::new(BTreeMap::new()));
         let inbox = Rc::clone(&waiting);
+        let events: Events = Rc::new(RefCell::new(None));
+        let event_inbox = Rc::clone(&events);
         let listener = Closure::<dyn FnMut(JsValue)>::new(move |event: JsValue| {
             let Some(text) = js_sys::Reflect::get(&event, &JsValue::from_str("data"))
                 .ok()
@@ -66,6 +77,12 @@ mod page {
                 return;
             };
             let Ok(answer) = serde_json::from_str::<Answer>(&text) else {
+                if let Ok(event) = serde_json::from_str::<Event>(&text) {
+                    let handler = event_inbox.borrow().clone();
+                    if let Some(handler) = handler {
+                        handler(event.event);
+                    }
+                }
                 return;
             };
             let done = inbox.borrow_mut().remove(&answer.id);
@@ -81,6 +98,7 @@ mod page {
             host,
             next: Cell::new(1),
             waiting,
+            events,
             _listener: listener,
         })
     }
@@ -114,6 +132,10 @@ mod page {
 
         fn native_files(&self) -> bool {
             true
+        }
+
+        fn on_event(&self, handler: Rc<dyn Fn(String)>) {
+            *self.events.borrow_mut() = Some(handler);
         }
     }
 }
@@ -156,6 +178,13 @@ mod tests {
             let text = serde_json::to_string(&call).unwrap();
             assert_eq!(serde_json::from_str::<Call>(&text).unwrap(), call);
         }
+        let event = Event { event: "rtd".to_owned() };
+        let text = serde_json::to_string(&event).unwrap();
+        assert_eq!(serde_json::from_str::<Event>(&text).unwrap(), event);
+        // An event is no answer, and an answer is no event: the page tells them apart by parsing.
+        assert!(serde_json::from_str::<Answer>(&text).is_err());
+        let answer = serde_json::to_string(&Answer { id: 1, reply: Reply::Accepted }).unwrap();
+        assert!(serde_json::from_str::<Event>(&answer).is_err());
         let mut port = crate::port::LocalPort::new(crate::Session::new("Sheet1").unwrap());
         use crate::port::SessionPort;
         for request in [

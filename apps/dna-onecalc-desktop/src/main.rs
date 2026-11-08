@@ -24,9 +24,13 @@ pub unsafe extern "system" fn MdCallBack12(
 #[cfg(windows)]
 mod app;
 #[cfg(windows)]
+mod embedded;
+#[cfg(windows)]
 mod host;
 #[cfg(windows)]
 mod rtd;
+#[cfg(windows)]
+mod settings;
 
 #[cfg(windows)]
 const WORKBOOK: &str = "Book1";
@@ -39,7 +43,11 @@ fn run() -> Result<(), String> {
     use std::path::PathBuf;
     // `--app`: the OneCalc page in WebView2 over the native session (src/app.rs).
     let raw: Vec<String> = std::env::args().skip(1).collect();
-    if raw.first().map(String::as_str) == Some("--app") {
+    // Started with no arguments (a person opening it) it is the app, as it is with `--app`.
+    // The command-line harness needs an add-in (`--xll`) or asks for help; any other arguments are
+    // the app's own (a data folder, a debug port, a scripted answer).
+    let harness = raw.iter().any(|a| a == "--xll" || a == "--help");
+    if raw.first().map(String::as_str) == Some("--app") || !harness {
         return app::run(&raw);
     }
     let mut xlls = Vec::new();
@@ -332,6 +340,22 @@ fn main() -> std::process::ExitCode {
             Ok(()) => std::process::ExitCode::SUCCESS,
             Err(why) => {
                 eprintln!("dna-onecalc-desktop: {why}");
+                // The packaged executable has no console to print to: say it in a box (a missing
+                // WebView2 has said its own message already).
+                // A run with a test flag only reports on stderr and by its exit code: no box waits
+                // for a click.
+                let scripted = std::env::args().any(|a| {
+                    ["--debug-port", "--close-answer", "--message-file", "--save-dir", "--data-dir"].contains(&a.as_str())
+                });
+                if embedded::has_page() && !scripted && !why.starts_with("DNA OneCalc shows its window") {
+                    calc_platform_desktop::dialogs::message(
+                        std::ptr::null_mut(),
+                        "DNA OneCalc",
+                        &why,
+                        calc_platform_desktop::dialogs::Buttons::Ok,
+                        true,
+                    );
+                }
                 std::process::ExitCode::FAILURE
             }
         }
