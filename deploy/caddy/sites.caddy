@@ -1,8 +1,7 @@
 # DNA Calc's sites on the host (dc-ysl; docs/plan/PUBLISHING_PLAN.md and deploy/OWNER_STEPS.md).
 # Installed with headers.caddy as /etc/caddy/dnacalc/sites.caddy and headers.caddy, and imported
 # from /etc/caddy/Caddyfile by one line, `import /etc/caddy/dnacalc/*.caddy`, in place of the old
-# dnacalc.com, www.dnacalc.com and dnaonecalc.dnacalc.com blocks. Other sites in the Caddyfile
-# (koderbot.dnakode.com and the rest) are not touched.
+# DNA Calc and OneCalc site blocks.
 #
 # Each site's root is the receiver's `current` symlink (deploy/host/dnacalc-site-receive), so a
 # publish or a rollback takes effect without a reload.
@@ -22,9 +21,8 @@ www.dnacalc.com {
 	redir https://dnacalc.com{uri} permanent
 }
 
-# DNA OneCalc. onecalc.dnacalc.com is its name; dnaonecalc.dnacalc.com, the old preview's host,
-# serves it too until onecalc.dnacalc.com has a DNS record, then redirects there (OWNER_STEPS.md).
-dnaonecalc.dnacalc.com {
+# DNA OneCalc.
+onecalc.dnacalc.com {
 	root * /srv/dnacalc-site/onecalc/current
 	import dnacalc_headers
 

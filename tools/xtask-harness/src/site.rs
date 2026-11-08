@@ -1,7 +1,8 @@
 //! `cargo xtask site ...`: the published form of DNA OneCalc (`onecalc`, for onecalc.dnacalc.com)
 //! and DNA Calc (`calc`, for the apex dnacalc.com), and the owner's tools to publish it
-//! (dc-ysl; docs/plan/PUBLISHING_PLAN.md). No command here is run against the host by an agent:
-//! agents pack, serve, smoke, verify locally and dry-run; the owner publishes.
+//! (dc-ysl; docs/plan/PUBLISHING_PLAN.md, deploy/OWNER_STEPS.md). Everything runs on the site host,
+//! dna-koderbot, in a fresh clone of the pushed master. Agents pack, serve, smoke, verify and
+//! dry-run; only the owner publishes or rolls back.
 //!
 //! - `site pack <site> [--allow-dirty]` builds the app's release bundle (`app::bundle`) into
 //!   `target/site/<site>/<release>/`, `<release>` being `<UTC yyyymmddThhmmssZ>-<commit12>`:
@@ -30,13 +31,15 @@
 //!   sets for its path; with `--release`, the served build.json must be the release's own.
 //! - `site publish <site> --release <dir> --dry-run [--live <url|build.json>]` shows what a
 //!   publish would send (the tar, its size and sha256, the command) and how the release differs
-//!   from the live build.json. Without `--dry-run` it needs `--to <ssh target>`, a terminal on
-//!   standard input and output, a clean release whose smoke passed, and then pipes the tar to
-//!   `ssh <target> bin/dnacalc-site-receive publish <site>` (`deploy/host/dnacalc-site-receive`),
-//!   recording the release in `deploy/site/published.json`.
-//! - `site status <site> --to <ssh target>` and `site rollback <site> --to <ssh target> --release
-//!   <release>` ask the receiver; rollback passes the current release it read (`--if-current`) and
-//!   needs a terminal too.
+//!   from the live build.json. Without `--dry-run` it needs `--local`: it runs on the site host
+//!   itself (dna-koderbot, where the release is packed and smoked), needs a terminal on standard
+//!   input and output and a clean release whose smoke passed, and then feeds the tar to the
+//!   installed receiver, `~/bin/dnacalc-site-receive publish <site>`
+//!   (`deploy/host/dnacalc-site-receive`), recording the release in `deploy/site/published.json`.
+//! - `site status <site>` and `site rollback <site> --local --release <release>` ask the installed
+//!   receiver on this machine; rollback passes the current release it read (`--if-current`) and
+//!   needs a terminal too. Publish and rollback refuse an installed receiver that is not this
+//!   checkout's `deploy/host/dnacalc-site-receive`, so the checks that run are the commit's.
 //!
 //! Exit code: 0 on success, 1 on a failure or refusal, 2 for a usage error.
 
@@ -52,7 +55,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 use std::sync::Arc;
 
-pub const USAGE: &str = "usage: cargo xtask site pack onecalc|calc [--allow-dirty]\n       cargo xtask site serve onecalc|calc [--release <dir>] [--port <n>]\n       cargo xtask site smoke onecalc|calc [--release <dir>] [--browser chromium|firefox]\n       cargo xtask site verify onecalc|calc --url <base> [--release <dir>]\n       cargo xtask site publish onecalc|calc --release <dir> (--dry-run [--live <url|build.json>] | --to <ssh target>)\n       cargo xtask site status onecalc|calc --to <ssh target>\n       cargo xtask site rollback onecalc|calc --to <ssh target> --release <release>";
+pub const USAGE: &str = "usage: cargo xtask site pack onecalc|calc [--allow-dirty]\n       cargo xtask site serve onecalc|calc [--release <dir>] [--port <n>]\n       cargo xtask site smoke onecalc|calc [--release <dir>] [--browser chromium|firefox]\n       cargo xtask site verify onecalc|calc --url <base> [--release <dir>]\n       cargo xtask site publish onecalc|calc --release <dir> (--dry-run [--live <url|build.json>] | --local)\n       cargo xtask site status onecalc|calc\n       cargo xtask site rollback onecalc|calc --local --release <release>\n       (publish without --dry-run, status and rollback run on the site host, dna-koderbot)";
 
 /// The site snippet every host imports and the local serve reads.
 pub const HEADERS_FILE: &str = "deploy/caddy/headers.caddy";
@@ -64,9 +67,11 @@ pub const PUBLISHED_FILE: &str = "deploy/site/published.json";
 pub const BUILD_FORMAT: &str = "dnacalc-site-build/1";
 pub const PACK_FORMAT: &str = "dnacalc-site-pack/1";
 
-/// The receiver on the host, relative to the ssh user's home (`deploy/host/dnacalc-site-receive`,
-/// installed there by the owner's setup).
+/// The receiver on the host, relative to the home of the user who publishes (installed there from
+/// `RECEIVER_SOURCE` by the owner's setup, deploy/OWNER_STEPS.md section 1).
 const RECEIVER: &str = "bin/dnacalc-site-receive";
+/// The receiver's source in the repository.
+const RECEIVER_SOURCE: &str = "deploy/host/dnacalc-site-receive";
 
 /// The MIT licence's terms, after its copyright line.
 const MIT_TERMS: &str =
@@ -246,10 +251,10 @@ pub fn run(raw: &[String]) -> ExitCode {
     let mut args = rest.iter();
     while let Some(arg) = args.next() {
         match arg.as_str() {
-            "--allow-dirty" | "--dry-run" => {
+            "--allow-dirty" | "--dry-run" | "--local" => {
                 flags.insert(arg.clone());
             }
-            "--release" | "--port" | "--browser" | "--url" | "--live" | "--to" => {
+            "--release" | "--port" | "--browser" | "--url" | "--live" => {
                 match args.next() {
                     Some(value) => {
                         options.insert(arg.clone(), value.clone());
@@ -302,21 +307,17 @@ pub fn run(raw: &[String]) -> ExitCode {
                 Some(dir) => PathBuf::from(dir),
                 None => return usage(raw),
             };
-            if flags.contains("--dry-run") {
-                dry_run(&ws, &key, &dir, option("--live").as_deref())
-            } else {
-                match option("--to") {
-                    Some(to) => publish(&ws, &key, &dir, &to),
-                    None => return usage(raw),
-                }
+            match (flags.contains("--dry-run"), flags.contains("--local")) {
+                (true, false) => dry_run(&ws, &key, &dir, option("--live").as_deref()),
+                (false, true) => publish(&ws, &key, &dir),
+                _ => return usage(raw),
             }
         }
-        "status" => match option("--to") {
-            Some(to) => remote(&to, &["status", key.key], false).map(|out| print!("{out}")),
-            None => return usage(raw),
-        },
-        "rollback" => match (option("--to"), option("--release")) {
-            (Some(to), Some(release)) => rollback(&key, &to, &release),
+        "status" => receiver(&ws, false)
+            .and_then(|program| run_receiver(&program, &["status", key.key], None))
+            .map(|out| print!("{out}")),
+        "rollback" => match (flags.contains("--local"), option("--release")) {
+            (true, Some(release)) => rollback(&ws, &key, &release),
             _ => return usage(raw),
         },
         _ => return usage(raw),
@@ -1048,7 +1049,7 @@ fn dry_run(ws: &Workspace, site: &Site, dir: &Path, live: Option<&str>) -> Resul
     let release = build["release"].as_str().unwrap_or_default();
     println!("SITE publish {} (dry run): release {release}", site.key);
     println!(
-        "SITE would send {} ({} bytes, sha256 {}) with: ssh <target> bin/dnacalc-site-receive publish {} < {}",
+        "SITE would send {} ({} bytes, sha256 {}) on the host with: ~/bin/dnacalc-site-receive publish {} < {}",
         pack["tar"]["file"].as_str().unwrap_or_default(),
         pack["tar"]["bytes"],
         pack["tar"]["sha256"].as_str().unwrap_or_default(),
@@ -1116,10 +1117,42 @@ fn refusals(pack: &Value) -> Vec<String> {
     out
 }
 
-/// Runs a receiver command on the host over ssh; standard input from `input` when given.
-fn remote_with(to: &str, args: &[&str], input: Option<&Path>) -> Result<String, String> {
-    let mut command = Command::new("ssh");
-    command.arg(to).arg(RECEIVER).args(args);
+/// The receiver installed on this machine, `~/bin/dnacalc-site-receive`. With `exact`, it must be
+/// byte for byte this checkout's `deploy/host/dnacalc-site-receive`; otherwise a difference is
+/// only reported.
+fn receiver(ws: &Workspace, exact: bool) -> Result<PathBuf, String> {
+    if cfg!(windows) {
+        return Err("publish, status and rollback run on the site host (ssh -t dna-koderbot), not on Windows".to_owned());
+    }
+    let home = std::env::var_os("HOME").ok_or("HOME is not set")?;
+    installed_receiver(Path::new(&home), &ws.root, exact)
+}
+
+fn installed_receiver(home: &Path, root: &Path, exact: bool) -> Result<PathBuf, String> {
+    let installed = home.join(RECEIVER);
+    let bytes = fs::read(&installed).map_err(|e| {
+        format!(
+            "no receiver at {} ({e}); install it: install -m 755 {RECEIVER_SOURCE} ~/{RECEIVER}",
+            installed.display()
+        )
+    })?;
+    if bytes != read(&root.join(RECEIVER_SOURCE))? {
+        let message = format!(
+            "{} is not this checkout's {RECEIVER_SOURCE}; install it: install -m 755 {RECEIVER_SOURCE} ~/{RECEIVER}",
+            installed.display()
+        );
+        if exact {
+            return Err(message);
+        }
+        eprintln!("SITE note: {message}");
+    }
+    Ok(installed)
+}
+
+/// Runs a receiver command; standard input from `input` when given.
+fn run_receiver(program: &Path, args: &[&str], input: Option<&Path>) -> Result<String, String> {
+    let mut command = Command::new(program);
+    command.args(args);
     match input {
         Some(path) => {
             command.stdin(Stdio::from(
@@ -1133,19 +1166,13 @@ fn remote_with(to: &str, args: &[&str], input: Option<&Path>) -> Result<String, 
     let out = cargo::output(&mut command)?;
     if !out.status.success() {
         return Err(format!(
-            "ssh {to} {}: {}",
+            "{} {}: {}",
+            program.display(),
             args.join(" "),
             cargo::text(&out.stderr).trim()
         ));
     }
     Ok(cargo::text(&out.stdout))
-}
-
-fn remote(to: &str, args: &[&str], needs_terminal: bool) -> Result<String, String> {
-    if needs_terminal {
-        attended()?;
-    }
-    remote_with(to, args, None)
 }
 
 /// A publish and a rollback run only with a person at a terminal: never from an agent's or a
@@ -1161,8 +1188,9 @@ fn attended() -> Result<(), String> {
     }
 }
 
-fn publish(ws: &Workspace, site: &Site, dir: &Path, to: &str) -> Result<(), String> {
+fn publish(ws: &Workspace, site: &Site, dir: &Path) -> Result<(), String> {
     attended()?;
+    let program = receiver(ws, true)?;
     let pack = pack_record(dir)?;
     let refusals = refusals(&pack);
     if !refusals.is_empty() {
@@ -1178,7 +1206,7 @@ fn publish(ws: &Workspace, site: &Site, dir: &Path, to: &str) -> Result<(), Stri
             tar.display()
         ));
     }
-    let out = remote_with(to, &["publish", site.key], Some(&tar))?;
+    let out = run_receiver(&program, &["publish", site.key], Some(&tar))?;
     print!("{out}");
     // The record of what is live.
     let path = ws.root.join(PUBLISHED_FILE);
@@ -1209,16 +1237,17 @@ fn publish(ws: &Workspace, site: &Site, dir: &Path, to: &str) -> Result<(), Stri
     Ok(())
 }
 
-fn rollback(site: &Site, to: &str, release: &str) -> Result<(), String> {
+fn rollback(ws: &Workspace, site: &Site, release: &str) -> Result<(), String> {
     attended()?;
-    let status: Value = serde_json::from_str(&remote_with(to, &["status", site.key], None)?)
+    let program = receiver(ws, true)?;
+    let status: Value = serde_json::from_str(&run_receiver(&program, &["status", site.key], None)?)
         .map_err(|e| format!("the receiver's status is not JSON: {e}"))?;
     let current = status["current"]
         .as_str()
         .ok_or("the host reports no current release")?
         .to_owned();
-    let out = remote_with(
-        to,
+    let out = run_receiver(
+        &program,
         &["rollback", site.key, release, "--if-current", &current],
         None,
     )?;
@@ -1279,6 +1308,25 @@ mod tests {
         assert!(SiteHeaders::parse("header {\n  X-A \"1\"\n").is_err());
         assert!(SiteHeaders::parse("header X-A \"1\"").is_err());
         assert!(SiteHeaders::parse("header {\n X-A 1\n}").is_err());
+    }
+
+    /// Native-only: writes a home and a checkout under the temporary folder.
+    #[test]
+    fn publish_uses_only_the_checkouts_own_receiver() {
+        let base = std::env::temp_dir().join(format!("site-receiver-{}", std::process::id()));
+        let (home, root) = (base.join("home"), base.join("root"));
+        fs::create_dir_all(home.join("bin")).unwrap();
+        fs::create_dir_all(root.join("deploy/host")).unwrap();
+        fs::write(root.join(RECEIVER_SOURCE), b"#!/usr/bin/env python3\n# v2\n").unwrap();
+        let missing = installed_receiver(&home, &root, true).unwrap_err();
+        assert!(missing.contains("no receiver at"), "{missing}");
+        fs::write(home.join(RECEIVER), b"#!/usr/bin/env python3\n# v1\n").unwrap();
+        let stale = installed_receiver(&home, &root, true).unwrap_err();
+        assert!(stale.contains("is not this checkout's"), "{stale}");
+        assert_eq!(installed_receiver(&home, &root, false).unwrap(), home.join(RECEIVER));
+        fs::copy(root.join(RECEIVER_SOURCE), home.join(RECEIVER)).unwrap();
+        assert_eq!(installed_receiver(&home, &root, true).unwrap(), home.join(RECEIVER));
+        let _ = fs::remove_dir_all(&base);
     }
 
     /// Native-only: the archive is checked byte by byte, no browser involved.

@@ -1,0 +1,43 @@
+# The Handbook of Excel Functions at handbook.dnacalc.com (repository DnaCalc/ExcelFunctionsHandbook).
+# Installed as /etc/caddy/dnacalc/handbook.caddy and picked up by the Caddyfile's existing
+# `import /etc/caddy/dnacalc/*.caddy`. Publish steps: deploy/OWNER_STEPS.md, section 4.
+#
+# The site is static: the generator's site/build/ folder. Each publish is a folder under
+# /srv/handbook-site/releases/ and `current` is a symlink to one of them, so a publish or a
+# rollback takes effect without a reload.
+#
+# Headers differ from dnacalc_headers in three places, each needed by the generated pages:
+# - style-src-attr 'unsafe-inline': Markdown tables carry style="text-align: right" on cells.
+# - form-action 'self': the search boxes are GET forms to catalogue/index.html.
+# - Cache-Control no-cache on everything: asset names carry no content hash, so they revalidate.
+(handbook_headers) {
+	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		Cross-Origin-Resource-Policy "same-origin"
+		Cache-Control "no-cache"
+		-Server
+	}
+	encode zstd gzip
+}
+
+handbook.dnacalc.com {
+	root * /srv/handbook-site/current
+	import handbook_headers
+
+	# The evaluation and contribution server (tools/efh-api) is not running here yet. The
+	# contribution form shows this message; nothing is stored.
+	@api path /api/eval /api/contributions
+	handle @api {
+		header Content-Type "application/json"
+		header Cache-Control "no-store"
+		respond `{"status":"unavailable","message":"Contributions are not being collected yet."}` 503
+	}
+
+	handle {
+		@bad_methods not method GET HEAD
+		respond @bad_methods 405
+		file_server
+	}
+}
