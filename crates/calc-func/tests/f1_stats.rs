@@ -1149,3 +1149,98 @@ fn intercept_error_multiplies_residual_by_variance_before_dividing() {
         assert_eq!(values.row_slice(1).unwrap()[1].as_number().unwrap().to_bits(), expected);
     }
 }
+
+/// Original Excel20527 R39 selections, including a corrected trend state.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_nonseasonal_innovations_and_corrected_trends() {
+    let times = arr(vec![vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]]);
+    {
+        let y = arr(vec![vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.625]]);
+        exact(call("FORECAST.ETS", vec![n(8.0), y.clone(), times.clone(), n(0.0)]), f64::from_bits(0x3fe43a6c19723d44));
+        exact(call("FORECAST.ETS", vec![n(9.0), y.clone(), times.clone(), n(0.0)]), f64::from_bits(0x3fe7c7f0d0638720));
+        exact(call("FORECAST.ETS", vec![n(10.0), y.clone(), times.clone(), n(0.0)]), f64::from_bits(0x3feb55758754d0f9));
+        exact(call("FORECAST.ETS.STAT", vec![y.clone(), times.clone(), n(1.0), n(0.0)]), f64::from_bits(0x3fd0000000000000));
+        exact(call("FORECAST.ETS.STAT", vec![y.clone(), times.clone(), n(2.0), n(0.0)]), f64::from_bits(0x3f50624dd2f1a9fc));
+        exact(call("FORECAST.ETS.STAT", vec![y.clone(), times.clone(), n(3.0), n(0.0)]), f64::from_bits(0x3cb0000000000000));
+        exact(call("FORECAST.ETS.STAT", vec![y.clone(), times.clone(), n(4.0), n(0.0)]), f64::from_bits(0x3ff2dd19066405d9));
+        exact(call("FORECAST.ETS.STAT", vec![y.clone(), times.clone(), n(5.0), n(0.0)]), f64::from_bits(0x3ff5e480654ae576));
+        exact(call("FORECAST.ETS.STAT", vec![y.clone(), times.clone(), n(6.0), n(0.0)]), f64::from_bits(0x3fcda4950a0ae49e));
+        exact(call("FORECAST.ETS.STAT", vec![y.clone(), times.clone(), n(7.0), n(0.0)]), f64::from_bits(0x3fd34f56945aa88d));
+        exact(call("FORECAST.ETS.CONFINT", vec![n(9.0), y, times.clone(), n(0.95), n(0.0)]), f64::from_bits(0x3fe2ec61e6342aab));
+    }
+    {
+        let y = arr(vec![vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.5]]);
+        exact(call("FORECAST.ETS", vec![n(8.0), y.clone(), times.clone(), n(0.0)]), f64::from_bits(0x3ff75e17379c910c));
+        exact(call("FORECAST.ETS", vec![n(9.0), y.clone(), times.clone(), n(0.0)]), f64::from_bits(0x3ffa52aed0455fdb));
+        exact(call("FORECAST.ETS", vec![n(10.0), y.clone(), times.clone(), n(0.0)]), f64::from_bits(0x3ffd474668ee2eaa));
+        exact(call("FORECAST.ETS.STAT", vec![y.clone(), times.clone(), n(1.0), n(0.0)]), f64::from_bits(0x3feccccccccccccd));
+        exact(call("FORECAST.ETS.STAT", vec![y.clone(), times.clone(), n(2.0), n(0.0)]), f64::from_bits(0x3f50624dd2f1a9fc));
+        exact(call("FORECAST.ETS.STAT", vec![y.clone(), times.clone(), n(3.0), n(0.0)]), f64::from_bits(0x3cb0000000000000));
+        exact(call("FORECAST.ETS.STAT", vec![y.clone(), times.clone(), n(4.0), n(0.0)]), f64::from_bits(0x3ff474806b767d8f));
+        exact(call("FORECAST.ETS.STAT", vec![y.clone(), times.clone(), n(5.0), n(0.0)]), f64::from_bits(0x3ff7407b4f71fbbe));
+        exact(call("FORECAST.ETS.STAT", vec![y.clone(), times.clone(), n(6.0), n(0.0)]), f64::from_bits(0x3fd1886e12f7d956));
+        exact(call("FORECAST.ETS.STAT", vec![y.clone(), times.clone(), n(7.0), n(0.0)]), f64::from_bits(0x3fd684abe5b0b1ae));
+        exact(call("FORECAST.ETS.CONFINT", vec![n(9.0), y, times.clone(), n(0.95), n(0.0)]), f64::from_bits(0x3fe61146344afb6b));
+    }
+    {
+        let y = arr(vec![vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 2.0]]);
+        exact(call("FORECAST.ETS", vec![n(8.0), y.clone(), times.clone(), n(0.0)]), f64::from_bits(0x3fffffffffffffff));
+        exact(call("FORECAST.ETS", vec![n(9.0), y.clone(), times.clone(), n(0.0)]), f64::from_bits(0x4001cf3cf3cf3cf4));
+        exact(call("FORECAST.ETS", vec![n(10.0), y.clone(), times.clone(), n(0.0)]), f64::from_bits(0x40039e79e79e79e8));
+        exact(call("FORECAST.ETS.STAT", vec![y.clone(), times.clone(), n(1.0), n(0.0)]), f64::from_bits(0x3fefef9db22d0e56));
+        exact(call("FORECAST.ETS.STAT", vec![y.clone(), times.clone(), n(2.0), n(0.0)]), f64::from_bits(0x3f50624dd2f1a9fc));
+        exact(call("FORECAST.ETS.STAT", vec![y.clone(), times.clone(), n(3.0), n(0.0)]), f64::from_bits(0x3cb0000000000000));
+        exact(call("FORECAST.ETS.STAT", vec![y.clone(), times.clone(), n(4.0), n(0.0)]), f64::from_bits(0x3fe2f6e3346912e2));
+        exact(call("FORECAST.ETS.STAT", vec![y.clone(), times.clone(), n(5.0), n(0.0)]), f64::from_bits(0x3ff81b1021607a26));
+        exact(call("FORECAST.ETS.STAT", vec![y.clone(), times.clone(), n(6.0), n(0.0)]), f64::from_bits(0x3fc5ac7160781594));
+        exact(call("FORECAST.ETS.STAT", vec![y.clone(), times.clone(), n(7.0), n(0.0)]), f64::from_bits(0x3fd75260983e90d1));
+        exact(call("FORECAST.ETS.CONFINT", vec![n(9.0), y, times.clone(), n(0.95), n(0.0)]), f64::from_bits(0x3fe6dadcbd4fb13f));
+    }
+}
+
+/// The odd-length correction window includes seven transitions at length 15.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_odd_length_correction_uses_the_final_half_rounded_up() {
+    let y = arr(vec![vec![f64::from_bits(0x533921fb54442d0b), f64::from_bits(0x533921fb54442d15), f64::from_bits(0x533921fb54442d25), f64::from_bits(0x533921fb54442d23), f64::from_bits(0x533921fb54442d25), f64::from_bits(0x533921fb54442d23), f64::from_bits(0x533921fb54442d17), f64::from_bits(0x533921fb54442d18), f64::from_bits(0x533921fb54442d12), f64::from_bits(0x533921fb54442d18), f64::from_bits(0x533921fb54442d0f), f64::from_bits(0x533921fb54442d0a), f64::from_bits(0x533921fb54442d16), f64::from_bits(0x533921fb54442d10), f64::from_bits(0x533921fb54442d26)]]);
+    let times = arr(vec![(1..=15).map(|i| i as f64).collect()]);
+    exact(call("FORECAST.ETS", vec![n(20.0), y, times, n(0.0)]), f64::from_bits(0x533921fb54442d24));
+}
+
+/// A valid confidence can round the internal probability to one.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_confidence_rounded_probability_keeps_the_measured_fallback() {
+    let y = arr(vec![vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 2.0]]);
+    let times = arr(vec![vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]]);
+    exact(call("FORECAST.ETS.CONFINT", vec![n(9.0), y, times,
+        n(f64::from_bits(0x3fef_ffff_ffff_ffff)), n(0.0)]),
+        f64::from_bits(0x3fd75260983e90d1));
+}
+
+/// The minimum-alpha postfit decision is open; its pre-reset errors are known.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_unresolved_reset_keeps_independent_statistics() {
+    let y = arr(vec![vec![-2.0,8.0,-13.0,10.0,-14.0,12.0,-17.0,-11.0,-29.0,27.0,
+        30.0,27.0,-29.0,-11.0,-17.0,12.0,-14.0,10.0,-13.0,8.0,-2.0]]);
+    let times = arr(vec![(1..=21).map(|i| i as f64).collect()]);
+    assert!(matches!(call("FORECAST.ETS", vec![n(22.0),y.clone(),times.clone(),n(0.0)]),
+        Err(calc_func::FunctionFault::NotHeld { owner: "dc-j9k", .. })));
+    exact(call("FORECAST.ETS.STAT", vec![y.clone(),times.clone(),n(1.0),n(0.0)]), 0.002);
+    exact(call("FORECAST.ETS.STAT", vec![y,times,n(6.0),n(0.0)]),
+        f64::from_bits(0x4024d679eaf575de));
+    let short = arr(vec![vec![1.0,2.0,1.0]]);
+    exact(call("FORECAST.ETS.STAT", vec![short,arr(vec![vec![1.0,2.0,3.0]]),n(3.0),n(0.0)]), f64::EPSILON);
+    let rounded = arr(vec![vec![f64::from_bits(0x3ff4cccccccccccc);16]]);
+    let times = arr(vec![(1..=16).map(|i| i as f64).collect()]);
+    exact(call("FORECAST.ETS.STAT", vec![rounded.clone(),times.clone(),n(3.0),n(0.0)]), f64::EPSILON);
+    assert!(matches!(call("FORECAST.ETS", vec![n(17.0),rounded,times,n(0.0)]),
+        Err(calc_func::FunctionFault::NotHeld { owner: "dc-j9k", .. })));
+    for values in [vec![1e308,-1e308,1e308],vec![2.0_f64.powi(-401),2.0_f64.powi(-400),0.0]] {
+        assert!(matches!(call("FORECAST.ETS.STAT", vec![arr(vec![values]),
+            arr(vec![vec![1.0,2.0,3.0]]),n(3.0),n(0.0)]),
+            Err(calc_func::FunctionFault::NotHeld { owner: "dc-j9k", .. })));
+    }
+}

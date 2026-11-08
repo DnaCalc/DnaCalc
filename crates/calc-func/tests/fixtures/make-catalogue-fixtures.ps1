@@ -468,6 +468,10 @@ $r38Ets = @(, @('dcj9k_r38_ets', (New-OracleSheet @() (Get-SectionLines 'sheet-d
 $r38Ets += , @('prefix_metadata', (New-PrefixSheet (Get-SectionLines 'prefix-dcj9k_r38_ets.txt' 'dcj9k_r38_ets')))
 Write-Workbook (Join-Path $OutDir 'dcj9k_r38_ets/oracle.xlsx') $r38Ets
 
+# R39 nonseasonal fits and the remaining short-initialisation/detection cases.
+$r39Ets = @(, @('dcj9k_r39_ets', (New-OracleSheet @() (Get-SectionLines 'sheet-dcj9k_r39_ets.txt' 'dcj9k_r39_ets'))))
+Write-Workbook (Join-Path $OutDir 'dcj9k_r39_ets/oracle.xlsx') $r39Ets
+
 # dc-b1l.6: every fn2 caller has a blank source sheet and a separate observer sheet.
 # Stored text comes from calc-doc's existing file_form serializer; the packet's authored
 # spelling, explicit form and caller remain alongside it in this section's layout.
