@@ -375,6 +375,17 @@ pub(super) fn render_axes(
         || table.fields.iter().enumerate().any(|(field, _)| custom_subtotal(field) && !row_fields.contains(&field)) {
         return Err(bad("These custom subtotals are not modelled in this layout"));
     }
+    let retains_missing = table.fields.iter().any(|field| field.items.iter().any(|item| item.missing));
+    if retains_missing && (cache.attributes.get("missingItemsLimit").map(String::as_str) != Some("32500")
+        || row_fields.len() != 1 || table.column_fields.len() != 1 || table.column_fields[0] < 0
+        || !table.page_fields.is_empty() || !table.filters.is_empty() || table.data_fields.len() != 1
+        || table.data_fields[0].subtotal != "sum" || show != "normal"
+        || table.fields.iter().any(|field| field.sort_measure.is_some() || field.items.iter().any(|item| item.hidden))
+        || table.fields.iter().enumerate().any(|(index, field)| field.items.iter().any(|item| item.missing
+            && (item.kind != "data" || item.index.is_none()
+                || (index != row && table.column_fields[0] as usize != index))))) {
+        return Err(bad("This retained-item layout is not modelled"));
+    }
     let compact_rows = truthy(table.fields[row].attributes.get("compact"), true);
     let outline_rows = truthy(table.fields[row].attributes.get("outline"), true);
     let tabular_values = row_values.is_some() && row_fields.len() == 3 && rows_only
@@ -465,6 +476,21 @@ pub(super) fn render_axes(
     }
     if levels.len() > 64 {
         return Err(bad("More than 64 column levels are not modelled"));
+    }
+    if retains_missing {
+        for (field, groups) in std::iter::once((row, row_levels[0].as_slice()))
+            .chain(levels.iter().filter_map(|level| level.field.map(|field| (field, level.groups.as_slice())))) {
+            let present: BTreeSet<_> = groups.iter().map(|group| group.shared).collect();
+            let mut absent = false;
+            for item in table.fields[field].items.iter().filter(|item| item.kind == "data") {
+                let index = item.index.ok_or_else(|| bad("A retained item has no cache index"))?;
+                if present.contains(&index) {
+                    if absent { return Err(bad("Retained items before present items are not modelled")); }
+                } else {
+                    absent = true;
+                }
+            }
+        }
     }
     let sorted = |groups: &[Group]| {
         let mut indexes: Vec<usize> = (0..groups.len()).collect();
@@ -1101,6 +1127,7 @@ pub(super) fn render_axes(
             index: Some(groups[i].shared),
             kind: "data".into(),
             hidden: false,
+            missing: false,
         }).collect::<Vec<_>>();
         out.extend(
             table.fields[field]
@@ -1109,10 +1136,18 @@ pub(super) fn render_axes(
                 .filter(|i| i.hidden)
                 .cloned(),
         );
+        if retains_missing {
+            let present: BTreeSet<_> = groups.iter().map(|group| group.shared).collect();
+            out.extend(table.fields[field].items.iter().filter(|item| item.kind == "data"
+                && item.index.is_some_and(|index| !present.contains(&index))).cloned().map(|mut item| {
+                    item.missing = true;
+                    item
+                }));
+        }
         if custom && field == row_fields[0] {
             out.extend(table.fields[field].items.iter().filter(|item| item.kind != "data").cloned());
         } else if add_default {
-            out.push(PivotFieldItem { index: None, kind: "default".into(), hidden: false });
+            out.push(PivotFieldItem { index: None, kind: "default".into(), hidden: false, missing: false });
         }
         out
     };

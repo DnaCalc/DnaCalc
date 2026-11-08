@@ -356,12 +356,14 @@ pub(super) fn page_field_items(
                 index: Some(g.shared),
                 kind: "data".into(),
                 hidden: false,
+                missing: false,
             })
             .collect::<Vec<_>>();
         items.push(PivotFieldItem {
             index: None,
             kind: "default".into(),
             hidden: false,
+            missing: false,
         });
         next.fields[page].items = items;
     }

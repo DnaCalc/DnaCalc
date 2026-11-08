@@ -57,6 +57,8 @@ pub struct PivotCacheField {
     pub shared_items: Option<u32>,
     pub group: Option<PivotCacheGroup>,
     pub items: Vec<PivotItem>,
+    /// Shared-item indexes retained without any current source record.
+    pub unused_items: Vec<u32>,
     pub attributes: BTreeMap<String, String>,
 }
 /// Grouping metadata retained from a cache field. Virtual date fields use their group items
@@ -119,6 +121,8 @@ pub struct PivotFieldItem {
     pub index: Option<u32>,
     pub kind: String,
     pub hidden: bool,
+    /// A retained item that no longer occurs in the source records.
+    pub missing: bool,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct PivotAxisItem {

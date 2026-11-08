@@ -177,6 +177,7 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
                             shared_items: None,
                             group: None,
                             items: Vec::new(),
+                            unused_items: Vec::new(),
                             attributes: attrs(&e),
                         }); },
                         (["cacheFields", "cacheField"], "fieldGroup") => {
@@ -227,7 +228,13 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
                                 ));
                             }
                             item_count += 1;
+                            if e.attribute("u").is_some_and(|value| !matches!(value, "0" | "1" | "false" | "true")) {
+                                cache.unsupported.push("invalid unused-item flag".into());
+                            }
                             if let Some(field) = cache.fields.last_mut() {
+                                if matches!(e.attribute("u"), Some("1" | "true")) {
+                                    field.unused_items.push(field.items.len() as u32);
+                                }
                                 field.items.push(item(&e, &events)?);
                             }
                             events.skip()?;
@@ -478,7 +485,10 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
                         (["pivotFields"], "pivotField") => fields.push(PivotField { attributes:attrs(&e),items:Vec::new(),sort_measure:None }),
                         (["pivotFields","pivotField","items"],"item") => {
                             if e.attribute("n").is_some(){unsupported.push("custom item captions".into());}
-                            if let Some(field)=fields.last_mut() {field.items.push(PivotFieldItem {index:optional_integer(&e,"x",&events)?,kind:e.attribute("t").unwrap_or("data").into(),hidden:matches!(e.attribute("h"),Some("1"|"true"))});}
+                            if e.attribute("m").is_some_and(|value| !matches!(value, "0" | "1" | "false" | "true")) {
+                                unsupported.push("invalid missing-item flag".into());
+                            }
+                            if let Some(field)=fields.last_mut() {field.items.push(PivotFieldItem {index:optional_integer(&e,"x",&events)?,kind:e.attribute("t").unwrap_or("data").into(),hidden:matches!(e.attribute("h"),Some("1"|"true")),missing:matches!(e.attribute("m"),Some("1"|"true"))});}
                         }
                         (["rowItems"],"i") => row_items.push(PivotAxisItem {kind:e.attribute("t").unwrap_or("data").into(),repeat:optional_integer(&e,"r",&events)?.unwrap_or(0),data_index:optional_integer(&e,"i",&events)?.unwrap_or(0),indexes:Vec::new()}),
                         (["colItems"],"i") => col_items.push(PivotAxisItem {kind:e.attribute("t").unwrap_or("data").into(),repeat:optional_integer(&e,"r",&events)?.unwrap_or(0),data_index:optional_integer(&e,"i",&events)?.unwrap_or(0),indexes:Vec::new()}),

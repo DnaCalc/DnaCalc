@@ -134,6 +134,11 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<Pivo
         }
     }
     let mut cache = cache.clone();
+    let tracked_unused: Vec<_> = cache.fields.iter().map(|field| !field.unused_items.is_empty()).collect();
+    if tracked_unused.iter().any(|tracked| *tracked)
+        && cache.attributes.get("missingItemsLimit").map(String::as_str) != Some("32500") {
+        return Err(fail("This unused-item retention limit is not modelled"));
+    }
     let mut indexes = Vec::new();
     for field in &cache.fields {
         let mut map = BTreeMap::new();
@@ -222,8 +227,19 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<Pivo
             "Refreshed shared items exceed the cache reader budget of 100,000",
         ));
     }
-    for field in &mut cache.fields[..source_count] {
+    let retaining_items = tracked_unused.iter().any(|tracked| *tracked);
+    for (index, field) in cache.fields[..source_count].iter_mut().enumerate() {
         field.shared_items = Some(field.items.len() as u32);
+        if retaining_items {
+            let used: std::collections::BTreeSet<_> = records.iter().filter_map(|record| match record[index] {
+                PivotItem::Index(item) => Some(item), _ => None,
+            }).collect();
+            let unused: Vec<_> = (0..field.items.len() as u32).filter(|item| !used.contains(item)).collect();
+            if (tracked_unused[index] && unused.is_empty()) || (!tracked_unused[index] && !unused.is_empty()) {
+                return Err(fail("This change to unused cache fields is not modelled"));
+            }
+            field.unused_items = unused;
+        }
     }
     cache.record_count = Some(records.len() as u64);
     cache.snapshot = Some(Arc::new(PivotSnapshot {
@@ -407,7 +423,7 @@ pub(crate) fn prepare_create(host:&HostState,revision:u64,source:GridArea,destin
     let name=(1u32..).map(|i|format!("PivotTable{i}")).find(|name|!before.tables().any(|t|t.name.eq_ignore_ascii_case(name))&&!host.model().definitions().tables().iter().any(|t|t.name.eq_ignore_ascii_case(name))).ok_or_else(||fail("Pivot table names are exhausted"))?;
     let sheet_name=host.model().sheet_by_id(source.sheet()).ok_or_else(||fail("The source worksheet is unavailable"))?.name().text().to_string_lossy();
     let source_range=format!("{}:{}",crate::chart::cell_a1(source.first()),crate::chart::cell_a1(source.last()));
-    let cache=PivotCache{id:cache_id,part:cache_part,records_part:Some(records_part),record_count:Some(0),source_type:"worksheet".into(),source_sheet:Some(sheet_name),source_range:Some(source_range),source_name:None,fields:names.iter().map(|name|PivotCacheField{name:name.clone(),shared_items:Some(0),group:None,items:Vec::new(),attributes:BTreeMap::from([("name".into(),name.clone()),("numFmtId".into(),"0".into())])}).collect(),attributes:BTreeMap::new(),unsupported:Vec::new(),snapshot:None};
+    let cache=PivotCache{id:cache_id,part:cache_part,records_part:Some(records_part),record_count:Some(0),source_type:"worksheet".into(),source_sheet:Some(sheet_name),source_range:Some(source_range),source_name:None,fields:names.iter().map(|name|PivotCacheField{name:name.clone(),shared_items:Some(0),group:None,items:Vec::new(),unused_items:Vec::new(),attributes:BTreeMap::from([("name".into(),name.clone()),("numFmtId".into(),"0".into())])}).collect(),attributes:BTreeMap::new(),unsupported:Vec::new(),snapshot:None};
     let cache=Arc::new(snapshot(host,&cache,source)?);
     let fields=(0..names.len()).map(|i|{let mut attributes=BTreeMap::from([("showAll".into(),"0".into())]);if i==row as usize{attributes.insert("axis".into(),"axisRow".into());}if i==value as usize{attributes.insert("dataField".into(),"1".into());}PivotField{attributes,items:Vec::new(),sort_measure:None}}).collect();
     let caption=format!("{operation} of {}",names[value as usize]);let data=PivotDataField{name:Some(caption.clone()),field:value,subtotal:subtotal.into(),extended_show:None,attributes:BTreeMap::from([("name".into(),caption),("fld".into(),value.to_string()),("subtotal".into(),subtotal.into())])};

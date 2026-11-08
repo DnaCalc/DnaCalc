@@ -526,6 +526,19 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
         let verdict = if !receipt.accepted() { format!("refused: {:?}", receipt.error) }
             else if held(&book, missing_sheet, 60, 120) == expected[stage] { "matched".into() }
             else { "mismatched".into() };
+        if verdict == "matched" {
+            let pivots = book.host().model().definitions().pivots();
+            let table = pivots.sheet(missing_sheet).unwrap().tables.iter().find(|table| table.name == "pvt_missing_items").unwrap();
+            let field = table.row_fields[0] as usize;
+            let cache_field = &pivots.caches.caches[&table.cache_id].fields[field];
+            let missing: Vec<_> = table.fields[field].items.iter().filter(|item| item.missing)
+                .map(|item| cache_field.items[item.index.unwrap() as usize].clone()).collect();
+            let unused: Vec<_> = cache_field.unused_items.iter().map(|&index| cache_field.items[index as usize].clone()).collect();
+            let expected_missing = if stage == "missing-items-built" { vec![calc_doc_model::pivot::PivotItem::Text("Delta".into())] }
+                else { vec![calc_doc_model::pivot::PivotItem::Text("Gamma".into()), calc_doc_model::pivot::PivotItem::Text("Delta".into())] };
+            assert_eq!(missing, expected_missing, "{stage} retained field items");
+            assert_eq!(unused, expected_missing, "{stage} unused cache items");
+        }
         missing_verdicts.insert(stage.to_owned(), verdict);
     }
     for row in 2..=37 {
@@ -592,7 +605,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
         println!("{stage}: {verdict}");
     }
     println!("M1 matched {} of {}: {matched:?}", matched.len(), expected.len());
-    assert_eq!(matched, ["agg-all-amount", "agg-all-units", "agg-text-field", "blank-line-both", "blank-line-compact-columns", "blank-line-outer", "err-keys", "err-keys-columns", "err-keys-desc", "err-values", "err-values-display", "group-day-month", "group-days-7", "group-month", "group-month-year", "group-quarter", "group-quarter-year", "group-year", "group-year-columns", "nodata-rows", "nodata-rows-hidden", "nodata-two-row-fields", "show-count-average", "show-difference-east", "show-difference-next", "show-difference-previous", "show-difference-product-alpha", "show-index", "show-percent-difference-east", "show-percent-difference-previous", "show-percent-of-column", "show-percent-of-parent-column", "show-percent-of-parent-row", "show-percent-of-row", "show-percent-of-total", "show-percent-running-total", "show-percentof-east", "show-percentof-previous", "show-rank-ascending", "show-rank-descending", "show-running-total", "show-running-total-product", "show-two-data-fields", "sort-by-second-data", "sort-by-value-asc", "sort-by-value-columns", "sort-by-value-desc", "sort-by-value-inner", "sort-by-value-ties", "subtotals-multiple-compact", "subtotals-multiple-outline-bottom", "subtotals-multiple-outline-top", "subtotals-multiple-tabular", "subtotals-multiple-two-data", "subtotals-none", "values-columns-after-field", "values-rows-first", "values-rows-region", "values-rows-two-fields", "values-rows-with-columns"]);
+    assert_eq!(matched, ["agg-all-amount", "agg-all-units", "agg-text-field", "blank-line-both", "blank-line-compact-columns", "blank-line-outer", "err-keys", "err-keys-columns", "err-keys-desc", "err-values", "err-values-display", "group-day-month", "group-days-7", "group-month", "group-month-year", "group-quarter", "group-quarter-year", "group-year", "group-year-columns", "missing-items-built", "missing-items-refresh-default", "nodata-rows", "nodata-rows-hidden", "nodata-two-row-fields", "show-count-average", "show-difference-east", "show-difference-next", "show-difference-previous", "show-difference-product-alpha", "show-index", "show-percent-difference-east", "show-percent-difference-previous", "show-percent-of-column", "show-percent-of-parent-column", "show-percent-of-parent-row", "show-percent-of-row", "show-percent-of-total", "show-percent-running-total", "show-percentof-east", "show-percentof-previous", "show-rank-ascending", "show-rank-descending", "show-running-total", "show-running-total-product", "show-two-data-fields", "sort-by-second-data", "sort-by-value-asc", "sort-by-value-columns", "sort-by-value-desc", "sort-by-value-inner", "sort-by-value-ties", "subtotals-multiple-compact", "subtotals-multiple-outline-bottom", "subtotals-multiple-outline-top", "subtotals-multiple-tabular", "subtotals-multiple-two-data", "subtotals-none", "values-columns-after-field", "values-rows-first", "values-rows-region", "values-rows-two-fields", "values-rows-with-columns"]);
     let mut saved = Vec::new();
     book.save(&SavePolicy::default(), &mut saved).unwrap();
     let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(saved));
@@ -604,6 +617,16 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
         if matches!(name, "pvt_blank_line_compact_columns" | "pvt_group_day_month" | "pvt_group_days_7" | "pvt_nodata_rows" | "pvt_nodata_two_row_fields" | "pvt_show_percent_of_parent_column" | "pvt_show_percent_of_parent_row" | "pvt_show_percent_running_total" | "pvt_show_rank_ascending" | "pvt_show_rank_descending" | "pvt_show_two_data_fields" | "pvt_sort_by_second_data" | "pvt_sort_by_value_asc" | "pvt_sort_by_value_columns" | "pvt_sort_by_value_desc" | "pvt_sort_by_value_inner" | "pvt_sort_by_value_ties" | "pvt_subtotals_multiple_compact" | "pvt_subtotals_multiple_outline_bottom" | "pvt_subtotals_multiple_outline_top" | "pvt_subtotals_multiple_tabular" | "pvt_subtotals_multiple_two_data" | "pvt_subtotals_none" | "pvt_values_rows_first" | "pvt_values_rows_region" | "pvt_values_rows_two_fields" | "pvt_values_rows_with_columns") {
             assert_eq!(canonical(restored), canonical(original), "{name} structure after save and reopen");
         }
+    }
+    {
+        let original = book.host().model().definitions().pivots();
+        let restored = reopened.host().model().definitions().pivots();
+        let old_table = original.tables().find(|table| table.name == "pvt_missing_items").unwrap();
+        let new_table = restored.tables().find(|table| table.name == "pvt_missing_items").unwrap();
+        let field = old_table.row_fields[0] as usize;
+        assert_eq!(new_table.fields[field].items, old_table.fields[field].items, "retained items after reopening");
+        assert_eq!(restored.caches.caches[&new_table.cache_id].fields[field].unused_items,
+            original.caches.caches[&old_table.cache_id].fields[field].unused_items, "unused items after reopening");
     }
     for (name, stage) in [("pvt_group_day_month", "group-day-month"), ("pvt_group_days_7", "group-days-7"),
         ("pvt_nodata_rows", "nodata-rows"), ("pvt_nodata_two_row_fields", "nodata-two-row-fields"),
