@@ -1,0 +1,154 @@
+{
+  "status": "verified X1 fixture boundary",
+  "formula_cases": 289,
+  "formula_matches_each_host": 289,
+  "source_revision": "20a4dd14ba910f83aae47fd32e18243b93e3a695",
+  "ordered_callback_sequence_matches": true,
+  "trace_sha256": {
+    "excel": "B705553F21B993EA67A36E50ED518B9A660A4E8A01B6FB9121CB0B7F9B0F8CD6",
+    "dna_calc": "2DC98C450875EDB93B30154E4E8072D492880A300A6D6B8D5D0CAD691EF65CF3"
+  },
+  "excel_file_version": "16.0.20527.20150",
+  "host_file_version": "16.0.0.1",
+  "same_fixture_sha256": "A1131CFC4010528867A7A544CC5851C8AF3164045E9F18E4AD9F6DDA84D24CD1",
+  "excel_trace_records": 2167,
+  "host_trace_records": 2165,
+  "c_api_calls_each_host": 599,
+  "callback_return_codes": [
+    {
+      "function": 4,
+      "return_code": 0,
+      "calls_each_host": 1
+    },
+    {
+      "function": 88,
+      "return_code": 0,
+      "calls_each_host": 48
+    },
+    {
+      "function": 89,
+      "return_code": 0,
+      "calls_each_host": 1
+    },
+    {
+      "function": 89,
+      "return_code": 32,
+      "calls_each_host": 1
+    },
+    {
+      "function": 149,
+      "return_code": 0,
+      "calls_each_host": 48
+    },
+    {
+      "function": 150,
+      "return_code": 0,
+      "calls_each_host": 214
+    },
+    {
+      "function": 150,
+      "return_code": 2,
+      "calls_each_host": 1
+    },
+    {
+      "function": 150,
+      "return_code": 4,
+      "calls_each_host": 1
+    },
+    {
+      "function": 186,
+      "return_code": 0,
+      "calls_each_host": 1
+    },
+    {
+      "function": 201,
+      "return_code": 0,
+      "calls_each_host": 51
+    },
+    {
+      "function": 267,
+      "return_code": 0,
+      "calls_each_host": 75
+    },
+    {
+      "function": 267,
+      "return_code": 2,
+      "calls_each_host": 1
+    },
+    {
+      "function": 267,
+      "return_code": 4,
+      "calls_each_host": 3
+    },
+    {
+      "function": 16384,
+      "return_code": 0,
+      "calls_each_host": 147
+    },
+    {
+      "function": 16384,
+      "return_code": 32,
+      "calls_each_host": 1
+    },
+    {
+      "function": 16385,
+      "return_code": 32,
+      "calls_each_host": 1
+    },
+    {
+      "function": 16386,
+      "return_code": 0,
+      "calls_each_host": 1
+    },
+    {
+      "function": 16393,
+      "return_code": 0,
+      "calls_each_host": 1
+    },
+    {
+      "function": 16393,
+      "return_code": 32,
+      "calls_each_host": 1
+    },
+    {
+      "function": 16400,
+      "return_code": 0,
+      "calls_each_host": 1
+    }
+  ],
+  "ownership_excel_and_host": [
+    {
+      "returns": 1,
+      "frees": 1,
+      "same_pointer_and_thread": true
+    },
+    {
+      "returns": 1,
+      "frees": 1,
+      "same_pointer_and_thread": true
+    }
+  ],
+  "registration_time_address_lookup": true,
+  "controls_match": true,
+  "timing": "debugger timing; no uninstrumented scheduling or latency claim",
+  "scope": "OneCalc controller in a minimal native executable; no Excel-DNA, COM object model or worker scheduling claim",
+  "async_result_operand": "Excel direct callback leaves type zero; DNA Calc supplies the documented Boolean. Callback codes and published values match; this raw output difference remains recorded.",
+  "excel_session_ownership": {
+    "C:\\Work\\DnaCalc\\codex-runs\\xll-run\\final\\excel-traced": {
+      "pid": 36436,
+      "start_ticks": 639297352101734341,
+      "launch": 5,
+      "job": "20261108T1225467181670-b743437352474c718c119f7e6dd1ddfb",
+      "host_script_sha256": "A6A314E7083AD73863F6E44824820D850F69D469F3D977205EBFEC39312A2A26",
+      "scope": "Exact successful fresh-job receipt, launch tuple, pre-activation inventory, retained host/runner sources, security baseline and capture interval checked; raw environment remains unchanged."
+    },
+    "C:\\Work\\DnaCalc\\codex-runs\\xll-run\\final\\excel-control": {
+      "pid": 36436,
+      "start_ticks": 639297352101734341,
+      "launch": 5,
+      "job": "20261108T1225559269758-91de57dd1ccb4061a4e72a900cb4271c",
+      "host_script_sha256": "A6A314E7083AD73863F6E44824820D850F69D469F3D977205EBFEC39312A2A26",
+      "scope": "Exact successful fresh-job receipt, launch tuple, pre-activation inventory, retained host/runner sources, security baseline and capture interval checked; raw environment remains unchanged."
+    }
+  }
+}

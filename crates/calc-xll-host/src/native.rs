@@ -667,6 +667,24 @@ mod reload_tests {
     }
 }
 
+/// The documentation `xlfRegister` carries beyond the call: the optional arguments from the
+/// fifth on. Each is empty (or absent) when the add-in left it out.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct RegistrationDocs {
+    /// The comma-separated argument names (`argument_text`), split and trimmed.
+    pub argument_names: Vec<String>,
+    /// The function category (`category`): a name or a number as Excel's category list has it.
+    pub category: String,
+    /// The shortcut key of a command (`shortcut_text`).
+    pub shortcut: String,
+    /// The help topic (`help_topic`): `file!topic` for a help file.
+    pub help_topic: String,
+    /// The description of the function (`function_help`).
+    pub function_help: String,
+    /// One description per argument (`argument_help1` onwards).
+    pub argument_help: Vec<String>,
+}
+
 #[derive(Clone, Debug)]
 pub struct RegistrationInfo {
     pub id: u64,
@@ -679,6 +697,49 @@ pub struct RegistrationInfo {
     pub origin: PathBuf,
     pub use_count: u32,
     pub macro_type: i32,
+    /// Argument names, category and help text, as `xlfRegister` gave them.
+    pub docs: RegistrationDocs,
+}
+impl RegistrationInfo {
+    /// What a person sees of this function: the name, argument names and help `xlfRegister`
+    /// gave, with the add-in it came from. An argument the add-in did not name is `arg1`, `arg2`...
+    pub fn descriptor(&self) -> calc_fml::CallableDescriptor {
+        let count = self
+            .signature
+            .arguments
+            .len()
+            .saturating_sub(usize::from(self.signature.asynchronous));
+        let parameters = (0..count)
+            .map(|index| calc_fml::CallableParameter {
+                name: match self.docs.argument_names.get(index) {
+                    Some(name) if !name.is_empty() => name.clone(),
+                    _ => format!("arg{}", index + 1),
+                },
+                description: self
+                    .docs
+                    .argument_help
+                    .get(index)
+                    .cloned()
+                    .unwrap_or_default(),
+            })
+            .collect();
+        calc_fml::CallableDescriptor {
+            name: self.name.clone(),
+            origin: format!(
+                "xll {}",
+                self.origin
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default()
+            ),
+            category: self.docs.category.clone(),
+            description: self.docs.function_help.clone(),
+            parameters,
+            volatile: self.signature.volatile,
+            thread_safe: self.signature.thread_safe,
+            asynchronous: self.signature.asynchronous,
+        }
+    }
 }
 pub(crate) struct Registration {
     pub info: RegistrationInfo,
@@ -901,7 +962,12 @@ impl XllHost {
                 registration: registration.clone(),
                 bound: true,
             });
-            functions.register(name, adapter.clone())?;
+            functions.register_described(
+                None,
+                name,
+                adapter.clone(),
+                registration.info.descriptor(),
+            )?;
         }
         Ok(functions)
     }

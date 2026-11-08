@@ -41,6 +41,8 @@ fn address(column: u32, row: u32) -> String {
 enum Cell {
     Number(f64),
     Text(String),
+    Boolean(bool),
+    Error(String),
 }
 fn expected() -> BTreeMap<String, BTreeMap<String, Cell>> {
     let mut out: BTreeMap<String, BTreeMap<String, Cell>> = BTreeMap::new();
@@ -81,6 +83,8 @@ fn held(book: &HostSession, sheet: SheetId, width: u32, height: u32) -> BTreeMap
             CoreRef::Text(t) => {
                 out.insert(at, Cell::Text(String::from_utf16_lossy(t.utf16_code_units())));
             }
+            CoreRef::Logical(b) => { out.insert(at, Cell::Boolean(b)); }
+            CoreRef::Error(e) => { out.insert(at, Cell::Error(e.excel_spelling().into())); }
             _ => {}
         }
     }
@@ -308,6 +312,8 @@ fn ui30__pivot_layouts_refresh_to_the_cells_excel_held() {
             .get(sheet)
             .map(|p| p.tables.iter().map(|t| t.row_items.clone()).collect())
             .unwrap_or_default();
+        let want_col_items: Vec<_> = book.host().model().definitions().pivots().sheets.get(sheet)
+            .map(|p| p.tables.iter().map(|t| t.col_items.clone()).collect()).unwrap_or_default();
         let mut verdict = None;
         for (part, _) in &tables {
             let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
@@ -330,8 +336,13 @@ fn ui30__pivot_layouts_refresh_to_the_cells_excel_held() {
                 .get(sheet)
                 .map(|p| p.tables.iter().map(|t| t.row_items.clone()).collect())
                 .unwrap_or_default();
+            let got_col_items: Vec<_> = book.host().model().definitions().pivots().sheets.get(sheet)
+                .map(|p| p.tables.iter().map(|t| t.col_items.clone()).collect()).unwrap_or_default();
             if got == want && got_items != want_items {
                 format!("mismatched: row items want {want_items:?} got {got_items:?}")
+            } else if got == want && tables.iter().any(|(_, name)|
+                name == "pvt_two_col_fields" || name == "pvt_two_data_col") && got_col_items != want_col_items {
+                format!("mismatched: column items want {want_col_items:?} got {got_col_items:?}")
             } else if got == want {
                 "matched".to_owned()
             } else {
@@ -361,17 +372,352 @@ fn ui30__pivot_layouts_refresh_to_the_cells_excel_held() {
     assert_eq!(matched, UI30_MUST_MATCH, "{outcomes:#?}");
 }
 // Data number formats and three row fields (all layouts, cells and row items) refresh. Report
-// filters with chosen items, two column fields, grouped dates, top 10 and values filters remain
-// open (dc-8wp).
+// The 16 captured layouts, including the measured date groups and filter cases, match.
 const UI30_MUST_MATCH: &[&str] = &[
+    "pvt_date_group_months",
     "pvt_fmt_0_00",
     "pvt_fmt_currency",
     "pvt_fmt_percent",
     "pvt_pct_of_column",
+    "pvt_pg_two_filters",
     "pvt_three_rows_compact_suboff",
     "pvt_three_rows_compact_subon",
     "pvt_three_rows_outline_suboff",
     "pvt_three_rows_outline_subon",
     "pvt_three_rows_tabular_suboff",
     "pvt_three_rows_tabular_subon",
+    "pvt_top10_products",
+    "pvt_two_col_fields",
+    "pvt_two_data_col",
+    "pvt_value_filter",
 ];
+
+#[test]
+/// Native-only: opens, refreshes, saves and reopens the Excel workbook.
+fn dc_8wp__selected_page_items_survive_save_and_refresh() {
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(UI30.to_vec()));
+    let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let sheet = book.host().sheets().iter().find(|s|
+        String::from_utf16_lossy(s.name().text().utf16_code_units()) == "N1").unwrap().id();
+    let expected = held(&book, sheet, 60, 80);
+    let (part, selections) = {
+        let table = book.host().model().definitions().pivots().sheet(sheet).unwrap().tables.first().unwrap();
+        (table.part.clone(), table.page_fields.clone())
+    };
+    assert!(selections.iter().any(|p| p.selected_item.is_some()));
+    assert!(book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+        sheet, revision: book.host().revision().get(), part: part.clone(),
+    })).accepted());
+    assert_eq!(held(&book, sheet, 60, 80), expected);
+    let mut bytes = Vec::new();
+    book.save(&SavePolicy::default(), &mut bytes).unwrap();
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes));
+    let mut reopened = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let sheet = reopened.host().sheets().iter().find(|s|
+        String::from_utf16_lossy(s.name().text().utf16_code_units()) == "N1").unwrap().id();
+    let table = reopened.host().model().definitions().pivots().sheet(sheet).unwrap().tables.first().unwrap();
+    assert_eq!(table.page_fields, selections);
+    let part = table.part.clone();
+    assert!(reopened.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+        sheet, revision: reopened.host().revision().get(), part,
+    })).accepted());
+    assert_eq!(held(&reopened, sheet, 60, 80), expected);
+}
+
+#[test]
+/// Native-only: refreshes, saves and reopens the Excel workbook.
+fn dc_8wp__value_filters_survive_save_and_refresh() {
+    for name in ["N12", "N13"] {
+        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(UI30.to_vec()));
+        let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+        let sheet = book.host().sheets().iter().find(|s|
+            String::from_utf16_lossy(s.name().text().utf16_code_units()) == name).unwrap().id();
+        let expected = held(&book, sheet, 60, 80);
+        let (part, filters) = {
+            let table = book.host().model().definitions().pivots().sheet(sheet).unwrap().tables.first().unwrap();
+            (table.part.clone(), table.filters.clone())
+        };
+        assert_eq!(filters.len(), 1);
+        assert!(book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+            sheet, revision: book.host().revision().get(), part,
+        })).accepted());
+        assert_eq!(held(&book, sheet, 60, 80), expected);
+        let mut bytes = Vec::new();
+        book.save(&SavePolicy::default(), &mut bytes).unwrap();
+        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes));
+        let mut reopened = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+        let sheet = reopened.host().sheets().iter().find(|s|
+            String::from_utf16_lossy(s.name().text().utf16_code_units()) == name).unwrap().id();
+        let table = reopened.host().model().definitions().pivots().sheet(sheet).unwrap().tables.first().unwrap();
+        assert_eq!(table.filters, filters);
+        let part = table.part.clone();
+        assert!(reopened.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+            sheet, revision: reopened.host().revision().get(), part,
+        })).accepted());
+        assert_eq!(held(&reopened, sheet, 60, 80), expected);
+    }
+}
+
+/// M1's saved source was edited by the final missing-items sequence. Restore the original
+/// Product column before refreshing the independent captured cases.
+#[test]
+/// Native-only: opens the Excel workbook and refreshes through the host command.
+fn dc_8wp__m1_calculation_stages_against_excel() {
+    const M1: &[u8] = include_bytes!("fixtures/pivot/m1-calculation/built.xlsx");
+    const CELLS: &str = include_str!("fixtures/pivot/m1-calculation/cells.tsv");
+    let mut expected: BTreeMap<String, BTreeMap<String, Cell>> = BTreeMap::new();
+    for line in CELLS.lines().filter(|l| !l.is_empty()) {
+        let f: Vec<_> = line.splitn(4, '\t').collect();
+        let value = match f[2] {
+            "n" => Cell::Number(f[3].parse().unwrap()),
+            "s" => Cell::Text(f[3].to_owned()),
+            "b" => Cell::Boolean(f[3].eq_ignore_ascii_case("true") || f[3] == "1"),
+            "e" => Cell::Error(match f[3] {
+                "-2146826281" => "#DIV/0!", "-2146826246" => "#N/A",
+                "-2146826259" => "#NAME?", "-2146826288" => "#NULL!",
+                "-2146826252" => "#NUM!", "-2146826265" => "#REF!",
+                "-2146826273" => "#VALUE!", other => panic!("unknown Excel error {other}"),
+            }.to_owned()),
+            other => panic!("unknown captured cell type {other}"),
+        };
+        expected.entry(f[0].to_owned()).or_default().insert(f[1].to_owned(), value);
+    }
+    assert_eq!(expected.len(), 85);
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(M1.to_vec()));
+    let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let sheets: Vec<_> = book.host().sheets().iter().map(|s|
+        (s.id(), String::from_utf16_lossy(s.name().text().utf16_code_units()))).collect();
+    let source_sheet = sheets.iter().find(|(_, name)| name == "Source").unwrap().0;
+    let original_source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(WORKBOOK.to_vec()));
+    let original = HostSession::open(original_source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let original_sheet = original.host().sheets().iter().find(|s|
+        String::from_utf16_lossy(s.name().text().utf16_code_units()) == "Source").unwrap().id();
+    let original_cells = held(&original, original_sheet, 5, 37);
+    for row in 2..=37 {
+        let address = format!("B{row}");
+        let Cell::Text(text) = &original_cells[&address] else { panic!("non-text original Product at {address}") };
+        assert!(book.dispatch(SkinIntent::EnterCell {
+            at: at(source_sheet, &address), text: text.clone().into(),
+        }).accepted());
+    }
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    // The first two missing-items stages use the original source and then replace Gamma with
+    // Alpha. Later stages also change MissingItemsLimit, which has no host command yet.
+    let (missing_sheet, missing_part) = sheets.iter().find_map(|(sheet, _)| {
+        book.host().model().definitions().pivots().sheets.get(sheet)
+            .and_then(|p| p.tables.iter().find(|t| t.name == "pvt_missing_items"))
+            .map(|t| (*sheet, t.part.clone()))
+    }).unwrap();
+    let mut missing_verdicts = BTreeMap::new();
+    for stage in ["missing-items-built", "missing-items-refresh-default"] {
+        if stage == "missing-items-refresh-default" {
+            for row in 2..=37 {
+                let address = format!("B{row}");
+                if original_cells.get(&address) == Some(&Cell::Text("Gamma".into())) {
+                    assert!(book.dispatch(SkinIntent::EnterCell {
+                        at: at(source_sheet, &address), text: "Alpha".into(),
+                    }).accepted());
+                }
+            }
+        }
+        let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+            sheet: missing_sheet, revision: book.host().revision().get(), part: missing_part.clone(),
+        }));
+        let verdict = if !receipt.accepted() { format!("refused: {:?}", receipt.error) }
+            else if held(&book, missing_sheet, 60, 120) == expected[stage] { "matched".into() }
+            else { "mismatched".into() };
+        missing_verdicts.insert(stage.to_owned(), verdict);
+    }
+    for row in 2..=37 {
+        let address = format!("B{row}");
+        let Cell::Text(text) = &original_cells[&address] else { unreachable!() };
+        assert!(book.dispatch(SkinIntent::EnterCell {
+            at: at(source_sheet, &address), text: text.clone().into(),
+        }).accepted());
+    }
+    let mut matched = Vec::new();
+    for (stage, want) in &expected {
+        if let Some(verdict) = missing_verdicts.get(stage) {
+            if verdict == "matched" { matched.push(stage.clone()); }
+            println!("{stage}: {verdict}");
+            continue;
+        }
+        let name = format!("pvt_{}", stage.replace('-', "_"));
+        let selected = sheets.iter().find_map(|(sheet, _)| {
+            book.host().model().definitions().pivots().sheets.get(sheet)
+                .and_then(|s| s.tables.iter().find(|t| t.name == name))
+                .map(|t| (*sheet, t.part.clone()))
+        });
+        let verdict = if let Some((sheet, part)) = selected {
+            let saved_row_items = if matches!(stage.as_str(), "blank-line-both" | "blank-line-compact-columns" | "blank-line-outer") {
+                Some(book.host().model().definitions().pivots().sheet(sheet).unwrap().tables.iter()
+                    .find(|table| table.part == part).unwrap().row_items.clone())
+            } else { None };
+            let saved_structure = if stage == "blank-line-compact-columns" {
+                Some(canonical(book.host().model().definitions().pivots().sheet(sheet).unwrap().tables.iter()
+                    .find(|table| table.part == part).unwrap()))
+            } else { None };
+            let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+                sheet, revision: book.host().revision().get(), part,
+            }));
+            if stage.starts_with("subtotals-multiple") || matches!(stage.as_str(), "subtotals-all-eleven" | "agg-two-level-columns" | "prec-all-functions") {
+                assert!(!receipt.accepted(), "unmodelled calculations must refuse: {stage}");
+            }
+            if !receipt.accepted() {
+                format!("refused: {:?}", receipt.error)
+            } else {
+                if let Some(expected_items) = saved_row_items {
+                    let table = book.host().model().definitions().pivots().sheet(sheet).unwrap().tables.iter()
+                        .find(|table| table.name == name).unwrap();
+                    assert_eq!(table.row_items, expected_items, "{stage} row items");
+                    if let Some(expected) = saved_structure { assert_eq!(canonical(table), expected, "{stage} structure"); }
+                }
+                let width = want.keys().map(|address| address.bytes().take_while(u8::is_ascii_alphabetic)
+                    .fold(0u32, |n, b| n * 26 + u32::from(b - b'A' + 1))).max().unwrap_or(0).max(60);
+                let got = held(&book, sheet, width, 120);
+                if got == *want {
+                    matched.push(stage.clone());
+                    "matched".into()
+                } else {
+                    let diff = want.iter().filter(|(k, v)| got.get(*k) != Some(*v))
+                        .map(|(k,v)| format!("{k}: want {v:?} got {:?}", got.get(k)))
+                        .chain(got.keys().filter(|k| !want.contains_key(*k)).map(|k| format!("{k}: unexpected {:?}", got[k])))
+                        .take(25).collect::<Vec<_>>().join("; ");
+                    format!("mismatched: {diff}")
+                }
+            }
+        } else {
+            "not replayed: no matching independent pivot".into()
+        };
+        println!("{stage}: {verdict}");
+    }
+    println!("M1 matched {} of {}: {matched:?}", matched.len(), expected.len());
+    assert_eq!(matched, ["agg-all-amount", "agg-all-units", "agg-text-field", "blank-line-both", "blank-line-compact-columns", "blank-line-outer", "err-keys", "err-keys-columns", "err-keys-desc", "err-values", "err-values-display", "group-month", "group-month-year", "group-quarter", "group-quarter-year", "group-year", "group-year-columns", "nodata-rows-hidden", "show-count-average", "show-difference-east", "show-difference-next", "show-difference-previous", "show-difference-product-alpha", "show-index", "show-percent-difference-east", "show-percent-difference-previous", "show-percent-of-column", "show-percent-of-row", "show-percent-of-total", "show-percentof-east", "show-percentof-previous", "show-running-total", "show-running-total-product", "values-columns-after-field"]);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(saved));
+    let reopened = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    for name in ["pvt_blank_line_both", "pvt_blank_line_compact_columns", "pvt_blank_line_outer"] {
+        let original = book.host().model().definitions().pivots().tables().find(|table| table.name == name).unwrap();
+        let restored = reopened.host().model().definitions().pivots().tables().find(|table| table.name == name).unwrap();
+        assert_eq!(restored.row_items, original.row_items, "{name} after save and reopen");
+        if name == "pvt_blank_line_compact_columns" {
+            assert_eq!(canonical(restored), canonical(original), "{name} structure after save and reopen");
+        }
+    }
+}
+
+#[test]
+/// Native-only: opens the captured workbook and refreshes through the host command.
+fn dc_8wp__unmodelled_show_values_extension_refuses_refresh() {
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(
+        include_bytes!("fixtures/pivot/m1-calculation/built.xlsx").to_vec(),
+    ));
+    let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let (sheet, part) = book.host().model().definitions().pivots().sheets.iter().find_map(|(sheet, pivots)|
+        pivots.tables.iter().find(|table| table.name == "pvt_show_rank_ascending")
+            .map(|table| (*sheet, table.part.clone()))).unwrap();
+    let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+        sheet, revision: book.host().revision().get(), part,
+    }));
+    assert!(!receipt.accepted(), "an unmodelled calculation must refuse: {receipt:?}");
+}
+
+#[test]
+/// Native-only: opens, refreshes, saves and reopens the Excel workbook.
+fn dc_8wp__grouped_dates_survive_save_and_refresh() {
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(UI30.to_vec()));
+    let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let sheet = book.host().sheets().iter().find(|s|
+        String::from_utf16_lossy(s.name().text().utf16_code_units()) == "N10").unwrap().id();
+    let expected = held(&book, sheet, 60, 80);
+    let (part, cache_id) = {
+        let table = &book.host().model().definitions().pivots().sheet(sheet).unwrap().tables[0];
+        (table.part.clone(), table.cache_id)
+    };
+    let groups = |book: &HostSession| {
+        let pivots = book.host().model().definitions().pivots();
+        let cache = &pivots.caches.caches[&cache_id];
+        cache.fields.iter().map(|field| (field.group.clone(),
+            field.group.as_ref().filter(|group| group.range.is_some()).map(|_| field.items.clone())))
+            .collect::<Vec<_>>()
+    };
+    let original_groups = groups(&book);
+    assert!(original_groups.iter().filter(|(group, _)| group.as_ref().is_some_and(|g| g.range.is_some())).count() >= 2);
+    assert!(book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+        sheet, revision: book.host().revision().get(), part,
+    })).accepted());
+    assert_eq!(held(&book, sheet, 60, 80), expected);
+    let mut bytes = Vec::new();
+    book.save(&SavePolicy::default(), &mut bytes).unwrap();
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes));
+    let mut reopened = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    assert_eq!(groups(&reopened), original_groups);
+    let sheet = reopened.host().sheets().iter().find(|s|
+        String::from_utf16_lossy(s.name().text().utf16_code_units()) == "N10").unwrap().id();
+    let part = reopened.host().model().definitions().pivots().sheet(sheet).unwrap().tables[0].part.clone();
+    assert!(reopened.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+        sheet, revision: reopened.host().revision().get(), part,
+    })).accepted());
+    assert_eq!(held(&reopened, sheet, 60, 80), expected);
+}
+
+#[test]
+/// Native-only: refreshes the captured precision pivot through the host command.
+fn dc_8wp_10__pivot_precision_uses_the_same_path_in_both_numeric_modes() {
+    use calc_value::{NumericMode, NumericTargetId};
+    let target = NumericTargetId::new("16.0.20527.20150", "Current", "Excel", "x86-64").unwrap();
+    let mut outputs = Vec::new();
+    for numeric in [NumericMode::Fast, NumericMode::Exact(target)] {
+        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(include_bytes!("fixtures/pivot/m1-calculation/built.xlsx").to_vec()));
+        let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions { numeric, ..Default::default() }).unwrap();
+        let (sheet, part) = book.host().sheets().iter().find_map(|sheet| {
+            book.host().model().definitions().pivots().sheets.get(&sheet.id())
+                .and_then(|p| p.tables.iter().find(|t| t.name == "pvt_prec_sum_average"))
+                .map(|t| (sheet.id(), t.part.clone()))
+        }).unwrap();
+        let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+            sheet, revision: book.host().revision().get(), part,
+        }));
+        assert!(receipt.accepted(), "{receipt:?}");
+        let cells = held(&book, sheet, 5, 20);
+        for address in ["B4", "C4", "B9", "C9"] {
+            let captured = include_str!("fixtures/pivot/m1-calculation/cells.tsv").lines()
+                .map(|line| line.splitn(4, '\t').collect::<Vec<_>>())
+                .find(|f| f.len() == 4 && f[0] == "prec-sum-average" && f[1] == address).unwrap();
+            assert_eq!(cells.get(address), Some(&Cell::Number(captured[3].parse().unwrap())), "{address}");
+        }
+        outputs.push(cells);
+    }
+    assert_eq!(outputs[0], outputs[1]);
+}
+
+#[test]
+/// Native-only: checks refusal through a captured workbook and the host refresh command.
+fn dc_8wp_10__relative_percentage_with_zero_base_refuses_without_writing() {
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(
+        include_bytes!("fixtures/pivot/m1-calculation/built.xlsx").to_vec(),
+    ));
+    let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let source_sheet = book.host().sheets().iter().find(|s|
+        String::from_utf16_lossy(s.name().text().utf16_code_units()) == "Source").unwrap().id();
+    let source_cells = held(&book, source_sheet, 5, 37);
+    let mut changed = 0;
+    for row in 2..=37 {
+        if source_cells.get(&format!("A{row}")) == Some(&Cell::Text("East".into())) {
+            let receipt = book.dispatch(SkinIntent::EnterCell { at: at(source_sheet, &format!("D{row}")), text: "0".into() });
+            assert!(receipt.accepted(), "{receipt:?}");
+            changed += 1;
+        }
+    }
+    assert!(changed > 0);
+    let (sheet, part) = book.host().model().definitions().pivots().sheets.iter().find_map(|(sheet, pivots)|
+        pivots.tables.iter().find(|table| table.name == "pvt_show_percentof_east")
+            .map(|table| (*sheet, table.part.clone()))).unwrap();
+    let before = held(&book, sheet, 6, 12);
+    let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+        sheet, revision: book.host().revision().get(), part,
+    }));
+    assert!(!receipt.accepted(), "{receipt:?}");
+    assert_eq!(held(&book, sheet, 6, 12), before);
+}

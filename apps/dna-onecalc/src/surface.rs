@@ -32,7 +32,7 @@
 //! onecalc`) sees it.
 
 use crate::grid;
-use crate::port::{Link, LocalLink, LocalPort, Opened, Reply, Request};
+use crate::port::{Link, LoadedAddin, LocalLink, LocalPort, Opened, Reply, Request};
 use crate::session::{AddinRef, Session, SessionOptions};
 use crate::shown::{Authored, Shown, ViewWire};
 use calc_fml::syntax::TextSpan;
@@ -208,13 +208,33 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
         );
     };
 
-    // The registered functions the formula field completes beside the catalogue.
-    let complete_with = Callback::new(move |functions: Vec<String>| {
+    // The registered functions the formula field completes beside the catalogue. An answer names
+    // the version of the table it was calculated with; the functions are asked for once per version.
+    let known_functions = RwSignal::new(0u64);
+    let complete_with = Callback::new(move |docs: crate::port::FunctionDocs| {
+        known_functions.set(docs.version);
         assist.scope().update(|scope| {
-            if scope.functions != functions {
-                scope.functions = functions;
+            if scope.functions != docs.names {
+                scope.functions = docs.names;
+            }
+            if scope.described != docs.docs {
+                scope.described = docs.docs;
             }
         });
+    });
+    let sync_functions = Callback::new(move |version: u64| {
+        if version != known_functions.get_untracked() {
+            // Claim the version at once so that the next answer does not ask again.
+            known_functions.set(version);
+            call(
+                Request::FunctionDocs,
+                Box::new(move |reply| {
+                    if let Reply::FunctionDocs(docs) = reply {
+                        complete_with.run(docs);
+                    }
+                }),
+            );
+        }
     });
     // Each edit sends the authored state and draws the answer. The clock is the page's.
     Effect::new(move |_| {
@@ -225,7 +245,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
             Request::Evaluate(state),
             Box::new(move |reply| {
                 if let Reply::Shown(next) = reply {
-                    complete_with.run(next.functions.clone());
+                    sync_functions.run(next.functions_version);
                     shown.set(*next);
                 }
             }),
@@ -237,6 +257,10 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
     let file_status = RwSignal::new("Start with a formula or try an example.".to_owned());
     let addins = RwSignal::new(Vec::<AddinRef>::new());
     let loaded = RwSignal::new(Vec::<String>::new());
+    let loaded_addins = RwSignal::new(Vec::<LoadedAddin>::new());
+    let addin_status = RwSignal::new(String::new());
+    let addin_path = RwSignal::new(String::new());
+    let addins_open = RwSignal::new(false);
     let baseline = RwSignal::new(Some(initial.clone()));
     let pending = RwSignal::new(None::<Pending>);
     let file_dialog = NodeRef::<leptos::html::Dialog>::new();
@@ -268,10 +292,18 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
         batch(move || {
             baseline.set(Some(state.clone()));
             apply(state);
-            complete_with.run(answer.functions.clone());
+            sync_functions.run(answer.functions_version);
             shown.set(answer);
+            let offered = listed.iter().any(|addin| !running.contains(&addin.path));
             addins.set(listed);
             loaded.set(running);
+            if native && offered {
+                addins_open.set(true);
+                addin_status.set(
+                    "This session lists add-ins that are not loaded. Review them below and load the ones you trust."
+                        .to_owned(),
+                );
+            }
             vba_status.set("No VBA module loaded.".to_owned());
             vba_generation.update(|generation| *generation += 1);
             file_status.set(if name.is_empty() {
@@ -282,6 +314,65 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
             file_name.set(name);
         });
     };
+    // The add-ins: the ones the host has loaded, what the last action said, and the path the
+    // person typed. Loading and unloading changes the functions, so the formula is evaluated again.
+    let on_addins = Callback::new(move |(reply, what): (Reply, String)| match reply {
+        Reply::Addins(list) => {
+            let count = list.len();
+            loaded_addins.set(list);
+            addin_status.set(if what.is_empty() {
+                format!("{count} add-in(s) loaded.")
+            } else {
+                format!("{what} {count} add-in(s) loaded.")
+            });
+            vba_generation.update(|generation| *generation += 1);
+        }
+        Reply::Cancelled => addin_status.set("No add-in chosen; nothing changed.".to_owned()),
+        Reply::Refused { message } => addin_status.set(message),
+        other => addin_status.set(format!("Unexpected answer: {other:?}")),
+    });
+    let load_addin_native = move |_| {
+        call(
+            Request::LoadAddinNative,
+            Box::new(move |reply| on_addins.run((reply, "Loaded.".to_owned()))),
+        );
+    };
+    let load_addin_path = move |_| {
+        let path = addin_path.get_untracked();
+        call(
+            Request::LoadAddin {
+                path: path.clone(),
+                expected_hash: None,
+            },
+            Box::new(move |reply| on_addins.run((reply, format!("Loaded {path}.")))),
+        );
+    };
+    let load_listed = Callback::new(move |listed: AddinRef| {
+        let path = listed.path.clone();
+        call(
+            Request::LoadAddin {
+                path: listed.path,
+                expected_hash: Some(listed.hash),
+            },
+            Box::new(move |reply| on_addins.run((reply, format!("Loaded {path}.")))),
+        );
+    });
+    let unload_addin = Callback::new(move |path: String| {
+        call(
+            Request::UnloadAddin { path: path.clone() },
+            Box::new(move |reply| on_addins.run((reply, format!("Unloaded {path}.")))),
+        );
+    });
+    Effect::new(move |_| {
+        call(
+            Request::Addins,
+            Box::new(move |reply| {
+                if let Reply::Addins(list) = reply {
+                    loaded_addins.set(list);
+                }
+            }),
+        );
+    });
     let on_reply = Callback::new(move |reply: Reply| match reply {
         Reply::Opened(opened) => apply_opened(*opened),
         Reply::NotASession { reason, offer } => file_status.set(format!(
@@ -643,6 +734,38 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
             <p class="oc-sub">
                 "One Excel formula, with the inputs it needs."
             </p>
+            <details class="oc-fixtures" data-onecalc="addin-controls" prop:open=move || addins_open.get() on:toggle=move |ev| addins_open.set(event_target::<web_sys::HtmlElement>(&ev).has_attribute("open"))><summary data-onecalc="addin-tools">"Add-ins · "<span data-onecalc="addin-count">{move || loaded_addins.with(|list| format!("{} loaded", list.len()))}</span></summary>
+                <p>"Excel add-ins (.xll) register worksheet functions the formula can call, with the argument names and help they carry. A saved session lists the add-ins loaded, with the hash of each file; reopening it offers to load them again, and loads nothing by itself."</p>
+                <p data-onecalc="addin-browser-note" hidden=native>"Add-ins load in the desktop app; this page runs without a host that can load them."</p>
+                <div class="oc-session-actions" hidden=!native>
+                    <button data-onecalc="addin-load" on:click=load_addin_native>"Load add-in…"</button>
+                    <input data-onecalc="addin-path" type="text" size="40" placeholder="Path of an .xll file" aria-label="Path of an add-in" prop:value=move || addin_path.get() on:input=move |ev| addin_path.set(event_target_value(&ev))/>
+                    <button data-onecalc="addin-load-path" on:click=load_addin_path>"Load path"</button>
+                </div>
+                <p role="status" data-onecalc="addin-status">{move || addin_status.get()}</p>
+                <ul data-onecalc="addins-loaded">{move || loaded_addins.with(|list| list.iter().map(|addin| {
+                    let path = addin.path.clone();
+                    let functions = if addin.functions.is_empty() { "no worksheet functions".to_owned() } else { addin.functions.join(", ") };
+                    view! {
+                        <li data-onecalc="addin-loaded" data-path=addin.path.clone()>
+                            <strong>{addin.kind.clone()}</strong>" "{addin.path.clone()}" ("{addin.hash.clone()}") - "{functions}" "
+                            <button data-onecalc="addin-unload" on:click=move |_| unload_addin.run(path.clone())>"Unload"</button>
+                        </li>
+                    }
+                }).collect_view())}</ul>
+                <ul data-onecalc="addins-offered">{move || {
+                    let running = loaded_addins.get();
+                    addins.with(|listed| listed.iter().filter(|addin| !running.iter().any(|r| r.path == addin.path)).map(|addin| {
+                        let offered = addin.clone();
+                        view! {
+                            <li data-onecalc="addin-offered" data-path=addin.path.clone()>
+                                {format!("{}: {} ({}) - listed by the session, not loaded ", addin.kind, addin.path, addin.hash)}
+                                <button data-onecalc="addin-load-listed" hidden=!native on:click=move |_| load_listed.run(offered.clone())>"Load"</button>
+                            </li>
+                        }
+                    }).collect_view())
+                }}</ul>
+            </details>
             <details class="oc-fixtures" data-onecalc="file-controls"><summary data-onecalc="file-tools">"Session file · "<span data-onecalc="file-state">{move ||if dirty(){"Unsaved changes"}else{"Unchanged since opened or saved"}}</span></summary>
                 <p>"A session is an Excel workbook (.xlsx) with one sheet, the formula in its cell and the grid's constants. Open one, drop one on this page, or save the session as one; Excel opens it as it is."</p>
                 <div class="oc-session-actions">

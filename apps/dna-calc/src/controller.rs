@@ -2788,7 +2788,35 @@ impl Controller {
                         .iter()
                         .map(|text| text.split(" = ").next().unwrap_or(text).trim().to_owned())
                         .collect();
-                    controller.assist.scope().try_update(|scope| scope.names = names);
+                    // The registered functions complete beside the catalogue, with the argument names
+                    // and help their providers gave.
+                    let described: Vec<calc_fml::CallableDescriptor> = found
+                        .functions
+                        .iter()
+                        .map(|f| calc_fml::CallableDescriptor {
+                            name: f.name.clone(),
+                            origin: f.origin.clone(),
+                            category: f.category.clone(),
+                            description: f.description.clone(),
+                            parameters: f
+                                .parameters
+                                .iter()
+                                .map(|(name, description)| calc_fml::CallableParameter {
+                                    name: name.clone(),
+                                    description: description.clone(),
+                                })
+                                .collect(),
+                            volatile: f.volatile,
+                            thread_safe: f.thread_safe,
+                            asynchronous: f.asynchronous,
+                        })
+                        .collect();
+                    let functions: Vec<String> = described.iter().map(|d| d.name.clone()).collect();
+                    controller.assist.scope().try_update(|scope| {
+                        scope.names = names;
+                        scope.functions = functions;
+                        scope.described = described;
+                    });
                 }
             },
         );

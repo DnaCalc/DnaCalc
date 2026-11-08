@@ -897,6 +897,15 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
             Check::Text("result-value", "2024-01-31"),
         ],
     },
+    Case {
+        name: "add-ins: the panel lists none until one is loaded",
+        actions: &[Action::OpenDetails("addin-controls")],
+        checks: &[
+            Check::Text("addin-count", "0 loaded"),
+            Check::Items("addins-loaded", &[]),
+            Check::Items("addins-offered", &[]),
+        ],
+    },
     // dc-0f1k.9: the page's wasm stack is 8 MiB (xtask's PAGE_STACK_BYTES) and its mount may spend
     // half of it.
     Case {
@@ -976,9 +985,16 @@ pub(crate) const ONECALC_GROUPS: &[CaseGroup] = &[
         setup: &[],
     },
     CaseGroup {
-        name: "stack-margin",
+        name: "addins",
         start: 83,
         end: 84,
+        core: 0,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "stack-margin",
+        start: 84,
+        end: 85,
         core: 1,
         setup: &[],
     },

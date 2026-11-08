@@ -17368,3 +17368,122 @@ fn dc_971p_61__title_family_edit_keeps_rich_theme_fill_without_object_text_defau
     let result=book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::ChartElementTextStyle{sheet,revision:book.host().revision().get(),part:part.into(),target:"title".into(),style:style.clone()}));assert!(result.accepted(),"{result:?}");
     let mut saved=Vec::new();book.save(&SavePolicy::default(),&mut saved).unwrap();let xml=part_text(&saved,part);assert!(xml.contains(fill),"{xml}");assert!(!xml.contains("srgbClr val=\"accent2\""),"{xml}");let reopened=session(&saved);assert_eq!(reopened.host().model().definitions().charts(sheet)[0].element_text["title"],style);
 }
+
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp__multiple_page_items_and_unsupported_compound_filter() {
+    let fixture = include_bytes!("fixtures/ui30/pivots-ui30-excel.xlsx");
+    let part = "xl/pivotTables/pivotTable23.xml";
+    let field = r#"<pivotField axis="axisPage" multipleItemSelectionAllowed="1" showAll="0"><items count="4"><item x="0"/><item x="1"/><item x="2"/><item t="default"/></items></pivotField>"#;
+    let hidden = package_with_part_from(fixture, part, |xml| {
+        assert!(xml.contains(field));
+        xml.replacen(field, &field.replace("<item x=\"1\"/>", "<item x=\"1\" h=\"1\"/>")
+            .replace("<item x=\"2\"/>", "<item x=\"2\" h=\"1\"/>"), 1)
+    });
+    let selected = package_with_part_from(fixture, part, |xml| {
+        let from = r#"<pageField fld="1" hier="-1"/>"#;
+        assert!(xml.contains(from));
+        xml.replacen(from, r#"<pageField fld="1" item="0" hier="-1"/>"#, 1)
+    });
+    let two_visible = package_with_part_from(fixture, part, |xml| {
+        assert!(xml.contains(field));
+        xml.replacen(field, &field.replace("<item x=\"2\"/>", "<item x=\"2\" h=\"1\"/>"), 1)
+    });
+    let selected_beta = package_with_part_from(fixture, part, |xml| {
+        let from = r#"<pageField fld="1" hier="-1"/>"#;
+        assert!(xml.contains(from));
+        xml.replacen(from, r#"<pageField fld="1" item="1" hier="-1"/>"#, 1)
+    });
+    let mut outputs = Vec::new();
+    for bytes in [&hidden, &selected, &two_visible, &selected_beta] {
+        let mut book = session(bytes);
+        let s = sheet(book.host(), "N1");
+        let part = book.host().model().definitions().pivots().sheet(s).unwrap().tables[0].part.clone();
+        let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+            sheet: s, revision: book.host().revision().get(), part,
+        }));
+        assert!(receipt.accepted(), "{receipt:?}");
+        let cells = (5..=20).flat_map(|row| (1..=2).map(move |col| CellKey::new(s, row, col).unwrap()))
+            .map(|cell| match value(book.host(), cell) {
+                ProjectedValue::Literal(v) | ProjectedValue::Calculated { value: v, .. } => Some(v),
+                _ => None,
+            }).collect::<Vec<_>>();
+        outputs.push(cells);
+    }
+    assert_eq!(outputs[0], outputs[1]);
+    let data_rows = |cells: &[Option<CalcValue>]| {
+        let mut rows = std::collections::BTreeMap::new();
+        for pair in cells.chunks_exact(2) {
+            if let Some(value) = &pair[0] {
+                if let calc_value::CoreRef::Number(date) = value.core_ref() {
+                    rows.insert(date.to_bits(), pair[1].clone());
+                }
+            }
+        }
+        rows
+    };
+    let mut union = data_rows(&outputs[1]);
+    for (date, amount) in data_rows(&outputs[3]) { assert!(union.insert(date, amount).is_none()); }
+    assert!(union.len() > 1);
+    assert_eq!(data_rows(&outputs[2]), union);
+    let compound = package_with_part_from(fixture, "xl/pivotTables/pivotTable35.xml", |xml| {
+        let one = r#"<customFilter operator="greaterThan" val="3000"/>"#;
+        assert!(xml.contains(one));
+        xml.replacen(one, &format!("{one}<customFilter operator=\"lessThan\" val=\"4000\"/>"), 1)
+    });
+    let mut book = session(&compound);
+    let s = sheet(book.host(), "N13");
+    let part = book.host().model().definitions().pivots().sheet(s).unwrap().tables[0].part.clone();
+    let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+        sheet: s, revision: book.host().revision().get(), part,
+    }));
+    assert!(!receipt.accepted(), "compound filter must refuse: {receipt:?}");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp__unsupported_date_group_and_out_of_range_source_refuse() {
+    let fixture = include_bytes!("fixtures/ui30/pivots-ui30-excel.xlsx");
+    let changed = package_with_part_from(fixture, "xl/pivotCache/pivotCacheDefinition32.xml", |xml| {
+        assert!(xml.contains("groupBy=\"months\""));
+        xml.replacen("groupBy=\"months\"", "groupBy=\"quarters\"", 1)
+    });
+    for (bytes, change_source) in [(changed.as_slice(), false), (fixture.as_slice(), true)] {
+        let mut book = session(bytes);
+        if change_source {
+            let source = sheet(book.host(), "Source");
+            assert!(book.dispatch(SkinIntent::EnterCell { at: at(source, "C2"), text: "1e300".into() }).accepted());
+        }
+        let s = sheet(book.host(), "N10");
+        let part = book.host().model().definitions().pivots().sheet(s).unwrap().tables[0].part.clone();
+        let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+            sheet: s, revision: book.host().revision().get(), part,
+        }));
+        assert!(!receipt.accepted(), "unsupported grouping must refuse: {receipt:?}");
+    }
+}
+
+/// An unmeasured relative percentage must refuse without replacing the saved output.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_10__percent_of_next_item_refuses() {
+    let bytes = package_with_part_from(
+        include_bytes!("fixtures/pivot/m1-calculation/built.xlsx"),
+        "xl/pivotTables/pivotTable15.xml",
+        |xml| {
+            assert!(xml.contains("baseItem=\"1048828\""));
+            xml.replacen("baseItem=\"1048828\"", "baseItem=\"1048829\"", 1)
+        },
+    );
+    let mut book = session(&bytes);
+    let (s, part) = book.host().model().definitions().pivots().sheets.iter().find_map(|(s, pivots)|
+        pivots.tables.iter().find(|table| table.name == "pvt_show_percentof_previous")
+            .map(|table| (*s, table.part.clone()))).unwrap();
+    let before = book.host().revision();
+    let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+        sheet: s, revision: before.get(), part,
+    }));
+    assert!(!receipt.accepted(), "{receipt:?}");
+    assert_eq!(book.host().revision(), before);
+}

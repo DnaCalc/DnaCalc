@@ -163,10 +163,11 @@ pub struct Shown {
     /// units.
     pub diagnostic_spans: Vec<(usize, usize)>,
     pub reads: Vec<String>,
-    /// The registered functions the session can call (add-ins and a VBA module), which the
-    /// formula field completes beside the catalogue.
+    /// Which table of registered functions (add-ins and a VBA module) the session calls with. The
+    /// functions themselves come once per version, by [`crate::port::Request::FunctionDocs`]: a
+    /// table of thousands of functions is not sent with every answer.
     #[serde(default)]
-    pub functions: Vec<String>,
+    pub functions_version: u64,
 }
 
 impl Shown {
@@ -186,7 +187,7 @@ fn grid_cell(session: &Session, index: usize) -> Option<CellKey> {
 /// Gives the session `authored`, calculates, and says what to show.
 pub fn evaluate(session: &mut Session, authored: &Authored) -> Shown {
     let mut shown = evaluate_authored(session, authored);
-    shown.functions = session.user_function_names();
+    shown.functions_version = session.functions_version();
     shown
 }
 
@@ -395,7 +396,7 @@ fn evaluate_authored(session: &mut Session, authored: &Authored) -> Shown {
             .iter()
             .map(|read| display::read(session, read))
             .collect(),
-        functions: Vec::new(),
+        functions_version: 0,
     }
 }
 

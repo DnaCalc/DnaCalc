@@ -584,6 +584,7 @@ fn register_hidden(
         origin: frame.origin.path.clone(),
         use_count: 1,
         macro_type: 1,
+        docs: Default::default(),
     };
     let cif = crate::invoke::call_interface(&info.signature);
     let registration = Rc::new(Registration {

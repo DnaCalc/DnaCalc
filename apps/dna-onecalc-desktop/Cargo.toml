@@ -15,6 +15,8 @@ portability = "native-only"
 # from calc-platform-desktop; this crate only drives the `Session`.
 [target.'cfg(windows)'.dependencies]
 dna-onecalc = { path = "../dna-onecalc" }
+calc-fml = { path = "../../crates/calc-fml" }
+calc-vba = { path = "../../crates/calc-vba" }
 calc-addin-host = { path = "../../crates/calc-addin-host" }
 calc-platform-desktop = { path = "../../platform/calc-platform-desktop" }
 calc-xll-host = { path = "../../crates/calc-xll-host" }

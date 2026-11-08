@@ -433,6 +433,21 @@ Exact-pointer/same-thread DLLFree ownership and two addresses registered through
 a rewritten export are checked. Native process tests cover 10,000 extra names,
 helper-module ownership, failed-load rollback and refusals that survive handlers.
 
+`Excel12(xlfCall)` and `Excel12(xlfRegisterId)` (dc-gh22) run from an .xll in both hosts. The
+[comparison of 2026-11-08](../../crates/calc-xll-reference/traces/2026-11-08-x1-call/summary.json)
+extends the X1 cases to 289 formulas (Excel 16.0.20527.20150, same fixture binary): every case
+agrees, with the same ordered 599 callback numbers and return codes. Measured rules, all in
+`fixture/x1-cases.json`: both need a macro-equivalent (`#`) registration or xlAutoOpen (a plain
+worksheet function gets return code 2 and #VALUE! in the result); zero CALL arguments or a wrong
+REGISTER.ID count return code 4 and #VALUE!; every other failure is #VALUE! (or #NUM! for an
+out-of-range integer) with return code 0. REGISTER.ID returns the first live registration of the
+module's export (module name case-insensitive, with or without `.dll`; procedure name case-sensitive)
+or registers it when a third argument is present; a text third argument must be valid type text.
+CALL by module, procedure and type text registers an unregistered export too; one UNREGISTER ends
+it. More arguments than the type text declares is #VALUE!, fewer are zero. Integers round half up
+(unsigned types take the absolute value first); strings use the ANSI code page with `?` for
+unmappable characters. Not measured, so refused: types `O`, `P`, `R`.
+
 This establishes X1's own fixture, not Excel-DNA or general XLL compatibility.
 Synchronous entries stay on the main lane; async waits for one completion.
 COM objects, command integration, worker scheduling and complete async lifetime

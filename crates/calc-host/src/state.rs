@@ -230,6 +230,10 @@ impl HostState {
     pub fn user_function_names(&self) -> Vec<String> {
         self.functions.names().map(str::to_owned).collect()
     }
+    /// What the providers of the registered functions (add-ins) documented of them, in name order.
+    pub fn user_function_descriptors(&self) -> Vec<calc_fml::CallableDescriptor> {
+        self.functions.descriptors().cloned().collect()
+    }
     pub fn set_user_functions(&mut self, mut functions: calc_fml::CallableTable) {
         if let Some(route) = &self.fetch_route {
             functions.register_fetch_route(route);

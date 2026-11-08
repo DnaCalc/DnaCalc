@@ -3165,6 +3165,20 @@ impl Server {
             omitted: omitted as u64,
             workbook: self.book.name().to_owned(),
             names,
+            functions: host
+                .user_function_descriptors()
+                .into_iter()
+                .map(|d| wire::FunctionDoc {
+                    name: d.name,
+                    origin: d.origin,
+                    category: d.category,
+                    description: d.description,
+                    parameters: d.parameters.into_iter().map(|p| (p.name, p.description)).collect(),
+                    volatile: d.volatile,
+                    thread_safe: d.thread_safe,
+                    asynchronous: d.asynchronous,
+                })
+                .collect(),
             sheets,
             cells,
         }
@@ -3181,7 +3195,7 @@ impl Server {
             let (source,fields,cache)=match caches.caches.get(&p.cache_id){
                 Some(c)=>{
                     let field=|index:i32|if index==-2{"Values".to_owned()}else{usize::try_from(index).ok().and_then(|i|c.fields.get(i)).map(|f|f.name.clone()).unwrap_or_else(||format!("Field {index} (unread)"))};
-                    let mut fields=Vec::new();if !p.row_fields.is_empty(){fields.push(format!("Rows: {}",p.row_fields.iter().map(|i|field(*i)).collect::<Vec<_>>().join(", ")));}if !p.column_fields.is_empty(){fields.push(format!("Columns: {}",p.column_fields.iter().map(|i|field(*i)).collect::<Vec<_>>().join(", ")));}if !p.page_fields.is_empty(){fields.push(format!("Filters: {}",p.page_fields.iter().map(|i|field(*i as i32)).collect::<Vec<_>>().join(", ")));}if !p.data_fields.is_empty(){fields.push(format!("Values: {}",p.data_fields.iter().map(|v|format!("{} ({})",v.name.clone().unwrap_or_else(||field(v.field as i32)),v.subtotal)).collect::<Vec<_>>().join(", ")));}
+                    let mut fields=Vec::new();if !p.row_fields.is_empty(){fields.push(format!("Rows: {}",p.row_fields.iter().map(|i|field(*i)).collect::<Vec<_>>().join(", ")));}if !p.column_fields.is_empty(){fields.push(format!("Columns: {}",p.column_fields.iter().map(|i|field(*i)).collect::<Vec<_>>().join(", ")));}if !p.page_fields.is_empty(){fields.push(format!("Filters: {}",p.page_fields.iter().map(|i|field(i.field as i32)).collect::<Vec<_>>().join(", ")));}if !p.data_fields.is_empty(){fields.push(format!("Values: {}",p.data_fields.iter().map(|v|format!("{} ({})",v.name.clone().unwrap_or_else(||field(v.field as i32)),v.subtotal)).collect::<Vec<_>>().join(", ")));}
                     let source=if let Some(name)=&c.source_name{format!("Source name: {name}")}else if let (Some(sheet),Some(range))=(&c.source_sheet,&c.source_range){format!("Source: {sheet}!{range}")}else{format!("Saved {} source",c.source_type)};
                     (source,fields.join(" · "),format!("Saved cache {} · {} fields · {} records declared",c.id,c.fields.len(),c.record_count.map(|n|n.to_string()).unwrap_or_else(||"unknown".into())))
                 },None=>{issues.push(format!("{}: cache {} was not read (dc-8wp)",p.name,p.cache_id));("Source unavailable".into(),"Fields unavailable".into(),format!("Saved cache {} is unread",p.cache_id))},
@@ -3457,6 +3471,50 @@ mod fit_tests {
 #[cfg(test)]
 mod outline_tests {
     use super::*;
+    /// The outline reply carries what the registered functions' providers documented, so the formula
+    /// bar completes them and shows their signature and help (dc-0f1k milestone 4).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn the_outline_carries_the_registered_functions_descriptors() {
+        #[derive(Debug)]
+        struct Add;
+        impl calc_fml::UserFunction for Add {
+            fn call(&self, _: &[calc_value::CalcValue]) -> Result<calc_value::CalcValue, String> {
+                Ok(calc_value::CalcValue::number(0.))
+            }
+        }
+        let mut server = Server::new();
+        assert!(server.outline(&[], &[], None, "").functions.is_empty());
+        let mut table = calc_fml::CallableTable::new();
+        table
+            .register_described(
+                None,
+                "MyAdd",
+                std::rc::Rc::new(Add),
+                calc_fml::CallableDescriptor {
+                    name: "MyAdd".into(),
+                    origin: "xll My.xll".into(),
+                    category: "Math".into(),
+                    description: "Adds.".into(),
+                    parameters: vec![calc_fml::CallableParameter {
+                        name: "first".into(),
+                        description: "One.".into(),
+                    }],
+                    thread_safe: true,
+                    ..calc_fml::CallableDescriptor::default()
+                },
+            )
+            .unwrap();
+        server.book.set_user_functions(table);
+        let functions = server.outline(&[], &[], None, "").functions;
+        assert_eq!(functions.len(), 1);
+        let function = &functions[0];
+        assert_eq!((function.name.as_str(), function.origin.as_str()), ("MyAdd", "xll My.xll"));
+        assert_eq!((function.category.as_str(), function.description.as_str()), ("Math", "Adds."));
+        assert_eq!(function.parameters, [("first".to_owned(), "One.".to_owned())]);
+        assert!(function.thread_safe && !function.volatile && !function.asynchronous);
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn outline_search_reveal_and_spill_windows_use_the_application_server() {

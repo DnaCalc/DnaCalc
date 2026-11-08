@@ -9,28 +9,38 @@ pub fn layout(table: &PivotTable, cache: &PivotCache) -> Result<PivotLayout, Piv
         .snapshot
         .as_ref()
         .ok_or_else(|| bad("No explicit source refresh has run"))?;
-    if snapshot.numeric != NumericMode::Fast {
-        return Err(bad("Exact pivot aggregation needs Excel measurements"));
+    if table.fields.iter().any(|field| field.attributes.iter().any(|(name, value)|
+        name.ends_with("Subtotal") && name != "defaultSubtotal" && truthy(Some(value), false))) {
+        return Err(bad("Custom subtotals are not modelled"));
     }
     if !table.unsupported.is_empty() || !cache.unsupported.is_empty() {
         return Err(bad(
             "Grouped, calculated, filtered or extended pivot layouts are not modelled",
         ));
     }
-    if table.row_fields.len() == 1
-        && table.column_fields.len() == 1
-        && (table.column_fields[0] == -2) == (table.data_fields.len() > 1)
-        && !table.data_fields.is_empty()
-    {
-        return layout_matrix(table, cache, snapshot);
+    if !table.filters.is_empty() && (table.filters.len() != 1 || table.row_fields.len() != 1
+        || !table.column_fields.is_empty() || table.data_fields.len() != 1
+        || table.filters[0].field as i32 != table.row_fields[0] || table.filters[0].measure != 0
+        || table.page_fields.iter().any(|page| page.field as i32 == table.row_fields[0])) {
+        return Err(bad("This pivot value filter layout is not modelled"));
     }
-    if !table.row_fields.is_empty()
-        && table.column_fields.is_empty()
-        && table.data_fields.len() == 1
-    {
-        return layout_rows(table, cache, snapshot);
+    let mut layout = if !table.row_fields.is_empty() && !table.column_fields.is_empty() && !table.data_fields.is_empty() {
+        layout_columns(table, cache, snapshot)?
+    } else if !table.row_fields.is_empty() && table.column_fields.is_empty() && table.data_fields.len() == 1 {
+        layout_rows(table, cache, snapshot)?
+    } else {
+        return Err(bad("This pivot axis layout is not modelled"));
+    };
+    if truthy(table.attributes.get("showError"), false) {
+        let caption = table.attributes.get("errorCaption")
+            .ok_or_else(|| bad("An error caption is required for this display setting"))?;
+        for value in layout.cells.values_mut() {
+            if matches!(value.core_ref(), calc_value::CoreRef::Error(_)) {
+                *value = CalcValue::text(ExcelText::from_utf16_code_units(caption.encode_utf16().collect()));
+            }
+        }
     }
-    Err(bad("This pivot axis layout is not modelled"))
+    Ok(layout)
 }
 
 pub(super) fn truthy(value: Option<&String>, default: bool) -> bool {
@@ -86,7 +96,7 @@ fn layout_rows(
     }
     if !matches!(
         data.subtotal.as_str(),
-        "sum" | "count" | "countNums" | "min" | "max" | "average"
+        "sum" | "count" | "countNums" | "min" | "max" | "average" | "product" | "stdDev" | "stdDevp" | "var" | "varp"
     ) || data
         .attributes
         .get("showDataAs")
@@ -115,6 +125,10 @@ fn layout_rows(
         .collect();
     if depth == 2 && subtotal_on.iter().any(|on| !on) {
         return Err(bad("Row fields without a subtotal remain unmeasured"));
+    }
+    let blank_after: Vec<bool> = fields.iter().map(|f| flag(f, "insertBlankRow", false)).collect();
+    if (depth == 1 && blank_after[0]) || (1..depth.saturating_sub(1)).any(|level| blank_after[level]) {
+        return Err(bad("Blank rows at this field depth are not modelled"));
     }
     let form = if flag(fields[0], "compact", true) {
         Form::Compact
@@ -149,11 +163,12 @@ fn layout_rows(
     let mut totals: Vec<BTreeMap<Vec<usize>, Total>> = (0..depth).map(|_| BTreeMap::new()).collect();
     let mut grand_total = Total::default();
     for record in &snapshot.records {
+        if !page_allows(table, cache, record)? { continue; }
         let mut path = Vec::with_capacity(depth);
         for (level, &field) in rows.iter().enumerate() {
             path.push(find(level, resolve(cache, record, field)?)?);
         }
-        if path.iter().enumerate().any(|(l, &g)| levels[l][g].hidden) {
+        if path.iter().enumerate().any(|(l, &g)| levels[l][g].hidden || levels[l][g].excluded) {
             continue;
         }
         let value = resolve(cache, record, measure)?;
@@ -161,6 +176,12 @@ fn layout_rows(
             totals.entry(path[..=k].to_vec()).or_default().push(value)?;
         }
         grand_total.push(value)?;
+    }
+    if !grand_total.supports(&data.subtotal) || totals.iter().any(|level|
+        level.values().any(|total| !total.supports(&data.subtotal))) || (depth > 1 &&
+        (!grand_total.supports_grouped_product(&data.subtotal) || totals.iter().any(|level|
+            level.values().any(|total| !total.supports_grouped_product(&data.subtotal))))) {
+        return Err(bad("This numeric input for the value function is not modelled"));
     }
     let mut position = Vec::new();
     for groups in &levels {
@@ -208,6 +229,7 @@ fn layout_rows(
         form,
         subtotal_top,
         subtotal_on: &subtotal_on,
+        blank_after: &blank_after,
         fill_down,
         kind,
         value_column,
@@ -215,6 +237,8 @@ fn layout_rows(
         printed: 0,
         cells,
         axis,
+        row_paths: Vec::new(),
+        collect_paths: false,
     };
     walk.visit(&mut Vec::new())?;
     let mut r = walk.r;
@@ -276,330 +300,6 @@ fn layout_rows(
     // Every cell of the output rectangle is pivot-owned, the blank ones included.
     for row in 0..r {
         for column in 0..=value_column {
-            cells.entry((row, column)).or_insert_with(CalcValue::empty);
-        }
-    }
-    let cells = cells
-        .into_iter()
-        .map(|((row, column), value)| {
-            (
-                CellKey::new(first.sheet(), first.row() + row, first.column() + column)
-                    .expect("validated pivot bounds"),
-                value,
-            )
-        })
-        .collect();
-    page_field_items(table, cache, snapshot, measure, &mut next)?;
-    Ok(PivotLayout { table: next, cells })
-}
-
-/// One row field with either one column field and one value field, or several value fields
-/// placed across the columns (the Values pseudo-field, field -2). UI28 P5, P7 and P13 (Excel
-/// 16.0.20527). Page fields, two or more column fields and column subtotals remain unmeasured.
-fn layout_matrix(
-    table: &PivotTable,
-    cache: &PivotCache,
-    snapshot: &PivotSnapshot,
-) -> Result<PivotLayout, PivotIssue> {
-    let bad = |why: &str| refusal(&table.part, why);
-    let row = usize::try_from(table.row_fields[0]).map_err(|_| bad("The row field is invalid"))?;
-    let values_across = table.column_fields == [-2];
-    let col = if values_across {
-        None
-    } else {
-        Some(usize::try_from(table.column_fields[0]).map_err(|_| bad("The column field is invalid"))?)
-    };
-    if table.data_fields.iter().any(|d| {
-        !matches!(
-            d.subtotal.as_str(),
-            "sum" | "count" | "countNums" | "min" | "max" | "average"
-        ) || d.attributes.get("showDataAs").is_some_and(|x| {
-            x != "normal" && !(x == "percentOfCol" && !values_across)
-        }) || d.field as usize >= cache.fields.len()
-    }) || (values_across != (table.data_fields.len() > 1))
-        || row >= cache.fields.len()
-        || col.is_some_and(|c| c >= cache.fields.len() || c == row)
-        || table.fields.len() != cache.fields.len()
-    {
-        return Err(bad("This pivot layout or value aggregation is not modelled"));
-    }
-    let measure = table.data_fields[0].field as usize;
-    let row_field = &table.fields[row];
-    if !truthy(row_field.attributes.get("defaultSubtotal"), true) {
-        return Err(bad("Row fields without a subtotal remain unmeasured"));
-    }
-    let rows = field_groups(table, cache, snapshot, row, measure)?;
-    let cols = match col {
-        Some(c) => field_groups(table, cache, snapshot, c, measure)?,
-        None => Vec::new(),
-    };
-    let find = |groups: &[Group], key: &PivotItem| -> Result<usize, PivotIssue> {
-        groups
-            .iter()
-            .position(|g| compare(&g.key, key) == Some(Ordering::Equal))
-            .ok_or_else(|| bad("A source label is missing from its field"))
-    };
-    let mut cell_totals = BTreeMap::<(usize, usize), Total>::new();
-    let mut row_totals = BTreeMap::<usize, Total>::new();
-    let mut col_totals = BTreeMap::<usize, Total>::new();
-    let mut grand_total = Total::default();
-    let mut value_rows = BTreeMap::<usize, Vec<Total>>::new();
-    let mut value_grand: Vec<Total> = table.data_fields.iter().map(|_| Total::default()).collect();
-    for record in &snapshot.records {
-        let g = find(&rows, resolve(cache, record, row)?)?;
-        if rows[g].hidden {
-            continue;
-        }
-        if let Some(c) = col {
-            let h = find(&cols, resolve(cache, record, c)?)?;
-            if cols[h].hidden {
-                continue;
-            }
-            let value = resolve(cache, record, measure)?;
-            cell_totals.entry((g, h)).or_default().push(value)?;
-            row_totals.entry(g).or_default().push(value)?;
-            col_totals.entry(h).or_default().push(value)?;
-            grand_total.push(value)?;
-        } else {
-            let totals = value_rows
-                .entry(g)
-                .or_insert_with(|| table.data_fields.iter().map(|_| Total::default()).collect());
-            for (k, d) in table.data_fields.iter().enumerate() {
-                let value = resolve(cache, record, d.field as usize)?;
-                totals[k].push(value)?;
-                value_grand[k].push(value)?;
-            }
-        }
-    }
-    let position = |groups: &[Group]| {
-        let mut next = 0u32;
-        groups
-            .iter()
-            .map(|g| {
-                if g.hidden {
-                    None
-                } else {
-                    next += 1;
-                    Some(next - 1)
-                }
-            })
-            .collect::<Vec<_>>()
-    };
-    let row_position = position(&rows);
-    let col_position = position(&cols);
-    let visible_cols = cols
-        .iter()
-        .enumerate()
-        .filter(|(h, _)| !cols[*h].hidden && col_totals.contains_key(h))
-        .map(|(h, _)| h)
-        .collect::<Vec<_>>();
-    let text =
-        |s: &str| CalcValue::text(ExcelText::from_utf16_code_units(s.encode_utf16().collect()));
-    let row_grand = truthy(table.attributes.get("colGrandTotals"), true);
-    let col_grand = truthy(table.attributes.get("rowGrandTotals"), true) && !values_across;
-    let compact = truthy(table.attributes.get("compact"), true);
-    let caption = |d: &PivotDataField| {
-        d.name
-            .clone()
-            .unwrap_or_else(|| cache.fields[d.field as usize].name.clone())
-    };
-    let header_rows = if values_across { 1u32 } else { 2 };
-    let mut cells = BTreeMap::<(u32, u32), CalcValue>::new();
-    let row_caption = if compact {
-        table
-            .attributes
-            .get("rowHeaderCaption")
-            .cloned()
-            .unwrap_or_else(|| "Row Labels".into())
-    } else {
-        cache.fields[row].name.clone()
-    };
-    let grand_caption = table
-        .attributes
-        .get("grandTotalCaption")
-        .cloned()
-        .unwrap_or_else(|| "Grand Total".into());
-    let label = |group: &Group| -> Result<CalcValue, PivotIssue> {
-        if group.key == PivotItem::Missing {
-            Ok(text("(blank)"))
-        } else {
-            item_value(&group.key)
-        }
-    };
-    let mut col_items = Vec::<PivotAxisItem>::new();
-    let kind = table.data_fields[0].subtotal.as_str();
-    let percent = table.data_fields[0].attributes.get("showDataAs")
-        .is_some_and(|v| v == "percentOfCol");
-    if percent && (visible_cols.iter().any(|h| !matches!(
-        col_totals[h].result(kind).core_ref(), calc_value::CoreRef::Number(n) if n != 0.0
-    )) || (col_grand && !matches!(
-        grand_total.result(kind).core_ref(), calc_value::CoreRef::Number(n) if n != 0.0
-    )) || cell_totals.values().chain(row_totals.values()).any(|total| matches!(
-        total.result(kind).core_ref(), calc_value::CoreRef::Error(_)
-    ))) {
-        return Err(bad("Percent of column with zero or error totals is not modelled"));
-    }
-    let result = |value: &Total, denominator: &Total| {
-        let value = value.result(kind);
-        if !percent { return value; }
-        let divisor = denominator.result(kind);
-        match (value.core_ref(), divisor.core_ref()) {
-            (calc_value::CoreRef::Empty, _) => CalcValue::empty(),
-            (calc_value::CoreRef::Error(e), _) | (_, calc_value::CoreRef::Error(e)) => CalcValue::error(e),
-            (calc_value::CoreRef::Number(_), calc_value::CoreRef::Number(0.0)) => CalcValue::error(WorksheetErrorCode::Div0),
-            (calc_value::CoreRef::Number(n), calc_value::CoreRef::Number(d)) => {
-                let ratio = n / d;
-                if ratio.is_finite() { CalcValue::number(ratio) } else { CalcValue::error(WorksheetErrorCode::Num) }
-            },
-            _ => CalcValue::empty(),
-        }
-    };
-    if values_across {
-        cells.insert((0, 0), text(&row_caption));
-        for (k, d) in table.data_fields.iter().enumerate() {
-            cells.insert((0, 1 + k as u32), text(&caption(d)));
-            col_items.push(PivotAxisItem {
-                kind: "data".into(),
-                data_index: k as u32,
-                indexes: vec![k as u32],
-                ..Default::default()
-            });
-        }
-    } else {
-        cells.insert((0, 0), text(&caption(&table.data_fields[0])));
-        let column_caption = table
-            .attributes
-            .get("colHeaderCaption")
-            .cloned()
-            .unwrap_or_else(|| if compact { "Column Labels".into() } else { cache.fields[col.unwrap()].name.clone() });
-        cells.insert((0, 1), text(&column_caption));
-        cells.insert((1, 0), text(&row_caption));
-        for (n, &h) in visible_cols.iter().enumerate() {
-            cells.insert((1, 1 + n as u32), label(&cols[h])?);
-            col_items.push(PivotAxisItem {
-                kind: "data".into(),
-                indexes: vec![col_position[h].expect("visible group")],
-                ..Default::default()
-            });
-        }
-        if col_grand {
-            cells.insert((1, 1 + visible_cols.len() as u32), text(&grand_caption));
-            col_items.push(PivotAxisItem {
-                kind: "grand".into(),
-                indexes: vec![0],
-                ..Default::default()
-            });
-        }
-    }
-    let mut axis = Vec::<PivotAxisItem>::new();
-    let mut r = header_rows;
-    for (g, group) in rows.iter().enumerate().filter(|(_, g)| !g.hidden) {
-        if col.is_some() && !row_totals.contains_key(&g) || col.is_none() && !value_rows.contains_key(&g) {
-            continue;
-        }
-        cells.insert((r, 0), label(group)?);
-        if col.is_some() {
-            for (n, &h) in visible_cols.iter().enumerate() {
-                if let Some(t) = cell_totals.get(&(g, h)) {
-                    cells.insert((r, 1 + n as u32), result(t, &col_totals[&h]));
-                } else if percent {
-                    cells.insert((r, 1 + n as u32), CalcValue::number(0.));
-                }
-            }
-            if col_grand {
-                cells.insert((r, 1 + visible_cols.len() as u32), result(&row_totals[&g], &grand_total));
-            }
-        } else {
-            for (k, d) in table.data_fields.iter().enumerate() {
-                cells.insert((r, 1 + k as u32), value_rows[&g][k].result(&d.subtotal));
-            }
-        }
-        axis.push(PivotAxisItem {
-            kind: "data".into(),
-            indexes: vec![row_position[g].expect("visible group")],
-            ..Default::default()
-        });
-        r += 1;
-    }
-    if row_grand {
-        cells.insert((r, 0), text(&grand_caption));
-        if col.is_some() {
-            for (n, &h) in visible_cols.iter().enumerate() {
-                cells.insert((r, 1 + n as u32), result(&col_totals[&h], &col_totals[&h]));
-            }
-            if col_grand {
-                cells.insert((r, 1 + visible_cols.len() as u32), result(&grand_total, &grand_total));
-            }
-        } else {
-            for (k, d) in table.data_fields.iter().enumerate() {
-                cells.insert((r, 1 + k as u32), value_grand[k].result(&d.subtotal));
-            }
-        }
-        axis.push(PivotAxisItem {
-            kind: "grand".into(),
-            indexes: vec![0],
-            ..Default::default()
-        });
-        r += 1;
-    }
-    let value_columns = if values_across {
-        table.data_fields.len() as u32
-    } else {
-        visible_cols.len() as u32 + u32::from(col_grand)
-    };
-    let first = table.area.first();
-    let last = CellKey::new(
-        first.sheet(),
-        first
-            .row()
-            .checked_add(r - 1)
-            .ok_or_else(|| bad("Pivot output exceeds the worksheet"))?,
-        first
-            .column()
-            .checked_add(value_columns)
-            .ok_or_else(|| bad("Pivot output exceeds the worksheet"))?,
-    )
-    .map_err(|_| bad("Pivot output exceeds the worksheet"))?;
-    let mut next = table.clone();
-    next.area = GridArea::new(first, last).map_err(|_| bad("Invalid pivot output area"))?;
-    next.location.insert(
-        "firstHeaderRow".into(),
-        if values_across { "0" } else { "1" }.into(),
-    );
-    next.location.insert(
-        "firstDataRow".into(),
-        if values_across { "1" } else { "2" }.into(),
-    );
-    next.location.insert("firstDataCol".into(), "1".into());
-    let rebuild = |field: usize, groups: &[Group], positions: &[Option<u32>]| {
-        let mut items = Vec::new();
-        for (i, group) in groups.iter().enumerate() {
-            if positions[i].is_some() {
-                items.push(PivotFieldItem {
-                    index: Some(group.shared),
-                    kind: "data".into(),
-                    hidden: false,
-                });
-            }
-        }
-        for old in table.fields[field].items.iter().filter(|i| i.hidden) {
-            items.push(old.clone());
-        }
-        items.push(PivotFieldItem {
-            index: None,
-            kind: "default".into(),
-            hidden: false,
-        });
-        items
-    };
-    next.fields[row].items = rebuild(row, &rows, &row_position);
-    if let Some(c) = col {
-        next.fields[c].items = rebuild(c, &cols, &col_position);
-    }
-    next.row_items = axis;
-    next.col_items = col_items;
-    for row in 0..r {
-        for column in 0..=value_columns {
             cells.entry((row, column)).or_insert_with(CalcValue::empty);
         }
     }

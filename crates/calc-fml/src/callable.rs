@@ -52,6 +52,61 @@ impl CallableBindings {
     }
 }
 
+/// One parameter of a registered function, as its provider documented it.
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct CallableParameter {
+    pub name: String,
+    /// What the argument is for; empty when the provider gave no text.
+    pub description: String,
+}
+
+/// What a person sees of a registered function: the descriptor a provider (an .xll add-in's
+/// `xlfRegister` call, a VBA module) gives its callable, so completion, signature help and function
+/// help can show it beside the catalogue's own functions. Nothing here affects a call.
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct CallableDescriptor {
+    /// The name as the provider spelled it.
+    pub name: String,
+    /// Where it comes from, for people: `xll Name.xll`, `VBA module Module1`.
+    pub origin: String,
+    pub category: String,
+    pub description: String,
+    pub parameters: Vec<CallableParameter>,
+    pub volatile: bool,
+    pub thread_safe: bool,
+    pub asynchronous: bool,
+}
+
+impl CallableDescriptor {
+    /// `Name(first, second)`: the signature line signature help and the popup show.
+    pub fn signature(&self) -> String {
+        let names: Vec<&str> = self.parameters.iter().map(|p| p.name.as_str()).collect();
+        format!("{}({})", self.name, names.join(", "))
+    }
+
+    /// The signature split around the parameter at `active`: the text before it, the parameter and
+    /// the rest. An `active` past the last parameter marks none (the last parameter does not repeat).
+    pub fn signature_pieces(&self, active: usize) -> (String, String, String) {
+        let mut before = format!("{}(", self.name);
+        let (mut current, mut after) = (String::new(), String::new());
+        for (index, parameter) in self.parameters.iter().enumerate() {
+            let separator = if index > 0 { ", " } else { "" };
+            if index < active {
+                before.push_str(separator);
+                before.push_str(&parameter.name);
+            } else if index == active {
+                before.push_str(separator);
+                current = parameter.name.clone();
+            } else {
+                after.push_str(separator);
+                after.push_str(&parameter.name);
+            }
+        }
+        after.push(')');
+        (before, current, after)
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct CallableTable {
     identity: u64,
@@ -59,6 +114,7 @@ pub struct CallableTable {
     slots: Vec<Option<Rc<dyn UserFunction>>>,
     generations: Vec<u64>,
     lineage: Rc<std::cell::RefCell<Vec<u64>>>,
+    descriptors: BTreeMap<(Option<String>, String), CallableDescriptor>,
 }
 impl Default for CallableTable {
     fn default() -> Self {
@@ -76,6 +132,7 @@ impl Default for CallableTable {
             slots: Vec::new(),
             generations: Vec::new(),
             lineage: Rc::default(),
+            descriptors: BTreeMap::new(),
         }
     }
 }
@@ -189,6 +246,7 @@ impl CallableTable {
             }
         }
         self.entries = entries;
+        self.descriptors = replacement.descriptors;
     }
 
     fn next_generation(&self, slot: usize) -> u64 {
@@ -245,6 +303,49 @@ impl CallableTable {
             },
         );
         Ok(())
+    }
+
+    /// [`Self::register_for`] with the descriptor people see (completion, signature help, help).
+    pub fn register_described(
+        &mut self,
+        provider: Option<&str>,
+        name: &str,
+        function: Rc<dyn UserFunction>,
+        descriptor: CallableDescriptor,
+    ) -> Result<(), String> {
+        self.register_for(provider, name, function)?;
+        self.descriptors
+            .insert(Self::key(provider, name), descriptor);
+        Ok(())
+    }
+
+    /// Gives a registered callable its descriptor (replacing one it had). `false` when nothing is
+    /// registered there.
+    pub fn describe(
+        &mut self,
+        provider: Option<&str>,
+        name: &str,
+        descriptor: CallableDescriptor,
+    ) -> bool {
+        let key = Self::key(provider, name);
+        if !self.entries.contains_key(&key) {
+            return false;
+        }
+        self.descriptors.insert(key, descriptor);
+        true
+    }
+
+    /// The descriptor of a registered callable, when its provider gave one.
+    pub fn descriptor(&self, provider: Option<&str>, name: &str) -> Option<&CallableDescriptor> {
+        self.descriptors.get(&Self::key(provider, name))
+    }
+
+    /// Every descriptor of the workbook's own registrations (no external provider), in name order.
+    pub fn descriptors(&self) -> impl Iterator<Item = &CallableDescriptor> {
+        self.descriptors
+            .iter()
+            .filter(|((provider, _), _)| provider.is_none())
+            .map(|(_, descriptor)| descriptor)
     }
 
     pub fn contains(&self, name: &str) -> bool {

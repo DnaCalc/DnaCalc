@@ -112,13 +112,14 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<Pivo
             "Refresh exceeds its budget of 100,000 source records or 1,000,000 source cells",
         ));
     }
-    if area.column_count() as usize != cache.fields.len() {
-        return Err(fail(
-            "The source column count changed; field remapping is not modelled",
-        ));
+    let source_count = cache.fields.iter().take_while(|field|
+        !matches!(field.attributes.get("databaseField").map(String::as_str), Some("0" | "false"))).count();
+    if area.column_count() as usize != source_count || cache.fields[source_count..].iter().any(|field|
+        !matches!(field.attributes.get("databaseField").map(String::as_str), Some("0" | "false"))) {
+        return Err(fail("The source column count or grouped-field order changed"));
     }
     let headers = read_row(host, area, area.first().row())?;
-    for (header, field) in headers.iter().zip(&cache.fields) {
+    for (header, field) in headers.iter().zip(&cache.fields[..source_count]) {
         let CoreRef::Text(text) = header.core_ref() else {
             return Err(fail("Every source column needs a text header"));
         };
@@ -154,6 +155,47 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<Pivo
             });
             record.push(PivotItem::Index(index));
         }
+        for field in &cache.fields[source_count..] {
+            let group = field.group.as_ref().ok_or_else(|| fail("A grouped cache field is missing its definition"))?;
+            let base = group.attributes.get("base").and_then(|v| v.parse::<usize>().ok())
+                .filter(|i| *i < source_count).ok_or_else(|| fail("Invalid grouped source field"))?;
+            let range = group.range.as_ref().ok_or_else(|| fail("A grouped date range is unavailable"))?;
+            let date = match values[base].core_ref() {
+                CoreRef::Number(n) if n.is_finite() => n,
+                _ => return Err(fail("Grouping nonnumeric date values is not modelled")),
+            };
+            let system = if host.declared_date1904() { calc_func::locale::DateSystem::System1904 }
+                else { calc_func::locale::DateSystem::System1900 };
+            let bound = |name: &str| -> Result<f64, String> {
+                let date = range.get(name).ok_or_else(|| fail("Missing grouping bound"))?;
+                if !date.split('-').next().and_then(|v| v.parse::<i64>().ok())
+                    .is_some_and(|year| (1900..=9999).contains(&year)) {
+                    return Err(fail("Invalid grouping year"));
+                }
+                let serial = PivotItem::Date(date.clone()).date_serial()
+                    .ok_or_else(|| fail("Invalid grouping bound"))?;
+                Ok(if host.declared_date1904() { serial - 1462.0 } else { serial })
+            };
+            let start = bound("startDate")?;
+            let end = bound("endDate")?;
+            if start > end || date < start || date > end {
+                return Err(fail("Dates outside the saved grouping range are not modelled"));
+            }
+            let (year, month, _) = calc_func::locale::ymd_from_excel_serial(system, date)
+                .ok_or_else(|| fail("Invalid grouped date"))?;
+            let index = match range.get("groupBy").map(String::as_str) {
+                Some("months") => usize::try_from(month).ok(),
+                Some("quarters") => usize::try_from((month - 1) / 3 + 1).ok(),
+                Some("years") => {
+                    let start = range.get("startDate").and_then(|v| v.split('-').next())
+                        .and_then(|v| v.parse::<i64>().ok()).ok_or_else(|| fail("Invalid grouping year"))?;
+                    usize::try_from(year - start + 1).ok()
+                }
+                _ => None,
+            }.filter(|i| *i > 0 && *i + 1 < field.items.len())
+                .ok_or_else(|| fail("The grouped date is outside its saved items"))?;
+            record.push(PivotItem::Index(index as u32));
+        }
         records.push(record);
     }
     if cache.fields.iter().map(|f| f.items.len()).sum::<usize>() > 100_000 {
@@ -161,7 +203,7 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<Pivo
             "Refreshed shared items exceed the cache reader budget of 100,000",
         ));
     }
-    for field in &mut cache.fields {
+    for field in &mut cache.fields[..source_count] {
         field.shared_items = Some(field.items.len() as u32);
     }
     cache.record_count = Some(records.len() as u64);
@@ -346,11 +388,11 @@ pub(crate) fn prepare_create(host:&HostState,revision:u64,source:GridArea,destin
     let name=(1u32..).map(|i|format!("PivotTable{i}")).find(|name|!before.tables().any(|t|t.name.eq_ignore_ascii_case(name))&&!host.model().definitions().tables().iter().any(|t|t.name.eq_ignore_ascii_case(name))).ok_or_else(||fail("Pivot table names are exhausted"))?;
     let sheet_name=host.model().sheet_by_id(source.sheet()).ok_or_else(||fail("The source worksheet is unavailable"))?.name().text().to_string_lossy();
     let source_range=format!("{}:{}",crate::chart::cell_a1(source.first()),crate::chart::cell_a1(source.last()));
-    let cache=PivotCache{id:cache_id,part:cache_part,records_part:Some(records_part),record_count:Some(0),source_type:"worksheet".into(),source_sheet:Some(sheet_name),source_range:Some(source_range),source_name:None,fields:names.iter().map(|name|PivotCacheField{name:name.clone(),shared_items:Some(0),items:Vec::new(),attributes:BTreeMap::from([("name".into(),name.clone()),("numFmtId".into(),"0".into())])}).collect(),attributes:BTreeMap::new(),unsupported:Vec::new(),snapshot:None};
+    let cache=PivotCache{id:cache_id,part:cache_part,records_part:Some(records_part),record_count:Some(0),source_type:"worksheet".into(),source_sheet:Some(sheet_name),source_range:Some(source_range),source_name:None,fields:names.iter().map(|name|PivotCacheField{name:name.clone(),shared_items:Some(0),group:None,items:Vec::new(),attributes:BTreeMap::from([("name".into(),name.clone()),("numFmtId".into(),"0".into())])}).collect(),attributes:BTreeMap::new(),unsupported:Vec::new(),snapshot:None};
     let cache=Arc::new(snapshot(host,&cache,source)?);
     let fields=(0..names.len()).map(|i|{let mut attributes=BTreeMap::from([("showAll".into(),"0".into())]);if i==row as usize{attributes.insert("axis".into(),"axisRow".into());}if i==value as usize{attributes.insert("dataField".into(),"1".into());}PivotField{attributes,items:Vec::new()}}).collect();
     let caption=format!("{operation} of {}",names[value as usize]);let data=PivotDataField{name:Some(caption.clone()),field:value,subtotal:subtotal.into(),attributes:BTreeMap::from([("name".into(),caption),("fld".into(),value.to_string()),("subtotal".into(),subtotal.into())])};
-    let table=PivotTable{name:name.clone(),part,cache_id,area:GridArea::cell(destination),row_fields:vec![row as i32],column_fields:Vec::new(),page_fields:Vec::new(),data_fields:vec![data],attributes:BTreeMap::from([("name".into(),name),("cacheId".into(),cache_id.to_string()),("dataCaption".into(),"Values".into()),("compact".into(),"1".into()),("outline".into(),"0".into()),("rowGrandTotals".into(),"1".into()),("colGrandTotals".into(),"1".into())]),location:BTreeMap::from([("firstHeaderRow".into(),"1".into()),("firstDataRow".into(),"1".into()),("firstDataCol".into(),"1".into())]),fields,col_items:Vec::new(),row_items:Vec::new(),unsupported:Vec::new()};
+    let table=PivotTable{name:name.clone(),part,cache_id,area:GridArea::cell(destination),row_fields:vec![row as i32],column_fields:Vec::new(),page_fields:Vec::new(),filters:Vec::new(),data_fields:vec![data],attributes:BTreeMap::from([("name".into(),name),("cacheId".into(),cache_id.to_string()),("dataCaption".into(),"Values".into()),("compact".into(),"1".into()),("outline".into(),"0".into()),("rowGrandTotals".into(),"1".into()),("colGrandTotals".into(),"1".into())]),location:BTreeMap::from([("firstHeaderRow".into(),"1".into()),("firstDataRow".into(),"1".into()),("firstDataCol".into(),"1".into())]),fields,col_items:Vec::new(),row_items:Vec::new(),unsupported:Vec::new()};
     let table=calc_engine::pivot::layout(&table,&cache).map_err(|e|fail(e.detail))?.table;
     let mut after=(**before).clone();after.caches.caches.insert(cache_id,cache);after.sheets.entry(destination.sheet()).or_default().tables.push(table);
     preflight_output(host,before,&after,source,cache_id)?;host.loaded().check_pivot_state(&after).map_err(|e|e.to_string())?;

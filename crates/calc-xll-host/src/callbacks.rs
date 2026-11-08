@@ -944,6 +944,38 @@ fn worksheet_value(name: &str, values: &[CalcValue]) -> Result<CalcValue, String
     .map_err(|e| format!("dc-snz.20: worksheet callback {name}: {e:?}"))
 }
 
+/// The text of an optional `xlfRegister` argument: empty when the add-in left it out, passed
+/// something that is not text, or gave a number (a category may be one; it is kept as written).
+fn optional_text(value: Option<&CalcValue>) -> String {
+    match value.map(CalcValue::core_ref) {
+        Some(CoreRef::Text(t)) => String::from_utf16_lossy(t.utf16_code_units()),
+        Some(CoreRef::Number(n)) => n.to_string(),
+        _ => String::new(),
+    }
+}
+
+/// The documentation arguments of `xlfRegister`: argument names (5th), category (7th), shortcut
+/// (8th), help topic (9th), function help (10th) and one help text per argument (11th on).
+fn registration_docs(values: &[CalcValue]) -> crate::native::RegistrationDocs {
+    let names = optional_text(values.get(4));
+    crate::native::RegistrationDocs {
+        argument_names: if names.trim().is_empty() {
+            Vec::new()
+        } else {
+            names.split(',').map(|n| n.trim().to_owned()).collect()
+        },
+        category: optional_text(values.get(6)),
+        shortcut: optional_text(values.get(7)),
+        help_topic: optional_text(values.get(8)),
+        function_help: optional_text(values.get(9)),
+        argument_help: values
+            .iter()
+            .skip(10)
+            .map(|value| optional_text(Some(value)))
+            .collect(),
+    }
+}
+
 fn register(frame: &mut Frame<'_>, values: &[CalcValue]) -> Result<CalcValue, (i32, String)> {
     if values.len() < 4 {
         return Err((INVALID_COUNT, "xlfRegister requires four arguments".into()));
@@ -1023,6 +1055,7 @@ fn register(frame: &mut Frame<'_>, values: &[CalcValue]) -> Result<CalcValue, (i
             origin: frame.module.path.clone(),
             use_count: 1,
             macro_type,
+            docs: registration_docs(values),
         };
         let cif = crate::invoke::call_interface(&info.signature);
         state.registrations.insert(
@@ -1044,6 +1077,67 @@ fn register(frame: &mut Frame<'_>, values: &[CalcValue]) -> Result<CalcValue, (i
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn text_value(text: &str) -> CalcValue {
+        CalcValue::text(ExcelText::from_utf16_code_units(text.encode_utf16().collect::<Vec<_>>()))
+    }
+
+    /// Native-only (shares the module's native tests): the documentation arguments of xlfRegister
+    /// (argument names, category, shortcut, help topic, function help and one help per argument)
+    /// reach the registration and its descriptor; an add-in that leaves them out gets arg1, arg2.
+    #[test]
+    fn xlf_register_documentation_becomes_the_descriptor() {
+        let values = vec![
+            text_value("Add.xll"),
+            text_value("MyAdd"),
+            text_value("BBB"),
+            text_value("MyAdd"),
+            text_value("first, second"),
+            CalcValue::number(1.),
+            text_value("My math"),
+            CalcValue::missing(),
+            text_value("help.chm!1"),
+            text_value("Adds two numbers."),
+            text_value("The first number."),
+            text_value("The second number."),
+        ];
+        let docs = registration_docs(&values);
+        assert_eq!(docs.argument_names, ["first", "second"]);
+        assert_eq!((docs.category.as_str(), docs.shortcut.as_str()), ("My math", ""));
+        assert_eq!(docs.help_topic, "help.chm!1");
+        assert_eq!(docs.function_help, "Adds two numbers.");
+        assert_eq!(docs.argument_help, ["The first number.", "The second number."]);
+        let info = |docs| RegistrationInfo {
+            id: 1,
+            name: "MyAdd".into(),
+            procedure: "MyAdd".into(),
+            type_text: "BBB".into(),
+            signature: XllSignature::parse("BBB$").unwrap(),
+            address: 0,
+            module: std::path::PathBuf::from("Add.xll"),
+            origin: std::path::PathBuf::from("Add.xll"),
+            use_count: 1,
+            macro_type: 1,
+            docs,
+        };
+        let descriptor = info(docs).descriptor();
+        assert_eq!(descriptor.signature(), "MyAdd(first, second)");
+        assert_eq!(descriptor.parameters[1].description, "The second number.");
+        assert_eq!((descriptor.origin.as_str(), descriptor.category.as_str()), ("xll Add.xll", "My math"));
+        assert!(descriptor.thread_safe && !descriptor.volatile && !descriptor.asynchronous);
+        // Left out, or only the names: the other fields are empty and unnamed arguments are numbered.
+        let bare = info(registration_docs(&values[..4])).descriptor();
+        assert_eq!(bare.signature(), "MyAdd(arg1, arg2)");
+        assert_eq!((bare.description.as_str(), bare.category.as_str()), ("", ""));
+        let partial = info(registration_docs(&values[..5])).descriptor();
+        assert_eq!(partial.signature(), "MyAdd(first, second)");
+        // A category given as a number is kept as written.
+        let numbered = registration_docs(&[
+            text_value("m"), text_value("p"), text_value("B"), text_value("f"),
+            CalcValue::missing(), CalcValue::number(1.), CalcValue::number(14.),
+        ]);
+        assert_eq!(numbered.category, "14");
+    }
+
     /// Native-only: constructs native module leases and the same callable projection
     /// used by the P08 XPure DLL; no permission is inferred from a `$` registration.
     #[test]
@@ -1068,6 +1162,7 @@ mod tests {
                     origin: module.path.clone(),
                     use_count: 1,
                     macro_type: 1,
+                    docs: Default::default(),
                 },
                 module: module.clone(),
                 origin: module.clone(),
@@ -1257,6 +1352,7 @@ mod tests {
                 origin: origin.path.clone(),
                 use_count: 1,
                 macro_type: 1,
+                docs: Default::default(),
             },
             module: module.clone(),
             origin,

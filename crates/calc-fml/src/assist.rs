@@ -241,6 +241,18 @@ pub enum ProposalKind {
 pub struct Scope {
     pub names: Vec<String>,
     pub functions: Vec<String>,
+    /// What the registered functions' providers documented (argument names, help text, category),
+    /// matched to [`Scope::functions`] by name in any case. A function without one still completes.
+    pub described: Vec<crate::CallableDescriptor>,
+}
+
+impl Scope {
+    /// The descriptor of the registered function `name` (any case), when its provider gave one.
+    pub fn descriptor(&self, name: &str) -> Option<&crate::CallableDescriptor> {
+        self.described
+            .iter()
+            .find(|descriptor| descriptor.name.eq_ignore_ascii_case(name))
+    }
 }
 
 /// One completion: a function, a name or a local whose spelling starts with the typed prefix.
@@ -249,6 +261,8 @@ pub struct Proposal {
     pub kind: ProposalKind,
     /// The catalogue entry, for [`ProposalKind::Function`].
     pub target: Option<FunctionCallTarget<'static>>,
+    /// What the provider documented, for [`ProposalKind::Registered`] when it did.
+    pub descriptor: Option<crate::CallableDescriptor>,
     label: String,
 }
 
@@ -258,6 +272,7 @@ impl Proposal {
             kind: ProposalKind::Function,
             label: target.spelling().to_owned(),
             target: Some(target),
+            descriptor: None,
         }
     }
 
@@ -384,10 +399,16 @@ pub fn complete_in(text: &str, caret: usize, scope: &Scope) -> Option<Completion
             .iter()
             .any(|have| have.kind == kind && have.label.eq_ignore_ascii_case(name));
         if !duplicate && !name.is_empty() && starts(name) {
+            let descriptor = (kind == ProposalKind::Registered)
+                .then(|| scope.descriptor(name).cloned())
+                .flatten();
+            // The provider's own spelling, where it documented the function (the table folds names).
+            let label = descriptor.as_ref().map_or(name, |d| d.name.as_str()).to_owned();
             proposals.push(Proposal {
                 kind,
                 target: None,
-                label: name.to_owned(),
+                descriptor,
+                label,
             });
         }
     };
@@ -547,12 +568,21 @@ pub struct CallSite {
     pub active_argument: usize,
     /// The catalogue entry the name calls, if the catalogue has one.
     pub target: Option<FunctionCallTarget<'static>>,
+    /// The documented registered function the name calls, when [`call_in`] was given a scope that
+    /// holds one and the catalogue has no function of that name.
+    pub registered: Option<crate::CallableDescriptor>,
 }
 
 /// The innermost named call whose argument list the caret is in: after its `(` and, for a closed
 /// call, before its `)`. A caret just past an unclosed call's last token still counts as inside,
 /// so help stays up while the arguments are typed.
 pub fn call_at(tree: &SyntaxTree, caret: usize) -> Option<CallSite> {
+    call_in(tree, caret, &Scope::default())
+}
+
+/// [`call_at`] with the caller's registered functions: a call the catalogue does not know, to a
+/// function `scope` documents, carries that descriptor in [`CallSite::registered`].
+pub fn call_in(tree: &SyntaxTree, caret: usize, scope: &Scope) -> Option<CallSite> {
     let mut best: Option<&SyntaxNode> = None;
     let mut pending: Vec<&SyntaxNode> = vec![tree.root()];
     while let Some(node) = pending.pop() {
@@ -608,6 +638,10 @@ pub fn call_at(tree: &SyntaxTree, caret: usize) -> Option<CallSite> {
         call_span: call.span(),
         active_argument,
         target: function_named(name.text()),
+        registered: function_named(name.text())
+            .is_none()
+            .then(|| scope.descriptor(name.text()).cloned())
+            .flatten(),
     })
 }
 
@@ -796,6 +830,7 @@ mod tests {
         let scope = Scope {
             names: vec!["Sales".into(), "SumRange".into()],
             functions: vec!["SUMTHING".into(), "Module1.Add2".into()],
+            ..Scope::default()
         };
         let completion = complete_in("=SUM+Sal", 8, &scope).unwrap();
         assert_eq!(labels_of(&completion), [("Sales".to_owned(), ProposalKind::Name)]);
@@ -816,6 +851,48 @@ mod tests {
         assert!(labels_of(&completion).contains(&("Module1.Add2".to_owned(), ProposalKind::Registered)));
         let completion = complete_in("=Module1.A", 10, &scope);
         assert!(completion.is_none_or(|c| c.proposals.iter().all(|p| p.label().starts_with("Module1.A"))));
+    }
+
+    /// A registered function whose provider documented it completes under its own spelling, carries
+    /// its descriptor in the proposal, and a call to it names the descriptor for signature help
+    /// (the catalogue's functions are never replaced by a registered one of the same name).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn documented_registered_functions_carry_their_descriptor() {
+        let descriptor = crate::CallableDescriptor {
+            name: "MyAdd".into(),
+            origin: "xll My.xll".into(),
+            category: "My add-in".into(),
+            description: "Adds two numbers.".into(),
+            parameters: vec![
+                crate::CallableParameter { name: "first".into(), description: "The first number.".into() },
+                crate::CallableParameter { name: "second".into(), description: String::new() },
+            ],
+            ..crate::CallableDescriptor::default()
+        };
+        let scope = Scope {
+            functions: vec!["MYADD".into(), "SUM".into()],
+            described: vec![descriptor.clone()],
+            ..Scope::default()
+        };
+        let completion = complete_in("=MyA", 4, &scope).unwrap();
+        let proposal = completion.proposals.iter().find(|p| p.kind == ProposalKind::Registered).unwrap();
+        assert_eq!(proposal.label(), "MyAdd");
+        assert_eq!(proposal.descriptor.as_ref(), Some(&descriptor));
+        assert_eq!(descriptor.signature(), "MyAdd(first, second)");
+        assert_eq!(
+            descriptor.signature_pieces(1),
+            ("MyAdd(first, ".to_owned(), "second".to_owned(), ")".to_owned())
+        );
+        let text = "=MyAdd(1,";
+        let tree = parse_formula(text);
+        let site = call_in(&tree, text.len(), &scope).unwrap();
+        assert_eq!((site.active_argument, site.target.is_none()), (1, true));
+        assert_eq!(site.registered.as_ref(), Some(&descriptor));
+        // Without the scope the call is unknown; a catalogue function ignores the scope.
+        assert!(call_at(&tree, text.len()).unwrap().registered.is_none());
+        let sum = parse_formula("=SUM(1,");
+        assert!(call_in(&sum, 7, &scope).unwrap().registered.is_none());
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
