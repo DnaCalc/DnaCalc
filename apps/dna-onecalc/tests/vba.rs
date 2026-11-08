@@ -503,17 +503,9 @@ fn an_xlsm_session_compiles_its_project_and_answers_its_cases_as_excel_did() {
             differences.push(format!("{formula}: OneCalc {ours:?}, Excel {excel:?}"));
         }
     }
-    // What OneCalc does not model yet (Excel allows it): ActiveSheet and Selection are typed
-    // refusals, counted here as the acceptance counts them.
-    let expected_refusals = ["=DnaTryWrite()", "=DnaWrite()", "=DnaSelection()"];
-    for difference in &differences {
-        assert!(
-            expected_refusals.iter().any(|f| difference.starts_with(&format!("{f}:")))
-                && difference.contains("not calculated"),
-            "{differences:#?}"
-        );
-    }
-    assert_eq!(differences.len(), expected_refusals.len(), "{differences:#?}");
+    // ActiveSheet and Selection are the user's sheet and selection (dc-0f1k.12): every case of
+    // the example project, the former typed refusals included, answers as Excel did.
+    assert!(differences.is_empty(), "{differences:#?}");
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -629,4 +621,62 @@ fn workbook_before_save_runs_first_and_cancel_stops_the_save() {
     let reply = load(&mut port, "False");
     assert!(matches!(reply, Reply::Functions { .. }), "{reply:?}");
     assert!(matches!(port.send(Request::Save), Reply::File { .. }));
+}
+
+/// dc-0f1k.12: a worksheet function sees the user's active sheet and selection
+/// (Excel: not its caller's; fixture/vba/active-objects-measured.json). OneCalc's user has one
+/// sheet and has selected the cell the formula is entered in, which is Excel's measured scenario
+/// "selection-is-the-caller"; the others (a selection elsewhere) are not a state OneCalc can be in.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn active_sheet_and_selection_are_the_users_as_excel_measured() {
+    let measured: serde_json::Value =
+        serde_json::from_str(include_str!("../../../crates/calc-xll-reference/fixture/vba/active-objects-measured.json")).unwrap();
+    let scenario = measured["scenarios"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["scenario"] == "selection-is-the-caller")
+        .unwrap();
+    let answers = scenario["answers"].as_object().unwrap();
+    let mut s = session();
+    s.set_input("B2", InputValue::number(11.0).unwrap()).unwrap();
+    s.load_vba_module(
+        "Probe",
+        "Public Function ActName() As String\n ActName = ActiveSheet.Name\nEnd Function\n\
+         Public Function ActType() As String\n ActType = TypeName(ActiveSheet)\nEnd Function\n\
+         Public Function SelType() As String\n SelType = TypeName(Selection)\nEnd Function\n\
+         Public Function SelAddr() As String\n SelAddr = Selection.Address\nEnd Function\n\
+         Public Function ActRead() As Variant\n ActRead = ActiveSheet.Range(\"B2\").Value2\nEnd Function\n\
+         Public Function CallerAddr() As String\n CallerAddr = Application.Caller.Address\nEnd Function\n\
+         Public Function TryActiveWrite() As Long\n On Error Resume Next\n ActiveSheet.Range(\"Z99\").Value = 1\n TryActiveWrite = Err.Number\nEnd Function\n",
+        1000,
+    )
+    .unwrap();
+    let mut differences = Vec::new();
+    for name in ["ActName", "ActType", "SelType", "SelAddr", "ActRead", "CallerAddr", "TryActiveWrite"] {
+        s.set_formula(&format!("=Probe.{name}()"));
+        let ours = s.calculate();
+        let excel = &answers[&format!("={name}()")];
+        let ours_text = match ours.result.as_ref() {
+            Some(value) => format!("{value:?}"),
+            None => format!("not calculated {:?}", ours.diagnostics),
+        };
+        let expected = match excel {
+            serde_json::Value::String(text) if name == "ActName" => text.replace("First", "Sheet1"),
+            other => other.to_string(),
+        };
+        let matched = match (&ours.result, excel) {
+            (Some(value), serde_json::Value::String(text)) => {
+                let want = if name == "ActName" { "Sheet1" } else { text.as_str() };
+                value == &CalcValue::text(calc_func::value::ExcelText::from_interop_assignment(want))
+            }
+            (Some(value), serde_json::Value::Number(n)) => value == &CalcValue::number(n.as_f64().unwrap()),
+            _ => false,
+        };
+        if !matched {
+            differences.push(format!("{name}: OneCalc {ours_text}, Excel {expected}"));
+        }
+    }
+    assert!(differences.is_empty(), "{differences:#?}");
 }

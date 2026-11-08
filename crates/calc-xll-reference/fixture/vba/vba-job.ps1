@@ -1,4 +1,4 @@
-param([ValidateSet('build','cases','reopen')][string]$Action, [string]$OutDirectory, [string]$AddIn,
+param([ValidateSet('build','cases','reopen','activeobjects')][string]$Action, [string]$OutDirectory, [string]$AddIn,
     [string]$Cases, [string[]]$Files, [string]$FormulaCell = 'H1', $OwnedExcel = $null)
 # The Excel side of OneCalc milestone 5 (dc-0f1k.4), in an owned hidden Excel session
 # (tools/excel-session). Run without -OwnedExcel, this script submits itself as one job; run it
@@ -8,6 +8,10 @@ param([ValidateSet('build','cases','reopen')][string]$Action, [string]$OutDirect
 #           DnaExamples.xlsm and DnaExamples.xlam in -OutDirectory.
 #   cases:  opens the .xlam (-AddIn) as Excel opens an add-in file, enters each case formula of
 #           -Cases in -FormulaCell of a new workbook and records Value2, Text and its type.
+#   activeobjects: a new workbook with two sheets and a module of UDFs that read ActiveSheet,
+#           Selection, ActiveWorkbook and Application.Caller; their answers are recorded while the
+#           user's active sheet and selection differ from the calling cell's sheet and address
+#           (dc-0f1k.12).
 #   reopen: opens each saved .xlsm of -Files, reads its formula and calculated value, and records
 #           whether Excel repaired it (the workbook name and the error*.xml repair logs in TEMP).
 # No Excel setting, Trust Center or macro-security value is read for change or written; the
@@ -99,6 +103,95 @@ switch ($Action) {
             [ordered]@{ operation = $row.formula; value = $value } | ConvertTo-Json -Compress -Depth 4
         }
         $records | Set-Content -LiteralPath (Join-Path $OutDirectory 'controller.jsonl') -Encoding utf8NoBOM
+    }
+    'activeobjects' {
+        $source = @'
+Public Function ActName() As String
+    ActName = ActiveSheet.Name
+End Function
+Public Function ActType() As String
+    ActType = TypeName(ActiveSheet)
+End Function
+Public Function ActBook() As String
+    ActBook = ActiveWorkbook.Name
+End Function
+Public Function SelType() As String
+    SelType = TypeName(Selection)
+End Function
+Public Function SelAddr() As String
+    SelAddr = Selection.Address
+End Function
+Public Function SelCount() As Long
+    SelCount = Selection.Count
+End Function
+Public Function SelSheet() As String
+    SelSheet = Selection.Worksheet.Name
+End Function
+Public Function ActRead() As Variant
+    ActRead = ActiveSheet.Range("B2").Value
+End Function
+Public Function ActCount() As Long
+    ActCount = ActiveSheet.UsedRange.Count
+End Function
+Public Function CallerAddr() As String
+    CallerAddr = Application.Caller.Address
+End Function
+Public Function ActCellAddr() As String
+    ActCellAddr = ActiveCell.Address
+End Function
+Public Function ActWindow() As String
+    ActWindow = TypeName(ActiveWindow)
+End Function
+Public Function TrySelectionWrite() As Long
+    On Error Resume Next
+    Selection.Value = 1
+    TrySelectionWrite = Err.Number
+End Function
+Public Function TryActiveWrite() As Long
+    On Error Resume Next
+    ActiveSheet.Range("Z99").Value = 1
+    TryActiveWrite = Err.Number
+End Function
+'@
+        $names = 'ActName','ActType','ActBook','SelType','SelAddr','SelCount','SelSheet','ActRead','ActCount','CallerAddr','ActCellAddr','ActWindow','TrySelectionWrite','TryActiveWrite'
+        $book = $excel.Workbooks.Add()
+        try {
+            $project = $book.VBProject
+            $module = $project.VBComponents.Add(1)
+            $module.Name = 'Probe'
+            $module.CodeModule.AddFromString($source)
+            $one = $book.Worksheets.Item(1); $one.Name = 'First'
+            $two = $book.Worksheets.Add([Type]::Missing, $one); $two.Name = 'Second'
+            $one.Range('B2').Value2 = 11; $two.Range('B2').Value2 = 22
+            $two.Range('A5').Value2 = 5
+            $result.windows = @(); foreach ($w in $book.Windows) { $result.windows += [ordered]@{ caption = $w.Caption; visible = $w.Visible } }
+            # Scenario: where the formulas are entered (their sheet and cell), which sheet is the
+            # user's active sheet and what the user has selected there.
+            $scenarios = @(
+                @{ id = 'same-sheet-selection-elsewhere'; at = 'First'; cell = 'H1'; active = 'First'; select = 'B2:C3' },
+                @{ id = 'other-sheet-active'; at = 'Second'; cell = 'H1'; active = 'First'; select = 'B2:C3' },
+                @{ id = 'active-second-selection-d4'; at = 'First'; cell = 'H1'; active = 'Second'; select = 'D4' },
+                @{ id = 'selection-is-the-caller'; at = 'First'; cell = 'H1'; active = 'First'; select = 'H1' }
+            )
+            foreach ($scenario in $scenarios) {
+                $sheetAt = $book.Worksheets.Item($scenario.at)
+                $activeSheet = $book.Worksheets.Item($scenario.active)
+                Step "activate $($scenario.id)" { $activeSheet.Activate(); $activeSheet.Range($scenario.select).Select() | Out-Null }
+                $result.rows += [ordered]@{ scenario = $scenario.id; active_sheet = [string]$excel.ActiveSheet.Name; selection = [string]$excel.Selection.Address($false, $false); caller_cell = "$($scenario.at)!$($scenario.cell)" }
+                foreach ($name in $names) {
+                    $row = [ordered]@{ scenario = $scenario.id; formula = "=$name()" }
+                    $cell = $sheetAt.Range($scenario.cell)
+                    try {
+                        $cell.Formula2 = "=$name()"
+                        $excel.CalculateFull()
+                        $row.excel = Describe $cell.Value2
+                        $row.text = [string]$cell.Text
+                    } catch { $row.error = $_.Exception.Message }
+                    $cell.ClearContents()
+                    $result.rows += $row
+                }
+            }
+        } finally { Step 'close' { $book.Close($false) } }
     }
     'reopen' {
         $logs = Join-Path $env:TEMP 'error*.xml'

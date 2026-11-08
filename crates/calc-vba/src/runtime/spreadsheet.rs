@@ -58,6 +58,19 @@ pub trait SpreadsheetContext {
     /// A reentered worksheet UDF cannot use a surrounding document event Target.
     fn event_view(&self) -> bool { false }
     fn caller(&self) -> Option<Range>;
+    /// The name of the sheet the person has active (`ActiveSheet.Name`), or why the host does not
+    /// model one.
+    fn active_sheet_name(&self) -> Result<String, ContextError> {
+        Err(ContextError::Refused("ActiveSheet (the host does not model the user's active sheet)".into()))
+    }
+    /// A range of the sheet the person has active, by A1 address (`ActiveSheet.Range("B2")`).
+    fn active_range(&self, _address: &str) -> Result<Range, ContextError> {
+        Err(ContextError::Refused("ActiveSheet (the host does not model the user's active sheet)".into()))
+    }
+    /// The range the person has selected (`Selection`).
+    fn selection(&self) -> Result<Range, ContextError> {
+        Err(ContextError::Refused("Selection (the host does not model the user's selection)".into()))
+    }
     /// Record a capability refusal in the owning evaluator, independently of VBA On Error.
     fn refuse(&self, reason: &'static str) -> String {
         reason.into()
@@ -160,6 +173,10 @@ enum Object {
     Application,
     Functions,
     Range(Range, Axis),
+    /// `ActiveSheet`: the sheet the person has active (read through the context).
+    Sheet,
+    /// `Selection`: the range the person has selected, a Range for `TypeName` and `Address`.
+    Selection(Range),
 }
 
 /// Owns only object identities and range coordinates, never a borrowed reader or cell cache.
@@ -684,6 +701,21 @@ impl SpreadsheetHost {
                 to_variant(&value).map_err(|e| fault(13, e.to_string()))
             }
             Object::Range(range, axis) => self.range_member(range, axis, name, args),
+            Object::Sheet => match name {
+                "NAME" if args.is_empty() => {
+                    let name = self.context(|context| context.active_sheet_name())?;
+                    Ok(Variant::from_string(name))
+                }
+                "RANGE" if matches!(args.len(), 1) => {
+                    let Some(address) = args[0].as_bstr().map(|s| s.as_str()) else {
+                        return Err(fault(13, "Range needs an address text"));
+                    };
+                    let range = self.context(|context| context.active_range(&address))?;
+                    self.object(Object::Range(range, Axis::Cells))
+                }
+                _ => self.unsupported("an ActiveSheet member outside the supported host surface"),
+            },
+            Object::Selection(range) => self.range_member(range, Axis::Cells, name, args),
         }
     }
 }
@@ -922,6 +954,9 @@ impl ComHal for SpreadsheetHost {
             (Object::Application, 1, TypeLibMemberInvokeKind::PropertyGet) => "CALLER",
             (Object::Application, 2, TypeLibMemberInvokeKind::PropertyGet) => "WORKSHEETFUNCTION",
             (Object::Application, 3, TypeLibMemberInvokeKind::Method) => "VOLATILE",
+            (Object::Sheet, 1, TypeLibMemberInvokeKind::PropertyGet) => "NAME",
+            (Object::Sheet, 2, TypeLibMemberInvokeKind::PropertyGet) => "RANGE",
+            (Object::Selection(_), 1, TypeLibMemberInvokeKind::PropertyGet) => "ADDRESS",
             // Excel forbids a worksheet function to change a cell: the write raises the
             // trappable VBA error 1004 (measured, DnaExamples.xlam, dc-0f1k.4).
             (
@@ -967,6 +1002,13 @@ impl ComHal for SpreadsheetHost {
                 return Ok(Variant::from_object_ref(object.object_ref()));
             }
             self.object(Object::Application)
+        } else if name.as_bstr().is_some_and(|s| s.as_str().eq_ignore_ascii_case("DnaCalc.ActiveSheet")) {
+            // The user's active sheet, from the host's view; a host with none refuses here.
+            self.context(|context| context.active_sheet_name())?;
+            self.object(Object::Sheet)
+        } else if name.as_bstr().is_some_and(|s| s.as_str().eq_ignore_ascii_case("DnaCalc.Selection")) {
+            let range = self.context(|context| context.selection())?;
+            self.object(Object::Selection(range))
         } else if let Some(com) = self.com.as_ref().filter(|_| {
             // DNA's own injected objects (ActiveSheet, Selection, ...) are never platform COM
             // classes: what DNA does not model stays a typed refusal, not a trappable error 429.
@@ -1034,7 +1076,8 @@ impl ComHal for SpreadsheetHost {
             match self.lookup(&object)? {
                 Object::Application => "Application",
                 Object::Functions => "WorksheetFunction",
-                Object::Range(..) => "Range",
+                Object::Range(..) | Object::Selection(_) => "Range",
+                Object::Sheet => "Worksheet",
             }
             .into(),
         ))

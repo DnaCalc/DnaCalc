@@ -152,8 +152,12 @@ grid cell and of each calculation); the x5 permission and RTD case files.
   Where the project does not compile (in the browsers, without the registry's type libraries), the
   session still keeps the part and saves it back unchanged.
 - **What add-in code sees** is listed in docs/plan/VBA_UDFS.md: cell writes raise Excel's trappable
-  error 1004, `ThisWorkbook.Name` is the file's name, `ActiveSheet`, `Selection` and `Range.Value`
-  reads are typed refusals.
+  error 1004, `ThisWorkbook.Name` is the file's name, `ActiveSheet` is the session's one sheet
+  (`Name`, `Range("A1")`) and `Selection` is the cell the formula is entered in, and `Range.Value`
+  reads are typed refusals. In Excel a worksheet function sees the user's sheet and selection, not its
+  caller's (measured, `fixture/vba/active-objects-measured.json`, four scenarios); OneCalc's user has
+  one sheet and has selected the formula cell, which is Excel's measured case where the selection is
+  the caller. DNA Calc does not give the view yet, so the same code is a typed refusal there.
 
 The acceptance add-in is DNA Calc's own: `crates/calc-xll-reference/fixture/vba` holds its sources
 (`DnaExamples.bas`, the class `DnaCounter.cls`, `ThisWorkbook.txt`), the `.xlam` and `.xlsm` Excel
@@ -173,8 +177,8 @@ skipped position), a class module, early-bound `Scripting.Dictionary` (`New`, `C
 TextCompare`, `Exists`, `Keys`, default-member assignment, `TypeName`), Range arguments (`Count`,
 `Address`), `WorksheetFunction.Sum`, `CVErr`, `Err.Raise`, `Workbook_Open` having run once, a cell
 write from a UDF (trappable 1004; `#VALUE!` unhandled) and `ThisWorkbook.Name`. The three refusals
-are `ActiveSheet.Range(...)` (two cases) and `Selection`, which OneCalc does not model (Excel gives
-1004, `#VALUE!` and "Range"). All 27 saved .xlsm files, the one with the edited project included,
+were `ActiveSheet.Range(...)` (two cases) and `Selection`; since dc-0f1k.12 OneCalc answers them
+(1004, `#VALUE!` and "Range") and the project's 26 cases all match. All 27 saved .xlsm files, the one with the edited project included,
 opened in Excel without repair (no "[Repaired]" name, no new `error*.xml` log), each with its VBA
 project, and Excel's recalculated value equalled the page's.
 

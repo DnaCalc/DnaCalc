@@ -840,7 +840,15 @@ impl Session {
         .with_catalog(&self.fixture)
         .with_functions(&self.functions)
         .with_reference_handles(&*references)
-        .with_function_diagnostics(&mut function_diagnostics);
+        .with_function_diagnostics(&mut function_diagnostics)
+        // The person's active sheet is the session's one sheet and what they have selected is the
+        // cell they are entering the formula in: what VBA's ActiveSheet and Selection see (Excel
+        // gives a worksheet function the user's sheet and selection, not its caller's; measured,
+        // dc-0f1k.12).
+        .with_user_view(calc_func::UserView {
+            active_sheet: self.formula_cell.sheet(),
+            selection: self.formula_cell,
+        });
         let mut failure = None;
         let outcome = match self.returns.as_mut() {
             None => evaluate(EvalFrame::new(&instance, &mut self.scratch), &mut services),
