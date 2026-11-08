@@ -1,6 +1,7 @@
 //! Names whose execution belongs to another package or is deferred by owner policy.
 //! The service deferrals are dc-fetch-f0tp; the compatibility-version-3 list functions are
-//! dc-nk93. CALL and REGISTER.ID await dc-h9u; RTD uses the dc-snz.23.4 host route.
+//! dc-nk93. CALL and REGISTER.ID run only on a macro sheet in Excel and are refused at entry in a
+//! worksheet formula (dc-gh22); RTD uses the dc-snz.23.4 host route.
 use super::{
     ArgumentDemand, Availability, BindingForm, CatalogueEntry, Deferral, EntryKind, EntryTraits,
     Family, FunctionId, Kernel, Notation, Parameter, ResultForm,
@@ -137,6 +138,11 @@ const fn deferred_list(
     result
 }
 
+const fn macro_sheet_only(mut entry: CatalogueEntry) -> CatalogueEntry {
+    entry.availability = Availability::MacroSheetOnly;
+    entry
+}
+
 const fn rtd() -> CatalogueEntry {
     let mut result = entry(3, "RTD", 3, 255, RTD_ARGS, Kernel::NotHeld { owner: "dc-snz.23.4" });
     result.kind = EntryKind::HostRoute { provider: crate::RTD_PROVIDER, route: super::HostRouteKind::Rtd };
@@ -161,22 +167,22 @@ const fn reference_operator(
 pub(super) const FAMILY: Family = Family {
     code: CODE,
     entries: &[
-        entry(
+        macro_sheet_only(entry(
             1,
             "CALL",
             1,
             255,
             CALL_ARGS,
-            Kernel::NotHeld { owner: "dc-h9u" },
-        ),
-        entry(
+            Kernel::NotHeld { owner: "dc-gh22" },
+        )),
+        macro_sheet_only(entry(
             2,
             "REGISTER.ID",
             2,
             3,
             REGISTER_ID_ARGS,
-            Kernel::NotHeld { owner: "dc-h9u" },
-        ),
+            Kernel::NotHeld { owner: "dc-gh22" },
+        )),
         rtd(),
         entry(
             4,

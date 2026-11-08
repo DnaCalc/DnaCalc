@@ -296,7 +296,11 @@ fn catalogue_call(written: &str, loaded: bool) -> Option<FunctionCallTarget<'sta
     let target = catalogue()
         .resolve_surface(Notation::Call, file_function(written))
         .ok()?;
-    if matches!(target.implementation(), calc_func::Implementation::NotHeld { .. } | calc_func::Implementation::Deferred { .. }) {
+    // An unheld entry's signature is no Excel measurement, except that a macro-sheet-only name is
+    // refused whatever it is called with.
+    if matches!(target.implementation(), calc_func::Implementation::NotHeld { .. } | calc_func::Implementation::Deferred { .. })
+        && target.availability() != calc_func::Availability::MacroSheetOnly
+    {
         return None;
     }
     if loaded && unknown_on_load(written, super::Target(target)) {
@@ -410,5 +414,24 @@ mod tests {
         }
         assert_eq!(count, 3822);
         assert!(differ.is_empty(), "{} differ:\n{}", differ.len(), differ.join("\n"));
+    }
+
+    /// Native and browser: Excel 16.0.20527 refused every formula holding CALL or REGISTER.ID at
+    /// entry (`Range.Formula2` threw 0x800A03EC, dc-gh22), whatever its operands, and took the
+    /// neighbour `=ISNUMBER(A1)`. The fixture holds Excel's answers to 39 formulas.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn macro_sheet_functions_are_refused_at_entry() {
+        let answers: serde_json::Value = serde_json::from_str(include_str!(
+            "../../tests/fixtures/host_functions/call-register-id-excel.json"
+        ))
+        .expect("the measurement");
+        let rows = answers["worksheet_entry"].as_array().expect("entry answers");
+        assert_eq!(rows.len(), 39);
+        for row in rows {
+            let formula = row["formula"].as_str().expect("a formula");
+            let entered = row["entered"].as_bool().expect("an answer");
+            assert_eq!(check_entry(&parse_formula(formula), false).is_ok(), entered, "{formula}");
+        }
     }
 }

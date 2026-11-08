@@ -178,7 +178,7 @@ ERFC.PRECISE	full	20131,20430,?	1863	1863	-	exact	cc9cff0cb2+changes
 ERFC.PRECISE	pinned	20131,20430	120	120	-	exact	bab456b6f8+changes
 ERROR.TYPE	full	20430	1227	1227	-	exact	cc9cff0cb2+changes
 ERROR.TYPE	pinned	20430	120	120	-	exact	919dd43269+changes
-EUROCONVERT	full	20527	13	0	-	structural	cc9cff0cb2+changes
+EUROCONVERT	full	20527	13	13	-	exact	f0be6d1471+changes
 EVEN	full	20430	1227	1225	-	structural	cc9cff0cb2+changes
 EVEN	pinned	20430	120	119	-	structural	919dd43269+changes
 EXP	full	20131,20228,20430,20527,?	2456	2456	-	exact	cc9cff0cb2+changes
@@ -335,7 +335,7 @@ ISREF	full	20430	1227	1227	-	exact	cc9cff0cb2+changes
 ISREF	pinned	20430	120	120	-	exact	919dd43269+changes
 ISTEXT	full	20430	1227	1227	-	exact	cc9cff0cb2+changes
 ISTEXT	pinned	20430	120	120	-	exact	919dd43269+changes
-JIS	full	20527	8	0	-	structural	cc9cff0cb2+changes
+JIS	full	20527	8	8	-	exact	f0be6d1471+changes
 KURT	full	20430	4508	4508	-	exact	cc9cff0cb2+changes
 KURT	pinned	20430	120	87	128	numeric	919dd43269+changes
 LCM	full	20430	7967	7967	-	exact	cc9cff0cb2+changes

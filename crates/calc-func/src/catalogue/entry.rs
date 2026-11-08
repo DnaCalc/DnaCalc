@@ -164,6 +164,9 @@ pub enum EntryRule {
     ReferenceRequired { index: usize },
     /// The call's result is called, and the entry gives a value: `=IFERROR(#N/A,LAMBDA(x,x))(3)`.
     ResultNotCallable,
+    /// The entry runs only on a macro sheet ([`crate::Availability::MacroSheetOnly`]): any call of
+    /// it in a worksheet formula is refused, whatever its operands: `=CALL(A1,1,2)`.
+    MacroSheetOnly,
 }
 
 impl fmt::Display for EntryRule {
@@ -176,6 +179,7 @@ impl fmt::Display for EntryRule {
                 write!(f, "argument {} requires a reference", index + 1)
             }
             EntryRule::ResultNotCallable => f.write_str("its result cannot be called"),
+            EntryRule::MacroSheetOnly => f.write_str("it is valid only on a macro sheet"),
         }
     }
 }
@@ -207,6 +211,9 @@ impl FunctionCallTarget<'_> {
     /// arity, the repeating groups, then each reference place, the first refused one named.
     pub fn check_entry(self, operands: &[OperandForm]) -> Result<(), EntryRule> {
         let entry = self.entry;
+        if entry.availability == crate::Availability::MacroSheetOnly {
+            return Err(EntryRule::MacroSheetOnly);
+        }
         // An unheld entry's handbook signature is not an Excel entry measurement.
         if matches!(entry.kernel, super::Kernel::NotHeld { .. } | super::Kernel::Deferred { .. }) {
             return Ok(());
@@ -277,6 +284,31 @@ mod tests {
         assert_eq!(has.availability(), crate::Availability::ListsInCellsBeta);
         assert_eq!(has.implementation(), crate::Implementation::Deferred { class: crate::Deferral::ListsInCells });
         assert_eq!(has.check_entry(&[]), Ok(()));
+    }
+
+    /// Native and browser: CALL and REGISTER.ID run only on a macro sheet (dc-gh22). Excel 16.0.20527
+    /// refused all 38 formulas of the measurement at entry, whatever their operands.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn call_and_register_id_are_refused_at_entry() {
+        for spelling in ["CALL", "REGISTER.ID"] {
+            let entry = target(spelling);
+            assert_eq!(entry.availability(), crate::Availability::MacroSheetOnly);
+            for operands in [vec![], vec![OperandForm::Constant], vec![OperandForm::Constant; 3], vec![OperandForm::Constant; 9]] {
+                assert_eq!(entry.check_entry(&operands), Err(EntryRule::MacroSheetOnly), "{spelling}/{}", operands.len());
+            }
+        }
+    }
+
+    /// Native and browser: JIS is held as absent from Excel on Windows (dc-f4py), and a bare call of
+    /// the Euro add-in's export is a name no entry answers (dc-u2ld).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn absent_and_unloaded_names_answer_name_error() {
+        assert_eq!(target("JIS").availability(), crate::Availability::AbsentOnWindows);
+        assert!(catalogue().is_unloaded_addin_export("euroconvert"));
+        assert!(!catalogue().is_unloaded_addin_export("SUM"));
+        assert!(catalogue().resolve_surface(Notation::Call, "EUROCONVERT").is_err());
     }
 
     /// Native and browser: the measured COUNTBLANK cases of the module documentation.

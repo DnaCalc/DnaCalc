@@ -528,7 +528,7 @@ fn dc_rif__a_new_workbook_is_edited_through_the_session_and_its_subscription() {
         ("A1", "2"),
         ("A2", "3"),
         ("A3", "=A1*A2+1"),
-        ("B1", "=CALL(\"a\",\"b\",\"c\")"),
+        ("B1", "=RTD(\"a\",\"b\",\"c\")"),
         ("C1", "={1;2;3}"),
     ] {
         let receipt = book.enter(at(sheet1, address), text);
@@ -2168,7 +2168,7 @@ mod workbook_commands {
             (4, 1, "TRUE"),
             (1, 2, "=SUM(A1:A2)"),
             (2, 2, "=1/0"),
-            (3, 2, "=CALL(\"a\",\"b\",\"c\")"),
+            (3, 2, "=RTD(\"a\",\"b\",\"c\")"),
             (4, 2, "=\"\""),
         ] {
             set(&mut server, at(r, c), text);
