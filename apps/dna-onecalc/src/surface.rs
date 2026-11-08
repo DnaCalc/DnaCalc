@@ -357,6 +357,21 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
             Box::new(move |reply| on_addins.run((reply, format!("Loaded {path}.")))),
         );
     });
+    // Every listed add-in that is not loaded, in the order the session lists them; each answer
+    // comes back in that order.
+    let load_all_listed = move |_| {
+        let running = loaded_addins.get_untracked();
+        let offered: Vec<AddinRef> = addins.with_untracked(|listed| {
+            listed
+                .iter()
+                .filter(|addin| !running.iter().any(|r| r.path == addin.path))
+                .cloned()
+                .collect()
+        });
+        for listed in offered {
+            load_listed.run(listed);
+        }
+    };
     let unload_addin = Callback::new(move |path: String| {
         call(
             Request::UnloadAddin { path: path.clone() },
@@ -753,6 +768,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                         </li>
                     }
                 }).collect_view())}</ul>
+                <p hidden=move || !native || addins.with(|listed| listed.is_empty())><button data-onecalc="addin-load-all" on:click=load_all_listed>"Load all the add-ins the session lists"</button></p>
                 <ul data-onecalc="addins-offered">{move || {
                     let running = loaded_addins.get();
                     addins.with(|listed| listed.iter().filter(|addin| !running.iter().any(|r| r.path == addin.path)).map(|addin| {

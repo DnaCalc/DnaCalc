@@ -33,7 +33,7 @@ mod axis;
 mod records;
 mod render;
 use aggregate::Total;
-use axis::{Walk, axis_item, layout_columns};
+use axis::{Walk, axis_item, render_axes};
 use records::{compare, field_groups, page_allows, page_field_items, resolve};
 pub use records::item_value;
 use render::{Form, label_text, truthy};
