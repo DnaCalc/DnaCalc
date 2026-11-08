@@ -1308,6 +1308,26 @@ fn dc_8wp_12__all_captured_stages_report_number_format_codes() {
                 assert_eq!(stage_properties[i], cells.len(), "{stage}: {}", names[i]);
             }
         }
+        if matches!(*stage, "style-rows-PivotStyleLight1" | "style-cols-PivotStyleLight1"
+            | "style-rows-PivotStyleLight21" | "style-cols-PivotStyleLight21"
+            | "style-rows-PivotStyleDark1" | "style-cols-PivotStyleDark1"
+            | "style-rows-PivotStyleMedium1" | "style-cols-PivotStyleMedium1" | "style-cols-PivotStyleMedium2"
+            | "style-rows-PivotStyleMedium14" | "style-cols-PivotStyleMedium14"
+            | "style-rows-PivotStyleLight16" | "style-rows-PivotStyleMedium9") {
+            for i in [3, 5, 6, 7, 8, 11] {
+                assert_eq!(stage_properties[i], cells.len(), "{stage}: {}", names[i]);
+            }
+        }
+        if matches!(*stage, "style-rows-PivotStyleLight8" | "style-cols-PivotStyleLight8") {
+            for i in [3, 5, 6, 7] {
+                assert_eq!(stage_properties[i], cells.len(), "{stage}: {}", names[i]);
+            }
+        }
+        if *stage == "style-rows-PivotStyleMedium2" {
+            for i in [3, 8, 11] {
+                assert_eq!(stage_properties[i], cells.len(), "{stage}: {}", names[i]);
+            }
+        }
         matches += stage_matches;
         if !differences.is_empty() { println!("{stage}: {stage_matches}/{} number formats match; {differences:?}", cells.len()); }
         if stage.ends_with("-refreshed") {
@@ -1324,6 +1344,31 @@ fn dc_8wp_12__all_captured_stages_report_number_format_codes() {
     for (i, name) in names.iter().enumerate() {
         let fail = 3330 - property_matches[i];
         println!("{name}: {}/3330 match; {fail} fail ({} unavailable, {refused_cells} refresh refusals)", property_matches[i], unavailable[i]);
+    }
+}
+
+/// A changed neutral theme cannot silently reuse the captured Office grayscale palette.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_12__unmeasured_neutral_themes_do_not_reuse_office_pivot_colors() {
+    use existing_wire_support::{RawEntry, build_zip, parse_zip};
+    let bytes = include_bytes!("fixtures/pivot/m2-formatting/built.xlsx");
+    for (needle, replacement) in [("val=\"window\" lastClr=\"FFFFFF\"", "val=\"window\" lastClr=\"E0E0E0\""),
+        ("val=\"windowText\" lastClr=\"000000\"", "val=\"windowText\" lastClr=\"101010\"")] {
+        let entries: Vec<_> = parse_zip(bytes).entries.iter().map(|entry| {
+            let payload = entry.payload(bytes);
+            if entry.name == "xl/theme/theme1.xml" {
+                let xml = if entry.method == 0 { payload.to_vec() } else { miniz_oxide::inflate::decompress_to_vec(payload).unwrap() };
+                let xml = String::from_utf8(xml).unwrap();
+                assert_eq!(xml.matches(needle).count(), 1);
+                RawEntry::stored(&entry.name, xml.replace(needle, replacement).as_bytes())
+            } else if entry.method == 0 { RawEntry::stored(&entry.name, payload) }
+            else { RawEntry::deflated(&entry.name, payload, entry.size, entry.crc32) }
+        }).collect();
+        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(build_zip(&entries)));
+        let book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+        let table = book.host().model().definitions().pivots().tables().find(|table| table.name == "pvt_style_rows_PivotStyleDark1").unwrap();
+        assert!(book.host().pivot_style_look(table.area.first()).is_none());
     }
 }
 
