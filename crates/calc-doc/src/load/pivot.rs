@@ -381,6 +381,7 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
     let mut path = Vec::<String>::new();
     // The supported scope selects a single data field over the whole opposite axis.
     let mut sort_scope: Option<(usize, bool, Option<u32>)> = None;
+    let mut data_extension: Option<(usize, bool, Option<String>)> = None;
     while let Some(event) = events.next()? {
         match event {
             XmlEvent::Start(e) => {
@@ -403,6 +404,22 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
                     };
                     *invalid |= !expected || e.name.namespace.as_deref() != Some(M)
                         || e.attributes.iter().any(|a| a.name.namespace.is_some());
+                    *step += 1;
+                }
+                if let Some((step, invalid, show)) = data_extension.as_mut() {
+                    let known = match (*step, filter_path.as_slice(), e.name.local.as_str()) {
+                        (0, ["dataFields", "dataField", "extLst"], "ext") =>
+                            e.name.namespace.as_deref() == Some(M) && e.attributes.len() == 1
+                                && e.attribute("uri") == Some("{E15A36E0-9728-4e99-A89B-3F7291B0FE68}"),
+                        (1, ["dataFields", "dataField", "extLst", "ext"], "dataField") => {
+                            *show = e.attribute("pivotShowAs").filter(|v| matches!(*v,
+                                "percentOfParentRow" | "percentOfParentCol" | "percentOfRunningTotal" | "rankAscending" | "rankDescending"))
+                                .map(str::to_owned);
+                            e.name.namespace.as_deref() == Some(X14) && e.attributes.len() == 1 && show.is_some()
+                        }
+                        _ => false,
+                    };
+                    *invalid |= !known || e.attributes.iter().any(|a| a.name.namespace.is_some());
                     *step += 1;
                 }
                 if filter_path.starts_with(&["filters", "filter"]) {
@@ -547,12 +564,20 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
                                 }
                             }
                         }
-                        (["dataFields", "dataField"], "extLst") => unsupported.push("data field extension".into()),
+                        (["dataFields", "dataField"], "extLst") => {
+                            if data_extension.is_some() || !e.attributes.is_empty()
+                                || data_fields.last().is_none_or(|field: &PivotDataField| field.extended_show.is_some()
+                                    || field.attributes.get("showDataAs").is_some_and(|v| v != "normal")) {
+                                unsupported.push("data field extension".into());
+                            }
+                            data_extension = Some((0, false, None));
+                        },
                         (["dataFields"], "dataField") => data_fields.push(PivotDataField {
                             name: e.attribute("name").map(|s|decoded(s,&events)).transpose()?,
                             field: integer(&e, "fld", &events)?,
                             subtotal: e.attribute("subtotal").unwrap_or("sum").into(),
                             attributes: attrs(&e),
+                            extended_show: None,
                         }),
                         _ => {}
                     }
@@ -564,6 +589,12 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
                 });
             }
             XmlEvent::End(_) => {
+                if path.iter().map(String::as_str).collect::<Vec<_>>() == ["dataFields", "dataField", "extLst"] {
+                    match data_extension.take() {
+                        Some((2, false, Some(show))) => data_fields.last_mut().unwrap().extended_show = Some(show),
+                        _ => unsupported.push("data field extension".into()),
+                    }
+                }
                 if path.iter().map(String::as_str).collect::<Vec<_>>() == ["pivotFields", "pivotField", "autoSortScope"] {
                     match sort_scope.take() {
                         Some((4, false, Some(measure))) => fields.last_mut().unwrap().sort_measure = Some(measure),

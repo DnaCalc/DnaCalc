@@ -261,11 +261,23 @@ pub(super) fn render_axes(
     let value_level = table.column_fields.iter().filter(|&&f| f == -2).count();
     let values_only = table.column_fields == [-2];
     let rows_only = table.column_fields.is_empty();
-    let show = table.data_fields.first().and_then(|d| d.attributes.get("showDataAs"))
-        .map(String::as_str).unwrap_or("normal");
+    if table.data_fields.iter().any(|data| data.extended_show.is_some()
+        && data.attributes.get("showDataAs").is_some_and(|show| show != "normal")) {
+        return Err(bad("Conflicting value calculations are not modelled"));
+    }
+    let show = match table.data_fields.first().and_then(|d| d.extended_show.as_deref()) {
+        Some("percentOfParentRow") => "percentOfCol",
+        Some("percentOfParentCol") => "percentOfRow",
+        Some("percentOfRunningTotal") => "percentRunTotal",
+        Some("rankAscending") => "rankAscending",
+        Some("rankDescending") => "rankDescending",
+        Some(_) => return Err(bad("This extended value calculation is not modelled")),
+        None => table.data_fields.first().and_then(|d| d.attributes.get("showDataAs"))
+            .map(String::as_str).unwrap_or("normal"),
+    };
     let percent = matches!(show, "percentOfCol" | "percentOfRow" | "percentOfTotal");
     let indexed = show == "index";
-    let relative = matches!(show, "difference" | "percent" | "percentDiff" | "runTotal");
+    let relative = matches!(show, "difference" | "percent" | "percentDiff" | "runTotal" | "percentRunTotal" | "rankAscending" | "rankDescending");
     if show != "normal" && (!(percent || indexed || relative) || table.column_fields.len() != 1
         || values_only || table.data_fields.len() != 1) {
         return Err(bad("This value calculation layout is not modelled"));
@@ -629,12 +641,15 @@ pub(super) fn render_axes(
         }
         let is_row = base == row;
         if !is_row && levels[0].field != Some(base) { return Err(bad("Unsupported value calculation base field")); }
+        if !is_row && matches!(show, "rankAscending" | "rankDescending") {
+            return Err(bad("Column-based ranks are not modelled"));
+        }
         let groups = if is_row { &rows } else { &levels[0].groups };
-        if show == "runTotal" && table.data_fields[0].subtotal != "sum" {
+        if matches!(show, "runTotal" | "percentRunTotal") && table.data_fields[0].subtotal != "sum" {
             return Err(bad("Running totals for this value function are not modelled"));
         }
         let base_index = match item {
-            _ if show == "runTotal" => None,
+            _ if matches!(show, "runTotal" | "percentRunTotal" | "rankAscending" | "rankDescending") => None,
             1_048_828 | 1_048_829 => None,
             _ => {
                 let shared = table.fields[base].items.get(item as usize).and_then(|item| item.index)
@@ -660,7 +675,7 @@ pub(super) fn render_axes(
     let row_order: BTreeMap<_, _> = visible_rows.iter().enumerate().map(|(n, &i)| (i, n)).collect();
     let column_order: BTreeMap<_, _> = visible_columns.iter().enumerate().map(|(n, &i)| (i, n)).collect();
     let mut running = BTreeMap::<(usize, Vec<usize>), CalcValue>::new();
-    if let Some((base_is_row, _, _)) = relative_base.filter(|_| show == "runTotal") {
+    if let Some((base_is_row, _, _)) = relative_base.filter(|_| matches!(show, "runTotal" | "percentRunTotal")) {
         let numeric = |row, path: Vec<usize>| totals.get(&(row, path, 0))
             .map(|total| total.result("sum")).and_then(|value| match value.core_ref() {
                 calc_value::CoreRef::Number(n) => Some(n), _ => None,
@@ -686,6 +701,36 @@ pub(super) fn render_axes(
             }
         }
     }
+    if matches!(show, "rankAscending" | "rankDescending") {
+        for entry in &columns {
+            let mut values = Vec::new();
+            for &row in &visible_rows {
+                if let Some(total) = totals.get(&(row, entry.path.clone(), 0)) {
+                    match total.result(&table.data_fields[0].subtotal).core_ref() {
+                        calc_value::CoreRef::Number(n) if n.is_finite() => values.push(n),
+                        calc_value::CoreRef::Empty => {},
+                        _ => return Err(bad("Nonnumeric rank values are not modelled")),
+                    }
+                }
+            }
+            values.sort_by(f64::total_cmp);
+            if values.windows(2).any(|pair| pair[0] == pair[1]) {
+                return Err(bad("Tied ranks are not modelled"));
+            }
+        }
+    }
+    if show == "percentRunTotal" {
+        let (base_is_row, _, _) = relative_base.ok_or_else(|| bad("Missing running-total base"))?;
+        let keys: Vec<_> = if base_is_row {
+            columns.iter().map(|entry| (usize::MAX, entry.path.clone(), 0)).collect()
+        } else {
+            visible_rows.iter().copied().chain(std::iter::once(usize::MAX)).map(|row| (row, Vec::new(), 0)).collect()
+        };
+        if keys.iter().any(|key| totals.get(key).is_none_or(|total| !matches!(total.result("sum").core_ref(),
+            calc_value::CoreRef::Number(n) if n.is_finite() && n != 0.0))) {
+            return Err(bad("Running percentages with zero or nonnumeric totals are not modelled"));
+        }
+    }
     if percent || indexed {
         let valid = |total: &Total| matches!(total.result(&table.data_fields[0].subtotal).core_ref(),
             calc_value::CoreRef::Number(n) if n != 0.0);
@@ -705,8 +750,30 @@ pub(super) fn render_axes(
             if (base_is_row && row == usize::MAX) || (!base_is_row && entry.kind == "grand") {
                 return CalcValue::empty();
             }
-            if show == "runTotal" {
-                return running.get(&(row, entry.path.clone())).cloned().unwrap_or_else(CalcValue::empty);
+            if matches!(show, "rankAscending" | "rankDescending") {
+                let n = match value.core_ref() {
+                    calc_value::CoreRef::Number(n) => n,
+                    _ => return CalcValue::empty(),
+                };
+                let rank = 1 + visible_rows.iter().filter(|&&other| totals.get(&(other, entry.path.clone(), 0))
+                    .is_some_and(|total| match total.result(&table.data_fields[0].subtotal).core_ref() {
+                        calc_value::CoreRef::Number(candidate) => if show == "rankAscending" { candidate < n } else { candidate > n },
+                        _ => false,
+                    })).count();
+                return CalcValue::number(rank as f64);
+            }
+            if matches!(show, "runTotal" | "percentRunTotal") {
+                let sum = running.get(&(row, entry.path.clone())).cloned().unwrap_or_else(CalcValue::empty);
+                if show == "runTotal" { return sum; }
+                let denominator = if base_is_row { (usize::MAX, entry.path.clone(), 0) }
+                    else { (row, Vec::new(), 0) };
+                return match (sum.core_ref(), totals[&denominator].result("sum").core_ref()) {
+                    (calc_value::CoreRef::Number(n), calc_value::CoreRef::Number(d)) => {
+                        let ratio = n / d;
+                        if ratio.is_finite() { CalcValue::number(ratio) } else { CalcValue::error(WorksheetErrorCode::Num) }
+                    },
+                    _ => CalcValue::empty(),
+                };
             }
             let current = if base_is_row { row } else { entry.path[0] };
             let visible = if base_is_row { &visible_rows } else { &visible_columns };
