@@ -552,13 +552,15 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
             let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
                 sheet, revision: book.host().revision().get(), part,
             }));
-            if stage.starts_with("subtotals-multiple") || stage == "subtotals-all-eleven" {
-                assert!(!receipt.accepted(), "custom subtotals must refuse until modelled: {stage}");
+            if stage.starts_with("subtotals-multiple") || matches!(stage.as_str(), "subtotals-all-eleven" | "agg-two-level-columns" | "prec-all-functions") {
+                assert!(!receipt.accepted(), "unmodelled calculations must refuse: {stage}");
             }
             if !receipt.accepted() {
                 format!("refused: {:?}", receipt.error)
             } else {
-                let got = held(&book, sheet, 60, 120);
+                let width = want.keys().map(|address| address.bytes().take_while(u8::is_ascii_alphabetic)
+                    .fold(0u32, |n, b| n * 26 + u32::from(b - b'A' + 1))).max().unwrap_or(0).max(60);
+                let got = held(&book, sheet, width, 120);
                 if got == *want {
                     matched.push(stage.clone());
                     "matched".into()
@@ -576,7 +578,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
         println!("{stage}: {verdict}");
     }
     println!("M1 matched {} of {}: {matched:?}", matched.len(), expected.len());
-    assert_eq!(matched, ["agg-text-field", "group-month", "group-month-year", "group-quarter", "group-quarter-year", "group-year", "group-year-columns", "nodata-rows-hidden", "show-count-average", "show-difference-east", "show-difference-next", "show-difference-previous", "show-difference-product-alpha", "show-index", "show-percent-difference-east", "show-percent-difference-previous", "show-percent-of-column", "show-percent-of-row", "show-percent-of-total", "show-percentof-east", "show-percentof-previous", "show-running-total", "show-running-total-product", "values-columns-after-field"]);
+    assert_eq!(matched, ["agg-all-amount", "agg-all-units", "agg-text-field", "group-month", "group-month-year", "group-quarter", "group-quarter-year", "group-year", "group-year-columns", "nodata-rows-hidden", "show-count-average", "show-difference-east", "show-difference-next", "show-difference-previous", "show-difference-product-alpha", "show-index", "show-percent-difference-east", "show-percent-difference-previous", "show-percent-of-column", "show-percent-of-row", "show-percent-of-total", "show-percentof-east", "show-percentof-previous", "show-running-total", "show-running-total-product", "values-columns-after-field"]);
 }
 
 #[test]

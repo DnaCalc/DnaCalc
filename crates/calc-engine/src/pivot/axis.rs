@@ -232,7 +232,7 @@ pub(super) fn layout_columns(
             d.field as usize >= cache.fields.len()
                 || !matches!(
                     d.subtotal.as_str(),
-                    "sum" | "count" | "countNums" | "min" | "max" | "average"
+                    "sum" | "count" | "countNums" | "min" | "max" | "average" | "product" | "stdDev" | "stdDevp" | "var" | "varp"
                 )
                 || d.attributes
                     .get("showDataAs")
@@ -353,6 +353,13 @@ pub(super) fn layout_columns(
                     .push(value)?;
             }
         }
+    }
+    if totals.iter().any(|((_, _, measure), total)| {
+        let kind = &table.data_fields[*measure].subtotal;
+        !total.supports(kind) || (levels.iter().any(|level| level.field.is_some())
+            && !total.supports_grouped_product(kind))
+    }) {
+        return Err(bad("This numeric input for the value function is not modelled"));
     }
     let mut columns = Vec::new();
     walk_axis(&mut ColumnWalk {
@@ -482,6 +489,9 @@ pub(super) fn layout_columns(
             .ok_or_else(|| bad("Missing value calculation base field"))?;
         let item = attrs.get("baseItem").and_then(|v| v.parse::<u32>().ok())
             .ok_or_else(|| bad("Missing value calculation base item"))?;
+        if item == 1_048_829 && matches!(show, "percent" | "percentDiff") {
+            return Err(bad("Percentage of the next item is not modelled"));
+        }
         let is_row = base == row;
         if !is_row && levels[0].field != Some(base) { return Err(bad("Unsupported value calculation base field")); }
         let groups = if is_row { &rows } else { &levels[0].groups };
