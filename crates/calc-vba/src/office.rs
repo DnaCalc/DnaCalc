@@ -183,7 +183,13 @@ impl OfficeProject {
         project
             .put_module(name, kind, code)
             .map_err(|e| e.to_string())?;
-        Self::of(project)
+        let mut changed = Self::of(project)?;
+        // `to_blob` writes every module's source from offset 0 (the compiled cache is dropped), so
+        // the offsets this project reports are the written blob's, not the blob it was read from.
+        for module in &mut changed.modules {
+            module.source_offset = 0;
+        }
+        Ok(changed)
     }
 
     /// The blob of this project, as calc-doc puts it back into the file. A project read and not

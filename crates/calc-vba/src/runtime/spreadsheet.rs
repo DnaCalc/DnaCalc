@@ -142,6 +142,12 @@ pub(crate) fn event_view_active() -> bool {
     CONTEXT.is_set() && CONTEXT.with(|(context, _, available)| available && context.event_view())
 }
 
+/// Whether the running code was called as a worksheet function (a context with a calling cell),
+/// not from a document event or outside a calculation.
+fn worksheet_function_call_active() -> bool {
+    CONTEXT.is_set() && CONTEXT.with(|(context, _, available)| available && !context.event_view())
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Axis {
     Cells,
@@ -164,6 +170,8 @@ pub(crate) struct SpreadsheetHost {
     /// Platform COM for the objects of the project's type-library references (early-bound
     /// through their registered type libraries). DNA's own objects never reach it.
     com: Option<Arc<dyn HostServices>>,
+    /// What the project's own source activates late-bound (refused).
+    late: super::late_binding::LateBinding,
 }
 
 #[derive(Default)]
@@ -179,12 +187,28 @@ const MAX_VALUE_CELLS: u64 = 1_048_576;
 /// typed refusal (their date and currency forms need the cell's number format), writing them is
 /// what Excel forbids a worksheet function.
 const RANGE_VALUE: i32 = 100;
+
+/// The reason an explicit `CreateObject` or `GetObject` is refused.
+const CREATE_OBJECT_REFUSAL: &str = "CreateObject or GetObject (late-bound COM activation; DNA OneCalc binds COM early, through imported type libraries)";
+
+/// The reason a late-bound call on a COM object is refused (owner rule: early-bound COM through
+/// imported type libraries first, never late binding as a start).
+const LATE_BOUND_REFUSAL: &str =
+    "a late-bound COM call (DNA OneCalc binds COM early, through imported type libraries)";
 const RANGE_FORMULA: i32 = 101;
 
 /// What Excel answers when a worksheet function writes a cell: VBA error 1004, which `On Error`
 /// traps; unhandled, the cell shows #VALUE! (both measured with DnaExamples.xlam, dc-0f1k.4).
-fn excel_forbids_cell_write() -> HalError {
-    fault(1004, "Application-defined or object-defined error")
+/// That is the answer only inside a worksheet-function call. From a document event (DNA Calc's
+/// `Worksheet_Change`, whose handlers may write cells in Excel) the write is the typed refusal
+/// that spreadsheet objects are read-only here, until events can write.
+fn excel_forbids_cell_write(host: &SpreadsheetHost) -> HalError {
+    if worksheet_function_call_active() {
+        fault(1004, "Application-defined or object-defined error")
+    } else {
+        host.unsupported::<()>("spreadsheet objects are read-only")
+            .expect_err("a refusal")
+    }
 }
 
 fn fault(code: i32, message: impl Into<String>) -> HalError {
@@ -234,8 +258,9 @@ impl SpreadsheetHost {
     }
     /// `native_events`: the automatic document-event objects; `com`: platform COM for the
     /// project's references, which only a native Windows build has.
-    pub(crate) fn new(native_events: bool, com: bool) -> Self {
+    pub(crate) fn new(native_events: bool, com: bool, late: super::late_binding::LateBinding) -> Self {
         Self {
+            late,
             base: HostBuilder::new().build(),
             objects: Mutex::new(ObjectTable::default()),
             native_events,
@@ -823,19 +848,14 @@ impl ComHal for SpreadsheetHost {
         }
     }
     fn dispatch_invoke_variant(&self, request: &oxvba_com::ComInvokeRequest) -> HalResult<Variant> {
-        match &self.com {
-            Some(com) => com.com().dispatch_invoke_variant(request),
-            None => self.unsupported("a late-bound call outside the spreadsheet objects"),
-        }
+        let _ = request;
+        self.unsupported(LATE_BOUND_REFUSAL)
     }
     fn dispatch_invoke_dynamic_variant_with_writebacks(
         &self,
         request: &DynamicCallRequest,
     ) -> HalResult<(Variant, Vec<Option<Variant>>)> {
-        match self.foreign(&request.object) {
-            Some(com) => com.dispatch_invoke_dynamic_variant_with_writebacks(request),
-            None => Ok((self.dispatch_invoke_dynamic_variant(request)?, Vec::new())),
-        }
+        Ok((self.dispatch_invoke_dynamic_variant(request)?, Vec::new()))
     }
     fn unsubscribe_event_variant(&self, subscription: ComSubscriptionToken) -> HalResult<Variant> {
         match &self.com {
@@ -908,7 +928,7 @@ impl ComHal for SpreadsheetHost {
                 Object::Range(..),
                 1 | RANGE_VALUE | RANGE_FORMULA,
                 TypeLibMemberInvokeKind::PropertyPut | TypeLibMemberInvokeKind::PropertyPutRef,
-            ) => return Err(excel_forbids_cell_write()),
+            ) => return Err(excel_forbids_cell_write(self)),
             (Object::Range(..), token, TypeLibMemberInvokeKind::PropertyGet) => match token {
                 1 => "VALUE2",
                 2 => "COUNT",
@@ -956,9 +976,16 @@ impl ComHal for SpreadsheetHost {
                     .is_some_and(|prefix| prefix.eq_ignore_ascii_case("DnaCalc"))
             })
         }) {
+            // Owner rule: early-bound COM through imported type libraries first, never late
+            // binding as a start. `New X` of an imported class compiles to this activation with the
+            // class's ProgID; an explicit CreateObject or GetObject in the project's source is late
+            // binding and is refused (see late_binding.rs).
+            if name.as_bstr().is_some_and(|s| self.late.refuses(&s.as_str())) {
+                return self.unsupported(CREATE_OBJECT_REFUSAL);
+            }
             com.com().create_object_variant(name)
         } else {
-            self.unsupported("only the injected spreadsheet Application is available")
+            self.unsupported("CreateObject of a class that is not an imported type library class (only the injected spreadsheet Application is available; DNA binds COM early)")
         }
     }
     fn describe_object(&self, object: ObjectRef) -> HalResult<Option<ComObjectDescriptor>> {
@@ -1013,8 +1040,8 @@ impl ComHal for SpreadsheetHost {
         ))
     }
     fn dispatch_invoke_dynamic_variant(&self, request: &DynamicCallRequest) -> HalResult<Variant> {
-        if let Some(com) = self.foreign(&request.object) {
-            return com.dispatch_invoke_dynamic_variant(request);
+        if self.foreign(&request.object).is_some() {
+            return self.unsupported(LATE_BOUND_REFUSAL);
         }
         if !matches!(
             request.call_kind_hint,
@@ -1043,7 +1070,7 @@ impl ComHal for SpreadsheetHost {
                     _ => false,
                 };
             if cell_write {
-                return Err(excel_forbids_cell_write());
+                return Err(excel_forbids_cell_write(self));
             }
             return self.unsupported("spreadsheet objects are read-only");
         }
@@ -1387,7 +1414,7 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn legacy_typed_projection_uses_fixed_token_and_refuses_unknown_token() {
-        let host = SpreadsheetHost::new(false, false);
+        let host = SpreadsheetHost::new(false, false, Default::default());
         struct Fixture;
         impl SpreadsheetContext for Fixture {
             fn caller(&self) -> Option<Range> {
@@ -1450,5 +1477,67 @@ mod tests {
             Some(438),
             "a recognizable name cannot recover an unbound typed member"
         );
+    }
+
+    /// A context that only says whether it is a document event's.
+    struct Bare {
+        event: bool,
+    }
+    impl SpreadsheetContext for Bare {
+        fn event_view(&self) -> bool {
+            self.event
+        }
+        fn caller(&self) -> Option<Range> {
+            None
+        }
+        fn metadata(&self, _: Range) -> Result<RangeInfo, ContextError> {
+            unreachable!()
+        }
+        fn cell(&self, _: Range, _: u32, _: u32) -> Result<Range, ContextError> {
+            unreachable!()
+        }
+        fn area(&self, _: Range, _: u32) -> Result<Range, ContextError> {
+            unreachable!()
+        }
+        fn read_range(&self, _: Range) -> Result<Value, ContextError> {
+            unreachable!()
+        }
+        fn worksheet_function(&self, _: &str, _: &[Value]) -> Result<Value, ContextError> {
+            unreachable!()
+        }
+        fn set_volatile(&self, _: bool) -> Result<(), ContextError> {
+            unreachable!()
+        }
+    }
+
+    /// Excel's 1004 for a cell write is the answer inside a worksheet-function call only.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_cell_write_is_error_1004_in_a_worksheet_function() {
+        let host = SpreadsheetHost::new(false, false, Default::default());
+        let error = with_context(&Bare { event: false }, || {
+            Err::<(), _>(Error::Backend(format!("{:?}", excel_forbids_cell_write(&host).host_error_code)))
+        })
+        .unwrap_err();
+        assert_eq!(error.to_string().contains("1004"), true, "{error}");
+    }
+
+    /// From a document event the write is the earlier typed refusal, never error 1004.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_cell_write_in_a_document_event_is_the_typed_refusal() {
+        let host = SpreadsheetHost::new(false, false, Default::default());
+        let mut shown = None;
+        let _ = with_context(&Bare { event: true }, || {
+            let error = excel_forbids_cell_write(&host);
+            shown = Some((error.host_error_code, error.to_string()));
+            Ok(())
+        });
+        let (code, text) = shown.expect("the context ran");
+        assert_ne!(code, Some(1004), "{text}");
+        assert!(text.contains("read-only"), "{text}");
+        // Outside any context (a call that is neither) it is the same refusal.
+        let error = excel_forbids_cell_write(&host);
+        assert_ne!(error.host_error_code, Some(1004));
     }
 }

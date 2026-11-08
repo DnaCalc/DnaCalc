@@ -9,6 +9,7 @@ use oxvba_runtime::{
 use oxvba_symbol::manifest as sym;
 use std::sync::Arc;
 mod cache;
+mod late_binding;
 pub(crate) mod spreadsheet;
 mod worksheet;
 pub use cache::{CodeCache, OwnedSession};
@@ -91,6 +92,8 @@ pub struct Module {
     event_project: bool,
     /// Whether the project reaches platform COM objects through its references.
     com: bool,
+    /// The ProgIDs the project's source activates late-bound.
+    late: late_binding::LateBinding,
 }
 impl Module {
     pub fn load_spreadsheet(module_name: &str, source: &str) -> Result<Self, Error> {
@@ -350,8 +353,10 @@ impl Module {
         {
             return Err(Error::UnsupportedSignature("worksheet UDF signature outside the document project's owning value carriers (dc-hsa5.12)".into()));
         }
-        let spreadsheet =
-            spreadsheet_objects.then(|| Arc::new(spreadsheet::SpreadsheetHost::new(events && automatic_events, references.com)));
+        let late = late_binding::LateBinding::of(manifest.modules.iter().map(|m| m.source.as_str()));
+        let spreadsheet = spreadsheet_objects.then(|| {
+            Arc::new(spreadsheet::SpreadsheetHost::new(events && automatic_events, references.com, late.clone()))
+        });
         let engine = if let Some(host) = &spreadsheet {
             engine.with_host(host.clone())
         } else {
@@ -364,6 +369,7 @@ impl Module {
             spreadsheet,
             event_project: events && automatic_events,
             com: references.com,
+            late,
         })
     }
     pub fn functions(&self) -> impl ExactSizeIterator<Item = &Function> {
