@@ -8,6 +8,10 @@
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
 
+#[allow(dead_code)]
+#[path = "../../calc-doc/tests/cdoc_m1_1_support/mod.rs"]
+mod existing_wire_support;
+
 use calc_host::value::{CalcValue, CellKey, CoreRef, SheetId};
 use calc_host::{
     HostOptions, HostSession, MemorySource, OpenPolicy, PackageRead, ProjectedValue,
@@ -562,11 +566,11 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
                 .map(|t| (*sheet, t.part.clone()))
         });
         let verdict = if let Some((sheet, part)) = selected {
-            let saved_row_items = if matches!(stage.as_str(), "blank-line-both" | "blank-line-compact-columns" | "blank-line-outer" | "group-day-month" | "group-days-7" | "group-number-clean" | "group-number-units" | "group-text-items" | "nodata-rows" | "nodata-two-row-fields" | "show-percent-of-parent-column" | "show-percent-of-parent-row" | "show-percent-running-total" | "show-rank-ascending" | "show-rank-descending" | "show-two-data-fields" | "sort-by-second-data" | "sort-by-value-asc" | "sort-by-value-columns" | "sort-by-value-desc" | "sort-by-value-inner" | "sort-by-value-ties" | "subtotals-multiple-compact" | "subtotals-multiple-outline-bottom" | "subtotals-multiple-outline-top" | "subtotals-multiple-tabular" | "subtotals-multiple-two-data" | "subtotals-none" | "values-rows-first" | "values-rows-region" | "values-rows-two-fields" | "values-rows-with-columns") {
+            let saved_row_items = if matches!(stage.as_str(), "blank-line-both" | "blank-line-compact-columns" | "blank-line-outer" | "group-day-month" | "group-days-7" | "group-number-clean" | "group-number-units" | "group-text-items" | "nodata-rows" | "nodata-two-row-fields" | "show-percent-of-parent" | "show-percent-of-parent-column" | "show-percent-of-parent-product" | "show-percent-of-parent-row" | "show-percent-running-total" | "show-rank-ascending" | "show-rank-descending" | "show-two-data-fields" | "sort-by-second-data" | "sort-by-value-asc" | "sort-by-value-columns" | "sort-by-value-desc" | "sort-by-value-inner" | "sort-by-value-ties" | "subtotals-multiple-compact" | "subtotals-multiple-outline-bottom" | "subtotals-multiple-outline-top" | "subtotals-multiple-tabular" | "subtotals-multiple-two-data" | "subtotals-none" | "values-rows-first" | "values-rows-region" | "values-rows-two-fields" | "values-rows-with-columns") {
                 Some(book.host().model().definitions().pivots().sheet(sheet).unwrap().tables.iter()
                     .find(|table| table.part == part).unwrap().row_items.clone())
             } else { None };
-            let saved_structure = if matches!(stage.as_str(), "blank-line-compact-columns" | "group-day-month" | "group-days-7" | "group-number-clean" | "group-number-units" | "group-text-items" | "nodata-rows" | "nodata-two-row-fields" | "show-percent-of-parent-column" | "show-percent-of-parent-row" | "show-percent-running-total" | "show-rank-ascending" | "show-rank-descending" | "show-two-data-fields" | "sort-by-second-data" | "sort-by-value-asc" | "sort-by-value-columns" | "sort-by-value-desc" | "sort-by-value-inner" | "sort-by-value-ties" | "subtotals-multiple-compact" | "subtotals-multiple-outline-bottom" | "subtotals-multiple-outline-top" | "subtotals-multiple-tabular" | "subtotals-multiple-two-data" | "subtotals-none" | "values-rows-first" | "values-rows-region" | "values-rows-two-fields" | "values-rows-with-columns") {
+            let saved_structure = if matches!(stage.as_str(), "blank-line-compact-columns" | "group-day-month" | "group-days-7" | "group-number-clean" | "group-number-units" | "group-text-items" | "nodata-rows" | "nodata-two-row-fields" | "show-percent-of-parent" | "show-percent-of-parent-column" | "show-percent-of-parent-product" | "show-percent-of-parent-row" | "show-percent-running-total" | "show-rank-ascending" | "show-rank-descending" | "show-two-data-fields" | "sort-by-second-data" | "sort-by-value-asc" | "sort-by-value-columns" | "sort-by-value-desc" | "sort-by-value-inner" | "sort-by-value-ties" | "subtotals-multiple-compact" | "subtotals-multiple-outline-bottom" | "subtotals-multiple-outline-top" | "subtotals-multiple-tabular" | "subtotals-multiple-two-data" | "subtotals-none" | "values-rows-first" | "values-rows-region" | "values-rows-two-fields" | "values-rows-with-columns") {
                 Some(canonical(book.host().model().definitions().pivots().sheet(sheet).unwrap().tables.iter()
                     .find(|table| table.part == part).unwrap()))
             } else { None };
@@ -605,16 +609,16 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
         println!("{stage}: {verdict}");
     }
     println!("M1 matched {} of {}: {matched:?}", matched.len(), expected.len());
-    assert_eq!(matched, ["agg-all-amount", "agg-all-units", "agg-text-field", "blank-line-both", "blank-line-compact-columns", "blank-line-outer", "err-keys", "err-keys-columns", "err-keys-desc", "err-values", "err-values-display", "group-day-month", "group-days-7", "group-month", "group-month-year", "group-number-clean", "group-number-units", "group-quarter", "group-quarter-year", "group-text-items", "group-year", "group-year-columns", "missing-items-built", "missing-items-refresh-default", "nodata-rows", "nodata-rows-hidden", "nodata-two-row-fields", "show-count-average", "show-difference-east", "show-difference-next", "show-difference-previous", "show-difference-product-alpha", "show-index", "show-percent-difference-east", "show-percent-difference-previous", "show-percent-of-column", "show-percent-of-parent-column", "show-percent-of-parent-row", "show-percent-of-row", "show-percent-of-total", "show-percent-running-total", "show-percentof-east", "show-percentof-previous", "show-rank-ascending", "show-rank-descending", "show-running-total", "show-running-total-product", "show-two-data-fields", "sort-by-second-data", "sort-by-value-asc", "sort-by-value-columns", "sort-by-value-desc", "sort-by-value-inner", "sort-by-value-ties", "subtotals-multiple-compact", "subtotals-multiple-outline-bottom", "subtotals-multiple-outline-top", "subtotals-multiple-tabular", "subtotals-multiple-two-data", "subtotals-none", "values-columns-after-field", "values-rows-first", "values-rows-region", "values-rows-two-fields", "values-rows-with-columns"]);
+    assert_eq!(matched, ["agg-all-amount", "agg-all-units", "agg-text-field", "blank-line-both", "blank-line-compact-columns", "blank-line-outer", "err-keys", "err-keys-columns", "err-keys-desc", "err-values", "err-values-display", "group-day-month", "group-days-7", "group-month", "group-month-year", "group-number-clean", "group-number-units", "group-quarter", "group-quarter-year", "group-text-items", "group-year", "group-year-columns", "missing-items-built", "missing-items-refresh-default", "nodata-rows", "nodata-rows-hidden", "nodata-two-row-fields", "show-count-average", "show-difference-east", "show-difference-next", "show-difference-previous", "show-difference-product-alpha", "show-index", "show-percent-difference-east", "show-percent-difference-previous", "show-percent-of-column", "show-percent-of-parent", "show-percent-of-parent-column", "show-percent-of-parent-product", "show-percent-of-parent-row", "show-percent-of-row", "show-percent-of-total", "show-percent-running-total", "show-percentof-east", "show-percentof-previous", "show-rank-ascending", "show-rank-descending", "show-running-total", "show-running-total-product", "show-two-data-fields", "sort-by-second-data", "sort-by-value-asc", "sort-by-value-columns", "sort-by-value-desc", "sort-by-value-inner", "sort-by-value-ties", "subtotals-multiple-compact", "subtotals-multiple-outline-bottom", "subtotals-multiple-outline-top", "subtotals-multiple-tabular", "subtotals-multiple-two-data", "subtotals-none", "values-columns-after-field", "values-rows-first", "values-rows-region", "values-rows-two-fields", "values-rows-with-columns"]);
     let mut saved = Vec::new();
     book.save(&SavePolicy::default(), &mut saved).unwrap();
     let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(saved));
     let mut reopened = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
-    for name in ["pvt_blank_line_both", "pvt_blank_line_compact_columns", "pvt_blank_line_outer", "pvt_group_day_month", "pvt_group_days_7", "pvt_group_number_clean", "pvt_group_number_units", "pvt_group_text_items", "pvt_nodata_rows", "pvt_nodata_two_row_fields", "pvt_show_percent_of_parent_column", "pvt_show_percent_of_parent_row", "pvt_show_percent_running_total", "pvt_show_rank_ascending", "pvt_show_rank_descending", "pvt_show_two_data_fields", "pvt_sort_by_second_data", "pvt_sort_by_value_asc", "pvt_sort_by_value_columns", "pvt_sort_by_value_desc", "pvt_sort_by_value_inner", "pvt_sort_by_value_ties", "pvt_subtotals_multiple_compact", "pvt_subtotals_multiple_outline_bottom", "pvt_subtotals_multiple_outline_top", "pvt_subtotals_multiple_tabular", "pvt_subtotals_multiple_two_data", "pvt_subtotals_none", "pvt_values_rows_first", "pvt_values_rows_region", "pvt_values_rows_two_fields", "pvt_values_rows_with_columns"] {
+    for name in ["pvt_blank_line_both", "pvt_blank_line_compact_columns", "pvt_blank_line_outer", "pvt_group_day_month", "pvt_group_days_7", "pvt_group_number_clean", "pvt_group_number_units", "pvt_group_text_items", "pvt_nodata_rows", "pvt_nodata_two_row_fields", "pvt_show_percent_of_parent", "pvt_show_percent_of_parent_column", "pvt_show_percent_of_parent_product", "pvt_show_percent_of_parent_row", "pvt_show_percent_running_total", "pvt_show_rank_ascending", "pvt_show_rank_descending", "pvt_show_two_data_fields", "pvt_sort_by_second_data", "pvt_sort_by_value_asc", "pvt_sort_by_value_columns", "pvt_sort_by_value_desc", "pvt_sort_by_value_inner", "pvt_sort_by_value_ties", "pvt_subtotals_multiple_compact", "pvt_subtotals_multiple_outline_bottom", "pvt_subtotals_multiple_outline_top", "pvt_subtotals_multiple_tabular", "pvt_subtotals_multiple_two_data", "pvt_subtotals_none", "pvt_values_rows_first", "pvt_values_rows_region", "pvt_values_rows_two_fields", "pvt_values_rows_with_columns"] {
         let original = book.host().model().definitions().pivots().tables().find(|table| table.name == name).unwrap();
         let restored = reopened.host().model().definitions().pivots().tables().find(|table| table.name == name).unwrap();
         assert_eq!(restored.row_items, original.row_items, "{name} after save and reopen");
-        if matches!(name, "pvt_blank_line_compact_columns" | "pvt_group_day_month" | "pvt_group_days_7" | "pvt_group_number_clean" | "pvt_group_number_units" | "pvt_group_text_items" | "pvt_nodata_rows" | "pvt_nodata_two_row_fields" | "pvt_show_percent_of_parent_column" | "pvt_show_percent_of_parent_row" | "pvt_show_percent_running_total" | "pvt_show_rank_ascending" | "pvt_show_rank_descending" | "pvt_show_two_data_fields" | "pvt_sort_by_second_data" | "pvt_sort_by_value_asc" | "pvt_sort_by_value_columns" | "pvt_sort_by_value_desc" | "pvt_sort_by_value_inner" | "pvt_sort_by_value_ties" | "pvt_subtotals_multiple_compact" | "pvt_subtotals_multiple_outline_bottom" | "pvt_subtotals_multiple_outline_top" | "pvt_subtotals_multiple_tabular" | "pvt_subtotals_multiple_two_data" | "pvt_subtotals_none" | "pvt_values_rows_first" | "pvt_values_rows_region" | "pvt_values_rows_two_fields" | "pvt_values_rows_with_columns") {
+        if matches!(name, "pvt_blank_line_compact_columns" | "pvt_group_day_month" | "pvt_group_days_7" | "pvt_group_number_clean" | "pvt_group_number_units" | "pvt_group_text_items" | "pvt_nodata_rows" | "pvt_nodata_two_row_fields" | "pvt_show_percent_of_parent" | "pvt_show_percent_of_parent_column" | "pvt_show_percent_of_parent_product" | "pvt_show_percent_of_parent_row" | "pvt_show_percent_running_total" | "pvt_show_rank_ascending" | "pvt_show_rank_descending" | "pvt_show_two_data_fields" | "pvt_sort_by_second_data" | "pvt_sort_by_value_asc" | "pvt_sort_by_value_columns" | "pvt_sort_by_value_desc" | "pvt_sort_by_value_inner" | "pvt_sort_by_value_ties" | "pvt_subtotals_multiple_compact" | "pvt_subtotals_multiple_outline_bottom" | "pvt_subtotals_multiple_outline_top" | "pvt_subtotals_multiple_tabular" | "pvt_subtotals_multiple_two_data" | "pvt_subtotals_none" | "pvt_values_rows_first" | "pvt_values_rows_region" | "pvt_values_rows_two_fields" | "pvt_values_rows_with_columns") {
             assert_eq!(canonical(restored), canonical(original), "{name} structure after save and reopen");
         }
     }
@@ -632,7 +636,9 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
         ("pvt_group_text_items", "group-text-items"),
         ("pvt_group_number_clean", "group-number-clean"), ("pvt_group_number_units", "group-number-units"),
         ("pvt_nodata_rows", "nodata-rows"), ("pvt_nodata_two_row_fields", "nodata-two-row-fields"),
+        ("pvt_show_percent_of_parent", "show-percent-of-parent"),
         ("pvt_show_percent_of_parent_column", "show-percent-of-parent-column"),
+        ("pvt_show_percent_of_parent_product", "show-percent-of-parent-product"),
         ("pvt_show_percent_of_parent_row", "show-percent-of-parent-row"),
         ("pvt_show_percent_running_total", "show-percent-running-total"),
         ("pvt_show_rank_ascending", "show-rank-ascending"), ("pvt_show_rank_descending", "show-rank-descending"),
@@ -677,7 +683,8 @@ fn dc_8wp__value_sort_ties_refuse_refresh() {
     }));
     assert!(!receipt.accepted(), "unmeasured tied values must refuse: {receipt:?}");
     for name in ["pvt_sort_by_value_inner", "pvt_show_two_data_fields", "pvt_show_rank_ascending", "pvt_show_rank_descending", "pvt_show_percent_running_total",
-        "pvt_show_percent_of_parent_row", "pvt_show_percent_of_parent_column"] {
+        "pvt_show_percent_of_parent_row", "pvt_show_percent_of_parent_column",
+        "pvt_show_percent_of_parent", "pvt_show_percent_of_parent_product"] {
         let (sheet, part) = book.host().model().definitions().pivots().sheets.iter().find_map(|(sheet, pivots)|
             pivots.tables.iter().find(|table| table.name == name).map(|table| (*sheet, table.part.clone()))).unwrap();
         let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
@@ -734,9 +741,28 @@ fn dc_8wp__new_discrete_group_item_refuses_refresh() {
 #[test]
 /// Native-only: opens the captured workbook and refreshes through the host command.
 fn dc_8wp__unmodelled_show_values_extension_refuses_refresh() {
-    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(
-        include_bytes!("fixtures/pivot/m1-calculation/built.xlsx").to_vec(),
-    ));
+    use existing_wire_support::{RawEntry, build_zip, parse_zip};
+    let bytes = include_bytes!("fixtures/pivot/m1-calculation/built.xlsx");
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes.to_vec()));
+    let original = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let part = original.host().model().definitions().pivots().tables()
+        .find(|table| table.name == "pvt_show_percent_of_parent").unwrap().part.clone();
+    let mut changed = false;
+    let entries: Vec<_> = parse_zip(bytes).entries.iter().map(|entry| {
+        let payload = entry.payload(bytes);
+        if entry.name == part.trim_start_matches('/') {
+            let data = if entry.method == 0 { payload.to_vec() }
+                else { miniz_oxide::inflate::decompress_to_vec(payload).unwrap() };
+            let xml = String::from_utf8(data).unwrap();
+            let rewritten = xml.replace("pivotShowAs=\"percentOfParent\"", "pivotShowAs=\"unknownDisplay\"");
+            assert_ne!(xml, rewritten);
+            changed = true;
+            RawEntry::stored(&entry.name, rewritten.as_bytes())
+        } else if entry.method == 0 { RawEntry::stored(&entry.name, payload) }
+        else { RawEntry::deflated(&entry.name, payload, entry.size, entry.crc32) }
+    }).collect();
+    assert!(changed);
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(build_zip(&entries)));
     let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
     let (sheet, part) = book.host().model().definitions().pivots().sheets.iter().find_map(|(sheet, pivots)|
         pivots.tables.iter().find(|table| table.name == "pvt_show_percent_of_parent")

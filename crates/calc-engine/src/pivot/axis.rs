@@ -305,6 +305,7 @@ pub(super) fn render_axes(
     let show = if multiple_displays { "normal" } else { match table.data_fields.first().and_then(|d| d.extended_show.as_deref()) {
         Some("percentOfParentRow") => "percentOfCol",
         Some("percentOfParentCol") => "percentOfRow",
+        Some("percentOfParent") => "percentOfParent",
         Some("percentOfRunningTotal") => "percentRunTotal",
         Some("rankAscending") => "rankAscending",
         Some("rankDescending") => "rankDescending",
@@ -315,7 +316,18 @@ pub(super) fn render_axes(
     let percent = matches!(show, "percentOfCol" | "percentOfRow" | "percentOfTotal");
     let indexed = show == "index";
     let relative = matches!(show, "difference" | "percent" | "percentDiff" | "runTotal" | "percentRunTotal" | "rankAscending" | "rankDescending");
-    if show != "normal" && (!(percent || indexed || relative) || table.column_fields.len() != 1
+    let parent_percent = show == "percentOfParent";
+    if parent_percent && (row_fields.len() != 2 || !rows_only || row_values.is_some()
+        || table.data_fields.len() != 1 || table.data_fields[0].subtotal != "sum"
+        || !table.page_fields.is_empty() || !table.filters.is_empty()
+        || table.data_fields[0].attributes.get("baseField").and_then(|base| base.parse::<usize>().ok())
+            .is_none_or(|base| !row_fields.contains(&base))
+        || row_fields.iter().any(|&field| table.fields.get(field).is_none_or(|field|
+            truthy(field.attributes.get("compact"), true) || truthy(field.attributes.get("outline"), true)
+                || field.sort_measure.is_some() || field.items.iter().any(|item| item.hidden)))) {
+        return Err(bad("This parent percentage layout is not modelled"));
+    }
+    if show != "normal" && !parent_percent && (!(percent || indexed || relative) || table.column_fields.len() != 1
         || values_only || table.data_fields.len() != 1) {
         return Err(bad("This value calculation layout is not modelled"));
     }
@@ -337,7 +349,7 @@ pub(super) fn render_axes(
         && table.fields[row_fields[0]].attributes.iter().filter(|(name, value)|
             name.ends_with("Subtotal") && name.as_str() != "defaultSubtotal" && truthy(Some(value), false)).count() == 5
         && selected_subtotals(row_fields[0]) == ["sum", "countA", "avg", "max", "min"];
-    if (multiple_rows && show != "normal")
+    if (multiple_rows && show != "normal" && !parent_percent)
         || (multiple_rows && row_values.is_none() && table.data_fields.len() != 1 && !custom)
         || (row_values.is_some() && (row_fields.len() > 3 || table.column_fields.len() > 1
             || table.data_fields.iter().any(|d| d.subtotal != "sum")))
@@ -624,6 +636,15 @@ pub(super) fn render_axes(
     if super::records::show_all_mode(table) {
         if totals.is_empty() { return Err(bad("No selected source records are not modelled")); }
         for index in 0..levels[0].groups.len() { paths.insert(vec![index]); }
+    }
+    if parent_percent {
+        let base = table.data_fields[0].attributes["baseField"].parse::<usize>().unwrap();
+        let level = usize::from(base == row_fields[1]);
+        if row_totals[level].values().any(|total| !matches!(total.result("sum").core_ref(),
+            calc_value::CoreRef::Number(n) if n.is_finite() && n != 0.0))
+            || totals.values().any(|total| total.source_error().is_some()) {
+            return Err(bad("Parent percentages with zero or error totals are not modelled"));
+        }
     }
     if row_values.is_some() && totals.values().any(|total| total.source_error().is_some()) {
         return Err(bad("Source errors with Values on rows are not modelled"));
@@ -917,6 +938,7 @@ pub(super) fn render_axes(
     }
     let displayed = |total: &Total, row: usize, entry: &ColumnEntry| -> CalcValue {
         let value = total.result(&table.data_fields[entry.measure].subtotal);
+        if parent_percent { return CalcValue::empty(); }
         if multiple_displays {
             if entry.measure == 1 {
                 return multiple_running.get(&row).cloned().unwrap_or_else(CalcValue::empty);
@@ -1064,7 +1086,21 @@ pub(super) fn render_axes(
             for (col, entry) in columns.iter().enumerate() {
                 let measure = subtotal_measure.or_else(|| row_values.and_then(|level| path.get(level)).copied()).unwrap_or(entry.measure);
                 if let Some(total) = totals.get(&(key, entry.path.clone(), measure)) {
-                    cells.insert((output_row, col as u32 + label_width), total.result(subtotal_kind.unwrap_or(&table.data_fields[measure].subtotal)));
+                    let value = if parent_percent {
+                        let base = table.data_fields[0].attributes["baseField"].parse::<usize>().unwrap();
+                        let level = usize::from(base == row_fields[1]);
+                        if path.len() <= level { CalcValue::empty() } else {
+                            let denominator = row_totals[level][&path[..=level]].result("sum");
+                            match (total.result("sum").core_ref(), denominator.core_ref()) {
+                                (calc_value::CoreRef::Number(n), calc_value::CoreRef::Number(d)) => {
+                                    let ratio = n / d;
+                                    if ratio.is_finite() { CalcValue::number(ratio) } else { CalcValue::error(WorksheetErrorCode::Num) }
+                                }
+                                _ => CalcValue::empty(),
+                            }
+                        }
+                    } else { total.result(subtotal_kind.unwrap_or(&table.data_fields[measure].subtotal)) };
+                    cells.insert((output_row, col as u32 + label_width), value);
                 }
             }
         }

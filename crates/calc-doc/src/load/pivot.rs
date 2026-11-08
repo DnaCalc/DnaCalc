@@ -483,7 +483,7 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
                                 && e.attribute("uri") == Some("{E15A36E0-9728-4e99-A89B-3F7291B0FE68}"),
                         (1, ["dataFields", "dataField", "extLst", "ext"], "dataField") => {
                             *show = e.attribute("pivotShowAs").filter(|v| matches!(*v,
-                                "percentOfParentRow" | "percentOfParentCol" | "percentOfRunningTotal" | "rankAscending" | "rankDescending"))
+                                "percentOfParentRow" | "percentOfParentCol" | "percentOfParent" | "percentOfRunningTotal" | "rankAscending" | "rankDescending"))
                                 .map(str::to_owned);
                             e.name.namespace.as_deref() == Some(X14) && e.attributes.len() == 1 && show.is_some()
                         }
