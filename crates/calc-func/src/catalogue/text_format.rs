@@ -930,8 +930,10 @@ ported_family! {
     9 asc_fn "ASC" (1, 1) [V "text"] three_d (None, None, Some(&[])); |s, a, sv| { width_conversion(s, a) }
     10 dbcs_fn "DBCS" (1, 1) [V "text"] three_d (None, None, Some(&[])); |s, a, sv| { width_conversion(s, a) }
     // JIS: Excel 16.0.20527 for Windows answers #NAME? to every call (the fn1-jis bank rows,
-    // text, number, logical and empty arguments alike), so the name is held as absent.
-    11 jis_fn "JIS" (1, 1) [V "text"] availability AbsentOnWindows; |s, a, sv| { fail(WorksheetErrorCode::Name) }
+    // text, number, logical and empty arguments alike), so the name is held as absent. JIS is not in the dispatch table (Excel holds no such name), and
+    // its member number sits apart from the table's so that no neighbouring ID resolves to an
+    // entry the table does not admit.
+    100 jis_fn "JIS" (1, 1) [V "text"] availability AbsentOnWindows; |s, a, sv| { fail(WorksheetErrorCode::Name) }
     // PHONETIC's reference takes only an operand that may give one (dc-mx3x, Excel 16.0.20527,
     // 2026-11-07, Formula2 and Formula alike): `=PHONETIC(2)`, `=PHONETIC({1,2})` and
     // `=PHONETIC(1+1)` are refused, `=PHONETIC(B1)` and `=PHONETIC(INDEX(B1:B3,0))` enter.
