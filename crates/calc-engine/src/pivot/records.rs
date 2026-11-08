@@ -91,6 +91,9 @@ pub(super) fn field_groups(
 ) -> Result<Vec<Group>, PivotIssue> {
     let bad = |why: &str| refusal(&table.part, why);
     let field = &table.fields[row];
+    let measure = if let Some(index) = field.sort_measure {
+        table.data_fields.get(index as usize).ok_or_else(|| bad("Invalid value-sort measure"))?.field as usize
+    } else { measure };
     if field
         .attributes
         .get("showAll")
@@ -235,6 +238,29 @@ pub(super) fn field_groups(
             }
             PivotFilterKind::Unsupported => return Err(bad("This pivot filter is not modelled")),
         }
+    }
+    if let Some(index) = field.sort_measure {
+        if groups.iter().any(|group| group.hidden || group.excluded) {
+            return Err(bad("Value sorting hidden items is not modelled"));
+        }
+        let kind = table.data_fields.get(index as usize).ok_or_else(|| bad("Invalid value-sort measure"))?.subtotal.as_str();
+        let mut scored = groups.into_iter().map(|group| {
+            let score = match group.total.result(kind).core_ref() {
+                calc_value::CoreRef::Number(n) if n.is_finite() => n,
+                _ => return Err(bad("A nonnumeric value-sort total is not modelled")),
+            };
+            Ok((group, score))
+        }).collect::<Result<Vec<_>, PivotIssue>>()?;
+        let ascending = match field.attributes.get("sortType").map(String::as_str) {
+            Some("ascending") => true,
+            Some("descending") => false,
+            _ => return Err(bad("Invalid value-sort direction")),
+        };
+        scored.sort_by(|a, b| if ascending { a.1.total_cmp(&b.1) } else { b.1.total_cmp(&a.1) });
+        if scored.windows(2).any(|pair| pair[0].1 == pair[1].1) {
+            return Err(bad("Ties in value sorts are not modelled"));
+        }
+        return Ok(scored.into_iter().map(|(group, _)| group).collect());
     }
     match field
         .attributes

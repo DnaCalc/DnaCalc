@@ -379,10 +379,32 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
     let mut filter_columns = 0usize;
     let mut data_fields = Vec::new();
     let mut path = Vec::<String>::new();
+    // The supported scope selects a single data field over the whole opposite axis.
+    let mut sort_scope: Option<(usize, bool, Option<u32>)> = None;
     while let Some(event) = events.next()? {
         match event {
             XmlEvent::Start(e) => {
                 let filter_path: Vec<_> = path.iter().map(String::as_str).collect();
+                if let Some((step, invalid, selected)) = sort_scope.as_mut() {
+                    let expected = match (*step, filter_path.as_slice(), e.name.local.as_str()) {
+                        (0, ["pivotFields", "pivotField", "autoSortScope"], "pivotArea") =>
+                            e.attributes.len() == 3 && e.attribute("dataOnly") == Some("0")
+                                && e.attribute("outline") == Some("0") && e.attribute("fieldPosition") == Some("0"),
+                        (1, ["pivotFields", "pivotField", "autoSortScope", "pivotArea"], "references") =>
+                            e.attributes.len() == 1 && e.attribute("count") == Some("1"),
+                        (2, ["pivotFields", "pivotField", "autoSortScope", "pivotArea", "references"], "reference") =>
+                            e.attributes.len() == 3 && e.attribute("field") == Some("4294967294")
+                                && e.attribute("count") == Some("1") && e.attribute("selected") == Some("0"),
+                        (3, ["pivotFields", "pivotField", "autoSortScope", "pivotArea", "references", "reference"], "x") => {
+                            *selected = e.attribute("v").and_then(|v| v.parse().ok());
+                            e.attributes.len() == 1 && selected.is_some()
+                        }
+                        _ => false,
+                    };
+                    *invalid |= !expected || e.name.namespace.as_deref() != Some(M)
+                        || e.attributes.iter().any(|a| a.name.namespace.is_some());
+                    *step += 1;
+                }
                 if filter_path.starts_with(&["filters", "filter"]) {
                     let known = e.name.namespace.as_deref() == Some(M) && matches!(
                         (filter_path.as_slice(), e.name.local.as_str()),
@@ -436,7 +458,7 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
                                     .map_err(|_| events.invalid("The pivot location is invalid"))?
                             });
                         }
-                        (["pivotFields"], "pivotField") => fields.push(PivotField { attributes:attrs(&e),items:Vec::new() }),
+                        (["pivotFields"], "pivotField") => fields.push(PivotField { attributes:attrs(&e),items:Vec::new(),sort_measure:None }),
                         (["pivotFields","pivotField","items"],"item") => {
                             if e.attribute("n").is_some(){unsupported.push("custom item captions".into());}
                             if let Some(field)=fields.last_mut() {field.items.push(PivotFieldItem {index:optional_integer(&e,"x",&events)?,kind:e.attribute("t").unwrap_or("data").into(),hidden:matches!(e.attribute("h"),Some("1"|"true"))});}
@@ -446,7 +468,14 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
                         (["colItems","i"],"x") => {if let Some(item)=col_items.last_mut(){item.indexes.push(optional_integer(&e,"v",&events)?.unwrap_or(0));}}
                         (["rowItems","i"],"x") => {if let Some(item)=row_items.last_mut(){item.indexes.push(optional_integer(&e,"v",&events)?.unwrap_or(0));}}
                         ([],"conditionalFormats"|"rowHierarchies"|"colHierarchies"|"calculatedMembers")
-                        | (["pivotFields","pivotField"],"autoSortScope"|"memberProperties") => unsupported.push(e.name.local.to_string()),
+                        | (["pivotFields","pivotField"],"memberProperties") => unsupported.push(e.name.local.to_string()),
+                        (["pivotFields","pivotField"],"autoSortScope") => {
+                            if sort_scope.is_some() || !e.attributes.is_empty()
+                                || fields.last().is_none_or(|field| field.sort_measure.is_some()) {
+                                unsupported.push("unsupported value sort".into());
+                            }
+                            sort_scope = Some((0, false, None));
+                        }
                         (["pivotFields","pivotField"],"extLst") => {}
                         (["pivotFields","pivotField","extLst"],"ext") => {
                             if e.attribute("uri") != Some(FILL_DOWN_URI) { unsupported.push("extLst".into()); }
@@ -535,6 +564,12 @@ fn read_table(package: &Package, part: &str, sheet: SheetId) -> Result<PivotTabl
                 });
             }
             XmlEvent::End(_) => {
+                if path.iter().map(String::as_str).collect::<Vec<_>>() == ["pivotFields", "pivotField", "autoSortScope"] {
+                    match sort_scope.take() {
+                        Some((4, false, Some(measure))) => fields.last_mut().unwrap().sort_measure = Some(measure),
+                        _ => unsupported.push("unsupported value sort".into()),
+                    }
+                }
                 if path.pop().is_none() {
                     break;
                 }

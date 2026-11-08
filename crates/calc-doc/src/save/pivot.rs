@@ -244,7 +244,7 @@ fn fields(table: &PivotTable) -> Vec<u8> {
             ext.extend_from_slice(b"/></ext></extLst>");
             ext
         });
-        if field.items.is_empty() {
+        if field.items.is_empty() && field.sort_measure.is_none() {
             match extension {
                 Some(ext) => {
                     out.push(b'>');
@@ -255,7 +255,10 @@ fn fields(table: &PivotTable) -> Vec<u8> {
             }
             continue;
         }
-        out.extend_from_slice(format!("><items count=\"{}\">", field.items.len()).as_bytes());
+        out.push(b'>');
+        if !field.items.is_empty() {
+            out.extend_from_slice(format!("<items count=\"{}\">", field.items.len()).as_bytes());
+        }
         for item in &field.items {
             out.extend_from_slice(b"<item");
             if let Some(i) = item.index {
@@ -269,7 +272,10 @@ fn fields(table: &PivotTable) -> Vec<u8> {
             }
             out.extend_from_slice(b"/>");
         }
-        out.extend_from_slice(b"</items>");
+        if !field.items.is_empty() { out.extend_from_slice(b"</items>"); }
+        if let Some(measure) = field.sort_measure {
+            out.extend_from_slice(format!("<autoSortScope><pivotArea dataOnly=\"0\" outline=\"0\" fieldPosition=\"0\"><references count=\"1\"><reference field=\"4294967294\" count=\"1\" selected=\"0\"><x v=\"{measure}\"/></reference></references></pivotArea></autoSortScope>").as_bytes());
+        }
         if let Some(ext) = extension {
             out.extend_from_slice(&ext);
         }
@@ -381,7 +387,11 @@ fn preflight(xml: &XmlPart, containers: &[&str]) -> Result<(), SaveRefusal> {
                                 || local == "colItems"
                         }
                         "pivotFields" => local == "pivotField",
-                        "pivotField" => local == "items" || local == "extLst",
+                        "pivotField" => matches!(local, "items" | "extLst" | "autoSortScope"),
+                        "autoSortScope" => local == "pivotArea",
+                        "pivotArea" => local == "references",
+                        "references" => local == "reference",
+                        "reference" => local == "x",
                         "extLst" => local == "ext",
                         "items" => local == "item",
                         "rowItems" | "colItems" => local == "i",
@@ -424,6 +434,10 @@ fn preflight(xml: &XmlPart, containers: &[&str]) -> Result<(), SaveRefusal> {
                                     | "maxDate"
                                     | "longText"
                             ),
+                            "autoSortScope" => false,
+                            "pivotArea" => matches!(a.name.local.as_str(), "dataOnly" | "outline" | "fieldPosition"),
+                            "references" => a.name.local.as_str() == "count",
+                            "reference" => matches!(a.name.local.as_str(), "field" | "count" | "selected"),
                             "fieldGroup" => matches!(a.name.local.as_str(), "base" | "par"),
                             "rangePr" => matches!(a.name.local.as_str(), "groupBy" | "startDate" | "endDate" | "autoStart" | "autoEnd" | "groupInterval"),
                             "groupItems" => a.name.local.as_str() == "count",
@@ -669,6 +683,9 @@ pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
                 &table.part,
                 "Changing these pivot properties is not modelled",
             ));
+        }
+        if old.unsupported.iter().any(|item| item == "unsupported value sort") {
+            return Err(bad(&table.part, "An unsupported value-sort scope cannot be rewritten"));
         }
         let xml = read_part(package, &table.part)?;
         preflight(&xml, &["location", "pivotFields", "rowItems", "colItems"])?;
