@@ -1047,6 +1047,13 @@ mod references {
             "{lifted:?}"
         );
         assert_eq!(book.dynamic("=SUM(OFFSET(A1,{0;1},0))"), n(302.0));
+        assert_eq!(
+            book.eval_in(FormulaForm::Dynamic, "=AGGREGATE(9,0,OFFSET(A1,{0;1},0,2))", "Z100").unwrap(),
+            Err(EvalFault::NotModelled {
+                construct: "an array of references given to a function whose handling of one is not measured",
+                owner: "dc-b1l",
+            })
+        );
         // In a legacy formula OFFSET's result is intersected.
         assert_eq!(book.legacy_at("=OFFSET(A1,0,0,3,1)", "Z2"), n(201.0));
     }
