@@ -745,6 +745,15 @@ pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
         retained.record_count = old.record_count;
         retained.fields = old.fields.clone();
         retained.snapshot = old.snapshot.clone();
+        if retained.attributes.get("missingItemsLimit") != old.attributes.get("missingItemsLimit") {
+            if retained.attributes.get("missingItemsLimit").map(String::as_str) != Some("0") {
+                return Err(bad(&cache.part, "This item retention setting is not modelled"));
+            }
+            match old.attributes.get("missingItemsLimit") {
+                Some(value) => { retained.attributes.insert("missingItemsLimit".into(), value.clone()); }
+                None => { retained.attributes.remove("missingItemsLimit"); }
+            }
+        }
         if &retained != old.as_ref() {
             return Err(bad(
                 &cache.part,
@@ -760,6 +769,7 @@ pub(super) fn finish<S:Borrow<crate::load::LoadedSheet>>(
             "pivotCacheDefinition",
             &[
                 ("recordCount", Some(&count)),
+                ("missingItemsLimit", cache.attributes.get("missingItemsLimit").map(String::as_str)),
                 ("refreshOnLoad", Some("0")),
                 ("invalid", Some("0")),
                 ("refreshedBy", None),

@@ -172,7 +172,7 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<Pivo
         return Err(fail("Calculated and retained items together are not modelled"));
     }
     if tracked_unused.iter().any(|tracked| *tracked)
-        && cache.attributes.get("missingItemsLimit").map(String::as_str) != Some("32500") {
+        && !matches!(cache.attributes.get("missingItemsLimit").map(String::as_str), Some("32500" | "0")) {
         return Err(fail("This unused-item retention limit is not modelled"));
     }
     let mut indexes = Vec::new();
@@ -279,7 +279,8 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<Pivo
             "Refreshed shared items exceed the cache reader budget of 100,000",
         ));
     }
-    let retaining_items = tracked_unused.iter().any(|tracked| *tracked);
+    let retaining_items = tracked_unused.iter().any(|tracked| *tracked)
+        && cache.attributes.get("missingItemsLimit").map(String::as_str) != Some("0");
     for (index, field) in cache.fields[..source_count].iter_mut().enumerate() {
         field.shared_items = Some(field.items.len() as u32);
         if retaining_items {
@@ -391,6 +392,19 @@ fn preflight_output(
     }
     Ok(())
 }
+/// Select the captured zero-retention policy. Existing cached items are removed on refresh.
+pub(crate) fn prepare_forget_missing_items(host: &HostState, sheet: SheetId, revision: u64, part: &str) -> Result<Vec<CellEdit>, String> {
+    if revision != host.revision().get() { return Err(fail("The workbook changed before setting item retention")); }
+    let before = host.model().definitions().pivots();
+    let selected = before.sheet(sheet).and_then(|s| s.tables.iter().find(|t| t.part == part))
+        .ok_or_else(|| fail("The selected pivot is unavailable"))?;
+    let mut after = (**before).clone();
+    let cache = after.caches.caches.get_mut(&selected.cache_id).ok_or_else(|| fail("The source cache is unavailable"))?;
+    Arc::make_mut(cache).attributes.insert("missingItemsLimit".into(), "0".into());
+    host.loaded().check_pivot_state(&after).map_err(|e| e.to_string())?;
+    Ok(vec![CellEdit::Pivots(Arc::new(after))])
+}
+
 pub(crate) fn prepare_refresh(
     host: &HostState,
     sheet: SheetId,
@@ -422,8 +436,51 @@ pub(crate) fn prepare_refresh(
     if before.tables().any(|t| overlaps(area, t.area)) {
         return Err(fail("A pivot source cannot read another pivot output"));
     }
-    let cache = Arc::new(snapshot(host, cache, area)?);
+    let mut cache = snapshot(host, cache, area)?;
     let mut after = (**before).clone();
+    if cache.attributes.get("missingItemsLimit").map(String::as_str) == Some("0") {
+        if before.tables().filter(|t| t.cache_id == cache.id).count() != 1
+            || !cache.calculated_items.is_empty() || cache.fields.iter().any(|f| f.group.is_some() || !f.formula_items.is_empty())
+            || selected.fields.iter().any(|f| f.items.iter().any(|i| i.hidden || i.calculated))
+            || !selected.page_fields.is_empty() || !selected.filters.is_empty() {
+            return Err(fail("Removing unused items in this cache is not modelled"));
+        }
+        let records = &mut Arc::make_mut(cache.snapshot.as_mut().expect("snapshot just created")).records;
+        let mut maps = Vec::new();
+        for (field_index, field) in cache.fields.iter_mut().enumerate() {
+            let used: std::collections::BTreeSet<_> = records.iter().filter_map(|record| match record[field_index] {
+                PivotItem::Index(index) => Some(index), _ => None,
+            }).collect();
+            let mut map = vec![None; field.items.len()];
+            let mut items = Vec::new();
+            for (old, item) in field.items.iter().enumerate() {
+                if used.contains(&(old as u32)) {
+                    map[old] = Some(items.len() as u32);
+                    items.push(item.clone());
+                }
+            }
+            field.items = items;
+            field.shared_items = Some(field.items.len() as u32);
+            field.unused_items.clear();
+            for record in records.iter_mut() {
+                if let PivotItem::Index(index) = &mut record[field_index] {
+                    *index = map[*index as usize].ok_or_else(|| fail("Invalid cache item reference"))?;
+                }
+            }
+            maps.push(map);
+        }
+        let table = after.sheets.get_mut(&sheet).and_then(|s| s.tables.iter_mut().find(|t| t.part == part))
+            .ok_or_else(|| fail("The selected pivot is unavailable"))?;
+        for (field, map) in table.fields.iter_mut().zip(&maps) {
+            field.items.retain_mut(|item| {
+                if let Some(old) = item.index {
+                    if let Some(Some(new)) = map.get(old as usize) { item.index = Some(*new); item.missing = false; true }
+                    else { false }
+                } else { true }
+            });
+        }
+    }
+    let cache = Arc::new(cache);
     after.caches.caches.insert(cache.id, cache.clone());
     for tables in after.sheets.values_mut() {
         for table in &mut tables.tables {

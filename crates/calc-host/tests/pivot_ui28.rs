@@ -505,15 +505,14 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
         }).accepted());
     }
     assert!(book.dispatch(SkinIntent::Recalculate).accepted());
-    // The first two missing-items stages use the original source and then replace Gamma with
-    // Alpha. Later stages also change MissingItemsLimit, which has no host command yet.
+    // Replay the original source, a removal, and the captured zero-retention sequence.
     let (missing_sheet, missing_part) = sheets.iter().find_map(|(sheet, _)| {
         book.host().model().definitions().pivots().sheets.get(sheet)
             .and_then(|p| p.tables.iter().find(|t| t.name == "pvt_missing_items"))
             .map(|t| (*sheet, t.part.clone()))
     }).unwrap();
     let mut missing_verdicts = BTreeMap::new();
-    for stage in ["missing-items-built", "missing-items-refresh-default"] {
+    for stage in ["missing-items-built", "missing-items-refresh-default", "missing-items-refresh-none", "missing-items-refresh-added"] {
         if stage == "missing-items-refresh-default" {
             for row in 2..=37 {
                 let address = format!("B{row}");
@@ -522,6 +521,17 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
                         at: at(source_sheet, &address), text: "Alpha".into(),
                     }).accepted());
                 }
+            }
+        }
+        if stage == "missing-items-refresh-none" {
+            let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotForgetMissingItems {
+                sheet: missing_sheet, revision: book.host().revision().get(), part: missing_part.clone(),
+            }));
+            assert!(receipt.accepted(), "{:?}", receipt.error);
+        }
+        if stage == "missing-items-refresh-added" {
+            for (address, text) in [("B5", "Gamma"), ("B9", "Delta")] {
+                assert!(book.dispatch(SkinIntent::EnterCell { at: at(source_sheet, address), text: text.into() }).accepted());
             }
         }
         let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
@@ -539,9 +549,25 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
                 .map(|item| cache_field.items[item.index.unwrap() as usize].clone()).collect();
             let unused: Vec<_> = cache_field.unused_items.iter().map(|&index| cache_field.items[index as usize].clone()).collect();
             let expected_missing = if stage == "missing-items-built" { vec![calc_doc_model::pivot::PivotItem::Text("Delta".into())] }
-                else { vec![calc_doc_model::pivot::PivotItem::Text("Gamma".into()), calc_doc_model::pivot::PivotItem::Text("Delta".into())] };
+                else if stage == "missing-items-refresh-default" { vec![calc_doc_model::pivot::PivotItem::Text("Gamma".into()), calc_doc_model::pivot::PivotItem::Text("Delta".into())] }
+                else { Vec::new() };
             assert_eq!(missing, expected_missing, "{stage} retained field items");
             assert_eq!(unused, expected_missing, "{stage} unused cache items");
+        }
+        if stage == "missing-items-refresh-none" || stage == "missing-items-refresh-added" {
+            assert_eq!(verdict, "matched", "{stage}");
+            let mut bytes = Vec::new();
+            book.save(&SavePolicy::default(), &mut bytes).unwrap();
+            let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes));
+            book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+            let pivots = book.host().model().definitions().pivots();
+            let table = pivots.sheet(missing_sheet).unwrap().tables.iter().find(|t| t.part == missing_part).unwrap();
+            assert_eq!(pivots.caches.caches[&table.cache_id].attributes.get("missingItemsLimit").map(String::as_str), Some("0"));
+            let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+                sheet: missing_sheet, revision: book.host().revision().get(), part: missing_part.clone(),
+            }));
+            assert!(receipt.accepted(), "{stage} after reopen: {:?}", receipt.error);
+            assert_eq!(held(&book, missing_sheet, 60, 120), expected[stage], "{stage} after reopen");
         }
         missing_verdicts.insert(stage.to_owned(), verdict);
     }
@@ -620,7 +646,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
         println!("{stage}: {verdict}");
     }
     println!("M1 matched {} of {}: {matched:?}", matched.len(), expected.len());
-    assert_eq!(matched, ["agg-all-amount", "agg-all-units", "agg-text-field", "blank-line-both", "blank-line-compact-columns", "blank-line-outer", "calc-field-arith", "calc-field-if", "calc-field-of-calc", "calc-field-ratio", "calc-item-diff", "calc-item-half-sum", "calc-item-sum", "err-keys", "err-keys-columns", "err-keys-desc", "err-values", "err-values-display", "group-day-month", "group-days-7", "group-month", "group-month-year", "group-number-clean", "group-number-units", "group-quarter", "group-quarter-year", "group-text-items", "group-year", "group-year-columns", "missing-items-built", "missing-items-refresh-default", "nodata-rows", "nodata-rows-hidden", "nodata-two-row-fields", "prec-grand-only", "show-count-average", "show-difference-east", "show-difference-next", "show-difference-previous", "show-difference-product-alpha", "show-index", "show-percent-difference-east", "show-percent-difference-previous", "show-percent-of-column", "show-percent-of-parent", "show-percent-of-parent-column", "show-percent-of-parent-product", "show-percent-of-parent-row", "show-percent-of-row", "show-percent-of-total", "show-percent-running-total", "show-percentof-east", "show-percentof-previous", "show-rank-ascending", "show-rank-descending", "show-running-total", "show-running-total-product", "show-two-data-fields", "sort-by-second-data", "sort-by-value-asc", "sort-by-value-columns", "sort-by-value-desc", "sort-by-value-inner", "sort-by-value-ties", "subtotals-multiple-compact", "subtotals-multiple-outline-bottom", "subtotals-multiple-outline-top", "subtotals-multiple-tabular", "subtotals-multiple-two-data", "subtotals-none", "values-columns-after-field", "values-rows-first", "values-rows-region", "values-rows-two-fields", "values-rows-with-columns"]);
+    assert_eq!(matched, ["agg-all-amount", "agg-all-units", "agg-text-field", "blank-line-both", "blank-line-compact-columns", "blank-line-outer", "calc-field-arith", "calc-field-if", "calc-field-of-calc", "calc-field-ratio", "calc-item-diff", "calc-item-half-sum", "calc-item-sum", "err-keys", "err-keys-columns", "err-keys-desc", "err-values", "err-values-display", "group-day-month", "group-days-7", "group-month", "group-month-year", "group-number-clean", "group-number-units", "group-quarter", "group-quarter-year", "group-text-items", "group-year", "group-year-columns", "missing-items-built", "missing-items-refresh-added", "missing-items-refresh-default", "missing-items-refresh-none", "nodata-rows", "nodata-rows-hidden", "nodata-two-row-fields", "prec-grand-only", "show-count-average", "show-difference-east", "show-difference-next", "show-difference-previous", "show-difference-product-alpha", "show-index", "show-percent-difference-east", "show-percent-difference-previous", "show-percent-of-column", "show-percent-of-parent", "show-percent-of-parent-column", "show-percent-of-parent-product", "show-percent-of-parent-row", "show-percent-of-row", "show-percent-of-total", "show-percent-running-total", "show-percentof-east", "show-percentof-previous", "show-rank-ascending", "show-rank-descending", "show-running-total", "show-running-total-product", "show-two-data-fields", "sort-by-second-data", "sort-by-value-asc", "sort-by-value-columns", "sort-by-value-desc", "sort-by-value-inner", "sort-by-value-ties", "subtotals-multiple-compact", "subtotals-multiple-outline-bottom", "subtotals-multiple-outline-top", "subtotals-multiple-tabular", "subtotals-multiple-two-data", "subtotals-none", "values-columns-after-field", "values-rows-first", "values-rows-region", "values-rows-two-fields", "values-rows-with-columns"]);
     let mut saved = Vec::new();
     book.save(&SavePolicy::default(), &mut saved).unwrap();
     let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(saved));
