@@ -167,7 +167,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
             if let Some((_, trace)) = trace
                 && let Some(step) = trace.steps.get(index)
             {
-                assist.focus.set(Some(TextSpan::new(step.start, step.len)));
+                assist.focus().set(Some(TextSpan::new(step.start, step.len)));
                 trace_at.set(index);
             }
         });
@@ -183,7 +183,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                     let first = found.steps.first().map(|s| TextSpan::new(s.start, s.len));
                     trace.set(Some((state, found)));
                     trace_at.set(0);
-                    assist.focus.set(first);
+                    assist.focus().set(first);
                 }
             }),
         );
@@ -227,7 +227,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
 
     // The registered functions the formula field completes beside the catalogue.
     let complete_with = Callback::new(move |functions: Vec<String>| {
-        assist.scope.update(|scope| {
+        assist.scope().update(|scope| {
             if scope.functions != functions {
                 scope.functions = functions;
             }
@@ -702,7 +702,7 @@ fn surface(link: Rc<dyn Link>) -> impl IntoView {
                         )}
                     {assist.popup()}
                     {assist.signature()}
-                    <p class="oc-prov" role="status" data-onecalc="part-status">{move || assist.part_status.get()}</p>
+                    <p class="oc-prov" role="status" data-onecalc="part-status">{move || assist.part_status().get()}</p>
                     <p>
                         <span class="oc-prov" data-onecalc="array-formula" hidden=move || !braces()>
                             {move || format!("{{{}}}", formula.get())}

@@ -137,3 +137,8 @@ startup or while it closes is what makes the next start prompt. With
 `DNACALC_EXCEL_STARTUP_SECONDS` (default 45) running and reports it, and waits 60 seconds after
 `Quit` before stopping one. Run few sessions, and reuse one Excel unless a question needs a fresh
 process.
+
+`pivot-job.ps1` (kinds `pivots`, `refresh`, `roundtrip`, `m1` calculation, `m2` formatting, `m3` GETPIVOTDATA
+oracle, `m4` CUBE over an in-file data model) is the one job script for pivot measurements; `run-pivot.py`
+submits its cases one job each and `pivot-fixtures.py` writes the fixture files from a result. Run them
+under `on-private-desktop.ps1`. The sets are described in `crates/calc-host/tests/fixtures/pivot/README.md`.
