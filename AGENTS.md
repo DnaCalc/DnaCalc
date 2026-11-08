@@ -73,6 +73,8 @@ DnaTreeCalc, DnaOneCalc and the others) are read-only inputs: port from them, ne
    tree. `--skip <step>` leaves a step out.
 4. **Measure.** Run the corpus comparison (`cargo xtask corpus`, or `cargo xtask compare` per
    workbook until it lands) before and after the package, and record the summary.
+   Corpus comparisons use debug by default; `--release` selects the speed build in `target/release`.
+   Dev builds optimise external dependencies and calc-verdict (corpus hashing); the calculation crates stay unoptimised.
 5. **Close.**
    - One read-only review agent checks the change against the honesty rules and checks the
      close note against tool output.

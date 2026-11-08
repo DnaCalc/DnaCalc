@@ -1058,7 +1058,7 @@ fn run_bench(args: &Args) -> u8 {
         return EXIT_FAILED;
     }
     let (program, program_note) = if args.dna {
-        match compare_program() {
+        match compare_program(Some("release")) {
             Ok(program) => program,
             Err(e) => {
                 eprintln!("xtask bench: {e}");
@@ -1068,6 +1068,7 @@ fn run_bench(args: &Args) -> u8 {
     } else {
         (PathBuf::new(), "none run".to_owned())
     };
+    let _copy = args.dna.then(|| xtask::harness::CopyCleanup(program.clone()));
     let cache = Cache {
         root: args.cache.clone(),
     };

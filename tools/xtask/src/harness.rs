@@ -2,9 +2,9 @@
 //! target/xtask/run after cargo releases its lock. The child inherits a concrete executable so
 //! acceptance subprocesses never start cargo inside a target directory whose outer test run
 //! still owns the lock.
+use crate::cargo::{self, Workspace};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
-use xtask::cargo::{self, Workspace};
 
 const HARNESS_ENV: &str = "DNACALC_XTASK_HARNESS";
 
@@ -20,6 +20,12 @@ fn executable(ws: &Workspace) -> Result<PathBuf, String> {
             ))
         };
     }
+    profile_executable(ws, "dev")
+}
+
+/// Build into Cargo's standard profile directory and return a runnable copy. The caller owns
+/// the copy's directory until its subprocesses exit; workspace builds may replace the original.
+pub fn profile_executable(ws: &Workspace, profile: &str) -> Result<PathBuf, String> {
     let mut build = Command::new(cargo::cargo_program());
     build.current_dir(&ws.root).args([
         "build",
@@ -29,6 +35,8 @@ fn executable(ws: &Workspace) -> Result<PathBuf, String> {
         "--bin",
         "xtask-harness",
         "--message-format=json",
+        "--profile",
+        profile,
     ]);
     let out = cargo::output(&mut build)?;
     eprint!("{}", cargo::text(&out.stderr));
@@ -48,16 +56,16 @@ fn executable(ws: &Workspace) -> Result<PathBuf, String> {
     }
     let built = built_executable(&stdout)
         .ok_or_else(|| "cargo built no xtask-harness executable".to_owned())?;
-    runnable_copy(ws, &built)
+    runnable_copy(ws, &built, profile)
 }
 
 /// Windows cannot replace a running executable. Each launcher runs its own copy, leaving the
 /// Cargo artifact available for a workspace build, including commands nested inside the harness.
-fn runnable_copy(ws: &Workspace, built: &Path) -> Result<PathBuf, String> {
+fn runnable_copy(ws: &Workspace, built: &Path, profile: &str) -> Result<PathBuf, String> {
     let dir = ws
         .root
         .join("target/xtask/run")
-        .join(std::process::id().to_string());
+        .join(format!("{}-{profile}", std::process::id()));
     std::fs::create_dir_all(&dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
     let copy = dir.join(
         built
@@ -83,6 +91,17 @@ fn built_executable(output: &str) -> Option<PathBuf> {
                 None
             }
         })
+}
+
+/// Removes an owned profile copy after all its subprocesses have exited.
+pub struct CopyCleanup(pub PathBuf);
+
+impl Drop for CopyCleanup {
+    fn drop(&mut self) {
+        if let Some(dir) = self.0.parent() {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+    }
 }
 
 fn command(exe: &Path, args: &[String]) -> Command {
@@ -139,7 +158,7 @@ mod tests {
         std::fs::create_dir_all(&root).unwrap();
         let source = root.join(format!("xtask-harness{}", std::env::consts::EXE_SUFFIX));
         std::fs::write(&source, b"first build").unwrap();
-        let copy = runnable_copy(&ws, &source).unwrap();
+        let copy = runnable_copy(&ws, &source, "dev").unwrap();
         assert!(copy.starts_with(root.join("target/xtask/run")));
         std::fs::write(&source, b"next build").unwrap();
         assert_eq!(std::fs::read(copy).unwrap(), b"first build");
