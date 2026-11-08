@@ -297,6 +297,7 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<Pivo
     cache.record_count = Some(records.len() as u64);
     cache.snapshot = Some(Arc::new(PivotSnapshot {
         records,
+        origin: PivotSnapshotOrigin::SourceRead,
         source_revision: host.revision().get(),
         numeric: host.recalc_context().numeric.clone(),
     }));
@@ -441,6 +442,103 @@ pub(crate) fn prepare_missing_items_limit(host: &HostState, sheet: SheetId, revi
     Ok(vec![CellEdit::Pivots(Arc::new(after))])
 }
 
+/// Recompute an edited field layout from the current cache records, without reading source cells.
+pub(crate) fn prepare_set_layout(host: &HostState, sheet: SheetId, revision: u64, part: &str,
+    rows: Vec<i32>, columns: Vec<i32>) -> Result<Vec<CellEdit>, String> {
+    if revision != host.revision().get() { return Err(fail("The workbook changed before changing the pivot layout")); }
+    let before = host.model().definitions().pivots();
+    if !before.caches.issues.is_empty() || before.sheets.values().any(|s| !s.issues.is_empty()) {
+        return Err(fail("Unread pivot definitions prevent a layout change"));
+    }
+    let selected = before.sheet(sheet).and_then(|s| s.tables.iter().find(|t| t.part == part))
+        .ok_or_else(|| fail("The selected pivot is unavailable"))?;
+    if !selected.page_fields.is_empty() || !selected.filters.is_empty() || !selected.unsupported.is_empty() {
+        return Err(fail("Changing this pivot's filters or unsupported metadata is not modelled"));
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    for &field in rows.iter().chain(&columns) {
+        if (field < 0 && field != -2) || (field >= 0 && field as usize >= selected.fields.len()) || !seen.insert(field) {
+            return Err(fail("Choose distinct source fields for the row and column axes"));
+        }
+    }
+    if selected.data_fields.is_empty() || (selected.data_fields.len() > 1) != seen.contains(&-2) {
+        return Err(fail("This layout change needs a valid Values position"));
+    }
+    let cache = before.caches.caches.get(&selected.cache_id).ok_or_else(|| fail("The source cache is unavailable"))?;
+    if !cache.unsupported.is_empty() { return Err(fail("This source cache cannot be used for a layout change")); }
+    let area = source_area(host, cache, selected.area.first())?;
+    let mut cache = (**cache).clone();
+    if cache.snapshot.is_none() {
+        let saved = host.loaded().pivot_records(cache.id, 100_000).map_err(|e| fail(e.detail))?;
+        if saved.truncated || saved.declared_count.is_some_and(|n| n != saved.records.len() as u64)
+            || saved.records.iter().any(|row| row.len() != cache.fields.len()) {
+            return Err(fail("Saved pivot records are incomplete"));
+        }
+        let part = cache.records_part.clone().ok_or_else(|| fail("The source cache has no saved records"))?;
+        cache.snapshot = Some(Arc::new(PivotSnapshot { records: saved.records,
+            origin: PivotSnapshotOrigin::FileRecords { part }, source_revision: revision,
+            numeric: host.recalc_context().numeric.clone() }));
+    }
+    // A field outside the saved axes can be stored inline. Give its records shared-item
+    // identities before the walk, preserving the actual file values and their origin.
+    let records = &mut Arc::make_mut(cache.snapshot.as_mut().expect("snapshot available")).records;
+    if records.iter().any(|row| row.len() != cache.fields.len()) { return Err(fail("Pivot records are incomplete")); }
+    for field in rows.iter().chain(&columns).filter_map(|&field| usize::try_from(field).ok()) {
+        let saved_field = cache.fields.get_mut(field).ok_or_else(|| fail("Invalid axis field"))?;
+        let mut indexes = BTreeMap::new();
+        for (index, item) in saved_field.items.iter().enumerate() { indexes.entry(key(item)?).or_insert(index as u32); }
+        for record in records.iter_mut() {
+            match &record[field] {
+                PivotItem::Index(index) if (*index as usize) < saved_field.items.len() => {},
+                PivotItem::Index(_) => return Err(fail("A saved pivot item index is invalid")),
+                item => {
+                    if saved_field.group.is_some() { return Err(fail("Inline grouped cache items are not modelled")); }
+                    let identity = key(item)?;
+                    let index = if let Some(index) = indexes.get(&identity) { *index } else {
+                        let index = u32::try_from(saved_field.items.len()).map_err(|_| fail("Too many saved cache items"))?;
+                        saved_field.items.push(item.clone()); indexes.insert(identity, index); index
+                    };
+                    record[field] = PivotItem::Index(index);
+                }
+            }
+        }
+        saved_field.shared_items = Some(saved_field.items.len() as u32);
+    }
+    if cache.fields.iter().map(|field| field.items.len()).sum::<usize>() > 100_000 {
+        return Err(fail("Saved pivot items exceed the cache reader budget"));
+    }
+    let cache = Arc::new(cache);
+    let mut after = (**before).clone();
+    let changed = after.sheets.get_mut(&sheet).and_then(|s| s.tables.iter_mut().find(|t| t.part == part))
+        .ok_or_else(|| fail("The selected pivot is unavailable"))?;
+    changed.row_fields = rows;
+    changed.column_fields = columns;
+    for field in &mut changed.fields {
+        if matches!(field.attributes.get("axis").map(String::as_str), Some("axisRow" | "axisCol")) {
+            field.attributes.remove("axis");
+        }
+    }
+    for &field in &changed.row_fields { if field >= 0 { changed.fields[field as usize].attributes.insert("axis".into(), "axisRow".into()); } }
+    for &field in &changed.column_fields { if field >= 0 { changed.fields[field as usize].attributes.insert("axis".into(), "axisCol".into()); } }
+    after.caches.caches.insert(cache.id, cache.clone());
+    let mut formats = BTreeMap::new();
+    for tables in after.sheets.values_mut() {
+        for table in &mut tables.tables {
+            if table.cache_id == cache.id {
+                let layout = calc_engine::pivot::layout(table, &cache).map_err(|e| fail(e.detail))?;
+                formats.extend(layout.number_formats);
+                *table = layout.table;
+            }
+        }
+    }
+    preflight_output(host, before, &after, area, cache.id)?;
+    host.loaded().check_pivot_state(&after).map_err(|e| e.to_string())?;
+    let mut edits = before.tables().filter(|t| t.cache_id == cache.id).map(|t| CellEdit::Clear { area: t.area }).collect::<Vec<_>>();
+    append_number_formats(host, &formats, &mut edits)?;
+    edits.push(CellEdit::Pivots(Arc::new(after)));
+    Ok(edits)
+}
+
 pub(crate) fn prepare_refresh(
     host: &HostState,
     sheet: SheetId,
@@ -579,11 +677,23 @@ pub fn source_fields(host:&HostState,area:GridArea)->Result<Vec<String>,String>{
     }Ok(names)
 }
 pub(crate) fn prepare_create(host:&HostState,revision:u64,source:GridArea,destination:&str,row:u32,value:u32,subtotal:&str)->Result<Vec<CellEdit>,String>{
+    prepare_create_layout(host, revision, source, destination, vec![row], Vec::new(), vec![(value, subtotal.into())])
+}
+pub(crate) fn prepare_create_layout(host:&HostState,revision:u64,source:GridArea,destination:&str,rows:Vec<u32>,columns:Vec<u32>,values:Vec<(u32,String)>)->Result<Vec<CellEdit>,String>{
     if revision!=host.revision().get(){return Err(fail("The source changed; choose its fields again"));}
     if host.loaded().workbook_part().ends_with(".bin")||!host.axis_edits.is_empty(){return Err(fail("Save as XLSX and reopen before creating pivots after structural edits"));}
     let before=host.model().definitions().pivots();if !before.caches.issues.is_empty()||before.sheets.values().any(|s|!s.issues.is_empty()){return Err(fail("Unread pivot metadata must be resolved before creating another pivot"));}
-    let names=source_fields(host,source)?;if row as usize>=names.len()||value as usize>=names.len(){return Err(fail("Choose a source row field and value field"));}
-    let operation=match subtotal{"sum"=>"Sum","count"=>"Count","countNums"=>"Count Numbers","min"=>"Min","max"=>"Max","average"=>"Average",_=>return Err(fail("Choose a supported value aggregation"))};
+    let names=source_fields(host,source)?;
+    if rows.is_empty() || values.is_empty() || rows.iter().chain(&columns).any(|&i| i as usize >= names.len())
+        || values.iter().any(|(i,_)| *i as usize >= names.len()) { return Err(fail("Choose source row and value fields")); }
+    let mut unique = std::collections::BTreeSet::new();
+    if rows.iter().chain(&columns).any(|i| !unique.insert(*i)) { return Err(fail("Choose distinct row and column fields")); }
+    let mut data_fields = Vec::new();
+    for (value, subtotal) in &values {
+        let operation=match subtotal.as_str(){"sum"=>"Sum","count"=>"Count","countNums"=>"Count Numbers","min"=>"Min","max"=>"Max","average"=>"Average",_=>return Err(fail("Choose a supported value aggregation"))};
+        let caption=format!("{operation} of {}",names[*value as usize]);
+        data_fields.push(PivotDataField{name:Some(caption.clone()),field:*value,subtotal:subtotal.clone(),extended_show:None,attributes:BTreeMap::from([("name".into(),caption),("fld".into(),value.to_string()),("subtotal".into(),subtotal.clone())])});
+    }
     let destination=match host.resolve_reference_text(source.first(),destination){calc_fml::reference::TextReference::Area(area)if area.cell_count()==1=>area.first(),_=>return Err(fail("Enter one destination cell, including its sheet when needed"))};
     let target=host.loaded().sheet(destination.sheet()).ok_or_else(||fail("Save and reopen the new destination worksheet first"))?;if target.protected()||target.is_macro_sheet(){return Err(fail("The destination worksheet must be editable"));}
     if before.tables().any(|t|overlaps(source,t.area)){return Err(fail("A pivot source cannot read another pivot output"));}
@@ -597,11 +707,15 @@ pub(crate) fn prepare_create(host:&HostState,revision:u64,source:GridArea,destin
     let source_range=format!("{}:{}",crate::chart::cell_a1(source.first()),crate::chart::cell_a1(source.last()));
     let cache=PivotCache{id:cache_id,part:cache_part,records_part:Some(records_part),record_count:Some(0),source_type:"worksheet".into(),source_sheet:Some(sheet_name),source_range:Some(source_range),source_name:None,calculated_items:Vec::new(),fields:names.iter().map(|name|PivotCacheField{name:name.clone(),shared_items:Some(0),group:None,items:Vec::new(),unused_items:Vec::new(),formula_items:Vec::new(),attributes:BTreeMap::from([("name".into(),name.clone()),("numFmtId".into(),"0".into())])}).collect(),attributes:BTreeMap::new(),unsupported:Vec::new(),snapshot:None};
     let cache=Arc::new(snapshot(host,&cache,source)?);
-    let fields=(0..names.len()).map(|i|{let mut attributes=BTreeMap::from([("showAll".into(),"0".into())]);if i==row as usize{attributes.insert("axis".into(),"axisRow".into());}if i==value as usize{attributes.insert("dataField".into(),"1".into());}PivotField{attributes,items:Vec::new(),sort_measure:None}}).collect();
-    let caption=format!("{operation} of {}",names[value as usize]);let data=PivotDataField{name:Some(caption.clone()),field:value,subtotal:subtotal.into(),extended_show:None,attributes:BTreeMap::from([("name".into(),caption),("fld".into(),value.to_string()),("subtotal".into(),subtotal.into())])};
-    let table=PivotTable{name:name.clone(),part,cache_id,area:GridArea::cell(destination),row_fields:vec![row as i32],column_fields:Vec::new(),page_fields:Vec::new(),filters:Vec::new(),data_fields:vec![data],attributes:BTreeMap::from([("name".into(),name),("cacheId".into(),cache_id.to_string()),("dataCaption".into(),"Values".into()),("compact".into(),"1".into()),("outline".into(),"0".into()),("rowGrandTotals".into(),"1".into()),("colGrandTotals".into(),"1".into())]),location:BTreeMap::from([("firstHeaderRow".into(),"1".into()),("firstDataRow".into(),"1".into()),("firstDataCol".into(),"1".into())]),fields,col_items:Vec::new(),row_items:Vec::new(),unsupported:Vec::new()};
-    let table=calc_engine::pivot::layout(&table,&cache).map_err(|e|fail(e.detail))?.table;
-    let mut after=(**before).clone();after.caches.caches.insert(cache_id,cache);after.sheets.entry(destination.sheet()).or_default().tables.push(table);
+    let fields=(0..names.len()).map(|i|{let mut attributes=BTreeMap::from([("showAll".into(),"0".into())]);if rows.contains(&(i as u32)){attributes.insert("axis".into(),"axisRow".into());}if columns.contains(&(i as u32)){attributes.insert("axis".into(),"axisCol".into());}if values.iter().any(|(field,_)| *field as usize==i){attributes.insert("dataField".into(),"1".into());}PivotField{attributes,items:Vec::new(),sort_measure:None}}).collect();
+    let mut column_fields: Vec<i32> = columns.into_iter().map(|i| i as i32).collect();
+    if data_fields.len() > 1 { column_fields.push(-2); }
+    let table=PivotTable{name:name.clone(),part,cache_id,area:GridArea::cell(destination),row_fields:rows.into_iter().map(|i|i as i32).collect(),column_fields,page_fields:Vec::new(),filters:Vec::new(),data_fields,attributes:BTreeMap::from([("name".into(),name),("cacheId".into(),cache_id.to_string()),("dataCaption".into(),"Values".into()),("compact".into(),"1".into()),("outline".into(),"0".into()),("rowGrandTotals".into(),"1".into()),("colGrandTotals".into(),"1".into())]),location:BTreeMap::from([("firstHeaderRow".into(),"1".into()),("firstDataRow".into(),"1".into()),("firstDataCol".into(),"1".into())]),fields,col_items:Vec::new(),row_items:Vec::new(),unsupported:Vec::new()};
+    let layout=calc_engine::pivot::layout(&table,&cache).map_err(|e|fail(e.detail))?;
+    let mut after=(**before).clone();after.caches.caches.insert(cache_id,cache);after.sheets.entry(destination.sheet()).or_default().tables.push(layout.table);
     preflight_output(host,before,&after,source,cache_id)?;host.loaded().check_pivot_state(&after).map_err(|e|e.to_string())?;
-    Ok(vec![CellEdit::Pivots(Arc::new(after))])
+    let mut edits = Vec::new();
+    append_number_formats(host, &layout.number_formats, &mut edits)?;
+    edits.push(CellEdit::Pivots(Arc::new(after)));
+    Ok(edits)
 }

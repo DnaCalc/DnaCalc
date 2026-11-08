@@ -43,12 +43,18 @@ pub struct PivotCache {
     pub calculated_items: Vec<PivotCalculatedItem>,
     pub attributes: BTreeMap<String, String>,
     pub unsupported: Vec<String>,
-    /// Source readings taken by an explicit refresh, never aggregated answers.
+    /// Source records used by the walk, never saved output cells.
     pub snapshot: Option<Arc<PivotSnapshot>>,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum PivotSnapshotOrigin {
+    SourceRead,
+    FileRecords { part: String },
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PivotSnapshot {
     pub records: Vec<Vec<PivotItem>>,
+    pub origin: PivotSnapshotOrigin,
     pub source_revision: u64,
     pub numeric: NumericMode,
 }

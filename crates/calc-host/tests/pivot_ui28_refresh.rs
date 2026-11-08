@@ -242,3 +242,152 @@ fn ui28__pivot_refresh_scenarios_against_excel() {
         ]
     );
 }
+
+#[test]
+/// Native-only: drives layout edits using a saved workbook and its retained cache records.
+fn dc_8wp_15__layout_uses_saved_records_and_survives_reopen() {
+    let bytes = include_bytes!("fixtures/pivot_getpivotdata/oracle.xlsx");
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes.to_vec()));
+    let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let sheet = |book: &HostSession, name: &str| book.host().sheets().iter()
+        .find(|s| s.name().text().to_string_lossy() == name).unwrap().id();
+    let source = sheet(&book, "Source");
+    let pivot = sheet(&book, "PvRowCol");
+    let result_sheet = sheet(&book, "GPD");
+    let part = book.host().model().definitions().pivots().sheets[&pivot].tables[0].part.clone();
+    assert!(book.dispatch(SkinIntent::EnterCell { at: at(source, "D2"), text: "999999".into() }).accepted());
+    let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotSetLayout {
+        sheet: pivot, revision: book.host().revision().get(), part: part.clone(), rows: vec![1], columns: vec![0],
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    let state = book.host().model().definitions().pivots();
+    let table = state.sheet(pivot).unwrap().tables.iter().find(|t| t.part == part).unwrap();
+    assert_eq!(table.row_fields, vec![1]);
+    assert_eq!(table.column_fields, vec![0]);
+    assert!(matches!(&state.caches.caches[&table.cache_id].snapshot.as_ref().unwrap().origin,
+        calc_doc_model::pivot::PivotSnapshotOrigin::FileRecords { .. }));
+    let verify = |book: &HostSession| {
+        let result = project(book.host(), &ProjectionRequest { cells: vec![at(result_sheet, "B43")] }).unwrap();
+        assert!(matches!(result.cells()[0].value(), ProjectedValue::Calculated { value, .. }
+            if matches!(value.core_ref(), CoreRef::Number(n) if n == 691.5)), "{:?}", result.cells()[0].value());
+    };
+    verify(&book);
+    let revision = book.host().revision();
+    let rejected = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotSetLayout {
+        sheet: pivot, revision: revision.get(), part: part.clone(), rows: vec![1], columns: vec![1],
+    }));
+    assert!(!rejected.accepted());
+    assert_eq!(book.host().revision(), revision);
+    assert!(book.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(book.host().model().definitions().pivots().sheet(pivot).unwrap().tables[0].row_fields, vec![0]);
+    assert!(book.dispatch(SkinIntent::Redo).accepted());
+    verify(&book);
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(saved));
+    let mut reopened = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    assert!(reopened.dispatch(SkinIntent::Recalculate).accepted());
+    let table = &reopened.host().model().definitions().pivots().sheets[&pivot].tables[0];
+    assert_eq!((&table.row_fields, &table.column_fields), (&vec![1], &vec![0]));
+    verify(&reopened);
+}
+
+#[test]
+/// Native-only: creates a two-axis pivot from workbook cells and writes the XLSX package.
+fn dc_8wp_15__create_two_axes_through_the_same_walk() {
+    let bytes = include_bytes!("fixtures/pivot_getpivotdata/oracle.xlsx");
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes.to_vec()));
+    let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let sheet = |book: &HostSession, name: &str| book.host().sheets().iter()
+        .find(|s| s.name().text().to_string_lossy() == name).unwrap().id();
+    let source = sheet(&book, "Source");
+    let destination = sheet(&book, "GPD");
+    let range = calc_host::value::GridArea::new(at(source, "A1"), at(source, "E36")).unwrap();
+    let revision = book.host().revision().get();
+    let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotCreateLayout {
+        revision, source: range, destination: "GPD!H150".into(), rows: vec![0], columns: vec![1], values: vec![(3,"sum".into()), (4,"sum".into())],
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    let state = book.host().model().definitions().pivots();
+    let table = state.sheet(destination).unwrap().tables.iter().find(|t| t.area.first() == at(destination, "H150")).unwrap();
+    assert_eq!((&table.row_fields, &table.column_fields), (&vec![0], &vec![1, -2]));
+    let part = table.part.clone();
+    assert!(book.dispatch(SkinIntent::EnterCell { at: at(destination,"H140"),
+        text: "=GETPIVOTDATA(\"Sum of Amount\",H150,\"Region\",\"East\",\"Product\",\"Alpha\")".into() }).accepted());
+    let observed = |book: &HostSession| {
+        let result = project(book.host(), &ProjectionRequest { cells: vec![at(destination,"H140")] }).unwrap();
+        match result.cells()[0].value() {
+            ProjectedValue::Calculated { value, .. } => Some(value.clone()), _ => None,
+        }
+    };
+    let before = observed(&book);
+    assert!(matches!(before.as_ref().map(|value| value.core_ref()), Some(CoreRef::Number(n)) if n == 691.5), "{before:?}");
+    assert!(book.dispatch(SkinIntent::EnterCell { at: at(destination,"H141"),
+        text: "=GETPIVOTDATA(\"Sum of Units\",H150,\"Region\",\"East\",\"Product\",\"Alpha\")".into() }).accepted());
+    let units = |book: &HostSession| {
+        let result = project(book.host(), &ProjectionRequest { cells: vec![at(destination,"H141")] }).unwrap();
+        match result.cells()[0].value() { ProjectedValue::Calculated { value, .. } => Some(value.clone()), _ => None }
+    };
+    assert!(matches!(units(&book).as_ref().map(|value| value.core_ref()), Some(CoreRef::Number(n)) if n == 7.0));
+    let moved = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotSetLayout {
+        sheet: destination, revision: book.host().revision().get(), part: part.clone(), rows: vec![0, -2], columns: vec![1],
+    }));
+    assert!(moved.accepted(), "{moved:?}");
+    assert_eq!(observed(&book), before);
+    assert!(matches!(units(&book).as_ref().map(|value| value.core_ref()), Some(CoreRef::Number(n)) if n == 7.0));
+    let mut saved = Vec::new(); book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(saved));
+    let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    assert_eq!(observed(&book), before);
+    assert!(matches!(units(&book).as_ref().map(|value| value.core_ref()), Some(CoreRef::Number(n)) if n == 7.0));
+    let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+        sheet: destination, revision: book.host().revision().get(), part,
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    assert_eq!(observed(&book), before);
+}
+
+#[test]
+/// Native-only: adds a column axis to a saved row-only pivot and reopens the authored part.
+fn dc_8wp_15__add_a_column_axis_to_a_saved_pivot() {
+    let bytes = include_bytes!("fixtures/pivot_getpivotdata/oracle.xlsx");
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes.to_vec()));
+    let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let pivot = book.host().sheets().iter().find(|s| s.name().text().to_string_lossy() == "PvOne").unwrap().id();
+    let part = book.host().model().definitions().pivots().sheets[&pivot].tables[0].part.clone();
+    let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotSetLayout {
+        sheet: pivot, revision: book.host().revision().get(), part: part.clone(), rows: vec![0], columns: vec![1],
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    assert!(book.dispatch(SkinIntent::EnterCell { at: at(pivot, "Z1"),
+        text: "=GETPIVOTDATA(\"Sum of Amount\",A3,\"Region\",\"East\",\"Product\",\"Alpha\")".into() }).accepted());
+    let verify = |book: &HostSession| {
+        let page = project(book.host(), &ProjectionRequest { cells: vec![at(pivot, "Z1")] }).unwrap();
+        assert!(matches!(page.cells()[0].value(), ProjectedValue::Calculated { value, .. }
+            if matches!(value.core_ref(), CoreRef::Number(n) if n == 691.5)), "{:?}", page.cells()[0].value());
+    };
+    verify(&book);
+    let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotSetLayout {
+        sheet: pivot, revision: book.host().revision().get(), part: part.clone(), rows: vec![0], columns: vec![],
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    let page = project(book.host(), &ProjectionRequest { cells: vec![at(pivot, "Z1")] }).unwrap();
+    assert!(matches!(page.cells()[0].value(), ProjectedValue::Calculated { value, .. }
+        if matches!(value.core_ref(), CoreRef::Error(calc_host::value::WorksheetErrorCode::Ref))));
+    let mut row_only = Vec::new(); book.save(&SavePolicy::default(), &mut row_only).unwrap();
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(row_only));
+    book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    assert!(book.host().model().definitions().pivots().sheet(pivot).unwrap().tables[0].column_fields.is_empty());
+    let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotSetLayout {
+        sheet: pivot, revision: book.host().revision().get(), part, rows: vec![0], columns: vec![1],
+    }));
+    assert!(receipt.accepted(), "{receipt:?}");
+    verify(&book);
+    let mut saved = Vec::new(); book.save(&SavePolicy::default(), &mut saved).unwrap();
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(saved));
+    let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    assert_eq!(book.host().model().definitions().pivots().sheet(pivot).unwrap().tables[0].column_fields, vec![1]);
+    verify(&book);
+}
