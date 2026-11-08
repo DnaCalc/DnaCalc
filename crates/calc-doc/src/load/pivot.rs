@@ -260,12 +260,13 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
                 let supported = !group.attributes.contains_key("par")
                     && group.attributes.get("base").and_then(|v| v.parse::<usize>().ok()).is_some()
                     && group.range.as_ref().is_some_and(|range| {
-                        matches!(range.get("groupBy").map(String::as_str), Some("months" | "years"))
+                        matches!(range.get("groupBy").map(String::as_str), Some("months" | "quarters" | "years"))
                             && range.contains_key("startDate") && range.contains_key("endDate")
                             && range.keys().all(|k| matches!(k.as_str(), "groupBy" | "startDate" | "endDate" | "autoStart" | "autoEnd"))
                     }) && field.items.iter().all(|item| matches!(item, PivotItem::Text(_)))
                     && group.range.as_ref().is_some_and(|range| match range.get("groupBy").map(String::as_str) {
                         Some("months") => field.items.len() == 14,
+                        Some("quarters") => field.items.len() == 6,
                         Some("years") => {
                             let year = |key: &str| range.get(key).and_then(|s| s.split('-').next()).and_then(|s| s.parse::<i64>().ok());
                             match (year("startDate"), year("endDate")) {

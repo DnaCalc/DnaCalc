@@ -9,8 +9,9 @@ pub fn layout(table: &PivotTable, cache: &PivotCache) -> Result<PivotLayout, Piv
         .snapshot
         .as_ref()
         .ok_or_else(|| bad("No explicit source refresh has run"))?;
-    if snapshot.numeric != NumericMode::Fast {
-        return Err(bad("Exact pivot aggregation needs Excel measurements"));
+    if table.fields.iter().any(|field| field.attributes.iter().any(|(name, value)|
+        name.ends_with("Subtotal") && name != "defaultSubtotal" && truthy(Some(value), false))) {
+        return Err(bad("Custom subtotals are not modelled"));
     }
     if !table.unsupported.is_empty() || !cache.unsupported.is_empty() {
         return Err(bad(
@@ -324,7 +325,7 @@ fn layout_matrix(
             d.subtotal.as_str(),
             "sum" | "count" | "countNums" | "min" | "max" | "average"
         ) || d.attributes.get("showDataAs").is_some_and(|x| {
-            x != "normal" && !(x == "percentOfCol" && !values_across)
+            x != "normal" && !(matches!(x.as_str(), "percentOfCol" | "percentOfRow" | "percentOfTotal") && !values_across)
         }) || d.field as usize >= cache.fields.len()
     }) || (values_across != (table.data_fields.len() > 1))
         || row >= cache.fields.len()
@@ -439,16 +440,16 @@ fn layout_matrix(
     };
     let mut col_items = Vec::<PivotAxisItem>::new();
     let kind = table.data_fields[0].subtotal.as_str();
-    let percent = table.data_fields[0].attributes.get("showDataAs")
-        .is_some_and(|v| v == "percentOfCol");
-    if percent && (visible_cols.iter().any(|h| !matches!(
-        col_totals[h].result(kind).core_ref(), calc_value::CoreRef::Number(n) if n != 0.0
-    )) || (col_grand && !matches!(
-        grand_total.result(kind).core_ref(), calc_value::CoreRef::Number(n) if n != 0.0
-    )) || cell_totals.values().chain(row_totals.values()).any(|total| matches!(
+    let show = table.data_fields[0].attributes.get("showDataAs").map(String::as_str).unwrap_or("normal");
+    let percent = show != "normal";
+    let denominator_ok = |total: &Total| matches!(total.result(kind).core_ref(), calc_value::CoreRef::Number(n) if n != 0.0);
+    if percent && ((show != "percentOfCol" || col_grand) && !denominator_ok(&grand_total)
+        || (show == "percentOfCol" && visible_cols.iter().any(|h| !denominator_ok(&col_totals[h])))
+        || (show == "percentOfRow" && row_totals.values().any(|t| !denominator_ok(t)))
+        || cell_totals.values().chain(row_totals.values()).any(|total| matches!(
         total.result(kind).core_ref(), calc_value::CoreRef::Error(_)
     ))) {
-        return Err(bad("Percent of column with zero or error totals is not modelled"));
+        return Err(bad("Percentage with zero or error totals is not modelled"));
     }
     let result = |value: &Total, denominator: &Total| {
         let value = value.result(kind);
@@ -512,13 +513,19 @@ fn layout_matrix(
         if col.is_some() {
             for (n, &h) in visible_cols.iter().enumerate() {
                 if let Some(t) = cell_totals.get(&(g, h)) {
-                    cells.insert((r, 1 + n as u32), result(t, &col_totals[&h]));
+                    let denominator = match show {
+                        "percentOfRow" => &row_totals[&g],
+                        "percentOfTotal" => &grand_total,
+                        _ => &col_totals[&h],
+                    };
+                    cells.insert((r, 1 + n as u32), result(t, denominator));
                 } else if percent {
                     cells.insert((r, 1 + n as u32), CalcValue::number(0.));
                 }
             }
             if col_grand {
-                cells.insert((r, 1 + visible_cols.len() as u32), result(&row_totals[&g], &grand_total));
+                let denominator = if show == "percentOfRow" { &row_totals[&g] } else { &grand_total };
+                cells.insert((r, 1 + visible_cols.len() as u32), result(&row_totals[&g], denominator));
             }
         } else {
             for (k, d) in table.data_fields.iter().enumerate() {
@@ -536,7 +543,8 @@ fn layout_matrix(
         cells.insert((r, 0), text(&grand_caption));
         if col.is_some() {
             for (n, &h) in visible_cols.iter().enumerate() {
-                cells.insert((r, 1 + n as u32), result(&col_totals[&h], &col_totals[&h]));
+                let denominator = if matches!(show, "percentOfRow" | "percentOfTotal") { &grand_total } else { &col_totals[&h] };
+                cells.insert((r, 1 + n as u32), result(&col_totals[&h], denominator));
             }
             if col_grand {
                 cells.insert((r, 1 + visible_cols.len() as u32), result(&grand_total, &grand_total));

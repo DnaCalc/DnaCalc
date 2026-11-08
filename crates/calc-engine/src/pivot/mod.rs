@@ -2,7 +2,7 @@
 //! second worksheet evaluator. Ordinary source edits do not refresh these snapshots.
 use crate::{CalcTick, Calculation};
 use calc_doc_model::{AuthoredRevision, pivot::*};
-use calc_value::{CalcValue, CellKey, ExcelText, GridArea, NumericMode, WorksheetErrorCode};
+use calc_value::{CalcValue, CellKey, ExcelText, GridArea, WorksheetErrorCode};
 use std::{cmp::Ordering, collections::BTreeMap};
 
 pub fn refusal(part: &str, detail: impl Into<String>) -> PivotIssue {

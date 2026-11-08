@@ -552,6 +552,9 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
             let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
                 sheet, revision: book.host().revision().get(), part,
             }));
+            if stage.starts_with("subtotals-multiple") || stage == "subtotals-all-eleven" {
+                assert!(!receipt.accepted(), "custom subtotals must refuse until modelled: {stage}");
+            }
             if !receipt.accepted() {
                 format!("refused: {:?}", receipt.error)
             } else {
@@ -573,7 +576,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
         println!("{stage}: {verdict}");
     }
     println!("M1 matched {} of {}: {matched:?}", matched.len(), expected.len());
-    assert_eq!(matched, ["agg-text-field", "group-month", "group-month-year", "group-year", "nodata-rows-hidden", "show-count-average", "show-percent-of-column", "values-columns-after-field"]);
+    assert_eq!(matched, ["agg-text-field", "group-month", "group-month-year", "group-quarter", "group-quarter-year", "group-year", "group-year-columns", "nodata-rows-hidden", "show-count-average", "show-percent-of-column", "show-percent-of-row", "show-percent-of-total", "values-columns-after-field"]);
 }
 
 #[test]
@@ -629,4 +632,34 @@ fn dc_8wp__grouped_dates_survive_save_and_refresh() {
         sheet, revision: reopened.host().revision().get(), part,
     })).accepted());
     assert_eq!(held(&reopened, sheet, 60, 80), expected);
+}
+
+#[test]
+/// Native-only: refreshes the captured precision pivot through the host command.
+fn dc_8wp_10__pivot_precision_uses_the_same_path_in_both_numeric_modes() {
+    use calc_value::{NumericMode, NumericTargetId};
+    let target = NumericTargetId::new("16.0.20527.20150", "Current", "Excel", "x86-64").unwrap();
+    let mut outputs = Vec::new();
+    for numeric in [NumericMode::Fast, NumericMode::Exact(target)] {
+        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(include_bytes!("fixtures/pivot/m1-calculation/built.xlsx").to_vec()));
+        let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions { numeric, ..Default::default() }).unwrap();
+        let (sheet, part) = book.host().sheets().iter().find_map(|sheet| {
+            book.host().model().definitions().pivots().sheets.get(&sheet.id())
+                .and_then(|p| p.tables.iter().find(|t| t.name == "pvt_prec_sum_average"))
+                .map(|t| (sheet.id(), t.part.clone()))
+        }).unwrap();
+        let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+            sheet, revision: book.host().revision().get(), part,
+        }));
+        assert!(receipt.accepted(), "{receipt:?}");
+        let cells = held(&book, sheet, 5, 20);
+        for address in ["B4", "C4", "B9", "C9"] {
+            let captured = include_str!("fixtures/pivot/m1-calculation/cells.tsv").lines()
+                .map(|line| line.splitn(4, '\t').collect::<Vec<_>>())
+                .find(|f| f.len() == 4 && f[0] == "prec-sum-average" && f[1] == address).unwrap();
+            assert_eq!(cells.get(address), Some(&Cell::Number(captured[3].parse().unwrap())), "{address}");
+        }
+        outputs.push(cells);
+    }
+    assert_eq!(outputs[0], outputs[1]);
 }

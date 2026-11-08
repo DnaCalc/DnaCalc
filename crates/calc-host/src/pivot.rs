@@ -185,6 +185,7 @@ fn snapshot(host: &HostState, cache: &PivotCache, area: GridArea) -> Result<Pivo
                 .ok_or_else(|| fail("Invalid grouped date"))?;
             let index = match range.get("groupBy").map(String::as_str) {
                 Some("months") => usize::try_from(month).ok(),
+                Some("quarters") => usize::try_from((month - 1) / 3 + 1).ok(),
                 Some("years") => {
                     let start = range.get("startDate").and_then(|v| v.split('-').next())
                         .and_then(|v| v.parse::<i64>().ok()).ok_or_else(|| fail("Invalid grouping year"))?;
