@@ -18,6 +18,22 @@ fn group_label(group: &Group) -> Result<CalcValue, PivotIssue> {
         item_value(&group.key)
     }
 }
+/// Traverse either axis in field-item order. Visitors decide how each node is rendered.
+trait AxisVisitor {
+    fn children(&self, prefix: &[usize]) -> Vec<usize>;
+    fn enter(&mut self, path: &[usize]) -> Result<bool, PivotIssue>;
+    fn leave(&mut self, path: &[usize]) -> Result<(), PivotIssue>;
+}
+fn walk_axis<V: AxisVisitor>(visitor: &mut V, path: &mut Vec<usize>) -> Result<(), PivotIssue> {
+    for child in visitor.children(path) {
+        path.push(child);
+        if visitor.enter(path)? { walk_axis(visitor, path)?; }
+        visitor.leave(path)?;
+        path.pop();
+    }
+    Ok(())
+}
+
 /// The rows of a pivot with several row fields, written depth first: a group's own row (compact
 /// and outline) or its first leaf row (tabular), its children, then its total row if it has one.
 pub(super) struct Walk<'a> {
@@ -38,6 +54,11 @@ pub(super) struct Walk<'a> {
     pub(super) axis: Vec<PivotAxisItem>,
 }
 impl Walk<'_> {
+    pub(super) fn visit(&mut self, path: &mut Vec<usize>) -> Result<(), PivotIssue> {
+        walk_axis(self, path)
+    }
+}
+impl AxisVisitor for Walk<'_> {
     /// The groups present under `prefix`, in the order of the next field's items.
     fn children(&self, prefix: &[usize]) -> Vec<usize> {
         let level = prefix.len();
@@ -51,15 +72,7 @@ impl Walk<'_> {
         found.dedup();
         found
     }
-    pub(super) fn visit(&mut self, path: &mut Vec<usize>) -> Result<(), PivotIssue> {
-        for g in self.children(path) {
-            path.push(g);
-            self.group(path)?;
-            path.pop();
-        }
-        Ok(())
-    }
-    fn group(&mut self, path: &mut Vec<usize>) -> Result<(), PivotIssue> {
+    fn enter(&mut self, path: &[usize]) -> Result<bool, PivotIssue> {
         let level = path.len() - 1;
         let depth = self.levels.len();
         let g = path[level];
@@ -94,7 +107,7 @@ impl Walk<'_> {
                 }
             }
             self.r += 1;
-            return Ok(());
+            return Ok(false);
         }
         match self.form {
             Form::Compact | Form::Outline => {
@@ -107,10 +120,16 @@ impl Walk<'_> {
             }
             Form::Tabular => self.printed = self.printed.min(level),
         }
-        self.visit(path)?;
-        if !self.subtotal_on[level] {
+        Ok(true)
+    }
+    fn leave(&mut self, path: &[usize]) -> Result<(), PivotIssue> {
+        let level = path.len() - 1;
+        if level + 1 == self.levels.len() || !self.subtotal_on[level] {
             return Ok(());
         }
+        let g = path[level];
+        let x = self.position[level][g].expect("visible group");
+        let label_column = if self.form == Form::Compact { 0 } else { level as u32 };
         let group = &self.levels[level][g];
         let total = self.totals[level][&*path].result(self.kind);
         let total_label = plain_text(&format!("{} Total", label_text(group)?));
@@ -145,68 +164,46 @@ struct ColumnEntry {
     kind: &'static str,
 }
 
-/// Visit the combinations present in the refreshed records, in field-item order.
-fn walk_columns(
-    paths: &std::collections::BTreeSet<Vec<usize>>,
-    levels: &[ColumnLevel],
-    prefix: &mut Vec<usize>,
+/// Column visitor for the same depth-first walk used by rows.
+struct ColumnWalk<'a> {
+    paths: &'a std::collections::BTreeSet<Vec<usize>>,
+    levels: &'a [ColumnLevel],
     measures: usize,
-    output: &mut Vec<ColumnEntry>,
-) {
-    let depth = prefix.len();
-    if depth == levels.len() {
-        let measure = levels
-            .iter()
-            .position(|l| l.field.is_none())
-            .map_or(0, |i| prefix[i]);
-        output.push(ColumnEntry {
-            path: prefix.clone(),
-            measure,
-            kind: "data",
-        });
-        return;
+    output: &'a mut Vec<ColumnEntry>,
+}
+impl AxisVisitor for ColumnWalk<'_> {
+    fn children(&self, prefix: &[usize]) -> Vec<usize> {
+        let depth = prefix.len();
+        self.paths.range(prefix.to_vec()..)
+            .take_while(|path| path.starts_with(prefix))
+            .map(|path| path[depth])
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter().collect()
     }
-    let children: std::collections::BTreeSet<usize> = paths
-        .range(prefix.clone()..)
-        .take_while(|path| path.starts_with(prefix.as_slice()))
-        .map(|path| path[depth])
-        .collect();
-    for child in children {
-        prefix.push(child);
-        walk_columns(paths, levels, prefix, measures, output);
-        if levels[depth].field.is_some()
-            && levels[depth + 1..]
-                .iter()
-                .any(|level| level.field.is_some())
-        {
-            let measure = levels
-                .iter()
-                .position(|l| l.field.is_none())
-                .filter(|&i| i <= depth)
-                .map(|i| prefix[i]);
+    fn enter(&mut self, path: &[usize]) -> Result<bool, PivotIssue> {
+        if path.len() != self.levels.len() { return Ok(true); }
+        let measure = self.levels.iter().position(|l| l.field.is_none()).map_or(0, |i| path[i]);
+        self.output.push(ColumnEntry { path: path.to_vec(), measure, kind: "data" });
+        Ok(false)
+    }
+    fn leave(&mut self, path: &[usize]) -> Result<(), PivotIssue> {
+        let depth = path.len() - 1;
+        if self.levels[depth].field.is_some() && self.levels[depth + 1..].iter().any(|l| l.field.is_some()) {
+            let measure = self.levels.iter().position(|l| l.field.is_none())
+                .filter(|&i| i <= depth).map(|i| path[i]);
             match measure {
-                Some(measure) => output.push(ColumnEntry {
-                    path: prefix.clone(),
-                    measure,
-                    kind: "default",
-                }),
-                None => {
-                    for measure in 0..measures {
-                        output.push(ColumnEntry {
-                            path: prefix.clone(),
-                            measure,
-                            kind: "default",
-                        });
-                    }
-                }
+                Some(measure) => self.output.push(ColumnEntry { path: path.to_vec(), measure, kind: "default" }),
+                None => for measure in 0..self.measures {
+                    self.output.push(ColumnEntry { path: path.to_vec(), measure, kind: "default" });
+                },
             }
         }
-        prefix.pop();
+        Ok(())
     }
 }
 
-/// Multiple column levels over a single row level. The column combinations, their subtotals,
-/// and the Values level all use the same depth-first walk.
+/// Column combinations over a single row level. Subtotals and the Values level use the same
+/// depth-first walk as the row layouts.
 pub(super) fn layout_columns(
     table: &PivotTable,
     cache: &PivotCache,
@@ -216,6 +213,16 @@ pub(super) fn layout_columns(
     let bad = |why: &str| refusal(&table.part, why);
     let row = usize::try_from(table.row_fields[0]).map_err(|_| bad("Invalid row field"))?;
     let value_level = table.column_fields.iter().filter(|&&f| f == -2).count();
+    let values_only = table.column_fields == [-2];
+    let show = table.data_fields.first().and_then(|d| d.attributes.get("showDataAs"))
+        .map(String::as_str).unwrap_or("normal");
+    let percent = matches!(show, "percentOfCol" | "percentOfRow" | "percentOfTotal");
+    let indexed = show == "index";
+    let relative = matches!(show, "difference" | "percent" | "percentDiff" | "runTotal");
+    if show != "normal" && (!(percent || indexed || relative) || table.column_fields.len() != 1
+        || values_only || table.data_fields.len() != 1) {
+        return Err(bad("This value calculation layout is not modelled"));
+    }
     if row >= cache.fields.len()
         || table.fields.len() != cache.fields.len()
         || table.data_fields.is_empty()
@@ -229,7 +236,7 @@ pub(super) fn layout_columns(
                 )
                 || d.attributes
                     .get("showDataAs")
-                    .is_some_and(|v| v != "normal")
+                    .is_some_and(|v| v != "normal" && !(percent || indexed || relative))
         })
     {
         return Err(bad("This pivot axis or value aggregation is not modelled"));
@@ -306,6 +313,7 @@ pub(super) fn layout_columns(
     let mut paths = BTreeSet::new();
     let mut totals = BTreeMap::<(usize, Vec<usize>, usize), Total>::new();
     for record in &snapshot.records {
+        if !page_allows(table, cache, record)? { continue; }
         let r = find(&rows, &row_sorted, resolve(cache, record, row)?)?;
         if rows[r].hidden {
             continue;
@@ -347,15 +355,14 @@ pub(super) fn layout_columns(
         }
     }
     let mut columns = Vec::new();
-    walk_columns(
-        &paths,
-        &levels,
-        &mut Vec::new(),
-        table.data_fields.len(),
-        &mut columns,
-    );
+    walk_axis(&mut ColumnWalk {
+        paths: &paths,
+        levels: &levels,
+        measures: table.data_fields.len(),
+        output: &mut columns,
+    }, &mut Vec::new())?;
     let row_grand = truthy(table.attributes.get("colGrandTotals"), true);
-    if truthy(table.attributes.get("rowGrandTotals"), true) {
+    if !values_only && truthy(table.attributes.get("rowGrandTotals"), true) {
         for measure in 0..table.data_fields.len() {
             columns.push(ColumnEntry {
                 path: Vec::new(),
@@ -365,7 +372,7 @@ pub(super) fn layout_columns(
         }
     }
     let first = table.area.first();
-    let header = levels.len() as u32 + 1;
+    let header = if values_only { 1 } else { levels.len() as u32 + 1 };
     let mut cells = BTreeMap::<(u32, u32), CalcValue>::new();
     let caption = |m: usize| {
         table.data_fields[m].name.clone().unwrap_or_else(|| {
@@ -389,20 +396,15 @@ pub(super) fn layout_columns(
         .get("grandTotalCaption")
         .map(String::as_str)
         .unwrap_or("Grand Total");
-    if table.data_fields.len() == 1 {
-        cells.insert((0, 0), plain_text(&caption(0)));
+    if values_only {
+        cells.insert((0, 0), plain_text(row_caption));
+    } else {
+        if table.data_fields.len() == 1 { cells.insert((0, 0), plain_text(&caption(0))); }
+        let column_caption = table.attributes.get("colHeaderCaption").map(String::as_str)
+            .unwrap_or_else(|| if compact { "Column Labels" } else { &cache.fields[levels[0].field.unwrap()].name });
+        cells.insert((0, 1), plain_text(column_caption));
+        cells.insert((header - 1, 0), plain_text(row_caption));
     }
-    cells.insert(
-        (0, 1),
-        plain_text(
-            table
-                .attributes
-                .get("colHeaderCaption")
-                .map(String::as_str)
-                .unwrap_or("Column Labels"),
-        ),
-    );
-    cells.insert((header - 1, 0), plain_text(row_caption));
     let mut col_items = Vec::new();
     let mut previous = Vec::new();
     for (i, entry) in columns.iter().enumerate() {
@@ -416,7 +418,9 @@ pub(super) fn layout_columns(
         } else {
             0
         };
-        if entry.kind == "grand" {
+        if values_only {
+            cells.insert((0, column), plain_text(&caption(entry.measure)));
+        } else if entry.kind == "grand" {
             let label = if table.data_fields.len() == 1 {
                 grand_caption.to_owned()
             } else {
@@ -470,6 +474,165 @@ pub(super) fn layout_columns(
             Vec::new()
         };
     }
+    // baseItem names a position in the pivot field's saved item list, or the reserved
+    // previous/next item identities. Restrict this calculation to the measured two-axis case.
+    let relative_base = if relative {
+        let attrs = &table.data_fields[0].attributes;
+        let base = attrs.get("baseField").and_then(|v| v.parse::<usize>().ok())
+            .ok_or_else(|| bad("Missing value calculation base field"))?;
+        let item = attrs.get("baseItem").and_then(|v| v.parse::<u32>().ok())
+            .ok_or_else(|| bad("Missing value calculation base item"))?;
+        let is_row = base == row;
+        if !is_row && levels[0].field != Some(base) { return Err(bad("Unsupported value calculation base field")); }
+        let groups = if is_row { &rows } else { &levels[0].groups };
+        if show == "runTotal" && table.data_fields[0].subtotal != "sum" {
+            return Err(bad("Running totals for this value function are not modelled"));
+        }
+        let base_index = match item {
+            _ if show == "runTotal" => None,
+            1_048_828 | 1_048_829 => None,
+            _ => {
+                let shared = table.fields[base].items.get(item as usize).and_then(|item| item.index)
+                    .ok_or_else(|| bad("Invalid value calculation base item"))?;
+                Some(groups.iter().position(|group| group.shared == shared && !group.hidden)
+                    .ok_or_else(|| bad("Hidden or missing value calculation base item"))?)
+            }
+        };
+        if totals.values().any(|total| matches!(total.result(&table.data_fields[0].subtotal).core_ref(), calc_value::CoreRef::Error(_))) {
+            return Err(bad("Value calculation with errors is not modelled"));
+        }
+        if matches!(show, "percent" | "percentDiff") && totals.values().any(|total|
+            matches!(total.result(&table.data_fields[0].subtotal).core_ref(), calc_value::CoreRef::Number(0.0))) {
+            return Err(bad("Relative percentages with zero totals are not modelled"));
+        }
+        Some((is_row, item, base_index))
+    } else { None };
+    let visible_rows: Vec<_> = rows.iter().enumerate().filter(|(i, group)| !group.hidden
+        && totals.contains_key(&(*i, Vec::new(), 0))).map(|(i, _)| i).collect();
+    let visible_columns: Vec<_> = levels[0].groups.iter().enumerate().filter(|(i, group)| !group.hidden
+        && totals.contains_key(&(usize::MAX, vec![*i], 0))).map(|(i, _)| i).collect();
+    let row_order: BTreeMap<_, _> = visible_rows.iter().enumerate().map(|(n, &i)| (i, n)).collect();
+    let column_order: BTreeMap<_, _> = visible_columns.iter().enumerate().map(|(n, &i)| (i, n)).collect();
+    let mut running = BTreeMap::<(usize, Vec<usize>), CalcValue>::new();
+    if let Some((base_is_row, _, _)) = relative_base.filter(|_| show == "runTotal") {
+        let numeric = |row, path: Vec<usize>| totals.get(&(row, path, 0))
+            .map(|total| total.result("sum")).and_then(|value| match value.core_ref() {
+                calc_value::CoreRef::Number(n) => Some(n), _ => None,
+            }).unwrap_or(0.0);
+        if base_is_row {
+            for entry in &columns {
+                let mut sum = 0.0;
+                for &row in &visible_rows {
+                    sum += numeric(row, entry.path.clone());
+                    running.insert((row, entry.path.clone()), if sum.is_finite() { CalcValue::number(sum) }
+                        else { CalcValue::error(WorksheetErrorCode::Num) });
+                }
+            }
+        } else {
+            for row in visible_rows.iter().copied().chain(std::iter::once(usize::MAX)) {
+                let mut sum = 0.0;
+                for &col in &visible_columns {
+                    let path = vec![col];
+                    sum += numeric(row, path.clone());
+                    running.insert((row, path), if sum.is_finite() { CalcValue::number(sum) }
+                        else { CalcValue::error(WorksheetErrorCode::Num) });
+                }
+            }
+        }
+    }
+    if percent || indexed {
+        let valid = |total: &Total| matches!(total.result(&table.data_fields[0].subtotal).core_ref(),
+            calc_value::CoreRef::Number(n) if n != 0.0);
+        let grand = totals.get(&(usize::MAX, Vec::new(), 0)).ok_or_else(|| bad("Missing grand total"))?;
+        if ((show != "percentOfCol" || columns.iter().any(|entry| entry.kind == "grand")) && !valid(grand))
+            || ((show == "percentOfCol" || indexed) && columns.iter().filter(|entry| entry.kind != "grand").any(|entry|
+                totals.get(&(usize::MAX, entry.path.clone(), 0)).is_none_or(|total| !valid(total))))
+            || ((show == "percentOfRow" || indexed) && rows.iter().enumerate().filter(|(_, group)| !group.hidden).any(|(i, _)|
+                totals.get(&(i, Vec::new(), 0)).is_some_and(|total| !valid(total))))
+            || totals.values().any(|total| matches!(total.result(&table.data_fields[0].subtotal).core_ref(), calc_value::CoreRef::Error(_))) {
+            return Err(bad("Percentage with zero or error totals is not modelled"));
+        }
+    }
+    let displayed = |total: &Total, row: usize, entry: &ColumnEntry| -> CalcValue {
+        let value = total.result(&table.data_fields[entry.measure].subtotal);
+        if let Some((base_is_row, base_item, fixed)) = relative_base {
+            if (base_is_row && row == usize::MAX) || (!base_is_row && entry.kind == "grand") {
+                return CalcValue::empty();
+            }
+            if show == "runTotal" {
+                return running.get(&(row, entry.path.clone())).cloned().unwrap_or_else(CalcValue::empty);
+            }
+            let current = if base_is_row { row } else { entry.path[0] };
+            let visible = if base_is_row { &visible_rows } else { &visible_columns };
+            let reference = fixed.or_else(|| {
+                let position = *if base_is_row { row_order.get(&current) } else { column_order.get(&current) }?;
+                match base_item {
+                    1_048_828 => position.checked_sub(1).map(|i| visible[i]),
+                    1_048_829 => visible.get(position + 1).copied(),
+                    _ => None,
+                }
+            });
+            let reference = match reference {
+                Some(reference) => reference,
+                None if show == "percent" && base_item == 1_048_828 => current,
+                None => return CalcValue::empty(),
+            };
+            if matches!(show, "difference" | "percentDiff") && reference == current {
+                return CalcValue::empty();
+            }
+            let key = if base_is_row { (reference, entry.path.clone(), 0) }
+                else { (row, vec![reference], 0) };
+            let base = totals.get(&key).map(|total| total.result(&table.data_fields[0].subtotal));
+            let current_number = match value.core_ref() {
+                calc_value::CoreRef::Number(n) => Some(n),
+                calc_value::CoreRef::Empty => None,
+                _ => return CalcValue::empty(),
+            };
+            let base_number = base.as_ref().and_then(|v| match v.core_ref() {
+                calc_value::CoreRef::Number(n) => Some(n), _ => None,
+            });
+            if show != "difference" && (current_number.is_none() || base_number.is_none()) {
+                return CalcValue::error(WorksheetErrorCode::Null);
+            }
+            let n = current_number.unwrap_or(0.0);
+            let b = base_number.unwrap_or(0.0);
+            let result = match show {
+                "difference" => n - b,
+                "percent" if b != 0.0 => n / b,
+                "percentDiff" if b != 0.0 => (n - b) / b,
+                _ => return CalcValue::error(WorksheetErrorCode::Div0),
+            };
+            return if result.is_finite() { CalcValue::number(result) } else { CalcValue::error(WorksheetErrorCode::Num) };
+        }
+        if indexed {
+            let kind = &table.data_fields[0].subtotal;
+            let row_value = totals[&(row, Vec::new(), 0)].result(kind);
+            let col_value = totals[&(usize::MAX, entry.path.clone(), 0)].result(kind);
+            let grand_value = totals[&(usize::MAX, Vec::new(), 0)].result(kind);
+            if let (calc_value::CoreRef::Number(n), calc_value::CoreRef::Number(r),
+                calc_value::CoreRef::Number(c), calc_value::CoreRef::Number(g)) =
+                (value.core_ref(), row_value.core_ref(), col_value.core_ref(), grand_value.core_ref()) {
+                let result = ((n * g) / r) / c;
+                return if result.is_finite() { CalcValue::number(result) } else { CalcValue::error(WorksheetErrorCode::Num) };
+            }
+            return CalcValue::empty();
+        }
+        if !percent { return value; }
+        let denominator = match show {
+            "percentOfRow" => (row, Vec::new(), 0),
+            "percentOfTotal" => (usize::MAX, Vec::new(), 0),
+            _ => (usize::MAX, entry.path.clone(), 0),
+        };
+        match (value.core_ref(), totals[&denominator].result(&table.data_fields[0].subtotal).core_ref()) {
+            (calc_value::CoreRef::Number(n), calc_value::CoreRef::Number(d)) => {
+                let ratio = n / d;
+                if ratio.is_finite() { CalcValue::number(ratio) } else { CalcValue::error(WorksheetErrorCode::Num) }
+            }
+            (calc_value::CoreRef::Error(e), _) => CalcValue::error(e),
+            _ => CalcValue::empty(),
+        }
+    };
+    let empty_total = Total::default();
     let mut axis = Vec::new();
     let mut r = header;
     for (i, group) in rows.iter().enumerate().filter(|(_, g)| !g.hidden) {
@@ -481,8 +644,12 @@ pub(super) fn layout_columns(
             if let Some(total) = totals.get(&(i, entry.path.clone(), entry.measure)) {
                 cells.insert(
                     (r, col as u32 + 1),
-                    total.result(&table.data_fields[entry.measure].subtotal),
+                    displayed(total, i, entry),
                 );
+            } else if relative {
+                cells.insert((r, col as u32 + 1), displayed(&empty_total, i, entry));
+            } else if percent || indexed {
+                cells.insert((r, col as u32 + 1), CalcValue::number(0.));
             }
         }
         axis.push(axis_item("data", 0, vec![row_positions[i].unwrap()]));
@@ -494,7 +661,7 @@ pub(super) fn layout_columns(
             if let Some(total) = totals.get(&(usize::MAX, entry.path.clone(), entry.measure)) {
                 cells.insert(
                     (r, col as u32 + 1),
-                    total.result(&table.data_fields[entry.measure].subtotal),
+                    displayed(total, usize::MAX, entry),
                 );
             }
         }
@@ -515,7 +682,7 @@ pub(super) fn layout_columns(
     .map_err(|_| bad("Pivot output exceeds worksheet"))?;
     let mut next = table.clone();
     next.area = GridArea::new(first, last).map_err(|_| bad("Invalid pivot output area"))?;
-    next.location.insert("firstHeaderRow".into(), "1".into());
+    next.location.insert("firstHeaderRow".into(), if values_only { "0" } else { "1" }.into());
     next.location
         .insert("firstDataRow".into(), header.to_string());
     next.location.insert("firstDataCol".into(), "1".into());

@@ -55,8 +55,16 @@ pub struct PivotSnapshot {
 pub struct PivotCacheField {
     pub name: String,
     pub shared_items: Option<u32>,
+    pub group: Option<PivotCacheGroup>,
     pub items: Vec<PivotItem>,
     pub attributes: BTreeMap<String, String>,
+}
+/// Grouping metadata retained from a cache field. Virtual date fields use their group items
+/// as labels; source fields can carry a parent reference without a range.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct PivotCacheGroup {
+    pub attributes: BTreeMap<String, String>,
+    pub range: Option<BTreeMap<String, String>>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct SheetPivots {
@@ -71,7 +79,8 @@ pub struct PivotTable {
     pub area: GridArea,
     pub row_fields: Vec<i32>,
     pub column_fields: Vec<i32>,
-    pub page_fields: Vec<u32>,
+    pub page_fields: Vec<PivotPageField>,
+    pub filters: Vec<PivotFilter>,
     pub data_fields: Vec<PivotDataField>,
     pub attributes: BTreeMap<String, String>,
     pub location: BTreeMap<String, String>,
@@ -79,6 +88,24 @@ pub struct PivotTable {
     pub row_items: Vec<PivotAxisItem>,
     pub col_items: Vec<PivotAxisItem>,
     pub unsupported: Vec<String>,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct PivotFilter {
+    pub field: u32,
+    pub measure: u32,
+    pub kind: PivotFilterKind,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum PivotFilterKind {
+    TopCount(u32),
+    ValueGreaterThan(String),
+    Unsupported,
+}
+/// A report-filter field and its selected position in that field's item list.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct PivotPageField {
+    pub field: u32,
+    pub selected_item: Option<u32>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct PivotField {

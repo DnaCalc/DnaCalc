@@ -71,6 +71,23 @@ fn item(item: &PivotItem, out: &mut Vec<u8>) -> Result<(), SaveRefusal> {
     out.extend_from_slice(b"/>");
     Ok(())
 }
+fn cache_group(field: &PivotCacheField, out: &mut Vec<u8>) -> Result<(), SaveRefusal> {
+    let Some(group) = &field.group else { return Ok(()); };
+    out.extend_from_slice(b"<fieldGroup");
+    attrs(&group.attributes, out);
+    if let Some(range) = &group.range {
+        out.extend_from_slice(b"><rangePr");
+        attrs(range, out);
+        out.extend_from_slice(b"/><groupItems");
+        attr("count", &field.items.len().to_string(), out);
+        out.push(b'>');
+        for value in &field.items { item(value, out)?; }
+        out.extend_from_slice(b"</groupItems></fieldGroup>");
+    } else {
+        out.extend_from_slice(b"/>");
+    }
+    Ok(())
+}
 fn cache_fields(cache: &PivotCache) -> Result<Vec<u8>, SaveRefusal> {
     let mut out = format!(
         "<cacheFields xmlns=\"{M}\" count=\"{}\">",
@@ -83,7 +100,13 @@ fn cache_fields(cache: &PivotCache) -> Result<Vec<u8>, SaveRefusal> {
         a.remove("name");
         attrs(&a, &mut out);
         string_attr("name", &field.name, &mut out);
-        out.extend_from_slice(b"><sharedItems");
+        out.push(b'>');
+        if matches!(field.attributes.get("databaseField").map(String::as_str), Some("0" | "false")) {
+            cache_group(field, &mut out)?;
+            out.extend_from_slice(b"</cacheField>");
+            continue;
+        }
+        out.extend_from_slice(b"<sharedItems");
         attr("count", &field.items.len().to_string(), &mut out);
         let missing = field.items.iter().any(|i| matches!(i, PivotItem::Missing));
         let text = field.items.iter().any(|i| matches!(i, PivotItem::Text(_)));
@@ -194,7 +217,9 @@ fn cache_fields(cache: &PivotCache) -> Result<Vec<u8>, SaveRefusal> {
         for value in &field.items {
             item(value, &mut out)?;
         }
-        out.extend_from_slice(b"</sharedItems></cacheField>");
+        out.extend_from_slice(b"</sharedItems>");
+        cache_group(field, &mut out)?;
+        out.extend_from_slice(b"</cacheField>");
     }
     out.extend_from_slice(b"</cacheFields>");
     Ok(out)
@@ -363,8 +388,9 @@ fn preflight(xml: &XmlPart, containers: &[&str]) -> Result<(), SaveRefusal> {
                         "i" => local == "x",
                         "pivotCacheDefinition" => local == "cacheFields",
                         "cacheFields" => local == "cacheField",
-                        "cacheField" => local == "sharedItems",
-                        "sharedItems" => matches!(local, "n" | "s" | "b" | "e" | "m" | "d"),
+                        "cacheField" => matches!(local, "sharedItems" | "fieldGroup"),
+                        "fieldGroup" => matches!(local, "rangePr" | "groupItems"),
+                        "sharedItems" | "groupItems" => matches!(local, "n" | "s" | "b" | "e" | "m" | "d"),
                         "pivotCacheRecords" => local == "r",
                         "r" => matches!(local, "x" | "n" | "s" | "b" | "e" | "m" | "d"),
                         _ => false,
@@ -398,6 +424,9 @@ fn preflight(xml: &XmlPart, containers: &[&str]) -> Result<(), SaveRefusal> {
                                     | "maxDate"
                                     | "longText"
                             ),
+                            "fieldGroup" => matches!(a.name.local.as_str(), "base" | "par"),
+                            "rangePr" => matches!(a.name.local.as_str(), "groupBy" | "startDate" | "endDate" | "autoStart" | "autoEnd"),
+                            "groupItems" => a.name.local.as_str() == "count",
                             "ext" => a.name.local.as_str() == "uri" && a.value == FILL_DOWN_URI,
                             "extLst" => false,
                             "item" => matches!(a.name.local.as_str(), "x" | "t" | "h"),
@@ -489,9 +518,13 @@ fn records(xml: &XmlPart, cache: &PivotCache) -> Result<Vec<u8>, SaveRefusal> {
     attr("count", &snapshot.records.len().to_string(), &mut body);
     body.push(b'>');
     for row in &snapshot.records {
+        if row.len() != cache.fields.len() { return Err(bad(&cache.part, "A record has an invalid field count")); }
         body.extend_from_slice(format!("<r xmlns=\"{M}\">").as_bytes());
-        for value in row {
-            item(value, &mut body)?;
+        for (i, value) in row.iter().enumerate() {
+            let field = cache.fields.get(i).ok_or_else(|| bad(&cache.part, "A record has an invalid field count"))?;
+            if !matches!(field.attributes.get("databaseField").map(String::as_str), Some("0" | "false")) {
+                item(value, &mut body)?;
+            }
         }
         body.extend_from_slice(b"</r>");
     }
@@ -787,6 +820,7 @@ mod date_flags {
         let field = PivotCacheField {
             name: "Month".into(),
             shared_items: None,
+            group: None,
             items: vec![
                 PivotItem::Date("2024-02-15T00:00:00".into()),
                 PivotItem::Date("2024-01-15T00:00:00".into()),
