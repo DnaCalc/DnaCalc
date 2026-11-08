@@ -5,7 +5,11 @@
 //! A ported family declares each entry with its member number, kernel name, spelling, arity,
 //! parameters (`V` for a value, `R` for a value or reference, `F` for a reference, each followed
 //! by `@Reference` where Excel's formula entry takes only an operand that may give a reference),
-//! optionally its repeating groups (`groups (from, size, tail);`) and result form
+//! Each parameter may also declare its measured legacy place after `~`. The root-place
+//! declarations carry the dc-10y Excel 16.0.20430 `Range.Formula` readings from 2026-10-25:
+//! a range expression is intersected at an aggregate place and lifts at an array place.
+//! The nested cases cite their captures beside the declarations.
+//! Optionally an entry declares its repeating groups (`groups (from, size, tail);`) and result form
 //! (`result MayBeReference;`), and body. The macro generates the entry and its eager kernel. Every generated kernel refuses an array given
 //! to a value parameter, since a function of single values applied to an array lifts over its
 //! elements, which is not modelled here (L1 owns array lifting), and then reaches one binary64
@@ -58,7 +62,7 @@ macro_rules! ported_family {
         code: $code:expr;
         $(
             $member:literal $fname:ident $spelling:literal ($min:literal, $max:literal)
-            [$($class:ident $pname:literal $(@ $entry:ident)?),*]
+            [$($class:ident $pname:literal $(@ $entry:ident)? $(~ $legacy:ident)?),*]
             $(groups ($gfrom:literal, $gsize:literal, $gtail:literal);)?
             $(result $result:ident;)?
             $(resume $resumer:ident => $resume:path;)?
@@ -74,7 +78,7 @@ macro_rules! ported_family {
                         $spelling,
                         $min,
                         $max,
-                        &[$(super::Parameter::of($pname, super::kit::$class)$(.entry(super::EntryClass::$entry))?),*],
+                        &[$(super::Parameter::of($pname, super::kit::$class)$(.entry(super::EntryClass::$entry))?$(.legacy(super::LegacyPlace::$legacy))?),*],
                         $fname,
                     ).with_continuation(ported_family!(@resume $($resumer)?))
                     $(.with_groups(super::ArgumentGroups::new($gfrom, $gsize, $gtail)))?
@@ -113,7 +117,7 @@ macro_rules! ported_family {
                     $sv: &mut crate::call::EvalServices<'_>,
                 ) -> crate::kernel::Step<crate::value::CalcValue> {
                     const PARAMETERS: &[super::Parameter] =
-                        &[$(super::Parameter::of($pname, super::kit::$class)$(.entry(super::EntryClass::$entry))?),*];
+                        &[$(super::Parameter::of($pname, super::kit::$class)$(.entry(super::EntryClass::$entry))?$(.legacy(super::LegacyPlace::$legacy))?),*];
                     super::kit::scalars($s, $a, PARAMETERS)?;
                     $s.binary64()?;
                     $body

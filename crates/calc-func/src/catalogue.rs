@@ -219,6 +219,52 @@ pub(crate) struct Parameter {
     pub(crate) name: &'static str,
     pub(crate) class: ParameterClass,
     pub(crate) entry: EntryClass,
+    pub(crate) legacy: LegacyPlace,
+}
+
+/// Measured treatment of a reference supplied to a parameter in a legacy formula.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LegacyPlace {
+    /// No special reference intersection is declared.
+    Default,
+    /// Intersect a reference except below an array place.
+    IntersectReference,
+    /// Intersect a reference even below an array place.
+    IntersectReferenceAlways,
+    /// Intersect a value or reference even below an array place.
+    SingleValue,
+    /// Lift a range or array even below an array place.
+    ArrayAlways,
+    /// As `ArrayAlways`, including repeated arguments.
+    ArrayAlwaysRepeated,
+    /// Lift below this reference parameter and run once per reference.
+    ArrayAlwaysLiftReferences,
+    /// As `ArrayAlwaysLiftReferences`, including repeated arguments.
+    ArrayAlwaysLiftReferencesRepeated,
+    /// Lift below the parameter at the root or an aggregate place.
+    ArrayAtRoot,
+    /// As `ArrayAtRoot`, including repeated arguments.
+    ArrayAtRootRepeated,
+    /// Intersect ranges while lifting arrays at the root or an aggregate place.
+    AggregateAtRoot,
+    /// As `AggregateAtRoot`, including repeated arguments.
+    AggregateAtRootRepeated,
+    /// As `AggregateAtRoot`, and lift an operator below an array place.
+    AggregateUnderArray,
+    /// As `AggregateUnderArray`, including repeated arguments.
+    AggregateUnderArrayRepeated,
+    /// An aggregate place for this parameter and the next argument only.
+    AggregateAtRootTwice,
+    /// Aggregate at the root, and lift below an array place.
+    AggregateRootArrayNested,
+    /// As `AggregateRootArrayNested`, also running once per reference.
+    AggregateRootArrayNestedLiftReferences,
+    /// The default value place, running once per reference.
+    LiftReferences,
+    /// Aggregate at the root and intersect a reference outside an array place.
+    AggregateIntersectReference,
+    /// Aggregate and intersect a reference even below an array place.
+    AggregateAlwaysIntersectReference,
 }
 
 impl Parameter {
@@ -228,6 +274,7 @@ impl Parameter {
             name,
             class,
             entry: EntryClass::Any,
+            legacy: LegacyPlace::Default,
         }
     }
 
@@ -246,6 +293,11 @@ impl Parameter {
     /// This parameter with the entry class `entry`.
     pub(crate) const fn entry(mut self, entry: EntryClass) -> Self {
         self.entry = entry;
+        self
+    }
+
+    pub(crate) const fn legacy(mut self, legacy: LegacyPlace) -> Self {
+        self.legacy = legacy;
         self
     }
 }
@@ -672,6 +724,27 @@ impl<'c> FunctionCallTarget<'c> {
     /// The class of argument `index`, or `None` when the arity admits no argument there.
     pub fn parameter_class(self, index: usize) -> Option<ParameterClass> {
         (index < self.entry.arity.max).then(|| self.entry.parameter_class(index))
+    }
+
+    /// The measured legacy rule for a parameter, including repeated parameters.
+    pub fn legacy_place(self, index: usize) -> Option<LegacyPlace> {
+        if index >= self.entry.arity.max || self.entry.parameters.is_empty() {
+            return None;
+        }
+        let last = self.entry.parameters.len() - 1;
+        let legacy = self.entry.parameters[index.min(last)].legacy;
+        if index > last && !matches!(legacy, LegacyPlace::ArrayAlwaysRepeated | LegacyPlace::ArrayAlwaysLiftReferencesRepeated | LegacyPlace::ArrayAtRootRepeated | LegacyPlace::AggregateAtRootRepeated | LegacyPlace::AggregateUnderArrayRepeated)
+            && !(index == last + 1 && legacy == LegacyPlace::AggregateAtRootTwice) {
+            return Some(LegacyPlace::Default);
+        }
+        Some(legacy)
+    }
+
+    /// Whether a legacy call runs once for each reference in an array of references.
+    pub fn legacy_lifts_over_references(self) -> bool {
+        self.entry.parameters.iter().any(|parameter| matches!(parameter.legacy,
+            LegacyPlace::ArrayAlwaysLiftReferences | LegacyPlace::ArrayAlwaysLiftReferencesRepeated |
+            LegacyPlace::AggregateRootArrayNestedLiftReferences | LegacyPlace::LiftReferences))
     }
 
     pub fn argument_demand(self) -> ArgumentDemand {

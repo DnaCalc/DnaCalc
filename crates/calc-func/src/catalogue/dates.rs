@@ -316,13 +316,13 @@ ported_family! {
         let serial = date_arg(s, a, 0)?;
         out(s, k::isoweeknum(serial))
     }
-    19 workday_fn "WORKDAY" (2, 3) [V "start_date", V "days", R "holidays"] |s, a, sv| {
+    19 workday_fn "WORKDAY" (2, 3) [V "start_date", V "days", R "holidays" ~ AggregateAtRoot] |s, a, sv| {
         workday(s, a, sv, false)
     }
     20 workday_intl_fn "WORKDAY.INTL" (2, 4) [V "start_date", V "days", V "weekend", R "holidays"] |s, a, sv| {
         workday(s, a, sv, true)
     }
-    21 networkdays_fn "NETWORKDAYS" (2, 3) [V "start_date", V "end_date", R "holidays"] |s, a, sv| {
+    21 networkdays_fn "NETWORKDAYS" (2, 3) [V "start_date", V "end_date", R "holidays" ~ AggregateAtRoot] |s, a, sv| {
         networkdays(s, a, sv, false)
     }
     22 networkdays_intl_fn "NETWORKDAYS.INTL" (2, 4) [V "start_date", V "end_date", V "weekend", R "holidays"] |s, a, sv| {

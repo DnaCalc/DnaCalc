@@ -323,30 +323,30 @@ ported_family! {
         out(s, sd::erfc_precise_kernel(num(s, a, 0)?))
     }
     // The tests.
-    100 chisq_test "CHISQ.TEST" (2, 2) [R "actual_range", R "expected_range"] |s, a, sv| {
+    100 chisq_test "CHISQ.TEST" (2, 2) [R "actual_range" ~ ArrayAtRoot, R "expected_range" ~ ArrayAtRoot] |s, a, sv| {
         chisq_test_of(s, a, sv)
     }
-    101 chitest "CHITEST" (2, 2) [R "actual_range", R "expected_range"] |s, a, sv| {
+    101 chitest "CHITEST" (2, 2) [R "actual_range" ~ ArrayAtRoot, R "expected_range" ~ ArrayAtRoot] |s, a, sv| {
         chisq_test_of(s, a, sv)
     }
-    102 f_test "F.TEST" (2, 2) [R "array1", R "array2"] |s, a, sv| {
+    102 f_test "F.TEST" (2, 2) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot] |s, a, sv| {
         let x = sample(s, a, 0, sv)?;
         let y = sample(s, a, 1, sv)?;
         out(s, st::f_test_kernel(&x, &y))
     }
-    103 ftest "FTEST" (2, 2) [R "array1", R "array2"] |s, a, sv| {
+    103 ftest "FTEST" (2, 2) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot] |s, a, sv| {
         let x = sample(s, a, 0, sv)?;
         let y = sample(s, a, 1, sv)?;
         out(s, st::f_test_kernel(&x, &y))
     }
-    104 t_test "T.TEST" (4, 4) [R "array1", R "array2", V "tails", V "type"] |s, a, sv| {
+    104 t_test "T.TEST" (4, 4) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot, V "tails", V "type"] |s, a, sv| {
         t_test_of(s, a, sv)
     }
-    105 ttest "TTEST" (4, 4) [R "array1", R "array2", V "tails", V "type"] |s, a, sv| {
+    105 ttest "TTEST" (4, 4) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot, V "tails", V "type"] |s, a, sv| {
         t_test_of(s, a, sv)
     }
-    106 z_test "Z.TEST" (2, 3) [R "array", V "x", V "sigma"] |s, a, sv| { z_test_of(s, a, sv) }
-    107 ztest "ZTEST" (2, 3) [R "array", V "x", V "sigma"] |s, a, sv| { z_test_of(s, a, sv) }
+    106 z_test "Z.TEST" (2, 3) [R "array" ~ AggregateAtRoot, V "x", V "sigma"] |s, a, sv| { z_test_of(s, a, sv) }
+    107 ztest "ZTEST" (2, 3) [R "array" ~ AggregateAtRoot, V "x", V "sigma"] |s, a, sv| { z_test_of(s, a, sv) }
 }
 
 fn chisq_test_of(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {

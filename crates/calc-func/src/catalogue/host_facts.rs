@@ -467,13 +467,17 @@ ported_family! {
     // SHEETS's take any operand: `=SHEET(2)` and `=SHEETS(2)` enter.
     1 cell_fn "CELL" (1, 2) [V "info_type", F "reference" @Reference] |s, a, sv| { cell(s, a, sv) }
     2 info_fn "INFO" (1, 1) [V "type_text"] |s, a, sv| { info(s, a, sv) }
-    3 sheet_fn "SHEET" (0, 1) [R "value"] |s, a, sv| { sheet(s, a, sv) }
-    4 sheets_fn "SHEETS" (0, 1) [R "reference"] |s, a, sv| { sheets(s, a, sv) }
+    3 sheet_fn "SHEET" (0, 1) [R "value" ~ AggregateAtRoot] |s, a, sv| { sheet(s, a, sv) }
+    4 sheets_fn "SHEETS" (0, 1) [R "reference" ~ ArrayAtRoot] |s, a, sv| { sheets(s, a, sv) }
     5 formulatext_fn "FORMULATEXT" (1, 1) [F "reference" @Reference] |s, a, sv| { formulatext(s, a, sv) }
     6 address_entry "ADDRESS" (2, 5) [V "row_num", V "column_num", V "abs_num", V "a1", V "sheet_text"] |s, a, sv| { address_fn(s, a) }
     7 getpivotdata_fn "GETPIVOTDATA" (2, 254) [V "data_field", F "pivot_table", V "field1", V "item1"] |s, a, sv| {
         getpivotdata(s,a,sv)
     }
-    8 transpose_fn "TRANSPOSE" (1, 1) [R "array"] |s, a, sv| { transpose(s, a, sv) }
-    9 fieldvalue_fn "FIELDVALUE" (2, 2) [V "value", V "field_name"] |s, a, sv| { fieldvalue(s, a) }
+    // dc-o9r: TRANSPOSE intersects a reference even below an array place.
+    8 transpose_fn "TRANSPOSE" (1, 1) [R "array" ~ AggregateAlwaysIntersectReference] |s, a, sv| { transpose(s, a, sv) }
+    // dc-b1l, Excel 16.0.20430, 2026-10-27: ROWS(FIELDVALUE({1,2;3,4},"x"))
+    // is read back with @ before the array, as is a range at the same place;
+    // ROWS(A1:A3*1) lifts the range instead.
+    9 fieldvalue_fn "FIELDVALUE" (2, 2) [V "value" ~ SingleValue, V "field_name" ~ SingleValue] |s, a, sv| { fieldvalue(s, a) }
 }

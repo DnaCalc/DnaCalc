@@ -187,7 +187,7 @@ ported_family! {
     // ref takes only an operand that may give a reference: `=SUBTOTAL(9,2)`, `=SUBTOTAL(9,{1,2})`,
     // `=SUBTOTAL(9,1+1)` and `=SUBTOTAL(9,B1,2)` are refused, `=SUBTOTAL(9,B1:B3)` and
     // `=SUBTOTAL(9,INDEX(B1:B3,0))` enter.
-    1 subtotal "SUBTOTAL" (2, 255) [V "function_num", F "ref1" @Reference, F "ref2" @Reference] |s, a, sv| {
+    1 subtotal "SUBTOTAL" (2, 255) [V "function_num", F "ref1" @Reference ~ ArrayAlwaysLiftReferences, F "ref2" @Reference ~ ArrayAlwaysLiftReferencesRepeated] |s, a, sv| {
         let number = num(s, a, 0)?.trunc() as i64;
         let (function, hidden) = match number {
             1..=11 => (number, false),
@@ -203,7 +203,7 @@ ported_family! {
     // may give a reference (dc-mx3x, both forms): `=AGGREGATE(9,0,2)`,
     // `=AGGREGATE(9,0,{1,2},2)` and `=AGGREGATE(9,0,B1,2)` enter; `=AGGREGATE(9,0,B1,B1,2)`,
     // `=AGGREGATE(9,0,B1,B1,{1,2})` and `=AGGREGATE(9,0,B1,B1,B1,2)` are refused.
-    2 aggregate_fn "AGGREGATE" (3, 253) [V "function_num", V "options", R "ref1", R "ref2", R "ref3" @Reference] |s, a, sv| {
+    2 aggregate_fn "AGGREGATE" (3, 253) [V "function_num", V "options", R "ref1" ~ ArrayAtRoot, R "ref2" ~ AggregateAtRoot, R "ref3" @Reference] |s, a, sv| {
         let function = num(s, a, 0)?.trunc() as i64;
         let options = if a[1].is_missing() { 0 } else { num(s, a, 1)?.trunc() as i64 };
         if !(0..=7).contains(&options) || !(1..=19).contains(&function) {

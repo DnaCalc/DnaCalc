@@ -2211,7 +2211,7 @@ fn rejects_multi_cell_reference(target: Target) -> bool {
 fn lifts_over_references(target: Target, form: FormulaForm) -> bool {
     let spelling = target.0.spelling();
     match form {
-        FormulaForm::Legacy => LEGACY_LIFTS_OVER_REFERENCES.contains(&spelling),
+        FormulaForm::Legacy => target.0.legacy_lifts_over_references(),
         _ => LIFTS_OVER_REFERENCES.contains(&spelling),
     }
 }
@@ -2222,7 +2222,6 @@ fn lifts_over_references(target: Target, form: FormulaForm) -> bool {
 /// `=SUM(SUMIF(OFFSET(E1,{0;1},0,2),">1"))` 7, `=SUMPRODUCT(AREAS(OFFSET(E1,{0;1},0)))` 2). Any
 /// other function given one takes its first reference (`=SUM(OFFSET(E1,{0,1,2},0))` is 1,
 /// `=ROWS(...)` 1, `=ISREF(...)` TRUE, `=SUMPRODUCT(ROW(OFFSET(E1,{0;1},0)))` 1).
-const LEGACY_LIFTS_OVER_REFERENCES: [&str; 6] = ["SUBTOTAL", "SUMIF", "COUNTIF", "AREAS", "N", "T"];
 
 /// Whether `value` is an array holding a reference: OFFSET or INDIRECT lifted over an array
 /// (dc-b1l).

@@ -131,15 +131,15 @@ ported_family! {
     37 permutationa "PERMUTATIONA" (2, 2) [V "number", V "number_chosen"] |s, a, sv| {
         binary(s, a, k::permutationa_fn::permutationa_kernel)
     }
-    38 gcd "GCD" (1, 255) [R "number1", R "number2"] |s, a, sv| {
+    38 gcd "GCD" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] |s, a, sv| {
         let items = integer_groups(s, a, sv)?;
         s.number(k::gcd_fn::gcd_kernel(&items))
     }
-    39 lcm "LCM" (1, 255) [R "number1", R "number2"] |s, a, sv| {
+    39 lcm "LCM" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] |s, a, sv| {
         let items = integer_groups(s, a, sv)?;
         out(s, k::lcm_fn::lcm_kernel(&items))
     }
-    40 multinomial "MULTINOMIAL" (1, 255) [R "number1", R "number2"] |s, a, sv| {
+    40 multinomial "MULTINOMIAL" (1, 255) [R "number1" ~ AggregateAtRoot, R "number2" ~ AggregateAtRootRepeated] |s, a, sv| {
         // Admission runs across every value before the numeric domain is checked.
         // Held blank cells are skipped; logicals are rejected in every origin.
         let mut numbers = Vec::new();
@@ -190,7 +190,7 @@ ported_family! {
         let radix = num(s, a, 1)?;
         out(s, k::decimal_fn::decimal_kernel(&t, radix))
     }
-    45 seriessum "SERIESSUM" (4, 4) [V "x", V "n", V "m", R "coefficients"] |s, a, sv| {
+    45 seriessum "SERIESSUM" (4, 4) [V "x", V "n", V "m", R "coefficients" ~ AggregateAtRoot] |s, a, sv| {
         let x = super::kit::num_without_logical(s, a, 0)?;
         let n = super::kit::num_without_logical(s, a, 1)?;
         let m = super::kit::num_without_logical(s, a, 2)?;
@@ -206,25 +206,26 @@ ported_family! {
         }
         s.number(sum)
     }
-    46 sumx2my2 "SUMX2MY2" (2, 2) [R "array_x", R "array_y"] |s, a, sv| {
+    46 sumx2my2 "SUMX2MY2" (2, 2) [R "array_x" ~ ArrayAtRoot, R "array_y" ~ ArrayAtRoot] |s, a, sv| {
         sum_pairwise(s, a, sv, |x, y| x * x - y * y)
     }
-    47 sumx2py2 "SUMX2PY2" (2, 2) [R "array_x", R "array_y"] |s, a, sv| {
+    47 sumx2py2 "SUMX2PY2" (2, 2) [R "array_x" ~ ArrayAtRoot, R "array_y" ~ ArrayAtRoot] |s, a, sv| {
         sum_pairwise(s, a, sv, |x, y| x * x + y * y)
     }
-    48 sumxmy2 "SUMXMY2" (2, 2) [R "array_x", R "array_y"] |s, a, sv| {
+    48 sumxmy2 "SUMXMY2" (2, 2) [R "array_x" ~ ArrayAtRoot, R "array_y" ~ ArrayAtRoot] |s, a, sv| {
         sum_pairwise(s, a, sv, |x, y| (x - y) * (x - y))
     }
-    49 mdeterm "MDETERM" (1, 1) [R "array"] |s, a, sv| {
+    49 mdeterm "MDETERM" (1, 1) [R "array" ~ ArrayAtRoot] |s, a, sv| {
         let m = matrix(s, a, 0, sv)?;
         out(s, k::matrix_family::determinant_kernel(&m))
     }
-    50 minverse "MINVERSE" (1, 1) [R "array"] |s, a, sv| {
+    // R26 legacy INDEX(MINVERSE(CHOOSE(...))) retains the two-column matrix.
+    50 minverse "MINVERSE" (1, 1) [R "array" ~ ArrayAlways] |s, a, sv| {
         let m = matrix(s, a, 0, sv)?;
         let inverse = k::matrix_family::inverse_kernel(&m).map_err(Exit::Error)?;
         out_matrix(s, &inverse)
     }
-    51 mmult "MMULT" (2, 2) [R "array1", R "array2"] |s, a, sv| {
+    51 mmult "MMULT" (2, 2) [R "array1" ~ ArrayAtRoot, R "array2" ~ ArrayAtRoot] |s, a, sv| {
         let left = matrix(s, a, 0, sv)?;
         let right = matrix(s, a, 1, sv)?;
         let product = k::matrix_family::mmult_kernel(&left, &right).map_err(Exit::Error)?;

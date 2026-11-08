@@ -43,8 +43,8 @@ const TRUE: FunctionId = FunctionId::new(CODE, 6);
 const FALSE: FunctionId = FunctionId::new(CODE, 7);
 
 const LOGICALS: &[Parameter] = &[
-    Parameter::value_or_reference("logical1"),
-    Parameter::value_or_reference("logical2"),
+    Parameter::value_or_reference("logical1").legacy(super::LegacyPlace::AggregateAtRoot),
+    Parameter::value_or_reference("logical2").legacy(super::LegacyPlace::AggregateAtRootRepeated),
 ];
 
 /// An eager named call that takes 1 to `most` logicals, values or references, the last parameter
