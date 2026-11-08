@@ -377,6 +377,24 @@ static double doubleArgument(const CONTEXT& c,int i) {
     else { Address v=argument(c,i); memcpy(&d,&v,8); }
     return d;
 }
+static std::string ansiText(const std::string& bytes) {
+    // ANSI strings (CALL / REGISTER types C, D, F, G) are shown through the active code page.
+    if (bytes.empty()) return "";
+    int n = MultiByteToWideChar(CP_ACP, 0, bytes.data(), (int)bytes.size(), nullptr, 0);
+    std::wstring w(n, 0);
+    MultiByteToWideChar(CP_ACP, 0, bytes.data(), (int)bytes.size(), w.data(), n);
+    return utf8(w);
+}
+static std::string ansiZ(Address p) {
+    std::string s;
+    for (size_t i = 0; i < 32768; ++i) { char c; if (!readBytes(p+i, &c, 1)){readError(p+i,1);break;} if(!c)break; s+=c; }
+    return ansiText(s);
+}
+static std::string ansiCounted(Address p) {
+    size_t n = read<uint8_t>(p); std::string s(n, 0);
+    if (n && !readBytes(p+1, s.data(), n)){readError(p+1,n);return "<unreadable>";}
+    return ansiText(s);
+}
 static std::string typed(const std::string& t, Address v) {
     if(t=="Q"||t=="U"||t=="X") return oper(v);
     if(t=="E") return number(read<double>(v));
@@ -391,6 +409,11 @@ static std::string typed(const std::string& t, Address v) {
         return s+"],\"omitted\":"+std::to_string(count-limit)+"}";
     }
     if(t=="C%") return quote(utf8(wideZ(v)));
+    if(t=="C"||t=="F") return quote(ansiZ(v));
+    if(t=="D"||t=="G") return quote(ansiCounted(v));
+    if(t=="F%") return quote(utf8(wideZ(v)));
+    if(t=="G%") return quote(utf8(wide(v+2,read<uint16_t>(v))));
+    if(t.size()==1&&t[0]>='1'&&t[0]<='9') return "null"; // modified in place: the argument, not the result, carries the string
     if(t=="J")return std::to_string((int32_t)v);
     if(t=="A"||t=="I")return std::to_string((int16_t)v);
     if(t=="H")return std::to_string((uint16_t)v);

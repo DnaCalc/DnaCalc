@@ -6,13 +6,19 @@
 //! `excel-formats.tsv` Excel's answers, captured by `tools/excel-session/formats-job.ps1` in an
 //! owned Excel session: `Range.Text` of a cell holding the value under `NumberFormatLocal`, with
 //! the culture's separators set on the Excel instance and the culture's `[$-LCID]` prefix for day
-//! and month names. A row Excel itself refused (an error column) is not an answer and is counted
-//! apart. Every other row is compared: a formatter that gives a different text, or refuses, fails
-//! the row; the test reports matched against mismatched plus refused over all answered rows and
-//! asserts the counts it was last measured at, so a regression and an improvement both show.
+//! and month names. A row of kind `fn` is the cell's formula `=TEXT(value,"code")`, replayed through
+//! the page's own route ([`crate::shown::evaluate`]); a cell Excel shows as a row of `#` is #VALUE!
+//! there, and the cell formatter's `Unshowable`. A row Excel itself refused (an error column) is
+//! not an answer and is counted apart. Every other row is compared: a formatter that gives a
+//! different text, or refuses, fails the row; the test reports matched against mismatched plus
+//! refused over all answered rows and asserts the counts it was last measured at, so a regression
+//! and an improvement both show.
 
+use crate::session::Session;
+use crate::shown::{Authored, ViewWire, evaluate};
 use calc_func::locale::DateSystem;
 use calc_func::value::{CalcValue, ExcelText};
+use calc_func::CellFormatError;
 use calc_fml::FormatProfile;
 
 const CASES: &str = include_str!("../tests/fixtures/formats/cases.tsv");
@@ -85,6 +91,7 @@ pub(crate) fn replay() -> Replay {
         "every question has exactly one answer"
     );
     let mut result = Replay::default();
+    let mut session = Session::new("Sheet1").expect("a session");
     for (question, answer) in questions.iter().zip(&answers) {
         let q: Vec<&str> = question.split('\t').collect();
         let a: Vec<&str> = answer.split('\t').collect();
@@ -114,16 +121,48 @@ pub(crate) fn replay() -> Replay {
         } else {
             format!("[$-{lcid}]{code}")
         };
-        let expected = unescape(a[9]);
-        let differ = |how: String| Difference {
+        let mut expected = unescape(a[9]);
+        let differ = |how: String, expected: &str| Difference {
             line: format!("{} {culture} {system} {kind} {:?} {code:?}: Excel {expected:?}, {how}", q[0], q[7]),
             culture: culture.to_owned(),
             code: code.clone(),
         };
+        if kind == "fn" {
+            // The formula cell: Excel shows #VALUE! where the same code on a cell shows a row of `#`.
+            if !expected.is_empty() && expected.chars().all(|c| c == '#') {
+                expected = "#VALUE!".to_owned();
+            }
+            let formula = format!("=TEXT({},\"{}\")", q[7], code.replace('"', "\"\""));
+            let shown = evaluate(
+                &mut session,
+                &Authored {
+                    formula,
+                    locale: culture.to_owned(),
+                    ..Authored::default()
+                },
+            );
+            let text = match &shown.view {
+                ViewWire::Value { text, .. } => text.clone(),
+                ViewWire::Error { code, .. } => code.clone(),
+                other => format!("{other:?}"),
+            };
+            if text == expected {
+                result.matched += 1;
+            } else {
+                result.mismatched.push(differ(format!("here {text:?}"), &expected));
+            }
+            continue;
+        }
         match calc_func::cell_text_localized(&profile, date_system, &value, &asked) {
             Ok(text) if text == expected => result.matched += 1,
-            Ok(text) => result.mismatched.push(differ(format!("here {text:?}"))),
-            Err(error) => result.refused.push(differ(format!("here {error:?}"))),
+            // A cell too narrow, or a value its code cannot show, shows a row of `#`.
+            Err(CellFormatError::Unshowable)
+                if !expected.is_empty() && expected.chars().all(|c| c == '#') =>
+            {
+                result.matched += 1
+            }
+            Ok(text) => result.mismatched.push(differ(format!("here {text:?}"), &expected)),
+            Err(error) => result.refused.push(differ(format!("here {error:?}"), &expected)),
         }
     }
     result
@@ -151,7 +190,7 @@ mod tests {
         };
         let (limits, real): (Vec<_>, Vec<_>) = replay.mismatched.iter().partition(|d| instance_limit(d));
         let (fractions, other_refused): (Vec<_>, Vec<_>) =
-            replay.refused.iter().partition(|d| d.code.contains("?/"));
+            replay.refused.iter().partition(|d| d.code.contains('/'));
         eprintln!(
             "number formats: {answered} answered by Excel ({} not answered); matched {}, mismatched {} \
              ({} from the Excel instance's limits), refused {} ({} fractions)",
@@ -174,7 +213,8 @@ mod tests {
         );
     }
 
-    /// matched, mismatched because of the instance's limits, refused as fractions (not modelled in
-    /// calc-func), and not answered by Excel: as last measured.
-    const EXPECTED: (usize, usize, usize, usize) = (1669, 61, 48, 32);
+    /// matched, mismatched because of the instance's limits, refused as fractions (calc-func models
+    /// them since dc-0f1k.6, so none), and not answered by Excel (it refuses the code or the
+    /// value): as last measured.
+    const EXPECTED: (usize, usize, usize, usize) = (10199, 61, 0, 295);
 }

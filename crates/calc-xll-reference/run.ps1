@@ -98,6 +98,7 @@ if ($HostExecutable) {
         $launch = [Diagnostics.ProcessStartInfo]::new($exe)
         $launch.UseShellExecute=$false; $launch.CreateNoWindow=$true
         $launch.RedirectStandardOutput=$true; $launch.RedirectStandardError=$true
+        $launch.StandardOutputEncoding=[Text.Encoding]::UTF8; $launch.StandardErrorEncoding=[Text.Encoding]::UTF8
         $arguments = @('--xll',$nativeXll,'--ready',$readyFile,'--wait',$go,'--finished',$done,'--release',$release)
         if ($Engine) { $arguments += '--engine' }
         if ($WorkbookName) { $arguments += @('--workbook-name',$WorkbookName) }
