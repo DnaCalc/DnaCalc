@@ -17463,3 +17463,27 @@ fn dc_8wp__unsupported_date_group_and_out_of_range_source_refuse() {
         assert!(!receipt.accepted(), "unsupported grouping must refuse: {receipt:?}");
     }
 }
+
+/// An unmeasured relative percentage must refuse without replacing the saved output.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_10__percent_of_next_item_refuses() {
+    let bytes = package_with_part_from(
+        include_bytes!("fixtures/pivot/m1-calculation/built.xlsx"),
+        "xl/pivotTables/pivotTable15.xml",
+        |xml| {
+            assert!(xml.contains("baseItem=\"1048828\""));
+            xml.replacen("baseItem=\"1048828\"", "baseItem=\"1048829\"", 1)
+        },
+    );
+    let mut book = session(&bytes);
+    let (s, part) = book.host().model().definitions().pivots().sheets.iter().find_map(|(s, pivots)|
+        pivots.tables.iter().find(|table| table.name == "pvt_show_percentof_previous")
+            .map(|table| (*s, table.part.clone()))).unwrap();
+    let before = book.host().revision();
+    let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+        sheet: s, revision: before.get(), part,
+    }));
+    assert!(!receipt.accepted(), "{receipt:?}");
+    assert_eq!(book.host().revision(), before);
+}

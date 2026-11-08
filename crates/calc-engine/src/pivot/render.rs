@@ -89,7 +89,7 @@ fn layout_rows(
     }
     if !matches!(
         data.subtotal.as_str(),
-        "sum" | "count" | "countNums" | "min" | "max" | "average"
+        "sum" | "count" | "countNums" | "min" | "max" | "average" | "product" | "stdDev" | "stdDevp" | "var" | "varp"
     ) || data
         .attributes
         .get("showDataAs")
@@ -165,6 +165,12 @@ fn layout_rows(
             totals.entry(path[..=k].to_vec()).or_default().push(value)?;
         }
         grand_total.push(value)?;
+    }
+    if !grand_total.supports(&data.subtotal) || totals.iter().any(|level|
+        level.values().any(|total| !total.supports(&data.subtotal))) || (depth > 1 &&
+        (!grand_total.supports_grouped_product(&data.subtotal) || totals.iter().any(|level|
+            level.values().any(|total| !total.supports_grouped_product(&data.subtotal))))) {
+        return Err(bad("This numeric input for the value function is not modelled"));
     }
     let mut position = Vec::new();
     for groups in &levels {
