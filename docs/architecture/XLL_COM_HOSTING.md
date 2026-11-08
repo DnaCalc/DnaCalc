@@ -6,7 +6,8 @@ Markers: **[V]** verified this session in source or Microsoft documentation (lin
 
 Owner direction (2026-11-01): full `.xll` compatibility, including Excel-DNA, xlw and xlOil out
 of the box, and broad COM support are an early focus. Section 9 records the first X0 boundary
-measurements; the remaining [P] items are still open.
+measurements; the remaining [P] items are still open. How the desktop OneCalc loads, lists and unloads
+these add-ins and shows what they registered is in [ONECALC_ADDINS.md](ONECALC_ADDINS.md).
 
 Sources read: Excel-DNA local clone `C:\Work\Excel-DNA\ExcelDna` (master f4847492, 2026-09-13; paths under
 `Source/`, https://github.com/Excel-DNA/ExcelDna/tree/master/Source); xlOil https://github.com/cunnane/xloil (master);

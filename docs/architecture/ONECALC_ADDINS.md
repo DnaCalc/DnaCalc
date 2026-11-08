@@ -52,7 +52,10 @@ CalcFml's assistance (`assist::complete_in`, `assist::call_in`) takes them in it
 An argument the add-in did not name is `arg1`, `arg2`, ... (our choice, not Excel's). OneCalc sends the
 functions once per version of the table (`Request::FunctionDocs`), not with every answer, because a
 table can hold thousands of functions (the pool test add-in registers 10,000). DNA Calc's formula bar
-gets the same descriptors through the outline reply of its worker (`Outline.functions`).
+gets the same descriptors through the outline reply of its worker (`Outline.functions`): its completion
+list and signature line show them (checked in `dna-calc-desktop --app` with xlw's sample add-in:
+typing `=Echo` offers `EchoShort(x)`, and `=EchoShort(` shows that signature). DNA Calc has no function
+help panel yet, for the catalogue's functions either.
 
 ## Late replies, the pool and asynchronous add-ins
 
@@ -76,3 +79,43 @@ signature help, the function help and the completion list for the first function
 unloads the add-in through the panel, and opens a session that lists it. Excel's answers come from
 `crates/calc-xll-reference/m4-excel.ps1`, which runs `run.ps1 -NoTrace` for each set in an owned hidden
 session. The sets and their files are in `crates/calc-xll-reference/fixture/m4-acceptance.json`.
+
+### What it showed (2026-11-08, Excel 16.0.20527, final code)
+
+Every set below was loaded through the page and its cases entered in the formula field; the page's
+result was compared with Excel's answer for the same formula. Pass = matched Excel; fail =
+mismatched + refused + missing; the rate is over all cases of the set.
+
+| Set (file) | Cases | Matched | Fail |
+|---|---|---|---|
+| own fixture X1 (`calc_xll_fixture.dll` as X1.xll, 289 formulas) | 289 | 289 | 0 |
+| Excel-DNA 1.9.0, net48 (+ the native ownership add-in) | 7 | 7 | 0 |
+| Excel-DNA 1.9.0, net8.0-windows (+ the native ownership add-in) | 7 | 7 | 0 |
+| Excel-DNA Native AOT 1.10.0-preview5 (net10, ILCompiler 10.0.14) | 1 | 1 | 0 |
+| Excel-DNA, 10,000 thread-safe registrations (`X2Pool`) | 2 | 2 | 0 |
+| xlw 23.10.12-rc sample, and its types sample | 5 + 5 | 10 | 0 |
+| xlOil 0.22.1 Utils and SQL | 12 | 12 | 0 |
+| xlOil 0.22.1 Python 3.12 | 5 | 5 | 0 |
+| calcvba-udf generated add-in (15 exports) | 20 | 17 | 3 |
+| all | 353 | 350 | 3 (99.2%) |
+
+The three failures are all in the generated add-in: `Native_ReferenceKind(A1)`,
+`Native_OptionalReference(A1)` and `Native_CallerRow()` return `#VALUE!` where Excel gives `"Range:1"`,
+`"Range"` and `3`. The generated code gets a `Range` object from `Application.Range(address)` and
+`Application.Caller` through the add-in's COM view of Excel (`xlGetHwnd`, then the EXCEL7 window), and
+the object model the desktop hosts publish (calc-com-host) has no `Application.Range`, `Union` or
+`Caller`. The owner's ruling is that OneCalc carries no full Excel object model; what these calls
+should do instead of a silent `#VALUE!` is dc-snz.5's open question.
+
+The page also showed, for the first functions of each add-in, the signature help, the function help
+(description, argument help, category, origin) and the completion list; it unloaded each add-in
+through the panel (every one unloaded); and it opened a session that lists the add-in twice (a wrong
+hash and the right one): opening loaded nothing, the wrong hash was refused with the reason, the right
+one loaded - except the two runtimes that cannot start twice in one process, which refused with their
+beads (Excel-DNA Native AOT, dc-snz.19; xlOil Python, dc-snz.21). xlOil Utils and SQL reloaded.
+
+Not shown: the native file dialog itself (a person must choose a file; the host logic runs in unit
+tests with a scripted chooser, and the page's other route, a typed path, runs the same load);
+commands and ribbons (not offered); RTD (milestone 6); xlOil Python's event cases (they toggle
+`Application.EnableEvents`, which OneCalc has no control for; the page does tell add-ins of a changed
+grid cell and of each calculation); the x5 permission and RTD case files.
