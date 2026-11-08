@@ -119,6 +119,10 @@ fn layout_rows(
     if depth == 2 && subtotal_on.iter().any(|on| !on) {
         return Err(bad("Row fields without a subtotal remain unmeasured"));
     }
+    let blank_after: Vec<bool> = fields.iter().map(|f| flag(f, "insertBlankRow", false)).collect();
+    if (depth == 1 && blank_after[0]) || (1..depth.saturating_sub(1)).any(|level| blank_after[level]) {
+        return Err(bad("Blank rows at this field depth are not modelled"));
+    }
     let form = if flag(fields[0], "compact", true) {
         Form::Compact
     } else if flag(fields[0], "outline", true) {
@@ -218,6 +222,7 @@ fn layout_rows(
         form,
         subtotal_top,
         subtotal_on: &subtotal_on,
+        blank_after: &blank_after,
         fill_down,
         kind,
         value_column,

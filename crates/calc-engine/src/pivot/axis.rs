@@ -44,6 +44,7 @@ pub(super) struct Walk<'a> {
     pub(super) form: Form,
     pub(super) subtotal_top: bool,
     pub(super) subtotal_on: &'a [bool],
+    pub(super) blank_after: &'a [bool],
     pub(super) fill_down: bool,
     pub(super) kind: &'a str,
     pub(super) value_column: u32,
@@ -124,30 +125,36 @@ impl AxisVisitor for Walk<'_> {
     }
     fn leave(&mut self, path: &[usize]) -> Result<(), PivotIssue> {
         let level = path.len() - 1;
-        if level + 1 == self.levels.len() || !self.subtotal_on[level] {
+        if level + 1 == self.levels.len() {
             return Ok(());
         }
         let g = path[level];
         let x = self.position[level][g].expect("visible group");
-        let label_column = if self.form == Form::Compact { 0 } else { level as u32 };
-        let group = &self.levels[level][g];
-        let total = self.totals[level][&*path].result(self.kind);
-        let total_label = plain_text(&format!("{} Total", label_text(group)?));
-        match self.form {
-            Form::Compact | Form::Outline if !self.subtotal_top => {
-                self.cells.insert((self.r, label_column), total_label);
-                self.cells.insert((self.r, self.value_column), total);
-                self.axis.push(axis_item("default", level as u32, vec![x]));
-                self.r += 1;
+        if self.subtotal_on[level] {
+            let label_column = if self.form == Form::Compact { 0 } else { level as u32 };
+            let group = &self.levels[level][g];
+            let total = self.totals[level][&*path].result(self.kind);
+            let total_label = plain_text(&format!("{} Total", label_text(group)?));
+            match self.form {
+                Form::Compact | Form::Outline if !self.subtotal_top => {
+                    self.cells.insert((self.r, label_column), total_label);
+                    self.cells.insert((self.r, self.value_column), total);
+                    self.axis.push(axis_item("default", level as u32, vec![x]));
+                    self.r += 1;
+                }
+                Form::Tabular => {
+                    self.cells.insert((self.r, level as u32), total_label);
+                    self.cells.insert((self.r, self.value_column), total);
+                    self.axis.push(axis_item("default", level as u32, vec![x]));
+                    self.r += 1;
+                    self.printed = level;
+                }
+                _ => {}
             }
-            Form::Tabular => {
-                self.cells.insert((self.r, level as u32), total_label);
-                self.cells.insert((self.r, self.value_column), total);
-                self.axis.push(axis_item("default", level as u32, vec![x]));
-                self.r += 1;
-                self.printed = level;
-            }
-            _ => {}
+        }
+        if self.blank_after[level] {
+            self.axis.push(axis_item("blank", 0, vec![x]));
+            self.r += 1;
         }
         Ok(())
     }
