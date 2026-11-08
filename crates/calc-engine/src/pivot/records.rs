@@ -151,6 +151,37 @@ pub(super) fn field_groups(
             group.total.push(resolve(cache, record, measure)?)?;
         }
     }
+    // Grouped dates retain boundary and empty-period items for their saved axis indexes.
+    // The walk emits only paths with source records.
+    if cache.fields[row].group.as_ref().is_some_and(|group| group.range.is_some()) {
+        let mut extras = Vec::new();
+        let mut indexes = std::collections::BTreeSet::new();
+        for item in field.items.iter().filter(|item| item.kind == "data") {
+            let shared = item.index.ok_or_else(|| bad("A grouped item has no cache index"))?;
+            if !indexes.insert(shared) { return Err(bad("A grouped item is repeated")); }
+            let key = cache.fields[row].items.get(shared as usize)
+                .ok_or_else(|| bad("A grouped item index is invalid"))?;
+            let mut unknown = false;
+            let found = groups.binary_search_by(|group| compare(&group.key, key).unwrap_or_else(|| {
+                unknown = true;
+                Ordering::Equal
+            })).is_ok();
+            if unknown || compare(key, key).is_none() { return Err(bad("Grouped items cannot be compared")); }
+            if !found {
+                extras.push(Group { key: key.clone(), shared, first: usize::MAX,
+                    total: Total::default(), old: usize::MAX, hidden: false, excluded: false });
+            }
+        }
+        groups.extend(extras);
+        let mut unknown = false;
+        groups.sort_by(|a, b| compare(&a.key, &b.key).unwrap_or_else(|| {
+            unknown = true;
+            Ordering::Equal
+        }));
+        if unknown || groups.windows(2).any(|pair| compare(&pair[0].key, &pair[1].key) == Some(Ordering::Equal)) {
+            return Err(bad("Grouped items cannot be ordered uniquely"));
+        }
+    }
     for (position, item) in field.items.iter().enumerate() {
         if item.kind != "data" {
             continue;

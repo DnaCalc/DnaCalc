@@ -372,8 +372,9 @@ fn ui30__pivot_layouts_refresh_to_the_cells_excel_held() {
     assert_eq!(matched, UI30_MUST_MATCH, "{outcomes:#?}");
 }
 // Data number formats and three row fields (all layouts, cells and row items) refresh. Report
-// Grouped dates remain open (dc-8wp); the three captured filter pivots match.
+// The 16 captured layouts, including the measured date groups and filter cases, match.
 const UI30_MUST_MATCH: &[&str] = &[
+    "pvt_date_group_months",
     "pvt_fmt_0_00",
     "pvt_fmt_currency",
     "pvt_fmt_percent",
@@ -572,7 +573,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
         println!("{stage}: {verdict}");
     }
     println!("M1 matched {} of {}: {matched:?}", matched.len(), expected.len());
-    assert_eq!(matched, ["agg-text-field", "nodata-rows-hidden", "show-count-average", "show-percent-of-column", "values-columns-after-field"]);
+    assert_eq!(matched, ["agg-text-field", "group-month", "group-month-year", "group-year", "nodata-rows-hidden", "show-count-average", "show-percent-of-column", "values-columns-after-field"]);
 }
 
 #[test]
@@ -589,4 +590,43 @@ fn dc_8wp__unmodelled_show_values_extension_refuses_refresh() {
         sheet, revision: book.host().revision().get(), part,
     }));
     assert!(!receipt.accepted(), "an unmodelled calculation must refuse: {receipt:?}");
+}
+
+#[test]
+/// Native-only: opens, refreshes, saves and reopens the Excel workbook.
+fn dc_8wp__grouped_dates_survive_save_and_refresh() {
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(UI30.to_vec()));
+    let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let sheet = book.host().sheets().iter().find(|s|
+        String::from_utf16_lossy(s.name().text().utf16_code_units()) == "N10").unwrap().id();
+    let expected = held(&book, sheet, 60, 80);
+    let (part, cache_id) = {
+        let table = &book.host().model().definitions().pivots().sheet(sheet).unwrap().tables[0];
+        (table.part.clone(), table.cache_id)
+    };
+    let groups = |book: &HostSession| {
+        let pivots = book.host().model().definitions().pivots();
+        let cache = &pivots.caches.caches[&cache_id];
+        cache.fields.iter().map(|field| (field.group.clone(),
+            field.group.as_ref().filter(|group| group.range.is_some()).map(|_| field.items.clone())))
+            .collect::<Vec<_>>()
+    };
+    let original_groups = groups(&book);
+    assert!(original_groups.iter().filter(|(group, _)| group.as_ref().is_some_and(|g| g.range.is_some())).count() >= 2);
+    assert!(book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+        sheet, revision: book.host().revision().get(), part,
+    })).accepted());
+    assert_eq!(held(&book, sheet, 60, 80), expected);
+    let mut bytes = Vec::new();
+    book.save(&SavePolicy::default(), &mut bytes).unwrap();
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes));
+    let mut reopened = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    assert_eq!(groups(&reopened), original_groups);
+    let sheet = reopened.host().sheets().iter().find(|s|
+        String::from_utf16_lossy(s.name().text().utf16_code_units()) == "N10").unwrap().id();
+    let part = reopened.host().model().definitions().pivots().sheet(sheet).unwrap().tables[0].part.clone();
+    assert!(reopened.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+        sheet, revision: reopened.host().revision().get(), part,
+    })).accepted());
+    assert_eq!(held(&reopened, sheet, 60, 80), expected);
 }

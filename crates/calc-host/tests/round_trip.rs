@@ -17440,3 +17440,26 @@ fn dc_8wp__multiple_page_items_and_unsupported_compound_filter() {
     }));
     assert!(!receipt.accepted(), "compound filter must refuse: {receipt:?}");
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp__unsupported_date_group_and_out_of_range_source_refuse() {
+    let fixture = include_bytes!("fixtures/ui30/pivots-ui30-excel.xlsx");
+    let changed = package_with_part_from(fixture, "xl/pivotCache/pivotCacheDefinition32.xml", |xml| {
+        assert!(xml.contains("groupBy=\"months\""));
+        xml.replacen("groupBy=\"months\"", "groupBy=\"quarters\"", 1)
+    });
+    for (bytes, change_source) in [(changed.as_slice(), false), (fixture.as_slice(), true)] {
+        let mut book = session(bytes);
+        if change_source {
+            let source = sheet(book.host(), "Source");
+            assert!(book.dispatch(SkinIntent::EnterCell { at: at(source, "C2"), text: "1e300".into() }).accepted());
+        }
+        let s = sheet(book.host(), "N10");
+        let part = book.host().model().definitions().pivots().sheet(s).unwrap().tables[0].part.clone();
+        let receipt = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh {
+            sheet: s, revision: book.host().revision().get(), part,
+        }));
+        assert!(!receipt.accepted(), "unsupported grouping must refuse: {receipt:?}");
+    }
+}

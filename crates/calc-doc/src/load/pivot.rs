@@ -150,6 +150,7 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
     };
     let mut path = Vec::<String>::new();
     let mut item_count = 0usize;
+    let mut group_items_seen = false;
     while let Some(event) = events.next()? {
         match event {
             XmlEvent::Start(e) => {
@@ -162,7 +163,7 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
                         e.name.local.as_str(),
                     ) {
                         ([], "calculatedItems" | "calculatedMembers" | "cacheHierarchies" | "dimensions" | "measureGroups" | "maps")
-                        | (["cacheFields", "cacheField"], "fieldGroup" | "mpMap" | "extLst") => cache.unsupported.push(e.name.local.to_string()),
+                        | (["cacheFields", "cacheField"], "mpMap" | "extLst") => cache.unsupported.push(e.name.local.to_string()),
                         ([], "cacheSource") => {
                             cache.source_type = required(&e, "type", &events)?.into()
                         }
@@ -171,13 +172,50 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
                             cache.source_range = e.attribute("ref").map(str::to_owned);
                             cache.source_name = e.attribute("name").map(str::to_owned);
                         }
-                        (["cacheFields"], "cacheField") => { if e.attribute("formula").is_some() || matches!(e.attribute("databaseField"),Some("0"|"false")) {cache.unsupported.push("calculated cache field".into());} cache.fields.push(PivotCacheField {
+                        (["cacheFields"], "cacheField") => { group_items_seen = false; if e.attribute("formula").is_some() {cache.unsupported.push("calculated cache field".into());} cache.fields.push(PivotCacheField {
                             name: decoded(required(&e, "name", &events)?,&events)?,
                             shared_items: None,
+                            group: None,
                             items: Vec::new(),
                             attributes: attrs(&e),
                         }); },
+                        (["cacheFields", "cacheField"], "fieldGroup") => {
+                            if cache.fields.last().is_some_and(|field| field.group.is_some()) {
+                                cache.unsupported.push("duplicate field group".into());
+                            }
+                            if let Some(field) = cache.fields.last_mut() {
+                                field.group = Some(PivotCacheGroup { attributes: attrs(&e), range: None });
+                            }
+                        }
+                        (["cacheFields", "cacheField", "fieldGroup"], "rangePr") => {
+                            if cache.fields.last().and_then(|field| field.group.as_ref()).is_some_and(|group| group.range.is_some()) {
+                                cache.unsupported.push("duplicate grouping range".into());
+                            }
+                            if let Some(group) = cache.fields.last_mut().and_then(|field| field.group.as_mut()) {
+                                group.range = Some(attrs(&e));
+                            }
+                        }
+                        (["cacheFields", "cacheField", "fieldGroup"], "groupItems") => {
+                            if group_items_seen { cache.unsupported.push("duplicate group items".into()); }
+                            if cache.fields.last().is_none_or(|field| !matches!(field.attributes.get("databaseField").map(String::as_str), Some("0" | "false"))) {
+                                cache.unsupported.push("group items on a source field".into());
+                            }
+                            group_items_seen = true;
+                        }
+                        (["cacheFields", "cacheField", "fieldGroup", "groupItems"], _) => {
+                            if item_count >= 100_000 { return Err(events.invalid("Pivot group item reading exceeds 100,000 items (dc-8wp)")); }
+                            item_count += 1;
+                            if let Some(field) = cache.fields.last_mut() { field.items.push(item(&e, &events)?); }
+                            events.skip()?;
+                            continue;
+                        }
+                        (["cacheFields", "cacheField", "fieldGroup"], child) if child != "groupItems" => {
+                            cache.unsupported.push(format!("unsupported field group {child}"));
+                        }
                         (["cacheFields", "cacheField"], "sharedItems") => {
+                            if cache.fields.last().is_some_and(|field| matches!(field.attributes.get("databaseField").map(String::as_str), Some("0" | "false"))) {
+                                cache.unsupported.push("shared items on a grouped field".into());
+                            }
                             if let Some(field) = cache.fields.last_mut() {
                                 field.shared_items = optional_integer(&e, "count", &events)?;
                             }
@@ -210,6 +248,40 @@ fn read_cache(package: &Package, part: &str, id: u32) -> Result<PivotCache, Load
                 }
             }
             XmlEvent::Text(_) => {}
+        }
+    }
+    for field in &cache.fields {
+        let virtual_field = matches!(field.attributes.get("databaseField").map(String::as_str), Some("0" | "false"));
+        if let Some(group) = &field.group {
+            if group.attributes.keys().any(|name| name != "base" && name != "par") {
+                cache.unsupported.push("unsupported field-group attributes".into());
+            }
+            if virtual_field {
+                let supported = !group.attributes.contains_key("par")
+                    && group.attributes.get("base").and_then(|v| v.parse::<usize>().ok()).is_some()
+                    && group.range.as_ref().is_some_and(|range| {
+                        matches!(range.get("groupBy").map(String::as_str), Some("months" | "years"))
+                            && range.contains_key("startDate") && range.contains_key("endDate")
+                            && range.keys().all(|k| matches!(k.as_str(), "groupBy" | "startDate" | "endDate" | "autoStart" | "autoEnd"))
+                    }) && field.items.iter().all(|item| matches!(item, PivotItem::Text(_)))
+                    && group.range.as_ref().is_some_and(|range| match range.get("groupBy").map(String::as_str) {
+                        Some("months") => field.items.len() == 14,
+                        Some("years") => {
+                            let year = |key: &str| range.get(key).and_then(|s| s.split('-').next()).and_then(|s| s.parse::<i64>().ok());
+                            match (year("startDate"), year("endDate")) {
+                                (Some(first), Some(last)) if (1900..=9999).contains(&first) && (first..=9999).contains(&last) => usize::try_from(last - first + 3).ok() == Some(field.items.len()),
+                                _ => false,
+                            }
+                        }
+                        _ => false,
+                    });
+                if !supported { cache.unsupported.push("unsupported date grouping".into()); }
+            } else if group.range.is_some() || group.attributes.contains_key("base")
+                || group.attributes.get("par").and_then(|v| v.parse::<usize>().ok()).is_none_or(|i| i >= cache.fields.len()) {
+                cache.unsupported.push("unsupported source-field grouping".into());
+            }
+        } else if virtual_field {
+            cache.unsupported.push("calculated cache field".into());
         }
     }
     Ok(cache)

@@ -55,8 +55,16 @@ pub struct PivotSnapshot {
 pub struct PivotCacheField {
     pub name: String,
     pub shared_items: Option<u32>,
+    pub group: Option<PivotCacheGroup>,
     pub items: Vec<PivotItem>,
     pub attributes: BTreeMap<String, String>,
+}
+/// Grouping metadata retained from a cache field. Virtual date fields use their group items
+/// as labels; source fields can carry a parent reference without a range.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct PivotCacheGroup {
+    pub attributes: BTreeMap<String, String>,
+    pub range: Option<BTreeMap<String, String>>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct SheetPivots {
