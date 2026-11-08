@@ -30,6 +30,7 @@ pub struct PivotLayout {
 
 mod aggregate;
 mod axis;
+mod formula;
 mod records;
 mod render;
 use aggregate::Total;
