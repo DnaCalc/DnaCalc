@@ -1122,6 +1122,72 @@ fn dc_8wp_12__saved_style_and_area_records_survive_refresh_and_save() {
     assert_eq!(table.formats, expected_formats);
 }
 
+// Convert the host's resolved RGB color to the OLE color integer in the capture.
+fn captured_color(host: &calc_host::HostState, color: &calc_doc_model::StyleColor) -> Option<String> {
+    let rgb = host.resolved_style_color(color)?;
+    let rgb = rgb.strip_prefix('#')?;
+    if rgb.len() != 6 { return None; }
+    let r = u32::from_str_radix(&rgb[0..2], 16).ok()?;
+    let g = u32::from_str_radix(&rgb[2..4], 16).ok()?;
+    let b = u32::from_str_radix(&rgb[4..6], 16).ok()?;
+    Some((r | g << 8 | b << 16).to_string())
+}
+
+fn captured_border(host: &calc_host::HostState, edge: Option<&calc_doc_model::BorderEdge>) -> Option<String> {
+    let Some(edge) = edge else { return Some("-4142:2:0".into()); };
+    let Some(style) = edge.style.as_deref() else { return Some("-4142:2:0".into()); };
+    let (line, weight) = match style {
+        "thin" => (1, 2), "medium" => (1, -4138), "thick" => (1, 4),
+        "double" => (-4119, 4), "dashed" => (-4115, 2), "dotted" => (-4118, 2),
+        _ => return None,
+    };
+    let color = captured_color(host, edge.color.as_ref()?)?;
+    Some(format!("{line}:{weight}:{color}"))
+}
+
+// Read the same authored style and geometry that the host exposes to its visual consumers.
+// Missing or unrecognised records count as failures rather than as Excel defaults.
+fn captured_properties(host: &calc_host::HostState, at: CellKey) -> Vec<Option<String>> {
+    let styles = host.styles();
+    let xf = styles.cell_formats.get(host.cell_style(at) as usize);
+    let parent = xf.and_then(|x| x.xf_id).and_then(|i| styles.cell_style_formats.get(i as usize));
+    let font = xf.and_then(|x| x.font_id).or_else(|| parent.and_then(|x| x.font_id)).and_then(|i| styles.fonts.get(i as usize));
+    let fill = xf.and_then(|x| x.fill_id).or_else(|| parent.and_then(|x| x.fill_id)).and_then(|i| styles.fills.get(i as usize));
+    let border = xf.and_then(|x| x.border_id).or_else(|| parent.and_then(|x| x.border_id)).and_then(|i| styles.borders.get(i as usize));
+    let fill_color = fill.and_then(|f| match f.pattern_type.as_deref() {
+        Some("none") => Some("16777215".into()),
+        Some("solid") => captured_color(host, f.fg_color.as_ref()?),
+        _ => None,
+    });
+    let pattern = fill.and_then(|f| match f.pattern_type.as_deref() { Some("none") => Some("-4142".into()), Some("solid") => Some("1".into()), _ => None });
+    let edges = border.map(|b| [&b.left, &b.top, &b.bottom, &b.right].map(|e| captured_border(host, e.as_ref())));
+    let alignment = host.cell_alignment(at);
+    let horizontal = match alignment.and_then(|a| a.horizontal.as_deref()) {
+        None | Some("general") => Some("1".into()), Some("left") => Some("-4131".into()), _ => None,
+    };
+    let indent = Some(alignment.and_then(|a| a.indent.clone()).unwrap_or_else(|| "0".into()));
+    let geometry = host.sheet_geometry(at.sheet());
+    // This fixture's workbook default is Aptos Narrow 11, whose maximum digit width is 7 pixels.
+    let width = geometry.as_ref().map(|g| {
+        let pixels = if let Some(w) = g.column(at.column()).and_then(|c| c.width).or(g.default_column_width) {
+            (((256.0 * w + (128.0_f64 / 7.0).trunc()) / 256.0) * 7.0).trunc()
+        } else { ((g.base_column_width.unwrap_or(8.0) * 7.0 + 5.0) / 8.0).ceil() * 8.0 };
+        (((pixels - 5.0) / 7.0 * 100.0 + 0.5).trunc() / 100.0).max(0.0).to_string()
+    });
+    let height = geometry.as_ref().and_then(|g| g.row(at.row()).and_then(|r| r.height).or(g.default_row_height)).map(|x| x.to_string());
+    vec![host.number_format(at).map(str::to_owned), font.and_then(|f| f.name.clone()), font.and_then(|f| f.size.clone()),
+        font.map(|f| f.bold.to_string()), font.map(|f| f.italic.to_string()), font.and_then(|f| captured_color(host, f.color.as_ref()?)),
+        fill_color, pattern,
+        edges.as_ref().and_then(|e| e[0].clone()), edges.as_ref().and_then(|e| e[1].clone()),
+        edges.as_ref().and_then(|e| e[2].clone()), edges.as_ref().and_then(|e| e[3].clone()), horizontal, indent, width, height]
+}
+
+fn property_equal(property: usize, actual: &str, expected: &str) -> bool {
+    if actual == expected || (matches!(property, 3 | 4) && actual.eq_ignore_ascii_case(expected)) { return true; }
+    matches!(property, 2 | 5 | 6 | 7 | 12 | 13 | 14 | 15)
+        && matches!((actual.parse::<f64>(), expected.parse::<f64>()), (Ok(a), Ok(b)) if (a - b).abs() < 0.001)
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_8wp_12__all_captured_stages_report_number_format_codes() {
@@ -1133,16 +1199,23 @@ fn dc_8wp_12__all_captured_stages_report_number_format_codes() {
     }).unwrap();
     let source_sheet = book.host().sheets().iter().find(|s|
         String::from_utf16_lossy(s.name().text().utf16_code_units()) == "Source").unwrap().id();
-    let mut stages: BTreeMap<&str, Vec<(&str, &str)>> = BTreeMap::new();
+    let mut stages: BTreeMap<&str, Vec<Vec<&str>>> = BTreeMap::new();
     for line in include_str!("fixtures/pivot/m2-formatting/formats.tsv").lines() {
         let fields: Vec<_> = line.split('\t').collect();
         assert_eq!(fields.len(), 18);
-        stages.entry(fields[0]).or_default().push((fields[1], fields[4]));
+        stages.entry(fields[0]).or_default().push(fields);
     }
     assert_eq!(stages.len(), 76);
     assert_eq!(stages.values().map(Vec::len).sum::<usize>(), 3330);
     let mut matches = 0;
     let mut refused_cells = 0;
+    let names = ["number format", "font name", "font size", "bold", "italic", "font color", "fill color", "fill pattern", "left border", "top border", "bottom border", "right border", "alignment", "indent", "column width", "row height"];
+    let mut property_matches = [0usize; 16];
+    let mut unavailable = [0usize; 16];
+    let mut value_matches = 0;
+    let mut text_matches = 0;
+    let mut value_unavailable = 0;
+    let mut text_unavailable = 0;
     for (stage, cells) in &stages {
         let base = stage.strip_suffix("-built").or_else(|| stage.strip_suffix("-refreshed")).unwrap_or(stage);
         let name = format!("pvt_{}", base.replace('-', "_"));
@@ -1164,8 +1237,44 @@ fn dc_8wp_12__all_captured_stages_report_number_format_codes() {
                 continue;
             }
         }
-        matches += cells.iter().filter(|(address, expected)|
-            book.host().number_format(at(sheet, address)) == Some(*expected)).count();
+        let mut stage_matches = 0;
+        let mut differences = BTreeMap::<(String, String), usize>::new();
+        let page = project(book.host(), &ProjectionRequest { cells: cells.iter().map(|f| at(sheet, f[1])).collect() }).unwrap();
+        for (fields, cell) in cells.iter().zip(page.cells()) {
+            let value = match cell.value() {
+                ProjectedValue::Literal(v) | ProjectedValue::Calculated { value: v, .. } => Some(v),
+                _ => None,
+            };
+            if let Some(value) = value {
+                if match (fields[2], value.core_ref()) {
+                    ("n", CoreRef::Number(n)) => fields[3].parse::<f64>().ok().is_some_and(|v| v == n),
+                    ("s", CoreRef::Text(s)) => s.to_string_lossy() == fields[3],
+                    _ => false,
+                } { value_matches += 1; }
+                let text = book.host().options().locale.as_ref().and_then(|profile| {
+                    let system = if book.host().declared_date1904() { calc_func::locale::DateSystem::System1904 } else { calc_func::locale::DateSystem::System1900 };
+                    calc_func::cell_text(profile, system, value, book.host().number_format(cell.at())?).ok()
+                });
+                match text { Some(text) if text == fields[5] => text_matches += 1, None => text_unavailable += 1, _ => {} }
+            } else { value_unavailable += 1; text_unavailable += 1; }
+            let address = fields[1];
+            let expected = fields[4];
+            let actual = book.host().number_format(at(sheet, address));
+            if actual == Some(expected) { stage_matches += 1; }
+            else { *differences.entry((expected.to_owned(), actual.unwrap_or("<unavailable>").to_owned())).or_default() += 1; }
+            let edges: Vec<_> = fields[13].split('|').collect();
+            assert_eq!(edges.len(), 4);
+            let expected = [fields[4], fields[6], fields[7], fields[8], fields[9], fields[10], fields[11], fields[12], edges[0], edges[1], edges[2], edges[3], fields[14], fields[15], fields[16], fields[17]];
+            for (i, (actual, expected)) in captured_properties(book.host(), at(sheet, address)).iter().zip(expected).enumerate() {
+                match actual {
+                    Some(actual) if property_equal(i, actual, expected) => property_matches[i] += 1,
+                    None => unavailable[i] += 1,
+                    _ => {},
+                }
+            }
+        }
+        matches += stage_matches;
+        if !differences.is_empty() { println!("{stage}: {stage_matches}/{} number formats match; {differences:?}", cells.len()); }
         if stage.ends_with("-refreshed") {
             for (address, text) in [("B3", "Beta"), ("D3", "107.25")] {
                 assert!(book.dispatch(SkinIntent::EnterCell { at: at(source_sheet, address), text: text.into() }).accepted());
@@ -1174,7 +1283,13 @@ fn dc_8wp_12__all_captured_stages_report_number_format_codes() {
     }
     let mismatches = 3330 - matches - refused_cells;
     let failed = mismatches + refused_cells;
-    println!("Captured number-format codes: {matches}/3330 match ({:.2}%); {failed} fail ({mismatches} mismatches, {refused_cells} refused) across 76 stages; other display properties are not compared here", 100.0 * matches as f64 / 3330.0);
+    println!("Captured number-format codes: {matches}/3330 match ({:.2}%); {failed} fail ({mismatches} mismatches, {refused_cells} refused) across 76 stages", 100.0 * matches as f64 / 3330.0);
+    println!("value: {value_matches}/3330 match; {} fail ({value_unavailable} unavailable, {refused_cells} refresh refusals)", 3330 - value_matches);
+    println!("display text: {text_matches}/3330 match; {} fail ({text_unavailable} unavailable, {refused_cells} refresh refusals)", 3330 - text_matches);
+    for (i, name) in names.iter().enumerate() {
+        let fail = 3330 - property_matches[i];
+        println!("{name}: {}/3330 match; {fail} fail ({} unavailable, {refused_cells} refresh refusals)", property_matches[i], unavailable[i]);
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
