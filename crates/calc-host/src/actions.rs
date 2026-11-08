@@ -56,6 +56,8 @@ pub enum ConditionalChange {
 /// Authored workbook commands. The session is the sole dispatch route for all clients.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WorkbookCommand {
+    RefreshAll { revision: u64 },
+    RefreshConnection { revision: u64, name: String },
     PivotCreate {revision:u64,source:GridArea,destination:String,row:u32,value:u32,subtotal:String},
     PivotRefresh {sheet:SheetId,revision:u64,part:String},
     PageSetup {sheet:SheetId,revision:u64,change:crate::PageSetupChange},
@@ -144,6 +146,16 @@ pub(crate) fn prepare(
     command: WorkbookCommand,
 ) -> Result<Vec<CellEdit>, String> {
     match command {
+        WorkbookCommand::RefreshConnection { revision, name } => {
+            if revision != host.revision().get() { return Err("The workbook changed before refreshing the connection (dc-8wp.18)".into()); }
+            let model = host.model().definitions().data_model().ok_or("The workbook has no data model (dc-8wp.18)")?;
+            if model.model_connection.as_ref().is_none_or(|held| !calc_value::workbook_names_equal(held, &name)) {
+                return Err("Refreshing this connection is not modelled (dc-8wp.21)".into());
+            }
+            // Excel's model-connection refresh leaves the snapshot unchanged; Refresh All updates it.
+            Ok(Vec::new())
+        }
+        WorkbookCommand::RefreshAll {revision}=>crate::facts::prepare_model_refresh(host,revision),
         WorkbookCommand::PivotCreate {revision,source,destination,row,value,subtotal}=>crate::pivot::prepare_create(host,revision,source,&destination,row,value,&subtotal),
         WorkbookCommand::PivotRefresh {sheet,revision,part}=>crate::pivot::prepare_refresh(host,sheet,revision,&part),
         WorkbookCommand::PageSetup {sheet,revision,change}=>crate::page_setup::prepare(host,sheet,revision,change),

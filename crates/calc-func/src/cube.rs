@@ -39,8 +39,8 @@
 //! - Measures read: SUM, AVERAGE, COUNT (every kind of cell), COUNTA, COUNTBLANK, MIN, MAX (of text
 //!   too), DISTINCTCOUNT (a blank counts), COUNTROWS. With no rows, or a count of none, a
 //!   value is empty text.
-//! - Editing a source cell changes nothing until the model refreshes; here the model the facts
-//!   give is read when a CUBE cell calculates, and no dependency on the table's cells is kept.
+//! - Editing a source cell changes nothing until the model refreshes; the host supplies the
+//!   retained model snapshot, and no dependency on the table's cells is kept.
 //!
 //! Other set expressions, and DAX beyond one aggregate of one column, are refused as not
 //! modelled, as is a table column holding a formula.
@@ -233,6 +233,34 @@ impl CubeModel {
                 Ok(CubeMember::Key { table, column, key })
             }
             _ => Err(NA),
+        }
+    }
+
+    /// Resolve an MDX measure spelling for a model-pivot query.
+    pub fn pivot_measure(&self, text: &str) -> Result<CubeMember, CubeFailure> {
+        let missing = CubeFailure::Error(WorksheetErrorCode::Ref);
+        if text.trim_end().ends_with('.') { return Err(missing); }
+        let parts = name_parts(text).ok_or(missing)?;
+        if parts.len() != 2 || parts.iter().any(|(_, key)| *key) || !folded_eq(&parts[0].0, "Measures") {
+            return Err(missing);
+        }
+        self.measure(&parts[1].0).map(CubeMember::Measure).ok_or(missing)
+    }
+
+    /// Resolve a hierarchy and its unique key with the same member parser as CUBE formulas.
+    pub fn pivot_key(&self, hierarchy: &str, text: &str) -> Result<CubeMember, CubeFailure> {
+        let missing = CubeFailure::Error(WorksheetErrorCode::Ref);
+        if hierarchy.trim_end().ends_with('.') || text.trim_end().ends_with('.') { return Err(missing); }
+        let field = name_parts(hierarchy).ok_or(missing)?;
+        let key = name_parts(text).ok_or(missing)?;
+        if field.len() != 2 || field.iter().any(|(_, marked)| *marked)
+            || key.len() != 3 || key[0].1 || key[1].1 || !key[2].1
+            || !folded_eq(&field[0].0, &key[0].0) || !folded_eq(&field[1].0, &key[1].0) {
+            return Err(missing);
+        }
+        match self.member(text) {
+            Ok(member @ CubeMember::Key { .. }) => Ok(member),
+            _ => Err(missing),
         }
     }
 
@@ -757,6 +785,29 @@ mod tests {
             .map(|member| model.member(member).map(|member| vec![vec![member]]))
             .collect();
         model.value_over(&arguments?)
+    }
+
+    /// The M4 model-pivot capture's MDX arguments, parsed without accepting captions as names.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_8wp_19__model_pivot_mdx_members_use_cube_member_identity() {
+        let model = model();
+        let total = model.pivot_measure("[Measures].[TotalAmount]").unwrap();
+        assert_eq!(total, model.member("[Measures].[TotalAmount]").unwrap());
+        let east = model.pivot_key("[Table1].[Region]", "[Table1].[Region].&[East]").unwrap();
+        let product = model.pivot_key("[Table1].[Product]", "[Table1].[Product].&[A]").unwrap();
+        assert_eq!(east, model.member("[Table1].[Region].&[East]").unwrap());
+        assert_eq!(product, model.member("[Table1].[Product].&[A]").unwrap());
+        let missing = CubeFailure::Error(WorksheetErrorCode::Ref);
+        assert_eq!(model.pivot_measure("TotalAmount"), Err(missing));
+        assert_eq!(model.pivot_measure("[Measures].[TotalAmount]."), Err(missing));
+        assert_eq!(model.pivot_measure("[Measures].[Missing]"), Err(missing));
+        assert_eq!(model.pivot_key("[Table1].[Region]", "East"), Err(missing));
+        assert_eq!(model.pivot_key("[Table1].[Region].", "[Table1].[Region].&[East]"), Err(missing));
+        assert_eq!(model.pivot_key("[Table1].[Region]", "[Table1].[Region].&[East]."), Err(missing));
+        assert_eq!(model.pivot_key("[Table1].[Region]", "[Table1].[Region].&[Nowhere]"), Err(missing));
+        assert_eq!(model.pivot_key("[Table1].[Region]", "[Table1].[Product].&[A]"), Err(missing));
+        assert_eq!(model.pivot_key("[Table1].[Region].[Region]", "[Table1].[Region].[Region].&[East]"), Err(missing));
     }
 
     /// A column with a blank, keys differing in case, numbers and logicals (the p44 measurement).

@@ -275,6 +275,7 @@ pub enum Interest {
 /// What the page asks the session to do: calc-host's skin intents as the page sends them.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Intent {
+    RefreshAll { revision: u64 },
     PivotCreate {revision:u64,source:Area,destination:String,row:u32,value:u32,subtotal:String},
     PivotRefresh {sheet:Sheet,revision:u64,part:String},
     PageSetup {

@@ -1656,6 +1656,7 @@ impl Server {
                 direction,
             } => return self.notebook_order(placement, direction),
 
+            Intent::RefreshAll { revision } => SkinIntent::Command(calc_host::WorkbookCommand::RefreshAll { revision }),
             Intent::PivotCreate{revision,source,destination,row,value,subtotal}=>SkinIntent::Command(calc_host::WorkbookCommand::PivotCreate{revision,source:source.area().ok_or("Invalid pivot source range")?,destination,row,value,subtotal}),
             Intent::PivotRefresh{sheet,revision,part}=>SkinIntent::Command(calc_host::WorkbookCommand::PivotRefresh{sheet:sheet.id(),revision,part}),
             Intent::ChartCreate{revision,area,kind,rows,headers,categories}=>SkinIntent::Command(calc_host::WorkbookCommand::ChartCreate{revision,area:area.area().ok_or("Invalid chart selection")?,kind,rows,headers,categories}),

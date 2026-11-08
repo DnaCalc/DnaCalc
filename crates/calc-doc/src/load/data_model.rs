@@ -22,12 +22,14 @@ pub(crate) fn read(package: &Package, workbook: &str) -> Result<Option<DataModel
     let mut events = Events::new(&xml);
     let mut model = DataModel::default();
     let mut from_worksheet = false;
+    let mut connection_types = Vec::new();
     while let Some(event) = events.next()? {
         if let XmlEvent::Start(element) = event {
             match element.name.local.as_str() {
                 "connection" => {
                     if let Some(name) = element.attribute("name") {
                         model.connections.push(name.to_owned());
+                        connection_types.push((name.to_owned(), element.attribute("type").map(str::to_owned)));
                         // A worksheet table feeding the model: `x15:connection id` names it.
                         from_worksheet = element.attribute("type") == Some("102");
                     } else if from_worksheet
@@ -44,6 +46,9 @@ pub(crate) fn read(package: &Package, workbook: &str) -> Result<Option<DataModel
             }
         }
     }
+    model.other_connections = connection_types.into_iter().filter(|(name, kind)| {
+        kind.as_deref() != Some("102") && model.model_connection.as_ref().is_none_or(|model_name| !calc_doc_model::value::workbook_names_equal(name, model_name))
+    }).map(|(name, _)| name).collect();
     if model.model_connection.is_some()
         && let Some(part) = super::metadata::related(package, workbook, "/powerPivotData")
         && let Ok(bytes) = package.read_part(&part)

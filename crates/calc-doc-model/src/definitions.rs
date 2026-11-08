@@ -116,12 +116,36 @@ pub struct DataModel {
     pub connections: Vec<String>,
     /// The connection to the workbook's own data model.
     pub model_connection: Option<String>,
+    /// Connections outside the workbook model and its worksheet sources.
+    pub other_connections: Vec<String>,
     /// The worksheet tables feeding the model, by name.
     pub tables: Vec<String>,
     /// Every table the model part names, whatever feeds it. A model with one that no worksheet
     /// table feeds holds rows the workbook's cells do not.
     pub model_tables: Vec<String>,
     pub measures: Vec<ModelMeasure>,
+    /// Rows read from the feeding worksheet tables at open or explicit refresh.
+    pub snapshot: Option<ModelSnapshot>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ModelSnapshot {
+    pub tables: Vec<ModelSnapshotTable>,
+}
+
+/// Origin of the rows, distinct from cached formula results.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum ModelSnapshotProvenance {
+    WorksheetTables { revision: u64 },
+    DecodedModel { part: String },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ModelSnapshotTable {
+    pub provenance: ModelSnapshotProvenance,
+    pub name: String,
+    pub columns: Vec<String>,
+    pub rows: Vec<Vec<Option<CachedValue>>>,
 }
 
 /// A measure of the data model.
@@ -385,6 +409,10 @@ impl Definitions {
     }
     pub fn with_data_model(mut self, model: Option<DataModel>) -> Self {
         self.data_model = model.map(std::sync::Arc::new);
+        self
+    }
+    pub fn with_shared_data_model(mut self, model: std::sync::Arc<DataModel>) -> Self {
+        self.data_model = Some(model);
         self
     }
     pub fn with_pivots(mut self,state:std::sync::Arc<crate::pivot::PivotState>)->Self{self.pivots=state;self}

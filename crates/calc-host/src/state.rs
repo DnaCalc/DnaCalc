@@ -118,6 +118,8 @@ pub struct HostState {
     /// Revokes owner-held continuations even when no cell calculation is active.
     pub(crate) calculation_authority: u64,
     pub(crate) current_facts: Option<Arc<crate::facts::HostFacts>>,
+    pub(crate) admitted_model_snapshots: std::cell::RefCell<Vec<std::sync::Weak<calc_doc_model::DataModel>>>,
+    pub(crate) cube_cache: std::cell::RefCell<Option<(Arc<calc_doc_model::DataModel>, calc_func::CubeLookup)>>,
     pub(crate) functions: calc_fml::CallableTable,
     /// The host's way to fetch a URL a workbook names; none gives Excel's failed-fetch results.
     pub(crate) fetch_route: Option<std::rc::Rc<dyn calc_func::FetchRoute>>,
@@ -280,7 +282,7 @@ impl HostState {
         // admitted yet, so no later ID is issued from it.
         let mut sheet_ids: IdAllocator<SheetId> = IdAllocator::new();
         let loaded = calc_doc::load(&document, &mut sheet_ids).map_err(OpenFailure::Workbook)?;
-        let model = Arc::clone(loaded.model());
+        let model = crate::facts::initial_model(loaded.model());
         let caches = loaded.sheets().iter().flat_map(|sheet| {
             sheet
                 .formulas()
@@ -299,6 +301,7 @@ impl HostState {
                 }))
         });
         let engine = EngineState::with_file_caches(&model, caches).map_err(OpenFailure::Caches)?;
+        let initial_snapshot = model.definitions().data_model().map(Arc::downgrade);
         let sheet_identities = model.sheets().iter().map(|s| (s.key(), s.id())).collect();
         let mut host = HostState {
             command_scope: next_command_scope(),
@@ -315,6 +318,8 @@ impl HostState {
             pinned_calculations: Default::default(),
             calculation_authority: 0,
             current_facts: None,
+            admitted_model_snapshots: std::cell::RefCell::new(initial_snapshot.into_iter().collect()),
+            cube_cache: Default::default(),
             functions: calc_fml::CallableTable::new(),
             fetch_route: None,
             import_route: None,
